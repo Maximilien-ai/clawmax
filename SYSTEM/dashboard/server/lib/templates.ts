@@ -1945,6 +1945,13 @@ export function importAgentFromTemplate(
 
     const sourceAgent = template.agents[0]
     const targetAgentId = options.newAgentId || sourceAgent.id
+    const { getBestAvailableModel: getBest } = require('./dashboard-env')
+    const applySystemTemplateLatest = templateSource === 'system'
+    const effectiveModel =
+      options.model?.trim()
+      || (!applySystemTemplateLatest ? (sourceAgent as any).model?.trim() : '')
+      || (!applySystemTemplateLatest ? (template as any)?.metadata?.model?.trim?.() : '')
+      || getBest(process.env as Record<string, string>)
 
     const fileValidation = validateAgentTemplateFiles(templateDir, sourceAgent.id)
     if (!fileValidation.valid) {
@@ -1985,10 +1992,10 @@ export function importAgentFromTemplate(
       )
 
       // Update model if provided
-      if (options.model) {
+      if (effectiveModel) {
         identity = identity.replace(
           /\*\*Model:\*\*\s+.+/,
-          `**Model:** ${options.model}`
+          `**Model:** ${effectiveModel}`
         )
       }
 
@@ -1998,7 +2005,7 @@ export function importAgentFromTemplate(
 ## Creation Metadata
 - **Created:** ${now}
 - **Source Template:** ${template.name} (v${template.version})
-${options.model ? `- **Model:** ${options.model}` : ''}
+${effectiveModel ? `- **Model:** ${effectiveModel}` : ''}
 ${template.author ? `- **Template Author:** ${template.author}` : ''}
 `
 
@@ -2026,7 +2033,7 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
     finalizeTemplateCreatedAgentRegistration({
       agentId: targetAgentId,
       workspacePath: getWorkspacePath(),
-      model: options.model,
+      model: effectiveModel,
     })
     initializeTemplateCreatedAgent(targetAgentId)
     recordTemplateApply(buildTemplateFeedbackMetadata(feedbackTemplate))
@@ -2549,7 +2556,7 @@ export function importOrganizationTemplate(
         const targetAgentId = `${prefix}${templateAgent.id}${suffix}`
         const { getBestAvailableModel: getBest } = require('./dashboard-env')
         const applySystemTemplateLatest = templateSource === 'system'
-        const appliedModel = options?.modelOverride || (applySystemTemplateLatest ? undefined : templateAgent.model) || getBest()
+        const appliedModel = options?.modelOverride || (applySystemTemplateLatest ? undefined : templateAgent.model) || getBest(process.env as Record<string, string>)
         appliedModelsByAgentId[targetAgentId] = appliedModel
 
         // Validate target agent ID

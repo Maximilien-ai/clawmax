@@ -976,6 +976,55 @@ test('importAgentFromTemplate registers created agents into the active OpenClaw 
   }
 })
 
+test('importAgentFromTemplate resolves a real default model when no override is provided', () => {
+  const originalWorkspace = process.env.OPENCLAW_WORKSPACE
+  const originalHome = process.env.HOME
+  const originalOpenAi = process.env.SYSTEM_OPENAI_API_KEY
+  const originalAnthropic = process.env.SYSTEM_ANTHROPIC_API_KEY
+  const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-agent-template-default-model-home-'))
+  const tempWorkspace = path.join(tempHome, 'workspace')
+  const configPath = path.join(tempHome, '.openclaw', 'openclaw.json')
+  const targetAgentId = 'data-engineer'
+
+  process.env.HOME = tempHome
+  process.env.OPENCLAW_WORKSPACE = tempWorkspace
+  process.env.SYSTEM_OPENAI_API_KEY = 'test-openai-key'
+  delete process.env.SYSTEM_ANTHROPIC_API_KEY
+  resetWorkspaceManagerForTests()
+
+  fs.mkdirSync(path.dirname(configPath), { recursive: true })
+  fs.writeFileSync(configPath, JSON.stringify({ agents: { list: [] } }, null, 2), 'utf-8')
+
+  try {
+    const result = importAgentFromTemplate('data-engineer-template', {
+      newAgentId: targetAgentId,
+    })
+
+    assert(result.ok === true, `Expected agent template import without override to succeed, got ${result.error || 'unknown error'}`)
+
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    const registered = config?.agents?.list?.find((agent: any) => agent.id === targetAgentId)
+    const expectedRuntimeRoot = path.join(tempHome, '.openclaw', 'agents', targetAgentId)
+    const configYamlPath = path.join(expectedRuntimeRoot, 'config.yaml')
+    const configYaml = fs.readFileSync(configYamlPath, 'utf-8')
+
+    assert(registered !== undefined, 'Expected imported agent to be registered in openclaw.json')
+    assertEqual(registered.model, 'openai/gpt-5', 'Expected template import without override to resolve the best available default model')
+    assert(configYaml.includes('model: openai/gpt-5'), 'Expected runtime config.yaml to contain the resolved default model')
+  } finally {
+    if (typeof originalHome === 'undefined') delete process.env.HOME
+    else process.env.HOME = originalHome
+    if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
+    else process.env.OPENCLAW_WORKSPACE = originalWorkspace
+    if (typeof originalOpenAi === 'undefined') delete process.env.SYSTEM_OPENAI_API_KEY
+    else process.env.SYSTEM_OPENAI_API_KEY = originalOpenAi
+    if (typeof originalAnthropic === 'undefined') delete process.env.SYSTEM_ANTHROPIC_API_KEY
+    else process.env.SYSTEM_ANTHROPIC_API_KEY = originalAnthropic
+    resetWorkspaceManagerForTests()
+    fs.rmSync(tempHome, { recursive: true, force: true })
+  }
+})
+
 // ============================================================================
 // Defensive: Agent import without agent files directory
 // ============================================================================
