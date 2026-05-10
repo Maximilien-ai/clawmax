@@ -64,6 +64,18 @@ async function run() {
     assert(result.status === 'valid', 'Expected valid status')
   })
 
+  await test('validateOpenAIKey rejects obvious Anthropic key shape before network validation', async () => {
+    const result = await validateOpenAIKey('sk-ant-api03-test-value', mockFetch(200))
+    assert(result.status === 'invalid', 'Expected invalid status')
+    assert(/Anthropic key/i.test(result.message), 'Expected mismatch message to mention Anthropic key')
+  })
+
+  await test('validateGeminiKey rejects obvious OpenAI key shape before network validation', async () => {
+    const result = await validateGeminiKey('sk-proj-test-value', mockFetch(200))
+    assert(result.status === 'invalid', 'Expected invalid status')
+    assert(/OpenAI key/i.test(result.message), 'Expected mismatch message to mention OpenAI key')
+  })
+
   await test('validateOpikConfig requires workspace when key is present', async () => {
     const result = await validateOpikConfig('opik-key', '', 'clawmax', mockFetch(200))
     assert(result.status === 'invalid', 'Expected invalid status for missing workspace')

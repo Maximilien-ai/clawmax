@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from './Toast'
-import { getByokDismissKey, readStoredByokKeys, writeStoredByokKeys } from '../lib/byok'
+import { detectProviderKeyMismatch, getByokDismissKey, readStoredByokKeys, writeStoredByokKeys } from '../lib/byok'
 import { DEFAULT_VISIBLE_PARTNERS, getDefaultPartnerDefinitions } from '../lib/defaultPartners'
 import { BROWSER_VAULT_UPDATED_EVENT, readPartnerValuesFromSharedSecrets, readSharedSecrets, writePartnerValuesToSharedSecrets, writeSharedSecrets } from '../lib/localSecrets'
 
@@ -810,6 +810,16 @@ export function ByokWizard({
   }
 
   const handleSave = async () => {
+    const providerMismatches = [
+      detectProviderKeyMismatch('openai', openaiKey),
+      detectProviderKeyMismatch('anthropic', anthropicKey),
+      detectProviderKeyMismatch('gemini', geminiApiKey),
+    ].filter(Boolean)
+    if (providerMismatches.length > 0) {
+      showWarning(providerMismatches[0]!.message)
+      return
+    }
+
     const shouldValidate = !!(
       openaiKey.trim()
       || anthropicKey.trim()

@@ -4,7 +4,7 @@
  * Run with: npx ts-node --transpileOnly client/src/lib/byok.test.ts
  */
 
-import { byokForRequest, hasAiGenerationAccess, hasChatExecutionAccess, refreshModelsWithByok, writeStoredByokKeys } from './byok'
+import { byokForRequest, detectProviderKeyMismatch, hasAiGenerationAccess, hasChatExecutionAccess, refreshModelsWithByok, writeStoredByokKeys } from './byok'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -130,6 +130,17 @@ async function main() {
     assert(payload.gemini === 'gemini-test', 'Expected Gemini key to map from geminiApiKey')
     assert(payload.ollamaBaseUrl === 'http://localhost:11434', 'Expected Ollama base URL in request payload')
     assert(!(payload as any).geminiApiKey, 'Expected storage-only geminiApiKey field to stay out of request payload')
+  })
+
+  await test('detectProviderKeyMismatch catches obvious provider swaps', () => {
+    const openAiMismatch = detectProviderKeyMismatch('openai', 'sk-ant-api03-test-value')
+    assert(openAiMismatch?.detectedProvider === 'anthropic', 'Expected Anthropic key shape to be rejected for OpenAI')
+
+    const geminiMismatch = detectProviderKeyMismatch('gemini', 'sk-proj-test-value')
+    assert(geminiMismatch?.detectedProvider === 'openai', 'Expected OpenAI key shape to be rejected for Gemini')
+
+    const noMismatch = detectProviderKeyMismatch('gemini', 'AIzaSyExampleGoogleKey1234567890')
+    assert(noMismatch === null, 'Expected Gemini-shaped key to be accepted for Gemini')
   })
 
   await test('refreshModelsWithByok posts request-shaped provider keys', async () => {

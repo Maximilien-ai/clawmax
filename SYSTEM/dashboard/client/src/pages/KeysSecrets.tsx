@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { useToast } from '../components/Toast'
 import { useWorkspace } from '../contexts/WorkspaceContext'
 import { useAuth } from '../contexts/AuthContext'
-import { readStoredByokKeys } from '../lib/byok'
+import { detectProviderKeyMismatch, readStoredByokKeys } from '../lib/byok'
 import { DEFAULT_VISIBLE_PARTNERS, getDefaultPartnerDefinitions } from '../lib/defaultPartners'
 import { BROWSER_VAULT_UPDATED_EVENT, findManagedSecretConflicts, getPartnerVaultKey, parseEnvLikeSecrets, readSharedSecrets, writeSharedSecrets } from '../lib/localSecrets'
 
@@ -201,7 +201,7 @@ function SecretSection({
 }
 
 export default function KeysSecrets() {
-  const { showSuccess } = useToast()
+  const { showSuccess, showWarning } = useToast()
   const { activeWorkspace } = useWorkspace()
   const { config } = useAuth()
   const ollamaEnabled = config?.ollamaEnabled !== false
@@ -369,6 +369,19 @@ export default function KeysSecrets() {
     { key: 'other', label: 'Other' },
   ]
 
+  const validateProviderKeysInVault = React.useCallback((values: Record<string, string>) => {
+    const checks: Array<[keyof Pick<typeof values, never> | string, 'openai' | 'anthropic' | 'gemini']> = [
+      ['OPENAI_API_KEY', 'openai'],
+      ['ANTHROPIC_API_KEY', 'anthropic'],
+      ['GEMINI_API_KEY', 'gemini'],
+    ]
+    for (const [keyName, provider] of checks) {
+      const mismatch = detectProviderKeyMismatch(provider, values[keyName] || '')
+      if (mismatch) return mismatch.message
+    }
+    return null
+  }, [])
+
   return (
     <div className="p-6 space-y-6">
       <div>
@@ -442,6 +455,11 @@ export default function KeysSecrets() {
           setDrafts={setWorkspaceDrafts}
           defaultOpen={(ollamaEnabled ? workspaceDrafts : workspaceDrafts.filter((entry) => entry.key !== 'OLLAMA_BASE_URL')).length === 0}
           onSave={() => {
+            const mismatchMessage = validateProviderKeysInVault(visibleWorkspacePreview)
+            if (mismatchMessage) {
+              showWarning(mismatchMessage)
+              return
+            }
             writeSharedSecrets(visibleWorkspacePreview, { scope: 'workspace', workspaceId: activeWorkspace?.id })
             showSuccess('Saved workspace keys')
           }}
@@ -454,6 +472,11 @@ export default function KeysSecrets() {
           setDrafts={setGlobalDrafts}
           defaultOpen={(ollamaEnabled ? globalDrafts : globalDrafts.filter((entry) => entry.key !== 'OLLAMA_BASE_URL')).length === 0}
           onSave={() => {
+            const mismatchMessage = validateProviderKeysInVault(visibleGlobalPreview)
+            if (mismatchMessage) {
+              showWarning(mismatchMessage)
+              return
+            }
             writeSharedSecrets(visibleGlobalPreview, { scope: 'global' })
             showSuccess('Saved global keys')
           }}

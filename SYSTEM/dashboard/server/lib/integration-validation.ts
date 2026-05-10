@@ -15,6 +15,31 @@ export interface IntegrationValidationResponse {
 
 type FetchLike = typeof fetch
 
+function detectProviderFromKeyShape(key: string): 'openai' | 'anthropic' | 'gemini' | null {
+  const trimmed = key.trim()
+  if (!trimmed) return null
+  if (/^sk-ant-/i.test(trimmed)) return 'anthropic'
+  if (/^AIza[0-9A-Za-z\-_]{20,}$/i.test(trimmed)) return 'gemini'
+  if (/^sk-(?!ant-)[0-9A-Za-z_\-]{10,}$/i.test(trimmed)) return 'openai'
+  return null
+}
+
+function providerShapeMismatch(
+  provider: 'openai' | 'anthropic' | 'gemini',
+  apiKey: string
+): IntegrationValidationResult | null {
+  const detected = detectProviderFromKeyShape(apiKey)
+  if (!detected || detected === provider) return null
+
+  const labels = {
+    openai: 'OpenAI',
+    anthropic: 'Anthropic',
+    gemini: 'Gemini',
+  } as const
+
+  return invalid(`This looks like a ${labels[detected]} key, not a ${labels[provider]} key`)
+}
+
 function skipped(message: string): IntegrationValidationResult {
   return { ok: true, status: 'skipped', message }
 }
@@ -33,6 +58,8 @@ function errored(message: string): IntegrationValidationResult {
 
 export async function validateOpenAIKey(apiKey: string, fetchImpl: FetchLike = fetch): Promise<IntegrationValidationResult> {
   if (!apiKey.trim()) return skipped('No OpenAI key provided')
+  const mismatch = providerShapeMismatch('openai', apiKey)
+  if (mismatch) return mismatch
   try {
     const res = await fetchImpl('https://api.openai.com/v1/models', {
       headers: { Authorization: `Bearer ${apiKey.trim()}` },
@@ -48,6 +75,8 @@ export async function validateOpenAIKey(apiKey: string, fetchImpl: FetchLike = f
 
 export async function validateAnthropicKey(apiKey: string, fetchImpl: FetchLike = fetch): Promise<IntegrationValidationResult> {
   if (!apiKey.trim()) return skipped('No Anthropic key provided')
+  const mismatch = providerShapeMismatch('anthropic', apiKey)
+  if (mismatch) return mismatch
   try {
     const res = await fetchImpl('https://api.anthropic.com/v1/models?limit=1', {
       headers: {
@@ -66,6 +95,8 @@ export async function validateAnthropicKey(apiKey: string, fetchImpl: FetchLike 
 
 export async function validateGeminiKey(apiKey: string, fetchImpl: FetchLike = fetch): Promise<IntegrationValidationResult> {
   if (!apiKey.trim()) return skipped('No Gemini key provided')
+  const mismatch = providerShapeMismatch('gemini', apiKey)
+  if (mismatch) return mismatch
   try {
     const res = await fetchImpl(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey.trim())}`, {
       signal: AbortSignal.timeout(8000),

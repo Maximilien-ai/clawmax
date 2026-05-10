@@ -43,6 +43,45 @@ interface AiExecutionConfig {
   }
 }
 
+export type ProviderKeyMismatch = {
+  provider: 'openai' | 'anthropic' | 'gemini'
+  expectedLabel: string
+  detectedProvider: 'openai' | 'anthropic' | 'gemini'
+  detectedLabel: string
+  message: string
+}
+
+function detectProviderFromKeyShape(key: string): ProviderKeyMismatch['detectedProvider'] | null {
+  const trimmed = key.trim()
+  if (!trimmed) return null
+  if (/^sk-ant-/i.test(trimmed)) return 'anthropic'
+  if (/^AIza[0-9A-Za-z\-_]{20,}$/i.test(trimmed)) return 'gemini'
+  if (/^sk-(?!ant-)[0-9A-Za-z_\-]{10,}$/i.test(trimmed)) return 'openai'
+  return null
+}
+
+export function detectProviderKeyMismatch(
+  provider: 'openai' | 'anthropic' | 'gemini',
+  key: string
+): ProviderKeyMismatch | null {
+  const detectedProvider = detectProviderFromKeyShape(key)
+  if (!detectedProvider || detectedProvider === provider) return null
+
+  const labels = {
+    openai: 'OpenAI',
+    anthropic: 'Anthropic',
+    gemini: 'Gemini',
+  } as const
+
+  return {
+    provider,
+    expectedLabel: labels[provider],
+    detectedProvider,
+    detectedLabel: labels[detectedProvider],
+    message: `This looks like a ${labels[detectedProvider]} key, not a ${labels[provider]} key.`,
+  }
+}
+
 export function getByokStorageKey() {
   return STORAGE_KEY
 }
