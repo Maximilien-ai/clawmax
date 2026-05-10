@@ -712,6 +712,24 @@ export function ByokWizard({
       opikProject: scope === 'all' || currentPartnerSlug === 'opik' ? opikProject.trim() : '',
       sensoApiKey: scope === 'all' || currentPartnerSlug === 'senso' ? getPartnerSecret('senso', 'apiKey').trim() : '',
     }
+    const localProviderMismatches = [
+      scopedPayload.openai ? detectProviderKeyMismatch('openai', scopedPayload.openai) : null,
+      scopedPayload.anthropic ? detectProviderKeyMismatch('anthropic', scopedPayload.anthropic) : null,
+      scopedPayload.gemini ? detectProviderKeyMismatch('gemini', scopedPayload.gemini) : null,
+    ].filter(Boolean)
+    if (localProviderMismatches.length > 0) {
+      const mismatchEntries = localProviderMismatches.map((mismatch) => [
+        mismatch!.provider,
+        { status: 'invalid', message: mismatch!.message } as ValidationEntry,
+      ])
+      setValidation((current) => ({
+        ...current,
+        ...Object.fromEntries(mismatchEntries),
+      }))
+      showWarning(localProviderMismatches[0]!.message)
+      return false
+    }
+
     setValidating(true)
     try {
       const res = await fetch('/api/integrations/validate', {
