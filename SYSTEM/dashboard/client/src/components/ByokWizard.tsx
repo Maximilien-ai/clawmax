@@ -71,6 +71,7 @@ type WorkspaceIntegrationConfig = {
 }
 type PartnerValueMap = Record<string, Record<string, string>>
 type PartnerSecretPresence = Record<string, Record<string, boolean>>
+type ScopedValidationTarget = 'all' | 'current-partner' | 'openai' | 'anthropic' | 'gemini' | 'ollama'
 
 const localDevOllamaBaseUrl = 'http://localhost:11434'
 const CLOSE_INTEGRATIONS_WIZARDS_EVENT = 'clawmax-close-integrations-wizards'
@@ -699,18 +700,34 @@ export function ByokWizard({
   if (!hydrated) return null
   if (!user && !config?.authDisabled) return null
 
-  const runValidation = async (scope: 'all' | 'current-partner' = 'all') => {
+  const runValidation = async (scope: ScopedValidationTarget = 'all') => {
     const currentPartnerSlug = step.startsWith('partner:') ? step.replace('partner:', '') : null
+    const providerScope = scope === 'openai' || scope === 'anthropic' || scope === 'gemini' || scope === 'ollama' ? scope : null
     const scopedPayload = {
-      openai: scope === 'all' ? openaiKey.trim() : '',
-      anthropic: scope === 'all' ? anthropicKey.trim() : '',
-      gemini: scope === 'all' ? geminiApiKey.trim() : '',
-      ollamaBaseUrl: scope === 'all' && ollamaEnabled ? ollamaBaseUrl.trim() : '',
-      ollamaDefaultModel: scope === 'all' && ollamaEnabled ? ollamaDefaultModel.trim() : '',
+      openai: scope === 'all' || providerScope === 'openai' ? openaiKey.trim() : '',
+      anthropic: scope === 'all' || providerScope === 'anthropic' ? anthropicKey.trim() : '',
+      gemini: scope === 'all' || providerScope === 'gemini' ? geminiApiKey.trim() : '',
+      ollamaBaseUrl: (scope === 'all' || providerScope === 'ollama') && ollamaEnabled ? ollamaBaseUrl.trim() : '',
+      ollamaDefaultModel: (scope === 'all' || providerScope === 'ollama') && ollamaEnabled ? ollamaDefaultModel.trim() : '',
       opikApiKey: scope === 'all' || currentPartnerSlug === 'opik' ? opikApiKey.trim() : '',
       opikWorkspace: scope === 'all' || currentPartnerSlug === 'opik' ? opikWorkspace.trim() : '',
       opikProject: scope === 'all' || currentPartnerSlug === 'opik' ? opikProject.trim() : '',
       sensoApiKey: scope === 'all' || currentPartnerSlug === 'senso' ? getPartnerSecret('senso', 'apiKey').trim() : '',
+    }
+    if (providerScope === 'openai' && !scopedPayload.openai) {
+      setValidation((current) => ({ ...current, openai: { status: 'invalid', message: 'No OpenAI key provided' } }))
+      showWarning('No OpenAI key provided')
+      return false
+    }
+    if (providerScope === 'anthropic' && !scopedPayload.anthropic) {
+      setValidation((current) => ({ ...current, anthropic: { status: 'invalid', message: 'No Anthropic key provided' } }))
+      showWarning('No Anthropic key provided')
+      return false
+    }
+    if (providerScope === 'gemini' && !scopedPayload.gemini) {
+      setValidation((current) => ({ ...current, gemini: { status: 'invalid', message: 'No Gemini key provided' } }))
+      showWarning('No Gemini key provided')
+      return false
     }
     const localProviderMismatches = [
       scopedPayload.openai ? detectProviderKeyMismatch('openai', scopedPayload.openai) : null,
@@ -765,11 +782,13 @@ export function ByokWizard({
       setValidation(nextState)
       if (nextState.ollama.status === 'valid') void loadOllamaModels(true)
       void loadAvailableModels(true)
-      const partnerScopedFailureKeys = scope === 'current-partner' && currentPartnerSlug
+      const scopedFailureKeys = providerScope
+        ? new Set([providerScope])
+        : scope === 'current-partner' && currentPartnerSlug
         ? new Set([currentPartnerSlug])
         : null
       const failures = Object.entries(nextState).filter(([key, entry]) => {
-        if (partnerScopedFailureKeys && !partnerScopedFailureKeys.has(key)) return false
+        if (scopedFailureKeys && !scopedFailureKeys.has(key)) return false
         return entry.status === 'invalid' || entry.status === 'error'
       })
       if (failures.length > 0) {
@@ -782,7 +801,13 @@ export function ByokWizard({
         )
         return false
       }
-      showSuccess(scope === 'current-partner' && currentPartnerSlug ? `${labelsForSlug(currentPartnerSlug)} check completed` : 'Integration checks completed')
+      showSuccess(
+        providerScope
+          ? `${labelsForSlug(providerScope)} check completed`
+          : scope === 'current-partner' && currentPartnerSlug
+            ? `${labelsForSlug(currentPartnerSlug)} check completed`
+            : 'Integration checks completed'
+      )
       return true
     } catch (err: any) {
       showWarning(err.message || 'Failed to validate integrations')
@@ -1440,7 +1465,10 @@ export function ByokWizard({
 
                   {modelTab === 'openai' && (
                     <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900">
-                      <div className="font-medium text-gray-900 dark:text-gray-100">OpenAI</div>
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="font-medium text-gray-900 dark:text-gray-100">OpenAI</div>
+                        <button onClick={() => runValidation('openai')} disabled={validating} className="px-3 py-1.5 text-xs rounded-md border border-sky-300 dark:border-sky-700 text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors disabled:opacity-60">{validating ? 'Checking…' : 'Check Key'}</button>
+                      </div>
                       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Recommended for strong general-purpose results and broad model support.</p>
                       <div className="mt-3 flex items-center justify-between gap-3">
                         <label htmlFor="byok-openai" className="block text-sm font-medium text-gray-700 dark:text-gray-300">API key</label>
@@ -1457,7 +1485,10 @@ export function ByokWizard({
 
                   {modelTab === 'anthropic' && (
                     <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900">
-                      <div className="font-medium text-gray-900 dark:text-gray-100">Anthropic</div>
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="font-medium text-gray-900 dark:text-gray-100">Anthropic</div>
+                        <button onClick={() => runValidation('anthropic')} disabled={validating} className="px-3 py-1.5 text-xs rounded-md border border-sky-300 dark:border-sky-700 text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors disabled:opacity-60">{validating ? 'Checking…' : 'Check Key'}</button>
+                      </div>
                       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Strong reasoning models, especially useful for longer-form planning and analysis.</p>
                       <div className="mt-3 flex items-center justify-between gap-3">
                         <label htmlFor="byok-anthropic" className="block text-sm font-medium text-gray-700 dark:text-gray-300">API key</label>
@@ -1474,7 +1505,10 @@ export function ByokWizard({
 
                   {modelTab === 'gemini' && (
                     <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900">
-                      <div className="font-medium text-gray-900 dark:text-gray-100">Gemini</div>
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="font-medium text-gray-900 dark:text-gray-100">Gemini</div>
+                        <button onClick={() => runValidation('gemini')} disabled={validating} className="px-3 py-1.5 text-xs rounded-md border border-sky-300 dark:border-sky-700 text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors disabled:opacity-60">{validating ? 'Checking…' : 'Check Key'}</button>
+                      </div>
                       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Hosted Google Gemini models are supported alongside OpenAI and Anthropic.</p>
                       <div className="mt-3 flex items-center justify-between gap-3">
                         <label htmlFor="byok-gemini" className="block text-sm font-medium text-gray-700 dark:text-gray-300">API key</label>
@@ -1491,7 +1525,10 @@ export function ByokWizard({
 
                   {ollamaEnabled && modelTab === 'ollama' && (
                     <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900">
-                      <div className="font-medium text-gray-900 dark:text-gray-100">Ollama</div>
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="font-medium text-gray-900 dark:text-gray-100">Ollama</div>
+                        <button onClick={() => runValidation('ollama')} disabled={validating} className="px-3 py-1.5 text-xs rounded-md border border-sky-300 dark:border-sky-700 text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors disabled:opacity-60">{validating ? 'Checking…' : 'Check Runtime'}</button>
+                      </div>
                       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Local open-source models. You manage the Ollama runtime and installed models on your own machine or host.</p>
                       <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
                         Works best when Ollama is already running and the models you want have been pulled.
@@ -1592,7 +1629,6 @@ export function ByokWizard({
                 <div className="mt-6 flex items-center justify-between gap-3">
                   <button onClick={handleSkip} className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors">Skip for now</button>
                   <div className="flex items-center gap-2">
-                    <button onClick={runValidation} disabled={validating} className="px-4 py-2 text-sm rounded-md border border-sky-300 dark:border-sky-700 text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors disabled:opacity-60">{validating ? 'Checking…' : 'Check Keys'}</button>
                     <button onClick={handleSave} disabled={validating} className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-60">Save &amp; Close</button>
                     {initialStep !== 'models' && (
                       <button onClick={() => setStep('partners')} className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors">Next &rarr;</button>
