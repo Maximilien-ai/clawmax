@@ -294,10 +294,25 @@ echo ""
 print_header "2. OpenClaw CLI"
 
 OPENCLAW_INSTALLED=false
+OPENCLAW_HOMEBREW_FORMULA="maximilien-ai/openclaw/openclaw"
+OPENCLAW_BREW_MANAGED=false
 if command -v openclaw &> /dev/null; then
   OPENCLAW_INSTALLED=true
   OPENCLAW_VER=$(openclaw --version 2>&1 | head -1 | grep -o '[0-9]\{4\}\.[0-9]*\.[0-9]*' || echo "unknown")
   print_success "OpenClaw CLI: $OPENCLAW_VER"
+  if command -v brew &> /dev/null && brew list --formula "$OPENCLAW_HOMEBREW_FORMULA" &> /dev/null 2>&1; then
+    OPENCLAW_BREW_MANAGED=true
+    print_info "OpenClaw is managed by Homebrew — refreshing to latest tap formula..."
+    brew tap maximilien-ai/openclaw >/dev/null 2>&1 || true
+    brew update --quiet maximilien-ai/openclaw >/dev/null 2>&1 || brew update --quiet >/dev/null 2>&1 || true
+    if brew upgrade --formula "$OPENCLAW_HOMEBREW_FORMULA"; then
+      hash -r 2>/dev/null || true
+      OPENCLAW_VER=$(openclaw --version 2>&1 | head -1 | grep -o '[0-9]\{4\}\.[0-9]*\.[0-9]*' || echo "unknown")
+      print_success "OpenClaw CLI updated via Homebrew: $OPENCLAW_VER"
+    else
+      print_warning "Homebrew upgrade did not complete cleanly — keeping existing OpenClaw install"
+    fi
+  fi
 else
   print_warning "OpenClaw CLI not found — required for agent management"
   echo ""
@@ -330,7 +345,8 @@ else
         else
           print_warning "npm install failed — trying Homebrew..."
           brew tap maximilien-ai/openclaw || true
-          if brew install --formula maximilien-ai/openclaw/openclaw; then
+          brew update --quiet maximilien-ai/openclaw >/dev/null 2>&1 || brew update --quiet >/dev/null 2>&1 || true
+          if brew install --formula "$OPENCLAW_HOMEBREW_FORMULA"; then
             hash -r 2>/dev/null || true
             OPENCLAW_INSTALLED=true
             print_success "OpenClaw CLI installed via Homebrew"
@@ -343,7 +359,8 @@ else
       2)
         print_info "Installing OpenClaw via Homebrew..."
         brew tap maximilien-ai/openclaw || true
-        if brew install --formula maximilien-ai/openclaw/openclaw; then
+        brew update --quiet maximilien-ai/openclaw >/dev/null 2>&1 || brew update --quiet >/dev/null 2>&1 || true
+        if brew install --formula "$OPENCLAW_HOMEBREW_FORMULA"; then
           hash -r 2>/dev/null || true
           OPENCLAW_INSTALLED=true
           print_success "OpenClaw CLI installed via Homebrew"
