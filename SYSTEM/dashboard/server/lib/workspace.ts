@@ -1327,8 +1327,16 @@ function readPreferredWorkspaceModelForActivity(): string | undefined {
   }
 }
 
+function normalizeLiveConfigModel(model?: string): string | undefined {
+  const trimmed = model?.trim()
+  if (!trimmed) return undefined
+  if (trimmed.toLowerCase() === 'unknown') return undefined
+  return trimmed
+}
+
 function resolveAgentActivityFallbackModel(config: any, parsedIdentityModel?: string): string {
-  if (parsedIdentityModel?.trim()) return parsedIdentityModel.trim()
+  const identityModel = normalizeLiveConfigModel(parsedIdentityModel)
+  if (identityModel) return identityModel
 
   const preferredModel = readPreferredWorkspaceModelForActivity()
   if (preferredModel) return preferredModel
@@ -1349,8 +1357,8 @@ function resolveAgentActivityFallbackModel(config: any, parsedIdentityModel?: st
     } catch {}
   }
 
-  const configDefaultModel = config?.agents?.defaults?.model?.primary
-  if (typeof configDefaultModel === 'string' && configDefaultModel.trim()) return configDefaultModel.trim()
+  const configDefaultModel = normalizeLiveConfigModel(config?.agents?.defaults?.model?.primary)
+  if (configDefaultModel) return configDefaultModel
 
   const systemKeys = getSystemProviderKeys(rawEnv)
   const userKeys = getUserDefaultProviderKeys(rawEnv)
@@ -1395,7 +1403,7 @@ export function getAgentActivity(agentDir: string, agentId?: string): AgentActiv
       const liveAgent = agentList.find((a: any) => a.id === agentId && typeof a?.workspace === 'string' && path.resolve(a.workspace) === normalizedAgentDir)
         || agentList.find((a: any) => a.id === agentId)
       if (liveAgent) {
-        const model = (typeof liveAgent.model === 'string' && liveAgent.model.trim())
+        const model = normalizeLiveConfigModel(typeof liveAgent.model === 'string' ? liveAgent.model : undefined)
           || resolveAgentActivityFallbackModel(config, parsedIdentity.model)
         liveConfig = {
           model,

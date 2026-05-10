@@ -5,6 +5,7 @@ import { getWorkspacePath, parseIdentity } from './workspace'
 import type { ProviderKeys } from './dashboard-env'
 import { readAgentModelFromConfigFile, restoreAgentModelInConfigFile, updateAgentModelInConfigFile } from './agent-model'
 import { resetAgentSessionsForModelChange } from './agent-model'
+import { resolveDefaultAgentModel } from './agent-default-model'
 
 interface OpenClawAgentRecord {
   id: string
@@ -108,6 +109,13 @@ function providerFromModel(model?: string): ExecutionProvider {
   return null
 }
 
+function normalizeMissingModel(model?: string): string | undefined {
+  const trimmed = model?.trim()
+  if (!trimmed) return undefined
+  if (trimmed.toLowerCase() === 'unknown') return undefined
+  return trimmed
+}
+
 export function resolveAgentExecutionConfig(agentId: string): {
   model?: string
   workspace?: string
@@ -131,14 +139,15 @@ export function resolveAgentExecutionConfig(agentId: string): {
   let identityModel: string | undefined
   try {
     const identity = fs.readFileSync(identityPath, 'utf-8')
-    identityModel = parseIdentity(identity).model || undefined
+    identityModel = normalizeMissingModel(parseIdentity(identity).model || undefined)
   } catch {}
 
   // If the active workspace contains this agent, trust its local identity first.
   // A stale global openclaw.json entry may point at a different workspace with the same agent id.
+  const recordModel = normalizeMissingModel(record?.model)
   const model = hasActiveWorkspaceAgent
-    ? (identityModel || record?.model)
-    : (record?.model || identityModel)
+    ? (identityModel || recordModel || resolveDefaultAgentModel({ rawEnv: process.env as Record<string, string> }))
+    : (recordModel || identityModel || resolveDefaultAgentModel({ rawEnv: process.env as Record<string, string> }))
   return {
     model,
     workspace: resolvedWorkspace,

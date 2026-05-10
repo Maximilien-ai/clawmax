@@ -187,7 +187,7 @@ test('getAgentActivity prefers the active workspace live record when agent ids c
   resetWorkspaceManagerForTests()
 })
 
-test('getAgentActivity falls back to preferred workspace model instead of unknown', () => {
+test('getAgentActivity falls back to preferred workspace model when live config is missing or unknown', () => {
   const previousHome = process.env.HOME || ''
   const previousWorkspace = process.env.OPENCLAW_WORKSPACE || ''
   process.env.HOME = tmpRoot
@@ -210,7 +210,7 @@ test('getAgentActivity falls back to preferred workspace model instead of unknow
   fs.writeFileSync(path.join(tmpRoot, '.openclaw', 'openclaw.json'), JSON.stringify({
     agents: {
       list: [
-        { id: 'people-researcher', workspace: activeAgentDir, agentDir: path.join(tmpRoot, '.openclaw', 'agents', 'people-researcher', 'agent') },
+        { id: 'people-researcher', workspace: activeAgentDir, agentDir: path.join(tmpRoot, '.openclaw', 'agents', 'people-researcher', 'agent'), model: 'unknown' },
       ],
     },
   }, null, 2), 'utf-8')
