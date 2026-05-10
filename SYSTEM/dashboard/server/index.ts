@@ -33,6 +33,7 @@ import { auditLog } from './lib/audit'
 import { getBudgetStatus, loadBudgetConfig, saveBudgetConfig, BudgetConfig } from './lib/budget'
 import { allowSystemKeysForUserExecution, getSystemProviderKeys, getUserDefaultProviderKeys, getBestAvailableModel, getCostEfficientModel, getDashboardEnvRaw, getDefaultOllamaBaseUrl, isManagedRuntime, isOllamaUiEnabled } from './lib/dashboard-env'
 import { getResolvedMaintenanceBanner } from './lib/cloud-maintenance-status'
+import { readWorkspaceIntegrationConfig } from './lib/workspace-integrations'
 
 // ============================================================================
 // Crash Protection & Error Logging
@@ -158,6 +159,7 @@ app.get('/api/auth/config', (_req, res) => {
   const rawEnv = getDashboardEnvRaw()
   const systemKeys = getSystemProviderKeys()
   const userKeys = getUserDefaultProviderKeys()
+  const integrationConfig = readWorkspaceIntegrationConfig()
   const managedRuntime = isManagedRuntime(rawEnv)
   res.json({
     githubEnabled: isGitHubAuthConfigured(),
@@ -178,6 +180,7 @@ app.get('/api/auth/config', (_req, res) => {
       gemini: !!userKeys.gemini,
     },
     allowSystemKeysForUserExecution: allowSystemKeysForUserExecution(),
+    preferredModel: integrationConfig.preferredModel,
     recommendedModel: getBestAvailableModel(),
     costEfficientModel: getCostEfficientModel(),
   })

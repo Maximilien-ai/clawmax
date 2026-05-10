@@ -331,6 +331,16 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Agent default-model unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/agent-default-model.test.ts > /tmp/clawmax-agent-default-model.out 2>&1 || true
+if grep -q "Tests failed: 0" /tmp/clawmax-agent-default-model.out; then
+  agent_default_model_count=$(grep "Tests passed:" /tmp/clawmax-agent-default-model.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Agent default-model unit tests (${agent_default_model_count:-?} tests)"
+else
+  fail "Agent default-model unit tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Teams unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/teams.test.ts > /tmp/clawmax-teams.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-teams.out; then

@@ -101,47 +101,57 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
         setModelsLoaded(true)
         setModelsByProvider(filteredModelsByProvider)
 
-        // Pick best model based on configured keys
-        if (models.length > 0) {
-          fetch('/api/auth/config').then(r => r.json()).then(cfg => {
-            const recommended = cfg.recommendedModel
-            if (recommended && models.includes(recommended)) {
-              setForm(f => ({ ...f, model: recommended }))
-            } else {
-              // Fallback: check BYOK keys
-              const byok = readStoredByokKeys()
-              const hasAnthropicKey = !!(byok.anthropic || cfg.systemKeyDefaults?.anthropic)
-              const hasOpenAiKey = !!(byok.openai || cfg.systemKeyDefaults?.openai)
-              const hasGeminiKey = !!(byok.geminiApiKey || cfg.systemKeyDefaults?.gemini)
-              const hasOllama = ollamaEnabled && !!(byok.ollamaBaseUrl || byok.ollamaDefaultModel)
+        fetch('/api/auth/config').then(r => r.json()).then(cfg => {
+          const preferred = cfg.preferredModel
+          const recommended = cfg.recommendedModel
+          const resolvedDefault = (preferred && (models.includes(preferred) || models.length === 0) && preferred)
+            || (recommended && (models.includes(recommended) || models.length === 0) && recommended)
+            || models[0]
 
-              let defaultModel: string
-              if (hasOllama) {
-                const preferredOllama = byok.ollamaDefaultModel ? `ollama/${byok.ollamaDefaultModel}` : ''
-                defaultModel = (preferredOllama && models.find((m: string) => m === preferredOllama))
-                  || models.find((m: string) => m.startsWith('ollama/'))
-                  || models[0]
-              } else if (hasOpenAiKey) {
-                defaultModel = models.find((m: string) => m === 'openai/gpt-5' || m === 'openai/gpt-4o')
-                  || models.find((m: string) => m.startsWith('openai/'))
-                  || models[0]
-              } else if (hasGeminiKey) {
-                defaultModel = models.find((m: string) => m === 'google/gemini-2.5-flash' || m === 'google/gemini-3.1-pro-preview')
-                  || models.find((m: string) => m.startsWith('google/'))
-                  || models[0]
-              } else if (hasAnthropicKey) {
-                defaultModel = models.find((m: string) => m.includes('claude-opus') || m.includes('claude-sonnet'))
-                  || models.find((m: string) => m.startsWith('anthropic/'))
-                  || models[0]
-              } else {
-                defaultModel = models[0]
-              }
-              setForm(f => ({ ...f, model: defaultModel }))
+          if (resolvedDefault) {
+            if (models.length === 0) {
+              setAvailableModels([resolvedDefault])
             }
-          }).catch(() => {
+            setForm(f => ({ ...f, model: resolvedDefault }))
+            return
+          }
+
+          if (models.length > 0) {
+            // Fallback: check BYOK keys
+            const byok = readStoredByokKeys()
+            const hasAnthropicKey = !!(byok.anthropic || cfg.systemKeyDefaults?.anthropic)
+            const hasOpenAiKey = !!(byok.openai || cfg.systemKeyDefaults?.openai)
+            const hasGeminiKey = !!(byok.geminiApiKey || cfg.systemKeyDefaults?.gemini)
+            const hasOllama = ollamaEnabled && !!(byok.ollamaBaseUrl || byok.ollamaDefaultModel)
+
+            let defaultModel: string
+            if (hasOllama) {
+              const preferredOllama = byok.ollamaDefaultModel ? `ollama/${byok.ollamaDefaultModel}` : ''
+              defaultModel = (preferredOllama && models.find((m: string) => m === preferredOllama))
+                || models.find((m: string) => m.startsWith('ollama/'))
+                || models[0]
+            } else if (hasOpenAiKey) {
+              defaultModel = models.find((m: string) => m === 'openai/gpt-5' || m === 'openai/gpt-4o')
+                || models.find((m: string) => m.startsWith('openai/'))
+                || models[0]
+            } else if (hasGeminiKey) {
+              defaultModel = models.find((m: string) => m === 'google/gemini-2.5-flash' || m === 'google/gemini-3.1-pro-preview')
+                || models.find((m: string) => m.startsWith('google/'))
+                || models[0]
+            } else if (hasAnthropicKey) {
+              defaultModel = models.find((m: string) => m.includes('claude-opus') || m.includes('claude-sonnet'))
+                || models.find((m: string) => m.startsWith('anthropic/'))
+                || models[0]
+            } else {
+              defaultModel = models[0]
+            }
+            setForm(f => ({ ...f, model: defaultModel }))
+          }
+        }).catch(() => {
+          if (models.length > 0) {
             setForm(f => ({ ...f, model: models[0] }))
-          })
-        }
+          }
+        })
       })
       .catch(() => { setModelsLoaded(true) })
 

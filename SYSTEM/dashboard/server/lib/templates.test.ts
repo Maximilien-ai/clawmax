@@ -1257,11 +1257,13 @@ test('saveTemplate strips derived kind from persisted organization templates', (
 test('importOrganizationTemplate creates nested teams and workflow handoff metadata', () => {
   const originalWorkspace = process.env.OPENCLAW_WORKSPACE
   const originalHome = process.env.HOME
+  const originalOpenAi = process.env.SYSTEM_OPENAI_API_KEY
   const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-company-import-home-'))
   const tempWorkspace = path.join(tempHome, 'workspace')
 
   process.env.HOME = tempHome
   process.env.OPENCLAW_WORKSPACE = tempWorkspace
+  process.env.SYSTEM_OPENAI_API_KEY = 'test-openai-key'
   resetWorkspaceManagerForTests()
 
   try {
@@ -1294,7 +1296,7 @@ test('importOrganizationTemplate creates nested teams and workflow handoff metad
     const configPath = path.join(tempHome, '.openclaw', 'openclaw.json')
     const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
     const demoMarketingLead = config?.agents?.list?.find((agent: any) => agent.id === 'demo-marketing-lead' && agent.workspace === path.join(tempWorkspace, 'AGENTS', 'demo-marketing-lead'))
-    assert(demoMarketingLead?.model === 'openai/gpt-4o-mini', `Expected imported live config model to match template model, got ${demoMarketingLead?.model || 'missing'}`)
+    assert(demoMarketingLead?.model === 'openai/gpt-5', `Expected imported live config model to use the resolved default model, got ${demoMarketingLead?.model || 'missing'}`)
 
     const leadershipKickoff = getWorkflow('demo-leadership-kickoff')
     const executionBrief = getWorkflow('demo-execution-brief')
@@ -1321,6 +1323,8 @@ test('importOrganizationTemplate creates nested teams and workflow handoff metad
     assert(qaReview?.targeting.teamIds?.includes('demo-qa') === true, 'Expected qa-review team target to persist')
     assert(qaReview?.outputDefinitions?.some((output) => output.key === 'qa-signoff') === true, 'Expected qa-review outputs to persist')
   } finally {
+    if (typeof originalOpenAi === 'undefined') delete process.env.SYSTEM_OPENAI_API_KEY
+    else process.env.SYSTEM_OPENAI_API_KEY = originalOpenAi
     if (typeof originalHome === 'undefined') delete process.env.HOME
     else process.env.HOME = originalHome
     if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
@@ -1333,11 +1337,13 @@ test('importOrganizationTemplate creates nested teams and workflow handoff metad
 test('importOrganizationTemplate keeps multiple company applies isolated by prefix', () => {
   const originalWorkspace = process.env.OPENCLAW_WORKSPACE
   const originalHome = process.env.HOME
+  const originalOpenAi = process.env.SYSTEM_OPENAI_API_KEY
   const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-company-import-multi-home-'))
   const tempWorkspace = path.join(tempHome, 'workspace')
 
   process.env.HOME = tempHome
   process.env.OPENCLAW_WORKSPACE = tempWorkspace
+  process.env.SYSTEM_OPENAI_API_KEY = 'test-openai-key'
   resetWorkspaceManagerForTests()
 
   try {
@@ -1359,6 +1365,8 @@ test('importOrganizationTemplate keeps multiple company applies isolated by pref
     assert(betaKickoff?.targeting.teamIds?.includes('beta-leadership') === true, 'Expected beta kickoff to target beta leadership team')
     assert(alphaKickoff?.name !== betaKickoff?.name, 'Expected imported company workflows to have distinct names')
   } finally {
+    if (typeof originalOpenAi === 'undefined') delete process.env.SYSTEM_OPENAI_API_KEY
+    else process.env.SYSTEM_OPENAI_API_KEY = originalOpenAi
     if (typeof originalHome === 'undefined') delete process.env.HOME
     else process.env.HOME = originalHome
     if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
@@ -1371,11 +1379,13 @@ test('importOrganizationTemplate keeps multiple company applies isolated by pref
 test('importOrganizationTemplate re-apply replaces stale workflow targeting', () => {
   const originalWorkspace = process.env.OPENCLAW_WORKSPACE
   const originalHome = process.env.HOME
+  const originalOpenAi = process.env.SYSTEM_OPENAI_API_KEY
   const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-company-import-refresh-home-'))
   const tempWorkspace = path.join(tempHome, 'workspace')
 
   process.env.HOME = tempHome
   process.env.OPENCLAW_WORKSPACE = tempWorkspace
+  process.env.SYSTEM_OPENAI_API_KEY = 'test-openai-key'
   resetWorkspaceManagerForTests()
 
   try {
@@ -1415,6 +1425,8 @@ test('importOrganizationTemplate re-apply replaces stale workflow targeting', ()
     assert(refreshed?.targeting.teamIds?.includes('b2b-leadership') === true, 'Expected kickoff workflow to use imported team targeting')
     assertEqual(JSON.stringify(refreshed?.targeting.communities || []), JSON.stringify([]), 'Expected kickoff workflow to remain free of stale community targeting after import')
   } finally {
+    if (typeof originalOpenAi === 'undefined') delete process.env.SYSTEM_OPENAI_API_KEY
+    else process.env.SYSTEM_OPENAI_API_KEY = originalOpenAi
     if (typeof originalHome === 'undefined') delete process.env.HOME
     else process.env.HOME = originalHome
     if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
@@ -1427,11 +1439,13 @@ test('importOrganizationTemplate re-apply replaces stale workflow targeting', ()
 test('importOrganizationTemplate namespaces groups and communities for prefixed company imports', () => {
   const originalWorkspace = process.env.OPENCLAW_WORKSPACE
   const originalHome = process.env.HOME
+  const originalOpenAi = process.env.SYSTEM_OPENAI_API_KEY
   const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-company-import-prefix-channels-home-'))
   const tempWorkspace = path.join(tempHome, 'workspace')
 
   process.env.HOME = tempHome
   process.env.OPENCLAW_WORKSPACE = tempWorkspace
+  process.env.SYSTEM_OPENAI_API_KEY = 'test-openai-key'
   resetWorkspaceManagerForTests()
 
   try {
@@ -1447,6 +1461,8 @@ test('importOrganizationTemplate namespaces groups and communities for prefixed 
     assert(kickoff !== null, 'Expected kickoff workflow to exist after prefixed import')
     assert((kickoff?.targeting.groups || []).includes('test-Leadership') === true, 'Expected kickoff workflow to target namespaced group name')
   } finally {
+    if (typeof originalOpenAi === 'undefined') delete process.env.SYSTEM_OPENAI_API_KEY
+    else process.env.SYSTEM_OPENAI_API_KEY = originalOpenAi
     if (typeof originalHome === 'undefined') delete process.env.HOME
     else process.env.HOME = originalHome
     if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
@@ -1459,11 +1475,13 @@ test('importOrganizationTemplate namespaces groups and communities for prefixed 
 test('importOrganizationTemplate sanitizes invalid team ancestry before creating teams', () => {
   const originalWorkspace = process.env.OPENCLAW_WORKSPACE
   const originalHome = process.env.HOME
+  const originalOpenAi = process.env.SYSTEM_OPENAI_API_KEY
   const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-company-import-teams-home-'))
   const tempWorkspace = path.join(tempHome, 'workspace')
 
   process.env.HOME = tempHome
   process.env.OPENCLAW_WORKSPACE = tempWorkspace
+  process.env.SYSTEM_OPENAI_API_KEY = 'test-openai-key'
   resetWorkspaceManagerForTests()
 
   try {
@@ -1495,6 +1513,8 @@ test('importOrganizationTemplate sanitizes invalid team ancestry before creating
     const opsTeam = getTeam('ops-team')
     assert(opsTeam?.parentTeamId === 'company', 'Expected valid child parent to remain intact')
   } finally {
+    if (typeof originalOpenAi === 'undefined') delete process.env.SYSTEM_OPENAI_API_KEY
+    else process.env.SYSTEM_OPENAI_API_KEY = originalOpenAi
     if (typeof originalHome === 'undefined') delete process.env.HOME
     else process.env.HOME = originalHome
     if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE

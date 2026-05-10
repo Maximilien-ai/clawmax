@@ -28,6 +28,7 @@ interface AuthConfig {
     anthropic: boolean
     gemini?: boolean
   }
+  preferredModel?: string
   recommendedModel?: string
   costEfficientModel?: string
 }

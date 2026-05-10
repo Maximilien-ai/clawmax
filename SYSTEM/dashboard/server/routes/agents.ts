@@ -20,6 +20,7 @@ import { normalizeChatMessage } from '../lib/chat-normalization'
 import { writeDashboardManagedOpenClawConfig } from '../lib/openclaw-config'
 import { runExclusiveAgentExecution } from '../lib/agent-execution'
 import { scopeSessionIdToModel, resolveAgentExecutionConfig } from '../lib/agent-execution'
+import { resolveDefaultAgentModel } from '../lib/agent-default-model'
 
 /** Find the root dir of a pnpm package by scanning .pnpm store for a prefix */
 function findPnpmPkg(repoDir: string, prefix: string, pkgSubPath: string): string | null {
@@ -370,7 +371,20 @@ router.post('/provision', (req, res) => {
     aiDescription?: string
   }
 
-  const inputValidation = validateProvisionInput(req.body || {}, {
+  const resolvedModel = resolveDefaultAgentModel({
+    explicitModel: model,
+    availableModels: getAvailableModels(),
+    rawEnv: process.env as Record<string, string>,
+  })
+
+  if (!resolvedModel) {
+    res.status(400).json({
+      error: 'No default model could be resolved for this agent. Configure a provider key/runtime or choose a model explicitly.',
+    })
+    return
+  }
+
+  const inputValidation = validateProvisionInput({ ...(req.body || {}), model: resolvedModel }, {
     existingAgentIds: listAgents().map(agent => agent.id),
     availableModels: getAvailableModels(),
   })
@@ -385,7 +399,7 @@ router.post('/provision', (req, res) => {
   }
 
   const validatedName = name!
-  const validatedModel = model!
+  const validatedModel = resolvedModel
 
   // SSE headers
   res.setHeader('Content-Type', 'text/event-stream')

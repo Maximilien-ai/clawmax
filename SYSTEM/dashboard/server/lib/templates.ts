@@ -13,6 +13,7 @@ import { validateAgentConfigSections } from './agent-config-validation'
 import { resetAgentSessionsForModelChange, updateAgentModelInConfigFile } from './agent-model'
 import { safeEnv } from './safe-env'
 import { recordTemplateApply, type CanonicalTemplateFeedbackSource, type CanonicalTemplateFeedbackType } from './template-feedback'
+import { resolveDefaultAgentModel } from './agent-default-model'
 
 // Template storage paths (dynamic functions)
 
@@ -1945,13 +1946,18 @@ export function importAgentFromTemplate(
 
     const sourceAgent = template.agents[0]
     const targetAgentId = options.newAgentId || sourceAgent.id
-    const { getBestAvailableModel: getBest } = require('./dashboard-env')
     const applySystemTemplateLatest = templateSource === 'system'
-    const effectiveModel =
-      options.model?.trim()
-      || (!applySystemTemplateLatest ? (sourceAgent as any).model?.trim() : '')
-      || (!applySystemTemplateLatest ? (template as any)?.metadata?.model?.trim?.() : '')
-      || getBest(process.env as Record<string, string>)
+    const templateModel = !applySystemTemplateLatest
+      ? ((sourceAgent as any).model?.trim() || (template as any)?.metadata?.model?.trim?.() || '')
+      : ''
+    const effectiveModel = resolveDefaultAgentModel({
+      explicitModel: options.model,
+      templateModel,
+      rawEnv: process.env as Record<string, string>,
+    })
+    if (!effectiveModel) {
+      return { ok: false, error: 'No default model could be resolved for this agent template. Configure a provider key/runtime or choose a model explicitly.' }
+    }
 
     const fileValidation = validateAgentTemplateFiles(templateDir, sourceAgent.id)
     if (!fileValidation.valid) {
@@ -2554,9 +2560,15 @@ export function importOrganizationTemplate(
       for (const templateAgent of agentsToCreate) {
         const sourceAgentId = (templateAgent as any)._sourceAgentId || templateAgent.id
         const targetAgentId = `${prefix}${templateAgent.id}${suffix}`
-        const { getBestAvailableModel: getBest } = require('./dashboard-env')
         const applySystemTemplateLatest = templateSource === 'system'
-        const appliedModel = options?.modelOverride || (applySystemTemplateLatest ? undefined : templateAgent.model) || getBest(process.env as Record<string, string>)
+        const appliedModel = resolveDefaultAgentModel({
+          explicitModel: options?.modelOverride,
+          templateModel: applySystemTemplateLatest ? undefined : templateAgent.model,
+          rawEnv: process.env as Record<string, string>,
+        })
+        if (!appliedModel) {
+          throw new Error(`No default model could be resolved for agent ${targetAgentId}. Configure a provider key/runtime or choose a model override first.`)
+        }
         appliedModelsByAgentId[targetAgentId] = appliedModel
 
         // Validate target agent ID
