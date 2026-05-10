@@ -332,8 +332,9 @@ fi
 
 echo ""
 echo -e "${YELLOW}→ Running Agent default-model unit tests...${NC}"
-npx ts-node --transpileOnly server/lib/agent-default-model.test.ts > /tmp/clawmax-agent-default-model.out 2>&1 || true
-if grep -q "Tests failed: 0" /tmp/clawmax-agent-default-model.out; then
+npx ts-node --transpileOnly server/lib/agent-default-model.test.ts > /tmp/clawmax-agent-default-model.out 2>&1
+agent_default_model_status=$?
+if [ "$agent_default_model_status" -eq 0 ]; then
   agent_default_model_count=$(grep "Tests passed:" /tmp/clawmax-agent-default-model.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
   pass "Agent default-model unit tests (${agent_default_model_count:-?} tests)"
 else
@@ -533,8 +534,9 @@ else
 fi
 
 echo -e "${YELLOW}→ Running Docker entrypoint gateway tests...${NC}"
-sh "$SYSTEM_DIR/dashboard/docker-entrypoint.test.sh" > /tmp/clawmax-docker-entrypoint.out 2>&1 || true
-if grep -q "docker-entrypoint gateway tests passed" /tmp/clawmax-docker-entrypoint.out; then
+sh "$SYSTEM_DIR/dashboard/docker-entrypoint.test.sh" > /tmp/clawmax-docker-entrypoint.out 2>&1
+docker_entrypoint_status=$?
+if [ "$docker_entrypoint_status" -eq 0 ]; then
   pass "Docker entrypoint gateway tests"
 else
   fail "Docker entrypoint gateway tests"
@@ -768,8 +770,9 @@ fi
 
 echo ""
 echo -e "${YELLOW}→ Running OpenClaw agent transfer unit tests...${NC}"
-npx ts-node --transpileOnly server/lib/openclaw-agent-transfer.test.ts > /tmp/clawmax-openclaw-agent-transfer.out 2>&1 || true
-if grep -q "All tests passed" /tmp/clawmax-openclaw-agent-transfer.out; then
+npx ts-node --transpileOnly server/lib/openclaw-agent-transfer.test.ts > /tmp/clawmax-openclaw-agent-transfer.out 2>&1
+openclaw_transfer_status=$?
+if [ "$openclaw_transfer_status" -eq 0 ]; then
   openclaw_transfer_count=$(grep "Tests passed:" /tmp/clawmax-openclaw-agent-transfer.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
   pass "OpenClaw agent transfer unit tests (${openclaw_transfer_count:-?} tests)"
 else
