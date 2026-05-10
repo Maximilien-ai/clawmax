@@ -650,6 +650,7 @@ function ensureOpenClawAgentRegisteredForWorkspace(
       stdio: 'pipe',
       env: registrationEnv,
     })
+    upsertOpenClawAgentRegistration(configPath, agentId, workspaceArg, agentDirArg)
     return { status: 'created' }
   } catch (err) {
     if (isOpenClawAgentAlreadyExistsError(err)) {

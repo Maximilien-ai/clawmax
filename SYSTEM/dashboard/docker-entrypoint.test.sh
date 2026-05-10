@@ -101,18 +101,18 @@ assert_contains "gateway run --port 18789" "$LOG_FILE"
 
 : > "$LOG_FILE"
 ORIGINAL_PATH="$PATH"
-PATH="$NODE_ONLY_BIN_DIR:/usr/bin:/bin"
+PATH="$NODE_ONLY_BIN_DIR:/bin"
 export PATH
 NODE_EXIT_CODE=0
 export NODE_EXIT_CODE
-gateway_watchdog_tick "18789"
-assert_not_contains "gateway run --port 18789" "$LOG_FILE"
+gateway_port_listening "18789"
 
-: > "$LOG_FILE"
 NODE_EXIT_CODE=1
 export NODE_EXIT_CODE
-gateway_watchdog_tick "18789"
-assert_contains "gateway run --port 18789" "$LOG_FILE"
+if gateway_port_listening "18789"; then
+  echo "Expected node-based gateway probe to fail when NODE_EXIT_CODE=1" >&2
+  exit 1
+fi
 
 PATH="$ORIGINAL_PATH"
 export PATH

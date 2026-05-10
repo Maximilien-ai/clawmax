@@ -119,6 +119,10 @@ async function run() {
     listImportableOpenClawAgents,
   } = await import('./openclaw-agent-transfer')
 
+  process.env.HOME = tmpHome
+  process.env.OPENCLAW_WORKSPACE = workspace
+  resetWorkspaceManagerForTests()
+
   await test('exportAgentToOpenClaw writes markdown files, config, and metadata', () => {
     const result = exportAgentToOpenClaw('alpha')
     assert(result.exportedId === 'alpha', 'Expected exported ID to match source')
