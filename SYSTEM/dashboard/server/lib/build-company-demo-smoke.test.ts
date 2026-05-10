@@ -47,12 +47,14 @@ function test(name: string, fn: () => void) {
 function withTempWorkspace(name: string, fn: (workspacePath: string) => void) {
   const originalHome = process.env.HOME
   const originalWorkspace = process.env.OPENCLAW_WORKSPACE
+  const originalOpenAi = process.env.SYSTEM_OPENAI_API_KEY
   const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), `clawmax-${name}-`))
   const workspacePath = path.join(tempHome, 'workspace')
   fs.mkdirSync(workspacePath, { recursive: true })
 
   process.env.HOME = tempHome
   process.env.OPENCLAW_WORKSPACE = workspacePath
+  process.env.SYSTEM_OPENAI_API_KEY = 'test-openai-key'
   resetWorkspaceManagerForTests()
 
   try {
@@ -63,6 +65,9 @@ function withTempWorkspace(name: string, fn: (workspacePath: string) => void) {
 
     if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
     else process.env.OPENCLAW_WORKSPACE = originalWorkspace
+
+    if (typeof originalOpenAi === 'undefined') delete process.env.SYSTEM_OPENAI_API_KEY
+    else process.env.SYSTEM_OPENAI_API_KEY = originalOpenAi
 
     resetWorkspaceManagerForTests()
     fs.rmSync(tempHome, { recursive: true, force: true })
