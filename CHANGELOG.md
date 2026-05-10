@@ -2,6 +2,19 @@
 
 All notable changes to ClawMax are documented here.
 
+## [v1.4.6] - 2026-05-10
+
+### Release — Model Default Safety and BYOK Validation Hardening
+- **Default Model Enforcement** — manual agent create, single-agent template apply, and org/team template apply now all require a resolvable concrete model, using the shared fallback chain of explicit override, workspace preferred model, template model, on-prem Ollama default, and provider-backed recommended model
+- **Legacy Unknown Model Hardening** — stale `model: "unknown"` records are now treated as missing in agent live configuration and execution resolution, with active-workspace records preferred when duplicate agent ids exist across workspaces
+- **Broken-Agent Guardrail** — when an agent truly has no usable model, chat now fails with a direct “choose a model” instruction instead of falling through into opaque runtime failures
+- **BYOK Provider Mismatch Protection** — obvious wrong-provider key swaps are now rejected before save and before validation, covering BYOK and Keys & Secrets flows
+- **Per-Provider Key Checks** — model-provider validation in BYOK now runs one provider at a time, with empty fields failing correctly and provider cards staying `configured` until a real successful `Check Key` marks them `verified`
+
+### Quality
+- **Regression Coverage** — added shared default-model tests and extended workspace/live-config tests to cover active-workspace collisions plus stale `unknown` model fallback handling
+- **Validation Gate** — validated locally with `server/lib/agent-default-model.test.ts`, `server/lib/templates.test.ts`, `server/lib/workspace-upload.test.ts`, `server/lib/agent-execution.test.ts`, `client/src/lib/byok.test.ts`, `server/lib/integration-validation.test.ts`, and `npx tsc --noEmit`
+
 ## [v1.4.5] - 2026-05-10
 
 ### Release — On-Prem Runtime Contract and Template Apply Guardrails
