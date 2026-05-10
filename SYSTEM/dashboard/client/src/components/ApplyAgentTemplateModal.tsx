@@ -1,11 +1,28 @@
 import React, { useEffect, useState } from 'react'
 import { useToast } from './Toast'
-import { fetchModelsWithByok } from '../lib/byok'
+import { fetchModelsWithByok, hasChatExecutionAccess } from '../lib/byok'
 
 interface AgentTemplate {
   name: string
   slug?: string
-  agents: Array<{ id: string; role: string }>
+  agents: Array<{ id: string; role: string; model?: string }>
+}
+
+interface ExecutionConfig {
+  allowSystemKeysForUserExecution?: boolean
+  ollamaEnabled?: boolean
+  defaultOllamaBaseUrl?: string
+  recommendedModel?: string
+  systemKeyDefaults?: {
+    openai?: boolean
+    anthropic?: boolean
+    gemini?: boolean
+  }
+  userKeyDefaults?: {
+    openai?: boolean
+    anthropic?: boolean
+    gemini?: boolean
+  }
 }
 
 export default function ApplyAgentTemplateModal({
@@ -23,18 +40,37 @@ export default function ApplyAgentTemplateModal({
   const [agentId, setAgentId] = useState(defaultAgentId || template.agents[0]?.id || '')
   const [model, setModel] = useState('')
   const [availableModels, setAvailableModels] = useState<string[]>([])
+  const [executionConfig, setExecutionConfig] = useState<ExecutionConfig | null>(null)
   const [applying, setApplying] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    fetch('/api/auth/config')
+      .then(r => (r.ok ? r.json() : null))
+      .then(data => setExecutionConfig(data))
+      .catch(() => {})
+
     fetchModelsWithByok()
       .then(d => setAvailableModels(d.models || []))
       .catch(() => {})
   }, [])
 
+  const templateDefaultModel = template.agents[0]?.model?.trim() || ''
+  const hasExecutionPath = hasChatExecutionAccess(executionConfig)
+  const hasResolvedDefaultModel = !!(model || templateDefaultModel || executionConfig?.recommendedModel || availableModels[0])
+  const applyBlockReason = !hasExecutionPath
+    ? 'No chat execution path is configured for this dashboard. Add provider keys or enable the on-prem Ollama runtime before applying this agent.'
+    : !hasResolvedDefaultModel
+      ? 'No default model is available for this agent template. Choose a model override or configure a default execution model first.'
+      : null
+
   const handleApply = async () => {
     if (!agentId.trim()) {
       setError('Agent ID is required')
+      return
+    }
+    if (applyBlockReason) {
+      setError(applyBlockReason)
       return
     }
 
@@ -79,6 +115,12 @@ export default function ApplyAgentTemplateModal({
         {error && (
           <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-800">
             {error}
+          </div>
+        )}
+
+        {applyBlockReason && !error && (
+          <div className="mb-4 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            {applyBlockReason}
           </div>
         )}
 
@@ -128,7 +170,7 @@ export default function ApplyAgentTemplateModal({
           </button>
           <button
             onClick={handleApply}
-            disabled={applying || !agentId.trim()}
+            disabled={applying || !agentId.trim() || !!applyBlockReason}
             className="px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded-md hover:bg-sky-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {applying ? 'Applying...' : 'Apply Template'}

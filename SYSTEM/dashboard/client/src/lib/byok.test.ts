@@ -108,6 +108,14 @@ async function main() {
     assert(hasChatExecutionAccess(null) === true, 'Expected Ollama BYOK to enable chat execution')
   })
 
+  await test('chat execution access supports on-prem default Ollama contract from auth config', () => {
+    localStorage.clear()
+    assert(
+      hasChatExecutionAccess({ ollamaEnabled: true, defaultOllamaBaseUrl: 'http://localhost:11434' }) === true,
+      'Expected enabled default Ollama base URL to allow chat execution without browser-local BYOK'
+    )
+  })
+
   await test('request payload maps geminiApiKey to gemini', () => {
     localStorage.clear()
     writeStoredByokKeys({

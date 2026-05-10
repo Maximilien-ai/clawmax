@@ -405,6 +405,15 @@ else
   fail "BYOK helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Workspace status unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/workspace-status.test.ts > /tmp/clawmax-workspace-status.out 2>&1 || true
+if grep -q "Tests failed: 0" /tmp/clawmax-workspace-status.out; then
+  workspace_status_count=$(grep "Tests passed:" /tmp/clawmax-workspace-status.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Workspace status unit tests (${workspace_status_count:-?} tests)"
+else
+  fail "Workspace status unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Gateway diagnostics unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/gatewayDiagnostics.test.ts > /tmp/clawmax-gateway-diagnostics.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-gateway-diagnostics.out; then

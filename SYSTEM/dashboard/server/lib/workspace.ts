@@ -49,6 +49,30 @@ export function invalidateAgentStatusCache(agentId: string) {
   statusCache.delete(agentId)
 }
 
+export function deriveAgentRuntimeStatus({
+  gatewayRunning,
+  latestMtime,
+  now = Date.now(),
+  hasIdentity,
+}: {
+  gatewayRunning: boolean
+  latestMtime: number
+  now?: number
+  hasIdentity: boolean
+}): { status: AgentInfo['status']; lastHeartbeat: string | null } {
+  if (latestMtime > 0) {
+    const lastHeartbeat = new Date(latestMtime).toISOString()
+    const ageMins = (now - latestMtime) / 60000
+
+    if (gatewayRunning) return { status: 'online', lastHeartbeat }
+    if (ageMins < 1440) return { status: 'offline', lastHeartbeat }
+    return { status: 'unknown', lastHeartbeat }
+  }
+
+  if (gatewayRunning && hasIdentity) return { status: 'online', lastHeartbeat: null }
+  return { status: hasIdentity ? 'offline' : 'unknown', lastHeartbeat: null }
+}
+
 export type DocSection = 'ORG' | 'AGENTS' | 'WORKFLOWS' | 'SYSTEM'
 
 export interface DocEntry {
@@ -1751,32 +1775,14 @@ function readAgentInfo(id: string, agentDir: string, validationWarnings?: string
       }
     } catch {}
 
-    if (latestMtime > 0) {
-      lastHeartbeat = new Date(latestMtime).toISOString()
-      const ageMins = (Date.now() - latestMtime) / 60000
-
-      // Determine status based on gateway + file activity
-      if (gatewayRunning && ageMins < 1440) {
-        // Gateway running + activity in last 24h = online
-        status = 'online'
-      } else if (ageMins < 30) {
-        // Recent activity in last 30 mins (e.g. just chatted) = online
-        status = 'online'
-      } else if (gatewayRunning) {
-        // Gateway running but no recent activity = offline
-        status = 'offline'
-      } else if (ageMins < 1440) {
-        // Activity in last 24h without gateway = offline (ready but idle)
-        status = 'offline'
-      } else {
-        // No recent activity = unknown
-        status = 'unknown'
-      }
-    } else {
-      // No file activity at all — check if agent has workspace files (freshly created)
-      const hasIdentity = fs.existsSync(path.join(agentDir, 'IDENTITY.md'))
-      status = hasIdentity ? 'offline' : 'unknown'
-    }
+    const derived = deriveAgentRuntimeStatus({
+      gatewayRunning,
+      latestMtime,
+      now: Date.now(),
+      hasIdentity: fs.existsSync(path.join(agentDir, 'IDENTITY.md')),
+    })
+    status = derived.status
+    lastHeartbeat = derived.lastHeartbeat
 
     // Update cache with fresh status
     statusCache.set(id, { status, lastHeartbeat, timestamp: now })

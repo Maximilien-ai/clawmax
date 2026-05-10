@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react'
 import { useToast } from './Toast'
-import { fetchModelsWithByok, readStoredByokKeys } from '../lib/byok'
+import { fetchModelsWithByok, hasChatExecutionAccess, readStoredByokKeys } from '../lib/byok'
 import { CHANNEL_API_ENDPOINTS } from '../lib/channelApi'
 import { readLocalSecrets, replaceWorkflowFieldValue, SecretRequirement, summarizeSecretReadiness, writeLocalSecrets, writeSharedSecrets } from '../lib/localSecrets'
 import { useWorkspace } from '../contexts/WorkspaceContext'
@@ -55,17 +55,6 @@ function getOrgMetaStorageKey(workspaceId?: string | null) {
   return `clawmax:organization-meta:${workspaceId || 'default'}`
 }
 
-const FALLBACK_MODELS = [
-  'openai/gpt-5',
-  'openai/gpt-4.1',
-  'openai/gpt-4.1-mini',
-  'openai/gpt-4o',
-  'openai/gpt-4o-mini',
-  'anthropic/claude-sonnet-4-20250514',
-  'anthropic/claude-opus-4-20250514',
-  'anthropic/claude-3-5-sonnet-20241022',
-]
-
 type WizardStep = 'preview' | 'prereqs' | 'customize' | 'deploy'
 type CustomizeStep = 'team' | 'context' | 'secrets' | 'workflows' | 'agents'
 type PrereqState = {
@@ -81,6 +70,23 @@ type WorkflowConfigField = {
   key: string
   type: 'text' | 'select' | 'checkbox' | 'textarea'
   options?: string[]
+}
+
+type ExecutionConfig = {
+  allowSystemKeysForUserExecution?: boolean
+  ollamaEnabled?: boolean
+  defaultOllamaBaseUrl?: string
+  recommendedModel?: string
+  systemKeyDefaults?: {
+    openai?: boolean
+    anthropic?: boolean
+    gemini?: boolean
+  }
+  userKeyDefaults?: {
+    openai?: boolean
+    anthropic?: boolean
+    gemini?: boolean
+  }
 }
 
 function normalizePrereqs(raw: any): PrereqState {
@@ -187,6 +193,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   const [modelOverride, setModelOverride] = useState('')
   const [availableModels, setAvailableModels] = useState<string[]>([])
   const [modelsByProvider, setModelsByProvider] = useState<Record<string, { name: string; models: string[] }>>({})
+  const [executionConfig, setExecutionConfig] = useState<ExecutionConfig | null>(null)
   const [modelsLoaded, setModelsLoaded] = useState(false)
   const [modelLoadError, setModelLoadError] = useState<string | null>(null)
   const [showModelSection, setShowModelSection] = useState(false)
@@ -506,16 +513,21 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
 
   // Fetch available models
   React.useEffect(() => {
+    fetch('/api/auth/config')
+      .then(r => (r.ok ? r.json() : null))
+      .then(data => setExecutionConfig(data))
+      .catch(() => {})
+
     fetchModelsWithByok()
       .then(d => {
         const models = Array.isArray(d.models) ? d.models : []
         const byProvider = d.modelsByProvider || {}
-        setAvailableModels(models.length > 0 ? models : FALLBACK_MODELS)
+        setAvailableModels(models)
         setModelsByProvider(byProvider)
         setModelLoadError(models.length === 0 && Object.keys(byProvider).length === 0 ? 'No discovered models found' : null)
       })
       .catch(err => {
-        setAvailableModels(FALLBACK_MODELS)
+        setAvailableModels([])
         setModelsByProvider({})
         setModelLoadError(err?.message || 'Failed to load models')
       })
@@ -588,6 +600,14 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   // Calculate what the agent IDs will look like with current prefix/suffix
   const exampleAgentId = regularAgents[0]?.id || template.agents[0]?.id || 'agent'
   const previewId = `${prefix}${exampleAgentId}${suffix}`
+  const hasExecutionPath = hasChatExecutionAccess(executionConfig)
+  const templateHasDefaultModel = agentsToCreate.some((agent) => !!agent.model?.trim())
+  const hasResolvedDefaultModel = !!(modelOverride || templateHasDefaultModel || executionConfig?.recommendedModel || availableModels[0])
+  const applyBlockReason = !hasExecutionPath
+    ? 'No chat execution path is configured for this dashboard. Add provider keys or enable the on-prem Ollama runtime before applying this template.'
+    : !hasResolvedDefaultModel
+      ? 'No default model is available for these agents. Choose a model override or configure a default execution model first.'
+      : null
   const resultingAgentIds = useMemo(
     () => agentsToCreate.map((agent) => `${prefix}${agent.id}${suffix}`),
     [agentsToCreate, prefix, suffix]
@@ -818,6 +838,11 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   }
 
   const handleApply = async () => {
+    if (applyBlockReason) {
+      setError(applyBlockReason)
+      showToastError(applyBlockReason)
+      return
+    }
     if (agentConflicts.length > 0) {
       const message = `Agent ID conflict: ${agentConflicts[0]} already exists. Add a prefix or suffix before applying.`
       setError(message)
@@ -2228,12 +2253,17 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                   </select>
                   {modelLoadError && (
                     <p className="text-xs text-amber-700 dark:text-amber-300 mt-2 dark:text-amber-500">
-                      {modelLoadError}. You can still apply with template defaults.
+                      {modelLoadError}.
                     </p>
                   )}
                   {!modelLoadError && modelsLoaded && Object.keys(modelsByProvider).length === 0 && availableModels.length === 0 && (
                     <p className="text-xs text-amber-700 dark:text-amber-300 mt-2 dark:text-amber-500">
-                      No discovered models are available right now. You can still apply with template defaults.
+                      No discovered models are available right now.
+                    </p>
+                  )}
+                  {applyBlockReason && (
+                    <p className="text-xs text-red-700 dark:text-red-300 mt-2">
+                      {applyBlockReason}
                     </p>
                   )}
                   {modelOverride && (
@@ -2365,9 +2395,14 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                   )}
                 </div>
               )}
+              {applyBlockReason && (
+                <div className="text-xs text-amber-800 dark:text-amber-200">
+                  {applyBlockReason}
+                </div>
+              )}
               <button
                 onClick={handleApply}
-                disabled={applying || agentConflicts.length > 0 || (hasUnresolvedChannelConflicts && !acknowledgedChannelConflicts) || hasUnresolvedWorkflowConflicts || conflictResolutionErrors.length > 0}
+                disabled={applying || !!applyBlockReason || agentConflicts.length > 0 || (hasUnresolvedChannelConflicts && !acknowledgedChannelConflicts) || hasUnresolvedWorkflowConflicts || conflictResolutionErrors.length > 0}
                 className="px-4 py-2 text-sm bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-medium"
               >
                 {applying && applyProgress ? applyProgress : applying ? 'Applying...' : '⚡ Apply Template'}
