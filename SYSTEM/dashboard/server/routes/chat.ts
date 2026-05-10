@@ -65,6 +65,13 @@ function evaluateChatExecutionReadiness(
   })
   executionEnv.OPENCLAW_WORKSPACE = getWorkspacePath()
   const resolvedAgent = resolveAgentExecutionConfig(agentId)
+  if (!resolvedAgent.model || resolvedAgent.model.trim().toLowerCase() === 'unknown') {
+    return {
+      available: false,
+      error: `Agent ${agentId} has no model configured. Choose a model for this agent before chatting.`,
+      resolvedAgent,
+    }
+  }
   const hasHostedKeys = !!(executionEnv.ANTHROPIC_API_KEY || executionEnv.OPENAI_API_KEY || executionEnv.GEMINI_API_KEY)
   const hasOllamaPath = !!(executionEnv.OLLAMA_BASE_URL || integrationConfig.ollamaDefaultModel)
 

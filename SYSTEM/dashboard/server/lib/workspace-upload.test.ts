@@ -8,7 +8,8 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import { execFileSync } from 'child_process'
-import { deleteWorkspaceAsset, extractZipBufferToWorkspace, resolveWorkspacePath, writeWorkspaceBinaryFile } from './workspace'
+import { deleteWorkspaceAsset, extractZipBufferToWorkspace, getAgentActivity, resolveWorkspacePath, writeWorkspaceBinaryFile } from './workspace'
+import { resetWorkspaceManagerForTests } from './workspace-manager'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -145,6 +146,83 @@ test('deleteWorkspaceAsset removes invalid auto-registered agent-like directorie
   assert(!fs.existsSync(path.join(openclawDir, 'agents', 'cw-items')), 'Expected stale runtime state to be removed')
 
   process.env.HOME = previousHome
+})
+
+test('getAgentActivity prefers the active workspace live record when agent ids collide', () => {
+  const previousHome = process.env.HOME || ''
+  const previousWorkspace = process.env.OPENCLAW_WORKSPACE || ''
+  process.env.HOME = tmpRoot
+
+  const defaultWorkspace = path.join(tmpRoot, '.openclaw', 'workspace')
+  const activeWorkspace = path.join(tmpRoot, '.openclaw', 'workspaces', 'activity-test')
+  const defaultAgentDir = path.join(defaultWorkspace, 'AGENTS', 'people-researcher')
+  const activeAgentDir = path.join(activeWorkspace, 'AGENTS', 'people-researcher')
+  fs.mkdirSync(defaultAgentDir, { recursive: true })
+  fs.mkdirSync(activeAgentDir, { recursive: true })
+  fs.mkdirSync(path.join(activeWorkspace, 'SYSTEM'), { recursive: true })
+  fs.writeFileSync(path.join(tmpRoot, '.openclaw', 'dashboard-workspaces.json'), JSON.stringify({
+    version: '1.0.0',
+    activeWorkspaceId: 'activity-test',
+    workspaces: [
+      { id: 'default', name: 'Default', path: defaultWorkspace, createdAt: new Date().toISOString(), lastAccessedAt: new Date().toISOString() },
+      { id: 'activity-test', name: 'Activity Test', path: activeWorkspace, createdAt: new Date().toISOString(), lastAccessedAt: new Date().toISOString() },
+    ],
+  }, null, 2), 'utf-8')
+  fs.writeFileSync(path.join(tmpRoot, '.openclaw', 'openclaw.json'), JSON.stringify({
+    agents: {
+      list: [
+        { id: 'people-researcher', workspace: defaultAgentDir, agentDir: path.join(tmpRoot, '.openclaw', 'agents', 'people-researcher', 'agent'), model: 'openai/gpt-3.5-turbo' },
+        { id: 'people-researcher', workspace: activeAgentDir, agentDir: path.join(tmpRoot, '.openclaw', 'agents', 'people-researcher', 'agent'), model: 'openai/gpt-5' },
+      ],
+    },
+  }, null, 2), 'utf-8')
+  process.env.OPENCLAW_WORKSPACE = activeWorkspace
+  resetWorkspaceManagerForTests()
+
+  const activity = getAgentActivity(activeAgentDir, 'people-researcher')
+  assert(activity.liveConfig?.model === 'openai/gpt-5', 'Expected active workspace model to win over stale duplicate record')
+
+  process.env.HOME = previousHome
+  process.env.OPENCLAW_WORKSPACE = previousWorkspace
+  resetWorkspaceManagerForTests()
+})
+
+test('getAgentActivity falls back to preferred workspace model instead of unknown', () => {
+  const previousHome = process.env.HOME || ''
+  const previousWorkspace = process.env.OPENCLAW_WORKSPACE || ''
+  process.env.HOME = tmpRoot
+
+  const activeWorkspace = path.join(tmpRoot, '.openclaw', 'workspaces', 'activity-fallback-test')
+  const activeAgentDir = path.join(activeWorkspace, 'AGENTS', 'people-researcher')
+  fs.mkdirSync(activeAgentDir, { recursive: true })
+  fs.mkdirSync(path.join(activeWorkspace, 'SYSTEM'), { recursive: true })
+  fs.writeFileSync(path.join(activeWorkspace, 'SYSTEM', 'integrations.json'), JSON.stringify({
+    preferredModel: 'openai/gpt-5',
+  }, null, 2), 'utf-8')
+  fs.writeFileSync(path.join(tmpRoot, '.openclaw', 'dashboard-workspaces.json'), JSON.stringify({
+    version: '1.0.0',
+    activeWorkspaceId: 'activity-fallback-test',
+    workspaces: [
+      { id: 'default', name: 'Default', path: path.join(tmpRoot, '.openclaw', 'workspace'), createdAt: new Date().toISOString(), lastAccessedAt: new Date().toISOString() },
+      { id: 'activity-fallback-test', name: 'Activity Fallback Test', path: activeWorkspace, createdAt: new Date().toISOString(), lastAccessedAt: new Date().toISOString() },
+    ],
+  }, null, 2), 'utf-8')
+  fs.writeFileSync(path.join(tmpRoot, '.openclaw', 'openclaw.json'), JSON.stringify({
+    agents: {
+      list: [
+        { id: 'people-researcher', workspace: activeAgentDir, agentDir: path.join(tmpRoot, '.openclaw', 'agents', 'people-researcher', 'agent') },
+      ],
+    },
+  }, null, 2), 'utf-8')
+  process.env.OPENCLAW_WORKSPACE = activeWorkspace
+  resetWorkspaceManagerForTests()
+
+  const activity = getAgentActivity(activeAgentDir, 'people-researcher')
+  assert(activity.liveConfig?.model === 'openai/gpt-5', 'Expected preferred workspace model to replace unknown fallback')
+
+  process.env.HOME = previousHome
+  process.env.OPENCLAW_WORKSPACE = previousWorkspace
+  resetWorkspaceManagerForTests()
 })
 
 console.log('\n========================================')

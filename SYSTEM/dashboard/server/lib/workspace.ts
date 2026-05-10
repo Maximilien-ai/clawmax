@@ -5,6 +5,7 @@ import os from 'os'
 import { execFileSync } from 'child_process'
 import { getWorkspaceManager } from './workspace-manager'
 import { getPausedAgents } from './agent-state'
+import { getBestAvailableModel, getDashboardEnvRaw, getDefaultOllamaBaseUrl, getSystemProviderKeys, getUserDefaultProviderKeys, isOllamaUiEnabled } from './dashboard-env'
 
 // Legacy constant for backward compatibility
 export const WORKSPACE = process.env.OPENCLAW_WORKSPACE || path.join(process.env.HOME || '', '.openclaw', 'workspace')
@@ -1314,6 +1315,52 @@ export interface AgentActivity {
   }
 }
 
+function readPreferredWorkspaceModelForActivity(): string | undefined {
+  try {
+    const filePath = path.join(getWorkspacePath(), 'SYSTEM', 'integrations.json')
+    if (!fs.existsSync(filePath)) return undefined
+    const parsed = JSON.parse(fs.readFileSync(filePath, 'utf-8'))
+    const preferredModel = typeof parsed?.preferredModel === 'string' ? parsed.preferredModel.trim() : ''
+    return preferredModel || undefined
+  } catch {
+    return undefined
+  }
+}
+
+function resolveAgentActivityFallbackModel(config: any, parsedIdentityModel?: string): string {
+  if (parsedIdentityModel?.trim()) return parsedIdentityModel.trim()
+
+  const preferredModel = readPreferredWorkspaceModelForActivity()
+  if (preferredModel) return preferredModel
+
+  const rawEnv = getDashboardEnvRaw()
+  const ollamaEnabled = isOllamaUiEnabled(rawEnv)
+  if (ollamaEnabled) {
+    try {
+      const filePath = path.join(getWorkspacePath(), 'SYSTEM', 'integrations.json')
+      if (fs.existsSync(filePath)) {
+        const parsed = JSON.parse(fs.readFileSync(filePath, 'utf-8'))
+        const ollamaModel = typeof parsed?.ollamaDefaultModel === 'string' ? parsed.ollamaDefaultModel.trim() : ''
+        const ollamaBaseUrl = typeof parsed?.ollamaBaseUrl === 'string' ? parsed.ollamaBaseUrl.trim() : ''
+        if ((ollamaBaseUrl || getDefaultOllamaBaseUrl(rawEnv)) && ollamaModel) {
+          return `ollama/${ollamaModel}`
+        }
+      }
+    } catch {}
+  }
+
+  const configDefaultModel = config?.agents?.defaults?.model?.primary
+  if (typeof configDefaultModel === 'string' && configDefaultModel.trim()) return configDefaultModel.trim()
+
+  const systemKeys = getSystemProviderKeys(rawEnv)
+  const userKeys = getUserDefaultProviderKeys(rawEnv)
+  if (systemKeys.openai || systemKeys.anthropic || systemKeys.gemini || userKeys.openai || userKeys.anthropic || userKeys.gemini) {
+    return getBestAvailableModel(rawEnv)
+  }
+
+  return 'unknown'
+}
+
 export function getAgentActivity(agentDir: string, agentId?: string): AgentActivity {
   const recentFiles: { name: string; mtime: string; ageMins: number }[] = []
   try {
@@ -1344,10 +1391,12 @@ export function getAgentActivity(agentDir: string, agentId?: string): AgentActiv
       const configPath = path.join(HOME, '.openclaw', 'openclaw.json')
       const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
       const agentList = config?.agents?.list || []
-      const liveAgent = agentList.find((a: any) => a.id === agentId)
+      const normalizedAgentDir = path.resolve(agentDir)
+      const liveAgent = agentList.find((a: any) => a.id === agentId && typeof a?.workspace === 'string' && path.resolve(a.workspace) === normalizedAgentDir)
+        || agentList.find((a: any) => a.id === agentId)
       if (liveAgent) {
-        // Get model from agent config or defaults
-        const model = liveAgent.model || parsedIdentity.model || config?.agents?.defaults?.model?.primary || 'unknown'
+        const model = (typeof liveAgent.model === 'string' && liveAgent.model.trim())
+          || resolveAgentActivityFallbackModel(config, parsedIdentity.model)
         liveConfig = {
           model,
           workspace: liveAgent.workspace || agentDir,
