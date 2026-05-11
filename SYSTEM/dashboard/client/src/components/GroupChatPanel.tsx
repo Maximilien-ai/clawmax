@@ -706,7 +706,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
   )
 
   return (
-    <div className={isOverlay ? "fixed inset-0 z-50 flex items-end justify-end bg-black/20" : "h-full flex flex-col"} onClick={isOverlay ? onClose : undefined}>
+    <div className={isOverlay ? "fixed inset-0 z-50 flex items-end justify-end bg-black/20" : "h-full flex flex-col"}>
       <div className={`bg-white dark:bg-gray-800 h-full ${isOverlay ? 'w-full sm:w-[480px] shadow-2xl' : 'w-full'} flex flex-col`} onClick={(e) => isOverlay && e.stopPropagation()}>
         {/* Header */}
         <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
@@ -720,6 +720,13 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
             </p>
           </div>
           <div className="flex items-center gap-1">
+            <button
+              onClick={onClose}
+              className="text-xs px-2 py-1.5 text-gray-600 hover:bg-gray-100 rounded transition-colors dark:bg-gray-800 dark:hover:bg-gray-700 inline-flex"
+              title="Close chat"
+            >
+              Cancel
+            </button>
             <button
               onClick={fetchArchives}
               disabled={archives.length === 0}
