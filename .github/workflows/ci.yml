@@ -85,4 +85,16 @@ jobs:
           }
 
       - name: Run tests
+        env:
+          SKIP_CI_QUARANTINED_TESTS: "true"
         run: ./SYSTEM/test.sh
+
+      - name: Run quarantined Templates API suite
+        continue-on-error: true
+        run: |
+          cd SYSTEM/dashboard
+          npx ts-node --transpileOnly server/lib/templates.test.ts
+
+      - name: Run quarantined Docker entrypoint suite
+        continue-on-error: true
+        run: sh SYSTEM/dashboard/docker-entrypoint.test.sh

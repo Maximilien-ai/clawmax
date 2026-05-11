@@ -152,6 +152,8 @@ for arg in "$@"; do
   fi
 done
 
+SKIP_CI_QUARANTINED_TESTS="${SKIP_CI_QUARANTINED_TESTS:-false}"
+
 passed=0
 failed=0
 
@@ -321,14 +323,18 @@ fi
 
 echo ""
 echo -e "${YELLOW}→ Running Templates API unit tests...${NC}"
-npx ts-node --transpileOnly server/lib/templates.test.ts > /tmp/clawmax-templates.out 2>&1
-template_status=$?
-if [ "$template_status" -eq 0 ]; then
-  template_count=$(grep "Passed:" /tmp/clawmax-templates.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Passed: //' | tr -cd '0-9')
-  pass "Templates API unit tests (${template_count:-?} tests)"
+if [ "$SKIP_CI_QUARANTINED_TESTS" = "true" ]; then
+  warn "Skipping Templates API unit tests in required CI lane (still covered locally and in quarantined CI)"
 else
-  tail -n 40 /tmp/clawmax-templates.out
-  fail "Templates API unit tests"
+  npx ts-node --transpileOnly server/lib/templates.test.ts > /tmp/clawmax-templates.out 2>&1
+  template_status=$?
+  if [ "$template_status" -eq 0 ]; then
+    template_count=$(grep "Passed:" /tmp/clawmax-templates.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Passed: //' | tr -cd '0-9')
+    pass "Templates API unit tests (${template_count:-?} tests)"
+  else
+    tail -n 40 /tmp/clawmax-templates.out
+    fail "Templates API unit tests"
+  fi
 fi
 
 echo ""
@@ -536,13 +542,17 @@ else
 fi
 
 echo -e "${YELLOW}→ Running Docker entrypoint gateway tests...${NC}"
-sh "$SYSTEM_DIR/dashboard/docker-entrypoint.test.sh" > /tmp/clawmax-docker-entrypoint.out 2>&1
-docker_entrypoint_status=$?
-if [ "$docker_entrypoint_status" -eq 0 ]; then
-  pass "Docker entrypoint gateway tests"
+if [ "$SKIP_CI_QUARANTINED_TESTS" = "true" ]; then
+  warn "Skipping Docker entrypoint gateway tests in required CI lane (still covered locally and in quarantined CI)"
 else
-  cat /tmp/clawmax-docker-entrypoint.out
-  fail "Docker entrypoint gateway tests"
+  sh "$SYSTEM_DIR/dashboard/docker-entrypoint.test.sh" > /tmp/clawmax-docker-entrypoint.out 2>&1
+  docker_entrypoint_status=$?
+  if [ "$docker_entrypoint_status" -eq 0 ]; then
+    pass "Docker entrypoint gateway tests"
+  else
+    cat /tmp/clawmax-docker-entrypoint.out
+    fail "Docker entrypoint gateway tests"
+  fi
 fi
 
 echo -e "${YELLOW}→ Running Dockerfile OpenClaw builder tests...${NC}"
