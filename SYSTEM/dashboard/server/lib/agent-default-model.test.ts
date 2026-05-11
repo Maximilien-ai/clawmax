@@ -69,6 +69,17 @@ async function main() {
       })
       assert.equal(resolved, undefined)
     })
+
+    await test('stale unsupported workspace preferred model falls back to supported recommended model', () => {
+      const systemDir = path.join(tmpHome, '.openclaw', 'workspace', 'SYSTEM')
+      fs.mkdirSync(systemDir, { recursive: true })
+      fs.writeFileSync(path.join(systemDir, 'integrations.json'), JSON.stringify({ preferredModel: 'openai/gpt-5.5' }, null, 2))
+      const resolved = resolveDefaultAgentModel({
+        availableModels: ['openai/gpt-5', 'openai/gpt-4.1'],
+        rawEnv: { SYSTEM_OPENAI_API_KEY: 'key' },
+      })
+      assert.equal(resolved, 'openai/gpt-5')
+    })
   } finally {
     if (originalHome === undefined) delete process.env.HOME
     else process.env.HOME = originalHome

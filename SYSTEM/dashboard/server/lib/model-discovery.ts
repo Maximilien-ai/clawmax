@@ -237,9 +237,9 @@ async function fetchOllamaModels(baseUrl: string): Promise<string[]> {
 
 // ── Public API ─────────────────────────────────────────────────────────────────
 
-function resolveApiKey(provider: 'openai' | 'anthropic' | 'gemini'): string | undefined {
-  const systemKeys = getSystemProviderKeys()
-  const userKeys = getUserDefaultProviderKeys()
+function resolveApiKey(provider: 'openai' | 'anthropic' | 'gemini', rawEnv?: Record<string, string>): string | undefined {
+  const systemKeys = getSystemProviderKeys(rawEnv)
+  const userKeys = getUserDefaultProviderKeys(rawEnv)
   return systemKeys[provider] || userKeys[provider]
 }
 
@@ -317,11 +317,11 @@ export async function discoverModels(
 }
 
 /** Synchronous flat list — returns cached models or fallback. For validation use. */
-export function getAvailableModelsCached(): string[] {
+export function getAvailableModelsCached(rawEnv?: Record<string, string>): string[] {
   const models: string[] = []
-  const openaiKey = resolveApiKey('openai')
-  const anthropicKey = resolveApiKey('anthropic')
-  const geminiKey = resolveApiKey('gemini')
+  const openaiKey = resolveApiKey('openai', rawEnv)
+  const anthropicKey = resolveApiKey('anthropic', rawEnv)
+  const geminiKey = resolveApiKey('gemini', rawEnv)
 
   if (anthropicKey) {
     models.push(...(getCached('anthropic') || FALLBACK_ANTHROPIC))

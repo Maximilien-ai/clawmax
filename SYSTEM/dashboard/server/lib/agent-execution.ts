@@ -6,6 +6,7 @@ import type { ProviderKeys } from './dashboard-env'
 import { readAgentModelFromConfigFile, restoreAgentModelInConfigFile, updateAgentModelInConfigFile } from './agent-model'
 import { resetAgentSessionsForModelChange } from './agent-model'
 import { resolveDefaultAgentModel } from './agent-default-model'
+import { getAvailableModelsCached } from './model-discovery'
 
 interface OpenClawAgentRecord {
   id: string
@@ -116,6 +117,15 @@ function normalizeMissingModel(model?: string): string | undefined {
   return trimmed
 }
 
+function isSupportedHostedModel(model: string | undefined): boolean {
+  if (!model) return false
+  const provider = providerFromModel(model)
+  if (provider === 'ollama') return true
+  const availableModels = getAvailableModelsCached(process.env as Record<string, string>)
+  if (availableModels.length === 0) return true
+  return availableModels.includes(model)
+}
+
 export function resolveAgentExecutionConfig(agentId: string): {
   model?: string
   workspace?: string
@@ -145,9 +155,15 @@ export function resolveAgentExecutionConfig(agentId: string): {
   // If the active workspace contains this agent, trust its local identity first.
   // A stale global openclaw.json entry may point at a different workspace with the same agent id.
   const recordModel = normalizeMissingModel(record?.model)
-  const model = hasActiveWorkspaceAgent
+  let model = hasActiveWorkspaceAgent
     ? (identityModel || recordModel || resolveDefaultAgentModel({ rawEnv: process.env as Record<string, string> }))
     : (recordModel || identityModel || resolveDefaultAgentModel({ rawEnv: process.env as Record<string, string> }))
+  if (model && !isSupportedHostedModel(model)) {
+    model = resolveDefaultAgentModel({
+      rawEnv: process.env as Record<string, string>,
+      availableModels: getAvailableModelsCached(process.env as Record<string, string>),
+    }) || model
+  }
   return {
     model,
     workspace: resolvedWorkspace,

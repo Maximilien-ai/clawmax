@@ -123,6 +123,32 @@ test('resolveAgentExecutionConfig detects google-prefixed Gemini provider from m
   assert(resolved.provider === 'gemini', 'Expected provider derived from Google Gemini model')
 })
 
+test('resolveAgentExecutionConfig falls back from stale unsupported hosted model to supported default', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
+  const workspace = path.join(home, 'workspace')
+  const agentWorkspace = path.join(workspace, 'AGENTS', 'test-stale-openai')
+  const agentDir = path.join(home, '.openclaw', 'agents', 'test-stale-openai', 'agent')
+  fs.mkdirSync(agentWorkspace, { recursive: true })
+  fs.mkdirSync(path.join(home, '.openclaw'), { recursive: true })
+  fs.writeFileSync(path.join(agentWorkspace, 'IDENTITY.md'), '# Identity\n\n- **Model:** openai/gpt-5.5\n', 'utf-8')
+  fs.writeFileSync(path.join(home, '.openclaw', 'openclaw.json'), JSON.stringify({
+    agents: {
+      list: [
+        { id: 'test-stale-openai', workspace: agentWorkspace, agentDir, model: 'openai/gpt-5.5' }
+      ]
+    }
+  }, null, 2))
+
+  process.env.HOME = home
+  process.env.OPENCLAW_WORKSPACE = workspace
+  process.env.SYSTEM_OPENAI_API_KEY = 'test-openai-key'
+  resetWorkspaceManagerForTests()
+
+  const resolved = resolveAgentExecutionConfig('test-stale-openai')
+  assert(resolved.model === 'openai/gpt-5', `Expected unsupported hosted model to fall back to supported default, got ${resolved.model || 'missing'}`)
+  assert(resolved.provider === 'openai', 'Expected provider to remain openai after fallback')
+})
+
 test('resolveAgentExecutionConfig prefers the active workspace agent when ids collide across workspaces', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
   const defaultWorkspace = path.join(home, '.openclaw', 'workspace')

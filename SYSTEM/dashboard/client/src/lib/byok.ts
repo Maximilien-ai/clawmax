@@ -127,9 +127,9 @@ export function readStoredByokKeys(): StoredByokKeys {
   }
 }
 
-export function writeStoredByokKeys(keys: StoredByokKeys) {
+export function writeStoredByokKeys(keys: StoredByokKeys, options?: { silent?: boolean }) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(keys))
-  if (typeof window !== 'undefined') {
+  if (typeof window !== 'undefined' && !options?.silent) {
     window.dispatchEvent(new CustomEvent(BROWSER_VAULT_UPDATED_EVENT))
   }
 }

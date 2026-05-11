@@ -1,4 +1,5 @@
 import { getBestAvailableModel, getDashboardEnvRaw, getDefaultOllamaBaseUrl, getSystemProviderKeys, getUserDefaultProviderKeys, isOllamaUiEnabled } from './dashboard-env'
+import { getAvailableModelsCached } from './model-discovery'
 import { readWorkspaceIntegrationConfig } from './workspace-integrations'
 
 type ResolveDefaultAgentModelOptions = {
@@ -16,14 +17,16 @@ function normalizeCandidate(value?: string): string | undefined {
 
 function matchesAvailable(model: string | undefined, availableModels: string[]): boolean {
   if (!model) return false
-  if (availableModels.length === 0) return true
+  if (availableModels.length === 0) return false
   return availableModels.includes(model)
 }
 
 export function resolveDefaultAgentModel(options: ResolveDefaultAgentModelOptions = {}): string | undefined {
   const rawEnv = options.rawEnv || getDashboardEnvRaw()
   const integrations = readWorkspaceIntegrationConfig()
-  const availableModels = Array.isArray(options.availableModels) ? options.availableModels.filter(Boolean) : []
+  const availableModels = Array.isArray(options.availableModels)
+    ? options.availableModels.filter(Boolean)
+    : getAvailableModelsCached(rawEnv)
 
   const explicitModel = normalizeCandidate(options.explicitModel)
   if (explicitModel) return explicitModel

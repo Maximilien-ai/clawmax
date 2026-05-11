@@ -220,7 +220,7 @@ export function ByokWizard({
     writeStoredByokKeys({
       ...stored,
       verifiedProviders: updater(stored.verifiedProviders || {}),
-    })
+    }, { silent: true })
   }, [])
 
   const currentVerificationFingerprints = React.useMemo(() => ({
