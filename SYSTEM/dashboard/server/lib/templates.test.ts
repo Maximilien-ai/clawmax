@@ -82,6 +82,12 @@ function assertEqual<T>(actual: T, expected: T, message?: string) {
   }
 }
 
+function seedOpenClawConfig(homeDir: string, config: any = { agents: { list: [] } }) {
+  const configPath = path.join(homeDir, '.openclaw', 'openclaw.json')
+  fs.mkdirSync(path.dirname(configPath), { recursive: true })
+  fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8')
+}
+
 console.log(`\n${YELLOW}=== Templates API Test Suite ===${RESET}\n`)
 
 // Test 1: List templates returns arrays
@@ -999,9 +1005,7 @@ test('importAgentFromTemplate resolves a real default model when no override is 
   process.env.SYSTEM_OPENAI_API_KEY = 'test-openai-key'
   delete process.env.SYSTEM_ANTHROPIC_API_KEY
   resetWorkspaceManagerForTests()
-
-  fs.mkdirSync(path.dirname(configPath), { recursive: true })
-  fs.writeFileSync(configPath, JSON.stringify({ agents: { list: [] } }, null, 2), 'utf-8')
+  seedOpenClawConfig(tempHome)
 
   try {
     const result = importAgentFromTemplate('data-engineer-template', {
@@ -1273,6 +1277,7 @@ test('importOrganizationTemplate creates nested teams and workflow handoff metad
   process.env.OPENCLAW_WORKSPACE = tempWorkspace
   process.env.SYSTEM_OPENAI_API_KEY = 'test-openai-key'
   resetWorkspaceManagerForTests()
+  seedOpenClawConfig(tempHome)
 
   try {
     const result = importOrganizationTemplate('build-a-company-hack-test', {
@@ -1353,6 +1358,7 @@ test('importOrganizationTemplate keeps multiple company applies isolated by pref
   process.env.OPENCLAW_WORKSPACE = tempWorkspace
   process.env.SYSTEM_OPENAI_API_KEY = 'test-openai-key'
   resetWorkspaceManagerForTests()
+  seedOpenClawConfig(tempHome)
 
   try {
     const first = importOrganizationTemplate('build-a-company-hack-test', { prefix: 'alpha-' })
@@ -1395,6 +1401,7 @@ test('importOrganizationTemplate re-apply replaces stale workflow targeting', ()
   process.env.OPENCLAW_WORKSPACE = tempWorkspace
   process.env.SYSTEM_OPENAI_API_KEY = 'test-openai-key'
   resetWorkspaceManagerForTests()
+  seedOpenClawConfig(tempHome)
 
   try {
     const kickoffId = 'b2b-leadership-kickoff'
@@ -1455,6 +1462,7 @@ test('importOrganizationTemplate namespaces groups and communities for prefixed 
   process.env.OPENCLAW_WORKSPACE = tempWorkspace
   process.env.SYSTEM_OPENAI_API_KEY = 'test-openai-key'
   resetWorkspaceManagerForTests()
+  seedOpenClawConfig(tempHome)
 
   try {
     const imported = importOrganizationTemplate('build-a-company-hack-test', { prefix: 'test-' })
@@ -1491,6 +1499,7 @@ test('importOrganizationTemplate sanitizes invalid team ancestry before creating
   process.env.OPENCLAW_WORKSPACE = tempWorkspace
   process.env.SYSTEM_OPENAI_API_KEY = 'test-openai-key'
   resetWorkspaceManagerForTests()
+  seedOpenClawConfig(tempHome)
 
   try {
     const templateDir = path.join(tempWorkspace, 'TEMPLATES', 'organizations', 'cycle-company')
