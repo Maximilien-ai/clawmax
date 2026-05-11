@@ -322,6 +322,16 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Model discovery unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/model-discovery.test.ts > /tmp/clawmax-model-discovery.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-model-discovery.out; then
+  model_discovery_count=$(grep "Tests passed:" /tmp/clawmax-model-discovery.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Model discovery unit tests (${model_discovery_count:-?} tests)"
+else
+  fail "Model discovery unit tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Templates API unit tests...${NC}"
 if [ "$SKIP_CI_QUARANTINED_TESTS" = "true" ]; then
   warn "Skipping Templates API unit tests in required CI lane (still covered locally and in quarantined CI)"

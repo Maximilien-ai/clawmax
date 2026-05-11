@@ -46,6 +46,16 @@ function buildDashboardChatSeed(agentId: string, agentWorkspaceDir?: string): st
 function deriveChatError(raw: string): string {
   const text = raw.trim()
   if (!text) return 'No reply from agent.'
+  if (/Unknown model:/i.test(text)) {
+    return 'This agent is configured with a model that the current runtime does not support. Choose a different model for the agent and try again.'
+  }
+  if (/No API key found for provider/i.test(text)) {
+    return text.match(/No API key found for provider "[^"]+"/i)?.[0]
+      || 'The selected model provider is missing credentials for this agent runtime.'
+  }
+  if (/All models failed/i.test(text) && /Unknown model:/i.test(text)) {
+    return 'This agent is configured with an unsupported model, and fallback providers could not authenticate. Choose a supported model for the agent and try again.'
+  }
   if (/gateway/i.test(text)) return 'Agent chat could not reach the gateway runtime.'
   if (/timeout/i.test(text)) return 'Agent chat timed out before a reply was produced.'
   if (/api key|execution path configured|ollama runtime/i.test(text)) return text

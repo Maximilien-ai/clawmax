@@ -335,7 +335,11 @@ router.get('/models', async (req, res) => {
       gemini: req.query.geminiKey as string | undefined,
       ollamaBaseUrl: req.query.ollamaBaseUrl as string | undefined,
     }
-    const result = await discoverModels(byokKeys.openai || byokKeys.anthropic || byokKeys.gemini || byokKeys.ollamaBaseUrl ? byokKeys : undefined)
+    const showAll = String(req.query.showAll || '').toLowerCase() === 'true'
+    const result = await discoverModels(
+      byokKeys.openai || byokKeys.anthropic || byokKeys.gemini || byokKeys.ollamaBaseUrl ? byokKeys : undefined,
+      { showAll }
+    )
     res.json(result)
   } catch (err) {
     console.error('Model discovery failed:', err)
@@ -347,8 +351,17 @@ router.get('/models', async (req, res) => {
 router.post('/models/refresh', async (req, res) => {
   clearModelCache()
   try {
-    const byokKeys = req.body as { openai?: string; anthropic?: string; gemini?: string; ollamaBaseUrl?: string } | undefined
-    const result = await discoverModels(byokKeys?.openai || byokKeys?.anthropic || byokKeys?.gemini || byokKeys?.ollamaBaseUrl ? byokKeys : undefined)
+    const body = (req.body || {}) as { openai?: string; anthropic?: string; gemini?: string; ollamaBaseUrl?: string; showAll?: boolean }
+    const byokKeys = {
+      openai: body.openai,
+      anthropic: body.anthropic,
+      gemini: body.gemini,
+      ollamaBaseUrl: body.ollamaBaseUrl,
+    }
+    const result = await discoverModels(
+      byokKeys.openai || byokKeys.anthropic || byokKeys.gemini || byokKeys.ollamaBaseUrl ? byokKeys : undefined,
+      { showAll: body.showAll === true }
+    )
     res.json(result)
   } catch (err) {
     console.error('Model refresh failed:', err)

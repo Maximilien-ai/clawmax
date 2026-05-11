@@ -193,6 +193,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   const [modelOverride, setModelOverride] = useState('')
   const [availableModels, setAvailableModels] = useState<string[]>([])
   const [modelsByProvider, setModelsByProvider] = useState<Record<string, { name: string; models: string[] }>>({})
+  const [showAllModels, setShowAllModels] = useState(false)
   const [executionConfig, setExecutionConfig] = useState<ExecutionConfig | null>(null)
   const [modelsLoaded, setModelsLoaded] = useState(false)
   const [modelLoadError, setModelLoadError] = useState<string | null>(null)
@@ -518,7 +519,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
       .then(data => setExecutionConfig(data))
       .catch(() => {})
 
-    fetchModelsWithByok()
+    fetchModelsWithByok({ showAll: showAllModels })
       .then(d => {
         const models = Array.isArray(d.models) ? d.models : []
         const byProvider = d.modelsByProvider || {}
@@ -532,7 +533,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
         setModelLoadError(err?.message || 'Failed to load models')
       })
       .finally(() => setModelsLoaded(true))
-  }, [])
+  }, [showAllModels])
 
   // Expand parameterized agents based on counts
   const paramAgentIds = new Set((template.parameters || []).map(p => p.agentId))
@@ -2230,7 +2231,13 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
 
                 {/* Model override dropdown */}
                 <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 dark:bg-amber-900/20 dark:border-amber-700">
-                  <label className="text-xs font-medium text-amber-900 dark:text-amber-200">Override model for all agents:</label>
+                  <div className="flex items-center justify-between gap-3">
+                    <label className="text-xs font-medium text-amber-900 dark:text-amber-200">Override model for all agents:</label>
+                    <label className="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-300">
+                      <input type="checkbox" checked={showAllModels} onChange={(e) => setShowAllModels(e.target.checked)} />
+                      Show all models
+                    </label>
+                  </div>
                   <select
                     value={modelOverride}
                     onChange={e => setModelOverride(e.target.value)}
@@ -2259,6 +2266,11 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                   {!modelLoadError && modelsLoaded && Object.keys(modelsByProvider).length === 0 && availableModels.length === 0 && (
                     <p className="text-xs text-amber-700 dark:text-amber-300 mt-2 dark:text-amber-500">
                       No discovered models are available right now.
+                    </p>
+                  )}
+                  {!showAllModels && availableModels.length > 0 && (
+                    <p className="text-xs text-amber-700 dark:text-amber-300 mt-2 dark:text-amber-500">
+                      Showing the conservative compatibility list by default. Enable <span className="font-medium">Show all models</span> only if you know your runtime supports a newer model.
                     </p>
                   )}
                   {applyBlockReason && (

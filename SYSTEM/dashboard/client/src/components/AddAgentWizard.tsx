@@ -67,6 +67,7 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
   const [availableModels, setAvailableModels] = useState<string[]>([])
   const [modelsLoaded, setModelsLoaded] = useState(false)
   const [modelsByProvider, setModelsByProvider] = useState<Record<string, { name: string; models: string[] }>>({})
+  const [showAllModels, setShowAllModels] = useState(false)
   const [agentTemplates, setAgentTemplates] = useState<Array<{
     name: string
     slug: string
@@ -91,7 +92,7 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
   // Fetch available models, suggested ID + port and existing agents list on mount
   useEffect(() => {
     // Fetch available models based on API keys (includes BYOK)
-    fetchModelsWithByok()
+    fetchModelsWithByok({ showAll: showAllModels })
       .then(d => {
         const models = (d.models || []).filter((model: string) => ollamaEnabled || !model.startsWith('ollama/'))
         const filteredModelsByProvider = Object.fromEntries(
@@ -185,7 +186,7 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
         setAgentTemplates(templates)
       })
       .catch(() => {})
-  }, [ollamaEnabled])
+  }, [ollamaEnabled, showAllModels])
 
   // Pre-fill form when template is selected
   useEffect(() => {
@@ -522,10 +523,16 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
                 <p className="mt-1 text-xs text-gray-400">Lowercase letters, numbers, hyphens. Suggested: <strong>{suggested?.id ?? '…'}</strong></p>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                  Model <span className="text-red-400">*</span>
-                  {preFilled && <span className="ml-2 text-xs text-sky-600">⚡ Pre-filled from {form.cloneFrom}</span>}
-                </label>
+                <div className="mb-1 flex items-center justify-between gap-3">
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400">
+                    Model <span className="text-red-400">*</span>
+                    {preFilled && <span className="ml-2 text-xs text-sky-600">⚡ Pre-filled from {form.cloneFrom}</span>}
+                  </label>
+                  <label className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                    <input type="checkbox" checked={showAllModels} onChange={(e) => setShowAllModels(e.target.checked)} />
+                    Show all models
+                  </label>
+                </div>
                 <select
                   value={form.model}
                   onChange={e => set('model', e.target.value)}
@@ -550,6 +557,11 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
                     {ollamaEnabled
                       ? 'No models are available yet. Configure OpenAI, Anthropic, Gemini, or a local Ollama runtime in Workspaces Integrations.'
                       : 'No models are available yet. Configure OpenAI, Anthropic, or Gemini in Workspaces Integrations.'}
+                  </p>
+                )}
+                {!showAllModels && availableModels.length > 0 && (
+                  <p className="mt-1 text-xs text-gray-400">
+                    Showing the conservative compatibility list. Enable <span className="font-medium">Show all models</span> only if you know your runtime supports a newer model.
                   </p>
                 )}
               </div>

@@ -137,6 +137,8 @@ function extractWorkspaceFileMentions(content: string): string[] {
 function summarizeChatFailure(message: string): string {
   const text = String(message || '').trim()
   if (!text) return 'No reply from agent.'
+  if (/unsupported model|Unknown model:/i.test(text)) return 'This agent is configured with a model that the current runtime does not support. Choose a different model for the agent and try again.'
+  if (/No API key found for provider/i.test(text)) return text.match(/No API key found for provider "[^"]+"/i)?.[0] || 'The selected model provider is missing credentials for this agent runtime.'
   if (/gateway/i.test(text)) return 'Agent could not reach the gateway runtime.'
   if (/timeout/i.test(text)) return 'Agent timed out before producing a reply.'
   if (/No API keys available|No execution path configured/i.test(text)) return 'No model execution path is configured for this chat.'

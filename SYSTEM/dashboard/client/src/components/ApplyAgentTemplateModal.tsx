@@ -40,6 +40,7 @@ export default function ApplyAgentTemplateModal({
   const [agentId, setAgentId] = useState(defaultAgentId || template.agents[0]?.id || '')
   const [model, setModel] = useState('')
   const [availableModels, setAvailableModels] = useState<string[]>([])
+  const [showAllModels, setShowAllModels] = useState(false)
   const [executionConfig, setExecutionConfig] = useState<ExecutionConfig | null>(null)
   const [applying, setApplying] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -50,10 +51,10 @@ export default function ApplyAgentTemplateModal({
       .then(data => setExecutionConfig(data))
       .catch(() => {})
 
-    fetchModelsWithByok()
+    fetchModelsWithByok({ showAll: showAllModels })
       .then(d => setAvailableModels(d.models || []))
       .catch(() => {})
-  }, [])
+  }, [showAllModels])
 
   const templateDefaultModel = template.agents[0]?.model?.trim() || ''
   const hasExecutionPath = hasChatExecutionAccess(executionConfig)
@@ -139,7 +140,13 @@ export default function ApplyAgentTemplateModal({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">Model Override (optional)</label>
+            <div className="mb-1 flex items-center justify-between gap-3">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Model Override (optional)</label>
+              <label className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                <input type="checkbox" checked={showAllModels} onChange={(e) => setShowAllModels(e.target.checked)} />
+                Show all models
+              </label>
+            </div>
             <select
               value={model}
               onChange={(e) => setModel(e.target.value)}
@@ -150,6 +157,11 @@ export default function ApplyAgentTemplateModal({
                 <option key={availableModel} value={availableModel}>{availableModel}</option>
               ))}
             </select>
+            {!showAllModels && (
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Showing the conservative compatibility list by default. Enable <span className="font-medium">Show all models</span> if you need to try a newer runtime model.
+              </p>
+            )}
           </div>
 
           <div className="bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-700 rounded p-3 text-sm">

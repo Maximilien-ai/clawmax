@@ -184,29 +184,34 @@ export function hasChatExecutionAccess(config?: AiExecutionConfig | null): boole
 
 /** Build query string with BYOK keys for model discovery endpoints */
 export function byokModelParams(): string {
+  return byokModelParamsWithOptions()
+}
+
+export function byokModelParamsWithOptions(options?: { showAll?: boolean }): string {
   const keys = readStoredByokKeys()
   const params = new URLSearchParams()
   if (keys.openai) params.set('openaiKey', keys.openai)
   if (keys.anthropic) params.set('anthropicKey', keys.anthropic)
   if (keys.geminiApiKey) params.set('geminiKey', keys.geminiApiKey)
   if (keys.ollamaBaseUrl) params.set('ollamaBaseUrl', keys.ollamaBaseUrl)
+  if (options?.showAll) params.set('showAll', 'true')
   const qs = params.toString()
   return qs ? `?${qs}` : ''
 }
 
 /** Fetch models with BYOK keys included */
-export async function fetchModelsWithByok(): Promise<{ models: string[]; modelsByProvider: Record<string, any> }> {
-  const res = await fetch(`/api/agents/models${byokModelParams()}`)
+export async function fetchModelsWithByok(options?: { showAll?: boolean }): Promise<{ models: string[]; modelsByProvider: Record<string, any> }> {
+  const res = await fetch(`/api/agents/models${byokModelParamsWithOptions(options)}`)
   if (!res.ok) throw new Error('Failed to load models')
   return res.json()
 }
 
 /** Refresh models (clear cache) with BYOK keys */
-export async function refreshModelsWithByok(): Promise<{ models: string[]; modelsByProvider: Record<string, any> }> {
+export async function refreshModelsWithByok(options?: { showAll?: boolean }): Promise<{ models: string[]; modelsByProvider: Record<string, any> }> {
   const res = await fetch('/api/agents/models/refresh', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(byokForRequest()),
+    body: JSON.stringify({ ...byokForRequest(), showAll: options?.showAll === true }),
   })
   if (!res.ok) throw new Error('Failed to refresh models')
   return res.json()

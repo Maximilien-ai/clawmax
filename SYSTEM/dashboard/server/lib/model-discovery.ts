@@ -16,6 +16,8 @@ export interface ModelsResponse {
   modelsByProvider: Record<string, ProviderModels>
 }
 
+type ProviderId = 'openai' | 'anthropic' | 'gemini' | 'ollama'
+
 // ── Cache ──────────────────────────────────────────────────────────────────────
 
 const CACHE_TTL_MS = 60 * 60 * 1000 // 1 hour
@@ -63,6 +65,7 @@ export const FALLBACK_ANTHROPIC = [
 ]
 
 const FALLBACK_OPENAI = [
+  'openai/gpt-5',
   'openai/gpt-4o',
   'openai/gpt-4o-mini',
   'openai/gpt-4.1',
@@ -80,6 +83,18 @@ const FALLBACK_GEMINI = [
   'google/gemini-2.5-flash-lite',
   'google/gemini-2.0-flash',
 ]
+
+const COMPATIBLE_MODELS: Record<Exclude<ProviderId, 'ollama'>, string[]> = {
+  openai: FALLBACK_OPENAI,
+  anthropic: FALLBACK_ANTHROPIC,
+  gemini: FALLBACK_GEMINI,
+}
+
+function filterCompatibleDiscoveredModels(provider: ProviderId, models: string[], showAll = false): string[] {
+  if (showAll || provider === 'ollama') return models
+  const compatible = new Set(COMPATIBLE_MODELS[provider as keyof typeof COMPATIBLE_MODELS] || [])
+  return models.filter((model) => compatible.has(model))
+}
 
 // ── Model name filters (skip embedding, tts, whisper, dall-e, etc.) ────────
 
@@ -229,11 +244,15 @@ function resolveApiKey(provider: 'openai' | 'anthropic' | 'gemini'): string | un
 }
 
 /** Fetch models for all configured providers. Returns immediately from cache when warm. */
-export async function discoverModels(byokKeys?: { openai?: string; anthropic?: string; gemini?: string; ollamaBaseUrl?: string }): Promise<ModelsResponse> {
+export async function discoverModels(
+  byokKeys?: { openai?: string; anthropic?: string; gemini?: string; ollamaBaseUrl?: string },
+  options?: { showAll?: boolean }
+): Promise<ModelsResponse> {
   const openaiKey = byokKeys?.openai || resolveApiKey('openai')
   const anthropicKey = byokKeys?.anthropic || resolveApiKey('anthropic')
   const geminiKey = byokKeys?.gemini || resolveApiKey('gemini')
   const ollamaBaseUrl = byokKeys?.ollamaBaseUrl?.trim()
+  const showAll = options?.showAll === true
 
   const fetches: Promise<{ provider: string; name: string; models: string[] }>[] = []
 
@@ -283,8 +302,9 @@ export async function discoverModels(byokKeys?: { openai?: string; anthropic?: s
   const modelsByProvider: Record<string, ProviderModels> = {}
 
   for (const r of results) {
-    allModels.push(...r.models)
-    modelsByProvider[r.provider] = { name: r.name, models: r.models }
+    const filteredModels = filterCompatibleDiscoveredModels(r.provider as ProviderId, r.models, showAll)
+    allModels.push(...filteredModels)
+    modelsByProvider[r.provider] = { name: r.name, models: filteredModels }
   }
 
   // Sort providers alphabetically
@@ -313,4 +333,8 @@ export function getAvailableModelsCached(): string[] {
     models.push(...(getCached('gemini') || FALLBACK_GEMINI))
   }
   return models
+}
+
+export const __test = {
+  filterCompatibleDiscoveredModels,
 }
