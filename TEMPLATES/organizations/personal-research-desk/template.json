@@ -171,6 +171,7 @@
         ]
       },
       "content": "# Research Request Kickoff\n\nYou are the Research Lead. The personal research desk just came online.\n\n## Project Configuration\n> **Customize these before applying only if you already know them:**\n\n- **Research target (optional):** [person, company, topic, custom]\n- **Question to answer (optional):** [e.g., what matters most before the conversation?]\n- **Context (optional):** [meeting, outreach, diligence, personal decision, custom]\n- **Time horizon (optional):** [today, this week, background only, custom]\n- **Output artifact (optional):** [one-page brief, question list, company memo]\n\n## Your Tasks\n1. If any optional research-request fields are blank, ask for them in your first status post instead of blocking deployment\n2. Define the exact research question and useful output format\n3. Ask People Researcher and Company Researcher for the first evidence sweep as needed\n4. Ask Brief Writer to assemble the final briefing structure\n5. Post the research plan and expected confidence level to Status",
+      "content": "# Research Request Kickoff\n\nYou are the Research Lead. The personal research desk just came online.\n\n## Project Configuration\n> **Customize these before applying only if you already know them:**\n\n- **Research target (optional):** [person, company, topic, custom]\n- **Question to answer (optional):** [e.g., what matters most before the conversation?]\n- **Context (optional):** [meeting, outreach, diligence, personal decision, custom]\n- **Time horizon (optional):** [today, this week, background only, custom]\n- **Output artifact (optional):** [one-page brief, question list, company memo]\n\n## Default Operating Rule\n- If the user already gave a clear target or question, proceed immediately and do not ask for format approval.\n- If any optional fields are blank, infer sensible defaults first:\n  - Research target: from the user request\n  - Question to answer: \"What matters most right now about this subject?\"\n  - Context: background research / decision support\n  - Time horizon: current snapshot\n  - Output artifact: concise one-page briefing\n- Only ask the user a follow-up if the request is too ambiguous to research responsibly.\n\n## Your Tasks\n1. Infer the exact research target, question, and output format from the request whenever possible\n2. Launch the first evidence sweep for People Researcher and Company Researcher immediately\n3. Instruct Brief Writer to expect a concise one-page briefing unless the user asked for another artifact\n4. Post the research plan, confidence target, and any remaining ambiguity to Status\n5. Keep the process moving; do not pause for optional formatting preferences unless the request is unclear",
       "type": "once",
       "owner": "research-lead",
       "tags": [
@@ -184,7 +185,7 @@
       "id": "subject-research-sweep",
       "name": "Subject Research Sweep",
       "description": "Gather the most relevant person and company or topic context for the request.",
-      "schedule": "0 9 * * *",
+      "schedule": "manual",
       "enabled": true,
       "executionMode": "managed",
       "targeting": {
@@ -199,11 +200,11 @@
           "company-researcher"
         ]
       },
-      "content": "# Subject Research Sweep\n\n1. Gather the strongest current evidence relevant to the research target\n2. Separate likely useful signals from nice-to-know background\n3. Highlight what would matter most in a conversation or decision\n4. Post a concise research sweep to People, Companies, and Status\n5. Flag any area where confidence remains low",
+      "content": "# Subject Research Sweep\n\n1. Gather the strongest current evidence relevant to the active research target right now\n2. Separate decision-relevant signals from nice-to-know background\n3. If the target is a company or startup, cover product, market position, traction signals, recent news, and key unknowns\n4. If the target is a person, cover role context, prior work, relationships, and likely decision-relevant signals\n5. Post a concise research sweep to People, Companies, and Status so Brief Writer can use it immediately\n6. Flag any area where confidence remains low, but do not stop waiting for perfect coverage",
       "dependsOn": [
         "research-request-kickoff"
       ],
-      "type": "recurring",
+      "type": "conditional",
       "owner": "research-lead",
       "tags": [
         "workflow",
@@ -229,11 +230,11 @@
           "brief-writer"
         ]
       },
-      "content": "# Briefing Build\n\n1. Turn the current research sweep into a concise briefing note\n2. Include the most decision-relevant facts and recommended questions\n3. Make confidence and remaining unknowns explicit\n4. Keep the output skimmable and useful under time pressure\n5. Post the final briefing to Topics and Status",
+      "content": "# Briefing Build\n\n1. Turn the current research sweep into a concise briefing note immediately after it arrives\n2. Default to a one-page startup or subject briefing unless the user requested another artifact\n3. Include the most decision-relevant facts, top insights, recommended questions, and next steps\n4. Make confidence and remaining unknowns explicit\n5. Keep the output skimmable and useful under time pressure\n6. Post the final briefing to Topics and Status without asking the user to approve the format unless the request is genuinely ambiguous",
       "dependsOn": [
         "subject-research-sweep"
       ],
-      "type": "recurring",
+      "type": "conditional",
       "owner": "research-lead",
       "tags": [
         "workflow",

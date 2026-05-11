@@ -359,6 +359,27 @@ test('getTemplate() retrieves org template by slug', () => {
   }
 })
 
+test('personal research desk uses an immediate one-shot workflow chain', () => {
+  const template = getTemplate('organization', 'personal-research-desk') as OrganizationTemplate | null
+  assert(template !== null, 'Expected personal-research-desk template to exist')
+  const workflows = template?.workflows || []
+
+  const kickoff = workflows.find((workflow) => workflow.id === 'research-request-kickoff')
+  const sweep = workflows.find((workflow) => workflow.id === 'subject-research-sweep')
+  const briefing = workflows.find((workflow) => workflow.id === 'briefing-build')
+
+  assert(kickoff !== undefined, 'Expected research-request-kickoff workflow')
+  assert(sweep !== undefined, 'Expected subject-research-sweep workflow')
+  assert(briefing !== undefined, 'Expected briefing-build workflow')
+
+  assertEqual(kickoff?.schedule as any, 'manual', 'Expected kickoff to stay manual')
+  assertEqual(sweep?.schedule as any, 'manual', 'Expected first research sweep to run on demand, not daily cron')
+  assertEqual(sweep?.type as any, 'conditional', 'Expected research sweep to act like a one-shot handoff')
+  assertEqual(briefing?.type as any, 'conditional', 'Expected briefing build to act like a one-shot handoff')
+  assert((kickoff?.content || '').includes('proceed immediately and do not ask for format approval'), 'Expected kickoff to discourage unnecessary format-approval prompts')
+  assert((briefing?.content || '').includes('without asking the user to approve the format'), 'Expected briefing step to avoid format-approval loops')
+})
+
 test('organization templates expose derived kind metadata', () => {
   const buildCompany = getTemplate('organization', 'build-a-company-hack-test') as OrganizationTemplate | null
   assert(buildCompany !== null, 'Build-a-Company Hack Test template should exist')
