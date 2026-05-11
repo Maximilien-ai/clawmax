@@ -704,29 +704,46 @@ router.post('/doctor', async (req, res) => {
   }
 
   const gatewayStatus = isGatewayRunning()
-  const gatewayProbe = gatewayStatus.running ? gatewayStatus : await probeGatewayResponsive()
-  const gatewayRunning = gatewayStatus.running || gatewayProbe.running
-  let effectiveGatewayRunning = gatewayRunning
+  const gatewayProbe = await probeGatewayResponsive()
+  const gatewayPort = gatewayProbe.port ?? gatewayStatus.port ?? getConfiguredGatewayPort()
+  const gatewayRunning = gatewayStatus.running
+  let effectiveGatewayRunning = gatewayProbe.running
 
-  if (gatewayRunning) {
-    platformChecks.push({ check: 'gateway', status: 'pass', message: `Gateway running on port ${gatewayProbe.port ?? gatewayStatus.port ?? getConfiguredGatewayPort() ?? 'unknown'}` })
+  if (gatewayProbe.running) {
+    platformChecks.push({ check: 'gateway', status: 'pass', message: `Gateway authenticated on port ${gatewayPort ?? 'unknown'}` })
+  } else if (gatewayRunning) {
+    const probeError = String(gatewayProbe.error || '').trim()
+    const authMismatch = /token mismatch|unauthorized/i.test(probeError)
+    platformChecks.push({
+      check: 'gateway',
+      status: 'warn',
+      message: authMismatch
+        ? `Gateway port ${gatewayPort ?? 'unknown'} is up, but authenticated RPC failed: token mismatch between gateway.remote.token and gateway.auth.token`
+        : `Gateway port ${gatewayPort ?? 'unknown'} is up, but authenticated RPC failed${probeError ? `: ${probeError}` : ''}`,
+    })
   } else if (fix && hasOpenclawCli) {
     try {
       const restartOutput = String(execSync('openclaw gateway restart', { stdio: 'pipe', timeout: 20000, env: safeEnv() }) || '').trim()
       gatewayFixOutput = restartOutput || 'Gateway restart command completed with no output.'
       const restartedStatus = isGatewayRunning()
-      const restartedProbe = restartedStatus.running ? restartedStatus : await probeGatewayResponsive()
-      effectiveGatewayRunning = restartedStatus.running || restartedProbe.running
+      const restartedProbe = await probeGatewayResponsive()
+      effectiveGatewayRunning = restartedProbe.running
       if (effectiveGatewayRunning) {
-        platformChecks.push({ check: 'gateway', status: 'fixed', message: `Gateway restarted on port ${restartedProbe.port ?? restartedStatus.port ?? getConfiguredGatewayPort() ?? 'unknown'}` })
+        platformChecks.push({ check: 'gateway', status: 'fixed', message: `Gateway restarted and authenticated on port ${restartedProbe.port ?? restartedStatus.port ?? getConfiguredGatewayPort() ?? 'unknown'}` })
       } else {
         const disabledMessage = summarizeGatewayDisabledRuntime(restartOutput)
+        const restartedPort = restartedProbe.port ?? restartedStatus.port ?? getConfiguredGatewayPort() ?? 'unknown'
+        const restartedAuthMismatch = /token mismatch|unauthorized/i.test(String(restartedProbe.error || ''))
         platformChecks.push({
           check: 'gateway',
           status: 'warn',
           message: disabledMessage || (isManagedRuntime
             ? 'Gateway restart was attempted, but the gateway is still unavailable in this runtime.'
-            : `Gateway restart command ran but gateway is still not running on port ${restartedProbe.port ?? restartedStatus.port ?? getConfiguredGatewayPort() ?? 'unknown'}`)
+            : restartedStatus.running
+              ? (restartedAuthMismatch
+                ? `Gateway port ${restartedPort} is up after restart, but authenticated RPC still fails due to token mismatch`
+                : `Gateway port ${restartedPort} is up after restart, but authenticated RPC is still unavailable${restartedProbe.error ? `: ${restartedProbe.error}` : ''}`)
+              : `Gateway restart command ran but gateway is still not running on port ${restartedPort}`)
         })
       }
     } catch (err: any) {
@@ -748,7 +765,7 @@ router.post('/doctor', async (req, res) => {
       message: hasOpenclawCli
         ? (isManagedRuntime
           ? 'Gateway is not running in this instance runtime.'
-          : `Gateway not running on port ${gatewayStatus.port ?? getConfiguredGatewayPort() ?? 'unknown'}`)
+          : `Gateway not running on port ${gatewayPort ?? 'unknown'}`)
         : 'Gateway not running and openclaw CLI is unavailable for auto-fix',
     })
   }
@@ -776,7 +793,7 @@ router.post('/doctor', async (req, res) => {
   } catch {
     res.json({
       results,
-      platform: { cli: hasOpenclawCli, gateway: effectiveGatewayRunning, gatewayPort: gatewayStatus.port ?? getConfiguredGatewayPort() },
+      platform: { cli: hasOpenclawCli, gateway: effectiveGatewayRunning, gatewayPort },
       summary: {
         total: platformChecks.length,
         pass: platformChecks.filter(c => c.status === 'pass').length,
@@ -895,7 +912,7 @@ router.post('/doctor', async (req, res) => {
     platform: {
       cli: hasOpenclawCli,
       gateway: effectiveGatewayRunning,
-      gatewayPort: (effectiveGatewayRunning ? isGatewayRunning().port : gatewayStatus.port) ?? getConfiguredGatewayPort(),
+      gatewayPort,
     },
     summary: { total: allChecks.length, pass, fail, warn, fixed },
     healthy: fail === 0,

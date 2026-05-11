@@ -379,7 +379,7 @@ export function isGatewayRunning(): { running: boolean; port: number | null } {
   }
 }
 
-export async function probeGatewayResponsive(timeoutMs = 3000): Promise<{ running: boolean; port: number | null }> {
+export async function probeGatewayResponsive(timeoutMs = 3000): Promise<{ running: boolean; port: number | null; error?: string }> {
   const config = loadGatewayConfigFromDisk()
   if (!config) return { running: false, port: null }
 
@@ -387,10 +387,10 @@ export async function probeGatewayResponsive(timeoutMs = 3000): Promise<{ runnin
     const ws = new WebSocket(`ws://127.0.0.1:${config.port}`)
     const timer = setTimeout(() => {
       try { ws.close() } catch {}
-      resolve({ running: false, port: config.port })
+      resolve({ running: false, port: config.port, error: 'Gateway timed out during authenticated probe' })
     }, timeoutMs)
 
-    const cleanup = (result: { running: boolean; port: number | null }) => {
+    const cleanup = (result: { running: boolean; port: number | null; error?: string }) => {
       clearTimeout(timer)
       try { ws.close() } catch {}
       resolve(result)
@@ -425,14 +425,22 @@ export async function probeGatewayResponsive(timeoutMs = 3000): Promise<{ runnin
         }
 
         if (message.type === 'res') {
-          cleanup({ running: !!message.ok, port: config.port })
+          if (message.ok) {
+            cleanup({ running: true, port: config.port })
+          } else {
+            cleanup({
+              running: false,
+              port: config.port,
+              error: message.error?.message || 'Gateway authentication failed during probe',
+            })
+          }
         }
       } catch {
-        cleanup({ running: false, port: config.port })
+        cleanup({ running: false, port: config.port, error: 'Gateway returned an invalid probe response' })
       }
     })
 
-    ws.on('error', () => cleanup({ running: false, port: config.port }))
-    ws.on('close', () => cleanup({ running: false, port: config.port }))
+    ws.on('error', (err: Error) => cleanup({ running: false, port: config.port, error: err.message || 'Gateway connection error' }))
+    ws.on('close', () => cleanup({ running: false, port: config.port, error: 'Gateway connection closed before authenticated probe completed' }))
   })
 }
