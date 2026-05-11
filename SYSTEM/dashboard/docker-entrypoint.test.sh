@@ -100,22 +100,14 @@ gateway_watchdog_tick "18789"
 assert_contains "gateway run --port 18789" "$LOG_FILE"
 
 : > "$LOG_FILE"
-ORIGINAL_PATH="$PATH"
-PATH="$NODE_ONLY_BIN_DIR:/bin"
-export PATH
-NODE_EXIT_CODE=0
-export NODE_EXIT_CODE
-gateway_port_listening "18789"
-
-NODE_EXIT_CODE=1
-export NODE_EXIT_CODE
-if gateway_port_listening "18789"; then
-  echo "Expected node-based gateway probe to fail when NODE_EXIT_CODE=1" >&2
+if ! PATH="$NODE_ONLY_BIN_DIR:/bin" HOME="$TMP_DIR/home" OPENCLAW_WORKSPACE="$TMP_DIR/workspace" CLAWMAX_ENTRYPOINT_TEST_MODE=true OPENCLAW_LOG="$LOG_FILE" NODE_EXIT_CODE=0 sh -c '. "$1"; gateway_port_listening "18789"' _ "$SCRIPT"; then
+  echo "Expected node-based gateway probe to succeed when NODE_EXIT_CODE=0" >&2
   exit 1
 fi
 
-PATH="$ORIGINAL_PATH"
-export PATH
-unset NODE_EXIT_CODE
+if PATH="$NODE_ONLY_BIN_DIR:/bin" HOME="$TMP_DIR/home" OPENCLAW_WORKSPACE="$TMP_DIR/workspace" CLAWMAX_ENTRYPOINT_TEST_MODE=true OPENCLAW_LOG="$LOG_FILE" NODE_EXIT_CODE=1 sh -c '. "$1"; gateway_port_listening "18789"' _ "$SCRIPT"; then
+  echo "Expected node-based gateway probe to fail when NODE_EXIT_CODE=1" >&2
+  exit 1
+fi
 
 echo "docker-entrypoint gateway tests passed"

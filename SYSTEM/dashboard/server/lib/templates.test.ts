@@ -88,7 +88,35 @@ function seedOpenClawConfig(homeDir: string, config: any = { agents: { list: [] 
   fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8')
 }
 
+function ensureSuiteScaffold() {
+  let workspace = process.env.OPENCLAW_WORKSPACE || path.join(REPO_ROOT, 'WORKSPACES', 'default')
+  const homeDir = process.env.HOME || os.homedir()
+  const openClawConfigPath = path.join(homeDir, '.openclaw', 'openclaw.json')
+
+  try {
+    fs.mkdirSync(workspace, { recursive: true })
+  } catch {
+    workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-templates-suite-workspace-'))
+    process.env.OPENCLAW_WORKSPACE = workspace
+    resetWorkspaceManagerForTests()
+  }
+
+  fs.mkdirSync(path.join(workspace, 'AGENTS'), { recursive: true })
+  fs.mkdirSync(path.join(workspace, 'WORKFLOWS'), { recursive: true })
+  fs.mkdirSync(path.join(workspace, 'ORG'), { recursive: true })
+  fs.mkdirSync(path.join(workspace, 'GROUPS'), { recursive: true })
+  fs.mkdirSync(path.join(workspace, 'COMMUNITIES'), { recursive: true })
+  fs.mkdirSync(path.join(workspace, 'SKILLS', 'custom'), { recursive: true })
+  fs.mkdirSync(path.join(workspace, 'TEMPLATES', 'agents'), { recursive: true })
+  fs.mkdirSync(path.join(workspace, 'TEMPLATES', 'organizations'), { recursive: true })
+
+  if (!fs.existsSync(openClawConfigPath)) {
+    seedOpenClawConfig(homeDir)
+  }
+}
+
 console.log(`\n${YELLOW}=== Templates API Test Suite ===${RESET}\n`)
+ensureSuiteScaffold()
 
 // Test 1: List templates returns arrays
 test('listTemplates() returns templates', () => {
