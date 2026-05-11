@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from './Toast'
-import { detectProviderKeyMismatch, getByokDismissKey, readStoredByokKeys, writeStoredByokKeys } from '../lib/byok'
+import { buildByokVerificationFingerprint, detectProviderKeyMismatch, getByokDismissKey, readStoredByokKeys, writeStoredByokKeys } from '../lib/byok'
 import { DEFAULT_VISIBLE_PARTNERS, getDefaultPartnerDefinitions } from '../lib/defaultPartners'
 import { BROWSER_VAULT_UPDATED_EVENT, readPartnerValuesFromSharedSecrets, readSharedSecrets, writePartnerValuesToSharedSecrets, writeSharedSecrets } from '../lib/localSecrets'
 
@@ -213,6 +213,23 @@ export function ByokWizard({
     setDismissed(localStorage.getItem(getByokDismissKey()) === 'true')
   }, [defaultOllamaBaseUrl])
 
+  const updateStoredVerification = React.useCallback((
+    updater: (current: Partial<Record<'openai' | 'anthropic' | 'gemini' | 'ollama', string>>) => Partial<Record<'openai' | 'anthropic' | 'gemini' | 'ollama', string>>
+  ) => {
+    const stored = readStoredByokKeys()
+    writeStoredByokKeys({
+      ...stored,
+      verifiedProviders: updater(stored.verifiedProviders || {}),
+    })
+  }, [])
+
+  const currentVerificationFingerprints = React.useMemo(() => ({
+    openai: buildByokVerificationFingerprint('openai', { openai: openaiKey }),
+    anthropic: buildByokVerificationFingerprint('anthropic', { anthropic: anthropicKey }),
+    gemini: buildByokVerificationFingerprint('gemini', { geminiApiKey }),
+    ollama: buildByokVerificationFingerprint('ollama', { ollamaBaseUrl, ollamaDefaultModel }),
+  }), [anthropicKey, geminiApiKey, ollamaBaseUrl, ollamaDefaultModel, openaiKey])
+
   const refreshGithubChecks = React.useCallback(async (options?: { silent?: boolean }) => {
     const silent = options?.silent === true
     setGithubStatusChecking(true)
@@ -243,6 +260,25 @@ export function ByokWizard({
     refreshLocalState()
     setHydrated(true)
   }, [refreshLocalState])
+
+  useEffect(() => {
+    if (!hydrated) return
+    const stored = readStoredByokKeys()
+    const verifiedProviders = stored.verifiedProviders || {}
+    setValidation((current) => {
+      const next = { ...current }
+      ;(['openai', 'anthropic', 'gemini', 'ollama'] as const).forEach((provider) => {
+        const fingerprint = currentVerificationFingerprints[provider]
+        const matches = !!fingerprint && verifiedProviders[provider] === fingerprint
+        if (matches && next[provider].status === 'idle') {
+          next[provider] = { status: 'valid', message: 'Previously verified' }
+        } else if (!matches && next[provider].status === 'valid' && next[provider].message === 'Previously verified') {
+          next[provider] = { status: 'idle', message: '' }
+        }
+      })
+      return next
+    })
+  }, [currentVerificationFingerprints, hydrated])
 
   useEffect(() => {
     const handleVaultUpdated = () => refreshLocalState()
@@ -787,6 +823,14 @@ export function ByokWizard({
         senso: { status: data.senso?.status || 'idle', message: data.senso?.message || '' },
       }
       setValidation(nextState)
+      updateStoredVerification((current) => {
+        const next = { ...current }
+        ;(['openai', 'anthropic', 'gemini', 'ollama'] as const).forEach((provider) => {
+          if (nextState[provider].status === 'valid') next[provider] = currentVerificationFingerprints[provider]
+          else if (providerScope === provider || (!providerScope && scope !== 'current-partner')) delete next[provider]
+        })
+        return next
+      })
       if (nextState.ollama.status === 'valid') void loadOllamaModels(true)
       void loadAvailableModels(true)
       const scopedFailureKeys = providerScope
@@ -840,21 +884,25 @@ export function ByokWizard({
     if (provider === 'openai') {
       setOpenaiKey('')
       setValidation((current) => ({ ...current, openai: { status: 'idle', message: '' } }))
+      updateStoredVerification((current) => { const next = { ...current }; delete next.openai; return next })
       return
     }
     if (provider === 'anthropic') {
       setAnthropicKey('')
       setValidation((current) => ({ ...current, anthropic: { status: 'idle', message: '' } }))
+      updateStoredVerification((current) => { const next = { ...current }; delete next.anthropic; return next })
       return
     }
     if (provider === 'gemini') {
       setGeminiApiKey('')
       setValidation((current) => ({ ...current, gemini: { status: 'idle', message: '' } }))
+      updateStoredVerification((current) => { const next = { ...current }; delete next.gemini; return next })
       return
     }
     setOllamaBaseUrl(defaultOllamaBaseUrl)
     setOllamaDefaultModel('')
     setValidation((current) => ({ ...current, ollama: { status: 'idle', message: '' } }))
+    updateStoredVerification((current) => { const next = { ...current }; delete next.ollama; return next })
   }
 
   const handleSave = async () => {
@@ -908,6 +956,7 @@ export function ByokWizard({
       gemini: geminiApiKey.trim(),
       ollamaBaseUrl: ollamaBaseUrl.trim(),
     }
+    const currentStoredKeys = readStoredByokKeys()
 
     writeStoredByokKeys({
       openai: providerKeyValues.openai,
@@ -915,6 +964,7 @@ export function ByokWizard({
       geminiApiKey: providerKeyValues.gemini,
       ollamaBaseUrl: providerKeyValues.ollamaBaseUrl,
       ollamaDefaultModel: ollamaEnabled ? ollamaDefaultModel.trim() : '',
+      verifiedProviders: currentStoredKeys.verifiedProviders || {},
       sensoApiKey: getPartnerSecret('senso', 'apiKey').trim(),
       sensoContextLabel: sensoContextLabel.trim(),
       opikApiKey: opikApiKey.trim(),
@@ -1489,7 +1539,7 @@ export function ByokWizard({
                           </button>
                         )}
                       </div>
-                      <input id="byok-openai" type="password" value={openaiKey} onChange={(e) => setOpenaiKey(e.target.value)} placeholder="sk-..." className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500" />
+                      <input id="byok-openai" type="password" value={openaiKey} onChange={(e) => { setOpenaiKey(e.target.value); setValidation((current) => ({ ...current, openai: { status: 'idle', message: '' } })); updateStoredVerification((current) => { const next = { ...current }; delete next.openai; return next }) }} placeholder="sk-..." className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500" />
                       {renderValidation('openai')}
                     </div>
                   )}
@@ -1509,7 +1559,7 @@ export function ByokWizard({
                           </button>
                         )}
                       </div>
-                      <input id="byok-anthropic" type="password" value={anthropicKey} onChange={(e) => setAnthropicKey(e.target.value)} placeholder="sk-ant-..." className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500" />
+                      <input id="byok-anthropic" type="password" value={anthropicKey} onChange={(e) => { setAnthropicKey(e.target.value); setValidation((current) => ({ ...current, anthropic: { status: 'idle', message: '' } })); updateStoredVerification((current) => { const next = { ...current }; delete next.anthropic; return next }) }} placeholder="sk-ant-..." className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500" />
                       {renderValidation('anthropic')}
                     </div>
                   )}
@@ -1529,7 +1579,7 @@ export function ByokWizard({
                           </button>
                         )}
                       </div>
-                      <input id="byok-gemini" type="password" value={geminiApiKey} onChange={(e) => setGeminiApiKey(e.target.value)} placeholder="Gemini API key" className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
+                      <input id="byok-gemini" type="password" value={geminiApiKey} onChange={(e) => { setGeminiApiKey(e.target.value); setValidation((current) => ({ ...current, gemini: { status: 'idle', message: '' } })); updateStoredVerification((current) => { const next = { ...current }; delete next.gemini; return next }) }} placeholder="Gemini API key" className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
                       {renderValidation('gemini')}
                     </div>
                   )}
@@ -1552,9 +1602,9 @@ export function ByokWizard({
                           </button>
                         )}
                       </div>
-                      <input id="byok-ollama-url" type="text" value={ollamaBaseUrl} onChange={(e) => setOllamaBaseUrl(e.target.value)} placeholder={defaultOllamaBaseUrl || localDevOllamaBaseUrl} className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
+                      <input id="byok-ollama-url" type="text" value={ollamaBaseUrl} onChange={(e) => { setOllamaBaseUrl(e.target.value); setValidation((current) => ({ ...current, ollama: { status: 'idle', message: '' } })); updateStoredVerification((current) => { const next = { ...current }; delete next.ollama; return next }) }} placeholder={defaultOllamaBaseUrl || localDevOllamaBaseUrl} className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
                       <label htmlFor="byok-ollama-model" className="mt-3 block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Default model</label>
-                      <input id="byok-ollama-model" type="text" value={ollamaDefaultModel} onChange={(e) => setOllamaDefaultModel(e.target.value)} placeholder="Default Ollama model" className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
+                      <input id="byok-ollama-model" type="text" value={ollamaDefaultModel} onChange={(e) => { setOllamaDefaultModel(e.target.value); setValidation((current) => ({ ...current, ollama: { status: 'idle', message: '' } })); updateStoredVerification((current) => { const next = { ...current }; delete next.ollama; return next }) }} placeholder="Default Ollama model" className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
                       <div className="mt-3 rounded-md border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 px-3 py-2">
                         <div className="flex items-center justify-between gap-3">
                           <div className="text-xs font-medium text-gray-700 dark:text-gray-300">Installed Ollama models</div>
@@ -1571,7 +1621,11 @@ export function ByokWizard({
                                 <button
                                   key={model}
                                   type="button"
-                                  onClick={() => setOllamaDefaultModel(model)}
+                                  onClick={() => {
+                                    setOllamaDefaultModel(model)
+                                    setValidation((current) => ({ ...current, ollama: { status: 'idle', message: '' } }))
+                                    updateStoredVerification((current) => { const next = { ...current }; delete next.ollama; return next })
+                                  }}
                                   className={`rounded-full border px-2.5 py-1 text-[11px] transition-colors ${
                                     selected
                                       ? 'border-sky-500 bg-sky-100 text-sky-700 dark:border-sky-600 dark:bg-sky-900/30 dark:text-sky-300'

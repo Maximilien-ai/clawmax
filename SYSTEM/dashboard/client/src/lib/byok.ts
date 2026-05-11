@@ -8,6 +8,7 @@ export interface StoredByokKeys {
   geminiApiKey?: string
   ollamaBaseUrl?: string
   ollamaDefaultModel?: string
+  verifiedProviders?: Partial<Record<'openai' | 'anthropic' | 'gemini' | 'ollama', string>>
   sensoApiKey?: string
   sensoContextLabel?: string
   opikApiKey?: string
@@ -131,6 +132,16 @@ export function writeStoredByokKeys(keys: StoredByokKeys) {
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent(BROWSER_VAULT_UPDATED_EVENT))
   }
+}
+
+export function buildByokVerificationFingerprint(
+  provider: 'openai' | 'anthropic' | 'gemini' | 'ollama',
+  values: { openai?: string; anthropic?: string; geminiApiKey?: string; ollamaBaseUrl?: string; ollamaDefaultModel?: string }
+): string {
+  if (provider === 'openai') return values.openai?.trim() || ''
+  if (provider === 'anthropic') return values.anthropic?.trim() || ''
+  if (provider === 'gemini') return values.geminiApiKey?.trim() || ''
+  return `${values.ollamaBaseUrl?.trim() || ''}::${values.ollamaDefaultModel?.trim() || ''}`
 }
 
 /** Translate browser storage shape into the request shape expected by server routes. */
