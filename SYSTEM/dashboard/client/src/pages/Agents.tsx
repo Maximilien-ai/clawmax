@@ -1517,9 +1517,11 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                         onStatus={() => setStatusTarget(agent)}
                         onDelete={() => setDeleteTarget(agent.id)}
                         onClone={() => { setCloneFromAgent(agent.id); setShowAddWizard(true); }}
-                        onEdit={() => setEditTarget(agent)}
-                        onSaveAsTemplate={() => setSaveAsTemplateTarget(agent)}
-                        onExport={() => handleExportAgent(agent.id)}
+                      onEdit={() => setEditTarget(agent)}
+                      onLinkWa={() => setLinkWaTarget(agent)}
+                      onSyncGroups={() => setSyncGroupsTarget(agent)}
+                      onSaveAsTemplate={() => setSaveAsTemplateTarget(agent)}
+                      onExport={() => handleExportAgent(agent.id)}
                         onViewDocs={onNavigateToDoc ? () => onNavigateToDoc(`AGENTS/${agent.archived ? 'archive/' : ''}${agent.id}/IDENTITY.md`) : undefined}
                         onManageTags={() => setTagManageTarget(agent)}
                         onRestart={() => handleRestart(agent.id)}
@@ -1566,6 +1568,8 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                               onDelete={() => setDeleteTarget(agent.id)}
                               onClone={() => { setCloneFromAgent(agent.id); setShowAddWizard(true); }}
                               onEdit={() => setEditTarget(agent)}
+                              onLinkWa={() => setLinkWaTarget(agent)}
+                              onSyncGroups={() => setSyncGroupsTarget(agent)}
                               onSaveAsTemplate={() => setSaveAsTemplateTarget(agent)}
                               onExport={() => handleExportAgent(agent.id)}
                               onViewDocs={onNavigateToDoc ? () => onNavigateToDoc(`AGENTS/${agent.archived ? 'archive/' : ''}${agent.id}/IDENTITY.md`) : undefined}
@@ -1666,6 +1670,8 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
               onDelete={() => setDeleteTarget(agent.id)}
               onClone={() => { setCloneFromAgent(agent.id); setShowAddWizard(true); }}
               onEdit={() => setEditTarget(agent)}
+              onLinkWa={() => setLinkWaTarget(agent)}
+              onSyncGroups={() => setSyncGroupsTarget(agent)}
               onSaveAsTemplate={() => setSaveAsTemplateTarget(agent)}
               onExport={() => handleExportAgent(agent.id)}
               onViewDocs={onNavigateToDoc ? () => onNavigateToDoc(`AGENTS/${agent.archived ? 'archive/' : ''}${agent.id}/IDENTITY.md`) : undefined}
@@ -1715,6 +1721,8 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                           onDelete={() => setDeleteTarget(agent.id)}
                           onClone={() => { setCloneFromAgent(agent.id); setShowAddWizard(true); }}
                           onEdit={() => setEditTarget(agent)}
+                          onLinkWa={() => setLinkWaTarget(agent)}
+                          onSyncGroups={() => setSyncGroupsTarget(agent)}
                           onSaveAsTemplate={() => setSaveAsTemplateTarget(agent)}
                           onExport={() => handleExportAgent(agent.id)}
                           onViewDocs={onNavigateToDoc ? () => onNavigateToDoc(`AGENTS/${agent.archived ? 'archive/' : ''}${agent.id}/IDENTITY.md`) : undefined}
@@ -1764,6 +1772,8 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
           onStatus={setStatusTarget}
           onDelete={(id) => setDeleteTarget(id)}
           onEdit={setEditTarget}
+          onLinkWa={setLinkWaTarget}
+          onSyncGroups={setSyncGroupsTarget}
           onArchive={setArchiveTarget}
           onUnarchive={setUnarchiveTarget}
           metering={costTrackingEnabled ? agentMetering : {}}
@@ -3192,17 +3202,33 @@ const AgentCard = React.memo(function AgentCard({
                         >
                           ✎ Rename
                         </button>
-                        {costTrackingEnabled && (
-                          <button
-                            onClick={e => { e.stopPropagation(); onSetBudget(); setShowActionsMenu(false) }}
-                            className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors dark:text-gray-300"
-                          >
-                            💲 Budget
-                          </button>
-                        )}
-                        {agent.archived ? (
-                          <button
-                            onClick={e => { e.stopPropagation(); onUnarchive(); setShowActionsMenu(false) }}
+                      {costTrackingEnabled && (
+                        <button
+                          onClick={e => { e.stopPropagation(); onSetBudget(); setShowActionsMenu(false) }}
+                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors dark:text-gray-300"
+                        >
+                          💲 Budget
+                        </button>
+                      )}
+                      {!agent.archived && (
+                        <button
+                          onClick={e => { e.stopPropagation(); onLinkWa(); setShowActionsMenu(false) }}
+                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors dark:text-gray-300"
+                        >
+                          📱 {agent.whatsapp ? 'Reconnect WA' : 'Connect WA'}
+                        </button>
+                      )}
+                      {!agent.archived && agent.whatsapp && (
+                        <button
+                          onClick={e => { e.stopPropagation(); onSyncGroups(); setShowActionsMenu(false) }}
+                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-lime-50 dark:hover:bg-lime-900/30 transition-colors dark:text-gray-300"
+                        >
+                          🔄 Sync WA
+                        </button>
+                      )}
+                      {agent.archived ? (
+                        <button
+                          onClick={e => { e.stopPropagation(); onUnarchive(); setShowActionsMenu(false) }}
                             className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors dark:text-gray-300"
                           >
                             📤 Restore
@@ -3501,7 +3527,7 @@ const AgentCard = React.memo(function AgentCard({
   )
 })
 
-const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onClick, onChat, onStatus, onDelete, onClone, onEdit, onSaveAsTemplate, onExport, onViewDocs, onManageTags, onRestart, onArchive, onUnarchive, onRename, onSetBudget, isSelected, onToggleSelect, usage, metering, costLimit, costTrackingEnabled = true }: { agent: Agent; selected: boolean; onClick: () => void; onChat: () => void; onStatus: () => void; onDelete: () => void; onClone: () => void; onEdit?: () => void; onSaveAsTemplate: () => void; onExport: () => void; onViewDocs?: () => void; onManageTags: () => void; onRestart: () => void; onArchive: () => void; onUnarchive: () => void; onRename: () => void; onSetBudget: () => void; isSelected?: boolean; onToggleSelect?: () => void; usage?: { totalTokens: number; inputTokens: number; outputTokens: number; totalCost: number }; metering?: { calls: number; tokens: number; cost: number }; costLimit?: number | null; costTrackingEnabled?: boolean }) {
+const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onClick, onChat, onStatus, onDelete, onClone, onEdit, onLinkWa, onSyncGroups, onSaveAsTemplate, onExport, onViewDocs, onManageTags, onRestart, onArchive, onUnarchive, onRename, onSetBudget, isSelected, onToggleSelect, usage, metering, costLimit, costTrackingEnabled = true }: { agent: Agent; selected: boolean; onClick: () => void; onChat: () => void; onStatus: () => void; onDelete: () => void; onClone: () => void; onEdit?: () => void; onLinkWa: () => void; onSyncGroups: () => void; onSaveAsTemplate: () => void; onExport: () => void; onViewDocs?: () => void; onManageTags: () => void; onRestart: () => void; onArchive: () => void; onUnarchive: () => void; onRename: () => void; onSetBudget: () => void; isSelected?: boolean; onToggleSelect?: () => void; usage?: { totalTokens: number; inputTokens: number; outputTokens: number; totalCost: number }; metering?: { calls: number; tokens: number; cost: number }; costLimit?: number | null; costTrackingEnabled?: boolean }) {
   const [showActionsMenu, setShowActionsMenu] = React.useState(false)
   const [menuPlacement, setMenuPlacement] = React.useState<MenuPlacement>('top')
   const actionsButtonRef = React.useRef<HTMLButtonElement | null>(null)
@@ -3789,6 +3815,22 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
                           💲 Budget
                         </button>
                       )}
+                      {!agent.archived && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); onLinkWa(); setShowActionsMenu(false); }}
+                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors dark:text-gray-300"
+                        >
+                          📱 {agent.whatsapp ? 'Reconnect WA' : 'Connect WA'}
+                        </button>
+                      )}
+                      {!agent.archived && agent.whatsapp && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); onSyncGroups(); setShowActionsMenu(false); }}
+                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-lime-50 dark:hover:bg-lime-900/30 transition-colors dark:text-gray-300"
+                        >
+                          🔄 Sync WA
+                        </button>
+                      )}
                       {agent.archived ? (
                         <button
                           onClick={(e) => { e.stopPropagation(); onUnarchive(); setShowActionsMenu(false); }}
@@ -3839,6 +3881,8 @@ const AgentTableView = React.memo(function AgentTableView({
   onStatus,
   onDelete,
   onEdit,
+  onLinkWa,
+  onSyncGroups,
   onArchive,
   onUnarchive,
   metering,
@@ -3858,6 +3902,8 @@ const AgentTableView = React.memo(function AgentTableView({
   onStatus: (agent: Agent) => void
   onDelete: (id: string) => void
   onEdit?: (agent: Agent) => void
+  onLinkWa: (agent: Agent) => void
+  onSyncGroups: (agent: Agent) => void
   onArchive: (agent: Agent) => void
   onUnarchive: (agent: Agent) => void
   metering: Record<string, { calls: number; tokens: number; cost: number }>
@@ -4158,6 +4204,32 @@ const AgentTableView = React.memo(function AgentTableView({
                         >
                           <span className="text-emerald-500">✏️</span>
                           Edit Config
+                        </button>
+                      )}
+                      {!agent.archived && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setOpenDropdown(null)
+                            onLinkWa(agent)
+                          }}
+                          className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors flex items-center gap-2 dark:text-gray-300"
+                        >
+                          <span className="text-green-500">📱</span>
+                          {agent.whatsapp ? 'Reconnect WhatsApp' : 'Connect WhatsApp'}
+                        </button>
+                      )}
+                      {!agent.archived && agent.whatsapp && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setOpenDropdown(null)
+                            onSyncGroups(agent)
+                          }}
+                          className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-lime-50 dark:hover:bg-lime-900/30 transition-colors flex items-center gap-2 dark:text-gray-300"
+                        >
+                          <span className="text-lime-600">🔄</span>
+                          Sync WhatsApp Groups
                         </button>
                       )}
                       <div className="border-t border-gray-200 dark:border-gray-700 my-1 dark:border-gray-700"></div>
