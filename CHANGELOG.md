@@ -2,6 +2,19 @@
 
 All notable changes to ClawMax are documented here.
 
+## [v1.4.7] - 2026-05-12
+
+### Release — On-Prem Identity Isolation and Runtime Visibility Cleanup
+- **On-Prem Metering Identity Isolation** — Opik traces now include `instance_key`, `machine_id`, and `machine_name`, and the dashboard now scopes budget/metering viewer matching by runtime identity instead of relying only on generic dashboard hostname or loopback-style instance ids
+- **Safer Shared-Hostname Behavior** — on-prem Macs and local runtimes that previously shared a common hostname like `clawmax` now stay isolated in metering and budget views when the runtime provides unique machine/instance identity
+- **Gateway Health Requires Authenticated Success** — the dashboard health path now treats gateway health as green only when authenticated gateway access succeeds, preventing false-green platform health when the port is open but the token/runtime contract is broken
+- **Conservative On-Prem Ollama UI** — Ollama-specific BYOK/UI surfaces now appear only when the runtime reports both `ollamaEnabled=true` and a non-empty `defaultOllamaBaseUrl`, matching the intended on-prem contract more closely
+- **System Identity Surfacing** — `/api/system` now exposes runtime machine identity and the dashboard prefers `machineName` over raw hostname in top-level status UI where available
+
+### Quality
+- **Regression Coverage** — added focused metering tests for shared-hostname on-prem traces with differing `instance_key` / `machine_id` identities
+- **Validation Gate** — validated locally with `server/lib/metering.test.ts`, `client/src/lib/byok.test.ts`, and `npx tsc --noEmit`
+
 ## [v1.4.6] - 2026-05-10
 
 ### Release — Model Default Safety and BYOK Validation Hardening

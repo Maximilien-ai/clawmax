@@ -5,12 +5,33 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.4.6-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
+[![Version](https://img.shields.io/badge/version-1.4.7-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
 [![Tests](https://img.shields.io/badge/tests-72%20default--safe-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 Latest Release Series: v1.4.2–v1.4.6
+## 🔥 Latest Release: v1.4.7
+
+- On-prem/dashboard identity is now more reliable:
+  - Opik metering traces now carry `instance_key`, `machine_id`, and `machine_name`
+  - Budget and metering views now key on-prem usage by runtime identity, not just generic dashboard hostname
+  - this prevents different Macs or on-prem instances from colliding when older runtime hostnames are reused
+- Gateway health is stricter and more trustworthy:
+  - gateway health now requires authenticated success instead of treating an open port as a healthy runtime
+  - cloud/on-prem instances stop showing a false green gateway state when token/authenticated RPC is actually failing
+- On-prem Ollama UI is now conservative:
+  - dashboard only shows Ollama BYOK/UI when both `ollamaEnabled` is true and a non-empty `defaultOllamaBaseUrl` are present
+  - this avoids showing Ollama as available on package lines where the runtime has not wired the base URL yet
+
+## 🔥 Previous Release: v1.4.6
+
+- Agent model safety and BYOK validation were tightened:
+  - agent creation and template apply now require a resolvable concrete model instead of persisting empty or `unknown` model state
+  - stale `unknown` live-config records are ignored in favor of real workspace/identity/provider-backed defaults
+  - obvious wrong-provider key swaps are rejected before save and before validation
+  - model-provider checks now run one key at a time and provider cards distinguish `configured` from `verified`
+
+## 🔥 Previous Release Series: v1.4.2–v1.4.5
 
 - Container/runtime hardening for the published image line:
   - the Docker OpenClaw builder stage skips dependency `prepare` hooks for problematic transitive git-hosted packages during clean-room container builds
@@ -33,47 +54,7 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
   - obvious wrong-provider key swaps are rejected before save and before validation
   - model-provider checks now run one key at a time
   - provider cards stay yellow as `configured` until a real successful validation marks them green as `verified`
-- `v1.4.1` product work remains intact:
-  - Skills UX, registry discovery, recurring-template apply friction reduction, single-agent template registration, and multi-agent typing-indicator improvements all remain part of the current line
-  - Tessl registry support remains **exploratory/experimental**
-
-## 🔥 Previous Release: v1.4.1
-
-- Skills received a large usability pass:
-  - reverse assignment from a skill is now fully usable, including clearer `Selected Agent` context, multi-select, bulk actions, and consistent selection footers
-  - built-in skills can be edited as workspace copies, user-added skills are separated from built-ins, and user skills can be deleted with assignment-impact warnings
-  - skill viewer scrolling, card density, and per-card actions were tightened so the page uses space more efficiently
-- Registry discovery is broader and more visible:
-  - inline discovery now searches both Shipables and Tessl and surfaces them side by side
-  - the full registry browser supports provider tabs, reinstall/override flows, and registry provenance pills on imported skills
-  - Tessl registry support is **exploratory/experimental** for now; some tiles require Tessl-side security review or use formats we have not yet validated broadly
-- Template/operator flows are smoother:
-  - recurring personal/ops templates like Chief of Staff, Email Calendar Manager, Meeting Capture Follow-Up, Personal Research Desk, Family Ops Hub, Market Signal Desk, and Tax Planning Desk now require less day-of data at apply time
-  - single-agent template apply now registers the created agent correctly in OpenClaw runtime config, so new agents can chat immediately after apply
-- Communication polish continued:
-  - multi-agent bulk chat and group chat now keep typing indicators visible until each responding agent actually replies
-  - the login hero image was replaced with safer artwork
-
-## 🔥 Previous Release: v1.4.0
-
-- Templates now organized as Agents, Teams, and Company (teams of teams)
-- Organization tab now shows an org chart of agents inferred from tags and roles
-- Company and workflow orchestration are much stronger:
-  - build-a-company templates now support company-aware org structure, workflow handoffs, company dashboards, and richer event/business template outputs
-  - workflow scheduling now honors saved workflow timezones end to end, including next-run previews, in-process cron execution, and gateway cron sync
-  - gateway fallback, cron registration, and gateway-token/runtime compatibility paths were hardened across local and hosted flows
-- Runtime/provider reliability improved:
-  - Gemini now uses the correct `google/*` provider ids across UI and execution
-  - Ollama local execution seeds the expected provider config for OpenClaw runtime paths
-  - scheduled workflows can use system keys intentionally when configured, and local dev auth bypass is now scoped to dev startup only
-- Dashboard day-to-day UX improved:
-  - metering stays visible across local dashboard URLs, now uses monotonic caching, and no longer blanks on every Budget & Metering tab switch
-  - communication chat refresh flicker is reduced substantially by stable message caching and change detection
-  - agent cards have more visible action affordances, quick budget access, and better waiting-for-input follow-through
-  - skills now support reverse assignment from the skill view itself
-- Release/test ergonomics improved:
-  - `SYSTEM/test-with-server.sh` now starts the dashboard automatically and the default-safe suite is green at `72` tests
-  - Docker smoke tests, startup `.env` parsing, and clean-room/test-wrapper paths were stabilized for repeatable release validation
+- Older releases are kept in [CHANGELOG.md](CHANGELOG.md).
 
 ---
 

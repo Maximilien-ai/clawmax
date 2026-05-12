@@ -1,6 +1,6 @@
 # Backlog
 
-> Last updated: May 9, 2026
+> Last updated: May 12, 2026
 > Completed items archived — see CHANGELOG.md for shipped work and `SYSTEM/docs/hacks/**/archive/` for historical sprint notes
 
 ## 1.4.1 Follow-Through

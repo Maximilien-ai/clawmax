@@ -1,20 +1,20 @@
 # ClawMax Status
 
-**Current Version**: v1.4.6
-**Last Updated**: May 10, 2026
-**Status**: `v1.4.6` is the current patch release line on `main`
+**Current Version**: v1.4.7
+**Last Updated**: May 12, 2026
+**Status**: `v1.4.7` is the current patch release line on `main`
 
 ---
 
 ## Current State
 
-- `main` now carries the `1.4.6` patch line: all `1.4.5` runtime/on-prem guardrail work plus default-model enforcement across agent creation flows, stale `unknown` model hardening, and stronger one-key-at-a-time BYOK validation
+- `main` now carries the `1.4.7` patch line: all `1.4.6` model/BYOK hardening plus on-prem metering identity isolation, authenticated gateway-health validation, and conservative Ollama on-prem UI visibility
 - `SYSTEM/test-with-server.sh` and `SYSTEM/test.sh` are green locally on the current default-safe path, including the Docker smoke tests and newer skill/registry regressions
 - Skills now support stronger day-to-day management: reverse assignment, workspace-copy editing, bulk selection/deletion, registry provenance, and registry suggestions from both Shipables and Tessl
 - Tessl registry support is available as an **exploratory/experimental** feature for OpenClaw workspaces; installs are materially improved, but some tiles still require Tessl-side security review or additional format validation
 - recurring personal/ops templates now require less apply-time context for day-of or run-time fields, making repeated deploy/use flows much smoother
 - single-agent template apply now registers created agents correctly into active OpenClaw config so fresh agent-template deploys can chat immediately
-- the container entrypoint now probes gateway liveness correctly in the slim runtime image, and the dashboard Docker install steps are aligned with the OpenClaw builder workaround
+- on-prem runtimes now attach `instance_key`, `machine_id`, and `machine_name` into metering traces so different Macs stop colliding when a shared hostname is reused
 
 ## Release References
 
