@@ -1,107 +1,40 @@
 # ClawMax Status
 
-**Current Version**: v1.1.21
-**Last Updated**: March 30, 2026
-**Status**: Workflow v2 + testing sprint complete — DAG, notifications, 155 tests, system test workspace
+**Current Version**: v1.4.7
+**Last Updated**: May 12, 2026
+**Status**: Release surfaces refreshed for the current 1.4.x dashboard/runtime line
 
 ---
 
 ## Current State
 
-- `v1.1.20` released — Workflow v2 DAG, notifications, testing infrastructure
-- 15 organization templates (14 + system-test) across Business, Technical, Personal
-- Interactive DAG visualization with edit mode, zoom, progress bars
-- DAG execution engine: auto-advance pipeline on workflow completion
-- 5 blocker types with dynamic notification UI
-- 137 API tests + 78 unit tests + 18 integration tests = 155+ total
-- Specs published: [templates](https://github.com/Maximilien-ai/templates) + [workflows](https://github.com/Maximilien-ai/workflows)
-- ClawMax System Test workspace for automated + manual testing
+- `v1.4.7` is the next dashboard release candidate/tag target.
+- Latest work included in this line:
+  - agent-to-agent direct messaging API
+  - template actions cleanup and delete confirmation
+  - expanded proposal template catalog
+  - workflow import/validation and integrations status surfacing
+- README now summarizes only the three most recent dashboard releases.
+- Completed backlog items from the older March/April sprint board are archived out of the active backlog.
 
-## v1.1.16 — Deep Agents Hackathon Release
+## Active Product Focus
 
-Built at the [Deep Agents Hack](https://luma.com/deepagentshack) hackathon (March 27, 2026). Major template and skills infrastructure release.
+### On-Prem Runtime Correctness
+- validate per-instance metering identity and non-shared on-prem runtime identity
+- finish Ollama-default visibility flow in BYOK/runtime surfaces
+- reduce false-negative embedded gateway warnings when dashboard and agent chat are healthy
 
-### Template System
-- **Template Wizard** — 5-step creation: Team Type, Composition, Communication, Workflows, Preview
-- **AI Generate** — describe a team in natural language, AI fills all wizard steps
-- **14 organization templates** — Sales, HR, Support, Legal, Marketing, Convenience Store, Specialty Retailer, Dev Team, Data Team, RAG Team, Engineering, Small Startup, Student Research, Technical Writing
-- **TEMPLATE.md format** — templates as YAML frontmatter + markdown (auto-detected alongside template.json)
-- **Category filters** — Business/Technical/Personal pill buttons on Templates page
-- **Kickoff workflows** — every template has a kickoff with user-fillable Project Configuration
-- **Editable workflow content** — customize all workflows (kickoff fields, instructions) before applying
-- **GitHub coordination toggle** — checkbox adds github/gh-issues skills + injects repo instructions into all workflows
+### Cloud / Regional Runtime Hardening
+- keep multi-region cluster DNS/TLS automation aligned with new shared-cluster expansion
+- preserve clean maintenance/redeploy health reporting after cutover
 
-### Skills & Marketplace
-- **Shipables.dev integration** — search, browse, and install from 1,000+ skills registry
-- **Category browsing** — quick-filter pills (github, slack, api, data, ai, web, devops, crm)
-- **Bulk skill assignment** — add skills to multiple agents at once from Agents page
-- **One-click install** — install button per skill with "Installed" state tracking
+### Template & Workflow UX
+- continue template discovery and proposal-template promotion work
+- productize direct agent-to-agent coordination beyond the initial API slice
+- keep workflow validation/import flows clean for onboarding and runtime execution
 
-### Bug Fixes
-- **AI generator Anthropic fallback** — works with Anthropic-only BYOK keys (issue #49)
-- **Smart model defaults** — defaults to Anthropic model when only Anthropic key is set
-- **Null guard fixes** — Activity, Agents, Workflows, TopBar pages guarded against undefined API data
-- **OAuth default fix** — shows setup instructions instead of broken button when not configured
-- **Chat error styling** — ANSI code stripping, dark mode, error message detection, dismiss button
-- **Template import fix** — generates IDENTITY.md from template data when no agent files exist
-- **Workflow creation fix** — auto-assigns owner for managed workflows, accepts "once" schedule
+## Release Guidance
 
-### Testing
-- 121 integration tests (up from 113)
-- 25 unit tests (up from 15)
-- New coverage: TEMPLATE.md parsing, template categories, Shipables registry, workflow overrides, bulk skills, defensive agent import
-
-## Shipped Previously
-
-### Auth, BYOK, and Release Readiness
-- GitHub OAuth login/logout flow
-- dashboard login hero refresh and post-auth redirect fixes
-- visible user info + logout in the top bar
-- BYOK preview wizard for OpenAI/Anthropic keys
-- strict provider key precedence:
-  - user agent/workflow execution prefers BYOK, then `USER_*`
-  - system/dashboard-owned execution prefers `SYSTEM_*`
-  - shell exports no longer implicitly control dashboard provider policy
-- release checklist, OAuth docs, and env example refresh
-
-### Dashboard UX and Scale
-- workspace drag reordering
-- templates table/list mode with sorting, select-all, bulk delete, and apply flows
-- communication table/list mode with sorting and bulk actions
-- agent config validation before save
-- improved mobile agent detail panel
-- templates/workflows/logs page shell alignment
-
-### Quality and Contracts
-- strict system template contract tests for `TEMPLATES/*`
-- regression tests for:
-  - workspace ordering
-  - agent config validation
-  - agent model parsing and persistence
-  - runtime auth/model override execution
-  - safe env / BYOK precedence
-- CI now triggers on `main` and release tags
-
-## Active Risks
-
-- GitHub Actions on `main` is still being stabilized for true clean-room runs
-- live GitHub issue list is stale and includes items already fixed in code
-- secure multi-user BYOK storage is still deferred; current flow is intentionally a preview/dev slice
-- OAuth still needs one clean-room test pass on a fresh machine/config, even though local dev flow is working
-
-## Recommended Next Work
-
-1. Finish CI clean-room stabilization and confirm a green `main` run on GitHub
-2. Close or archive stale GitHub issues already fixed in code (`#38`, `#31`, `#30`, `#28`)
-3. Build workflow table view for large-scale workflow management
-4. Decide the next security/product slice:
-   - secure per-user BYOK storage
-   - `#29` Forward to group
-   - workflow cron reliability (`#14`)
-
-## Tomorrow Start Here
-
-1. Check the latest GitHub Actions run on `main`
-2. If green, do issue cleanup and start workflow table view
-3. If red, fix the remaining clean-room failure before any feature work
-4. Keep BYOK secure-storage work deferred until CI and workflow scale UX are in better shape
+- Use `CHANGELOG.md` as the full release history.
+- Keep README limited to the latest three releases only.
+- Archive completed sprint/backlog work instead of leaving it in the active backlog.

@@ -1,58 +1,48 @@
 # ClawMax Known Issues & Limitations
 
-**Last Updated**: 2026-04-01
-**Current Version**: main
+**Last Updated**: 2026-05-12
+**Current Version**: v1.4.7
 
 ---
 
 ## Active Issues
 
-### 1. Gateway process management
-**Severity**: High
-**Status**: Documented, needs CLI team fix
-
-`SYSTEM/stop.sh` kills the shared gateway (port 18789), leaving agents unable to communicate. Agents show offline even though config is fine. Workaround: `openclaw gateway restart` after stop/start.
-
-**Fix needed**: Process supervisor (pm2/systemd), stop.sh should not kill gateway, start.sh should verify gateway.
-
----
-
-### 2. Compact dashboard upward reorder
+### 1. On-prem embedded gateway health can false-negative
 **Severity**: Medium
-**Status**: Known bug
+**Status**: Under investigation
 
-In compact dashboard layout editing, dragging a section downward or across columns works, but dragging a tile upward within the same column is still unreliable.
-
-**Workaround**: Drag downward first, or move the card across columns and back.
+Some on-prem runtimes still report the embedded gateway as degraded even when the dashboard is healthy and agent interactions continue to work. This appears to be a health/probe-contract problem rather than a full runtime outage.
 
 ---
 
-### 3. Agent chat requires ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION
-**Severity**: Low
-**Status**: By design
+### 2. On-prem metering/runtime identity needs explicit per-instance separation
+**Severity**: Medium
+**Status**: Coordinating with CLI/runtime line
 
-Agent execution (chat, workflows) requires either BYOK keys, `USER_*` defaults, or `ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION=true` in `.env`. Without this, agents fail with "No execution API keys configured".
-
----
-
-### 4. DAG connector lines overlap nodes on complex layouts
-**Severity**: Low (cosmetic)
-**Status**: Known limitation
-
-SVG bezier curves can pass through nodes when the layout has many parallel workflows at different vertical positions. Planned fix: route lines around node bounding boxes.
+On-prem instances should be keyed by `instance_key` and/or `machine_id`, not a shared generic runtime hostname, so metering and identity do not drift across Macs.
 
 ---
 
-## Resolved Recently (v1.1.16–v1.1.20)
+### 3. On-prem Ollama visibility depends on full runtime contract
+**Severity**: Medium
+**Status**: In progress
 
-- **.toFixed() crashes** — guarded all undefined access across Activity, Agents, Workflows pages
-- **OAuth button when not configured** — shows setup instructions instead of broken button
-- **System.* null access in TopBar** — all system fields use optional chaining
-- **Agent import without files** — generates IDENTITY.md from template data
-- **Workflow creation for managed mode** — auto-assigns owner
-- **Dismissed notifications reappearing** — dedup now includes dismissed
-- **Agent status offline for shared gateway** — probes port 18789 as fallback
-- **AI generator with Anthropic-only keys** — auto-detects provider, maps models
+On-prem surfaces should only show Ollama as configured when the runtime both enables Ollama and exposes a reachable default Ollama base URL into the dashboard/runtime.
+
+---
+
+### 4. New shared clusters require automated DNS/TLS provisioning
+**Severity**: High
+**Status**: Operational gap identified
+
+When new shared clusters such as `lon1-2` appear, public DNS wildcard and TLS issuance must be provisioned automatically. Without that automation, runtime health can be good in-cluster while public health checks fail.
+
+## Resolved Recently (v1.4.5–v1.4.7)
+
+- **Template delete confirmation** — dashboard now confirms destructive template deletes.
+- **Template onboarding wizard** — multi-step apply flow landed for template onboarding.
+- **Workflow markdown import** — markdown-native workflow import landed.
+- **Integrations validation surfacing** — dashboard now surfaces validation/runtime follow-through state more clearly.
 
 ## Source of Truth
 

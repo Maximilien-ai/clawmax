@@ -1,18 +1,24 @@
 # ClawMax Documentation
 
-> Last updated: March 29, 2026 (v1.1.20)
+> Last updated: May 12, 2026 (v1.4.7)
 
 ## Active Documents
 
 | Document | Description |
 |----------|-------------|
-| [STATUS.md](STATUS.md) | Current version, state, and recent releases |
-| [BACKLOG.md](BACKLOG.md) | Prioritized backlog, sprint items, and roadmap |
+| [STATUS.md](STATUS.md) | Current version, state, and release posture |
+| [BACKLOG.md](BACKLOG.md) | Active prioritized work only |
+| [KNOWN_ISSUES.md](KNOWN_ISSUES.md) | Current bugs, limitations, and operational gaps |
 | [TESTING_GUIDE.md](TESTING_GUIDE.md) | Unit, API, integration, and manual testing guide |
-| [KNOWN_ISSUES.md](KNOWN_ISSUES.md) | Active bugs and limitations |
+| [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) | Pre-release verification steps |
 | [OAUTH_SETUP.md](OAUTH_SETUP.md) | GitHub OAuth configuration guide |
 | [SECURITY.md](SECURITY.md) | Security architecture and policies |
-| [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) | Pre-release verification steps |
+
+## Release History
+
+- Full release history lives in [CHANGELOG.md](../../CHANGELOG.md).
+- README should summarize only the three most recent releases.
+- Completed sprint/backlog material belongs in `archive/`.
 
 ## Specifications (External)
 
@@ -21,21 +27,6 @@
 | [TEMPLATE.md Format](https://github.com/Maximilien-ai/templates/blob/main/spec/template-spec.md) | [Maximilien-ai/templates](https://github.com/Maximilien-ai/templates) |
 | [WORKFLOW.md Format](https://github.com/Maximilien-ai/workflows/blob/main/spec/workflow-spec.md) | [Maximilien-ai/workflows](https://github.com/Maximilien-ai/workflows) |
 
-## Hackathon Notes
+## Archive Rule
 
-| Event | Date | Plan |
-|-------|------|------|
-| [Deep Agents Hack](hacks/deep-agents-hack/PLAN.md) | March 27, 2026 | Template wizard, 14 templates, Shipables |
-| [Multimodal Frontier Hack](hacks/multimodal-frontier-hack-mar28/PLAN.md) | March 28, 2026 | Research desk template, multimodal |
-| [OpenClaw Hack Day](hacks/openclaw-hack-day-mar25/SESSION_SUMMARY.md) | March 25, 2026 | RAG team, weave-cli skills |
-
-## Other
-
-| Directory | Contents |
-|-----------|----------|
-| `architecture/` | System design docs |
-| `features/` | Feature design docs |
-| `operations/` | Ops and deployment guides |
-| `planning/` | Sprint plans (current in root, completed in `archive/`) |
-| `presentations/` | Demo and talk materials |
-| `archive/` | Historical docs no longer actively maintained |
+Use `archive/` for completed planning/sprint material and backlog sweeps that no longer belong in the active docs set.

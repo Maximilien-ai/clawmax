@@ -2,6 +2,36 @@
 
 All notable changes to ClawMax are documented here.
 
+## [v1.4.7] - 2026-05-12
+
+### Features
+- **Agent-to-agent direct messaging API** — adds the first direct messaging API slice for tighter multiagent dependency resolution and coordination.
+- **Template catalog expansion** — adds science, personal assistant, travel, hobbies, and family proposal templates.
+- **Template actions and discoverability** — adds template actions menu support, template emoji metadata, and full emoji coverage across the catalog.
+- **Workflow and runtime UX polish** — carries forward workflow markdown import, customization validation, integrations validation surfacing, and dashboard cost-summary refinement.
+
+### Fixes
+- **Template delete confirmation** — user-created templates now use an explicit dashboard confirmation flow before destructive delete.
+
+### Docs
+- **Release surface cleanup** — trims README release marketing to the latest three versions, refreshes status/docs surfaces, and archives completed backlog items into the docs archive.
+
+## [v1.4.6] - 2026-05-11
+
+### Highlights
+- **CI-stable dashboard runtime line** — used as the stable dashboard image line for cloud and on-prem verification.
+- **Template apply onboarding wizard** — multi-step onboarding flow for applying templates with clearer step-by-step guidance.
+- **Provider and runtime groundwork** — includes Gemini provider support and Ollama workspace integration groundwork used by the on-prem runtime line.
+
+## [v1.4.5] - 2026-05-10
+
+### Highlights
+- **Template apply guardrails** — blocks early when no viable execution path or default model can be resolved.
+- **On-prem gateway presence** — healthy on-prem embedded gateway runtimes keep idle/fresh agents shown as online.
+- **On-prem Ollama contract checks** — dashboard-side execution checks honor the existing default on-prem Ollama contract.
+
+## Historical Entries (pre-v1.4.x)
+
 ## [v1.1.20] - 2026-03-29
 
 ### Features — Workflow v2

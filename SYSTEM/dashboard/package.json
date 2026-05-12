@@ -1,6 +1,6 @@
 {
   "name": "clawmax-dashboard",
-  "version": "1.1.0",
+  "version": "1.4.7",
   "description": "ClawMax.ai owner dashboard — local web UI for the Maximilien.ai agent network",
   "private": true,
   "engines": {
