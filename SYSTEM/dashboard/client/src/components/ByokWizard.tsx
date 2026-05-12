@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from './Toast'
-import { buildByokVerificationFingerprint, detectProviderKeyMismatch, getByokDismissKey, readStoredByokKeys, writeStoredByokKeys } from '../lib/byok'
+import { buildByokVerificationFingerprint, detectProviderKeyMismatch, getByokDismissKey, isOllamaUiAvailable, readStoredByokKeys, writeStoredByokKeys } from '../lib/byok'
 import { DEFAULT_VISIBLE_PARTNERS, getDefaultPartnerDefinitions } from '../lib/defaultPartners'
 import { BROWSER_VAULT_UPDATED_EVENT, readPartnerValuesFromSharedSecrets, readSharedSecrets, writePartnerValuesToSharedSecrets, writeSharedSecrets } from '../lib/localSecrets'
 
@@ -193,7 +193,7 @@ export function ByokWizard({
   const [highlightPreferredModel, setHighlightPreferredModel] = useState(false)
   const [modelTab, setModelTab] = useState<ModelTab>('openai')
   const [onboardingOpen, setOnboardingOpen] = useState(false)
-  const ollamaEnabled = config?.ollamaEnabled !== false
+  const ollamaEnabled = isOllamaUiAvailable(config)
   const defaultOllamaBaseUrl = config?.defaultOllamaBaseUrl || localDevOllamaBaseUrl
 
   const refreshLocalState = React.useCallback(() => {

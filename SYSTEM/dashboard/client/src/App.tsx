@@ -30,6 +30,9 @@ type Page = DashboardPage
 
 interface SystemInfo {
   hostname: string
+  instanceKey?: string | null
+  machineId?: string | null
+  machineName?: string | null
   agentCount: number
   activeAgentCount: number
   pausedAgentCount: number
@@ -447,7 +450,7 @@ export default function App() {
             {/* Footer / collapse toggle */}
             <div className={`border-t border-gray-700 ${navCollapsed ? 'px-2 py-3 flex justify-center' : 'px-4 py-3 flex items-center justify-between'}`}>
               {!navCollapsed && (
-                <span className="text-xs text-gray-500 font-mono">{system?.version ?? '…'} · {system?.hostname ?? '…'}</span>
+                <span className="text-xs text-gray-500 font-mono">{system?.version ?? '…'} · {(system?.machineName || system?.hostname || '…')}</span>
               )}
               <button
                 onClick={() => setNavCollapsed(c => !c)}
@@ -667,7 +670,7 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
           </span>
         )}
         <div className="hidden min-w-0 items-center gap-3 text-xs text-gray-500 dark:text-gray-400 sm:flex">
-          <span className="hidden max-w-[10rem] truncate whitespace-nowrap font-mono text-gray-400 dark:text-gray-500 lg:inline xl:max-w-[14rem]">{system?.hostname}</span>
+          <span className="hidden max-w-[10rem] truncate whitespace-nowrap font-mono text-gray-400 dark:text-gray-500 lg:inline xl:max-w-[14rem]">{system?.machineName || system?.hostname}</span>
           <span className="text-gray-300 dark:text-gray-600 hidden sm:inline">·</span>
           <span className="hidden sm:inline">{system?.agentCount ?? 0} agent{(system?.agentCount ?? 0) !== 1 ? 's' : ''}</span>
           <span className="text-gray-300 dark:text-gray-600 hidden sm:inline">·</span>

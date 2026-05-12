@@ -63,6 +63,9 @@ export interface MeteringViewer {
   login?: string | null
   email?: string | null
   dashboardInstanceId?: string | null
+  instanceKey?: string | null
+  machineId?: string | null
+  machineName?: string | null
 }
 
 export function aggregateWorkspaceMeteringFromTraces(traces: TraceData[]): Omit<WorkspaceMetering, 'period'> {
@@ -287,6 +290,9 @@ function getViewerCacheKey(viewer?: MeteringViewer): string {
     `login:${viewer.login || ''}`,
     `email:${viewer.email || ''}`,
     `dashboard:${viewer.dashboardInstanceId || ''}`,
+    `instance:${viewer.instanceKey || ''}`,
+    `machine:${viewer.machineId || ''}`,
+    `machine_name:${viewer.machineName || ''}`,
   ].join('|')
 }
 
@@ -464,8 +470,31 @@ function fetchOpikTraces(projectName: string, size: number = 100): Promise<Trace
 }
 
 export function traceMatchesViewer(trace: TraceData, viewer?: MeteringViewer): boolean {
-  if (!viewer?.userId && !viewer?.login && !viewer?.email && !viewer?.dashboardInstanceId) return true
+  if (
+    !viewer?.userId &&
+    !viewer?.login &&
+    !viewer?.email &&
+    !viewer?.dashboardInstanceId &&
+    !viewer?.instanceKey &&
+    !viewer?.machineId &&
+    !viewer?.machineName
+  ) return true
   const meta = trace.metadata || {}
+  const traceInstanceKey = String(meta.instance_key || '').trim().toLowerCase()
+  const viewerInstanceKey = String(viewer.instanceKey || '').trim().toLowerCase()
+  if (viewerInstanceKey && traceInstanceKey && traceInstanceKey !== viewerInstanceKey) {
+    return false
+  }
+  const traceMachineId = String(meta.machine_id || '').trim().toLowerCase()
+  const viewerMachineId = String(viewer.machineId || '').trim().toLowerCase()
+  if (viewerMachineId && traceMachineId && traceMachineId !== viewerMachineId) {
+    return false
+  }
+  const traceMachineName = String(meta.machine_name || '').trim().toLowerCase()
+  const viewerMachineName = String(viewer.machineName || '').trim().toLowerCase()
+  if (!viewerInstanceKey && !viewerMachineId && viewerMachineName && traceMachineName && traceMachineName !== viewerMachineName) {
+    return false
+  }
   const traceDashboardInstanceId = String(meta.dashboard_instance_id || '').trim().toLowerCase()
   const viewerDashboardInstanceId = String(viewer.dashboardInstanceId || '').trim().toLowerCase()
   if (viewerDashboardInstanceId && traceDashboardInstanceId && traceDashboardInstanceId !== viewerDashboardInstanceId) {

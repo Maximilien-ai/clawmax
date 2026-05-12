@@ -44,6 +44,10 @@ interface AiExecutionConfig {
   }
 }
 
+export function isOllamaUiAvailable(config?: AiExecutionConfig | null): boolean {
+  return config?.ollamaEnabled === true && !!config.defaultOllamaBaseUrl
+}
+
 export type ProviderKeyMismatch = {
   provider: 'openai' | 'anthropic' | 'gemini'
   expectedLabel: string
@@ -182,7 +186,7 @@ export function hasAiGenerationAccess(config?: AiExecutionConfig | null): boolea
 export function hasChatExecutionAccess(config?: AiExecutionConfig | null): boolean {
   const byok = readStoredByokKeys()
   if (byok.openai || byok.anthropic || byok.geminiApiKey || byok.ollamaBaseUrl || byok.ollamaDefaultModel) return true
-  if (config?.ollamaEnabled && !!config.defaultOllamaBaseUrl) return true
+  if (isOllamaUiAvailable(config)) return true
   if (config?.userKeyDefaults?.openai || config?.userKeyDefaults?.anthropic || config?.userKeyDefaults?.gemini) return true
   if (
     config?.allowSystemKeysForUserExecution &&

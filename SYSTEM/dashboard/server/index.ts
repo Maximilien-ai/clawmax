@@ -23,7 +23,7 @@ import { WORKSPACE, getWorkspacePath, listAgents, getWorkspaceActivity, getDashb
 import { startScheduler, stopScheduler } from './lib/scheduler'
 import { startNotificationMonitor, stopNotificationMonitor } from './lib/notifications'
 import notificationsRouter from './routes/notifications'
-import { initOpikTracing, shutdownOpik, isOpikEnabled, getRequestDashboardInstanceId } from './lib/opik'
+import { initOpikTracing, shutdownOpik, isOpikEnabled, getRequestDashboardInstanceId, getRuntimeInstanceIdentity } from './lib/opik'
 import { getWorkspaceMetering } from './lib/metering'
 import { validateCommunities, validateGroups, validateIdentity } from './lib/validator'
 import { requireAuth, verifyToken } from './lib/auth'
@@ -207,9 +207,13 @@ app.get('/api/system', protect, async (req, res) => {
   const activeAgents = agents.filter(a => !a.paused)
   const requestHost = req.get('x-forwarded-host') || req.get('host') || ''
   const maintenanceBanner = await getResolvedMaintenanceBanner(rawEnv, requestHost)
+  const runtimeIdentity = getRuntimeInstanceIdentity()
   res.json({
     workspace: workspacePath,
     hostname: os.hostname(),
+    instanceKey: runtimeIdentity.instanceKey || null,
+    machineId: runtimeIdentity.machineId || null,
+    machineName: runtimeIdentity.machineName || null,
     agentCount: agents.length,
     activeAgentCount: activeAgents.length,
     pausedAgentCount: agents.length - activeAgents.length,
@@ -241,11 +245,15 @@ app.get('/api/budget', protect, async (req, res) => {
     }
     const workspaceId = typeof req.query.workspaceId === 'string' ? req.query.workspaceId : undefined
     const session = getAuthenticatedSession(req)
+    const runtimeIdentity = getRuntimeInstanceIdentity()
     const status = await getBudgetStatus(workspaceId, {
       userId: session?.userId || null,
       login: session?.login || null,
       email: session?.email || null,
       dashboardInstanceId: getRequestDashboardInstanceId(req),
+      instanceKey: runtimeIdentity.instanceKey || null,
+      machineId: runtimeIdentity.machineId || null,
+      machineName: runtimeIdentity.machineName || null,
     })
     res.json({ enabled: true, ...status })
   } catch (err: any) {
@@ -300,13 +308,20 @@ app.get('/api/metering', protect, async (req, res) => {
     }
     const workspaceId = typeof req.query.workspaceId === 'string' ? req.query.workspaceId : undefined
     const session = getAuthenticatedSession(req)
+    const runtimeIdentity = getRuntimeInstanceIdentity()
     const data = await getWorkspaceMetering(workspaceId, session ? {
       userId: session.userId,
       login: session.login,
       email: session.email || null,
       dashboardInstanceId: getRequestDashboardInstanceId(req),
+      instanceKey: runtimeIdentity.instanceKey || null,
+      machineId: runtimeIdentity.machineId || null,
+      machineName: runtimeIdentity.machineName || null,
     } : {
       dashboardInstanceId: getRequestDashboardInstanceId(req),
+      instanceKey: runtimeIdentity.instanceKey || null,
+      machineId: runtimeIdentity.machineId || null,
+      machineName: runtimeIdentity.machineName || null,
     })
     res.json({ enabled: true, ...data })
   } catch (err: any) {

@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { useToast } from '../components/Toast'
 import { useWorkspace } from '../contexts/WorkspaceContext'
 import { useAuth } from '../contexts/AuthContext'
-import { detectProviderKeyMismatch, readStoredByokKeys } from '../lib/byok'
+import { detectProviderKeyMismatch, isOllamaUiAvailable, readStoredByokKeys } from '../lib/byok'
 import { DEFAULT_VISIBLE_PARTNERS, getDefaultPartnerDefinitions } from '../lib/defaultPartners'
 import { BROWSER_VAULT_UPDATED_EVENT, findManagedSecretConflicts, getPartnerVaultKey, parseEnvLikeSecrets, readSharedSecrets, writeSharedSecrets } from '../lib/localSecrets'
 
@@ -204,7 +204,7 @@ export default function KeysSecrets() {
   const { showSuccess, showWarning } = useToast()
   const { activeWorkspace } = useWorkspace()
   const { config } = useAuth()
-  const ollamaEnabled = config?.ollamaEnabled !== false
+  const ollamaEnabled = isOllamaUiAvailable(config)
   const [globalDrafts, setGlobalDrafts] = useState<SecretDraft[]>([])
   const [workspaceDrafts, setWorkspaceDrafts] = useState<SecretDraft[]>([])
   const [importScope, setImportScope] = useState<'workspace' | 'global'>('workspace')

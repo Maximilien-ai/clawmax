@@ -14,8 +14,18 @@ let workspace = ''
 let projectName = ''
 let enabled = false
 
+export interface RuntimeInstanceIdentity {
+  instanceKey: string
+  machineId: string
+  machineName: string
+}
+
 function normalizeDashboardInstanceId(value: string): string {
   return value.trim().replace(/\/+$/, '').toLowerCase()
+}
+
+function normalizeRuntimeIdentityValue(value: string | undefined | null): string {
+  return String(value || '').trim()
 }
 
 export function getConfiguredDashboardInstanceId(): string {
@@ -39,6 +49,14 @@ export function getRequestDashboardInstanceId(req?: {
     : forwardedHost || req.headers?.host || ''
   if (!host) return getConfiguredDashboardInstanceId()
   return normalizeDashboardInstanceId(`${proto}://${host}`)
+}
+
+export function getRuntimeInstanceIdentity(): RuntimeInstanceIdentity {
+  return {
+    instanceKey: normalizeRuntimeIdentityValue(process.env.CLAWMAX_INSTANCE_KEY),
+    machineId: normalizeRuntimeIdentityValue(process.env.CLAWMAX_MACHINE_ID),
+    machineName: normalizeRuntimeIdentityValue(process.env.CLAWMAX_MACHINE_NAME),
+  }
 }
 
 function getWorkspaceId(): string {
@@ -158,6 +176,7 @@ export function traceAgentChat(
   }
 ): void {
   if (!enabled) return
+  const runtimeIdentity = getRuntimeInstanceIdentity()
 
   const now = new Date().toISOString()
   const startTime = meta.durationMs
@@ -184,6 +203,9 @@ export function traceAgentChat(
       user_login: meta.actorLogin || '',
       user_email: meta.actorEmail || '',
       dashboard_instance_id: meta.dashboardInstanceId || getConfiguredDashboardInstanceId(),
+      instance_key: runtimeIdentity.instanceKey,
+      machine_id: runtimeIdentity.machineId,
+      machine_name: runtimeIdentity.machineName,
       model: meta.model || 'unknown',
       provider: meta.provider || 'unknown',
       tokens_input: meta.inputTokens || 0,
@@ -224,6 +246,7 @@ export function traceWorkflowExecution(
   }
 ): void {
   if (!enabled) return
+  const runtimeIdentity = getRuntimeInstanceIdentity()
 
   const now = new Date().toISOString()
   const startTime = new Date(Date.now() - meta.totalDurationMs).toISOString()
@@ -250,6 +273,9 @@ export function traceWorkflowExecution(
       user_login: meta.actorLogin || '',
       user_email: meta.actorEmail || '',
       dashboard_instance_id: meta.dashboardInstanceId || getConfiguredDashboardInstanceId(),
+      instance_key: runtimeIdentity.instanceKey,
+      machine_id: runtimeIdentity.machineId,
+      machine_name: runtimeIdentity.machineName,
       trigger_type: meta.triggerType,
       participant_count: participants.length,
       tokens_input: totalInput,

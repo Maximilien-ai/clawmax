@@ -318,6 +318,58 @@ async function run() {
     assert(allowed === false, 'Expected hosted dashboard instance id mismatches to remain isolated')
   })
 
+  await test('traceMatchesViewer prefers instance_key isolation for on-prem traces', () => {
+    const trace = {
+      id: 'a6',
+      name: 'agent.chat.one',
+      start_time: '2026-04-08T19:00:00.000Z',
+      end_time: '2026-04-08T19:00:10.000Z',
+      metadata: {
+        agent_id: 'one',
+        dashboard_instance_id: 'http://clawmax:3001',
+        instance_key: 'mbp14-a',
+        machine_id: 'machine-a',
+        tokens_input: 100,
+        tokens_output: 50,
+        tokens_total: 150,
+      },
+    } as any
+
+    const allowed = traceMatchesViewer(trace, {
+      dashboardInstanceId: 'http://clawmax:3001',
+      instanceKey: 'macmini-b',
+      machineId: 'machine-b',
+    })
+
+    assert(allowed === false, 'Expected on-prem traces with different instance identities to remain isolated even when hostnames match')
+  })
+
+  await test('traceMatchesViewer allows matching machine identity when dashboard hostname is shared', () => {
+    const trace = {
+      id: 'a7',
+      name: 'agent.chat.one',
+      start_time: '2026-04-08T19:00:00.000Z',
+      end_time: '2026-04-08T19:00:10.000Z',
+      metadata: {
+        agent_id: 'one',
+        dashboard_instance_id: 'http://clawmax:3001',
+        machine_id: 'machine-a',
+        machine_name: 'MBP14',
+        tokens_input: 100,
+        tokens_output: 50,
+        tokens_total: 150,
+      },
+    } as any
+
+    const allowed = traceMatchesViewer(trace, {
+      dashboardInstanceId: 'http://clawmax:3001',
+      machineId: 'machine-a',
+      machineName: 'MBP14',
+    })
+
+    assert(allowed === true, 'Expected matching machine identity to preserve on-prem metering visibility')
+  })
+
   await test('mergeWorkspaceMetering preserves highest known values across refreshes', () => {
     const previous = {
       totalTraces: 10,

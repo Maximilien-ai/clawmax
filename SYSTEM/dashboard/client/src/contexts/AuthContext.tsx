@@ -31,6 +31,9 @@ interface AuthConfig {
   preferredModel?: string
   recommendedModel?: string
   costEfficientModel?: string
+  instanceKey?: string | null
+  machineId?: string | null
+  machineName?: string | null
 }
 
 interface AuthContextValue {

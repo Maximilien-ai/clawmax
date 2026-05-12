@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { readStoredByokKeys, fetchModelsWithByok, hasAiGenerationAccess } from '../lib/byok'
+import { readStoredByokKeys, fetchModelsWithByok, hasAiGenerationAccess, isOllamaUiAvailable } from '../lib/byok'
 import { useAuth } from '../contexts/AuthContext'
 
 const PREDEFINED_TAGS = [
@@ -48,7 +48,7 @@ interface ValidationResult {
 export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, startWithAI }: WizardProps) {
   const { config } = useAuth()
   const aiEnabled = hasAiGenerationAccess(config)
-  const ollamaEnabled = config?.ollamaEnabled !== false
+  const ollamaEnabled = isOllamaUiAvailable(config)
   const [step, setStep] = useState<Step>(startWithAI ? 2 : 1)
   const [form, setForm] = useState<FormState>({
     name: '',
