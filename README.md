@@ -219,6 +219,12 @@ To uninstall a local ClawMax setup cleanly, run:
 ./uninstall.sh
 ```
 
+This removes the local ClawMax/OpenClaw runtime setup while preserving:
+- `WORKSPACES/`
+- `~/.openclaw/agents/`
+- `~/.openclaw/workspace/`
+- `~/.openclaw/workspaces/`
+
 ### Manual Installation (Alternative)
 
 ```bash

@@ -51,7 +51,7 @@ EOF
   echo ""
   echo "  The following will be removed:"
   echo "    - OpenClaw CLI (npm global or Homebrew)"
-  echo "    - OpenClaw config & agent data (~/.openclaw/)"
+  echo "    - OpenClaw runtime config and local metadata (~/.openclaw/*.json, logs, temp state)"
   echo "    - Dashboard dependencies (SYSTEM/dashboard/node_modules/)"
   echo "    - Dashboard build artifacts (SYSTEM/dashboard/dist/)"
   echo "    - Dashboard .env (SYSTEM/dashboard/.env)"
@@ -59,6 +59,7 @@ EOF
   echo -e "  ${BOLD}NOT removed:${NC}"
   echo "    - This git repository (delete manually if desired)"
   echo "    - Your workspace data (WORKSPACES/) — preserved for safety"
+  echo "    - Agent directories and files created by you or your agents (~/.openclaw/agents/, ~/.openclaw/workspace/, ~/.openclaw/workspaces/)"
   echo ""
 
   if [ "$INTERACTIVE" = true ]; then
@@ -100,22 +101,26 @@ EOF
   print_header "Removing OpenClaw Data"
   OPENCLAW_DIR="$HOME/.openclaw"
   if [ -d "$OPENCLAW_DIR" ]; then
-    # Show what's there
-    AGENT_COUNT=$(ls -d "$OPENCLAW_DIR/agents/"*/ 2>/dev/null | wc -l | tr -d ' ')
-    if [ "$AGENT_COUNT" -gt 0 ] && [ "$INTERACTIVE" = true ]; then
-      echo -e "  Found ${BOLD}$AGENT_COUNT agent(s)${NC} in ~/.openclaw/agents/"
-      read -p "  Remove agent session data too? (y/N): " -n 1 -r; echo
-      if [[ $REPLY =~ ^[Yy]$ ]]; then
-        rm -rf "$OPENCLAW_DIR"
-        print_success "Removed ~/.openclaw/ (config + agent data)"
-      else
-        rm -f "$OPENCLAW_DIR/openclaw.json" "$OPENCLAW_DIR/openclaw.json.bak"
-        print_success "Removed openclaw config (kept agent data)"
-      fi
-    else
-      rm -rf "$OPENCLAW_DIR"
-      print_success "Removed ~/.openclaw/"
+    rm -f \
+      "$OPENCLAW_DIR/openclaw.json" \
+      "$OPENCLAW_DIR/openclaw.json.bak" \
+      "$OPENCLAW_DIR/dashboard-workspaces.json" \
+      "$OPENCLAW_DIR/dashboard-workspaces.json.bak" \
+      "$OPENCLAW_DIR/gateway-control-ui-token" \
+      "$OPENCLAW_DIR/gateway.log" \
+      "$OPENCLAW_DIR/gateway.pid" \
+      "$OPENCLAW_DIR/gateway.sock" \
+      "$OPENCLAW_DIR/gateway-state.json" \
+      "$OPENCLAW_DIR/doctor-report.json" \
+      "$OPENCLAW_DIR/auth-token" 2>/dev/null || true
+    if [ -d "$OPENCLAW_DIR/logs" ]; then
+      rm -rf "$OPENCLAW_DIR/logs"
     fi
+    if [ -d "$OPENCLAW_DIR/tmp" ]; then
+      rm -rf "$OPENCLAW_DIR/tmp"
+    fi
+    print_success "Removed OpenClaw config and runtime metadata"
+    print_info "Preserved ~/.openclaw/agents, ~/.openclaw/workspace, and ~/.openclaw/workspaces"
   else
     print_info "No ~/.openclaw/ directory found"
   fi
@@ -153,6 +158,7 @@ EOF
   echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
   echo ""
   echo "  Your workspace data in WORKSPACES/ has been preserved."
+  echo "  Your agent/workspace files in ~/.openclaw/ have been preserved."
   echo "  To fully remove ClawMax, delete this directory:"
   echo -e "    ${BOLD}rm -rf $(pwd)${NC}"
   echo ""
