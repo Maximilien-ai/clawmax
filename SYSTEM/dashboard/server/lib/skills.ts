@@ -110,6 +110,19 @@ function slugifySkillName(name: string): string {
     .replace(/^-+|-+$/g, '') || 'custom-skill'
 }
 
+function getSkillDirectoryId(filePath: string): string {
+  return path.basename(path.dirname(filePath))
+}
+
+function resolveSkillMarkdownPath(skillDir: string): string {
+  const skillMdUpper = path.join(skillDir, 'SKILL.md')
+  const skillMdLower = path.join(skillDir, 'skill.md')
+  if (!fs.existsSync(skillMdUpper) && fs.existsSync(skillMdLower)) {
+    fs.renameSync(skillMdLower, skillMdUpper)
+  }
+  return fs.existsSync(skillMdUpper) ? skillMdUpper : skillMdLower
+}
+
 /**
  * Get workspace custom skills directory
  */
@@ -261,6 +274,7 @@ function parseSkillFile(
     const openclawMeta = data.metadata?.openclaw || {}
 
     return {
+      id: source === 'bundled' ? undefined : getSkillDirectoryId(filePath),
       name: data.name,
       description: data.description || '',
       emoji: openclawMeta.emoji,
@@ -331,7 +345,7 @@ function parseWorkspaceSkillFile(filePath: string, skillId: string): OpenClawSki
  */
 export function getSkillById(id: string): OpenClawSkill | null {
   const skills = listAvailableSkills()
-  const direct = skills.find(s => s.name === id)
+  const direct = skills.find(s => s.name === id || s.id === id)
   if (direct) return direct
 
   const repoSkillDir = path.join(REPO_CUSTOM_SKILLS_DIR, id)
@@ -361,54 +375,106 @@ export function getSkillContent(skillId: string): { skill: OpenClawSkill; conten
   return { skill, content, editable }
 }
 
-export function updateSkillContent(skillId: string, content: string): { skill: OpenClawSkill; content: string; editable: boolean } {
+export function updateSkillContent(
+  skillId: string,
+  content: string,
+  overrides?: { name?: string; description?: string }
+): { skill: OpenClawSkill; content: string; editable: boolean } {
   const skill = getSkillById(skillId)
   if (!skill) {
     throw new Error(`Skill "${skillId}" not found`)
   }
 
   const parsed = matter(content)
+  const nextName = (overrides?.name ?? parsed.data?.name ?? skill.name ?? '').trim()
+  const nextDescriptionRaw = overrides?.description ?? parsed.data?.description ?? skill.description ?? ''
+  const nextDescription = String(nextDescriptionRaw).trim()
+  if (!nextName) {
+    throw new Error('Skill name is required')
+  }
+  if (!/^[a-z0-9_-]+$/i.test(nextName)) {
+    throw new Error('Skill name must contain only alphanumeric characters, dashes, and underscores')
+  }
+
+  const nextSkillId = slugifySkillName(nextName)
   let targetPath = skill.filePath
+  let lookupId = skillId
+  let targetSource = skill.source
+
+  const existingSkill = getSkillById(nextName)
+  if (existingSkill && existingSkill.name !== skill.name && existingSkill.id !== skill.id) {
+    throw new Error(`Skill "${nextName}" already exists`)
+  }
 
   if (skill.source === 'bundled') {
     const workspaceSkillsDir = getWorkspaceSkillsDir()
     fs.mkdirSync(workspaceSkillsDir, { recursive: true })
-    const targetDirName = skill.id || slugifySkillName(skill.name)
+    const targetDirName = nextSkillId
     const workspaceSkillDir = path.join(workspaceSkillsDir, targetDirName)
+    if (fs.existsSync(workspaceSkillDir)) {
+      const existingPath = resolveSkillMarkdownPath(workspaceSkillDir)
+      if (path.resolve(existingPath) !== path.resolve(skill.filePath)) {
+        throw new Error(`Skill "${nextName}" already exists`)
+      }
+    }
 
     if (!fs.existsSync(workspaceSkillDir)) {
       copyDirectorySync(path.dirname(skill.filePath), workspaceSkillDir)
     }
 
-    const skillMdUpper = path.join(workspaceSkillDir, 'SKILL.md')
-    const skillMdLower = path.join(workspaceSkillDir, 'skill.md')
-    if (!fs.existsSync(skillMdUpper) && fs.existsSync(skillMdLower)) {
-      fs.renameSync(skillMdLower, skillMdUpper)
+    targetPath = resolveSkillMarkdownPath(workspaceSkillDir)
+    lookupId = targetDirName
+    targetSource = 'workspace'
+  } else if (skill.id) {
+    const rootDir = skill.source === 'managed' ? MANAGED_SKILLS_DIR : getWorkspaceSkillsDir()
+    const currentDir = path.dirname(skill.filePath)
+    const currentDirName = path.basename(currentDir)
+    const currentRoot = path.dirname(currentDir)
+    if (path.resolve(currentRoot) === path.resolve(rootDir) && currentDirName !== nextSkillId) {
+      const targetDir = path.join(rootDir, nextSkillId)
+      if (fs.existsSync(targetDir)) {
+        throw new Error(`Skill "${nextName}" already exists`)
+      }
+      fs.renameSync(currentDir, targetDir)
+      targetPath = resolveSkillMarkdownPath(targetDir)
+      lookupId = nextSkillId
+    } else {
+      lookupId = skill.id
     }
-    targetPath = fs.existsSync(skillMdUpper) ? skillMdUpper : skillMdLower
+  }
+
+  const nextVariantOf = skill.source === 'bundled'
+    ? skill.name
+    : (parsed.data?.metadata?.openclaw?.variantOf || skill.variantOf)
+  const nextOriginalSource = skill.source === 'bundled'
+    ? skill.source
+    : (parsed.data?.metadata?.openclaw?.originalSource || skill.originalSource || targetSource)
+
+  const openclawMetadata = {
+    ...(parsed.data?.metadata?.openclaw || {}),
+    dirty: true,
+    dirtyEditedAt: new Date().toISOString(),
+    dirtyEditedBy: 'dashboard',
+    ...(nextVariantOf ? { variantOf: nextVariantOf } : {}),
+    ...(nextOriginalSource ? { originalSource: nextOriginalSource } : {}),
   }
 
   const updatedData = {
     ...parsed.data,
+    name: nextName,
+    description: nextDescription,
     metadata: {
       ...(parsed.data?.metadata || {}),
-      openclaw: {
-        ...(parsed.data?.metadata?.openclaw || {}),
-        dirty: true,
-        dirtyEditedAt: new Date().toISOString(),
-        dirtyEditedBy: 'dashboard',
-        variantOf: skill.source === 'bundled' ? skill.name : (parsed.data?.metadata?.openclaw?.variantOf || skill.variantOf),
-        originalSource: skill.source === 'bundled' ? skill.source : (parsed.data?.metadata?.openclaw?.originalSource || skill.originalSource)
-      }
+      openclaw: openclawMetadata
     }
   }
 
   const nextContent = matter.stringify(parsed.content, updatedData)
   fs.writeFileSync(targetPath, nextContent, 'utf-8')
 
-  const refreshed = getSkillContent(skillId)
+  const refreshed = getSkillContent(lookupId) || getSkillContent(nextName)
   if (!refreshed) {
-    throw new Error(`Skill "${skillId}" not found after update`)
+    throw new Error(`Skill "${nextName}" not found after update`)
   }
 
   return refreshed

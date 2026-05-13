@@ -161,6 +161,8 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
   const [viewingSkill, setViewingSkill] = useState<OpenClawSkill | null>(null)
   const [skillContent, setSkillContent] = useState('')
   const [editingSkill, setEditingSkill] = useState(false)
+  const [editingSkillName, setEditingSkillName] = useState('')
+  const [editingSkillDescription, setEditingSkillDescription] = useState('')
   const [editingDraft, setEditingDraft] = useState('')
   const [loadingSkillContent, setLoadingSkillContent] = useState(false)
   const [savingSkillContent, setSavingSkillContent] = useState(false)
@@ -611,6 +613,8 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
       }
       setSkillContent(data.content || '')
       setEditingDraft(data.content || '')
+      setEditingSkillName(data.skill?.name || skill.name)
+      setEditingSkillDescription(data.skill?.description || skill.description || '')
     } catch (err: any) {
       setError(err.message || 'Failed to load skill content')
     } finally {
@@ -627,7 +631,11 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
       const res = await fetch(`${API_BASE}/api/skills/${encodeURIComponent(viewingSkill.name)}/content`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: editingDraft })
+        body: JSON.stringify({
+          content: editingDraft,
+          name: editingSkillName,
+          description: editingSkillDescription,
+        })
       })
       const data = await res.json()
       if (!res.ok) {
@@ -636,10 +644,12 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
 
       setSkillContent(data.content || editingDraft)
       setEditingDraft(data.content || editingDraft)
+      setEditingSkillName(data.skill?.name || editingSkillName)
+      setEditingSkillDescription(data.skill?.description || editingSkillDescription)
       setEditingSkill(false)
       showSuccess(viewingSkill.source === 'bundled'
-        ? `Saved ${viewingSkill.name} as a workspace copy and marked it dirty`
-        : `Saved ${viewingSkill.name} and marked it dirty`)
+        ? `Saved ${data.skill?.name || viewingSkill.name} as a workspace copy and marked it dirty`
+        : `Saved ${data.skill?.name || viewingSkill.name} and marked it dirty`)
       await loadSkills()
       setViewingSkill(data.skill || viewingSkill)
     } catch (err: any) {
@@ -768,6 +778,8 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
       if (viewingSkill && skillNames.includes(viewingSkill.name)) {
         setViewingSkill(null)
         setEditingSkill(false)
+        setEditingSkillName('')
+        setEditingSkillDescription('')
         setSkillContent('')
         setEditingDraft('')
       }
@@ -1533,6 +1545,8 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                   onClick={() => {
                     setViewingSkill(null)
                     setEditingSkill(false)
+                    setEditingSkillName('')
+                    setEditingSkillDescription('')
                     setSkillContent('')
                     setEditingDraft('')
                   }}
@@ -1551,8 +1565,10 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                     <button
                       onClick={() => {
                         showWarning(viewingSkill.source === 'bundled'
-                          ? 'Editing this built-in skill will create a workspace copy and mark that copy DIRTY.'
-                          : 'Editing this skill will mark it DIRTY so the divergence stays visible.')
+                          ? 'Editing this built-in skill will create a workspace copy that you can rename and refine, and mark that copy DIRTY.'
+                          : 'Editing this skill will keep it editable and mark it DIRTY so the divergence stays visible.')
+                        setEditingSkillName(viewingSkill.name)
+                        setEditingSkillDescription(viewingSkill.description || '')
                         setEditingDraft(skillContent)
                         setEditingSkill(true)
                       }}
@@ -1565,6 +1581,8 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                     <>
                       <button
                         onClick={() => {
+                          setEditingSkillName(viewingSkill.name)
+                          setEditingSkillDescription(viewingSkill.description || '')
                           setEditingDraft(skillContent)
                           setEditingSkill(false)
                         }}
@@ -1653,8 +1671,39 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                 )}
 
                 {editingSkill && (
-                  <div className="shrink-0 px-6 py-3 border-b border-amber-200 bg-amber-50 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
-                    You are editing this skill in the dashboard. Saving will set `metadata.openclaw.dirty: true`.
+                  <div className="shrink-0 border-b border-amber-200 bg-amber-50 px-6 py-4 dark:border-amber-800 dark:bg-amber-900/20">
+                    <div className="text-sm text-amber-800 dark:text-amber-300">
+                      You are editing this skill in the dashboard. Saving will set `metadata.openclaw.dirty: true`.
+                    </div>
+                    <div className="mt-4 grid gap-4 md:grid-cols-2">
+                      <div>
+                        <label className="mb-1.5 block text-sm font-medium text-amber-900 dark:text-amber-200">
+                          Skill Name
+                        </label>
+                        <input
+                          type="text"
+                          value={editingSkillName}
+                          onChange={(e) => setEditingSkillName(e.target.value)}
+                          placeholder="e.g. customer-research"
+                          className="w-full rounded-md border border-amber-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:border-amber-700 dark:bg-gray-900 dark:text-gray-100"
+                        />
+                        <div className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                          Letters, numbers, dashes, and underscores only.
+                        </div>
+                      </div>
+                      <div>
+                        <label className="mb-1.5 block text-sm font-medium text-amber-900 dark:text-amber-200">
+                          Description
+                        </label>
+                        <input
+                          type="text"
+                          value={editingSkillDescription}
+                          onChange={(e) => setEditingSkillDescription(e.target.value)}
+                          placeholder="Short summary of what this skill does"
+                          className="w-full rounded-md border border-amber-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:border-amber-700 dark:bg-gray-900 dark:text-gray-100"
+                        />
+                      </div>
+                    </div>
                   </div>
                 )}
 

@@ -78,6 +78,16 @@ test('normalizeGeneratedSkillScaffold sanitizes skill ids and fills defaults', (
   assert(normalized.content.includes('## Purpose'))
 })
 
+test('normalizeGeneratedSkillScaffold derives a better name when the model returns custom-skill', () => {
+  const normalized = normalizeGeneratedSkillScaffold({
+    name: 'custom-skill',
+    description: 'Research startup competitors and summarize market positioning',
+  }, 'Create a skill that researches startup competitors and summarizes positioning')
+
+  assert.notStrictEqual(normalized.name, 'custom-skill')
+  assert.strictEqual(normalized.name, 'research-startup-competitors-summarize-market')
+})
+
 test('applyGeneratedWorkflowHandoffs infers markdown outputs and dependency inputs', () => {
   const workflows = applyGeneratedWorkflowHandoffs([
     {

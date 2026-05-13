@@ -172,13 +172,19 @@ router.get('/:skillId/content', (req, res) => {
 router.put('/:skillId/content', (req, res) => {
   try {
     const { skillId } = req.params
-    const { content } = req.body
+    const { content, name, description } = req.body
 
     if (typeof content !== 'string') {
       return res.status(400).json({ error: 'content must be a string' })
     }
+    if (name != null && typeof name !== 'string') {
+      return res.status(400).json({ error: 'name must be a string when provided' })
+    }
+    if (description != null && typeof description !== 'string') {
+      return res.status(400).json({ error: 'description must be a string when provided' })
+    }
 
-    const result = updateSkillContent(skillId, content)
+    const result = updateSkillContent(skillId, content, { name, description })
     res.json({ ok: true, ...result })
   } catch (err: any) {
     console.error('Error updating skill content:', err)
@@ -187,6 +193,9 @@ router.put('/:skillId/content', (req, res) => {
     }
     if (err.message?.includes('not found')) {
       return res.status(404).json({ error: err.message })
+    }
+    if (err.message?.includes('already exists') || err.message?.includes('must contain only') || err.message?.includes('required')) {
+      return res.status(400).json({ error: err.message })
     }
     res.status(500).json({ error: err.message || 'Failed to update skill content' })
   }

@@ -167,6 +167,51 @@ test('updateSkillContent() creates a workspace copy when editing a bundled skill
   assert(updated.content.includes('workspace copy test'), 'Updated content should persist')
 })
 
+test('updateSkillContent() can rename a managed skill and keep it editable', () => {
+  const created = createCustomSkill({
+    name: 'test-editable-skill',
+    description: 'Original description',
+    content: '# Test Editable Skill\n\nInitial body.\n',
+  })
+  assertEqual(created.source, 'managed', 'Expected managed custom skill to be created')
+
+  const renamed = updateSkillContent('test-editable-skill', '# Test Editable Skill\n\nUpdated body.\n', {
+    name: 'test-editable-skill-v2',
+    description: 'Updated description',
+  })
+
+  assertEqual(renamed.skill.name, 'test-editable-skill-v2', 'Expected renamed skill name')
+  assertEqual(renamed.skill.id, 'test-editable-skill-v2', 'Expected renamed managed skill id')
+  assertEqual(renamed.skill.source, 'managed', 'Expected managed skill to stay managed')
+  assert(renamed.content.includes('Updated description'), 'Expected updated description to persist in content')
+  assertEqual(getSkillById('test-editable-skill'), null, 'Expected old skill name lookup to disappear')
+
+  const reopened = getSkillContent('test-editable-skill-v2')
+  assert(reopened, 'Expected renamed skill to be reopenable')
+  const secondSave = updateSkillContent('test-editable-skill-v2', `${reopened!.content}\n<!-- renamed again -->\n`, {
+    name: 'test-editable-skill-v2',
+    description: 'Updated description',
+  })
+  assert(secondSave.content.includes('renamed again'), 'Expected renamed skill to remain editable')
+  deleteWorkspaceSkill('test-editable-skill-v2')
+})
+
+test('updateSkillContent() can rename a bundled skill into a workspace copy', () => {
+  const original = getSkillContent('workspace-ls')
+  assert(original, 'Expected original content for workspace-ls')
+
+  const updated = updateSkillContent('workspace-ls', original!.content, {
+    name: 'workspace-ls-custom',
+    description: 'Workspace copy of workspace-ls',
+  })
+
+  assertEqual(updated.skill.name, 'workspace-ls-custom', 'Expected workspace copy to use the new name')
+  assertEqual(updated.skill.id, 'workspace-ls-custom', 'Expected workspace copy id to follow the renamed slug')
+  assertEqual(updated.skill.source, 'workspace', 'Expected bundled edit to create workspace copy')
+  assertEqual(updated.skill.variantOf, 'workspace-ls', 'Expected workspace copy to remember bundled parent')
+  deleteWorkspaceSkill('workspace-ls-custom')
+})
+
 test('deleteWorkspaceSkill() removes managed custom skills too', () => {
   const created = createCustomSkill({
     name: 'test-managed-delete-skill',

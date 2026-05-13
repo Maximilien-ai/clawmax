@@ -640,13 +640,17 @@ export function normalizeGeneratedWorkflowReferences(workflows: any[]): any[] {
 }
 
 export function normalizeGeneratedSkillScaffold(input: Partial<GeneratedSkillScaffold>, prompt: string): GeneratedSkillScaffold {
-  const normalizedName = (input.name || 'custom-skill')
+  const rawName = (input.name || '').trim()
+  const placeholderName = !rawName || rawName.toLowerCase() === 'custom-skill'
+  const normalizedName = rawName
     .toLowerCase()
     .replace(/[^a-z0-9_-]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .replace(/--+/g, '-')
-
-  const safeName = normalizedName || 'custom-skill'
+  const inferredName = placeholderName
+    ? deriveSkillSlugFromText(`${input.description || ''} ${prompt || ''}`.trim())
+    : ''
+  const safeName = (!placeholderName ? normalizedName : '') || inferredName || 'custom-skill'
   const safeDescription = (input.description || prompt || 'AI-generated custom skill').trim()
   const tags = Array.isArray(input.tags) ? input.tags.filter(Boolean).slice(0, 6) : []
   const content = (input.content || '').trim() || `# ${safeName}
@@ -677,6 +681,27 @@ Use this skill when the task clearly matches its domain and the extra guidance w
     tags,
     content,
   }
+}
+
+function deriveSkillSlugFromText(text: string): string {
+  const cleaned = text
+    .toLowerCase()
+    .replace(/[`'".,!?():/\\]+/g, ' ')
+    .replace(/\b(a|an|the|skill|that|helps?|agent|for|with|and|or|to|of|in|on|at|by|from|into|this|these|those)\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  const tokens = cleaned
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 5)
+
+  return tokens
+    .join('-')
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .replace(/--+/g, '-')
 }
 
 const IDENTITY_TEMPLATE = `# IDENTITY.md - Who Am I?
