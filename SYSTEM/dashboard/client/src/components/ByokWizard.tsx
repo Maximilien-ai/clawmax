@@ -1470,19 +1470,22 @@ export function ByokWizard({
 
             {step === 'models' && (
               <>
-                <div className="mt-4 rounded-xl border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-900/20 p-4 text-sm text-sky-900 dark:text-sky-100">
-                  <div className="font-medium">Model providers (BYOK)</div>
-                  <div className="mt-1">
-                    System keys may be limited or unavailable. Bring Your Own Keys (BYOK) to ensure your agents can run with the models and providers you choose, billed to your own account.
-                  </div>
-                  <div className="mt-2 text-xs opacity-80">
-                    We support broad model choice, but results vary by provider and version. Start with recommended defaults. If a model performs especially well or poorly in ClawMax, please share feedback on GitHub.
-                  </div>
-                </div>
-
                 <div className="mt-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-4 text-sm text-gray-600 dark:text-gray-300">
-                  <div className="font-medium text-gray-900 dark:text-gray-100">Current configured LLM providers</div>
-                  <div className="mt-1">{statusText}</div>
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <div className="font-medium text-gray-900 dark:text-gray-100">Model providers (BYOK)</div>
+                      <div className="mt-1 text-sm">
+                        System keys may be limited or unavailable. Bring Your Own Keys (BYOK) to ensure your agents can run with the models and providers you choose, billed to your own account.
+                      </div>
+                    </div>
+                    <div className="text-xs opacity-80 max-w-xl">
+                      We support broad model choice, but results vary by provider and version. Start with recommended defaults.
+                    </div>
+                  </div>
+                  <div className="mt-3 text-sm">
+                    <span className="font-medium text-gray-900 dark:text-gray-100">Current configured LLM providers:</span>{' '}
+                    {statusText}
+                  </div>
                   {browserLocalKeysNotice && (
                     <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-100">
                       {browserLocalKeysNotice}
@@ -1520,29 +1523,7 @@ export function ByokWizard({
                   </div>
                 </div>
 
-                <div className="mt-5 space-y-4">
-                  <div className="flex flex-wrap gap-2">
-                    {([
-                      { id: 'openai', label: 'OpenAI', tone: 'Paid' },
-                      { id: 'anthropic', label: 'Anthropic', tone: 'Paid' },
-                      { id: 'gemini', label: 'Gemini', tone: 'Paid' },
-                      { id: 'ollama', label: 'Ollama', tone: 'OSS' },
-                    ] as Array<{ id: ModelTab; label: string; tone: string }>).filter((tab) => ollamaEnabled || tab.id !== 'ollama').map((tab) => (
-                      <button
-                        key={tab.id}
-                        type="button"
-                        onClick={() => setModelTab(tab.id)}
-                        className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
-                          modelTab === tab.id
-                            ? 'border-sky-500 bg-sky-100 text-sky-700 dark:border-sky-600 dark:bg-sky-900/30 dark:text-sky-300'
-                            : 'border-gray-200 bg-white text-gray-600 hover:border-sky-300 hover:text-sky-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-sky-700 dark:hover:text-sky-300'
-                        }`}
-                      >
-                        {tab.label} <span className="opacity-70">{tab.tone}</span>
-                      </button>
-                    ))}
-                  </div>
-
+                <div className="mt-4 space-y-4">
                   {modelTab === 'openai' && (
                     <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900">
                       <div className="flex items-center justify-between gap-3">
