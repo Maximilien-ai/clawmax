@@ -167,6 +167,12 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
   const [loadingSkillContent, setLoadingSkillContent] = useState(false)
   const [savingSkillContent, setSavingSkillContent] = useState(false)
   const [installingSkillRequirementsName, setInstallingSkillRequirementsName] = useState<string | null>(null)
+  const [showInstallRequirementsModal, setShowInstallRequirementsModal] = useState(false)
+  const [pendingInstallSkill, setPendingInstallSkill] = useState<OpenClawSkill | null>(null)
+  const [installRequirementsCommands, setInstallRequirementsCommands] = useState<string[]>([])
+  const [installRequirementsLogs, setInstallRequirementsLogs] = useState<string[]>([])
+  const [installRequirementsError, setInstallRequirementsError] = useState<string | null>(null)
+  const [installRequirementsDone, setInstallRequirementsDone] = useState(false)
   const [skillSecrets, setSkillSecrets] = useState<Record<string, string>>({})
   const [viewerAgentSearchQuery, setViewerAgentSearchQuery] = useState('')
   const [savingSkillAssignmentAgentId, setSavingSkillAssignmentAgentId] = useState<string | null>(null)
@@ -375,14 +381,16 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ skills: skillsList })
     })
+    const data = await response.json().catch(() => ({}))
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      throw new Error(errorData.error || 'Failed to update skills')
+      throw new Error(data.error || 'Failed to update skills')
     }
 
-    await response.json().catch(() => ({}))
     updateLocalAgentSkillState(targetAgentId, skillsList)
+    if (Array.isArray(data.warnings) && data.warnings.length > 0) {
+      showWarning(data.warnings.join(' '))
+    }
   }
 
   async function toggleSkill(skillId: string) {
@@ -660,23 +668,40 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
     }
   }
 
-  async function installSkillRequirements(skill: OpenClawSkill) {
-    const installCommands = (skill.install || [])
+  function getInstallRequirementCommands(skill: OpenClawSkill): string[] {
+    return (skill.install || [])
       .filter((option) => option.kind === 'brew' && option.formula)
       .map((option) => `brew install ${option.formula}`)
+  }
+
+  function openInstallRequirementsModal(skill: OpenClawSkill) {
+    const installCommands = getInstallRequirementCommands(skill)
+    if (installCommands.length === 0) {
+      setError(`Skill "${skill.name}" has no dashboard-installable requirements yet`)
+      return
+    }
+
+    setPendingInstallSkill(skill)
+    setInstallRequirementsCommands(installCommands)
+    setInstallRequirementsLogs(installCommands.map((command) => `$ ${command}`))
+    setInstallRequirementsError(null)
+    setInstallRequirementsDone(false)
+    setShowInstallRequirementsModal(true)
+  }
+
+  async function installSkillRequirements(skill: OpenClawSkill) {
+    const installCommands = getInstallRequirementCommands(skill)
 
     if (installCommands.length === 0) {
       setError(`Skill "${skill.name}" has no dashboard-installable requirements yet`)
       return
     }
 
-    const shouldInstall = window.confirm(
-      `Install machine requirements for ${skill.name}?\n\n${installCommands.join('\n')}\n\nThis is separate from adding the skill to an agent.`
-    )
-    if (!shouldInstall) return
-
     setInstallingSkillRequirementsName(skill.name)
     setError(null)
+    setInstallRequirementsLogs(installCommands.map((command) => `$ ${command}`))
+    setInstallRequirementsError(null)
+    setInstallRequirementsDone(false)
     try {
       const res = await fetch(`${API_BASE}/api/skills/${encodeURIComponent(skill.name)}/install-requirements`, {
         method: 'POST',
@@ -685,10 +710,26 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
       if (!res.ok) {
         throw new Error(data.detail || data.error || `Failed to install requirements for ${skill.name}`)
       }
+      const nextLogs = [...installCommands.map((command) => `$ ${command}`)]
+      if (Array.isArray(data.outputs)) {
+        for (const output of data.outputs) {
+          if (output?.stdout) {
+            nextLogs.push(output.stdout)
+          }
+          if (output?.stderr) {
+            nextLogs.push(output.stderr)
+          }
+        }
+      }
+      nextLogs.push(`✓ Installed requirements for ${skill.name}`)
+      setInstallRequirementsLogs(nextLogs)
+      setInstallRequirementsDone(true)
       showSuccess(`Installed requirements for ${skill.name}`)
       await loadSkills()
     } catch (err: any) {
       setError(err.message || `Failed to install requirements for ${skill.name}`)
+      setInstallRequirementsError(err.message || `Failed to install requirements for ${skill.name}`)
+      setInstallRequirementsLogs((current) => [...current, `✗ ${err.message || `Failed to install requirements for ${skill.name}`}`])
       showToastError(err.message || `Failed to install requirements for ${skill.name}`)
     } finally {
       setInstallingSkillRequirementsName(null)
@@ -1511,7 +1552,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                         selectionMode={selectionMode}
                         isSelected={selectedSkillIds.has(skill.name)}
                         onToggleSelect={() => setSelectedSkillIds((current) => toggleItemSelection(current, skill.name))}
-                        onInstallRequirements={skill.install && skill.install.length > 0 ? () => installSkillRequirements(skill) : undefined}
+                        onInstallRequirements={skill.install && skill.install.length > 0 ? () => openInstallRequirementsModal(skill) : undefined}
                         installingRequirements={installingSkillRequirementsName === skill.name}
                       />
                     )
@@ -1550,7 +1591,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                     selectionMode={selectionMode}
                     isSelected={selectedSkillIds.has(skill.name)}
                     onToggleSelect={() => setSelectedSkillIds((current) => toggleItemSelection(current, skill.name))}
-                    onInstallRequirements={skill.install && skill.install.length > 0 ? () => installSkillRequirements(skill) : undefined}
+                    onInstallRequirements={skill.install && skill.install.length > 0 ? () => openInstallRequirementsModal(skill) : undefined}
                     installingRequirements={installingSkillRequirementsName === skill.name}
                   />
                 )
@@ -1603,7 +1644,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                 <div className="flex items-center gap-2">
                   {!editingSkill && viewingSkill.install && viewingSkill.install.length > 0 && (
                       <button
-                        onClick={() => installSkillRequirements(viewingSkill)}
+                        onClick={() => openInstallRequirementsModal(viewingSkill)}
                         disabled={installingSkillRequirementsName === viewingSkill.name}
                         className="px-3 py-1.5 rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 text-sm font-medium"
                       >
@@ -1981,6 +2022,12 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                       if (!response.ok) {
                         throw new Error(data.error || 'Failed to bulk assign skills')
                       }
+                      const warnings = Array.isArray(data.results)
+                        ? data.results.flatMap((result: any) => Array.isArray(result.warnings) ? result.warnings : [])
+                        : []
+                      if (warnings.length > 0) {
+                        showWarning(Array.from(new Set(warnings)).join(' '))
+                      }
                       showSuccess(`Added ${selectedSkillIds.size} skill${selectedSkillIds.size !== 1 ? 's' : ''} to ${selectedBulkAgentIds.size} agent${selectedBulkAgentIds.size !== 1 ? 's' : ''}`)
                       await loadAgents()
                       if (agentId) {
@@ -1999,6 +2046,72 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                   className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:cursor-not-allowed disabled:bg-gray-300 dark:disabled:bg-gray-600"
                 >
                   {bulkAssigningSkills ? 'Assigning…' : 'Add Skills'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showInstallRequirementsModal && pendingInstallSkill && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <div className="w-full max-w-3xl rounded-xl bg-white shadow-xl dark:bg-gray-800">
+              <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-700">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Install Requirements</h2>
+                  <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    Install machine dependencies for <span className="font-medium text-gray-900 dark:text-gray-100">{pendingInstallSkill.name}</span>. This is separate from adding the skill to an agent.
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    if (installingSkillRequirementsName) return
+                    setShowInstallRequirementsModal(false)
+                    setPendingInstallSkill(null)
+                  }}
+                  className="text-2xl leading-none text-gray-400 hover:text-gray-600 disabled:cursor-not-allowed dark:hover:text-gray-300"
+                  disabled={!!installingSkillRequirementsName}
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="space-y-4 px-6 py-4">
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-200">
+                  Commands: <span className="font-medium">{installRequirementsCommands.join(', ')}</span>
+                </div>
+                <div className="bg-gray-900 text-green-400 font-mono text-xs rounded-lg p-3 h-56 overflow-y-auto whitespace-pre-wrap">
+                  {installRequirementsLogs.join('\n')}
+                  {installingSkillRequirementsName === pendingInstallSkill.name && <span className="animate-pulse">▌</span>}
+                </div>
+                {installRequirementsError && (
+                  <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300">
+                    {installRequirementsError}
+                  </div>
+                )}
+                {installRequirementsDone && !installRequirementsError && (
+                  <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-300">
+                    Requirements installed. The runtime can use them immediately if the current PATH already includes the binary, otherwise restart the dashboard/runtime once.
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center justify-end gap-3 border-t border-gray-200 px-6 py-4 dark:border-gray-700">
+                <button
+                  onClick={() => {
+                    setShowInstallRequirementsModal(false)
+                    setPendingInstallSkill(null)
+                  }}
+                  disabled={!!installingSkillRequirementsName}
+                  className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+                >
+                  {installRequirementsDone ? 'Close' : 'Cancel'}
+                </button>
+                <button
+                  onClick={() => void installSkillRequirements(pendingInstallSkill)}
+                  disabled={installingSkillRequirementsName === pendingInstallSkill.name || installRequirementsDone}
+                  className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-gray-300 dark:disabled:bg-gray-600"
+                >
+                  {installingSkillRequirementsName === pendingInstallSkill.name ? 'Installing…' : 'Install Requirements'}
                 </button>
               </div>
             </div>

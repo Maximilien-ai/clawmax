@@ -612,6 +612,20 @@ export function validateSkills(skillIds: string[]): { valid: boolean; missing: s
   }
 }
 
+export function validateSkillChanges(currentSkills: string[], nextSkills: string[]): {
+  invalidAdded: string[]
+  invalidPreserved: string[]
+} {
+  const currentSet = new Set(currentSkills)
+  const added = nextSkills.filter((skill) => !currentSet.has(skill))
+  const preserved = nextSkills.filter((skill) => currentSet.has(skill))
+
+  return {
+    invalidAdded: validateSkills(added).missing,
+    invalidPreserved: validateSkills(preserved).missing,
+  }
+}
+
 /**
  * Create a new custom skill in managed skills directory
  */

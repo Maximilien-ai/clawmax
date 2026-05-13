@@ -60,7 +60,8 @@ const {
   deleteWorkspaceSkill,
   getWorkspaceSkillsDir,
   updateSkillContent,
-  getSkillRequirementInstallCommands
+  getSkillRequirementInstallCommands,
+  validateSkillChanges
 } = require('./skills')
 
 // ANSI color codes
@@ -489,6 +490,26 @@ test('getSkillRequirementInstallCommands() builds deduplicated brew commands', (
 
   assertEqual(commands.length, 1, 'Expected duplicate brew formulas to collapse into one command')
   assertEqual(commands[0].display, 'brew install gh', 'Expected brew install command display')
+})
+
+test('validateSkillChanges() warns about preserved invalid skills without blocking valid additions', () => {
+  const result = validateSkillChanges(
+    ['fake-old-skill', 'github'],
+    ['fake-old-skill', 'github', 'workspace-ls'],
+  )
+
+  assertEqual(JSON.stringify(result.invalidAdded), JSON.stringify([]), 'Expected no newly added invalid skills')
+  assertEqual(JSON.stringify(result.invalidPreserved), JSON.stringify(['fake-old-skill']), 'Expected preserved invalid skill warning')
+})
+
+test('validateSkillChanges() still blocks newly added invalid skills', () => {
+  const result = validateSkillChanges(
+    ['fake-old-skill', 'github'],
+    ['fake-old-skill', 'github', 'fake-new-skill'],
+  )
+
+  assertEqual(JSON.stringify(result.invalidAdded), JSON.stringify(['fake-new-skill']), 'Expected new invalid skill to block')
+  assertEqual(JSON.stringify(result.invalidPreserved), JSON.stringify(['fake-old-skill']), 'Expected preserved invalid skill warning to remain')
 })
 
 // Test 12: GitHub skill has requirements

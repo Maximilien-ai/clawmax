@@ -11,6 +11,7 @@ import {
   deleteWorkspaceSkill,
   updateSkillContent,
   getSkillRequirementInstallCommands,
+  validateSkillChanges,
 } from '../lib/skills'
 import { getCuratedPartnerInstaller } from '../lib/partner-installs'
 import { generateSkillFromNL, setRequestByokKeys } from '../lib/ai-generator'
@@ -293,19 +294,26 @@ router.put('/agent/:agentId', async (req, res) => {
       return res.status(400).json({ error: 'Skills must be an array' })
     }
 
-    // Validate all skills exist
-    const validation = validateSkills(skills)
-    if (!validation.valid) {
+    const currentSkills = getAgentSkills(agentId) || []
+    const validation = validateSkillChanges(currentSkills, skills)
+
+    // Only newly added skills should block the request.
+    if (validation.invalidAdded.length > 0) {
       return res.status(400).json({
-        error: `Invalid skills: ${validation.missing.join(', ')}`,
-        missing: validation.missing
+        error: `Invalid skills: ${validation.invalidAdded.join(', ')}`,
+        missing: validation.invalidAdded
       })
     }
+
+    // Existing stale skills should warn but not block.
+    const warnings = validation.invalidPreserved.length === 0
+      ? []
+      : [`Missing skills already assigned to ${agentId}: ${validation.invalidPreserved.join(', ')}`]
 
     // Update agent's skills with metadata stamping
     setAgentSkills(agentId, skills)
 
-    res.json({ ok: true, skills })
+    res.json({ ok: true, skills, warnings })
   } catch (err: any) {
     console.error('Error updating agent skills:', err)
 
@@ -341,15 +349,23 @@ router.post('/bulk-assign', (req, res) => {
       }
     }
 
-    const results: Array<{ agentId: string; ok: boolean; skills?: string[]; error?: string }> = []
+    const results: Array<{ agentId: string; ok: boolean; skills?: string[]; error?: string; warnings?: string[] }> = []
 
     for (const agentId of agentIds) {
       try {
         const { getAgentSkills } = require('../lib/skills')
         const current: string[] = getAgentSkills(agentId) || []
         const updated = [...new Set([...current.filter(s => !toRemove.includes(s)), ...toAdd])]
+        const validation = validateSkillChanges(current, updated)
         setAgentSkills(agentId, updated)
-        results.push({ agentId, ok: true, skills: updated })
+        results.push({
+          agentId,
+          ok: true,
+          skills: updated,
+          warnings: validation.invalidPreserved.length === 0
+            ? []
+            : [`Missing skills already assigned to ${agentId}: ${validation.invalidPreserved.join(', ')}`],
+        })
       } catch (err: any) {
         results.push({ agentId, ok: false, error: err.message })
       }
