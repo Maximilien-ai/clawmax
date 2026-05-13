@@ -503,6 +503,51 @@ test('setAgentSkills() refreshes TOOLS skill hints and resets cached sessions', 
   assert(fs.existsSync(path.join(sessionsDir, 'archive')), 'Expected archived sessions after skill change')
 })
 
+test('setAgentSkills() syncs TOOLS.md for agents whose record workspace differs from the active workspace', () => {
+  const configPath = path.join(testEnv.tempHome, '.openclaw', 'openclaw.json')
+  const activeWorkspacePath = path.join(testEnv.tempHome, '.openclaw', 'workspaces', 'active-skills-workspace')
+  const externalWorkspaceAgent = path.join(testEnv.tempHome, '.openclaw', 'workspace', 'AGENTS', 'jarvis')
+
+  fs.mkdirSync(path.join(activeWorkspacePath, 'AGENTS'), { recursive: true })
+  fs.mkdirSync(externalWorkspaceAgent, { recursive: true })
+  fs.writeFileSync(path.join(externalWorkspaceAgent, 'TOOLS.md'), '# TOOLS.md - Local Notes\n\nOriginal external workspace notes.\n', 'utf-8')
+  fs.writeFileSync(path.join(testEnv.tempHome, '.openclaw', 'dashboard-workspaces.json'), JSON.stringify({
+    version: '1.0.0',
+    activeWorkspaceId: 'active-skills-workspace',
+    workspaces: [
+      {
+        id: 'default',
+        name: 'Test',
+        path: path.join(testEnv.tempHome, '.openclaw', 'workspace'),
+        createdAt: new Date().toISOString(),
+        lastAccessedAt: new Date().toISOString()
+      },
+      {
+        id: 'active-skills-workspace',
+        name: 'Active Skills Workspace',
+        path: activeWorkspacePath,
+        createdAt: new Date().toISOString(),
+        lastAccessedAt: new Date().toISOString()
+      }
+    ]
+  }, null, 2))
+  fs.writeFileSync(configPath, JSON.stringify({
+    agents: {
+      list: [
+        { id: 'jarvis', workspace: externalWorkspaceAgent, skills: ['github'] },
+      ]
+    }
+  }, null, 2))
+
+  process.env.OPENCLAW_WORKSPACE = activeWorkspacePath
+  resetWorkspaceManagerForTests()
+
+  setAgentSkills('jarvis', ['github', 'gog'])
+
+  const tools = fs.readFileSync(path.join(externalWorkspaceAgent, 'TOOLS.md'), 'utf-8')
+  assert(tools.includes('- gog'), 'Expected TOOLS.md sync to use the matched record workspace, not the active workspace path')
+})
+
 // Test 10: Skills are sorted alphabetically
 test('listAvailableSkills() returns sorted skills', () => {
   const skills = listAvailableSkills()

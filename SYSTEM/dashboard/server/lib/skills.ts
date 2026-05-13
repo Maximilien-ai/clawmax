@@ -601,7 +601,11 @@ export function setAgentSkills(agentId: string, skillIds: string[]): void {
     }
 
     const normalizedSkillIds = Array.from(new Set(skillIds))
-    const existingSkills = config.agents.list[agentIndex].skills
+    const targetAgentRecord = config.agents.list[agentIndex]
+    const targetWorkspaceDir = typeof targetAgentRecord.workspace === 'string' && targetAgentRecord.workspace.trim()
+      ? targetAgentRecord.workspace
+      : activeWorkspaceAgentDir
+    const existingSkills = targetAgentRecord.skills
     const currentSkills: string[] = Array.isArray(existingSkills)
       ? [...existingSkills]
       : []
@@ -612,7 +616,7 @@ export function setAgentSkills(agentId: string, skillIds: string[]): void {
     }
 
     config.agents.list[agentIndex] = {
-      ...config.agents.list[agentIndex],
+      ...targetAgentRecord,
       skills: normalizedSkillIds,
     }
 
@@ -625,7 +629,7 @@ export function setAgentSkills(agentId: string, skillIds: string[]): void {
     }
 
     saveOpenClawConfig(config)
-    syncAgentToolsAssignedSkills(activeWorkspaceAgentDir, normalizedSkillIds)
+    syncAgentToolsAssignedSkills(targetWorkspaceDir, normalizedSkillIds)
     const reset = resetAgentSessionsForModelChange(process.env.HOME || os.homedir(), agentId)
     if (!reset.ok) {
       console.warn(`Failed to reset sessions after skill change for ${agentId}: ${reset.error}`)
