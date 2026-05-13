@@ -131,8 +131,30 @@ test('userExecutionEnv forwards Ollama base URL for local-model execution', () =
 
 test('systemExecutionEnv uses resolved system execution keys, not shell exports', () => {
   const env = systemExecutionEnv()
-  assert(env.PATH === process.env.PATH, 'Expected safe base env to retain PATH')
+  assert(typeof env.PATH === 'string' && env.PATH.length > 0, 'Expected safe base env to retain PATH')
 })
+
+test('safeEnv appends standard Homebrew runtime paths when missing', () => {
+  const originalPath = process.env.PATH
+  process.env.PATH = '/usr/bin:/bin'
+
+  const env = safeEnv()
+
+  assert(env.PATH?.includes('/opt/homebrew/bin') === true, 'Expected Homebrew bin path appended')
+  assert(env.PATH?.includes('/usr/local/bin') === true, 'Expected usr local bin path appended')
+  process.env.PATH = originalPath
+})
+
+test('safeEnv does not duplicate standard runtime paths', () => {
+  const originalPath = process.env.PATH
+  process.env.PATH = '/opt/homebrew/bin:/usr/bin:/bin'
+
+  const env = safeEnv()
+  const parts = String(env.PATH || '').split(':')
+  const optHomebrewBinCount = parts.filter((entry) => entry === '/opt/homebrew/bin').length
+
+  assert(optHomebrewBinCount === 1, 'Expected standard runtime paths to remain deduplicated')
+  })
 
 setTimeout(() => {
   restoreEnv()

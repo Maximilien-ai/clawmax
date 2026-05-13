@@ -8,6 +8,31 @@ export interface ExecutionEnvOverrides extends ProviderKeys {
   ollamaBaseUrl?: string
 }
 
+const STANDARD_RUNTIME_PATHS = [
+  '/opt/homebrew/bin',
+  '/opt/homebrew/sbin',
+  '/usr/local/bin',
+  '/usr/local/sbin',
+  '/usr/bin',
+  '/bin',
+  '/usr/sbin',
+  '/sbin',
+]
+
+function buildSafePath(basePath?: string): string {
+  const seen = new Set<string>()
+  const segments = [
+    ...(String(basePath || '').split(':').map((entry) => entry.trim()).filter(Boolean)),
+    ...STANDARD_RUNTIME_PATHS,
+  ]
+
+  return segments.filter((entry) => {
+    if (!entry || seen.has(entry)) return false
+    seen.add(entry)
+    return true
+  }).join(':')
+}
+
 /**
  * Returns a whitelisted subset of process.env for child processes.
  * Prevents leaking secrets to subprocesses that don't need them.
@@ -15,7 +40,7 @@ export interface ExecutionEnvOverrides extends ProviderKeys {
 export function safeEnv(extras?: Record<string, string | undefined>): NodeJS.ProcessEnv {
   const workspaceGitHubToken = getWorkspaceGitHubToken()
   const base: Record<string, string | undefined> = {
-    PATH: process.env.PATH,
+    PATH: buildSafePath(process.env.PATH),
     HOME: process.env.HOME,
     USER: process.env.USER,
     SHELL: process.env.SHELL,
