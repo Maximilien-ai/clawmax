@@ -4,7 +4,7 @@
  * Run with: npx ts-node --transpileOnly client/src/lib/byok.test.ts
  */
 
-import { byokForRequest, detectProviderKeyMismatch, hasAiGenerationAccess, hasChatExecutionAccess, refreshModelsWithByok, writeStoredByokKeys } from './byok'
+import { byokForRequest, detectProviderKeyMismatch, hasAiGenerationAccess, hasChatExecutionAccess, refreshModelsWithByok, resolveOllamaBaseUrlForRuntime, writeStoredByokKeys } from './byok'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -113,6 +113,30 @@ async function main() {
     assert(
       hasChatExecutionAccess({ ollamaEnabled: true, defaultOllamaBaseUrl: 'http://localhost:11434' }) === true,
       'Expected enabled default Ollama base URL to allow chat execution without browser-local BYOK'
+    )
+  })
+
+  await test('managed on-prem Ollama prefers runtime-provided host bridge over stale localhost', () => {
+    const resolved = resolveOllamaBaseUrlForRuntime({
+      configuredBaseUrl: 'http://localhost:11434',
+      managedRuntime: true,
+      runtimeDefaultBaseUrl: 'http://host.containers.internal:11434',
+    })
+    assert(
+      resolved === 'http://host.containers.internal:11434',
+      `Expected runtime host bridge URL, got ${resolved}`
+    )
+  })
+
+  await test('managed on-prem Ollama preserves explicit non-local custom overrides', () => {
+    const resolved = resolveOllamaBaseUrlForRuntime({
+      configuredBaseUrl: 'http://10.0.0.5:11434',
+      managedRuntime: true,
+      runtimeDefaultBaseUrl: 'http://host.containers.internal:11434',
+    })
+    assert(
+      resolved === 'http://10.0.0.5:11434',
+      `Expected explicit custom runtime URL to win, got ${resolved}`
     )
   })
 

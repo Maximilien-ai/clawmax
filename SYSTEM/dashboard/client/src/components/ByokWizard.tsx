@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from './Toast'
-import { buildByokVerificationFingerprint, detectProviderKeyMismatch, getByokDismissKey, isOllamaUiAvailable, readStoredByokKeys, writeStoredByokKeys } from '../lib/byok'
+import { buildByokVerificationFingerprint, detectProviderKeyMismatch, getByokDismissKey, isOllamaUiAvailable, readStoredByokKeys, resolveOllamaBaseUrlForRuntime, writeStoredByokKeys } from '../lib/byok'
 import { DEFAULT_VISIBLE_PARTNERS, getDefaultPartnerDefinitions } from '../lib/defaultPartners'
 import { BROWSER_VAULT_UPDATED_EVENT, readPartnerValuesFromSharedSecrets, readSharedSecrets, writePartnerValuesToSharedSecrets, writeSharedSecrets } from '../lib/localSecrets'
 
@@ -195,6 +195,12 @@ export function ByokWizard({
   const [onboardingOpen, setOnboardingOpen] = useState(false)
   const ollamaEnabled = isOllamaUiAvailable(config)
   const defaultOllamaBaseUrl = config?.defaultOllamaBaseUrl || localDevOllamaBaseUrl
+  const managedRuntime = config?.managedRuntime === true
+  const effectiveOllamaBaseUrl = resolveOllamaBaseUrlForRuntime({
+    configuredBaseUrl: ollamaBaseUrl,
+    managedRuntime,
+    runtimeDefaultBaseUrl: config?.defaultOllamaBaseUrl,
+  })
 
   const refreshLocalState = React.useCallback(() => {
     const stored = readStoredByokKeys()
@@ -205,13 +211,17 @@ export function ByokWizard({
     setOpenaiKey(shared.OPENAI_API_KEY || stored.openai || '')
     setAnthropicKey(shared.ANTHROPIC_API_KEY || stored.anthropic || '')
     setGeminiApiKey(shared.GEMINI_API_KEY || stored.geminiApiKey || '')
-    setOllamaBaseUrl(shared.OLLAMA_BASE_URL || stored.ollamaBaseUrl || defaultOllamaBaseUrl)
+    setOllamaBaseUrl(resolveOllamaBaseUrlForRuntime({
+      configuredBaseUrl: shared.OLLAMA_BASE_URL || stored.ollamaBaseUrl || '',
+      managedRuntime,
+      runtimeDefaultBaseUrl: config?.defaultOllamaBaseUrl || defaultOllamaBaseUrl,
+    }))
     setOllamaDefaultModel(stored.ollamaDefaultModel || '')
     setPreferredModel(stored.preferredModel || '')
     setPartnerSecrets(stored.partnerSecrets || {})
     setPartnerValues(stored.partnerValues || {})
     setDismissed(localStorage.getItem(getByokDismissKey()) === 'true')
-  }, [defaultOllamaBaseUrl])
+  }, [config?.defaultOllamaBaseUrl, defaultOllamaBaseUrl, managedRuntime])
 
   const updateStoredVerification = React.useCallback((
     updater: (current: Partial<Record<'openai' | 'anthropic' | 'gemini' | 'ollama', string>>) => Partial<Record<'openai' | 'anthropic' | 'gemini' | 'ollama', string>>
@@ -331,8 +341,17 @@ export function ByokWizard({
         setServerPartnerSecretPresence(typeof data?.secretPresence === 'object' && data.secretPresence ? data.secretPresence : {})
         setPreferredModel((current) => current || workspaceConfig.preferredModel || '')
         setOllamaBaseUrl((current) => {
-          const nextDefault = workspaceConfig.ollamaBaseUrl || defaultOllamaBaseUrl
-          const isCustomCurrent = !!current && current !== defaultOllamaBaseUrl
+          const nextDefault = resolveOllamaBaseUrlForRuntime({
+            configuredBaseUrl: workspaceConfig.ollamaBaseUrl || '',
+            managedRuntime,
+            runtimeDefaultBaseUrl: config?.defaultOllamaBaseUrl || defaultOllamaBaseUrl,
+          })
+          const normalizedCurrent = resolveOllamaBaseUrlForRuntime({
+            configuredBaseUrl: current,
+            managedRuntime,
+            runtimeDefaultBaseUrl: config?.defaultOllamaBaseUrl || defaultOllamaBaseUrl,
+          })
+          const isCustomCurrent = !!normalizedCurrent && normalizedCurrent !== nextDefault
           return isCustomCurrent ? current : nextDefault
         })
         setOllamaDefaultModel((current) => current || workspaceConfig.ollamaDefaultModel || '')
@@ -359,7 +378,7 @@ export function ByokWizard({
         }
       })
       .catch(() => {})
-  }, [hydrated])
+  }, [config?.defaultOllamaBaseUrl, defaultOllamaBaseUrl, hydrated, managedRuntime])
 
   const hasStoredKeys = !!(openaiKey || anthropicKey || geminiApiKey)
   const hasDefaultUserKeys = !!(config?.userKeyDefaults?.openai || config?.userKeyDefaults?.anthropic || (config as any)?.userKeyDefaults?.gemini)
@@ -367,7 +386,7 @@ export function ByokWizard({
   const hasOpenAiAvailable = !!(openaiKey || config?.userKeyDefaults?.openai || config?.systemKeyDefaults?.openai)
   const hasAnthropicAvailable = !!(anthropicKey || config?.userKeyDefaults?.anthropic || config?.systemKeyDefaults?.anthropic)
   const hasGeminiAvailable = !!(geminiApiKey || (config as any)?.userKeyDefaults?.gemini || (config as any)?.systemKeyDefaults?.gemini)
-  const normalizedOllamaBaseUrl = ollamaBaseUrl.trim()
+  const normalizedOllamaBaseUrl = effectiveOllamaBaseUrl.trim()
   const ollamaConfigured = ollamaEnabled && (!!ollamaDefaultModel.trim() || (normalizedOllamaBaseUrl !== '' && normalizedOllamaBaseUrl !== defaultOllamaBaseUrl))
   const hasSharedExecutionPath = hasDefaultUserKeys || hasSystemProviderKeys || !!preferredModel.trim()
 
@@ -623,7 +642,7 @@ export function ByokWizard({
       setOllamaModels([])
       return
     }
-    const baseUrl = ollamaBaseUrl.trim()
+    const baseUrl = effectiveOllamaBaseUrl.trim()
     if (!baseUrl) {
       setOllamaModels([])
       return
@@ -654,14 +673,14 @@ export function ByokWizard({
     } finally {
       setOllamaModelsLoading(false)
     }
-  }, [ollamaBaseUrl, ollamaEnabled])
+  }, [effectiveOllamaBaseUrl, ollamaEnabled])
 
   const loadAvailableModels = React.useCallback(async (forceRefresh: boolean = false) => {
     const payload = {
       openai: openaiKey.trim(),
       anthropic: anthropicKey.trim(),
       gemini: geminiApiKey.trim(),
-      ollamaBaseUrl: ollamaEnabled ? ollamaBaseUrl.trim() : '',
+      ollamaBaseUrl: ollamaEnabled ? effectiveOllamaBaseUrl.trim() : '',
     }
 
     try {
@@ -680,7 +699,7 @@ export function ByokWizard({
     } catch {
       setModelsByProvider({})
     }
-  }, [openaiKey, anthropicKey, geminiApiKey, ollamaBaseUrl])
+  }, [effectiveOllamaBaseUrl, geminiApiKey, anthropicKey, openaiKey, ollamaEnabled])
 
   useEffect(() => {
     if (!open || step !== 'models') return
@@ -737,8 +756,8 @@ export function ByokWizard({
 
   const ollamaStatusText = useMemo(() => {
     if (!ollamaConfigured) return 'Not configured — local open-source models are optional and unavailable until Ollama is running'
-    return `Base URL: ${ollamaBaseUrl}${ollamaDefaultModel ? ` · default: ${ollamaDefaultModel}` : ''}`
-  }, [ollamaBaseUrl, ollamaConfigured, ollamaDefaultModel])
+    return `Base URL: ${effectiveOllamaBaseUrl}${ollamaDefaultModel ? ` · default: ${ollamaDefaultModel}` : ''}`
+  }, [effectiveOllamaBaseUrl, ollamaConfigured, ollamaDefaultModel])
 
   if (!hydrated) return null
   if (!user && !config?.authDisabled) return null
@@ -750,7 +769,7 @@ export function ByokWizard({
       openai: scope === 'all' || providerScope === 'openai' ? openaiKey.trim() : '',
       anthropic: scope === 'all' || providerScope === 'anthropic' ? anthropicKey.trim() : '',
       gemini: scope === 'all' || providerScope === 'gemini' ? geminiApiKey.trim() : '',
-      ollamaBaseUrl: (scope === 'all' || providerScope === 'ollama') && ollamaEnabled ? ollamaBaseUrl.trim() : '',
+      ollamaBaseUrl: (scope === 'all' || providerScope === 'ollama') && ollamaEnabled ? effectiveOllamaBaseUrl.trim() : '',
       ollamaDefaultModel: (scope === 'all' || providerScope === 'ollama') && ollamaEnabled ? ollamaDefaultModel.trim() : '',
       opikApiKey: scope === 'all' || currentPartnerSlug === 'opik' ? opikApiKey.trim() : '',
       opikWorkspace: scope === 'all' || currentPartnerSlug === 'opik' ? opikWorkspace.trim() : '',
@@ -954,7 +973,7 @@ export function ByokWizard({
       openai: openaiKey.trim(),
       anthropic: anthropicKey.trim(),
       gemini: geminiApiKey.trim(),
-      ollamaBaseUrl: ollamaBaseUrl.trim(),
+      ollamaBaseUrl: effectiveOllamaBaseUrl.trim(),
     }
     const currentStoredKeys = readStoredByokKeys()
 
@@ -1003,7 +1022,7 @@ export function ByokWizard({
         preferredModel: preferredModel || undefined,
         githubDefaultRepo: githubDefaultRepo.trim() || undefined,
         sensoContextLabel: sensoContextLabel.trim() || undefined,
-        ollamaBaseUrl: ollamaEnabled ? (ollamaBaseUrl.trim() || undefined) : undefined,
+        ollamaBaseUrl: ollamaEnabled ? (effectiveOllamaBaseUrl.trim() || undefined) : undefined,
         ollamaDefaultModel: ollamaEnabled ? (ollamaDefaultModel.trim() || undefined) : undefined,
         opikWorkspace: opikWorkspace.trim() || undefined,
         opikProject: opikProject.trim() || undefined,

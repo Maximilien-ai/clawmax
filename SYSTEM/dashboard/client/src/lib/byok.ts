@@ -29,6 +29,7 @@ export interface ByokRequestPayload {
 
 interface AiExecutionConfig {
   allowSystemKeysForUserExecution?: boolean
+  managedRuntime?: boolean
   ollamaEnabled?: boolean
   defaultOllamaBaseUrl?: string
   recommendedModel?: string
@@ -46,6 +47,46 @@ interface AiExecutionConfig {
 
 export function isOllamaUiAvailable(config?: AiExecutionConfig | null): boolean {
   return config?.ollamaEnabled === true && !!config.defaultOllamaBaseUrl
+}
+
+function normalizeOllamaBaseUrlCandidate(value?: string | null): string {
+  return String(value || '').trim().replace(/\/+$/, '')
+}
+
+function isLoopbackHostname(hostname: string): boolean {
+  const normalized = hostname.trim().toLowerCase()
+  return normalized === 'localhost'
+    || normalized === '127.0.0.1'
+    || normalized === '0.0.0.0'
+    || normalized === '::1'
+}
+
+export function isLocalOllamaBaseUrl(value?: string | null): boolean {
+  const normalized = normalizeOllamaBaseUrlCandidate(value)
+  if (!normalized) return false
+  try {
+    return isLoopbackHostname(new URL(normalized).hostname)
+  } catch {
+    return false
+  }
+}
+
+export function resolveOllamaBaseUrlForRuntime(input: {
+  configuredBaseUrl?: string | null
+  managedRuntime?: boolean
+  runtimeDefaultBaseUrl?: string | null
+}): string {
+  const configuredBaseUrl = normalizeOllamaBaseUrlCandidate(input.configuredBaseUrl)
+  const runtimeDefaultBaseUrl = normalizeOllamaBaseUrlCandidate(input.runtimeDefaultBaseUrl)
+  if (!input.managedRuntime || !runtimeDefaultBaseUrl) {
+    return configuredBaseUrl || runtimeDefaultBaseUrl
+  }
+  if (!configuredBaseUrl) return runtimeDefaultBaseUrl
+  if (configuredBaseUrl === runtimeDefaultBaseUrl) return configuredBaseUrl
+  if (isLocalOllamaBaseUrl(configuredBaseUrl) && !isLocalOllamaBaseUrl(runtimeDefaultBaseUrl)) {
+    return runtimeDefaultBaseUrl
+  }
+  return configuredBaseUrl
 }
 
 export type ProviderKeyMismatch = {
