@@ -6,6 +6,7 @@ import { getGatewayClient } from './gateway-rpc'
 import { getWorkspacePath } from './workspace'
 import { writeDashboardManagedOpenClawConfig } from './openclaw-config'
 import { REPO_ROOT } from './paths'
+import { resetAgentSessionsForModelChange } from './agent-model'
 
 /**
  * Get workspace directory (uses active workspace from workspace manager)
@@ -108,6 +109,8 @@ function findOpenClawSkillsDir(): string {
 const BUNDLED_SKILLS_DIR = findOpenClawSkillsDir()
 const MANAGED_SKILLS_DIR = path.join(os.homedir(), '.openclaw', 'skills')
 const REPO_CUSTOM_SKILLS_DIR = path.join(REPO_ROOT, 'SKILLS', 'custom')
+const TOOLS_SKILL_SECTION_START = '<!-- CLAWMAX_ASSIGNED_SKILLS_START -->'
+const TOOLS_SKILL_SECTION_END = '<!-- CLAWMAX_ASSIGNED_SKILLS_END -->'
 
 function slugifySkillName(name: string): string {
   return name
@@ -128,6 +131,38 @@ function resolveSkillMarkdownPath(skillDir: string): string {
     fs.renameSync(skillMdLower, skillMdUpper)
   }
   return fs.existsSync(skillMdUpper) ? skillMdUpper : skillMdLower
+}
+
+function renderAssignedSkillsSection(skillIds: string[]): string {
+  const lines = skillIds.length > 0
+    ? skillIds.map((skillId) => `- ${skillId}`)
+    : ['- No assigned skills configured yet.']
+  return `${TOOLS_SKILL_SECTION_START}
+## Assigned Skills
+
+These skills are currently assigned to this agent in the dashboard/runtime config.
+Use them when relevant before claiming you do not have access.
+
+${lines.join('\n')}
+${TOOLS_SKILL_SECTION_END}`
+}
+
+function syncAgentToolsAssignedSkills(agentWorkspaceDir: string, skillIds: string[]) {
+  const toolsPath = path.join(agentWorkspaceDir, 'TOOLS.md')
+  if (!fs.existsSync(toolsPath)) return
+
+  const current = fs.readFileSync(toolsPath, 'utf-8')
+  const section = renderAssignedSkillsSection(skillIds)
+  const next = current.includes(TOOLS_SKILL_SECTION_START) && current.includes(TOOLS_SKILL_SECTION_END)
+    ? current.replace(
+        new RegExp(`${TOOLS_SKILL_SECTION_START}[\\s\\S]*?${TOOLS_SKILL_SECTION_END}`, 'm'),
+        section,
+      )
+    : `${current.trimEnd()}\n\n---\n\n${section}\n`
+
+  if (next !== current) {
+    fs.writeFileSync(toolsPath, next, 'utf-8')
+  }
 }
 
 /**
@@ -590,6 +625,11 @@ export function setAgentSkills(agentId: string, skillIds: string[]): void {
     }
 
     saveOpenClawConfig(config)
+    syncAgentToolsAssignedSkills(activeWorkspaceAgentDir, normalizedSkillIds)
+    const reset = resetAgentSessionsForModelChange(process.env.HOME || os.homedir(), agentId)
+    if (!reset.ok) {
+      console.warn(`Failed to reset sessions after skill change for ${agentId}: ${reset.error}`)
+    }
     console.log(`✓ Successfully updated skills for agent ${agentId} (metadata stamped)`)
   } catch (err) {
     console.error(`Error setting skills for agent ${agentId}:`, err)

@@ -448,6 +448,61 @@ test('setAgentSkills() is a no-op when the requested skills are unchanged', () =
   assertEqual(after, before, 'Expected no config rewrite when skills are unchanged')
 })
 
+test('setAgentSkills() refreshes TOOLS skill hints and resets cached sessions', () => {
+  const configPath = path.join(testEnv.tempHome, '.openclaw', 'openclaw.json')
+  const workspacePath = path.join(testEnv.tempHome, '.openclaw', 'workspaces', 'skills-sync-test')
+  const workspaceAgent = path.join(workspacePath, 'AGENTS', 'skills-sync-agent')
+
+  fs.mkdirSync(workspaceAgent, { recursive: true })
+  fs.writeFileSync(path.join(workspaceAgent, 'TOOLS.md'), '# TOOLS.md - Local Notes\n\nOriginal notes.\n', 'utf-8')
+  fs.writeFileSync(path.join(testEnv.tempHome, '.openclaw', 'dashboard-workspaces.json'), JSON.stringify({
+    version: '1.0.0',
+    activeWorkspaceId: 'skills-sync-test',
+    workspaces: [
+      {
+        id: 'default',
+        name: 'Test',
+        path: path.join(testEnv.tempHome, '.openclaw', 'workspace'),
+        createdAt: new Date().toISOString(),
+        lastAccessedAt: new Date().toISOString()
+      },
+      {
+        id: 'skills-sync-test',
+        name: 'Skills Sync Test',
+        path: workspacePath,
+        createdAt: new Date().toISOString(),
+        lastAccessedAt: new Date().toISOString()
+      }
+    ]
+  }, null, 2))
+  fs.writeFileSync(configPath, JSON.stringify({
+    agents: {
+      list: [
+        { id: 'skills-sync-agent', workspace: workspaceAgent, skills: ['github'] },
+      ]
+    }
+  }, null, 2))
+
+  const sessionsDir = path.join(testEnv.tempHome, '.openclaw', 'agents', 'skills-sync-agent', 'sessions')
+  fs.mkdirSync(sessionsDir, { recursive: true })
+  fs.writeFileSync(path.join(sessionsDir, 'sessions.json'), JSON.stringify({
+    'agent:skills-sync-agent:main': { model: 'openai/gpt-4o-mini' },
+  }), 'utf-8')
+  fs.writeFileSync(path.join(sessionsDir, 'main.jsonl'), '{"type":"session"}\n', 'utf-8')
+
+  process.env.OPENCLAW_WORKSPACE = workspacePath
+  resetWorkspaceManagerForTests()
+
+  setAgentSkills('skills-sync-agent', ['github', 'gog'])
+
+  const tools = fs.readFileSync(path.join(workspaceAgent, 'TOOLS.md'), 'utf-8')
+  assert(tools.includes('## Assigned Skills'), 'Expected TOOLS.md assigned skills section')
+  assert(tools.includes('- github'), 'Expected github listed in TOOLS.md assigned skills')
+  assert(tools.includes('- gog'), 'Expected gog listed in TOOLS.md assigned skills')
+  assert(!fs.existsSync(path.join(sessionsDir, 'sessions.json')), 'Expected live sessions index removed after skill change')
+  assert(fs.existsSync(path.join(sessionsDir, 'archive')), 'Expected archived sessions after skill change')
+})
+
 // Test 10: Skills are sorted alphabetically
 test('listAvailableSkills() returns sorted skills', () => {
   const skills = listAvailableSkills()
