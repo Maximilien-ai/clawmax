@@ -14,6 +14,8 @@ interface SkillCardProps {
   selectionMode?: boolean
   isSelected?: boolean
   onToggleSelect?: () => void
+  onInstallRequirements?: () => void
+  installingRequirements?: boolean
 }
 
 function getSourceBadgeLabel(skill: OpenClawSkill): string {
@@ -29,7 +31,7 @@ function getRegistryBadgeLabel(skill: OpenClawSkill): string | null {
   return null
 }
 
-export function SkillCard({ skill, assigned, onToggle, onView, onDelete, canDelete = false, compact = false, usageCount, usedBy, selectionMode = false, isSelected = false, onToggleSelect }: SkillCardProps) {
+export function SkillCard({ skill, assigned, onToggle, onView, onDelete, canDelete = false, compact = false, usageCount, usedBy, selectionMode = false, isSelected = false, onToggleSelect, onInstallRequirements, installingRequirements = false }: SkillCardProps) {
   const [showDetails, setShowDetails] = useState(false)
 
   return (
@@ -193,6 +195,15 @@ export function SkillCard({ skill, assigned, onToggle, onView, onDelete, canDele
                       {!['brew', 'apt', 'npm', 'go', 'uv'].includes(option.kind) && option.label}
                     </div>
                   ))}
+                  {onInstallRequirements && (
+                    <button
+                      onClick={onInstallRequirements}
+                      disabled={installingRequirements}
+                      className="mt-2 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-700"
+                    >
+                      {installingRequirements ? 'Installing...' : 'Install Requirements'}
+                    </button>
+                  )}
                 </div>
               )}
 

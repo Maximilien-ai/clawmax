@@ -9,7 +9,8 @@ import {
   createCustomSkill,
   importWorkspaceSkill,
   deleteWorkspaceSkill,
-  updateSkillContent
+  updateSkillContent,
+  getSkillRequirementInstallCommands,
 } from '../lib/skills'
 import { getCuratedPartnerInstaller } from '../lib/partner-installs'
 import { generateSkillFromNL, setRequestByokKeys } from '../lib/ai-generator'
@@ -215,6 +216,51 @@ router.get('/:skillId', (req, res) => {
   } catch (err) {
     console.error('Error getting skill:', err)
     res.status(500).json({ error: 'Failed to load skill' })
+  }
+})
+
+// POST /api/skills/:skillId/install-requirements - Install machine requirements for a skill
+router.post('/:skillId/install-requirements', async (req, res) => {
+  try {
+    const { skillId } = req.params
+    const skill = getSkillById(skillId)
+
+    if (!skill) {
+      return res.status(404).json({ error: `Skill '${skillId}' not found` })
+    }
+
+    const commands = getSkillRequirementInstallCommands(skill)
+    if (commands.length === 0) {
+      return res.status(400).json({ error: `Skill "${skill.name}" has no dashboard-installable requirements yet` })
+    }
+
+    const outputs: Array<{ display: string; stdout?: string; stderr?: string }> = []
+    for (const command of commands) {
+      const { stdout, stderr } = await execFileAsync(command.command, command.args, {
+        timeout: 300000,
+        env: safeEnv(),
+        maxBuffer: 1024 * 1024 * 8,
+      })
+      outputs.push({
+        display: command.display,
+        stdout: `${stdout || ''}`.trim() || undefined,
+        stderr: `${stderr || ''}`.trim() || undefined,
+      })
+    }
+
+    res.json({
+      ok: true,
+      skill: skill.name,
+      commands: commands.map((command) => command.display),
+      outputs,
+    })
+  } catch (err: any) {
+    console.error('Skill requirement install error:', err.message)
+    const detail = [err?.stderr, err?.stdout].filter(Boolean).join('\n').trim()
+    res.status(500).json({
+      error: err.message || 'Failed to install skill requirements',
+      detail: detail || undefined,
+    })
   }
 })
 

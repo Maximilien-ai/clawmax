@@ -59,7 +59,8 @@ const {
   importWorkspaceSkill,
   deleteWorkspaceSkill,
   getWorkspaceSkillsDir,
-  updateSkillContent
+  updateSkillContent,
+  getSkillRequirementInstallCommands
 } = require('./skills')
 
 // ANSI color codes
@@ -472,6 +473,22 @@ test('GitHub skill has install options', () => {
   assertEqual(brewInstall!.formula, 'gh', 'Brew formula should be "gh"')
 
   console.log(`  Install options: ${skill!.install?.map((i: SkillInstallOption) => i.kind).join(', ')}`)
+})
+
+test('getSkillRequirementInstallCommands() builds deduplicated brew commands', () => {
+  const skill = getSkillById('github')
+
+  assert(skill !== null, 'GitHub skill should exist')
+  const commands = getSkillRequirementInstallCommands({
+    ...skill!,
+    install: [
+      ...(skill!.install || []),
+      { id: 'dup-gh', kind: 'brew', formula: 'gh', label: 'Duplicate gh install' },
+    ],
+  })
+
+  assertEqual(commands.length, 1, 'Expected duplicate brew formulas to collapse into one command')
+  assertEqual(commands[0].display, 'brew install gh', 'Expected brew install command display')
 })
 
 // Test 12: GitHub skill has requirements

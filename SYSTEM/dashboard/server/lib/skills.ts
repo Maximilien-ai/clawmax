@@ -56,6 +56,13 @@ export interface OpenClawSkill {
   }>
 }
 
+export interface SkillRequirementInstallCommand {
+  kind: 'brew'
+  command: string
+  args: string[]
+  display: string
+}
+
 // Paths to skill directories
 // Auto-detect OpenClaw installation path instead of hardcoding
 function findOpenClawSkillsDir(): string {
@@ -373,6 +380,26 @@ export function getSkillContent(skillId: string): { skill: OpenClawSkill; conten
   const content = fs.readFileSync(skill.filePath, 'utf-8')
   const editable = true
   return { skill, content, editable }
+}
+
+export function getSkillRequirementInstallCommands(skill: OpenClawSkill): SkillRequirementInstallCommand[] {
+  const commands: SkillRequirementInstallCommand[] = []
+  const seen = new Set<string>()
+
+  for (const option of skill.install || []) {
+    if (option.kind !== 'brew' || !option.formula) continue
+    const formula = option.formula.trim()
+    if (!formula || seen.has(formula)) continue
+    seen.add(formula)
+    commands.push({
+      kind: 'brew',
+      command: 'brew',
+      args: ['install', formula],
+      display: `brew install ${formula}`,
+    })
+  }
+
+  return commands
 }
 
 export function updateSkillContent(

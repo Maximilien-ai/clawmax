@@ -166,6 +166,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
   const [editingDraft, setEditingDraft] = useState('')
   const [loadingSkillContent, setLoadingSkillContent] = useState(false)
   const [savingSkillContent, setSavingSkillContent] = useState(false)
+  const [installingSkillRequirementsName, setInstallingSkillRequirementsName] = useState<string | null>(null)
   const [skillSecrets, setSkillSecrets] = useState<Record<string, string>>({})
   const [viewerAgentSearchQuery, setViewerAgentSearchQuery] = useState('')
   const [savingSkillAssignmentAgentId, setSavingSkillAssignmentAgentId] = useState<string | null>(null)
@@ -656,6 +657,41 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
       setError(err.message || 'Failed to save skill')
     } finally {
       setSavingSkillContent(false)
+    }
+  }
+
+  async function installSkillRequirements(skill: OpenClawSkill) {
+    const installCommands = (skill.install || [])
+      .filter((option) => option.kind === 'brew' && option.formula)
+      .map((option) => `brew install ${option.formula}`)
+
+    if (installCommands.length === 0) {
+      setError(`Skill "${skill.name}" has no dashboard-installable requirements yet`)
+      return
+    }
+
+    const shouldInstall = window.confirm(
+      `Install machine requirements for ${skill.name}?\n\n${installCommands.join('\n')}\n\nThis is separate from adding the skill to an agent.`
+    )
+    if (!shouldInstall) return
+
+    setInstallingSkillRequirementsName(skill.name)
+    setError(null)
+    try {
+      const res = await fetch(`${API_BASE}/api/skills/${encodeURIComponent(skill.name)}/install-requirements`, {
+        method: 'POST',
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(data.detail || data.error || `Failed to install requirements for ${skill.name}`)
+      }
+      showSuccess(`Installed requirements for ${skill.name}`)
+      await loadSkills()
+    } catch (err: any) {
+      setError(err.message || `Failed to install requirements for ${skill.name}`)
+      showToastError(err.message || `Failed to install requirements for ${skill.name}`)
+    } finally {
+      setInstallingSkillRequirementsName(null)
     }
   }
 
@@ -1475,6 +1511,8 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                         selectionMode={selectionMode}
                         isSelected={selectedSkillIds.has(skill.name)}
                         onToggleSelect={() => setSelectedSkillIds((current) => toggleItemSelection(current, skill.name))}
+                        onInstallRequirements={skill.install && skill.install.length > 0 ? () => installSkillRequirements(skill) : undefined}
+                        installingRequirements={installingSkillRequirementsName === skill.name}
                       />
                     )
                   })}
@@ -1512,6 +1550,8 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                     selectionMode={selectionMode}
                     isSelected={selectedSkillIds.has(skill.name)}
                     onToggleSelect={() => setSelectedSkillIds((current) => toggleItemSelection(current, skill.name))}
+                    onInstallRequirements={skill.install && skill.install.length > 0 ? () => installSkillRequirements(skill) : undefined}
+                    installingRequirements={installingSkillRequirementsName === skill.name}
                   />
                 )
               })}
@@ -1561,6 +1601,15 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                   View the raw `skill.md` or inspect the rendered markdown. Editing a built-in skill creates a workspace copy before saving.
                 </div>
                 <div className="flex items-center gap-2">
+                  {!editingSkill && viewingSkill.install && viewingSkill.install.length > 0 && (
+                      <button
+                        onClick={() => installSkillRequirements(viewingSkill)}
+                        disabled={installingSkillRequirementsName === viewingSkill.name}
+                        className="px-3 py-1.5 rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 text-sm font-medium"
+                      >
+                        {installingSkillRequirementsName === viewingSkill.name ? 'Installing...' : 'Install Requirements'}
+                      </button>
+                  )}
                   {!editingSkill && (
                     <button
                       onClick={() => {
