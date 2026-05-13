@@ -5,12 +5,22 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.4.7-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
+[![Version](https://img.shields.io/badge/version-1.4.8-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
 [![Tests](https://img.shields.io/badge/tests-72%20default--safe-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 Latest Release: v1.4.7
+## 🔥 Latest Release: v1.4.8
+
+- Managed on-prem Ollama BYOK now follows the runtime contract correctly:
+  - the BYOK wizard now prefers the runtime-provided `defaultOllamaBaseUrl` over stale browser-local `localhost` values on managed on-prem instances
+  - model discovery, runtime validation, and saved Ollama defaults now use that effective runtime URL
+  - explicit non-local custom Ollama overrides still win when the user intentionally sets them
+- BYOK layout is tighter:
+  - removed the redundant second provider selector row
+  - collapsed the stacked intro/status sections so the provider editor cards start higher and no longer leave a large blank gap above them
+
+## 🔥 Previous Release: v1.4.7
 
 - On-prem/dashboard identity is now more reliable:
   - Opik metering traces now carry `instance_key`, `machine_id`, and `machine_name`

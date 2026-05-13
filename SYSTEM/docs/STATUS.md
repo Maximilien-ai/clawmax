@@ -1,14 +1,14 @@
 # ClawMax Status
 
-**Current Version**: v1.4.7
-**Last Updated**: May 12, 2026
-**Status**: `v1.4.7` is the current patch release line on `main`
+**Current Version**: v1.4.8
+**Last Updated**: May 13, 2026
+**Status**: `v1.4.8` is the current patch release line on `main`
 
 ---
 
 ## Current State
 
-- `main` now carries the `1.4.7` patch line: all `1.4.6` model/BYOK hardening plus on-prem metering identity isolation, authenticated gateway-health validation, and conservative Ollama on-prem UI visibility
+- `main` now carries the `1.4.8` patch line: all `1.4.7` on-prem identity/runtime visibility fixes plus a managed on-prem Ollama BYOK correction that prefers the runtime-provided host bridge URL over stale browser-local loopback defaults
 - `SYSTEM/test-with-server.sh` and `SYSTEM/test.sh` are green locally on the current default-safe path, including the Docker smoke tests and newer skill/registry regressions
 - Skills now support stronger day-to-day management: reverse assignment, workspace-copy editing, bulk selection/deletion, registry provenance, and registry suggestions from both Shipables and Tessl
 - Tessl registry support is available as an **exploratory/experimental** feature for OpenClaw workspaces; installs are materially improved, but some tiles still require Tessl-side security review or additional format validation

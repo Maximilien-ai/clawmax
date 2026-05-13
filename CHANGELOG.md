@@ -2,6 +2,18 @@
 
 All notable changes to ClawMax are documented here.
 
+## [v1.4.8] - 2026-05-13
+
+### Release — Managed On-Prem Ollama BYOK Fixes
+- **Managed On-Prem Ollama URL Preference** — the BYOK wizard now prefers the runtime-provided `defaultOllamaBaseUrl` over stale browser-local `localhost` values when `managedRuntime=true`, which fixes validation and model discovery on Podman-based on-prem installs where the dashboard container must reach Ollama through `host.containers.internal`
+- **Consistent Effective Ollama URL Usage** — the same resolved runtime-aware Ollama URL is now used for initial field hydration, runtime validation, model discovery, and persisted workspace integration defaults
+- **Custom Override Preservation** — explicit non-local user overrides still win, so operators can point a managed runtime at a deliberate remote or non-default Ollama endpoint without the dashboard rewriting it
+- **BYOK Models-Step Layout Cleanup** — the models step now removes the duplicate provider selector row and collapses redundant intro/status sections so the provider cards begin higher without the large blank gap
+
+### Quality
+- **Regression Coverage** — added BYOK helper coverage to prove managed on-prem resolves `host.containers.internal` over stale loopback defaults while preserving explicit non-local overrides
+- **Validation Gate** — validated locally with `client/src/lib/byok.test.ts` and `npx tsc --noEmit`
+
 ## [v1.4.7] - 2026-05-12
 
 ### Release — On-Prem Identity Isolation and Runtime Visibility Cleanup
