@@ -8,6 +8,7 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import {
+  deriveWorkspaceRootFromAgentWorkspace,
   getAgentExecutionRetryDelay,
   isOpenClawSessionLockError,
   resolveAgentExecutionConfig,
@@ -71,6 +72,14 @@ test('resolveAgentExecutionConfig falls back to IDENTITY model when openclaw.jso
   const resolved = resolveAgentExecutionConfig('test1')
   assert(resolved.model === 'openai/gpt-4o-mini', 'Expected IDENTITY model fallback')
   assert(resolved.provider === 'openai', 'Expected provider derived from model')
+})
+
+test('deriveWorkspaceRootFromAgentWorkspace resolves AGENTS/<id> paths back to their workspace root', () => {
+  const derived = deriveWorkspaceRootFromAgentWorkspace('/tmp/demo-workspace/AGENTS/jarvis')
+  assert(derived === '/tmp/demo-workspace', 'Expected AGENTS/<id> path to resolve to workspace root')
+
+  const passthrough = deriveWorkspaceRootFromAgentWorkspace('/tmp/already-root')
+  assert(passthrough === '/tmp/already-root', 'Expected non-agent workspace paths to pass through')
 })
 
 test('resolveAgentExecutionConfig detects ollama provider from model', () => {

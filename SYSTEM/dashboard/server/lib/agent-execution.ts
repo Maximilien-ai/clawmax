@@ -172,6 +172,16 @@ export function resolveAgentExecutionConfig(agentId: string): {
   }
 }
 
+export function deriveWorkspaceRootFromAgentWorkspace(agentWorkspace?: string): string | undefined {
+  if (!agentWorkspace) return undefined
+  const normalized = path.resolve(agentWorkspace)
+  const parent = path.basename(path.dirname(normalized))
+  if (parent === 'AGENTS') {
+    return path.dirname(path.dirname(normalized))
+  }
+  return normalized
+}
+
 export function scopeSessionIdToModel(sessionId: string, model?: string): string {
   const MAX_SESSION_KEY_LENGTH = 48
   const safeBase = sessionId.replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')

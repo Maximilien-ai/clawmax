@@ -12,6 +12,7 @@ import { userExecutionEnv } from '../lib/safe-env'
 import { checkBudgetBlock } from '../lib/budget'
 import { normalizeChatMessage } from '../lib/chat-normalization'
 import {
+  deriveWorkspaceRootFromAgentWorkspace,
   resolveAgentExecutionConfig,
   runExclusiveAgentExecution,
   scopeSessionIdToModel,
@@ -67,14 +68,15 @@ function evaluateChatExecutionReadiness(
   byok?: { openai?: string; anthropic?: string; gemini?: string; ollamaBaseUrl?: string }
 ) {
   const integrationConfig = readWorkspaceIntegrationConfig()
+  const resolvedAgent = resolveAgentExecutionConfig(agentId)
+  const effectiveWorkspaceRoot = deriveWorkspaceRootFromAgentWorkspace(resolvedAgent.workspace) || getWorkspacePath()
   const executionEnv = userExecutionEnv({
     openai: byok?.openai,
     anthropic: byok?.anthropic,
     gemini: byok?.gemini,
     ollamaBaseUrl: byok?.ollamaBaseUrl || integrationConfig.ollamaBaseUrl,
   })
-  executionEnv.OPENCLAW_WORKSPACE = getWorkspacePath()
-  const resolvedAgent = resolveAgentExecutionConfig(agentId)
+  executionEnv.OPENCLAW_WORKSPACE = effectiveWorkspaceRoot
   if (!resolvedAgent.model || resolvedAgent.model.trim().toLowerCase() === 'unknown') {
     return {
       available: false,
@@ -227,15 +229,16 @@ router.post('/:id/chat', (req, res) => {
   if (!readiness.available) {
     return res.status(400).json({ error: readiness.error })
   }
+  const resolvedAgent = readiness.resolvedAgent
   const integrationConfig = readWorkspaceIntegrationConfig()
+  const effectiveWorkspaceRoot = deriveWorkspaceRootFromAgentWorkspace(resolvedAgent.workspace) || getWorkspacePath()
   const executionEnv = userExecutionEnv({
     openai: byok?.openai,
     anthropic: byok?.anthropic,
     gemini: byok?.gemini,
     ollamaBaseUrl: byok?.ollamaBaseUrl || integrationConfig.ollamaBaseUrl,
   })
-  executionEnv.OPENCLAW_WORKSPACE = getWorkspacePath()
-  const resolvedAgent = readiness.resolvedAgent
+  executionEnv.OPENCLAW_WORKSPACE = effectiveWorkspaceRoot
   const effectiveSessionId = scopeSessionIdToModel(
     sessionId || buildDashboardChatSeed(id, resolvedAgent.workspace),
     resolvedAgent.model
