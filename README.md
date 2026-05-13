@@ -213,6 +213,12 @@ For local development, `./setup.sh` now offers:
 When you choose local dev `Email OTP`, the latest login code is written to:
 - `.clawmax-otp-dev.json`
 
+To uninstall a local ClawMax setup cleanly, run:
+
+```bash
+./uninstall.sh
+```
+
 ### Manual Installation (Alternative)
 
 ```bash
