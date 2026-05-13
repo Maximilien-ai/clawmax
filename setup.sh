@@ -36,6 +36,7 @@ fi
 # ============================================================================
 
 if [ "$1" = "--uninstall" ] || [ "$1" = "uninstall" ]; then
+  if [ -t 1 ] && [ -n "${TERM:-}" ]; then clear 2>/dev/null || true; fi
   echo -e "${CYAN}"
   cat << "EOF"
    ____ _               __  __
@@ -44,10 +45,16 @@ if [ "$1" = "--uninstall" ] || [ "$1" = "uninstall" ]; then
  | |___| | (_| |\ V  V /| |  | | (_| |>  <
   \____|_|\__,_| \_/\_/ |_|  |_|\__,_/_/\_\
 
-  Uninstaller
+  Multiagent Orchestration Platform
 EOF
   echo -e "${NC}"
+  print_info "ClawMax Uninstall"
   echo -e "${YELLOW}This will remove ClawMax and OpenClaw from your system.${NC}"
+  echo ""
+  echo "  What happens:"
+  echo "    - ClawMax/OpenClaw runtime setup is removed from this machine"
+  echo "    - Local dashboard dependencies and generated runtime config are removed"
+  echo "    - Your work product is preserved unless you manually delete it later"
   echo ""
   echo "  The following will be removed:"
   echo "    - OpenClaw CLI (npm global or Homebrew)"
@@ -61,6 +68,10 @@ EOF
   echo "    - Your workspace data (WORKSPACES/) — preserved for safety"
   echo "    - Agent directories and files created by you or your agents (~/.openclaw/agents/, ~/.openclaw/workspace/, ~/.openclaw/workspaces/)"
   echo ""
+  echo "  To cancel:"
+  echo "    - Type anything other than ${BOLD}yes${NC} at the confirmation prompt"
+  echo "    - Or press ${BOLD}Ctrl+C${NC} before the uninstall starts"
+  echo ""
 
   if [ "$INTERACTIVE" = true ]; then
     read -p "  Are you sure you want to uninstall? (yes/N): " CONFIRM
@@ -69,6 +80,8 @@ EOF
       print_info "Uninstall cancelled."
       exit 0
     fi
+  else
+    print_warning "Running in non-interactive uninstall mode — proceeding without a confirmation prompt."
   fi
 
   echo ""
