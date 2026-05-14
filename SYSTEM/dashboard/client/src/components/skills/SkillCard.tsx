@@ -16,6 +16,7 @@ interface SkillCardProps {
   onToggleSelect?: () => void
   onInstallRequirements?: () => void
   installingRequirements?: boolean
+  setupHint?: { message: string; commands?: string[] } | null
 }
 
 function getSourceBadgeLabel(skill: OpenClawSkill): string {
@@ -31,7 +32,7 @@ function getRegistryBadgeLabel(skill: OpenClawSkill): string | null {
   return null
 }
 
-export function SkillCard({ skill, assigned, onToggle, onView, onDelete, canDelete = false, compact = false, usageCount, usedBy, selectionMode = false, isSelected = false, onToggleSelect, onInstallRequirements, installingRequirements = false }: SkillCardProps) {
+export function SkillCard({ skill, assigned, onToggle, onView, onDelete, canDelete = false, compact = false, usageCount, usedBy, selectionMode = false, isSelected = false, onToggleSelect, onInstallRequirements, installingRequirements = false, setupHint = null }: SkillCardProps) {
   const [showDetails, setShowDetails] = useState(false)
 
   return (
@@ -79,6 +80,11 @@ export function SkillCard({ skill, assigned, onToggle, onView, onDelete, canDele
             {skill.dirty && (
               <span className="text-[10px] px-1.5 py-0.5 rounded border border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
                 DIRTY
+              </span>
+            )}
+            {setupHint && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded border border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                Setup required
               </span>
             )}
           </div>
@@ -203,6 +209,26 @@ export function SkillCard({ skill, assigned, onToggle, onView, onDelete, canDele
                     >
                       {installingRequirements ? 'Installing...' : 'Install Requirements'}
                     </button>
+                  )}
+                </div>
+              )}
+
+              {setupHint && (
+                <div className="bg-amber-50 dark:bg-amber-900/20 p-2 rounded border border-amber-200 dark:border-amber-800">
+                  <div className="font-medium text-amber-900 mb-1 dark:text-amber-200">
+                    Setup required
+                  </div>
+                  <div className="text-xs text-amber-700 dark:text-amber-300">
+                    {setupHint.message}
+                  </div>
+                  {setupHint.commands && setupHint.commands.length > 0 && (
+                    <div className="mt-2 space-y-1">
+                      {setupHint.commands.map((command) => (
+                        <div key={command} className="text-xs text-amber-800 dark:text-amber-200 font-mono break-all">
+                          {command}
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
               )}

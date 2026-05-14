@@ -88,6 +88,35 @@ const REGISTRY_PROVIDERS: Array<{
   },
 ]
 
+function getSkillSetupHint(skill: Pick<OpenClawSkill, 'name'>): { message: string; commands?: string[] } | null {
+  if (skill.name === 'gog') {
+    return {
+      message: 'gog needs Google Workspace auth/account setup before an agent can actually use Gmail, Calendar, Drive, Docs, or Sheets.',
+      commands: [
+        'gog auth credentials /path/to/client_secret.json',
+        'gog auth add you@gmail.com --services gmail,calendar,drive,contacts,docs,sheets',
+        'gog auth list',
+      ],
+    }
+  }
+  return null
+}
+
+function maybeWarnSkillSetup(
+  showWarning: (message: string) => void,
+  skills: Array<Pick<OpenClawSkill, 'name'> | string>
+) {
+  const messages = Array.from(new Set(
+    skills
+      .map((entry) => typeof entry === 'string' ? getSkillSetupHint({ name: entry }) : getSkillSetupHint(entry))
+      .filter((hint): hint is NonNullable<ReturnType<typeof getSkillSetupHint>> => !!hint)
+      .map((hint) => `${hint.message} ${hint.commands?.join(' · ') || ''}`.trim())
+  ))
+  if (messages.length > 0) {
+    showWarning(messages.join(' '))
+  }
+}
+
 export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {}) {
   const { config } = useAuth()
   const { showSuccess, showWarning, showError: showToastError } = useToast()
@@ -408,6 +437,9 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
     try {
       console.log('Sending PUT request:', nextSkills)
       await persistAgentSkills(agentId, nextSkills)
+      if (!currentSkills.includes(skillId)) {
+        maybeWarnSkillSetup(showWarning, [skillId])
+      }
       setError(null)
     } catch (error: any) {
       console.error('Failed to update skills:', error)
@@ -455,6 +487,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
         const providerLabel = REGISTRY_PROVIDERS.find((entry) => entry.id === provider)?.label || 'registry'
         const replacedSuffix = data.replaced ? ` (${data.replaced} replaced)` : ''
         showSuccess(`Installed "${installName}" from ${providerLabel}${replacedSuffix}`)
+        maybeWarnSkillSetup(showWarning, [data.skillId || installName])
         setRegistryInstalledNames(prev => new Set([...prev, `${provider}:${installName}`]))
         await loadSkills()
       } else {
@@ -726,6 +759,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
       setInstallRequirementsLogs(nextLogs)
       setInstallRequirementsDone(true)
       showSuccess(`Installed requirements for ${skill.name}`)
+      maybeWarnSkillSetup(showWarning, [skill])
       await loadSkills()
     } catch (err: any) {
       setError(err.message || `Failed to install requirements for ${skill.name}`)
@@ -794,6 +828,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
       .slice(0, 5),
   }), [inlineRegistrySuggestions, registryInstalledNames])
   const activeRegistryProvider = REGISTRY_PROVIDERS.find((provider) => provider.id === registryProvider) || REGISTRY_PROVIDERS[0]
+  const viewingSkillSetupHint = viewingSkill ? getSkillSetupHint(viewingSkill) : null
   const visiblePartnerInstallers = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
     return partnerInstallers.filter((partner) => {
@@ -1615,6 +1650,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                         onToggleSelect={() => setSelectedSkillIds((current) => toggleItemSelection(current, skill.name))}
                         onInstallRequirements={skill.install && skill.install.length > 0 ? () => openInstallRequirementsModal(skill) : undefined}
                         installingRequirements={installingSkillRequirementsName === skill.name}
+                        setupHint={getSkillSetupHint(skill)}
                       />
                     )
                   })}
@@ -1654,6 +1690,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                     onToggleSelect={() => setSelectedSkillIds((current) => toggleItemSelection(current, skill.name))}
                     onInstallRequirements={skill.install && skill.install.length > 0 ? () => openInstallRequirementsModal(skill) : undefined}
                     installingRequirements={installingSkillRequirementsName === skill.name}
+                    setupHint={getSkillSetupHint(skill)}
                   />
                 )
               })}
@@ -1754,6 +1791,26 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
               </div>
 
               <div className="flex-1 min-h-0 overflow-y-auto">
+                {viewingSkillSetupHint && (
+                  <div className="shrink-0 px-6 py-4 border-b border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20">
+                    <div className="text-sm font-semibold text-amber-900 dark:text-amber-200">Setup required</div>
+                    <div className="mt-1 text-sm text-amber-800 dark:text-amber-300">
+                      {viewingSkillSetupHint.message}
+                    </div>
+                    {viewingSkillSetupHint.commands && viewingSkillSetupHint.commands.length > 0 && (
+                      <div className="mt-3 space-y-1.5">
+                        {viewingSkillSetupHint.commands.map((command) => (
+                          <div
+                            key={command}
+                            className="rounded-md border border-amber-200 bg-white/70 px-3 py-2 text-xs font-mono text-amber-900 dark:border-amber-700 dark:bg-gray-900/40 dark:text-amber-100"
+                          >
+                            {command}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
                 {viewingSkill.secretRequirements && viewingSkill.secretRequirements.length > 0 && (
                   <div className="shrink-0 px-6 py-4 border-b border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20">
                     <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
