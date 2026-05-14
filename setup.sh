@@ -424,18 +424,21 @@ echo ""
 
 print_header "3. Setup Mode"
 
-AUTH_MODE="github_oauth"
+AUTH_MODE="bypass"
 OTP_ALLOWED_EMAILS=""
 OTP_DEV_MODE=""
 if [ "$INTERACTIVE" = true ]; then
-  echo -e "  ${BOLD}1) Local dev with Email OTP${NC} — recommended for realistic auth testing"
-  echo -e "  ${BOLD}2) Local dev with bypass${NC}    — fastest, no login"
+  echo -e "  ${BOLD}1) Local dev with bypass${NC}    — fastest, no login, good default for developers"
+  echo -e "  ${BOLD}2) Local dev with Email OTP${NC} — realistic auth testing with login codes"
   echo -e "  ${BOLD}3) Production with GitHub OAuth${NC}"
-  echo -e "  ${BOLD}4) Production with Email OTP${NC}"
   echo ""
-  read -p "  Choose auth mode [1-4, default 1]: " AUTH_CHOICE
+  read -p "  Choose auth mode [1-3, default 1]: " AUTH_CHOICE
   case "${AUTH_CHOICE:-1}" in
     1)
+      AUTH_MODE="bypass"
+      print_success "Local dev bypass selected"
+      ;;
+    2)
       AUTH_MODE="email_otp"
       OTP_DEV_MODE="log"
       read -p "  OTP login email (default: dev@example.com): " OTP_ALLOWED_EMAILS
@@ -443,36 +446,18 @@ if [ "$INTERACTIVE" = true ]; then
       print_success "Local dev Email OTP selected"
       print_info "Codes will be written to .clawmax-otp-dev.json at the repo root"
       ;;
-    2)
-      AUTH_MODE="bypass"
-      print_success "Local dev bypass selected"
-      ;;
     3)
       AUTH_MODE="github_oauth"
       print_success "Production mode selected (GitHub OAuth)"
       ;;
-    4)
-      AUTH_MODE="email_otp"
-      read -p "  OTP login email (required): " OTP_ALLOWED_EMAILS
-      if [ -z "$OTP_ALLOWED_EMAILS" ]; then
-        print_warning "No OTP email entered — defaulting to dev@example.com"
-        OTP_ALLOWED_EMAILS="dev@example.com"
-      fi
-      print_success "Production mode selected (Email OTP)"
-      ;;
     *)
-      AUTH_MODE="email_otp"
-      OTP_DEV_MODE="log"
-      OTP_ALLOWED_EMAILS="dev@example.com"
-      print_warning "Unknown choice — defaulting to local dev Email OTP"
-      print_info "Codes will be written to .clawmax-otp-dev.json at the repo root"
+      AUTH_MODE="bypass"
+      print_warning "Unknown choice — defaulting to local dev bypass"
       ;;
   esac
 else
-  AUTH_MODE="email_otp"
-  OTP_DEV_MODE="log"
-  OTP_ALLOWED_EMAILS="dev@example.com"
-  print_info "Non-interactive: using local dev Email OTP"
+  AUTH_MODE="bypass"
+  print_info "Non-interactive: using local dev bypass"
 fi
 
 echo ""

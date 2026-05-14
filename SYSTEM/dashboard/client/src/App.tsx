@@ -492,8 +492,8 @@ export default function App() {
                 } : undefined}
               />
             )}
-            {page === 'agents' && (
-            <div className="flex-1 overflow-auto">
+            {visitedPages.has('agents') && (
+            <div className={`flex-1 overflow-auto ${page === 'agents' ? '' : 'hidden'}`}>
               <Agents
                 onNavigateToDoc={(file) => { setDocFile(file); setPage('docs'); }}
                 onNavigateToGroup={(groupName) => { setInitialGroupName(groupName); setPage('communication'); }}
@@ -511,8 +511,8 @@ export default function App() {
               />
             </div>
             )}
-            {page === 'templates' && (
-            <div className="flex-1 overflow-auto">
+            {visitedPages.has('templates') && (
+            <div className={`flex-1 overflow-auto ${page === 'templates' ? '' : 'hidden'}`}>
               <Templates />
             </div>
             )}
@@ -545,8 +545,8 @@ export default function App() {
               />
             </div>
             )}
-            {page === 'skills' && (
-            <div className="flex-1 overflow-auto">
+            {visitedPages.has('skills') && (
+            <div className={`flex-1 overflow-auto ${page === 'skills' ? '' : 'hidden'}`}>
               <SkillsTest initialAgentId={initialSkillsAgent} initialSkillName={initialSkillsSkill} />
             </div>
             )}
