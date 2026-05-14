@@ -21,6 +21,13 @@ export interface SkillRequirements {
   config?: string[]
 }
 
+export interface SkillRequirementStatus {
+  checkable: boolean
+  installSatisfied: boolean
+  presentBins: string[]
+  missingBins: string[]
+}
+
 export interface SkillInstallOption {
   id: string
   kind: 'brew' | 'npm' | 'pnpm' | 'apt' | 'download' | 'uv' | 'go' | 'node'
@@ -47,6 +54,7 @@ export interface OpenClawSkill {
   tags?: string[]
   registryProvider?: 'clawhub' | 'shipables' | 'tessl'
   registryName?: string
+  requirementStatus?: SkillRequirementStatus
   secretRequirements?: Array<{
     key: string
     label: string
@@ -266,6 +274,68 @@ const REPO_CUSTOM_SKILLS_DIR = path.join(REPO_ROOT, 'SKILLS', 'custom')
 const TOOLS_SKILL_SECTION_START = '<!-- CLAWMAX_ASSIGNED_SKILLS_START -->'
 const TOOLS_SKILL_SECTION_END = '<!-- CLAWMAX_ASSIGNED_SKILLS_END -->'
 
+function buildBinarySearchPaths(): string[] {
+  const pathEntries = String(process.env.PATH || '')
+    .split(path.delimiter)
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+
+  return Array.from(new Set([
+    ...pathEntries,
+    '/opt/homebrew/bin',
+    '/usr/local/bin',
+    '/usr/bin',
+    '/bin',
+  ]))
+}
+
+function defaultBinaryExists(bin: string): boolean {
+  if (!bin) return false
+  if (bin.includes(path.sep)) {
+    return fs.existsSync(bin)
+  }
+
+  return buildBinarySearchPaths().some((dir) => fs.existsSync(path.join(dir, bin)))
+}
+
+function getInstallCheckBins(skill: Pick<OpenClawSkill, 'requires' | 'install'>): string[] {
+  const bins = new Set<string>()
+
+  for (const bin of skill.requires?.bins || []) {
+    if (typeof bin === 'string' && bin.trim()) bins.add(bin.trim())
+  }
+
+  for (const option of skill.install || []) {
+    for (const bin of option.bins || []) {
+      if (typeof bin === 'string' && bin.trim()) bins.add(bin.trim())
+    }
+  }
+
+  return Array.from(bins)
+}
+
+export function getSkillRequirementStatus(
+  skill: Pick<OpenClawSkill, 'requires' | 'install'>,
+  binaryExists: (bin: string) => boolean = defaultBinaryExists
+): SkillRequirementStatus | undefined {
+  const bins = getInstallCheckBins(skill)
+  if (bins.length === 0) return undefined
+
+  const presentBins: string[] = []
+  const missingBins: string[] = []
+  for (const bin of bins) {
+    if (binaryExists(bin)) presentBins.push(bin)
+    else missingBins.push(bin)
+  }
+
+  return {
+    checkable: true,
+    installSatisfied: missingBins.length === 0,
+    presentBins,
+    missingBins,
+  }
+}
+
 function slugifySkillName(name: string): string {
   return name
     .trim()
@@ -484,6 +554,7 @@ function parseSkillFile(
       originalSource: openclawMeta.originalSource,
       requires,
       install: openclawMeta.install,
+      requirementStatus: getSkillRequirementStatus({ requires, install: openclawMeta.install }),
       homepage: openclawMeta.homepage,
       tags: openclawMeta.tags || data.tags || [],
       registryProvider: openclawMeta.registryProvider,
@@ -533,6 +604,7 @@ function parseWorkspaceSkillFile(filePath: string, skillId: string): OpenClawSki
       originalSource: openclawMeta.originalSource,
       requires,
       install: data.install || openclawMeta.install,
+      requirementStatus: getSkillRequirementStatus({ requires, install: data.install || openclawMeta.install }),
       homepage: data.homepage || openclawMeta.homepage,
       tags: data.tags || openclawMeta.tags || [],
       registryProvider: openclawMeta.registryProvider,

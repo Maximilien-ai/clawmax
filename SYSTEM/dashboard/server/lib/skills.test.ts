@@ -61,6 +61,7 @@ const {
   getWorkspaceSkillsDir,
   updateSkillContent,
   getSkillRequirementInstallCommands,
+  getSkillRequirementStatus,
   getSkillSetupCommands,
   validateSkillChanges
 } = require('./skills')
@@ -144,6 +145,38 @@ test('getSkillById("github") returns github skill', () => {
   assert(skill!.setupRequirements?.message?.includes('GitHub CLI needs account authentication'), 'Expected GitHub setup warning metadata')
 
   console.log(`  Found: ${skill!.name} ${skill!.emoji}`)
+})
+
+test('getSkillRequirementStatus() marks requirements installed when all bins are present', () => {
+  const status = getSkillRequirementStatus(
+    {
+      requires: { bins: ['gh'] },
+      install: [{ id: 'brew-gh', kind: 'brew', formula: 'gh', label: 'brew install gh' } as SkillInstallOption],
+    },
+    (bin: string) => bin === 'gh',
+  )
+
+  assert(status, 'Expected requirement status to be returned')
+  assertEqual(status!.checkable, true, 'Expected requirements to be checkable')
+  assertEqual(status!.installSatisfied, true, 'Expected install requirements to be satisfied')
+  assertEqual(status!.missingBins.length, 0, 'Expected no missing bins')
+  assertEqual(status!.presentBins[0], 'gh', 'Expected gh to be marked present')
+})
+
+test('getSkillRequirementStatus() reports missing bins when requirements are not installed', () => {
+  const status = getSkillRequirementStatus(
+    {
+      requires: { bins: ['gh', 'jq'] },
+      install: [{ id: 'brew-gh', kind: 'brew', formula: 'gh', label: 'brew install gh' } as SkillInstallOption],
+    },
+    (bin: string) => bin === 'gh',
+  )
+
+  assert(status, 'Expected requirement status to be returned')
+  assertEqual(status!.installSatisfied, false, 'Expected install requirements to remain unsatisfied')
+  assertEqual(status!.presentBins.length, 1, 'Expected one present bin')
+  assertEqual(status!.missingBins.length, 1, 'Expected one missing bin')
+  assertEqual(status!.missingBins[0], 'jq', 'Expected jq to be marked missing')
 })
 
 test('skills with required env/config automatically expose setup warnings', () => {

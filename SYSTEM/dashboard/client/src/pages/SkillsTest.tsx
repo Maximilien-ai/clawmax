@@ -1866,6 +1866,11 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                 </div>
                 <div className="flex items-center gap-2">
                   {!editingSkill && viewingSkill.install && viewingSkill.install.length > 0 && (
+                    viewingSkill.requirementStatus?.checkable && viewingSkill.requirementStatus.installSatisfied ? (
+                      <div className="px-3 py-1.5 rounded-md border border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-300 text-sm font-medium">
+                        ✓ Requirements installed
+                      </div>
+                    ) : (
                       <button
                         onClick={() => openInstallRequirementsModal(viewingSkill)}
                         disabled={installingSkillRequirementsName === viewingSkill.name}
@@ -1873,6 +1878,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                       >
                         {installingSkillRequirementsName === viewingSkill.name ? 'Installing...' : 'Install Requirements'}
                       </button>
+                    )
                   )}
                   {!editingSkill && viewingSkillSetupHint && (
                     <button
@@ -2328,7 +2334,15 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
 
               <div className="space-y-4 px-6 py-4">
                 <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-200">
-                  Commands: <span className="font-medium">{installRequirementsCommands.join(', ')}</span>
+                  {pendingInstallSkill.requirementStatus?.checkable && pendingInstallSkill.requirementStatus.installSatisfied ? (
+                    <>
+                      Requirements already satisfied for <span className="font-medium">{pendingInstallSkill.name}</span>. Installed binaries: <span className="font-medium">{pendingInstallSkill.requirementStatus.presentBins.join(', ')}</span>
+                    </>
+                  ) : (
+                    <>
+                      Commands: <span className="font-medium">{installRequirementsCommands.join(', ')}</span>
+                    </>
+                  )}
                 </div>
                 <div className="bg-gray-900 text-green-400 font-mono text-xs rounded-lg p-3 h-56 overflow-y-auto whitespace-pre-wrap">
                   {installRequirementsLogs.join('\n')}
@@ -2359,10 +2373,16 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                 </button>
                 <button
                   onClick={() => void installSkillRequirements(pendingInstallSkill)}
-                  disabled={installingSkillRequirementsName === pendingInstallSkill.name || installRequirementsDone}
+                  disabled={
+                    installingSkillRequirementsName === pendingInstallSkill.name
+                    || installRequirementsDone
+                    || !!(pendingInstallSkill.requirementStatus?.checkable && pendingInstallSkill.requirementStatus.installSatisfied)
+                  }
                   className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-gray-300 dark:disabled:bg-gray-600"
                 >
-                  {installingSkillRequirementsName === pendingInstallSkill.name ? 'Installing…' : 'Install Requirements'}
+                  {pendingInstallSkill.requirementStatus?.checkable && pendingInstallSkill.requirementStatus.installSatisfied
+                    ? 'Requirements Installed'
+                    : (installingSkillRequirementsName === pendingInstallSkill.name ? 'Installing…' : 'Install Requirements')}
                 </button>
               </div>
             </div>

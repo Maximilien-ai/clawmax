@@ -37,6 +37,7 @@ function getRegistryBadgeLabel(skill: OpenClawSkill): string | null {
 
 export function SkillCard({ skill, assigned, onToggle, onView, onDelete, canDelete = false, compact = false, usageCount, usedBy, selectionMode = false, isSelected = false, onToggleSelect, onInstallRequirements, installingRequirements = false, setupHint = null, onOpenSetup }: SkillCardProps) {
   const [showDetails, setShowDetails] = useState(false)
+  const installSatisfied = !!skill.requirementStatus?.checkable && skill.requirementStatus.installSatisfied
 
   return (
     <div
@@ -192,7 +193,7 @@ export function SkillCard({ skill, assigned, onToggle, onView, onDelete, canDele
               {skill.install && skill.install.length > 0 && (
                 <div className="bg-blue-50 dark:bg-blue-900/30 p-2 rounded">
                   <div className="font-medium text-gray-700 mb-1 dark:text-gray-300">
-                    Install:
+                    {installSatisfied ? 'Requirements installed:' : 'Install:'}
                   </div>
                   {skill.install.map((option, i) => (
                     <div key={i} className="text-xs text-gray-600 dark:text-gray-300 font-mono">
@@ -204,7 +205,11 @@ export function SkillCard({ skill, assigned, onToggle, onView, onDelete, canDele
                       {!['brew', 'apt', 'npm', 'go', 'uv'].includes(option.kind) && option.label}
                     </div>
                   ))}
-                  {onInstallRequirements && (
+                  {installSatisfied ? (
+                    <div className="mt-2 inline-flex items-center rounded-md border border-green-200 bg-green-50 px-3 py-1.5 text-xs font-medium text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-300">
+                      ✓ Requirements installed
+                    </div>
+                  ) : onInstallRequirements ? (
                     <button
                       onClick={onInstallRequirements}
                       disabled={installingRequirements}
@@ -212,7 +217,7 @@ export function SkillCard({ skill, assigned, onToggle, onView, onDelete, canDele
                     >
                       {installingRequirements ? 'Installing...' : 'Install Requirements'}
                     </button>
-                  )}
+                  ) : null}
                 </div>
               )}
 

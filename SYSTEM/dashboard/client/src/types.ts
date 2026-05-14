@@ -16,6 +16,13 @@ export interface SkillRequirements {
   config?: string[]     // Required runtime config keys
 }
 
+export interface SkillRequirementStatus {
+  checkable: boolean
+  installSatisfied: boolean
+  presentBins: string[]
+  missingBins: string[]
+}
+
 export interface SecretRequirement {
   key: string
   label: string
@@ -65,6 +72,7 @@ export interface OpenClawSkill {
   registryName?: string
   secretRequirements?: SecretRequirement[]
   setupRequirements?: SkillSetupRequirement
+  requirementStatus?: SkillRequirementStatus
 }
 
 // API Response Types
