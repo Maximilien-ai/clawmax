@@ -348,7 +348,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
     }
   }
 
-  async function loadSkills() {
+  async function loadSkills(): Promise<OpenClawSkill[]> {
     setLoading(true)
     setError(null)
     try {
@@ -356,6 +356,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
       const skillsRes = await fetch(`${API_BASE}/api/skills`)
       if (!skillsRes.ok) throw new Error('Failed to load skills')
       const skillsData: SkillsResponse = await skillsRes.json()
+      const loadedSkills = Array.isArray(skillsData.skills) ? skillsData.skills : []
 
       // Fetch agent's assigned skills (only if agentId is set)
       if (agentId) {
@@ -367,15 +368,43 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
         setAssignedSkills(new Set())
       }
 
-      setAllSkills(Array.isArray(skillsData.skills) ? skillsData.skills : [])
+      setAllSkills(loadedSkills)
+      return loadedSkills
     } catch (error) {
       console.error('Failed to load skills:', error)
       setAllSkills([])
       setAssignedSkills(new Set())
       setError('Failed to load skills. Make sure the server is running and you are signed in.')
+      return []
     } finally {
       setLoading(false)
     }
+  }
+
+  async function fetchSkillsByNames(skillNames: string[]): Promise<OpenClawSkill[]> {
+    const uniqueNames = Array.from(new Set(skillNames.map((name) => name.trim()).filter(Boolean)))
+    if (uniqueNames.length === 0) return []
+
+    const resolved = await Promise.all(uniqueNames.map(async (skillName) => {
+      try {
+        const response = await fetch(`${API_BASE}/api/skills/${encodeURIComponent(skillName)}`)
+        if (!response.ok) return null
+        return await response.json() as OpenClawSkill
+      } catch {
+        return null
+      }
+    }))
+
+    return resolved.filter((skill): skill is OpenClawSkill => !!skill)
+  }
+
+  async function warnForSkillSetupByNames(skillNames: string[]) {
+    const resolvedSkills = await fetchSkillsByNames(skillNames)
+    if (resolvedSkills.length > 0) {
+      maybeWarnSkillSetup(showWarning, resolvedSkills)
+      return
+    }
+    maybeWarnSkillSetup(showWarning, skillNames)
   }
 
   function updateLocalAgentSkillState(targetAgentId: string, nextSkills: string[]) {
@@ -438,7 +467,8 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
       console.log('Sending PUT request:', nextSkills)
       await persistAgentSkills(agentId, nextSkills)
       if (!currentSkills.includes(skillId)) {
-        maybeWarnSkillSetup(showWarning, [skillId])
+        const addedSkill = allSkills.find((skill) => skill.name === skillId)
+        maybeWarnSkillSetup(showWarning, addedSkill ? [addedSkill] : [skillId])
       }
       setError(null)
     } catch (error: any) {
@@ -487,9 +517,9 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
         const providerLabel = REGISTRY_PROVIDERS.find((entry) => entry.id === provider)?.label || 'registry'
         const replacedSuffix = data.replaced ? ` (${data.replaced} replaced)` : ''
         showSuccess(`Installed "${installName}" from ${providerLabel}${replacedSuffix}`)
-        maybeWarnSkillSetup(showWarning, [data.skillId || installName])
         setRegistryInstalledNames(prev => new Set([...prev, `${provider}:${installName}`]))
         await loadSkills()
+        await warnForSkillSetupByNames([data.skillId || installName])
       } else {
         showToastError(data.error || 'Install failed')
       }
@@ -546,15 +576,20 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
         if (data.total && data.total > 1) {
           const failed = data.skills?.filter((s: any) => !s.ok) || []
           const warnings = data.skills?.filter((s: any) => s.warning).map((s: any) => s.warning) || []
+          const importedSkillNames = data.skills?.filter((s: any) => s.ok).map((s: any) => s.skillId).filter(Boolean) || []
           showSuccess(`Imported ${data.imported}/${data.total} skills`)
           if (warnings.length > 0) {
             showWarning(warnings.join(' '))
+          }
+          if (importedSkillNames.length > 0) {
+            await warnForSkillSetupByNames(importedSkillNames)
           }
           if (failed.length > 0) {
             showToastError(`Failed: ${failed.map((f: any) => f.skillId).join(', ')}`)
           }
         } else {
           showSuccess(`Imported skill: ${data.skillId}`)
+          await warnForSkillSetupByNames([data.skillId])
         }
       } else {
         setError(data.error || 'Failed to import skill')
@@ -634,6 +669,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
       setAiSkillRefinementPrompt('')
       setGeneratedSkillDraft(null)
       showSuccess(`Created skill: ${data.skill.name}`)
+      maybeWarnSkillSetup(showWarning, [data.skill as OpenClawSkill])
     } catch (err: any) {
       setError(err.message || 'Failed to create skill')
     } finally {
@@ -1463,6 +1499,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                             if (!partner.skills.commandId) return
                             setPartnerInstalling(partner.slug)
                             try {
+                              const existingSkillNames = new Set(allSkills.map((skill) => skill.name))
                               const resp = await fetch('/api/skills/partner-install', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
@@ -1472,7 +1509,13 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                               if (!resp.ok) throw new Error(data.detail || data.error || 'Install failed')
                               showSuccess(`Installed ${partner.name} skills`)
                               setInstalledPartnerSlugs((current) => new Set([...current, partner.slug]))
-                              await loadSkills()
+                              const loadedSkills = await loadSkills()
+                              const addedSkills = loadedSkills
+                                .map((skill) => skill.name)
+                                .filter((skillName) => !existingSkillNames.has(skillName))
+                              if (addedSkills.length > 0) {
+                                await warnForSkillSetupByNames(addedSkills)
+                              }
                             } catch (err: any) {
                               showToastError(err.message || `Failed to install ${partner.name} skills`)
                             } finally {
@@ -2932,6 +2975,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                                   if (!partner.skills.commandId) return
                                   setPartnerInstalling(partner.slug)
                                   try {
+                                    const existingSkillNames = new Set(allSkills.map((skill) => skill.name))
                                     const resp = await fetch('/api/skills/partner-install', {
                                       method: 'POST',
                                       headers: { 'Content-Type': 'application/json' },
@@ -2940,7 +2984,13 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                                     const data = await resp.json().catch(() => ({}))
                                     if (!resp.ok) throw new Error(data.error || 'Install failed')
                                     showSuccess(`Installed ${partner.name} skills`)
-                                    await loadSkills()
+                                    const loadedSkills = await loadSkills()
+                                    const addedSkills = loadedSkills
+                                      .map((skill) => skill.name)
+                                      .filter((skillName) => !existingSkillNames.has(skillName))
+                                    if (addedSkills.length > 0) {
+                                      await warnForSkillSetupByNames(addedSkills)
+                                    }
                                   } catch (err: any) {
                                     showToastError(err.message || `Failed to install ${partner.name} skills`)
                                   } finally {
