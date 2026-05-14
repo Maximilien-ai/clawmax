@@ -6,7 +6,14 @@ export interface SkillSetupHint {
   commands?: string[]
 }
 
-export function getSkillSetupHint(skill: Pick<OpenClawSkill, 'name'>): SkillSetupHint | null {
+export function getSkillSetupHint(skill: Pick<OpenClawSkill, 'name' | 'setupRequirements'>): SkillSetupHint | null {
+  if (skill.setupRequirements?.message) {
+    return {
+      label: skill.setupRequirements.label || 'Needs setup',
+      message: skill.setupRequirements.message,
+      commands: skill.setupRequirements.commands || [],
+    }
+  }
   if (skill.name === 'gog') {
     return {
       label: 'Needs setup',
@@ -19,6 +26,11 @@ export function getSkillSetupHint(skill: Pick<OpenClawSkill, 'name'>): SkillSetu
     }
   }
   return null
+}
+
+export function supportsDashboardSkillSetup(skill: Pick<OpenClawSkill, 'name' | 'setupRequirements'>): boolean {
+  const actionId = skill.setupRequirements?.actionId
+  return actionId === 'gog-google-workspace-auth' || skill.name === 'gog'
 }
 
 export function skillNeedsSetup(skillName: string): boolean {

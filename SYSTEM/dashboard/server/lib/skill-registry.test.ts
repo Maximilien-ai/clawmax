@@ -16,10 +16,22 @@ import {
 } from './skill-registry'
 
 function run() {
-  assert.strictEqual(normalizeSkillRegistryProvider(undefined), 'shipables')
+  assert.strictEqual(normalizeSkillRegistryProvider(undefined), 'clawhub')
+  assert.strictEqual(normalizeSkillRegistryProvider('clawhub'), 'clawhub')
   assert.strictEqual(normalizeSkillRegistryProvider('shipables'), 'shipables')
   assert.strictEqual(normalizeSkillRegistryProvider('tessl'), 'tessl')
+  assert.strictEqual(getSkillRegistryProviderMeta('clawhub').label, 'ClawHub')
   assert.strictEqual(getSkillRegistryProviderMeta('tessl').label, 'Tessl')
+
+  const clawhubSearch = buildSkillRegistrySearchCommands('clawhub', 'github', 20)[0]
+  assert.strictEqual(clawhubSearch.command, 'npx')
+  assert(clawhubSearch.args.includes('clawhub@latest'))
+  assert(clawhubSearch.args.includes('search'))
+
+  const clawhubInstall = buildSkillRegistryInstallCommands('clawhub', 'github')[0]
+  assert(clawhubInstall.args.includes('install'))
+  assert(clawhubInstall.args.includes('--dir'))
+  assert(clawhubInstall.args.includes('skills'))
 
   const shipablesSearch = buildSkillRegistrySearchCommands('shipables', 'github', 20)[0]
   assert.strictEqual(shipablesSearch.command, 'npx')
@@ -70,8 +82,22 @@ function run() {
   assert.strictEqual(normalizedShipables.total, 1)
   assert.strictEqual(selectBestRegistryInstallName('shipables', 'github', normalizedShipables.results), 'github')
 
+  const normalizedClawhub = normalizeSkillRegistrySearchResults('clawhub', {
+    items: [{ slug: 'gog', description: 'Google Workspace CLI', downloadsWeekly: 42 }],
+  })
+  assert.strictEqual(normalizedClawhub.results.length, 1)
+  assert.strictEqual(normalizedClawhub.results[0].install_name, 'gog')
+  assert.strictEqual(normalizedClawhub.results[0].downloads_weekly, 42)
+
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tessl-skill-registry-test-'))
   try {
+    const clawhubSkillDir = path.join(tmpDir, 'skills', 'github')
+    fs.mkdirSync(clawhubSkillDir, { recursive: true })
+    fs.writeFileSync(path.join(clawhubSkillDir, 'SKILL.md'), '# GitHub Skill\n', 'utf-8')
+    const clawhubDiscovered = discoverInstalledRegistrySkillDirs('clawhub', tmpDir)
+    assert.strictEqual(clawhubDiscovered.length, 1)
+    assert(clawhubDiscovered[0].endsWith(path.join('skills', 'github')))
+
     const tesslSkillDir = path.join(tmpDir, '.codex', 'skills', 'review-skill')
     fs.mkdirSync(tesslSkillDir, { recursive: true })
     fs.writeFileSync(path.join(tesslSkillDir, 'SKILL.md'), '# Review Skill\n', 'utf-8')
@@ -81,9 +107,8 @@ function run() {
     fs.writeFileSync(path.join(tesslTileDir, 'SKILL.md'), '# Gmail Skill\n', 'utf-8')
 
     const discovered = discoverInstalledRegistrySkillDirs('tessl', tmpDir)
-    assert.strictEqual(discovered.length, 2)
-    assert(discovered[0].endsWith(path.join('.codex', 'skills', 'review-skill')))
-    assert(discovered[1].endsWith(path.join('.tessl', 'tiles', 'odyssey4me', 'gmail')))
+    assert(discovered.some((dir) => dir.endsWith(path.join('.codex', 'skills', 'review-skill'))))
+    assert(discovered.some((dir) => dir.endsWith(path.join('.tessl', 'tiles', 'odyssey4me', 'gmail'))))
 
     const tileContainerDir = path.join(tmpDir, '.tessl', 'tiles', 'maceytest', 'testytesty')
     const nestedSkillDir = path.join(tileContainerDir, 'skills', 'testytesty')

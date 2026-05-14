@@ -25,6 +25,13 @@ export interface SecretRequirement {
   sensitive?: boolean
 }
 
+export interface SkillSetupRequirement {
+  label?: string
+  message: string
+  commands?: string[]
+  actionId?: string
+}
+
 export interface OpenClawSkill {
   id?: string            // Directory/identifier for workspace variants
   name: string          // Unique ID (e.g., "github")
@@ -40,9 +47,10 @@ export interface OpenClawSkill {
   install?: SkillInstallOption[]
   homepage?: string     // Optional homepage URL
   tags?: string[]       // Searchable tags
-  registryProvider?: 'shipables' | 'tessl'
+  registryProvider?: 'clawhub' | 'shipables' | 'tessl'
   registryName?: string
   secretRequirements?: SecretRequirement[]
+  setupRequirements?: SkillSetupRequirement
 }
 
 // API Response Types

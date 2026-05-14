@@ -10,7 +10,7 @@ import { hasAiGenerationAccess, readStoredByokKeys } from '../lib/byok'
 import { getSkillAssignmentBuckets } from '../lib/skillAssignments'
 import { summarizeSkillDeleteImpact } from '../lib/skillsDeletion'
 import { filterAssignableAgents, isDeletableUserSkill, partitionSelectedSkills, partitionSkillsBySource, toggleItemSelection, toggleVisibleSelections } from '../lib/skillsSelection'
-import { getSkillSetupHint, maybeWarnSkillSetup } from '../lib/skillSetup'
+import { getSkillSetupHint, maybeWarnSkillSetup, supportsDashboardSkillSetup } from '../lib/skillSetup'
 import { useAuth } from '../contexts/AuthContext'
 
 // Use relative path so it works with ngrok and localhost
@@ -58,7 +58,7 @@ const SKILL_SPEC_SECTIONS = [
   '## Examples',
 ]
 
-type RegistryProvider = 'shipables' | 'tessl'
+type RegistryProvider = 'clawhub' | 'shipables' | 'tessl'
 
 const REGISTRY_PROVIDERS: Array<{
   id: RegistryProvider
@@ -69,6 +69,15 @@ const REGISTRY_PROVIDERS: Array<{
   description: string
   searchPlaceholder: string
 }> = [
+  {
+    id: 'clawhub',
+    label: 'ClawHub',
+    icon: '🦞',
+    linkLabel: 'ClawHub',
+    homepage: 'https://clawhub.dev',
+    description: 'OpenClaw’s native skill registry for discovering and installing skills.',
+    searchPlaceholder: 'Search ClawHub... (e.g., gmail, github, docs)',
+  },
   {
     id: 'shipables',
     label: 'Shipables',
@@ -120,7 +129,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
   const [importPath, setImportPath] = useState('')
   const [importing, setImporting] = useState(false)
   const [importSource, setImportSource] = useState<'local' | 'github' | 'registry' | 'partner' | 'ai'>('local')
-  const [registryProvider, setRegistryProvider] = useState<RegistryProvider>('shipables')
+  const [registryProvider, setRegistryProvider] = useState<RegistryProvider>('clawhub')
   const [registryQuery, setRegistryQuery] = useState('')
   const [registryResults, setRegistryResults] = useState<Array<{ name: string; full_name?: string; install_name?: string; description?: string; version?: string; downloads?: number }>>([])
   const [registrySearching, setRegistrySearching] = useState(false)
@@ -128,6 +137,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
   const [registryTotal, setRegistryTotal] = useState(0)
   const [registryInstalledNames, setRegistryInstalledNames] = useState<Set<string>>(new Set())
   const [inlineRegistrySuggestions, setInlineRegistrySuggestions] = useState<Record<RegistryProvider, Array<{ name: string; description?: string; latest_version?: string; downloads_weekly?: number; full_name?: string; install_name?: string }>>>({
+    clawhub: [],
     shipables: [],
     tessl: [],
   })
@@ -148,6 +158,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
   }>>([])
   const [partnerInstalling, setPartnerInstalling] = useState<string | null>(null)
   const [installedPartnerSlugs, setInstalledPartnerSlugs] = useState<Set<string>>(new Set())
+  const [showPartnerInstallers, setShowPartnerInstallers] = useState(false)
   const [aiSkillPrompt, setAiSkillPrompt] = useState('')
   const [aiSkillRefinementPrompt, setAiSkillRefinementPrompt] = useState('')
   const [aiSkillGenerating, setAiSkillGenerating] = useState(false)
@@ -240,7 +251,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
 
   useEffect(() => {
     if (!searchQuery.trim() || searchQuery.trim().length < 2) {
-      setInlineRegistrySuggestions({ shipables: [], tessl: [] })
+      setInlineRegistrySuggestions({ clawhub: [], shipables: [], tessl: [] })
       setInlineRegistryLoading(false)
       return
     }
@@ -249,7 +260,10 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
     const timeout = window.setTimeout(async () => {
       setInlineRegistryLoading(true)
       try {
-        const [shipablesResp, tesslResp] = await Promise.all([
+        const [clawhubResp, shipablesResp, tesslResp] = await Promise.all([
+          fetch(`/api/skills/registry/search?provider=clawhub&q=${encodeURIComponent(searchQuery.trim())}&limit=6`, {
+            signal: controller.signal,
+          }),
           fetch(`/api/skills/registry/search?provider=shipables&q=${encodeURIComponent(searchQuery.trim())}&limit=6`, {
             signal: controller.signal,
           }),
@@ -257,17 +271,19 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
             signal: controller.signal,
           }),
         ])
-        const [shipablesData, tesslData] = await Promise.all([
+        const [clawhubData, shipablesData, tesslData] = await Promise.all([
+          clawhubResp.json(),
           shipablesResp.json(),
           tesslResp.json(),
         ])
         setInlineRegistrySuggestions({
+          clawhub: Array.isArray(clawhubData.results) ? clawhubData.results : [],
           shipables: Array.isArray(shipablesData.results) ? shipablesData.results : [],
           tessl: Array.isArray(tesslData.results) ? tesslData.results : [],
         })
       } catch (err: any) {
         if (err?.name !== 'AbortError') {
-          setInlineRegistrySuggestions({ shipables: [], tessl: [] })
+          setInlineRegistrySuggestions({ clawhub: [], shipables: [], tessl: [] })
         }
       } finally {
         setInlineRegistryLoading(false)
@@ -869,6 +885,10 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
   }, [allSkills, filteredSkills, searchQuery])
 
   const visibleInlineRegistrySuggestionsByProvider = useMemo(() => ({
+    clawhub: inlineRegistrySuggestions.clawhub
+      .map((skill) => ({ ...skill, installName: skill.install_name || skill.full_name || skill.name }))
+      .filter((skill) => !registryInstalledNames.has(`clawhub:${skill.installName}`))
+      .slice(0, 5),
     shipables: inlineRegistrySuggestions.shipables
       .map((skill) => ({ ...skill, installName: skill.install_name || skill.full_name || skill.name }))
       .filter((skill) => !registryInstalledNames.has(`shipables:${skill.installName}`))
@@ -1042,7 +1062,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                         <span className="text-base leading-none">🗂️</span>
                         <span>
                           <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">Browse Registries</span>
-                          <span className="block text-xs text-gray-500 dark:text-gray-400">Discover and install skills from Shipables or Tessl.</span>
+                          <span className="block text-xs text-gray-500 dark:text-gray-400">Discover and install skills from ClawHub, Shipables, or Tessl.</span>
                         </span>
                       </button>
                       {partnerInstallers.length > 0 && (
@@ -1378,7 +1398,14 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
           <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border mb-6">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 className="text-sm font-semibold text-gray-700 mb-1 dark:text-gray-300">Install from Partner</h3>
+                <button
+                  type="button"
+                  onClick={() => setShowPartnerInstallers((current) => !current)}
+                  className="inline-flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300"
+                >
+                  <span>{showPartnerInstallers ? '▼' : '▶'}</span>
+                  <span>Install from Partner</span>
+                </button>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
                   Skills available from enabled partner integrations.
                 </p>
@@ -1390,6 +1417,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                 Browse all
               </button>
             </div>
+            {showPartnerInstallers && (
             <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               {visiblePartnerInstallers.map((partner) => (
                 <div key={`partner-surface-${partner.slug}`} className="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
@@ -1469,6 +1497,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                 </div>
               ))}
             </div>
+            )}
           </div>
         )}
 
@@ -1510,9 +1539,9 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                       onClick={() => {
                         setShowImportDialog(true)
                         setImportSource('registry')
-                        setRegistryProvider('shipables')
+                        setRegistryProvider('clawhub')
                         setRegistryQuery(searchQuery.trim())
-                        searchRegistry(searchQuery.trim(), 20, 'shipables')
+                        searchRegistry(searchQuery.trim(), 20, 'clawhub')
                       }}
                       className="text-xs font-medium text-purple-600 hover:text-purple-700"
                     >
@@ -1521,9 +1550,9 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                   </div>
                   {inlineRegistryLoading ? (
                     <div className="text-sm text-gray-500 dark:text-gray-400">Searching registry…</div>
-                  ) : (visibleInlineRegistrySuggestionsByProvider.shipables.length > 0 || visibleInlineRegistrySuggestionsByProvider.tessl.length > 0) ? (
+                  ) : (visibleInlineRegistrySuggestionsByProvider.clawhub.length > 0 || visibleInlineRegistrySuggestionsByProvider.shipables.length > 0 || visibleInlineRegistrySuggestionsByProvider.tessl.length > 0) ? (
                     <div className="grid gap-3 lg:grid-cols-2">
-                      {(['shipables', 'tessl'] as RegistryProvider[]).map((provider) => {
+                      {(['clawhub', 'shipables', 'tessl'] as RegistryProvider[]).map((provider) => {
                         const suggestions = visibleInlineRegistrySuggestionsByProvider[provider]
                         if (suggestions.length === 0) return null
                         const providerMeta = REGISTRY_PROVIDERS.find((entry) => entry.id === provider)!
@@ -1578,7 +1607,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
           </div>
         ) : (
           <div className="space-y-4">
-            {searchQuery.trim() && (closeMatchSkills.length > 0 || inlineRegistryLoading || visibleInlineRegistrySuggestionsByProvider.shipables.length > 0 || visibleInlineRegistrySuggestionsByProvider.tessl.length > 0) && (
+            {searchQuery.trim() && (closeMatchSkills.length > 0 || inlineRegistryLoading || visibleInlineRegistrySuggestionsByProvider.clawhub.length > 0 || visibleInlineRegistrySuggestionsByProvider.shipables.length > 0 || visibleInlineRegistrySuggestionsByProvider.tessl.length > 0) && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {closeMatchSkills.length > 0 && (
                   <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border">
@@ -1596,7 +1625,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                     </div>
                   </div>
                 )}
-                {(inlineRegistryLoading || visibleInlineRegistrySuggestionsByProvider.shipables.length > 0 || visibleInlineRegistrySuggestionsByProvider.tessl.length > 0) && (
+                {(inlineRegistryLoading || visibleInlineRegistrySuggestionsByProvider.clawhub.length > 0 || visibleInlineRegistrySuggestionsByProvider.shipables.length > 0 || visibleInlineRegistrySuggestionsByProvider.tessl.length > 0) && (
                   <div className={`bg-white dark:bg-gray-800 p-4 rounded-lg border ${closeMatchSkills.length === 0 ? 'lg:col-span-2' : ''}`}>
                     <div className="flex items-center justify-between gap-3 mb-3">
                       <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">Also discover in Registry</div>
@@ -1604,9 +1633,9 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                         onClick={() => {
                           setShowImportDialog(true)
                           setImportSource('registry')
-                          setRegistryProvider('shipables')
+                          setRegistryProvider('clawhub')
                           setRegistryQuery(searchQuery.trim())
-                          searchRegistry(searchQuery.trim(), 20, 'shipables')
+                          searchRegistry(searchQuery.trim(), 20, 'clawhub')
                         }}
                         className="text-xs font-medium text-purple-600 hover:text-purple-700"
                       >
@@ -1617,7 +1646,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                       <div className="text-sm text-gray-500 dark:text-gray-400">Searching registry…</div>
                     ) : (
                       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-                        {(['shipables', 'tessl'] as RegistryProvider[]).map((provider) => {
+                        {(['clawhub', 'shipables', 'tessl'] as RegistryProvider[]).map((provider) => {
                           const suggestions = visibleInlineRegistrySuggestionsByProvider[provider]
                           if (suggestions.length === 0) return null
                           const providerMeta = REGISTRY_PROVIDERS.find((entry) => entry.id === provider)!
@@ -1702,7 +1731,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                         onInstallRequirements={skill.install && skill.install.length > 0 ? () => openInstallRequirementsModal(skill) : undefined}
                         installingRequirements={installingSkillRequirementsName === skill.name}
                         setupHint={getSkillSetupHint(skill)}
-                        onOpenSetup={getSkillSetupHint(skill) ? () => openSkillSetupModal(skill) : undefined}
+                        onOpenSetup={supportsDashboardSkillSetup(skill) ? () => openSkillSetupModal(skill) : undefined}
                       />
                     )
                   })}
@@ -1743,7 +1772,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                     onInstallRequirements={skill.install && skill.install.length > 0 ? () => openInstallRequirementsModal(skill) : undefined}
                     installingRequirements={installingSkillRequirementsName === skill.name}
                     setupHint={getSkillSetupHint(skill)}
-                    onOpenSetup={getSkillSetupHint(skill) ? () => openSkillSetupModal(skill) : undefined}
+                    onOpenSetup={supportsDashboardSkillSetup(skill) ? () => openSkillSetupModal(skill) : undefined}
                   />
                 )
               })}
@@ -2721,6 +2750,13 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                     <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 px-4 py-3">
                       <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{activeRegistryProvider.label}</div>
                       <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{activeRegistryProvider.description}</div>
+                      <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                        {registryProvider === 'tessl'
+                          ? 'Experimental registry. Some skills may need extra security review or manual setup after install.'
+                          : registryProvider === 'clawhub'
+                            ? 'Native OpenClaw registry. Installed skills appear under User Skills and may still need local requirements or auth setup.'
+                            : 'Installed skills appear under User Skills and can be assigned immediately.'}
+                      </div>
                     </div>
 
                     {/* Search */}
@@ -2746,7 +2782,9 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                     <div className="flex flex-wrap gap-1.5">
                       {(registryProvider === 'tessl'
                         ? ['review', 'docs', 'research', 'planning', 'debug', 'content', 'api', 'automation']
-                        : ['github', 'slack', 'api', 'data', 'ai', 'web', 'devops', 'crm']
+                        : registryProvider === 'clawhub'
+                          ? ['gmail', 'github', 'docs', 'research', 'productivity', 'calendar', 'browser', 'automation']
+                          : ['github', 'slack', 'api', 'data', 'ai', 'web', 'devops', 'crm']
                       ).map(cat => (
                         <button
                           key={cat}

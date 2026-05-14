@@ -1,13 +1,23 @@
 import fs from 'fs'
 import path from 'path'
 
-export type SkillRegistryProvider = 'shipables' | 'tessl'
+export type SkillRegistryProvider = 'clawhub' | 'shipables' | 'tessl'
 
 export function normalizeSkillRegistryProvider(input?: string): SkillRegistryProvider {
-  return input === 'tessl' ? 'tessl' : 'shipables'
+  if (input === 'tessl') return 'tessl'
+  if (input === 'shipables') return 'shipables'
+  return 'clawhub'
 }
 
 export function getSkillRegistryProviderMeta(provider: SkillRegistryProvider) {
+  if (provider === 'clawhub') {
+    return {
+      id: 'clawhub' as const,
+      label: 'ClawHub',
+      homepage: 'https://clawhub.dev',
+      description: 'OpenClaw’s native skill registry for browsing and installing skills.',
+    }
+  }
   if (provider === 'tessl') {
     return {
       id: 'tessl' as const,
@@ -121,6 +131,37 @@ export function normalizeSkillRegistrySearchResults(provider: SkillRegistryProvi
     }
   }
 
+  if (provider === 'clawhub') {
+    const results = Array.isArray(parsed)
+      ? parsed
+      : Array.isArray(parsed?.results)
+        ? parsed.results
+        : Array.isArray(parsed?.items)
+          ? parsed.items
+          : Array.isArray(parsed?.skills)
+            ? parsed.skills
+            : Array.isArray(parsed?.data)
+              ? parsed.data
+              : []
+
+    return {
+      results: results
+        .map((item: any) => ({
+          name: item?.slug || item?.name || item?.id,
+          full_name: item?.slug || item?.name || item?.id,
+          install_name: item?.slug || item?.name || item?.id,
+          description: item?.description || item?.summary || item?.tagline || '',
+          latest_version: item?.latestVersion || item?.version,
+          downloads_weekly: item?.downloadsWeekly || item?.downloads || item?.installs,
+          categories: item?.categories || item?.tags || [],
+          raw: item,
+        }))
+        .filter((item: any) => item.name),
+      total: parsed?.total || parsed?.pagination?.total || results.length,
+      pagination: parsed?.pagination,
+    }
+  }
+
   const results = Array.isArray(parsed) ? parsed : (parsed?.skills || [])
   return {
     results,
@@ -134,7 +175,7 @@ export function selectBestRegistryInstallName(
   requestedName: string,
   results: Array<{ name?: string; full_name?: string; install_name?: string }>
 ): string {
-  if (provider !== 'tessl') return requestedName
+  if (provider === 'clawhub' || provider === 'shipables') return requestedName
 
   if (/^[a-z0-9._-]+\/[a-z0-9._-]+(?:@[a-z0-9._.-]+)?$/i.test(requestedName)) {
     return requestedName
@@ -160,6 +201,15 @@ export function selectBestRegistryInstallName(
 }
 
 export function buildSkillRegistrySearchCommands(provider: SkillRegistryProvider, query: string, limit: number) {
+  if (provider === 'clawhub') {
+    return [
+      {
+        command: 'npx',
+        args: ['clawhub@latest', query ? 'search' : 'explore', ...(query ? [query] : []), '--json'],
+        timeout: 20000,
+      },
+    ]
+  }
   if (provider === 'tessl') {
     return [
       {
@@ -185,6 +235,15 @@ export function buildSkillRegistrySearchCommands(provider: SkillRegistryProvider
 }
 
 export function buildSkillRegistryInstallCommands(provider: SkillRegistryProvider, name: string) {
+  if (provider === 'clawhub') {
+    return [
+      {
+        command: 'npx',
+        args: ['clawhub@latest', 'install', name, '--dir', 'skills', '--workdir', '.', '--yes'],
+        timeout: 45000,
+      },
+    ]
+  }
   if (provider === 'tessl') {
     return [
       {
@@ -210,6 +269,24 @@ export function buildSkillRegistryInstallCommands(provider: SkillRegistryProvide
 }
 
 export function discoverInstalledRegistrySkillDirs(provider: SkillRegistryProvider, tmpDir: string): string[] {
+  if (provider === 'clawhub') {
+    const candidates = [
+      path.join(tmpDir, 'skills'),
+      path.join(tmpDir, '.openclaw', 'skills'),
+      path.join(tmpDir, '.claude', 'skills'),
+    ]
+
+    const discovered: string[] = []
+    for (const skillsDir of candidates) {
+      if (!fs.existsSync(skillsDir)) continue
+      const dirs = fs.readdirSync(skillsDir, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
+        .map((entry) => path.join(skillsDir, entry.name))
+      discovered.push(...dirs)
+    }
+
+    return Array.from(new Set(discovered))
+  }
   if (provider === 'tessl') {
     const candidates = [
       path.join(tmpDir, '.codex', 'skills'),

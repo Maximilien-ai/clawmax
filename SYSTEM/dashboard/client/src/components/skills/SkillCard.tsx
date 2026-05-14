@@ -29,6 +29,7 @@ function getSourceBadgeLabel(skill: OpenClawSkill): string {
 }
 
 function getRegistryBadgeLabel(skill: OpenClawSkill): string | null {
+  if (skill.registryProvider === 'clawhub') return 'ClawHub'
   if (skill.registryProvider === 'tessl') return 'Tessl'
   if (skill.registryProvider === 'shipables') return 'Shipables'
   return null

@@ -44,7 +44,7 @@ export interface OpenClawSkill {
   install?: SkillInstallOption[]
   homepage?: string
   tags?: string[]
-  registryProvider?: 'shipables' | 'tessl'
+  registryProvider?: 'clawhub' | 'shipables' | 'tessl'
   registryName?: string
   secretRequirements?: Array<{
     key: string
@@ -55,6 +55,12 @@ export interface OpenClawSkill {
     placeholder?: string
     sensitive?: boolean
   }>
+  setupRequirements?: {
+    label?: string
+    message: string
+    commands?: string[]
+    actionId?: string
+  }
 }
 
 export interface SkillRequirementInstallCommand {
@@ -338,7 +344,8 @@ function parseSkillFile(
       tags: openclawMeta.tags || data.tags || [],
       registryProvider: openclawMeta.registryProvider,
       registryName: openclawMeta.registryName,
-      secretRequirements: openclawMeta.secretRequirements || data.secretRequirements || []
+      secretRequirements: openclawMeta.secretRequirements || data.secretRequirements || [],
+      setupRequirements: openclawMeta.setupRequirements || data.setupRequirements,
     }
   } catch (err) {
     console.error(`Failed to parse skill ${filePath}:`, err)
@@ -380,7 +387,8 @@ function parseWorkspaceSkillFile(filePath: string, skillId: string): OpenClawSki
       tags: data.tags || openclawMeta.tags || [],
       registryProvider: openclawMeta.registryProvider,
       registryName: openclawMeta.registryName,
-      secretRequirements: data.secretRequirements || openclawMeta.secretRequirements || []
+      secretRequirements: data.secretRequirements || openclawMeta.secretRequirements || [],
+      setupRequirements: data.setupRequirements || openclawMeta.setupRequirements,
     }
   } catch (err) {
     console.error(`Failed to parse workspace skill ${filePath}:`, err)
@@ -447,7 +455,8 @@ export function getSkillSetupCommands(
   skill: OpenClawSkill,
   options?: { clientSecretPath?: string; accountEmail?: string }
 ): SkillSetupCommand[] {
-  if (skill.name !== 'gog') return []
+  const actionId = skill.setupRequirements?.actionId || (skill.name === 'gog' ? 'gog-google-workspace-auth' : undefined)
+  if (actionId !== 'gog-google-workspace-auth') return []
 
   const clientSecretPath = options?.clientSecretPath?.trim()
   const accountEmail = options?.accountEmail?.trim()

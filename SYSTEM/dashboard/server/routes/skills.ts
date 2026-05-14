@@ -39,7 +39,7 @@ const execAsync = promisify(exec)
 const execFileAsync = promisify(require('child_process').execFile)
 const router = express.Router()
 
-function annotateImportedRegistrySkill(skillDir: string, provider: 'shipables' | 'tessl', registryName: string) {
+function annotateImportedRegistrySkill(skillDir: string, provider: 'clawhub' | 'shipables' | 'tessl', registryName: string) {
   const skillMdUpper = path.join(skillDir, 'SKILL.md')
   const skillMdLower = path.join(skillDir, 'skill.md')
   const skillPath = fs.existsSync(skillMdUpper) ? skillMdUpper : skillMdLower
@@ -654,6 +654,20 @@ router.get('/registry/search', async (req, res) => {
   try {
     const query = (req.query.q as string || '').trim()
     const limit = parseInt(req.query.limit as string) || 20
+
+    if (provider === 'clawhub') {
+      const endpoint = query
+        ? `https://clawhub.dev/api/v1/search?q=${encodeURIComponent(query)}&limit=${limit}`
+        : `https://clawhub.dev/api/v1/explore?limit=${limit}`
+      const response = await fetch(endpoint)
+      if (!response.ok) {
+        throw new Error(`ClawHub search failed with HTTP ${response.status}`)
+      }
+      const parsed = await response.json()
+      const normalized = normalizeSkillRegistrySearchResults(provider, parsed)
+      return res.json({ ok: true, provider, ...normalized, meta: getSkillRegistryProviderMeta(provider) })
+    }
+
     const commands = buildSkillRegistrySearchCommands(provider, query, limit)
 
     let lastError: any = null
