@@ -68,7 +68,7 @@ process.env.HOME = tmpHome
 process.env.OPENCLAW_WORKSPACE = workspacePath
 resetWorkspaceManagerForTests()
 
-test('triggerWorkflow stores workspace integration defaults in execution inputs', () => {
+test('triggerWorkflow does not persist workspace integration defaults into execution inputs', () => {
   writeWorkspaceIntegrationConfig({
     githubDefaultRepo: 'Maximilien-ai/clawmax',
     sensoContextLabel: 'Launch / Demo',
@@ -92,8 +92,8 @@ test('triggerWorkflow stores workspace integration defaults in execution inputs'
 
   const execution = getExecution(created.id!, triggered.executionId!)
   assert(execution !== null, 'Expected execution record')
-  assert(execution?.inputs?.['GitHub repo'] === 'Maximilien-ai/clawmax', 'Expected GitHub repo input')
-  assert(execution?.inputs?.['Senso context'] === 'Launch / Demo', 'Expected Senso context input')
+  assert(!execution?.inputs?.['GitHub repo'], 'Did not expect GitHub repo input to persist')
+  assert(!execution?.inputs?.['Senso context'], 'Did not expect Senso context input to persist')
 })
 
 for (const workflowId of createdWorkflowIds) {

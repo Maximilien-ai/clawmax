@@ -592,11 +592,13 @@ else
 fi
 
 echo -e "${YELLOW}→ Running Version unit tests...${NC}"
-npx ts-node --transpileOnly server/lib/version.test.ts > /tmp/clawmax-version.out 2>&1 || true
-if grep -q "All tests passed" /tmp/clawmax-version.out; then
+npx ts-node --transpileOnly server/lib/version.test.ts > /tmp/clawmax-version.out 2>&1
+version_status=$?
+if [ "$version_status" -eq 0 ]; then
   version_count=$(grep "Tests passed:" /tmp/clawmax-version.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
   pass "Version unit tests (${version_count:-?} tests)"
 else
+  tail -n 40 /tmp/clawmax-version.out
   fail "Version unit tests"
 fi
 
