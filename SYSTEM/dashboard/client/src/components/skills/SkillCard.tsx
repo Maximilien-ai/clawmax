@@ -71,7 +71,7 @@ export function SkillCard({ skill, assigned, onToggle, onView, onDelete, canDele
             <h3 className="font-semibold text-gray-900 truncate dark:text-gray-100">
               {skill.name}
             </h3>
-            <span className="text-[10px] px-1.5 py-0.5 rounded border border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900/30 dark:text-gray-300">
+            <span className="whitespace-nowrap text-[10px] px-1.5 py-0.5 rounded border border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900/30 dark:text-gray-300">
               {getSourceBadgeLabel(skill)}
             </span>
             {getRegistryBadgeLabel(skill) && (
@@ -210,14 +210,6 @@ export function SkillCard({ skill, assigned, onToggle, onView, onDelete, canDele
                       className="mt-2 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-700"
                     >
                       {installingRequirements ? 'Installing...' : 'Install Requirements'}
-                    </button>
-                  )}
-                  {onOpenSetup && (
-                    <button
-                      onClick={onOpenSetup}
-                      className="mt-2 ml-2 rounded-md bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700"
-                    >
-                      Complete Setup
                     </button>
                   )}
                 </div>
