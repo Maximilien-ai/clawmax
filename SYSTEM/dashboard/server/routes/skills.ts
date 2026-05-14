@@ -277,8 +277,7 @@ router.post('/:skillId/complete-setup', async (req, res) => {
     }
 
     const commands = getSkillSetupCommands(skill, {
-      clientSecretPath: req.body?.clientSecretPath,
-      accountEmail: req.body?.accountEmail,
+      inputs: req.body?.inputs,
     })
     if (commands.length === 0) {
       return res.status(400).json({ error: `Skill "${skill.name}" has no dashboard-guided setup flow yet` })

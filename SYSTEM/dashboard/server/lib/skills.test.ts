@@ -61,6 +61,7 @@ const {
   getWorkspaceSkillsDir,
   updateSkillContent,
   getSkillRequirementInstallCommands,
+  getSkillSetupCommands,
   validateSkillChanges
 } = require('./skills')
 
@@ -249,6 +250,69 @@ metadata:
   assertEqual(skill!.registryName as any, 'acme/test-tessl-skill', 'Expected registry name metadata')
 
   deleteWorkspaceSkill('test-tessl-skill')
+})
+
+test('workspace skills expose setup requirement metadata when present', () => {
+  const workspaceSkillsDir = getWorkspaceSkillsDir()
+  const skillDir = path.join(workspaceSkillsDir, 'test-setup-skill')
+  fs.mkdirSync(skillDir, { recursive: true })
+  fs.writeFileSync(path.join(skillDir, 'SKILL.md'), `---
+name: test-setup-skill
+description: Skill with guided setup metadata
+setupRequirements:
+  label: Needs setup
+  message: Finish auth before use.
+  actionId: gog-google-workspace-auth
+  actionLabel: Complete Setup
+  inputs:
+    - key: clientSecretPath
+      label: Client Secret JSON
+      kind: path
+      required: true
+    - key: accountEmail
+      label: Google Account Email
+      kind: email
+      required: true
+---
+
+# Test Setup Skill
+`, 'utf-8')
+
+  const skill = getSkillById('test-setup-skill')
+  assert(skill !== null, 'Expected setup skill to load')
+  assertEqual(skill!.setupRequirements?.actionId as any, 'gog-google-workspace-auth', 'Expected setup action id to persist')
+  assertEqual(skill!.setupRequirements?.inputs?.length as any, 2, 'Expected setup inputs to persist')
+
+  deleteWorkspaceSkill('test-setup-skill')
+})
+
+test('getSkillSetupCommands() builds guided setup commands from metadata action id', () => {
+  const commands = getSkillSetupCommands({
+    name: 'test-setup-skill',
+    description: 'Skill with setup',
+    filePath: '/tmp/test-setup-skill/SKILL.md',
+    bundled: false,
+    source: 'workspace',
+    setupRequirements: {
+      label: 'Needs setup',
+      message: 'Finish auth before use.',
+      actionId: 'gog-google-workspace-auth',
+      inputs: [
+        { key: 'clientSecretPath', label: 'Client Secret JSON', kind: 'path', required: true },
+        { key: 'accountEmail', label: 'Google Account Email', kind: 'email', required: true },
+      ],
+    },
+  }, {
+    inputs: {
+      clientSecretPath: '/tmp/client_secret.json',
+      accountEmail: 'you@gmail.com',
+    },
+  })
+
+  assertEqual(commands.length, 3, 'Expected guided setup to emit all gog setup commands')
+  assertEqual(commands[0].display, 'gog auth credentials /tmp/client_secret.json', 'Expected credentials command')
+  assertEqual(commands[1].display, 'gog auth add you@gmail.com --services gmail,calendar,drive,contacts,docs,sheets', 'Expected auth add command')
+  assertEqual(commands[2].display, 'gog auth list', 'Expected auth list verification command')
 })
 
 // Test 4: Get skill by ID - invalid skill

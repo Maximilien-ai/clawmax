@@ -191,8 +191,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
   const [skillSetupError, setSkillSetupError] = useState<string | null>(null)
   const [skillSetupDone, setSkillSetupDone] = useState(false)
   const [runningSkillSetupName, setRunningSkillSetupName] = useState<string | null>(null)
-  const [gogClientSecretPath, setGogClientSecretPath] = useState('')
-  const [gogAccountEmail, setGogAccountEmail] = useState('')
+  const [skillSetupValues, setSkillSetupValues] = useState<Record<string, string>>({})
   const [didHandleInitialSkillName, setDidHandleInitialSkillName] = useState(false)
   const [skillSecrets, setSkillSecrets] = useState<Record<string, string>>({})
   const [viewerAgentSearchQuery, setViewerAgentSearchQuery] = useState('')
@@ -739,7 +738,9 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
       setError(`Skill "${skill.name}" has no dashboard-guided setup flow yet`)
       return
     }
+    const initialValues = Object.fromEntries((setupHint.inputs || []).map((input) => [input.key, '']))
     setPendingSetupSkill(skill)
+    setSkillSetupValues(initialValues)
     setSkillSetupLogs([`# ${skill.name} setup`, ...((setupHint.commands || []).map((command) => `$ ${command}`))])
     setSkillSetupError(null)
     setSkillSetupDone(false)
@@ -756,8 +757,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          clientSecretPath: gogClientSecretPath,
-          accountEmail: gogAccountEmail,
+          inputs: skillSetupValues,
         }),
       })
       const data = await res.json().catch(() => ({}))
@@ -779,7 +779,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
       nextLogs.push(`✓ Completed setup flow for ${skill.name}`)
       setSkillSetupLogs(nextLogs)
       setSkillSetupDone(true)
-      showSuccess(`Completed setup flow for ${skill.name}`)
+      showSuccess(getSkillSetupHint(skill)?.successMessage || `Completed setup flow for ${skill.name}`)
     } catch (err: any) {
       const message = err.message || `Failed to complete setup for ${skill.name}`
       setSkillSetupError(message)
@@ -2353,32 +2353,25 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                 <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
                   {getSkillSetupHint(pendingSetupSkill)?.message}
                 </div>
-                {pendingSetupSkill.name === 'gog' && (
+                {(getSkillSetupHint(pendingSetupSkill)?.inputs || []).length > 0 && (
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    <div>
-                      <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                        Client Secret JSON
-                      </label>
-                      <input
-                        type="text"
-                        value={gogClientSecretPath}
-                        onChange={(e) => setGogClientSecretPath(e.target.value)}
-                        placeholder="/path/to/client_secret.json"
-                        className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                        Google Account Email
-                      </label>
-                      <input
-                        type="email"
-                        value={gogAccountEmail}
-                        onChange={(e) => setGogAccountEmail(e.target.value)}
-                        placeholder="you@gmail.com"
-                        className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
-                      />
-                    </div>
+                    {(getSkillSetupHint(pendingSetupSkill)?.inputs || []).map((input) => (
+                      <div key={input.key}>
+                        <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-200">
+                          {input.label}
+                        </label>
+                        <input
+                          type={input.kind === 'password' ? 'password' : input.kind === 'email' ? 'email' : input.kind === 'url' ? 'url' : 'text'}
+                          value={skillSetupValues[input.key] || ''}
+                          onChange={(e) => setSkillSetupValues((current) => ({ ...current, [input.key]: e.target.value }))}
+                          placeholder={input.placeholder || ''}
+                          className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+                        />
+                        {input.help && (
+                          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{input.help}</p>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 )}
                 <div className="bg-gray-900 text-green-400 font-mono text-xs rounded-lg p-3 h-64 overflow-y-auto whitespace-pre-wrap">
@@ -2412,11 +2405,11 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                   onClick={() => void completeSkillSetup(pendingSetupSkill)}
                   disabled={
                     runningSkillSetupName === pendingSetupSkill.name ||
-                    (pendingSetupSkill.name === 'gog' && (!gogClientSecretPath.trim() || !gogAccountEmail.trim()))
+                    (getSkillSetupHint(pendingSetupSkill)?.inputs || []).some((input) => input.required && !String(skillSetupValues[input.key] || '').trim())
                   }
                   className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-gray-300 dark:disabled:bg-gray-600"
                 >
-                  {runningSkillSetupName === pendingSetupSkill.name ? 'Running Setup…' : 'Complete Setup'}
+                  {runningSkillSetupName === pendingSetupSkill.name ? 'Running Setup…' : (getSkillSetupHint(pendingSetupSkill)?.actionLabel || 'Complete Setup')}
                 </button>
               </div>
             </div>

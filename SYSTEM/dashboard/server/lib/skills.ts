@@ -60,6 +60,17 @@ export interface OpenClawSkill {
     message: string
     commands?: string[]
     actionId?: string
+    actionLabel?: string
+    successMessage?: string
+    inputs?: Array<{
+      key: string
+      label: string
+      kind?: 'text' | 'email' | 'path' | 'password' | 'url'
+      required?: boolean
+      help?: string
+      placeholder?: string
+      sensitive?: boolean
+    }>
   }
 }
 
@@ -74,6 +85,51 @@ export interface SkillSetupCommand {
   command: string
   args: string[]
   display: string
+}
+
+const DEFAULT_SKILL_SETUP_REQUIREMENTS: Record<string, NonNullable<OpenClawSkill['setupRequirements']>> = {
+  gog: {
+    label: 'Needs setup',
+    message: 'gog needs Google Workspace auth/account setup before an agent can actually use Gmail, Calendar, Drive, Docs, or Sheets.',
+    commands: [
+      'gog auth credentials /path/to/client_secret.json',
+      'gog auth add you@gmail.com --services gmail,calendar,drive,contacts,docs,sheets',
+      'gog auth list',
+    ],
+    actionId: 'gog-google-workspace-auth',
+    actionLabel: 'Complete Setup',
+    successMessage: 'Setup flow completed. If gog opened a browser, finish the consent flow there and then retry the agent.',
+    inputs: [
+      {
+        key: 'clientSecretPath',
+        label: 'Client Secret JSON',
+        kind: 'path',
+        required: true,
+        placeholder: '/path/to/client_secret.json',
+      },
+      {
+        key: 'accountEmail',
+        label: 'Google Account Email',
+        kind: 'email',
+        required: true,
+        placeholder: 'you@gmail.com',
+      },
+    ],
+  },
+}
+
+function normalizeSkillSetupRequirements(
+  name: string,
+  setupRequirements: OpenClawSkill['setupRequirements'] | undefined
+): OpenClawSkill['setupRequirements'] | undefined {
+  const defaults = DEFAULT_SKILL_SETUP_REQUIREMENTS[name]
+  if (!defaults && !setupRequirements) return undefined
+  return {
+    ...(defaults || {}),
+    ...(setupRequirements || {}),
+    inputs: setupRequirements?.inputs || defaults?.inputs,
+    commands: setupRequirements?.commands || defaults?.commands,
+  }
 }
 
 // Paths to skill directories
@@ -345,7 +401,7 @@ function parseSkillFile(
       registryProvider: openclawMeta.registryProvider,
       registryName: openclawMeta.registryName,
       secretRequirements: openclawMeta.secretRequirements || data.secretRequirements || [],
-      setupRequirements: openclawMeta.setupRequirements || data.setupRequirements,
+      setupRequirements: normalizeSkillSetupRequirements(data.name, openclawMeta.setupRequirements || data.setupRequirements),
     }
   } catch (err) {
     console.error(`Failed to parse skill ${filePath}:`, err)
@@ -388,7 +444,7 @@ function parseWorkspaceSkillFile(filePath: string, skillId: string): OpenClawSki
       registryProvider: openclawMeta.registryProvider,
       registryName: openclawMeta.registryName,
       secretRequirements: data.secretRequirements || openclawMeta.secretRequirements || [],
-      setupRequirements: data.setupRequirements || openclawMeta.setupRequirements,
+      setupRequirements: normalizeSkillSetupRequirements(name, data.setupRequirements || openclawMeta.setupRequirements),
     }
   } catch (err) {
     console.error(`Failed to parse workspace skill ${filePath}:`, err)
@@ -453,37 +509,41 @@ export function getSkillRequirementInstallCommands(skill: OpenClawSkill): SkillR
 
 export function getSkillSetupCommands(
   skill: OpenClawSkill,
-  options?: { clientSecretPath?: string; accountEmail?: string }
+  options?: { inputs?: Record<string, string> }
 ): SkillSetupCommand[] {
-  const actionId = skill.setupRequirements?.actionId || (skill.name === 'gog' ? 'gog-google-workspace-auth' : undefined)
-  if (actionId !== 'gog-google-workspace-auth') return []
+  const actionId = skill.setupRequirements?.actionId
+  const inputs = options?.inputs || {}
 
-  const clientSecretPath = options?.clientSecretPath?.trim()
-  const accountEmail = options?.accountEmail?.trim()
-  if (!clientSecretPath) {
-    throw new Error('Client secret JSON path is required for gog setup')
-  }
-  if (!accountEmail) {
-    throw new Error('Google account email is required for gog setup')
+  if (actionId === 'gog-google-workspace-auth') {
+    const clientSecretPath = (inputs.clientSecretPath || '').trim()
+    const accountEmail = (inputs.accountEmail || '').trim()
+    if (!clientSecretPath) {
+      throw new Error('Client secret JSON path is required for gog setup')
+    }
+    if (!accountEmail) {
+      throw new Error('Google account email is required for gog setup')
+    }
+
+    return [
+      {
+        command: 'gog',
+        args: ['auth', 'credentials', clientSecretPath],
+        display: `gog auth credentials ${clientSecretPath}`,
+      },
+      {
+        command: 'gog',
+        args: ['auth', 'add', accountEmail, '--services', 'gmail,calendar,drive,contacts,docs,sheets'],
+        display: `gog auth add ${accountEmail} --services gmail,calendar,drive,contacts,docs,sheets`,
+      },
+      {
+        command: 'gog',
+        args: ['auth', 'list'],
+        display: 'gog auth list',
+      },
+    ]
   }
 
-  return [
-    {
-      command: 'gog',
-      args: ['auth', 'credentials', clientSecretPath],
-      display: `gog auth credentials ${clientSecretPath}`,
-    },
-    {
-      command: 'gog',
-      args: ['auth', 'add', accountEmail, '--services', 'gmail,calendar,drive,contacts,docs,sheets'],
-      display: `gog auth add ${accountEmail} --services gmail,calendar,drive,contacts,docs,sheets`,
-    },
-    {
-      command: 'gog',
-      args: ['auth', 'list'],
-      display: 'gog auth list',
-    },
-  ]
+  return []
 }
 
 export function updateSkillContent(

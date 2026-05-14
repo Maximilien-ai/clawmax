@@ -25,11 +25,24 @@ export interface SecretRequirement {
   sensitive?: boolean
 }
 
+export interface SkillSetupInputRequirement {
+  key: string
+  label: string
+  kind?: 'text' | 'email' | 'path' | 'password' | 'url'
+  required?: boolean
+  help?: string
+  placeholder?: string
+  sensitive?: boolean
+}
+
 export interface SkillSetupRequirement {
   label?: string
   message: string
   commands?: string[]
   actionId?: string
+  actionLabel?: string
+  successMessage?: string
+  inputs?: SkillSetupInputRequirement[]
 }
 
 export interface OpenClawSkill {

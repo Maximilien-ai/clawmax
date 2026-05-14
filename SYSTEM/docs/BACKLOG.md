@@ -169,6 +169,7 @@ Target: keep the `1.4.1` line stable after tag/test, close out remaining custome
 - [ ] **Workspace stats dashboard** — aggregate view with pause/disable
 
 ### Skills
+- [ ] **ClawHub install CLI hardening** — validate and harden the `clawhub install` CLI path across local, cloud, and on-prem runtimes now that ClawHub is the first/default registry in the dashboard; keep search/browse and install behavior aligned and document any env/runtime prerequisites before treating it as fully stable.
 - [ ] **Add skills to agents directly from agent flows** — allow assigning/searching/adding skills from agent creation, agent detail, or agent edit flows without forcing a separate trip to the Skills page.
 - [ ] **Agent-scoped skills page/panel** — add a dedicated `Skills...` entry from agent detail/edit that shows current agent skills plus search/browse to add more in place.
 - [x] **Browse skill registries in Skills page** — Skills now supports embedded discovery for Shipables plus exploratory Tessl registry suggestions and registry-browser entrypoints.
