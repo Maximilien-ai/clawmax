@@ -135,6 +135,7 @@ export default function AgentDetailPanel({
   const [costLimitInput, setCostLimitInput] = useState('')
   const [editingCostLimit, setEditingCostLimit] = useState(false)
   const [workspaceBudget, setWorkspaceBudget] = useState<WorkspaceBudgetStatus | null>(null)
+  const [removingSkillName, setRemovingSkillName] = useState<string | null>(null)
 
   // Close on Escape
   const handleKey = useCallback((e: KeyboardEvent) => {
@@ -218,6 +219,36 @@ export default function AgentDetailPanel({
     setCostLimit(val && val > 0 ? val : null)
     setEditingCostLimit(false)
     showSuccess(val && val > 0 ? `Set ${agent.name} budget to $${val.toFixed(2)}` : `Removed ${agent.name} budget limit`)
+  }
+
+  const handleRemoveSkill = async (skillName: string) => {
+    if (!activity?.skills) return
+
+    const nextSkills = activity.skills.filter((skill) => skill !== skillName)
+    setRemovingSkillName(skillName)
+    try {
+      const res = await fetch(`/api/skills/agent/${encodeURIComponent(agent.id)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ skills: nextSkills }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(data.error || `Failed to remove ${skillName}`)
+      }
+
+      setActivity((current) => current ? { ...current, skills: nextSkills } : current)
+      if (Array.isArray(data.warnings) && data.warnings.length > 0) {
+        showError(data.warnings.join(' '))
+      } else {
+        showSuccess(`Removed ${skillName} from ${agent.name}`)
+      }
+      window.dispatchEvent(new Event('agents-updated'))
+    } catch (err: any) {
+      showError(err.message || `Failed to remove ${skillName}`)
+    } finally {
+      setRemovingSkillName(null)
+    }
   }
 
   const handleRename = async () => {
@@ -487,18 +518,32 @@ export default function AgentDetailPanel({
                 <Section title="Skills & Tools" source="openclaw.json">
                   <div className="flex flex-wrap gap-1.5">
                     {activity.skills.map(skill => (
-                      <button
+                      <div
                         key={skill}
-                        onClick={() => {
-                          if (onNavigateToSkills) {
-                            onNavigateToSkills(agent.id)
-                            onClose()
-                          }
-                        }}
-                        className="px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-xs font-medium hover:bg-blue-100 transition-colors"
+                        className="inline-flex items-center gap-1 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-xs font-medium pr-1"
                       >
-                        {skill}
-                      </button>
+                        <button
+                          onClick={() => {
+                            if (onNavigateToSkills) {
+                              onNavigateToSkills(agent.id)
+                              onClose()
+                            }
+                          }}
+                          className="px-2 py-0.5 rounded-full rounded-r-none hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
+                          title={`Open skills manager for ${skill}`}
+                        >
+                          {skill}
+                        </button>
+                        <button
+                          onClick={() => void handleRemoveSkill(skill)}
+                          disabled={removingSkillName === skill}
+                          className="inline-flex h-5 w-5 items-center justify-center rounded-full text-blue-500 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition-colors"
+                          title={`Remove ${skill}`}
+                          aria-label={`Remove ${skill}`}
+                        >
+                          {removingSkillName === skill ? '…' : '×'}
+                        </button>
+                      </div>
                     ))}
                   </div>
                   {onNavigateToSkills && (

@@ -176,6 +176,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
   const [skillSecrets, setSkillSecrets] = useState<Record<string, string>>({})
   const [viewerAgentSearchQuery, setViewerAgentSearchQuery] = useState('')
   const [savingSkillAssignmentAgentId, setSavingSkillAssignmentAgentId] = useState<string | null>(null)
+  const [removingAssignedSkillName, setRemovingAssignedSkillName] = useState<string | null>(null)
 
   const focusSkill = (skillName: string) => {
     const normalized = skillName.trim().toLowerCase()
@@ -833,6 +834,10 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
     () => summarizeSkillDeleteImpact(pendingDeletePartition.deletableSkills, skillUsage),
     [pendingDeletePartition.deletableSkills, skillUsage]
   )
+  const selectedAgentAssignedSkills = useMemo(
+    () => Array.from(assignedSkills).sort((a, b) => a.localeCompare(b)),
+    [assignedSkills]
+  )
 
   async function deleteSkillByName(skillName: string) {
     const response = await fetch(`${API_BASE}/api/skills/${encodeURIComponent(skillName)}`, {
@@ -1039,9 +1044,65 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
             )}
           </div>
           {availableAgents.length > 0 ? (
-            <p className="text-gray-600">
-              Assign skills to <span className="font-semibold text-gray-900 dark:text-gray-100">{agentId}</span> agent
-            </p>
+            <div className="space-y-3">
+              <p className="text-gray-600">
+                Assign skills to <span className="font-semibold text-gray-900 dark:text-gray-100">{agentId}</span> agent
+              </p>
+              {agentId && (
+                <div className="rounded-lg border border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-800">
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    Assigned Skills
+                  </div>
+                  {selectedAgentAssignedSkills.length === 0 ? (
+                    <div className="text-sm text-gray-500 dark:text-gray-400">No skills assigned yet.</div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {selectedAgentAssignedSkills.map((skillName) => (
+                        <div
+                          key={`selected-agent-skill-${skillName}`}
+                          className="inline-flex items-center gap-1 rounded-full bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 text-xs font-medium pr-1"
+                        >
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSearchQuery(skillName)
+                              setFilterAssigned('assigned')
+                            }}
+                            className="rounded-full rounded-r-none px-3 py-1.5 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
+                            title={`Focus ${skillName}`}
+                          >
+                            {skillName}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={removingAssignedSkillName === skillName}
+                            onClick={async () => {
+                              if (!agentId) return
+                              setRemovingAssignedSkillName(skillName)
+                              setError(null)
+                              try {
+                                const nextSkills = selectedAgentAssignedSkills.filter((skill) => skill !== skillName)
+                                await persistAgentSkills(agentId, nextSkills)
+                                showSuccess(`Removed ${skillName} from ${agentId}`)
+                              } catch (err: any) {
+                                setError(err.message || `Failed to remove ${skillName}`)
+                              } finally {
+                                setRemovingAssignedSkillName(null)
+                              }
+                            }}
+                            className="inline-flex h-5 w-5 items-center justify-center rounded-full text-blue-500 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition-colors"
+                            title={`Remove ${skillName}`}
+                            aria-label={`Remove ${skillName}`}
+                          >
+                            {removingAssignedSkillName === skillName ? '…' : '×'}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           ) : (
             <p className="text-gray-600">
               No agents found in workspace. Create an agent to manage skills.
