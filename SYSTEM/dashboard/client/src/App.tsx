@@ -21,6 +21,7 @@ import { ByokWizard } from './components/ByokWizard'
 import { MaintenanceBanner } from './components/MaintenanceBanner'
 import { NotificationCenter } from './components/NotificationCenter'
 import { OnboardingWizard } from './components/OnboardingWizard'
+import { TermsOfServiceModal } from './components/TermsOfServiceModal'
 import { useWorkspace } from './contexts/WorkspaceContext'
 import { CHANNEL_API_ENDPOINTS } from './lib/channelApi'
 import { getVisibleMaintenanceBanner } from './lib/maintenanceBannerView'
@@ -208,6 +209,7 @@ export default function App() {
     return window.matchMedia('(prefers-color-scheme: dark)').matches
   })
   const [dismissedMaintenanceKey, setDismissedMaintenanceKey] = useState<string | null>(null)
+  const [showTermsOfService, setShowTermsOfService] = useState(false)
 
   // Apply dark mode class to document
   useEffect(() => {
@@ -284,6 +286,12 @@ export default function App() {
 
     window.addEventListener('navigate-to-page', handleNavigate as EventListener)
     return () => window.removeEventListener('navigate-to-page', handleNavigate as EventListener)
+  }, [])
+
+  useEffect(() => {
+    const handleOpenTerms = () => setShowTermsOfService(true)
+    window.addEventListener('open-terms-of-service', handleOpenTerms)
+    return () => window.removeEventListener('open-terms-of-service', handleOpenTerms)
   }, [])
 
   // Poll for running workflows count
@@ -390,6 +398,7 @@ export default function App() {
             isOpen={showWorkspaceDialog}
             onClose={() => setShowWorkspaceDialog(false)}
           />
+          <TermsOfServiceModal open={showTermsOfService} onClose={() => setShowTermsOfService(false)} />
           <div className="flex h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 dark:bg-gray-900">
           {/* Mobile nav overlay backdrop */}
           {mobileNavOpen && (
@@ -450,16 +459,43 @@ export default function App() {
 
             {/* Footer / collapse toggle */}
             <div className={`border-t border-gray-700 ${navCollapsed ? 'px-2 py-3 flex justify-center' : 'px-4 py-3 flex items-center justify-between'}`}>
-              {!navCollapsed && (
-                <span className="text-xs text-gray-500 font-mono">{system?.version ?? '…'} · {(system?.machineName || system?.hostname || '…')}</span>
+              {!navCollapsed ? (
+                <div className="flex min-w-0 flex-1 items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="truncate text-xs font-mono text-gray-500">{system?.version ?? '…'} · {(system?.machineName || system?.hostname || '…')}</div>
+                    <button
+                      onClick={() => setShowTermsOfService(true)}
+                      className="mt-1 text-[11px] text-sky-400 hover:text-sky-300"
+                    >
+                      Terms of Service
+                    </button>
+                  </div>
+                  <button
+                    onClick={() => setNavCollapsed(c => !c)}
+                    className="text-gray-500 hover:text-gray-300 transition-colors text-xs leading-none p-1 rounded hover:bg-gray-800"
+                    title={navCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                  >
+                    ◀
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center gap-1">
+                  <button
+                    onClick={() => setShowTermsOfService(true)}
+                    className="text-[10px] text-sky-400 hover:text-sky-300"
+                    title="Terms of Service"
+                  >
+                    TOS
+                  </button>
+                  <button
+                    onClick={() => setNavCollapsed(c => !c)}
+                    className="text-gray-500 hover:text-gray-300 transition-colors text-xs leading-none p-1 rounded hover:bg-gray-800"
+                    title={navCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                  >
+                    ▶
+                  </button>
+                </div>
               )}
-              <button
-                onClick={() => setNavCollapsed(c => !c)}
-                className="text-gray-500 hover:text-gray-300 transition-colors text-xs leading-none p-1 rounded hover:bg-gray-800"
-                title={navCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-              >
-                {navCollapsed ? '▶' : '◀'}
-              </button>
             </div>
           </aside>
 

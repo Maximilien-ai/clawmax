@@ -26,6 +26,32 @@ function stripFrontmatter(content: string): string {
   return content
 }
 
+function openDashboardTermsOfService() {
+  window.dispatchEvent(new CustomEvent('open-terms-of-service'))
+}
+
+function TermsRiskNotice({
+  title,
+  body,
+}: {
+  title: string
+  body: string
+}) {
+  return (
+    <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+      <div className="font-medium">{title}</div>
+      <div className="mt-1">{body}</div>
+      <button
+        type="button"
+        onClick={openDashboardTermsOfService}
+        className="mt-2 text-xs font-medium text-amber-800 underline underline-offset-2 hover:text-amber-900 dark:text-amber-200 dark:hover:text-white"
+      >
+        View Dashboard Terms of Service
+      </button>
+    </div>
+  )
+}
+
 function getSkillMatchScore(skill: OpenClawSkill, query: string): number {
   const normalized = query.trim().toLowerCase()
   if (!normalized) return 0
@@ -1455,6 +1481,12 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
             </div>
             {showPartnerInstallers && (
             <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              <div className="md:col-span-2 xl:col-span-3">
+                <TermsRiskNotice
+                  title="Partner install reminder"
+                  body="Partner skills and curated installers can add new capabilities, dependencies, and external access. Review them before installing."
+                />
+              </div>
               {visiblePartnerInstallers.map((partner) => (
                 <div key={`partner-surface-${partner.slug}`} className="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
                   <div className="flex items-center gap-2">
@@ -1590,6 +1622,12 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                     >
                       Open registry
                     </button>
+                  </div>
+                  <div className="mb-3">
+                    <TermsRiskNotice
+                      title="Registry install reminder"
+                      body="Registry skills may come from third parties and can require binaries, credentials, or setup flows. Review the skill before installing it into your workspace."
+                    />
                   </div>
                   {inlineRegistryLoading ? (
                     <div className="text-sm text-gray-500 dark:text-gray-400">Searching registry…</div>
@@ -2333,6 +2371,10 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
               </div>
 
               <div className="space-y-4 px-6 py-4">
+                <TermsRiskNotice
+                  title="Machine command reminder"
+                  body="Installing skill requirements can modify this machine or runtime environment. Only continue if you trust the skill and the displayed install commands."
+                />
                 <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-200">
                   {pendingInstallSkill.requirementStatus?.checkable && pendingInstallSkill.requirementStatus.installSatisfied ? (
                     <>
@@ -2413,6 +2455,10 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
               </div>
 
               <div className="space-y-4 px-6 py-4">
+                <TermsRiskNotice
+                  title="Auth and setup reminder"
+                  body="Completing skill setup may authenticate external accounts, grant runtime access, or store credentials and configuration. Only continue if you trust the skill and understand the permissions being granted."
+                />
                 <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
                   {getSkillSetupHint(pendingSetupSkill)?.message}
                 </div>
@@ -2690,6 +2736,14 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
               </div>
 
               <div className="flex-1 overflow-y-auto px-6 py-6">
+                {(importSource === 'local' || importSource === 'github' || importSource === 'registry' || importSource === 'partner') && (
+                  <div className="mb-5">
+                    <TermsRiskNotice
+                      title="External skill risk reminder"
+                      body="Third-party skills, partner installers, GitHub repositories, local directories, and registries can add new capabilities, binaries, secrets, and machine-level commands. Review what you are importing or installing before you continue."
+                    />
+                  </div>
+                )}
 
                 {/* Local Import */}
                 {importSource === 'local' && (

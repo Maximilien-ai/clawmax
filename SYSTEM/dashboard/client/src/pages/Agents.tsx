@@ -124,6 +124,10 @@ function timeAgo(iso: string | null): string {
   return `${Math.floor(hrs / 24)}d ago`
 }
 
+function openDashboardTermsOfService() {
+  window.dispatchEvent(new CustomEvent('open-terms-of-service'))
+}
+
 type ViewMode = 'grid' | 'list' | 'table'
 type ArchiveTab = 'active' | 'archived'
 
@@ -2325,6 +2329,20 @@ function ImportOpenClawAgentModal({
           <div className="py-4 px-4 rounded-md bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-sm border border-red-200 dark:border-red-800">{error}</div>
         ) : (
           <div className="space-y-4">
+            <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 text-sm text-amber-900 dark:text-amber-200">
+              <div className="font-medium">External agent risk reminder</div>
+              <div className="mt-1">
+                Imported agents, ZIP bundles, and local directories can restore prompts, files, skills, and behavior you did not author here. Review imported content before using it in a sensitive or production workspace.
+              </div>
+              <button
+                type="button"
+                onClick={openDashboardTermsOfService}
+                className="mt-2 text-xs font-medium text-amber-800 underline underline-offset-2 hover:text-amber-900 dark:text-amber-200 dark:hover:text-white"
+              >
+                View Dashboard Terms of Service
+              </button>
+            </div>
+
             <div className="flex items-center gap-2 flex-wrap">
               {[
                 { id: 'openclaw', label: 'OpenClaw', icon: '🗂' },
