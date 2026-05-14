@@ -497,6 +497,15 @@ else
   fail "Navigation helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Discovery suggestion helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/discoverySuggestions.test.ts > /tmp/clawmax-discovery-suggestions.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-discovery-suggestions.out; then
+  discovery_suggestions_count=$(grep "Tests passed:" /tmp/clawmax-discovery-suggestions.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Discovery suggestion helper unit tests (${discovery_suggestions_count:-?} tests)"
+else
+  fail "Discovery suggestion helper unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Agent label helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/agentLabels.test.ts > /tmp/clawmax-agent-labels.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-agent-labels.out; then
@@ -582,6 +591,15 @@ else
   fail "Cloud maintenance status unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Version unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/version.test.ts > /tmp/clawmax-version.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-version.out; then
+  version_count=$(grep "Tests passed:" /tmp/clawmax-version.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Version unit tests (${version_count:-?} tests)"
+else
+  fail "Version unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Workflows unit tests...${NC}"
 OPENCLAW_WORKSPACE=/tmp/clawmax-workflows-test npx ts-node --transpileOnly server/lib/workflows.test.ts > /tmp/clawmax-workflows.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-workflows.out; then
@@ -600,6 +618,15 @@ else
   fail "Metering unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Budget unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/budget.test.ts > /tmp/clawmax-budget.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-budget.out; then
+  budget_count=$(grep "Tests passed:" /tmp/clawmax-budget.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Budget unit tests (${budget_count:-?} tests)"
+else
+  fail "Budget unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Prereqs unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/prereqs.test.ts > /tmp/clawmax-prereqs.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-prereqs.out; then
@@ -616,6 +643,33 @@ if grep -q "All tests passed" /tmp/clawmax-workspace-integrations.out; then
   pass "Workspace integrations unit tests (${workspace_integrations_count:-?} tests)"
 else
   fail "Workspace integrations unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Workspace import unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/workspace-import.test.ts > /tmp/clawmax-workspace-import.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-workspace-import.out; then
+  workspace_import_count=$(grep "Tests passed:" /tmp/clawmax-workspace-import.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Workspace import unit tests (${workspace_import_count:-?} tests)"
+else
+  fail "Workspace import unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Workspace export unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/workspace-export.test.ts > /tmp/clawmax-workspace-export.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-workspace-export.out; then
+  workspace_export_count=$(grep "Tests passed:" /tmp/clawmax-workspace-export.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Workspace export unit tests (${workspace_export_count:-?} tests)"
+else
+  fail "Workspace export unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Workspace manager unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/workspace-manager.test.ts > /tmp/clawmax-workspace-manager.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-workspace-manager.out; then
+  workspace_manager_count=$(grep "Tests passed:" /tmp/clawmax-workspace-manager.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Workspace manager unit tests (${workspace_manager_count:-?} tests)"
+else
+  fail "Workspace manager unit tests"
 fi
 
 echo -e "${YELLOW}→ Running Integration validation unit tests...${NC}"
@@ -661,6 +715,16 @@ if grep -q "All tests passed" /tmp/clawmax-agent-model.out; then
   pass "Agent model unit tests (3 tests)"
 else
   fail "Agent model unit tests"
+fi
+
+echo ""
+echo -e "${YELLOW}→ Running Agent state unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/agent-state.test.ts > /tmp/clawmax-agent-state.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-agent-state.out; then
+  agent_state_count=$(grep "Tests passed:" /tmp/clawmax-agent-state.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Agent state unit tests (${agent_state_count:-?} tests)"
+else
+  fail "Agent state unit tests"
 fi
 
 echo ""
@@ -743,6 +807,16 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Workflow integration defaults unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/workflow-integration-defaults.test.ts > /tmp/clawmax-workflow-integration-defaults.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-workflow-integration-defaults.out; then
+  workflow_integration_defaults_count=$(grep "Tests passed:" /tmp/clawmax-workflow-integration-defaults.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Workflow integration defaults unit tests (${workflow_integration_defaults_count:-?} tests)"
+else
+  fail "Workflow integration defaults unit tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Workspace dashboard library unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/workspace-dashboards.test.ts > /tmp/clawmax-workspace-dashboards.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-workspace-dashboards.out; then
@@ -770,6 +844,16 @@ if grep -q "All tests passed" /tmp/clawmax-ai-generator.out; then
   pass "AI generator unit tests (${ai_generator_count:-?} tests)"
 else
   fail "AI generator unit tests"
+fi
+
+echo ""
+echo -e "${YELLOW}→ Running Chat normalization unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/chat-normalization.test.ts > /tmp/clawmax-chat-normalization.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-chat-normalization.out; then
+  chat_normalization_count=$(grep "Tests passed:" /tmp/clawmax-chat-normalization.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Chat normalization unit tests (${chat_normalization_count:-?} tests)"
+else
+  fail "Chat normalization unit tests"
 fi
 
 echo ""
@@ -802,6 +886,26 @@ if [ "$openclaw_transfer_status" -eq 0 ]; then
 else
   tail -n 60 /tmp/clawmax-openclaw-agent-transfer.out
   fail "OpenClaw agent transfer unit tests"
+fi
+
+echo ""
+echo -e "${YELLOW}→ Running Partner installer unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/partner-installs.test.ts > /tmp/clawmax-partner-installs.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-partner-installs.out; then
+  partner_installs_count=$(grep "Tests passed:" /tmp/clawmax-partner-installs.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Partner installer unit tests (${partner_installs_count:-?} tests)"
+else
+  fail "Partner installer unit tests"
+fi
+
+echo ""
+echo -e "${YELLOW}→ Running Partners unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/partners.test.ts > /tmp/clawmax-partners.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-partners.out; then
+  partners_count=$(grep "Tests passed:" /tmp/clawmax-partners.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Partners unit tests (${partners_count:-?} tests)"
+else
+  fail "Partners unit tests"
 fi
 
 cd ..
