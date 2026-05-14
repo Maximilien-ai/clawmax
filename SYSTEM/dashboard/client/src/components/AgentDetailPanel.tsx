@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useToast } from './Toast'
+import { getSkillSetupHint } from '../lib/skillSetup'
 
 interface GroupEntry {
   name: string
@@ -118,7 +119,7 @@ export default function AgentDetailPanel({
   onClose: () => void
   onChat: () => void
   onClone?: () => void
-  onNavigateToSkills?: (agentId: string) => void
+  onNavigateToSkills?: (agentId: string, skillName?: string) => void
   onNavigateToDoc?: (file: string) => void
   initialEditCostLimit?: boolean
   costTrackingEnabled?: boolean
@@ -517,34 +518,49 @@ export default function AgentDetailPanel({
               {activity.skills && activity.skills.length > 0 && (
                 <Section title="Skills & Tools" source="openclaw.json">
                   <div className="flex flex-wrap gap-1.5">
-                    {activity.skills.map(skill => (
-                      <div
-                        key={skill}
-                        className="inline-flex items-center gap-1 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-xs font-medium pr-1"
-                      >
-                        <button
-                          onClick={() => {
-                            if (onNavigateToSkills) {
-                              onNavigateToSkills(agent.id)
-                              onClose()
-                            }
-                          }}
-                          className="px-2 py-0.5 rounded-full rounded-r-none hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
-                          title={`Open skills manager for ${skill}`}
+                    {activity.skills.map(skill => {
+                      const setupHint = getSkillSetupHint({ name: skill })
+                      const baseClasses = setupHint
+                        ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
+                        : 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
+                      const hoverClasses = setupHint
+                        ? 'hover:bg-amber-100 dark:hover:bg-amber-900/40'
+                        : 'hover:bg-blue-100 dark:hover:bg-blue-900/40'
+                      const removeClasses = setupHint
+                        ? 'text-amber-500'
+                        : 'text-blue-500'
+                      return (
+                        <div
+                          key={skill}
+                          className={`inline-flex items-center gap-1 rounded-full text-xs font-medium pr-1 ${baseClasses}`}
                         >
-                          {skill}
-                        </button>
-                        <button
-                          onClick={() => void handleRemoveSkill(skill)}
-                          disabled={removingSkillName === skill}
-                          className="inline-flex h-5 w-5 items-center justify-center rounded-full text-blue-500 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition-colors"
-                          title={`Remove ${skill}`}
-                          aria-label={`Remove ${skill}`}
-                        >
-                          {removingSkillName === skill ? '…' : '×'}
-                        </button>
-                      </div>
-                    ))}
+                          <button
+                            onClick={() => {
+                              if (onNavigateToSkills) {
+                                onNavigateToSkills(agent.id, skill)
+                                onClose()
+                              }
+                            }}
+                            className={`px-2 py-0.5 rounded-full rounded-r-none transition-colors ${hoverClasses}`}
+                            title={`Open skills manager for ${skill}`}
+                          >
+                            <span className="inline-flex items-center gap-1">
+                              {skill}
+                              {setupHint && <span className="text-[10px]">⚠</span>}
+                            </span>
+                          </button>
+                          <button
+                            onClick={() => void handleRemoveSkill(skill)}
+                            disabled={removingSkillName === skill}
+                            className={`inline-flex h-5 w-5 items-center justify-center rounded-full ${removeClasses} hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition-colors`}
+                            title={`Remove ${skill}`}
+                            aria-label={`Remove ${skill}`}
+                          >
+                            {removingSkillName === skill ? '…' : '×'}
+                          </button>
+                        </div>
+                      )
+                    })}
                   </div>
                   {onNavigateToSkills && (
                     <button

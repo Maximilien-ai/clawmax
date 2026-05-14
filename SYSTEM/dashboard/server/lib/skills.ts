@@ -64,6 +64,12 @@ export interface SkillRequirementInstallCommand {
   display: string
 }
 
+export interface SkillSetupCommand {
+  command: string
+  args: string[]
+  display: string
+}
+
 // Paths to skill directories
 // Auto-detect OpenClaw installation path instead of hardcoding
 function findOpenClawSkillsDir(): string {
@@ -435,6 +441,40 @@ export function getSkillRequirementInstallCommands(skill: OpenClawSkill): SkillR
   }
 
   return commands
+}
+
+export function getSkillSetupCommands(
+  skill: OpenClawSkill,
+  options?: { clientSecretPath?: string; accountEmail?: string }
+): SkillSetupCommand[] {
+  if (skill.name !== 'gog') return []
+
+  const clientSecretPath = options?.clientSecretPath?.trim()
+  const accountEmail = options?.accountEmail?.trim()
+  if (!clientSecretPath) {
+    throw new Error('Client secret JSON path is required for gog setup')
+  }
+  if (!accountEmail) {
+    throw new Error('Google account email is required for gog setup')
+  }
+
+  return [
+    {
+      command: 'gog',
+      args: ['auth', 'credentials', clientSecretPath],
+      display: `gog auth credentials ${clientSecretPath}`,
+    },
+    {
+      command: 'gog',
+      args: ['auth', 'add', accountEmail, '--services', 'gmail,calendar,drive,contacts,docs,sheets'],
+      display: `gog auth add ${accountEmail} --services gmail,calendar,drive,contacts,docs,sheets`,
+    },
+    {
+      command: 'gog',
+      args: ['auth', 'list'],
+      display: 'gog auth list',
+    },
+  ]
 }
 
 export function updateSkillContent(

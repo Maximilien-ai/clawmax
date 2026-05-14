@@ -10,6 +10,7 @@ import { hasAiGenerationAccess, readStoredByokKeys } from '../lib/byok'
 import { getSkillAssignmentBuckets } from '../lib/skillAssignments'
 import { summarizeSkillDeleteImpact } from '../lib/skillsDeletion'
 import { filterAssignableAgents, isDeletableUserSkill, partitionSelectedSkills, partitionSkillsBySource, toggleItemSelection, toggleVisibleSelections } from '../lib/skillsSelection'
+import { getSkillSetupHint, maybeWarnSkillSetup } from '../lib/skillSetup'
 import { useAuth } from '../contexts/AuthContext'
 
 // Use relative path so it works with ngrok and localhost
@@ -88,36 +89,7 @@ const REGISTRY_PROVIDERS: Array<{
   },
 ]
 
-function getSkillSetupHint(skill: Pick<OpenClawSkill, 'name'>): { message: string; commands?: string[] } | null {
-  if (skill.name === 'gog') {
-    return {
-      message: 'gog needs Google Workspace auth/account setup before an agent can actually use Gmail, Calendar, Drive, Docs, or Sheets.',
-      commands: [
-        'gog auth credentials /path/to/client_secret.json',
-        'gog auth add you@gmail.com --services gmail,calendar,drive,contacts,docs,sheets',
-        'gog auth list',
-      ],
-    }
-  }
-  return null
-}
-
-function maybeWarnSkillSetup(
-  showWarning: (message: string) => void,
-  skills: Array<Pick<OpenClawSkill, 'name'> | string>
-) {
-  const messages = Array.from(new Set(
-    skills
-      .map((entry) => typeof entry === 'string' ? getSkillSetupHint({ name: entry }) : getSkillSetupHint(entry))
-      .filter((hint): hint is NonNullable<ReturnType<typeof getSkillSetupHint>> => !!hint)
-      .map((hint) => `${hint.message} ${hint.commands?.join(' · ') || ''}`.trim())
-  ))
-  if (messages.length > 0) {
-    showWarning(messages.join(' '))
-  }
-}
-
-export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {}) {
+export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentId?: string; initialSkillName?: string } = {}) {
   const { config } = useAuth()
   const { showSuccess, showWarning, showError: showToastError } = useToast()
   const aiEnabled = hasAiGenerationAccess(config)
@@ -202,6 +174,15 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
   const [installRequirementsLogs, setInstallRequirementsLogs] = useState<string[]>([])
   const [installRequirementsError, setInstallRequirementsError] = useState<string | null>(null)
   const [installRequirementsDone, setInstallRequirementsDone] = useState(false)
+  const [showSkillSetupModal, setShowSkillSetupModal] = useState(false)
+  const [pendingSetupSkill, setPendingSetupSkill] = useState<OpenClawSkill | null>(null)
+  const [skillSetupLogs, setSkillSetupLogs] = useState<string[]>([])
+  const [skillSetupError, setSkillSetupError] = useState<string | null>(null)
+  const [skillSetupDone, setSkillSetupDone] = useState(false)
+  const [runningSkillSetupName, setRunningSkillSetupName] = useState<string | null>(null)
+  const [gogClientSecretPath, setGogClientSecretPath] = useState('')
+  const [gogAccountEmail, setGogAccountEmail] = useState('')
+  const [didHandleInitialSkillName, setDidHandleInitialSkillName] = useState(false)
   const [skillSecrets, setSkillSecrets] = useState<Record<string, string>>({})
   const [viewerAgentSearchQuery, setViewerAgentSearchQuery] = useState('')
   const [savingSkillAssignmentAgentId, setSavingSkillAssignmentAgentId] = useState<string | null>(null)
@@ -305,6 +286,10 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
       setAgentId(initialAgentId)
     }
   }, [initialAgentId])
+
+  useEffect(() => {
+    setDidHandleInitialSkillName(false)
+  }, [initialSkillName])
 
   // Reload skills when agent changes (or on mount if no agents)
   useEffect(() => {
@@ -665,6 +650,15 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
     }
   }
 
+  useEffect(() => {
+    if (!initialSkillName || didHandleInitialSkillName || allSkills.length === 0) return
+    const matchedSkill = allSkills.find((skill) => skill.name === initialSkillName)
+    if (!matchedSkill) return
+    setSearchQuery(initialSkillName)
+    setDidHandleInitialSkillName(true)
+    void openSkillViewer(matchedSkill)
+  }, [allSkills, didHandleInitialSkillName, initialSkillName])
+
   async function saveSkillContent() {
     if (!viewingSkill) return
 
@@ -721,6 +715,63 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
     setInstallRequirementsError(null)
     setInstallRequirementsDone(false)
     setShowInstallRequirementsModal(true)
+  }
+
+  function openSkillSetupModal(skill: OpenClawSkill) {
+    const setupHint = getSkillSetupHint(skill)
+    if (!setupHint) {
+      setError(`Skill "${skill.name}" has no dashboard-guided setup flow yet`)
+      return
+    }
+    setPendingSetupSkill(skill)
+    setSkillSetupLogs([`# ${skill.name} setup`, ...((setupHint.commands || []).map((command) => `$ ${command}`))])
+    setSkillSetupError(null)
+    setSkillSetupDone(false)
+    setShowSkillSetupModal(true)
+  }
+
+  async function completeSkillSetup(skill: OpenClawSkill) {
+    setRunningSkillSetupName(skill.name)
+    setSkillSetupError(null)
+    setSkillSetupDone(false)
+    setError(null)
+    try {
+      const res = await fetch(`${API_BASE}/api/skills/${encodeURIComponent(skill.name)}/complete-setup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientSecretPath: gogClientSecretPath,
+          accountEmail: gogAccountEmail,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(data.detail || data.error || `Failed to complete setup for ${skill.name}`)
+      }
+      const nextLogs = [...skillSetupLogs]
+      if (Array.isArray(data.commands)) {
+        for (const command of data.commands) {
+          if (!nextLogs.includes(`$ ${command}`)) nextLogs.push(`$ ${command}`)
+        }
+      }
+      if (Array.isArray(data.outputs)) {
+        for (const output of data.outputs) {
+          if (output?.stdout) nextLogs.push(output.stdout)
+          if (output?.stderr) nextLogs.push(output.stderr)
+        }
+      }
+      nextLogs.push(`✓ Completed setup flow for ${skill.name}`)
+      setSkillSetupLogs(nextLogs)
+      setSkillSetupDone(true)
+      showSuccess(`Completed setup flow for ${skill.name}`)
+    } catch (err: any) {
+      const message = err.message || `Failed to complete setup for ${skill.name}`
+      setSkillSetupError(message)
+      setSkillSetupLogs((current) => [...current, `✗ ${message}`])
+      showToastError(message)
+    } finally {
+      setRunningSkillSetupName(null)
+    }
   }
 
   async function installSkillRequirements(skill: OpenClawSkill) {
@@ -1651,6 +1702,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                         onInstallRequirements={skill.install && skill.install.length > 0 ? () => openInstallRequirementsModal(skill) : undefined}
                         installingRequirements={installingSkillRequirementsName === skill.name}
                         setupHint={getSkillSetupHint(skill)}
+                        onOpenSetup={getSkillSetupHint(skill) ? () => openSkillSetupModal(skill) : undefined}
                       />
                     )
                   })}
@@ -1691,6 +1743,7 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                     onInstallRequirements={skill.install && skill.install.length > 0 ? () => openInstallRequirementsModal(skill) : undefined}
                     installingRequirements={installingSkillRequirementsName === skill.name}
                     setupHint={getSkillSetupHint(skill)}
+                    onOpenSetup={getSkillSetupHint(skill) ? () => openSkillSetupModal(skill) : undefined}
                   />
                 )
               })}
@@ -1748,6 +1801,14 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                       >
                         {installingSkillRequirementsName === viewingSkill.name ? 'Installing...' : 'Install Requirements'}
                       </button>
+                  )}
+                  {!editingSkill && viewingSkillSetupHint && (
+                    <button
+                      onClick={() => openSkillSetupModal(viewingSkill)}
+                      className="px-3 py-1.5 rounded-md bg-emerald-700 text-white hover:bg-emerald-800 text-sm font-medium"
+                    >
+                      Complete Setup
+                    </button>
                   )}
                   {!editingSkill && (
                     <button
@@ -2230,6 +2291,103 @@ export function SkillsTest({ initialAgentId }: { initialAgentId?: string } = {})
                   className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-gray-300 dark:disabled:bg-gray-600"
                 >
                   {installingSkillRequirementsName === pendingInstallSkill.name ? 'Installing…' : 'Install Requirements'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showSkillSetupModal && pendingSetupSkill && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <div className="w-full max-w-3xl rounded-xl bg-white shadow-xl dark:bg-gray-800">
+              <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-700">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Complete Setup</h2>
+                  <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    Finish auth/setup for <span className="font-medium text-gray-900 dark:text-gray-100">{pendingSetupSkill.name}</span> so agents can actually use it.
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    if (runningSkillSetupName) return
+                    setShowSkillSetupModal(false)
+                    setPendingSetupSkill(null)
+                  }}
+                  className="text-2xl leading-none text-gray-400 hover:text-gray-600 disabled:cursor-not-allowed dark:hover:text-gray-300"
+                  disabled={!!runningSkillSetupName}
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="space-y-4 px-6 py-4">
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+                  {getSkillSetupHint(pendingSetupSkill)?.message}
+                </div>
+                {pendingSetupSkill.name === 'gog' && (
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div>
+                      <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-200">
+                        Client Secret JSON
+                      </label>
+                      <input
+                        type="text"
+                        value={gogClientSecretPath}
+                        onChange={(e) => setGogClientSecretPath(e.target.value)}
+                        placeholder="/path/to/client_secret.json"
+                        className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-200">
+                        Google Account Email
+                      </label>
+                      <input
+                        type="email"
+                        value={gogAccountEmail}
+                        onChange={(e) => setGogAccountEmail(e.target.value)}
+                        placeholder="you@gmail.com"
+                        className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+                      />
+                    </div>
+                  </div>
+                )}
+                <div className="bg-gray-900 text-green-400 font-mono text-xs rounded-lg p-3 h-64 overflow-y-auto whitespace-pre-wrap">
+                  {skillSetupLogs.join('\n')}
+                  {runningSkillSetupName === pendingSetupSkill.name && <span className="animate-pulse">▌</span>}
+                </div>
+                {skillSetupError && (
+                  <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300">
+                    {skillSetupError}
+                  </div>
+                )}
+                {skillSetupDone && !skillSetupError && (
+                  <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-300">
+                    Setup flow completed. If the auth tool opened a browser, finish the consent flow there and then retry the agent.
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center justify-end gap-3 border-t border-gray-200 px-6 py-4 dark:border-gray-700">
+                <button
+                  onClick={() => {
+                    setShowSkillSetupModal(false)
+                    setPendingSetupSkill(null)
+                  }}
+                  disabled={!!runningSkillSetupName}
+                  className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+                >
+                  {skillSetupDone ? 'Close' : 'Cancel'}
+                </button>
+                <button
+                  onClick={() => void completeSkillSetup(pendingSetupSkill)}
+                  disabled={
+                    runningSkillSetupName === pendingSetupSkill.name ||
+                    (pendingSetupSkill.name === 'gog' && (!gogClientSecretPath.trim() || !gogAccountEmail.trim()))
+                  }
+                  className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-gray-300 dark:disabled:bg-gray-600"
+                >
+                  {runningSkillSetupName === pendingSetupSkill.name ? 'Running Setup…' : 'Complete Setup'}
                 </button>
               </div>
             </div>

@@ -17,6 +17,7 @@ import BulkOperationsPanel from '../components/BulkOperationsPanel'
 import SaveAsTemplatePanel from '../components/SaveAsTemplatePanel'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import { useToast } from '../components/Toast'
+import { getSkillSetupHint } from '../lib/skillSetup'
 
 type MenuPlacement = 'top' | 'bottom'
 
@@ -126,7 +127,7 @@ function timeAgo(iso: string | null): string {
 type ViewMode = 'grid' | 'list' | 'table'
 type ArchiveTab = 'active' | 'archived'
 
-export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateToSkills, onNavigateToWorkflows, onNavigateToTemplates, initialAgentId, initialAction, onInitialActionHandled, isActive }: { onNavigateToDoc?: (file: string) => void; onNavigateToGroup?: (groupName: string) => void; onNavigateToSkills?: (agentId: string) => void; onNavigateToWorkflows?: (workflowId: string) => void; onNavigateToTemplates?: () => void; initialAgentId?: string; initialAction?: 'create' | 'create-ai' | 'import'; onInitialActionHandled?: () => void; isActive?: boolean } = {}) {
+export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateToSkills, onNavigateToWorkflows, onNavigateToTemplates, initialAgentId, initialAction, onInitialActionHandled, isActive }: { onNavigateToDoc?: (file: string) => void; onNavigateToGroup?: (groupName: string) => void; onNavigateToSkills?: (agentId: string, skillName?: string) => void; onNavigateToWorkflows?: (workflowId: string) => void; onNavigateToTemplates?: () => void; initialAgentId?: string; initialAction?: 'create' | 'create-ai' | 'import'; onInitialActionHandled?: () => void; isActive?: boolean } = {}) {
   const { showSuccess, showError, showInfo } = useToast()
   const { config } = useAuth()
   const aiEnabled = hasAiGenerationAccess(config)
@@ -3404,15 +3405,24 @@ const AgentCard = React.memo(function AgentCard({
             </div>
             {agent.skills && agent.skills.length > 0 ? (
               <div className="flex flex-wrap gap-1">
-                {agent.skills.map(skill => (
-                  <button
-                    key={skill}
-                    onClick={e => { e.stopPropagation(); if (onNavigateToSkills) onNavigateToSkills(agent.id); }}
-                    className="text-xs px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border border-blue-200 font-medium hover:bg-blue-100 transition-colors"
-                  >
-                    {skill}
-                  </button>
-                ))}
+                {agent.skills.map(skill => {
+                  const setupHint = getSkillSetupHint({ name: skill })
+                  const classes = setupHint
+                    ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/50'
+                    : 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 hover:bg-blue-100'
+                  return (
+                    <button
+                      key={skill}
+                      onClick={e => { e.stopPropagation(); if (onNavigateToSkills) onNavigateToSkills(agent.id, skill); }}
+                      className={`text-xs px-2 py-0.5 rounded border font-medium transition-colors ${classes}`}
+                    >
+                      <span className="inline-flex items-center gap-1">
+                        {skill}
+                        {setupHint && <span className="text-[10px]">⚠</span>}
+                      </span>
+                    </button>
+                  )
+                })}
               </div>
             ) : (
               onNavigateToSkills ? (

@@ -179,6 +179,7 @@ export default function App() {
   const [initialGroupName, setInitialGroupName] = useState<string | undefined>(undefined)
   const [initialOpenChatName, setInitialOpenChatName] = useState<string | undefined>(undefined)
   const [initialSkillsAgent, setInitialSkillsAgent] = useState<string | undefined>(undefined)
+  const [initialSkillsSkill, setInitialSkillsSkill] = useState<string | undefined>(undefined)
   const [initialWorkflowId, setInitialWorkflowId] = useState<string | undefined>(undefined)
   const [initialCommunityName, setInitialCommunityName] = useState<string | undefined>(undefined)
   const [initialOrgGroupName, setInitialOrgGroupName] = useState<string | undefined>(undefined)
@@ -496,7 +497,11 @@ export default function App() {
               <Agents
                 onNavigateToDoc={(file) => { setDocFile(file); setPage('docs'); }}
                 onNavigateToGroup={(groupName) => { setInitialGroupName(groupName); setPage('communication'); }}
-                onNavigateToSkills={(agentId) => { setInitialSkillsAgent(agentId); setPage('skills'); }}
+                onNavigateToSkills={(agentId, skillName) => {
+                  setInitialSkillsAgent(agentId)
+                  setInitialSkillsSkill(skillName)
+                  setPage('skills')
+                }}
                 onNavigateToWorkflows={() => { setPage('workflows'); }}
                 onNavigateToTemplates={() => { setPage('templates'); }}
                 initialAgentId={initialAgentId}
@@ -542,7 +547,7 @@ export default function App() {
             )}
             {page === 'skills' && (
             <div className="flex-1 overflow-auto">
-              <SkillsTest initialAgentId={initialSkillsAgent} />
+              <SkillsTest initialAgentId={initialSkillsAgent} initialSkillName={initialSkillsSkill} />
             </div>
             )}
             {page === 'keys' && (
