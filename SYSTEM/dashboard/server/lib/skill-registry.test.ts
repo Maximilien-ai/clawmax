@@ -22,6 +22,9 @@ function run() {
   assert.strictEqual(normalizeSkillRegistryProvider('tessl'), 'tessl')
   assert.strictEqual(getSkillRegistryProviderMeta('clawhub').label, 'ClawHub')
   assert.strictEqual(getSkillRegistryProviderMeta('tessl').label, 'Tessl')
+  assert.strictEqual(getSkillRegistryProviderMeta('clawhub').catalogSizeLabel, 'about 100 skills')
+  assert.strictEqual(getSkillRegistryProviderMeta('shipables').catalogSizeLabel, 'about 250 skills')
+  assert.strictEqual(getSkillRegistryProviderMeta('tessl').catalogSizeLabel, 'about 1,000 skills')
 
   const clawhubSearch = buildSkillRegistrySearchCommands('clawhub', 'github', 20)[0]
   assert.strictEqual(clawhubSearch.command, 'npx')

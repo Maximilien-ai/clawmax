@@ -94,6 +94,7 @@ const REGISTRY_PROVIDERS: Array<{
   homepage: string
   description: string
   searchPlaceholder: string
+  catalogSizeLabel: string
 }> = [
   {
     id: 'clawhub',
@@ -103,6 +104,7 @@ const REGISTRY_PROVIDERS: Array<{
     homepage: 'https://clawhub.dev',
     description: 'OpenClaw’s native skill registry for discovering and installing skills.',
     searchPlaceholder: 'Search ClawHub... (e.g., gmail, github, docs)',
+    catalogSizeLabel: 'about 100 skills',
   },
   {
     id: 'shipables',
@@ -112,6 +114,7 @@ const REGISTRY_PROVIDERS: Array<{
     homepage: 'https://shipables.dev',
     description: 'Discover and install skills from Shipables.dev using the agentskills.io standard.',
     searchPlaceholder: 'Search Shipables... (e.g., github, slack, salesforce)',
+    catalogSizeLabel: 'about 250 skills',
   },
   {
     id: 'tessl',
@@ -121,6 +124,7 @@ const REGISTRY_PROVIDERS: Array<{
     homepage: 'https://docs.tessl.io/use',
     description: 'Experimental: discover and install Tessl registry skills for OpenClaw workspaces.',
     searchPlaceholder: 'Search Tessl skills... (e.g., review, docs, research)',
+    catalogSizeLabel: 'about 1,000 skills',
   },
 ]
 
@@ -2860,6 +2864,9 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                     <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 px-4 py-3">
                       <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{activeRegistryProvider.label}</div>
                       <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{activeRegistryProvider.description}</div>
+                      <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                        Searching across {activeRegistryProvider.catalogSizeLabel} in this registry.
+                      </div>
                       <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
                         {registryProvider === 'tessl'
                           ? 'Experimental registry. Some skills may need extra security review or manual setup after install.'

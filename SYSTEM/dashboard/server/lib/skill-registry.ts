@@ -16,6 +16,8 @@ export function getSkillRegistryProviderMeta(provider: SkillRegistryProvider) {
       label: 'ClawHub',
       homepage: 'https://clawhub.dev',
       description: 'OpenClaw’s native skill registry for browsing and installing skills.',
+      approximateCatalogSize: 100,
+      catalogSizeLabel: 'about 100 skills',
     }
   }
   if (provider === 'tessl') {
@@ -24,6 +26,8 @@ export function getSkillRegistryProviderMeta(provider: SkillRegistryProvider) {
       label: 'Tessl',
       homepage: 'https://docs.tessl.io/use',
       description: 'Experimental Tessl registry support for OpenClaw workspaces.',
+      approximateCatalogSize: 1000,
+      catalogSizeLabel: 'about 1,000 skills',
     }
   }
 
@@ -32,6 +36,8 @@ export function getSkillRegistryProviderMeta(provider: SkillRegistryProvider) {
     label: 'Shipables',
     homepage: 'https://shipables.dev',
     description: 'Search and install skills from Shipables.dev.',
+    approximateCatalogSize: 250,
+    catalogSizeLabel: 'about 250 skills',
   }
 }
 
