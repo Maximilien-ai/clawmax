@@ -79,6 +79,32 @@ async function main() {
     assert(supportsDashboardSkillSetup({ name: 'gog' }) === true, 'Expected gog fallback to keep guided setup support')
   })
 
+  await test('generic env/config requirements automatically produce setup warnings', () => {
+    const envHint = getSkillSetupHint({
+      name: 'trello',
+      requires: {
+        env: ['TRELLO_API_KEY', 'TRELLO_TOKEN'],
+      },
+    })
+    assert(!!envHint, 'Expected env-based setup hint')
+    assert(envHint?.message.includes('TRELLO_API_KEY'), 'Expected env keys in setup hint')
+
+    const configHint = getSkillSetupHint({
+      name: 'discord',
+      requires: {
+        config: ['channels.discord.token'],
+      },
+    })
+    assert(!!configHint, 'Expected config-based setup hint')
+    assert(configHint?.message.includes('channels.discord.token'), 'Expected config keys in setup hint')
+  })
+
+  await test('built-in setup catalog warns for shipped auth-dependent skills', () => {
+    const githubHint = getSkillSetupHint({ name: 'github' })
+    assert(!!githubHint, 'Expected GitHub setup hint')
+    assert(githubHint?.commands?.includes('gh auth login'), 'Expected GitHub auth command hint')
+  })
+
   console.log('\n========================================')
   console.log(`Tests passed: ${testsPassed}`)
   console.log(`Tests failed: ${testsFailed}`)

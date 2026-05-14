@@ -141,8 +141,19 @@ test('getSkillById("github") returns github skill', () => {
   assertEqual(skill!.name, 'github', 'Name should be "github"')
   assert(skill!.emoji === '🐙', 'Should have octopus emoji')
   assert(skill!.description.includes('GitHub'), 'Description should mention GitHub')
+  assert(skill!.setupRequirements?.message?.includes('GitHub CLI needs account authentication'), 'Expected GitHub setup warning metadata')
 
   console.log(`  Found: ${skill!.name} ${skill!.emoji}`)
+})
+
+test('skills with required env/config automatically expose setup warnings', () => {
+  const trello = getSkillById('trello')
+  assert(trello !== null, 'Expected trello skill')
+  assert(trello!.setupRequirements?.message?.includes('TRELLO_API_KEY'), 'Expected env-based setup warning for trello')
+
+  const discord = getSkillById('discord')
+  assert(discord !== null, 'Expected discord skill')
+  assert(discord!.setupRequirements?.message?.includes('channels.discord.token'), 'Expected config-based setup warning for discord')
 })
 
 test('getSkillById("workspace-ls") returns packaged ClawMax repo skill', () => {

@@ -13,6 +13,7 @@ export interface SkillInstallOption {
 export interface SkillRequirements {
   bins?: string[]       // Required binaries (e.g., ["gh", "jq"])
   env?: string[]        // Required env vars
+  config?: string[]     // Required runtime config keys
 }
 
 export interface SecretRequirement {

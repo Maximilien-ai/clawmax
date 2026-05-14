@@ -17,6 +17,7 @@ export function getWorkspaceDir(): string {
 
 export interface SkillRequirements {
   bins?: string[]
+  env?: string[]
   config?: string[]
 }
 
@@ -88,6 +89,22 @@ export interface SkillSetupCommand {
 }
 
 const DEFAULT_SKILL_SETUP_REQUIREMENTS: Record<string, NonNullable<OpenClawSkill['setupRequirements']>> = {
+  '1password': {
+    label: 'Needs setup',
+    message: '1Password CLI needs account sign-in/authorization before an agent can use it.',
+    commands: [
+      'op signin',
+      'op whoami',
+    ],
+  },
+  github: {
+    label: 'Needs setup',
+    message: 'GitHub CLI needs account authentication before an agent can use GitHub operations.',
+    commands: [
+      'gh auth login',
+      'gh auth status',
+    ],
+  },
   gog: {
     label: 'Needs setup',
     message: 'gog needs Google Workspace auth/account setup before an agent can actually use Gmail, Calendar, Drive, Docs, or Sheets.',
@@ -116,15 +133,84 @@ const DEFAULT_SKILL_SETUP_REQUIREMENTS: Record<string, NonNullable<OpenClawSkill
       },
     ],
   },
+  gemini: {
+    label: 'Needs setup',
+    message: 'Gemini CLI may need an interactive login/auth flow before an agent can use it.',
+    commands: [
+      'gemini',
+    ],
+  },
+  himalaya: {
+    label: 'Needs setup',
+    message: 'Himalaya needs an email account configured before an agent can use it.',
+    commands: [
+      'himalaya account configure',
+      'himalaya account list',
+    ],
+  },
+  wacli: {
+    label: 'Needs setup',
+    message: 'wacli needs WhatsApp authentication and an initial sync before an agent can use it.',
+    commands: [
+      'wacli auth',
+      'wacli sync --follow',
+      'wacli doctor',
+    ],
+  },
+  eightctl: {
+    label: 'Needs setup',
+    message: 'eightctl needs Eight Sleep credentials/config before an agent can use it.',
+    commands: [
+      'export EIGHTCTL_EMAIL="you@example.com"',
+      'export EIGHTCTL_PASSWORD="..."',
+    ],
+  },
+}
+
+function buildGenericSkillSetupRequirement(skill: {
+  requires?: SkillRequirements
+  secretRequirements?: OpenClawSkill['secretRequirements']
+}): OpenClawSkill['setupRequirements'] | undefined {
+  const secretKeys = (skill.secretRequirements || []).map((entry) => entry.key).filter(Boolean)
+  if (secretKeys.length > 0) {
+    return {
+      label: 'Needs setup',
+      message: `This skill needs secrets or API keys configured before an agent can use it: ${secretKeys.join(', ')}.`,
+    }
+  }
+
+  const envKeys = (skill.requires?.env || []).filter(Boolean)
+  if (envKeys.length > 0) {
+    return {
+      label: 'Needs setup',
+      message: `This skill needs environment variables or API keys configured before an agent can use it: ${envKeys.join(', ')}.`,
+    }
+  }
+
+  const configKeys = (skill.requires?.config || []).filter(Boolean)
+  if (configKeys.length > 0) {
+    return {
+      label: 'Needs setup',
+      message: `This skill needs runtime configuration before an agent can use it: ${configKeys.join(', ')}.`,
+    }
+  }
+
+  return undefined
 }
 
 function normalizeSkillSetupRequirements(
   name: string,
-  setupRequirements: OpenClawSkill['setupRequirements'] | undefined
+  setupRequirements: OpenClawSkill['setupRequirements'] | undefined,
+  context?: {
+    requires?: SkillRequirements
+    secretRequirements?: OpenClawSkill['secretRequirements']
+  }
 ): OpenClawSkill['setupRequirements'] | undefined {
   const defaults = DEFAULT_SKILL_SETUP_REQUIREMENTS[name]
-  if (!defaults && !setupRequirements) return undefined
+  const generic = buildGenericSkillSetupRequirement(context || {})
+  if (!defaults && !setupRequirements && !generic) return undefined
   return {
+    ...(generic || {}),
     ...(defaults || {}),
     ...(setupRequirements || {}),
     inputs: setupRequirements?.inputs || defaults?.inputs,
@@ -383,6 +469,8 @@ function parseSkillFile(
 
     const openclawMeta = data.metadata?.openclaw || {}
 
+    const requires = openclawMeta.requires
+    const secretRequirements = openclawMeta.secretRequirements || data.secretRequirements || []
     return {
       id: source === 'bundled' ? undefined : getSkillDirectoryId(filePath),
       name: data.name,
@@ -394,14 +482,18 @@ function parseSkillFile(
       dirty: !!openclawMeta.dirty,
       variantOf: openclawMeta.variantOf,
       originalSource: openclawMeta.originalSource,
-      requires: openclawMeta.requires,
+      requires,
       install: openclawMeta.install,
       homepage: openclawMeta.homepage,
       tags: openclawMeta.tags || data.tags || [],
       registryProvider: openclawMeta.registryProvider,
       registryName: openclawMeta.registryName,
-      secretRequirements: openclawMeta.secretRequirements || data.secretRequirements || [],
-      setupRequirements: normalizeSkillSetupRequirements(data.name, openclawMeta.setupRequirements || data.setupRequirements),
+      secretRequirements,
+      setupRequirements: normalizeSkillSetupRequirements(
+        data.name,
+        openclawMeta.setupRequirements || data.setupRequirements,
+        { requires, secretRequirements }
+      ),
     }
   } catch (err) {
     console.error(`Failed to parse skill ${filePath}:`, err)
@@ -426,6 +518,8 @@ function parseWorkspaceSkillFile(filePath: string, skillId: string): OpenClawSki
 
     const openclawMeta = data.metadata?.openclaw || {}
 
+    const requires = data.requires || openclawMeta.requires
+    const secretRequirements = data.secretRequirements || openclawMeta.secretRequirements || []
     return {
       id: skillId, // Store directory name for deletion
       name,
@@ -437,14 +531,18 @@ function parseWorkspaceSkillFile(filePath: string, skillId: string): OpenClawSki
       dirty: !!openclawMeta.dirty,
       variantOf: openclawMeta.variantOf,
       originalSource: openclawMeta.originalSource,
-      requires: data.requires || openclawMeta.requires,
+      requires,
       install: data.install || openclawMeta.install,
       homepage: data.homepage || openclawMeta.homepage,
       tags: data.tags || openclawMeta.tags || [],
       registryProvider: openclawMeta.registryProvider,
       registryName: openclawMeta.registryName,
-      secretRequirements: data.secretRequirements || openclawMeta.secretRequirements || [],
-      setupRequirements: normalizeSkillSetupRequirements(name, data.setupRequirements || openclawMeta.setupRequirements),
+      secretRequirements,
+      setupRequirements: normalizeSkillSetupRequirements(
+        name,
+        data.setupRequirements || openclawMeta.setupRequirements,
+        { requires, secretRequirements }
+      ),
     }
   } catch (err) {
     console.error(`Failed to parse workspace skill ${filePath}:`, err)
