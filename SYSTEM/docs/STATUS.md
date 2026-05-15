@@ -1,7 +1,7 @@
 # ClawMax Status
 
 **Current Version**: v1.4.8
-**Last Updated**: May 13, 2026
+**Last Updated**: May 15, 2026
 **Status**: `v1.4.8` is the current patch release line on `main`
 
 ---

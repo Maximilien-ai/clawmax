@@ -1,6 +1,6 @@
 # Backlog
 
-> Last updated: May 12, 2026
+> Last updated: May 15, 2026
 > Completed items archived — see CHANGELOG.md for shipped work and `SYSTEM/docs/hacks/**/archive/` for historical sprint notes
 
 ## 1.4.1 Follow-Through
@@ -97,12 +97,8 @@ Target: keep the `1.4.1` line stable after tag/test, close out remaining custome
 
 - [ ] **AI Generate outputs TEMPLATE.md** — generate markdown format from wizard
 - [ ] **Wizard exports as TEMPLATE.md** — download/save as markdown
-- [ ] **Template feedback, ratings, and promotion flow** — first-pass ratings/feedback is shipped locally and can optionally route to a remote sink; keep promotion, ranking, and broader catalog lifecycle work open.
 - [x] **Template editing and AI refinement** — shipped first pass for organization and agent templates: start from an existing template, edit/refine in-wizard, save as a workspace variant, and for agent templates edit/generate the real `IDENTITY.md` / `SOUL.md` / `TOOLS.md` files.
-- [ ] **Project context in agent identity on template apply** — kickoff gives context but should also write to `IDENTITY.md` so agents remember across sessions
 - [ ] **Rate limit notification** — surface API rate limits as warning notifications with retry suggestion
-- [ ] **Workflow re-run resets status** — when re-triggering a completed workflow, reset all downstream deps to idle
-- [ ] **DAG auto-advance on cron triggers** — cron-triggered completions should also advance DAG
 - [ ] **Bulk import/export for OpenClaw agents** — multiple agents at once
 - [ ] **Result artifact standardization** — selected templates should produce consistent visible outputs, not just chat traces
 - [ ] **Template breadth publication** — publish additional non-showcase template specs after the selected flows stabilize
@@ -122,7 +118,7 @@ Target: keep the `1.4.1` line stable after tag/test, close out remaining custome
 - [ ] **Surface old template versions in the UI** — template saves already archive prior versions on disk under `.versions/`; add a lightweight “Previous versions” surface so users can inspect older versions, compare against the current one, and optionally restore or copy content from an earlier snapshot.
 - [ ] **Small-business marketing template pack** — create suggested starter templates for marketing planning and budget allocation across Instagram, Facebook, YouTube, and Google News/Ads, including audience focus, budget planning, and channel prioritization flows. Expect some variants to use uploaded historical data or external API keys.
 - [ ] **Event template customer validation** — get real event-planning feedback on the new proposal templates and decide whether they should stay under `personal`, gain a dedicated category, or expand into more specialized event packs. GitHub: `#95`
-- [ ] **Recurring personal/ops template apply friction audit** — continue auditing templates that users may rerun daily or weekly so apply-time required fields do not block deploy on day-of/run-time data. `chief-of-staff` is fixed; likely next candidates are `email-calendar-manager`, `family-ops-hub`, `meeting-capture-follow-up`, `market-signal-desk`, `personal-research-desk`, and `tax-planning-desk`.
+- [x] **Recurring personal/ops template apply friction audit** — shipped follow-through across `chief-of-staff`, `email-calendar-manager`, `family-ops-hub`, `meeting-capture-follow-up`, `market-signal-desk`, `personal-research-desk`, and `tax-planning-desk` so recurring/personal templates no longer block on day-of/run-time apply inputs.
 - [x] **Template AI Generate UI** — shipped and hardened: POST `/api/templates/generate` is wired to the Templates page AI flow, uses browser BYOK/browser-vault keys, preserves the AI prompt, and now guides users through workflows/tags/skills follow-through instead of dropping sparse drafts on them.
 - [x] **Template wizard** — shipped first pass: multi-step template creation/editing flow with AI generation, composition/comms/workflows preview, save/apply, and follow-through for generated workflows, tags, skills, and template refinement.
 
@@ -180,13 +176,13 @@ Target: keep the `1.4.1` line stable after tag/test, close out remaining custome
 - [ ] **Skills publish to SkillsHub** — package and publish workspace skills to GitHub/registry
 
 ### Research / Self-Management
-- [ ] **ClawMax Dev Team template** — qa-engineer, release-engineer, github-triage with kickoff workflow
+- [x] **ClawMax Dev Team template** — shipped starter organization template under `TEMPLATES/organizations/clawmax-dev-team`.
 - [ ] **ClawMax self-management MVP** — deploy Dev Team on ClawMax repo, test autonomous PR review + triage
 - [ ] **Mac Mini deployment** — 24/7 agent team managing ClawMax repo
 
 ### Infrastructure & Deployment
-- [ ] **Workspace backup** — zip workspace + config, downloadable from UI
-- [ ] **Workspace restore** — upload zip to restore workspace state
+- [x] **Workspace backup** — shipped first pass via workspace export/download from the workspace switcher and `/api/workspaces/:id/export`.
+- [x] **Workspace restore** — shipped first pass via workspace ZIP import and `/api/workspaces/import-zip`.
 - [ ] **Auto-backup** — optional scheduled backups
 - [ ] **Issue #32** Consolidate cron with OpenClaw native
 - [x] **Issue #11** Clean-room test of setup flow
