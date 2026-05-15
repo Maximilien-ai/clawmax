@@ -13,8 +13,8 @@ Target: keep the `1.4.1` line stable after tag/test, close out remaining custome
 - [x] **Recent `1.4.0` regression reports resolved locally** — company/dashboard, scheduling, gateway fallback, metering, and recent customer UX issues are fixed on the current line.
 - [x] **Customer verification window for recent runtime fixes closed cleanly** — `#122`, `#123`, and `#124` were explicitly verified fixed by `@p11n-com`.
 - [x] **Container image/runtime follow-through closed cleanly** — `#129` (dashboard Docker build lockfile/peer-dep drift) and `#130` (gateway watchdog false negatives in the slim runtime image) are fixed on `main`, regression-covered, and closed; the live issue tracker is now down to `#32`, `#109`, and `#111`.
-- [ ] **Tessl registry hardening (experimental)** — improve install guidance for Tessl security-review blockers, continue validating real OpenClaw-compatible tiles, and decide what “supported” vs. “exploratory” means before promoting Tessl beyond experimental.
-- [ ] **Skill registry metadata follow-through** — preserve richer registry metadata where practical (emoji, provenance details, richer display copy), especially for imported Shipables/Tessl skills.
+- [ ] **Tessl registry hardening (experimental)** — improve install guidance for Tessl security-review blockers, continue validating real OpenClaw-compatible tiles, and decide what “supported” vs. “exploratory” means before promoting Tessl beyond experimental. GitHub: `#134`
+- [ ] **Skill registry metadata follow-through** — preserve richer registry metadata where practical (emoji, provenance details, richer display copy), especially for imported Shipables/Tessl skills. GitHub: `#135`
 
 ### Completed In The `1.4.1` Line
 
@@ -32,7 +32,7 @@ Target: keep the `1.4.1` line stable after tag/test, close out remaining custome
 
 ## Top Priority
 
-- [ ] **Template audit for lane/subdirectory assumptions** — audit organization and workflow templates for the same class of bug seen in CW reruns: hidden/helper dirs being treated as work items, ambiguous lane ownership, weak filesystem verification, or success reporting that does not re-check on-disk outputs. Prioritize templates that scan subdirectories, split work across multiple agents, or rely on reruns/idempotent regeneration.
+- [ ] **Template audit for lane/subdirectory assumptions** — audit organization and workflow templates for the same class of bug seen in CW reruns: hidden/helper dirs being treated as work items, ambiguous lane ownership, weak filesystem verification, or success reporting that does not re-check on-disk outputs. Prioritize templates that scan subdirectories, split work across multiple agents, or rely on reruns/idempotent regeneration. GitHub: `#132`
 - [ ] **Template markdown integrity manifest / checksum follow-through** — explore adding a lightweight integrity marker to exported `TEMPLATE.md` / agent template markdown (for example a hash over canonicalized sections or per-section checksums) so import can detect lossy edits, broken round-trips, or missing agent/workflow blocks before save/apply. Keep this generic: the goal is not to block legitimate user edits by default, but to warn clearly when markdown no longer matches a structurally sound template payload.
 - [x] **Workspace Integrations redesign for optional partner pages** — shipped first pass: preserved current model/API-key setup, added partner selection plus partner-specific pages, and kept Senso / Opik / GitHub working while exposing Blaxel and Redis through the same flow.
 - [x] **Partner definition contract + loader** — shipped first pass with machine-readable partner metadata plus markdown copy/assets under `PARTNERS/<slug>/partner.json` + `PARTNERS/<slug>/PARTNER.md`, env allowlist support, and optional extra partner roots.
@@ -43,7 +43,7 @@ Target: keep the `1.4.1` line stable after tag/test, close out remaining custome
 - [x] **Blaxel/Redis template pack** — shipped first pass with Blaxel-first, Redis-first, and combined template examples. Keep expansion/polish as follow-through, not blocker work.
 - [ ] **Workspace auto-switch watch item** — likely fixed via request-local workspace context, but keep tracking until it survives more real multi-workspace/shared-dashboard usage without silent active-workspace drift.
 - [x] **Browser-local secrets for templates, workflows, and skills** — first pass shipped: templates, workflows, and skills can now declare secret requirements and prompt for browser-local runtime inputs like API keys, event slugs, URLs, export paths, and tokens without writing them into workflow markdown or server config by default.
-- [ ] **Secret readiness follow-through** — extend template/workflow readiness checks so secret requirements report richer missing/present/degraded states before apply or run.
+- [ ] **Secret readiness follow-through** — extend template/workflow readiness checks so secret requirements report richer missing/present/degraded states before apply or run. GitHub: `#133`
 - [x] **Centralized browser-local keystore for secrets and API keys** — shipped first pass: `Keys & Secrets` is now a first-class browser-local vault for reusable provider/partner keys and other secrets across integrations, templates, workflows, and skills, with workspace/global scope, prefill matching, bulk import, and browser-vault/source-of-truth behavior.
 - [x] **Skill assignment page does not refresh new agents immediately** — fixed: Skills now refreshes agent assignment targets after agent creation without a manual reload.
 - [x] **Skill import fallback for missing TypeScript entrypoint** — fixed: importing a skill repo with `SKILL.md` plus `index.js` now succeeds with a generated compatibility `index.ts` shim and warning instead of a hard failure.
@@ -143,13 +143,13 @@ Target: keep the `1.4.1` line stable after tag/test, close out remaining custome
 - [ ] **First-user operations checklist** — prepare the minimum runbook for triaging auth, provider, template-apply, and workflow-execution issues during early user onboarding
 
 ### Quality & Testing
-- [ ] **Dashboard regression automation** — coverage for OAuth/auth, agent edit/model save, template apply, workspace switching
+- [ ] **Dashboard regression automation** — coverage for OAuth/auth, agent edit/model save, template apply, workspace switching. GitHub: `#141`
 - [x] **Dashboard smoke suite wrapper** — first pass shipped as `SYSTEM/test-with-server.sh`, which starts/restarts the dashboard on selected ports, runs `SYSTEM/test.sh`, and cleans up processes it started. Keep broader browser/UI automation open under dashboard regression automation.
-- [ ] **Clean-room CI hardening** — keep `SYSTEM/test.sh` deterministic, GitHub Actions trustworthy on `main`
+- [ ] **Clean-room CI hardening** — keep `SYSTEM/test.sh` deterministic, GitHub Actions trustworthy on `main`. GitHub: `#142`
 
 ### UX & Product Polish
 - [x] **First-run onboarding wizard** — added a lightweight top-bar onboarding flow for empty workspaces that routes users into BYOK, agent import, agent creation, and templates.
-- [ ] **Mobile responsiveness audit** — run a focused pass across login, top bar, notifications, agent cards, chat, dashboards, template apply, and integrations wizard on narrow/mobile widths; fix clipped popovers, off-screen dialogs, awkward stacking, and tap-target issues before broader external demos.
+- [ ] **Mobile responsiveness audit** — run a focused pass across login, top bar, notifications, agent cards, chat, dashboards, template apply, and integrations wizard on narrow/mobile widths; fix clipped popovers, off-screen dialogs, awkward stacking, and tap-target issues before broader external demos. GitHub: `#143`
 - [ ] **Bulk actions from notifications** — dismiss works, but pause/restart/open chat not yet inline
 - [ ] **Mobile notifications panel positioning** — on narrow/mobile layouts the notifications popover can render off-center and partially off-screen instead of switching to a properly centered or full-width mobile-friendly sheet.
 - [ ] **Notification testing & validation** — verify all notification types fire correctly with real agent activity
@@ -165,14 +165,14 @@ Target: keep the `1.4.1` line stable after tag/test, close out remaining custome
 - [ ] **Workspace stats dashboard** — aggregate view with pause/disable
 
 ### Skills
-- [ ] **ClawHub install CLI hardening** — validate and harden the `clawhub install` CLI path across local, cloud, and on-prem runtimes now that ClawHub is the first/default registry in the dashboard; keep search/browse and install behavior aligned and document any env/runtime prerequisites before treating it as fully stable.
-- [ ] **Add skills to agents directly from agent flows** — allow assigning/searching/adding skills from agent creation, agent detail, or agent edit flows without forcing a separate trip to the Skills page.
-- [ ] **Agent-scoped skills page/panel** — add a dedicated `Skills...` entry from agent detail/edit that shows current agent skills plus search/browse to add more in place.
+- [ ] **ClawHub install CLI hardening** — validate and harden the `clawhub install` CLI path across local, cloud, and on-prem runtimes now that ClawHub is the first/default registry in the dashboard; keep search/browse and install behavior aligned and document any env/runtime prerequisites before treating it as fully stable. GitHub: `#136`
+- [ ] **Add skills to agents directly from agent flows** — allow assigning/searching/adding skills from agent creation, agent detail, or agent edit flows without forcing a separate trip to the Skills page. GitHub: `#137`
+- [ ] **Agent-scoped skills page/panel** — add a dedicated `Skills...` entry from agent detail/edit that shows current agent skills plus search/browse to add more in place. GitHub: `#138`
 - [x] **Browse skill registries in Skills page** — Skills now supports embedded discovery for Shipables plus exploratory Tessl registry suggestions and registry-browser entrypoints.
 - [ ] **Imported Shipables/Tessl skills emoji/metadata** — imported skills should preserve richer registry metadata beyond current provider/source pills.
-- [ ] **Edit skill tags post-import** — add/remove tags on any skill from the Skills page
+- [ ] **Edit skill tags post-import** — add/remove tags on any skill from the Skills page. GitHub: `#139`
 - [x] **Skills select/select-all + bulk ops** — selection mode now supports select-all-visible, workflow-style bulk action bar, bulk assign-to-agents, and bulk delete for user skills.
-- [ ] **Skill tag filtering** — filter skills by tag like agent tag filtering
+- [ ] **Skill tag filtering** — filter skills by tag like agent tag filtering. GitHub: `#140`
 - [ ] **Skills publish to SkillsHub** — package and publish workspace skills to GitHub/registry
 
 ### Research / Self-Management
