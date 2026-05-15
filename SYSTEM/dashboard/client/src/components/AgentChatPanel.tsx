@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { byokForRequest, hasAiGenerationAccess, readStoredByokKeys } from '../lib/byok'
+import { buildPersistentDashboardChatSessionId } from '../lib/agentChatSession'
 import { useAuth } from '../contexts/AuthContext'
 
 interface Message {
@@ -23,10 +24,6 @@ interface Props {
   onClose: () => void
   onSuccess?: () => void
   onNavigateToDoc?: (path: string) => void
-}
-
-function buildDashboardChatSessionId(): string {
-  return `dc-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 }
 
 // Strip ANSI escape codes from text
@@ -155,7 +152,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
   const [sending, setSending] = useState(false)
   const [streaming, setStreaming] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [sessionId, setSessionId] = useState<string>(() => buildDashboardChatSessionId())
+  const [sessionId, setSessionId] = useState<string>(() => buildPersistentDashboardChatSessionId(agentId))
   const [gatewayAvailable, setGatewayAvailable] = useState<boolean | null>(null)
   const [chatEnabled, setChatEnabled] = useState(browserChatEnabled)
   const [resettingSession, setResettingSession] = useState(false)
@@ -362,7 +359,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
       setMessages([])
       setInputHistory([])
       setHistoryIndex(-1)
-      setSessionId(buildDashboardChatSessionId())
+      setSessionId(buildPersistentDashboardChatSessionId(agentId))
       setShowClearConfirm(false)
     } catch (err: any) {
       setError(err?.message || 'Failed to reset agent session')

@@ -497,6 +497,16 @@ else
   fail "Navigation helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Agent chat session helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/agentChatSession.test.ts > /tmp/clawmax-agent-chat-session.out 2>&1 || true
+if grep -q '^✓ ' /tmp/clawmax-agent-chat-session.out; then
+  agent_chat_session_count=$(grep -c '^✓ ' /tmp/clawmax-agent-chat-session.out || true)
+  pass "Agent chat session helper unit tests (${agent_chat_session_count:-?} tests)"
+else
+  cat /tmp/clawmax-agent-chat-session.out
+  fail "Agent chat session helper unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Discovery suggestion helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/discoverySuggestions.test.ts > /tmp/clawmax-discovery-suggestions.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-discovery-suggestions.out; then
