@@ -14,6 +14,7 @@ import { normalizeChatMessage } from '../lib/chat-normalization'
 import {
   deriveWorkspaceRootFromAgentWorkspace,
   resolveAgentExecutionConfig,
+  resolvePersistedAgentSessionId,
   runExclusiveAgentExecution,
   scopeSessionIdToModel,
   withTemporaryAgentAuthProfiles,
@@ -110,7 +111,10 @@ function evaluateChatExecutionReadiness(
 
 function persistDashboardChatSession(agentId: string, sessionId: string) {
   try {
-    const sessionsDir = path.join(process.env.HOME || '', '.openclaw', 'agents', agentId, 'sessions')
+    const homeDir = process.env.HOME || ''
+    const sessionKey = `agent:${agentId}:dashboard-chat`
+    const resolvedSessionId = resolvePersistedAgentSessionId(agentId, sessionKey, sessionId, homeDir) || sessionId
+    const sessionsDir = path.join(homeDir, '.openclaw', 'agents', agentId, 'sessions')
     const sessionsPath = path.join(sessionsDir, 'sessions.json')
     if (!fs.existsSync(sessionsDir)) {
       fs.mkdirSync(sessionsDir, { recursive: true })
@@ -118,7 +122,7 @@ function persistDashboardChatSession(agentId: string, sessionId: string) {
     const sessions = fs.existsSync(sessionsPath)
       ? JSON.parse(fs.readFileSync(sessionsPath, 'utf-8'))
       : {}
-    sessions[`agent:${agentId}:dashboard-chat`] = { sessionId, updatedAt: Date.now() }
+    sessions[sessionKey] = { sessionId: resolvedSessionId, updatedAt: Date.now() }
     fs.writeFileSync(sessionsPath, JSON.stringify(sessions, null, 2))
   } catch (err) {
     console.warn(`[Chat Route] Failed to persist dashboard chat session for ${agentId}:`, err)

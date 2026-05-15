@@ -11,6 +11,7 @@ import {
   deriveWorkspaceRootFromAgentWorkspace,
   getAgentExecutionRetryDelay,
   isOpenClawSessionLockError,
+  resolvePersistedAgentSessionId,
   resolveAgentExecutionConfig,
   runExclusiveAgentExecution,
   scopeSessionIdToModel,
@@ -252,6 +253,50 @@ test('scopeSessionIdToModel isolates chats across model changes', () => {
   assert(!scoped.includes(':'), 'Expected scoped session id to be sanitized for OpenClaw')
   assert(scoped.includes('group-temp-test-agent1'), 'Expected original session prefix preserved in safe form')
   assert(scoped.includes('ollama-qwen2-5-latest'), 'Expected sanitized model suffix')
+})
+
+test('resolvePersistedAgentSessionId uses mapped session file when preferred alias has no file', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-session-home-'))
+  const sessionsDir = path.join(home, '.openclaw', 'agents', 'ceo', 'sessions')
+  fs.mkdirSync(sessionsDir, { recursive: true })
+  fs.writeFileSync(path.join(sessionsDir, 'real-session.jsonl'), '{"type":"message"}\n', 'utf-8')
+  fs.writeFileSync(path.join(sessionsDir, 'sessions.json'), JSON.stringify({
+    'agent:ceo:dashboard-chat': {
+      sessionId: 'real-session'
+    }
+  }, null, 2))
+
+  const resolved = resolvePersistedAgentSessionId(
+    'ceo',
+    'agent:ceo:dashboard-chat',
+    'missing-dashboard-alias',
+    home
+  )
+
+  assert(resolved === 'real-session', `Expected mapped session id, got ${resolved}`)
+})
+
+test('resolvePersistedAgentSessionId falls back to newest session file when no mapping resolves', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-session-home-'))
+  const sessionsDir = path.join(home, '.openclaw', 'agents', 'ceo', 'sessions')
+  fs.mkdirSync(sessionsDir, { recursive: true })
+  const olderPath = path.join(sessionsDir, 'older-session.jsonl')
+  const newerPath = path.join(sessionsDir, 'newer-session.jsonl')
+  fs.writeFileSync(olderPath, '{"type":"message"}\n', 'utf-8')
+  fs.writeFileSync(newerPath, '{"type":"message"}\n', 'utf-8')
+  const olderTime = Date.now() - 10_000
+  const newerTime = Date.now()
+  fs.utimesSync(olderPath, olderTime / 1000, olderTime / 1000)
+  fs.utimesSync(newerPath, newerTime / 1000, newerTime / 1000)
+
+  const resolved = resolvePersistedAgentSessionId(
+    'ceo',
+    'agent:ceo:dashboard-chat',
+    'missing-dashboard-alias',
+    home
+  )
+
+  assert(resolved === 'newer-session', `Expected newest session fallback, got ${resolved}`)
 })
 
 test('isOpenClawSessionLockError matches lock timeout errors', () => {

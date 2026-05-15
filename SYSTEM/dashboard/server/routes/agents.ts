@@ -19,7 +19,7 @@ import { exportAgentToOpenClaw, getAgentTransferMetadata, importAgentFromBundleD
 import { normalizeChatMessage } from '../lib/chat-normalization'
 import { writeDashboardManagedOpenClawConfig } from '../lib/openclaw-config'
 import { runExclusiveAgentExecution } from '../lib/agent-execution'
-import { scopeSessionIdToModel, resolveAgentExecutionConfig } from '../lib/agent-execution'
+import { scopeSessionIdToModel, resolveAgentExecutionConfig, resolvePersistedAgentSessionId } from '../lib/agent-execution'
 import { resolveDefaultAgentModel } from '../lib/agent-default-model'
 
 /** Find the root dir of a pnpm package by scanning .pnpm store for a prefix */
@@ -1573,34 +1573,12 @@ router.post('/:id/chat/messages', async (req, res) => {
   const sessionKey = `agent:${id}:dashboard-chat`
 
   try {
-    // Check if we have an existing session mapping
     const HOME = process.env.HOME || ''
     const sessionsPath = path.join(HOME, '.openclaw', 'agents', id, 'sessions', 'sessions.json')
-    let actualSessionId: string | null = null
-
-    if (fs.existsSync(sessionsPath)) {
-      try {
-        const sessions = JSON.parse(fs.readFileSync(sessionsPath, 'utf-8'))
-        // Try direct lookup first
-        if (sessions[sessionKey]?.sessionId) {
-          actualSessionId = sessions[sessionKey].sessionId
-        } else {
-          // Search for entry where sessionId equals our key
-          for (const [key, entry] of Object.entries(sessions)) {
-            if (typeof entry === 'object' && entry !== null && (entry as any).sessionId === sessionKey) {
-              actualSessionId = sessionKey
-              break
-            }
-          }
-        }
-      } catch (e) {
-        console.error('Failed to read sessions.json:', e)
-      }
-    }
-
-    // Use the actual UUID session ID if found, otherwise use the key (will create new session)
     const resolvedAgent = resolveAgentExecutionConfig(id)
-    const sessionId = scopeSessionIdToModel(actualSessionId || sessionKey, resolvedAgent.model)
+    const preferredSessionId = scopeSessionIdToModel(sessionKey, resolvedAgent.model)
+    const persistedSessionId = resolvePersistedAgentSessionId(id, sessionKey, preferredSessionId, HOME)
+    const sessionId = scopeSessionIdToModel(persistedSessionId || sessionKey, resolvedAgent.model)
 
     runExclusiveAgentExecution(id, () => new Promise<void>((resolve, reject) => {
       const useLocal = !isGatewayConfigured()
@@ -2000,23 +1978,7 @@ router.get('/:id/chat/messages', async (req, res) => {
     // Read sessions index
     const sessionsIndex = JSON.parse(fs.readFileSync(sessionsIndexPath, 'utf-8'))
 
-    // Find the dashboard chat session entry only.
-    let actualSessionId: string | null = null
-
-    if (sessionsIndex[sessionKey]?.sessionId) {
-      actualSessionId = sessionsIndex[sessionKey].sessionId
-    } else {
-      // Search through all entries
-      for (const [key, entry] of Object.entries(sessionsIndex)) {
-        if (typeof entry === 'object' && entry !== null) {
-          const e = entry as any
-          if (key === sessionKey || e.sessionId === sessionKey) {
-            actualSessionId = e.sessionId
-            break
-          }
-        }
-      }
-    }
+    const actualSessionId = resolvePersistedAgentSessionId(id, sessionKey, undefined, HOME) || null
 
     if (!actualSessionId) {
       return res.json({ messages: [] })
@@ -2080,12 +2042,7 @@ router.delete('/:id/chat/messages', async (req, res) => {
     }
 
     const sessionsIndex = JSON.parse(fs.readFileSync(sessionsIndexPath, 'utf-8'))
-    let actualSessionId: string | null = null
-
-    // Clear the dashboard chat session only.
-    if (sessionsIndex[sessionKey]?.sessionId) {
-      actualSessionId = sessionsIndex[sessionKey].sessionId
-    }
+    const actualSessionId = resolvePersistedAgentSessionId(id, sessionKey, undefined, HOME) || null
 
     if (!actualSessionId) {
       return res.json({ ok: true, archived: false })

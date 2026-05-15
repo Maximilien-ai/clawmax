@@ -198,6 +198,64 @@ export function scopeSessionIdToModel(sessionId: string, model?: string): string
   return `${trimmedBase}-${hash}`.slice(0, MAX_SESSION_KEY_LENGTH)
 }
 
+export function resolvePersistedAgentSessionId(
+  agentId: string,
+  sessionKey: string,
+  preferredSessionId?: string,
+  homeDir: string = process.env.HOME || ''
+): string | undefined {
+  if (!agentId || !homeDir) return preferredSessionId
+
+  const sessionsDir = path.join(homeDir, '.openclaw', 'agents', agentId, 'sessions')
+  const sessionsIndexPath = path.join(sessionsDir, 'sessions.json')
+
+  const hasSessionFile = (sessionId: string | undefined): sessionId is string =>
+    !!sessionId && fs.existsSync(path.join(sessionsDir, `${sessionId}.jsonl`))
+
+  if (hasSessionFile(preferredSessionId)) {
+    return preferredSessionId
+  }
+
+  try {
+    if (fs.existsSync(sessionsIndexPath)) {
+      const sessionsIndex = JSON.parse(fs.readFileSync(sessionsIndexPath, 'utf-8'))
+      const mappedSessionId = typeof sessionsIndex?.[sessionKey]?.sessionId === 'string'
+        ? sessionsIndex[sessionKey].sessionId
+        : undefined
+      if (hasSessionFile(mappedSessionId)) {
+        return mappedSessionId
+      }
+
+      for (const [key, entry] of Object.entries(sessionsIndex)) {
+        if (typeof entry !== 'object' || entry === null) continue
+        const entrySessionId = typeof (entry as any).sessionId === 'string'
+          ? (entry as any).sessionId
+          : undefined
+        if (preferredSessionId && key === preferredSessionId && hasSessionFile(entrySessionId)) {
+          return entrySessionId
+        }
+      }
+    }
+  } catch {}
+
+  try {
+    if (!fs.existsSync(sessionsDir)) return preferredSessionId
+    const newest = fs.readdirSync(sessionsDir, { withFileTypes: true })
+      .filter(entry => entry.isFile() && entry.name.endsWith('.jsonl'))
+      .map(entry => {
+        const fullPath = path.join(sessionsDir, entry.name)
+        return {
+          sessionId: entry.name.replace(/\.jsonl$/, ''),
+          mtimeMs: fs.statSync(fullPath).mtimeMs,
+        }
+      })
+      .sort((a, b) => b.mtimeMs - a.mtimeMs)[0]
+    return newest?.sessionId || preferredSessionId
+  } catch {
+    return preferredSessionId
+  }
+}
+
 function normalizeSessionModel(model?: string): string | undefined {
   if (!model) return undefined
   const trimmed = model.trim()
