@@ -10,6 +10,7 @@ import fs from 'fs'
 import { getWorkspaceManager } from './workspace-manager'
 import { listAgents } from './workspace'
 import { estimateTraceCostUsd } from './model-pricing'
+import { resolveOpikRuntimeConfig } from './opik'
 
 interface TraceData {
   id: string
@@ -208,11 +209,7 @@ export function summarizeCostWindows(
 }
 
 function getOpikConfig() {
-  return {
-    apiKey: (process.env.OPIK_API_KEY || '').replace(/"/g, ''),
-    workspace: (process.env.OPIK_WORKSPACE || 'default').replace(/"/g, ''),
-    projectName: (process.env.OPIK_PROJECT_NAME || 'clawmax').replace(/"/g, ''),
-  }
+  return resolveOpikRuntimeConfig()
 }
 
 function getWorkspaceTraceIds(workspaceId?: string): string[] {

@@ -8,11 +8,18 @@ import https from 'https'
 import path from 'path'
 import { getWorkspaceManager } from './workspace-manager'
 import { estimateModelCostUsd } from './model-pricing'
+import { readWorkspaceIntegrationConfig } from './workspace-integrations'
 
 let apiKey = ''
 let workspace = ''
 let projectName = ''
 let enabled = false
+
+export interface OpikRuntimeConfig {
+  apiKey: string
+  workspace: string
+  projectName: string
+}
 
 export interface RuntimeInstanceIdentity {
   instanceKey: string
@@ -69,6 +76,19 @@ function getWorkspaceId(): string {
     } catch {
       return 'default'
     }
+  }
+}
+
+export function resolveOpikRuntimeConfig(): OpikRuntimeConfig {
+  const integrationConfig = readWorkspaceIntegrationConfig()
+  const envApiKey = (process.env.OPIK_API_KEY || '').replace(/"/g, '')
+  const envWorkspace = (process.env.OPIK_WORKSPACE || '').replace(/"/g, '')
+  const envProjectName = (process.env.OPIK_PROJECT_NAME || '').replace(/"/g, '')
+
+  return {
+    apiKey: envApiKey,
+    workspace: envWorkspace || integrationConfig.opikWorkspace || 'default',
+    projectName: envProjectName || integrationConfig.opikProject || 'clawmax',
   }
 }
 
@@ -134,9 +154,10 @@ function sendTrace(traceData: any): void {
 }
 
 export function initOpikTracing(): boolean {
-  apiKey = (process.env.OPIK_API_KEY || '').replace(/"/g, '')
-  workspace = (process.env.OPIK_WORKSPACE || 'default').replace(/"/g, '')
-  projectName = (process.env.OPIK_PROJECT_NAME || 'clawmax').replace(/"/g, '')
+  const resolved = resolveOpikRuntimeConfig()
+  apiKey = resolved.apiKey
+  workspace = resolved.workspace
+  projectName = resolved.projectName
 
   if (!apiKey) {
     console.log('[Opik] No OPIK_API_KEY — tracing disabled')

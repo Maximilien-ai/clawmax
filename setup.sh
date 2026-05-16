@@ -424,7 +424,7 @@ echo ""
 
 print_header "3. Setup Mode"
 
-AUTH_MODE="bypass"
+AUTH_MODE="${AUTH_MODE:-}"
 OTP_ALLOWED_EMAILS=""
 OTP_DEV_MODE=""
 if [ "$INTERACTIVE" = true ]; then
@@ -432,11 +432,13 @@ if [ "$INTERACTIVE" = true ]; then
   echo -e "  ${BOLD}2) Local dev with Email OTP${NC} — realistic auth testing with login codes"
   echo -e "  ${BOLD}3) Production with GitHub OAuth${NC}"
   echo ""
-  read -p "  Choose auth mode [1-3, default 1]: " AUTH_CHOICE
-  case "${AUTH_CHOICE:-1}" in
+  while true; do
+    read -p "  Choose auth mode [1-3]: " AUTH_CHOICE
+    case "${AUTH_CHOICE}" in
     1)
       AUTH_MODE="bypass"
       print_success "Local dev bypass selected"
+      break
       ;;
     2)
       AUTH_MODE="email_otp"
@@ -445,19 +447,36 @@ if [ "$INTERACTIVE" = true ]; then
       OTP_ALLOWED_EMAILS=${OTP_ALLOWED_EMAILS:-dev@example.com}
       print_success "Local dev Email OTP selected"
       print_info "Codes will be written to .clawmax-otp-dev.json at the repo root"
+      break
       ;;
     3)
       AUTH_MODE="github_oauth"
       print_success "Production mode selected (GitHub OAuth)"
+      break
       ;;
     *)
-      AUTH_MODE="bypass"
-      print_warning "Unknown choice — defaulting to local dev bypass"
+      print_warning "Choose 1, 2, or 3."
+      ;;
+    esac
+  done
+else
+  case "$AUTH_MODE" in
+    bypass)
+      print_info "Non-interactive: using local dev bypass"
+      ;;
+    email_otp)
+      OTP_DEV_MODE="${OTP_DEV_MODE:-log}"
+      OTP_ALLOWED_EMAILS="${OTP_ALLOWED_EMAILS:-dev@example.com}"
+      print_info "Non-interactive: using Email OTP"
+      ;;
+    github_oauth)
+      print_info "Non-interactive: using GitHub OAuth"
+      ;;
+    *)
+      print_error "Non-interactive setup requires AUTH_MODE to be set to bypass, email_otp, or github_oauth"
+      exit 1
       ;;
   esac
-else
-  AUTH_MODE="bypass"
-  print_info "Non-interactive: using local dev bypass"
 fi
 
 echo ""
@@ -519,6 +538,7 @@ if [ "$INTERACTIVE" = true ]; then
     if [ -n "$OPIK_KEY" ]; then
       read -p "  OPIK_WORKSPACE (default: clawmax): " OPIK_WORKSPACE
       OPIK_WORKSPACE=${OPIK_WORKSPACE:-clawmax}
+      read -p "  OPIK_PROJECT_NAME (required, e.g. clawmax-dev / clawmax-cloud / clawmax-on-prem / clawmax-enterprise): " OPIK_PROJECT_NAME
       print_success "Opik configured"
     fi
   else
@@ -731,7 +751,7 @@ if [ -n "$OPIK_KEY" ]; then
 # Comet Opik — agent monitoring and cost tracking
 OPIK_API_KEY=$OPIK_KEY
 OPIK_WORKSPACE="${OPIK_WORKSPACE:-clawmax}"
-OPIK_PROJECT_NAME="clawmax"
+OPIK_PROJECT_NAME="$OPIK_PROJECT_NAME"
 ENVEOF
 else
   cat >> "$ENV_FILE" << 'ENVEOF'
@@ -739,7 +759,7 @@ else
 # Comet Opik — optional monitoring (https://www.comet.com/signup)
 # OPIK_API_KEY=
 # OPIK_WORKSPACE=clawmax
-# OPIK_PROJECT_NAME=clawmax
+# OPIK_PROJECT_NAME=<choose-a-project-name>
 ENVEOF
 fi
 

@@ -675,6 +675,15 @@ else
   fail "Workspace integrations unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Opik runtime config unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/opik.test.ts > /tmp/clawmax-opik.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-opik.out; then
+  opik_count=$(grep "Tests passed:" /tmp/clawmax-opik.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Opik runtime config unit tests (${opik_count:-?} tests)"
+else
+  fail "Opik runtime config unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Workspace import unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/workspace-import.test.ts > /tmp/clawmax-workspace-import.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-workspace-import.out; then

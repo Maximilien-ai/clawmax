@@ -1205,7 +1205,7 @@ export function ByokWizard({
         ? `Configured ${maskKey(getPartnerSecret('senso', 'apiKey'))}${sensoContextLabel ? ` · context: ${sensoContextLabel}` : ''}`
         : 'Not configured — workspace files remain the default shared context layer'
     }
-    if (partner.slug === 'opik') return opikConfigured ? monitoringStatusText : 'Not configured — this UI can store Opik defaults, but runtime tracing and budget data still require dashboard OPIK_* env'
+    if (partner.slug === 'opik') return opikConfigured ? monitoringStatusText : 'Not configured — runtime tracing still requires server-side OPIK_API_KEY, while this UI can store Opik workspace/project defaults'
     if (partner.slug === 'github') {
       if (githubMode === 'token') {
         return githubReady
