@@ -54,6 +54,12 @@ export interface OpenClawSkill {
   tags?: string[]
   registryProvider?: 'clawhub' | 'shipables' | 'tessl'
   registryName?: string
+  registryInstallName?: string
+  registryVersion?: string
+  registryDownloadsWeekly?: number
+  registryCategories?: string[]
+  registryHomepage?: string
+  registryImportedAt?: string
   requirementStatus?: SkillRequirementStatus
   secretRequirements?: Array<{
     key: string
@@ -94,6 +100,17 @@ export interface SkillSetupCommand {
   command: string
   args: string[]
   display: string
+}
+
+export interface ImportedRegistrySkillMetadata {
+  provider: 'clawhub' | 'shipables' | 'tessl'
+  registryName: string
+  installName?: string
+  version?: string
+  downloadsWeekly?: number
+  categories?: string[]
+  homepage?: string
+  emoji?: string
 }
 
 const DEFAULT_SKILL_SETUP_REQUIREMENTS: Record<string, NonNullable<OpenClawSkill['setupRequirements']>> = {
@@ -224,6 +241,15 @@ function normalizeSkillSetupRequirements(
     inputs: setupRequirements?.inputs || defaults?.inputs,
     commands: setupRequirements?.commands || defaults?.commands,
   }
+}
+
+function normalizeStringArray(values: unknown): string[] {
+  if (!Array.isArray(values)) return []
+  return Array.from(new Set(values.map((value) => String(value || '').trim()).filter(Boolean)))
+}
+
+function normalizeSkillTags(tags: string[] | undefined): string[] {
+  return normalizeStringArray(tags).slice(0, 12)
 }
 
 // Paths to skill directories
@@ -559,6 +585,12 @@ function parseSkillFile(
       tags: openclawMeta.tags || data.tags || [],
       registryProvider: openclawMeta.registryProvider,
       registryName: openclawMeta.registryName,
+      registryInstallName: openclawMeta.registryInstallName,
+      registryVersion: openclawMeta.registryVersion,
+      registryDownloadsWeekly: typeof openclawMeta.registryDownloadsWeekly === 'number' ? openclawMeta.registryDownloadsWeekly : undefined,
+      registryCategories: normalizeStringArray(openclawMeta.registryCategories),
+      registryHomepage: openclawMeta.registryHomepage,
+      registryImportedAt: openclawMeta.registryImportedAt,
       secretRequirements,
       setupRequirements: normalizeSkillSetupRequirements(
         data.name,
@@ -609,6 +641,12 @@ function parseWorkspaceSkillFile(filePath: string, skillId: string): OpenClawSki
       tags: data.tags || openclawMeta.tags || [],
       registryProvider: openclawMeta.registryProvider,
       registryName: openclawMeta.registryName,
+      registryInstallName: openclawMeta.registryInstallName,
+      registryVersion: openclawMeta.registryVersion,
+      registryDownloadsWeekly: typeof openclawMeta.registryDownloadsWeekly === 'number' ? openclawMeta.registryDownloadsWeekly : undefined,
+      registryCategories: normalizeStringArray(openclawMeta.registryCategories),
+      registryHomepage: openclawMeta.registryHomepage,
+      registryImportedAt: openclawMeta.registryImportedAt,
       secretRequirements,
       setupRequirements: normalizeSkillSetupRequirements(
         name,
@@ -719,7 +757,7 @@ export function getSkillSetupCommands(
 export function updateSkillContent(
   skillId: string,
   content: string,
-  overrides?: { name?: string; description?: string }
+  overrides?: { name?: string; description?: string; tags?: string[] }
 ): { skill: OpenClawSkill; content: string; editable: boolean } {
   const skill = getSkillById(skillId)
   if (!skill) {
@@ -730,6 +768,7 @@ export function updateSkillContent(
   const nextName = (overrides?.name ?? parsed.data?.name ?? skill.name ?? '').trim()
   const nextDescriptionRaw = overrides?.description ?? parsed.data?.description ?? skill.description ?? ''
   const nextDescription = String(nextDescriptionRaw).trim()
+  const nextTags = normalizeSkillTags(overrides?.tags ?? parsed.data?.tags ?? skill.tags ?? [])
   if (!nextName) {
     throw new Error('Skill name is required')
   }
@@ -804,6 +843,7 @@ export function updateSkillContent(
     ...parsed.data,
     name: nextName,
     description: nextDescription,
+    tags: nextTags,
     metadata: {
       ...(parsed.data?.metadata || {}),
       openclaw: openclawMetadata
@@ -819,6 +859,44 @@ export function updateSkillContent(
   }
 
   return refreshed
+}
+
+export function stampImportedRegistrySkillMetadata(
+  skillDir: string,
+  metadata: ImportedRegistrySkillMetadata,
+): void {
+  const skillPath = resolveSkillMarkdownPath(skillDir)
+  if (!fs.existsSync(skillPath)) return
+
+  const raw = fs.readFileSync(skillPath, 'utf-8')
+  const parsed = matter(raw)
+  const nextTags = normalizeSkillTags([
+    ...(Array.isArray(parsed.data?.tags) ? parsed.data.tags : []),
+    ...(metadata.categories || []),
+  ])
+
+  const next = {
+    ...parsed.data,
+    ...(metadata.emoji && !parsed.data?.emoji ? { emoji: metadata.emoji } : {}),
+    ...(!parsed.data?.homepage && metadata.homepage ? { homepage: metadata.homepage } : {}),
+    tags: nextTags,
+    metadata: {
+      ...(parsed.data?.metadata || {}),
+      openclaw: {
+        ...(parsed.data?.metadata?.openclaw || {}),
+        registryProvider: metadata.provider,
+        registryName: metadata.registryName,
+        registryInstallName: metadata.installName || metadata.registryName,
+        registryVersion: metadata.version,
+        registryDownloadsWeekly: metadata.downloadsWeekly,
+        registryCategories: metadata.categories || [],
+        registryHomepage: metadata.homepage,
+        registryImportedAt: new Date().toISOString(),
+      },
+    },
+  }
+
+  fs.writeFileSync(skillPath, matter.stringify(parsed.content, next), 'utf-8')
 }
 
 /**
@@ -959,9 +1037,10 @@ export function createCustomSkill(params: {
   requires?: SkillRequirements
   install?: SkillInstallOption[]
   homepage?: string
+  tags?: string[]
   content: string
 }): OpenClawSkill {
-  const { name, description, emoji, requires, install, homepage, content } = params
+  const { name, description, emoji, requires, install, homepage, tags, content } = params
 
   // Validate skill name (alphanumeric, dashes, underscores only)
   if (!/^[a-z0-9_-]+$/i.test(name)) {
@@ -990,6 +1069,7 @@ export function createCustomSkill(params: {
   const frontmatter: any = {
     name,
     description,
+    ...(normalizeSkillTags(tags).length > 0 ? { tags: normalizeSkillTags(tags) } : {}),
     metadata: {
       openclaw: {
         ...(emoji && { emoji }),
@@ -1030,7 +1110,7 @@ ${content}
     requires,
     install,
     homepage,
-    tags: []
+    tags: normalizeSkillTags(tags)
   }
 }
 

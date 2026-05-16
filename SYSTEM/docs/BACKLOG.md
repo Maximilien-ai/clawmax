@@ -14,7 +14,7 @@ Target: keep the `1.4.1` line stable after tag/test, close out remaining custome
 - [x] **Customer verification window for recent runtime fixes closed cleanly** — `#122`, `#123`, and `#124` were explicitly verified fixed by `@p11n-com`.
 - [x] **Container image/runtime follow-through closed cleanly** — `#129` (dashboard Docker build lockfile/peer-dep drift) and `#130` (gateway watchdog false negatives in the slim runtime image) are fixed on `main`, regression-covered, and closed; the live issue tracker is now down to `#32`, `#109`, and `#111`.
 - [ ] **Tessl registry hardening (experimental)** — improve install guidance for Tessl security-review blockers, continue validating real OpenClaw-compatible tiles, and decide what “supported” vs. “exploratory” means before promoting Tessl beyond experimental. GitHub: `#134`
-- [ ] **Skill registry metadata follow-through** — preserve richer registry metadata where practical (emoji, provenance details, richer display copy), especially for imported Shipables/Tessl skills. GitHub: `#135`
+- [x] **Skill registry metadata follow-through** — imported registry skills now preserve richer registry metadata (provider/source details, install name, version, downloads, categories, homepage, and richer card/viewer display) across ClawHub, Shipables, and Tessl imports. GitHub: `#135`
 
 ### Completed In The `1.4.1` Line
 
@@ -170,9 +170,9 @@ Target: keep the `1.4.1` line stable after tag/test, close out remaining custome
 - [ ] **Agent-scoped skills page/panel** — add a dedicated `Skills...` entry from agent detail/edit that shows current agent skills plus search/browse to add more in place. GitHub: `#138`
 - [x] **Browse skill registries in Skills page** — Skills now supports embedded discovery for Shipables plus exploratory Tessl registry suggestions and registry-browser entrypoints.
 - [ ] **Imported Shipables/Tessl skills emoji/metadata** — imported skills should preserve richer registry metadata beyond current provider/source pills.
-- [ ] **Edit skill tags post-import** — add/remove tags on any skill from the Skills page. GitHub: `#139`
+- [x] **Edit skill tags post-import** — skills can now update tags directly from the Skills viewer/editor after import or creation. GitHub: `#139`
 - [x] **Skills select/select-all + bulk ops** — selection mode now supports select-all-visible, workflow-style bulk action bar, bulk assign-to-agents, and bulk delete for user skills.
-- [ ] **Skill tag filtering** — filter skills by tag like agent tag filtering. GitHub: `#140`
+- [x] **Skill tag filtering** — Skills page now supports explicit tag filtering alongside search and assignment filters. GitHub: `#140`
 - [ ] **Skills publish to SkillsHub** — package and publish workspace skills to GitHub/registry
 
 ### Research / Self-Management

@@ -11,6 +11,7 @@ import { getSkillAssignmentBuckets } from '../lib/skillAssignments'
 import { summarizeSkillDeleteImpact } from '../lib/skillsDeletion'
 import { filterAssignableAgents, isDeletableUserSkill, partitionSelectedSkills, partitionSkillsBySource, toggleItemSelection, toggleVisibleSelections } from '../lib/skillsSelection'
 import { getSkillSetupHint, maybeWarnSkillSetup, supportsDashboardSkillSetup } from '../lib/skillSetup'
+import { collectSkillTags, matchesSelectedSkillTags } from '../lib/skillTags'
 import { useAuth } from '../contexts/AuthContext'
 
 // Use relative path so it works with ngrok and localhost
@@ -85,6 +86,20 @@ const SKILL_SPEC_SECTIONS = [
 ]
 
 type RegistryProvider = 'clawhub' | 'shipables' | 'tessl'
+type RegistrySkillResult = {
+  name: string
+  full_name?: string
+  install_name?: string
+  description?: string
+  version?: string
+  latest_version?: string
+  downloads?: number
+  downloads_weekly?: number
+  categories?: string[]
+  homepage?: string
+  emoji?: string
+  raw?: any
+}
 
 const REGISTRY_PROVIDERS: Array<{
   id: RegistryProvider
@@ -140,6 +155,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
   const [saving, setSaving] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [filterAssigned, setFilterAssigned] = useState<'all' | 'assigned' | 'available'>('all')
+  const [selectedSkillTags, setSelectedSkillTags] = useState<Set<string>>(new Set())
   const [agentId, setAgentId] = useState(initialAgentId || '')
   const [availableAgents, setAvailableAgents] = useState<string[]>([])
   const [agentSearchQuery, setAgentSearchQuery] = useState('')
@@ -161,12 +177,12 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
   const [importSource, setImportSource] = useState<'local' | 'github' | 'registry' | 'partner' | 'ai'>('local')
   const [registryProvider, setRegistryProvider] = useState<RegistryProvider>('clawhub')
   const [registryQuery, setRegistryQuery] = useState('')
-  const [registryResults, setRegistryResults] = useState<Array<{ name: string; full_name?: string; install_name?: string; description?: string; version?: string; downloads?: number }>>([])
+  const [registryResults, setRegistryResults] = useState<RegistrySkillResult[]>([])
   const [registrySearching, setRegistrySearching] = useState(false)
   const [registryInstalling, setRegistryInstalling] = useState<string | null>(null)
   const [registryTotal, setRegistryTotal] = useState(0)
   const [registryInstalledNames, setRegistryInstalledNames] = useState<Set<string>>(new Set())
-  const [inlineRegistrySuggestions, setInlineRegistrySuggestions] = useState<Record<RegistryProvider, Array<{ name: string; description?: string; latest_version?: string; downloads_weekly?: number; full_name?: string; install_name?: string }>>>({
+  const [inlineRegistrySuggestions, setInlineRegistrySuggestions] = useState<Record<RegistryProvider, RegistrySkillResult[]>>({
     clawhub: [],
     shipables: [],
     tessl: [],
@@ -205,6 +221,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
   const [editingSkill, setEditingSkill] = useState(false)
   const [editingSkillName, setEditingSkillName] = useState('')
   const [editingSkillDescription, setEditingSkillDescription] = useState('')
+  const [editingSkillTags, setEditingSkillTags] = useState('')
   const [editingDraft, setEditingDraft] = useState('')
   const [loadingSkillContent, setLoadingSkillContent] = useState(false)
   const [savingSkillContent, setSavingSkillContent] = useState(false)
@@ -236,6 +253,15 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
     if (exactSkill) {
       void openSkillViewer(exactSkill)
     }
+  }
+
+  function parseTagInput(value: string): string[] {
+    return Array.from(new Set(
+      value
+        .split(',')
+        .map((tag) => tag.trim())
+        .filter(Boolean)
+    ))
   }
 
   // Load agents list on mount
@@ -521,14 +547,19 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
     finally { setRegistrySearching(false) }
   }
 
-  async function installRegistrySkill(installName: string, providerOverride?: RegistryProvider, overwrite = false) {
+  async function installRegistrySkill(
+    installName: string,
+    providerOverride?: RegistryProvider,
+    overwrite = false,
+    registryResult?: RegistrySkillResult,
+  ) {
     const provider = providerOverride || registryProvider
     setRegistryInstalling(installName)
     try {
       const resp = await fetch('/api/skills/registry/install', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ provider, name: installName, overwrite }),
+        body: JSON.stringify({ provider, name: installName, overwrite, registryResult }),
       })
       const data = await resp.json()
       if (resp.status === 409 && data?.canOverwrite) {
@@ -539,7 +570,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
           `The skill already exists in this workspace: ${conflictList}.\n\nReinstalling will replace the current user skill with the registry version.\n\nDo you want to continue?`
         )
         if (shouldOverwrite) {
-          await installRegistrySkill(installName, provider, true)
+          await installRegistrySkill(installName, provider, true, registryResult)
         }
         return
       }
@@ -724,6 +755,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
       setEditingDraft(data.content || '')
       setEditingSkillName(data.skill?.name || skill.name)
       setEditingSkillDescription(data.skill?.description || skill.description || '')
+      setEditingSkillTags(((data.skill?.tags || skill.tags || []) as string[]).join(', '))
     } catch (err: any) {
       setError(err.message || 'Failed to load skill content')
     } finally {
@@ -753,6 +785,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
           content: editingDraft,
           name: editingSkillName,
           description: editingSkillDescription,
+          tags: parseTagInput(editingSkillTags),
         })
       })
       const data = await res.json()
@@ -764,6 +797,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
       setEditingDraft(data.content || editingDraft)
       setEditingSkillName(data.skill?.name || editingSkillName)
       setEditingSkillDescription(data.skill?.description || editingSkillDescription)
+      setEditingSkillTags(((data.skill?.tags || parseTagInput(editingSkillTags)) as string[]).join(', '))
       setEditingSkill(false)
       showSuccess(viewingSkill.source === 'bundled'
         ? `Saved ${data.skill?.name || viewingSkill.name} as a workspace copy and marked it dirty`
@@ -919,6 +953,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
     // Assignment filter
     if (filterAssigned === 'assigned' && !assignedSkills.has(skill.name)) return false
     if (filterAssigned === 'available' && assignedSkills.has(skill.name)) return false
+    if (!matchesSelectedSkillTags(skill, selectedSkillTags)) return false
 
     return true
   })
@@ -966,6 +1001,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
   }), [inlineRegistrySuggestions, registryInstalledNames])
   const activeRegistryProvider = REGISTRY_PROVIDERS.find((provider) => provider.id === registryProvider) || REGISTRY_PROVIDERS[0]
   const viewingSkillSetupHint = viewingSkill ? getSkillSetupHint(viewingSkill) : null
+  const allSkillTags = useMemo(() => collectSkillTags(allSkills), [allSkills])
   const visiblePartnerInstallers = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
     return partnerInstallers.filter((partner) => {
@@ -1424,6 +1460,41 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
             </div>
           </div>
 
+          {allSkillTags.length > 0 && (
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Filter by tags:</span>
+              {allSkillTags.map((tag) => {
+                const selected = selectedSkillTags.has(tag)
+                return (
+                  <button
+                    key={tag}
+                    onClick={() => setSelectedSkillTags((current) => {
+                      const next = new Set(current)
+                      if (next.has(tag)) next.delete(tag)
+                      else next.add(tag)
+                      return next
+                    })}
+                    className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                      selected
+                        ? 'border-sky-300 bg-sky-100 text-sky-800 dark:border-sky-700 dark:bg-sky-900/40 dark:text-sky-200'
+                        : 'border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900/30 dark:text-gray-300 dark:hover:bg-gray-800'
+                    }`}
+                  >
+                    {tag}
+                  </button>
+                )
+              })}
+              {selectedSkillTags.size > 0 && (
+                <button
+                  onClick={() => setSelectedSkillTags(new Set())}
+                  className="text-xs font-medium text-blue-600 hover:text-blue-700"
+                >
+                  Clear tags
+                </button>
+              )}
+            </div>
+          )}
+
           <div className="mt-2 flex flex-wrap items-center justify-between gap-3 text-sm text-gray-600 dark:text-gray-300">
             <span>
             Showing {filteredSkills.length} of {allSkills.length} skills
@@ -1669,7 +1740,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                                       {skill.description && <div className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2">{skill.description}</div>}
                                     </div>
                                     <button
-                                      onClick={() => installRegistrySkill(skill.installName, provider)}
+                                      onClick={() => installRegistrySkill(skill.installName, provider, false, skill)}
                                       disabled={!!registryInstalling}
                                       className="shrink-0 px-2.5 py-1.5 text-xs font-medium bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed"
                                     >
@@ -1762,7 +1833,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                                       {skill.description && <div className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2">{skill.description}</div>}
                                     </div>
                                     <button
-                                      onClick={() => installRegistrySkill(skill.installName, provider)}
+                                      onClick={() => installRegistrySkill(skill.installName, provider, false, skill)}
                                       disabled={!!registryInstalling}
                                       className="shrink-0 px-2.5 py-1.5 text-xs font-medium bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed"
                                     >
@@ -1879,6 +1950,11 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                     <span className="text-xs px-2 py-0.5 rounded border border-gray-200 text-gray-600 dark:border-gray-700 dark:text-gray-300">
                       {viewingSkill.source}
                     </span>
+                    {viewingSkill.registryProvider && (
+                      <span className="text-xs px-2 py-0.5 rounded border border-purple-200 bg-purple-50 text-purple-700 dark:border-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
+                        {viewingSkill.registryProvider}
+                      </span>
+                    )}
                     {viewingSkill.dirty && (
                       <span className="text-xs px-2 py-0.5 rounded border border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
                         DIRTY
@@ -1886,6 +1962,13 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                     )}
                   </div>
                   <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 truncate">{viewingSkill.filePath}</p>
+                  {(viewingSkill.registryName || viewingSkill.registryVersion || viewingSkill.registryDownloadsWeekly) && (
+                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                      {viewingSkill.registryName && <span>Registry name: {viewingSkill.registryName}</span>}
+                      {viewingSkill.registryVersion && <span>Version: {viewingSkill.registryVersion}</span>}
+                      {typeof viewingSkill.registryDownloadsWeekly === 'number' && <span>Downloads: {viewingSkill.registryDownloadsWeekly}</span>}
+                    </div>
+                  )}
                 </div>
                 <button
                   onClick={() => {
@@ -2091,6 +2174,21 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                           placeholder="Short summary of what this skill does"
                           className="w-full rounded-md border border-amber-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:border-amber-700 dark:bg-gray-900 dark:text-gray-100"
                         />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="mb-1.5 block text-sm font-medium text-amber-900 dark:text-amber-200">
+                          Tags
+                        </label>
+                        <input
+                          type="text"
+                          value={editingSkillTags}
+                          onChange={(e) => setEditingSkillTags(e.target.value)}
+                          placeholder="research, email, crm"
+                          className="w-full rounded-md border border-amber-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:border-amber-700 dark:bg-gray-900 dark:text-gray-100"
+                        />
+                        <div className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                          Comma-separated tags for filtering and discovery.
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -2960,7 +3058,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                                   </span>
                                 ) : (
                                   <button
-                                    onClick={() => installRegistrySkill(installName)}
+                                    onClick={() => installRegistrySkill(installName, undefined, false, skill)}
                                     disabled={!!registryInstalling}
                                     className="ml-3 px-3 py-1.5 text-xs font-medium bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed shrink-0"
                                   >

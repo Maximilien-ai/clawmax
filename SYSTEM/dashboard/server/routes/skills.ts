@@ -13,6 +13,7 @@ import {
   getSkillRequirementInstallCommands,
   getSkillSetupCommands,
   validateSkillChanges,
+  stampImportedRegistrySkillMetadata,
 } from '../lib/skills'
 import { getCuratedPartnerInstaller } from '../lib/partner-installs'
 import { generateSkillFromNL, setRequestByokKeys } from '../lib/ai-generator'
@@ -31,7 +32,6 @@ import {
 } from '../lib/skill-registry'
 import { exec } from 'child_process'
 import { promisify } from 'util'
-import matter from 'gray-matter'
 import fs from 'fs'
 import path from 'path'
 
@@ -39,26 +39,29 @@ const execAsync = promisify(exec)
 const execFileAsync = promisify(require('child_process').execFile)
 const router = express.Router()
 
-function annotateImportedRegistrySkill(skillDir: string, provider: 'clawhub' | 'shipables' | 'tessl', registryName: string) {
-  const skillMdUpper = path.join(skillDir, 'SKILL.md')
-  const skillMdLower = path.join(skillDir, 'skill.md')
-  const skillPath = fs.existsSync(skillMdUpper) ? skillMdUpper : skillMdLower
-  if (!fs.existsSync(skillPath)) return
+type RegistryResultMetadata = {
+  name?: string
+  full_name?: string
+  install_name?: string
+  description?: string
+  latest_version?: string
+  downloads_weekly?: number
+  categories?: string[]
+  homepage?: string
+  emoji?: string
+  raw?: any
+}
 
-  const raw = fs.readFileSync(skillPath, 'utf-8')
-  const parsed = matter(raw)
-  const next = {
-    ...parsed.data,
-    metadata: {
-      ...(parsed.data?.metadata || {}),
-      openclaw: {
-        ...(parsed.data?.metadata?.openclaw || {}),
-        registryProvider: provider,
-        registryName,
-      },
-    },
+function extractRegistryMetadata(raw: RegistryResultMetadata | undefined) {
+  if (!raw) return undefined
+  return {
+    installName: raw.install_name || raw.full_name || raw.name,
+    version: raw.latest_version,
+    downloadsWeekly: typeof raw.downloads_weekly === 'number' ? raw.downloads_weekly : undefined,
+    categories: Array.isArray(raw.categories) ? raw.categories.filter(Boolean).map((value) => String(value).trim()) : [],
+    homepage: raw.homepage || raw.raw?.homepage || raw.raw?.url || raw.raw?.repositoryUrl || raw.raw?.repository_url,
+    emoji: raw.emoji || raw.raw?.emoji || raw.raw?.icon,
   }
-  fs.writeFileSync(skillPath, matter.stringify(parsed.content, next), 'utf-8')
 }
 
 // GET /api/skills/browse-directory - Show native directory picker (macOS)
@@ -94,7 +97,7 @@ router.get('/browse-directory', async (req, res) => {
 // POST /api/skills - Create a new custom skill
 router.post('/', (req, res) => {
   try {
-    const { name, description, emoji, requires, install, homepage, content } = req.body
+    const { name, description, emoji, requires, install, homepage, tags, content } = req.body
 
     if (!name || !description || !content) {
       return res.status(400).json({
@@ -109,6 +112,7 @@ router.post('/', (req, res) => {
       requires,
       install,
       homepage,
+      tags,
       content
     })
 
@@ -175,7 +179,7 @@ router.get('/:skillId/content', (req, res) => {
 router.put('/:skillId/content', (req, res) => {
   try {
     const { skillId } = req.params
-    const { content, name, description } = req.body
+    const { content, name, description, tags } = req.body
 
     if (typeof content !== 'string') {
       return res.status(400).json({ error: 'content must be a string' })
@@ -186,8 +190,15 @@ router.put('/:skillId/content', (req, res) => {
     if (description != null && typeof description !== 'string') {
       return res.status(400).json({ error: 'description must be a string when provided' })
     }
+    if (tags != null && !Array.isArray(tags)) {
+      return res.status(400).json({ error: 'tags must be an array when provided' })
+    }
 
-    const result = updateSkillContent(skillId, content, { name, description })
+    const result = updateSkillContent(skillId, content, {
+      name,
+      description,
+      tags: Array.isArray(tags) ? tags : undefined,
+    })
     res.json({ ok: true, ...result })
   } catch (err: any) {
     console.error('Error updating skill content:', err)
@@ -724,6 +735,7 @@ router.post('/registry/install', async (req, res) => {
   const provider = normalizeSkillRegistryProvider(req.body?.provider)
   try {
     let { name } = req.body
+    const registryResult = req.body?.registryResult as RegistryResultMetadata | undefined
     const overwrite = req.body?.overwrite === true
     if (!name || typeof name !== 'string') {
       return res.status(400).json({ error: 'Skill name is required' })
@@ -816,7 +828,11 @@ router.post('/registry/install', async (req, res) => {
             result = importWorkspaceSkill(skillDir)
           }
           if (result.success) {
-            annotateImportedRegistrySkill(path.join(customSkillsDir, result.skillId || dirName), provider, name)
+            stampImportedRegistrySkillMetadata(path.join(customSkillsDir, result.skillId || dirName), {
+              provider,
+              registryName: name,
+              ...extractRegistryMetadata(registryResult),
+            })
             results.push({ name: dirName, ok: true })
             continue
           }
@@ -844,7 +860,11 @@ router.post('/registry/install', async (req, res) => {
             fs.renameSync(path.join(targetDir, 'skill.md'), path.join(targetDir, 'SKILL.md'))
           }
 
-          annotateImportedRegistrySkill(targetDir, provider, name)
+          stampImportedRegistrySkillMetadata(targetDir, {
+            provider,
+            registryName: name,
+            ...extractRegistryMetadata(registryResult),
+          })
 
           results.push({ name: dirName, ok: true })
         } catch (err: any) {

@@ -70,6 +70,12 @@ export interface OpenClawSkill {
   tags?: string[]       // Searchable tags
   registryProvider?: 'clawhub' | 'shipables' | 'tessl'
   registryName?: string
+  registryInstallName?: string
+  registryVersion?: string
+  registryDownloadsWeekly?: number
+  registryCategories?: string[]
+  registryHomepage?: string
+  registryImportedAt?: string
   secretRequirements?: SecretRequirement[]
   setupRequirements?: SkillSetupRequirement
   requirementStatus?: SkillRequirementStatus

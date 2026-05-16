@@ -243,6 +243,27 @@ test('updateSkillContent() can rename a managed skill and keep it editable', () 
   deleteWorkspaceSkill('test-editable-skill-v2')
 })
 
+test('updateSkillContent() persists edited tags for a user skill', () => {
+  createCustomSkill({
+    name: 'test-tag-edit-skill',
+    description: 'Skill for tag editing',
+    content: '# Test Tag Edit Skill\n\nInitial body.\n',
+  })
+
+  const updated = updateSkillContent('test-tag-edit-skill', '# Test Tag Edit Skill\n\nUpdated body.\n', {
+    name: 'test-tag-edit-skill',
+    description: 'Skill for tag editing',
+    tags: ['research', 'email', 'research'],
+  })
+
+  assertEqual(JSON.stringify(updated.skill.tags), JSON.stringify(['research', 'email']), 'Expected updated tags to be normalized and persisted')
+
+  const reopened = getSkillContent('test-tag-edit-skill')
+  assert(reopened, 'Expected edited skill to reload')
+  assert(reopened!.content.includes('tags:'), 'Expected tags to be written into frontmatter')
+  deleteWorkspaceSkill('test-tag-edit-skill')
+})
+
 test('updateSkillContent() can rename a bundled skill into a workspace copy', () => {
   const original = getSkillContent('workspace-ls')
   assert(original, 'Expected original content for workspace-ls')
@@ -292,8 +313,47 @@ metadata:
   assert(skill !== null, 'Expected imported registry skill to load')
   assertEqual(skill!.registryProvider as any, 'tessl', 'Expected registry provider metadata')
   assertEqual(skill!.registryName as any, 'acme/test-tessl-skill', 'Expected registry name metadata')
+  assertEqual(skill!.registryInstallName as any, undefined, 'Expected missing extended metadata to stay optional')
 
   deleteWorkspaceSkill('test-tessl-skill')
+})
+
+test('workspace skills preserve extended registry metadata when present', () => {
+  const workspaceSkillsDir = getWorkspaceSkillsDir()
+  const skillDir = path.join(workspaceSkillsDir, 'test-clawhub-skill')
+  fs.mkdirSync(skillDir, { recursive: true })
+  fs.writeFileSync(path.join(skillDir, 'SKILL.md'), `---
+name: test-clawhub-skill
+description: Skill imported from ClawHub
+tags:
+  - imported
+metadata:
+  openclaw:
+    registryProvider: clawhub
+    registryName: clawhub/test-clawhub-skill
+    registryInstallName: clawhub/test-clawhub-skill
+    registryVersion: 1.2.3
+    registryDownloadsWeekly: 42
+    registryCategories:
+      - productivity
+      - email
+    registryHomepage: https://clawhub.dev/skills/test-clawhub-skill
+---
+
+# Test ClawHub Skill
+`, 'utf-8')
+
+  const skill = getSkillById('test-clawhub-skill')
+  assert(skill !== null, 'Expected imported registry skill with extended metadata to load')
+  assertEqual(skill!.registryProvider as any, 'clawhub', 'Expected registry provider metadata')
+  assertEqual(skill!.registryName as any, 'clawhub/test-clawhub-skill', 'Expected registry name metadata')
+  assertEqual(skill!.registryInstallName as any, 'clawhub/test-clawhub-skill', 'Expected install name metadata')
+  assertEqual(skill!.registryVersion as any, '1.2.3', 'Expected registry version metadata')
+  assertEqual(skill!.registryDownloadsWeekly as any, 42, 'Expected registry downloads metadata')
+  assertEqual(JSON.stringify(skill!.registryCategories), JSON.stringify(['productivity', 'email']), 'Expected registry categories metadata')
+  assertEqual(skill!.registryHomepage as any, 'https://clawhub.dev/skills/test-clawhub-skill', 'Expected registry homepage metadata')
+
+  deleteWorkspaceSkill('test-clawhub-skill')
 })
 
 test('workspace skills expose setup requirement metadata when present', () => {

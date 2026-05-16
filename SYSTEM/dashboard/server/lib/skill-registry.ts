@@ -110,6 +110,8 @@ export function normalizeSkillRegistrySearchResults(provider: SkillRegistryProvi
       latest_version: item?.latest_version || item?.latestVersion || item?.version,
       downloads_weekly: item?.downloads_weekly || item?.downloads || item?.installs,
       categories: item?.categories || item?.tags || [],
+      homepage: item?.homepage || item?.url || item?.docsUrl || item?.docs_url,
+      emoji: item?.emoji || item?.icon,
       result_type: item?.type,
       raw: item,
     })).filter((item: any) => item.name)
@@ -160,6 +162,8 @@ export function normalizeSkillRegistrySearchResults(provider: SkillRegistryProvi
           latest_version: item?.latestVersion || item?.version,
           downloads_weekly: item?.downloadsWeekly || item?.downloads || item?.installs,
           categories: item?.categories || item?.tags || [],
+          homepage: item?.homepage || item?.url || item?.repositoryUrl || item?.repository_url,
+          emoji: item?.emoji || item?.icon,
           raw: item,
         }))
         .filter((item: any) => item.name),
@@ -170,7 +174,11 @@ export function normalizeSkillRegistrySearchResults(provider: SkillRegistryProvi
 
   const results = Array.isArray(parsed) ? parsed : (parsed?.skills || [])
   return {
-    results,
+    results: results.map((item: any) => ({
+      ...item,
+      homepage: item?.homepage || item?.url || item?.repositoryUrl || item?.repository_url,
+      emoji: item?.emoji || item?.icon,
+    })),
     total: parsed?.pagination?.total,
     pagination: parsed?.pagination,
   }

@@ -525,6 +525,15 @@ else
   fail "Skill setup helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Skill tags helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/skillTags.test.ts > /tmp/clawmax-skill-tags.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-skill-tags.out; then
+  skill_tags_count=$(grep "Tests passed:" /tmp/clawmax-skill-tags.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Skill tags helper unit tests (${skill_tags_count:-?} tests)"
+else
+  fail "Skill tags helper unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Terms of Service content unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/termsOfService.test.ts > /tmp/clawmax-terms-of-service.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-terms-of-service.out; then

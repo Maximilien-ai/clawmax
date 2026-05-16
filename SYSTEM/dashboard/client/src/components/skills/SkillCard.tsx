@@ -115,6 +115,14 @@ export function SkillCard({ skill, assigned, onToggle, onView, onDelete, canDele
               )}
             </p>
           )}
+
+          {(skill.registryName || skill.registryVersion || typeof skill.registryDownloadsWeekly === 'number') && (
+            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-gray-400 dark:text-gray-500">
+              {skill.registryName && <span>{skill.registryName}</span>}
+              {skill.registryVersion && <span>v{skill.registryVersion}</span>}
+              {typeof skill.registryDownloadsWeekly === 'number' && <span>{skill.registryDownloadsWeekly}/week</span>}
+            </div>
+          )}
         </div>
 
         {/* Actions */}
@@ -245,6 +253,33 @@ export function SkillCard({ skill, assigned, onToggle, onView, onDelete, canDele
                     >
                       {setupHint.actionLabel || 'Complete Setup'}
                     </button>
+                  )}
+                </div>
+              )}
+
+              {(skill.registryCategories?.length || skill.registryHomepage) && (
+                <div className="bg-purple-50 dark:bg-purple-900/20 p-2 rounded border border-purple-200 dark:border-purple-800">
+                  <div className="font-medium text-purple-900 mb-1 dark:text-purple-200">
+                    Registry metadata
+                  </div>
+                  {skill.registryCategories && skill.registryCategories.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {skill.registryCategories.map((category) => (
+                        <span key={category} className="text-[10px] px-1.5 py-0.5 rounded border border-purple-200 bg-white text-purple-700 dark:border-purple-700 dark:bg-purple-950/30 dark:text-purple-300">
+                          {category}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {skill.registryHomepage && (
+                    <a
+                      href={skill.registryHomepage}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2 inline-block text-xs text-purple-700 hover:underline dark:text-purple-300"
+                    >
+                      Visit registry page →
+                    </a>
                   )}
                 </div>
               )}
