@@ -5,12 +5,26 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.4.8-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
+[![Version](https://img.shields.io/badge/version-1.4.9-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
 [![Tests](https://img.shields.io/badge/tests-72%20default--safe-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 Latest Release: v1.4.8
+## 🔥 Latest Release: v1.4.9
+
+- Agent chat history now persists reliably across reopen:
+  - dashboard chat uses stable agent-scoped sessions
+  - persisted runtime session mapping is recovered more defensively when aliases drift
+- Skills are much more operator-friendly:
+  - imported registry skills preserve richer metadata
+  - skill tags are editable after import/creation
+  - Skills page now supports explicit tag filtering
+  - setup-needed skills are flagged more consistently and setup/install states stay distinct
+- Runtime/setup alignment improved:
+  - Opik tracing and metering now honor workspace-stored Opik workspace/project settings when env does not override them
+  - `setup.sh` no longer silently defaults auth mode or Opik project names in open-source setup
+
+## 🔥 Previous Release: v1.4.8
 
 - Managed on-prem Ollama BYOK now follows the runtime contract correctly:
   - the BYOK wizard now prefers the runtime-provided `defaultOllamaBaseUrl` over stale browser-local `localhost` values on managed on-prem instances
@@ -33,38 +47,7 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
   - dashboard only shows Ollama BYOK/UI when both `ollamaEnabled` is true and a non-empty `defaultOllamaBaseUrl` are present
   - this avoids showing Ollama as available on package lines where the runtime has not wired the base URL yet
 
-## 🔥 Previous Release: v1.4.6
-
-- Agent model safety and BYOK validation were tightened:
-  - agent creation and template apply now require a resolvable concrete model instead of persisting empty or `unknown` model state
-  - stale `unknown` live-config records are ignored in favor of real workspace/identity/provider-backed defaults
-  - obvious wrong-provider key swaps are rejected before save and before validation
-  - model-provider checks now run one key at a time and provider cards distinguish `configured` from `verified`
-
-## 🔥 Previous Release Series: v1.4.2–v1.4.5
-
-- Container/runtime hardening for the published image line:
-  - the Docker OpenClaw builder stage skips dependency `prepare` hooks for problematic transitive git-hosted packages during clean-room container builds
-  - the dashboard Docker builder and runtime install steps now use `--legacy-peer-deps`, which fixes clean `docker compose build` failures at the dashboard stage after the earlier OpenClaw builder fix
-  - the gateway watchdog in the slim runtime image now uses a Node-based localhost probe when `ss`/`netstat` are unavailable, so healthy containers stop spam-restarting the gateway every 30 seconds
-- Cloud template-created agents are now chat-ready immediately:
-  - agent-template apply now creates the full OpenClaw runtime scaffolding under `~/.openclaw/agents/<id>/`, including `config.yaml` and `sessions/`
-  - this fixes cloud chat failures where agents created from templates could not reach the active runtime even though gateway health was otherwise good
-- Organization now defaults to the org-chart view:
-  - the Organization page opens in the org-chart view by default and shows that view first in the toggle, matching Workflows preferring DAG as the primary view
-- On-prem runtime behavior is now more consistent:
-  - agent and organization template apply block early if the dashboard cannot resolve a viable execution path or default model
-  - healthy embedded gateway runtimes keep idle and newly created agents shown as online
-  - dashboard execution checks now honor the default non-managed Ollama contract on on-prem installs
-- Agent model safety is tighter across the board:
-  - agent creation and template apply now always resolve a concrete model or block before creation
-  - stale `unknown` live-config models are ignored in favor of the active workspace record, the agent identity model, the workspace preferred model, or the provider-backed default
-  - truly broken agents now tell the user to choose a model explicitly instead of failing opaquely in chat
-- BYOK validation is more trustworthy:
-  - obvious wrong-provider key swaps are rejected before save and before validation
-  - model-provider checks now run one key at a time
-  - provider cards stay yellow as `configured` until a real successful validation marks them green as `verified`
-- Older releases are kept in [CHANGELOG.md](CHANGELOG.md).
+Older releases are kept in [CHANGELOG.md](CHANGELOG.md).
 
 ---
 

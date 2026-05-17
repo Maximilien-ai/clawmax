@@ -1,16 +1,16 @@
 # ClawMax Status
 
-**Current Version**: v1.4.8
-**Last Updated**: May 15, 2026
-**Status**: `v1.4.8` is the current patch release line on `main`
+**Current Version**: v1.4.9
+**Last Updated**: May 17, 2026
+**Status**: `v1.4.9` is the current patch release line on `main`
 
 ---
 
 ## Current State
 
-- `main` now carries the `1.4.8` patch line: all `1.4.7` on-prem identity/runtime visibility fixes plus a managed on-prem Ollama BYOK correction that prefers the runtime-provided host bridge URL over stale browser-local loopback defaults
-- `SYSTEM/test-with-server.sh` and `SYSTEM/test.sh` are green locally on the current default-safe path, including the Docker smoke tests and newer skill/registry regressions
-- Skills now support stronger day-to-day management: reverse assignment, workspace-copy editing, bulk selection/deletion, registry provenance, and registry suggestions from both Shipables and Tessl
+- `main` now carries the `1.4.9` patch line: persistent agent chat reopen, richer skill registry metadata, editable skill tags, explicit skill tag filtering, and Opik runtime alignment with workspace-stored project/workspace settings
+- targeted local validation is green on the current line, including the newer chat-session, Opik runtime, skill metadata, and skill-tag regressions
+- Skills now support stronger day-to-day management: reverse assignment, workspace-copy editing, bulk selection/deletion, richer imported registry provenance, tag editing/filtering, and registry suggestions from ClawHub, Shipables, and Tessl
 - Tessl registry support is available as an **exploratory/experimental** feature for OpenClaw workspaces; installs are materially improved, but some tiles still require Tessl-side security review or additional format validation
 - recurring personal/ops templates now require less apply-time context for day-of or run-time fields, making repeated deploy/use flows much smoother
 - single-agent template apply now registers created agents correctly into active OpenClaw config so fresh agent-template deploys can chat immediately

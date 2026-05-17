@@ -2,6 +2,22 @@
 
 All notable changes to ClawMax are documented here.
 
+## [v1.4.9] - 2026-05-17
+
+### Release — Skills, Session Persistence, and Opik Runtime Alignment
+- **Persistent Agent Chat Reopen** — dashboard chat now reuses stable agent-scoped session ids, resolves mapped runtime session files more defensively, and falls back to the newest persisted session file when needed, so reopening agent chat preserves history much more reliably across agents and restarts
+- **Skill Setup and Safety UX** — skills now separate machine requirements from auth/setup readiness, auto-detect setup-needed states for shipped skills, audit newly added skills for setup needs across registry/GitHub/local/AI/partner install paths, and surface local dashboard Terms of Service plus external-risk reminders anywhere users import skills, install requirements, run setup flows, or import agents
+- **Requirements and Setup Guidance** — requirement status is now explicit (`Requirements installed` vs. `Install Requirements`), brew-backed skill requirements can be installed from the dashboard, setup-needed skills show clearer warning states, and guided setup flows are metadata-driven instead of hardcoded to one skill
+- **Skill Management Improvements** — user skills remain editable after save, built-in edits create editable workspace copies, imported skills can now update tags directly from the Skills viewer, and the Skills page supports explicit tag filtering plus richer imported registry metadata such as provider/source provenance, install name, version, downloads, categories, and homepage details
+- **Registry and Discovery Improvements** — ClawHub is now the first/default registry in the dashboard, partner installers are collapsible, registry cards show approximate catalog sizes, and imported registry skills preserve more display metadata instead of collapsing down to only provider/name
+- **Skill Runtime Reliability** — agent skill assignment now tolerates stale missing skills as warnings instead of blockers, refreshes agent TOOLS context and session caches after updates, syncs external-workspace agents correctly, and runs chat with the matched agent workspace so skill-aware agents like external-workspace `jarvis` use the right runtime context
+- **On-Prem / Opik Runtime Alignment** — Opik tracing and metering now honor workspace-stored Opik workspace/project settings when env does not override them, while `setup.sh` no longer silently defaults auth mode or Opik project names during open-source setup
+- **Dashboard State and BYOK Polish** — agent/template/skills tab state now persists across tab switches, BYOK provider checks are more trustworthy and verified-state aware, and managed on-prem Ollama BYOK/runtime behavior remains aligned with the runtime-provided host bridge URL
+
+### Quality
+- **Regression Coverage** — added focused coverage for agent chat session persistence, Opik runtime config resolution, imported registry metadata preservation, and new skill-tag helper behavior
+- **Validation Gate** — validated locally with targeted `skills.test.ts`, `skill-registry.test.ts`, `skillTags.test.ts`, `opik.test.ts`, `agentChatSession.test.ts`, `agent-execution.test.ts`, `npx tsc --noEmit`, plus shell validation for `setup.sh` and `SYSTEM/test.sh`
+
 ## [v1.4.8] - 2026-05-13
 
 ### Release — Managed On-Prem Ollama BYOK Fixes
