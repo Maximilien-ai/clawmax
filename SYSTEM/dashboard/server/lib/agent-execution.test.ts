@@ -11,6 +11,7 @@ import {
   deriveWorkspaceRootFromAgentWorkspace,
   getAgentExecutionRetryDelay,
   isOpenClawSessionLockError,
+  readLatestAssistantUsageFromPersistedSession,
   resolvePersistedAgentSessionId,
   resolveAgentExecutionConfig,
   runExclusiveAgentExecution,
@@ -297,6 +298,58 @@ test('resolvePersistedAgentSessionId falls back to newest session file when no m
   )
 
   assert(resolved === 'newer-session', `Expected newest session fallback, got ${resolved}`)
+})
+
+test('readLatestAssistantUsageFromPersistedSession extracts latest assistant usage from resolved session file', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-session-home-'))
+  const sessionsDir = path.join(home, '.openclaw', 'agents', 'ceo', 'sessions')
+  fs.mkdirSync(sessionsDir, { recursive: true })
+  fs.writeFileSync(path.join(sessionsDir, 'sessions.json'), JSON.stringify({
+    'agent:ceo:dashboard-chat': {
+      sessionId: 'real-session',
+      updatedAt: Date.now(),
+    }
+  }, null, 2), 'utf-8')
+  fs.writeFileSync(path.join(sessionsDir, 'real-session.jsonl'), [
+    JSON.stringify({ type: 'message', message: { role: 'user', content: [{ type: 'text', text: 'status' }] } }),
+    JSON.stringify({
+      type: 'message',
+      message: {
+        role: 'assistant',
+        provider: 'openai',
+        model: 'gpt-4o-mini',
+        usage: {
+          input: 145,
+          output: 60,
+          cacheRead: 13056,
+          cost: { total: 0.00110223 },
+        },
+      },
+    }),
+  ].join('\n'), 'utf-8')
+
+  const usage = readLatestAssistantUsageFromPersistedSession('ceo', 'agent:ceo:dashboard-chat', 'dashboard-chat', home)
+  assert(usage?.sessionId === 'real-session', `Expected resolved session id, got ${usage?.sessionId}`)
+  assert(usage?.inputTokens === 145, `Expected input tokens, got ${usage?.inputTokens}`)
+  assert(usage?.outputTokens === 60, `Expected output tokens, got ${usage?.outputTokens}`)
+  assert(usage?.cacheReadTokens === 13056, `Expected cache read tokens, got ${usage?.cacheReadTokens}`)
+  assert(usage?.model === 'gpt-4o-mini', `Expected model, got ${usage?.model}`)
+  assert(usage?.provider === 'openai', `Expected provider, got ${usage?.provider}`)
+  assert(Math.abs((usage?.estimatedCostUsd || 0) - 0.00110223) < 0.0000001, `Expected estimated cost, got ${usage?.estimatedCostUsd}`)
+})
+
+test('readLatestAssistantUsageFromPersistedSession returns session id even when usage is missing', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-session-home-'))
+  const sessionsDir = path.join(home, '.openclaw', 'agents', 'ceo', 'sessions')
+  fs.mkdirSync(sessionsDir, { recursive: true })
+  fs.writeFileSync(path.join(sessionsDir, 'latest-session.jsonl'), [
+    JSON.stringify({ type: 'message', message: { role: 'assistant', content: [{ type: 'text', text: 'hello' }] } }),
+  ].join('\n'), 'utf-8')
+
+  const usage = readLatestAssistantUsageFromPersistedSession('ceo', 'agent:ceo:dashboard-chat', undefined, home)
+  assert(usage?.sessionId === 'latest-session', `Expected newest session fallback, got ${usage?.sessionId}`)
+  assert((usage?.inputTokens || 0) === 0, `Expected zero input tokens when usage missing, got ${usage?.inputTokens}`)
+  assert((usage?.outputTokens || 0) === 0, `Expected zero output tokens when usage missing, got ${usage?.outputTokens}`)
 })
 
 test('isOpenClawSessionLockError matches lock timeout errors', () => {

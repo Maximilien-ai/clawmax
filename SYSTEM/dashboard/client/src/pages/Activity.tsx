@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { PageLoading, LoadingSpinner } from '../components/LoadingSpinner'
+import { ProductIconCell } from '../lib/productIcons'
 
 interface MeteringData {
   enabled?: boolean
@@ -374,47 +375,52 @@ export default function Activity({ onNavigateToDoc, isActive = false }: Activity
           <div className="relative group">
             <button
               disabled={rows.length === 0}
-              className={`text-sm font-medium transition-colors ${
+              className={`inline-flex items-center gap-2 text-sm font-medium transition-colors ${
                 rows.length === 0
                   ? 'text-gray-300 cursor-not-allowed'
                   : 'text-purple-600 hover:text-purple-800'
               }`}
             >
-              📥 Export
+              <ProductIconCell iconName="export" label="Export" size="sm" className="border-transparent bg-transparent text-current" />
+              Export
             </button>
             {rows.length > 0 && (
               <div className="absolute right-0 top-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10 min-w-[120px] dark:border-gray-700">
                 <button
                   onClick={handleExportCSV}
-                  className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors rounded-t-lg dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-700"
+                  className="inline-flex w-full items-center gap-2 text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors rounded-t-lg dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-700"
                 >
-                  📄 CSV
+                  <ProductIconCell iconName="docs" label="CSV" size="sm" className="border-sky-200 bg-sky-50 text-sky-600 dark:border-sky-700 dark:bg-sky-900/30 dark:text-sky-300" />
+                  CSV
                 </button>
                 <button
                   onClick={handleExportJSON}
-                  className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors rounded-b-lg dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-700"
+                  className="inline-flex w-full items-center gap-2 text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors rounded-b-lg dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-700"
                 >
-                  📦 JSON
+                  <ProductIconCell iconName="export" label="JSON" size="sm" className="border-indigo-200 bg-indigo-50 text-indigo-600 dark:border-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300" />
+                  JSON
                 </button>
               </div>
             )}
           </div>
           <button
             onClick={() => setShowSystemLogs(true)}
-            className="text-sm font-medium text-gray-600 hover:text-gray-800 transition-colors dark:text-gray-200"
+            className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-800 transition-colors dark:text-gray-200"
           >
-            📋 System Logs
+            <ProductIconCell iconName="docs" label="System Logs" size="sm" className="border-transparent bg-transparent text-current" />
+            System Logs
           </button>
           <button
             onClick={handleRefresh}
             disabled={cooling}
-            className={`text-sm font-medium transition-colors ${
+            className={`inline-flex items-center gap-2 text-sm font-medium transition-colors ${
               cooling
                 ? 'text-gray-300 cursor-not-allowed'
                 : 'text-sky-600 hover:text-sky-800'
             }`}
           >
-            {cooling ? 'Refreshing…' : '↻ Refresh'}
+            <ProductIconCell iconName="refresh" label="Refresh" size="sm" className="border-transparent bg-transparent text-current" />
+            {cooling ? 'Refreshing…' : 'Refresh'}
           </button>
         </div>
       </div>

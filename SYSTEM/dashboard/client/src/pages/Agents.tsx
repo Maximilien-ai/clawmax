@@ -18,6 +18,7 @@ import SaveAsTemplatePanel from '../components/SaveAsTemplatePanel'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import { useToast } from '../components/Toast'
 import { getSkillSetupHint } from '../lib/skillSetup'
+import { ProductIconCell } from '../lib/productIcons'
 
 type MenuPlacement = 'top' | 'bottom'
 
@@ -977,21 +978,21 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
               title="Grid view (compact)"
               className={`px-2.5 py-1.5 text-xs transition-colors ${viewMode === 'grid' ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
             >
-              ⊞
+              <ProductIconCell iconName="grid" label="Grid view" size="sm" className="border-transparent bg-transparent text-current" />
             </button>
             <button
               onClick={() => setViewMode('list')}
-              title="Large card view"
+              title="Detail view"
               className={`px-2.5 py-1.5 text-xs transition-colors border-l border-gray-200 dark:border-gray-700 ${viewMode === 'list' ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
             >
-              ▤
+              <ProductIconCell iconName="docs" label="Detail view" size="sm" className="border-transparent bg-transparent text-current" />
             </button>
             <button
               onClick={() => setViewMode('table')}
-              title="Table view"
+              title="List view"
               className={`px-2.5 py-1.5 text-xs transition-colors border-l border-gray-200 dark:border-gray-700 ${viewMode === 'table' ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
             >
-              ≡
+              <ProductIconCell iconName="list" label="List view" size="sm" className="border-transparent bg-transparent text-current" />
             </button>
           </div>
           <button
@@ -1120,7 +1121,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                 className="text-sm font-medium px-3 py-1.5 rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors flex items-center gap-1.5"
                 title="Agent actions"
               >
-                <span className="text-base leading-none">🤖</span> Agent Actions <span className="text-xs">▾</span>
+                <ProductIconCell iconName="ai" label="Agent Actions" size="sm" className="border-white/20 bg-white/10 text-white" /> Agent Actions <span className="text-xs">▾</span>
               </button>
               {showAgentActionsMenu && (
                 <>
@@ -1142,7 +1143,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                       }`}
                       title={aiEnabled ? 'Generate agent with AI' : 'Configure browser keys or a shared execution path first'}
                     >
-                      <span className="text-purple-500">✨</span> AI Generate
+                      <ProductIconCell iconName="ai" label="AI Generate" size="sm" className="border-purple-200 bg-purple-50 text-purple-600 dark:border-purple-700 dark:bg-purple-900/30 dark:text-purple-300" /> AI Generate
                     </button>
                     <button
                       onClick={() => {
@@ -1152,7 +1153,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                       }}
                       className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-sky-50 dark:hover:bg-sky-900/30 transition-colors flex items-center gap-2"
                     >
-                      <span className="text-sky-500">＋</span> Create
+                      <ProductIconCell iconName="create" label="Create" size="sm" className="border-sky-200 bg-sky-50 text-sky-600 dark:border-sky-700 dark:bg-sky-900/30 dark:text-sky-300" /> Create
                     </button>
                     <button
                       onClick={() => {
@@ -1161,7 +1162,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                       }}
                       className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors flex items-center gap-2"
                     >
-                      <span className="text-emerald-500">⇪</span> Import
+                      <ProductIconCell iconName="import" label="Import" size="sm" className="border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" /> Import
                     </button>
                   </div>
                 </>
@@ -1317,19 +1318,22 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
               onClick={() => setShowImportModal(true)}
               className="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm font-medium"
             >
-              ⇪ Import from OpenClaw
+              <ProductIconCell iconName="import" label="Import from OpenClaw" size="sm" className="border-transparent bg-transparent text-current" />
+              Import from OpenClaw
             </button>
             <button
               onClick={() => { setCloneFromAgent(null); setAiGenerateMode(true); setShowAddWizard(true) }}
               className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium"
             >
-              ✨ Create Agent with AI
+              <ProductIconCell iconName="ai" label="Create Agent with AI" size="sm" className="border-white/20 bg-white/10 text-white" />
+              Create Agent with AI
             </button>
             <button
               onClick={() => onNavigateToTemplates?.()}
               className="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm font-medium"
             >
-              📋 Deploy a Team from Templates
+              <ProductIconCell iconName="template" label="Deploy a Team from Templates" size="sm" className="border-transparent bg-transparent text-current" />
+              Deploy a Team from Templates
             </button>
           </div>
         </div>
@@ -3095,7 +3099,8 @@ const AgentCard = React.memo(function AgentCard({
               className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium shrink-0 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-700"
               title={`${metering.calls} call${metering.calls !== 1 ? 's' : ''} · ${((metering.tokens || 0)/1000).toFixed(1)}k tokens · $${(metering.cost || 0).toFixed(2)}`}
             >
-              📊 ${(metering.cost || 0).toFixed(2)}
+              <ProductIconCell iconName="status" label="Usage" size="sm" className="border-transparent bg-transparent text-current" />
+              ${(metering.cost || 0).toFixed(2)}
             </span>
           )}
         </div>
@@ -3107,7 +3112,7 @@ const AgentCard = React.memo(function AgentCard({
               className="text-gray-300 hover:text-purple-500 transition-colors text-xs p-1 rounded hover:bg-purple-50"
               title="View agent documents"
             >
-              📄
+              <ProductIconCell iconName="docs" label="View agent documents" size="sm" className="border-transparent bg-transparent text-current" />
             </button>
           )}
           {!agent.archived && (
@@ -3116,7 +3121,7 @@ const AgentCard = React.memo(function AgentCard({
               className="text-gray-300 hover:text-sky-500 transition-colors text-xs p-1 rounded hover:bg-sky-50"
               title="Chat with agent"
             >
-              💬
+              <ProductIconCell iconName="communication" label="Chat with agent" size="sm" className="border-transparent bg-transparent text-current" />
             </button>
           )}
           {costTrackingEnabled && (
@@ -3125,7 +3130,7 @@ const AgentCard = React.memo(function AgentCard({
               className="text-gray-300 hover:text-emerald-600 transition-colors text-xs p-1 rounded hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
               title="Update agent budget"
             >
-              💲
+              <ProductIconCell iconName="budget" label="Update agent budget" size="sm" className="border-transparent bg-transparent text-current" />
             </button>
           )}
           {/* Actions menu */}
@@ -3147,33 +3152,74 @@ const AgentCard = React.memo(function AgentCard({
                 >
                   <div className="px-3 py-2 space-y-3">
                     <div>
+                      <div className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">Open</div>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <button
+                          onClick={e => { e.stopPropagation(); onToggle(); setShowActionsMenu(false) }}
+                          className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                        >
+                          <ProductIconCell iconName="details" label="Details" size="sm" className="border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300" />
+                          Details
+                        </button>
+                        {!agent.archived && (
+                          <button
+                            onClick={e => { e.stopPropagation(); onChat(); setShowActionsMenu(false) }}
+                            className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-sky-50 dark:hover:bg-sky-900/30 transition-colors"
+                          >
+                            <ProductIconCell iconName="communication" label="Chat" size="sm" className="border-sky-200 bg-sky-50 text-sky-600 dark:border-sky-700 dark:bg-sky-900/30 dark:text-sky-300" />
+                            Chat
+                          </button>
+                        )}
+                        <button
+                          onClick={e => { e.stopPropagation(); onStatus(); setShowActionsMenu(false) }}
+                          className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors"
+                        >
+                          <ProductIconCell iconName="status" label="Status" size="sm" className="border-green-200 bg-green-50 text-green-600 dark:border-green-700 dark:bg-green-900/30 dark:text-green-300" />
+                          Status
+                        </button>
+                        {onViewDocs && (
+                          <button
+                            onClick={e => { e.stopPropagation(); onViewDocs(); setShowActionsMenu(false) }}
+                            className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors"
+                          >
+                            <ProductIconCell iconName="docs" label="Docs" size="sm" className="border-purple-200 bg-purple-50 text-purple-600 dark:border-purple-700 dark:bg-purple-900/30 dark:text-purple-300" />
+                            Docs
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <div>
                       <div className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">Build</div>
                       <div className="grid grid-cols-2 gap-1.5">
                         {onEdit && (
                           <button
                             onClick={e => { e.stopPropagation(); onEdit(); setShowActionsMenu(false) }}
-                            className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors dark:text-gray-300"
+                            className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors dark:text-gray-300"
                           >
-                            ✏️ Edit
+                            <ProductIconCell iconName="edit" label="Edit" size="sm" className="border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" />
+                            Edit
                           </button>
                         )}
                         <button
                           onClick={e => { e.stopPropagation(); onClone(); setShowActionsMenu(false) }}
-                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors dark:text-gray-300"
+                          className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors dark:text-gray-300"
                         >
-                          📋 Clone
+                          <ProductIconCell iconName="clone" label="Clone" size="sm" className="border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300" />
+                          Clone
                         </button>
                         <button
                           onClick={e => { e.stopPropagation(); onSaveAsTemplate(); setShowActionsMenu(false) }}
-                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-sky-50 dark:hover:bg-sky-900/30 transition-colors dark:text-gray-300"
+                          className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-sky-50 dark:hover:bg-sky-900/30 transition-colors dark:text-gray-300"
                         >
-                          💾 Template
+                          <ProductIconCell iconName="save" label="Template" size="sm" className="border-sky-200 bg-sky-50 text-sky-600 dark:border-sky-700 dark:bg-sky-900/30 dark:text-sky-300" />
+                          Template
                         </button>
                         <button
                           onClick={e => { e.stopPropagation(); onExport(); setShowActionsMenu(false) }}
-                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-colors dark:text-gray-300"
+                          className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-colors dark:text-gray-300"
                         >
-                          📦 Export
+                          <ProductIconCell iconName="export" label="Export" size="sm" className="border-indigo-200 bg-indigo-50 text-indigo-600 dark:border-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300" />
+                          Export
                         </button>
                       </div>
                     </div>
@@ -3182,9 +3228,10 @@ const AgentCard = React.memo(function AgentCard({
                       <div className="grid grid-cols-2 gap-1.5">
                         <button
                           onClick={e => { e.stopPropagation(); onRestart(); setShowActionsMenu(false) }}
-                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors dark:text-gray-300"
+                          className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors dark:text-gray-300"
                         >
-                          ↻ Restart
+                          <ProductIconCell iconName="restart" label="Restart" size="sm" className="border-amber-200 bg-amber-50 text-amber-600 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-300" />
+                          Restart
                         </button>
                         <button
                           onClick={async e => {
@@ -3211,53 +3258,60 @@ const AgentCard = React.memo(function AgentCard({
                               }
                             } catch {}
                           }}
-                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-cyan-50 dark:hover:bg-cyan-900/30 transition-colors dark:text-gray-300"
+                          className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-cyan-50 dark:hover:bg-cyan-900/30 transition-colors dark:text-gray-300"
                         >
-                          🩺 Doctor
+                          <ProductIconCell iconName="doctor" label="Doctor" size="sm" className="border-cyan-200 bg-cyan-50 text-cyan-600 dark:border-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300" />
+                          Doctor
                         </button>
                         <button
                           onClick={e => { e.stopPropagation(); onRename(); setShowActionsMenu(false) }}
-                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors dark:text-gray-300"
+                          className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors dark:text-gray-300"
                         >
-                          ✎ Rename
+                          <ProductIconCell iconName="rename" label="Rename" size="sm" className="border-purple-200 bg-purple-50 text-purple-600 dark:border-purple-700 dark:bg-purple-900/30 dark:text-purple-300" />
+                          Rename
                         </button>
                       {costTrackingEnabled && (
                         <button
                           onClick={e => { e.stopPropagation(); onSetBudget(); setShowActionsMenu(false) }}
-                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors dark:text-gray-300"
+                          className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors dark:text-gray-300"
                         >
-                          💲 Budget
+                          <ProductIconCell iconName="budget" label="Budget" size="sm" className="border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" />
+                          Budget
                         </button>
                       )}
                       {!agent.archived && (
                         <button
                           onClick={e => { e.stopPropagation(); onLinkWa(); setShowActionsMenu(false) }}
-                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors dark:text-gray-300"
+                          className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors dark:text-gray-300"
                         >
-                          📱 {agent.whatsapp ? 'Reconnect WA' : 'Connect WA'}
+                          <ProductIconCell iconName="whatsapp" label={agent.whatsapp ? 'Reconnect WA' : 'Connect WA'} size="sm" className="border-green-200 bg-green-50 text-green-600 dark:border-green-700 dark:bg-green-900/30 dark:text-green-300" />
+                          {agent.whatsapp ? 'Reconnect WA' : 'Connect WA'}
                         </button>
                       )}
                       {!agent.archived && agent.whatsapp && (
                         <button
                           onClick={e => { e.stopPropagation(); onSyncGroups(); setShowActionsMenu(false) }}
-                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-lime-50 dark:hover:bg-lime-900/30 transition-colors dark:text-gray-300"
+                          className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-lime-50 dark:hover:bg-lime-900/30 transition-colors dark:text-gray-300"
                         >
-                          🔄 Sync WA
+                          <ProductIconCell iconName="refresh" label="Sync WA" size="sm" className="border-lime-200 bg-lime-50 text-lime-600 dark:border-lime-700 dark:bg-lime-900/30 dark:text-lime-300" />
+                          Sync WA
                         </button>
                       )}
                       {agent.archived ? (
                         <button
                           onClick={e => { e.stopPropagation(); onUnarchive(); setShowActionsMenu(false) }}
-                            className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors dark:text-gray-300"
+                            className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors dark:text-gray-300"
                           >
-                            📤 Restore
+                            <ProductIconCell iconName="restore" label="Restore" size="sm" className="border-green-200 bg-green-50 text-green-600 dark:border-green-700 dark:bg-green-900/30 dark:text-green-300" />
+                            Restore
                           </button>
                         ) : (
                           <button
                             onClick={e => { e.stopPropagation(); onArchive(); setShowActionsMenu(false) }}
-                            className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-orange-50 dark:hover:bg-orange-900/30 transition-colors dark:text-gray-300"
+                            className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-orange-50 dark:hover:bg-orange-900/30 transition-colors dark:text-gray-300"
                           >
-                            📦 Archive
+                            <ProductIconCell iconName="archive" label="Archive" size="sm" className="border-orange-200 bg-orange-50 text-orange-600 dark:border-orange-700 dark:bg-orange-900/30 dark:text-orange-300" />
+                            Archive
                           </button>
                         )}
                       </div>
@@ -3265,9 +3319,10 @@ const AgentCard = React.memo(function AgentCard({
                     <div className="border-t border-gray-200 dark:border-gray-700 pt-2 dark:border-gray-700">
                       <button
                         onClick={e => { e.stopPropagation(); onDelete(); setShowActionsMenu(false) }}
-                        className="w-full rounded-md px-2 py-1.5 text-left text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
+                        className="inline-flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
                       >
-                        🗑 Delete agent
+                        <ProductIconCell iconName="delete" label="Delete agent" size="sm" className="border-red-200 bg-red-50 text-red-600 dark:border-red-700 dark:bg-red-900/30 dark:text-red-300" />
+                        Delete agent
                       </button>
                     </div>
                   </div>
@@ -3618,15 +3673,19 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
       <div className="flex items-center gap-1.5 mb-1">
         <span className={`w-2 h-2 rounded-full shrink-0 ${agent.archived ? 'bg-orange-500' : agent.paused ? 'bg-gray-400 dark:bg-gray-50 dark:bg-gray-9000' : STATUS_COLORS[agent.status]}`} />
         <span className="font-semibold text-gray-900 dark:text-gray-100 text-sm truncate flex-1 dark:text-gray-100">{agent.name}</span>
-        {agent.tags.includes('built-in') && <span className="shrink-0" title="Built-in system agent">🤖</span>}
-        {agent.archived && <span className="shrink-0">📦</span>}
+        {agent.tags.includes('built-in') && (
+          <ProductIconCell iconName="ai" label="Built-in system agent" size="sm" className="border-transparent bg-transparent text-gray-500 dark:text-gray-300" />
+        )}
+        {agent.archived && (
+          <ProductIconCell iconName="archive" label="Archived" size="sm" className="border-transparent bg-transparent text-orange-500 dark:text-orange-400" />
+        )}
         {!agent.archived && (
           <button
             onClick={(e) => { e.stopPropagation(); onChat(); }}
             className="text-sky-500 hover:text-sky-700 transition-colors text-sm leading-none shrink-0"
             title="Chat"
           >
-            💬
+            <ProductIconCell iconName="communication" label="Chat" size="sm" className="border-transparent bg-transparent text-current" />
           </button>
         )}
       </div>
@@ -3639,7 +3698,8 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
               className="inline-flex items-center px-1 py-0.5 rounded text-[9px] font-medium bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400"
               title={`${metering.calls} call${metering.calls !== 1 ? 's' : ''} · ${((metering.tokens || 0)/1000).toFixed(1)}k tokens · $${(metering.cost || 0).toFixed(2)}`}
             >
-              💲{(metering.cost || 0).toFixed(2)}
+              <ProductIconCell iconName="budget" label="Cost" size="sm" className="border-transparent bg-transparent text-current" />
+              {(metering.cost || 0).toFixed(2)}
             </span>
           )}
           {onViewDocs && (
@@ -3648,7 +3708,7 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
               className="text-gray-300 hover:text-purple-500 transition-colors text-xs leading-none"
               title="View docs"
             >
-              📄
+              <ProductIconCell iconName="docs" label="View docs" size="sm" className="border-transparent bg-transparent text-current" />
             </button>
           )}
           {costTrackingEnabled && (
@@ -3657,7 +3717,7 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
               className="text-gray-300 hover:text-emerald-600 transition-colors text-xs leading-none"
               title="Update agent budget"
             >
-              💲
+              <ProductIconCell iconName="budget" label="Update agent budget" size="sm" className="border-transparent bg-transparent text-current" />
             </button>
           )}
         </div>
@@ -3733,28 +3793,32 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
                     <div className="grid grid-cols-2 gap-1.5">
                       <button
                         onClick={(e) => { e.stopPropagation(); onClick(); setShowActionsMenu(false); }}
-                        className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors dark:text-gray-300"
+                        className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors dark:text-gray-300"
                       >
-                        👁️ Details
+                        <ProductIconCell iconName="details" label="Details" size="sm" className="border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300" />
+                        Details
                       </button>
                       <button
                         onClick={(e) => { e.stopPropagation(); onChat(); setShowActionsMenu(false); }}
-                        className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-sky-50 dark:hover:bg-sky-900/30 transition-colors dark:text-gray-300"
+                        className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-sky-50 dark:hover:bg-sky-900/30 transition-colors dark:text-gray-300"
                       >
-                        💬 Chat
+                        <ProductIconCell iconName="communication" label="Chat" size="sm" className="border-sky-200 bg-sky-50 text-sky-600 dark:border-sky-700 dark:bg-sky-900/30 dark:text-sky-300" />
+                        Chat
                       </button>
                       <button
                         onClick={(e) => { e.stopPropagation(); onStatus(); setShowActionsMenu(false); }}
-                        className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors dark:text-gray-300"
+                        className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors dark:text-gray-300"
                       >
-                        📊 Status
+                        <ProductIconCell iconName="status" label="Status" size="sm" className="border-green-200 bg-green-50 text-green-600 dark:border-green-700 dark:bg-green-900/30 dark:text-green-300" />
+                        Status
                       </button>
                       {onViewDocs && (
                         <button
                           onClick={(e) => { e.stopPropagation(); onViewDocs(); setShowActionsMenu(false); }}
-                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors dark:text-gray-300"
+                          className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors dark:text-gray-300"
                         >
-                          📄 Docs
+                          <ProductIconCell iconName="docs" label="Docs" size="sm" className="border-purple-200 bg-purple-50 text-purple-600 dark:border-purple-700 dark:bg-purple-900/30 dark:text-purple-300" />
+                          Docs
                         </button>
                       )}
                     </div>
@@ -3765,28 +3829,32 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
                       {onEdit && (
                         <button
                           onClick={(e) => { e.stopPropagation(); onEdit(); setShowActionsMenu(false); }}
-                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors dark:text-gray-300"
+                          className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors dark:text-gray-300"
                         >
-                          ✏️ Edit
+                          <ProductIconCell iconName="edit" label="Edit" size="sm" className="border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" />
+                          Edit
                         </button>
                       )}
                       <button
                         onClick={(e) => { e.stopPropagation(); onClone(); setShowActionsMenu(false); }}
-                        className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors dark:text-gray-300"
+                        className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors dark:text-gray-300"
                       >
-                        📋 Clone
+                        <ProductIconCell iconName="clone" label="Clone" size="sm" className="border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300" />
+                        Clone
                       </button>
                       <button
                         onClick={(e) => { e.stopPropagation(); onSaveAsTemplate(); setShowActionsMenu(false); }}
-                        className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-sky-50 dark:hover:bg-sky-900/30 transition-colors dark:text-gray-300"
+                        className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-sky-50 dark:hover:bg-sky-900/30 transition-colors dark:text-gray-300"
                       >
-                        💾 Template
+                        <ProductIconCell iconName="save" label="Template" size="sm" className="border-sky-200 bg-sky-50 text-sky-600 dark:border-sky-700 dark:bg-sky-900/30 dark:text-sky-300" />
+                        Template
                       </button>
                       <button
                         onClick={(e) => { e.stopPropagation(); onExport(); setShowActionsMenu(false); }}
-                        className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-colors dark:text-gray-300"
+                        className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-colors dark:text-gray-300"
                       >
-                        📦 Export
+                        <ProductIconCell iconName="export" label="Export" size="sm" className="border-indigo-200 bg-indigo-50 text-indigo-600 dark:border-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300" />
+                        Export
                       </button>
                     </div>
                   </div>
@@ -3795,9 +3863,10 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
                     <div className="grid grid-cols-2 gap-1.5">
                       <button
                         onClick={(e) => { e.stopPropagation(); onRestart(); setShowActionsMenu(false); }}
-                        className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors dark:text-gray-300"
+                        className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors dark:text-gray-300"
                       >
-                        ↻ Restart
+                        <ProductIconCell iconName="restart" label="Restart" size="sm" className="border-amber-200 bg-amber-50 text-amber-600 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-300" />
+                        Restart
                       </button>
                       <button
                         onClick={async (e) => {
@@ -3825,53 +3894,60 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
                             }
                           } catch {}
                         }}
-                        className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-cyan-50 dark:hover:bg-cyan-900/30 transition-colors dark:text-gray-300"
+                        className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-cyan-50 dark:hover:bg-cyan-900/30 transition-colors dark:text-gray-300"
                       >
-                        🩺 Doctor
+                        <ProductIconCell iconName="doctor" label="Doctor" size="sm" className="border-cyan-200 bg-cyan-50 text-cyan-600 dark:border-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300" />
+                        Doctor
                       </button>
                       <button
                         onClick={(e) => { e.stopPropagation(); onRename(); setShowActionsMenu(false); }}
-                        className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors dark:text-gray-300"
+                        className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors dark:text-gray-300"
                       >
-                        ✎ Rename
+                        <ProductIconCell iconName="rename" label="Rename" size="sm" className="border-purple-200 bg-purple-50 text-purple-600 dark:border-purple-700 dark:bg-purple-900/30 dark:text-purple-300" />
+                        Rename
                       </button>
                       {costTrackingEnabled && (
                         <button
                           onClick={(e) => { e.stopPropagation(); onSetBudget(); setShowActionsMenu(false); }}
-                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors dark:text-gray-300"
+                          className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors dark:text-gray-300"
                         >
-                          💲 Budget
+                          <ProductIconCell iconName="budget" label="Budget" size="sm" className="border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" />
+                          Budget
                         </button>
                       )}
                       {!agent.archived && (
                         <button
                           onClick={(e) => { e.stopPropagation(); onLinkWa(); setShowActionsMenu(false); }}
-                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors dark:text-gray-300"
+                          className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors dark:text-gray-300"
                         >
-                          📱 {agent.whatsapp ? 'Reconnect WA' : 'Connect WA'}
+                          <ProductIconCell iconName="whatsapp" label={agent.whatsapp ? 'Reconnect WA' : 'Connect WA'} size="sm" className="border-green-200 bg-green-50 text-green-600 dark:border-green-700 dark:bg-green-900/30 dark:text-green-300" />
+                          {agent.whatsapp ? 'Reconnect WA' : 'Connect WA'}
                         </button>
                       )}
                       {!agent.archived && agent.whatsapp && (
                         <button
                           onClick={(e) => { e.stopPropagation(); onSyncGroups(); setShowActionsMenu(false); }}
-                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-lime-50 dark:hover:bg-lime-900/30 transition-colors dark:text-gray-300"
+                          className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-lime-50 dark:hover:bg-lime-900/30 transition-colors dark:text-gray-300"
                         >
-                          🔄 Sync WA
+                          <ProductIconCell iconName="refresh" label="Sync WA" size="sm" className="border-lime-200 bg-lime-50 text-lime-600 dark:border-lime-700 dark:bg-lime-900/30 dark:text-lime-300" />
+                          Sync WA
                         </button>
                       )}
                       {agent.archived ? (
                         <button
                           onClick={(e) => { e.stopPropagation(); onUnarchive(); setShowActionsMenu(false); }}
-                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors dark:text-gray-300"
+                          className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors dark:text-gray-300"
                         >
-                          📤 Restore
+                          <ProductIconCell iconName="restore" label="Restore" size="sm" className="border-green-200 bg-green-50 text-green-600 dark:border-green-700 dark:bg-green-900/30 dark:text-green-300" />
+                          Restore
                         </button>
                       ) : (
                         <button
                           onClick={(e) => { e.stopPropagation(); onArchive(); setShowActionsMenu(false); }}
-                          className="rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-orange-50 dark:hover:bg-orange-900/30 transition-colors dark:text-gray-300"
+                          className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-orange-50 dark:hover:bg-orange-900/30 transition-colors dark:text-gray-300"
                         >
-                          📦 Archive
+                          <ProductIconCell iconName="archive" label="Archive" size="sm" className="border-orange-200 bg-orange-50 text-orange-600 dark:border-orange-700 dark:bg-orange-900/30 dark:text-orange-300" />
+                          Archive
                         </button>
                       )}
                     </div>
@@ -3879,9 +3955,10 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
                   <div className="border-t border-gray-200 dark:border-gray-700 pt-2 dark:border-gray-700">
                     <button
                       onClick={(e) => { e.stopPropagation(); onDelete(); setShowActionsMenu(false); }}
-                      className="w-full rounded-md px-2 py-1.5 text-left text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
+                      className="inline-flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
                     >
-                      🗑 Delete agent
+                      <ProductIconCell iconName="delete" label="Delete agent" size="sm" className="border-red-200 bg-red-50 text-red-600 dark:border-red-700 dark:bg-red-900/30 dark:text-red-300" />
+                      Delete agent
                     </button>
                   </div>
                 </div>
@@ -4163,7 +4240,7 @@ const AgentTableView = React.memo(function AgentTableView({
                     className="p-1.5 text-gray-400 hover:text-sky-600 hover:bg-sky-50 rounded transition-colors"
                     title="Chat"
                   >
-                    💬
+                    <ProductIconCell iconName="communication" label="Chat" size="sm" className="border-transparent bg-transparent text-current" />
                   </button>
                   <button
                     onClick={(e) => {
@@ -4173,7 +4250,7 @@ const AgentTableView = React.memo(function AgentTableView({
                     className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
                     title="View Details & Files"
                   >
-                    📁
+                    <ProductIconCell iconName="details" label="View Details & Files" size="sm" className="border-transparent bg-transparent text-current" />
                   </button>
                   <button
                     onClick={(e) => {
@@ -4196,7 +4273,7 @@ const AgentTableView = React.memo(function AgentTableView({
                         }}
                         className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:bg-gray-900 transition-colors flex items-center gap-2 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-700"
                       >
-                        <span>👁️</span>
+                        <ProductIconCell iconName="details" label="View Details" size="sm" className="border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300" />
                         View Details
                       </button>
                       <button
@@ -4207,7 +4284,7 @@ const AgentTableView = React.memo(function AgentTableView({
                         }}
                         className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:bg-gray-900 transition-colors flex items-center gap-2 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-700"
                       >
-                        <span>💬</span>
+                        <ProductIconCell iconName="communication" label="Chat" size="sm" className="border-sky-200 bg-sky-50 text-sky-600 dark:border-sky-700 dark:bg-sky-900/30 dark:text-sky-300" />
                         Chat
                       </button>
                       <button
@@ -4218,7 +4295,7 @@ const AgentTableView = React.memo(function AgentTableView({
                         }}
                         className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-green-50 transition-colors flex items-center gap-2 dark:text-gray-300"
                       >
-                        <span className="text-green-500">📊</span>
+                        <ProductIconCell iconName="status" label="Status & Logs" size="sm" className="border-green-200 bg-green-50 text-green-600 dark:border-green-700 dark:bg-green-900/30 dark:text-green-300" />
                         Status & Logs
                       </button>
                       {onEdit && (
@@ -4230,7 +4307,7 @@ const AgentTableView = React.memo(function AgentTableView({
                           }}
                           className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors flex items-center gap-2 dark:text-gray-300"
                         >
-                          <span className="text-emerald-500">✏️</span>
+                          <ProductIconCell iconName="edit" label="Edit Config" size="sm" className="border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" />
                           Edit Config
                         </button>
                       )}
@@ -4243,7 +4320,7 @@ const AgentTableView = React.memo(function AgentTableView({
                           }}
                           className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors flex items-center gap-2 dark:text-gray-300"
                         >
-                          <span className="text-green-500">📱</span>
+                          <ProductIconCell iconName="whatsapp" label={agent.whatsapp ? 'Reconnect WhatsApp' : 'Connect WhatsApp'} size="sm" className="border-green-200 bg-green-50 text-green-600 dark:border-green-700 dark:bg-green-900/30 dark:text-green-300" />
                           {agent.whatsapp ? 'Reconnect WhatsApp' : 'Connect WhatsApp'}
                         </button>
                       )}
@@ -4256,7 +4333,7 @@ const AgentTableView = React.memo(function AgentTableView({
                           }}
                           className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-lime-50 dark:hover:bg-lime-900/30 transition-colors flex items-center gap-2 dark:text-gray-300"
                         >
-                          <span className="text-lime-600">🔄</span>
+                          <ProductIconCell iconName="refresh" label="Sync WhatsApp Groups" size="sm" className="border-lime-200 bg-lime-50 text-lime-600 dark:border-lime-700 dark:bg-lime-900/30 dark:text-lime-300" />
                           Sync WhatsApp Groups
                         </button>
                       )}
@@ -4270,7 +4347,7 @@ const AgentTableView = React.memo(function AgentTableView({
                           }}
                           className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:bg-gray-900 transition-colors flex items-center gap-2 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-700"
                         >
-                          <span>📤</span>
+                          <ProductIconCell iconName="restore" label="Unarchive" size="sm" className="border-green-200 bg-green-50 text-green-600 dark:border-green-700 dark:bg-green-900/30 dark:text-green-300" />
                           Unarchive
                         </button>
                       ) : (
@@ -4282,7 +4359,7 @@ const AgentTableView = React.memo(function AgentTableView({
                           }}
                           className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:bg-gray-900 transition-colors flex items-center gap-2 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-700"
                         >
-                          <span>📦</span>
+                          <ProductIconCell iconName="archive" label="Archive" size="sm" className="border-orange-200 bg-orange-50 text-orange-600 dark:border-orange-700 dark:bg-orange-900/30 dark:text-orange-300" />
                           Archive
                         </button>
                       )}
@@ -4295,7 +4372,7 @@ const AgentTableView = React.memo(function AgentTableView({
                         }}
                         className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 transition-colors flex items-center gap-2"
                       >
-                        <span>🗑️</span>
+                        <ProductIconCell iconName="delete" label="Delete" size="sm" className="border-red-200 bg-red-50 text-red-600 dark:border-red-700 dark:bg-red-900/30 dark:text-red-300" />
                         Delete
                       </button>
                     </div>

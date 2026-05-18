@@ -9,6 +9,7 @@ import AgentTemplateWizard from '../components/AgentTemplateWizard'
 import { getDiscoverySuggestions } from '../lib/discoverySuggestions'
 import { useAuth } from '../contexts/AuthContext'
 import { hasAiGenerationAccess } from '../lib/byok'
+import { ProductIconCell, resolveTemplateVisual, resolveCategoryVisual } from '../lib/productIcons'
 
 interface AgentTemplate {
   name: string
@@ -962,14 +963,14 @@ export default function Templates() {
                 title="Grid view"
                 className={`px-2.5 py-1.5 text-xs transition-colors ${viewMode === 'grid' ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
               >
-                ⊞
+                <ProductIconCell iconName="grid" label="Grid view" size="sm" className="border-transparent bg-transparent text-current" />
               </button>
               <button
                 onClick={() => setViewMode('list')}
                 title="List view"
                 className={`px-2.5 py-1.5 text-xs transition-colors border-l border-gray-200 dark:border-gray-700 ${viewMode === 'list' ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
               >
-                ☰
+                <ProductIconCell iconName="list" label="List view" size="sm" className="border-transparent bg-transparent text-current" />
               </button>
             </div>
             <button
@@ -1006,7 +1007,7 @@ export default function Templates() {
                 onClick={() => setShowActionsMenu((v) => !v)}
                 className="px-3 py-1.5 text-sm font-medium rounded-md bg-purple-600 text-white hover:bg-purple-700 transition-colors flex items-center gap-1.5"
               >
-                <span className="text-base leading-none">⚙️</span> Template Actions <span className="text-xs">▾</span>
+                <ProductIconCell iconName="template" label="Template Actions" size="sm" className="border-white/20 bg-white/10 text-white" /> Template Actions <span className="text-xs">▾</span>
               </button>
               {showActionsMenu && (
                 <div className="absolute right-0 mt-2 w-56 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-xl z-20 overflow-hidden">
@@ -1024,7 +1025,7 @@ export default function Templates() {
                     }`}
                     title={aiEnabled ? 'Create template with AI' : 'Configure browser keys or a shared execution path first'}
                   >
-                    <span className="text-purple-500">✨</span> AI Create Template
+                    <ProductIconCell iconName="ai" label="AI Create Template" size="sm" className="border-purple-200 bg-purple-50 text-purple-600 dark:border-purple-700 dark:bg-purple-900/30 dark:text-purple-300" /> AI Create Template
                   </button>
                   <button
                     onClick={() => {
@@ -1033,7 +1034,7 @@ export default function Templates() {
                     }}
                     className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 border-t border-gray-100 dark:border-gray-700"
                   >
-                    <span className="text-sky-500">📥</span> Import TEMPLATE.md
+                    <ProductIconCell iconName="import" label="Import TEMPLATE.md" size="sm" className="border-sky-200 bg-sky-50 text-sky-600 dark:border-sky-700 dark:bg-sky-900/30 dark:text-sky-300" /> Import TEMPLATE.md
                   </button>
                   <button
                     onClick={() => {
@@ -1042,7 +1043,7 @@ export default function Templates() {
                     }}
                     className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 border-t border-gray-100 dark:border-gray-700"
                   >
-                    <span className="text-emerald-500">↻</span> Refresh Templates
+                    <ProductIconCell iconName="refresh" label="Refresh Templates" size="sm" className="border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" /> Refresh Templates
                   </button>
                 </div>
               )}
@@ -1096,7 +1097,18 @@ export default function Templates() {
                 : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
             }`}
           >
-            {cat.icon && <span className="mr-1">{cat.icon}</span>}{cat.label}
+            {cat.icon && (
+              <span className="mr-2 inline-flex align-middle">
+                <ProductIconCell
+                  iconName={resolveCategoryVisual(cat.key, cat.icon).iconName}
+                  emoji={resolveCategoryVisual(cat.key, cat.icon).emoji}
+                  label={cat.label}
+                  size="sm"
+                  className={categoryFilter === cat.key ? 'border-purple-200 bg-purple-50 text-purple-700 dark:border-purple-700 dark:bg-purple-900/30 dark:text-purple-300' : ''}
+                />
+              </span>
+            )}
+            {cat.label}
           </button>
         ))}
       </div>
@@ -1178,7 +1190,16 @@ export default function Templates() {
                       onClick={() => setCategoryFilter(category.key)}
                       className="rounded-full border border-amber-300 dark:border-amber-700 bg-white dark:bg-gray-900 px-3 py-1.5 text-sm font-medium text-amber-800 dark:text-amber-200 hover:border-amber-400 dark:hover:border-amber-500"
                     >
-                      {category.icon && <span className="mr-1">{category.icon}</span>}
+                      {category.icon && (
+                        <span className="mr-2 inline-flex align-middle">
+                          <ProductIconCell
+                            iconName={resolveCategoryVisual(category.key, category.icon).iconName}
+                            emoji={resolveCategoryVisual(category.key, category.icon).emoji}
+                            label={category.label}
+                            size="sm"
+                          />
+                        </span>
+                      )}
                       {category.label}
                     </button>
                   ))}
@@ -1266,7 +1287,7 @@ export default function Templates() {
                     className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-gray-100 hover:text-sky-700 dark:hover:text-sky-400"
                   >
                     <span className="text-sm text-gray-500 dark:text-gray-400">{collapsedSections.agents ? '▸' : '▾'}</span>
-                    <span>🤖 Agent Templates</span>
+                    <span className="inline-flex items-center gap-2"><ProductIconCell iconName="ai" label="Agent Templates" size="sm" />Agent Templates</span>
                     <span className="text-sm font-normal text-gray-400">({filteredAgentTemplates.length})</span>
                   </button>
                   {selectionMode && (
@@ -1340,7 +1361,7 @@ export default function Templates() {
                     className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-gray-100 hover:text-sky-700 dark:hover:text-sky-400"
                   >
                     <span className="text-sm text-gray-500 dark:text-gray-400">{collapsedSections.teams ? '▸' : '▾'}</span>
-                    <span>👥 Team Templates</span>
+                    <span className="inline-flex items-center gap-2"><ProductIconCell iconName="template" label="Team Templates" size="sm" />Team Templates</span>
                     <span className="text-sm font-normal text-gray-400">({filteredTeamTemplates.length})</span>
                   </button>
                   {selectionMode && (
@@ -1414,7 +1435,7 @@ export default function Templates() {
                     className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-gray-100 hover:text-sky-700 dark:hover:text-sky-400"
                   >
                     <span className="text-sm text-gray-500 dark:text-gray-400">{collapsedSections.companies ? '▸' : '▾'}</span>
-                    <span>🏢 Company Templates</span>
+                    <span className="inline-flex items-center gap-2"><ProductIconCell iconName="business" label="Company Templates" size="sm" />Company Templates</span>
                     <span className="text-sm font-normal text-gray-400">({filteredCompanyTemplates.length})</span>
                   </button>
                   {selectionMode && (
@@ -1488,7 +1509,7 @@ export default function Templates() {
                     className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-gray-100 hover:text-sky-700 dark:hover:text-sky-400"
                   >
                     <span className="text-sm text-gray-500 dark:text-gray-400">{collapsedSections.workflows ? '▸' : '▾'}</span>
-                    <span>⚡ Workflow Templates</span>
+                    <span className="inline-flex items-center gap-2"><ProductIconCell iconName="workflow" label="Workflow Templates" size="sm" />Workflow Templates</span>
                     <span className="text-sm font-normal text-gray-400">({filteredWorkflowTemplates.length})</span>
                   </button>
                   {selectionMode && (
@@ -1527,7 +1548,7 @@ export default function Templates() {
                   className="mb-3 flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-gray-100 hover:text-sky-700 dark:hover:text-sky-400"
                 >
                   <span className="text-sm text-gray-500 dark:text-gray-400">{collapsedSections.agents ? '▸' : '▾'}</span>
-                  <span>🤖 Agent Templates</span>
+                  <span className="inline-flex items-center gap-2"><ProductIconCell iconName="ai" label="Agent Templates" size="sm" />Agent Templates</span>
                   <span className="text-sm font-normal text-gray-400">({sortedAgentRows.length})</span>
                 </button>
                 {!collapsedSections.agents && (
@@ -1585,7 +1606,7 @@ export default function Templates() {
                   className="mb-3 flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-gray-100 hover:text-sky-700 dark:hover:text-sky-400"
                 >
                   <span className="text-sm text-gray-500 dark:text-gray-400">{collapsedSections.teams ? '▸' : '▾'}</span>
-                  <span>👥 Team Templates</span>
+                  <span className="inline-flex items-center gap-2"><ProductIconCell iconName="template" label="Team Templates" size="sm" />Team Templates</span>
                   <span className="text-sm font-normal text-gray-400">({sortedTeamRows.length})</span>
                 </button>
                 {!collapsedSections.teams && (
@@ -1643,7 +1664,7 @@ export default function Templates() {
                   className="mb-3 flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-gray-100 hover:text-sky-700 dark:hover:text-sky-400"
                 >
                   <span className="text-sm text-gray-500 dark:text-gray-400">{collapsedSections.companies ? '▸' : '▾'}</span>
-                  <span>🏢 Company Templates</span>
+                  <span className="inline-flex items-center gap-2"><ProductIconCell iconName="business" label="Company Templates" size="sm" />Company Templates</span>
                   <span className="text-sm font-normal text-gray-400">({sortedCompanyRows.length})</span>
                 </button>
                 {!collapsedSections.companies && (
@@ -1701,7 +1722,7 @@ export default function Templates() {
                   className="mb-3 flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-gray-100 hover:text-sky-700 dark:hover:text-sky-400"
                 >
                   <span className="text-sm text-gray-500 dark:text-gray-400">{collapsedSections.workflows ? '▸' : '▾'}</span>
-                  <span>⚡ Workflow Templates</span>
+                  <span className="inline-flex items-center gap-2"><ProductIconCell iconName="workflow" label="Workflow Templates" size="sm" />Workflow Templates</span>
                   <span className="text-sm font-normal text-gray-400">({sortedWorkflowRows.length})</span>
                 </button>
                 {!collapsedSections.workflows && (
@@ -2065,7 +2086,7 @@ function TemplateCard({ template, onDelete, onApply, onClick, selected, ratingSu
   onToggleSelect?: () => void
 }) {
   const isOrg = template.type === 'organization'
-  const templateEmoji = (template as any).emoji
+  const templateVisual = resolveTemplateVisual(template)
   const agentCount = template.agents.length
   const communityCount = isOrg && template.communities ? template.communities.length : 0
   const groupCount = isOrg && template.groups ? template.groups.length : 0
@@ -2094,9 +2115,7 @@ function TemplateCard({ template, onDelete, onApply, onClick, selected, ratingSu
       )}
       <div className="flex items-start justify-between mb-2">
         <div className="flex items-start gap-2 flex-1 min-w-0">
-          {templateEmoji && (
-            <span className="text-xl leading-none flex-shrink-0 mt-0.5">{templateEmoji}</span>
-          )}
+          <ProductIconCell iconName={templateVisual.iconName} emoji={templateVisual.emoji} label={template.name} size="sm" className="mt-0.5 flex-shrink-0" />
           <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-sm leading-tight flex-1 dark:text-gray-100">
             {template.name}
           </h3>
@@ -2209,7 +2228,7 @@ function TemplateDetailPanel({ template, onClose, onDelete, onApply, onRefine, o
     workflowsByTeamName.set(teamName, [...(workflowsByTeamName.get(teamName) || []), workflow])
   }
   const canDelete = template.type === 'workflow' || template.source === 'workspace'
-  const templateEmoji = (template as any).emoji
+  const templateVisual = resolveTemplateVisual(template)
   const [feedbackSummary, setFeedbackSummary] = useState<TemplateFeedbackSummary | null>(null)
   const [loadingFeedback, setLoadingFeedback] = useState(false)
   const [submittingFeedback, setSubmittingFeedback] = useState(false)
@@ -2273,7 +2292,7 @@ function TemplateDetailPanel({ template, onClose, onDelete, onApply, onRefine, o
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-auto" onClick={(e) => e.stopPropagation()}>
         <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex items-center justify-between dark:border-gray-700">
           <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
-            {templateEmoji && <span className="text-2xl leading-none">{templateEmoji}</span>}
+            <ProductIconCell iconName={templateVisual.iconName} emoji={templateVisual.emoji} label={template.name} size="sm" />
             <span>{template.name}</span>
           </h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:text-gray-400 text-xl leading-none">
@@ -2284,7 +2303,7 @@ function TemplateDetailPanel({ template, onClose, onDelete, onApply, onRefine, o
         <div className="p-6 space-y-4">
           {/* Type & Version */}
           <div className="flex items-center gap-3">
-            <span className="text-2xl">{templateEmoji || (isOrg ? (organizationKind === 'company' ? '🏢' : '👥') : isWorkflow ? '⚡' : '🤖')}</span>
+            <ProductIconCell iconName={templateVisual.iconName} emoji={templateVisual.emoji} label={template.name} size="md" />
             <div>
               <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
                 {isOrg ? (organizationKind === 'company' ? 'Company Template' : 'Team Template') : isWorkflow ? 'Workflow Template' : 'Agent Template'}
@@ -2774,7 +2793,7 @@ function TemplateDetailPanel({ template, onClose, onDelete, onApply, onRefine, o
 }
 
 function WorkflowTemplateCard({ template, onClick, selected, selectionMode, isSelected, onToggleSelect }: { template: WorkflowTemplate; onClick: () => void; selected: boolean; selectionMode?: boolean; isSelected?: boolean; onToggleSelect?: () => void }) {
-  const templateEmoji = template.emoji || '⚡'
+  const templateVisual = resolveTemplateVisual(template)
   const targetingCount =
     template.targeting.communities.length +
     template.targeting.groups.length +
@@ -2803,7 +2822,7 @@ function WorkflowTemplateCard({ template, onClick, selected, selectionMode, isSe
       )}
       <div className="flex items-start justify-between mb-2">
         <div className="flex items-start gap-2 flex-1 min-w-0">
-          <span className="text-xl leading-none flex-shrink-0 mt-0.5">{templateEmoji}</span>
+          <ProductIconCell iconName={templateVisual.iconName} emoji={templateVisual.emoji} label={template.name} size="sm" className="mt-0.5 flex-shrink-0" />
           <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-sm leading-tight flex-1 dark:text-gray-100">
             {template.name}
           </h3>

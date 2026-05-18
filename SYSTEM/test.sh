@@ -534,6 +534,16 @@ else
   fail "Skill tags helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Product icon helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/productIcons.test.ts > /tmp/clawmax-product-icons.out 2>&1 || true
+if grep -q '^✓ ' /tmp/clawmax-product-icons.out; then
+  product_icons_count=$(grep -c '^✓ ' /tmp/clawmax-product-icons.out || true)
+  pass "Product icon helper unit tests (${product_icons_count:-?} tests)"
+else
+  cat /tmp/clawmax-product-icons.out
+  fail "Product icon helper unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Terms of Service content unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/termsOfService.test.ts > /tmp/clawmax-terms-of-service.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-terms-of-service.out; then

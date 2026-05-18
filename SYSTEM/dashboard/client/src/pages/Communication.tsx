@@ -3,6 +3,7 @@ import GroupChatPanel from '../components/GroupChatPanel'
 import { useToast } from '../components/Toast'
 import { ConfirmDeleteDialog } from '../components/ConfirmDeleteDialog'
 import { buildBulkHistoryClearPlan, getChannelHistoryClearEndpoint } from '../lib/communicationBulkActions'
+import { ProductIconCell } from '../lib/productIcons'
 
 interface GroupEntry {
   name: string
@@ -684,24 +685,25 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
               title="Grid view"
               className={`px-2.5 py-1.5 text-xs transition-colors ${viewMode === 'grid' ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
             >
-              ⊞
+              <ProductIconCell iconName="grid" label="Grid view" size="sm" className="border-transparent bg-transparent text-current" />
             </button>
             <button
               onClick={() => setViewMode('list')}
               title="List view"
-              className={`px-2.5 py-1.5 text-xs transition-colors border-l border-gray-200 dark:border-gray-700 ${viewMode === 'list' ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+              className={`inline-flex items-center justify-center px-2.5 py-1.5 text-xs transition-colors border-l border-gray-200 dark:border-gray-700 ${viewMode === 'list' ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
             >
-              ☰
+              <ProductIconCell iconName="list" label="List view" size="sm" className="border-transparent bg-transparent text-current" />
             </button>
           </div>
           <button
             onClick={handleRefresh}
             disabled={cooling}
-            className={`text-sm font-medium transition-colors ${
+            className={`inline-flex items-center gap-2 text-sm font-medium transition-colors ${
               cooling ? 'text-gray-300 cursor-not-allowed' : 'text-sky-600 hover:text-sky-800'
             }`}
           >
-            {cooling ? 'Refreshing…' : '↻ Refresh'}
+            <ProductIconCell iconName="refresh" label="Refresh" size="sm" className="border-transparent bg-transparent text-current" />
+            {cooling ? 'Refreshing…' : 'Refresh'}
           </button>
           <button
             onClick={() => {
@@ -716,7 +718,8 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
                 : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
             }`}
           >
-            <span className="text-base leading-none">☑</span> {selectionMode ? 'Cancel' : 'Select'}
+            <ProductIconCell iconName="details" label={selectionMode ? 'Cancel selection' : 'Select'} size="sm" className={selectionMode ? 'border-white/20 bg-white/10 text-white' : 'border-transparent bg-transparent text-current'} />
+            {selectionMode ? 'Cancel' : 'Select'}
           </button>
           {selectionMode && (
             <>
@@ -905,7 +908,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
 
       {!loading && allChannels.length === 0 && (
         <div className="flex flex-col items-center justify-center h-48 text-gray-400">
-          <span className="text-4xl mb-4">💬</span>
+          <ProductIconCell iconName="communication" label="Communications" size="lg" className="mb-4" />
           <p className="text-sm">No groups configured</p>
           <p className="text-xs mt-1 text-gray-300">Add a GROUPS.md file to each agent's workspace directory</p>
         </div>
@@ -958,7 +961,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
                   </button>
                 )}
                 <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 dark:text-gray-300">
-                  Communities
+                  <span className="inline-flex items-center gap-2"><ProductIconCell iconName="community" label="Communities" size="sm" />Communities</span>
                   <span className="ml-2 text-xs font-normal text-gray-400">
                     {communities.length} channel{communities.length !== 1 ? 's' : ''}
                   </span>
@@ -997,7 +1000,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
                   </button>
                 )}
                 <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 dark:text-gray-300">
-                  Groups
+                  <span className="inline-flex items-center gap-2"><ProductIconCell iconName="group" label="Groups" size="sm" />Groups</span>
                   <span className="ml-2 text-xs font-normal text-gray-400">
                     {groups.length} channel{groups.length !== 1 ? 's' : ''}
                   </span>
@@ -1331,7 +1334,10 @@ function ManageMembersModal({ channel, allAgents, onClose, onSave }: { channel: 
     <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50" onClick={onClose}>
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 p-6 max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
         <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1 dark:text-gray-100">Manage Members</h3>
-        <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">{channel.type === 'community' ? '🏘' : '👥'} {channel.name}</p>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-1 inline-flex items-center gap-2">
+          <ProductIconCell iconName={channel.type === 'community' ? 'community' : 'group'} label={channel.type === 'community' ? 'Community' : 'Group'} size="sm" className="border-transparent bg-transparent text-current" />
+          {channel.name}
+        </p>
         <p className="text-xs text-gray-500 mb-4">
           {selectedMembers.size} member{selectedMembers.size !== 1 ? 's' : ''} selected
         </p>
@@ -1479,7 +1485,10 @@ function TagManageModal({ channel, onClose, onSave }: { channel: Channel; onClos
     <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50" onClick={onClose}>
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6" onClick={e => e.stopPropagation()}>
         <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1 dark:text-gray-100">Manage Tags</h3>
-        <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">{channel.type === 'community' ? '🏘' : '👥'} {channel.name}</p>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-1 inline-flex items-center gap-2">
+          <ProductIconCell iconName={channel.type === 'community' ? 'community' : 'group'} label={channel.type === 'community' ? 'Community' : 'Group'} size="sm" className="border-transparent bg-transparent text-current" />
+          {channel.name}
+        </p>
         <p className="text-xs text-gray-500 mb-4">Drag to reorder • First tag is primary</p>
 
         <div className="space-y-2 mb-4">
@@ -1575,14 +1584,6 @@ function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onMa
   const typeStyle = channel.type === 'community'
     ? 'bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-700'
     : 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 border-indigo-200 dark:border-indigo-700'
-
-  const channelEmojis: Record<string, string> = {
-    whatsapp: '📱',
-    slack: '💬',
-    discord: '💠',
-    email: '📧',
-    teams: '💼'
-  }
 
   const fetchWorkflows = useCallback(async () => {
     const workflowMap = channel.type === 'community' ? communityWorkflows : groupWorkflows
@@ -1765,7 +1766,13 @@ function ChannelCard({ channel, selectedTags, selectedAgents, onManageTags, onMa
             {channel.channels.length > 0 && (
               <div className="flex gap-1">
                 {channel.channels.map(ch => (
-                  <span key={ch} title={ch} className="text-sm">{channelEmojis[ch] || '💬'}</span>
+                  <ProductIconCell
+                    key={ch}
+                    iconName={ch === 'whatsapp' ? 'whatsapp' : ch === 'email' ? 'docs' : 'communication'}
+                    label={ch}
+                    size="sm"
+                    className="border-transparent bg-transparent text-gray-500 dark:text-gray-300"
+                  />
                 ))}
               </div>
             )}
@@ -2197,7 +2204,7 @@ function ChannelGridCard({ channel, selectedTags, selectedAgents, selectionMode,
         </button>
       )}
       <div className="flex items-center gap-1.5 mb-2">
-        <span className="text-lg">{channel.type === 'community' ? '🏘' : '👥'}</span>
+        <ProductIconCell iconName={channel.type === 'community' ? 'community' : 'group'} label={channel.type === 'community' ? 'Community' : 'Group'} size="sm" />
         <span className="font-semibold text-gray-900 dark:text-gray-100 text-sm truncate flex-1 dark:text-gray-100">{channel.name}</span>
         {unreadCount > 0 && (
           <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 dark:bg-red-500 text-white text-[10px] font-bold shrink-0 shadow-sm">
@@ -2216,7 +2223,7 @@ function ChannelGridCard({ channel, selectedTags, selectedAgents, selectionMode,
           className="shrink-0 text-sky-600 hover:text-sky-700 hover:bg-white dark:bg-gray-800/50 rounded p-1 transition-colors"
           title="Open chat"
         >
-          💬
+          <ProductIconCell iconName="communication" label="Open chat" size="sm" className="border-transparent bg-transparent text-sky-600 dark:text-sky-400 h-5 w-5" />
         </button>
         {channel.channels.length > 0 && (
           <div className="flex gap-0.5">

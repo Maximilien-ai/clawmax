@@ -13,6 +13,7 @@ import { filterAssignableAgents, isDeletableUserSkill, partitionSelectedSkills, 
 import { getSkillSetupHint, maybeWarnSkillSetup, supportsDashboardSkillSetup } from '../lib/skillSetup'
 import { collectSkillTags, matchesSelectedSkillTags } from '../lib/skillTags'
 import { useAuth } from '../contexts/AuthContext'
+import { ProductIconCell, resolveSkillVisual, resolveCategoryVisual } from '../lib/productIcons'
 
 // Use relative path so it works with ngrok and localhost
 const API_BASE = ''
@@ -104,7 +105,7 @@ type RegistrySkillResult = {
 const REGISTRY_PROVIDERS: Array<{
   id: RegistryProvider
   label: string
-  icon: string
+  iconKey: string
   linkLabel: string
   homepage: string
   description: string
@@ -114,7 +115,7 @@ const REGISTRY_PROVIDERS: Array<{
   {
     id: 'clawhub',
     label: 'ClawHub',
-    icon: '🦞',
+    iconKey: 'registry',
     linkLabel: 'ClawHub',
     homepage: 'https://clawhub.dev',
     description: 'OpenClaw’s native skill registry for discovering and installing skills.',
@@ -124,7 +125,7 @@ const REGISTRY_PROVIDERS: Array<{
   {
     id: 'shipables',
     label: 'Shipables',
-    icon: '🚢',
+    iconKey: 'registry',
     linkLabel: 'Shipables.dev',
     homepage: 'https://shipables.dev',
     description: 'Discover and install skills from Shipables.dev using the agentskills.io standard.',
@@ -134,7 +135,7 @@ const REGISTRY_PROVIDERS: Array<{
   {
     id: 'tessl',
     label: 'Tessl',
-    icon: '🧩',
+    iconKey: 'registry',
     linkLabel: 'Tessl',
     homepage: 'https://docs.tessl.io/use',
     description: 'Experimental: discover and install Tessl registry skills for OpenClaw workspaces.',
@@ -263,6 +264,11 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
         .filter(Boolean)
     ))
   }
+
+  const viewingSkillVisual = viewingSkill ? resolveSkillVisual(viewingSkill) : null
+  const generatedSkillVisual = generatedSkillDraft
+    ? resolveSkillVisual({ ...generatedSkillDraft, iconKey: (generatedSkillDraft as any).iconKey, icon: (generatedSkillDraft as any).icon })
+    : null
 
   // Load agents list on mount
   useEffect(() => {
@@ -1118,10 +1124,10 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
               <div className="relative">
                 <button
                   onClick={() => setShowSkillActionsMenu(!showSkillActionsMenu)}
-                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium"
                   title="Create, import, or export skills"
                 >
-                  ✨ Skill Actions <span className="text-xs">▾</span>
+                  <ProductIconCell iconName="ai" label="Skill Actions" size="sm" className="border-white/20 bg-white/10 text-white" /> Skill Actions <span className="text-xs">▾</span>
                 </button>
                 {showSkillActionsMenu && (
                   <>
@@ -1131,7 +1137,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                         onClick={() => openImportDialog('ai')}
                         className="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50"
                       >
-                        <span className="text-base leading-none">✨</span>
+                        <ProductIconCell iconName="ai" label="Create Skill with AI" size="sm" className="border-purple-200 bg-purple-50 text-purple-600 dark:border-purple-700 dark:bg-purple-900/30 dark:text-purple-300" />
                         <span>
                           <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">Create Skill with AI</span>
                           <span className="block text-xs text-gray-500 dark:text-gray-400">Generate, refine, and save a new custom skill.</span>
@@ -1141,7 +1147,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                         onClick={() => openImportDialog('local')}
                         className="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50"
                       >
-                        <span className="text-base leading-none">📁</span>
+                        <ProductIconCell iconName="directory" label="Import Local Skill" size="sm" className="border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300" />
                         <span>
                           <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">Import Local Skill</span>
                           <span className="block text-xs text-gray-500 dark:text-gray-400">Bring in a skill from a directory on disk.</span>
@@ -1151,7 +1157,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                         onClick={() => openImportDialog('github')}
                         className="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50"
                       >
-                        <span className="text-base leading-none">🌐</span>
+                        <ProductIconCell iconName="github" label="Import from GitHub" size="sm" className="border-gray-200 bg-gray-50 text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200" />
                         <span>
                           <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">Import from GitHub</span>
                           <span className="block text-xs text-gray-500 dark:text-gray-400">Clone and import a skill from a GitHub repo.</span>
@@ -1161,7 +1167,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                         onClick={() => openImportDialog('registry')}
                         className="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50"
                       >
-                        <span className="text-base leading-none">🗂️</span>
+                        <ProductIconCell iconName="registry" label="Browse Registries" size="sm" className="border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-300" />
                         <span>
                           <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">Browse Registries</span>
                           <span className="block text-xs text-gray-500 dark:text-gray-400">Discover and install skills from ClawHub, Shipables, or Tessl.</span>
@@ -1172,7 +1178,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                           onClick={() => openImportDialog('partner')}
                           className="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50"
                         >
-                          <span className="text-base leading-none">🤝</span>
+                          <ProductIconCell iconName="partner" label="Partner Skills" size="sm" className="border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" />
                           <span>
                             <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">Partner Skills</span>
                             <span className="block text-xs text-gray-500 dark:text-gray-400">Install or browse skills from integrated partners.</span>
@@ -1186,7 +1192,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                         }}
                         className="flex w-full items-start gap-3 border-t border-gray-200 px-4 py-3 text-left hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-700/50"
                       >
-                        <span className="text-base leading-none">📦</span>
+                        <ProductIconCell iconName="export" label="Export Skill" size="sm" className="border-indigo-200 bg-indigo-50 text-indigo-600 dark:border-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300" />
                         <span>
                           <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">Export Skill</span>
                           <span className="block text-xs text-gray-500 dark:text-gray-400">Coming soon. Package a skill for sharing or reuse.</span>
@@ -1514,7 +1520,10 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
         {/* Error display */}
         {error && (
           <div className="bg-red-100 border border-red-300 text-red-800 px-4 py-2 rounded-lg mb-4 flex items-center justify-between">
-            <span>❌ {error}</span>
+            <span className="inline-flex items-center gap-2">
+              <ProductIconCell iconName="delete" label="Error" size="sm" className="border-transparent bg-transparent text-current" />
+              {error}
+            </span>
             <button
               onClick={() => setError(null)}
               className="text-red-600 hover:text-red-800 font-bold"
@@ -1527,7 +1536,10 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
         {/* Saving indicator */}
         {saving && (
           <div className="bg-blue-100 border border-blue-300 text-blue-800 px-4 py-2 rounded-lg mb-4">
-            💾 Saving changes...
+            <span className="inline-flex items-center gap-2">
+              <ProductIconCell iconName="save" label="Saving changes" size="sm" className="border-transparent bg-transparent text-current" />
+              Saving changes...
+            </span>
           </div>
         )}
 
@@ -1655,7 +1667,9 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
         {filteredSkills.length === 0 ? (
           <div className="space-y-4">
             <div className="bg-white dark:bg-gray-800 p-5 rounded-lg border text-center">
-              <div className="text-gray-400 text-3xl mb-2">🔍</div>
+              <div className="mb-2 inline-flex">
+                <ProductIconCell iconName="details" label="No exact skill matches" size="lg" className="text-gray-400" />
+              </div>
               <p className="text-sm text-gray-600 dark:text-gray-300">No exact skill matches yet</p>
               {searchQuery.trim() && (
                 <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
@@ -1674,10 +1688,19 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                           key={skill.name}
                           onClick={() => setSearchQuery(skill.name)}
                           className="w-full text-left rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
-                        >
-                          <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{skill.name}</div>
-                          <div className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2">{skill.description}</div>
-                        </button>
+                      >
+                        <div className="inline-flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-gray-100">
+                          <ProductIconCell
+                            iconName={resolveSkillVisual(skill).iconName}
+                            emoji={resolveSkillVisual(skill).emoji}
+                            label={skill.name}
+                            size="sm"
+                            className="border-transparent bg-transparent text-current"
+                          />
+                          {skill.name}
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2">{skill.description}</div>
+                      </button>
                       ))}
                     </div>
                   </div>
@@ -1945,7 +1968,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
               <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between gap-4">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-lg">{viewingSkill.emoji || '📄'}</span>
+                    <ProductIconCell iconName={viewingSkillVisual?.iconName} emoji={viewingSkillVisual?.emoji} label={viewingSkill.name} size="sm" />
                     <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 truncate">{viewingSkill.name}</h2>
                     <span className="text-xs px-2 py-0.5 rounded border border-gray-200 text-gray-600 dark:border-gray-700 dark:text-gray-300">
                       {viewingSkill.source}
@@ -1979,9 +2002,9 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                     setSkillContent('')
                     setEditingDraft('')
                   }}
-                  className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
+                  className="text-gray-400 hover:text-gray-600"
                 >
-                  ×
+                  <ProductIconCell iconName="close" label="Close" size="sm" className="border-transparent bg-transparent text-current" />
                 </button>
               </div>
 
@@ -1993,7 +2016,10 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                   {!editingSkill && viewingSkill.install && viewingSkill.install.length > 0 && (
                     viewingSkill.requirementStatus?.checkable && viewingSkill.requirementStatus.installSatisfied ? (
                       <div className="px-3 py-1.5 rounded-md border border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-300 text-sm font-medium">
-                        ✓ Requirements installed
+                        <span className="inline-flex items-center gap-2">
+                          <ProductIconCell iconName="status" label="Requirements installed" size="sm" className="border-transparent bg-transparent text-current" />
+                          Requirements installed
+                        </span>
                       </div>
                     ) : (
                       <button
@@ -2792,7 +2818,10 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                         : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                     }`}
                   >
-                    📁 Local Directory
+                    <span className="inline-flex items-center gap-2">
+                      <ProductIconCell iconName={resolveCategoryVisual('directory').iconName} emoji={resolveCategoryVisual('directory').emoji} label="Local Directory" size="sm" />
+                      Local Directory
+                    </span>
                   </button>
                   <button
                     onClick={() => setImportSource('github')}
@@ -2802,7 +2831,10 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                         : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                     }`}
                   >
-                    🐙 GitHub Repository
+                    <span className="inline-flex items-center gap-2">
+                      <ProductIconCell iconName={resolveCategoryVisual('github').iconName} emoji={resolveCategoryVisual('github').emoji} label="GitHub Repository" size="sm" />
+                      GitHub Repository
+                    </span>
                   </button>
                   <button
                     onClick={() => setImportSource('registry')}
@@ -2812,7 +2844,10 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                         : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                     }`}
                   >
-                    🗂️ Skill Registries
+                    <span className="inline-flex items-center gap-2">
+                      <ProductIconCell iconName={resolveCategoryVisual('registry').iconName} emoji={resolveCategoryVisual('registry').emoji} label="Skill Registries" size="sm" />
+                      Skill Registries
+                    </span>
                   </button>
                   <button
                     onClick={() => setImportSource('ai')}
@@ -2822,7 +2857,10 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                         : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                     }`}
                   >
-                    ✨ AI Create
+                    <span className="inline-flex items-center gap-2">
+                      <ProductIconCell iconName={resolveCategoryVisual('ai').iconName} emoji={resolveCategoryVisual('ai').emoji} label="AI Create" size="sm" />
+                      AI Create
+                    </span>
                   </button>
                   <button
                     onClick={() => setImportSource('partner')}
@@ -2832,7 +2870,10 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                         : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                     }`}
                   >
-                    🤝 Partner Skills
+                    <span className="inline-flex items-center gap-2">
+                      <ProductIconCell iconName={resolveCategoryVisual('partner').iconName} emoji={resolveCategoryVisual('partner').emoji} label="Partner Skills" size="sm" />
+                      Partner Skills
+                    </span>
                   </button>
                 </div>
               </div>
@@ -2894,7 +2935,10 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                           }}
                           className="px-4 py-2 bg-gray-100 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-200 font-medium whitespace-nowrap dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600"
                         >
-                          📁 Browse...
+                          <span className="inline-flex items-center gap-2">
+                            <ProductIconCell iconName="directory" label="Browse" size="sm" className="border-transparent bg-transparent text-current" />
+                            Browse...
+                          </span>
                         </button>
                       </div>
                       <p className="text-xs text-gray-500 mt-1">
@@ -2954,7 +2998,16 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                               : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-purple-300 dark:hover:border-purple-600'
                           }`}
                         >
-                          {provider.icon} {provider.label}
+                          <span className="inline-flex items-center gap-2">
+                            <ProductIconCell
+                              iconName={resolveCategoryVisual(provider.iconKey).iconName}
+                              emoji={resolveCategoryVisual(provider.iconKey).emoji}
+                              label={provider.label}
+                              size="sm"
+                              className={registryProvider === provider.id ? 'border-white/30 bg-white/10 text-white' : ''}
+                            />
+                            {provider.label}
+                          </span>
                         </button>
                       ))}
                     </div>
@@ -3251,7 +3304,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                       <div className="rounded-lg border border-purple-200 dark:border-purple-800 bg-purple-50/60 dark:bg-purple-900/10 overflow-hidden">
                         <div className="px-4 py-3 border-b border-purple-200 dark:border-purple-800">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-lg">{generatedSkillDraft.emoji || '🛠️'}</span>
+                            <ProductIconCell iconName={generatedSkillVisual?.iconName} emoji={generatedSkillVisual?.emoji} label={generatedSkillDraft.name} size="sm" />
                             <div className="text-sm font-semibold text-purple-900 dark:text-purple-100">{generatedSkillDraft.name}</div>
                             {generatedSkillDraft.tags.length > 0 && (
                               <div className="flex flex-wrap gap-1">

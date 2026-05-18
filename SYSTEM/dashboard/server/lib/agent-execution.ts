@@ -256,6 +256,51 @@ export function resolvePersistedAgentSessionId(
   }
 }
 
+export function readLatestAssistantUsageFromPersistedSession(
+  agentId: string,
+  sessionKey: string,
+  preferredSessionId?: string,
+  homeDir: string = process.env.HOME || ''
+): {
+  sessionId?: string
+  inputTokens?: number
+  outputTokens?: number
+  cacheReadTokens?: number
+  estimatedCostUsd?: number
+  model?: string
+  provider?: string
+} | null {
+  const sessionId = resolvePersistedAgentSessionId(agentId, sessionKey, preferredSessionId, homeDir)
+  if (!sessionId || !homeDir) return null
+
+  const sessionFile = path.join(homeDir, '.openclaw', 'agents', agentId, 'sessions', `${sessionId}.jsonl`)
+  if (!fs.existsSync(sessionFile)) return null
+
+  try {
+    const lines = fs.readFileSync(sessionFile, 'utf-8')
+      .split('\n')
+      .filter((line) => line.trim())
+
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const entry = JSON.parse(lines[i])
+      const message = entry?.message
+      if (entry?.type !== 'message' || message?.role !== 'assistant') continue
+      const usage = message?.usage || {}
+      return {
+        sessionId,
+        inputTokens: Number(usage.input || 0),
+        outputTokens: Number(usage.output || 0),
+        cacheReadTokens: Number(usage.cacheRead || 0),
+        estimatedCostUsd: Number(usage?.cost?.total || 0),
+        model: typeof message?.model === 'string' ? message.model : undefined,
+        provider: typeof message?.provider === 'string' ? message.provider : undefined,
+      }
+    }
+  } catch {}
+
+  return sessionId ? { sessionId } : null
+}
+
 function normalizeSessionModel(model?: string): string | undefined {
   if (!model) return undefined
   const trimmed = model.trim()

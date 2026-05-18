@@ -4,6 +4,7 @@ import { ConfirmDeleteDialog } from '../components/ConfirmDeleteDialog'
 import { PageLoading } from '../components/LoadingSpinner'
 import { useWorkspace } from '../contexts/WorkspaceContext'
 import { buildOrganizationDeletePlan, buildOrganizationDisplayTeams } from '../lib/organizationTeams'
+import { ProductIconCell } from '../lib/productIcons'
 
 interface GroupEntry {
   name: string
@@ -1545,27 +1546,30 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
           </div>
           <button
             onClick={expandAll}
-            className="text-sm font-medium text-sky-600 hover:text-sky-800 transition-colors"
+            className="inline-flex items-center gap-2 text-sm font-medium text-sky-600 hover:text-sky-800 transition-colors"
           >
-            ▼ Expand All
+            <ProductIconCell iconName="create" label="Expand All" size="sm" className="border-transparent bg-transparent text-current rotate-45" />
+            Expand All
           </button>
           <button
             onClick={collapseAll}
-            className="text-sm font-medium text-gray-600 hover:text-gray-800 transition-colors dark:text-gray-200"
+            className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-800 transition-colors dark:text-gray-200"
           >
-            ▶ Collapse All
+            <ProductIconCell iconName="import" label="Collapse All" size="sm" className="border-transparent bg-transparent text-current -rotate-90" />
+            Collapse All
           </button>
           <button
             onClick={() => setShowSaveModal(true)}
             disabled={agents.length === 0}
-            className={`px-4 py-2 text-sm rounded transition-colors ${
+            className={`inline-flex items-center gap-2 px-4 py-2 text-sm rounded transition-colors ${
               agents.length === 0
                 ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                 : 'bg-sky-600 text-white hover:bg-sky-700'
             }`}
             title={agents.length === 0 ? 'No agents to export' : 'Export organization as template'}
           >
-            📦 Export as Template
+            <ProductIconCell iconName="export" label="Export as Template" size="sm" className={agents.length === 0 ? 'border-white/10 bg-white/10 text-white/70' : 'border-white/20 bg-white/10 text-white'} />
+            Export as Template
           </button>
         </div>
       </div>
@@ -1609,7 +1613,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
 
       {!loading && agents.length === 0 && (
         <div className="flex flex-col items-center justify-center h-48 text-gray-400">
-          <span className="text-4xl mb-4">🏢</span>
+          <ProductIconCell iconName="organization" label="Organization" size="lg" className="mb-4" />
           <p className="text-sm">No agents found</p>
           <p className="text-xs mt-1 text-gray-300">Add agents to see organization structure</p>
         </div>
@@ -1622,7 +1626,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
             <div className="flex items-start justify-between">
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-2xl">🏢</span>
+                  <ProductIconCell iconName="organization" label="Organization" size="sm" />
                   {editingOrg ? (
                     <input
                       type="text"
@@ -1642,9 +1646,15 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
                         setEditingOrg(true)
                       }
                     }}
-                    className="text-sm text-sky-600 hover:text-sky-800 ml-2"
+                    className="inline-flex items-center gap-2 text-sm text-sky-600 hover:text-sky-800 ml-2"
                   >
-                    {editingOrg ? '✓ Done' : '✏️ Edit'}
+                    <ProductIconCell
+                      iconName={editingOrg ? 'save' : 'edit'}
+                      label={editingOrg ? 'Done' : 'Edit'}
+                      size="sm"
+                      className="border-transparent bg-transparent text-current"
+                    />
+                    {editingOrg ? 'Done' : 'Edit'}
                   </button>
                 </div>
                 {editingOrg ? (
@@ -1668,7 +1678,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
                 <div className="flex items-center gap-2 cursor-pointer" onClick={() => setTeamsSectionCollapsed(!teamsSectionCollapsed)}>
                   <span className="text-sm">{teamsSectionCollapsed ? '▶' : '▼'}</span>
                   <h2 className="text-sm font-semibold text-amber-900 dark:text-amber-300">
-                    🏢 Company Structure ({displayTeams.length})
+                    <span className="inline-flex items-center gap-2"><ProductIconCell iconName="organization" label="Company Structure" size="sm" />Company Structure ({displayTeams.length})</span>
                   </h2>
                 </div>
                 <div className="text-xs text-amber-700 dark:text-amber-400">
@@ -1803,7 +1813,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
           <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 shadow-sm dark:border-gray-700">
             <div className="px-4 py-3 border-b border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900">
               <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                🤖 All Agents ({agents.length})
+                <span className="inline-flex items-center gap-2"><ProductIconCell iconName="ai" label="All Agents" size="sm" />All Agents ({agents.length})</span>
               </h2>
             </div>
             <div className="p-4">
@@ -1831,7 +1841,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
                 <div className="flex items-center gap-2 cursor-pointer" onClick={() => setCommunitiesSectionCollapsed(!communitiesSectionCollapsed)}>
                   <span className="text-sm">{communitiesSectionCollapsed ? '▶' : '▼'}</span>
                   <h2 className="text-sm font-semibold text-purple-800 dark:text-purple-400">
-                    🏘 Communities ({communities.length})
+                    <span className="inline-flex items-center gap-2"><ProductIconCell iconName="community" label="Communities" size="sm" />Communities ({communities.length})</span>
                   </h2>
                 </div>
                 <button
@@ -1882,7 +1892,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
                             className="text-xs text-purple-600 hover:text-purple-800 font-medium transition-colors ml-1"
                             title="View chat in Communication page"
                           >
-                            💬
+                            <span className="inline-flex"><ProductIconCell iconName="communication" label="Chat" size="sm" className="border-transparent bg-transparent text-purple-600 dark:text-purple-400 h-5 w-5" /></span>
                           </button>
                         </div>
                         {community.description && (
@@ -2029,7 +2039,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
                 <div className="flex items-center gap-2 cursor-pointer" onClick={() => setGroupsSectionCollapsed(!groupsSectionCollapsed)}>
                   <span className="text-sm">{groupsSectionCollapsed ? '▶' : '▼'}</span>
                   <h2 className="text-sm font-semibold text-indigo-800 dark:text-indigo-400">
-                    👥 Groups ({groups.length})
+                    <span className="inline-flex items-center gap-2"><ProductIconCell iconName="group" label="Groups" size="sm" />Groups ({groups.length})</span>
                   </h2>
                 </div>
                 <button
@@ -2080,7 +2090,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
                             className="text-xs text-indigo-600 hover:text-indigo-800 font-medium transition-colors ml-1"
                             title="View chat in Communication page"
                           >
-                            💬
+                            <span className="inline-flex"><ProductIconCell iconName="communication" label="Chat" size="sm" className="border-transparent bg-transparent text-indigo-600 dark:text-indigo-400 h-5 w-5" /></span>
                           </button>
                           {group.community && (
                             <button

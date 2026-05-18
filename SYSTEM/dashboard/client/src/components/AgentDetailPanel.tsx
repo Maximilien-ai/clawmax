@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useToast } from './Toast'
 import { getSkillSetupHint } from '../lib/skillSetup'
+import { ProductIconCell } from '../lib/productIcons'
 
 interface GroupEntry {
   name: string
@@ -303,9 +304,13 @@ export default function AgentDetailPanel({
                 }}
                 title="Click to rename"
               >
-                {agent.tags.includes('built-in') && <span>🤖</span>}
+                {agent.tags.includes('built-in') && (
+                  <ProductIconCell iconName="ai" label="Built-in system agent" size="sm" className="border-transparent bg-transparent text-gray-500 dark:text-gray-300" />
+                )}
                 <span className="truncate">{agent.name}</span>
-                <span className="text-gray-300 dark:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity text-xs">✏️</span>
+                <span className="opacity-0 transition-opacity group-hover:opacity-100">
+                  <ProductIconCell iconName="edit" label="Rename" size="sm" className="border-transparent bg-transparent text-gray-300 dark:text-gray-600" />
+                </span>
               </h2>
               <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_TEXT[agent.status]}`}>
                 <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[agent.status]}`} />
@@ -334,7 +339,7 @@ export default function AgentDetailPanel({
               aria-label="Chat with agent"
               title="Chat with agent"
             >
-              💬
+              <ProductIconCell iconName="communication" label="Chat with agent" size="sm" className="border-transparent bg-transparent text-current" />
             </button>
             {onClone && (
               <button
@@ -343,7 +348,7 @@ export default function AgentDetailPanel({
                 aria-label="Clone agent"
                 title="Clone agent"
               >
-                📋
+                <ProductIconCell iconName="clone" label="Clone agent" size="sm" className="border-transparent bg-transparent text-current" />
               </button>
             )}
             <button
@@ -354,14 +359,14 @@ export default function AgentDetailPanel({
               }`}
               aria-label="Refresh"
             >
-              ↻
+              <ProductIconCell iconName="refresh" label="Refresh" size="sm" className="border-transparent bg-transparent text-current" />
             </button>
             <button
               onClick={onClose}
               className="h-9 w-9 inline-flex items-center justify-center rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-lg leading-none"
               aria-label="Close"
             >
-              ✕
+              <ProductIconCell iconName="delete" label="Close" size="sm" className="border-transparent bg-transparent text-current" />
             </button>
           </div>
         </div>
@@ -405,7 +410,9 @@ export default function AgentDetailPanel({
                         title="Set per-agent cost limit"
                       >
                         {costLimit ? `$${costLimit.toFixed(2)}` : 'No limit set'}
-                        <span className="ml-1 text-gray-300 dark:text-gray-600">✏️</span>
+                        <span className="ml-1 inline-flex align-middle">
+                          <ProductIconCell iconName="edit" label="Edit budget" size="sm" className="border-transparent bg-transparent text-gray-300 dark:text-gray-600" />
+                        </span>
                       </button>
                     )}
                   </div>

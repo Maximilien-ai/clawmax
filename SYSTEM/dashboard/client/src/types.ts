@@ -58,6 +58,8 @@ export interface OpenClawSkill {
   name: string          // Unique ID (e.g., "github")
   description: string   // Short description
   emoji?: string        // Display emoji (e.g., "🐙")
+  icon?: string
+  iconKey?: string
   filePath: string      // Path to SKILL.md
   bundled: boolean      // Is this a bundled skill?
   source: 'bundled' | 'managed' | 'workspace'

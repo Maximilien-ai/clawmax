@@ -2,6 +2,19 @@
 
 All notable changes to ClawMax are documented here.
 
+## [v1.5.0] - 2026-05-17
+
+### Release — Product Icon System, Local Metering Recovery, and View Consistency
+- **Product Icon System Rollout** — the dashboard now replaces the old emoji-style primary chrome with the shared product icon system across the left rail, action menus, templates, skills, organization, communications, activity, and major agent detail/chat surfaces. Skills and templates now prefer metadata-driven product icons first, with emoji only as compatibility fallback.
+- **Skills and Templates Visual Consistency** — skill cards, skill viewer actions, template cards, template section headers, category chips, and registry/install surfaces now follow the same icon-cell treatment so built-in and imported items read in one consistent ClawMax visual language.
+- **View Toggle Normalization** — grid/list/detail-style toggle semantics are being standardized across dashboard tabs, with `list` consistently placed as the rightmost option and clearer separation between compact grid views and richer document/detail-style views.
+- **Documents Tab Persistence** — the Documents page now stays mounted like the other persistent tabs, so switching away and back preserves the current document context instead of resetting the page.
+- **Local Metering Recovery** — local direct agent chat now reads token and cost metadata from persisted OpenClaw session transcripts and records real Opik trace usage instead of logging zero-token / `$0.00` chat calls in Activity & Budget.
+
+### Quality
+- **Regression Coverage** — added focused runtime coverage for recovering assistant usage metadata from persisted agent session files, and surfaced the new product-icon helper coverage in the dashboard test harness.
+- **Validation Gate** — validated locally with `server/lib/agent-execution.test.ts`, `npx tsc --noEmit`, and shell validation of `SYSTEM/test.sh`.
+
 ## [v1.4.9] - 2026-05-17
 
 ### Release — Skills, Session Persistence, and Opik Runtime Alignment

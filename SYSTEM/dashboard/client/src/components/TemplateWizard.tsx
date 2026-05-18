@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { hasAiGenerationAccess, readStoredByokKeys } from '../lib/byok'
 import { readSharedSecrets } from '../lib/localSecrets'
 import { useAuth } from '../contexts/AuthContext'
+import { ProductIconCell, resolveCategoryVisual } from '../lib/productIcons'
 
 // ============================================================================
 // Types
@@ -1026,7 +1027,14 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
                 : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
             }`}
           >
-            <div className="text-2xl mb-1">{preset.icon}</div>
+            <div className="mb-2">
+              <ProductIconCell
+                iconName={resolveCategoryVisual(key, preset.icon).iconName}
+                emoji={resolveCategoryVisual(key, preset.icon).emoji}
+                label={preset.label}
+                size="md"
+              />
+            </div>
             <div className="font-medium text-gray-900 dark:text-gray-100">{preset.label}</div>
             <div className="text-xs text-gray-500 dark:text-gray-400">{preset.description}</div>
           </button>

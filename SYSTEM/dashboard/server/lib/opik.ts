@@ -187,6 +187,7 @@ export function traceAgentChat(
     outputTokens?: number
     cacheReadTokens?: number
     durationMs?: number
+    estimatedCostUsd?: number
     sessionId?: string
     workflowId?: string
     workflowName?: string
@@ -204,11 +205,13 @@ export function traceAgentChat(
     ? new Date(Date.now() - meta.durationMs).toISOString()
     : now
 
-  const cost = estimateModelCostUsd(
-    meta.model || '',
-    meta.inputTokens || 0,
-    meta.outputTokens || 0
-  )
+  const cost = typeof meta.estimatedCostUsd === 'number'
+    ? meta.estimatedCostUsd
+    : estimateModelCostUsd(
+      meta.model || '',
+      meta.inputTokens || 0,
+      meta.outputTokens || 0
+    )
 
   sendTrace({
     id: uuidv7(),

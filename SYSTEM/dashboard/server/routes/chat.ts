@@ -13,6 +13,7 @@ import { checkBudgetBlock } from '../lib/budget'
 import { normalizeChatMessage } from '../lib/chat-normalization'
 import {
   deriveWorkspaceRootFromAgentWorkspace,
+  readLatestAssistantUsageFromPersistedSession,
   resolveAgentExecutionConfig,
   resolvePersistedAgentSessionId,
   runExclusiveAgentExecution,
@@ -267,6 +268,8 @@ router.post('/:id/chat', (req, res) => {
   const keepalive = setInterval(() => {
     try { res.write(': keepalive\n\n') } catch {}
   }, 2000)
+  const chatStartedAt = Date.now()
+  const dashboardSessionKey = `agent:${id}:dashboard-chat`
 
   // Use plain-text mode so stdout can stream deltas to the UI in real time.
   // History/persistence is handled by the explicit session id and the CLI itself.
@@ -323,10 +326,20 @@ router.post('/:id/chat', (req, res) => {
         const normalizedText = normalizeChatMessage(fullOutput.trim())
 
         if (normalizedText) {
+          const usage = readLatestAssistantUsageFromPersistedSession(
+            id,
+            dashboardSessionKey,
+            effectiveSessionId
+          )
           traceAgentChat(id, message, normalizedText, {
-            model: resolvedAgent.model,
-            provider: resolvedAgent.provider || undefined,
-            sessionId: effectiveSessionId,
+            model: usage?.model || resolvedAgent.model,
+            provider: usage?.provider || resolvedAgent.provider || undefined,
+            inputTokens: usage?.inputTokens,
+            outputTokens: usage?.outputTokens,
+            cacheReadTokens: usage?.cacheReadTokens,
+            durationMs: Math.max(0, Date.now() - chatStartedAt),
+            estimatedCostUsd: usage?.estimatedCostUsd,
+            sessionId: usage?.sessionId || effectiveSessionId,
             actorUserId: session?.userId,
             actorLogin: session?.login,
             actorEmail: session?.email,

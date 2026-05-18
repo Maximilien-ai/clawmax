@@ -5,12 +5,23 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.4.9-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
+[![Version](https://img.shields.io/badge/version-1.5.0-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
 [![Tests](https://img.shields.io/badge/tests-72%20default--safe-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 Latest Release: v1.4.9
+## 🔥 Latest Release: v1.5.0
+
+- Dashboard visuals now use a much more consistent product icon system:
+  - replaced the old emoji-style primary UI icons across the left rail, actions, templates, skills, agents, organization, communications, activity, and major chat/detail surfaces
+  - skills and templates now prefer metadata-driven product icons first, with emoji only as fallback
+- View/state behavior is more consistent:
+  - Documents now preserves its position/state when switching tabs, like the other mounted pages
+  - view toggles are being normalized so `list` is consistently the rightmost option, with clearer `grid` vs. `detail` semantics where applicable
+- Local metering is reliable again:
+  - local direct chat now reads token/cost usage from persisted OpenClaw session transcripts and records real Opik trace metadata instead of logging zero-token/$0.00 chat calls
+
+## 🔥 Previous Release: v1.4.9
 
 - Agent chat history now persists reliably across reopen:
   - dashboard chat uses stable agent-scoped sessions
@@ -33,19 +44,6 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 - BYOK layout is tighter:
   - removed the redundant second provider selector row
   - collapsed the stacked intro/status sections so the provider editor cards start higher and no longer leave a large blank gap above them
-
-## 🔥 Previous Release: v1.4.7
-
-- On-prem/dashboard identity is now more reliable:
-  - Opik metering traces now carry `instance_key`, `machine_id`, and `machine_name`
-  - Budget and metering views now key on-prem usage by runtime identity, not just generic dashboard hostname
-  - this prevents different Macs or on-prem instances from colliding when older runtime hostnames are reused
-- Gateway health is stricter and more trustworthy:
-  - gateway health now requires authenticated success instead of treating an open port as a healthy runtime
-  - cloud/on-prem instances stop showing a false green gateway state when token/authenticated RPC is actually failing
-- On-prem Ollama UI is now conservative:
-  - dashboard only shows Ollama BYOK/UI when both `ollamaEnabled` is true and a non-empty `defaultOllamaBaseUrl` are present
-  - this avoids showing Ollama as available on package lines where the runtime has not wired the base URL yet
 
 Older releases are kept in [CHANGELOG.md](CHANGELOG.md).
 

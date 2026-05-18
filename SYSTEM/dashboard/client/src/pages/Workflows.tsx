@@ -7,6 +7,7 @@ import { useAuth } from '../contexts/AuthContext'
 import WorkflowDAG from '../components/WorkflowDAG'
 import { getDiscoverySuggestions } from '../lib/discoverySuggestions'
 import { readLocalSecrets, SecretRequirement, summarizeSecretReadiness, writeLocalSecrets, writeSharedSecrets } from '../lib/localSecrets'
+import { ProductIconCell } from '../lib/productIcons'
 
 interface AgentTargeting {
   communities: string[]
@@ -1373,21 +1374,21 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                 className={`px-2.5 py-1.5 text-xs transition-colors ${viewMode === 'dag' ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
                 title="DAG view"
               >
-                ◇
+                <ProductIconCell iconName="workflow" label="DAG view" size="sm" className="border-transparent bg-transparent text-current" />
+              </button>
+              <button
+                onClick={() => setViewMode('grid')}
+                className={`inline-flex items-center justify-center px-2.5 py-1.5 text-xs transition-colors border-l border-gray-200 dark:border-gray-700 ${viewMode === 'grid' ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+                title="Grid view"
+              >
+                <ProductIconCell iconName="grid" label="Grid view" size="sm" className="border-transparent bg-transparent text-current" />
               </button>
               <button
                 onClick={() => setViewMode('list')}
                 className={`px-2.5 py-1.5 text-xs transition-colors border-l border-gray-200 dark:border-gray-700 ${viewMode === 'list' ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
                 title="List view"
               >
-                ☰
-              </button>
-              <button
-                onClick={() => setViewMode('grid')}
-                className={`px-2.5 py-1.5 text-xs transition-colors border-l border-gray-200 dark:border-gray-700 ${viewMode === 'grid' ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
-                title="Grid view"
-              >
-                ⊞
+                <ProductIconCell iconName="list" label="List view" size="sm" className="border-transparent bg-transparent text-current" />
               </button>
             </div>
             <button
@@ -1404,7 +1405,8 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
               }`}
               title={selectionMode ? 'Exit selection mode' : 'Select multiple workflows'}
             >
-              <span className="text-base leading-none">☑</span> {selectionMode ? 'Cancel' : 'Select'}
+              <ProductIconCell iconName="details" label={selectionMode ? 'Cancel selection' : 'Select'} size="sm" className={selectionMode ? 'border-white/20 bg-white/10 text-white' : 'border-transparent bg-transparent text-current'} />
+              {selectionMode ? 'Cancel' : 'Select'}
             </button>
             {selectionMode && (
               <button
@@ -1426,7 +1428,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                 className="px-4 py-2 bg-sky-600 text-white text-sm font-medium rounded-md hover:bg-sky-700 transition-colors flex items-center gap-1.5"
                 title="Workflow actions"
               >
-                <span className="text-base leading-none">⚙️</span> Workflow Actions <span className="text-xs">▾</span>
+                <ProductIconCell iconName="workflow" label="Workflow Actions" size="sm" className="border-white/20 bg-white/10 text-white" /> Workflow Actions <span className="text-xs">▾</span>
               </button>
               {showWorkflowActionsMenu && (
                 <>
@@ -1446,7 +1448,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                       }`}
                       title={aiEnabled ? 'Generate workflow with AI' : 'Configure browser keys or a shared execution path first'}
                     >
-                      <span className="text-purple-500">✨</span> AI Generate
+                      <ProductIconCell iconName="ai" label="AI Generate" size="sm" className="border-purple-200 bg-purple-50 text-purple-600 dark:border-purple-700 dark:bg-purple-900/30 dark:text-purple-300" /> AI Generate
                     </button>
                     <button
                       onClick={() => {
@@ -1456,7 +1458,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                       }}
                       className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-sky-50 dark:hover:bg-sky-900/30 transition-colors flex items-center gap-2"
                     >
-                      <span className="text-sky-500">＋</span> Create
+                      <ProductIconCell iconName="create" label="Create" size="sm" className="border-sky-200 bg-sky-50 text-sky-600 dark:border-sky-700 dark:bg-sky-900/30 dark:text-sky-300" /> Create
                     </button>
                     <button
                       onClick={() => {
@@ -1465,7 +1467,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                       }}
                       className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors flex items-center gap-2"
                     >
-                      <span className="text-emerald-500">⇪</span> Import
+                      <ProductIconCell iconName="import" label="Import" size="sm" className="border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" /> Import
                     </button>
                   </div>
                 </>

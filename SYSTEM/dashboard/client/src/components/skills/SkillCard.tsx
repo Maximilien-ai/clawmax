@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { OpenClawSkill } from '../../types'
 import type { SkillSetupHint } from '../../lib/skillSetup'
+import { ProductIconCell, resolveSkillVisual } from '../../lib/productIcons'
 
 interface SkillCardProps {
   skill: OpenClawSkill
@@ -38,6 +39,7 @@ function getRegistryBadgeLabel(skill: OpenClawSkill): string | null {
 export function SkillCard({ skill, assigned, onToggle, onView, onDelete, canDelete = false, compact = false, usageCount, usedBy, selectionMode = false, isSelected = false, onToggleSelect, onInstallRequirements, installingRequirements = false, setupHint = null, onOpenSetup }: SkillCardProps) {
   const [showDetails, setShowDetails] = useState(false)
   const installSatisfied = !!skill.requirementStatus?.checkable && skill.requirementStatus.installSatisfied
+  const skillVisual = resolveSkillVisual(skill)
 
   return (
     <div
@@ -67,9 +69,7 @@ export function SkillCard({ skill, assigned, onToggle, onView, onDelete, canDele
       <div className={`flex items-start justify-between gap-3 ${selectionMode ? 'pr-10' : ''}`}>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            {skill.emoji && (
-              <span className="text-2xl flex-shrink-0">{skill.emoji}</span>
-            )}
+            <ProductIconCell iconName={skillVisual.iconName} emoji={skillVisual.emoji} label={skill.name} size="sm" className="flex-shrink-0" />
             <h3 className="font-semibold text-gray-900 truncate dark:text-gray-100">
               {skill.name}
             </h3>
@@ -135,7 +135,7 @@ export function SkillCard({ skill, assigned, onToggle, onView, onDelete, canDele
                 title={`View ${skill.name} skill.md`}
                 aria-label={`View ${skill.name} skill.md`}
               >
-                📄
+                <ProductIconCell iconName="docs" label={`View ${skill.name} skill.md`} size="sm" className="border-transparent bg-transparent text-current h-5 w-5" />
               </button>
             )}
             {!selectionMode && canDelete && onDelete && (
@@ -145,7 +145,7 @@ export function SkillCard({ skill, assigned, onToggle, onView, onDelete, canDele
                 title={`Delete ${skill.name}`}
                 aria-label={`Delete ${skill.name}`}
               >
-                🗑
+                <ProductIconCell iconName="delete" label={`Delete ${skill.name}`} size="sm" className="border-transparent bg-transparent text-current h-5 w-5" />
               </button>
             )}
           </div>
@@ -215,7 +215,10 @@ export function SkillCard({ skill, assigned, onToggle, onView, onDelete, canDele
                   ))}
                   {installSatisfied ? (
                     <div className="mt-2 inline-flex items-center rounded-md border border-green-200 bg-green-50 px-3 py-1.5 text-xs font-medium text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-300">
-                      ✓ Requirements installed
+                      <span className="inline-flex items-center gap-2">
+                        <ProductIconCell iconName="status" label="Requirements installed" size="sm" className="border-transparent bg-transparent text-current h-5 w-5" />
+                        Requirements installed
+                      </span>
                     </div>
                   ) : onInstallRequirements ? (
                     <button

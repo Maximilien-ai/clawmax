@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { byokForRequest, hasAiGenerationAccess, readStoredByokKeys } from '../lib/byok'
 import { buildPersistentDashboardChatSessionId } from '../lib/agentChatSession'
+import { ProductIconCell } from '../lib/productIcons'
 import { useAuth } from '../contexts/AuthContext'
 
 interface Message {
@@ -737,7 +738,10 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
               }`}
               title="Reset the agent runtime session for a completely fresh chat"
             >
-              ↺ Reset Session
+              <span className="inline-flex items-center gap-2">
+                <ProductIconCell iconName="restart" label="Reset Session" size="sm" className="border-transparent bg-transparent text-current" />
+                Reset Session
+              </span>
             </button>
             <button
               onClick={() => { fetchArchives(); setShowArchives(true); }}
@@ -749,26 +753,39 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
               }`}
               title={archives.length === 0 ? 'No chat history yet' : 'View chat history'}
             >
-              📜 History
+              <span className="inline-flex items-center gap-2">
+                <ProductIconCell iconName="history" label="History" size="sm" className="border-transparent bg-transparent text-current" />
+                History
+              </span>
             </button>
             <button
               onClick={() => setShowClearConfirm(true)}
               className="text-xs px-2 py-1 text-gray-600 hover:bg-gray-100 rounded transition-colors dark:bg-gray-800 dark:hover:bg-gray-700"
               title="Clear messages"
             >
-              🗑️ Clear
+              <span className="inline-flex items-center gap-2">
+                <ProductIconCell iconName="delete" label="Clear" size="sm" className="border-transparent bg-transparent text-current" />
+                Clear
+              </span>
             </button>
             <button
               onClick={() => setIsSlideMode(!isSlideMode)}
               className="text-gray-400 hover:text-gray-600 text-sm px-2 py-1 hover:bg-gray-100 rounded transition-colors dark:bg-gray-800 dark:hover:bg-gray-700"
               title={isSlideMode ? "Switch to modal" : "Switch to slide"}
             >
-              {isSlideMode ? '◧' : '»'}
+              <ProductIconCell
+                iconName={isSlideMode ? 'clone' : 'expand'}
+                label={isSlideMode ? 'Switch to modal' : 'Switch to slide'}
+                size="sm"
+                className="border-transparent bg-transparent text-current"
+              />
             </button>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 transition-colors text-xl leading-none"
-            >×</button>
+              className="text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <ProductIconCell iconName="close" label="Close" size="sm" className="border-transparent bg-transparent text-current" />
+            </button>
           </div>
         </div>
 

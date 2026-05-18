@@ -54,21 +54,141 @@ interface SystemInfo {
 interface NavItem {
   id: Page
   label: string
-  icon: string
+  icon: React.ComponentType<{ className?: string }>
+}
+
+function iconClassName(className?: string) {
+  return `h-4 w-4 shrink-0${className ? ` ${className}` : ''}`
+}
+
+function BotIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={iconClassName(className)}>
+      <path d="M12 8V4" />
+      <path d="M8 4h8" />
+      <rect x="4" y="8" width="16" height="11" rx="3" />
+      <path d="M9 13h.01" />
+      <path d="M15 13h.01" />
+      <path d="M9 17h6" />
+    </svg>
+  )
+}
+
+function WorkflowIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={iconClassName(className)}>
+      <circle cx="6" cy="6" r="2" />
+      <circle cx="18" cy="6" r="2" />
+      <circle cx="6" cy="18" r="2" />
+      <circle cx="18" cy="18" r="2" />
+      <path d="M8 6h8" />
+      <path d="M6 8v8" />
+      <path d="M18 8v8" />
+      <path d="M8 18h8" />
+    </svg>
+  )
+}
+
+function MessageIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={iconClassName(className)}>
+      <path d="M7 10h10" />
+      <path d="M7 14h6" />
+      <path d="M21 12a8 8 0 0 1-8 8H5l-2 2V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8Z" />
+    </svg>
+  )
+}
+
+function BuildingIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={iconClassName(className)}>
+      <path d="M3 21h18" />
+      <path d="M5 21V7l7-4 7 4v14" />
+      <path d="M9 9h.01" />
+      <path d="M15 9h.01" />
+      <path d="M9 13h.01" />
+      <path d="M15 13h.01" />
+      <path d="M10 21v-4h4v4" />
+    </svg>
+  )
+}
+
+function FileIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={iconClassName(className)}>
+      <path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7z" />
+      <path d="M14 2v5h5" />
+      <path d="M9 13h6" />
+      <path d="M9 17h6" />
+    </svg>
+  )
+}
+
+function WrenchIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={iconClassName(className)}>
+      <path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-3-3Z" />
+    </svg>
+  )
+}
+
+function TemplateIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={iconClassName(className)}>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M7 8h10" />
+      <path d="M7 12h4" />
+      <path d="M13 12h4" />
+      <path d="M7 16h10" />
+    </svg>
+  )
+}
+
+function KeyIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={iconClassName(className)}>
+      <circle cx="7.5" cy="15.5" r="3.5" />
+      <path d="M11 15.5h10" />
+      <path d="M18 12.5v6" />
+      <path d="M14 13.5v4" />
+    </svg>
+  )
+}
+
+function ActivityIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={iconClassName(className)}>
+      <path d="M3 3v18h18" />
+      <path d="m7 14 3-3 3 2 4-5" />
+    </svg>
+  )
+}
+
+function LogIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={iconClassName(className)}>
+      <path d="M8 6h13" />
+      <path d="M8 12h13" />
+      <path d="M8 18h13" />
+      <path d="M3 6h.01" />
+      <path d="M3 12h.01" />
+      <path d="M3 18h.01" />
+    </svg>
+  )
 }
 
 const DEFAULT_NAV_ORDER: NavItem[] = [
-  { id: 'agents', label: 'Agents', icon: 'robot' },
-  { id: 'workflows', label: 'Workflows', icon: 'workflows' },
-  { id: 'communication', label: 'Communications', icon: 'comms' },
-  { id: 'organizations', label: 'Organization', icon: 'org' },
-  { id: 'docs', label: 'Documents', icon: 'docs' },
+  { id: 'agents', label: 'Agents', icon: BotIcon },
+  { id: 'workflows', label: 'Workflows', icon: WorkflowIcon },
+  { id: 'communication', label: 'Communications', icon: MessageIcon },
+  { id: 'organizations', label: 'Organization', icon: BuildingIcon },
+  { id: 'docs', label: 'Documents', icon: FileIcon },
   // System tabs below - separated by divider
-  { id: 'skills', label: 'Skills', icon: 'skills' },
-  { id: 'templates', label: 'Templates', icon: 'templates' },
-  { id: 'keys', label: 'Keys & Secrets', icon: 'keys' },
-  { id: 'activity', label: 'Activity & Budget', icon: 'activity' },
-  { id: 'logs', label: 'System & Logs', icon: 'logs' },
+  { id: 'skills', label: 'Skills', icon: WrenchIcon },
+  { id: 'templates', label: 'Templates', icon: TemplateIcon },
+  { id: 'keys', label: 'Keys & Secrets', icon: KeyIcon },
+  { id: 'activity', label: 'Activity & Budget', icon: ActivityIcon },
+  { id: 'logs', label: 'System & Logs', icon: LogIcon },
 ]
 
 // User tabs that can be rearranged (first 5)
@@ -615,8 +735,8 @@ export default function App() {
               <Logs />
             </div>
             )}
-            {page === 'docs' && (
-            <div className="flex-1 overflow-auto">
+            {visitedPages.has('docs') && (
+            <div className={`flex-1 overflow-auto ${page === 'docs' ? '' : 'hidden'}`}>
               <DocHub initialFile={docFile} />
             </div>
             )}
@@ -812,9 +932,9 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
   )
 }
 
-function NavItemDraggable({ label, icon, active, badge, onClick, collapsed, onDragStart, onDragOver, onDragEnd }: {
+function NavItemDraggable({ label, icon: Icon, active, badge, onClick, collapsed, onDragStart, onDragOver, onDragEnd }: {
   label: string
-  icon: string
+  icon: React.ComponentType<{ className?: string }>
   active: boolean
   badge?: number
   onClick: () => void
@@ -823,19 +943,6 @@ function NavItemDraggable({ label, icon, active, badge, onClick, collapsed, onDr
   onDragOver: (e: React.DragEvent) => void
   onDragEnd: () => void
 }) {
-  const icons: Record<string, string> = {
-    robot: '🤖',
-    org: '🏢',
-    templates: '📑',
-    workflows: '⚙️',
-    skills: '🛠️',
-    keys: '🔐',
-    comms: '💬',
-    activity: '📊',
-    docs: '📄',
-    logs: '📜',
-  }
-
   return (
     <button
       draggable
@@ -852,8 +959,8 @@ function NavItemDraggable({ label, icon, active, badge, onClick, collapsed, onDr
           : 'text-gray-300 hover:bg-gray-800 hover:text-white'
       }`}
     >
-      <span className="relative">
-        {icons[icon]}
+      <span className="relative flex items-center justify-center">
+        <Icon className="h-4 w-4" />
         {badge != null && badge > 0 && collapsed && (
           <span className="absolute -top-1 -right-1 min-w-[14px] h-[14px] rounded-full bg-red-500 text-white text-[8px] font-bold flex items-center justify-center px-0.5">
             {badge > 99 ? '!' : badge}

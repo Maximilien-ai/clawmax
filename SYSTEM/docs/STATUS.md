@@ -1,14 +1,14 @@
 # ClawMax Status
 
-**Current Version**: v1.4.9
+**Current Version**: v1.5.0
 **Last Updated**: May 17, 2026
-**Status**: `v1.4.9` is the current patch release line on `main`
+**Status**: `v1.5.0` is the current release line on `main`
 
 ---
 
 ## Current State
 
-- `main` now carries the `1.4.9` patch line: persistent agent chat reopen, richer skill registry metadata, editable skill tags, explicit skill tag filtering, and Opik runtime alignment with workspace-stored project/workspace settings
+- `main` now carries the `1.5.0` line: product icon system rollout across the dashboard, stronger cross-tab view consistency, Documents state persistence, and recovered local metering/token attribution for direct chat traces
 - targeted local validation is green on the current line, including the newer chat-session, Opik runtime, skill metadata, and skill-tag regressions
 - Skills now support stronger day-to-day management: reverse assignment, workspace-copy editing, bulk selection/deletion, richer imported registry provenance, tag editing/filtering, and registry suggestions from ClawHub, Shipables, and Tessl
 - Tessl registry support is available as an **exploratory/experimental** feature for OpenClaw workspaces; installs are materially improved, but some tiles still require Tessl-side security review or additional format validation
