@@ -5,12 +5,25 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.5.0-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
+[![Version](https://img.shields.io/badge/version-1.5.1-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
 [![Tests](https://img.shields.io/badge/tests-72%20default--safe-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 Latest Release: v1.5.0
+## 🔥 Latest Release: v1.5.1
+
+- AI generate flows are much stronger:
+  - `Open Full Editor` is now shared across templates, agents, workflows, and skills
+  - `Expand with AI` can turn a short prompt into a richer draft before generation
+  - markdown is the default expansion format, with plain text available when preferred
+  - the full editor now supports a collapsible side preview for markdown prompts
+- AI-generated authorship is more accurate:
+  - when a real user is logged in, generated templates and workflows now use that logged-in user as the author instead of a generic fallback
+- Workspace switching and workflow/detail polish improved:
+  - workflow detail/archive surfaces and remaining pop-up icon stragglers now use the product icon system more consistently
+  - keep-mounted pages reset more cleanly on workspace changes so switching workspaces no longer relies on a browser refresh as often
+
+## 🔥 Previous Release: v1.5.0
 
 - Dashboard visuals now use a much more consistent product icon system:
   - replaced the old emoji-style primary UI icons across the left rail, actions, templates, skills, agents, organization, communications, activity, and major chat/detail surfaces

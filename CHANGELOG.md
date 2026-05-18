@@ -2,6 +2,21 @@
 
 All notable changes to ClawMax are documented here.
 
+## [v1.5.1] - 2026-05-18
+
+### Release — Shared AI Prompt Editor, Prompt Expansion, and Author Attribution
+- **Shared AI Prompt Editor** — templates, agents, workflows, and skills now all use the same full-screen `Edit AI Prompt` flow, so advanced prompt editing is no longer a template-only capability
+- **Prompt Expansion With AI** — the shared editor now supports `Expand with AI`, which can expand a short user idea into a more structured generation prompt before the user saves or generates
+- **Markdown-First Prompt Authoring** — prompt expansion defaults to markdown output, with plain-text output available when users want a lighter prompt format
+- **Collapsible Prompt Preview** — the full editor now includes a collapsible side preview for markdown-style prompts, so users can inspect rendered structure without permanently giving up editor space
+- **Logged-In User Author Attribution** — AI-generated templates and workflows now stamp the logged-in dashboard user as `author` when available instead of falling back to generic system labels
+- **Workflow/Popup Icon Cleanup** — remaining workflow detail archive/execution actions and related popup surfaces now follow the shared product icon system rather than old emoji-style glyphs
+- **Workspace Switch Responsiveness** — workspace activation now returns faster and mounted pages reset more cleanly when the active workspace changes, reducing cases where a manual browser refresh was required to see the new workspace state
+
+### Quality
+- **Regression Coverage** — expanded `ai-generator` coverage for prompt expansion and author attribution behavior
+- **Validation Gate** — validated locally with `server/lib/ai-generator.test.ts`, `npx tsc --noEmit`, and shell validation of `SYSTEM/test.sh`
+
 ## [v1.5.0] - 2026-05-17
 
 ### Release — Product Icon System, Local Metering Recovery, and View Consistency
