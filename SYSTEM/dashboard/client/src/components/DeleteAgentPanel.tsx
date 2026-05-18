@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { ProductIconCell } from '../lib/productIcons'
 
 interface AgentImpact {
   todoCount: number
@@ -74,7 +75,7 @@ export default function DeleteAgentPanel({ agentId, onClose, onDeleted }: Delete
         <div className="px-6 py-5 space-y-4 overflow-y-auto">
           {/* Agent name */}
           <div className="flex items-center gap-3">
-            <span className="text-2xl">🤖</span>
+            <ProductIconCell iconName="agent" label="Agent" size="md" className="border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300" />
             <div>
               <p className="font-mono font-bold text-gray-800 dark:text-gray-200">{agentId}</p>
               <p className="text-xs text-gray-400">This action is permanent and cannot be undone.</p>

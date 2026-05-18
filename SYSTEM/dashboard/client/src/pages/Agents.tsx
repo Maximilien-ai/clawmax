@@ -1310,7 +1310,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
 
       {!loading && !error && agents.length === 0 && (
         <div className="flex flex-col items-center justify-center py-16 text-gray-400">
-          <span className="text-5xl mb-4">🤖</span>
+          <ProductIconCell iconName="agent" label="Agent" size="xl" className="mb-4 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-300" />
           <p className="text-base font-medium text-gray-500 dark:text-gray-400 mb-1">No agents in this workspace yet</p>
           <p className="text-sm text-gray-400 dark:text-gray-500 mb-6">Get started by creating your first agent or deploying a team</p>
           <div className="flex flex-wrap gap-3">
@@ -1364,7 +1364,9 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                 {title && (
                   <div className="mb-4 flex items-center gap-3">
                     <h2 className="text-base font-bold text-gray-800 dark:text-gray-200 flex items-center gap-2 dark:text-gray-200">
-                      {title.includes('Built-in') && <span>🤖</span>}
+                      {title.includes('Built-in') && (
+                        <ProductIconCell iconName="agent" label="Built-in system agent" size="sm" className="border-transparent bg-transparent text-current" />
+                      )}
                       {title}
                     </h2>
                     {selectionMode && (
@@ -1472,7 +1474,9 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                 {sectionTitle && groupedAgents.size > 0 && (
                   <div className="mb-4">
                     <h2 className="text-base font-bold text-gray-800 dark:text-gray-200 flex items-center gap-2 dark:text-gray-200">
-                      {sectionTitle === 'Built-in System Agents' && <span>🤖</span>}
+                      {sectionTitle === 'Built-in System Agents' && (
+                        <ProductIconCell iconName="agent" label="Built-in system agent" size="sm" className="border-transparent bg-transparent text-current" />
+                      )}
                       {sectionTitle}
                       <span className="text-sm font-normal text-gray-400">
                         ({Array.from(groupedAgents.values()).reduce((sum, agents) => sum + agents.length, 0)})
@@ -1707,7 +1711,8 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                   <div className={userAgents.length > 0 ? "mt-8 pt-8 border-t border-gray-200 dark:border-gray-700" : ""}>
                     <div className="mb-4 flex items-center gap-3">
                       <h2 className="text-base font-bold text-gray-800 dark:text-gray-200 flex items-center gap-2 dark:text-gray-200">
-                        <span>🤖</span> Built-in System Agents ({builtInAgents.length})
+                        <ProductIconCell iconName="agent" label="Built-in system agent" size="sm" className="border-transparent bg-transparent text-current" />
+                        Built-in System Agents ({builtInAgents.length})
                       </h2>
                       {selectionMode && (
                         <button
@@ -3080,7 +3085,9 @@ const AgentCard = React.memo(function AgentCard({
       <div className="flex items-center justify-between px-5 pt-4 pb-3 cursor-pointer" onClick={onToggle}>
         <div className="flex items-center gap-2 min-w-0 pr-8">
           <span className={`w-2 h-2 rounded-full shrink-0 ${agent.archived ? 'bg-orange-500' : agent.paused ? 'bg-gray-400 dark:bg-gray-50 dark:bg-gray-9000' : STATUS_COLORS[agent.status]}`} />
-          <h3 className="font-semibold text-gray-900 dark:text-gray-100 truncate dark:text-gray-100">{agent.name}</h3>
+          {collapsed && (
+            <h3 className="font-semibold text-gray-900 dark:text-gray-100 truncate dark:text-gray-100">{agent.name}</h3>
+          )}
           {agent.archived ? (
             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium shrink-0 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border border-orange-300 dark:border-orange-700">
               📦 Archived
@@ -3096,10 +3103,9 @@ const AgentCard = React.memo(function AgentCard({
           )}
           {costTrackingEnabled && metering && metering.calls > 0 && (
             <span
-              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium shrink-0 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-700"
+              className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium shrink-0 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-700"
               title={`${metering.calls} call${metering.calls !== 1 ? 's' : ''} · ${((metering.tokens || 0)/1000).toFixed(1)}k tokens · $${(metering.cost || 0).toFixed(2)}`}
             >
-              <ProductIconCell iconName="status" label="Usage" size="sm" className="border-transparent bg-transparent text-current" />
               ${(metering.cost || 0).toFixed(2)}
             </span>
           )}
@@ -3343,6 +3349,9 @@ const AgentCard = React.memo(function AgentCard({
       {/* Collapsible body */}
       {!collapsed && (
         <div className="px-5 pb-4">
+          <div className="mb-1 text-base font-medium text-gray-900 dark:text-gray-100 break-words">
+            {agent.name}
+          </div>
           <div className="text-xs text-gray-400 font-mono mb-3">{agent.id}</div>
           <div id={`doctor-status-${agent.id}`} />
 
@@ -3614,7 +3623,7 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
   const [showActionsMenu, setShowActionsMenu] = React.useState(false)
   const [menuPlacement, setMenuPlacement] = React.useState<MenuPlacement>('top')
   const actionsButtonRef = React.useRef<HTMLButtonElement | null>(null)
-  const menuWidth = 208
+  const menuWidth = 176
   const totalGroups = (agent.communities || []).length + (agent.groups || []).length
   const budgetUsedPct = costLimit && costLimit > 0 && metering ? (metering.cost / costLimit) * 100 : null
   const budgetBarColor = budgetUsedPct === null
@@ -3692,13 +3701,12 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
       {/* Line 2: ID + cost + file */}
       <div className="flex items-center gap-2 mb-1">
         <span className="text-xs font-mono text-gray-400 truncate">{agent.id}</span>
-        <div className="ml-auto flex items-center gap-1.5 shrink-0">
+        <div className="ml-auto flex items-center gap-2 shrink-0">
           {costTrackingEnabled && metering && metering.calls > 0 && (
             <span
-              className="inline-flex items-center px-1 py-0.5 rounded text-[9px] font-medium bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400"
+              className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400"
               title={`${metering.calls} call${metering.calls !== 1 ? 's' : ''} · ${((metering.tokens || 0)/1000).toFixed(1)}k tokens · $${(metering.cost || 0).toFixed(2)}`}
             >
-              <ProductIconCell iconName="budget" label="Cost" size="sm" className="border-transparent bg-transparent text-current" />
               {(metering.cost || 0).toFixed(2)}
             </span>
           )}
@@ -4016,6 +4024,9 @@ const AgentTableView = React.memo(function AgentTableView({
   costTrackingEnabled?: boolean
 }) {
   const [openDropdown, setOpenDropdown] = React.useState<string | null>(null)
+  const [menuPlacement, setMenuPlacement] = React.useState<MenuPlacement>('bottom')
+  const actionsButtonRefs = React.useRef<Record<string, HTMLButtonElement | null>>({})
+  const menuWidth = 176
 
   // Close dropdown when clicking outside
   React.useEffect(() => {
@@ -4023,6 +4034,24 @@ const AgentTableView = React.memo(function AgentTableView({
     document.addEventListener('click', handleClick)
     return () => document.removeEventListener('click', handleClick)
   }, [])
+
+  React.useEffect(() => {
+    if (!openDropdown) return
+
+    const updatePlacement = () => {
+      const button = actionsButtonRefs.current[openDropdown]
+      if (!button) return
+      setMenuPlacement(getSmartMenuPlacement(button.getBoundingClientRect()))
+    }
+
+    updatePlacement()
+    window.addEventListener('resize', updatePlacement)
+    window.addEventListener('scroll', updatePlacement, true)
+    return () => {
+      window.removeEventListener('resize', updatePlacement)
+      window.removeEventListener('scroll', updatePlacement, true)
+    }
+  }, [openDropdown])
 
   // Sort agents
   const sortedAgents = React.useMemo(() => {
@@ -4158,7 +4187,7 @@ const AgentTableView = React.memo(function AgentTableView({
                   <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{agent.name}</span>
                   {agent.tags.includes('built-in') && (
                     <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border border-purple-300 dark:border-purple-700" title="Built-in system agent">
-                      🤖
+                      <ProductIconCell iconName="agent" label="Built-in system agent" size="xs" className="border-transparent bg-transparent text-current" />
                     </span>
                   )}
                   <span className="text-xs text-gray-400 font-mono">{agent.id}</span>
@@ -4253,6 +4282,7 @@ const AgentTableView = React.memo(function AgentTableView({
                     <ProductIconCell iconName="details" label="View Details & Files" size="sm" className="border-transparent bg-transparent text-current" />
                   </button>
                   <button
+                    ref={(el) => { actionsButtonRefs.current[agent.id] = el }}
                     onClick={(e) => {
                       e.stopPropagation()
                       setOpenDropdown(openDropdown === agent.id ? null : agent.id)
@@ -4264,7 +4294,10 @@ const AgentTableView = React.memo(function AgentTableView({
                   </button>
 
                   {openDropdown === agent.id && (
-                    <div className="absolute right-0 bottom-full mb-1 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-20 dark:border-gray-700">
+                    <div
+                      className="bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-20 max-h-[70vh] overflow-y-auto"
+                      style={actionsButtonRefs.current[agent.id] ? getFixedMenuStyle(actionsButtonRefs.current[agent.id]!.getBoundingClientRect(), menuWidth, menuPlacement) : undefined}
+                    >
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
@@ -4320,8 +4353,8 @@ const AgentTableView = React.memo(function AgentTableView({
                           }}
                           className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors flex items-center gap-2 dark:text-gray-300"
                         >
-                          <ProductIconCell iconName="whatsapp" label={agent.whatsapp ? 'Reconnect WhatsApp' : 'Connect WhatsApp'} size="sm" className="border-green-200 bg-green-50 text-green-600 dark:border-green-700 dark:bg-green-900/30 dark:text-green-300" />
-                          {agent.whatsapp ? 'Reconnect WhatsApp' : 'Connect WhatsApp'}
+                          <ProductIconCell iconName="whatsapp" label={agent.whatsapp ? 'Reconnect WA' : 'Connect WA'} size="sm" className="border-green-200 bg-green-50 text-green-600 dark:border-green-700 dark:bg-green-900/30 dark:text-green-300" />
+                          {agent.whatsapp ? 'Reconnect WA' : 'Connect WA'}
                         </button>
                       )}
                       {!agent.archived && agent.whatsapp && (
@@ -4333,8 +4366,8 @@ const AgentTableView = React.memo(function AgentTableView({
                           }}
                           className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-lime-50 dark:hover:bg-lime-900/30 transition-colors flex items-center gap-2 dark:text-gray-300"
                         >
-                          <ProductIconCell iconName="refresh" label="Sync WhatsApp Groups" size="sm" className="border-lime-200 bg-lime-50 text-lime-600 dark:border-lime-700 dark:bg-lime-900/30 dark:text-lime-300" />
-                          Sync WhatsApp Groups
+                          <ProductIconCell iconName="refresh" label="Sync WA Groups" size="sm" className="border-lime-200 bg-lime-50 text-lime-600 dark:border-lime-700 dark:bg-lime-900/30 dark:text-lime-300" />
+                          Sync WA Groups
                         </button>
                       )}
                       <div className="border-t border-gray-200 dark:border-gray-700 my-1 dark:border-gray-700"></div>

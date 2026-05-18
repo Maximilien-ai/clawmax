@@ -3,6 +3,7 @@ import { useToast } from './Toast'
 import { fetchModelsWithByok, hasChatExecutionAccess, readStoredByokKeys } from '../lib/byok'
 import { CHANNEL_API_ENDPOINTS } from '../lib/channelApi'
 import { readLocalSecrets, replaceWorkflowFieldValue, SecretRequirement, summarizeSecretReadiness, writeLocalSecrets, writeSharedSecrets } from '../lib/localSecrets'
+import { ProductIconCell } from '../lib/productIcons'
 import { useWorkspace } from '../contexts/WorkspaceContext'
 
 interface TemplateParameter {
@@ -1366,7 +1367,10 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                 />
                 <div className="flex-1">
                   <label htmlFor="include-built-in" className="text-sm font-semibold text-purple-900 cursor-pointer">
-                    Include built-in system agents 🤖
+                    <span className="inline-flex items-center gap-2">
+                      Include built-in system agents
+                      <ProductIconCell iconName="agent" label="Built-in system agent" size="sm" className="border-transparent bg-transparent text-purple-700" />
+                    </span>
                   </label>
                   <p className="text-xs text-purple-700 mt-1">
                     This template includes {builtInAgents.length} built-in ClawMax system agent{builtInAgents.length !== 1 ? 's' : ''} that provide{builtInAgents.length === 1 ? 's' : ''} system functionality.
@@ -1377,7 +1381,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                       <div className="space-y-0.5">
                         {builtInAgents.map((agent, idx) => (
                           <div key={idx} className="text-xs flex items-center gap-2">
-                            <span className="text-purple-500">🤖</span>
+                            <ProductIconCell iconName="agent" label="Built-in system agent" size="xs" className="border-transparent bg-transparent text-purple-500" />
                             <span className="font-mono text-purple-700">{agent.id}</span>
                             <span className="text-purple-500">—</span>
                             <span className="text-purple-600">{agent.role}</span>
