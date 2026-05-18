@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { fetchModelsWithByok } from '../lib/byok'
+import { ProductIconCell, resolveSkillVisual } from '../lib/productIcons'
 
 interface Agent {
   id: string
@@ -213,7 +214,7 @@ export default function BulkOperationsPanel({
             className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
             disabled={processing}
           >
-            ×
+            <ProductIconCell iconName="close" label="Close" size="sm" className="border-transparent bg-transparent text-current" />
           </button>
         </div>
 
@@ -245,13 +246,19 @@ export default function BulkOperationsPanel({
                   <div className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 mb-2">Quick Actions</div>
                   <div className="grid grid-cols-2 gap-2">
                     <button onClick={() => { onChat(selectedAgents.map(a => a.id)); onClose() }} className="text-left px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 bg-white dark:bg-gray-800 transition-colors text-sm">
-                      <span className="text-blue-500">💬</span> Chat
+                      <span className="inline-flex items-center gap-2">
+                        <ProductIconCell iconName="communication" label="Chat" size="sm" className="border-transparent bg-transparent text-blue-500" />
+                        Chat
+                      </span>
                     </button>
                     <button
                       onClick={() => setOperation(operation === 'doctor' ? null : 'doctor')}
                       className={`text-left px-3 py-2 rounded-lg border transition-colors text-sm ${operation === 'doctor' ? 'border-cyan-500 bg-cyan-50 dark:bg-cyan-900/20' : 'border-gray-200 dark:border-gray-700 hover:border-cyan-300 dark:hover:border-cyan-600 bg-white dark:bg-gray-800'}`}
                     >
-                      <span className="text-cyan-500">🩺</span> Doctor
+                      <span className="inline-flex items-center gap-2">
+                        <ProductIconCell iconName="doctor" label="Doctor" size="sm" className="border-transparent bg-transparent text-cyan-500" />
+                        Doctor
+                      </span>
                     </button>
                   </div>
                 </div>
@@ -266,7 +273,10 @@ export default function BulkOperationsPanel({
                       onClick={() => { if (operation === 'model') { setOperation(null) } else { setOperation('model'); if (availableModels.length === 0) fetchModelsWithByok().then(d => setAvailableModels(d.models || [])).catch(() => {}) } }}
                       className={`text-left px-3 py-2 rounded-lg border transition-colors text-sm ${operation === 'model' ? 'border-cyan-500 bg-cyan-50 dark:bg-cyan-900/20' : 'border-gray-200 dark:border-gray-700 hover:border-cyan-300 bg-white dark:bg-gray-800'}`}
                     >
-                      <span className="text-cyan-500">🤖</span> Model
+                      <span className="inline-flex items-center gap-2">
+                        <ProductIconCell iconName="ai" label="Model" size="sm" className="border-transparent bg-transparent text-cyan-500" />
+                        Model
+                      </span>
                     </button>
                   )}
                   {onBulkSkills && (
@@ -274,7 +284,10 @@ export default function BulkOperationsPanel({
                       onClick={() => { if (operation === 'skills') { setOperation(null) } else { setOperation('skills'); if (availableSkills.length === 0) fetch('/api/skills').then(r => r.json()).then(d => setAvailableSkills((d.skills || []).map((s: any) => ({ id: s.id || s.name, name: s.name, emoji: s.emoji })))).catch(() => {}) } }}
                       className={`text-left px-3 py-2 rounded-lg border transition-colors text-sm ${operation === 'skills' ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20' : 'border-gray-200 dark:border-gray-700 hover:border-emerald-300 bg-white dark:bg-gray-800'}`}
                     >
-                      <span className="text-emerald-500">🧩</span> Skills
+                      <span className="inline-flex items-center gap-2">
+                        <ProductIconCell iconName="skill" label="Skills" size="sm" className="border-transparent bg-transparent text-emerald-500" />
+                        Skills
+                      </span>
                     </button>
                   )}
                 </div>
@@ -288,19 +301,28 @@ export default function BulkOperationsPanel({
                     onClick={() => setOperation(operation === 'communities' ? null : 'communities')}
                     className={`text-left px-3 py-2 rounded-lg border transition-colors text-sm ${operation === 'communities' ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20' : 'border-gray-200 dark:border-gray-700 hover:border-purple-300 bg-white dark:bg-gray-800'}`}
                   >
-                    <span className="text-purple-500">👥</span> Communities
+                    <span className="inline-flex items-center gap-2">
+                      <ProductIconCell iconName="community" label="Communities" size="sm" className="border-transparent bg-transparent text-purple-500" />
+                      Communities
+                    </span>
                   </button>
                   <button
                     onClick={() => setOperation(operation === 'groups' ? null : 'groups')}
                     className={`text-left px-3 py-2 rounded-lg border transition-colors text-sm ${operation === 'groups' ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20' : 'border-gray-200 dark:border-gray-700 hover:border-indigo-300 bg-white dark:bg-gray-800'}`}
                   >
-                    <span className="text-indigo-500">📋</span> Groups
+                    <span className="inline-flex items-center gap-2">
+                      <ProductIconCell iconName="group" label="Groups" size="sm" className="border-transparent bg-transparent text-indigo-500" />
+                      Groups
+                    </span>
                   </button>
                   <button
                     onClick={() => { if (operation === 'workflow') { setOperation(null) } else { setOperation('workflow'); if (availableWorkflows.length === 0) fetch('/api/workflows').then(r => r.json()).then(d => setAvailableWorkflows((d.workflows || []).map((w: any) => ({ id: w.id, name: w.name })))).catch(() => {}) } }}
                     className={`text-left px-3 py-2 rounded-lg border transition-colors text-sm ${operation === 'workflow' ? 'border-sky-500 bg-sky-50 dark:bg-sky-900/20' : 'border-gray-200 dark:border-gray-700 hover:border-sky-300 bg-white dark:bg-gray-800'}`}
                   >
-                    <span className="text-sky-500">⚡</span> Workflow
+                    <span className="inline-flex items-center gap-2">
+                      <ProductIconCell iconName="workflow" label="Workflow" size="sm" className="border-transparent bg-transparent text-sky-500" />
+                      Workflow
+                    </span>
                   </button>
                 </div>
               </div>
@@ -311,27 +333,42 @@ export default function BulkOperationsPanel({
                 <div className="grid grid-cols-2 gap-2">
                   {onPause && selectedAgents.some(a => !a.paused && !a.archived) && (
                     <button onClick={() => setOperation(operation === 'pause' ? null : 'pause')} className={`text-left px-3 py-2 rounded-lg border transition-colors text-sm ${operation === 'pause' ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/20' : 'border-gray-200 dark:border-gray-700 hover:border-amber-300 bg-white dark:bg-gray-800'}`}>
-                      <span className="text-amber-500">⏸</span> Pause
+                      <span className="inline-flex items-center gap-2">
+                        <ProductIconCell iconName="pause" label="Pause" size="sm" className="border-transparent bg-transparent text-amber-500" />
+                        Pause
+                      </span>
                     </button>
                   )}
                   {onResume && selectedAgents.some(a => a.paused) && (
                     <button onClick={() => setOperation(operation === 'resume' ? null : 'resume')} className={`text-left px-3 py-2 rounded-lg border transition-colors text-sm ${operation === 'resume' ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20' : 'border-gray-200 dark:border-gray-700 hover:border-emerald-300 bg-white dark:bg-gray-800'}`}>
-                      <span className="text-emerald-500">▶</span> Resume
+                      <span className="inline-flex items-center gap-2">
+                        <ProductIconCell iconName="play" label="Resume" size="sm" className="border-transparent bg-transparent text-emerald-500" />
+                        Resume
+                      </span>
                     </button>
                   )}
                   {activeCount > 0 && (
                     <button onClick={() => setOperation(operation === 'archive' ? null : 'archive')} className={`text-left px-3 py-2 rounded-lg border transition-colors text-sm ${operation === 'archive' ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20' : 'border-gray-200 dark:border-gray-700 hover:border-orange-300 bg-white dark:bg-gray-800'}`}>
-                      <span className="text-orange-500">📦</span> Archive
+                      <span className="inline-flex items-center gap-2">
+                        <ProductIconCell iconName="archive" label="Archive" size="sm" className="border-transparent bg-transparent text-orange-500" />
+                        Archive
+                      </span>
                     </button>
                   )}
                   {archivedCount > 0 && (
                     <button onClick={() => setOperation(operation === 'unarchive' ? null : 'unarchive')} className={`text-left px-3 py-2 rounded-lg border transition-colors text-sm ${operation === 'unarchive' ? 'border-green-500 bg-green-50 dark:bg-green-900/20' : 'border-gray-200 dark:border-gray-700 hover:border-green-300 bg-white dark:bg-gray-800'}`}>
-                      <span className="text-green-500">📤</span> Unarchive
+                      <span className="inline-flex items-center gap-2">
+                        <ProductIconCell iconName="restore" label="Unarchive" size="sm" className="border-transparent bg-transparent text-green-500" />
+                        Unarchive
+                      </span>
                     </button>
                   )}
                   {onDelete && (
                     <button onClick={() => setOperation(operation === 'delete' ? null : 'delete')} className={`text-left px-3 py-2 rounded-lg border transition-colors text-sm col-span-2 ${operation === 'delete' ? 'border-red-500 bg-red-50 dark:bg-red-900/20' : 'border-gray-200 dark:border-gray-700 hover:border-red-300 bg-white dark:bg-gray-800'}`}>
-                      <span className="text-red-500">🗑</span> <span className="text-red-600 dark:text-red-400">Delete Permanently</span>
+                      <span className="inline-flex items-center gap-2">
+                        <ProductIconCell iconName="delete" label="Delete permanently" size="sm" className="border-transparent bg-transparent text-red-500" />
+                        <span className="text-red-600 dark:text-red-400">Delete Permanently</span>
+                      </span>
                     </button>
                   )}
                 </div>
@@ -458,7 +495,7 @@ export default function BulkOperationsPanel({
                         }}
                         className="text-emerald-600"
                       />
-                      <span>{skill.emoji || '🔧'}</span>
+                      <ProductIconCell iconName={resolveSkillVisual(skill).iconName} emoji={resolveSkillVisual(skill).emoji} label={skill.name} size="sm" className="border-transparent bg-transparent text-current" />
                       <span className="text-gray-700 dark:text-gray-200">{skill.name}</span>
                       <span className="text-gray-400 text-xs font-mono">({skill.id})</span>
                     </label>
@@ -541,7 +578,7 @@ export default function BulkOperationsPanel({
             <div className="px-6 py-6 pb-24">
               <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
                 <div className="flex items-start gap-3">
-                  <div className="text-yellow-600 text-xl">⚠️</div>
+                  <ProductIconCell iconName="doctor" label="Warning" size="sm" className="border-transparent bg-transparent text-yellow-600" />
                   <div>
                     <div className="font-medium text-yellow-900 mb-1">Confirm Bulk Operation</div>
                     <div className="text-sm text-yellow-800">
@@ -620,7 +657,7 @@ export default function BulkOperationsPanel({
             <div className="px-6 py-6 pb-24">
               <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-700 rounded-lg">
                 <div className="flex items-start gap-3">
-                  <div className="text-red-600 text-2xl">🚨</div>
+                  <ProductIconCell iconName="delete" label="Final warning" size="sm" className="border-transparent bg-transparent text-red-600" />
                   <div>
                     <div className="font-bold text-red-900 mb-2 text-lg">FINAL WARNING: Permanent Deletion</div>
                     <div className="text-sm text-red-800 space-y-1">
@@ -684,7 +721,7 @@ export default function BulkOperationsPanel({
                 disabled={processing}
                 className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed font-bold shadow-lg"
               >
-                {processing ? 'Deleting...' : '🗑️ Delete Permanently'}
+                {processing ? 'Deleting...' : 'Delete Permanently'}
               </button>
             </div>
           </>

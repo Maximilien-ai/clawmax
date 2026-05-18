@@ -1,7 +1,9 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
+import AIPromptEditorModal from '../components/AIPromptEditorModal'
 import { useToast } from '../components/Toast'
 import WorkflowEditorDialog from '../components/WorkflowEditorDialog'
 import { ConfirmDeleteDialog } from '../components/ConfirmDeleteDialog'
+import { expandPromptWithAI } from '../lib/aiPrompt'
 import { byokForRequest, readStoredByokKeys, hasAiGenerationAccess } from '../lib/byok'
 import { useAuth } from '../contexts/AuthContext'
 import WorkflowDAG from '../components/WorkflowDAG'
@@ -376,6 +378,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   const [showEditorDialog, setShowEditorDialog] = useState(false)
   const [editingWorkflow, setEditingWorkflow] = useState<WorkflowDetails | null>(null)
   const [showAiPrompt, setShowAiPrompt] = useState(false)
+  const [showAiPromptEditor, setShowAiPromptEditor] = useState(false)
   const [showImportWorkflowModal, setShowImportWorkflowModal] = useState(false)
   const [showWorkflowActionsMenu, setShowWorkflowActionsMenu] = useState(false)
   const [aiPromptText, setAiPromptText] = useState('')
@@ -984,8 +987,9 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
     })
   }
 
-  const handleAiGenerate = async () => {
-    if (!aiPromptText.trim()) return
+  const handleAiGenerate = async (promptOverride?: string) => {
+    const promptText = (promptOverride ?? aiPromptText).trim()
+    if (!promptText) return
     if (!aiEnabled) {
       showError('AI generation needs browser-local keys or a usable shared execution path first. Open Workspaces Integrations or Keys & Secrets before generating.')
       return
@@ -995,7 +999,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
       const resp = await fetch('/api/workflows/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ description: aiPromptText.trim() }),
+        body: JSON.stringify({ description: promptText }),
       })
       const data = await resp.json()
       if (!resp.ok) throw new Error(data.error || 'Generation failed')
@@ -2785,6 +2789,15 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
               autoFocus
               onKeyDown={(e) => { if (e.key === 'Enter' && e.metaKey) handleAiGenerate() }}
             />
+            <div className="mt-2 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowAiPromptEditor(true)}
+                className="px-3 py-1.5 text-xs font-medium rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
+                Open Full Editor
+              </button>
+            </div>
             <div className="flex justify-end gap-2 mt-4">
               <button
                 onClick={() => setShowAiPrompt(false)}
@@ -2803,6 +2816,25 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
           </div>
         </div>
       )}
+
+      <AIPromptEditorModal
+        isOpen={showAiPromptEditor}
+        title="Edit AI Prompt"
+        initialValue={aiPromptText}
+        placeholder="e.g., Every weekday at 9am, have the engineering team share status updates and the PM summarize blockers"
+        onClose={() => setShowAiPromptEditor(false)}
+        onSave={setAiPromptText}
+        onSaveAndGenerate={(value) => {
+          setAiPromptText(value)
+          window.setTimeout(() => {
+            void handleAiGenerate(value)
+          }, 0)
+        }}
+        onExpandWithAi={(value, format) => expandPromptWithAI(value, 'workflow', format)}
+        saveAndGenerateLabel="Save & Generate"
+        savingAndGenerating={aiGenerating}
+        generateDisabled={!aiEnabled}
+      />
 
       <WorkflowEditorDialog
         isOpen={showEditorDialog}

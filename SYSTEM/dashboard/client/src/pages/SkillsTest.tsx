@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import AIPromptEditorModal from '../components/AIPromptEditorModal'
 import { SelectionActionBar } from '../components/SelectionActionBar'
 import { SkillCard } from '../components/skills/SkillCard'
 import { useToast } from '../components/Toast'
@@ -13,6 +14,7 @@ import { filterAssignableAgents, isDeletableUserSkill, partitionSelectedSkills, 
 import { getSkillSetupHint, maybeWarnSkillSetup, supportsDashboardSkillSetup } from '../lib/skillSetup'
 import { collectSkillTags, matchesSelectedSkillTags } from '../lib/skillTags'
 import { useAuth } from '../contexts/AuthContext'
+import { expandPromptWithAI } from '../lib/aiPrompt'
 import { ProductIconCell, resolveSkillVisual, resolveCategoryVisual } from '../lib/productIcons'
 
 // Use relative path so it works with ngrok and localhost
@@ -207,6 +209,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
   const [installedPartnerSlugs, setInstalledPartnerSlugs] = useState<Set<string>>(new Set())
   const [showPartnerInstallers, setShowPartnerInstallers] = useState(false)
   const [aiSkillPrompt, setAiSkillPrompt] = useState('')
+  const [showAiPromptEditor, setShowAiPromptEditor] = useState(false)
   const [aiSkillRefinementPrompt, setAiSkillRefinementPrompt] = useState('')
   const [aiSkillGenerating, setAiSkillGenerating] = useState(false)
   const [aiSkillCreating, setAiSkillCreating] = useState(false)
@@ -668,8 +671,8 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
     }
   }
 
-  async function handleGenerateSkill(refine = false) {
-    const activePrompt = refine ? aiSkillRefinementPrompt.trim() : aiSkillPrompt.trim()
+  async function handleGenerateSkill(refine = false, promptOverride?: string) {
+    const activePrompt = refine ? aiSkillRefinementPrompt.trim() : (promptOverride ?? aiSkillPrompt).trim()
     if (!activePrompt) {
       setError(refine ? 'Describe how you want to refine the draft' : 'Describe the skill you want to create')
       return
@@ -3288,15 +3291,27 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                         rows={5}
                         className="w-full px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-purple-500 text-sm"
                       />
+                      <div className="mt-2 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => setShowAiPromptEditor(true)}
+                          className="px-3 py-1.5 text-xs font-medium rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                        >
+                          Open Full Editor
+                        </button>
+                      </div>
                     </div>
 
                     <div className="flex justify-end">
                       <button
                         onClick={() => handleGenerateSkill(false)}
                         disabled={!aiEnabled || aiSkillGenerating || !aiSkillPrompt.trim()}
-                        className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed text-sm font-medium"
+                        className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed text-sm font-medium inline-flex items-center gap-2"
                       >
-                        {aiSkillGenerating ? 'Generating...' : !aiEnabled ? 'Generate Skill Draft (set up keys first)' : '✨ Generate Skill Draft'}
+                        {!aiSkillGenerating && aiEnabled && (
+                          <ProductIconCell iconName="ai" label="Generate skill draft" size="sm" className="border-white/20 bg-white/10 text-white" />
+                        )}
+                        {aiSkillGenerating ? 'Generating...' : !aiEnabled ? 'Generate Skill Draft (set up keys first)' : 'Generate Skill Draft'}
                       </button>
                     </div>
 
@@ -3432,6 +3447,24 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
             </div>
           </div>
         )}
+        <AIPromptEditorModal
+          isOpen={showAiPromptEditor}
+          title="Edit AI Prompt"
+          initialValue={aiSkillPrompt}
+          placeholder="e.g., A skill that helps an agent detect and summarize PII exposure risks in documents, with short actionable outputs and a cautious tone."
+          onClose={() => setShowAiPromptEditor(false)}
+          onSave={setAiSkillPrompt}
+          onSaveAndGenerate={(value) => {
+            setAiSkillPrompt(value)
+            window.setTimeout(() => {
+              void handleGenerateSkill(false, value)
+            }, 0)
+          }}
+          onExpandWithAi={(value, format) => expandPromptWithAI(value, 'skill', format)}
+          saveAndGenerateLabel="Save & Generate"
+          savingAndGenerating={aiSkillGenerating}
+          generateDisabled={!aiEnabled}
+        />
       </div>
     </div>
   )

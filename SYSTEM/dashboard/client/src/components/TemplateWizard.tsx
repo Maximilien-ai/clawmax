@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { hasAiGenerationAccess, readStoredByokKeys } from '../lib/byok'
+import { expandPromptWithAI } from '../lib/aiPrompt'
 import { readSharedSecrets } from '../lib/localSecrets'
 import { useAuth } from '../contexts/AuthContext'
 import { ProductIconCell, resolveCategoryVisual } from '../lib/productIcons'
+import AIPromptEditorModal from './AIPromptEditorModal'
 
 // ============================================================================
 // Types
@@ -529,8 +531,9 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
   }, [initialTemplate])
 
   // ---- AI Generate ----
-  const handleAiGenerate = async () => {
-    if (!state.teamDescription.trim()) return
+  const handleAiGenerate = async (descriptionOverride?: string) => {
+    const description = (descriptionOverride ?? state.teamDescription).trim()
+    if (!description) return
     if (!aiEnabled) {
       showError('AI generation needs browser-local keys or a usable shared execution path first. Open Workspaces Integrations or Keys & Secrets before generating.')
       return
@@ -548,7 +551,7 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          description: state.teamDescription,
+          description,
           generationTarget: state.generationTarget,
           byokKeys: (openai || anthropic) ? { openai, anthropic } : undefined,
         }),
@@ -1974,59 +1977,27 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
           </div>
         </div>
       )}
-      {editingPrompt && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onClick={() => setEditingPrompt(false)}>
-          <div className="w-full max-w-3xl rounded-lg bg-white dark:bg-gray-800 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 px-5 py-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Edit AI Prompt</h3>
-              <button onClick={() => setEditingPrompt(false)} className="text-gray-400 hover:text-gray-600 dark:text-gray-400">✕</button>
-            </div>
-            <div className="px-5 py-4 space-y-4">
-              <textarea
-                value={promptDraft}
-                onChange={(e) => setPromptDraft(e.target.value)}
-                rows={14}
-                className={inputCls + ' resize-y font-sans'}
-              />
-              <div className="flex justify-between gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    update({ teamDescription: promptDraft })
-                    setEditingPrompt(false)
-                  }}
-                  className={btnSecondary}
-                >
-                  Save
-                </button>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setEditingPrompt(false)}
-                    className={btnSecondary}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      update({ teamDescription: promptDraft })
-                      setEditingPrompt(false)
-                      window.setTimeout(() => {
-                        void handleAiGenerate()
-                      }, 0)
-                    }}
-                    disabled={aiGenerating || !aiEnabled || !promptDraft.trim()}
-                    className={btnPrimary}
-                  >
-                    {aiGenerating ? 'Generating…' : 'Save & Regenerate'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <AIPromptEditorModal
+        isOpen={editingPrompt}
+        title="Edit AI Prompt"
+        initialValue={promptDraft}
+        onClose={() => setEditingPrompt(false)}
+        onSave={(value) => {
+          setPromptDraft(value)
+          update({ teamDescription: value })
+        }}
+        onSaveAndGenerate={(value) => {
+          setPromptDraft(value)
+          update({ teamDescription: value })
+          window.setTimeout(() => {
+            void handleAiGenerate(value)
+          }, 0)
+        }}
+        onExpandWithAi={(value, format) => expandPromptWithAI(value, 'template', format)}
+        saveAndGenerateLabel="Save & Regenerate"
+        savingAndGenerating={aiGenerating}
+        generateDisabled={!aiEnabled}
+      />
       {formBuilderWorkflowIndex !== null && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onClick={() => setFormBuilderWorkflowIndex(null)}>
           <div className="w-full max-w-3xl rounded-lg bg-white dark:bg-gray-800 shadow-2xl" onClick={(e) => e.stopPropagation()}>

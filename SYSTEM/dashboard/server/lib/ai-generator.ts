@@ -5,9 +5,68 @@ import { getBestAvailableModel } from './dashboard-env'
 
 type AIProvider = 'openai' | 'anthropic'
 export type TemplateGenerationTarget = 'agent' | 'team' | 'company'
+export type PromptExpansionTarget = 'agent' | 'workflow' | 'skill' | 'template'
+export type PromptExpansionFormat = 'markdown' | 'text'
 
 export function normalizeTemplateGenerationTarget(value: unknown): TemplateGenerationTarget {
   return value === 'company' || value === 'agent' ? value : 'team'
+}
+
+export function normalizePromptExpansionTarget(value: unknown): PromptExpansionTarget {
+  return value === 'agent' || value === 'workflow' || value === 'skill' ? value : 'template'
+}
+
+export function normalizePromptExpansionFormat(value: unknown): PromptExpansionFormat {
+  return value === 'text' ? 'text' : 'markdown'
+}
+
+export function buildPromptExpansionSystemPrompt(target: PromptExpansionTarget, format: PromptExpansionFormat = 'markdown'): string {
+  const targetLabel = {
+    agent: 'AI agent',
+    workflow: 'workflow',
+    skill: 'skill',
+    template: 'template',
+  }[target]
+  const formatInstruction = format === 'markdown'
+    ? '- Return the improved prompt as editable markdown with short sections and bullets where useful.'
+    : '- Return the improved prompt as plain text paragraphs and lists without markdown headings.'
+
+  return `You improve short natural-language prompts for an ${targetLabel} generation wizard.
+
+Expand the user's prompt into a richer, more actionable prompt that preserves the original intent while adding useful detail, constraints, outputs, tone, and edge cases where appropriate.
+
+Rules:
+- Return text only, not JSON.
+- Do not add markdown fences.
+- Keep it concise but substantially more specific than the original.
+- Preserve any names, domains, or user-supplied constraints.
+- Do not mention that you are expanding or rewriting the prompt.
+- Write the result so the user can directly edit and submit it to an AI generation wizard.
+${formatInstruction}`
+}
+
+export async function expandPromptWithAI(
+  prompt: string,
+  target: PromptExpansionTarget = 'template',
+  format: PromptExpansionFormat = 'markdown',
+): Promise<string> {
+  const completion = await getSystemOpenAiClient().chat.completions.create({
+    model: resolveModel('gpt-4o'),
+    messages: [
+      {
+        role: 'system',
+        content: buildPromptExpansionSystemPrompt(target, format),
+      },
+      {
+        role: 'user',
+        content: prompt.trim(),
+      },
+    ],
+    temperature: 0.5,
+    max_tokens: 500,
+  })
+
+  return (completion.choices[0].message.content || prompt).trim()
 }
 
 export function shouldGenerateCompanyTemplate(description: string, generationTarget: TemplateGenerationTarget = 'team'): boolean {

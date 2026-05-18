@@ -93,9 +93,12 @@ router.put('/:id/activate', (req, res) => {
   try {
     const { id } = req.params
     workspaceManager.setActiveWorkspace(id)
-    syncAllWorkflows({ syncCronRegistrations: true })
-
     res.json({ ok: true })
+    Promise.resolve()
+      .then(() => syncAllWorkflows({ syncCronRegistrations: true }))
+      .catch((err) => {
+        console.error(`Error syncing workflows after activating workspace ${id}:`, err)
+      })
   } catch (err: any) {
     console.error('Error activating workspace:', err)
     res.status(500).json({ error: err.message || 'Failed to activate workspace' })

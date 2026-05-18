@@ -288,6 +288,12 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
+function WorkspaceScoped({ pageKey, children }: { pageKey: string; children: React.ReactNode }) {
+  const { activeWorkspace } = useWorkspace()
+  const workspaceKey = activeWorkspace?.id || activeWorkspace?.path || 'default'
+  return <React.Fragment key={`${workspaceKey}:${pageKey}`}>{children}</React.Fragment>
+}
+
 export default function App() {
   const [page, setPage] = useState<Page>(() => pathToPage(window.location.pathname))
   const [visitedPages, setVisitedPages] = useState<Set<Page>>(() => new Set<Page>([pathToPage(window.location.pathname)]))
@@ -650,94 +656,114 @@ export default function App() {
             )}
             {visitedPages.has('agents') && (
             <div className={`flex-1 overflow-auto ${page === 'agents' ? '' : 'hidden'}`}>
-              <Agents
-                onNavigateToDoc={(file) => { setDocFile(file); setPage('docs'); }}
-                onNavigateToGroup={(groupName) => { setInitialGroupName(groupName); setPage('communication'); }}
-                onNavigateToSkills={(agentId, skillName) => {
-                  setInitialSkillsAgent(agentId)
-                  setInitialSkillsSkill(skillName)
-                  setPage('skills')
-                }}
-                onNavigateToWorkflows={() => { setPage('workflows'); }}
-                onNavigateToTemplates={() => { setPage('templates'); }}
-                initialAgentId={initialAgentId}
-                initialAction={initialAgentAction}
-                onInitialActionHandled={() => setInitialAgentAction(undefined)}
-                isActive={page === 'agents'}
-              />
+              <WorkspaceScoped pageKey="agents">
+                <Agents
+                  onNavigateToDoc={(file) => { setDocFile(file); setPage('docs'); }}
+                  onNavigateToGroup={(groupName) => { setInitialGroupName(groupName); setPage('communication'); }}
+                  onNavigateToSkills={(agentId, skillName) => {
+                    setInitialSkillsAgent(agentId)
+                    setInitialSkillsSkill(skillName)
+                    setPage('skills')
+                  }}
+                  onNavigateToWorkflows={() => { setPage('workflows'); }}
+                  onNavigateToTemplates={() => { setPage('templates'); }}
+                  initialAgentId={initialAgentId}
+                  initialAction={initialAgentAction}
+                  onInitialActionHandled={() => setInitialAgentAction(undefined)}
+                  isActive={page === 'agents'}
+                />
+              </WorkspaceScoped>
             </div>
             )}
             {visitedPages.has('templates') && (
             <div className={`flex-1 overflow-auto ${page === 'templates' ? '' : 'hidden'}`}>
-              <Templates />
+              <WorkspaceScoped pageKey="templates">
+                <Templates />
+              </WorkspaceScoped>
             </div>
             )}
             {visitedPages.has('organizations') && (
             <div className={`flex-1 overflow-auto ${page === 'organizations' ? '' : 'hidden'}`}>
-              <Organizations
-                onNavigateToAgent={(agentId) => { setInitialAgentId(agentId); setPage('agents'); }}
-                onNavigateToWorkflow={(workflowId) => { setInitialWorkflowId(workflowId); setPage('workflows'); }}
-                onNavigateToGroup={(groupName) => { setInitialGroupName(groupName); setPage('communication'); }}
-                onNavigateToDoc={(file) => { setDocFile(file); setPage('docs'); }}
-                initialCommunityName={initialCommunityName}
-                initialGroupName={initialOrgGroupName}
-                isActive={page === 'organizations'}
-              />
+              <WorkspaceScoped pageKey="organizations">
+                <Organizations
+                  onNavigateToAgent={(agentId) => { setInitialAgentId(agentId); setPage('agents'); }}
+                  onNavigateToWorkflow={(workflowId) => { setInitialWorkflowId(workflowId); setPage('workflows'); }}
+                  onNavigateToGroup={(groupName) => { setInitialGroupName(groupName); setPage('communication'); }}
+                  onNavigateToDoc={(file) => { setDocFile(file); setPage('docs'); }}
+                  initialCommunityName={initialCommunityName}
+                  initialGroupName={initialOrgGroupName}
+                  isActive={page === 'organizations'}
+                />
+              </WorkspaceScoped>
             </div>
             )}
             {visitedPages.has('workflows') && (
             <div className={`flex-1 overflow-auto ${page === 'workflows' ? '' : 'hidden'}`}>
-              <Workflows
-                onNavigateToAgent={(agentId) => { setInitialAgentId(agentId); setPage('agents'); }}
-                onNavigateToGroup={(groupName, openChat) => {
-                  setInitialGroupName(groupName)
-                  setInitialOpenChatName(openChat ? groupName : undefined)
-                  setPage('communication')
-                }}
-                onNavigateToCommunity={(communityName) => { setInitialCommunityName(communityName); setPage('organizations'); }}
-                onNavigateToDoc={(file) => { setDocFile(file); setPage('docs'); }}
-                initialWorkflowId={initialWorkflowId}
-                isActive={page === 'workflows'}
-              />
+              <WorkspaceScoped pageKey="workflows">
+                <Workflows
+                  onNavigateToAgent={(agentId) => { setInitialAgentId(agentId); setPage('agents'); }}
+                  onNavigateToGroup={(groupName, openChat) => {
+                    setInitialGroupName(groupName)
+                    setInitialOpenChatName(openChat ? groupName : undefined)
+                    setPage('communication')
+                  }}
+                  onNavigateToCommunity={(communityName) => { setInitialCommunityName(communityName); setPage('organizations'); }}
+                  onNavigateToDoc={(file) => { setDocFile(file); setPage('docs'); }}
+                  initialWorkflowId={initialWorkflowId}
+                  isActive={page === 'workflows'}
+                />
+              </WorkspaceScoped>
             </div>
             )}
             {visitedPages.has('skills') && (
             <div className={`flex-1 overflow-auto ${page === 'skills' ? '' : 'hidden'}`}>
-              <SkillsTest initialAgentId={initialSkillsAgent} initialSkillName={initialSkillsSkill} />
+              <WorkspaceScoped pageKey="skills">
+                <SkillsTest initialAgentId={initialSkillsAgent} initialSkillName={initialSkillsSkill} />
+              </WorkspaceScoped>
             </div>
             )}
             {page === 'keys' && (
             <div className="flex-1 overflow-auto">
-              <KeysSecrets />
+              <WorkspaceScoped pageKey="keys">
+                <KeysSecrets />
+              </WorkspaceScoped>
             </div>
             )}
             {page === 'communication' && (
             <div className="flex-1 overflow-auto">
-              <Communication
-                onNavigateToAgent={(agentId) => { setInitialAgentId(agentId); setPage('agents'); }}
-                onNavigateToWorkflow={(workflowId) => { setInitialWorkflowId(workflowId); setPage('workflows'); }}
-                onNavigateToDoc={(file) => { setDocFile(file); setPage('docs'); }}
-                initialGroupName={initialGroupName}
-                onClearInitialGroupName={() => setInitialGroupName(undefined)}
-                initialOpenChatName={initialOpenChatName}
-                onClearInitialOpenChatName={() => setInitialOpenChatName(undefined)}
-                isActive={page === 'communication'}
-              />
+              <WorkspaceScoped pageKey="communication">
+                <Communication
+                  onNavigateToAgent={(agentId) => { setInitialAgentId(agentId); setPage('agents'); }}
+                  onNavigateToWorkflow={(workflowId) => { setInitialWorkflowId(workflowId); setPage('workflows'); }}
+                  onNavigateToDoc={(file) => { setDocFile(file); setPage('docs'); }}
+                  initialGroupName={initialGroupName}
+                  onClearInitialGroupName={() => setInitialGroupName(undefined)}
+                  initialOpenChatName={initialOpenChatName}
+                  onClearInitialOpenChatName={() => setInitialOpenChatName(undefined)}
+                  isActive={page === 'communication'}
+                />
+              </WorkspaceScoped>
             </div>
             )}
             {page === 'activity' && (
             <div className="flex-1 overflow-auto">
-              <Activity isActive={page === 'activity'} onNavigateToDoc={(file) => { setDocFile(file); setPage('docs'); }} />
+              <WorkspaceScoped pageKey="activity">
+                <Activity isActive={page === 'activity'} onNavigateToDoc={(file) => { setDocFile(file); setPage('docs'); }} />
+              </WorkspaceScoped>
             </div>
             )}
             {page === 'logs' && (
             <div className="flex-1 overflow-auto">
-              <Logs />
+              <WorkspaceScoped pageKey="logs">
+                <Logs />
+              </WorkspaceScoped>
             </div>
             )}
             {visitedPages.has('docs') && (
             <div className={`flex-1 overflow-auto ${page === 'docs' ? '' : 'hidden'}`}>
-              <DocHub initialFile={docFile} />
+              <WorkspaceScoped pageKey="docs">
+                <DocHub initialFile={docFile} />
+              </WorkspaceScoped>
             </div>
             )}
           </main>

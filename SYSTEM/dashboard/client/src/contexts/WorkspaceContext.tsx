@@ -116,15 +116,18 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         throw new Error(error.error || 'Failed to switch workspace')
       }
 
+      setActiveWorkspace((prev) => {
+        const next = workspaces.find((workspace) => workspace.id === id)
+        return next || prev
+      })
+      setActiveWorkspaceSecretScope(id)
       await refreshWorkspaces()
-
-      // Reload the page to refresh all data with new workspace
-      window.location.reload()
+      window.dispatchEvent(new CustomEvent('workspace-switched', { detail: { id } }))
     } catch (err: any) {
       console.error('Failed to switch workspace:', err)
       showError(err.message || 'Failed to switch workspace')
     }
-  }, [refreshWorkspaces, showError])
+  }, [refreshWorkspaces, showError, workspaces])
 
   const createWorkspace = useCallback(async (
     name: string,

@@ -1,5 +1,20 @@
 import assert from 'assert'
-import { applyCompanyWorkflowExecutionDefaults, applyGeneratedWorkflowHandoffs, ensureGeneratedCompanyRoot, enforceVisibleCompanyWorkflowChain, explainOneTimeCronLimitation, extractJsonResponseText, isOneTimeScheduleRequest, normalizeGeneratedSkillScaffold, normalizeGeneratedWorkflowReferences, parseJsonResponse, shouldGenerateCompanyTemplate } from './ai-generator'
+import {
+  applyCompanyWorkflowExecutionDefaults,
+  applyGeneratedWorkflowHandoffs,
+  buildPromptExpansionSystemPrompt,
+  ensureGeneratedCompanyRoot,
+  enforceVisibleCompanyWorkflowChain,
+  explainOneTimeCronLimitation,
+  extractJsonResponseText,
+  isOneTimeScheduleRequest,
+  normalizeGeneratedSkillScaffold,
+  normalizeGeneratedWorkflowReferences,
+  normalizePromptExpansionFormat,
+  normalizePromptExpansionTarget,
+  parseJsonResponse,
+  shouldGenerateCompanyTemplate,
+} from './ai-generator'
 
 let passed = 0
 let failed = 0
@@ -336,6 +351,29 @@ test('ensureGeneratedCompanyRoot adds one explicit root above leadership', () =>
   assert(root, 'Expected generated company root')
   assert.strictEqual(root?.name, 'Conversion Catalyst Co.')
   assert.strictEqual(leadership?.parentTeamId, root?.id)
+})
+
+test('normalizePromptExpansionTarget falls back to template', () => {
+  assert.strictEqual(normalizePromptExpansionTarget('agent'), 'agent')
+  assert.strictEqual(normalizePromptExpansionTarget('workflow'), 'workflow')
+  assert.strictEqual(normalizePromptExpansionTarget('skill'), 'skill')
+  assert.strictEqual(normalizePromptExpansionTarget('weird'), 'template')
+})
+
+test('normalizePromptExpansionFormat defaults to markdown', () => {
+  assert.strictEqual(normalizePromptExpansionFormat('markdown'), 'markdown')
+  assert.strictEqual(normalizePromptExpansionFormat('text'), 'text')
+  assert.strictEqual(normalizePromptExpansionFormat('unknown'), 'markdown')
+})
+
+test('buildPromptExpansionSystemPrompt reflects requested format', () => {
+  const markdownPrompt = buildPromptExpansionSystemPrompt('skill', 'markdown')
+  const textPrompt = buildPromptExpansionSystemPrompt('agent', 'text')
+
+  assert.match(markdownPrompt, /editable markdown/i)
+  assert.match(textPrompt, /plain text paragraphs/i)
+  assert.match(markdownPrompt, /skill generation wizard/i)
+  assert.match(textPrompt, /AI agent generation wizard/i)
 })
 
 console.log('\n========================================')

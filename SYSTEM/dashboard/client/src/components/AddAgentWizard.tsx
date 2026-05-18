@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { readStoredByokKeys, fetchModelsWithByok, hasAiGenerationAccess, isOllamaUiAvailable } from '../lib/byok'
+import { expandPromptWithAI } from '../lib/aiPrompt'
 import { useAuth } from '../contexts/AuthContext'
+import AIPromptEditorModal from './AIPromptEditorModal'
 
 const PREDEFINED_TAGS = [
   'assistant',
@@ -84,6 +86,7 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
   const [generatedFiles, setGeneratedFiles] = useState<GeneratedFiles | null>(null)
   const [generating, setGenerating] = useState(false)
   const [genError, setGenError] = useState<string | null>(null)
+  const [showAiPromptEditor, setShowAiPromptEditor] = useState(false)
   const [preFilled, setPreFilled] = useState(false)
   const [validationErrors, setValidationErrors] = useState<string[]>([])
   const [validationWarnings, setValidationWarnings] = useState<string[]>([])
@@ -286,8 +289,9 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
     4: false, // provision button handles this
   }
 
-  async function generateWithAI() {
-    if (!form.aiDescription.trim()) return
+  async function generateWithAI(descriptionOverride?: string) {
+    const description = (descriptionOverride ?? form.aiDescription).trim()
+    if (!description) return
     if (!aiEnabled) {
       setGenError('AI generation needs browser-local keys or a usable shared execution path first. Open Workspaces Integrations or Keys & Secrets before generating.')
       return
@@ -303,7 +307,7 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          description: form.aiDescription,
+          description,
           name: isAutoName ? undefined : form.name,
           tags: form.tags.length > 0 ? form.tags : undefined,
           suggestMeta: true,
@@ -735,6 +739,15 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
                   className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-md outline-none focus:border-sky-400 dark:focus:border-sky-600 h-24 resize-none bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
                   disabled={generating || !!generatedFiles}
                 />
+                <div className="mt-2 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setShowAiPromptEditor(true)}
+                    className="px-3 py-1.5 text-xs font-medium rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                  >
+                    Open Full Editor
+                  </button>
+                </div>
               </div>
 
               <button
@@ -937,6 +950,25 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
           </div>
         </div>
       </div>
+
+      <AIPromptEditorModal
+        isOpen={showAiPromptEditor}
+        title="Edit AI Prompt"
+        initialValue={form.aiDescription}
+        placeholder="e.g., A friendly project manager who helps track tasks and deadlines..."
+        onClose={() => setShowAiPromptEditor(false)}
+        onSave={(value) => set('aiDescription', value)}
+        onSaveAndGenerate={(value) => {
+          set('aiDescription', value)
+          window.setTimeout(() => {
+            void generateWithAI(value)
+          }, 0)
+        }}
+        onExpandWithAi={(value, format) => expandPromptWithAI(value, 'agent', format)}
+        saveAndGenerateLabel="Save & Generate"
+        savingAndGenerating={generating}
+        generateDisabled={!aiEnabled}
+      />
     </div>
   )
 }

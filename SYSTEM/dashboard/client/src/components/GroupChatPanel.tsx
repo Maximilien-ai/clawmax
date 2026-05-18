@@ -8,6 +8,7 @@ import {
   removeRespondedAgentsFromPending,
   shouldUpdateChannelMessages,
 } from '../lib/communicationMessages'
+import { ProductIconCell } from '../lib/productIcons'
 import { useAuth } from '../contexts/AuthContext'
 
 interface Message {
@@ -716,7 +717,15 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
         <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
           <div className="flex-1 min-w-0">
             <h2 className="text-sm sm:text-base font-semibold text-gray-800 dark:text-gray-200 truncate">
-              {channel.type === 'community' ? '🏘' : '👥'} {channel.tags?.includes('bulk-chat') && channel.description ? channel.description : channel.name}
+              <span className="inline-flex items-center gap-2">
+                <ProductIconCell
+                  iconName={channel.type === 'community' ? 'community' : 'group'}
+                  label={channel.type === 'community' ? 'Community' : 'Group'}
+                  size="sm"
+                  className="border-transparent bg-transparent text-current"
+                />
+                {channel.tags?.includes('bulk-chat') && channel.description ? channel.description : channel.name}
+              </span>
             </h2>
             <p className="text-xs text-gray-400 mt-0.5">
               {channel.members.length} group member{channel.members.length !== 1 ? 's' : ''}
@@ -741,7 +750,10 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
               }`}
               title={archives.length === 0 ? 'No archived chats yet' : 'View archived chats'}
             >
-              📂 History
+              <span className="inline-flex items-center gap-1">
+                <ProductIconCell iconName="history" label="History" size="sm" className="border-transparent bg-transparent text-current" />
+                History
+              </span>
             </button>
             <button
               onClick={() => setShowClearConfirm(true)}
@@ -749,7 +761,10 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
               title="Clear chat (archives first)"
               disabled={messages.length === 0}
             >
-              🗑️ Clear
+              <span className="inline-flex items-center gap-1">
+                <ProductIconCell iconName="delete" label="Clear" size="sm" className="border-transparent bg-transparent text-current" />
+                Clear
+              </span>
             </button>
             {mode === 'pane' && onExpand && (
               <button
@@ -757,14 +772,17 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
                 className="text-xs px-2 py-1.5 text-gray-600 hover:bg-gray-100 rounded transition-colors dark:bg-gray-800 dark:hover:bg-gray-700 hidden sm:inline-flex"
                 title="Expand to full view"
               >
-                ⤢ Expand
+                <span className="inline-flex items-center gap-1">
+                  <ProductIconCell iconName="expand" label="Expand" size="sm" className="border-transparent bg-transparent text-current" />
+                  Expand
+                </span>
               </button>
             )}
             <button
               onClick={onClose}
               className="text-gray-400 hover:text-gray-600 transition-colors text-xl leading-none p-2 -mr-1 min-w-[40px] min-h-[40px] flex items-center justify-center"
             >
-              ×
+              <ProductIconCell iconName="close" label="Close" size="sm" className="border-transparent bg-transparent text-current" />
             </button>
           </div>
         </div>
@@ -911,9 +929,11 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
                       {!isAll && !isGroup && (
                         <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_DOT[agent.status]}`} />
                       )}
-                      {isGroup && <span className="text-sm">👥</span>}
+                      {isGroup && (
+                        <ProductIconCell iconName="group" label="Group mention" size="sm" className="border-transparent bg-transparent text-current" />
+                      )}
                       <span className="font-medium">
-                        {isAll ? '👥 @all' : `@${agent.name}`}
+                        {isAll ? '@all' : `@${agent.name}`}
                       </span>
                       {isGroup && (
                         <span className="text-xs text-sky-600 dark:text-sky-400 ml-auto flex items-center gap-1">
@@ -1042,7 +1062,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
                         className="p-3 text-red-400 hover:text-red-600 transition-colors"
                         title="Delete archive"
                       >
-                        🗑
+                        <ProductIconCell iconName="delete" label="Delete archive" size="sm" className="border-transparent bg-transparent text-current" />
                       </button>
                     </div>
                   ))}
@@ -1064,7 +1084,10 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
               <div className="flex-1">
                 <h3 className="text-base font-semibold text-gray-800 dark:text-gray-200">
-                  📂 {new Date(parseInt(viewingArchive.filename.match(/_(\d+)\.json$/)?.[1] || '0')).toLocaleDateString()}
+                  <span className="inline-flex items-center gap-2">
+                    <ProductIconCell iconName="history" label="Archive" size="sm" className="border-transparent bg-transparent text-current" />
+                    {new Date(parseInt(viewingArchive.filename.match(/_(\d+)\.json$/)?.[1] || '0')).toLocaleDateString()}
+                  </span>
                 </h3>
                 <p className="text-xs text-gray-400">{viewingArchive.messages.length} messages</p>
               </div>
@@ -1081,7 +1104,10 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
                   className="text-xs px-2 py-1 text-gray-600 hover:bg-gray-100 rounded transition-colors dark:bg-gray-800 dark:hover:bg-gray-700"
                   title="Copy to clipboard"
                 >
-                  📋 Copy
+                  <span className="inline-flex items-center gap-1">
+                    <ProductIconCell iconName="clone" label="Copy" size="sm" className="border-transparent bg-transparent text-current" />
+                    Copy
+                  </span>
                 </button>
                 <button
                   onClick={() => {
@@ -1099,13 +1125,16 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
                   className="text-xs px-2 py-1 text-gray-600 hover:bg-gray-100 rounded transition-colors dark:bg-gray-800 dark:hover:bg-gray-700"
                   title="Download as text file"
                 >
-                  💾 Download
+                  <span className="inline-flex items-center gap-1">
+                    <ProductIconCell iconName="export" label="Download" size="sm" className="border-transparent bg-transparent text-current" />
+                    Download
+                  </span>
                 </button>
                 <button
                   onClick={() => setViewingArchive(null)}
                   className="text-gray-400 hover:text-gray-600 transition-colors text-lg"
                 >
-                  ×
+                  <ProductIconCell iconName="close" label="Close" size="sm" className="border-transparent bg-transparent text-current" />
                 </button>
               </div>
             </div>
