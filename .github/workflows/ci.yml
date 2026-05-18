@@ -19,6 +19,7 @@ jobs:
     env:
       OPENCLAW_WORKSPACE: ${{ github.workspace }}/WORKSPACES/default
       OPENCLAW_SKILLS_DIR: /tmp/openclaw/skills
+      AUTH_MODE: bypass
       DASHBOARD_AUTH_DISABLED: "true"
       DASHBOARD_PORT: "3001"
       CORS_ORIGIN: http://localhost:5173
