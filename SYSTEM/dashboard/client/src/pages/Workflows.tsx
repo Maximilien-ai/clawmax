@@ -2223,10 +2223,11 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                     <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Recent Executions</h3>
                     <button
                       onClick={() => fetchArchivedExecutions(selectedWorkflow.id)}
-                      className="px-2 py-0.5 text-xs text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:bg-gray-800 rounded border border-gray-300 dark:text-gray-100 dark:bg-gray-800 dark:border-gray-600 dark:hover:bg-gray-700"
+                      className="inline-flex items-center gap-1.5 px-2 py-0.5 text-xs text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:bg-gray-800 rounded border border-gray-300 dark:text-gray-100 dark:bg-gray-800 dark:border-gray-600 dark:hover:bg-gray-700"
                       title="View archived executions"
                     >
-                      📦 Archived
+                      <ProductIconCell iconName="archive" label="Archived" size="sm" className="border-transparent bg-transparent text-current" />
+                      Archived
                     </button>
                   </div>
                   {executions.length > executionsPerPage && (
@@ -2285,10 +2286,10 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                               e.stopPropagation()
                               archiveExecution(selectedWorkflow.id, exec.id)
                             }}
-                            className="absolute top-2 right-9 p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:bg-blue-900/20 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                            className="absolute top-2 right-9 inline-flex items-center justify-center p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:bg-blue-900/20 rounded opacity-0 group-hover:opacity-100 transition-opacity"
                             title="Archive execution"
                           >
-                            📦
+                            <ProductIconCell iconName="archive" label="Archive execution" size="sm" className="border-transparent bg-transparent text-current" />
                           </button>
                           <button
                             onClick={(e) => {
@@ -2302,10 +2303,10 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                                   .catch(() => showError('Failed to delete execution'))
                               }
                             }}
-                            className="absolute top-2 right-2 p-1 text-gray-400 hover:text-red-600 dark:text-red-400 hover:bg-red-50 dark:bg-red-900/20 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                            className="absolute top-2 right-2 inline-flex items-center justify-center p-1 text-gray-400 hover:text-red-600 dark:text-red-400 hover:bg-red-50 dark:bg-red-900/20 rounded opacity-0 group-hover:opacity-100 transition-opacity"
                             title="Delete execution"
                           >
-                            🗑
+                            <ProductIconCell iconName="delete" label="Delete execution" size="sm" className="border-transparent bg-transparent text-current" />
                           </button>
                         </div>
                       ))}

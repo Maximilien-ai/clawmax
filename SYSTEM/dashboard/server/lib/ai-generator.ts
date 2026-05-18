@@ -1176,7 +1176,11 @@ Respond with ONLY valid JSON, no markdown fences or explanation.`
 /**
  * Generate an organization template from natural language description.
  */
-export async function generateTemplateFromNL(description: string, generationTarget: TemplateGenerationTarget = 'team'): Promise<any> {
+export async function generateTemplateFromNL(
+  description: string,
+  generationTarget: TemplateGenerationTarget = 'team',
+  preferredAuthor: string = 'ClawMax AI',
+): Promise<any> {
   getAvailableProvider(_requestByokKeys)
   const promptContext = buildExampleAwarePromptContext(description)
   const shouldScaleMiddleWork = promptImpliesScaling(description)
@@ -1203,7 +1207,7 @@ A template has:
 - name: organization name
 - description: what this organization does
 - version: "1.0.0"
-- author: "ClawMax AI"
+- author: "${preferredAuthor}"
 - tags: relevant tags array
 - agents: array of agent definitions, each with:
   - id: lowercase kebab-case ID (e.g., "lead-engineer")
@@ -1275,6 +1279,9 @@ Respond with ONLY valid JSON, no markdown fences or explanation.`
 
   try {
     const parsed = JSON.parse(jsonStr)
+    if (!parsed.author || String(parsed.author).trim() === 'ClawMax AI') {
+      parsed.author = preferredAuthor
+    }
     const text = description.toLowerCase()
     const inferredTemplateTags = Array.from(new Set([
       ...(Array.isArray(parsed.tags) ? parsed.tags : []),

@@ -24,6 +24,12 @@ import { getAuthenticatedSession } from '../lib/github-auth'
 
 const router = Router()
 
+function resolveSessionAuthor(req: any): string | undefined {
+  const session = getAuthenticatedSession(req)
+  if (!session) return undefined
+  return (session.name || session.login || session.email || '').trim() || undefined
+}
+
 function synchronizeWorkflowScheduling(workflowId: string): string[] {
   const warnings: string[] = []
   const workflow = getWorkflow(workflowId)
@@ -133,6 +139,10 @@ router.post('/generate', async (req, res) => {
     const agentIds = agents.filter(a => !a.archived).map(a => a.id)
     const allTags = [...new Set(agents.flatMap(a => a.tags))]
     const workflow = await generateWorkflowFromNL(description, agentIds, allTags)
+    const author = resolveSessionAuthor(req)
+    if (author && (!workflow.author || workflow.author === 'dashboard' || workflow.author === 'ClawMax AI')) {
+      workflow.author = author
+    }
     res.json({ ok: true, workflow })
   } catch (err: any) {
     console.error('Error generating workflow:', err)
@@ -312,7 +322,12 @@ router.post('/:id/trigger', (req, res) => {
  */
 router.post('/', (req, res) => {
   try {
-    const result = createWorkflow(req.body)
+    const author = resolveSessionAuthor(req)
+    const payload = {
+      ...req.body,
+      author: author || req.body?.author,
+    }
+    const result = createWorkflow(payload)
 
     if (!result.success) {
       return res.status(400).json({ error: 'Invalid workflow data', details: result.error, validationErrors: result.errors })

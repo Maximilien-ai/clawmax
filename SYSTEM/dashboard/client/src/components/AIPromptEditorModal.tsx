@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 type PromptExpandFormat = 'markdown' | 'text'
 
@@ -39,12 +41,14 @@ export default function AIPromptEditorModal({
   const [expanding, setExpanding] = useState(false)
   const [expandFormat, setExpandFormat] = useState<PromptExpandFormat>('markdown')
   const [expandError, setExpandError] = useState<string | null>(null)
+  const [showPreview, setShowPreview] = useState(false)
 
   useEffect(() => {
     if (isOpen) {
       setDraft(initialValue)
       setExpandFormat('markdown')
       setExpandError(null)
+      setShowPreview(false)
     }
   }, [initialValue, isOpen])
 
@@ -70,13 +74,40 @@ export default function AIPromptEditorModal({
           </button>
         </div>
         <div className="space-y-4 px-5 py-4">
-          <textarea
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            rows={rows}
-            placeholder={placeholder}
-            className="w-full resize-y rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 focus:ring-2 focus:ring-purple-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
-          />
+          <div className="flex items-center justify-between">
+            <div className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+              Prompt Editor
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowPreview((current) => !current)}
+              className="inline-flex items-center gap-1 rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700"
+            >
+              <span>{showPreview ? '▸' : '▾'}</span>
+              {showPreview ? 'Hide Preview' : 'Show Preview'}
+            </button>
+          </div>
+          <div className={`grid gap-4 ${showPreview ? 'lg:grid-cols-[minmax(0,1fr)_minmax(280px,420px)]' : 'grid-cols-1'}`}>
+            <textarea
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              rows={rows}
+              placeholder={placeholder}
+              className="w-full resize-y rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 focus:ring-2 focus:ring-purple-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+            />
+            {showPreview ? (
+              <div className="rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900">
+                <div className="border-b border-gray-200 px-4 py-2 text-xs font-medium uppercase tracking-wide text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                  Markdown Preview
+                </div>
+                <div className="max-h-[480px] overflow-y-auto px-4 py-3 prose prose-sm max-w-none text-gray-900 dark:prose-invert dark:text-gray-100">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {draft || '_Nothing to preview yet._'}
+                  </ReactMarkdown>
+                </div>
+              </div>
+            ) : null}
+          </div>
           <div className="flex justify-between gap-2">
             <button
               type="button"

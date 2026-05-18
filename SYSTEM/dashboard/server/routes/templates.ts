@@ -33,6 +33,12 @@ import { getAuthenticatedSession } from '../lib/github-auth'
 
 const router = Router()
 
+function resolveSessionAuthor(req: any): string | undefined {
+  const session = getAuthenticatedSession(req)
+  if (!session) return undefined
+  return (session.name || session.login || session.email || '').trim() || undefined
+}
+
 type CustomizationValidationInput = {
   githubRepo?: string
   useGithub?: boolean
@@ -609,7 +615,11 @@ router.post('/generate', async (req, res) => {
 
   try {
     setRequestByokKeys(byokKeys && typeof byokKeys === 'object' ? byokKeys : undefined)
-    const template = await generateTemplateFromNL(description, normalizeTemplateGenerationTarget(generationTarget))
+    const template = await generateTemplateFromNL(
+      description,
+      normalizeTemplateGenerationTarget(generationTarget),
+      resolveSessionAuthor(req) || 'ClawMax AI',
+    )
     res.json({ ok: true, template })
   } catch (err: any) {
     console.error('Error generating template:', err)
