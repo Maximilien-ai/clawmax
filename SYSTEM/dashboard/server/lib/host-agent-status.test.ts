@@ -31,16 +31,16 @@ console.log(`\n${YELLOW}=== Host Agent Status Test Suite ===${RESET}\n`)
 
 const originalPath = process.env.OPENCLAW_HOST_AGENT_STATE_PATH
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-host-agent-status-'))
-const statePath = path.join(tmpDir, 'host-agent-state.json')
+const statePath = path.join(tmpDir, 'state.json')
 process.env.OPENCLAW_HOST_AGENT_STATE_PATH = statePath
 
 async function run() {
   await test('host agent status surfaces unauthorized reconnect guidance', () => {
     fs.writeFileSync(statePath, JSON.stringify({
-      hostAgent: {
-        connected: false,
-        last_error: 'status writeback unauthorized; reconnect this Mac from Web to refresh local agent credentials',
-      },
+      desired_state: 'running',
+      last_error: 'status writeback unauthorized; reconnect this Mac from Web to refresh local agent credentials',
+      last_status_summary: 'worker unauthorized',
+      last_seen_at: new Date().toISOString(),
     }, null, 2))
 
     const status = getHostAgentStatus()
@@ -48,24 +48,36 @@ async function run() {
     assert(Boolean(status?.hint.includes('Reconnect this Mac')), 'Expected reconnect hint')
   })
 
-  await test('host agent status surfaces unreachable when connected=false without auth message', () => {
+  await test('host agent status surfaces unreachable when desired_state is running and last_seen_at is stale', () => {
     fs.writeFileSync(statePath, JSON.stringify({
-      hostAgent: {
-        connected: false,
-        last_error: 'connection timed out while polling local agent status',
-      },
+      desired_state: 'running',
+      last_error: 'connection timed out while polling local agent status',
+      last_status_summary: 'last contact lost',
+      last_seen_at: '2026-01-01T00:00:00.000Z',
     }, null, 2))
 
     const status = getHostAgentStatus()
     assert(Boolean(status?.state === 'unreachable'), 'Expected unreachable state')
   })
 
-  await test('host agent status returns null when no relevant connectivity error exists', () => {
+  await test('host agent status surfaces degraded when reconcile result is failed', () => {
     fs.writeFileSync(statePath, JSON.stringify({
-      hostAgent: {
-        connected: true,
-        status: 'connected',
-      },
+      desired_state: 'running',
+      last_reconcile_result: 'failed',
+      last_error: 'local reconcile failed while applying actions',
+      last_seen_at: new Date().toISOString(),
+    }, null, 2))
+
+    const status = getHostAgentStatus()
+    assert(status?.state === 'warning', 'Expected degraded warning state')
+  })
+
+  await test('host agent status returns null when reconcile is healthy and no reconnect problem exists', () => {
+    fs.writeFileSync(statePath, JSON.stringify({
+      desired_state: 'running',
+      last_reconcile_result: 'healthy',
+      last_status_summary: 'running normally',
+      last_seen_at: new Date().toISOString(),
     }, null, 2))
 
     const status = getHostAgentStatus()

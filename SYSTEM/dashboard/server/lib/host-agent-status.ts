@@ -7,122 +7,112 @@ export interface HostAgentStatus {
   title: string
   detail: string
   hint: string
+  summary?: string
   sourcePath?: string
+  lastSeenAt?: string
 }
 
-type HostStateShape = {
-  connected?: boolean
-  status?: string
-  state?: string
-  connectivity?: string | { state?: string; connected?: boolean; last_error?: string; lastError?: string }
+type HostAgentStateFile = {
+  instance_key?: string
+  api_url?: string
+  worker_key?: string
+  refresh_token?: string
+  desired_state?: string
+  runtime_target?: string
+  last_seen_at?: string
+  last_action?: string
+  last_reconcile_at?: string
+  last_reconcile_result?: string
+  last_successful_at?: string
   last_error?: string
-  lastError?: string
-  error?: string
-  message?: string
+  last_status_summary?: string
+  last_dashboard_url?: string
+  last_workspace_path?: string
+  machine_id?: string
 }
+
+const STALE_MS = 5 * 60 * 1000
 
 function candidatePaths(): string[] {
   const home = process.env.HOME || os.homedir() || ''
   return [
     (process.env.OPENCLAW_HOST_AGENT_STATE_PATH || '').trim(),
+    home ? path.join(home, '.clawmax', 'agent', 'state.json') : '',
     home ? path.join(home, '.openclaw', 'host-agent-state.json') : '',
-    home ? path.join(home, '.openclaw', 'device-agent-state.json') : '',
-    home ? path.join(home, '.openclaw', 'openclaw.json') : '',
   ].filter(Boolean)
 }
 
-function readJson(candidatePath: string): any | null {
+function readStateFile(candidatePath: string): HostAgentStateFile | null {
   try {
-    return JSON.parse(fs.readFileSync(candidatePath, 'utf-8'))
+    const parsed = JSON.parse(fs.readFileSync(candidatePath, 'utf-8'))
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as HostAgentStateFile : null
   } catch {
     return null
   }
 }
 
-function asObject(value: any): Record<string, any> | null {
-  return value && typeof value === 'object' && !Array.isArray(value) ? value : null
+function normalize(value?: string): string {
+  return String(value || '').trim()
 }
 
-function extractCandidateSections(raw: any): HostStateShape[] {
-  const root = asObject(raw)
-  if (!root) return []
-  const sections = [
-    root.hostAgent,
-    root.host_agent,
-    root.deviceAgent,
-    root.device_agent,
-    root.state?.hostAgent,
-    root.state?.host_agent,
-    root.meta?.hostAgent,
-    root.meta?.host_agent,
-    root,
-  ]
-  return sections.map((section) => asObject(section) as HostStateShape | null).filter(Boolean) as HostStateShape[]
-}
-
-function extractLastError(section: HostStateShape): string {
-  const connectivity = asObject(section.connectivity)
-  return String(
-    section.last_error ||
-    section.lastError ||
-    connectivity?.last_error ||
-    connectivity?.lastError ||
-    section.error ||
-    section.message ||
-    '',
-  ).trim()
-}
-
-function extractConnected(section: HostStateShape): boolean | null {
-  if (typeof section.connected === 'boolean') return section.connected
-  const connectivity = asObject(section.connectivity)
-  if (typeof connectivity?.connected === 'boolean') return connectivity.connected
-
-  const raw = String(
-    section.status ||
-    section.state ||
-    (typeof section.connectivity === 'string' ? section.connectivity : connectivity?.state) ||
-    '',
-  ).trim().toLowerCase()
+function toMs(value?: string): number | null {
+  const raw = normalize(value)
   if (!raw) return null
-  if (['connected', 'healthy', 'ok', 'ready'].includes(raw)) return true
-  if (['unauthorized', 'unreachable', 'disconnected', 'offline', 'error'].includes(raw)) return false
-  return null
+  const ms = Date.parse(raw)
+  return Number.isFinite(ms) ? ms : null
 }
 
-function buildStatus(section: HostStateShape, sourcePath: string): HostAgentStatus | null {
-  const detail = extractLastError(section)
-  const connected = extractConnected(section)
-  const lowerDetail = detail.toLowerCase()
-  const unauthorized = /unauthorized|token mismatch|refresh local agent credentials|reconnect this mac/i.test(detail)
+function isUnauthorizedError(lastError: string): boolean {
+  return /status writeback unauthorized|action polling unauthorized|refresh local agent credentials|reconnect this mac/i.test(lastError)
+}
 
-  if (unauthorized) {
+function isStale(desiredState: string, lastSeenAt: string, nowMs: number = Date.now()): boolean {
+  if (desiredState.toLowerCase() !== 'running') return false
+  const lastSeenMs = toMs(lastSeenAt)
+  if (!lastSeenMs) return true
+  return nowMs - lastSeenMs > STALE_MS
+}
+
+function buildStatus(state: HostAgentStateFile, sourcePath: string): HostAgentStatus | null {
+  const lastError = normalize(state.last_error)
+  const lastStatusSummary = normalize(state.last_status_summary)
+  const desiredState = normalize(state.desired_state)
+  const lastReconcileResult = normalize(state.last_reconcile_result).toLowerCase()
+  const lastSeenAt = normalize(state.last_seen_at)
+
+  if (isUnauthorizedError(lastError)) {
     return {
       state: 'unauthorized',
       title: 'Reconnect Required',
-      detail: detail || 'The local host agent rejected dashboard actions with an authorization error.',
+      detail: lastError,
       hint: 'Reconnect this Mac from the dashboard to refresh local agent credentials.',
+      summary: lastStatusSummary || undefined,
       sourcePath,
+      lastSeenAt: lastSeenAt || undefined,
     }
   }
 
-  if (connected === false) {
+  if (isStale(desiredState, lastSeenAt)) {
     return {
       state: 'unreachable',
       title: 'Host Agent Unreachable',
-      detail: detail || 'The local host agent is not currently reachable from the dashboard runtime.',
-      hint: 'Check the local host agent process and reconnect this Mac if the problem persists.',
+      detail: lastError || 'The local host agent has stopped checking in while it is still supposed to be running.',
+      hint: 'Check the local host agent process on this Mac and reconnect it from the dashboard if needed.',
+      summary: lastStatusSummary || undefined,
       sourcePath,
+      lastSeenAt: lastSeenAt || undefined,
     }
   }
 
-  if (detail && /error|failed|timeout|unreachable|offline|disconnected/i.test(lowerDetail)) {
+  if (lastReconcileResult === 'failed') {
     return {
       state: 'warning',
-      title: 'Host Agent Warning',
-      detail,
-      hint: 'Review local host agent health and reconnect this Mac if actions stop applying.',
+      title: 'Host Agent Degraded',
+      detail: lastError || 'The local host agent reported a failed reconcile.',
+      hint: 'Inspect local host-agent health and reconnect this Mac if actions stop applying cleanly.',
+      summary: lastStatusSummary || undefined,
       sourcePath,
+      lastSeenAt: lastSeenAt || undefined,
     }
   }
 
@@ -131,12 +121,10 @@ function buildStatus(section: HostStateShape, sourcePath: string): HostAgentStat
 
 export function getHostAgentStatus(): HostAgentStatus | null {
   for (const candidatePath of candidatePaths()) {
-    const raw = readJson(candidatePath)
-    if (!raw) continue
-    for (const section of extractCandidateSections(raw)) {
-      const status = buildStatus(section, candidatePath)
-      if (status) return status
-    }
+    const state = readStateFile(candidatePath)
+    if (!state) continue
+    const status = buildStatus(state, candidatePath)
+    if (status) return status
   }
   return null
 }
