@@ -37,6 +37,23 @@ function isErrorContent(content: string): boolean {
   return /\[diagnostic\]|lane task error|session file locked|Error:|error="/i.test(content)
 }
 
+function isRuntimeStatusLine(trimmed: string): boolean {
+  return /^(🕒|🧠|🔑|🧮|📚|🧹|🧵|⚙️|🪢)\s/.test(trimmed)
+}
+
+function isToolArtifactLine(trimmed: string): boolean {
+  return (
+    trimmed === '(processing...)' ||
+    trimmed === 'Files:' ||
+    /^total\s+\d+/.test(trimmed) ||
+    /^[drwx-]{10}\s/.test(trimmed) ||
+    /^-rw[rx-]{7}\s/.test(trimmed) ||
+    /^[A-Za-z0-9_.-]+\.(md|txt|json|csv|pdf|html|yml|yaml)$/.test(trimmed) ||
+    /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ||
+    trimmed === 'No notes yet.'
+  )
+}
+
 // Strip OpenClaw internal data from message content
 function cleanMessageContent(content: string): string {
   if (!content) return content
@@ -65,6 +82,7 @@ function cleanMessageContent(content: string): string {
   const cleanedLines: string[] = []
   let braceDepth = 0 // Track JSON nesting depth
   let bracketDepth = 0
+  let skippingArtifactBlock = false
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]
@@ -82,7 +100,7 @@ function cleanMessageContent(content: string): string {
     }
 
     // Detect start of JSON block
-    if (trimmed === '{' || trimmed.startsWith('{"') || trimmed.startsWith('[{') || trimmed === '[') {
+    if (trimmed === '{' || trimmed.startsWith('{') || trimmed.startsWith('[')) {
       braceDepth += (trimmed.match(/\{/g) || []).length - (trimmed.match(/\}/g) || []).length
       bracketDepth += (trimmed.match(/\[/g) || []).length - (trimmed.match(/\]/g) || []).length
       if (braceDepth > 0 || bracketDepth > 0) continue
@@ -90,11 +108,17 @@ function cleanMessageContent(content: string): string {
       continue
     }
 
+    if (!trimmed) {
+      skippingArtifactBlock = false
+      cleanedLines.push(line)
+      continue
+    }
+
     // Skip lines with ANSI escape codes
     if (trimmed.match(/\[[\d;]*m/) || trimmed.match(/\x1b\[/)) continue
 
     // Skip OpenClaw internal lines
-    if (trimmed.startsWith('🦞 OpenClaw') || trimmed.match(/^(Usage|Options|Commands|Examples|Docs|Available fields|Unknown JSON|GraphQL|\(Command exited|Command still|Process exited|Successfully wrote|store:)/)) continue
+    if (isRuntimeStatusLine(trimmed) || trimmed.startsWith('🦞 OpenClaw') || trimmed.match(/^(Usage|Options|Commands|Examples|Docs|Available fields|Unknown JSON|GraphQL|\(Command exited|Command still|Process exited|Successfully wrote|store:)/)) continue
 
     // Skip inline tool calls
     if (trimmed.match(/\{"type"\s*:\s*"/)) continue
@@ -104,6 +128,15 @@ function cleanMessageContent(content: string): string {
 
     // Skip lines that are just closing braces
     if (trimmed.match(/^[}\]],?\s*$/)) continue
+
+    if (isToolArtifactLine(trimmed)) {
+      skippingArtifactBlock = true
+      continue
+    }
+
+    if (skippingArtifactBlock) {
+      continue
+    }
 
     cleanedLines.push(line)
   }
@@ -473,8 +506,8 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
               ))
             } else if (data.type === 'complete') {
               setMessages(prev => prev.map(m =>
-                m.id === assistantId && !m.content.trim()
-                  ? { ...m, content: 'No reply from agent.' }
+                m.id === assistantId
+                  ? { ...m, content: data.data?.text?.trim() ? data.data.text : (m.content.trim() ? m.content : 'No reply from agent.') }
                   : m
               ))
               setStreaming(false)

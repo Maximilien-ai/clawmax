@@ -352,7 +352,7 @@ router.post('/:id/chat', (req, res) => {
         if (!normalizedText) {
           send('error', deriveChatError(stderrOutput.slice(0, 300) || (code !== 0 ? 'Agent failed.' : 'No reply from agent.')))
         }
-        send('complete', {})
+        send('complete', { text: normalizedText || '' })
         if (!res.writableEnded) {
           res.end()
         }

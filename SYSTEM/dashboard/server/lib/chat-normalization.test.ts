@@ -60,6 +60,36 @@ test('strips ansi and internal openclaw lines from plain text', () => {
   assert(normalized === 'Error header\nUseful line', `Unexpected normalized output: ${normalized}`)
 })
 
+test('strips runtime metadata, tool json, and file artifact blocks from chat transcripts', () => {
+  const raw = `Let me check what was happening recently to understand where to pick up.
+
+{ "results": [], "provider": "openai", "model": "text-embedding-3-small", "citations": "auto", "mode": "hybrid" }
+
+🕒 Time: Tuesday, May 19th, 2026 — 1:54 PM (America/Los_Angeles) 🧠 Model: ollama/qwen2.5:latest · 🔑 unknown
+
+(processing...)
+
+Files:
+2026-05-19.md
+2026-05-18.md
+
+total 16 drwxr-xr-x@ 4 maximilien staff 128 May 19 13:54 . drwxr-xr-x@ 11 maximilien staff 352 May 19 13:54 ..
+
+2026-05-19
+No notes yet.
+
+{ "count": 1, "sessions": [ { "key": "agent:agent0:main", "kind": "other" } ] }
+
+This looks like a fresh session — the memory files are empty, and there's no prior work to continue from.
+
+What would you like me to work on?`
+  const normalized = normalizeChatMessage(raw)
+  assert(
+    normalized === "Let me check what was happening recently to understand where to pick up.\n\nThis looks like a fresh session — the memory files are empty, and there's no prior work to continue from.\n\nWhat would you like me to work on?",
+    `Unexpected normalized output: ${normalized}`
+  )
+})
+
 console.log('\n========================================')
 console.log(`Tests passed: ${testsPassed}`)
 console.log(`Tests failed: ${testsFailed}`)

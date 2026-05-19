@@ -526,6 +526,15 @@ else
   fail "Agent template option helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Agent list helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/agentList.test.ts > /tmp/clawmax-agent-list.out 2>&1 || true
+if grep -q "agentList.test.ts: ok" /tmp/clawmax-agent-list.out; then
+  pass "Agent list helper unit tests (2 tests)"
+else
+  cat /tmp/clawmax-agent-list.out
+  fail "Agent list helper unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Discovery suggestion helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/discoverySuggestions.test.ts > /tmp/clawmax-discovery-suggestions.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-discovery-suggestions.out; then

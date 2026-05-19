@@ -2,6 +2,22 @@
 
 All notable changes to ClawMax are documented here.
 
+## [v1.5.2] - 2026-05-19
+
+### Release — Setup Simplification, Create-Agent Reliability, and Chat Cleanup
+- **Lower-Friction Setup** — `setup.sh` no longer asks for provider API keys or GitHub OAuth credentials during setup. OpenClaw is installed as part of setup when missing, partner integrations default to opt-in, and generated `.env` values now keep shared hosted/provider credentials as later placeholders instead of setup-time blockers.
+- **Quick Start Alignment** — the README Quick Start now matches the actual supported flow: install with `./setup.sh`, boot the dashboard, and configure keys later in `BYOK` or `Keys & Secrets` rather than requiring up-front provider configuration.
+- **Create-Agent Hardening** — the Add Agent wizard now preserves exact backend template slugs, validates more aggressively before final provision, and returns friendlier guidance for missing templates, clone sources, and model-selection problems instead of opaque late-stage failures.
+- **Immediate Agent Visibility** — agents created through both normal create and AI-generate paths now surface in the Agents page immediately after successful provisioning instead of waiting on background polling, stale pagination, or the final wizard close timing.
+- **Cleaner Agent Chat Output** — live chat and persisted history now strip raw tool-call payloads, runtime metadata, session dumps, file-artifact listings, and related JSON noise much more aggressively, so newly created agents do not greet users with internal OpenClaw transcript debris.
+- **Maintenance Banner State Model** — scheduled maintenance now derives forward from time and maintenance-window settings so stale “planned/scheduled” banners clear automatically once a window is in the past without relying on an external env update at the exact boundary.
+- **Host-Agent Reconnect / Unreachable Surfacing** — the dashboard now reads the canonical local host-agent state contract and surfaces reconnect-required, unreachable/stale, and degraded local runtime conditions directly in the UI instead of relying only on workspace agent status.
+- **Split-Container Gateway Support** — dashboard health, logs, chat, and gateway RPC now support explicit non-loopback gateway routing through `OPENCLAW_GATEWAY_URL`, improving split-container and host-bridge deployments tracked in issue `#144`.
+
+### Quality
+- **Regression Coverage** — added focused helper coverage for immediate created-agent list visibility and extended chat normalization coverage with transcript-shaped runtime/tool/session dump cases
+- **Validation Gate** — validated locally with `client/src/lib/agentList.test.ts`, `client/src/lib/agentTemplateOptions.test.ts`, `server/lib/chat-normalization.test.ts`, `npx tsc --noEmit`, and shell validation of `SYSTEM/test.sh` and `setup.sh`
+
 ## [v1.5.1] - 2026-05-18
 
 ### Release — Shared AI Prompt Editor, Prompt Expansion, and Author Attribution

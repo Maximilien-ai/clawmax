@@ -5,12 +5,30 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.5.1-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
+[![Version](https://img.shields.io/badge/version-1.5.2-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
 [![Tests](https://img.shields.io/badge/tests-72%20default--safe-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 Latest Release: v1.5.1
+## 🔥 Latest Release: v1.5.2
+
+- Setup and onboarding are much lower-friction:
+  - `setup.sh` no longer asks for provider API keys or GitHub OAuth credentials during setup
+  - OpenClaw is installed by `setup.sh` if it is missing, so it is no longer a separate Quick Start prerequisite
+  - partner integrations now stay opt-in by default, and the generated `.env` keeps shared runtime credentials as later placeholders instead of setup-time prompts
+  - the Quick Start docs now match the real flow: get the dashboard running first, then add keys in `BYOK` or `Keys & Secrets`
+- Agent creation and first-use flows are much more reliable:
+  - `Create Agent` now preserves real backend template slugs, validates earlier, and shows friendlier template/clone/model errors before users hit a broken final `Provision`
+  - newly created agents now appear immediately in the Agents page instead of waiting on a background refresh or wizard close timing
+- Chat output is cleaner:
+  - live agent chat now replaces streamed raw tool/session dumps with the normalized final assistant text
+  - persisted chat history strips runtime metadata, file-artifact dumps, and tool/session JSON much more aggressively
+- Dashboard/CLI runtime alignment improved:
+  - maintenance banners now derive scheduled vs. active vs. stale states from time instead of staying stuck
+  - dashboard now reads the canonical host-agent local state contract and surfaces reconnect, unreachable, and degraded host-agent states directly
+  - split-container gateway setups are supported through `OPENCLAW_GATEWAY_URL`, so dashboard chat/logs/health do not assume loopback-only gateway access
+
+## 🔥 Previous Release: v1.5.1
 
 - AI generate flows are much stronger:
   - `Open Full Editor` is now shared across templates, agents, workflows, and skills
@@ -33,30 +51,6 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
   - view toggles are being normalized so `list` is consistently the rightmost option, with clearer `grid` vs. `detail` semantics where applicable
 - Local metering is reliable again:
   - local direct chat now reads token/cost usage from persisted OpenClaw session transcripts and records real Opik trace metadata instead of logging zero-token/$0.00 chat calls
-
-## 🔥 Previous Release: v1.4.9
-
-- Agent chat history now persists reliably across reopen:
-  - dashboard chat uses stable agent-scoped sessions
-  - persisted runtime session mapping is recovered more defensively when aliases drift
-- Skills are much more operator-friendly:
-  - imported registry skills preserve richer metadata
-  - skill tags are editable after import/creation
-  - Skills page now supports explicit tag filtering
-  - setup-needed skills are flagged more consistently and setup/install states stay distinct
-- Runtime/setup alignment improved:
-  - Opik tracing and metering now honor workspace-stored Opik workspace/project settings when env does not override them
-  - `setup.sh` no longer silently defaults auth mode or Opik project names in open-source setup
-
-## 🔥 Previous Release: v1.4.8
-
-- Managed on-prem Ollama BYOK now follows the runtime contract correctly:
-  - the BYOK wizard now prefers the runtime-provided `defaultOllamaBaseUrl` over stale browser-local `localhost` values on managed on-prem instances
-  - model discovery, runtime validation, and saved Ollama defaults now use that effective runtime URL
-  - explicit non-local custom Ollama overrides still win when the user intentionally sets them
-- BYOK layout is tighter:
-  - removed the redundant second provider selector row
-  - collapsed the stacked intro/status sections so the provider editor cards start higher and no longer leave a large blank gap above them
 
 Older releases are kept in [CHANGELOG.md](CHANGELOG.md).
 

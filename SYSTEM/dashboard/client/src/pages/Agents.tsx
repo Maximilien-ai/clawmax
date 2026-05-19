@@ -19,6 +19,7 @@ import { ErrorBoundary } from '../components/ErrorBoundary'
 import { useToast } from '../components/Toast'
 import { getSkillSetupHint } from '../lib/skillSetup'
 import { ProductIconCell } from '../lib/productIcons'
+import { mergeAgentToFront } from '../lib/agentList'
 
 type MenuPlacement = 'top' | 'bottom'
 
@@ -198,6 +199,29 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
   const [agentWorkflows, setAgentWorkflows] = useState<Map<string, Workflow[]>>(new Map())
   const [renameTarget, setRenameTarget] = useState<Agent | null>(null)
   const [agentUsage, setAgentUsage] = useState<Record<string, { totalTokens: number; inputTokens: number; outputTokens: number; totalCost: number }>>({})
+
+  const highlightCreatedAgent = useCallback(async (agentId: string) => {
+    if (!agentId) return
+    try {
+      const response = await fetch(`/api/agents/${encodeURIComponent(agentId)}`)
+      if (!response.ok) return
+      const created = await response.json() as Agent
+      setArchiveTab('active')
+      setSearchQuery('')
+      setSelectedTags(new Set())
+      setCurrentPage(1)
+      setCollapsedIds(prev => {
+        const next = new Set(prev)
+        next.delete(agentId)
+        return next
+      })
+      setAgents(prev => mergeAgentToFront(prev, { ...created, tags: created.tags || [] }))
+      setSelectedAgent({ ...created, tags: created.tags || [] })
+      setLastRefreshed(Date.now())
+    } catch (error) {
+      console.warn('Failed to highlight created agent:', error)
+    }
+  }, [])
 
   const fetchAgents = useCallback((resetPagination = true, silent = false) => {
     const url = resetPagination
@@ -1894,7 +1918,12 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
       {showAddWizard && (
         <AddAgentWizard
           onClose={() => { setShowAddWizard(false); setCloneFromAgent(null); setAiGenerateMode(false) }}
-          onDone={() => fetchAgents()}
+          onDone={(agentId) => {
+            if (agentId) {
+              void highlightCreatedAgent(agentId)
+            }
+            fetchAgents(true, true)
+          }}
           defaultCloneFrom={cloneFromAgent || undefined}
           startWithAI={aiGenerateMode}
         />

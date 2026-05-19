@@ -2006,7 +2006,15 @@ router.get('/:id/chat/messages', async (req, res) => {
           const msg = entry.message
           const contentArray = Array.isArray(msg.content) ? msg.content : [msg.content]
           const textContent = contentArray
-            .map((c: any) => (typeof c === 'string' ? c : c.text || c.content || JSON.stringify(c)))
+            .map((c: any) => {
+              if (typeof c === 'string') return c
+              if (!c || typeof c !== 'object') return ''
+              if (c.type === 'text' && typeof c.text === 'string') return c.text
+              if (typeof c.text === 'string') return c.text
+              if (typeof c.content === 'string') return c.content
+              return ''
+            })
+            .filter(Boolean)
             .join('\n')
 
           messages.push({
@@ -2121,7 +2129,7 @@ router.get('/:id/chat/archives', async (req, res) => {
 
                 if (Array.isArray(msg.content)) {
                   textContent = msg.content
-                    .filter((c: any) => c.type === 'text')
+                    .filter((c: any) => c?.type === 'text' && typeof c.text === 'string')
                     .map((c: any) => c.text)
                     .join(' ')
                 } else if (typeof msg.content === 'string') {
@@ -2219,7 +2227,7 @@ router.get('/:id/chat/archives/:filename', async (req, res) => {
           // Handle content array format
           if (Array.isArray(msg.content)) {
             content = msg.content
-              .filter((c: any) => c.type === 'text')
+              .filter((c: any) => c?.type === 'text' && typeof c.text === 'string')
               .map((c: any) => c.text)
               .join('\n')
           } else if (typeof msg.content === 'string') {

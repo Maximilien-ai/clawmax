@@ -61,6 +61,23 @@ function extractStructuredText(content: string): string | null {
   }
 }
 
+function isRuntimeStatusLine(trimmed: string): boolean {
+  return /^(🕒|🧠|🔑|🧮|📚|🧹|🧵|⚙️|🪢)\s/.test(trimmed)
+}
+
+function isToolArtifactLine(trimmed: string): boolean {
+  return (
+    trimmed === '(processing...)' ||
+    trimmed === 'Files:' ||
+    /^total\s+\d+/.test(trimmed) ||
+    /^[drwx-]{10}\s/.test(trimmed) ||
+    /^-rw[rx-]{7}\s/.test(trimmed) ||
+    /^[A-Za-z0-9_.-]+\.(md|txt|json|csv|pdf|html|yml|yaml)$/.test(trimmed) ||
+    /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ||
+    trimmed === 'No notes yet.'
+  )
+}
+
 export function normalizeChatMessage(content: string): string {
   if (!content) return content
 
@@ -72,6 +89,7 @@ export function normalizeChatMessage(content: string): string {
   const cleanedLines: string[] = []
   let braceDepth = 0
   let bracketDepth = 0
+  let skippingArtifactBlock = false
 
   for (const line of lines) {
     const trimmed = line.trim()
@@ -86,24 +104,35 @@ export function normalizeChatMessage(content: string): string {
       continue
     }
 
-    if (trimmed === '{' || trimmed.startsWith('{"') || trimmed.startsWith('[{') || trimmed === '[') {
+    if (trimmed === '{' || trimmed.startsWith('{') || trimmed.startsWith('[')) {
       braceDepth += (trimmed.match(/\{/g) || []).length - (trimmed.match(/\}/g) || []).length
       bracketDepth += (trimmed.match(/\[/g) || []).length - (trimmed.match(/\]/g) || []).length
       continue
     }
 
     if (!trimmed) {
+      skippingArtifactBlock = false
       cleanedLines.push('')
       continue
     }
 
     if (
+      isRuntimeStatusLine(trimmed) ||
       trimmed.startsWith('🦞 OpenClaw') ||
       /^(Usage|Options|Commands|Examples|Docs|Available fields|Unknown JSON|GraphQL|\(Command exited|Command still|Process exited|Successfully wrote|store:)/.test(trimmed) ||
       /\{"type"\s*:\s*"/.test(trimmed) ||
       /^\d{1,2}:\d{2}:\d{2}\s*(AM|PM)?\s*$/.test(trimmed) ||
       /^[}\]],?\s*$/.test(trimmed)
     ) {
+      continue
+    }
+
+    if (isToolArtifactLine(trimmed)) {
+      skippingArtifactBlock = true
+      continue
+    }
+
+    if (skippingArtifactBlock) {
       continue
     }
 

@@ -1,14 +1,14 @@
 # ClawMax Status
 
-**Current Version**: v1.5.1
-**Last Updated**: May 18, 2026
-**Status**: `v1.5.1` is the current release line on `main`
+**Current Version**: v1.5.2
+**Last Updated**: May 19, 2026
+**Status**: `v1.5.2` is the current release prep line on `main`
 
 ---
 
 ## Current State
 
-- `main` now carries the `1.5.1` line: shared AI prompt editing across generate flows, prompt expansion with markdown-first preview, logged-in-user author attribution for AI-generated assets, and cleaner workspace-switch/popup polish on top of the `1.5.0` icon and metering work
+- `main` now carries the `1.5.2` prep line: lower-friction setup, stronger create-agent reliability, cleaner live/persisted chat normalization, host-agent reconnect/unreachable surfacing, and split-container gateway routing support on top of the `1.5.1` AI prompt editor work
 - targeted local validation is green on the current line, including the newer chat-session, Opik runtime, skill metadata, and skill-tag regressions
 - targeted local validation is also green for the new AI prompt expansion/editor path via `server/lib/ai-generator.test.ts` and repeated `npx tsc --noEmit`
 - Skills now support stronger day-to-day management: reverse assignment, workspace-copy editing, bulk selection/deletion, richer imported registry provenance, tag editing/filtering, and registry suggestions from ClawHub, Shipables, and Tessl

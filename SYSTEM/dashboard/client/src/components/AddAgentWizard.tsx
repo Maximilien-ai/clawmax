@@ -16,7 +16,7 @@ const PREDEFINED_TAGS = [
 
 interface WizardProps {
   onClose: () => void
-  onDone: () => void
+  onDone: (agentId?: string) => void
   defaultCloneFrom?: string
   startWithAI?: boolean
 }
@@ -463,6 +463,7 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
               setLogs(l => [...l, msg.data])
             } else if (msg.type === 'done') {
               if (msg.data === 'ok') {
+                onDone(form.name)
                 window.dispatchEvent(new CustomEvent('agents-updated'))
                 setDone(true)
               } else {
@@ -1011,7 +1012,7 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
             )}
             {done && (
               <button
-                onClick={() => { onDone(); onClose() }}
+                onClick={onClose}
                 className="text-sm px-4 py-1.5 rounded bg-sky-600 text-white hover:bg-sky-700 font-medium transition-colors"
               >
                 Done
