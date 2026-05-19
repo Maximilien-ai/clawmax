@@ -38,6 +38,21 @@ function mockFetch(status: number, body: any = {}): typeof fetch {
   })) as any
 }
 
+function captureFetch(
+  status: number,
+  recorder: { url?: string; init?: RequestInit }
+): typeof fetch {
+  return (async (url: string, init?: RequestInit) => {
+    recorder.url = url
+    recorder.init = init
+    return {
+      ok: status >= 200 && status < 300,
+      status,
+      json: async () => ({}),
+    } as any
+  }) as any
+}
+
 function mockOllamaFetch(models: string[]): typeof fetch {
   return (async () => ({
     ok: true,
@@ -50,13 +65,24 @@ console.log(`\n${YELLOW}=== Integration Validation Test Suite ===${RESET}\n`)
 
 async function run() {
   await test('validateOpenAIKey returns valid on 200', async () => {
-    const result = await validateOpenAIKey('sk-test', mockFetch(200))
+    const request: { url?: string; init?: RequestInit } = {}
+    const result = await validateOpenAIKey('sk-test', captureFetch(200, request))
     assert(result.status === 'valid', 'Expected valid status')
+    assert(!!request.url?.includes('/v1/chat/completions'), 'Expected OpenAI prompt validation endpoint')
+    assert(request.init?.method === 'POST', 'Expected OpenAI validation to POST a test completion')
   })
 
   await test('validateAnthropicKey returns invalid on 401', async () => {
     const result = await validateAnthropicKey('sk-ant-test', mockFetch(401))
     assert(result.status === 'invalid', 'Expected invalid status')
+  })
+
+  await test('validateAnthropicKey posts a tiny test prompt', async () => {
+    const request: { url?: string; init?: RequestInit } = {}
+    const result = await validateAnthropicKey('sk-ant-test', captureFetch(200, request))
+    assert(result.status === 'valid', 'Expected valid status')
+    assert(!!request.url?.includes('/v1/messages'), 'Expected Anthropic messages endpoint')
+    assert(request.init?.method === 'POST', 'Expected Anthropic validation to POST a test prompt')
   })
 
   await test('validateGeminiKey returns valid on 200', async () => {
@@ -76,6 +102,18 @@ async function run() {
     assert(/OpenAI key/i.test(result.message), 'Expected mismatch message to mention OpenAI key')
   })
 
+  await test('validateOpenAIKey rejects obvious session or subscription credentials before network validation', async () => {
+    const result = await validateOpenAIKey('sess_demo_subscription_key', mockFetch(200))
+    assert(result.status === 'invalid', 'Expected invalid status')
+    assert(/developer API key|subscription or app credentials/i.test(result.message), 'Expected subscription credential warning')
+  })
+
+  await test('validateAnthropicKey rejects non-developer credential shapes before network validation', async () => {
+    const result = await validateAnthropicKey('ya29.demo-token', mockFetch(200))
+    assert(result.status === 'invalid', 'Expected invalid status')
+    assert(/subscription or app credentials|developer API key/i.test(result.message), 'Expected Anthropic credential warning')
+  })
+
   await test('validateOpikConfig requires workspace when key is present', async () => {
     const result = await validateOpikConfig('opik-key', '', 'clawmax', mockFetch(200))
     assert(result.status === 'invalid', 'Expected invalid status for missing workspace')
@@ -93,8 +131,8 @@ async function run() {
 
   await test('validateIntegrations aggregates provider checks', async () => {
     const result = await validateIntegrations({
-      openai: 'sk-openai',
-      anthropic: 'sk-ant',
+      openai: 'sk-openai-test-value',
+      anthropic: 'sk-ant-test-value',
       gemini: 'gemini-key',
       ollamaBaseUrl: 'http://localhost:11434',
       ollamaDefaultModel: 'llama3.2',

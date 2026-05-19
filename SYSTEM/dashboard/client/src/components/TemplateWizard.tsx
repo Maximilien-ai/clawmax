@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { hasAiGenerationAccess, readStoredByokKeys } from '../lib/byok'
+import { getAiGenerationReadiness, hasAiGenerationAccess, readStoredByokKeys } from '../lib/byok'
 import { expandPromptWithAI } from '../lib/aiPrompt'
 import { readSharedSecrets } from '../lib/localSecrets'
 import { useAuth } from '../contexts/AuthContext'
@@ -104,6 +104,10 @@ interface WizardState {
   description: string
   tags: string[]
   author: string
+}
+
+function normalizePromptInput(override: unknown, fallback: string): string {
+  return typeof override === 'string' ? override.trim() : fallback.trim()
 }
 
 const DOMAIN_PRESETS: Record<string, { label: string; icon: string; description: string; examples: string[] }> = {
@@ -407,6 +411,7 @@ function MultiValueInput({
 export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, showError, initialTemplate }: TemplateWizardProps) {
   const { config } = useAuth()
   const aiEnabled = hasAiGenerationAccess(config)
+  const aiReadiness = getAiGenerationReadiness(config)
   const [step, setStep] = useState(0)
   const [state, setState] = useState<WizardState>(INITIAL_STATE)
   const [aiGenerating, setAiGenerating] = useState(false)
@@ -532,7 +537,7 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
 
   // ---- AI Generate ----
   const handleAiGenerate = async (descriptionOverride?: string) => {
-    const description = (descriptionOverride ?? state.teamDescription).trim()
+    const description = normalizePromptInput(descriptionOverride, state.teamDescription)
     if (!description) return
     if (!aiEnabled) {
       showError('AI generation needs browser-local keys or a usable shared execution path first. Open Workspaces Integrations or Keys & Secrets before generating.')
@@ -1089,6 +1094,13 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
               Open Keys & Secrets
             </button>
           </div>
+        </div>
+      )}
+
+      {aiReadiness.warning && (
+        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-100">
+          <div className="font-medium">AI template generation may fail</div>
+          <div className="mt-1 text-xs opacity-90">{aiReadiness.warning}</div>
         </div>
       )}
 

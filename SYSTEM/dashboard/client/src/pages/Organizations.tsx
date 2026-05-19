@@ -1178,6 +1178,20 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
     if (!community) return
 
     const consequences: string[] = []
+    const impactedPlans = teams
+      .filter((team) => !team.parentTeamId)
+      .map((team) => buildOrganizationDeletePlan({
+        rootTeamId: team.id,
+        teams,
+        groups: groups as any,
+        communities: communities as any,
+        workflows: allWorkflows,
+      }))
+      .filter((plan) => plan.communityNames.includes(communityName) && plan.teamIds.length > 0)
+    const impactedTeamIds = Array.from(new Set(impactedPlans.flatMap((plan) => plan.teamIds)))
+    const impactedTopLevelTeams = impactedPlans
+      .map((plan) => teams.find((team) => team.id === plan.teamIds[0]))
+      .filter(Boolean) as Team[]
 
     // Find groups in this community
     const communityGroups = groups.filter(g => g.community === communityName)
@@ -1209,7 +1223,14 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
       })
     }
 
-    consequences.push('Cascade delete removes linked groups, member agents, and related workflows for this community')
+    if (impactedTeamIds.length > 0) {
+      consequences.push(`${impactedTeamIds.length} team${impactedTeamIds.length !== 1 ? 's' : ''} in company structure will also be removed`)
+      impactedTopLevelTeams.slice(0, 4).forEach((team) => {
+        consequences.push(`  • ${team.name}`)
+      })
+    }
+
+    consequences.push('Cascade delete removes linked groups, member agents, related workflows, and associated company structure for this community')
 
     setDeleteDialog({ type: 'community', name: communityName, consequences })
   }
@@ -1485,6 +1506,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
         window.dispatchEvent(new CustomEvent('channels-updated'))
         window.dispatchEvent(new CustomEvent('agents-updated'))
         window.dispatchEvent(new CustomEvent('workflows-updated'))
+        window.dispatchEvent(new CustomEvent('teams-updated'))
         fetchData()
       } else {
         const error = await response.json().catch(() => ({}))
@@ -1495,6 +1517,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
               Array.isArray(remaining.groups) && remaining.groups.length > 0 ? `${remaining.groups.length} groups` : null,
               Array.isArray(remaining.agents) && remaining.agents.length > 0 ? `${remaining.agents.length} agents` : null,
               Array.isArray(remaining.workflows) && remaining.workflows.length > 0 ? `${remaining.workflows.length} workflows` : null,
+              Array.isArray(remaining.teams) && remaining.teams.length > 0 ? `${remaining.teams.length} teams` : null,
             ].filter(Boolean).join(', ')
           : null
         showToast(detail ? `Cascade delete incomplete: ${detail} remain` : `Failed to delete ${type}`, 'error')

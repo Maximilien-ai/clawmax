@@ -15,6 +15,9 @@ export interface IntegrationValidationResponse {
 
 type FetchLike = typeof fetch
 
+const OPENAI_VALIDATION_MODEL = 'gpt-4o-mini'
+const ANTHROPIC_VALIDATION_MODEL = 'claude-3-5-haiku-latest'
+
 function detectProviderFromKeyShape(key: string): 'openai' | 'anthropic' | 'gemini' | null {
   const trimmed = key.trim()
   if (!trimmed) return null
@@ -22,6 +25,16 @@ function detectProviderFromKeyShape(key: string): 'openai' | 'anthropic' | 'gemi
   if (/^AIza[0-9A-Za-z\-_]{20,}$/i.test(trimmed)) return 'gemini'
   if (/^sk-(?!ant-)[0-9A-Za-z_\-]{10,}$/i.test(trimmed)) return 'openai'
   return null
+}
+
+function looksLikeSubscriptionCredential(value: string): boolean {
+  const trimmed = value.trim()
+  if (!trimmed) return false
+  return /^sess-/i.test(trimmed)
+    || /^ya29\./i.test(trimmed)
+    || /^1\/\//.test(trimmed)
+    || /^gh[opusr]_/i.test(trimmed)
+    || /^github_pat_/i.test(trimmed)
 }
 
 function providerShapeMismatch(
@@ -38,6 +51,24 @@ function providerShapeMismatch(
   } as const
 
   return invalid(`This looks like a ${labels[detected]} key, not a ${labels[provider]} key`)
+}
+
+function providerCredentialShapeMismatch(
+  provider: 'openai' | 'anthropic',
+  apiKey: string
+): IntegrationValidationResult | null {
+  const trimmed = apiKey.trim()
+  if (!trimmed) return null
+
+  const expectedPrefix = provider === 'openai' ? /^sk-/i : /^sk-ant-/i
+  if (expectedPrefix.test(trimmed)) return null
+
+  const label = provider === 'openai' ? 'OpenAI' : 'Anthropic'
+  if (looksLikeSubscriptionCredential(trimmed)) {
+    return invalid(`${label} subscription or app credentials cannot be used here. Use a ${label} developer API key instead.`)
+  }
+
+  return invalid(`This does not look like a ${label} developer API key. Check Key only works with real prompt-capable API keys.`)
 }
 
 function skipped(message: string): IntegrationValidationResult {
@@ -60,16 +91,26 @@ export async function validateOpenAIKey(apiKey: string, fetchImpl: FetchLike = f
   if (!apiKey.trim()) return skipped('No OpenAI key provided')
   const mismatch = providerShapeMismatch('openai', apiKey)
   if (mismatch) return mismatch
+  const credentialMismatch = providerCredentialShapeMismatch('openai', apiKey)
+  if (credentialMismatch) return credentialMismatch
   try {
-    const res = await fetchImpl('https://api.openai.com/v1/models', {
+    const res = await fetchImpl('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
       headers: { Authorization: `Bearer ${apiKey.trim()}` },
+      body: JSON.stringify({
+        model: OPENAI_VALIDATION_MODEL,
+        messages: [{ role: 'user', content: 'Reply with OK' }],
+        max_tokens: 5,
+        temperature: 0,
+      }),
       signal: AbortSignal.timeout(8000),
     })
-    if (res.ok) return valid('OpenAI key is valid')
+    if (res.ok) return valid('OpenAI key is valid and can complete prompts')
     if (res.status === 401 || res.status === 403) return invalid('OpenAI rejected this key')
-    return errored(`OpenAI validation returned ${res.status}`)
+    if (res.status === 400 || res.status === 404) return invalid(`OpenAI key could not complete a test prompt on ${OPENAI_VALIDATION_MODEL}`)
+    return errored(`OpenAI prompt validation returned ${res.status}`)
   } catch (err: any) {
-    return errored(`OpenAI validation failed: ${err.message || 'network error'}`)
+    return errored(`OpenAI prompt validation failed: ${err.message || 'network error'}`)
   }
 }
 
@@ -77,19 +118,29 @@ export async function validateAnthropicKey(apiKey: string, fetchImpl: FetchLike 
   if (!apiKey.trim()) return skipped('No Anthropic key provided')
   const mismatch = providerShapeMismatch('anthropic', apiKey)
   if (mismatch) return mismatch
+  const credentialMismatch = providerCredentialShapeMismatch('anthropic', apiKey)
+  if (credentialMismatch) return credentialMismatch
   try {
-    const res = await fetchImpl('https://api.anthropic.com/v1/models?limit=1', {
+    const res = await fetchImpl('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
       headers: {
         'x-api-key': apiKey.trim(),
         'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
       },
+      body: JSON.stringify({
+        model: ANTHROPIC_VALIDATION_MODEL,
+        max_tokens: 5,
+        messages: [{ role: 'user', content: 'Reply with OK' }],
+      }),
       signal: AbortSignal.timeout(8000),
     })
-    if (res.ok) return valid('Anthropic key is valid')
+    if (res.ok) return valid('Anthropic key is valid and can complete prompts')
     if (res.status === 401 || res.status === 403) return invalid('Anthropic rejected this key')
-    return errored(`Anthropic validation returned ${res.status}`)
+    if (res.status === 400 || res.status === 404) return invalid(`Anthropic key could not complete a test prompt on ${ANTHROPIC_VALIDATION_MODEL}`)
+    return errored(`Anthropic prompt validation returned ${res.status}`)
   } catch (err: any) {
-    return errored(`Anthropic validation failed: ${err.message || 'network error'}`)
+    return errored(`Anthropic prompt validation failed: ${err.message || 'network error'}`)
   }
 }
 

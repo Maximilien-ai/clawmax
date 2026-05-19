@@ -45,6 +45,11 @@ interface AiExecutionConfig {
   }
 }
 
+export interface AiGenerationReadiness {
+  enabled: boolean
+  warning?: string
+}
+
 export function isOllamaUiAvailable(config?: AiExecutionConfig | null): boolean {
   return config?.ollamaEnabled === true && !!config.defaultOllamaBaseUrl
 }
@@ -221,6 +226,47 @@ export function hasAiGenerationAccess(config?: AiExecutionConfig | null): boolea
     return true
   }
   return false
+}
+
+export function getAiGenerationReadiness(config?: AiExecutionConfig | null): AiGenerationReadiness {
+  const enabled = hasAiGenerationAccess(config)
+  if (!enabled) {
+    return {
+      enabled: false,
+      warning: 'AI generation will fail until you add and verify an OpenAI or Anthropic key, or use a usable shared hosted execution path.',
+    }
+  }
+
+  const byok = readStoredByokKeys()
+  const verifiedProviders = byok.verifiedProviders || {}
+  const hasSharedHostedExecution = !!(
+    config?.userKeyDefaults?.openai
+    || config?.userKeyDefaults?.anthropic
+    || (config?.allowSystemKeysForUserExecution && (config?.systemKeyDefaults?.openai || config?.systemKeyDefaults?.anthropic))
+  )
+
+  const openaiFingerprint = buildByokVerificationFingerprint('openai', { openai: byok.openai })
+  const anthropicFingerprint = buildByokVerificationFingerprint('anthropic', { anthropic: byok.anthropic })
+  const openaiVerified = !!openaiFingerprint && verifiedProviders.openai === openaiFingerprint
+  const anthropicVerified = !!anthropicFingerprint && verifiedProviders.anthropic === anthropicFingerprint
+  const hasHostedBrowserKey = !!(byok.openai?.trim() || byok.anthropic?.trim())
+  const hasVerifiedHostedBrowserKey = openaiVerified || anthropicVerified
+
+  if (hasHostedBrowserKey && !hasVerifiedHostedBrowserKey && !hasSharedHostedExecution) {
+    return {
+      enabled: true,
+      warning: 'Your browser-local OpenAI or Anthropic key has not been verified yet. AI generation may fail until you run Check Key in BYOK.',
+    }
+  }
+
+  if (!hasHostedBrowserKey && !hasSharedHostedExecution) {
+    return {
+      enabled: true,
+      warning: 'No verified hosted key is available for AI generation yet. Add and check an OpenAI or Anthropic key in BYOK if generation fails.',
+    }
+  }
+
+  return { enabled: true }
 }
 
 /** Check whether the current browser/user execution path can actually run chat turns */

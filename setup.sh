@@ -482,69 +482,22 @@ fi
 echo ""
 
 # ============================================================================
-# 4. API Keys Configuration
+# 4. Keys & BYOK
 # ============================================================================
 
-print_header "4. API Keys"
+print_header "4. Keys & BYOK"
 
-echo "  ClawMax uses AI model APIs for agent creation and execution."
-echo "  You only need one provider key to continue."
+echo "  setup.sh no longer collects provider or monitoring keys."
+echo "  This keeps open-source setup consistent across clean machines."
 echo ""
-echo -e "  ${BOLD}Key scopes:${NC}"
-echo "    SYSTEM_* keys — used by dashboard features (AI generate, templates)"
-echo "    USER_* keys   — used by your agents and workflows"
-echo "    BYOK           — users can also provide keys in-browser"
-echo "    OpenAI or Anthropic is enough for setup; you do not need both"
+echo -e "  ${BOLD}Recommended path:${NC}"
+echo "    1. Finish setup and start the dashboard"
+echo "    2. Add model keys later in BYOK or Keys & Secrets"
+echo "    3. Optionally edit SYSTEM/dashboard/.env for shared runtime keys"
 echo ""
-
-SYSTEM_OPENAI_KEY=""
-SYSTEM_ANTHROPIC_KEY=""
-OPIK_KEY=""
-
-if [ "$INTERACTIVE" = true ]; then
-  # OpenAI
-  echo -e "  ${CYAN}OpenAI${NC} — for GPT models (gpt-4o, gpt-4o-mini, gpt-5)"
-  echo "  Get key: https://platform.openai.com/api-keys"
-  read -p "  SYSTEM_OPENAI_API_KEY (paste or Enter to skip): " SYSTEM_OPENAI_KEY
-  if [ -n "$SYSTEM_OPENAI_KEY" ]; then
-    print_success "OpenAI key configured"
-  else
-    print_info "Skipped OpenAI (can add later in .env)"
-  fi
-  echo ""
-
-  # Anthropic
-  echo -e "  ${CYAN}Anthropic${NC} — for Claude models (claude-sonnet-4, claude-opus-4-6)"
-  echo "  Get key: https://console.anthropic.com/settings/keys"
-  read -p "  SYSTEM_ANTHROPIC_API_KEY (paste or Enter to skip): " SYSTEM_ANTHROPIC_KEY
-  if [ -n "$SYSTEM_ANTHROPIC_KEY" ]; then
-    print_success "Anthropic key configured"
-  else
-    print_info "Skipped Anthropic (can add later in .env)"
-  fi
-  echo ""
-
-  if [ -z "$SYSTEM_OPENAI_KEY" ] && [ -z "$SYSTEM_ANTHROPIC_KEY" ]; then
-    print_warning "No API keys configured — AI features will be limited"
-    print_info "Add keys later: edit SYSTEM/dashboard/.env"
-  fi
-  echo ""
-
-  # Opik (optional monitoring)
-  echo -e "  ${CYAN}Comet Opik${NC} — optional agent monitoring and cost tracking"
-  echo "  Get key: https://www.comet.com/signup (free tier available)"
-  if ask_yn "Configure Opik monitoring?"; then
-    read -p "  OPIK_API_KEY: " OPIK_KEY
-    if [ -n "$OPIK_KEY" ]; then
-      read -p "  OPIK_WORKSPACE (default: clawmax): " OPIK_WORKSPACE
-      OPIK_WORKSPACE=${OPIK_WORKSPACE:-clawmax}
-      read -p "  OPIK_PROJECT_NAME (required, e.g. clawmax-dev / clawmax-cloud / clawmax-on-prem / clawmax-enterprise): " OPIK_PROJECT_NAME
-      print_success "Opik configured"
-    fi
-  else
-    print_info "Skipped Opik (can add later)"
-  fi
-fi
+echo "  This also means partner integrations are opt-in by default."
+echo ""
+print_info "No API keys will be written by setup.sh"
 
 echo ""
 
@@ -711,22 +664,10 @@ fi
 
 cat >> "$ENV_FILE" << ENVEOF
 
-# API Keys — at least one provider required for AI features
-ENVEOF
-
-if [ -n "$SYSTEM_OPENAI_KEY" ]; then
-  echo "SYSTEM_OPENAI_API_KEY=$SYSTEM_OPENAI_KEY" >> "$ENV_FILE"
-else
-  echo "# SYSTEM_OPENAI_API_KEY=sk-..." >> "$ENV_FILE"
-fi
-
-if [ -n "$SYSTEM_ANTHROPIC_KEY" ]; then
-  echo "SYSTEM_ANTHROPIC_API_KEY=$SYSTEM_ANTHROPIC_KEY" >> "$ENV_FILE"
-else
-  echo "# SYSTEM_ANTHROPIC_API_KEY=sk-ant-..." >> "$ENV_FILE"
-fi
-
-cat >> "$ENV_FILE" << ENVEOF
+# Hosted provider keys are optional here.
+# Add them later in BYOK / Keys & Secrets, or uncomment these for shared runtime defaults:
+# SYSTEM_OPENAI_API_KEY=sk-...
+# SYSTEM_ANTHROPIC_API_KEY=sk-ant-...
 
 # Allow system keys for user agent execution (dev convenience)
 ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION=true
@@ -737,31 +678,22 @@ ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION=true
 # CLAWMAX_WORKFLOW_AGENT_TIMEOUT_MS=600000
 
 # Partner integrations shown in Workspaces Integrations (comma-separated)
-WORKSPACES_INTEGRATIONS_THIRD_PARTIES=senso,opik,github
+# Default is opt-in: leave empty until a user selects partners explicitly.
+WORKSPACES_INTEGRATIONS_THIRD_PARTIES=
 
 # Extra partner definition roots (optional)
 # Built-in partner definitions ship in repo PARTNERS/
 CLAWMAX_EXTRA_PARTNER_DIRS=$WORKSPACE/PARTNERS
 ENVEOF
 
-# Opik
-if [ -n "$OPIK_KEY" ]; then
-  cat >> "$ENV_FILE" << ENVEOF
-
-# Comet Opik — agent monitoring and cost tracking
-OPIK_API_KEY=$OPIK_KEY
-OPIK_WORKSPACE="${OPIK_WORKSPACE:-clawmax}"
-OPIK_PROJECT_NAME="$OPIK_PROJECT_NAME"
-ENVEOF
-else
-  cat >> "$ENV_FILE" << 'ENVEOF'
+cat >> "$ENV_FILE" << 'ENVEOF'
 
 # Comet Opik — optional monitoring (https://www.comet.com/signup)
+# Add these later if you want runtime tracing and budget data:
 # OPIK_API_KEY=
 # OPIK_WORKSPACE=clawmax
 # OPIK_PROJECT_NAME=<choose-a-project-name>
 ENVEOF
-fi
 
 print_success "Created .env file"
 if [ "$AUTH_MODE" = "email_otp" ]; then

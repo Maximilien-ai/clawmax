@@ -8,9 +8,27 @@ import { safeEnv } from './safe-env'
 
 interface GatewayConfig {
   port: number
+  host?: string
+  httpUrl?: string
+  wsUrl?: string
   auth: {
     mode: string
     token: string
+  }
+}
+
+function normalizeGatewayHttpUrl(raw: string): string | null {
+  const trimmed = String(raw || '').trim()
+  if (!trimmed) return null
+  try {
+    const url = new URL(trimmed)
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null
+    url.pathname = ''
+    url.search = ''
+    url.hash = ''
+    return url.toString().replace(/\/$/, '')
+  } catch {
+    return null
   }
 }
 
@@ -21,8 +39,27 @@ function parseGatewayConfig(config: any): GatewayConfig | null {
     return null
   }
 
+  const overrideUrl = normalizeGatewayHttpUrl(process.env.OPENCLAW_GATEWAY_URL || '')
+  if (overrideUrl) {
+    const parsed = new URL(overrideUrl)
+    const protocol = parsed.protocol === 'https:' ? 'wss:' : 'ws:'
+    return {
+      port: Number(parsed.port) || port,
+      host: parsed.hostname,
+      httpUrl: overrideUrl,
+      wsUrl: `${protocol}//${parsed.host}`,
+      auth: {
+        mode: config?.gateway?.auth?.mode || 'token',
+        token,
+      },
+    }
+  }
+
   return {
     port,
+    host: '127.0.0.1',
+    httpUrl: `http://127.0.0.1:${port}`,
+    wsUrl: `ws://127.0.0.1:${port}`,
     auth: {
       mode: config?.gateway?.auth?.mode || 'token',
       token,
@@ -87,7 +124,7 @@ export class GatewayRPCClient {
 
   constructor() {
     const config = this.loadGatewayConfig()
-    this.gatewayUrl = `ws://127.0.0.1:${config.port}`
+    this.gatewayUrl = config.wsUrl || `ws://127.0.0.1:${config.port}`
     this.authToken = config.auth.token
   }
 
@@ -358,24 +395,27 @@ export function getConfiguredGatewayPort(): number | null {
 }
 
 export function isGatewayRunning(): { running: boolean; port: number | null } {
-  const port = getConfiguredGatewayPort()
-  if (!port) return { running: false, port: null }
+  const config = loadGatewayConfigFromDisk()
+  const port = config?.port ?? null
+  if (!port || !config) return { running: false, port: null }
 
   try {
-    execSync(`lsof -ti:${port}`, { stdio: 'pipe', env: safeEnv() })
+    if (config.host === '127.0.0.1') {
+      execSync(`lsof -ti:${port}`, { stdio: 'pipe', env: safeEnv() })
+      return { running: true, port }
+    }
+  } catch {}
+
+  try {
+    // Minimal Linux images often omit `lsof`; probe the configured TCP host directly as a fallback.
+    execSync(`bash -lc 'exec 3<>/dev/tcp/${config.host || '127.0.0.1'}/${port}'`, {
+      stdio: 'pipe',
+      timeout: 1500,
+      env: safeEnv(),
+    })
     return { running: true, port }
   } catch {
-    try {
-      // Minimal Linux images often omit `lsof`; probe the TCP port directly as a fallback.
-      execSync(`bash -lc 'exec 3<>/dev/tcp/127.0.0.1/${port}'`, {
-        stdio: 'pipe',
-        timeout: 1500,
-        env: safeEnv(),
-      })
-      return { running: true, port }
-    } catch {
-      return { running: false, port }
-    }
+    return { running: false, port }
   }
 }
 
@@ -384,7 +424,7 @@ export async function probeGatewayResponsive(timeoutMs = 3000): Promise<{ runnin
   if (!config) return { running: false, port: null }
 
   return new Promise((resolve) => {
-    const ws = new WebSocket(`ws://127.0.0.1:${config.port}`)
+    const ws = new WebSocket(config.wsUrl || `ws://127.0.0.1:${config.port}`)
     const timer = setTimeout(() => {
       try { ws.close() } catch {}
       resolve({ running: false, port: config.port, error: 'Gateway timed out during authenticated probe' })

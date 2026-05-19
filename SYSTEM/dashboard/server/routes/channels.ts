@@ -9,6 +9,8 @@ import { normalizeChatMessage } from '../lib/chat-normalization'
 import { listWorkflows, resolveParticipants, deleteWorkflow } from '../lib/workflows'
 import { getConfiguredDashboardInstanceId, traceAgentChat } from '../lib/opik'
 import { isGatewayConfigured, isGatewayRunning } from '../lib/gateway-rpc'
+import { deleteTeams, listTeams } from '../lib/teams'
+import { findImpactedTopLevelTeamsForCommunityDelete } from '../lib/organization-delete'
 import {
   resolveAgentExecutionConfig,
   runExclusiveAgentExecution,
@@ -154,12 +156,25 @@ router.delete('/communities/:name', (req, res) => {
     try {
       const allAgents = listAgents().filter((agent: any) => !agent.archived)
       const agentsDir = getAgentsDir()
+      const parsedCommunitiesPath = path.join(getWorkspacePath(), 'ORG', 'COMMUNITIES.md')
       const parsedGroupsPath = path.join(getWorkspacePath(), 'ORG', 'GROUPS.md')
+      const parsedCommunities = fs.existsSync(parsedCommunitiesPath)
+        ? parseGroupsWithMembers(fs.readFileSync(parsedCommunitiesPath, 'utf-8')).communities
+        : []
       const parsedGroups = fs.existsSync(parsedGroupsPath)
         ? parseGroupsWithMembers(fs.readFileSync(parsedGroupsPath, 'utf-8')).groups
         : []
       const communityGroups = parsedGroups.filter((group) => group.community === communityName)
       const groupNames = new Set(communityGroups.map((group) => group.name))
+      const teams = listTeams()
+      const impactedTeamPlans = findImpactedTopLevelTeamsForCommunityDelete({
+        communityName,
+        teams,
+        groups: parsedGroups,
+        communities: parsedCommunities,
+        workflows: listWorkflows(),
+      })
+      const teamIdsToDelete = Array.from(new Set(impactedTeamPlans.flatMap((plan) => plan.teamIds)))
       const agents = allAgents.filter((agent) => {
         const indexedMembership =
           (agent.communities || []).some((community: any) => {
@@ -204,6 +219,7 @@ router.delete('/communities/:name', (req, res) => {
       const groupResults = communityGroups.map((group) => ({ groupName: group.name, deleted: deleteGroup('group', group.name) }))
       const agentResults = agents.map((agent) => ({ agentId: agent.id, result: deleteAgent(agent.id, true, false) }))
       const communityDeleted = deleteGroup('community', communityName)
+      const deletedTeamIds = communityDeleted ? deleteTeams(teamIdsToDelete) : []
 
       if (!communityDeleted) {
         res.status(404).json({ ok: false, error: 'Community not found' })
@@ -233,12 +249,16 @@ router.delete('/communities/:name', (req, res) => {
       const remainingWorkflows = listWorkflows()
         .filter((workflow) => workflowsToDelete.some((candidate) => candidate.id === workflow.id))
         .map((workflow) => workflow.id)
+      const remainingTeams = listTeams()
+        .filter((team) => teamIdsToDelete.includes(team.id))
+        .map((team) => team.id)
 
       const hadVerificationFailure =
         remainingCommunity ||
         remainingGroupsForCommunity.length > 0 ||
         remainingAgents.length > 0 ||
-        remainingWorkflows.length > 0
+        remainingWorkflows.length > 0 ||
+        remainingTeams.length > 0
 
       const ok =
         workflowFailures.length === 0 &&
@@ -254,6 +274,7 @@ router.delete('/communities/:name', (req, res) => {
           groups: groupResults.filter((item) => item.deleted).map((item) => item.groupName),
           agents: agentResults.map((item) => item.agentId),
           workflows: workflowResults.filter((item) => item.result.success).map((item) => item.workflowId),
+          teams: deletedTeamIds,
         },
         failures: {
           groups: groupFailures,
@@ -265,6 +286,7 @@ router.delete('/communities/:name', (req, res) => {
           groups: remainingGroupsForCommunity,
           agents: remainingAgents,
           workflows: remainingWorkflows,
+          teams: remainingTeams,
         },
       }
 

@@ -41,6 +41,29 @@ test('parseGatewayConfig falls back to gateway.remote.token when auth token is a
   assert(parsed?.auth.mode === 'token', `Expected auth mode preserved, got ${parsed?.auth.mode}`)
 })
 
+test('parseGatewayConfig honors OPENCLAW_GATEWAY_URL override', () => {
+  const originalGatewayUrl = process.env.OPENCLAW_GATEWAY_URL
+  process.env.OPENCLAW_GATEWAY_URL = 'http://host.containers.internal:18789'
+
+  try {
+    const parsed = __test.parseGatewayConfig({
+      gateway: {
+        port: 18889,
+        auth: { mode: 'token', token: 'gateway-token' },
+      },
+    })
+
+    assert(!!parsed, 'Expected config to parse')
+    assert(parsed?.port === 18789, `Expected override port 18789, got ${parsed?.port}`)
+    assert(parsed?.host === 'host.containers.internal', `Expected override host, got ${parsed?.host}`)
+    assert(parsed?.httpUrl === 'http://host.containers.internal:18789', `Expected override httpUrl, got ${parsed?.httpUrl}`)
+    assert(parsed?.wsUrl === 'ws://host.containers.internal:18789', `Expected override wsUrl, got ${parsed?.wsUrl}`)
+  } finally {
+    if (typeof originalGatewayUrl === 'undefined') delete process.env.OPENCLAW_GATEWAY_URL
+    else process.env.OPENCLAW_GATEWAY_URL = originalGatewayUrl
+  }
+})
+
 setTimeout(() => {
   console.log(`\nPassed: ${testsPassed}`)
   console.log(`Failed: ${testsFailed}`)

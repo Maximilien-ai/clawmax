@@ -370,6 +370,16 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Organization delete unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/organization-delete.test.ts > /tmp/clawmax-organization-delete.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-organization-delete.out; then
+  organization_delete_count=$(grep "Tests passed:" /tmp/clawmax-organization-delete.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Organization delete unit tests (${organization_delete_count:-?} tests)"
+else
+  fail "Organization delete unit tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Template feedback unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/template-feedback.test.ts > /tmp/clawmax-template-feedback.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-template-feedback.out; then
@@ -505,6 +515,15 @@ if grep -q '^✓ ' /tmp/clawmax-agent-chat-session.out; then
 else
   cat /tmp/clawmax-agent-chat-session.out
   fail "Agent chat session helper unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Agent template option helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/agentTemplateOptions.test.ts > /tmp/clawmax-agent-template-options.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-agent-template-options.out; then
+  agent_template_option_count=$(grep "Tests passed:" /tmp/clawmax-agent-template-options.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Agent template option helper unit tests (${agent_template_option_count:-?} tests)"
+else
+  fail "Agent template option helper unit tests"
 fi
 
 echo -e "${YELLOW}→ Running Discovery suggestion helper unit tests...${NC}"

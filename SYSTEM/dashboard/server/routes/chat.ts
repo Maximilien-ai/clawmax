@@ -151,9 +151,9 @@ router.get('/:id/gateway', (req, res) => {
   }
 
   // Check if gateway is actually running by attempting a quick connection (no /rpc path)
-  const ws = new WebSocket(`ws://127.0.0.1:${gatewayConfig.port}`, {
+  const ws = new WebSocket(gatewayConfig.wsUrl || `ws://127.0.0.1:${gatewayConfig.port}`, {
     headers: {
-      'Origin': `http://localhost:${gatewayConfig.port}`
+      'Origin': gatewayConfig.httpUrl || `http://localhost:${gatewayConfig.port}`
     }
   })
   const timeout = setTimeout(() => {

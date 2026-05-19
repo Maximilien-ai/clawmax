@@ -7,7 +7,7 @@
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import { createTeam, deleteTeam, getTeam, listTeams, updateTeam } from './teams'
+import { createTeam, deleteTeam, deleteTeams, getTeam, listTeams, updateTeam } from './teams'
 import { resetWorkspaceManagerForTests } from './workspace-manager'
 
 const GREEN = '\x1b[32m'
@@ -139,6 +139,25 @@ test('deleteTeam clears parentTeamId from children', () => {
   const product = getTeam('product')
   assert(deleted === true, 'Expected delete to succeed')
   assert(product?.parentTeamId === undefined, 'Expected child parentTeamId to be cleared')
+})
+
+test('deleteTeams removes subtrees in one pass', () => {
+  const root = createTeam({
+    name: 'Revenue',
+    leaderAgentId: 'ceo',
+    memberAgentIds: ['pm'],
+  })
+  const child = createTeam({
+    name: 'Revenue Ops',
+    leaderAgentId: 'pm',
+    parentTeamId: root.id,
+  })
+  const deletedIds = deleteTeams([root.id, child.id])
+
+  assert(deletedIds.includes(root.id), 'Expected root team to be deleted')
+  assert(deletedIds.includes(child.id), 'Expected child team to be deleted')
+  assert(getTeam(root.id) === null, 'Expected deleted root team to be absent')
+  assert(getTeam(child.id) === null, 'Expected deleted child team to be absent')
 })
 
 if (typeof originalHome === 'undefined') delete process.env.HOME

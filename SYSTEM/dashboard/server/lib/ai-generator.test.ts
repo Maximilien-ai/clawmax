@@ -14,6 +14,7 @@ import {
   normalizePromptExpansionTarget,
   parseJsonResponse,
   shouldGenerateCompanyTemplate,
+  validateAiGenerationProviderKeys,
 } from './ai-generator'
 
 let passed = 0
@@ -60,6 +61,27 @@ test('isOneTimeScheduleRequest detects one-time cron requests', () => {
 test('explainOneTimeCronLimitation returns actionable guidance', () => {
   assert.match(explainOneTimeCronLimitation(), /Cron expressions always repeat/i)
   assert.match(explainOneTimeCronLimitation(), /manually/i)
+})
+
+test('validateAiGenerationProviderKeys rejects OpenAI subscription or session-style credentials', () => {
+  assert.throws(
+    () => validateAiGenerationProviderKeys({ openai: 'sess_demo_subscription_key' } as any),
+    /OpenAI developer API key|Subscription or app credentials/i
+  )
+})
+
+test('validateAiGenerationProviderKeys rejects Anthropic non-developer credentials', () => {
+  assert.throws(
+    () => validateAiGenerationProviderKeys({ anthropic: 'ya29.subscription-token-demo' } as any),
+    /Anthropic subscription or app credentials cannot be used here/i
+  )
+})
+
+test('validateAiGenerationProviderKeys rejects provider mismatches with a clear message', () => {
+  assert.throws(
+    () => validateAiGenerationProviderKeys({ openai: 'sk-ant-demo-key-value' } as any),
+    /looks like a Anthropic key, not a OpenAI developer API key/i
+  )
 })
 
 test('shouldGenerateCompanyTemplate infers company from prompt unless agent is explicit', () => {

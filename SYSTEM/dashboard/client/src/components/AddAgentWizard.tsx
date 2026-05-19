@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { readStoredByokKeys, fetchModelsWithByok, hasAiGenerationAccess, isOllamaUiAvailable } from '../lib/byok'
+import { readStoredByokKeys, fetchModelsWithByok, getAiGenerationReadiness, hasAiGenerationAccess, isOllamaUiAvailable } from '../lib/byok'
 import { expandPromptWithAI } from '../lib/aiPrompt'
+import { normalizeAgentTemplateOption } from '../lib/agentTemplateOptions'
 import { useAuth } from '../contexts/AuthContext'
 import AIPromptEditorModal from './AIPromptEditorModal'
 
@@ -47,9 +48,29 @@ interface ValidationResult {
   warnings: string[]
 }
 
+function normalizePromptInput(override: unknown, fallback: string): string {
+  return typeof override === 'string' ? override.trim() : fallback.trim()
+}
+
+function friendlyProvisionError(message: string): string {
+  const text = String(message || '').trim()
+  if (!text) return 'Provisioning failed. Check the fields above and try again.'
+  if (/Template ".*" was not found/i.test(text)) {
+    return 'The selected template could not be found anymore. Refresh the template list or choose the template again before provisioning.'
+  }
+  if (/Clone source ".*" was not found/i.test(text)) {
+    return 'The selected clone source no longer exists. Pick another source agent or clear the clone option.'
+  }
+  if (/Model is required/i.test(text)) {
+    return 'Choose a model before provisioning this agent.'
+  }
+  return text
+}
+
 export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, startWithAI }: WizardProps) {
   const { config } = useAuth()
   const aiEnabled = hasAiGenerationAccess(config)
+  const aiReadiness = getAiGenerationReadiness(config)
   const ollamaEnabled = isOllamaUiAvailable(config)
   const [step, setStep] = useState<Step>(startWithAI ? 2 : 1)
   const [form, setForm] = useState<FormState>({
@@ -91,6 +112,9 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
   const [validationErrors, setValidationErrors] = useState<string[]>([])
   const [validationWarnings, setValidationWarnings] = useState<string[]>([])
   const [validatingProvision, setValidatingProvision] = useState(false)
+  const selectedTemplate = form.templateSlug ? agentTemplates.find(t => t.slug === form.templateSlug) : null
+  const templateSelectionMissing = !!form.templateSlug && !selectedTemplate
+  const cloneSelectionMissing = !!form.cloneFrom && !existingAgents.includes(form.cloneFrom)
 
   // Fetch available models, suggested ID + port and existing agents list on mount
   useEffect(() => {
@@ -178,14 +202,7 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
     fetch('/api/templates/agents')
       .then(r => r.json())
       .then(d => {
-        const templates = (d.templates || []).map((t: any) => ({
-          name: t.name,
-          slug: t.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
-          description: t.description,
-          tags: t.tags || [],
-          metadata: t.metadata || {},
-          agents: t.agents || []
-        }))
+        const templates = (d.templates || []).map((t: any) => normalizeAgentTemplateOption(t))
         setAgentTemplates(templates)
       })
       .catch(() => {})
@@ -283,14 +300,56 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
 
   const nameOk = /^[a-z][a-z0-9_-]*$/.test(form.name)
   const canNext: Record<Step, boolean> = {
-    1: nameOk && form.model.length > 0,
+    1: nameOk && form.model.length > 0 && !templateSelectionMissing && !cloneSelectionMissing,
     2: true, // AI generation is optional
     3: true, // whatsapp is optional
     4: false, // provision button handles this
   }
 
+  function clearProvisionValidation() {
+    setValidationErrors([])
+    setValidationWarnings([])
+    setProvError(null)
+  }
+
+  async function validateProvisionDraft(): Promise<boolean> {
+    setValidatingProvision(true)
+    setProvError(null)
+
+    try {
+      const validationResp = await fetch('/api/agents/validate-provision', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: form.name,
+          model: form.model,
+          cloneFrom: form.cloneFrom || undefined,
+          templateSlug: form.templateSlug || undefined,
+          whatsapp: form.whatsapp || undefined,
+          port: form.port || undefined,
+          tags: [...new Set(form.tags)],
+          generatedFiles: generatedFiles || undefined,
+        }),
+      })
+      const validation = await validationResp.json() as ValidationResult
+      setValidationErrors(Array.isArray(validation.errors) ? validation.errors : [])
+      setValidationWarnings(Array.isArray(validation.warnings) ? validation.warnings : [])
+
+      if (!validationResp.ok || !validation.valid) {
+        setProvError(friendlyProvisionError((validation.errors || []).join('\n') || 'Validation failed'))
+        return false
+      }
+      return true
+    } catch (e) {
+      setProvError(friendlyProvisionError(`Failed to validate agent config: ${String(e)}`))
+      return false
+    } finally {
+      setValidatingProvision(false)
+    }
+  }
+
   async function generateWithAI(descriptionOverride?: string) {
-    const description = (descriptionOverride ?? form.aiDescription).trim()
+    const description = normalizePromptInput(descriptionOverride, form.aiDescription)
     if (!description) return
     if (!aiEnabled) {
       setGenError('AI generation needs browser-local keys or a usable shared execution path first. Open Workspaces Integrations or Keys & Secrets before generating.')
@@ -353,40 +412,9 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
   }
 
   async function provision() {
-    setValidatingProvision(true)
-    setProvError(null)
+    const valid = await validateProvisionDraft()
+    if (!valid) return
 
-    try {
-      const validationResp = await fetch('/api/agents/validate-provision', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: form.name,
-          model: form.model,
-          cloneFrom: form.cloneFrom || undefined,
-          templateSlug: form.templateSlug || undefined,
-          whatsapp: form.whatsapp || undefined,
-          port: form.port || undefined,
-          tags: [...new Set(form.tags)],
-          generatedFiles: generatedFiles || undefined,
-        }),
-      })
-      const validation = await validationResp.json() as ValidationResult
-      setValidationErrors(Array.isArray(validation.errors) ? validation.errors : [])
-      setValidationWarnings(Array.isArray(validation.warnings) ? validation.warnings : [])
-
-      if (!validationResp.ok || !validation.valid) {
-        setProvError((validation.errors || []).join('\n') || 'Validation failed')
-        setValidatingProvision(false)
-        return
-      }
-    } catch (e) {
-      setProvError(`Failed to validate agent config: ${String(e)}`)
-      setValidatingProvision(false)
-      return
-    }
-
-    setValidatingProvision(false)
     setProvisioning(true)
     setProvError(null)
     setLogs([])
@@ -412,7 +440,7 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
       })
 
       if (!resp.ok || !resp.body) {
-        setProvError('Server error')
+        setProvError('Provisioning could not start. Please verify the selected template, model, and clone source, then try again.')
         setProvisioning(false)
         return
       }
@@ -438,18 +466,18 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
                 window.dispatchEvent(new CustomEvent('agents-updated'))
                 setDone(true)
               } else {
-                setProvError(`Setup failed: ${msg.data}`)
+                setProvError(friendlyProvisionError(`Setup failed: ${msg.data}`))
               }
               setProvisioning(false)
             } else if (msg.type === 'error') {
-              setProvError(msg.data)
+              setProvError(friendlyProvisionError(msg.data))
               setProvisioning(false)
             }
           } catch {}
         }
       }
     } catch (e) {
-      setProvError(String(e))
+      setProvError(friendlyProvisionError(String(e)))
       setProvisioning(false)
     }
   }
@@ -457,6 +485,14 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
   async function createAgentNowFromAI() {
     setStep(4)
     await provision()
+  }
+
+  async function handleNextStep() {
+    if (step === 3) {
+      const valid = await validateProvisionDraft()
+      if (!valid) return
+    }
+    setStep(s => (s + 1) as Step)
   }
 
   // Config preview JSON
@@ -578,6 +614,7 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
                   <select
                     value={form.templateSlug}
                     onChange={e => {
+                      clearProvisionValidation()
                       set('templateSlug', e.target.value)
                       if (e.target.value) {
                         set('cloneFrom', '')  // Clear cloneFrom if template selected
@@ -604,6 +641,11 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
                       ? 'Tags and description will be pre-filled from template'
                       : 'Use a saved template as starting point (SOUL, IDENTITY, TOOLS)'}
                   </p>
+                  {templateSelectionMissing && (
+                    <p className="mt-2 text-xs text-red-500">
+                      The selected template is no longer available. Refresh the template list or choose it again.
+                    </p>
+                  )}
                 </div>
               )}
               {existingAgents.length > 0 && (
@@ -612,6 +654,7 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
                   <select
                     value={form.cloneFrom}
                     onChange={e => {
+                      clearProvisionValidation()
                       set('cloneFrom', e.target.value)
                       if (e.target.value) set('templateSlug', '')  // Clear template if clone selected
                     }}
@@ -622,6 +665,11 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
                     {existingAgents.map(id => <option key={id} value={id}>{id}</option>)}
                   </select>
                   <p className="mt-1 text-xs text-gray-400">Copies all files from an existing agent.</p>
+                  {cloneSelectionMissing && (
+                    <p className="mt-2 text-xs text-red-500">
+                      The selected source agent no longer exists. Pick another source or clear clone mode.
+                    </p>
+                  )}
                 </div>
               )}
               <div>
@@ -728,6 +776,16 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
                       Open Keys & Secrets
                     </button>
                   </div>
+                </div>
+              )}
+              {aiReadiness.warning && (
+                <div className={`rounded-lg px-4 py-3 text-sm ${
+                  aiEnabled
+                    ? 'border border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-100'
+                    : 'border border-red-200 bg-red-50 text-red-900 dark:border-red-800 dark:bg-red-900/20 dark:text-red-100'
+                }`}>
+                  <div className="font-medium">{aiEnabled ? 'AI generation readiness warning' : 'AI generation is not ready'}</div>
+                  <div className="mt-1 text-xs opacity-90">{aiReadiness.warning}</div>
                 </div>
               )}
               <div>
@@ -855,6 +913,18 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
                 />
                 <p className="mt-1 text-xs text-gray-400">International format, no spaces — <span className="text-amber-600 font-medium">replace with your actual number</span></p>
               </div>
+              {(validationErrors.length > 0 || provError) && (
+                <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-400 whitespace-pre-line">
+                  <div className="font-medium mb-1">Fix before review</div>
+                  {provError || validationErrors.join('\n')}
+                </div>
+              )}
+              {validationWarnings.length > 0 && (
+                <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 rounded-lg text-sm text-amber-800 dark:text-amber-200 whitespace-pre-line">
+                  <div className="font-medium mb-1">Warnings</div>
+                  {validationWarnings.join('\n')}
+                </div>
+              )}
             </div>
           )}
 
@@ -921,11 +991,11 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
           <div className="flex items-center gap-2">
             {step < 4 && (
               <button
-                onClick={() => setStep(s => (s + 1) as Step)}
-                disabled={!canNext[step]}
+                onClick={handleNextStep}
+                disabled={!canNext[step] || validatingProvision}
                 className="text-sm px-4 py-1.5 rounded bg-sky-600 text-white hover:bg-sky-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-medium"
               >
-                Next
+                {validatingProvision && step === 3 ? 'Validating…' : 'Next'}
               </button>
             )}
             {step === 4 && !done && (

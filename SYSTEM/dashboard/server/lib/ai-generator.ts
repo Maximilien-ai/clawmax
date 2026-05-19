@@ -8,6 +8,54 @@ export type TemplateGenerationTarget = 'agent' | 'team' | 'company'
 export type PromptExpansionTarget = 'agent' | 'workflow' | 'skill' | 'template'
 export type PromptExpansionFormat = 'markdown' | 'text'
 
+function detectProviderFromKeyShape(key: string): 'openai' | 'anthropic' | 'gemini' | null {
+  const trimmed = key.trim()
+  if (!trimmed) return null
+  if (/^sk-ant-/i.test(trimmed)) return 'anthropic'
+  if (/^AIza[0-9A-Za-z\-_]{20,}$/i.test(trimmed)) return 'gemini'
+  if (/^sk-(?!ant-)[0-9A-Za-z_\-]{10,}$/i.test(trimmed)) return 'openai'
+  return null
+}
+
+function looksLikeSubscriptionCredential(value: string): boolean {
+  const trimmed = value.trim()
+  if (!trimmed) return false
+  return /^sess-/i.test(trimmed)
+    || /^ya29\./i.test(trimmed)
+    || /^1\/\//.test(trimmed)
+    || /^gh[opusr]_/i.test(trimmed)
+    || /^github_pat_/i.test(trimmed)
+}
+
+export function validateAiGenerationProviderKeys(byokKeys?: ProviderKeys): void {
+  if (!byokKeys) return
+
+  const labels = {
+    openai: 'OpenAI',
+    anthropic: 'Anthropic',
+    gemini: 'Gemini',
+  } as const
+
+  const hostedProviders: Array<keyof Pick<ProviderKeys, 'openai' | 'anthropic'>> = ['openai', 'anthropic']
+  for (const provider of hostedProviders) {
+    const raw = String(byokKeys[provider] || '').trim()
+    if (!raw) continue
+
+    const detected = detectProviderFromKeyShape(raw)
+    if (detected && detected !== provider) {
+      throw new Error(`This looks like a ${labels[detected]} key, not a ${labels[provider]} developer API key.`)
+    }
+
+    const expectedPrefix = provider === 'openai' ? /^sk-/i : /^sk-ant-/i
+    if (!expectedPrefix.test(raw)) {
+      if (looksLikeSubscriptionCredential(raw)) {
+        throw new Error(`${labels[provider]} subscription or app credentials cannot be used here. Use a ${labels[provider]} developer API key instead.`)
+      }
+      throw new Error(`This does not look like a ${labels[provider]} developer API key. Subscription or app credentials are not supported for AI generation.`)
+    }
+  }
+}
+
 export function normalizeTemplateGenerationTarget(value: unknown): TemplateGenerationTarget {
   return value === 'company' || value === 'agent' ? value : 'team'
 }
@@ -128,6 +176,7 @@ function getPreferredAnthropicGenerationModel(): string {
 }
 
 function getAvailableProvider(byokKeys?: ProviderKeys): { provider: AIProvider; key: string } {
+  validateAiGenerationProviderKeys(byokKeys)
   // Try BYOK keys first (passed from client request)
   if (byokKeys?.openai) return { provider: 'openai', key: byokKeys.openai }
   if (byokKeys?.anthropic) return { provider: 'anthropic', key: byokKeys.anthropic }

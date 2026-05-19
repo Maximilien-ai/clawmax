@@ -179,3 +179,30 @@ export function deleteTeam(teamId: string, workspacePath = getWorkspacePath()): 
   saveStore(store, workspacePath)
   return true
 }
+
+export function deleteTeams(teamIds: string[], workspacePath = getWorkspacePath()): string[] {
+  const idsToDelete = new Set(
+    (teamIds || [])
+      .map((teamId) => `${teamId || ''}`.trim())
+      .filter(Boolean)
+  )
+  if (idsToDelete.size === 0) return []
+
+  const store = loadStore(workspacePath)
+  const deletedIds = store.teams
+    .filter((entry) => idsToDelete.has(entry.id))
+    .map((entry) => entry.id)
+  if (deletedIds.length === 0) return []
+
+  const deletedIdSet = new Set(deletedIds)
+  store.teams = store.teams
+    .filter((entry) => !deletedIdSet.has(entry.id))
+    .map((entry) => (
+      entry.parentTeamId && deletedIdSet.has(entry.parentTeamId)
+        ? { ...entry, parentTeamId: undefined, updatedAt: new Date().toISOString() }
+        : entry
+    ))
+
+  saveStore(store, workspacePath)
+  return deletedIds
+}

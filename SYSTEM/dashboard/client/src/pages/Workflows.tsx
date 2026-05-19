@@ -4,7 +4,7 @@ import { useToast } from '../components/Toast'
 import WorkflowEditorDialog from '../components/WorkflowEditorDialog'
 import { ConfirmDeleteDialog } from '../components/ConfirmDeleteDialog'
 import { expandPromptWithAI } from '../lib/aiPrompt'
-import { byokForRequest, readStoredByokKeys, hasAiGenerationAccess } from '../lib/byok'
+import { byokForRequest, readStoredByokKeys, getAiGenerationReadiness, hasAiGenerationAccess } from '../lib/byok'
 import { useAuth } from '../contexts/AuthContext'
 import WorkflowDAG from '../components/WorkflowDAG'
 import { getDiscoverySuggestions } from '../lib/discoverySuggestions'
@@ -58,6 +58,10 @@ interface WorkflowDetails extends Workflow {
   targeting: AgentTargeting
   content: string
   scheduleHuman: string
+}
+
+function normalizePromptInput(override: unknown, fallback: string): string {
+  return typeof override === 'string' ? override.trim() : fallback.trim()
 }
 
 interface WorkflowExecution {
@@ -360,6 +364,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   const { showSuccess, showError } = useToast()
   const { config } = useAuth()
   const aiEnabled = hasAiGenerationAccess(config)
+  const aiReadiness = getAiGenerationReadiness(config)
   const formatParticipantError = React.useCallback((errorText: string) => {
     if (/COMMS FAIL/i.test(errorText)) {
       return 'Communication delivery failed. This workflow tried to post to a group or community that is missing or misconfigured.'
@@ -988,7 +993,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   }
 
   const handleAiGenerate = async (promptOverride?: string) => {
-    const promptText = (promptOverride ?? aiPromptText).trim()
+    const promptText = normalizePromptInput(promptOverride, aiPromptText)
     if (!promptText) return
     if (!aiEnabled) {
       showError('AI generation needs browser-local keys or a usable shared execution path first. Open Workspaces Integrations or Keys & Secrets before generating.')
@@ -2780,6 +2785,12 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                     Open Keys & Secrets
                   </button>
                 </div>
+              </div>
+            )}
+            {aiReadiness.warning && (
+              <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-100">
+                <div className="font-medium">AI workflow generation may fail</div>
+                <div className="mt-1 text-xs opacity-90">{aiReadiness.warning}</div>
               </div>
             )}
             <textarea

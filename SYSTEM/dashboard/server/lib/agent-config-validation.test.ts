@@ -5,6 +5,9 @@
  */
 
 import { validateAgentConfigSections, validateProvisionInput } from './agent-config-validation'
+import fs from 'fs'
+import os from 'os'
+import path from 'path'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -162,6 +165,41 @@ test('validateProvisionInput warns for unavailable model but stays valid', () =>
 
   assert(result.valid, 'Expected provisioning to remain valid')
   assertIncludes(result.warnings, 'may fall back during provisioning')
+})
+
+test('validateProvisionInput accepts a real workspace agent template slug', () => {
+  const originalWorkspace = process.env.OPENCLAW_WORKSPACE
+  const originalHome = process.env.HOME
+  const tempWorkspace = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-agent-provision-'))
+  const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-agent-provision-home-'))
+  const templateDir = path.join(tempWorkspace, 'TEMPLATES', 'agents', 'competitor-analyst-v2')
+  fs.mkdirSync(templateDir, { recursive: true })
+  fs.mkdirSync(path.join(tempHome, '.openclaw'), { recursive: true })
+
+  try {
+    process.env.OPENCLAW_WORKSPACE = tempWorkspace
+    process.env.HOME = tempHome
+
+    const result = validateProvisionInput({
+      name: 'competitor-analyst1',
+      model: 'openai/gpt-4o',
+      templateSlug: 'competitor-analyst-v2',
+      tags: ['research'],
+    }, {
+      existingAgentIds: ['engineer1'],
+      availableModels: ['openai/gpt-4o'],
+    })
+
+    assert(result.valid, 'Expected provisioning to remain valid when selected template slug exists on disk')
+    assert(!result.errors.some((error) => error.includes('Template')), 'Expected no template-not-found error')
+  } finally {
+    if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
+    else process.env.OPENCLAW_WORKSPACE = originalWorkspace
+    if (typeof originalHome === 'undefined') delete process.env.HOME
+    else process.env.HOME = originalHome
+    fs.rmSync(tempWorkspace, { recursive: true, force: true })
+    fs.rmSync(tempHome, { recursive: true, force: true })
+  }
 })
 
 setTimeout(() => {

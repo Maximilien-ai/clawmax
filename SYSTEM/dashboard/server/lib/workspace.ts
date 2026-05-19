@@ -45,6 +45,67 @@ interface StatusCache {
 const statusCache = new Map<string, StatusCache>()
 const STATUS_CACHE_TTL = 5000 // 5 seconds cache
 
+export interface AgentGatewayConfig {
+  port: number
+  token: string
+  host?: string
+  httpUrl?: string
+  wsUrl?: string
+}
+
+function normalizeGatewayHttpUrl(raw: string): string | null {
+  const trimmed = String(raw || '').trim()
+  if (!trimmed) return null
+  try {
+    const url = new URL(trimmed)
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null
+    url.pathname = ''
+    url.search = ''
+    url.hash = ''
+    return url.toString().replace(/\/$/, '')
+  } catch {
+    return null
+  }
+}
+
+function getGatewayUrlOverride(): string | null {
+  return normalizeGatewayHttpUrl(process.env.OPENCLAW_GATEWAY_URL || '')
+}
+
+function buildAgentGatewayConfig(port: number, token: string, host?: string): AgentGatewayConfig {
+  const overrideUrl = getGatewayUrlOverride()
+  if (overrideUrl) {
+    const parsed = new URL(overrideUrl)
+    const protocol = parsed.protocol === 'https:' ? 'wss:' : 'ws:'
+    return {
+      port: Number(parsed.port) || port,
+      token,
+      host: parsed.hostname,
+      httpUrl: overrideUrl,
+      wsUrl: `${protocol}//${parsed.host}`,
+    }
+  }
+
+  const resolvedHost = host || '127.0.0.1'
+  return {
+    port,
+    token,
+    host: resolvedHost,
+    httpUrl: `http://${resolvedHost}:${port}`,
+    wsUrl: `ws://${resolvedHost}:${port}`,
+  }
+}
+
+function getGatewayProbeHosts(preferredHost?: string): string[] {
+  const candidates = [
+    preferredHost,
+    '127.0.0.1',
+    'host.containers.internal',
+    'host.docker.internal',
+  ].filter(Boolean) as string[]
+  return [...new Set(candidates)]
+}
+
 /** Invalidate status cache for a specific agent (e.g., after sending a message) */
 export function invalidateAgentStatusCache(agentId: string) {
   statusCache.delete(agentId)
@@ -1774,11 +1835,15 @@ function readAgentInfo(id: string, agentDir: string, validationWarnings?: string
     const probePort = (gatewayConfig && gatewayConfig.port) ? gatewayConfig.port : 18789
     {
       const { execSync } = require('child_process')
-      const portChecks = [
-        `lsof -ti:${probePort}`,
-        `bash -c 'echo > /dev/tcp/127.0.0.1/${probePort}' 2>/dev/null`,
-        `curl -s -o /dev/null --connect-timeout 1 http://127.0.0.1:${probePort}/`,
-      ]
+      const hosts = getGatewayProbeHosts(gatewayConfig?.host)
+      const portChecks: string[] = []
+      if (hosts.includes('127.0.0.1')) {
+        portChecks.push(`lsof -ti:${probePort}`)
+      }
+      for (const host of hosts) {
+        portChecks.push(`bash -lc 'exec 3<>/dev/tcp/${host}/${probePort}'`)
+        portChecks.push(`curl -fsS -o /dev/null --connect-timeout 1 http://${host}:${probePort}/healthz`)
+      }
       for (const cmd of portChecks) {
         try {
           execSync(cmd, { encoding: 'utf-8', stdio: 'pipe', timeout: 2000 })
@@ -1961,7 +2026,7 @@ function readAgentInfo(id: string, agentDir: string, validationWarnings?: string
  * Port detection: reads from openclaw.json first, then probes both
  * common ports (18789 = OpenClaw default, 18889 = common override)
  */
-export function getAgentGatewayConfig(id: string): { port: number; token: string } | null {
+export function getAgentGatewayConfig(id: string): AgentGatewayConfig | null {
   const HOME = process.env.HOME || ''
   const isProfile = fs.existsSync(path.join(HOME, `.openclaw-${id}`))
   const configPath = isProfile
@@ -1975,21 +2040,26 @@ export function getAgentGatewayConfig(id: string): { port: number; token: string
 
     // If port is explicitly set in config, use it
     if (configPort) {
-      return { port: configPort, token }
+      return buildAgentGatewayConfig(configPort, token)
     }
 
-    // No port in config — probe both common ports
+    // No port in config — probe common ports across local/container bridge hosts
     const { execSync } = require('child_process')
     for (const port of [18789, 18889] as const) {
-      try {
-        // port is a hardcoded numeric constant — safe for interpolation
-        execSync(`lsof -ti:${port}`, { encoding: 'utf-8', stdio: 'pipe', timeout: 1000 })
-        return { port, token }
-      } catch {}
+      for (const host of getGatewayProbeHosts()) {
+        try {
+          if (host === '127.0.0.1') {
+            execSync(`lsof -ti:${port}`, { encoding: 'utf-8', stdio: 'pipe', timeout: 1000 })
+          } else {
+            execSync(`curl -fsS -o /dev/null --connect-timeout 1 http://${host}:${port}/healthz`, { encoding: 'utf-8', stdio: 'pipe', timeout: 2000 })
+          }
+          return buildAgentGatewayConfig(port, token, host)
+        } catch {}
+      }
     }
 
-    // Neither port listening — return 18789 as default
-    return { port: 18789, token }
+    // Neither port listening — return default config, honoring URL override if present
+    return buildAgentGatewayConfig(18789, token)
   } catch {
     return null
   }

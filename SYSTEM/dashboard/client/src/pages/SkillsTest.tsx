@@ -7,7 +7,7 @@ import { SkillCard } from '../components/skills/SkillCard'
 import { useToast } from '../components/Toast'
 import type { OpenClawSkill, SkillsResponse, AgentSkillsResponse } from '../types'
 import { readLocalSecrets, writeLocalSecrets, writeSharedSecrets } from '../lib/localSecrets'
-import { hasAiGenerationAccess, readStoredByokKeys } from '../lib/byok'
+import { getAiGenerationReadiness, hasAiGenerationAccess, readStoredByokKeys } from '../lib/byok'
 import { getSkillAssignmentBuckets } from '../lib/skillAssignments'
 import { summarizeSkillDeleteImpact } from '../lib/skillsDeletion'
 import { filterAssignableAgents, isDeletableUserSkill, partitionSelectedSkills, partitionSkillsBySource, toggleItemSelection, toggleVisibleSelections } from '../lib/skillsSelection'
@@ -19,6 +19,10 @@ import { ProductIconCell, resolveSkillVisual, resolveCategoryVisual } from '../l
 
 // Use relative path so it works with ngrok and localhost
 const API_BASE = ''
+
+function normalizePromptInput(override: unknown, fallback: string): string {
+  return typeof override === 'string' ? override.trim() : fallback.trim()
+}
 
 function stripFrontmatter(content: string): string {
   if (content.startsWith('---')) {
@@ -150,6 +154,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
   const { config } = useAuth()
   const { showSuccess, showWarning, showError: showToastError } = useToast()
   const aiEnabled = hasAiGenerationAccess(config)
+  const aiReadiness = getAiGenerationReadiness(config)
   const [allSkills, setAllSkills] = useState<OpenClawSkill[]>([])
   const [assignedSkills, setAssignedSkills] = useState<Set<string>>(new Set())
   const [skillUsage, setSkillUsage] = useState<Map<string, string[]>>(new Map())
@@ -672,7 +677,9 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
   }
 
   async function handleGenerateSkill(refine = false, promptOverride?: string) {
-    const activePrompt = refine ? aiSkillRefinementPrompt.trim() : (promptOverride ?? aiSkillPrompt).trim()
+    const activePrompt = refine
+      ? aiSkillRefinementPrompt.trim()
+      : normalizePromptInput(promptOverride, aiSkillPrompt)
     if (!activePrompt) {
       setError(refine ? 'Describe how you want to refine the draft' : 'Describe the skill you want to create')
       return
@@ -3277,6 +3284,13 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                             Keys & Secrets
                           </button>
                         </div>
+                      </div>
+                    )}
+
+                    {aiReadiness.warning && (
+                      <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
+                        <div className="font-medium">AI skill generation may fail</div>
+                        <div className="mt-1 text-xs opacity-90">{aiReadiness.warning}</div>
                       </div>
                     )}
 

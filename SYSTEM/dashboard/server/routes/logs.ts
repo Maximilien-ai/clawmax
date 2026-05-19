@@ -28,9 +28,9 @@ router.get('/:id/status', async (req, res) => {
 
   // Connect to gateway and request status
   return new Promise<void>((resolve) => {
-    const ws = new WebSocket(`ws://127.0.0.1:${gatewayConfig.port}`, {
+    const ws = new WebSocket(gatewayConfig.wsUrl || `ws://127.0.0.1:${gatewayConfig.port}`, {
       headers: {
-        'Origin': `http://localhost:${gatewayConfig.port}`
+        'Origin': gatewayConfig.httpUrl || `http://localhost:${gatewayConfig.port}`
       }
     })
     const requestId = randomUUID()
@@ -186,9 +186,9 @@ router.get('/:id/logs', (req, res) => {
   const cleanup = () => clearInterval(keepalive)
 
   // Open WebSocket connection to gateway
-  const ws = new WebSocket(`ws://127.0.0.1:${gatewayConfig.port}`, {
+  const ws = new WebSocket(gatewayConfig.wsUrl || `ws://127.0.0.1:${gatewayConfig.port}`, {
     headers: {
-      'Origin': `http://localhost:${gatewayConfig.port}`
+      'Origin': gatewayConfig.httpUrl || `http://localhost:${gatewayConfig.port}`
     }
   })
   const requestId = randomUUID()

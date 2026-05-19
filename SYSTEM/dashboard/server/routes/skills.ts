@@ -141,7 +141,16 @@ router.post('/generate', async (req, res) => {
     res.json({ ok: true, skill })
   } catch (err: any) {
     console.error('AI skill generation error:', err)
-    res.status(500).json({ error: String(err?.message || err) })
+    const message = err?.message || String(err)
+    if (/No API key configured/i.test(message)) {
+      return res.status(400).json({
+        error: 'AI generation needs a configured browser key or shared preferred model. Open Workspaces Integrations or Keys & Secrets first.',
+      })
+    }
+    if (/developer API key|subscription or app credentials|does not look like/i.test(message)) {
+      return res.status(400).json({ error: message })
+    }
+    res.status(500).json({ error: message })
   } finally {
     setRequestByokKeys(undefined)
   }

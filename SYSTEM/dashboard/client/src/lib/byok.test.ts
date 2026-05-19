@@ -4,7 +4,7 @@
  * Run with: npx ts-node --transpileOnly client/src/lib/byok.test.ts
  */
 
-import { byokForRequest, detectProviderKeyMismatch, hasAiGenerationAccess, hasChatExecutionAccess, refreshModelsWithByok, resolveOllamaBaseUrlForRuntime, writeStoredByokKeys } from './byok'
+import { byokForRequest, detectProviderKeyMismatch, getAiGenerationReadiness, hasAiGenerationAccess, hasChatExecutionAccess, refreshModelsWithByok, resolveOllamaBaseUrlForRuntime, writeStoredByokKeys } from './byok'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -97,6 +97,32 @@ async function main() {
   await test('no browser or shared execution path blocks AI generation access', () => {
     localStorage.clear()
     assert(hasAiGenerationAccess(null) === false, 'Expected no execution path to block AI generation access')
+  })
+
+  await test('AI generation readiness warns when no hosted path is configured', () => {
+    localStorage.clear()
+    const readiness = getAiGenerationReadiness(null)
+    assert(readiness.enabled === false, 'Expected readiness to stay disabled without hosted path')
+    assert(/will fail/i.test(readiness.warning || ''), 'Expected readiness warning for missing hosted path')
+  })
+
+  await test('AI generation readiness warns when browser key is unverified and no shared hosted path exists', () => {
+    localStorage.clear()
+    writeStoredByokKeys({ openai: 'sk-test-unverified' })
+    const readiness = getAiGenerationReadiness(null)
+    assert(readiness.enabled === true, 'Expected hosted browser key to allow AI generation attempt')
+    assert(/not been verified yet/i.test(readiness.warning || ''), 'Expected unverified-key warning')
+  })
+
+  await test('AI generation readiness clears warning when verified browser key is present', () => {
+    localStorage.clear()
+    writeStoredByokKeys({
+      openai: 'sk-test-verified',
+      verifiedProviders: { openai: 'sk-test-verified' },
+    })
+    const readiness = getAiGenerationReadiness(null)
+    assert(readiness.enabled === true, 'Expected verified hosted browser key to allow AI generation')
+    assert(!readiness.warning, 'Expected no warning for verified browser key')
   })
 
   await test('chat execution access supports gemini and ollama paths', () => {
