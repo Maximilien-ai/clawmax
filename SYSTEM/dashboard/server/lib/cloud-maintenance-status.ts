@@ -14,6 +14,7 @@ type CloudMaintenancePayload = {
     active?: boolean
     state?: CloudMaintenanceState | string
     starts_at?: string
+    ends_at?: string
     message?: string
     operator_note?: string
   }
@@ -120,14 +121,33 @@ function mapStateToLevel(state: CloudMaintenanceState): MaintenanceBannerConfig[
   return normalizeMaintenanceBannerLevel(undefined)
 }
 
+function resolveCloudMaintenanceState(
+  maintenance: CloudMaintenancePayload['maintenance'],
+  nowMs: number = Date.now(),
+): CloudMaintenanceState {
+  const startAt = parseMaintenanceIsoWindow(maintenance?.starts_at)
+  const endAt = parseMaintenanceIsoWindow(maintenance?.ends_at)
+  const startMs = startAt ? Date.parse(startAt) : NaN
+  const endMs = endAt ? Date.parse(endAt) : NaN
+  const reportedState = normalizeState(maintenance?.state, maintenance?.active)
+
+  if (maintenance?.active) {
+    if (Number.isFinite(startMs) && nowMs < startMs && reportedState !== 'in_progress') return 'scheduled'
+    return 'in_progress'
+  }
+
+  if (Number.isFinite(endMs) && nowMs > endMs) return 'none'
+  if (Number.isFinite(startMs) && nowMs < startMs) return 'scheduled'
+  return 'none'
+}
+
 function normalizeBannerBodyPart(value: string): string {
   return value.replace(/\s+/g, ' ').trim()
 }
 
 function buildBannerFromPayload(payload: CloudMaintenancePayload): MaintenanceBannerConfig | null {
   const maintenance = payload?.maintenance
-  if (!maintenance?.active) return null
-  const state = normalizeState(maintenance?.state, maintenance?.active)
+  const state = resolveCloudMaintenanceState(maintenance)
   if (state === 'none') return null
 
   const message = typeof maintenance?.message === 'string' ? maintenance.message.trim() : ''
@@ -150,6 +170,7 @@ function buildBannerFromPayload(payload: CloudMaintenancePayload): MaintenanceBa
     text,
     level: mapStateToLevel(state),
     startAt: parseMaintenanceIsoWindow(maintenance?.starts_at),
+    endAt: parseMaintenanceIsoWindow(maintenance?.ends_at),
     link: resolveMaintenanceBannerLink(),
     dismissible: resolveMaintenanceBannerDismissible(),
   }

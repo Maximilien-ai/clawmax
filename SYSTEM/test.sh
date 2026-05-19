@@ -805,6 +805,16 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Host agent status unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/host-agent-status.test.ts > /tmp/clawmax-host-agent-status.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-host-agent-status.out; then
+  host_agent_status_count=$(grep "Tests passed:" /tmp/clawmax-host-agent-status.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Host agent status unit tests (${host_agent_status_count:-?} tests)"
+else
+  fail "Host agent status unit tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Cron next-run unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/cron-next-run.test.ts > /tmp/clawmax-cron-next-run.out 2>&1
 cron_next_run_status=$?

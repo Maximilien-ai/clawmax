@@ -34,6 +34,7 @@ import { auditLog } from './lib/audit'
 import { getBudgetStatus, loadBudgetConfig, saveBudgetConfig, BudgetConfig } from './lib/budget'
 import { allowSystemKeysForUserExecution, getSystemProviderKeys, getUserDefaultProviderKeys, getBestAvailableModel, getCostEfficientModel, getDashboardEnvRaw, getDefaultOllamaBaseUrl, isManagedRuntime, isOllamaUiEnabled } from './lib/dashboard-env'
 import { getResolvedMaintenanceBanner } from './lib/cloud-maintenance-status'
+import { getHostAgentStatus } from './lib/host-agent-status'
 import { readWorkspaceIntegrationConfig } from './lib/workspace-integrations'
 
 // ============================================================================
@@ -208,6 +209,7 @@ app.get('/api/system', protect, async (req, res) => {
   const activeAgents = agents.filter(a => !a.paused)
   const requestHost = req.get('x-forwarded-host') || req.get('host') || ''
   const maintenanceBanner = await getResolvedMaintenanceBanner(rawEnv, requestHost)
+  const hostAgentStatus = getHostAgentStatus()
   const runtimeIdentity = getRuntimeInstanceIdentity()
   res.json({
     workspace: workspacePath,
@@ -225,6 +227,7 @@ app.get('/api/system', protect, async (req, res) => {
     ollamaEnabled: isOllamaUiEnabled(rawEnv),
     defaultOllamaBaseUrl: getDefaultOllamaBaseUrl(rawEnv),
     maintenanceBanner,
+    hostAgentStatus,
     orgName: getOrgName() ?? null,
   })
 })

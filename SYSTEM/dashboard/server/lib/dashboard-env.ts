@@ -19,6 +19,26 @@ export interface MaintenanceBannerConfig {
   dismissible: boolean
 }
 
+function resolveMaintenanceTemporalState(
+  rawState: string | undefined,
+  startAt: string | undefined,
+  endAt: string | undefined,
+  nowMs: number = Date.now(),
+): 'none' | 'scheduled' | 'in_progress' {
+  const state = (rawState || '').trim().toLowerCase()
+  const startMs = startAt ? Date.parse(startAt) : NaN
+  const endMs = endAt ? Date.parse(endAt) : NaN
+
+  if (Number.isFinite(endMs) && nowMs > endMs) return 'none'
+  if (state === 'in_progress') return 'in_progress'
+  if (Number.isFinite(startMs)) {
+    if (nowMs < startMs) return 'scheduled'
+    return state === 'in_progress' ? 'in_progress' : 'none'
+  }
+  if (state === 'scheduled' || state === 'pending') return 'scheduled'
+  return state === 'in_progress' ? 'in_progress' : 'none'
+}
+
 // Try multiple paths to find .env — handles different working directories
 function findEnvPath(): string {
   const candidates = [
@@ -122,11 +142,16 @@ export function getMaintenanceBanner(rawEnv: Record<string, string> = dashboardE
   const fallbackState = (firstNonEmpty(rawEnv, 'MAINTENANCE_STATE') || process.env.MAINTENANCE_STATE || '').trim().toLowerCase()
   const fallbackMessage = (firstNonEmpty(rawEnv, 'MAINTENANCE_MESSAGE') || process.env.MAINTENANCE_MESSAGE || '').trim()
   if (fallbackState && fallbackState !== 'none' && fallbackMessage) {
+    const startAt = parseIsoWindow(firstNonEmpty(rawEnv, 'MAINTENANCE_STARTS_AT') || process.env.MAINTENANCE_STARTS_AT)
+    const endAt = parseIsoWindow(firstNonEmpty(rawEnv, 'MAINTENANCE_ENDS_AT') || process.env.MAINTENANCE_ENDS_AT)
+    const resolvedState = resolveMaintenanceTemporalState(fallbackState, startAt, endAt)
+    if (resolvedState === 'none') return null
     return {
       enabled: true,
       text: fallbackMessage,
-      level: fallbackState === 'in_progress' ? 'critical' : 'warning',
-      startAt: parseIsoWindow(firstNonEmpty(rawEnv, 'MAINTENANCE_STARTS_AT') || process.env.MAINTENANCE_STARTS_AT),
+      level: resolvedState === 'in_progress' ? 'critical' : 'warning',
+      startAt,
+      endAt,
       link: resolveMaintenanceBannerLink(rawEnv),
       dismissible: resolveMaintenanceBannerDismissible(rawEnv),
     }

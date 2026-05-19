@@ -145,6 +145,15 @@ test('maintenance banner shows scheduled fallback state before start window', ()
   assert(banner?.startAt === '2099-04-20T00:00:00.000Z', 'Expected scheduled start time to be normalized')
 })
 
+test('maintenance banner clears stale scheduled fallback state after the start window passes', () => {
+  const banner = getMaintenanceBanner({
+    MAINTENANCE_STATE: 'scheduled',
+    MAINTENANCE_MESSAGE: 'Past maintenance',
+    MAINTENANCE_STARTS_AT: '2026-04-20T00:00:00Z',
+  })
+  assert(banner === null, 'Expected stale scheduled fallback state to clear after the maintenance window starts')
+})
+
 test('maintenance banner fallback maps in_progress to critical severity', () => {
   const banner = getMaintenanceBanner({
     MAINTENANCE_STATE: 'in_progress',

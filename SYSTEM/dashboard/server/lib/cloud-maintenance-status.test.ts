@@ -38,7 +38,7 @@ const originalDashboardInstanceKey = process.env.DASHBOARD_INSTANCE_KEY
 const originalGenericInstanceKey = process.env.INSTANCE_KEY
 
 async function run() {
-  await test('resolved maintenance banner prefers cloud active scheduled status over env fallback', async () => {
+  await test('resolved maintenance banner promotes scheduled maintenance to active once the start window begins', async () => {
     process.env.TEMPLATE_FEEDBACK_SUMMARY_URL = 'https://www.clawmax.ai/api/template-feedback/sink-summary'
     process.env.TEMPLATE_FEEDBACK_TOKEN = 'test-token'
     process.env.CLAWMAX_INSTANCE_KEY = 'test7'
@@ -67,7 +67,7 @@ async function run() {
     })
 
     assert(!!banner, 'Expected cloud maintenance banner')
-    assert(banner?.level === 'warning', 'Expected scheduled cloud status to map to warning level')
+    assert(banner?.level === 'critical', 'Expected started active maintenance to map to critical level')
     assert(
       banner?.text === 'Planned ClawMax maintenance\n\nPlease save your workspace first.',
       'Expected message and operator note to be combined',
@@ -100,6 +100,55 @@ async function run() {
     assert(banner === null, 'Expected active=false cloud status to suppress the banner')
   })
 
+  await test('resolved maintenance banner keeps future scheduled maintenance visible even when active=false', async () => {
+    process.env.TEMPLATE_FEEDBACK_SUMMARY_URL = 'https://www.clawmax.ai/api/template-feedback/sink-summary'
+    process.env.TEMPLATE_FEEDBACK_TOKEN = 'test-token'
+    process.env.CLAWMAX_INSTANCE_KEY = 'test7'
+
+    globalThis.fetch = (async () => ({
+      ok: true,
+      json: async () => ({
+        maintenance: {
+          active: false,
+          state: 'scheduled',
+          starts_at: '2099-04-23T16:00:00.000Z',
+          message: 'Planned ClawMax maintenance',
+        },
+      }),
+    }) as any) as any
+
+    const banner = await getResolvedMaintenanceBanner({
+      MAINTENANCE_STATE: 'none',
+    })
+
+    assert(!!banner, 'Expected future scheduled cloud maintenance to stay visible')
+    assert(banner?.level === 'warning', 'Expected future scheduled maintenance to remain warning level')
+  })
+
+  await test('resolved maintenance banner clears stale scheduled maintenance once start time is in the past and no maintenance is active', async () => {
+    process.env.TEMPLATE_FEEDBACK_SUMMARY_URL = 'https://www.clawmax.ai/api/template-feedback/sink-summary'
+    process.env.TEMPLATE_FEEDBACK_TOKEN = 'test-token'
+    process.env.CLAWMAX_INSTANCE_KEY = 'test7'
+
+    globalThis.fetch = (async () => ({
+      ok: true,
+      json: async () => ({
+        maintenance: {
+          active: false,
+          state: 'scheduled',
+          starts_at: '2026-04-23T16:00:00.000Z',
+          message: 'Stale scheduled maintenance',
+        },
+      }),
+    }) as any) as any
+
+    const banner = await getResolvedMaintenanceBanner({
+      MAINTENANCE_STATE: 'none',
+    })
+
+    assert(banner === null, 'Expected stale scheduled maintenance to clear once the start time is in the past')
+  })
+
   await test('resolved maintenance banner falls back to env state when cloud request fails', async () => {
     process.env.TEMPLATE_FEEDBACK_SUMMARY_URL = 'https://www.clawmax.ai/api/template-feedback/sink-summary'
     process.env.TEMPLATE_FEEDBACK_TOKEN = 'test-token'
@@ -112,12 +161,12 @@ async function run() {
     const banner = await getResolvedMaintenanceBanner({
       MAINTENANCE_STATE: 'scheduled',
       MAINTENANCE_MESSAGE: 'Fallback maintenance notice',
-      MAINTENANCE_STARTS_AT: '2026-04-23T16:00:00.000Z',
+      MAINTENANCE_STARTS_AT: '2099-04-23T16:00:00.000Z',
     })
 
     assert(!!banner, 'Expected fallback env maintenance banner')
     assert(banner?.text === 'Fallback maintenance notice', 'Expected fallback message to be used')
-    assert(banner?.startAt === '2026-04-23T16:00:00.000Z', 'Expected fallback startAt to be preserved')
+    assert(banner?.startAt === '2099-04-23T16:00:00.000Z', 'Expected fallback startAt to be preserved')
   })
 
   await test('resolved maintenance banner derives instance key from request host when env keys are missing', async () => {

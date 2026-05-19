@@ -18,6 +18,7 @@ import Login from './pages/Login'
 import { WorkspaceSwitcher } from './components/WorkspaceSwitcher'
 import { WorkspaceDialog } from './components/WorkspaceDialog'
 import { ByokWizard } from './components/ByokWizard'
+import { HostAgentStatusBanner } from './components/HostAgentStatusBanner'
 import { MaintenanceBanner } from './components/MaintenanceBanner'
 import { NotificationCenter } from './components/NotificationCenter'
 import { OnboardingWizard } from './components/OnboardingWizard'
@@ -48,6 +49,12 @@ interface SystemInfo {
     endAt?: string
     link?: string
     dismissible: boolean
+  } | null
+  hostAgentStatus?: {
+    state: 'unauthorized' | 'unreachable' | 'warning'
+    title: string
+    detail: string
+    hint: string
   } | null
 }
 
@@ -653,6 +660,9 @@ export default function App() {
                   setDismissedMaintenanceKey(maintenanceBannerKey)
                 } : undefined}
               />
+            )}
+            {system?.hostAgentStatus && (
+              <HostAgentStatusBanner status={system.hostAgentStatus} />
             )}
             {visitedPages.has('agents') && (
             <div className={`flex-1 overflow-auto ${page === 'agents' ? '' : 'hidden'}`}>
