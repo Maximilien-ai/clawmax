@@ -115,6 +115,11 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
   const selectedTemplate = form.templateSlug ? agentTemplates.find(t => t.slug === form.templateSlug) : null
   const templateSelectionMissing = !!form.templateSlug && !selectedTemplate
   const cloneSelectionMissing = !!form.cloneFrom && !existingAgents.includes(form.cloneFrom)
+  const combinedProvisionIssues = [provError || '', ...validationErrors].join('\n')
+  const hasDuplicateNameIssue = /already exists/i.test(combinedProvisionIssues)
+  const hasTemplateIssue = /Template ".*" was not found/i.test(combinedProvisionIssues)
+  const hasCloneIssue = /Clone source ".*" was not found/i.test(combinedProvisionIssues)
+  const hasModelIssue = /Model is required/i.test(combinedProvisionIssues)
 
   // Fetch available models, suggested ID + port and existing agents list on mount
   useEffect(() => {
@@ -945,6 +950,28 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
                 <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-400 whitespace-pre-line">
                   <div className="font-medium mb-1">Validation errors</div>
                   {validationErrors.join('\n')}
+                  {(hasDuplicateNameIssue || hasTemplateIssue || hasCloneIssue || hasModelIssue) && (
+                    <div className="mt-3 flex flex-wrap gap-2 whitespace-normal">
+                      {hasDuplicateNameIssue && (
+                        <button
+                          type="button"
+                          onClick={() => setStep(1)}
+                          className="px-3 py-1.5 text-xs font-medium rounded-md border border-red-300 bg-white text-red-800 hover:bg-red-100 dark:border-red-700 dark:bg-transparent dark:text-red-200 dark:hover:bg-red-900/30"
+                        >
+                          Change Name
+                        </button>
+                      )}
+                      {(hasTemplateIssue || hasCloneIssue || hasModelIssue) && (
+                        <button
+                          type="button"
+                          onClick={() => setStep(1)}
+                          className="px-3 py-1.5 text-xs font-medium rounded-md border border-red-300 bg-white text-red-800 hover:bg-red-100 dark:border-red-700 dark:bg-transparent dark:text-red-200 dark:hover:bg-red-900/30"
+                        >
+                          Back to Identity
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 

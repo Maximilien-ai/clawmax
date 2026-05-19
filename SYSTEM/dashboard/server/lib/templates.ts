@@ -1918,16 +1918,37 @@ export function importAgentFromTemplate(
   }
 ): { ok: boolean; agentId?: string; error?: string } {
   try {
-    // Check workspace templates first (user-created, higher priority)
-    let templateDir = path.join(getAgentTemplatesDir(), templateSlug)
-    let templateJsonPath = path.join(templateDir, 'template.json')
-    let templateSource: TemplateSource = 'workspace'
+    const normalizedSlug = slugify(templateSlug)
+    const slugCandidates = Array.from(new Set([
+      normalizedSlug,
+      normalizedSlug.endsWith('-template') ? normalizedSlug : `${normalizedSlug}-template`,
+    ]))
 
-    // If not found in workspace, check global system templates
-    if (!fs.existsSync(templateJsonPath)) {
-      templateDir = path.join(getGlobalAgentTemplatesDir(), templateSlug)
-      templateJsonPath = path.join(templateDir, 'template.json')
-      templateSource = 'system'
+    let templateDir = ''
+    let templateJsonPath = ''
+    let templateSource: TemplateSource = 'workspace'
+    let resolvedTemplateSlug = normalizedSlug
+
+    for (const candidate of slugCandidates) {
+      const workspaceDir = path.join(getAgentTemplatesDir(), candidate)
+      const workspaceJson = path.join(workspaceDir, 'template.json')
+      if (fs.existsSync(workspaceJson)) {
+        templateDir = workspaceDir
+        templateJsonPath = workspaceJson
+        templateSource = 'workspace'
+        resolvedTemplateSlug = candidate
+        break
+      }
+
+      const globalDir = path.join(getGlobalAgentTemplatesDir(), candidate)
+      const globalJson = path.join(globalDir, 'template.json')
+      if (fs.existsSync(globalJson)) {
+        templateDir = globalDir
+        templateJsonPath = globalJson
+        templateSource = 'system'
+        resolvedTemplateSlug = candidate
+        break
+      }
     }
 
     if (!fs.existsSync(templateJsonPath)) {
@@ -1935,7 +1956,7 @@ export function importAgentFromTemplate(
     }
 
     const template: AgentTemplate = JSON.parse(fs.readFileSync(templateJsonPath, 'utf-8'))
-    const feedbackTemplate = { ...template, source: templateSource, slug: templateSlug } as AgentTemplate
+    const feedbackTemplate = { ...template, source: templateSource, slug: resolvedTemplateSlug } as AgentTemplate
 
     if (template.type !== 'agent') {
       return { ok: false, error: 'Only agent templates can be imported via this endpoint' }

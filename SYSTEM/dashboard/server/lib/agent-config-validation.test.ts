@@ -202,6 +202,21 @@ test('validateProvisionInput accepts a real workspace agent template slug', () =
   }
 })
 
+test('validateProvisionInput accepts logical agent template ids that map to *-template directories', () => {
+  const result = validateProvisionInput({
+    name: 'people-researcher1',
+    model: 'openai/gpt-4o',
+    templateSlug: 'people-researcher',
+    tags: ['research'],
+  }, {
+    existingAgentIds: ['engineer1'],
+    availableModels: ['openai/gpt-4o'],
+  })
+
+  assert(result.valid, 'Expected provisioning to remain valid for logical template alias slugs')
+  assert(!result.errors.some((error) => error.includes('Template')), 'Expected no template-not-found error for logical alias slug')
+})
+
 setTimeout(() => {
   console.log('\n========================================')
   console.log(`Tests passed: ${testsPassed}`)

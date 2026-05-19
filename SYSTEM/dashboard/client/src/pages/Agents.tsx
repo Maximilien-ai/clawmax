@@ -126,6 +126,33 @@ function timeAgo(iso: string | null): string {
   return `${Math.floor(hrs / 24)}d ago`
 }
 
+function prettifyAgentId(agentId: string): string {
+  return agentId
+    .split(/[-_]+/)
+    .filter(Boolean)
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ') || agentId
+}
+
+function buildOptimisticCreatedAgent(agentId: string): Agent {
+  return {
+    id: agentId,
+    name: prettifyAgentId(agentId),
+    status: 'unknown',
+    lastHeartbeat: null,
+    whatsapp: null,
+    isProfile: true,
+    workspacePath: '',
+    communities: [],
+    groups: [],
+    tags: [],
+    skills: [],
+    validationWarnings: [],
+    archived: false,
+    paused: false,
+  }
+}
+
 function openDashboardTermsOfService() {
   window.dispatchEvent(new CustomEvent('open-terms-of-service'))
 }
@@ -202,10 +229,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
 
   const highlightCreatedAgent = useCallback(async (agentId: string) => {
     if (!agentId) return
-    try {
-      const response = await fetch(`/api/agents/${encodeURIComponent(agentId)}`)
-      if (!response.ok) return
-      const created = await response.json() as Agent
+    const applyCreated = (created: Agent) => {
       setArchiveTab('active')
       setSearchQuery('')
       setSelectedTags(new Set())
@@ -215,11 +239,22 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
         next.delete(agentId)
         return next
       })
-      setAgents(prev => mergeAgentToFront(prev, { ...created, tags: created.tags || [] }))
-      setSelectedAgent({ ...created, tags: created.tags || [] })
+      setAgents(prev => mergeAgentToFront(prev, created))
+      setSelectedAgent(created)
       setLastRefreshed(Date.now())
+    }
+
+    try {
+      const response = await fetch(`/api/agents/${encodeURIComponent(agentId)}`)
+      if (response.ok) {
+        const created = await response.json() as Agent
+        applyCreated({ ...created, tags: created.tags || [] })
+      } else {
+        applyCreated(buildOptimisticCreatedAgent(agentId))
+      }
     } catch (error) {
       console.warn('Failed to highlight created agent:', error)
+      applyCreated(buildOptimisticCreatedAgent(agentId))
     }
   }, [])
 
@@ -1922,7 +1957,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
             if (agentId) {
               void highlightCreatedAgent(agentId)
             }
-            fetchAgents(true, true)
+            window.setTimeout(() => { fetchAgents(true, true) }, 1200)
           }}
           defaultCloneFrom={cloneFromAgent || undefined}
           startWithAI={aiGenerateMode}

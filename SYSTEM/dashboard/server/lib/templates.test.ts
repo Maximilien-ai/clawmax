@@ -1086,6 +1086,41 @@ test('importAgentFromTemplate resolves a real default model when no override is 
   }
 })
 
+test('importAgentFromTemplate accepts logical alias slugs for *-template directories', () => {
+  const originalWorkspace = process.env.OPENCLAW_WORKSPACE
+  const originalHome = process.env.HOME
+  const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-agent-template-alias-home-'))
+  const tempWorkspace = path.join(tempHome, 'workspace')
+  const configPath = path.join(tempHome, '.openclaw', 'openclaw.json')
+  const targetAgentId = 'test-agent-alias'
+
+  process.env.HOME = tempHome
+  process.env.OPENCLAW_WORKSPACE = tempWorkspace
+  process.env.SYSTEM_OPENAI_API_KEY = 'test-openai-key'
+  resetWorkspaceManagerForTests()
+  seedOpenClawConfig(tempHome)
+
+  try {
+    const result = importAgentFromTemplate('test-agent', {
+      newAgentId: targetAgentId,
+      model: 'openai/gpt-4o-mini',
+    })
+
+    assert(result.ok === true, `Expected logical alias import to succeed, got ${result.error || 'unknown error'}`)
+
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    const registered = config?.agents?.list?.find((agent: any) => agent.id === targetAgentId)
+    assert(registered !== undefined, 'Expected alias-imported agent to be registered in openclaw.json')
+  } finally {
+    if (typeof originalHome === 'undefined') delete process.env.HOME
+    else process.env.HOME = originalHome
+    if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
+    else process.env.OPENCLAW_WORKSPACE = originalWorkspace
+    resetWorkspaceManagerForTests()
+    fs.rmSync(tempHome, { recursive: true, force: true })
+  }
+})
+
 // ============================================================================
 // Defensive: Agent import without agent files directory
 // ============================================================================

@@ -535,6 +535,16 @@ else
   fail "Agent list helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Workspace agent file seeding unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/workspace-agent-files.test.ts > /tmp/clawmax-workspace-agent-files.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-workspace-agent-files.out; then
+  workspace_agent_files_count=$(grep "Tests passed:" /tmp/clawmax-workspace-agent-files.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Workspace agent file seeding unit tests (${workspace_agent_files_count:-?} tests)"
+else
+  cat /tmp/clawmax-workspace-agent-files.out
+  fail "Workspace agent file seeding unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Discovery suggestion helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/discoverySuggestions.test.ts > /tmp/clawmax-discovery-suggestions.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-discovery-suggestions.out; then

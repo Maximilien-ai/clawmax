@@ -3,7 +3,7 @@ import { execSync, spawn } from 'child_process'
 import path from 'path'
 import fs from 'fs'
 import archiver from 'archiver'
-import { listAgents, getAgentActivity, getNextAgentId, findFreePort, getAgentImpact, deleteAgent, cloneAgentFiles, getAgentGatewayConfig, parseGroups, getWorkspacePath, getAgentsDir } from '../lib/workspace'
+import { listAgents, getAgentActivity, getNextAgentId, findFreePort, getAgentImpact, deleteAgent, cloneAgentFiles, getAgentGatewayConfig, parseGroups, getWorkspacePath, getAgentsDir, ensureManagedAgentWorkspaceFiles } from '../lib/workspace'
 import { generateAgentFiles, generateArchiveTitle } from '../lib/ai-generator'
 import { importAgentFromTemplate } from '../lib/templates'
 import { getConfiguredGatewayPort, getGatewayClient, isGatewayConfigured, isGatewayRunning, probeGatewayResponsive } from '../lib/gateway-rpc'
@@ -496,6 +496,24 @@ router.post('/provision', (req, res) => {
     send('error', `Failed to create workspace directory: ${err.message}`)
     res.end()
     return
+  }
+
+  if (!generatedFiles && !templateSlug && !cloneFrom) {
+    try {
+      const seeded = ensureManagedAgentWorkspaceFiles({
+        agentId: validatedName,
+        model: validatedModel,
+        tags,
+        workspacePath: getWorkspacePath(),
+      })
+      if (seeded.created.length > 0) {
+        send('log', `Seeded default agent files: ${seeded.created.join(', ')}\n`)
+      }
+    } catch (err: any) {
+      send('error', `Failed to seed agent workspace files: ${err.message}`)
+      res.end()
+      return
+    }
   }
 
   // Get available models based on API keys

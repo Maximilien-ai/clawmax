@@ -152,9 +152,16 @@ export function validateAgentConfigSections(config: {
 
 function templateExists(templateSlug: string): boolean {
   const slug = slugify(templateSlug)
-  const workspaceTemplateDir = path.join(getAgentTemplatesDir(), slug)
-  const globalTemplateDir = path.join(getGlobalAgentTemplatesDir(), slug)
-  return fs.existsSync(workspaceTemplateDir) || fs.existsSync(globalTemplateDir)
+  const candidates = Array.from(new Set([
+    slug,
+    slug.endsWith('-template') ? slug : `${slug}-template`,
+  ]))
+
+  return candidates.some((candidate) => {
+    const workspaceTemplateDir = path.join(getAgentTemplatesDir(), candidate)
+    const globalTemplateDir = path.join(getGlobalAgentTemplatesDir(), candidate)
+    return fs.existsSync(workspaceTemplateDir) || fs.existsSync(globalTemplateDir)
+  })
 }
 
 export function validateProvisionInput(

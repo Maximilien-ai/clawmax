@@ -32,6 +32,73 @@ export function getArchiveDir(): string {
   return path.join(getAgentsDir(), 'archive')
 }
 
+function prettifyAgentWorkspaceName(agentId: string): string {
+  return agentId
+    .split(/[-_]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ') || agentId
+}
+
+export function ensureManagedAgentWorkspaceFiles(args: {
+  agentId: string
+  model?: string
+  tags?: string[]
+  workspacePath?: string
+}): { created: string[] } {
+  const workspacePath = args.workspacePath || getWorkspacePath()
+  const agentDir = path.join(workspacePath, 'AGENTS', args.agentId)
+  const displayName = prettifyAgentWorkspaceName(args.agentId)
+  const uniqueTags = [...new Set((args.tags || []).map((tag) => String(tag || '').trim()).filter(Boolean))]
+  const created: string[] = []
+
+  fs.mkdirSync(agentDir, { recursive: true })
+
+  const identityPath = path.join(agentDir, 'IDENTITY.md')
+  if (!fs.existsSync(identityPath)) {
+    const identityLines = [
+      `# ${displayName}`,
+      '',
+      `- **Name:** ${displayName}`,
+      '- **Role:** AI Agent',
+      `- **Tags:** ${uniqueTags.length > 0 ? uniqueTags.join(', ') : 'none'}`,
+    ]
+    if (args.model) {
+      identityLines.push(`- **Model:** ${args.model}`)
+    }
+    identityLines.push('', '## Notes', '', 'Created by ClawMax Dashboard.')
+    fs.writeFileSync(identityPath, identityLines.join('\n'), 'utf-8')
+    created.push('IDENTITY.md')
+  }
+
+  const soulPath = path.join(agentDir, 'SOUL.md')
+  if (!fs.existsSync(soulPath)) {
+    fs.writeFileSync(soulPath, [
+      '# SOUL.md',
+      '',
+      '## Core Truths',
+      '',
+      '- Be helpful, direct, and pragmatic.',
+      '- Prefer using the workspace context before making assumptions.',
+    ].join('\n'), 'utf-8')
+    created.push('SOUL.md')
+  }
+
+  const toolsPath = path.join(agentDir, 'TOOLS.md')
+  if (!fs.existsSync(toolsPath)) {
+    fs.writeFileSync(toolsPath, [
+      '# TOOLS.md',
+      '',
+      '## Workspace Notes',
+      '',
+      '- Use the files in this workspace as the primary source of truth.',
+    ].join('\n'), 'utf-8')
+    created.push('TOOLS.md')
+  }
+
+  return { created }
+}
+
 // Legacy exports for backward compatibility
 export const AGENTS_DIR = path.join(WORKSPACE, 'AGENTS')
 export const ARCHIVE_DIR = path.join(AGENTS_DIR, 'archive')
