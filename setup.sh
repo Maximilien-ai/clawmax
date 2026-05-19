@@ -193,7 +193,7 @@ cat << "EOF"
   Multiagent Orchestration Platform
 EOF
 echo -e "${NC}"
-print_info "ClawMax v1.3.x Setup"
+print_info "ClawMax Setup"
 echo ""
 
 # Must be in ClawMax directory
@@ -488,58 +488,49 @@ echo ""
 print_header "4. Keys & BYOK"
 
 echo "  setup.sh no longer collects provider or monitoring keys."
-echo "  This keeps open-source setup consistent across clean machines."
+echo "  It also avoids collecting optional shared runtime credentials during setup."
+echo "  This keeps open-source setup consistent across clean machines and reduces friction."
 echo ""
 echo -e "  ${BOLD}Recommended path:${NC}"
 echo "    1. Finish setup and start the dashboard"
 echo "    2. Add model keys later in BYOK or Keys & Secrets"
-echo "    3. Optionally edit SYSTEM/dashboard/.env for shared runtime keys"
+echo "    3. Optionally edit SYSTEM/dashboard/.env later for shared runtime keys"
 echo ""
 echo "  This also means partner integrations are opt-in by default."
 echo ""
-print_info "No API keys will be written by setup.sh"
+print_info "No provider API keys will be written by setup.sh"
 
 echo ""
 
 # ============================================================================
-# 5. GitHub OAuth (Production Mode)
+# 5. Auth Notes
 # ============================================================================
 
-GITHUB_CLIENT_ID=""
-GITHUB_CLIENT_SECRET=""
+GITHUB_CLIENT_ID="${GITHUB_CLIENT_ID:-}"
+GITHUB_CLIENT_SECRET="${GITHUB_CLIENT_SECRET:-}"
 
-if [ "$AUTH_MODE" = "github_oauth" ] && [ "$INTERACTIVE" = true ]; then
-  print_header "5. GitHub OAuth"
+print_header "5. Auth Notes"
 
-  echo "  Production mode requires GitHub OAuth for login."
+if [ "$AUTH_MODE" = "github_oauth" ]; then
+  echo "  GitHub OAuth was selected."
   echo ""
-  echo -e "  ${BOLD}Setup steps:${NC}"
-  echo "  1. Go to: https://github.com/settings/developers"
-  echo "  2. Click 'New OAuth App'"
-  echo "  3. Set Homepage URL: http://localhost:5173"
-  echo "  4. Set Callback URL: http://localhost:3001/api/auth/github/callback"
-  echo "  5. Copy Client ID and Client Secret"
+  echo "  setup.sh does not collect GitHub OAuth credentials interactively."
+  echo "  Finish setup first, then add these to SYSTEM/dashboard/.env if you want GitHub login:"
   echo ""
-  echo "  For detailed guide: SYSTEM/docs/OAUTH_SETUP.md"
+  echo "    GITHUB_CLIENT_ID=..."
+  echo "    GITHUB_CLIENT_SECRET=..."
   echo ""
-
-  read -p "  GITHUB_CLIENT_ID: " GITHUB_CLIENT_ID
-  read -p "  GITHUB_CLIENT_SECRET: " GITHUB_CLIENT_SECRET
-
-  if [ -n "$GITHUB_CLIENT_ID" ] && [ -n "$GITHUB_CLIENT_SECRET" ]; then
-    print_success "GitHub OAuth configured"
-  else
-    print_warning "OAuth credentials incomplete — falling back to local dev Email OTP"
-    AUTH_MODE="email_otp"
-    OTP_ALLOWED_EMAILS="dev@example.com"
-    OTP_DEV_MODE="log"
-  fi
-else
-  if [ "$AUTH_MODE" = "bypass" ]; then
-    print_info "Dev mode: OAuth bypassed (BYPASS_OAUTH=true)"
-  elif [ "$AUTH_MODE" = "email_otp" ] && [ "$OTP_DEV_MODE" = "log" ]; then
-    print_info "Dev mode: Email OTP enabled (codes written to .clawmax-otp-dev.json)"
-  fi
+  echo "  Callback URL:"
+  echo "    $SETUP_PUBLIC_URL/api/auth/github/callback"
+  echo ""
+  echo "  Frontend URL:"
+  echo "    $SETUP_FRONTEND_URL"
+  echo ""
+  echo "  Detailed guide: SYSTEM/docs/OAUTH_SETUP.md"
+elif [ "$AUTH_MODE" = "bypass" ]; then
+  print_info "Dev mode: OAuth bypassed (BYPASS_OAUTH=true)"
+elif [ "$AUTH_MODE" = "email_otp" ] && [ "$OTP_DEV_MODE" = "log" ]; then
+  print_info "Dev mode: Email OTP enabled (codes written to .clawmax-otp-dev.json)"
 fi
 
 echo ""
@@ -656,8 +647,9 @@ else
   cat >> "$ENV_FILE" << ENVEOF
 DASHBOARD_AUTH_MODE=github_oauth
 BYPASS_OAUTH=false
-GITHUB_CLIENT_ID=$GITHUB_CLIENT_ID
-GITHUB_CLIENT_SECRET=$GITHUB_CLIENT_SECRET
+# Add GitHub OAuth credentials later if you want GitHub login:
+# GITHUB_CLIENT_ID=
+# GITHUB_CLIENT_SECRET=
 JWT_SECRET=$JWT_SECRET
 ENVEOF
 fi

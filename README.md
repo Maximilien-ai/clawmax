@@ -169,14 +169,13 @@ ClawMax templates and workflows are open source and community-driven:
 
 ### Prerequisites
 
-- **OpenClaw** installed and running ([Installation Guide](https://docs.openclaw.ai))
-  - **Tested Version**: commit `55c2aaf` (March 2026)
-  - **Version Note**: ClawMax evolves quickly with OpenClaw. Prefer a recent OpenClaw build from March 2026 or later.
 - **Node.js** 18+ and npm
 - **Git** for cloning the repository
-- **API Keys** (required for agents):
-  - Anthropic API key (`ANTHROPIC_API_KEY`) for Claude models
-  - OpenAI API key (`OPENAI_API_KEY`) for GPT models
+
+You do **not** need to pre-install OpenClaw or add model API keys before setup.
+
+- `./setup.sh` installs OpenClaw if it is missing
+- model/provider keys can be added later in `BYOK` or `Keys & Secrets` after the dashboard is running
 
 ### Automated Installation (Recommended)
 
@@ -190,15 +189,18 @@ cd clawmax
 ```
 
 The setup script will:
-- ✅ Check prerequisites (Node.js, Git, OpenClaw)
-- ✅ Verify OpenClaw version compatibility
+- ✅ Check prerequisites (Node.js, Git)
+- ✅ Install OpenClaw if needed
 - ✅ Install dashboard dependencies
 - ✅ Configure workspace structure
 - ✅ Offer auth setup choices for local dev and production
 - ✅ Generate authentication token
 - ✅ Set up environment variables
-- ✅ Verify API keys (with instructions if missing)
 - ✅ Optionally install OpenClaw Gateway for chat
+
+After setup:
+- add provider/model keys in `BYOK` or `Keys & Secrets`
+- optionally add shared runtime keys in `SYSTEM/dashboard/.env`
 
 For local development, `./setup.sh` now offers:
 - `Email OTP` dev mode, which asks what login email you want in `SYSTEM/dashboard/.env`
