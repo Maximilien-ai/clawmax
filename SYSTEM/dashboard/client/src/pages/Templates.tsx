@@ -135,6 +135,30 @@ interface TemplateFeedbackSummary {
   entries: TemplateFeedbackEntry[]
 }
 
+interface RegistryInfo {
+  name?: string
+  sourceRepo?: string
+  writableToday?: boolean
+  submissionMode?: string
+  authMode?: string
+  endpoints?: Record<string, string>
+}
+
+interface TemplateRegistryEntry {
+  title: string
+  templateType: 'agent' | 'team' | 'company' | 'workflow'
+  templateSlug: string
+  templateId: string
+  templateSource: 'system' | 'user'
+  sourceUrl?: string
+  summary?: string
+  tags: string[]
+  applyCount?: number
+  rating?: number
+  ratingCount?: number
+  metadata?: Record<string, any>
+}
+
 type FeedbackSummaryMap = Record<string, { count: number; avgRating: number }>
 
 type Template = AgentTemplate | OrganizationTemplate | WorkflowTemplate
@@ -228,6 +252,231 @@ function ImportTemplateModal({
             {submitting ? 'Importing…' : 'Import Template'}
           </button>
         </div>
+      </div>
+    </div>
+  )
+}
+
+function TemplateRegistryModal({
+  onClose,
+  registry,
+  canonicalTemplates,
+  communityTemplates,
+  query,
+  onQueryChange,
+  loading,
+  error,
+  importingTemplateId,
+  onAdd,
+  onApplyLocal,
+  isTemplateLocal,
+  getLocalLabel,
+  writeEnabled,
+  onShare,
+  onRate,
+}: {
+  onClose: () => void
+  registry: RegistryInfo | null
+  canonicalTemplates: TemplateRegistryEntry[]
+  communityTemplates: TemplateRegistryEntry[]
+  query: string
+  onQueryChange: (value: string) => void
+  loading: boolean
+  error: string | null
+  importingTemplateId: string | null
+  onAdd: (entry: TemplateRegistryEntry) => Promise<void>
+  onApplyLocal: (entry: TemplateRegistryEntry) => void
+  isTemplateLocal: (entry: TemplateRegistryEntry) => boolean
+  getLocalLabel: (entry: TemplateRegistryEntry) => string
+  writeEnabled: boolean
+  onShare: () => void
+  onRate: (entry: TemplateRegistryEntry) => void
+}) {
+  const renderRegistryCard = (entry: TemplateRegistryEntry) => {
+    const visual = registryEntryVisual(entry)
+    const isLocal = isTemplateLocal(entry)
+    return (
+      <div key={entry.templateId} className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex items-start gap-3">
+            <ProductIconCell iconName={visual.iconName} emoji={visual.emoji} label={entry.title} size="sm" className="mt-0.5" />
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">{entry.title}</div>
+                <span className={`text-[11px] px-2 py-0.5 rounded-full border ${
+                  entry.templateSource === 'system'
+                    ? 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-300'
+                    : 'border-purple-200 bg-purple-50 text-purple-700 dark:border-purple-700 dark:bg-purple-900/20 dark:text-purple-300'
+                }`}>
+                  {entry.templateSource === 'system' ? 'System' : 'Community'}
+                </span>
+                {entry.templateSource === 'user' && (
+                  <span className="text-[11px] px-2 py-0.5 rounded-full border border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700 dark:border-fuchsia-700 dark:bg-fuchsia-900/20 dark:text-fuchsia-300">
+                    Pending Review
+                  </span>
+                )}
+                {isLocal && (
+                  <span className="text-[11px] px-2 py-0.5 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300">
+                    {getLocalLabel(entry)}
+                  </span>
+                )}
+              </div>
+              <div className="mt-1 text-xs text-gray-500 dark:text-gray-400 capitalize">
+                {entry.templateType} · {entry.templateSlug}
+              </div>
+              {entry.summary && (
+                <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{entry.summary}</p>
+              )}
+              {entry.tags.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {entry.tags.slice(0, 5).map((tag) => (
+                    <span key={`${entry.templateId}-${tag}`} className="text-[11px] px-2 py-0.5 rounded bg-sky-50 dark:bg-sky-900/30 text-sky-600 dark:text-sky-300 border border-sky-200 dark:border-sky-700">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="flex flex-col items-end gap-2 shrink-0">
+            {typeof entry.rating === 'number' && (
+              <div className="text-xs text-amber-600 dark:text-amber-300">
+                ★ {entry.rating.toFixed(1)}{entry.ratingCount ? ` (${entry.ratingCount})` : ''}
+              </div>
+            )}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => onRate(entry)}
+                className="px-3 py-1.5 rounded-md border border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-300 text-xs font-medium hover:bg-amber-100 dark:hover:bg-amber-900/30"
+              >
+                Rate
+              </button>
+              {isLocal ? (
+                <button
+                  onClick={() => onApplyLocal(entry)}
+                  className="px-3 py-1.5 rounded-md bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-700"
+                >
+                  Apply Local
+                </button>
+              ) : entry.templateType === 'workflow' ? (
+                <button
+                  disabled
+                  className="px-3 py-1.5 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 text-xs font-medium cursor-not-allowed"
+                  title="Workflow registry add is not available yet"
+                >
+                  Browse Only
+                </button>
+              ) : (
+                <button
+                  onClick={() => void onAdd(entry)}
+                  disabled={importingTemplateId === entry.templateId}
+                  className="px-3 py-1.5 rounded-md bg-sky-600 text-white text-xs font-medium hover:bg-sky-700 disabled:opacity-60"
+                >
+                  {importingTemplateId === entry.templateId ? 'Adding…' : 'Add Local'}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="w-full max-w-6xl rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl p-5 max-h-[92vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="flex flex-wrap items-start justify-between gap-4 mb-4">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">ClawMax.ai Template Registry</h2>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              Browse canonical templates and community submissions. Add to local templates before applying.
+            </p>
+            {registry?.sourceRepo && (
+              <a href={registry.sourceRepo} target="_blank" rel="noreferrer" className="mt-1 inline-block text-xs text-sky-600 dark:text-sky-400 hover:underline">
+                Source repo
+              </a>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {writeEnabled ? (
+              <button
+                onClick={onShare}
+                className="px-3 py-2 rounded-md bg-purple-600 text-white text-sm font-medium hover:bg-purple-700"
+              >
+                Share Template
+              </button>
+            ) : (
+              <button
+                disabled
+                className="px-3 py-2 rounded-md border border-gray-200 bg-gray-50 text-gray-500 dark:border-gray-700 dark:bg-gray-900/20 dark:text-gray-400 text-sm font-medium cursor-not-allowed"
+                title="Template sharing requires a registry write token from the deployment runtime."
+              >
+                Share Unavailable
+              </button>
+            )}
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-lg leading-none">✕</button>
+          </div>
+        </div>
+
+        <div className="mb-4">
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => onQueryChange(e.target.value)}
+            placeholder="Search registry templates by name, summary, slug, or tags..."
+            className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 px-3 py-2 text-sm"
+          />
+        </div>
+
+        {error && (
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">
+            {error}
+          </div>
+        )}
+
+        {loading ? (
+          <div className="py-12 text-center text-gray-500 dark:text-gray-400">Loading registry templates…</div>
+        ) : (
+          <div className="space-y-8">
+            <section>
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-200">Canonical Templates</h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">System templates from ClawMax.ai.</p>
+                </div>
+                <div className="text-xs text-gray-400">{canonicalTemplates.length} result{canonicalTemplates.length === 1 ? '' : 's'}</div>
+              </div>
+              {canonicalTemplates.length === 0 ? (
+                <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 px-4 py-6 text-sm text-gray-500 dark:text-gray-400">
+                  No canonical registry templates match your search.
+                </div>
+              ) : (
+                <div className="grid gap-3">
+                  {canonicalTemplates.map(renderRegistryCard)}
+                </div>
+              )}
+            </section>
+
+            <section>
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-200">Community Submissions</h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Pending user-shared templates awaiting review.</p>
+                </div>
+                <div className="text-xs text-gray-400">{communityTemplates.length} result{communityTemplates.length === 1 ? '' : 's'}</div>
+              </div>
+              {communityTemplates.length === 0 ? (
+                <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 px-4 py-6 text-sm text-gray-500 dark:text-gray-400">
+                  No community submissions match your search.
+                </div>
+              ) : (
+                <div className="grid gap-3">
+                  {communityTemplates.map(renderRegistryCard)}
+                </div>
+              )}
+            </section>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -330,9 +579,68 @@ const TEMPLATE_SOURCE_OPTIONS: Array<{
   { key: 'enterprise', label: 'Enterprise' },
 ]
 
+function registryEntryVisual(entry: TemplateRegistryEntry) {
+  if (entry.templateType === 'agent') {
+    return resolveTemplateVisual({
+      name: entry.title,
+      type: 'agent',
+      source: entry.templateSource === 'system' ? 'system' : 'workspace',
+      version: '1.0.0',
+      description: entry.summary,
+      tags: entry.tags,
+      agents: [{ id: entry.templateSlug, role: entry.title }],
+    } as AgentTemplate)
+  }
+  if (entry.templateType === 'workflow') {
+    return resolveTemplateVisual({
+      id: entry.templateSlug,
+      name: entry.title,
+      type: 'workflow',
+      description: entry.summary || '',
+      schedule: 'manual',
+      enabled: true,
+      author: '',
+      created: '',
+      modified: '',
+      executionMode: 'managed',
+      content: '',
+      targeting: { communities: [], groups: [], tags: entry.tags, agents: [] },
+    } as WorkflowTemplate)
+  }
+  return resolveTemplateVisual({
+    name: entry.title,
+    type: 'organization',
+    kind: entry.templateType === 'company' ? 'company' : 'team',
+    source: entry.templateSource === 'system' ? 'system' : 'workspace',
+    version: '1.0.0',
+    description: entry.summary,
+    tags: entry.tags,
+    agents: [],
+    groups: [],
+    communities: [],
+    workflows: [],
+  } as OrganizationTemplate)
+}
+
+function matchesRegistryQuery(entry: TemplateRegistryEntry, query: string) {
+  const normalized = query.trim().toLowerCase()
+  if (!normalized) return true
+  return (
+    entry.title.toLowerCase().includes(normalized) ||
+    entry.templateSlug.toLowerCase().includes(normalized) ||
+    entry.summary?.toLowerCase().includes(normalized) ||
+    entry.tags.some((tag) => tag.toLowerCase().includes(normalized))
+  )
+}
+
+function toTemplateSlug(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+}
+
 export default function Templates() {
   const { config } = useAuth()
   const aiEnabled = hasAiGenerationAccess(config)
+  const templateRegistryWriteEnabled = Boolean(config?.templateRegistryWriteEnabled)
   const { showSuccess, showError } = useToast()
   const [agentTemplates, setAgentTemplates] = useState<AgentTemplate[]>([])
   const [orgTemplates, setOrgTemplates] = useState<OrganizationTemplate[]>([])
@@ -360,6 +668,29 @@ export default function Templates() {
   const [editingAgentTemplate, setEditingAgentTemplate] = useState<AgentTemplate | null>(null)
   const [showActionsMenu, setShowActionsMenu] = useState(false)
   const [showImportTemplateModal, setShowImportTemplateModal] = useState(false)
+  const [showRegistryModal, setShowRegistryModal] = useState(false)
+  const [registryInfo, setRegistryInfo] = useState<RegistryInfo | null>(null)
+  const [registryTemplates, setRegistryTemplates] = useState<TemplateRegistryEntry[]>([])
+  const [registryCommunityTemplates, setRegistryCommunityTemplates] = useState<TemplateRegistryEntry[]>([])
+  const [registryLoading, setRegistryLoading] = useState(false)
+  const [registryError, setRegistryError] = useState<string | null>(null)
+  const [registryQuery, setRegistryQuery] = useState('')
+  const [registryImportingId, setRegistryImportingId] = useState<string | null>(null)
+  const [shareTemplateOpen, setShareTemplateOpen] = useState(false)
+  const [shareTemplateSubmitting, setShareTemplateSubmitting] = useState(false)
+  const [shareTemplateForm, setShareTemplateForm] = useState({
+    title: '',
+    templateType: 'team',
+    templateSlug: '',
+    sourceUrl: '',
+    summary: '',
+    tags: '',
+    rating: 5,
+    whyUseful: '',
+  })
+  const [registryRatingTarget, setRegistryRatingTarget] = useState<TemplateRegistryEntry | null>(null)
+  const [registryRating, setRegistryRating] = useState(5)
+  const [registryRatingSuggestions, setRegistryRatingSuggestions] = useState('')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [pendingOnboardingSelection, setPendingOnboardingSelection] = useState<null | {
     templateId?: string
@@ -455,6 +786,43 @@ export default function Templates() {
       })
   }
 
+  const findLocalTemplateForRegistryEntry = React.useCallback((entry: TemplateRegistryEntry): Template | null => {
+    const type = entry.templateType === 'agent' ? 'agent' : entry.templateType === 'workflow' ? 'workflow' : 'organization'
+    if (type === 'workflow') {
+      return workflowTemplates.find((template) =>
+        template.id === entry.templateSlug ||
+        template.name.trim().toLowerCase() === entry.title.trim().toLowerCase()
+      ) || null
+    }
+    const candidates = type === 'agent' ? agentTemplates : orgTemplates
+    return candidates.find((template) =>
+      template.slug === entry.templateSlug ||
+      toTemplateSlug(template.name) === entry.templateSlug ||
+      template.name.trim().toLowerCase() === entry.title.trim().toLowerCase()
+    ) || null
+  }, [agentTemplates, orgTemplates, workflowTemplates])
+
+  const loadTemplateRegistry = React.useCallback(async () => {
+    setRegistryLoading(true)
+    setRegistryError(null)
+    try {
+      const resp = await fetch('/api/template-registry')
+      const data = await resp.json().catch(() => ({}))
+      if (!resp.ok) {
+        throw new Error(data.error || 'Failed to load template registry')
+      }
+      setRegistryInfo(data.registry || null)
+      setRegistryTemplates(Array.isArray(data.templates) ? data.templates : [])
+      setRegistryCommunityTemplates(Array.isArray(data.communitySubmissions) ? data.communitySubmissions : [])
+    } catch (err: any) {
+      setRegistryError(err.message || 'Failed to load template registry')
+      setRegistryTemplates([])
+      setRegistryCommunityTemplates([])
+    } finally {
+      setRegistryLoading(false)
+    }
+  }, [])
+
   const matchesRatingFilter = React.useCallback((template: Template) => {
     if (template.type === 'workflow') return ratingFilter === 'all'
     const key = `${template.type}:${template.slug || ''}`
@@ -485,6 +853,11 @@ export default function Templates() {
     window.addEventListener('clawmax-open-template-from-onboarding', handleOpenFromOnboarding)
     return () => window.removeEventListener('clawmax-open-template-from-onboarding', handleOpenFromOnboarding)
   }, [applyPendingOnboardingSelection])
+
+  useEffect(() => {
+    if (!showRegistryModal) return
+    void loadTemplateRegistry()
+  }, [showRegistryModal, loadTemplateRegistry])
 
   useEffect(() => {
     if (!pendingOnboardingSelection) return
@@ -673,6 +1046,14 @@ export default function Templates() {
     () => filteredOrgTemplates.filter((template) => getOrganizationTemplateKind(template) === 'company'),
     [filteredOrgTemplates]
   )
+  const visibleRegistryTemplates = React.useMemo(
+    () => registryTemplates.filter((entry) => matchesRegistryQuery(entry, registryQuery)),
+    [registryTemplates, registryQuery]
+  )
+  const visibleRegistryCommunityTemplates = React.useMemo(
+    () => registryCommunityTemplates.filter((entry) => matchesRegistryQuery(entry, registryQuery)),
+    [registryCommunityTemplates, registryQuery]
+  )
 
   const totalFiltered = filteredAgentTemplates.length + filteredOrgTemplates.length + filteredWorkflowTemplates.length
   const templateRows = React.useMemo(
@@ -759,6 +1140,139 @@ export default function Templates() {
   const agentRowBuckets = React.useMemo(() => splitRowsBySource(sortedAgentRows), [sortedAgentRows, splitRowsBySource])
   const teamRowBuckets = React.useMemo(() => splitRowsBySource(sortedTeamRows), [sortedTeamRows, splitRowsBySource])
   const companyRowBuckets = React.useMemo(() => splitRowsBySource(sortedCompanyRows), [sortedCompanyRows, splitRowsBySource])
+
+  const handleImportRegistryTemplate = React.useCallback(async (entry: TemplateRegistryEntry) => {
+    if (!entry.sourceUrl) {
+      showError('This registry template does not include a source URL to import from.')
+      return
+    }
+    setRegistryImportingId(entry.templateId)
+    try {
+      const resp = await fetch('/api/template-registry/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: entry.title,
+          templateSlug: entry.templateSlug,
+          templateType: entry.templateType,
+          templateId: entry.templateId,
+          templateSource: entry.templateSource,
+          sourceUrl: entry.sourceUrl,
+        }),
+      })
+      const data = await resp.json().catch(() => ({}))
+      if (!resp.ok) {
+        throw new Error(data.error || 'Failed to add template from registry')
+      }
+      fetchTemplates()
+      if (data.alreadyLocal) {
+        showSuccess(`"${entry.title}" is already available locally.`)
+      } else {
+        showSuccess(`Added "${entry.title}" to local templates.`)
+      }
+    } catch (err: any) {
+      showError(err.message || 'Failed to add template from registry')
+    } finally {
+      setRegistryImportingId(null)
+    }
+  }, [showError, showSuccess])
+
+  const handleApplyLocalRegistryTemplate = React.useCallback((entry: TemplateRegistryEntry) => {
+    const local = findLocalTemplateForRegistryEntry(entry)
+    if (!local) {
+      showError('This registry template is not available locally yet.')
+      return
+    }
+    openApplyForTemplate(local)
+    setShowRegistryModal(false)
+  }, [findLocalTemplateForRegistryEntry, showError])
+
+  const openShareTemplateDialog = React.useCallback(() => {
+    const selectedLocalTemplate = selectedTemplate && selectedTemplate.type !== 'workflow' ? selectedTemplate : null
+    setShareTemplateForm({
+      title: selectedLocalTemplate?.name || '',
+      templateType: selectedLocalTemplate?.type === 'agent'
+        ? 'agent'
+        : selectedLocalTemplate?.type === 'organization'
+          ? getOrganizationTemplateKind(selectedLocalTemplate as OrganizationTemplate)
+          : 'team',
+      templateSlug: selectedLocalTemplate?.slug || (selectedLocalTemplate ? toTemplateSlug(selectedLocalTemplate.name) : ''),
+      sourceUrl: '',
+      summary: (selectedLocalTemplate as any)?.description || '',
+      tags: ((selectedLocalTemplate as any)?.tags || []).join(', '),
+      rating: 5,
+      whyUseful: '',
+    })
+    setShareTemplateOpen(true)
+  }, [selectedTemplate])
+
+  const handleShareTemplate = React.useCallback(async () => {
+    setShareTemplateSubmitting(true)
+    try {
+      const resp = await fetch('/api/template-registry/share', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: shareTemplateForm.title.trim(),
+          templateType: shareTemplateForm.templateType,
+          templateSlug: shareTemplateForm.templateSlug.trim(),
+          sourceUrl: shareTemplateForm.sourceUrl.trim(),
+          summary: shareTemplateForm.summary.trim(),
+          tags: shareTemplateForm.tags.split(',').map((tag) => tag.trim()).filter(Boolean),
+          rating: Number(shareTemplateForm.rating) || 5,
+          whyUseful: shareTemplateForm.whyUseful.trim(),
+        }),
+      })
+      const data = await resp.json().catch(() => ({}))
+      if (!resp.ok) {
+        throw new Error(data.error || 'Failed to share template')
+      }
+      showSuccess('Template submitted to the registry for review.')
+      setShareTemplateOpen(false)
+      if (showRegistryModal) {
+        void loadTemplateRegistry()
+      }
+    } catch (err: any) {
+      showError(err.message || 'Failed to share template')
+    } finally {
+      setShareTemplateSubmitting(false)
+    }
+  }, [shareTemplateForm, showRegistryModal, loadTemplateRegistry, showError, showSuccess])
+
+  const handleRateRegistryTemplate = React.useCallback(async () => {
+    if (!registryRatingTarget) return
+    try {
+      const resp = await fetch('/api/template-registry/rate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          templateType: registryRatingTarget.templateType,
+          templateSlug: registryRatingTarget.templateSlug,
+          templateId: registryRatingTarget.templateId,
+          templateSource: registryRatingTarget.templateSource,
+          templateTags: registryRatingTarget.tags,
+          templateInfo: {
+            title: registryRatingTarget.title,
+            summary: registryRatingTarget.summary,
+            sourceUrl: registryRatingTarget.sourceUrl,
+          },
+          applyCount: registryRatingTarget.applyCount || 0,
+          rating: registryRating,
+          suggestions: registryRatingSuggestions.trim(),
+        }),
+      })
+      const data = await resp.json().catch(() => ({}))
+      if (!resp.ok) {
+        throw new Error(data.error || 'Failed to rate template')
+      }
+      showSuccess('Template rating saved.')
+      setRegistryRatingTarget(null)
+      setRegistryRating(5)
+      setRegistryRatingSuggestions('')
+    } catch (err: any) {
+      showError(err.message || 'Failed to rate template')
+    }
+  }, [registryRating, registryRatingSuggestions, registryRatingTarget, showError, showSuccess])
   const templateSuggestionRows = React.useMemo(() => {
     if (!searchQuery.trim()) return []
     const visibleOrgTemplates = (categoryFilter === 'all'
@@ -1055,6 +1569,15 @@ export default function Templates() {
                     className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 border-t border-gray-100 dark:border-gray-700"
                   >
                     <ProductIconCell iconName="import" label="Import TEMPLATE.md" size="sm" className="border-sky-200 bg-sky-50 text-sky-600 dark:border-sky-700 dark:bg-sky-900/30 dark:text-sky-300" /> Import TEMPLATE.md
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowRegistryModal(true)
+                      setShowActionsMenu(false)
+                    }}
+                    className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 border-t border-gray-100 dark:border-gray-700"
+                  >
+                    <ProductIconCell iconName="registry" label="ClawMax.ai Registry" size="sm" className="border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-300" /> ClawMax.ai Registry
                   </button>
                   <button
                     onClick={() => {
@@ -1932,6 +2455,135 @@ export default function Templates() {
             setShowImportTemplateModal(false)
           }}
         />
+      )}
+
+      {showRegistryModal && (
+        <TemplateRegistryModal
+          onClose={() => setShowRegistryModal(false)}
+          registry={registryInfo}
+          canonicalTemplates={visibleRegistryTemplates}
+          communityTemplates={visibleRegistryCommunityTemplates}
+          query={registryQuery}
+          onQueryChange={setRegistryQuery}
+          loading={registryLoading}
+          error={registryError}
+          importingTemplateId={registryImportingId}
+          onAdd={handleImportRegistryTemplate}
+          onApplyLocal={handleApplyLocalRegistryTemplate}
+          isTemplateLocal={(entry) => !!findLocalTemplateForRegistryEntry(entry)}
+          getLocalLabel={(entry) => {
+            const local = findLocalTemplateForRegistryEntry(entry)
+            if (!local) return 'Local'
+            return local.source === 'workspace' ? 'Already local' : 'Available locally'
+          }}
+          writeEnabled={templateRegistryWriteEnabled}
+          onShare={openShareTemplateDialog}
+          onRate={(entry) => {
+            if (!templateRegistryWriteEnabled) {
+              showError('Template registry rating is not configured for this deployment yet.')
+              return
+            }
+            setRegistryRatingTarget(entry)
+            setRegistryRating(5)
+            setRegistryRatingSuggestions('')
+          }}
+        />
+      )}
+
+      {shareTemplateOpen && (
+        <div className="fixed inset-0 z-[80] bg-black/50 flex items-center justify-center p-4" onClick={() => setShareTemplateOpen(false)}>
+          <div className="w-full max-w-2xl rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl p-5 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Share Template</h3>
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Submit a GitHub-backed template to the ClawMax.ai community registry.</p>
+              </div>
+              <button onClick={() => setShareTemplateOpen(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-lg leading-none">✕</button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label className="block">
+                <span className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Title</span>
+                <input value={shareTemplateForm.title} onChange={(e) => setShareTemplateForm((current) => ({ ...current, title: e.target.value }))} className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100" />
+              </label>
+              <label className="block">
+                <span className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Template Type</span>
+                <select value={shareTemplateForm.templateType} onChange={(e) => setShareTemplateForm((current) => ({ ...current, templateType: e.target.value }))} className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100">
+                  <option value="agent">Agent</option>
+                  <option value="team">Team</option>
+                  <option value="company">Company</option>
+                </select>
+              </label>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+              <label className="block">
+                <span className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Template Slug</span>
+                <input value={shareTemplateForm.templateSlug} onChange={(e) => setShareTemplateForm((current) => ({ ...current, templateSlug: e.target.value }))} className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100" />
+              </label>
+              <label className="block">
+                <span className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Rating</span>
+                <select value={shareTemplateForm.rating} onChange={(e) => setShareTemplateForm((current) => ({ ...current, rating: Number(e.target.value) }))} className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100">
+                  {[5, 4, 3, 2, 1].map((value) => <option key={value} value={value}>{value}</option>)}
+                </select>
+              </label>
+            </div>
+            <label className="block mt-3">
+              <span className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">GitHub Source URL</span>
+              <input value={shareTemplateForm.sourceUrl} onChange={(e) => setShareTemplateForm((current) => ({ ...current, sourceUrl: e.target.value }))} placeholder="https://github.com/acme/templates/tree/main/templates/support-escalation-desk" className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100" />
+            </label>
+            <label className="block mt-3">
+              <span className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Summary</span>
+              <textarea value={shareTemplateForm.summary} onChange={(e) => setShareTemplateForm((current) => ({ ...current, summary: e.target.value }))} rows={2} className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100" />
+            </label>
+            <label className="block mt-3">
+              <span className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tags</span>
+              <input value={shareTemplateForm.tags} onChange={(e) => setShareTemplateForm((current) => ({ ...current, tags: e.target.value }))} placeholder="support, ops, handoff" className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100" />
+            </label>
+            <label className="block mt-3">
+              <span className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Why Useful</span>
+              <textarea value={shareTemplateForm.whyUseful} onChange={(e) => setShareTemplateForm((current) => ({ ...current, whyUseful: e.target.value }))} rows={3} className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100" />
+            </label>
+            <div className="mt-4 flex items-center justify-end gap-2">
+              <button onClick={() => setShareTemplateOpen(false)} className="px-4 py-2 rounded-md border border-gray-300 dark:border-gray-600 text-sm text-gray-700 dark:text-gray-300">Cancel</button>
+              <button onClick={() => void handleShareTemplate()} disabled={shareTemplateSubmitting} className="px-4 py-2 rounded-md bg-purple-600 text-white text-sm font-medium hover:bg-purple-700 disabled:opacity-60">
+                {shareTemplateSubmitting ? 'Submitting…' : 'Submit'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {registryRatingTarget && (
+        <div className="fixed inset-0 z-[80] bg-black/50 flex items-center justify-center p-4" onClick={() => setRegistryRatingTarget(null)}>
+          <div className="w-full max-w-lg rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl p-5" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Rate Template</h3>
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{registryRatingTarget.title}</p>
+              </div>
+              <button onClick={() => setRegistryRatingTarget(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-lg leading-none">✕</button>
+            </div>
+            <div>
+              <div className="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Rating</div>
+              <div className="flex gap-1 mb-4">
+                {[1, 2, 3, 4, 5].map((value) => (
+                  <button key={value} type="button" onClick={() => setRegistryRating(value)} className={`text-2xl leading-none ${value <= registryRating ? 'text-amber-400' : 'text-gray-300 dark:text-gray-600'}`}>
+                    ★
+                  </button>
+                ))}
+              </div>
+              <label className="block">
+                <span className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Suggestions</span>
+                <textarea value={registryRatingSuggestions} onChange={(e) => setRegistryRatingSuggestions(e.target.value)} rows={3} className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100" />
+              </label>
+            </div>
+            <div className="mt-4 flex items-center justify-end gap-2">
+              <button onClick={() => setRegistryRatingTarget(null)} className="px-4 py-2 rounded-md border border-gray-300 dark:border-gray-600 text-sm text-gray-700 dark:text-gray-300">Cancel</button>
+              <button onClick={() => void handleRateRegistryTemplate()} className="px-4 py-2 rounded-md bg-amber-500 text-white text-sm font-medium hover:bg-amber-600">
+                Save Rating
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       <ConfirmDeleteDialog

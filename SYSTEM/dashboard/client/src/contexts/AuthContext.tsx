@@ -36,6 +36,7 @@ interface AuthConfig {
   instanceKey?: string | null
   machineId?: string | null
   machineName?: string | null
+  templateRegistryWriteEnabled?: boolean
 }
 
 interface AuthContextValue {

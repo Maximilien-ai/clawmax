@@ -58,6 +58,15 @@
 ## Active Product Work
 
 ### Templates & Discovery
+- [ ] **Template Registry MVP (ClawMax.ai only)** — add a first-pass template registry flow in the dashboard, modeled after the existing skills-registry UX. Scope for the initial sprint:
+  - browse/search canonical templates from the ClawMax.ai registry
+  - show a separate community/pending section for user-shared submissions
+  - allow apply/add from registry results without replacing the existing local template browser
+  - allow rating for both canonical and community templates
+  - allow share/submit only for authenticated ClawMax.ai users
+  - show `System`, `Community`, and `Pending Review` badges clearly
+  - prefer a dashboard-server proxy for auth-required registry actions so the browser does not need to manage raw ClawMax.ai bearer tokens directly
+  - keep this limited to the ClawMax.ai registry for now; do not generalize to multiple template registries until the first flow is stable
 - [ ] **Template feedback, ratings, and promotion flow** — let users review proposal templates, submit feedback, and promote well-performing templates from idea/proposal status into more trusted catalog tiers.
 - [ ] **Template upgrade / reapply-over-existing flow** — support upgrading a workspace that already applied a template when the template changes later; compare the current workspace against the newer template, show likely conflicts plus likely safe updates, and guide the user through update vs. replace decisions instead of forcing manual delete + reapply.
 - [ ] **Surface old template versions in the UI** — template saves already archive prior versions on disk under `.versions/`; add a lightweight “Previous versions” surface so users can inspect older versions, compare against the current one, and optionally restore or copy content from an earlier snapshot.

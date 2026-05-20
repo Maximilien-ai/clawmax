@@ -20,6 +20,8 @@ import workflowsRouter from './routes/workflows'
 import integrationsRouter from './routes/integrations'
 import teamsRouter from './routes/teams'
 import aiRouter from './routes/ai'
+import templateRegistryRouter from './routes/template-registry'
+import { isTemplateRegistryWriteEnabled } from './lib/template-registry'
 import { WORKSPACE, getWorkspacePath, listAgents, getWorkspaceActivity, getDashboardVersion, writeWorkspaceFile, getOrgName, parseGroups, parseIdentity, isManagedAgentWorkspaceDir } from './lib/workspace'
 import { startScheduler, stopScheduler } from './lib/scheduler'
 import { startNotificationMonitor, stopNotificationMonitor } from './lib/notifications'
@@ -187,6 +189,7 @@ app.get('/api/auth/config', (_req, res) => {
     preferredModel: integrationConfig.preferredModel,
     recommendedModel: getBestAvailableModel(),
     costEfficientModel: getCostEfficientModel(),
+    templateRegistryWriteEnabled: isTemplateRegistryWriteEnabled(),
   })
 })
 
@@ -572,6 +575,7 @@ app.use('/api/agents', protect, agentsRouter)
 app.use('/api/agents', protect, chatRouter)
 app.use('/api/agents', protect, logsRouter)
 app.use('/api/templates', protect, templatesRouter)
+app.use('/api/template-registry', templateRegistryRouter)
 app.use('/api/skills', protect, skillsRouter)
 app.use('/api/workflows', protect, workflowsRouter)
 app.use('/api/ai', protect, aiRouter)
