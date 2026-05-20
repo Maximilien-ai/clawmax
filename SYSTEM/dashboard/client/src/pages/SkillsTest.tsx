@@ -703,6 +703,9 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
             openai: byok.openai,
             anthropic: byok.anthropic,
             gemini: byok.geminiApiKey,
+            openaiCompatibleApiKey: byok.openaiCompatibleApiKey,
+            openaiCompatibleBaseUrl: byok.openaiCompatibleBaseUrl,
+            openaiCompatibleDefaultModel: byok.openaiCompatibleDefaultModel,
           },
         }),
       })

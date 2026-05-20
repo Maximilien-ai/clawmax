@@ -60,8 +60,12 @@ export function safeEnv(extras?: Record<string, string | undefined>): NodeJS.Pro
 }
 
 function providerKeysToEnv(providerKeys: ExecutionEnvOverrides): Record<string, string> | undefined {
+  const useOpenAiCompatible = !!providerKeys.openaiCompatibleBaseUrl
   return {
-    OPENAI_API_KEY: providerKeys.openai || '',
+    OPENAI_API_KEY: useOpenAiCompatible
+      ? (providerKeys.openaiCompatibleApiKey || providerKeys.openai || 'openai-compatible')
+      : (providerKeys.openai || ''),
+    OPENAI_BASE_URL: useOpenAiCompatible ? (providerKeys.openaiCompatibleBaseUrl || '') : '',
     ANTHROPIC_API_KEY: providerKeys.anthropic || '',
     GEMINI_API_KEY: providerKeys.gemini || '',
     OLLAMA_BASE_URL: providerKeys.ollamaBaseUrl || '',
@@ -74,6 +78,9 @@ export function userExecutionEnv(byokOverrides?: ExecutionEnvOverrides): NodeJS.
   return safeEnv(providerKeysToEnv({
     ...resolvedProviderKeys,
     ollamaBaseUrl: byokOverrides?.ollamaBaseUrl?.trim() || undefined,
+    openaiCompatibleApiKey: byokOverrides?.openaiCompatibleApiKey?.trim() || undefined,
+    openaiCompatibleBaseUrl: byokOverrides?.openaiCompatibleBaseUrl?.trim() || undefined,
+    openaiCompatibleDefaultModel: byokOverrides?.openaiCompatibleDefaultModel?.trim() || undefined,
   }))
 }
 

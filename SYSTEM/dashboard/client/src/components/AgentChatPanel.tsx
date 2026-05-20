@@ -326,7 +326,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
   async function checkGateway() {
     // Check for BYOK keys in browser — these can power chat without gateway or server keys
     const byokKeys = readStoredByokKeys()
-    const hasByokKeys = !!(byokKeys.openai || byokKeys.anthropic)
+    const hasByokKeys = !!(byokKeys.openai || byokKeys.anthropic || byokKeys.openaiCompatibleBaseUrl)
 
     try {
       const r = await fetch(`/api/agents/${agentId}/gateway`)
@@ -346,7 +346,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
     try {
       const configResp = await fetch('/api/auth/config')
       const config = configResp.ok ? await configResp.json() : {}
-      const hasServerKeys = config?.systemKeyDefaults?.openai || config?.systemKeyDefaults?.anthropic
+      const hasServerKeys = config?.systemKeyDefaults?.openai || config?.systemKeyDefaults?.anthropic || config?.systemKeyDefaults?.openaiCompatible
       if (hasServerKeys) {
         setGatewayAvailable(true)
         return
@@ -354,7 +354,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
     } catch {}
 
     setGatewayAvailable(false)
-    setError('No API keys available. Add keys via BYOK or configure server environment.')
+    setError('No execution path is available. Add OpenAI, Anthropic, or OpenAI-compatible settings in BYOK, or configure server environment keys.')
   }
 
   async function checkChatExecutionReadiness() {

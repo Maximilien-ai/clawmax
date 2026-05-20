@@ -16,7 +16,7 @@ export interface ModelsResponse {
   modelsByProvider: Record<string, ProviderModels>
 }
 
-type ProviderId = 'openai' | 'anthropic' | 'gemini' | 'ollama'
+type ProviderId = 'openai' | 'anthropic' | 'gemini' | 'ollama' | 'openai-compatible'
 
 // ── Cache ──────────────────────────────────────────────────────────────────────
 
@@ -88,10 +88,11 @@ const COMPATIBLE_MODELS: Record<Exclude<ProviderId, 'ollama'>, string[]> = {
   openai: FALLBACK_OPENAI,
   anthropic: FALLBACK_ANTHROPIC,
   gemini: FALLBACK_GEMINI,
+  'openai-compatible': [],
 }
 
 function filterCompatibleDiscoveredModels(provider: ProviderId, models: string[], showAll = false): string[] {
-  if (showAll || provider === 'ollama') return models
+  if (showAll || provider === 'ollama' || provider === 'openai-compatible') return models
   const compatible = new Set(COMPATIBLE_MODELS[provider as keyof typeof COMPATIBLE_MODELS] || [])
   return models.filter((model) => compatible.has(model))
 }
@@ -235,6 +236,41 @@ async function fetchOllamaModels(baseUrl: string): Promise<string[]> {
   }
 }
 
+async function fetchOpenAICompatibleModels(baseUrl: string, apiKey?: string): Promise<string[]> {
+  const normalizedBaseUrl = (baseUrl.trim() || '').replace(/\/+$/, '')
+  if (!normalizedBaseUrl) return []
+  const cacheKey = `openai-compatible:${normalizedBaseUrl}`
+  const cached = getCached(cacheKey)
+  if (cached) return cached
+
+  try {
+    const headers: Record<string, string> = {}
+    if (apiKey?.trim()) {
+      headers.Authorization = `Bearer ${apiKey.trim()}`
+    }
+    const res = await fetch(`${normalizedBaseUrl}/models`, {
+      headers,
+      signal: AbortSignal.timeout(5000),
+    })
+    if (!res.ok) {
+      console.warn(`OpenAI-compatible models API returned ${res.status}`)
+      return []
+    }
+    const body = await res.json() as { data?: Array<{ id?: string }> }
+    const models = (body.data || [])
+      .map((m) => (m.id || '').trim())
+      .filter(Boolean)
+      .sort()
+      .map((id) => `openai-compatible/${id}`)
+
+    setCache(cacheKey, models)
+    return models
+  } catch (err) {
+    console.warn('Failed to fetch OpenAI-compatible models:', (err as Error).message)
+    return []
+  }
+}
+
 // ── Public API ─────────────────────────────────────────────────────────────────
 
 function resolveApiKey(provider: 'openai' | 'anthropic' | 'gemini', rawEnv?: Record<string, string>): string | undefined {
@@ -245,13 +281,15 @@ function resolveApiKey(provider: 'openai' | 'anthropic' | 'gemini', rawEnv?: Rec
 
 /** Fetch models for all configured providers. Returns immediately from cache when warm. */
 export async function discoverModels(
-  byokKeys?: { openai?: string; anthropic?: string; gemini?: string; ollamaBaseUrl?: string },
+  byokKeys?: { openai?: string; anthropic?: string; gemini?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string },
   options?: { showAll?: boolean }
 ): Promise<ModelsResponse> {
   const openaiKey = byokKeys?.openai || resolveApiKey('openai')
   const anthropicKey = byokKeys?.anthropic || resolveApiKey('anthropic')
   const geminiKey = byokKeys?.gemini || resolveApiKey('gemini')
   const ollamaBaseUrl = byokKeys?.ollamaBaseUrl?.trim()
+  const openaiCompatibleApiKey = byokKeys?.openaiCompatibleApiKey?.trim()
+  const openaiCompatibleBaseUrl = byokKeys?.openaiCompatibleBaseUrl?.trim()
   const showAll = options?.showAll === true
 
   const fetches: Promise<{ provider: string; name: string; models: string[] }>[] = []
@@ -291,6 +329,16 @@ export async function discoverModels(
       fetchOllamaModels(ollamaBaseUrl).then(models => ({
         provider: 'ollama',
         name: 'Ollama',
+        models,
+      }))
+    )
+  }
+
+  if (openaiCompatibleBaseUrl) {
+    fetches.push(
+      fetchOpenAICompatibleModels(openaiCompatibleBaseUrl, openaiCompatibleApiKey).then(models => ({
+        provider: 'openai-compatible',
+        name: 'OpenAI-Compatible',
         models,
       }))
     )

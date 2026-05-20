@@ -22,11 +22,13 @@ interface AuthConfig {
     openai: boolean
     anthropic: boolean
     gemini?: boolean
+    openaiCompatible?: boolean
   }
   userKeyDefaults?: {
     openai: boolean
     anthropic: boolean
     gemini?: boolean
+    openaiCompatible?: boolean
   }
   preferredModel?: string
   recommendedModel?: string

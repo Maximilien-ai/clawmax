@@ -558,7 +558,15 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
         body: JSON.stringify({
           description,
           generationTarget: state.generationTarget,
-          byokKeys: (openai || anthropic) ? { openai, anthropic } : undefined,
+          byokKeys: (openai || anthropic || byok.openaiCompatibleBaseUrl)
+            ? {
+                openai,
+                anthropic,
+                openaiCompatibleApiKey: byok.openaiCompatibleApiKey,
+                openaiCompatibleBaseUrl: byok.openaiCompatibleBaseUrl,
+                openaiCompatibleDefaultModel: byok.openaiCompatibleDefaultModel,
+              }
+            : undefined,
         }),
       })
       const data = await resp.json()

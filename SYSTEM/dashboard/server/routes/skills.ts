@@ -128,7 +128,7 @@ router.post('/generate', async (req, res) => {
   const { description, currentDraft, byokKeys } = req.body as {
     description?: string
     currentDraft?: { name?: string; description?: string; emoji?: string; tags?: string[]; content?: string }
-    byokKeys?: { openai?: string; anthropic?: string; gemini?: string }
+    byokKeys?: { openai?: string; anthropic?: string; gemini?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string }
   }
 
   if (!description?.trim()) {
@@ -144,7 +144,7 @@ router.post('/generate', async (req, res) => {
     const message = err?.message || String(err)
     if (/No API key configured/i.test(message)) {
       return res.status(400).json({
-        error: 'AI generation needs a configured browser key or shared preferred model. Open Workspaces Integrations or Keys & Secrets first.',
+        error: 'AI generation needs a configured OpenAI, Anthropic, or OpenAI-compatible setup, or a shared preferred model. Open Workspaces Integrations or Keys & Secrets first.',
       })
     }
     if (/developer API key|subscription or app credentials|does not look like/i.test(message)) {

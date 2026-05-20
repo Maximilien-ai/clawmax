@@ -32,7 +32,7 @@ interface OpenClawConfigFile {
   [key: string]: any
 }
 
-type ExecutionProvider = 'openai' | 'anthropic' | 'gemini' | 'ollama' | null
+type ExecutionProvider = 'openai' | 'openai-compatible' | 'anthropic' | 'gemini' | 'ollama' | null
 let openClawConfigMutationLock: Promise<void> = Promise.resolve()
 const agentExecutionLocks = new Map<string, Promise<void>>()
 const AGENT_EXECUTION_SESSION_LOCK_RETRIES = 2
@@ -103,6 +103,7 @@ function readOpenClawAgentRecord(agentId: string, activeWorkspaceAgentDir?: stri
 
 function providerFromModel(model?: string): ExecutionProvider {
   if (!model) return null
+  if (model.startsWith('openai-compatible/')) return 'openai-compatible'
   if (model.startsWith('openai/') || model.startsWith('gpt-') || model.startsWith('o1')) return 'openai'
   if (model.startsWith('anthropic/') || model.startsWith('claude')) return 'anthropic'
   if (model.startsWith('gemini/') || model.startsWith('gemini-') || model.startsWith('google/')) return 'gemini'
@@ -120,7 +121,7 @@ function normalizeMissingModel(model?: string): string | undefined {
 function isSupportedHostedModel(model: string | undefined): boolean {
   if (!model) return false
   const provider = providerFromModel(model)
-  if (provider === 'ollama') return true
+  if (provider === 'ollama' || provider === 'openai-compatible') return true
   const availableModels = getAvailableModelsCached(process.env as Record<string, string>)
   if (availableModels.length === 0) return true
   return availableModels.includes(model)
@@ -308,6 +309,7 @@ function normalizeSessionModel(model?: string): string | undefined {
   if (trimmed.startsWith('anthropic/') || trimmed.startsWith('openai/') || trimmed.startsWith('gemini/') || trimmed.startsWith('google/') || trimmed.startsWith('ollama/')) {
     return trimmed
   }
+  if (trimmed.startsWith('openai-compatible/')) return trimmed
   if (trimmed.startsWith('claude')) return `anthropic/${trimmed}`
   if (trimmed.startsWith('gpt-') || trimmed.startsWith('o1')) return `openai/${trimmed}`
   if (trimmed.startsWith('gemini-')) return `google/${trimmed}`
@@ -355,7 +357,12 @@ function buildAuthProfiles(providerKeys: ProviderKeys, preferredProvider?: Execu
   if (providerKeys.openai) {
     profiles['openai-key'] = { type: 'api_key', provider: 'openai', key: providerKeys.openai }
     // Set lastGood if this is preferred OR if it's the only key available
-    if (preferredProvider === 'openai' || (!providerKeys.anthropic && preferredProvider !== 'gemini')) {
+    if (preferredProvider === 'openai' || preferredProvider === 'openai-compatible' || (!providerKeys.anthropic && preferredProvider !== 'gemini')) {
+      lastGood.openai = 'openai-key'
+    }
+  } else if (providerKeys.openaiCompatibleBaseUrl) {
+    profiles['openai-key'] = { type: 'api_key', provider: 'openai', key: providerKeys.openaiCompatibleApiKey || 'openai-compatible' }
+    if (preferredProvider === 'openai-compatible' || (!providerKeys.anthropic && preferredProvider !== 'gemini')) {
       lastGood.openai = 'openai-key'
     }
   }
@@ -542,7 +549,7 @@ export async function withTemporaryAgentAuthProfiles<T>(
     effectiveModel = 'openai/gpt-4o'
     effectiveProvider = 'openai'
     console.log(`[Auth] Agent ${agentId}: no Anthropic key, falling back to ${effectiveModel}`)
-  } else if (preferredProvider === 'openai' && !providerKeys.openai && providerKeys.anthropic) {
+  } else if ((preferredProvider === 'openai' || preferredProvider === 'openai-compatible') && !providerKeys.openai && !providerKeys.openaiCompatibleBaseUrl && providerKeys.anthropic) {
     effectiveModel = 'anthropic/claude-sonnet-4-20250514'
     effectiveProvider = 'anthropic'
     console.log(`[Auth] Agent ${agentId}: no OpenAI key, falling back to ${effectiveModel}`)

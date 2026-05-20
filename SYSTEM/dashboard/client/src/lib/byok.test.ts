@@ -60,6 +60,20 @@ async function main() {
     assert(hasAiGenerationAccess(null) === true, 'Expected browser-local key to enable AI generation access')
   })
 
+  await test('OpenAI-compatible endpoint with default model enables AI generation access', () => {
+    localStorage.clear()
+    writeStoredByokKeys({ openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1', openaiCompatibleDefaultModel: 'local-model' })
+    assert(hasAiGenerationAccess(null) === true, 'Expected OpenAI-compatible endpoint to enable AI generation access')
+  })
+
+  await test('OpenAI-compatible endpoint without default model warns for AI generation', () => {
+    localStorage.clear()
+    writeStoredByokKeys({ openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1' })
+    const readiness = getAiGenerationReadiness(null)
+    assert(readiness.enabled === true, 'Expected OpenAI-compatible path to stay visible')
+    assert(/default model/i.test(readiness.warning || ''), 'Expected default-model warning')
+  })
+
   await test('user default keys enable AI generation access', () => {
     localStorage.clear()
     assert(
@@ -173,12 +187,18 @@ async function main() {
       anthropic: 'anthropic-test',
       geminiApiKey: 'gemini-test',
       ollamaBaseUrl: 'http://localhost:11434',
+      openaiCompatibleApiKey: 'compat-test',
+      openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1',
+      openaiCompatibleDefaultModel: 'local-model',
     })
     const payload = byokForRequest()
     assert(payload.openai === 'openai-test', 'Expected OpenAI key in request payload')
     assert(payload.anthropic === 'anthropic-test', 'Expected Anthropic key in request payload')
     assert(payload.gemini === 'gemini-test', 'Expected Gemini key to map from geminiApiKey')
     assert(payload.ollamaBaseUrl === 'http://localhost:11434', 'Expected Ollama base URL in request payload')
+    assert(payload.openaiCompatibleApiKey === 'compat-test', 'Expected OpenAI-compatible key in request payload')
+    assert(payload.openaiCompatibleBaseUrl === 'http://127.0.0.1:1234/v1', 'Expected OpenAI-compatible base URL in request payload')
+    assert(payload.openaiCompatibleDefaultModel === 'local-model', 'Expected OpenAI-compatible default model in request payload')
     assert(!(payload as any).geminiApiKey, 'Expected storage-only geminiApiKey field to stay out of request payload')
   })
 
@@ -200,6 +220,9 @@ async function main() {
       anthropic: 'anthropic-test',
       geminiApiKey: 'gemini-test',
       ollamaBaseUrl: 'http://localhost:11434',
+      openaiCompatibleApiKey: 'compat-test',
+      openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1',
+      openaiCompatibleDefaultModel: 'local-model',
     })
 
     let requestBody: any = null
@@ -217,6 +240,9 @@ async function main() {
     assert(requestBody?.gemini === 'gemini-test', 'Expected refresh request to include Gemini key under gemini')
     assert(!('geminiApiKey' in (requestBody || {})), 'Expected refresh request to omit geminiApiKey storage field')
     assert(requestBody?.ollamaBaseUrl === 'http://localhost:11434', 'Expected refresh request to include Ollama base URL')
+    assert(requestBody?.openaiCompatibleApiKey === 'compat-test', 'Expected refresh request to include OpenAI-compatible key')
+    assert(requestBody?.openaiCompatibleBaseUrl === 'http://127.0.0.1:1234/v1', 'Expected refresh request to include OpenAI-compatible base URL')
+    assert(requestBody?.openaiCompatibleDefaultModel === 'local-model', 'Expected refresh request to include OpenAI-compatible default model')
   })
 
   console.log('\n========================================')

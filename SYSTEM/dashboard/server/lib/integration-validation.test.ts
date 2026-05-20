@@ -4,7 +4,7 @@
  * Run with: npx ts-node --transpileOnly server/lib/integration-validation.test.ts
  */
 
-import { validateAnthropicKey, validateGeminiKey, validateIntegrations, validateOllamaConfig, validateOpenAIKey, validateOpikConfig, validateSensoConfig } from './integration-validation'
+import { validateAnthropicKey, validateGeminiKey, validateIntegrations, validateOllamaConfig, validateOpenAICompatibleConfig, validateOpenAIKey, validateOpikConfig, validateSensoConfig } from './integration-validation'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -114,7 +114,8 @@ async function run() {
     const result = await validateOpenAIKey('sk-test', mockFetch(400, {
       error: { message: 'The model `gpt-4o-mini` does not exist or you do not have access to it.' },
     }))
-    assert(result.status === 'invalid', 'Expected invalid status')
+    assert(result.status === 'valid', 'Expected non-blocking valid status for unavailable validation model')
+    assert(/may still work for other models/i.test(result.message), 'Expected warning that other models may still work')
     assert(/does not exist|do not have access/i.test(result.message), 'Expected provider error message to be surfaced')
   })
 
@@ -122,6 +123,37 @@ async function run() {
     const result = await validateAnthropicKey('ya29.demo-token', mockFetch(200))
     assert(result.status === 'invalid', 'Expected invalid status')
     assert(/subscription or app credentials|developer API key/i.test(result.message), 'Expected Anthropic credential warning')
+  })
+
+  await test('validateOpenAICompatibleConfig accepts reachable endpoint without API key', async () => {
+    let calls = 0
+    const result = await validateOpenAICompatibleConfig('http://127.0.0.1:1234/v1', '', '', (async (url: string) => {
+      calls++
+      if (url.endsWith('/models')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ data: [{ id: 'local-model' }] }),
+        } as any
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ choices: [{ message: { content: 'OK' } }] }),
+      } as any
+    }) as any)
+    assert(result.status === 'valid', 'Expected valid status')
+    assert(calls === 2, `Expected 2 OpenAI-compatible calls, got ${calls}`)
+  })
+
+  await test('validateOpenAICompatibleConfig rejects unavailable configured default model', async () => {
+    const result = await validateOpenAICompatibleConfig('http://127.0.0.1:1234/v1', '', 'missing-model', (async (_url: string) => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ data: [{ id: 'local-model' }] }),
+    })) as any)
+    assert(result.status === 'invalid', 'Expected invalid status')
+    assert(/default model/i.test(result.message), 'Expected missing default model message')
   })
 
   await test('validateOpikConfig requires workspace when key is present', async () => {
@@ -142,6 +174,7 @@ async function run() {
   await test('validateIntegrations aggregates provider checks', async () => {
     const result = await validateIntegrations({
       openai: 'sk-openai-test-value',
+      openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1',
       anthropic: 'sk-ant-test-value',
       gemini: 'gemini-key',
       ollamaBaseUrl: 'http://localhost:11434',
@@ -158,6 +191,20 @@ async function run() {
           json: async () => ({ models: [{ name: 'llama3.2' }] }),
         } as any
       }
+      if (url.includes('127.0.0.1:1234/v1/models')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ data: [{ id: 'local-model' }] }),
+        } as any
+      }
+      if (url.includes('127.0.0.1:1234/v1/chat/completions')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ choices: [{ message: { content: 'OK' } }] }),
+        } as any
+      }
       return {
         ok: true,
         status: 200,
@@ -166,6 +213,7 @@ async function run() {
     }) as any)
 
     assert(result.openai?.status === 'valid', 'Expected OpenAI valid')
+    assert(result.openaiCompatible?.status === 'valid', 'Expected OpenAI-compatible valid')
     assert(result.anthropic?.status === 'valid', 'Expected Anthropic valid')
     assert(result.gemini?.status === 'valid', 'Expected Gemini valid')
     assert(result.ollama?.status === 'valid', 'Expected Ollama valid')

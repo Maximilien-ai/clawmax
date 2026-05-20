@@ -175,11 +175,13 @@ app.get('/api/auth/config', (_req, res) => {
       openai: !!systemKeys.openai,
       anthropic: !!systemKeys.anthropic,
       gemini: !!systemKeys.gemini,
+      openaiCompatible: !!systemKeys.openaiCompatibleBaseUrl,
     },
     userKeyDefaults: {
       openai: !!userKeys.openai,
       anthropic: !!userKeys.anthropic,
       gemini: !!userKeys.gemini,
+      openaiCompatible: !!userKeys.openaiCompatibleBaseUrl,
     },
     allowSystemKeysForUserExecution: allowSystemKeysForUserExecution(),
     preferredModel: integrationConfig.preferredModel,

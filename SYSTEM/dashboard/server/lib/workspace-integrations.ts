@@ -8,6 +8,8 @@ export interface WorkspaceIntegrationConfig {
   sensoContextLabel?: string
   ollamaBaseUrl?: string
   ollamaDefaultModel?: string
+  openaiCompatibleBaseUrl?: string
+  openaiCompatibleDefaultModel?: string
   opikWorkspace?: string
   opikProject?: string
   enabledPartners?: string[]
@@ -59,6 +61,8 @@ export function writeWorkspaceIntegrationConfig(input: WorkspaceIntegrationConfi
     sensoContextLabel: input.sensoContextLabel?.trim() || undefined,
     ollamaBaseUrl: input.ollamaBaseUrl?.trim() || undefined,
     ollamaDefaultModel: input.ollamaDefaultModel?.trim() || undefined,
+    openaiCompatibleBaseUrl: input.openaiCompatibleBaseUrl?.trim() || undefined,
+    openaiCompatibleDefaultModel: input.openaiCompatibleDefaultModel?.trim() || undefined,
     opikWorkspace: input.opikWorkspace?.trim() || undefined,
     opikProject: input.opikProject?.trim() || undefined,
     enabledPartners: Array.isArray(input.enabledPartners)

@@ -55,6 +55,14 @@ test('Ollama models are never compatibility filtered', () => {
   assert(filtered.length === 2, `Expected both Ollama models, got ${filtered.length}`)
 })
 
+test('OpenAI-compatible models are never compatibility filtered', () => {
+  const filtered = __test.filterCompatibleDiscoveredModels('openai-compatible', [
+    'openai-compatible/local-model',
+    'openai-compatible/another-model',
+  ])
+  assert(filtered.length === 2, `Expected both OpenAI-compatible models, got ${filtered.length}`)
+})
+
 console.log(`\nTests passed: ${testsPassed}`)
 console.log(`Tests failed: ${testsFailed}`)
 

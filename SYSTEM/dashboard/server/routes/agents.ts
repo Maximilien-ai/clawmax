@@ -261,7 +261,7 @@ router.post('/generate', async (req, res) => {
     name?: string
     tags?: string[]
     suggestMeta?: boolean
-    byokKeys?: { openai?: string; anthropic?: string; gemini?: string }
+    byokKeys?: { openai?: string; anthropic?: string; gemini?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string }
   }
 
   if (!description) {
@@ -306,7 +306,7 @@ router.post('/generate', async (req, res) => {
     const message = err instanceof Error ? err.message : String(err)
     if (/No API key configured/i.test(message)) {
       return res.status(400).json({
-        error: 'AI generation needs a configured browser key or shared preferred model. Open Workspaces Integrations or Keys & Secrets first.',
+        error: 'AI generation needs a configured OpenAI, Anthropic, or OpenAI-compatible setup, or a shared preferred model. Open Workspaces Integrations or Keys & Secrets first.',
       })
     }
     if (/developer API key|subscription or app credentials|does not look like/i.test(message)) {
@@ -337,10 +337,13 @@ router.get('/models', async (req, res) => {
       anthropic: req.query.anthropicKey as string | undefined,
       gemini: req.query.geminiKey as string | undefined,
       ollamaBaseUrl: req.query.ollamaBaseUrl as string | undefined,
+      openaiCompatibleApiKey: req.query.openaiCompatibleApiKey as string | undefined,
+      openaiCompatibleBaseUrl: req.query.openaiCompatibleBaseUrl as string | undefined,
+      openaiCompatibleDefaultModel: req.query.openaiCompatibleDefaultModel as string | undefined,
     }
     const showAll = String(req.query.showAll || '').toLowerCase() === 'true'
     const result = await discoverModels(
-      byokKeys.openai || byokKeys.anthropic || byokKeys.gemini || byokKeys.ollamaBaseUrl ? byokKeys : undefined,
+      byokKeys.openai || byokKeys.anthropic || byokKeys.gemini || byokKeys.ollamaBaseUrl || byokKeys.openaiCompatibleBaseUrl ? byokKeys : undefined,
       { showAll }
     )
     res.json(result)
@@ -354,15 +357,18 @@ router.get('/models', async (req, res) => {
 router.post('/models/refresh', async (req, res) => {
   clearModelCache()
   try {
-    const body = (req.body || {}) as { openai?: string; anthropic?: string; gemini?: string; ollamaBaseUrl?: string; showAll?: boolean }
+    const body = (req.body || {}) as { openai?: string; anthropic?: string; gemini?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string; showAll?: boolean }
     const byokKeys = {
       openai: body.openai,
       anthropic: body.anthropic,
       gemini: body.gemini,
       ollamaBaseUrl: body.ollamaBaseUrl,
+      openaiCompatibleApiKey: body.openaiCompatibleApiKey,
+      openaiCompatibleBaseUrl: body.openaiCompatibleBaseUrl,
+      openaiCompatibleDefaultModel: body.openaiCompatibleDefaultModel,
     }
     const result = await discoverModels(
-      byokKeys.openai || byokKeys.anthropic || byokKeys.gemini || byokKeys.ollamaBaseUrl ? byokKeys : undefined,
+      byokKeys.openai || byokKeys.anthropic || byokKeys.gemini || byokKeys.ollamaBaseUrl || byokKeys.openaiCompatibleBaseUrl ? byokKeys : undefined,
       { showAll: body.showAll === true }
     )
     res.json(result)

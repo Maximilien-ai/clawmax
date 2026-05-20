@@ -408,6 +408,15 @@ export default function App() {
   }, [])
 
   useEffect(() => {
+    const rawLabel = typeof system?.instanceLabel === 'string' ? system.instanceLabel.trim() : ''
+    if (!rawLabel) {
+      document.title = 'ClawMax'
+      return
+    }
+    document.title = `ClawMax · ${rawLabel}`
+  }, [system?.instanceLabel])
+
+  useEffect(() => {
     const handleNavigate = (event: Event) => {
       const detail = (event as CustomEvent<{ page?: Page; doctor?: boolean }>).detail
       if (detail?.page) {

@@ -11,10 +11,10 @@ function maskKey(value: string) {
 }
 
 type Step = 'models' | 'partners' | `partner:${string}`
-type ModelTab = 'openai' | 'anthropic' | 'gemini' | 'ollama'
+type ModelTab = 'openai' | 'anthropic' | 'gemini' | 'ollama' | 'openaiCompatible'
 type ProviderKey = 'openai' | 'anthropic' | 'gemini'
 type ValidationEntry = { status: 'idle' | 'valid' | 'invalid' | 'error' | 'skipped'; message: string }
-type ValidationState = Record<'openai' | 'anthropic' | 'gemini' | 'ollama' | 'opik' | 'senso', ValidationEntry>
+type ValidationState = Record<'openai' | 'openaiCompatible' | 'anthropic' | 'gemini' | 'ollama' | 'opik' | 'senso', ValidationEntry>
 type ModelsByProvider = Record<string, { name: string; models: string[] }>
 type PartnerFieldDefinition = {
   key: string
@@ -64,6 +64,8 @@ type WorkspaceIntegrationConfig = {
   sensoContextLabel?: string
   ollamaBaseUrl?: string
   ollamaDefaultModel?: string
+  openaiCompatibleBaseUrl?: string
+  openaiCompatibleDefaultModel?: string
   opikWorkspace?: string
   opikProject?: string
   enabledPartners?: string[]
@@ -71,7 +73,7 @@ type WorkspaceIntegrationConfig = {
 }
 type PartnerValueMap = Record<string, Record<string, string>>
 type PartnerSecretPresence = Record<string, Record<string, boolean>>
-type ScopedValidationTarget = 'all' | 'current-partner' | 'openai' | 'anthropic' | 'gemini' | 'ollama'
+type ScopedValidationTarget = 'all' | 'current-partner' | 'openai' | 'openaiCompatible' | 'anthropic' | 'gemini' | 'ollama'
 
 const localDevOllamaBaseUrl = 'http://localhost:11434'
 const CLOSE_INTEGRATIONS_WIZARDS_EVENT = 'clawmax-close-integrations-wizards'
@@ -160,6 +162,9 @@ export function ByokWizard({
   const [geminiApiKey, setGeminiApiKey] = useState('')
   const [ollamaBaseUrl, setOllamaBaseUrl] = useState('')
   const [ollamaDefaultModel, setOllamaDefaultModel] = useState('')
+  const [openaiCompatibleApiKey, setOpenaiCompatibleApiKey] = useState('')
+  const [openaiCompatibleBaseUrl, setOpenaiCompatibleBaseUrl] = useState('')
+  const [openaiCompatibleDefaultModel, setOpenaiCompatibleDefaultModel] = useState('')
   const [preferredModel, setPreferredModel] = useState('')
   const [partnerSecrets, setPartnerSecrets] = useState<PartnerValueMap>({})
   const [serverPartnerSecretPresence, setServerPartnerSecretPresence] = useState<PartnerSecretPresence>({})
@@ -171,6 +176,7 @@ export function ByokWizard({
     anthropic: { status: 'idle', message: '' },
     gemini: { status: 'idle', message: '' },
     ollama: { status: 'idle', message: '' },
+    openaiCompatible: { status: 'idle', message: '' },
     opik: { status: 'idle', message: '' },
     senso: { status: 'idle', message: '' },
   })
@@ -217,6 +223,9 @@ export function ByokWizard({
       runtimeDefaultBaseUrl: config?.defaultOllamaBaseUrl || defaultOllamaBaseUrl,
     }))
     setOllamaDefaultModel(stored.ollamaDefaultModel || '')
+    setOpenaiCompatibleApiKey(stored.openaiCompatibleApiKey || '')
+    setOpenaiCompatibleBaseUrl(stored.openaiCompatibleBaseUrl || '')
+    setOpenaiCompatibleDefaultModel(stored.openaiCompatibleDefaultModel || '')
     setPreferredModel(stored.preferredModel || '')
     setPartnerSecrets(stored.partnerSecrets || {})
     setPartnerValues(stored.partnerValues || {})
@@ -224,7 +233,7 @@ export function ByokWizard({
   }, [config?.defaultOllamaBaseUrl, defaultOllamaBaseUrl, managedRuntime])
 
   const updateStoredVerification = React.useCallback((
-    updater: (current: Partial<Record<'openai' | 'anthropic' | 'gemini' | 'ollama', string>>) => Partial<Record<'openai' | 'anthropic' | 'gemini' | 'ollama', string>>
+    updater: (current: Partial<Record<'openai' | 'anthropic' | 'gemini' | 'ollama' | 'openaiCompatible', string>>) => Partial<Record<'openai' | 'anthropic' | 'gemini' | 'ollama' | 'openaiCompatible', string>>
   ) => {
     const stored = readStoredByokKeys()
     writeStoredByokKeys({
@@ -238,7 +247,8 @@ export function ByokWizard({
     anthropic: buildByokVerificationFingerprint('anthropic', { anthropic: anthropicKey }),
     gemini: buildByokVerificationFingerprint('gemini', { geminiApiKey }),
     ollama: buildByokVerificationFingerprint('ollama', { ollamaBaseUrl, ollamaDefaultModel }),
-  }), [anthropicKey, geminiApiKey, ollamaBaseUrl, ollamaDefaultModel, openaiKey])
+    openaiCompatible: buildByokVerificationFingerprint('openaiCompatible', { openaiCompatibleApiKey, openaiCompatibleBaseUrl, openaiCompatibleDefaultModel }),
+  }), [anthropicKey, geminiApiKey, ollamaBaseUrl, ollamaDefaultModel, openaiCompatibleApiKey, openaiCompatibleBaseUrl, openaiCompatibleDefaultModel, openaiKey])
 
   const refreshGithubChecks = React.useCallback(async (options?: { silent?: boolean }) => {
     const silent = options?.silent === true
@@ -277,7 +287,7 @@ export function ByokWizard({
     const verifiedProviders = stored.verifiedProviders || {}
     setValidation((current) => {
       const next = { ...current }
-      ;(['openai', 'anthropic', 'gemini', 'ollama'] as const).forEach((provider) => {
+      ;(['openai', 'anthropic', 'gemini', 'ollama', 'openaiCompatible'] as const).forEach((provider) => {
         const fingerprint = currentVerificationFingerprints[provider]
         const matches = !!fingerprint && verifiedProviders[provider] === fingerprint
         if (matches && next[provider].status === 'idle') {
@@ -355,6 +365,8 @@ export function ByokWizard({
           return isCustomCurrent ? current : nextDefault
         })
         setOllamaDefaultModel((current) => current || workspaceConfig.ollamaDefaultModel || '')
+        setOpenaiCompatibleBaseUrl((current) => current || workspaceConfig.openaiCompatibleBaseUrl || '')
+        setOpenaiCompatibleDefaultModel((current) => current || workspaceConfig.openaiCompatibleDefaultModel || '')
         setPartnerValues((current) => mergePartnerMaps(current, {
           ...Object.fromEntries(
             Object.entries(workspaceConfig.partners || {}).map(([slug, values]) => [slug, normalizePartnerValues(values)])
@@ -380,12 +392,13 @@ export function ByokWizard({
       .catch(() => {})
   }, [config?.defaultOllamaBaseUrl, defaultOllamaBaseUrl, hydrated, managedRuntime])
 
-  const hasStoredKeys = !!(openaiKey || anthropicKey || geminiApiKey)
-  const hasDefaultUserKeys = !!(config?.userKeyDefaults?.openai || config?.userKeyDefaults?.anthropic || (config as any)?.userKeyDefaults?.gemini)
-  const hasSystemProviderKeys = !!(config?.systemKeyDefaults?.openai || config?.systemKeyDefaults?.anthropic || (config as any)?.systemKeyDefaults?.gemini)
+  const hasStoredKeys = !!(openaiKey || anthropicKey || geminiApiKey || openaiCompatibleBaseUrl || openaiCompatibleDefaultModel)
+  const hasDefaultUserKeys = !!(config?.userKeyDefaults?.openai || config?.userKeyDefaults?.anthropic || config?.userKeyDefaults?.gemini || config?.userKeyDefaults?.openaiCompatible)
+  const hasSystemProviderKeys = !!(config?.systemKeyDefaults?.openai || config?.systemKeyDefaults?.anthropic || config?.systemKeyDefaults?.gemini || config?.systemKeyDefaults?.openaiCompatible)
   const hasOpenAiAvailable = !!(openaiKey || config?.userKeyDefaults?.openai || config?.systemKeyDefaults?.openai)
   const hasAnthropicAvailable = !!(anthropicKey || config?.userKeyDefaults?.anthropic || config?.systemKeyDefaults?.anthropic)
-  const hasGeminiAvailable = !!(geminiApiKey || (config as any)?.userKeyDefaults?.gemini || (config as any)?.systemKeyDefaults?.gemini)
+  const hasGeminiAvailable = !!(geminiApiKey || config?.userKeyDefaults?.gemini || config?.systemKeyDefaults?.gemini)
+  const hasOpenAiCompatibleAvailable = !!(openaiCompatibleBaseUrl || config?.userKeyDefaults?.openaiCompatible || config?.systemKeyDefaults?.openaiCompatible)
   const normalizedOllamaBaseUrl = effectiveOllamaBaseUrl.trim()
   const ollamaConfigured = ollamaEnabled && (!!ollamaDefaultModel.trim() || (normalizedOllamaBaseUrl !== '' && normalizedOllamaBaseUrl !== defaultOllamaBaseUrl))
   const hasSharedExecutionPath = hasDefaultUserKeys || hasSystemProviderKeys || !!preferredModel.trim()
@@ -485,7 +498,7 @@ export function ByokWizard({
   }, [githubAuthTranscript])
 
   const providerChecks = useMemo(() => {
-    const resolveSource = (provider: ProviderKey) => {
+    const resolveSource = (provider: ProviderKey | 'openaiCompatible') => {
       if (provider === 'openai') {
         if (openaiKey) return 'browser BYOK'
         if (config?.userKeyDefaults?.openai) return 'user default'
@@ -498,13 +511,19 @@ export function ByokWizard({
         if (config?.systemKeyDefaults?.anthropic) return 'system default'
         return 'not configured'
       }
+      if (provider === 'openaiCompatible') {
+        if (openaiCompatibleBaseUrl) return 'browser/workspace BYOK'
+        if (config?.userKeyDefaults?.openaiCompatible) return 'user default'
+        if (config?.systemKeyDefaults?.openaiCompatible) return 'system default'
+        return 'not configured'
+      }
       if (geminiApiKey) return 'browser BYOK'
-      if ((config as any)?.userKeyDefaults?.gemini) return 'user default'
-      if ((config as any)?.systemKeyDefaults?.gemini) return 'system default'
+      if (config?.userKeyDefaults?.gemini) return 'user default'
+      if (config?.systemKeyDefaults?.gemini) return 'system default'
       return 'not configured'
     }
 
-    const resolveState = (provider: ProviderKey): 'missing' | 'configured' | 'verified' => {
+    const resolveState = (provider: ProviderKey | 'openaiCompatible'): 'missing' | 'configured' | 'verified' => {
       const entry = validation[provider]
       if (entry?.status === 'valid') return 'verified'
       return resolveSource(provider) === 'not configured' ? 'missing' : 'configured'
@@ -512,8 +531,8 @@ export function ByokWizard({
 
     const checks = [
       { id: 'openai', label: 'OpenAI', state: resolveState('openai'), source: resolveSource('openai') },
-      { id: 'gemini', label: 'Gemini', state: resolveState('gemini'), source: resolveSource('gemini') },
       { id: 'anthropic', label: 'Anthropic', state: resolveState('anthropic'), source: resolveSource('anthropic') },
+      { id: 'gemini', label: 'Gemini', state: resolveState('gemini'), source: resolveSource('gemini') },
     ]
 
     if (ollamaEnabled && ollamaDefaultModel.trim()) {
@@ -525,6 +544,13 @@ export function ByokWizard({
       })
     }
 
+    checks.push({
+      id: 'openaiCompatible',
+      label: 'OpenAI-Compatible',
+      state: resolveState('openaiCompatible'),
+      source: resolveSource('openaiCompatible'),
+    })
+
     return checks
   }, [
     anthropicKey,
@@ -535,12 +561,24 @@ export function ByokWizard({
     geminiApiKey,
     hasAnthropicAvailable,
     hasGeminiAvailable,
+    hasOpenAiCompatibleAvailable,
     hasOpenAiAvailable,
     ollamaDefaultModel,
     ollamaEnabled,
+    openaiCompatibleBaseUrl,
     openaiKey,
     validation,
   ])
+
+  const hostedProviderChecks = useMemo(
+    () => providerChecks.filter((provider) => ['openai', 'anthropic', 'gemini'].includes(provider.id)),
+    [providerChecks],
+  )
+
+  const localProviderChecks = useMemo(
+    () => providerChecks.filter((provider) => ['ollama', 'openaiCompatible'].includes(provider.id)),
+    [providerChecks],
+  )
 
   useEffect(() => {
     if (!hydrated) return
@@ -681,6 +719,9 @@ export function ByokWizard({
       anthropic: anthropicKey.trim(),
       gemini: geminiApiKey.trim(),
       ollamaBaseUrl: ollamaEnabled ? effectiveOllamaBaseUrl.trim() : '',
+      openaiCompatibleApiKey: openaiCompatibleApiKey.trim(),
+      openaiCompatibleBaseUrl: openaiCompatibleBaseUrl.trim(),
+      openaiCompatibleDefaultModel: openaiCompatibleDefaultModel.trim(),
     }
 
     try {
@@ -699,7 +740,7 @@ export function ByokWizard({
     } catch {
       setModelsByProvider({})
     }
-  }, [effectiveOllamaBaseUrl, geminiApiKey, anthropicKey, openaiKey, ollamaEnabled])
+  }, [effectiveOllamaBaseUrl, geminiApiKey, anthropicKey, openaiCompatibleApiKey, openaiCompatibleBaseUrl, openaiCompatibleDefaultModel, openaiKey, ollamaEnabled])
 
   useEffect(() => {
     if (!open || step !== 'models') return
@@ -712,13 +753,14 @@ export function ByokWizard({
     if (hasStoredKeys) {
       const labels = [
         openaiKey ? `OpenAI ${maskKey(openaiKey)}` : null,
+        openaiCompatibleBaseUrl ? `OpenAI-Compatible ${openaiCompatibleBaseUrl}` : null,
         anthropicKey ? `Anthropic ${maskKey(anthropicKey)}` : null,
         geminiApiKey ? `Gemini ${maskKey(geminiApiKey)}` : null,
       ].filter(Boolean)
       return labels.join(' · ')
     }
     return 'No user keys configured yet'
-  }, [anthropicKey, geminiApiKey, hasDefaultUserKeys, hasStoredKeys, openaiKey])
+  }, [anthropicKey, geminiApiKey, hasDefaultUserKeys, hasStoredKeys, openaiCompatibleBaseUrl, openaiKey])
 
   const browserLocalKeysNotice = useMemo(() => {
     if (hasStoredKeys) return null
@@ -740,7 +782,7 @@ export function ByokWizard({
           if (partner.slug === 'opik') return opikConfigured || !!opikWorkspace.trim() || !!opikProject.trim()
           return hasSecret || hasValue
         })
-      : hasOpenAiAvailable || hasAnthropicAvailable || hasGeminiAvailable || (ollamaEnabled && ollamaConfigured)
+      : hasOpenAiAvailable || hasOpenAiCompatibleAvailable || hasAnthropicAvailable || hasGeminiAvailable || (ollamaEnabled && ollamaConfigured)
 
   const monitoringStatusText = useMemo(() => {
     if (opikApiKey) {
@@ -764,9 +806,12 @@ export function ByokWizard({
 
   const runValidation = async (scope: ScopedValidationTarget = 'all') => {
     const currentPartnerSlug = step.startsWith('partner:') ? step.replace('partner:', '') : null
-    const providerScope = scope === 'openai' || scope === 'anthropic' || scope === 'gemini' || scope === 'ollama' ? scope : null
+    const providerScope = scope === 'openai' || scope === 'openaiCompatible' || scope === 'anthropic' || scope === 'gemini' || scope === 'ollama' ? scope : null
     const scopedPayload = {
       openai: scope === 'all' || providerScope === 'openai' ? openaiKey.trim() : '',
+      openaiCompatibleApiKey: scope === 'all' || providerScope === 'openaiCompatible' ? openaiCompatibleApiKey.trim() : '',
+      openaiCompatibleBaseUrl: scope === 'all' || providerScope === 'openaiCompatible' ? openaiCompatibleBaseUrl.trim() : '',
+      openaiCompatibleDefaultModel: scope === 'all' || providerScope === 'openaiCompatible' ? openaiCompatibleDefaultModel.trim() : '',
       anthropic: scope === 'all' || providerScope === 'anthropic' ? anthropicKey.trim() : '',
       gemini: scope === 'all' || providerScope === 'gemini' ? geminiApiKey.trim() : '',
       ollamaBaseUrl: (scope === 'all' || providerScope === 'ollama') && ollamaEnabled ? effectiveOllamaBaseUrl.trim() : '',
@@ -784,6 +829,11 @@ export function ByokWizard({
     if (providerScope === 'anthropic' && !scopedPayload.anthropic) {
       setValidation((current) => ({ ...current, anthropic: { status: 'invalid', message: 'No Anthropic key provided' } }))
       showWarning('No Anthropic key provided')
+      return false
+    }
+    if (providerScope === 'openaiCompatible' && !scopedPayload.openaiCompatibleBaseUrl) {
+      setValidation((current) => ({ ...current, openaiCompatible: { status: 'invalid', message: 'No OpenAI-compatible Base URL provided' } }))
+      showWarning('No OpenAI-compatible Base URL provided')
       return false
     }
     if (providerScope === 'gemini' && !scopedPayload.gemini) {
@@ -820,6 +870,7 @@ export function ByokWizard({
       if (!contentType.includes('application/json')) {
         setValidation({
           openai: { status: 'skipped', message: 'Validation unavailable from the current server build' },
+          openaiCompatible: { status: 'skipped', message: 'Validation unavailable from the current server build' },
           anthropic: { status: 'skipped', message: 'Validation unavailable from the current server build' },
           gemini: { status: 'skipped', message: 'Validation unavailable from the current server build' },
           ollama: { status: 'skipped', message: 'Validation unavailable from the current server build' },
@@ -833,6 +884,7 @@ export function ByokWizard({
       if (!res.ok) throw new Error(data.error || 'Failed to validate integrations')
       const nextState: ValidationState = {
         openai: { status: data.openai?.status || 'idle', message: data.openai?.message || '' },
+        openaiCompatible: { status: data.openaiCompatible?.status || 'idle', message: data.openaiCompatible?.message || '' },
         anthropic: { status: data.anthropic?.status || 'idle', message: data.anthropic?.message || '' },
         gemini: { status: data.gemini?.status || 'idle', message: data.gemini?.message || '' },
         ollama: ollamaEnabled
@@ -844,7 +896,7 @@ export function ByokWizard({
       setValidation(nextState)
       updateStoredVerification((current) => {
         const next = { ...current }
-        ;(['openai', 'anthropic', 'gemini', 'ollama'] as const).forEach((provider) => {
+        ;(['openai', 'openaiCompatible', 'anthropic', 'gemini', 'ollama'] as const).forEach((provider) => {
           if (nextState[provider].status === 'valid') next[provider] = currentVerificationFingerprints[provider]
           else if (providerScope === provider || (!providerScope && scope !== 'current-partner')) delete next[provider]
         })
@@ -890,6 +942,7 @@ export function ByokWizard({
   const labelsForSlug = (slug: string) => {
     const labels: Record<string, string> = {
       openai: 'OpenAI',
+      openaiCompatible: 'OpenAI-Compatible',
       anthropic: 'Anthropic',
       gemini: 'Gemini',
       ollama: 'Ollama',
@@ -899,11 +952,19 @@ export function ByokWizard({
     return labels[slug] || slug
   }
 
-  const clearProviderKey = (provider: 'openai' | 'anthropic' | 'gemini' | 'ollama') => {
+  const clearProviderKey = (provider: 'openai' | 'openaiCompatible' | 'anthropic' | 'gemini' | 'ollama') => {
     if (provider === 'openai') {
       setOpenaiKey('')
       setValidation((current) => ({ ...current, openai: { status: 'idle', message: '' } }))
       updateStoredVerification((current) => { const next = { ...current }; delete next.openai; return next })
+      return
+    }
+    if (provider === 'openaiCompatible') {
+      setOpenaiCompatibleApiKey('')
+      setOpenaiCompatibleBaseUrl('')
+      setOpenaiCompatibleDefaultModel('')
+      setValidation((current) => ({ ...current, openaiCompatible: { status: 'idle', message: '' } }))
+      updateStoredVerification((current) => { const next = { ...current }; delete next.openaiCompatible; return next })
       return
     }
     if (provider === 'anthropic') {
@@ -937,6 +998,7 @@ export function ByokWizard({
 
     const shouldValidate = !!(
       openaiKey.trim()
+      || openaiCompatibleBaseUrl.trim()
       || anthropicKey.trim()
       || geminiApiKey.trim()
       || opikApiKey.trim()
@@ -947,8 +1009,8 @@ export function ByokWizard({
       const ok = await runValidation()
       if (!ok) return
     }
-    if (!openaiKey.trim() && !anthropicKey.trim() && !geminiApiKey.trim() && !config?.userKeyDefaults?.openai && !config?.userKeyDefaults?.anthropic && !(config as any)?.userKeyDefaults?.gemini && !config?.systemKeyDefaults?.openai && !config?.systemKeyDefaults?.anthropic && !(config as any)?.systemKeyDefaults?.gemini) {
-      showWarning('No LLM keys detected yet. Add OpenAI, Anthropic, or Gemini, or rely on configured defaults before running agents.')
+    if (!openaiKey.trim() && !openaiCompatibleBaseUrl.trim() && !anthropicKey.trim() && !geminiApiKey.trim() && !config?.userKeyDefaults?.openai && !config?.userKeyDefaults?.openaiCompatible && !config?.userKeyDefaults?.anthropic && !config?.userKeyDefaults?.gemini && !config?.systemKeyDefaults?.openai && !config?.systemKeyDefaults?.openaiCompatible && !config?.systemKeyDefaults?.anthropic && !config?.systemKeyDefaults?.gemini) {
+      showWarning('No LLM providers detected yet. Add OpenAI, OpenAI-Compatible, Anthropic, or Gemini, or rely on configured defaults before running agents.')
     }
 
     const persistedPartnerValues = buildPartnerConfig(partnerValues)
@@ -971,6 +1033,9 @@ export function ByokWizard({
     }
     const providerKeyValues = {
       openai: openaiKey.trim(),
+      openaiCompatibleApiKey: openaiCompatibleApiKey.trim(),
+      openaiCompatibleBaseUrl: openaiCompatibleBaseUrl.trim(),
+      openaiCompatibleDefaultModel: openaiCompatibleDefaultModel.trim(),
       anthropic: anthropicKey.trim(),
       gemini: geminiApiKey.trim(),
       ollamaBaseUrl: effectiveOllamaBaseUrl.trim(),
@@ -979,6 +1044,9 @@ export function ByokWizard({
 
     writeStoredByokKeys({
       openai: providerKeyValues.openai,
+      openaiCompatibleApiKey: providerKeyValues.openaiCompatibleApiKey,
+      openaiCompatibleBaseUrl: providerKeyValues.openaiCompatibleBaseUrl,
+      openaiCompatibleDefaultModel: providerKeyValues.openaiCompatibleDefaultModel,
       anthropic: providerKeyValues.anthropic,
       geminiApiKey: providerKeyValues.gemini,
       ollamaBaseUrl: providerKeyValues.ollamaBaseUrl,
@@ -1024,6 +1092,8 @@ export function ByokWizard({
         sensoContextLabel: sensoContextLabel.trim() || undefined,
         ollamaBaseUrl: ollamaEnabled ? (effectiveOllamaBaseUrl.trim() || undefined) : undefined,
         ollamaDefaultModel: ollamaEnabled ? (ollamaDefaultModel.trim() || undefined) : undefined,
+        openaiCompatibleBaseUrl: openaiCompatibleBaseUrl.trim() || undefined,
+        openaiCompatibleDefaultModel: openaiCompatibleDefaultModel.trim() || undefined,
         opikWorkspace: opikWorkspace.trim() || undefined,
         opikProject: opikProject.trim() || undefined,
         enabledPartners: selectedPartners,
@@ -1158,9 +1228,10 @@ export function ByokWizard({
 
   const discoveredPreferredOptions = [
     ...((modelsByProvider.openai?.models || []).map((model) => ({ value: model, label: `${model.replace(/^openai\//, '')} (OpenAI)` }))),
-    ...((modelsByProvider.gemini?.models || []).map((model) => ({ value: model, label: `${model.replace(/^gemini\//, '')} (Gemini)` }))),
     ...((modelsByProvider.anthropic?.models || []).map((model) => ({ value: model, label: `${model.replace(/^anthropic\//, '')} (Anthropic)` }))),
+    ...((modelsByProvider.gemini?.models || []).map((model) => ({ value: model, label: `${model.replace(/^google\//, '').replace(/^gemini\//, '')} (Gemini)` }))),
     ...((modelsByProvider.ollama?.models || []).map((model) => ({ value: model, label: `${model.replace(/^ollama\//, '')} (Ollama)` }))),
+    ...((modelsByProvider['openai-compatible']?.models || []).map((model) => ({ value: model, label: `${model.replace(/^openai-compatible\//, '')} (OpenAI-Compatible)` }))),
   ]
   const uniquePreferredOptions = discoveredPreferredOptions.filter((option, index, arr) =>
     arr.findIndex((candidate) => candidate.value === option.value) === index
@@ -1491,35 +1562,78 @@ export function ByokWizard({
                       {browserLocalKeysNotice}
                     </div>
                   )}
-                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                    {providerChecks.map((provider) => (
-                      <button
-                        key={provider.id}
-                        type="button"
-                        onClick={() => setModelTab(provider.id as ModelTab)}
-                        className={`rounded-lg border px-3 py-2 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500 ${
-                          modelTab === provider.id
-                            ? 'ring-2 ring-sky-400 dark:ring-sky-600 '
-                            : ''
-                        }${
-                          provider.state === 'verified'
-                            ? 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-100'
-                            : provider.state === 'configured'
-                              ? 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-100'
-                              : 'border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300'
-                        }`}
-                        aria-pressed={modelTab === provider.id}
-                        title={`Switch to ${provider.label} settings`}
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="font-medium">{provider.label}</span>
-                          <span className="text-xs uppercase tracking-wide opacity-80">
-                            {provider.state === 'verified' ? 'verified' : provider.state === 'configured' ? 'configured' : 'missing'}
-                          </span>
-                        </div>
-                        <div className="mt-1 text-xs opacity-80">Source: {provider.source}</div>
-                      </button>
-                    ))}
+                  <div className="mt-3 space-y-4">
+                    <div>
+                      <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-gray-500 dark:text-gray-400">
+                        Hosted
+                      </div>
+                      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                        {hostedProviderChecks.map((provider) => (
+                          <button
+                            key={provider.id}
+                            type="button"
+                            onClick={() => setModelTab(provider.id as ModelTab)}
+                            className={`rounded-lg border px-3 py-2 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500 ${
+                              modelTab === provider.id
+                                ? 'ring-2 ring-sky-400 dark:ring-sky-600 '
+                                : ''
+                            }${
+                              provider.state === 'verified'
+                                ? 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-100'
+                                : provider.state === 'configured'
+                                  ? 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-100'
+                                  : 'border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300'
+                            }`}
+                            aria-pressed={modelTab === provider.id}
+                            title={`Switch to ${provider.label} settings`}
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="font-medium">{provider.label}</span>
+                              <span className="text-xs uppercase tracking-wide opacity-80">
+                                {provider.state === 'verified' ? 'verified' : provider.state === 'configured' ? 'configured' : 'missing'}
+                              </span>
+                            </div>
+                            <div className="mt-1 text-xs opacity-80">Source: {provider.source}</div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-gray-500 dark:text-gray-400">
+                        Local / Self-Hosted
+                      </div>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {localProviderChecks.map((provider) => (
+                          <button
+                            key={provider.id}
+                            type="button"
+                            onClick={() => setModelTab(provider.id as ModelTab)}
+                            className={`rounded-lg border px-3 py-2 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500 ${
+                              modelTab === provider.id
+                                ? 'ring-2 ring-sky-400 dark:ring-sky-600 '
+                                : ''
+                            }${
+                              provider.state === 'verified'
+                                ? 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-100'
+                                : provider.state === 'configured'
+                                  ? 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-100'
+                                  : 'border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300'
+                            }`}
+                            aria-pressed={modelTab === provider.id}
+                            title={`Switch to ${provider.label} settings`}
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="font-medium">{provider.label}</span>
+                              <span className="text-xs uppercase tracking-wide opacity-80">
+                                {provider.state === 'verified' ? 'verified' : provider.state === 'configured' ? 'configured' : 'missing'}
+                              </span>
+                            </div>
+                            <div className="mt-1 text-xs opacity-80">Source: {provider.source}</div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -1581,6 +1695,39 @@ export function ByokWizard({
                       </div>
                       <input id="byok-gemini" type="password" value={geminiApiKey} onChange={(e) => { setGeminiApiKey(e.target.value); setValidation((current) => ({ ...current, gemini: { status: 'idle', message: '' } })); updateStoredVerification((current) => { const next = { ...current }; delete next.gemini; return next }) }} placeholder="Gemini API key" className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
                       {renderValidation('gemini')}
+                    </div>
+                  )}
+
+                  {modelTab === 'openaiCompatible' && (
+                    <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="font-medium text-gray-900 dark:text-gray-100">OpenAI-Compatible</div>
+                        <button onClick={() => runValidation('openaiCompatible')} disabled={validating} className="px-3 py-1.5 text-xs rounded-md border border-sky-300 dark:border-sky-700 text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors disabled:opacity-60">{validating ? 'Checking…' : 'Check Connection'}</button>
+                      </div>
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Use this for LM Studio and other OpenAI-style APIs that expose <span className="font-mono">/v1/models</span> and <span className="font-mono">/v1/chat/completions</span>.</p>
+                      <div className="mt-3 flex items-center justify-between gap-3">
+                        <label htmlFor="byok-openai-compatible-url" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Base URL</label>
+                        {(openaiCompatibleBaseUrl || openaiCompatibleApiKey || openaiCompatibleDefaultModel) && (
+                          <button type="button" onClick={() => clearProviderKey('openaiCompatible')} className="text-xs text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-300">
+                            Clear
+                          </button>
+                        )}
+                      </div>
+                      <input id="byok-openai-compatible-url" type="text" value={openaiCompatibleBaseUrl} onChange={(e) => { setOpenaiCompatibleBaseUrl(e.target.value); setValidation((current) => ({ ...current, openaiCompatible: { status: 'idle', message: '' } })); updateStoredVerification((current) => { const next = { ...current }; delete next.openaiCompatible; return next }) }} placeholder="http://127.0.0.1:1234/v1" className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
+                      <div className="mt-3">
+                        <label htmlFor="byok-openai-compatible-key" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">API key <span className="text-gray-400">(optional)</span></label>
+                        <input id="byok-openai-compatible-key" type="password" value={openaiCompatibleApiKey} onChange={(e) => { setOpenaiCompatibleApiKey(e.target.value); setValidation((current) => ({ ...current, openaiCompatible: { status: 'idle', message: '' } })); updateStoredVerification((current) => { const next = { ...current }; delete next.openaiCompatible; return next }) }} placeholder="Optional or dummy key if required by your server" className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
+                      </div>
+                      <div className="mt-3">
+                        <label htmlFor="byok-openai-compatible-model" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Default model <span className="text-gray-400">(optional)</span></label>
+                        <input id="byok-openai-compatible-model" type="text" value={openaiCompatibleDefaultModel} onChange={(e) => { setOpenaiCompatibleDefaultModel(e.target.value); setValidation((current) => ({ ...current, openaiCompatible: { status: 'idle', message: '' } })); updateStoredVerification((current) => { const next = { ...current }; delete next.openaiCompatible; return next }) }} placeholder="e.g. llama-3.1-8b-instruct" className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
+                        {(modelsByProvider['openai-compatible']?.models || []).length > 0 && (
+                          <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                            Available models: {(modelsByProvider['openai-compatible']?.models || []).map((model) => model.replace(/^openai-compatible\//, '')).slice(0, 8).join(', ')}
+                          </div>
+                        )}
+                      </div>
+                      {renderValidation('openaiCompatible')}
                     </div>
                   )}
 

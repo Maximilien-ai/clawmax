@@ -1,14 +1,14 @@
 # ClawMax Status
 
-**Current Version**: v1.5.4
-**Last Updated**: May 19, 2026
-**Status**: `v1.5.4` is the current release line on `main`
+**Current Version**: v1.5.5
+**Last Updated**: May 20, 2026
+**Status**: `v1.5.5` is the current release line on `main`
 
 ---
 
 ## Current State
 
-- `main` now carries the `1.5.4` release line: Add Agent reliability is stronger across plain create, AI generate, and template-backed create flows, including broader agent-template slug resolution and catalog-wide regression coverage for human-facing template names
+- `main` now carries the `1.5.5` release line: local/self-hosted model support is broader through the new `OpenAI-Compatible` BYOK provider, hosted vs. self-hosted provider choice is clearer, and dashboard/browser instance labeling is easier to distinguish at a glance
 - targeted local validation is green on the current line, including the newer chat-session, Opik runtime, skill metadata, and skill-tag regressions
 - targeted local validation is also green for the new AI prompt expansion/editor path via `server/lib/ai-generator.test.ts` and repeated `npx tsc --noEmit`
 - Skills now support stronger day-to-day management: reverse assignment, workspace-copy editing, bulk selection/deletion, richer imported registry provenance, tag editing/filtering, and registry suggestions from ClawHub, Shipables, and Tessl

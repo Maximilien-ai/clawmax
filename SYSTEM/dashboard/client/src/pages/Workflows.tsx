@@ -1001,10 +1001,22 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
     }
     setAiGenerating(true)
     try {
+      const byok = readStoredByokKeys()
       const resp = await fetch('/api/workflows/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ description: promptText }),
+        body: JSON.stringify({
+          description: promptText,
+          byokKeys: (byok.openai || byok.anthropic || byok.openaiCompatibleBaseUrl)
+            ? {
+                openai: byok.openai,
+                anthropic: byok.anthropic,
+                openaiCompatibleApiKey: byok.openaiCompatibleApiKey,
+                openaiCompatibleBaseUrl: byok.openaiCompatibleBaseUrl,
+                openaiCompatibleDefaultModel: byok.openaiCompatibleDefaultModel,
+              }
+            : undefined,
+        }),
       })
       const data = await resp.json()
       if (!resp.ok) throw new Error(data.error || 'Generation failed')

@@ -329,22 +329,30 @@ async function callAgent(
   agentId: string,
   message: string,
   sessionId: string,
-  byokKeys?: { openai?: string; anthropic?: string; gemini?: string; ollamaBaseUrl?: string },
+  byokKeys?: { openai?: string; anthropic?: string; gemini?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string },
   actor?: { userId?: string; login?: string; email?: string | null }
 ): Promise<string> {
   const resolvedAgent = resolveAgentExecutionConfig(agentId)
   const integrationConfig = readWorkspaceIntegrationConfig()
+  const useOpenAiCompatible = resolvedAgent.provider === 'openai-compatible'
   const executionEnv = userExecutionEnv({
-    openai: byokKeys?.openai,
+    openai: useOpenAiCompatible ? undefined : byokKeys?.openai,
     anthropic: byokKeys?.anthropic,
     gemini: byokKeys?.gemini,
     ollamaBaseUrl: byokKeys?.ollamaBaseUrl || integrationConfig.ollamaBaseUrl,
+    openaiCompatibleApiKey: useOpenAiCompatible ? byokKeys?.openaiCompatibleApiKey : undefined,
+    openaiCompatibleBaseUrl: useOpenAiCompatible ? (byokKeys?.openaiCompatibleBaseUrl || integrationConfig.openaiCompatibleBaseUrl) : undefined,
+    openaiCompatibleDefaultModel: useOpenAiCompatible ? (byokKeys?.openaiCompatibleDefaultModel || integrationConfig.openaiCompatibleDefaultModel) : undefined,
   })
   const effectiveSessionId = scopeSessionIdToModel(sessionId, resolvedAgent.model)
   const useLocal = !isGatewayRunning().running
   const hasOllamaPath = !!(executionEnv.OLLAMA_BASE_URL || integrationConfig.ollamaDefaultModel)
+  const hasOpenAiCompatiblePath = !!(executionEnv.OPENAI_BASE_URL || integrationConfig.openaiCompatibleBaseUrl)
   if (resolvedAgent.provider === 'ollama' && !hasOllamaPath) {
     throw new Error(`Agent ${agentId} is configured for ${resolvedAgent.model || 'ollama'}, but no Ollama runtime is configured`)
+  }
+  if (resolvedAgent.provider === 'openai-compatible' && !hasOpenAiCompatiblePath) {
+    throw new Error(`Agent ${agentId} is configured for ${resolvedAgent.model || 'openai-compatible'}, but no OpenAI-compatible Base URL is configured`)
   }
 
   return runExclusiveAgentExecution(agentId, () => withTemporaryAgentAuthProfiles(agentId, {
@@ -715,7 +723,7 @@ router.get('/communities/:name/messages', (req, res) => {
 // Send message to a community
 router.post('/communities/:name/messages', async (req, res) => {
   const { name } = req.params
-  const { content, mentions, from, byok } = req.body as { content?: string; mentions?: string[]; from?: string; byok?: { openai?: string; anthropic?: string; gemini?: string; ollamaBaseUrl?: string } }
+  const { content, mentions, from, byok } = req.body as { content?: string; mentions?: string[]; from?: string; byok?: { openai?: string; anthropic?: string; gemini?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string } }
 
   if (!content || typeof content !== 'string') {
     res.status(400).json({ ok: false, error: 'content is required' })
@@ -796,7 +804,7 @@ router.get('/groups/:name/messages', (req, res) => {
 // Send message to a group
 router.post('/groups/:name/messages', async (req, res) => {
   const { name } = req.params
-  const { content, mentions, from, byok } = req.body as { content?: string; mentions?: string[]; from?: string; byok?: { openai?: string; anthropic?: string; gemini?: string; ollamaBaseUrl?: string } }
+  const { content, mentions, from, byok } = req.body as { content?: string; mentions?: string[]; from?: string; byok?: { openai?: string; anthropic?: string; gemini?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string } }
 
   if (!content || typeof content !== 'string') {
     res.status(400).json({ ok: false, error: 'content is required' })

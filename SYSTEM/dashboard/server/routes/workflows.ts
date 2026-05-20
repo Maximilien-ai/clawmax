@@ -18,7 +18,7 @@ import {
 } from '../lib/workflows'
 import { getNextCronRun } from '../lib/cron-next-run'
 import { getWorkspacePath, listAgents } from '../lib/workspace'
-import { explainOneTimeCronLimitation, generateCronFromText, generateWorkflowFromNL, isOneTimeScheduleRequest } from '../lib/ai-generator'
+import { explainOneTimeCronLimitation, generateCronFromText, generateWorkflowFromNL, isOneTimeScheduleRequest, setRequestByokKeys } from '../lib/ai-generator'
 import { syncAllWorkflows } from '../lib/scheduler'
 import { getAuthenticatedSession } from '../lib/github-auth'
 
@@ -129,12 +129,16 @@ router.post('/generate-cron', (req, res) => {
  * Generate a complete workflow definition from natural language using AI
  */
 router.post('/generate', async (req, res) => {
-  const { description } = req.body
+  const { description, byokKeys } = req.body as {
+    description?: string
+    byokKeys?: { openai?: string; anthropic?: string; gemini?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string }
+  }
   if (!description || typeof description !== 'string') {
     return res.status(400).json({ error: 'description is required' })
   }
 
   try {
+    setRequestByokKeys(byokKeys && typeof byokKeys === 'object' ? byokKeys : undefined)
     const agents = listAgents()
     const agentIds = agents.filter(a => !a.archived).map(a => a.id)
     const allTags = [...new Set(agents.flatMap(a => a.tags))]
@@ -149,10 +153,12 @@ router.post('/generate', async (req, res) => {
     const message = err?.message || 'Failed to generate workflow'
     if (/No API key configured/i.test(message)) {
       return res.status(400).json({
-        error: 'AI generation needs a configured browser key or shared preferred model. Open Workspaces Integrations or Keys & Secrets first.',
+        error: 'AI generation needs a configured OpenAI, Anthropic, or OpenAI-compatible setup, or a shared preferred model. Open Workspaces Integrations or Keys & Secrets first.',
       })
     }
     res.status(500).json({ error: message })
+  } finally {
+    setRequestByokKeys(undefined)
   }
 })
 

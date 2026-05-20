@@ -6,6 +6,7 @@ export interface IntegrationValidationResult {
 
 export interface IntegrationValidationResponse {
   openai?: IntegrationValidationResult
+  openaiCompatible?: IntegrationValidationResult
   anthropic?: IntegrationValidationResult
   gemini?: IntegrationValidationResult
   ollama?: IntegrationValidationResult
@@ -97,6 +98,19 @@ async function readProviderErrorMessage(res: Response): Promise<string | null> {
   }
 }
 
+function isModelAvailabilityWarning(message: string | null): boolean {
+  if (!message) return false
+  const normalized = message.toLowerCase()
+  return normalized.includes('model')
+    && (
+      normalized.includes('does not exist')
+      || normalized.includes('do not have access')
+      || normalized.includes('not found')
+      || normalized.includes('unsupported')
+      || normalized.includes('unavailable')
+    )
+}
+
 export async function validateOpenAIKey(apiKey: string, fetchImpl: FetchLike = fetch): Promise<IntegrationValidationResult> {
   if (!apiKey.trim()) return skipped('No OpenAI key provided')
   const mismatch = providerShapeMismatch('openai', apiKey)
@@ -122,11 +136,73 @@ export async function validateOpenAIKey(apiKey: string, fetchImpl: FetchLike = f
     if (res.status === 401 || res.status === 403) return invalid('OpenAI rejected this key')
     if (res.status === 400 || res.status === 404) {
       const providerMessage = await readProviderErrorMessage(res)
+      if (isModelAvailabilityWarning(providerMessage)) {
+        return valid(`OpenAI key authenticated successfully, but the test model ${OPENAI_VALIDATION_MODEL} was unavailable. The key may still work for other models. ${providerMessage}`)
+      }
       return invalid(providerMessage || `OpenAI key could not complete a test prompt on ${OPENAI_VALIDATION_MODEL}`)
     }
     return errored(`OpenAI prompt validation returned ${res.status}`)
   } catch (err: any) {
     return errored(`OpenAI prompt validation failed: ${err.message || 'network error'}`)
+  }
+}
+
+export async function validateOpenAICompatibleConfig(
+  baseUrl: string,
+  apiKey: string,
+  defaultModel: string,
+  fetchImpl: FetchLike = fetch
+): Promise<IntegrationValidationResult> {
+  const normalizedBaseUrl = baseUrl.trim().replace(/\/+$/, '')
+  const normalizedModel = defaultModel.trim()
+  if (!normalizedBaseUrl && !normalizedModel && !apiKey.trim()) {
+    return skipped('No OpenAI-compatible endpoint configured')
+  }
+  if (!normalizedBaseUrl) {
+    return invalid('OpenAI-compatible Base URL is required')
+  }
+  try {
+    const authHeaders: Record<string, string> = {}
+    if (apiKey.trim()) authHeaders.Authorization = `Bearer ${apiKey.trim()}`
+    const modelsRes = await fetchImpl(`${normalizedBaseUrl}/models`, {
+      headers: authHeaders,
+      signal: AbortSignal.timeout(5000),
+    })
+    if (!modelsRes.ok) {
+      const providerMessage = await readProviderErrorMessage(modelsRes)
+      if (modelsRes.status === 401 || modelsRes.status === 403) return invalid(providerMessage || 'OpenAI-compatible endpoint rejected these credentials')
+      return errored(providerMessage || `OpenAI-compatible models check returned ${modelsRes.status}`)
+    }
+    const modelsBody = await modelsRes.json() as { data?: Array<{ id?: string }> }
+    const modelIds = (modelsBody.data || []).map((entry) => (entry.id || '').trim()).filter(Boolean)
+    if (modelIds.length === 0) {
+      return invalid('Connected to OpenAI-compatible endpoint, but no models were returned')
+    }
+    const validationModel = normalizedModel || modelIds[0]
+    if (normalizedModel && !modelIds.includes(normalizedModel)) {
+      return invalid(`OpenAI-compatible endpoint is reachable, but default model "${normalizedModel}" is not available`)
+    }
+    const completionRes = await fetchImpl(`${normalizedBaseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        ...authHeaders,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: validationModel,
+        messages: [{ role: 'user', content: 'Reply with OK' }],
+        max_tokens: 5,
+        temperature: 0,
+      }),
+      signal: AbortSignal.timeout(8000),
+    })
+    if (completionRes.ok) return valid(`OpenAI-compatible endpoint is valid and can complete prompts using ${validationModel}`)
+    const providerMessage = await readProviderErrorMessage(completionRes)
+    if (completionRes.status === 401 || completionRes.status === 403) return invalid(providerMessage || 'OpenAI-compatible endpoint rejected this key')
+    if (completionRes.status === 400 || completionRes.status === 404) return invalid(providerMessage || `OpenAI-compatible endpoint could not complete a test prompt on ${validationModel}`)
+    return errored(providerMessage || `OpenAI-compatible prompt validation returned ${completionRes.status}`)
+  } catch (err: any) {
+    return errored(`OpenAI-compatible validation failed: ${err.message || 'network error'}`)
   }
 }
 
@@ -248,6 +324,9 @@ export async function validateSensoConfig(apiKey: string): Promise<IntegrationVa
 
 export async function validateIntegrations(input: {
   openai?: string
+  openaiCompatibleApiKey?: string
+  openaiCompatibleBaseUrl?: string
+  openaiCompatibleDefaultModel?: string
   anthropic?: string
   gemini?: string
   ollamaBaseUrl?: string
@@ -257,8 +336,9 @@ export async function validateIntegrations(input: {
   opikProject?: string
   sensoApiKey?: string
 }, fetchImpl: FetchLike = fetch): Promise<IntegrationValidationResponse> {
-  const [openai, anthropic, gemini, ollama, opik, senso] = await Promise.all([
+  const [openai, openaiCompatible, anthropic, gemini, ollama, opik, senso] = await Promise.all([
     validateOpenAIKey(input.openai || '', fetchImpl),
+    validateOpenAICompatibleConfig(input.openaiCompatibleBaseUrl || '', input.openaiCompatibleApiKey || '', input.openaiCompatibleDefaultModel || '', fetchImpl),
     validateAnthropicKey(input.anthropic || '', fetchImpl),
     validateGeminiKey(input.gemini || '', fetchImpl),
     validateOllamaConfig(input.ollamaBaseUrl || '', input.ollamaDefaultModel || '', fetchImpl),
@@ -266,6 +346,6 @@ export async function validateIntegrations(input: {
     validateSensoConfig(input.sensoApiKey || ''),
   ])
 
-  return { openai, anthropic, gemini, ollama, opik, senso }
+  return { openai, openaiCompatible, anthropic, gemini, ollama, opik, senso }
 }
 import { getDefaultOllamaBaseUrl } from './dashboard-env'

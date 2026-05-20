@@ -155,6 +155,7 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
             const hasAnthropicKey = !!(byok.anthropic || cfg.systemKeyDefaults?.anthropic)
             const hasOpenAiKey = !!(byok.openai || cfg.systemKeyDefaults?.openai)
             const hasGeminiKey = !!(byok.geminiApiKey || cfg.systemKeyDefaults?.gemini)
+            const hasOpenAiCompatible = !!(byok.openaiCompatibleBaseUrl || cfg.systemKeyDefaults?.openaiCompatible)
             const hasOllama = ollamaEnabled && !!(byok.ollamaBaseUrl || byok.ollamaDefaultModel)
 
             let defaultModel: string
@@ -162,6 +163,11 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
               const preferredOllama = byok.ollamaDefaultModel ? `ollama/${byok.ollamaDefaultModel}` : ''
               defaultModel = (preferredOllama && models.find((m: string) => m === preferredOllama))
                 || models.find((m: string) => m.startsWith('ollama/'))
+                || models[0]
+            } else if (hasOpenAiCompatible) {
+              const preferredCompatible = byok.openaiCompatibleDefaultModel ? `openai-compatible/${byok.openaiCompatibleDefaultModel}` : ''
+              defaultModel = (preferredCompatible && models.find((m: string) => m === preferredCompatible))
+                || models.find((m: string) => m.startsWith('openai-compatible/'))
                 || models[0]
             } else if (hasOpenAiKey) {
               defaultModel = models.find((m: string) => m === 'openai/gpt-5' || m === 'openai/gpt-4o')
@@ -375,7 +381,15 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
           name: isAutoName ? undefined : form.name,
           tags: form.tags.length > 0 ? form.tags : undefined,
           suggestMeta: true,
-          byokKeys: (byok.openai || byok.anthropic) ? { openai: byok.openai, anthropic: byok.anthropic } : undefined,
+          byokKeys: (byok.openai || byok.anthropic || byok.openaiCompatibleBaseUrl)
+            ? {
+                openai: byok.openai,
+                anthropic: byok.anthropic,
+                openaiCompatibleApiKey: byok.openaiCompatibleApiKey,
+                openaiCompatibleBaseUrl: byok.openaiCompatibleBaseUrl,
+                openaiCompatibleDefaultModel: byok.openaiCompatibleDefaultModel,
+              }
+            : undefined,
         }),
       })
 
@@ -601,8 +615,8 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
                 {modelsLoaded && availableModels.length === 0 && (
                   <p className="mt-1 text-xs text-amber-600">
                     {ollamaEnabled
-                      ? 'No models are available yet. Configure OpenAI, Anthropic, Gemini, or a local Ollama runtime in Workspaces Integrations.'
-                      : 'No models are available yet. Configure OpenAI, Anthropic, or Gemini in Workspaces Integrations.'}
+                      ? 'No models are available yet. Configure OpenAI, Anthropic, Gemini, OpenAI-Compatible, or a local Ollama runtime in Workspaces Integrations.'
+                      : 'No models are available yet. Configure OpenAI, Anthropic, Gemini, or OpenAI-Compatible in Workspaces Integrations.'}
                   </p>
                 )}
                 {!showAllModels && availableModels.length > 0 && (

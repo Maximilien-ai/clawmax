@@ -5,12 +5,28 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.5.4-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
+[![Version](https://img.shields.io/badge/version-1.5.5-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
 [![Tests](https://img.shields.io/badge/tests-72%20default--safe-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 Latest Releases: v1.5.2–v1.5.4
+## 🔥 Latest Release: v1.5.5
+
+- Local/self-hosted model support is much stronger:
+  - `OpenAI-Compatible` is now a first-class BYOK provider for LM Studio and other OpenAI-style APIs that expose `/v1/models` and `/v1/chat/completions`
+  - users can configure a `Base URL`, optional `API key`, and optional `Default model`, then validate connectivity directly from the dashboard
+  - discovered compatible models now flow into model selection as a distinct provider instead of being confused with official OpenAI models
+  - AI generate, prompt expansion, and normal execution paths now understand that compatible provider configuration end to end
+- BYOK is easier to scan:
+  - provider selection is now grouped into `Hosted` and `Local / Self-Hosted`
+  - official hosted providers remain visually separate from self-managed runtimes like Ollama and OpenAI-compatible endpoints
+- Deployment identity is clearer:
+  - the dashboard tab title now mirrors the instance label as `ClawMax · Dev`, `ClawMax · Cloud`, `ClawMax · On-Prem`, and similar values
+  - the same `DASHBOARD_INSTANCE_LABEL` now drives both the sidebar label and the browser tab title
+- OpenAI key validation is less brittle:
+  - model-specific probe failures now surface as warnings when the key is otherwise usable, instead of falsely blocking valid keys just because one probe model is unavailable
+
+## 🔥 Previous Release: v1.5.2–v1.5.4
 
 - Setup and onboarding are much lower-friction:
   - `setup.sh` no longer asks for provider API keys or GitHub OAuth credentials during setup
@@ -43,17 +59,6 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 - Workspace switching and workflow/detail polish improved:
   - workflow detail/archive surfaces and remaining pop-up icon stragglers now use the product icon system more consistently
   - keep-mounted pages reset more cleanly on workspace changes so switching workspaces no longer relies on a browser refresh as often
-
-## 🔥 Previous Release: v1.5.0
-
-- Dashboard visuals now use a much more consistent product icon system:
-  - replaced the old emoji-style primary UI icons across the left rail, actions, templates, skills, agents, organization, communications, activity, and major chat/detail surfaces
-  - skills and templates now prefer metadata-driven product icons first, with emoji only as fallback
-- View/state behavior is more consistent:
-  - Documents now preserves its position/state when switching tabs, like the other mounted pages
-  - view toggles are being normalized so `list` is consistently the rightmost option, with clearer `grid` vs. `detail` semantics where applicable
-- Local metering is reliable again:
-  - local direct chat now reads token/cost usage from persisted OpenClaw session transcripts and records real Opik trace metadata instead of logging zero-token/$0.00 chat calls
 
 Older releases are kept in [CHANGELOG.md](CHANGELOG.md).
 

@@ -4,9 +4,18 @@ All notable changes to ClawMax are documented here.
 
 ## [Unreleased]
 
-### Dashboard Branding
-- **Instance-Aware Sidebar Label** — the top-left dashboard brand block now supports `DASHBOARD_INSTANCE_LABEL` so operators can distinguish deployments like `Cloud`, `On-Prem`, `Staging`, or similar at a glance.
-- **Sane Local Default** — local/native dashboard runs now default that label to `Dev`, with `Test` used automatically when running under test mode.
+## [v1.5.5] - 2026-05-20
+
+### Release — OpenAI-Compatible Local LLMs and BYOK Clarity
+- **OpenAI-Compatible Provider** — added a first-class `OpenAI-Compatible` BYOK provider for LM Studio and other OpenAI-style APIs that expose `/v1/models` and `/v1/chat/completions`, with support for configurable base URL, optional API key, and optional default model.
+- **Discovered Compatible Models** — models discovered from OpenAI-compatible endpoints now appear as a distinct provider family instead of being confused with official OpenAI-hosted models, making local/self-hosted model selection materially clearer.
+- **AI Generate and Prompt Expansion Support** — agent/template/workflow/skill AI-generate paths and shared prompt expansion now carry OpenAI-compatible provider configuration end to end, so local/self-hosted compatible models can be used for those flows too.
+- **Hosted vs. Local / Self-Hosted BYOK Layout** — the BYOK provider chooser is now grouped into `Hosted` and `Local / Self-Hosted`, separating official hosted APIs from self-managed runtimes like Ollama and OpenAI-compatible endpoints.
+- **Instance-Aware Browser Tab Title** — `DASHBOARD_INSTANCE_LABEL` now affects the browser tab title as well as the sidebar, rendering values like `ClawMax · Dev`, `ClawMax · Cloud`, or `ClawMax · On-Prem` for faster multi-instance recognition.
+- **Softer OpenAI Key Validation** — OpenAI key validation is less brittle when a specific probe model is unavailable, surfacing that case as a warning when the key still appears otherwise usable instead of hard-failing the whole key check.
+
+### Quality
+- **Validation Gate** — validated locally with `client/src/lib/byok.test.ts`, `server/lib/integration-validation.test.ts`, `server/lib/model-discovery.test.ts`, and `npx tsc --noEmit`.
 
 ## [v1.5.4] - 2026-05-19
 

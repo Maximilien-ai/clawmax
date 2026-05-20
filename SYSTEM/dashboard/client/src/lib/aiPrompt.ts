@@ -28,6 +28,9 @@ export async function expandPromptWithAI(
         openai: openai || undefined,
         anthropic: anthropic || undefined,
         gemini: gemini || undefined,
+        openaiCompatibleApiKey: byok.openaiCompatibleApiKey || undefined,
+        openaiCompatibleBaseUrl: byok.openaiCompatibleBaseUrl || undefined,
+        openaiCompatibleDefaultModel: byok.openaiCompatibleDefaultModel || undefined,
       },
     }),
   })

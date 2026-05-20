@@ -7,6 +7,9 @@ export interface ProviderKeys {
   anthropic?: string
   gemini?: string
   ollamaBaseUrl?: string
+  openaiCompatibleApiKey?: string
+  openaiCompatibleBaseUrl?: string
+  openaiCompatibleDefaultModel?: string
 }
 
 export interface MaintenanceBannerConfig {
@@ -87,7 +90,7 @@ function firstNonEmpty(rawEnv: Record<string, string>, ...keys: string[]): strin
 const isContainerMode = Object.keys(dashboardEnv).length === 0
 
 function hasAnyProviderKey(keys: ProviderKeys): boolean {
-  return !!(keys.openai || keys.anthropic || keys.gemini)
+  return !!(keys.openai || keys.anthropic || keys.gemini || keys.openaiCompatibleBaseUrl)
 }
 
 function parseBooleanFlag(value?: string): boolean {
@@ -211,6 +214,9 @@ export function getSystemProviderKeys(rawEnv: Record<string, string> = dashboard
     openai: lookup('SYSTEM_OPENAI_API_KEY') || lookup('OPENAI_API_KEY'),
     anthropic: lookup('SYSTEM_ANTHROPIC_API_KEY') || lookup('ANTHROPIC_API_KEY'),
     gemini: lookup('SYSTEM_GEMINI_API_KEY') || lookup('GEMINI_API_KEY'),
+    openaiCompatibleApiKey: lookup('SYSTEM_OPENAI_COMPATIBLE_API_KEY') || lookup('OPENAI_COMPATIBLE_API_KEY'),
+    openaiCompatibleBaseUrl: lookup('SYSTEM_OPENAI_COMPATIBLE_BASE_URL') || lookup('OPENAI_COMPATIBLE_BASE_URL'),
+    openaiCompatibleDefaultModel: lookup('SYSTEM_OPENAI_COMPATIBLE_DEFAULT_MODEL') || lookup('OPENAI_COMPATIBLE_DEFAULT_MODEL'),
   }
 }
 
@@ -219,6 +225,9 @@ export function getUserDefaultProviderKeys(rawEnv: Record<string, string> = dash
     openai: firstNonEmpty(rawEnv, 'USER_OPENAI_API_KEY'),
     anthropic: firstNonEmpty(rawEnv, 'USER_ANTHROPIC_API_KEY'),
     gemini: firstNonEmpty(rawEnv, 'USER_GEMINI_API_KEY'),
+    openaiCompatibleApiKey: firstNonEmpty(rawEnv, 'USER_OPENAI_COMPATIBLE_API_KEY'),
+    openaiCompatibleBaseUrl: firstNonEmpty(rawEnv, 'USER_OPENAI_COMPATIBLE_BASE_URL'),
+    openaiCompatibleDefaultModel: firstNonEmpty(rawEnv, 'USER_OPENAI_COMPATIBLE_DEFAULT_MODEL'),
   }
 }
 
@@ -242,6 +251,9 @@ export function resolveUserExecutionProviderKeys(
       openai: byokOverrides?.openai?.trim() || undefined,
       anthropic: byokOverrides?.anthropic?.trim() || undefined,
       gemini: byokOverrides?.gemini?.trim() || undefined,
+      openaiCompatibleApiKey: byokOverrides?.openaiCompatibleApiKey?.trim() || undefined,
+      openaiCompatibleBaseUrl: byokOverrides?.openaiCompatibleBaseUrl?.trim() || undefined,
+      openaiCompatibleDefaultModel: byokOverrides?.openaiCompatibleDefaultModel?.trim() || undefined,
     }
   }
 

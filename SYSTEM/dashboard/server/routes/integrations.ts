@@ -20,7 +20,7 @@ router.get('/status', (_req, res) => {
   res.json({
     validationAvailable: true,
     validationMode: 'live',
-    providers: ollamaEnabled ? ['openai', 'anthropic', 'gemini', 'ollama', 'opik'] : ['openai', 'anthropic', 'gemini', 'opik'],
+    providers: ollamaEnabled ? ['openai', 'anthropic', 'gemini', 'ollama', 'openai-compatible', 'opik'] : ['openai', 'anthropic', 'gemini', 'openai-compatible', 'opik'],
     notes: [
       'Validation runs against the current server build.',
       'Provider secrets remain browser-local in this preview flow.',
@@ -54,6 +54,8 @@ router.put('/config', (req, res) => {
     sensoContextLabel: typeof body.sensoContextLabel === 'string' ? body.sensoContextLabel : undefined,
     ollamaBaseUrl: ollamaEnabled && typeof body.ollamaBaseUrl === 'string' ? body.ollamaBaseUrl : undefined,
     ollamaDefaultModel: ollamaEnabled && typeof body.ollamaDefaultModel === 'string' ? body.ollamaDefaultModel : undefined,
+    openaiCompatibleBaseUrl: typeof body.openaiCompatibleBaseUrl === 'string' ? body.openaiCompatibleBaseUrl : undefined,
+    openaiCompatibleDefaultModel: typeof body.openaiCompatibleDefaultModel === 'string' ? body.openaiCompatibleDefaultModel : undefined,
     opikWorkspace: typeof body.opikWorkspace === 'string' ? body.opikWorkspace : undefined,
     opikProject: typeof body.opikProject === 'string' ? body.opikProject : undefined,
     enabledPartners: Array.isArray(body.enabledPartners) ? body.enabledPartners.filter((item): item is string => typeof item === 'string') : undefined,

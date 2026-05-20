@@ -67,16 +67,20 @@ function deriveChatError(raw: string): string {
 
 function evaluateChatExecutionReadiness(
   agentId: string,
-  byok?: { openai?: string; anthropic?: string; gemini?: string; ollamaBaseUrl?: string }
+  byok?: { openai?: string; anthropic?: string; gemini?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string }
 ) {
   const integrationConfig = readWorkspaceIntegrationConfig()
   const resolvedAgent = resolveAgentExecutionConfig(agentId)
   const effectiveWorkspaceRoot = deriveWorkspaceRootFromAgentWorkspace(resolvedAgent.workspace) || getWorkspacePath()
+  const useOpenAiCompatible = resolvedAgent.provider === 'openai-compatible'
   const executionEnv = userExecutionEnv({
-    openai: byok?.openai,
+    openai: useOpenAiCompatible ? undefined : byok?.openai,
     anthropic: byok?.anthropic,
     gemini: byok?.gemini,
     ollamaBaseUrl: byok?.ollamaBaseUrl || integrationConfig.ollamaBaseUrl,
+    openaiCompatibleApiKey: useOpenAiCompatible ? byok?.openaiCompatibleApiKey : undefined,
+    openaiCompatibleBaseUrl: useOpenAiCompatible ? (byok?.openaiCompatibleBaseUrl || integrationConfig.openaiCompatibleBaseUrl) : undefined,
+    openaiCompatibleDefaultModel: useOpenAiCompatible ? (byok?.openaiCompatibleDefaultModel || integrationConfig.openaiCompatibleDefaultModel) : undefined,
   })
   executionEnv.OPENCLAW_WORKSPACE = effectiveWorkspaceRoot
   if (!resolvedAgent.model || resolvedAgent.model.trim().toLowerCase() === 'unknown') {
@@ -88,6 +92,7 @@ function evaluateChatExecutionReadiness(
   }
   const hasHostedKeys = !!(executionEnv.ANTHROPIC_API_KEY || executionEnv.OPENAI_API_KEY || executionEnv.GEMINI_API_KEY)
   const hasOllamaPath = !!(executionEnv.OLLAMA_BASE_URL || integrationConfig.ollamaDefaultModel)
+  const hasOpenAiCompatiblePath = !!(executionEnv.OPENAI_BASE_URL || integrationConfig.openaiCompatibleBaseUrl)
 
   if (resolvedAgent.provider === 'ollama' && !hasOllamaPath && !hasHostedKeys) {
     return {
@@ -96,10 +101,17 @@ function evaluateChatExecutionReadiness(
       resolvedAgent,
     }
   }
-  if (!hasHostedKeys && !hasOllamaPath) {
+  if (resolvedAgent.provider === 'openai-compatible' && !hasOpenAiCompatiblePath) {
     return {
       available: false,
-      error: 'No execution path configured. Add hosted provider keys, or configure Ollama in BYOK / workspace integrations.',
+      error: `Agent ${agentId} is configured for ${resolvedAgent.model || 'openai-compatible'}, but no OpenAI-compatible Base URL is configured. Add one in BYOK or workspace integrations.`,
+      resolvedAgent,
+    }
+  }
+  if (!hasHostedKeys && !hasOllamaPath && !hasOpenAiCompatiblePath) {
+    return {
+      available: false,
+      error: 'No execution path configured. Add hosted provider keys, configure Ollama, or add an OpenAI-compatible endpoint in BYOK / workspace integrations.',
       resolvedAgent,
     }
   }
@@ -212,7 +224,7 @@ router.post('/:id/chat', (req, res) => {
   const { message, sessionId, byok } = req.body as {
     message?: string
     sessionId?: string
-    byok?: { openai?: string; anthropic?: string; gemini?: string; ollamaBaseUrl?: string }
+    byok?: { openai?: string; anthropic?: string; gemini?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string }
   }
 
   if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
@@ -235,13 +247,17 @@ router.post('/:id/chat', (req, res) => {
     return res.status(400).json({ error: readiness.error })
   }
   const resolvedAgent = readiness.resolvedAgent
+  const useOpenAiCompatible = resolvedAgent.provider === 'openai-compatible'
   const integrationConfig = readWorkspaceIntegrationConfig()
   const effectiveWorkspaceRoot = deriveWorkspaceRootFromAgentWorkspace(resolvedAgent.workspace) || getWorkspacePath()
   const executionEnv = userExecutionEnv({
-    openai: byok?.openai,
+    openai: useOpenAiCompatible ? undefined : byok?.openai,
     anthropic: byok?.anthropic,
     gemini: byok?.gemini,
     ollamaBaseUrl: byok?.ollamaBaseUrl || integrationConfig.ollamaBaseUrl,
+    openaiCompatibleApiKey: useOpenAiCompatible ? byok?.openaiCompatibleApiKey : undefined,
+    openaiCompatibleBaseUrl: useOpenAiCompatible ? (byok?.openaiCompatibleBaseUrl || integrationConfig.openaiCompatibleBaseUrl) : undefined,
+    openaiCompatibleDefaultModel: useOpenAiCompatible ? (byok?.openaiCompatibleDefaultModel || integrationConfig.openaiCompatibleDefaultModel) : undefined,
   })
   executionEnv.OPENCLAW_WORKSPACE = effectiveWorkspaceRoot
   const effectiveSessionId = scopeSessionIdToModel(
