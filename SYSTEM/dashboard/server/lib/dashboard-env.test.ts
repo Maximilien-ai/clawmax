@@ -189,7 +189,9 @@ console.log('========================================\n')
 
 if (testsFailed > 0) {
   console.log(`${RED}Some tests failed${RESET}`)
+  console.log('TEST_RESULT: FAIL')
   process.exit(1)
 } else {
   console.log(`${GREEN}All tests passed${RESET}`)
+  console.log('TEST_RESULT: PASS')
 }
