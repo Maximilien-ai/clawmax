@@ -637,8 +637,9 @@ else
 fi
 
 echo -e "${YELLOW}→ Running Dashboard env unit tests...${NC}"
-npx ts-node --transpileOnly server/lib/dashboard-env.test.ts > /tmp/clawmax-dashboard-env.out 2>&1 || true
-if grep -q "TEST_RESULT: PASS" /tmp/clawmax-dashboard-env.out; then
+dashboard_env_output="$(npx ts-node --transpileOnly server/lib/dashboard-env.test.ts 2>&1 || true)"
+printf '%s\n' "$dashboard_env_output" > /tmp/clawmax-dashboard-env.out
+if printf '%s\n' "$dashboard_env_output" | grep -q "TEST_RESULT: PASS"; then
   dashboard_env_count=$(grep "Tests passed:" /tmp/clawmax-dashboard-env.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
   pass "Dashboard env unit tests (${dashboard_env_count:-?} tests)"
 else
