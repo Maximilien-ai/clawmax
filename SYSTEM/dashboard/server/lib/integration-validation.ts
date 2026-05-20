@@ -87,6 +87,16 @@ function errored(message: string): IntegrationValidationResult {
   return { ok: false, status: 'error', message }
 }
 
+async function readProviderErrorMessage(res: Response): Promise<string | null> {
+  try {
+    const body = await res.json() as any
+    const message = body?.error?.message || body?.message
+    return typeof message === 'string' && message.trim() ? message.trim() : null
+  } catch {
+    return null
+  }
+}
+
 export async function validateOpenAIKey(apiKey: string, fetchImpl: FetchLike = fetch): Promise<IntegrationValidationResult> {
   if (!apiKey.trim()) return skipped('No OpenAI key provided')
   const mismatch = providerShapeMismatch('openai', apiKey)
@@ -96,7 +106,10 @@ export async function validateOpenAIKey(apiKey: string, fetchImpl: FetchLike = f
   try {
     const res = await fetchImpl('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
-      headers: { Authorization: `Bearer ${apiKey.trim()}` },
+      headers: {
+        Authorization: `Bearer ${apiKey.trim()}`,
+        'content-type': 'application/json',
+      },
       body: JSON.stringify({
         model: OPENAI_VALIDATION_MODEL,
         messages: [{ role: 'user', content: 'Reply with OK' }],
@@ -107,7 +120,10 @@ export async function validateOpenAIKey(apiKey: string, fetchImpl: FetchLike = f
     })
     if (res.ok) return valid('OpenAI key is valid and can complete prompts')
     if (res.status === 401 || res.status === 403) return invalid('OpenAI rejected this key')
-    if (res.status === 400 || res.status === 404) return invalid(`OpenAI key could not complete a test prompt on ${OPENAI_VALIDATION_MODEL}`)
+    if (res.status === 400 || res.status === 404) {
+      const providerMessage = await readProviderErrorMessage(res)
+      return invalid(providerMessage || `OpenAI key could not complete a test prompt on ${OPENAI_VALIDATION_MODEL}`)
+    }
     return errored(`OpenAI prompt validation returned ${res.status}`)
   } catch (err: any) {
     return errored(`OpenAI prompt validation failed: ${err.message || 'network error'}`)

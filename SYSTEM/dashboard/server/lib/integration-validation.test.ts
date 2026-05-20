@@ -70,6 +70,8 @@ async function run() {
     assert(result.status === 'valid', 'Expected valid status')
     assert(!!request.url?.includes('/v1/chat/completions'), 'Expected OpenAI prompt validation endpoint')
     assert(request.init?.method === 'POST', 'Expected OpenAI validation to POST a test completion')
+    const headers = request.init?.headers as Record<string, string> | undefined
+    assert(headers?.['content-type'] === 'application/json', 'Expected OpenAI validation to send JSON content-type')
   })
 
   await test('validateAnthropicKey returns invalid on 401', async () => {
@@ -106,6 +108,14 @@ async function run() {
     const result = await validateOpenAIKey('sess_demo_subscription_key', mockFetch(200))
     assert(result.status === 'invalid', 'Expected invalid status')
     assert(/developer API key|subscription or app credentials/i.test(result.message), 'Expected subscription credential warning')
+  })
+
+  await test('validateOpenAIKey surfaces provider error message for 400 responses', async () => {
+    const result = await validateOpenAIKey('sk-test', mockFetch(400, {
+      error: { message: 'The model `gpt-4o-mini` does not exist or you do not have access to it.' },
+    }))
+    assert(result.status === 'invalid', 'Expected invalid status')
+    assert(/does not exist|do not have access/i.test(result.message), 'Expected provider error message to be surfaced')
   })
 
   await test('validateAnthropicKey rejects non-developer credential shapes before network validation', async () => {
