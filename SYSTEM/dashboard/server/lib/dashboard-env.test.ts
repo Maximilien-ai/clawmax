@@ -6,6 +6,7 @@
 
 import {
   allowSystemKeysForUserExecution,
+  getDashboardInstanceLabel,
   getBestAvailableModel,
   getCostEfficientModel,
   getDefaultOllamaBaseUrl,
@@ -42,6 +43,25 @@ console.log(`\n${YELLOW}=== Dashboard Env Test Suite ===${RESET}\n`)
 
 test('managed runtime is detected when dashboard env is empty', () => {
   assert(isManagedRuntime({}) === true, 'Expected empty env to be treated as managed runtime')
+})
+
+test('dashboard instance label honors explicit env override', () => {
+  assert(getDashboardInstanceLabel({ DASHBOARD_INSTANCE_LABEL: 'Cloud' }) === 'Cloud', 'Expected explicit instance label override to win')
+})
+
+test('local/native runtime defaults dashboard instance label to Dev', () => {
+  assert(getDashboardInstanceLabel({ DASHBOARD_PORT: '3001' }) === 'Dev', 'Expected local runtime to default instance label to Dev')
+})
+
+test('test runtime defaults dashboard instance label to Test', () => {
+  const previous = process.env.NODE_ENV
+  process.env.NODE_ENV = 'test'
+  try {
+    assert(getDashboardInstanceLabel({ DASHBOARD_PORT: '3001' }) === 'Test', 'Expected test runtime to default instance label to Test')
+  } finally {
+    if (previous === undefined) delete process.env.NODE_ENV
+    else process.env.NODE_ENV = previous
+  }
 })
 
 test('local/native runtime falls back to localhost Ollama base URL', () => {

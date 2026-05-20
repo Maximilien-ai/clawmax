@@ -35,6 +35,7 @@ interface SystemInfo {
   instanceKey?: string | null
   machineId?: string | null
   machineName?: string | null
+  instanceLabel?: string | null
   agentCount: number
   activeAgentCount: number
   pausedAgentCount: number
@@ -552,7 +553,9 @@ export default function App() {
               <div className="px-4 py-5 border-b border-gray-700">
                 <span className="text-lg font-bold tracking-tight text-white">ClawMax</span>
                 <span className="text-sky-400 font-bold text-lg">.ai</span>
-                <p className="text-xs text-gray-400 mt-0.5">Owner Dashboard</p>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {system?.instanceLabel ? `Owner Dashboard · ${system.instanceLabel}` : 'Owner Dashboard'}
+                </p>
               </div>
             )}
             {navCollapsed && (

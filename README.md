@@ -361,6 +361,7 @@ SYSTEM_OPENAI_API_KEY=sk-your-system-key
 | `GITHUB_CLIENT_SECRET` | GitHub OAuth client secret | Required for GitHub auth |
 | `CORS_ORIGIN` | Frontend app origin | Required for local/proxied OAuth correctness |
 | `DASHBOARD_APP_URL` | Frontend redirect target after login/logout | Optional but recommended |
+| `DASHBOARD_INSTANCE_LABEL` | Optional top-left instance label like `Cloud`, `On-Prem`, `Prod`, or `Staging` | Optional; local/native runs default to `Dev` |
 
 Without system keys, the dashboard may still boot, but system-generated flows such as agent/workflow generation will be limited. Without user keys, end-user agents should eventually rely on BYOK capture after login.
 
@@ -399,6 +400,7 @@ Recommended when you want redirects to be explicit:
 ```env
 DASHBOARD_PORT=3001
 DASHBOARD_APP_URL=http://localhost:5173
+DASHBOARD_INSTANCE_LABEL=Dev
 # DASHBOARD_PUBLIC_URL=http://localhost:3001
 ```
 
@@ -413,6 +415,15 @@ DASHBOARD_PORT=3002
 DASHBOARD_CLIENT_PORT=5174
 DASHBOARD_APP_URL=http://localhost:5174
 CORS_ORIGIN=http://localhost:5174
+```
+
+For operator-managed deployments, you can also set:
+
+```env
+# Examples:
+# DASHBOARD_INSTANCE_LABEL=Cloud
+# DASHBOARD_INSTANCE_LABEL=On-Prem
+# DASHBOARD_INSTANCE_LABEL=Staging
 ```
 
 ### Email OTP

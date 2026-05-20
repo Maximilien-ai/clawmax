@@ -138,6 +138,16 @@ export function isManagedRuntime(rawEnv: Record<string, string> = dashboardEnv):
   return Object.keys(rawEnv).length === 0
 }
 
+export function getDashboardInstanceLabel(rawEnv: Record<string, string> = dashboardEnv): string | null {
+  const explicit = firstNonEmpty(rawEnv, 'DASHBOARD_INSTANCE_LABEL') || process.env.DASHBOARD_INSTANCE_LABEL?.trim()
+  if (explicit) return explicit
+  if (!isManagedRuntime(rawEnv)) {
+    const nodeEnv = (firstNonEmpty(rawEnv, 'NODE_ENV') || process.env.NODE_ENV || '').trim().toLowerCase()
+    return nodeEnv === 'test' ? 'Test' : 'Dev'
+  }
+  return null
+}
+
 export function getMaintenanceBanner(rawEnv: Record<string, string> = dashboardEnv): MaintenanceBannerConfig | null {
   const fallbackState = (firstNonEmpty(rawEnv, 'MAINTENANCE_STATE') || process.env.MAINTENANCE_STATE || '').trim().toLowerCase()
   const fallbackMessage = (firstNonEmpty(rawEnv, 'MAINTENANCE_MESSAGE') || process.env.MAINTENANCE_MESSAGE || '').trim()

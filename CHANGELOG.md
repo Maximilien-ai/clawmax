@@ -2,6 +2,12 @@
 
 All notable changes to ClawMax are documented here.
 
+## [Unreleased]
+
+### Dashboard Branding
+- **Instance-Aware Sidebar Label** — the top-left dashboard brand block now supports `DASHBOARD_INSTANCE_LABEL` so operators can distinguish deployments like `Cloud`, `On-Prem`, `Staging`, or similar at a glance.
+- **Sane Local Default** — local/native dashboard runs now default that label to `Dev`, with `Test` used automatically when running under test mode.
+
 ## [v1.5.4] - 2026-05-19
 
 ### Release — Agent Template Create Hardening
