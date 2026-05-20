@@ -1729,6 +1729,35 @@ export function listTemplates(type?: 'agent' | 'organization'): Template[] {
     .map((template) => withDerivedTemplateFields(template))
 }
 
+export function resolveAgentTemplateSlug(templateSlug: string): string | null {
+  const normalizedSlug = slugify(templateSlug)
+  const directCandidates = Array.from(new Set([
+    normalizedSlug,
+    normalizedSlug.endsWith('-template') ? normalizedSlug : `${normalizedSlug}-template`,
+  ]))
+
+  for (const candidate of directCandidates) {
+    const workspaceDir = path.join(getAgentTemplatesDir(), candidate)
+    if (fs.existsSync(path.join(workspaceDir, 'template.json'))) return candidate
+    const globalDir = path.join(getGlobalAgentTemplatesDir(), candidate)
+    if (fs.existsSync(path.join(globalDir, 'template.json'))) return candidate
+  }
+
+  const templates = listTemplates('agent') as AgentTemplate[]
+  const matched = templates.find((template) => {
+    const aliases = [
+      template.slug,
+      slugify(template.name),
+      slugify(template.agents?.[0]?.role || ''),
+      slugify(template.agents?.[0]?.name || ''),
+      slugify(template.agents?.[0]?.id || ''),
+    ].filter(Boolean)
+    return aliases.includes(normalizedSlug)
+  })
+
+  return matched?.slug || null
+}
+
 /**
  * Get a specific template by type and name slug
  * Checks workspace first (user templates), then global (system templates)
@@ -1919,10 +1948,12 @@ export function importAgentFromTemplate(
 ): { ok: boolean; agentId?: string; error?: string } {
   try {
     const normalizedSlug = slugify(templateSlug)
+    const resolvedAliasSlug = resolveAgentTemplateSlug(templateSlug)
     const slugCandidates = Array.from(new Set([
+      resolvedAliasSlug,
       normalizedSlug,
       normalizedSlug.endsWith('-template') ? normalizedSlug : `${normalizedSlug}-template`,
-    ]))
+    ].filter(Boolean) as string[]))
 
     let templateDir = ''
     let templateJsonPath = ''

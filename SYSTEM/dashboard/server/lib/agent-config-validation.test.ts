@@ -5,6 +5,7 @@
  */
 
 import { validateAgentConfigSections, validateProvisionInput } from './agent-config-validation'
+import { listTemplates, slugify } from './templates'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
@@ -215,6 +216,45 @@ test('validateProvisionInput accepts logical agent template ids that map to *-te
 
   assert(result.valid, 'Expected provisioning to remain valid for logical template alias slugs')
   assert(!result.errors.some((error) => error.includes('Template')), 'Expected no template-not-found error for logical alias slug')
+})
+
+test('validateProvisionInput accepts human-facing template name slugs that differ from directory slugs', () => {
+  const result = validateProvisionInput({
+    name: 'software-engineer1',
+    model: 'openai/gpt-4o',
+    templateSlug: 'software-engineer',
+    tags: ['engineer'],
+  }, {
+    existingAgentIds: ['engineer1'],
+    availableModels: ['openai/gpt-4o'],
+  })
+
+  assert(result.valid, 'Expected provisioning to remain valid for template display-name alias slugs')
+  assert(!result.errors.some((error) => error.includes('Template')), 'Expected no template-not-found error for template display-name alias slug')
+})
+
+test('validateProvisionInput accepts every agent template by human-facing display slug', () => {
+  const templates = listTemplates('agent')
+  const templateErrors: string[] = []
+
+  for (const template of templates) {
+    const displaySlug = slugify(template.name)
+    const result = validateProvisionInput({
+      name: `audit-${displaySlug}`,
+      model: 'openai/gpt-4o',
+      templateSlug: displaySlug,
+      tags: ['audit'],
+    }, {
+      existingAgentIds: [],
+      availableModels: ['openai/gpt-4o'],
+    })
+
+    if (!result.valid || result.errors.some((error) => error.includes('Template'))) {
+      templateErrors.push(`${template.name} -> ${displaySlug}: ${result.errors.join('; ') || 'invalid'}`)
+    }
+  }
+
+  assert(templateErrors.length === 0, `Expected all agent template display slugs to validate, got failures:\n${templateErrors.join('\n')}`)
 })
 
 setTimeout(() => {

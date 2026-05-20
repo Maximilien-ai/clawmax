@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { validateSoul, validateTools } from './validator'
-import { getAgentTemplatesDir, getGlobalAgentTemplatesDir, slugify } from './templates'
+import { getAgentTemplatesDir, getGlobalAgentTemplatesDir, resolveAgentTemplateSlug, slugify } from './templates'
 
 const AGENT_ID_REGEX = /^[a-z][a-z0-9_-]*$/
 const TAG_REGEX = /^[a-z][a-z0-9_-]*$/
@@ -151,6 +151,8 @@ export function validateAgentConfigSections(config: {
 }
 
 function templateExists(templateSlug: string): boolean {
+  if (resolveAgentTemplateSlug(templateSlug)) return true
+
   const slug = slugify(templateSlug)
   const candidates = Array.from(new Set([
     slug,

@@ -5,20 +5,12 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.5.3-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
+[![Version](https://img.shields.io/badge/version-1.5.4-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
 [![Tests](https://img.shields.io/badge/tests-72%20default--safe-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 Latest Release: v1.5.3
-
-- Agent creation regressions are fixed:
-  - `Create Agent` now accepts logical template ids like `people-researcher` and `test-agent` again even when the on-disk directory uses the `*-template` suffix
-  - plain `Create Agent` now seeds valid managed agent files so a new agent shows up as a real agent instead of only as a raw Documents directory
-  - newly created agents stay visible in the Agents page immediately after provisioning
-  - the final validation step now offers direct recovery actions like `Change Name` and `Back to Identity` for common failures
-
-## 🔥 Previous Release: v1.5.2
+## 🔥 Latest Releases: v1.5.2–v1.5.4
 
 - Setup and onboarding are much lower-friction:
   - `setup.sh` no longer asks for provider API keys or GitHub OAuth credentials during setup
@@ -28,6 +20,9 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 - Agent creation and first-use flows are much more reliable:
   - `Create Agent` now preserves real backend template slugs, validates earlier, and shows friendlier template/clone/model errors before users hit a broken final `Provision`
   - newly created agents now appear immediately in the Agents page instead of waiting on a background refresh or wizard close timing
+  - plain `Create Agent` now seeds valid managed agent files so a new agent shows up as a real agent instead of only as a raw Documents directory
+  - `Create Agent` now resolves the full shipped agent template catalog by human-facing display name as well as backend/directory slug, so template-backed create is materially more reliable
+  - the final validation step now offers direct recovery actions like `Change Name` and `Back to Identity` for common failures
 - Chat output is cleaner:
   - live agent chat now replaces streamed raw tool/session dumps with the normalized final assistant text
   - persisted chat history strips runtime metadata, file-artifact dumps, and tool/session JSON much more aggressively

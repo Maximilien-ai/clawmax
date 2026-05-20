@@ -9,6 +9,7 @@ import {
   getTemplate,
   importOrganizationTemplate,
   importAgentFromTemplate,
+  resolveAgentTemplateSlug,
   saveTemplate,
   validateTemplate,
   validateImportedTemplateMd,
@@ -1119,6 +1120,56 @@ test('importAgentFromTemplate accepts logical alias slugs for *-template directo
     resetWorkspaceManagerForTests()
     fs.rmSync(tempHome, { recursive: true, force: true })
   }
+})
+
+test('importAgentFromTemplate accepts human-facing template name slugs that differ from directory slugs', () => {
+  const originalWorkspace = process.env.OPENCLAW_WORKSPACE
+  const originalHome = process.env.HOME
+  const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-agent-template-name-alias-home-'))
+  const tempWorkspace = path.join(tempHome, 'workspace')
+  const configPath = path.join(tempHome, '.openclaw', 'openclaw.json')
+  const targetAgentId = 'software-engineer-alias'
+
+  process.env.HOME = tempHome
+  process.env.OPENCLAW_WORKSPACE = tempWorkspace
+  process.env.SYSTEM_OPENAI_API_KEY = 'test-openai-key'
+  resetWorkspaceManagerForTests()
+  seedOpenClawConfig(tempHome)
+
+  try {
+    const result = importAgentFromTemplate('software-engineer', {
+      newAgentId: targetAgentId,
+      model: 'openai/gpt-4o-mini',
+    })
+
+    assert(result.ok === true, `Expected display-name alias import to succeed, got ${result.error || 'unknown error'}`)
+
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    const registered = config?.agents?.list?.find((agent: any) => agent.id === targetAgentId)
+    assert(registered !== undefined, 'Expected display-name alias imported agent to be registered in openclaw.json')
+  } finally {
+    if (typeof originalHome === 'undefined') delete process.env.HOME
+    else process.env.HOME = originalHome
+    if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
+    else process.env.OPENCLAW_WORKSPACE = originalWorkspace
+    resetWorkspaceManagerForTests()
+    fs.rmSync(tempHome, { recursive: true, force: true })
+  }
+})
+
+test('resolveAgentTemplateSlug maps every agent template display slug to a real template slug', () => {
+  const templates = listTemplates('agent') as AgentTemplate[]
+  const missing: string[] = []
+
+  for (const template of templates) {
+    const displaySlug = slugify(template.name)
+    const resolved = resolveAgentTemplateSlug(displaySlug)
+    if (!resolved) {
+      missing.push(`${template.name} -> ${displaySlug}`)
+    }
+  }
+
+  assert(missing.length === 0, `Expected all agent template display slugs to resolve:\n${missing.join('\n')}`)
 })
 
 // ============================================================================

@@ -2,6 +2,17 @@
 
 All notable changes to ClawMax are documented here.
 
+## [v1.5.4] - 2026-05-19
+
+### Release — Agent Template Create Hardening
+- **Catalog-Wide Agent Template Resolution** — Add Agent now resolves agent templates by real directory slug, `*-template` aliases, and human-facing display-name slugs, so user selections like `Software Engineer` no longer fail just because the on-disk directory is named differently.
+- **Template-Backed Create Reliability** — agent-template provisioning is now hardened across the whole shipped agent template catalog instead of only the first few reported regressions, which closes the recurring `Template "... was not found"` failures seen from the Add Agent wizard.
+- **Plain / AI / Template Create Cohesion** — the current agent-creation line now consistently covers plain create, AI-generate create, and create-from-template, with better post-provision visibility and stronger final-step recovery paths.
+
+### Quality
+- **Catalog Audit Coverage** — added regression coverage proving every shipped agent template validates through the same human-facing display slug path used by the Add Agent UI.
+- **Validation Gate** — validated locally with `server/lib/agent-config-validation.test.ts`, `server/lib/templates.test.ts`, `npx tsc --noEmit`, and the previously added seeded-agent/list-visibility coverage already surfaced in `SYSTEM/test.sh`.
+
 ## [v1.5.3] - 2026-05-19
 
 ### Release — Agent Creation Regression Fixes
