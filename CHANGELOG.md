@@ -2,10 +2,10 @@
 
 All notable changes to ClawMax are documented here.
 
-## [v1.7.3] - 2026-05-19
+## [v1.5.3] - 2026-05-19
 
 ### Release — Agent Creation Regression Fixes
-- **Template Selection Recovery** — Add Agent now accepts logical agent template ids like `people-researcher` and `test-agent` even when the on-disk template directory uses the `*-template` suffix, closing the `Template "... was not found"` regression reported in `1.7.2`.
+- **Template Selection Recovery** — Add Agent now accepts logical agent template ids like `people-researcher` and `test-agent` even when the on-disk template directory uses the `*-template` suffix, closing the `Template "... was not found"` regression reported after `1.5.2`.
 - **Plain Create Agent Reliability** — plain agent creation now seeds minimal managed workspace files when needed so a newly provisioned agent becomes a real agent immediately instead of appearing only as a deletable Documents directory.
 - **Immediate Agent Visibility** — post-provision list refresh is more defensive and no longer depends on a fragile first fetch timing window, so newly created agents stay visible in the Agents page right after create.
 - **Wizard Recovery Actions** — the final validation step now gives direct recovery actions such as `Change Name` for duplicate agent names and `Back to Identity` for template/source/model problems.

@@ -1,14 +1,14 @@
 # ClawMax Status
 
-**Current Version**: v1.7.3
+**Current Version**: v1.5.3
 **Last Updated**: May 19, 2026
-**Status**: `v1.7.3` is the current release line on `main`
+**Status**: `v1.5.3` is the current release line on `main`
 
 ---
 
 ## Current State
 
-- `main` now carries the `1.7.3` release line: the `1.7.2` Add Agent regression is fixed, logical template ids resolve correctly again, plain create now seeds valid managed agent files, and newly created agents surface immediately as real agents instead of only appearing as raw workspace directories
+- `main` now carries the `1.5.3` release line: the `1.5.2` Add Agent regression is fixed, logical template ids resolve correctly again, plain create now seeds valid managed agent files, and newly created agents surface immediately as real agents instead of only appearing as raw workspace directories
 - targeted local validation is green on the current line, including the newer chat-session, Opik runtime, skill metadata, and skill-tag regressions
 - targeted local validation is also green for the new AI prompt expansion/editor path via `server/lib/ai-generator.test.ts` and repeated `npx tsc --noEmit`
 - Skills now support stronger day-to-day management: reverse assignment, workspace-copy editing, bulk selection/deletion, richer imported registry provenance, tag editing/filtering, and registry suggestions from ClawHub, Shipables, and Tessl
