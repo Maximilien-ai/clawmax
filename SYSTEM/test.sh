@@ -637,13 +637,17 @@ else
 fi
 
 echo -e "${YELLOW}→ Running Dashboard env unit tests...${NC}"
-dashboard_env_output="$(npx ts-node --transpileOnly server/lib/dashboard-env.test.ts 2>&1 || true)"
-printf '%s\n' "$dashboard_env_output" > /tmp/clawmax-dashboard-env.out
-if printf '%s\n' "$dashboard_env_output" | grep -q "TEST_RESULT: PASS"; then
-  dashboard_env_count=$(grep "Tests passed:" /tmp/clawmax-dashboard-env.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
-  pass "Dashboard env unit tests (${dashboard_env_count:-?} tests)"
+if [ "$SKIP_CI_QUARANTINED_TESTS" = "true" ]; then
+  warn "Skipping Dashboard env unit tests in required CI lane (still covered locally and in quarantined CI)"
 else
-  fail "Dashboard env unit tests"
+  dashboard_env_output="$(npx ts-node --transpileOnly server/lib/dashboard-env.test.ts 2>&1 || true)"
+  printf '%s\n' "$dashboard_env_output" > /tmp/clawmax-dashboard-env.out
+  if printf '%s\n' "$dashboard_env_output" | grep -q "TEST_RESULT: PASS"; then
+    dashboard_env_count=$(grep "Tests passed:" /tmp/clawmax-dashboard-env.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+    pass "Dashboard env unit tests (${dashboard_env_count:-?} tests)"
+  else
+    fail "Dashboard env unit tests"
+  fi
 fi
 
 echo -e "${YELLOW}→ Running Docker entrypoint gateway tests...${NC}"
