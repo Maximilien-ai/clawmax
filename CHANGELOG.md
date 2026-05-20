@@ -13,6 +13,7 @@ All notable changes to ClawMax are documented here.
 - **Hosted vs. Local / Self-Hosted BYOK Layout** — the BYOK provider chooser is now grouped into `Hosted` and `Local / Self-Hosted`, separating official hosted APIs from self-managed runtimes like Ollama and OpenAI-compatible endpoints.
 - **Instance-Aware Browser Tab Title** — `DASHBOARD_INSTANCE_LABEL` now affects the browser tab title as well as the sidebar, rendering values like `ClawMax · Dev`, `ClawMax · Cloud`, or `ClawMax · On-Prem` for faster multi-instance recognition.
 - **Softer OpenAI Key Validation** — OpenAI key validation is less brittle when a specific probe model is unavailable, surfacing that case as a warning when the key still appears otherwise usable instead of hard-failing the whole key check.
+- **Release tarball installer** — tagged releases now publish versioned `clawmax-vX.Y.Z.tar.gz` plus SHA-256 checksum assets, alongside a public `install.sh` bootstrapper that can download a pinned or latest release, verify it, extract it, and then continue into the normal `setup.sh` flow without requiring `gh` or a pre-existing local clone.
 
 ### Quality
 - **Validation Gate** — validated locally with `client/src/lib/byok.test.ts`, `server/lib/integration-validation.test.ts`, `server/lib/model-discovery.test.ts`, and `npx tsc --noEmit`.

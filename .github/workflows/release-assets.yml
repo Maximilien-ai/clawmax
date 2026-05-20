@@ -1,0 +1,48 @@
+name: Release Assets
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  publish-assets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build release assets
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          ARCHIVE="clawmax-${VERSION}.tar.gz"
+          CHECKSUM="clawmax-${VERSION}.sha256"
+          PREFIX="clawmax-${VERSION}/"
+
+          git archive --format=tar.gz --prefix="${PREFIX}" "${VERSION}" -o "${ARCHIVE}"
+          sha256sum "${ARCHIVE}" > "${CHECKSUM}"
+          chmod +x install.sh
+
+      - name: Ensure GitHub release exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ github.ref_name }}
+        run: |
+          gh release view "${VERSION}" >/dev/null 2>&1 || gh release create "${VERSION}" --title "${VERSION}" --notes "Release assets"
+
+      - name: Upload release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ github.ref_name }}
+        run: |
+          gh release upload "${VERSION}" \
+            "clawmax-${VERSION}.tar.gz" \
+            "clawmax-${VERSION}.sha256" \
+            "install.sh" \
+            --clobber

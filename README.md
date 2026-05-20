@@ -181,6 +181,42 @@ You do **not** need to pre-install OpenClaw or add model API keys before setup.
 
 ### Automated Installation (Recommended)
 
+### Release Installer (tar.gz bootstrap)
+
+If you do not want to clone the repository first, you can install from public release assets instead.
+
+Latest release:
+
+```bash
+curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash
+```
+
+Pinned release:
+
+```bash
+curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.5.5
+```
+
+What it does:
+- download a versioned `clawmax-vX.Y.Z.tar.gz` release asset
+- verify the matching SHA-256 checksum
+- extract the release bundle into `./clawmax` by default
+- continue into the normal repo `setup.sh` flow automatically
+
+You can also bootstrap directly with the checked-in wrapper:
+
+```bash
+./setup.sh v1.5.5
+```
+
+or choose a custom install directory:
+
+```bash
+curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.5.5 --dir /opt/clawmax
+```
+
+See [SYSTEM/docs/RELEASE_DISTRIBUTION.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/RELEASE_DISTRIBUTION.md) for the release distribution contract.
+
 ```bash
 # Clone the repository
 git clone https://github.com/Maximilien-ai/clawmax.git

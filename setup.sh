@@ -196,6 +196,16 @@ echo -e "${NC}"
 print_info "ClawMax Setup"
 echo ""
 
+# Bootstrap mode: allow setup.sh to hand off to the release installer when invoked
+# as `./setup.sh latest` or `./setup.sh vX.Y.Z`.
+case "${1:-}" in
+  latest|v[0-9]*)
+    if [ -f "./install.sh" ]; then
+      exec ./install.sh "$@"
+    fi
+    ;;
+esac
+
 # Must be in ClawMax directory
 if [ ! -d "SYSTEM/dashboard" ]; then
   print_error "Not in a ClawMax directory. Please run from the clawmax repo root."
