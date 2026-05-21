@@ -1528,8 +1528,12 @@ export function getAgentActivity(agentDir: string, agentId?: string): AgentActiv
       const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
       const agentList = config?.agents?.list || []
       const normalizedAgentDir = path.resolve(agentDir)
-      const liveAgent = agentList.find((a: any) => a.id === agentId && typeof a?.workspace === 'string' && path.resolve(a.workspace) === normalizedAgentDir)
-        || agentList.find((a: any) => a.id === agentId)
+      const matchingAgents = agentList.filter((a: any) => a.id === agentId)
+      const exactWorkspaceMatch = matchingAgents.find((a: any) => typeof a?.workspace === 'string' && path.resolve(a.workspace) === normalizedAgentDir)
+      const singleMatch = matchingAgents.length === 1 ? matchingAgents[0] : null
+      const singleMatchWorkspace = typeof singleMatch?.workspace === 'string' ? path.resolve(singleMatch.workspace) : null
+      const liveAgent = exactWorkspaceMatch
+        || (singleMatch && (!singleMatchWorkspace || singleMatchWorkspace === normalizedAgentDir) ? singleMatch : null)
       if (liveAgent) {
         const model = normalizeLiveConfigModel(typeof liveAgent.model === 'string' ? liveAgent.model : undefined)
           || resolveAgentActivityFallbackModel(config, parsedIdentity.model)
@@ -1540,6 +1544,13 @@ export function getAgentActivity(agentDir: string, agentId?: string): AgentActiv
         }
         // Get skills from agent config
         skills = liveAgent.skills || []
+      } else {
+        const model = resolveAgentActivityFallbackModel(config, parsedIdentity.model)
+        liveConfig = {
+          model,
+          workspace: agentDir,
+          agentDir: 'N/A'
+        }
       }
     } catch {
       // If we can't read live config, just don't include it

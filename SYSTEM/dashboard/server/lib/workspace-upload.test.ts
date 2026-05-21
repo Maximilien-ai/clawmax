@@ -225,6 +225,46 @@ test('getAgentActivity falls back to preferred workspace model when live config 
   resetWorkspaceManagerForTests()
 })
 
+test('getAgentActivity does not borrow another workspace record when duplicate ids exist without an exact workspace match', () => {
+  const previousHome = process.env.HOME || ''
+  const previousWorkspace = process.env.OPENCLAW_WORKSPACE || ''
+  process.env.HOME = tmpRoot
+
+  const defaultWorkspace = path.join(tmpRoot, '.openclaw', 'workspace')
+  const activeWorkspace = path.join(tmpRoot, '.openclaw', 'workspaces', 'activity-duplicate-test')
+  const defaultAgentDir = path.join(defaultWorkspace, 'AGENTS', 'jarvis')
+  const activeAgentDir = path.join(activeWorkspace, 'AGENTS', 'jarvis')
+  fs.mkdirSync(defaultAgentDir, { recursive: true })
+  fs.mkdirSync(activeAgentDir, { recursive: true })
+  fs.mkdirSync(path.join(activeWorkspace, 'SYSTEM'), { recursive: true })
+  fs.writeFileSync(path.join(activeAgentDir, 'IDENTITY.md'), '# IDENTITY.md\n\n- **Model:** ollama/qwen2.5:latest\n', 'utf-8')
+  fs.writeFileSync(path.join(tmpRoot, '.openclaw', 'dashboard-workspaces.json'), JSON.stringify({
+    version: '1.0.0',
+    activeWorkspaceId: 'activity-duplicate-test',
+    workspaces: [
+      { id: 'default', name: 'Default', path: defaultWorkspace, createdAt: new Date().toISOString(), lastAccessedAt: new Date().toISOString() },
+      { id: 'activity-duplicate-test', name: 'Activity Duplicate Test', path: activeWorkspace, createdAt: new Date().toISOString(), lastAccessedAt: new Date().toISOString() },
+    ],
+  }, null, 2), 'utf-8')
+  fs.writeFileSync(path.join(tmpRoot, '.openclaw', 'openclaw.json'), JSON.stringify({
+    agents: {
+      list: [
+        { id: 'jarvis', workspace: defaultAgentDir, agentDir: path.join(tmpRoot, '.openclaw', 'agents', 'jarvis', 'agent'), model: 'openai/gpt-4o-mini' },
+      ],
+    },
+  }, null, 2), 'utf-8')
+  process.env.OPENCLAW_WORKSPACE = activeWorkspace
+  resetWorkspaceManagerForTests()
+
+  const activity = getAgentActivity(activeAgentDir, 'jarvis')
+  assert(activity.liveConfig?.model === 'ollama/qwen2.5:latest', 'Expected active workspace identity model to win when no exact live record exists')
+  assert(activity.liveConfig?.workspace === activeAgentDir, 'Expected live config workspace to stay local to the active workspace agent dir')
+
+  process.env.HOME = previousHome
+  process.env.OPENCLAW_WORKSPACE = previousWorkspace
+  resetWorkspaceManagerForTests()
+})
+
 console.log('\n========================================')
 console.log(`Tests passed: ${testsPassed}`)
 console.log(`Tests failed: ${testsFailed}`)
