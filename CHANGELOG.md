@@ -4,15 +4,36 @@ All notable changes to ClawMax are documented here.
 
 ## [Unreleased]
 
+- No unreleased changes yet.
+
+## [v1.5.6] - 2026-05-21
+
 ### BYOK / Local Runtime Follow-Through
 - **Explicit Deployment Kind Contract** — the dashboard now understands `local`, `onprem`, and `cloud` deployment kinds explicitly, which makes BYOK/local-provider visibility and defaults much more predictable across native dev, self-managed installs, and hosted runtimes.
 - **Cloud vs. On-Prem Local Provider Behavior** — `Ollama` now stays visible for local/native and on-prem runtimes even before a default model is chosen, while cloud hides Ollama by default but keeps `OpenAI-Compatible` available for remote compatible providers.
 - **Runtime-Safe Same-Mac Defaults** — on-prem/local-self-hosted guidance and defaults now steer same-Mac LM Studio and Ollama users toward `host.containers.internal` instead of loopback-only URLs that fail from inside the dashboard container.
 - **OpenAI-Compatible Model Picker Parity** — OpenAI-compatible endpoints now surface discovered models inline with refresh support and one-click default-model selection, similar to the existing Ollama experience.
 - **Saved Local Provider Follow-Through** — saved workspace defaults for `OpenAI-Compatible` and `Ollama` now participate more reliably in AI generate, agent default-model resolution, stale local-model fallback, and runtime execution wrappers.
+- **Hosted Model Preservation** — hosted BYOK models such as `openai/gpt-4o-mini` remain selectable and executable even when local discovery returns only Ollama or OpenAI-compatible model lists.
+
+### Agent Runtime Model Correctness
+- **Workspace-Local Runtime Models** — agent detail, status, and chat now resolve models from the same active workspace-local runtime configuration instead of drifting across same-name agents in different workspaces.
+- **Agent Edit Persistence** — editing an agent model now updates the active OpenClaw runtime config, not only dashboard metadata, so model changes survive refresh/restart and affect chat execution.
+- **Direct BYOK Chat Execution** — dashboard chat now uses direct BYOK execution where appropriate instead of attempting a gateway-first path that could emit misleading fallback/auth errors before succeeding.
+- **Schema-Valid Temporary Config** — temporary local-model config now includes valid provider model arrays so runtime startup no longer fails with `models.providers.ollama.models` schema errors.
+
+### Template Registry
+- **ClawMax.ai Template Registry Browser** — added the first dashboard template registry flow for browsing/searching canonical templates and community submissions from ClawMax.ai.
+- **Registry Import to Local Templates** — registry templates can be added into local templates before application, with duplicate detection so already-local templates cannot be re-added accidentally.
+- **Trusted Registry Write Contract** — dashboard registry calls now support `TEMPLATE_REGISTRY_REMOTE_URL` for browse/write traffic and `TEMPLATE_REGISTRY_WRITE_TOKEN` for authenticated share/rate actions when product/web provides a signed short-lived token.
+
+### Release Distribution
+- **Public tar.gz Release Packages** — tagged releases publish `clawmax-vX.Y.Z.tar.gz`, `clawmax-vX.Y.Z.sha256`, and `install.sh` assets for the curl installer path.
+- **Pinned Curl Install Docs** — README and release distribution docs now show the `v1.5.6` pinned installer flow for users who do not want GitHub CLI, GitHub login, or a pre-existing local clone.
 
 ### Quality
-- **Regression Coverage** — added/expanded `server/lib/dashboard-env.test.ts`, `server/lib/agent-default-model.test.ts`, `server/lib/ai-generator.test.ts`, `server/lib/agent-execution.test.ts`, `server/lib/model-discovery.test.ts`, and `client/src/lib/byok.test.ts` to cover deployment-kind behavior, local-provider defaults, and local-model fallback handling.
+- **Regression Coverage** — added/expanded `server/lib/dashboard-env.test.ts`, `server/lib/agent-default-model.test.ts`, `server/lib/ai-generator.test.ts`, `server/lib/agent-execution.test.ts`, `server/lib/model-discovery.test.ts`, `server/lib/template-registry.test.ts`, `server/routes/chat.test.ts`, and `client/src/lib/byok.test.ts` to cover deployment-kind behavior, local-provider defaults, registry import behavior, model persistence, and local-model fallback handling.
+- **Validation Gate** — validated locally with focused chat/model/runtime suites, `npx tsc --noEmit`, `git diff --check`, and the full `SYSTEM/test.sh` suite.
 
 ## [v1.5.5] - 2026-05-20
 

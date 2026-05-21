@@ -1,15 +1,17 @@
 # ClawMax Status
 
-**Current Version**: v1.5.5
-**Last Updated**: May 20, 2026
-**Status**: `v1.5.5` is the current release line on `main`
+**Current Version**: v1.5.6
+**Last Updated**: May 21, 2026
+**Status**: `v1.5.6` is the current release line on `main`
 
 ---
 
 ## Current State
 
-- `main` now carries the `1.5.5` release line: local/self-hosted model support is broader through the new `OpenAI-Compatible` BYOK provider, hosted vs. self-hosted provider choice is clearer, and dashboard/browser instance labeling is easier to distinguish at a glance
-- current post-`1.5.5` hardening on `main` makes local-model behavior more deployment-aware: the dashboard now distinguishes `local`, `onprem`, and `cloud`, keeps Ollama visible where it is actually usable, and uses better same-Mac on-prem defaults for LM Studio and Ollama
+- `main` now carries the `1.5.6` release line: public tarball/checksum release packages are documented, and the curl bootstrap installer can install latest or pinned versions without `gh`, GitHub login, or a local clone
+- local/self-hosted model behavior is more deployment-aware: the dashboard distinguishes `local`, `onprem`, and `cloud`, keeps Ollama visible where it is actually usable, and uses better same-Mac on-prem defaults for LM Studio and Ollama
+- agent runtime model resolution is aligned across edit, detail, status, and chat paths so workspace-local model changes persist and hosted BYOK models are not lost when local model discovery is active
+- the first ClawMax.ai template registry browser/import flow is available, including duplicate-local-template prevention and the signed write-token contract for share/rate actions
 - targeted local validation is green on the current line, including the newer chat-session, Opik runtime, skill metadata, and skill-tag regressions
 - targeted local validation is also green for the new AI prompt expansion/editor path via `server/lib/ai-generator.test.ts` and repeated `npx tsc --noEmit`
 - Skills now support stronger day-to-day management: reverse assignment, workspace-copy editing, bulk selection/deletion, richer imported registry provenance, tag editing/filtering, and registry suggestions from ClawHub, Shipables, and Tessl

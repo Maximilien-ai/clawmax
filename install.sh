@@ -15,8 +15,8 @@ Usage:
 
 Examples:
   ./install.sh
-  ./install.sh v1.5.5
-  ./install.sh v1.5.5 --dir /opt/clawmax --non-interactive
+  ./install.sh v1.5.6
+  ./install.sh v1.5.6 --dir /opt/clawmax --non-interactive
 EOF
 }
 

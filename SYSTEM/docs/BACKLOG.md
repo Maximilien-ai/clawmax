@@ -1,6 +1,6 @@
 # Backlog
 
-> Last updated: May 19, 2026
+> Last updated: May 21, 2026
 > Completed and verified work is archived into [CHANGELOG.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/CHANGELOG.md) and historical notes under `SYSTEM/docs/**/archive/`
 
 ## Top Priority
@@ -19,7 +19,6 @@
 - [ ] **BYOK / Partners wizard should stay in sync across mounted instances** — the top-bar `BYOK` and `Partners` entrypoints mount separate wizard instances, so browser-local storage updates can drift and show stale keys/readiness if the wizard does not resync after vault writes. Keep the browser-vault event-driven refresh path tested so saved keys persist visibly and readiness pills update immediately.
 - [ ] **Workspace switch correctness/performance follow-through** — workspace activation now returns faster and mounted tabs reset more cleanly, but keep watching for stale cross-workspace state in Activity/Budget, agents, templates, docs, and workflow surfaces until repeated real-world switching proves the fix is fully stable.
 - [ ] **Activity/Budget can still under-report local workspace token/cost totals after fresh runs** — some new/local workspaces still show real call counts with `0.0k` tokens and `$0.00` cost even after agent chats succeed, which means tracing, usage extraction, or aggregation is still not fully aligned in the local metering path.
-- [ ] **Ollama-selected agents can still execute on Claude in normal UI flow** — even after dashboard-side model/session fixes, normal UI execution can still report `anthropic/claude-opus-4-6` for agents configured as `ollama/...`. Direct API/runtime tests show stale session reuse can be cleared, which suggests the remaining fault is in OpenClaw/gateway provider resolution or a gateway-side fallback path. Treat as a release blocker until configured runtime and actual runtime are trustworthy end-to-end.
 - [ ] **Cloud image must ship built OpenClaw runtime, not raw source or fixtures** — the original fixture-runtime blocker was identified in the CLI cloud build path, and the current follow-up blocker is that cloud now installs real OpenClaw source without built `dist/entry.(m)js` output. Canonical Docker fix pushed in commit `23aaf52`; keep this open until the rebuilt image is validated live.
 - [ ] **Replace ad hoc Docker OpenClaw packaging with a cleaner canonical install path** — current cloud stabilization uses an in-image build/package path for the pinned OpenClaw runtime. After cloud is healthy, replace that with a more explicit release artifact or canonical upstream distribution flow so runtime packaging is easier to reason about and less fragile.
 - [ ] **Plan and test OpenClaw upgrade to latest after cloud runtime stabilizes** — once the pinned runtime path is healthy in cloud, schedule a deliberate upgrade pass from the current tested OpenClaw ref to latest, with explicit validation for gateway startup, agent creation, skills loading, and workflow execution.
@@ -58,15 +57,6 @@
 ## Active Product Work
 
 ### Templates & Discovery
-- [ ] **Template Registry MVP (ClawMax.ai only)** — add a first-pass template registry flow in the dashboard, modeled after the existing skills-registry UX. Scope for the initial sprint:
-  - browse/search canonical templates from the ClawMax.ai registry
-  - show a separate community/pending section for user-shared submissions
-  - allow apply/add from registry results without replacing the existing local template browser
-  - allow rating for both canonical and community templates
-  - allow share/submit only for authenticated ClawMax.ai users
-  - show `System`, `Community`, and `Pending Review` badges clearly
-  - prefer a dashboard-server proxy for auth-required registry actions so the browser does not need to manage raw ClawMax.ai bearer tokens directly
-  - keep this limited to the ClawMax.ai registry for now; do not generalize to multiple template registries until the first flow is stable
 - [ ] **Template feedback, ratings, and promotion flow** — let users review proposal templates, submit feedback, and promote well-performing templates from idea/proposal status into more trusted catalog tiers.
 - [ ] **Template upgrade / reapply-over-existing flow** — support upgrading a workspace that already applied a template when the template changes later; compare the current workspace against the newer template, show likely conflicts plus likely safe updates, and guide the user through update vs. replace decisions instead of forcing manual delete + reapply.
 - [ ] **Surface old template versions in the UI** — template saves already archive prior versions on disk under `.versions/`; add a lightweight “Previous versions” surface so users can inspect older versions, compare against the current one, and optionally restore or copy content from an earlier snapshot.

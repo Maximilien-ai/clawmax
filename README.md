@@ -5,12 +5,37 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.5.5-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
-[![Tests](https://img.shields.io/badge/tests-72%20default--safe-brightgreen.svg)](SYSTEM/test.sh)
+[![Version](https://img.shields.io/badge/version-1.5.6-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
+[![Tests](https://img.shields.io/badge/tests-96%20default--safe-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 Latest Release: v1.5.5
+## 🔥 Latest Release: v1.5.6
+
+- Release packages and no-clone install are now part of the main release path:
+  - tagged releases publish `clawmax-vX.Y.Z.tar.gz`, `clawmax-vX.Y.Z.sha256`, and `install.sh` assets for the public curl bootstrap flow
+  - users can run the latest installer without GitHub CLI or a GitHub login, or pin a version with `bash -s -- v1.5.6`
+  - `./setup.sh v1.5.6` delegates to the same release bootstrapper, verifies the checksum, expands the bundle, and continues into normal setup
+- Agent runtime model correctness is much stronger:
+  - edited agent models now persist into the active workspace runtime config instead of only updating display metadata
+  - agent detail, status, and chat now resolve configured models from the same workspace-local runtime state, reducing stale cross-workspace model drift
+  - hosted BYOK models like `openai/gpt-4o-mini` stay available even when local model discovery also returns Ollama or OpenAI-compatible models
+  - dashboard chat now uses direct BYOK execution where appropriate instead of trying gateway-first and producing misleading fallback/auth warnings
+- Local/self-hosted model follow-through is hardened:
+  - the dashboard explicitly distinguishes `local`, `onprem`, and `cloud` deployment kinds
+  - `Ollama` remains available for local/native and on-prem runtimes, while cloud hides local-only providers by default
+  - OpenAI-compatible endpoints now have Ollama-like model discovery and one-click default-model selection
+  - same-Mac container guidance now points LM Studio and Ollama users at `host.containers.internal` instead of loopback-only URLs
+- Template discovery now includes the first ClawMax.ai template registry flow:
+  - browse/search canonical templates and community submissions from the registry
+  - add registry templates into local templates before applying them
+  - prevent duplicate local imports when the same template already exists locally
+  - use `TEMPLATE_REGISTRY_REMOTE_URL` for browse/write calls and `TEMPLATE_REGISTRY_WRITE_TOKEN` for authenticated share/rate actions when provided
+- Runtime diagnostics are clearer:
+  - temporary Ollama/OpenAI-compatible runtime config now stays schema-valid even before models are selected
+  - Agent Status can distinguish direct-runtime readiness from gateway authentication problems and routes Doctor actions correctly
+
+## 🔥 Previous Release: v1.5.5
 
 - Local/self-hosted model support is much stronger:
   - `OpenAI-Compatible` is now a first-class BYOK provider for LM Studio and other OpenAI-style APIs that expose `/v1/models` and `/v1/chat/completions`
@@ -51,19 +76,6 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
   - maintenance banners now derive scheduled vs. active vs. stale states from time instead of staying stuck
   - dashboard now reads the canonical host-agent local state contract and surfaces reconnect, unreachable, and degraded host-agent states directly
   - split-container gateway setups are supported through `OPENCLAW_GATEWAY_URL`, so dashboard chat/logs/health do not assume loopback-only gateway access
-
-## 🔥 Previous Release: v1.5.1
-
-- AI generate flows are much stronger:
-  - `Open Full Editor` is now shared across templates, agents, workflows, and skills
-  - `Expand with AI` can turn a short prompt into a richer draft before generation
-  - markdown is the default expansion format, with plain text available when preferred
-  - the full editor now supports a collapsible side preview for markdown prompts
-- AI-generated authorship is more accurate:
-  - when a real user is logged in, generated templates and workflows now use that logged-in user as the author instead of a generic fallback
-- Workspace switching and workflow/detail polish improved:
-  - workflow detail/archive surfaces and remaining pop-up icon stragglers now use the product icon system more consistently
-  - keep-mounted pages reset more cleanly on workspace changes so switching workspaces no longer relies on a browser refresh as often
 
 Older releases are kept in [CHANGELOG.md](CHANGELOG.md).
 
@@ -199,7 +211,7 @@ curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/ins
 Pinned release:
 
 ```bash
-curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.5.5
+curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.5.6
 ```
 
 What it does:
@@ -211,13 +223,13 @@ What it does:
 You can also bootstrap directly with the checked-in wrapper:
 
 ```bash
-./setup.sh v1.5.5
+./setup.sh v1.5.6
 ```
 
 or choose a custom install directory:
 
 ```bash
-curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.5.5 --dir /opt/clawmax
+curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.5.6 --dir /opt/clawmax
 ```
 
 See [SYSTEM/docs/RELEASE_DISTRIBUTION.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/RELEASE_DISTRIBUTION.md) for the release distribution contract.
