@@ -188,7 +188,7 @@ export default function AgentStatusPanel({ agentId, agentName, onClose }: Props)
             <div className="flex items-center justify-center gap-2">
               <button
                 type="button"
-                onClick={() => window.dispatchEvent(new CustomEvent('open-doctor'))}
+                onClick={() => window.dispatchEvent(new CustomEvent('navigate-to-page', { detail: { page: 'logs', doctor: true } }))}
                 className="px-3 py-1.5 rounded-lg bg-amber-600 text-white text-sm font-medium hover:bg-amber-700 transition-colors"
               >
                 Open Doctor

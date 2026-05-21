@@ -135,7 +135,7 @@ test('resolveAgentExecutionConfig detects google-prefixed Gemini provider from m
   assert(resolved.provider === 'gemini', 'Expected provider derived from Google Gemini model')
 })
 
-test('resolveAgentExecutionConfig falls back from stale unsupported hosted model to supported default', () => {
+test('resolveAgentExecutionConfig preserves configured hosted model even when server discovery does not advertise it', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
   const workspace = path.join(home, 'workspace')
   const agentWorkspace = path.join(workspace, 'AGENTS', 'test-stale-openai')
@@ -157,8 +157,48 @@ test('resolveAgentExecutionConfig falls back from stale unsupported hosted model
   resetWorkspaceManagerForTests()
 
   const resolved = resolveAgentExecutionConfig('test-stale-openai')
-  assert(resolved.model === 'openai/gpt-5', `Expected unsupported hosted model to fall back to supported default, got ${resolved.model || 'missing'}`)
-  assert(resolved.provider === 'openai', 'Expected provider to remain openai after fallback')
+  assert(resolved.model === 'openai/gpt-5.5', `Expected configured hosted model to be preserved for BYOK execution, got ${resolved.model || 'missing'}`)
+  assert(resolved.provider === 'openai', 'Expected provider to remain openai')
+})
+
+test('resolveAgentExecutionConfig prefers active workspace OpenAI identity model over stale Ollama config', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
+  const workspace = path.join(home, 'workspace')
+  const agentWorkspace = path.join(workspace, 'AGENTS', 'simple-agent')
+  const agentDir = path.join(home, '.openclaw', 'agents', 'simple-agent', 'agent')
+  fs.mkdirSync(path.join(workspace, 'SYSTEM'), { recursive: true })
+  fs.mkdirSync(agentWorkspace, { recursive: true })
+  fs.mkdirSync(path.join(home, '.openclaw'), { recursive: true })
+  fs.writeFileSync(path.join(workspace, 'SYSTEM', 'integrations.json'), JSON.stringify({
+    ollamaBaseUrl: 'http://127.0.0.1:11434',
+    ollamaDefaultModel: 'qwen2.5:latest',
+  }, null, 2), 'utf-8')
+  fs.writeFileSync(path.join(agentWorkspace, 'IDENTITY.md'), `# IDENTITY.md - Who Am I?
+
+- **Name:** simple-agent
+- **Model:** openai/gpt-4o-mini
+- **Tags:** basic
+
+## Creation Metadata
+
+- **Model:** ollama/qwen2.5:latest
+`, 'utf-8')
+  fs.writeFileSync(path.join(home, '.openclaw', 'openclaw.json'), JSON.stringify({
+    agents: {
+      list: [
+        { id: 'simple-agent', workspace: agentWorkspace, agentDir, model: 'ollama/qwen2.5:latest' }
+      ]
+    }
+  }, null, 2))
+
+  process.env.HOME = home
+  process.env.OPENCLAW_WORKSPACE = workspace
+  delete process.env.SYSTEM_OPENAI_API_KEY
+  resetWorkspaceManagerForTests()
+
+  const resolved = resolveAgentExecutionConfig('simple-agent')
+  assert(resolved.model === 'openai/gpt-4o-mini', `Expected active identity OpenAI model to win over stale Ollama config, got ${resolved.model || 'missing'}`)
+  assert(resolved.provider === 'openai', 'Expected provider to be OpenAI for active identity model')
 })
 
 test('resolveAgentExecutionConfig falls back from stale openai-compatible model to workspace default', () => {

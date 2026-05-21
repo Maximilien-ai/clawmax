@@ -104,7 +104,7 @@ function readOpenClawAgentRecord(agentId: string, activeWorkspaceAgentDir?: stri
 function providerFromModel(model?: string): ExecutionProvider {
   if (!model) return null
   if (model.startsWith('openai-compatible/')) return 'openai-compatible'
-  if (model.startsWith('openai/') || model.startsWith('gpt-') || model.startsWith('o1')) return 'openai'
+  if (model.startsWith('openai/') || model.startsWith('gpt-') || /^o[134](?:-|$)/.test(model)) return 'openai'
   if (model.startsWith('anthropic/') || model.startsWith('claude')) return 'anthropic'
   if (model.startsWith('gemini/') || model.startsWith('gemini-') || model.startsWith('google/')) return 'gemini'
   if (model.startsWith('ollama/') || model.includes(':')) return 'ollama'
@@ -121,6 +121,9 @@ function normalizeMissingModel(model?: string): string | undefined {
 function isSupportedHostedModel(model: string | undefined): boolean {
   if (!model) return false
   const provider = providerFromModel(model)
+  if (provider === 'openai' || provider === 'anthropic' || provider === 'gemini') {
+    return true
+  }
   const availableModels = getAvailableModelsCached(process.env as Record<string, string>)
   if (provider === 'ollama' || provider === 'openai-compatible') {
     const hasKnownLocalDefaults = availableModels.some((entry) => entry.startsWith(`${provider}/`))

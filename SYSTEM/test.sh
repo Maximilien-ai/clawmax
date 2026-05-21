@@ -910,7 +910,8 @@ echo ""
 echo -e "${YELLOW}→ Running Agent execution runtime unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/agent-execution.test.ts > /tmp/clawmax-agent-execution.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-agent-execution.out; then
-  pass "Agent execution runtime unit tests (2 tests)"
+  agent_execution_count=$(grep "Tests passed:" /tmp/clawmax-agent-execution.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Agent execution runtime unit tests (${agent_execution_count:-?} tests)"
 else
   fail "Agent execution runtime unit tests"
 fi
