@@ -23,6 +23,48 @@ import {
 import { getAuthenticatedSession } from '../lib/github-auth'
 
 const router = Router()
+type ChatProvider = 'openai' | 'openai-compatible' | 'anthropic' | 'gemini' | 'ollama' | null | undefined
+type ChatByokPayload = {
+  openai?: string
+  anthropic?: string
+  gemini?: string
+  ollamaBaseUrl?: string
+  openaiCompatibleApiKey?: string
+  openaiCompatibleBaseUrl?: string
+  openaiCompatibleDefaultModel?: string
+}
+
+function hasText(value?: string): boolean {
+  return typeof value === 'string' && value.trim().length > 0
+}
+
+export function hasByokExecutionPathForProvider(provider: ChatProvider, byok?: ChatByokPayload): boolean {
+  if (!byok) return false
+  switch (provider) {
+    case 'openai':
+      return hasText(byok.openai)
+    case 'anthropic':
+      return hasText(byok.anthropic)
+    case 'gemini':
+      return hasText(byok.gemini)
+    case 'ollama':
+      return hasText(byok.ollamaBaseUrl)
+    case 'openai-compatible':
+      return hasText(byok.openaiCompatibleBaseUrl) || hasText(byok.openaiCompatibleApiKey)
+    default:
+      return false
+  }
+}
+
+export function shouldUseLocalChatExecution(input: {
+  provider: ChatProvider
+  byok?: ChatByokPayload
+  gatewayRunning: boolean
+}): boolean {
+  if (input.provider === 'ollama' || input.provider === 'openai-compatible') return true
+  if (hasByokExecutionPathForProvider(input.provider, input.byok)) return true
+  return !input.gatewayRunning
+}
 
 /** Extract JSON object from a string that may contain non-JSON prefixed lines (e.g. stderr warnings) */
 function extractJson(text: string): string {
@@ -289,7 +331,11 @@ router.post('/:id/chat', (req, res) => {
 
   // Use plain-text mode so stdout can stream deltas to the UI in real time.
   // History/persistence is handled by the explicit session id and the CLI itself.
-  const useLocal = resolvedAgent.provider === 'ollama' || !isGatewayRunning().running
+  const useLocal = shouldUseLocalChatExecution({
+    provider: resolvedAgent.provider,
+    byok,
+    gatewayRunning: isGatewayRunning().running,
+  })
   const args = [
     'agent',
     '--agent', id,

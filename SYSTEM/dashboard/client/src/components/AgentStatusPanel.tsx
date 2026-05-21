@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { detectGatewayDiagnostics } from '../lib/gatewayDiagnostics'
+import { byokForRequest } from '../lib/byok'
 
 interface Props {
   agentId: string
@@ -19,8 +20,18 @@ interface GatewayStatus {
   error?: string
 }
 
+interface ChatReadiness {
+  available?: boolean
+  error?: string
+  resolvedAgent?: {
+    model?: string
+    provider?: string
+  }
+}
+
 export default function AgentStatusPanel({ agentId, agentName, onClose }: Props) {
   const [gatewayStatus, setGatewayStatus] = useState<GatewayStatus | null>(null)
+  const [chatReadiness, setChatReadiness] = useState<ChatReadiness | null>(null)
   const [logs, setLogs] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -44,12 +55,26 @@ export default function AgentStatusPanel({ agentId, agentName, onClose }: Props)
 
   async function loadGatewayStatus() {
     try {
-      const res = await fetch(`/api/agents/${agentId}/status`)
-      const data = await res.json()
-      setGatewayStatus(data)
-      setLoading(false)
+      const [statusResult, readinessResult] = await Promise.allSettled([
+        fetch(`/api/agents/${agentId}/status`).then(async (res) => {
+          const data = await res.json().catch(() => ({}))
+          return res.ok ? data : { ...data, available: false }
+        }),
+        fetch(`/api/agents/${agentId}/chat/readiness`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ byok: byokForRequest() }),
+        }).then(async (res) => {
+          const data = await res.json().catch(() => ({}))
+          return res.ok ? data : { ...data, available: false }
+        }),
+      ])
+
+      setGatewayStatus(statusResult.status === 'fulfilled' ? statusResult.value : { available: false, error: 'Failed to load gateway status' })
+      setChatReadiness(readinessResult.status === 'fulfilled' ? readinessResult.value : null)
     } catch (e) {
       setError('Failed to load gateway status')
+    } finally {
       setLoading(false)
     }
   }
@@ -156,6 +181,38 @@ export default function AgentStatusPanel({ agentId, agentName, onClose }: Props)
         }
     }
   })()
+
+  if (!gatewayStatus?.available && chatReadiness?.available === true) {
+    return (
+      <div className="fixed inset-y-0 right-0 z-50 w-full sm:w-[400px] bg-white dark:bg-gray-800 shadow-2xl flex flex-col">
+        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between shrink-0 dark:border-gray-700">
+          <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200">Agent Status: {agentName}</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
+        </div>
+        <div className="flex-1 flex items-center justify-center px-6">
+          <div className="text-center">
+            <div className="text-5xl mb-4">✓</div>
+            <h3 className="text-lg font-semibold text-gray-700 mb-2 dark:text-gray-300">Direct Runtime Ready</h3>
+            <p className="text-sm text-gray-500 mb-2">
+              Chat can run through the direct/BYOK execution path even though the gateway status probe is not healthy.
+            </p>
+            <p className="text-xs text-gray-400 mb-3">
+              Model: {chatReadiness.resolvedAgent?.model || 'configured model'} · Gateway: {gatewayStatus?.error || statusCopy.title}
+            </p>
+            <div className="flex items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new CustomEvent('navigate-to-page', { detail: { page: 'logs', doctor: true } }))}
+                className="px-3 py-1.5 rounded-lg bg-sky-600 text-white text-sm font-medium hover:bg-sky-700 transition-colors"
+              >
+                Open Doctor
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   if (!gatewayStatus?.available) {
     return (
