@@ -329,9 +329,11 @@ function resetSessionsIfModelChanged(agentId: string, preferredModel?: string) {
     const sessionsPath = path.join(process.env.HOME || '', '.openclaw', 'agents', agentId, 'sessions', 'sessions.json')
     if (!fs.existsSync(sessionsPath)) return
     const sessions = JSON.parse(fs.readFileSync(sessionsPath, 'utf-8'))
-    const mainSession = sessions?.[`agent:${agentId}:main`]
-    const persistedModel = normalizeSessionModel(mainSession?.model || mainSession?.systemPromptReport?.model)
-    if (!persistedModel || persistedModel === normalizedPreferred) return
+    const persistedModels = Object.values(sessions || {})
+      .map((entry: any) => normalizeSessionModel(entry?.model || entry?.systemPromptReport?.model))
+      .filter(Boolean) as string[]
+    const hasMismatchedModel = persistedModels.some((model) => model !== normalizedPreferred)
+    if (!hasMismatchedModel) return
 
     const reset = resetAgentSessionsForModelChange(process.env.HOME || '', agentId)
     if (!reset.ok) {
@@ -352,6 +354,57 @@ function writeOpenClawConfigFile(configPath: string, config: OpenClawConfigFile)
 
 function cloneJsonValue<T>(value: T): T {
   return JSON.parse(JSON.stringify(value))
+}
+
+function ensureWorkspaceAgentRecordForExecution(
+  configPath: string,
+  agentId: string,
+  execution: { workspace?: string; agentDir?: string },
+  preferredModel?: string
+): void {
+  if (!execution.workspace || !fs.existsSync(configPath)) return
+
+  const config = readOpenClawConfigFile(configPath)
+  config.agents = config.agents || {}
+  config.agents.list = Array.isArray(config.agents.list) ? config.agents.list : []
+
+  const exactIndex = config.agents.list.findIndex((agent: any) =>
+    agent?.id === agentId && typeof agent?.workspace === 'string' && agent.workspace === execution.workspace
+  )
+  const agentDir = execution.agentDir || path.join(process.env.HOME || '', '.openclaw', 'agents', agentId, 'agent')
+  const model = normalizeMissingModel(preferredModel)
+
+  if (exactIndex >= 0) {
+    const current = { ...config.agents.list[exactIndex] }
+    let changed = false
+    if (!current.name) {
+      current.name = agentId
+      changed = true
+    }
+    if (!current.agentDir && agentDir) {
+      current.agentDir = agentDir
+      changed = true
+    }
+    if (model && current.model !== model) {
+      current.model = model
+      changed = true
+    }
+    if (changed) {
+      config.agents.list[exactIndex] = current
+      writeOpenClawConfigFile(configPath, config)
+    }
+    return
+  }
+
+  const nextAgent: Record<string, any> = {
+    id: agentId,
+    name: agentId,
+    workspace: execution.workspace,
+    agentDir,
+  }
+  if (model) nextAgent.model = model
+  config.agents.list.push(nextAgent)
+  writeOpenClawConfigFile(configPath, config)
 }
 
 function buildAuthProfiles(providerKeys: ProviderKeys, preferredProvider?: ExecutionProvider): AuthProfileFile {
@@ -400,22 +453,25 @@ export async function withTemporaryAgentAuthProfiles<T>(
   preferredProvider: ExecutionProvider | undefined,
   fn: () => Promise<T>
 ): Promise<T> {
-  resetSessionsIfModelChanged(agentId, preferredModel)
   const execution = resolveAgentExecutionConfig(agentId)
   const configPath = path.join(process.env.HOME || '', '.openclaw', 'openclaw.json')
   const hadConfig = fs.existsSync(configPath)
+  if (hadConfig) {
+    ensureWorkspaceAgentRecordForExecution(configPath, agentId, execution, preferredModel)
+  }
+  resetSessionsIfModelChanged(agentId, preferredModel)
   const workspaceOptions = { workspacePath: execution.workspace }
   const readCurrentModel = () => {
     if (!hadConfig) return { ok: false as const, model: undefined }
     let current = readAgentModelFromConfigFile(configPath, agentId, workspaceOptions)
-    if (!current.ok && execution.workspace) {
+    if (!current.ok && !execution.workspace) {
       current = readAgentModelFromConfigFile(configPath, agentId)
     }
     return current
   }
   const restoreModelOverride = (model: string | undefined) => {
     let restore = restoreAgentModelInConfigFile(configPath, agentId, model, workspaceOptions)
-    if (!restore.ok && execution.workspace) {
+    if (!restore.ok && !execution.workspace) {
       restore = restoreAgentModelInConfigFile(configPath, agentId, model)
     }
     if (!restore.ok) {
@@ -491,7 +547,7 @@ export async function withTemporaryAgentAuthProfiles<T>(
     let update = updateAgentModelInConfigFile(configPath, agentId, model, {
       workspacePath: execution.workspace,
     })
-    if (!update.ok && execution.workspace) {
+    if (!update.ok && !execution.workspace) {
       update = updateAgentModelInConfigFile(configPath, agentId, model)
     }
     if (!update.ok) {

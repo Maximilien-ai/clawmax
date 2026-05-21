@@ -27,19 +27,20 @@ const RESET = '\x1b[0m'
 
 let testsPassed = 0
 let testsFailed = 0
+let testQueue: Promise<void> = Promise.resolve()
 
 function test(name: string, fn: () => void | Promise<void>) {
-  Promise.resolve()
-    .then(fn)
-    .then(() => {
+  testQueue = testQueue.then(async () => {
+    try {
+      await fn()
       console.log(`${GREEN}✓${RESET} ${name}`)
       testsPassed++
-    })
-    .catch((err: any) => {
+    } catch (err: any) {
       console.log(`${RED}✗${RESET} ${name}`)
       console.error(`  Error: ${err.message}`)
       testsFailed++
-    })
+    }
+  })
 }
 
 function assert(condition: boolean, message: string) {
@@ -455,17 +456,19 @@ test('withTemporaryAgentAuthProfiles overrides stale auth profiles for the durat
   await withTemporaryAgentAuthProfiles('test1', { openai: 'fresh-openai' }, 'openai/gpt-4o-mini', 'openai', async () => {
     const current = JSON.parse(fs.readFileSync(authProfilePath, 'utf-8'))
     const currentConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    const matchingAgent = currentConfig.agents.list.find((agent: any) => agent.id === 'test1' && agent.model === 'openai/gpt-4o-mini')
     assert(current.profiles['openai-key']?.key === 'fresh-openai', 'Expected temporary OpenAI profile')
     assert(!current.profiles['anthropic-key'], 'Expected stale Anthropic profile to be absent during execution')
     assert(current.lastGood?.openai === 'openai-key', 'Expected OpenAI marked lastGood during execution')
-    assert(currentConfig.agents.list[0].model === 'openai/gpt-4o-mini', 'Expected temporary model override in openclaw.json')
+    assert(!!matchingAgent, 'Expected resolved execution model to be represented in openclaw.json')
   })
 
   const restored = JSON.parse(fs.readFileSync(authProfilePath, 'utf-8'))
   const restoredConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  const restoredMatchingAgent = restoredConfig.agents.list.find((agent: any) => agent.id === 'test1' && agent.model === 'openai/gpt-4o-mini')
   assert(restored.profiles['anthropic-key']?.key === 'stale-anthropic', 'Expected previous auth profile restored')
   assert(restored.lastGood?.anthropic === 'anthropic-key', 'Expected previous lastGood restored')
-  assert(typeof restoredConfig.agents.list[0].model === 'undefined', 'Expected previous openclaw.json model restored')
+  assert(!!restoredMatchingAgent, 'Expected workspace record to keep the resolved execution model')
 })
 
 test('withTemporaryAgentAuthProfiles writes both gemini and google auth profiles for Gemini execution', async () => {
@@ -521,17 +524,19 @@ test('withTemporaryAgentAuthProfiles preserves gateway config fields during temp
 
   await withTemporaryAgentAuthProfiles('test1', { openai: 'fresh-openai' }, 'openai/gpt-4.1', 'openai', async () => {
     const currentConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    const matchingAgent = currentConfig.agents.list.find((agent: any) => agent.id === 'test1' && agent.model === 'openai/gpt-4.1')
     assert(currentConfig.gateway.auth.token === 'stable-token', 'Expected gateway auth token preserved during override')
     assert(currentConfig.gateway.remote.token === 'stable-token', 'Expected gateway remote token preserved during override')
     assert(currentConfig.gateway.tailscale.hostname === 'stable-host', 'Expected gateway tailscale config preserved during override')
-    assert(currentConfig.agents.list[0].model === 'openai/gpt-4.1', 'Expected temporary model override applied')
+    assert(!!matchingAgent, 'Expected resolved execution model to be represented in openclaw.json')
   })
 
   const restoredConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  const restoredMatchingAgent = restoredConfig.agents.list.find((agent: any) => agent.id === 'test1' && agent.model === 'openai/gpt-4.1')
   assert(restoredConfig.gateway.auth.token === 'stable-token', 'Expected gateway auth token preserved after restore')
   assert(restoredConfig.gateway.remote.token === 'stable-token', 'Expected gateway remote token preserved after restore')
   assert(restoredConfig.gateway.tailscale.hostname === 'stable-host', 'Expected gateway tailscale config preserved after restore')
-  assert(restoredConfig.agents.list[0].model === 'openai/gpt-4o-mini', 'Expected prior model restored after override')
+  assert(!!restoredMatchingAgent, 'Expected workspace record to keep the resolved execution model after override')
 })
 
 test('withTemporaryAgentAuthProfiles updates the matching workspace record when ids collide', async () => {
@@ -587,7 +592,50 @@ test('withTemporaryAgentAuthProfiles updates the matching workspace record when 
   const defaultEntryAfter = restored.agents.list.find((agent: any) => agent.workspace === defaultAgentWorkspace)
   const activeEntryAfter = restored.agents.list.find((agent: any) => agent.workspace === activeAgentWorkspace)
   assert(defaultEntryAfter.model === defaultEntryBefore.model, 'Expected stale default workspace model restored untouched')
-  assert(activeEntryAfter.model === activeEntryBefore.model, 'Expected active workspace model restored after temporary override')
+  assert(activeEntryAfter.model === 'openai/gpt-4.1', 'Expected active workspace record to keep the resolved execution model')
+})
+
+test('withTemporaryAgentAuthProfiles creates an active workspace record instead of mutating a same-id record from another workspace', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
+  const defaultWorkspace = path.join(home, '.openclaw', 'workspace')
+  const activeWorkspace = path.join(home, '.openclaw', 'workspaces', 'personal')
+  const defaultAgentWorkspace = path.join(defaultWorkspace, 'AGENTS', 'jarvis')
+  const activeAgentWorkspace = path.join(activeWorkspace, 'AGENTS', 'jarvis')
+  const agentDir = path.join(home, '.openclaw', 'agents', 'jarvis', 'agent')
+  const configPath = path.join(home, '.openclaw', 'openclaw.json')
+
+  fs.mkdirSync(defaultAgentWorkspace, { recursive: true })
+  fs.mkdirSync(activeAgentWorkspace, { recursive: true })
+  fs.mkdirSync(agentDir, { recursive: true })
+  fs.mkdirSync(path.join(home, '.openclaw'), { recursive: true })
+  fs.writeFileSync(path.join(activeAgentWorkspace, 'IDENTITY.md'), '# Identity\n\n- **Model:** openai/gpt-4o-mini\n', 'utf-8')
+  fs.writeFileSync(configPath, JSON.stringify({
+    agents: {
+      list: [
+        { id: 'jarvis', workspace: defaultAgentWorkspace, agentDir, model: 'ollama/qwen2.5:latest' },
+      ]
+    }
+  }, null, 2))
+  fs.writeFileSync(path.join(home, '.openclaw', 'dashboard-workspaces.json'), JSON.stringify({
+    version: '1.0.0',
+    activeWorkspaceId: 'personal',
+    workspaces: [
+      { id: 'default', name: 'Default', path: defaultWorkspace, createdAt: new Date().toISOString(), lastAccessedAt: new Date().toISOString() },
+      { id: 'personal', name: 'Personal', path: activeWorkspace, createdAt: new Date().toISOString(), lastAccessedAt: new Date().toISOString() },
+    ]
+  }, null, 2))
+
+  process.env.HOME = home
+  process.env.OPENCLAW_WORKSPACE = activeWorkspace
+  resetWorkspaceManagerForTests()
+
+  await withTemporaryAgentAuthProfiles('jarvis', { openai: 'fresh-openai' }, 'openai/gpt-4o-mini', 'openai', async () => {
+    const currentConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    const defaultEntry = currentConfig.agents.list.find((agent: any) => agent.workspace === defaultAgentWorkspace)
+    const activeEntry = currentConfig.agents.list.find((agent: any) => agent.workspace === activeAgentWorkspace)
+    assert(defaultEntry.model === 'ollama/qwen2.5:latest', 'Expected same-id record from another workspace to remain untouched')
+    assert(activeEntry?.model === 'openai/gpt-4o-mini', 'Expected active workspace record to be created with the resolved model')
+  })
 })
 
 test('withTemporaryAgentAuthProfiles bypasses auth-profile rewriting for ollama and skips config rewrite when model already matches', async () => {
@@ -615,17 +663,19 @@ test('withTemporaryAgentAuthProfiles bypasses auth-profile rewriting for ollama 
   process.env.HOME = home
   resetWorkspaceManagerForTests()
   const before = fs.readFileSync(authProfilePath, 'utf-8')
-  const beforeConfig = fs.readFileSync(configPath, 'utf-8')
+  const beforeConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
 
   await withTemporaryAgentAuthProfiles('test-ollama', {}, 'ollama/qwen2.5:latest', 'ollama', async () => {
     const current = fs.readFileSync(authProfilePath, 'utf-8')
-    const currentConfig = fs.readFileSync(configPath, 'utf-8')
+    const currentConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    const originalEntry = currentConfig.agents.list.find((agent: any) => agent.workspace === beforeConfig.agents.list[0].workspace)
     assert(current === before, 'Expected auth profiles unchanged for Ollama')
-    assert(currentConfig === beforeConfig, 'Expected openclaw.json untouched when Ollama model already matches')
+    assert(originalEntry.model === 'ollama/qwen2.5:latest', 'Expected matching Ollama record model to remain intact')
   })
 
-  const restoredConfig = fs.readFileSync(configPath, 'utf-8')
-  assert(restoredConfig === beforeConfig, 'Expected openclaw.json restored after temporary Ollama override')
+  const restoredConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  const restoredOriginalEntry = restoredConfig.agents.list.find((agent: any) => agent.workspace === beforeConfig.agents.list[0].workspace)
+  assert(restoredOriginalEntry.model === 'ollama/qwen2.5:latest', 'Expected matching Ollama record model to remain intact after execution')
 })
 
 test('withTemporaryAgentAuthProfiles injects and restores temporary Ollama provider config', async () => {
@@ -770,7 +820,45 @@ test('withTemporaryAgentAuthProfiles resets stale main sessions when the configu
   assert(archived.some(name => name.endsWith('prior.jsonl')), 'Expected archived session transcript after reset')
 })
 
-setTimeout(() => {
+test('withTemporaryAgentAuthProfiles resets stale dashboard-chat sessions when the configured model changes', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
+  const sessionsDir = path.join(home, '.openclaw', 'agents', 'test-openai', 'sessions')
+  const agentDir = path.join(home, '.openclaw', 'agents', 'test-openai', 'agent')
+  const configPath = path.join(home, '.openclaw', 'openclaw.json')
+  fs.mkdirSync(sessionsDir, { recursive: true })
+  fs.mkdirSync(agentDir, { recursive: true })
+  fs.writeFileSync(path.join(sessionsDir, 'sessions.json'), JSON.stringify({
+    'agent:test-openai:dashboard-chat': {
+      sessionId: 'agent-test-openai-dashboard-chat-5b97d90c',
+      model: 'qwen2.5:latest',
+      modelProvider: 'ollama',
+      sessionFile: path.join(sessionsDir, 'prior.jsonl'),
+      systemPromptReport: {
+        provider: 'ollama',
+        model: 'qwen2.5:latest',
+      }
+    }
+  }, null, 2), 'utf-8')
+  fs.writeFileSync(path.join(sessionsDir, 'prior.jsonl'), '{"type":"message"}\n', 'utf-8')
+  fs.writeFileSync(configPath, JSON.stringify({
+    agents: {
+      list: [
+        { id: 'test-openai', workspace: path.join(home, 'workspace', 'AGENTS', 'test-openai'), agentDir, model: 'openai/gpt-4o-mini' }
+      ]
+    }
+  }, null, 2))
+
+  process.env.HOME = home
+  resetWorkspaceManagerForTests()
+
+  await withTemporaryAgentAuthProfiles('test-openai', { openai: 'fresh-openai' }, 'openai/gpt-4o-mini', 'openai', async () => {
+    assert(!fs.existsSync(path.join(sessionsDir, 'sessions.json')), 'Expected stale dashboard-chat sessions index archived before execution')
+    assert(!fs.existsSync(path.join(sessionsDir, 'prior.jsonl')), 'Expected stale dashboard-chat transcript archived before execution')
+  })
+})
+
+setTimeout(async () => {
+  await testQueue
   if (typeof originalHome === 'undefined') delete process.env.HOME
   else process.env.HOME = originalHome
   if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
