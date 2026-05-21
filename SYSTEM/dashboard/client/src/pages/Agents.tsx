@@ -2582,16 +2582,23 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
 
   const syncIdentityModel = React.useCallback((content: string, nextModel: string) => {
     if (!nextModel.trim()) return content
-    if (/^[-*]\s+\*\*Model:\*\*\s+.+$/m.test(content)) {
-      return content.replace(/^[-*]\s+\*\*Model:\*\*\s+.+$/m, `- **Model:** ${nextModel}`)
+    const metadataIndex = content.search(/^##\s+Creation Metadata\b/im)
+    const runtime = metadataIndex === -1 ? content : content.slice(0, metadataIndex)
+    const suffix = metadataIndex === -1 ? '' : content.slice(metadataIndex)
+    const joinSections = (nextRuntime: string) => suffix
+      ? `${nextRuntime.trimEnd()}\n\n${suffix.trimStart()}`
+      : nextRuntime
+
+    if (/^[-*]\s+\*\*Model:\*\*\s*.*$/m.test(runtime)) {
+      return joinSections(runtime.replace(/^[-*]\s+\*\*Model:\*\*\s*.*$/m, `- **Model:** ${nextModel}`))
     }
-    if (/^[-*]\s+\*\*Tags:\*\*\s+.+$/m.test(content)) {
-      return content.replace(/^[-*]\s+\*\*Tags:\*\*\s+.+$/m, `- **Model:** ${nextModel}\n$&`)
+    if (/^[-*]\s+\*\*Tags:\*\*\s+.+$/m.test(runtime)) {
+      return joinSections(runtime.replace(/^[-*]\s+\*\*Tags:\*\*\s+.+$/m, `- **Model:** ${nextModel}\n$&`))
     }
-    if (/^[-*]\s+\*\*Role:\*\*\s+.+$/m.test(content)) {
-      return content.replace(/^[-*]\s+\*\*Role:\*\*\s+.+$/m, `$&\n- **Model:** ${nextModel}`)
+    if (/^[-*]\s+\*\*Role:\*\*\s+.+$/m.test(runtime)) {
+      return joinSections(runtime.replace(/^[-*]\s+\*\*Role:\*\*\s+.+$/m, `$&\n- **Model:** ${nextModel}`))
     }
-    return `${content.trimEnd()}\n\n- **Model:** ${nextModel}\n`
+    return joinSections(`${runtime.trimEnd()}\n\n- **Model:** ${nextModel}\n`)
   }, [])
 
   React.useEffect(() => {

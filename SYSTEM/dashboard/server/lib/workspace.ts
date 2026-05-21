@@ -1387,7 +1387,8 @@ export function parseGroups(content: string): { communities: GroupEntry[]; group
 /** Parse Tags from IDENTITY.md **Tags:** field.
  *  Format: `**Tags:** tag1, tag2, tag3` (comma-separated) */
 export function parseTags(content: string): string[] {
-  const tagsMatch = content.match(/\*\*Tags[:\*\s]*\*?\*?\s*\n?\s*([^\n]+)/mi)
+  const runtimeContent = getIdentityRuntimeSection(content)
+  const tagsMatch = runtimeContent.match(/\*\*Tags[:\*\s]*\*?\*?\s*\n?\s*([^\n]+)/mi)
   if (!tagsMatch) return []
 
   const tagsStr = tagsMatch[1].trim()
@@ -1399,32 +1400,38 @@ export function parseTags(content: string): string[] {
     .filter(t => t.length > 0)
 }
 
+function getIdentityRuntimeSection(content: string): string {
+  const metadataIndex = content.search(/^##\s+Creation Metadata\b/im)
+  return metadataIndex === -1 ? content : content.slice(0, metadataIndex)
+}
+
 /** Parse IDENTITY.md content into structured data */
 export function parseIdentity(content: string): any {
   const identity: any = {}
+  const runtimeContent = getIdentityRuntimeSection(content)
 
-  const nameMatch = content.match(/\*\*Name:\*\*\s*([^\n]+)/i)
+  const nameMatch = runtimeContent.match(/\*\*Name:\*\*\s*([^\n]+)/i)
   if (nameMatch) identity.name = nameMatch[1].trim()
 
-  const creatureMatch = content.match(/\*\*Creature:\*\*\s*([^\n]+)/i)
+  const creatureMatch = runtimeContent.match(/\*\*Creature:\*\*\s*([^\n]+)/i)
   if (creatureMatch) identity.creature = creatureMatch[1].trim()
 
-  const vibeMatch = content.match(/\*\*Vibe:\*\*\s*([^\n]+)/i)
+  const vibeMatch = runtimeContent.match(/\*\*Vibe:\*\*\s*([^\n]+)/i)
   if (vibeMatch) identity.vibe = vibeMatch[1].trim()
 
-  const emojiMatch = content.match(/\*\*Emoji:\*\*\s*([^\n]+)/i)
+  const emojiMatch = runtimeContent.match(/\*\*Emoji:\*\*\s*([^\n]+)/i)
   if (emojiMatch) identity.emoji = emojiMatch[1].trim()
 
-  const modelMatch = content.match(/\*\*Model:\*\*\s*([^\n]+)/i)
+  const modelMatch = runtimeContent.match(/\*\*Model:\*\*\s*([^\n]+)/i)
   if (modelMatch) identity.model = modelMatch[1].trim()
 
-  const whatsappMatch = content.match(/\*\*WhatsApp:\*\*\s*(\+?[0-9]+)?/i)
+  const whatsappMatch = runtimeContent.match(/\*\*WhatsApp:\*\*\s*(\+?[0-9]+)?/i)
   if (whatsappMatch) {
     const value = (whatsappMatch[1] || '').trim()
     identity.whatsapp = value || null
   }
 
-  identity.tags = parseTags(content)
+  identity.tags = parseTags(runtimeContent)
 
   return identity
 }

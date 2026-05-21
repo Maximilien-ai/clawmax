@@ -36,6 +36,22 @@ export function normalizeAgentModelInput(model: string): string {
   return trimmed
 }
 
+function splitIdentityRuntimeSection(content: string): { runtime: string; suffix: string } {
+  const metadataIndex = content.search(/^##\s+Creation Metadata\b/im)
+  if (metadataIndex === -1) {
+    return { runtime: content, suffix: '' }
+  }
+  return {
+    runtime: content.slice(0, metadataIndex),
+    suffix: content.slice(metadataIndex),
+  }
+}
+
+function joinIdentityRuntimeSection(runtime: string, suffix: string): string {
+  if (!suffix) return runtime
+  return `${runtime.trimEnd()}\n\n${suffix.trimStart()}`
+}
+
 export function updateAgentModelInConfigFile(
   configPath: string,
   agentId: string,
@@ -213,35 +229,37 @@ export function restoreAgentModelInConfigFile(
 
 export function upsertAgentModelInIdentityContent(content: string, model: string): string {
   const nextModel = normalizeAgentModelInput(model)
-  if (/^[-*]\s+\*\*Model:\*\*\s+.+$/m.test(content)) {
-    return content.replace(
-      /^[-*]\s+\*\*Model:\*\*\s+.+$/m,
+  const { runtime, suffix } = splitIdentityRuntimeSection(content)
+
+  if (/^[-*]\s+\*\*Model:\*\*\s*.*$/m.test(runtime)) {
+    return joinIdentityRuntimeSection(runtime.replace(
+      /^[-*]\s+\*\*Model:\*\*\s*.*$/m,
       `- **Model:** ${nextModel}`
-    )
+    ), suffix)
   }
 
-  if (/^[-*]\s+\*\*Avatar:\*\*\s*$/m.test(content)) {
-    return content.replace(
+  if (/^[-*]\s+\*\*Avatar:\*\*\s*$/m.test(runtime)) {
+    return joinIdentityRuntimeSection(runtime.replace(
       /^[-*]\s+\*\*Avatar:\*\*\s*$(\n\s+.*)?/m,
       match => `${match}\n- **Model:** ${nextModel}`
-    )
+    ), suffix)
   }
 
-  if (/^[-*]\s+\*\*Tags:\*\*\s+.+$/m.test(content)) {
-    return content.replace(
+  if (/^[-*]\s+\*\*Tags:\*\*\s+.+$/m.test(runtime)) {
+    return joinIdentityRuntimeSection(runtime.replace(
       /^[-*]\s+\*\*Tags:\*\*\s+.+$/m,
       `- **Model:** ${nextModel}\n$&`
-    )
+    ), suffix)
   }
 
-  if (/^[-*]\s+\*\*Role:\*\*\s+.+$/m.test(content)) {
-    return content.replace(
+  if (/^[-*]\s+\*\*Role:\*\*\s+.+$/m.test(runtime)) {
+    return joinIdentityRuntimeSection(runtime.replace(
       /^[-*]\s+\*\*Role:\*\*\s+.+$/m,
       `$&\n- **Model:** ${nextModel}`
-    )
+    ), suffix)
   }
 
-  return `${content.trimEnd()}\n\n- **Model:** ${nextModel}\n`
+  return joinIdentityRuntimeSection(`${runtime.trimEnd()}\n\n- **Model:** ${nextModel}\n`, suffix)
 }
 
 export function resetAgentSessionsForModelChange(homeDir: string, agentId: string): { ok: boolean; error?: string } {

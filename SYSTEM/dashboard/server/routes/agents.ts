@@ -65,12 +65,10 @@ function getAvailableModels(): string[] {
 
 function updateAgentModelInConfig(agentId: string, model: string): AgentModelConfigUpdateResult {
   const HOME = process.env.HOME || ''
-  const profileConfigPath = path.join(HOME, `.openclaw-${agentId}`, 'openclaw.json')
   const defaultConfigPath = path.join(HOME, '.openclaw', 'openclaw.json')
-  const configPath = fs.existsSync(profileConfigPath) ? profileConfigPath : defaultConfigPath
   const workspacePath = path.join(getWorkspacePath(), 'AGENTS', agentId)
   const runtimeAgentDir = path.join(HOME, '.openclaw', 'agents', agentId, 'agent')
-  return upsertAgentModelInConfigFile(configPath, agentId, model, {
+  return upsertAgentModelInConfigFile(defaultConfigPath, agentId, model, {
     workspacePath,
     agentDir: runtimeAgentDir,
     name: agentId,

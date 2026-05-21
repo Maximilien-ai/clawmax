@@ -179,6 +179,26 @@ test('parseIdentity extracts model from legacy bullet format and keeps empty Wha
   assert(Array.isArray(identity.tags) && identity.tags.includes('leadership'), 'Expected tags to still parse after empty WhatsApp')
 })
 
+test('parseIdentity ignores creation metadata model when no runtime model exists', () => {
+  const identity = parseIdentity(`# IDENTITY.md - Who Am I?
+
+- **Name:** simple-agent
+- **Creature:** Basic Assistant
+- **Vibe:** Casual
+- **Emoji:** 📝
+- **WhatsApp:**
+- **Tags:** basic, assistant, general
+
+## Creation Metadata
+
+- **Created:** 2026-05-21T20:35:20.838Z
+- **Model:** openai/gpt-4o-mini
+- **Tags:** basic, assistant, general
+`)
+
+  assert(identity.model === undefined, 'Expected metadata model not to be treated as runtime model')
+})
+
 test('upsertAgentModelInIdentityContent inserts model into bootstrap identity template', () => {
   const content = `# IDENTITY.md - Who Am I?
 
@@ -199,6 +219,32 @@ _Fill this in during your first conversation. Make it yours._
   assert(updated.includes('- **Model:** ollama/qwen2.5:latest'), 'Expected model line inserted')
   const parsed = parseIdentity(updated)
   assert(parsed.model === 'ollama/qwen2.5:latest', 'Expected inserted model to parse correctly')
+})
+
+test('upsertAgentModelInIdentityContent inserts runtime model before creation metadata', () => {
+  const updated = upsertAgentModelInIdentityContent(`# IDENTITY.md - Who Am I?
+
+- **Name:** simple-agent
+- **Creature:** Basic Assistant
+- **Vibe:** Casual
+- **Emoji:** 📝
+- **WhatsApp:**
+- **Tags:** basic, assistant, general
+
+## Creation Metadata
+
+- **Created:** 2026-05-21T20:35:20.838Z
+- **Model:** ollama/qwen2.5:latest
+`, 'gpt4o-mini')
+
+  const runtimeModelIndex = updated.indexOf('- **Model:** openai/gpt-4o-mini')
+  const metadataIndex = updated.indexOf('## Creation Metadata')
+  const metadataModelIndex = updated.indexOf('- **Model:** ollama/qwen2.5:latest')
+  assert(runtimeModelIndex !== -1, 'Expected runtime model line to be inserted')
+  assert(runtimeModelIndex < metadataIndex, 'Expected runtime model to appear before creation metadata')
+  assert(metadataModelIndex > metadataIndex, 'Expected creation metadata model to remain metadata')
+  const parsed = parseIdentity(updated)
+  assert(parsed.model === 'openai/gpt-4o-mini', 'Expected inserted runtime model to parse correctly')
 })
 
 test('upsertAgentModelInIdentityContent normalizes OpenAI aliases', () => {
