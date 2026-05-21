@@ -446,6 +446,9 @@ export async function withTemporaryAgentAuthProfiles<T>(
     if (!nextProviderConfig.api) {
       nextProviderConfig.api = 'ollama'
     }
+    if (!Array.isArray(nextProviderConfig.models)) {
+      nextProviderConfig.models = []
+    }
     config.models = config.models || {}
     config.models.providers = providers
     config.models.providers.ollama = nextProviderConfig
