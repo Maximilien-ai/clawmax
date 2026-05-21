@@ -160,6 +160,36 @@ test('resolveAgentExecutionConfig falls back from stale unsupported hosted model
   assert(resolved.provider === 'openai', 'Expected provider to remain openai after fallback')
 })
 
+test('resolveAgentExecutionConfig falls back from stale openai-compatible model to workspace default', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
+  const workspace = path.join(home, 'workspace')
+  const agentWorkspace = path.join(workspace, 'AGENTS', 'test-stale-compatible')
+  const agentDir = path.join(home, '.openclaw', 'agents', 'test-stale-compatible', 'agent')
+  fs.mkdirSync(path.join(workspace, 'SYSTEM'), { recursive: true })
+  fs.mkdirSync(agentWorkspace, { recursive: true })
+  fs.mkdirSync(path.join(home, '.openclaw'), { recursive: true })
+  fs.writeFileSync(path.join(workspace, 'SYSTEM', 'integrations.json'), JSON.stringify({
+    openaiCompatibleBaseUrl: 'http://host.containers.internal:1234/v1',
+    openaiCompatibleDefaultModel: 'lmstudio-default',
+  }, null, 2), 'utf-8')
+  fs.writeFileSync(path.join(agentWorkspace, 'IDENTITY.md'), '# Identity\n\n- **Model:** openai-compatible/old-stale-model\n', 'utf-8')
+  fs.writeFileSync(path.join(home, '.openclaw', 'openclaw.json'), JSON.stringify({
+    agents: {
+      list: [
+        { id: 'test-stale-compatible', workspace: agentWorkspace, agentDir, model: 'openai-compatible/old-stale-model' }
+      ]
+    }
+  }, null, 2))
+
+  process.env.HOME = home
+  process.env.OPENCLAW_WORKSPACE = workspace
+  resetWorkspaceManagerForTests()
+
+  const resolved = resolveAgentExecutionConfig('test-stale-compatible')
+  assert(resolved.model === 'openai-compatible/lmstudio-default', `Expected stale OpenAI-compatible model to fall back to workspace default, got ${resolved.model || 'missing'}`)
+  assert(resolved.provider === 'openai-compatible', 'Expected provider to remain openai-compatible after fallback')
+})
+
 test('resolveAgentExecutionConfig prefers the active workspace agent when ids collide across workspaces', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
   const defaultWorkspace = path.join(home, '.openclaw', 'workspace')

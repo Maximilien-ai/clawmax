@@ -121,8 +121,12 @@ function normalizeMissingModel(model?: string): string | undefined {
 function isSupportedHostedModel(model: string | undefined): boolean {
   if (!model) return false
   const provider = providerFromModel(model)
-  if (provider === 'ollama' || provider === 'openai-compatible') return true
   const availableModels = getAvailableModelsCached(process.env as Record<string, string>)
+  if (provider === 'ollama' || provider === 'openai-compatible') {
+    const hasKnownLocalDefaults = availableModels.some((entry) => entry.startsWith(`${provider}/`))
+    if (!hasKnownLocalDefaults) return true
+    return availableModels.includes(model)
+  }
   if (availableModels.length === 0) return true
   return availableModels.includes(model)
 }

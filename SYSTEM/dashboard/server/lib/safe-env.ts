@@ -1,7 +1,15 @@
 /**
  * Security helpers for child process spawning and input validation.
  */
-import { type ProviderKeys, resolveSystemExecutionProviderKeys, resolveUserExecutionProviderKeys } from './dashboard-env'
+import {
+  type ProviderKeys,
+  getDefaultOllamaBaseUrl,
+  getDefaultOpenAICompatibleBaseUrl,
+  isManagedRuntime,
+  resolveSystemExecutionProviderKeys,
+  resolveUserExecutionProviderKeys,
+  resolveRuntimeBaseUrl,
+} from './dashboard-env'
 import { getWorkspaceGitHubToken } from './workspace-integrations'
 
 export interface ExecutionEnvOverrides extends ProviderKeys {
@@ -61,14 +69,27 @@ export function safeEnv(extras?: Record<string, string | undefined>): NodeJS.Pro
 
 function providerKeysToEnv(providerKeys: ExecutionEnvOverrides): Record<string, string> | undefined {
   const useOpenAiCompatible = !!providerKeys.openaiCompatibleBaseUrl
+  const runtimeDefaultOllamaBaseUrl = getDefaultOllamaBaseUrl()
+  const runtimeDefaultOpenAiCompatibleBaseUrl = getDefaultOpenAICompatibleBaseUrl()
+  const managedRuntime = isManagedRuntime()
   return {
     OPENAI_API_KEY: useOpenAiCompatible
       ? (providerKeys.openaiCompatibleApiKey || providerKeys.openai || 'openai-compatible')
       : (providerKeys.openai || ''),
-    OPENAI_BASE_URL: useOpenAiCompatible ? (providerKeys.openaiCompatibleBaseUrl || '') : '',
+    OPENAI_BASE_URL: useOpenAiCompatible
+      ? resolveRuntimeBaseUrl({
+          configuredBaseUrl: providerKeys.openaiCompatibleBaseUrl || '',
+          managedRuntime,
+          runtimeDefaultBaseUrl: runtimeDefaultOpenAiCompatibleBaseUrl,
+        })
+      : '',
     ANTHROPIC_API_KEY: providerKeys.anthropic || '',
     GEMINI_API_KEY: providerKeys.gemini || '',
-    OLLAMA_BASE_URL: providerKeys.ollamaBaseUrl || '',
+    OLLAMA_BASE_URL: resolveRuntimeBaseUrl({
+      configuredBaseUrl: providerKeys.ollamaBaseUrl || '',
+      managedRuntime,
+      runtimeDefaultBaseUrl: runtimeDefaultOllamaBaseUrl,
+    }),
     SENSO_API_KEY: process.env.SENSO_API_KEY || '',
   }
 }

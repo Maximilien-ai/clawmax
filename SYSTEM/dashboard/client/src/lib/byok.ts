@@ -34,10 +34,12 @@ export interface ByokRequestPayload {
 }
 
 interface AiExecutionConfig {
+  deploymentKind?: 'local' | 'onprem' | 'cloud'
   allowSystemKeysForUserExecution?: boolean
   managedRuntime?: boolean
   ollamaEnabled?: boolean
   defaultOllamaBaseUrl?: string
+  defaultOpenAiCompatibleBaseUrl?: string
   recommendedModel?: string
   systemKeyDefaults?: {
     openai?: boolean
@@ -59,6 +61,7 @@ export interface AiGenerationReadiness {
 }
 
 export function isOllamaUiAvailable(config?: AiExecutionConfig | null): boolean {
+  if (config?.deploymentKind === 'cloud') return false
   return config?.ollamaEnabled === true && !!config.defaultOllamaBaseUrl
 }
 

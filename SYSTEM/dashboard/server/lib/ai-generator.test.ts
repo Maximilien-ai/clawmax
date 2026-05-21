@@ -1,4 +1,7 @@
 import assert from 'assert'
+import fs from 'fs'
+import os from 'os'
+import path from 'path'
 import {
   applyCompanyWorkflowExecutionDefaults,
   applyGeneratedWorkflowHandoffs,
@@ -13,6 +16,7 @@ import {
   normalizePromptExpansionFormat,
   normalizePromptExpansionTarget,
   parseJsonResponse,
+  resolveOpenAiCompatibleGenerationDefaults,
   shouldGenerateCompanyTemplate,
   validateAiGenerationProviderKeys,
 } from './ai-generator'
@@ -82,6 +86,30 @@ test('validateAiGenerationProviderKeys rejects provider mismatches with a clear 
     () => validateAiGenerationProviderKeys({ openai: 'sk-ant-demo-key-value' } as any),
     /looks like a Anthropic key, not a OpenAI developer API key/i
   )
+})
+
+test('resolveOpenAiCompatibleGenerationDefaults falls back to workspace integrations', () => {
+  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-ai-generator-'))
+  const originalHome = process.env.HOME
+  const originalWorkspace = process.env.OPENCLAW_WORKSPACE
+  const workspace = path.join(tmpHome, '.openclaw', 'workspace')
+  try {
+    process.env.HOME = tmpHome
+    process.env.OPENCLAW_WORKSPACE = workspace
+    fs.mkdirSync(path.join(workspace, 'SYSTEM'), { recursive: true })
+    fs.writeFileSync(path.join(workspace, 'SYSTEM', 'integrations.json'), JSON.stringify({
+      openaiCompatibleBaseUrl: 'http://host.containers.internal:1234/v1',
+      openaiCompatibleDefaultModel: 'lmstudio-default',
+    }, null, 2), 'utf-8')
+    const resolved = resolveOpenAiCompatibleGenerationDefaults()
+    assert.strictEqual(resolved.baseUrl, 'http://host.containers.internal:1234/v1')
+    assert.strictEqual(resolved.defaultModel, 'lmstudio-default')
+  } finally {
+    if (originalHome === undefined) delete process.env.HOME
+    else process.env.HOME = originalHome
+    if (originalWorkspace === undefined) delete process.env.OPENCLAW_WORKSPACE
+    else process.env.OPENCLAW_WORKSPACE = originalWorkspace
+  }
 })
 
 test('shouldGenerateCompanyTemplate infers company from prompt unless agent is explicit', () => {

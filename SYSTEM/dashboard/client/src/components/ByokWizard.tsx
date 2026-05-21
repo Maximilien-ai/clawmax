@@ -12,7 +12,7 @@ function maskKey(value: string) {
 
 type Step = 'models' | 'partners' | `partner:${string}`
 type ModelTab = 'openai' | 'anthropic' | 'gemini' | 'ollama' | 'openaiCompatible'
-type ProviderKey = 'openai' | 'anthropic' | 'gemini'
+type ProviderKey = 'openai' | 'anthropic' | 'gemini' | 'ollama'
 type ValidationEntry = { status: 'idle' | 'valid' | 'invalid' | 'error' | 'skipped'; message: string }
 type ValidationState = Record<'openai' | 'openaiCompatible' | 'anthropic' | 'gemini' | 'ollama' | 'opik' | 'senso', ValidationEntry>
 type ModelsByProvider = Record<string, { name: string; models: string[] }>
@@ -76,6 +76,8 @@ type PartnerSecretPresence = Record<string, Record<string, boolean>>
 type ScopedValidationTarget = 'all' | 'current-partner' | 'openai' | 'openaiCompatible' | 'anthropic' | 'gemini' | 'ollama'
 
 const localDevOllamaBaseUrl = 'http://localhost:11434'
+const localDevOpenAiCompatibleBaseUrl = 'http://127.0.0.1:1234/v1'
+const managedRuntimeOpenAiCompatibleBaseUrl = 'http://host.containers.internal:1234/v1'
 const CLOSE_INTEGRATIONS_WIZARDS_EVENT = 'clawmax-close-integrations-wizards'
 
 function mergePartnerMaps(base: PartnerValueMap, extra: PartnerValueMap): PartnerValueMap {
@@ -192,6 +194,7 @@ export function ByokWizard({
   const [integrationStatus, setIntegrationStatus] = useState<IntegrationStatus | null>(null)
   const [ollamaModels, setOllamaModels] = useState<string[]>([])
   const [ollamaModelsLoading, setOllamaModelsLoading] = useState(false)
+  const [availableModelsLoading, setAvailableModelsLoading] = useState(false)
   const [modelsByProvider, setModelsByProvider] = useState<ModelsByProvider>({})
   const [partnerInstallState, setPartnerInstallState] = useState<Record<string, 'idle' | 'installing'>>({})
   const [installedPartnerSkillSlugs, setInstalledPartnerSkillSlugs] = useState<Set<string>>(new Set())
@@ -199,9 +202,12 @@ export function ByokWizard({
   const [highlightPreferredModel, setHighlightPreferredModel] = useState(false)
   const [modelTab, setModelTab] = useState<ModelTab>('openai')
   const [onboardingOpen, setOnboardingOpen] = useState(false)
+  const deploymentKind = config?.deploymentKind || 'local'
   const ollamaEnabled = isOllamaUiAvailable(config)
+  const managedRuntime = config?.managedRuntime === true || deploymentKind !== 'local'
   const defaultOllamaBaseUrl = config?.defaultOllamaBaseUrl || localDevOllamaBaseUrl
-  const managedRuntime = config?.managedRuntime === true
+  const defaultOpenAiCompatibleBaseUrl = config?.defaultOpenAiCompatibleBaseUrl
+    || (deploymentKind === 'onprem' ? managedRuntimeOpenAiCompatibleBaseUrl : localDevOpenAiCompatibleBaseUrl)
   const effectiveOllamaBaseUrl = resolveOllamaBaseUrlForRuntime({
     configuredBaseUrl: ollamaBaseUrl,
     managedRuntime,
@@ -517,6 +523,11 @@ export function ByokWizard({
         if (config?.systemKeyDefaults?.openaiCompatible) return 'system default'
         return 'not configured'
       }
+      if (provider === 'ollama') {
+        if (ollamaBaseUrl.trim() || ollamaDefaultModel.trim()) return 'browser/workspace BYOK'
+        if (ollamaEnabled && defaultOllamaBaseUrl) return 'runtime default'
+        return 'not configured'
+      }
       if (geminiApiKey) return 'browser BYOK'
       if (config?.userKeyDefaults?.gemini) return 'user default'
       if (config?.systemKeyDefaults?.gemini) return 'system default'
@@ -535,12 +546,16 @@ export function ByokWizard({
       { id: 'gemini', label: 'Gemini', state: resolveState('gemini'), source: resolveSource('gemini') },
     ]
 
-    if (ollamaEnabled && ollamaDefaultModel.trim()) {
+    if (ollamaEnabled) {
       checks.push({
         id: 'ollama',
         label: 'Ollama',
-        state: validation.ollama?.status === 'valid' ? 'verified' : 'configured',
-        source: `local runtime · ${ollamaDefaultModel.trim()}`,
+        state: validation.ollama?.status === 'valid' ? 'verified' : resolveSource('ollama') === 'not configured' ? 'missing' : 'configured',
+        source: ollamaDefaultModel.trim()
+          ? `local runtime · ${ollamaDefaultModel.trim()}`
+          : defaultOllamaBaseUrl
+            ? `local runtime · ${defaultOllamaBaseUrl}`
+            : resolveSource('ollama'),
       })
     }
 
@@ -568,6 +583,12 @@ export function ByokWizard({
     openaiCompatibleBaseUrl,
     openaiKey,
     validation,
+    ollamaBaseUrl,
+    defaultOllamaBaseUrl,
+    config?.systemKeyDefaults?.gemini,
+    config?.userKeyDefaults?.gemini,
+    config?.systemKeyDefaults?.openaiCompatible,
+    config?.userKeyDefaults?.openaiCompatible,
   ])
 
   const hostedProviderChecks = useMemo(
@@ -724,6 +745,7 @@ export function ByokWizard({
       openaiCompatibleDefaultModel: openaiCompatibleDefaultModel.trim(),
     }
 
+    setAvailableModelsLoading(true)
     try {
       const res = await fetch(
         forceRefresh ? '/api/agents/models/refresh' : '/api/agents/models',
@@ -739,6 +761,8 @@ export function ByokWizard({
       setModelsByProvider(data?.modelsByProvider || {})
     } catch {
       setModelsByProvider({})
+    } finally {
+      setAvailableModelsLoading(false)
     }
   }, [effectiveOllamaBaseUrl, geminiApiKey, anthropicKey, openaiCompatibleApiKey, openaiCompatibleBaseUrl, openaiCompatibleDefaultModel, openaiKey, ollamaEnabled])
 
@@ -800,6 +824,11 @@ export function ByokWizard({
     if (!ollamaConfigured) return 'Not configured — local open-source models are optional and unavailable until Ollama is running'
     return `Base URL: ${effectiveOllamaBaseUrl}${ollamaDefaultModel ? ` · default: ${ollamaDefaultModel}` : ''}`
   }, [effectiveOllamaBaseUrl, ollamaConfigured, ollamaDefaultModel])
+
+  const openAiCompatibleModels = useMemo(
+    () => (modelsByProvider['openai-compatible']?.models || []).map((model) => model.replace(/^openai-compatible\//, '')),
+    [modelsByProvider]
+  )
 
   if (!hydrated) return null
   if (!user && !config?.authDisabled) return null
@@ -1713,7 +1742,12 @@ export function ByokWizard({
                           </button>
                         )}
                       </div>
-                      <input id="byok-openai-compatible-url" type="text" value={openaiCompatibleBaseUrl} onChange={(e) => { setOpenaiCompatibleBaseUrl(e.target.value); setValidation((current) => ({ ...current, openaiCompatible: { status: 'idle', message: '' } })); updateStoredVerification((current) => { const next = { ...current }; delete next.openaiCompatible; return next }) }} placeholder="http://127.0.0.1:1234/v1" className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
+                      <input id="byok-openai-compatible-url" type="text" value={openaiCompatibleBaseUrl} onChange={(e) => { setOpenaiCompatibleBaseUrl(e.target.value); setValidation((current) => ({ ...current, openaiCompatible: { status: 'idle', message: '' } })); updateStoredVerification((current) => { const next = { ...current }; delete next.openaiCompatible; return next }) }} placeholder={defaultOpenAiCompatibleBaseUrl} className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
+                      <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                        {deploymentKind === 'onprem'
+                          ? 'If LM Studio runs on the same Mac as this containerized runtime, use host.containers.internal instead of 127.0.0.1.'
+                          : 'If LM Studio runs locally on this machine, 127.0.0.1 usually works. For a separate host, use that machine’s reachable LAN address.'}
+                      </div>
                       <div className="mt-3">
                         <label htmlFor="byok-openai-compatible-key" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">API key <span className="text-gray-400">(optional)</span></label>
                         <input id="byok-openai-compatible-key" type="password" value={openaiCompatibleApiKey} onChange={(e) => { setOpenaiCompatibleApiKey(e.target.value); setValidation((current) => ({ ...current, openaiCompatible: { status: 'idle', message: '' } })); updateStoredVerification((current) => { const next = { ...current }; delete next.openaiCompatible; return next }) }} placeholder="Optional or dummy key if required by your server" className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
@@ -1721,9 +1755,44 @@ export function ByokWizard({
                       <div className="mt-3">
                         <label htmlFor="byok-openai-compatible-model" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Default model <span className="text-gray-400">(optional)</span></label>
                         <input id="byok-openai-compatible-model" type="text" value={openaiCompatibleDefaultModel} onChange={(e) => { setOpenaiCompatibleDefaultModel(e.target.value); setValidation((current) => ({ ...current, openaiCompatible: { status: 'idle', message: '' } })); updateStoredVerification((current) => { const next = { ...current }; delete next.openaiCompatible; return next }) }} placeholder="e.g. llama-3.1-8b-instruct" className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
-                        {(modelsByProvider['openai-compatible']?.models || []).length > 0 && (
-                          <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                            Available models: {(modelsByProvider['openai-compatible']?.models || []).map((model) => model.replace(/^openai-compatible\//, '')).slice(0, 8).join(', ')}
+                      </div>
+                      <div className="mt-3 rounded-md border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 px-3 py-2">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="text-xs font-medium text-gray-700 dark:text-gray-300">Discovered OpenAI-compatible models</div>
+                          <div className="flex items-center gap-2">
+                            {availableModelsLoading && <div className="text-[11px] text-gray-500 dark:text-gray-400">Loading…</div>}
+                            <button type="button" onClick={() => void loadAvailableModels(true)} className="text-[11px] text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300">Refresh</button>
+                          </div>
+                        </div>
+                        {openAiCompatibleModels.length > 0 ? (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {openAiCompatibleModels.map((model) => {
+                              const selected = openaiCompatibleDefaultModel.trim() === model
+                              return (
+                                <button
+                                  key={model}
+                                  type="button"
+                                  onClick={() => {
+                                    setOpenaiCompatibleDefaultModel(model)
+                                    setValidation((current) => ({ ...current, openaiCompatible: { status: 'idle', message: '' } }))
+                                    updateStoredVerification((current) => { const next = { ...current }; delete next.openaiCompatible; return next })
+                                  }}
+                                  className={`rounded-full border px-2.5 py-1 text-[11px] transition-colors ${
+                                    selected
+                                      ? 'border-sky-500 bg-sky-100 text-sky-700 dark:border-sky-600 dark:bg-sky-900/30 dark:text-sky-300'
+                                      : 'border-gray-300 bg-white text-gray-700 hover:border-sky-300 hover:text-sky-700 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-sky-700 dark:hover:text-sky-300'
+                                  }`}
+                                >
+                                  {model}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        ) : (
+                          <div className="mt-2 text-[11px] text-gray-500 dark:text-gray-400">
+                            {availableModelsLoading
+                              ? 'Checking the OpenAI-compatible endpoint for available models…'
+                              : 'No models were discovered yet. Check the base URL, confirm the endpoint exposes /v1/models, then refresh.'}
                           </div>
                         )}
                       </div>

@@ -308,6 +308,10 @@ router.post('/:id/chat', (req, res) => {
     openai: executionEnv.OPENAI_API_KEY,
     anthropic: executionEnv.ANTHROPIC_API_KEY,
     gemini: executionEnv.GEMINI_API_KEY,
+    ollamaBaseUrl: executionEnv.OLLAMA_BASE_URL,
+    openaiCompatibleApiKey: useOpenAiCompatible ? executionEnv.OPENAI_API_KEY : undefined,
+    openaiCompatibleBaseUrl: useOpenAiCompatible ? executionEnv.OPENAI_BASE_URL : undefined,
+    openaiCompatibleDefaultModel: useOpenAiCompatible ? (byok?.openaiCompatibleDefaultModel || integrationConfig.openaiCompatibleDefaultModel) : undefined,
   }, resolvedAgent.model, resolvedAgent.provider, async () => {
     await new Promise<void>((resolve) => {
       const spawned = spawn('openclaw', args, {

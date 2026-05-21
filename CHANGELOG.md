@@ -4,6 +4,16 @@ All notable changes to ClawMax are documented here.
 
 ## [Unreleased]
 
+### BYOK / Local Runtime Follow-Through
+- **Explicit Deployment Kind Contract** — the dashboard now understands `local`, `onprem`, and `cloud` deployment kinds explicitly, which makes BYOK/local-provider visibility and defaults much more predictable across native dev, self-managed installs, and hosted runtimes.
+- **Cloud vs. On-Prem Local Provider Behavior** — `Ollama` now stays visible for local/native and on-prem runtimes even before a default model is chosen, while cloud hides Ollama by default but keeps `OpenAI-Compatible` available for remote compatible providers.
+- **Runtime-Safe Same-Mac Defaults** — on-prem/local-self-hosted guidance and defaults now steer same-Mac LM Studio and Ollama users toward `host.containers.internal` instead of loopback-only URLs that fail from inside the dashboard container.
+- **OpenAI-Compatible Model Picker Parity** — OpenAI-compatible endpoints now surface discovered models inline with refresh support and one-click default-model selection, similar to the existing Ollama experience.
+- **Saved Local Provider Follow-Through** — saved workspace defaults for `OpenAI-Compatible` and `Ollama` now participate more reliably in AI generate, agent default-model resolution, stale local-model fallback, and runtime execution wrappers.
+
+### Quality
+- **Regression Coverage** — added/expanded `server/lib/dashboard-env.test.ts`, `server/lib/agent-default-model.test.ts`, `server/lib/ai-generator.test.ts`, `server/lib/agent-execution.test.ts`, `server/lib/model-discovery.test.ts`, and `client/src/lib/byok.test.ts` to cover deployment-kind behavior, local-provider defaults, and local-model fallback handling.
+
 ## [v1.5.5] - 2026-05-20
 
 ### Release — OpenAI-Compatible Local LLMs and BYOK Clarity

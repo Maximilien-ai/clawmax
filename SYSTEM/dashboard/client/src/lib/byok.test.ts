@@ -4,7 +4,7 @@
  * Run with: npx ts-node --transpileOnly client/src/lib/byok.test.ts
  */
 
-import { byokForRequest, detectProviderKeyMismatch, getAiGenerationReadiness, hasAiGenerationAccess, hasChatExecutionAccess, refreshModelsWithByok, resolveOllamaBaseUrlForRuntime, writeStoredByokKeys } from './byok'
+import { byokForRequest, detectProviderKeyMismatch, getAiGenerationReadiness, hasAiGenerationAccess, hasChatExecutionAccess, isOllamaUiAvailable, refreshModelsWithByok, resolveOllamaBaseUrlForRuntime, writeStoredByokKeys } from './byok'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -151,8 +151,23 @@ async function main() {
   await test('chat execution access supports on-prem default Ollama contract from auth config', () => {
     localStorage.clear()
     assert(
-      hasChatExecutionAccess({ ollamaEnabled: true, defaultOllamaBaseUrl: 'http://localhost:11434' }) === true,
+      hasChatExecutionAccess({ deploymentKind: 'onprem', ollamaEnabled: true, defaultOllamaBaseUrl: 'http://host.containers.internal:11434' }) === true,
       'Expected enabled default Ollama base URL to allow chat execution without browser-local BYOK'
+    )
+  })
+
+  await test('deployment kind hides Ollama only in cloud and keeps it for local and onprem', () => {
+    assert(
+      isOllamaUiAvailable({ deploymentKind: 'local', ollamaEnabled: true, defaultOllamaBaseUrl: 'http://localhost:11434' }) === true,
+      'Expected local deployment to allow Ollama UI'
+    )
+    assert(
+      isOllamaUiAvailable({ deploymentKind: 'onprem', ollamaEnabled: true, defaultOllamaBaseUrl: 'http://host.containers.internal:11434' }) === true,
+      'Expected onprem deployment to allow Ollama UI'
+    )
+    assert(
+      isOllamaUiAvailable({ deploymentKind: 'cloud', ollamaEnabled: true, defaultOllamaBaseUrl: 'http://host.containers.internal:11434' }) === false,
+      'Expected cloud deployment to hide Ollama UI'
     )
   })
 

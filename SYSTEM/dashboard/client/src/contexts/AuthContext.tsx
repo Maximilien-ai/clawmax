@@ -9,14 +9,18 @@ export interface AuthUser {
   authType?: 'github' | 'otp'
 }
 
+type DashboardDeploymentKind = 'local' | 'onprem' | 'cloud'
+
 interface AuthConfig {
   githubEnabled: boolean
   otpEnabled?: boolean
   authMode?: string
   authDisabled: boolean
+  deploymentKind?: DashboardDeploymentKind
   managedRuntime?: boolean
   ollamaEnabled?: boolean
   defaultOllamaBaseUrl?: string
+  defaultOpenAiCompatibleBaseUrl?: string
   allowSystemKeysForUserExecution?: boolean
   systemKeyDefaults?: {
     openai: boolean

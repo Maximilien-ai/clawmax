@@ -34,7 +34,7 @@ import { createAuthRouter, requireGitHubAuth, isGitHubAuthConfigured, isOtpAuthC
 import { safeEnv } from './lib/safe-env'
 import { auditLog } from './lib/audit'
 import { getBudgetStatus, loadBudgetConfig, saveBudgetConfig, BudgetConfig } from './lib/budget'
-import { allowSystemKeysForUserExecution, getSystemProviderKeys, getUserDefaultProviderKeys, getBestAvailableModel, getCostEfficientModel, getDashboardEnvRaw, getDashboardInstanceLabel, getDefaultOllamaBaseUrl, isManagedRuntime, isOllamaUiEnabled } from './lib/dashboard-env'
+import { allowSystemKeysForUserExecution, getSystemProviderKeys, getUserDefaultProviderKeys, getBestAvailableModel, getCostEfficientModel, getDashboardDeploymentKind, getDashboardEnvRaw, getDashboardInstanceLabel, getDefaultOllamaBaseUrl, getDefaultOpenAICompatibleBaseUrl, isManagedRuntime, isOllamaUiEnabled } from './lib/dashboard-env'
 import { getResolvedMaintenanceBanner } from './lib/cloud-maintenance-status'
 import { getHostAgentStatus } from './lib/host-agent-status'
 import { readWorkspaceIntegrationConfig } from './lib/workspace-integrations'
@@ -165,14 +165,17 @@ app.get('/api/auth/config', (_req, res) => {
   const userKeys = getUserDefaultProviderKeys()
   const integrationConfig = readWorkspaceIntegrationConfig()
   const managedRuntime = isManagedRuntime(rawEnv)
+  const deploymentKind = getDashboardDeploymentKind(rawEnv)
   res.json({
     githubEnabled: isGitHubAuthConfigured(),
     otpEnabled: isOtpAuthConfigured(),
     authMode: process.env.DASHBOARD_AUTH_MODE || 'github_oauth',
     authDisabled: process.env.BYPASS_OAUTH === 'true' || process.env.DASHBOARD_AUTH_DISABLED === 'true' || process.env.DASHBOARD_AUTH_MODE === 'bypass',
+    deploymentKind,
     managedRuntime,
     ollamaEnabled: isOllamaUiEnabled(rawEnv),
     defaultOllamaBaseUrl: getDefaultOllamaBaseUrl(rawEnv),
+    defaultOpenAiCompatibleBaseUrl: getDefaultOpenAICompatibleBaseUrl(rawEnv),
     systemKeyDefaults: {
       openai: !!systemKeys.openai,
       anthropic: !!systemKeys.anthropic,
@@ -204,6 +207,7 @@ app.get('/api/system', protect, async (req, res) => {
   const workspacePath = getWorkspacePath()
   const rawEnv = getDashboardEnvRaw()
   const managedRuntime = isManagedRuntime(rawEnv)
+  const deploymentKind = getDashboardDeploymentKind(rawEnv)
   let gitBranch = 'unknown'
   try {
     const head = fs.readFileSync(path.join(workspacePath, '.git', 'HEAD'), 'utf-8').trim()
@@ -229,9 +233,11 @@ app.get('/api/system', protect, async (req, res) => {
     version: getDashboardVersion(),
     instanceLabel: getDashboardInstanceLabel(rawEnv),
     gitBranch,
+    deploymentKind,
     managedRuntime,
     ollamaEnabled: isOllamaUiEnabled(rawEnv),
     defaultOllamaBaseUrl: getDefaultOllamaBaseUrl(rawEnv),
+    defaultOpenAiCompatibleBaseUrl: getDefaultOpenAICompatibleBaseUrl(rawEnv),
     maintenanceBanner,
     hostAgentStatus,
     orgName: getOrgName() ?? null,

@@ -6,13 +6,16 @@
 
 import {
   allowSystemKeysForUserExecution,
+  getDashboardDeploymentKind,
   getDashboardInstanceLabel,
   getBestAvailableModel,
   getCostEfficientModel,
   getDefaultOllamaBaseUrl,
+  getDefaultOpenAICompatibleBaseUrl,
   getMaintenanceBanner,
   isManagedRuntime,
   isOllamaUiEnabled,
+  resolveRuntimeBaseUrl,
 } from './dashboard-env'
 
 const GREEN = '\x1b[32m'
@@ -43,6 +46,21 @@ console.log(`\n${YELLOW}=== Dashboard Env Test Suite ===${RESET}\n`)
 
 test('managed runtime is detected when dashboard env is empty', () => {
   assert(isManagedRuntime({}) === true, 'Expected empty env to be treated as managed runtime')
+})
+
+test('deployment kind defaults local for native dev', () => {
+  assert(getDashboardDeploymentKind({ DASHBOARD_PORT: '3001' }) === 'local', 'Expected local deployment kind for native dev')
+})
+
+test('deployment kind infers onprem from local-provider managed runtime hints', () => {
+  assert(
+    getDashboardDeploymentKind({ OLLAMA_BASE_URL: 'http://host.containers.internal:11434' }) === 'onprem',
+    'Expected onprem deployment kind from host-container Ollama hint'
+  )
+})
+
+test('deployment kind falls back to cloud for managed runtime without onprem hints', () => {
+  assert(getDashboardDeploymentKind({}) === 'cloud', 'Expected managed runtime without local-provider hints to be treated as cloud')
 })
 
 test('dashboard instance label honors explicit env override', () => {
@@ -84,12 +102,45 @@ test('managed runtime without injected Ollama base URL defaults to empty string'
   assert(url === '', `Expected empty managed-runtime default, got ${url}`)
 })
 
+test('onprem runtime defaults Ollama base URL to host.containers.internal', () => {
+  const url = getDefaultOllamaBaseUrl({ DASHBOARD_DEPLOYMENT_KIND: 'onprem' })
+  assert(url === 'http://host.containers.internal:11434', `Expected onprem Ollama default, got ${url}`)
+})
+
+test('explicit OpenAI-compatible base URL is read from env', () => {
+  const url = getDefaultOpenAICompatibleBaseUrl({ OPENAI_COMPATIBLE_BASE_URL: ' http://host.containers.internal:1234/v1/ ' })
+  assert(url === 'http://host.containers.internal:1234/v1', `Expected trimmed OpenAI-compatible base URL, got ${url}`)
+})
+
+test('local runtime defaults OpenAI-compatible base URL to localhost LM Studio', () => {
+  const url = getDefaultOpenAICompatibleBaseUrl({ DASHBOARD_PORT: '3001' })
+  assert(url === 'http://127.0.0.1:1234/v1', `Expected local OpenAI-compatible default, got ${url}`)
+})
+
+test('onprem runtime defaults OpenAI-compatible base URL to host.containers.internal', () => {
+  const url = getDefaultOpenAICompatibleBaseUrl({ DASHBOARD_DEPLOYMENT_KIND: 'onprem' })
+  assert(url === 'http://host.containers.internal:1234/v1', `Expected onprem OpenAI-compatible default, got ${url}`)
+})
+
+test('managed runtime rewrites loopback base URLs to runtime-safe host endpoints when provided', () => {
+  const url = resolveRuntimeBaseUrl({
+    configuredBaseUrl: 'http://localhost:1234/v1',
+    managedRuntime: true,
+    runtimeDefaultBaseUrl: 'http://host.containers.internal:1234/v1',
+  })
+  assert(url === 'http://host.containers.internal:1234/v1', `Expected runtime-safe host endpoint, got ${url}`)
+})
+
 test('explicit DASHBOARD_ENABLE_OLLAMA=true enables Ollama UI even in managed runtime', () => {
   assert(isOllamaUiEnabled({ DASHBOARD_ENABLE_OLLAMA: 'true' }) === true, 'Expected explicit true to enable Ollama UI')
 })
 
 test('explicit DASHBOARD_ENABLE_OLLAMA=false disables Ollama UI in local runtime', () => {
   assert(isOllamaUiEnabled({ DASHBOARD_PORT: '3001', DASHBOARD_ENABLE_OLLAMA: 'false' }) === false, 'Expected explicit false to disable Ollama UI')
+})
+
+test('cloud deployment hides Ollama UI even when runtime is managed', () => {
+  assert(isOllamaUiEnabled({ DASHBOARD_DEPLOYMENT_KIND: 'cloud', DASHBOARD_ENABLE_OLLAMA: 'true' }) === false, 'Expected cloud deployment to hide Ollama UI')
 })
 
 test('Gemini defaults use google-prefixed model ids', () => {

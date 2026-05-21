@@ -359,6 +359,10 @@ async function callAgent(
     openai: executionEnv.OPENAI_API_KEY,
     anthropic: executionEnv.ANTHROPIC_API_KEY,
     gemini: executionEnv.GEMINI_API_KEY,
+    ollamaBaseUrl: executionEnv.OLLAMA_BASE_URL,
+    openaiCompatibleApiKey: useOpenAiCompatible ? executionEnv.OPENAI_API_KEY : undefined,
+    openaiCompatibleBaseUrl: useOpenAiCompatible ? executionEnv.OPENAI_BASE_URL : undefined,
+    openaiCompatibleDefaultModel: useOpenAiCompatible ? (byokKeys?.openaiCompatibleDefaultModel || integrationConfig.openaiCompatibleDefaultModel) : undefined,
   }, resolvedAgent.model, resolvedAgent.provider, () => {
     return new Promise((resolve, reject) => {
       const args = ['agent', '--agent', agentId, '--session-id', effectiveSessionId, '--message', message, '--json', ...(useLocal ? ['--local'] : [])]

@@ -17,6 +17,11 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
   - users can configure a `Base URL`, optional `API key`, and optional `Default model`, then validate connectivity directly from the dashboard
   - discovered compatible models now flow into model selection as a distinct provider instead of being confused with official OpenAI models
   - AI generate, prompt expansion, and normal execution paths now understand that compatible provider configuration end to end
+- Runtime shape is now clearer and more automatic:
+  - the dashboard can distinguish `local`, `onprem`, and `cloud` deployment kinds explicitly
+  - `Ollama` stays available in local and on-prem runtimes, but stays hidden in cloud by default
+  - same-Mac on-prem LM Studio and Ollama setups now steer users to `host.containers.internal` instead of loopback-only defaults
+  - saved local-provider defaults now follow through into AI generate, new-agent defaults, and local-model fallback paths more reliably
 - BYOK is easier to scan:
   - provider selection is now grouped into `Hosted` and `Local / Self-Hosted`
   - official hosted providers remain visually separate from self-managed runtimes like Ollama and OpenAI-compatible endpoints
@@ -306,6 +311,13 @@ OTP_DEV_MODE=log
 # Optional partner visibility in Workspaces Integrations
 WORKSPACES_INTEGRATIONS_THIRD_PARTIES=senso,opik,github
 
+# Optional explicit runtime/deployment kind for provider defaults and UI behavior.
+# Supported:
+# - local   => native/local development; shows Ollama and OpenAI-Compatible with localhost defaults
+# - onprem  => containerized/self-managed installs; shows Ollama and OpenAI-Compatible with host.containers.internal defaults
+# - cloud   => hosted ClawMax; hides Ollama by default but keeps OpenAI-Compatible available
+DASHBOARD_DEPLOYMENT_KIND=local
+
 # Optional Ollama visibility override for Workspaces Integrations.
 # Default:
 # - local/native or operator-managed runtime with dashboard .env present: enabled
@@ -316,6 +328,11 @@ DASHBOARD_ENABLE_OLLAMA=false
 # This is the env var the runtime actually reads. Do not use DASHBOARD_OLLAMA_BASE_URL.
 OLLAMA_BASE_URL=http://127.0.0.1:11434
 
+# Optional OpenAI-compatible local/self-hosted runtime endpoint used by AI generate
+# and other runtime follow-through paths. For same-Mac containerized on-prem installs,
+# prefer http://host.containers.internal:1234/v1 instead of loopback.
+OPENAI_COMPATIBLE_BASE_URL=http://127.0.0.1:1234/v1
+
 # Optional extra partner roots
 CLAWMAX_EXTRA_PARTNER_DIRS=$PWD/WORKSPACES/default/PARTNERS
 ```
@@ -324,9 +341,12 @@ Notes:
 - Built-in partner definitions ship in the repo-level `PARTNERS/` directory.
 - `WORKSPACES/default/PARTNERS` is a good place for local or experimental partner definitions without editing built-ins.
 - If you build or deploy the dashboard in a container, make sure the image includes the repo `PARTNERS/` directory.
+- `DASHBOARD_DEPLOYMENT_KIND` is the clearest way to make local-model provider behavior deterministic across local dev, on-prem, and cloud runtimes.
 - `DASHBOARD_ENABLE_OLLAMA` controls only whether Ollama appears in the dashboard UI. It does not provision an Ollama runtime for hosted deployments.
 - `OLLAMA_BASE_URL` is the runtime env var used by dashboard/server execution. `DASHBOARD_OLLAMA_BASE_URL` is not used.
+- `OPENAI_COMPATIBLE_BASE_URL` is the runtime env var used when you want the dashboard/server to have a stable OpenAI-compatible execution path after restart.
 - Browser-local BYOK / Workspaces Integrations Ollama settings help the UI and request-scoped execution, but operator-managed local runtime setups should still prefer setting `OLLAMA_BASE_URL` in `SYSTEM/dashboard/.env` so chat/workflows have a stable local execution path after restart.
+- For same-Mac containerized on-prem installs, prefer `http://host.containers.internal:11434` for Ollama and `http://host.containers.internal:1234/v1` for LM Studio/OpenAI-compatible servers instead of loopback URLs.
 
 ### First Steps
 

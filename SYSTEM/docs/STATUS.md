@@ -9,6 +9,7 @@
 ## Current State
 
 - `main` now carries the `1.5.5` release line: local/self-hosted model support is broader through the new `OpenAI-Compatible` BYOK provider, hosted vs. self-hosted provider choice is clearer, and dashboard/browser instance labeling is easier to distinguish at a glance
+- current post-`1.5.5` hardening on `main` makes local-model behavior more deployment-aware: the dashboard now distinguishes `local`, `onprem`, and `cloud`, keeps Ollama visible where it is actually usable, and uses better same-Mac on-prem defaults for LM Studio and Ollama
 - targeted local validation is green on the current line, including the newer chat-session, Opik runtime, skill metadata, and skill-tag regressions
 - targeted local validation is also green for the new AI prompt expansion/editor path via `server/lib/ai-generator.test.ts` and repeated `npx tsc --noEmit`
 - Skills now support stronger day-to-day management: reverse assignment, workspace-copy editing, bulk selection/deletion, richer imported registry provenance, tag editing/filtering, and registry suggestions from ClawHub, Shipables, and Tessl

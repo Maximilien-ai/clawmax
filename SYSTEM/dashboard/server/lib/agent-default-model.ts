@@ -21,9 +21,14 @@ function matchesAvailable(model: string | undefined, availableModels: string[]):
   return availableModels.includes(model)
 }
 
+function isLocalRuntimeModel(model: string | undefined): boolean {
+  return !!model && (model.startsWith('ollama/') || model.startsWith('openai-compatible/'))
+}
+
 export function resolveDefaultAgentModel(options: ResolveDefaultAgentModelOptions = {}): string | undefined {
   const rawEnv = options.rawEnv || getDashboardEnvRaw()
   const integrations = readWorkspaceIntegrationConfig()
+  const explicitAvailableModels = Array.isArray(options.availableModels)
   const availableModels = Array.isArray(options.availableModels)
     ? options.availableModels.filter(Boolean)
     : getAvailableModelsCached(rawEnv)
@@ -32,10 +37,10 @@ export function resolveDefaultAgentModel(options: ResolveDefaultAgentModelOption
   if (explicitModel) return explicitModel
 
   const preferredModel = normalizeCandidate(options.preferredModel || integrations.preferredModel)
-  if (matchesAvailable(preferredModel, availableModels)) return preferredModel
+  if (matchesAvailable(preferredModel, availableModels) || (!explicitAvailableModels && isLocalRuntimeModel(preferredModel))) return preferredModel
 
   const templateModel = normalizeCandidate(options.templateModel)
-  if (matchesAvailable(templateModel, availableModels)) return templateModel
+  if (matchesAvailable(templateModel, availableModels) || (!explicitAvailableModels && isLocalRuntimeModel(templateModel))) return templateModel
 
   const ollamaEnabled = isOllamaUiEnabled(rawEnv)
   const workspaceOllamaModel = normalizeCandidate(integrations.ollamaDefaultModel)
@@ -43,8 +48,19 @@ export function resolveDefaultAgentModel(options: ResolveDefaultAgentModelOption
   if (ollamaEnabled && defaultOllamaBaseUrl) {
     const qualifiedOllama = workspaceOllamaModel ? `ollama/${workspaceOllamaModel}` : undefined
     if (matchesAvailable(qualifiedOllama, availableModels)) return qualifiedOllama
+    if (!explicitAvailableModels && qualifiedOllama) return qualifiedOllama
     const firstOllama = availableModels.find((model) => model.startsWith('ollama/'))
     if (firstOllama) return firstOllama
+  }
+
+  const workspaceCompatibleBaseUrl = normalizeCandidate(integrations.openaiCompatibleBaseUrl)
+  const workspaceCompatibleModel = normalizeCandidate(integrations.openaiCompatibleDefaultModel)
+  if (workspaceCompatibleBaseUrl && workspaceCompatibleModel) {
+    const qualifiedCompatible = `openai-compatible/${workspaceCompatibleModel}`
+    if (matchesAvailable(qualifiedCompatible, availableModels)) return qualifiedCompatible
+    if (!explicitAvailableModels) return qualifiedCompatible
+    const firstCompatible = availableModels.find((model) => model.startsWith('openai-compatible/'))
+    if (firstCompatible) return firstCompatible
   }
 
   const recommendedHostedModel = getBestAvailableModel(rawEnv)

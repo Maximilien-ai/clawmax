@@ -22,6 +22,8 @@ export interface MaintenanceBannerConfig {
   dismissible: boolean
 }
 
+export type DashboardDeploymentKind = 'local' | 'onprem' | 'cloud'
+
 function resolveMaintenanceTemporalState(
   rawState: string | undefined,
   startAt: string | undefined,
@@ -141,6 +143,35 @@ export function isManagedRuntime(rawEnv: Record<string, string> = dashboardEnv):
   return Object.keys(rawEnv).length === 0
 }
 
+export function getDashboardDeploymentKind(rawEnv: Record<string, string> = dashboardEnv): DashboardDeploymentKind {
+  const allowProcessFallback = rawEnv === dashboardEnv
+  const explicit = (firstNonEmpty(rawEnv, 'DASHBOARD_DEPLOYMENT_KIND', 'CLAWMAX_DEPLOYMENT_KIND')
+    || (allowProcessFallback ? process.env.DASHBOARD_DEPLOYMENT_KIND?.trim() : undefined)
+    || (allowProcessFallback ? process.env.CLAWMAX_DEPLOYMENT_KIND?.trim() : undefined)
+    || '').toLowerCase()
+  if (explicit === 'local' || explicit === 'onprem' || explicit === 'cloud') {
+    return explicit
+  }
+
+  const localProviderHints = [
+    firstNonEmpty(rawEnv, 'DASHBOARD_ENABLE_OLLAMA', 'OLLAMA_BASE_URL', 'OPENAI_COMPATIBLE_BASE_URL', 'SYSTEM_OPENAI_COMPATIBLE_BASE_URL'),
+    allowProcessFallback ? process.env.DASHBOARD_ENABLE_OLLAMA : undefined,
+    allowProcessFallback ? process.env.OLLAMA_BASE_URL : undefined,
+    allowProcessFallback ? process.env.OPENAI_COMPATIBLE_BASE_URL : undefined,
+    allowProcessFallback ? process.env.SYSTEM_OPENAI_COMPATIBLE_BASE_URL : undefined,
+  ].filter(Boolean).join(' ').toLowerCase()
+
+  if (localProviderHints.includes('host.containers.internal') || localProviderHints.includes('11434') || localProviderHints.includes('1234')) {
+    return 'onprem'
+  }
+
+  if (firstNonEmpty(rawEnv, 'DASHBOARD_PORT', 'DASHBOARD_HOST') || (allowProcessFallback ? process.env.DASHBOARD_PORT?.trim() : undefined)) {
+    return 'local'
+  }
+
+  return isManagedRuntime(rawEnv) ? 'cloud' : 'local'
+}
+
 export function getDashboardInstanceLabel(rawEnv: Record<string, string> = dashboardEnv): string | null {
   const explicit = firstNonEmpty(rawEnv, 'DASHBOARD_INSTANCE_LABEL') || process.env.DASHBOARD_INSTANCE_LABEL?.trim()
   if (explicit) return explicit
@@ -191,18 +222,75 @@ export function getMaintenanceBanner(rawEnv: Record<string, string> = dashboardE
 }
 
 export function isOllamaUiEnabled(rawEnv: Record<string, string> = dashboardEnv): boolean {
-  const explicit = firstNonEmpty(rawEnv, 'DASHBOARD_ENABLE_OLLAMA') || process.env.DASHBOARD_ENABLE_OLLAMA?.trim()
+  const deploymentKind = getDashboardDeploymentKind(rawEnv)
+  if (deploymentKind === 'cloud') return false
+  const explicit = firstNonEmpty(rawEnv, 'DASHBOARD_ENABLE_OLLAMA')
+    || (rawEnv === dashboardEnv ? process.env.DASHBOARD_ENABLE_OLLAMA?.trim() : undefined)
   if (explicit === 'true') return true
   if (explicit === 'false') return false
   return !isManagedRuntime(rawEnv)
 }
 
 export function getDefaultOllamaBaseUrl(rawEnv: Record<string, string> = dashboardEnv): string {
-  const explicit = firstNonEmpty(rawEnv, 'OLLAMA_BASE_URL') || process.env.OLLAMA_BASE_URL?.trim()
+  const explicit = firstNonEmpty(rawEnv, 'OLLAMA_BASE_URL')
+    || (rawEnv === dashboardEnv ? process.env.OLLAMA_BASE_URL?.trim() : undefined)
   if (explicit) {
     return explicit.replace(/\/+$/, '')
   }
-  return isManagedRuntime(rawEnv) ? '' : 'http://localhost:11434'
+  const deploymentKind = getDashboardDeploymentKind(rawEnv)
+  if (deploymentKind === 'onprem') return 'http://host.containers.internal:11434'
+  return deploymentKind === 'local' ? 'http://localhost:11434' : ''
+}
+
+export function getDefaultOpenAICompatibleBaseUrl(rawEnv: Record<string, string> = dashboardEnv): string {
+  const explicit = firstNonEmpty(rawEnv, 'OPENAI_COMPATIBLE_BASE_URL', 'SYSTEM_OPENAI_COMPATIBLE_BASE_URL')
+    || (rawEnv === dashboardEnv ? process.env.OPENAI_COMPATIBLE_BASE_URL?.trim() : undefined)
+    || (rawEnv === dashboardEnv ? process.env.SYSTEM_OPENAI_COMPATIBLE_BASE_URL?.trim() : undefined)
+  if (explicit) return explicit.replace(/\/+$/, '')
+  const deploymentKind = getDashboardDeploymentKind(rawEnv)
+  if (deploymentKind === 'onprem') return 'http://host.containers.internal:1234/v1'
+  if (deploymentKind === 'local') return 'http://127.0.0.1:1234/v1'
+  return ''
+}
+
+function isLoopbackHostname(hostname: string): boolean {
+  const normalized = hostname.trim().toLowerCase()
+  return normalized === 'localhost'
+    || normalized === '127.0.0.1'
+    || normalized === '0.0.0.0'
+    || normalized === '::1'
+}
+
+function normalizeBaseUrlCandidate(value?: string | null): string {
+  return String(value || '').trim().replace(/\/+$/, '')
+}
+
+function isLocalBaseUrl(value?: string | null): boolean {
+  const normalized = normalizeBaseUrlCandidate(value)
+  if (!normalized) return false
+  try {
+    return isLoopbackHostname(new URL(normalized).hostname)
+  } catch {
+    return false
+  }
+}
+
+export function resolveRuntimeBaseUrl(input: {
+  configuredBaseUrl?: string | null
+  managedRuntime?: boolean
+  runtimeDefaultBaseUrl?: string | null
+}): string {
+  const configuredBaseUrl = normalizeBaseUrlCandidate(input.configuredBaseUrl)
+  const runtimeDefaultBaseUrl = normalizeBaseUrlCandidate(input.runtimeDefaultBaseUrl)
+  if (!input.managedRuntime || !runtimeDefaultBaseUrl) {
+    return configuredBaseUrl || runtimeDefaultBaseUrl
+  }
+  if (!configuredBaseUrl) return runtimeDefaultBaseUrl
+  if (configuredBaseUrl === runtimeDefaultBaseUrl) return configuredBaseUrl
+  if (isLocalBaseUrl(configuredBaseUrl) && !isLocalBaseUrl(runtimeDefaultBaseUrl)) {
+    return runtimeDefaultBaseUrl
+  }
+  return configuredBaseUrl
 }
 
 export function getSystemProviderKeys(rawEnv: Record<string, string> = dashboardEnv): ProviderKeys {

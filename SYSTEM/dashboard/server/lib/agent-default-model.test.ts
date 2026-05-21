@@ -59,6 +59,32 @@ async function main() {
       assert.equal(resolved, 'ollama/qwen2.5:latest')
     })
 
+    await test('workspace openai-compatible default resolves even without cached hosted models', () => {
+      const systemDir = path.join(tmpHome, '.openclaw', 'workspace', 'SYSTEM')
+      fs.mkdirSync(systemDir, { recursive: true })
+      fs.writeFileSync(path.join(systemDir, 'integrations.json'), JSON.stringify({
+        openaiCompatibleBaseUrl: 'http://host.containers.internal:1234/v1',
+        openaiCompatibleDefaultModel: 'lmstudio-community',
+      }, null, 2))
+      const resolved = resolveDefaultAgentModel({
+        rawEnv: { DASHBOARD_PORT: '3001' },
+      })
+      assert.equal(resolved, 'openai-compatible/lmstudio-community')
+    })
+
+    await test('workspace ollama default resolves even without cached hosted models', () => {
+      const systemDir = path.join(tmpHome, '.openclaw', 'workspace', 'SYSTEM')
+      fs.mkdirSync(systemDir, { recursive: true })
+      fs.writeFileSync(path.join(systemDir, 'integrations.json'), JSON.stringify({
+        ollamaBaseUrl: 'http://host.containers.internal:11434',
+        ollamaDefaultModel: 'llama3.2:latest',
+      }, null, 2))
+      const resolved = resolveDefaultAgentModel({
+        rawEnv: { DASHBOARD_PORT: '3001' },
+      })
+      assert.equal(resolved, 'ollama/llama3.2:latest')
+    })
+
     await test('returns undefined when no execution path exists', () => {
       const systemDir = path.join(tmpHome, '.openclaw', 'workspace', 'SYSTEM')
       fs.mkdirSync(systemDir, { recursive: true })

@@ -3,6 +3,7 @@
  * Results are cached for 1 hour. Falls back to hardcoded lists on API failure.
  */
 import { getDefaultOllamaBaseUrl, getSystemProviderKeys, getUserDefaultProviderKeys, type ProviderKeys } from './dashboard-env'
+import { readWorkspaceIntegrationConfig } from './workspace-integrations'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -370,6 +371,9 @@ export function getAvailableModelsCached(rawEnv?: Record<string, string>): strin
   const openaiKey = resolveApiKey('openai', rawEnv)
   const anthropicKey = resolveApiKey('anthropic', rawEnv)
   const geminiKey = resolveApiKey('gemini', rawEnv)
+  const integrations = readWorkspaceIntegrationConfig()
+  const systemKeys = getSystemProviderKeys(rawEnv)
+  const userKeys = getUserDefaultProviderKeys(rawEnv)
 
   if (anthropicKey) {
     models.push(...(getCached('anthropic') || FALLBACK_ANTHROPIC))
@@ -380,7 +384,25 @@ export function getAvailableModelsCached(rawEnv?: Record<string, string>): strin
   if (geminiKey) {
     models.push(...(getCached('gemini') || FALLBACK_GEMINI))
   }
-  return models
+
+  const localDefaults: string[] = []
+  const ollamaDefaultModel = integrations.ollamaDefaultModel?.trim()
+  const ollamaBaseUrl = integrations.ollamaBaseUrl?.trim() || getDefaultOllamaBaseUrl(rawEnv)
+  if (ollamaBaseUrl && ollamaDefaultModel) {
+    localDefaults.push(`ollama/${ollamaDefaultModel}`)
+  }
+
+  const compatibleBaseUrl = integrations.openaiCompatibleBaseUrl?.trim()
+    || userKeys.openaiCompatibleBaseUrl?.trim()
+    || systemKeys.openaiCompatibleBaseUrl?.trim()
+  const compatibleDefaultModel = integrations.openaiCompatibleDefaultModel?.trim()
+    || userKeys.openaiCompatibleDefaultModel?.trim()
+    || systemKeys.openaiCompatibleDefaultModel?.trim()
+  if (compatibleBaseUrl && compatibleDefaultModel) {
+    localDefaults.push(`openai-compatible/${compatibleDefaultModel}`)
+  }
+
+  return Array.from(new Set([...models, ...localDefaults]))
 }
 
 export const __test = {

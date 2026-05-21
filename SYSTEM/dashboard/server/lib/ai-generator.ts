@@ -2,6 +2,7 @@ import OpenAI from 'openai'
 import { resolveSystemExecutionProviderKeys, resolveUserExecutionProviderKeys, ProviderKeys } from './dashboard-env'
 import { getPreferredAnthropicModel } from './model-discovery'
 import { getBestAvailableModel } from './dashboard-env'
+import { readWorkspaceIntegrationConfig } from './workspace-integrations'
 
 type AIProvider = 'openai' | 'openai-compatible' | 'anthropic'
 export type TemplateGenerationTarget = 'agent' | 'team' | 'company'
@@ -175,8 +176,24 @@ function getPreferredAnthropicGenerationModel(): string {
   return getPreferredAnthropicModel().replace(/^anthropic\//, '')
 }
 
+export function resolveOpenAiCompatibleGenerationDefaults(byokKeys?: ProviderKeys): { baseUrl?: string; defaultModel?: string } {
+  const integrationConfig = readWorkspaceIntegrationConfig()
+  const systemKeys = resolveSystemExecutionProviderKeys()
+  return {
+    baseUrl: byokKeys?.openaiCompatibleBaseUrl?.trim()
+      || integrationConfig.openaiCompatibleBaseUrl?.trim()
+      || systemKeys.openaiCompatibleBaseUrl?.trim()
+      || undefined,
+    defaultModel: byokKeys?.openaiCompatibleDefaultModel?.trim()
+      || integrationConfig.openaiCompatibleDefaultModel?.trim()
+      || systemKeys.openaiCompatibleDefaultModel?.trim()
+      || undefined,
+  }
+}
+
 function getAvailableProvider(byokKeys?: ProviderKeys): { provider: AIProvider; key: string; baseUrl?: string; defaultModel?: string } {
   validateAiGenerationProviderKeys(byokKeys)
+  const compatibleDefaults = resolveOpenAiCompatibleGenerationDefaults(byokKeys)
   // Try BYOK keys first (passed from client request)
   if (byokKeys?.openai) return { provider: 'openai', key: byokKeys.openai }
   if (byokKeys?.openaiCompatibleBaseUrl) {
@@ -191,12 +208,12 @@ function getAvailableProvider(byokKeys?: ProviderKeys): { provider: AIProvider; 
   // Then system/user-default keys
   const keys = resolveSystemExecutionProviderKeys()
   if (keys.openai) return { provider: 'openai', key: keys.openai }
-  if (keys.openaiCompatibleBaseUrl) {
+  if (compatibleDefaults.baseUrl) {
     return {
       provider: 'openai-compatible',
       key: keys.openaiCompatibleApiKey || 'openai-compatible',
-      baseUrl: keys.openaiCompatibleBaseUrl,
-      defaultModel: keys.openaiCompatibleDefaultModel,
+      baseUrl: compatibleDefaults.baseUrl,
+      defaultModel: compatibleDefaults.defaultModel,
     }
   }
   if (keys.anthropic) return { provider: 'anthropic', key: keys.anthropic }
@@ -253,8 +270,7 @@ function currentClient(): { client: OpenAI; model: string } {
 function resolveModel(requestedModel: string): string {
   const { provider } = getAvailableProvider(_requestByokKeys)
   if (provider === 'openai-compatible') {
-    const model = _requestByokKeys?.openaiCompatibleDefaultModel?.trim()
-      || resolveSystemExecutionProviderKeys().openaiCompatibleDefaultModel?.trim()
+    const model = resolveOpenAiCompatibleGenerationDefaults(_requestByokKeys).defaultModel
     if (model) return model
     throw new Error('OpenAI-compatible AI generation requires a default model. Set one in BYOK first.')
   }
