@@ -1,0 +1,111 @@
+name: Container Image
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      release_ref:
+        description: Git ref to build, usually a release tag like v1.5.6
+        required: true
+        default: v1.5.6
+      publish_latest:
+        description: Also publish the latest tag
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE_NAME: ghcr.io/maximilien-ai/clawmax-dashboard
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve build ref and tags
+        id: vars
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            ref_input="${{ inputs.release_ref }}"
+            publish_latest="${{ inputs.publish_latest }}"
+          else
+            ref_input="${GITHUB_REF_NAME}"
+            publish_latest="true"
+          fi
+
+          version="${ref_input}"
+          version="${version#refs/tags/}"
+          version="${version#refs/heads/}"
+          semver="${version#v}"
+
+          {
+            echo "ref=${ref_input}"
+            echo "version=${version}"
+            echo "semver=${semver}"
+            echo "publish_latest=${publish_latest}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.vars.outputs.ref }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build tag list
+        id: tags
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tags="$(printf '%s\n%s\n%s' \
+            "${IMAGE_NAME}:${{ steps.vars.outputs.version }}" \
+            "${IMAGE_NAME}:${{ steps.vars.outputs.semver }}" \
+            "${IMAGE_NAME}:sha-${GITHUB_SHA::12}")"
+
+          if [ "${{ steps.vars.outputs.publish_latest }}" = "true" ]; then
+            tags="${tags}"$'\n'"${IMAGE_NAME}:latest"
+          fi
+
+          {
+            echo "tags<<EOF"
+            echo "${tags}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          provenance: false
+          build-args: |
+            CLAWMAX_VERSION=${{ steps.vars.outputs.version }}
+          tags: ${{ steps.tags.outputs.tags }}
+          labels: |
+            org.opencontainers.image.title=ClawMax Dashboard
+            org.opencontainers.image.description=ClawMax dashboard runtime with bundled OpenClaw
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.vars.outputs.version }}
