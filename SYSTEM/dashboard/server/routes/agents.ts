@@ -1194,20 +1194,15 @@ router.get('/:id/identity', (req, res) => {
   // Get live configuration from openclaw.json (authoritative source)
   let liveConfig: any = {}
   try {
-    const HOME = process.env.HOME || ''
-    const configPath = path.join(HOME, '.openclaw', 'openclaw.json')
-    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-    const agentList = config?.agents?.list || []
-    const liveAgent = agentList.find((a: any) => a.id === id)
-    if (liveAgent) {
+    const resolvedAgent = resolveAgentExecutionConfig(id)
+    if (resolvedAgent.workspace || resolvedAgent.agentDir || resolvedAgent.model) {
       liveConfig = {
-        model: liveAgent.model || metadata.model,
-        workspace: liveAgent.workspace,
-        agentDir: liveAgent.agentDir
+        model: resolvedAgent.model || metadata.model,
+        workspace: resolvedAgent.workspace,
+        agentDir: resolvedAgent.agentDir
       }
-      // Override metadata.model with live model for clone pre-fill
-      if (liveAgent.model) {
-        metadata.model = liveAgent.model
+      if (resolvedAgent.model) {
+        metadata.model = resolvedAgent.model
       }
     }
   } catch (err) {
