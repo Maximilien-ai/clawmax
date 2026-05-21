@@ -3,14 +3,15 @@ import { execSync, spawn } from 'child_process'
 import path from 'path'
 import fs from 'fs'
 import archiver from 'archiver'
-import { listAgents, getAgentActivity, getNextAgentId, findFreePort, getAgentImpact, deleteAgent, cloneAgentFiles, getAgentGatewayConfig, parseGroups, getWorkspacePath, getAgentsDir, ensureManagedAgentWorkspaceFiles } from '../lib/workspace'
+import { listAgents, getAgentActivity, getNextAgentId, findFreePort, getAgentImpact, deleteAgent, cloneAgentFiles, getAgentGatewayConfig, parseGroups, parseIdentity, getWorkspacePath, getAgentsDir, ensureManagedAgentWorkspaceFiles } from '../lib/workspace'
 import { generateAgentFiles, generateArchiveTitle } from '../lib/ai-generator'
 import { importAgentFromTemplate } from '../lib/templates'
 import { getConfiguredGatewayPort, getGatewayClient, isGatewayConfigured, isGatewayRunning, probeGatewayResponsive } from '../lib/gateway-rpc'
 import { listWorkflows, resolveParticipants } from '../lib/workflows'
 import { safeEnv, validatePort } from '../lib/safe-env'
 import { validateAgentConfigSections, validateProvisionInput } from '../lib/agent-config-validation'
-import { resetAgentSessionsForModelChange, updateAgentModelInConfigFile, upsertAgentModelInIdentityContent } from '../lib/agent-model'
+import type { AgentModelConfigUpdateResult } from '../lib/agent-model'
+import { normalizeAgentModelInput, resetAgentSessionsForModelChange, upsertAgentModelInConfigFile, upsertAgentModelInIdentityContent } from '../lib/agent-model'
 import { validateAgentCostLimit } from '../lib/budget'
 import { getSystemProviderKeys, getUserDefaultProviderKeys, getDashboardEnvRaw } from '../lib/dashboard-env'
 import { discoverModels, getAvailableModelsCached, clearModelCache } from '../lib/model-discovery'
@@ -62,13 +63,18 @@ function getAvailableModels(): string[] {
 
 // buildModelsResponse removed — replaced by discoverModels() from model-discovery.ts
 
-function updateAgentModelInConfig(agentId: string, model: string): { ok: boolean; error?: string } {
+function updateAgentModelInConfig(agentId: string, model: string): AgentModelConfigUpdateResult {
   const HOME = process.env.HOME || ''
   const profileConfigPath = path.join(HOME, `.openclaw-${agentId}`, 'openclaw.json')
   const defaultConfigPath = path.join(HOME, '.openclaw', 'openclaw.json')
   const configPath = fs.existsSync(profileConfigPath) ? profileConfigPath : defaultConfigPath
   const workspacePath = path.join(getWorkspacePath(), 'AGENTS', agentId)
-  return updateAgentModelInConfigFile(configPath, agentId, model, { workspacePath })
+  const runtimeAgentDir = path.join(HOME, '.openclaw', 'agents', agentId, 'agent')
+  return upsertAgentModelInConfigFile(configPath, agentId, model, {
+    workspacePath,
+    agentDir: runtimeAgentDir,
+    name: agentId,
+  })
 }
 
 function updateAgentIdentityModel(identityPath: string, model: string) {
@@ -1697,11 +1703,15 @@ router.post('/bulk-model', async (req, res) => {
   if (!Array.isArray(agentIds) || !model || typeof model !== 'string') {
     return res.status(400).json({ error: 'agentIds (array) and model (string) are required' })
   }
+  const normalizedModel = normalizeAgentModelInput(model)
+  if (!normalizedModel) {
+    return res.status(400).json({ error: 'model is required' })
+  }
 
   const results: { id: string; ok: boolean; error?: string }[] = []
   for (const agentId of agentIds) {
     try {
-      const configUpdate = updateAgentModelInConfig(agentId, model)
+      const configUpdate = updateAgentModelInConfig(agentId, normalizedModel)
       if (!configUpdate.ok) {
         results.push({ id: agentId, ok: false, error: configUpdate.error || 'Failed to update live model config' })
         continue
@@ -1711,10 +1721,12 @@ router.post('/bulk-model', async (req, res) => {
       const agentDir = path.join(getWorkspacePath(), 'AGENTS', agentId)
       const identityPath = path.join(agentDir, 'IDENTITY.md')
       if (fs.existsSync(identityPath)) {
-        updateAgentIdentityModel(identityPath, model)
+        updateAgentIdentityModel(identityPath, normalizedModel)
       }
 
-      resetAgentRuntimeForModelChange(agentId)
+      if (configUpdate.changed) {
+        resetAgentRuntimeForModelChange(agentId)
+      }
 
       results.push({ id: agentId, ok: true })
     } catch (err: any) {
@@ -1849,8 +1861,21 @@ router.put('/:id/config', (req, res) => {
   }
 
   try {
+    let identityToWrite = typeof identity === 'string' ? identity : undefined
+    let configUpdate: AgentModelConfigUpdateResult | undefined
+    if (identityToWrite) {
+      const identityModel = normalizeAgentModelInput(parseIdentity(identityToWrite).model || '')
+      if (identityModel) {
+        configUpdate = updateAgentModelInConfig(id, identityModel)
+        if (!configUpdate.ok) {
+          return res.status(500).json({ error: configUpdate.error || 'Failed to update live model config' })
+        }
+        identityToWrite = upsertAgentModelInIdentityContent(identityToWrite, configUpdate.model || identityModel)
+      }
+    }
+
     if (typeof identity === 'string') {
-      fs.writeFileSync(path.join(agentDir, 'IDENTITY.md'), identity, 'utf-8')
+      fs.writeFileSync(path.join(agentDir, 'IDENTITY.md'), identityToWrite || identity, 'utf-8')
     }
     if (typeof soul === 'string') {
       fs.writeFileSync(path.join(agentDir, 'SOUL.md'), soul, 'utf-8')
@@ -1858,7 +1883,10 @@ router.put('/:id/config', (req, res) => {
     if (typeof tools === 'string') {
       fs.writeFileSync(path.join(agentDir, 'TOOLS.md'), tools, 'utf-8')
     }
-    res.json({ ok: true, warnings: validation.warnings })
+    if (configUpdate?.changed) {
+      resetAgentRuntimeForModelChange(id)
+    }
+    res.json({ ok: true, warnings: validation.warnings, model: configUpdate?.model })
   } catch (err) {
     console.error('Failed to update agent config:', err)
     res.status(500).json({ error: 'Failed to update agent config' })
@@ -1877,19 +1905,25 @@ router.patch('/:id/model', (req, res) => {
   if (!model || typeof model !== 'string') {
     return res.status(400).json({ error: 'model is required' })
   }
+  const normalizedModel = normalizeAgentModelInput(model)
+  if (!normalizedModel) {
+    return res.status(400).json({ error: 'model is required' })
+  }
 
   const agentDir = path.join(getAgentsDir(), id)
   const identityPath = path.join(agentDir, 'IDENTITY.md')
 
   try {
-    const configUpdate = updateAgentModelInConfig(id, model)
+    const configUpdate = updateAgentModelInConfig(id, normalizedModel)
     if (!configUpdate.ok) {
       return res.status(500).json({ error: configUpdate.error || 'Failed to update live model config' })
     }
 
-    updateAgentIdentityModel(identityPath, model)
-    resetAgentRuntimeForModelChange(id)
-    res.json({ ok: true, model })
+    updateAgentIdentityModel(identityPath, configUpdate.model || normalizedModel)
+    if (configUpdate.changed) {
+      resetAgentRuntimeForModelChange(id)
+    }
+    res.json({ ok: true, model: configUpdate.model || normalizedModel })
   } catch (err) {
     console.error('Failed to update model:', err)
     res.status(500).json({ error: 'Failed to update model' })

@@ -7,7 +7,7 @@
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import { resetAgentSessionsForModelChange, updateAgentModelInConfigFile, upsertAgentModelInIdentityContent } from './agent-model'
+import { normalizeAgentModelInput, resetAgentSessionsForModelChange, updateAgentModelInConfigFile, upsertAgentModelInConfigFile, upsertAgentModelInIdentityContent } from './agent-model'
 import { parseIdentity } from './workspace'
 
 const GREEN = '\x1b[32m'
@@ -56,6 +56,13 @@ test('updateAgentModelInConfigFile updates model in openclaw.json', () => {
   assert(typeof updated.meta?.lastTouchedAt === 'string', 'Expected metadata stamp to be written')
 })
 
+test('normalizeAgentModelInput qualifies common OpenAI aliases', () => {
+  assert(normalizeAgentModelInput('gpt-4o-mini') === 'openai/gpt-4o-mini', 'Expected bare gpt-4o-mini to become openai-qualified')
+  assert(normalizeAgentModelInput('gpt4o-mini') === 'openai/gpt-4o-mini', 'Expected compact gpt4o-mini to normalize')
+  assert(normalizeAgentModelInput('gpt40-mini') === 'openai/gpt-4o-mini', 'Expected common zero/o typo to normalize')
+  assert(normalizeAgentModelInput('ollama/qwen2.5:latest') === 'ollama/qwen2.5:latest', 'Expected qualified Ollama model to stay unchanged')
+})
+
 test('updateAgentModelInConfigFile updates the matching workspace record when ids collide', () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-model-test-'))
   const configPath = path.join(tmpDir, 'openclaw.json')
@@ -77,6 +84,60 @@ test('updateAgentModelInConfigFile updates the matching workspace record when id
   const updated = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
   assert(updated.agents.list[0].model === 'anthropic/claude-opus-4-6', 'Expected stale duplicate record to remain unchanged')
   assert(updated.agents.list[1].model === 'ollama/qwen2.5:latest', 'Expected active workspace record to be updated')
+})
+
+test('upsertAgentModelInConfigFile creates an active workspace record without touching same-id stale records', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-model-test-'))
+  const configPath = path.join(tmpDir, 'openclaw.json')
+  const staleWorkspace = path.join(tmpDir, 'workspace-a', 'AGENTS', 'ceo')
+  const activeWorkspace = path.join(tmpDir, 'workspace-b', 'AGENTS', 'ceo')
+  const activeAgentDir = path.join(tmpDir, 'runtime', 'agents', 'ceo', 'agent')
+
+  fs.writeFileSync(configPath, JSON.stringify({
+    agents: {
+      list: [
+        { id: 'ceo', workspace: staleWorkspace, model: 'ollama/qwen2.5:latest' }
+      ]
+    }
+  }, null, 2))
+
+  const result = upsertAgentModelInConfigFile(configPath, 'ceo', 'gpt4o-mini', {
+    workspacePath: activeWorkspace,
+    agentDir: activeAgentDir,
+    name: 'CEO',
+  })
+  assert(result.ok, result.error || 'Expected upsert to succeed')
+  assert(result.changed === true, 'Expected upsert to report a changed config')
+  assert(result.model === 'openai/gpt-4o-mini', 'Expected upsert to report normalized model')
+
+  const updated = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  assert(updated.agents.list.length === 2, 'Expected active workspace record to be appended')
+  assert(updated.agents.list[0].model === 'ollama/qwen2.5:latest', 'Expected stale record to remain unchanged')
+  assert(updated.agents.list[1].workspace === activeWorkspace, 'Expected active workspace path on appended record')
+  assert(updated.agents.list[1].agentDir === activeAgentDir, 'Expected runtime agent dir on appended record')
+  assert(updated.agents.list[1].model === 'openai/gpt-4o-mini', 'Expected appended record to use normalized model')
+})
+
+test('upsertAgentModelInConfigFile updates the exact active workspace record', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-model-test-'))
+  const configPath = path.join(tmpDir, 'openclaw.json')
+  const activeWorkspace = path.join(tmpDir, 'workspace', 'AGENTS', 'simple-agent')
+
+  fs.writeFileSync(configPath, JSON.stringify({
+    agents: {
+      list: [
+        { id: 'simple-agent', workspace: activeWorkspace, model: 'ollama/qwen2.5:latest' }
+      ]
+    }
+  }, null, 2))
+
+  const result = upsertAgentModelInConfigFile(configPath, 'simple-agent', 'openai/gpt-4o-mini', { workspacePath: activeWorkspace })
+  assert(result.ok, result.error || 'Expected upsert update to succeed')
+  assert(result.changed === true, 'Expected exact workspace update to report changed')
+
+  const updated = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  assert(updated.agents.list.length === 1, 'Expected exact workspace update not to append a duplicate')
+  assert(updated.agents.list[0].model === 'openai/gpt-4o-mini', 'Expected active workspace model to be updated')
 })
 
 test('updateAgentModelInConfigFile rejects missing agent', () => {
@@ -138,6 +199,17 @@ _Fill this in during your first conversation. Make it yours._
   assert(updated.includes('- **Model:** ollama/qwen2.5:latest'), 'Expected model line inserted')
   const parsed = parseIdentity(updated)
   assert(parsed.model === 'ollama/qwen2.5:latest', 'Expected inserted model to parse correctly')
+})
+
+test('upsertAgentModelInIdentityContent normalizes OpenAI aliases', () => {
+  const updated = upsertAgentModelInIdentityContent(`# Identity
+
+- **Name:** Simple Agent
+- **Model:** ollama/qwen2.5:latest
+`, 'gpt40-mini')
+
+  const parsed = parseIdentity(updated)
+  assert(parsed.model === 'openai/gpt-4o-mini', 'Expected identity model alias to normalize')
 })
 
 test('resetAgentSessionsForModelChange archives runtime session state', () => {
