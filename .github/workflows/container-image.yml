@@ -24,8 +24,20 @@ env:
   IMAGE_NAME: ghcr.io/maximilien-ai/clawmax-dashboard
 
 jobs:
-  publish:
+  build:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            arch_tag: amd64
+          - platform: linux/arm64
+            arch_tag: arm64
+    outputs:
+      version: ${{ steps.vars.outputs.version }}
+      semver: ${{ steps.vars.outputs.semver }}
+      publish_latest: ${{ steps.vars.outputs.publish_latest }}
     steps:
       - name: Resolve build ref and tags
         id: vars
@@ -78,13 +90,9 @@ jobs:
           set -euo pipefail
 
           tags="$(printf '%s\n%s\n%s' \
-            "${IMAGE_NAME}:${{ steps.vars.outputs.version }}" \
-            "${IMAGE_NAME}:${{ steps.vars.outputs.semver }}" \
-            "${IMAGE_NAME}:sha-${GITHUB_SHA::12}")"
-
-          if [ "${{ steps.vars.outputs.publish_latest }}" = "true" ]; then
-            tags="${tags}"$'\n'"${IMAGE_NAME}:latest"
-          fi
+            "${IMAGE_NAME}:${{ steps.vars.outputs.version }}-${{ matrix.arch_tag }}" \
+            "${IMAGE_NAME}:${{ steps.vars.outputs.semver }}-${{ matrix.arch_tag }}" \
+            "${IMAGE_NAME}:sha-${GITHUB_SHA::12}-${{ matrix.arch_tag }}")"
 
           {
             echo "tags<<EOF"
@@ -97,7 +105,7 @@ jobs:
         with:
           context: .
           file: ./Dockerfile
-          platforms: linux/amd64,linux/arm64
+          platforms: ${{ matrix.platform }}
           push: true
           provenance: false
           build-args: |
@@ -109,3 +117,75 @@ jobs:
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.version=${{ steps.vars.outputs.version }}
+
+  publish-manifest:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Resolve manifest tags
+        id: tags
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tags="$(printf '%s\n%s\n%s' \
+            "${IMAGE_NAME}:${{ needs.build.outputs.version }}" \
+            "${IMAGE_NAME}:${{ needs.build.outputs.semver }}" \
+            "${IMAGE_NAME}:sha-${GITHUB_SHA::12}")"
+
+          if [ "${{ needs.build.outputs.publish_latest }}" = "true" ]; then
+            tags="${tags}"$'\n'"${IMAGE_NAME}:latest"
+          fi
+
+          {
+            echo "tags<<EOF"
+            echo "${tags}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create manifest list tags
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          semver="${{ needs.build.outputs.semver }}"
+          version="${{ needs.build.outputs.version }}"
+          sha_tag="sha-${GITHUB_SHA::12}"
+
+          while IFS= read -r tag; do
+            [ -n "$tag" ] || continue
+            suffix="${tag##*:}"
+            case "$suffix" in
+              "$version")
+                source_a="${IMAGE_NAME}:${version}-amd64"
+                source_b="${IMAGE_NAME}:${version}-arm64"
+                ;;
+              "$semver")
+                source_a="${IMAGE_NAME}:${semver}-amd64"
+                source_b="${IMAGE_NAME}:${semver}-arm64"
+                ;;
+              "$sha_tag")
+                source_a="${IMAGE_NAME}:${sha_tag}-amd64"
+                source_b="${IMAGE_NAME}:${sha_tag}-arm64"
+                ;;
+              latest)
+                source_a="${IMAGE_NAME}:${semver}-amd64"
+                source_b="${IMAGE_NAME}:${semver}-arm64"
+                ;;
+              *)
+                echo "Unknown manifest target: $tag" >&2
+                exit 1
+                ;;
+            esac
+            docker buildx imagetools create -t "$tag" "$source_a" "$source_b"
+          done <<< "${{ steps.tags.outputs.tags }}"

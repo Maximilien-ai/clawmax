@@ -6,6 +6,7 @@ import rateLimit from 'express-rate-limit'
 import path from 'path'
 import fs from 'fs'
 import os from 'os'
+import { execFile } from 'child_process'
 import simpleGit from 'simple-git'
 import docsRouter from './routes/docs'
 import agentsRouter from './routes/agents'
@@ -54,6 +55,80 @@ function logToFile(message: string) {
   } catch (err) {
     console.error('Failed to write to crash log:', err)
   }
+}
+
+function execFileAsync(command: string, args: string[], options: { timeout?: number } = {}): Promise<void> {
+  return new Promise((resolve, reject) => {
+    execFile(command, args, { ...options, windowsHide: true }, (error) => {
+      if (error) reject(error)
+      else resolve()
+    })
+  })
+}
+
+async function autoRegisterWorkspaceAgents(): Promise<void> {
+  try {
+    await execFileAsync('which', ['openclaw'])
+  } catch {
+    return
+  }
+
+  const agentsDir = path.join(getWorkspacePath(), 'AGENTS')
+  if (!fs.existsSync(agentsDir)) return
+
+  const configPath = path.join(os.homedir(), '.openclaw', 'openclaw.json')
+  const registeredIds = new Set<string>()
+  try {
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    for (const a of config?.agents?.list || []) {
+      if (a.id) registeredIds.add(a.id)
+    }
+  } catch {}
+
+  const dirs = fs.readdirSync(agentsDir, { withFileTypes: true })
+  let fixed = 0
+  for (const d of dirs) {
+    if (!d.isDirectory() || d.name.startsWith('.') || d.name === 'archive') continue
+    if (registeredIds.has(d.name)) continue
+    try {
+      const ws = path.join(agentsDir, d.name)
+      if (!isManagedAgentWorkspaceDir(ws)) continue
+      const ad = path.join(os.homedir(), '.openclaw', 'agents', d.name, 'agent')
+      fs.mkdirSync(ad, { recursive: true })
+      await execFileAsync('openclaw', ['agents', 'add', d.name, '--workspace', ws, '--agent-dir', ad, '--non-interactive'], { timeout: 10000 })
+      fixed++
+    } catch (err) {
+      logToFile(`Auto-register skipped for ${d.name}: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
+
+  if (fixed > 0) console.log(`[Doctor] Auto-registered ${fixed} unregistered agent(s)`)
+}
+
+function startBackgroundServices() {
+  setImmediate(() => {
+    void autoRegisterWorkspaceAgents().catch((err) => {
+      logToFile(`Auto-register failed: ${err instanceof Error ? err.stack || err.message : String(err)}`)
+    })
+
+    try {
+      startScheduler()
+    } catch (err) {
+      logToFile(`Scheduler start failed: ${err instanceof Error ? err.stack || err.message : String(err)}`)
+    }
+
+    try {
+      startNotificationMonitor()
+    } catch (err) {
+      logToFile(`Notification monitor start failed: ${err instanceof Error ? err.stack || err.message : String(err)}`)
+    }
+
+    try {
+      initOpikTracing()
+    } catch (err) {
+      logToFile(`Opik init failed: ${err instanceof Error ? err.stack || err.message : String(err)}`)
+    }
+  })
 }
 
 // Log server lifecycle events
@@ -629,47 +704,7 @@ app.listen(PORT, HOST, () => {
   console.log(`Workspace: ${WORKSPACE}`)
   logToFile(`Server started successfully on port ${PORT}`)
   logToFile(`Workspace: ${WORKSPACE}`)
-
-  // Auto-register unregistered workspace agents with openclaw CLI
-  try {
-    const { execSync } = require('child_process')
-    execSync('which openclaw', { stdio: 'pipe' })
-    // CLI available — check for unregistered agents
-    const agentsDir = path.join(getWorkspacePath(), 'AGENTS')
-    if (fs.existsSync(agentsDir)) {
-      const configPath = path.join(os.homedir(), '.openclaw', 'openclaw.json')
-      const registeredIds = new Set<string>()
-      try {
-        const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-        for (const a of config?.agents?.list || []) { if (a.id) registeredIds.add(a.id) }
-      } catch {}
-
-      const dirs = fs.readdirSync(agentsDir, { withFileTypes: true })
-      let fixed = 0
-      for (const d of dirs) {
-        if (!d.isDirectory() || d.name.startsWith('.') || d.name === 'archive') continue
-        if (registeredIds.has(d.name)) continue
-        try {
-          const ws = path.join(agentsDir, d.name)
-          if (!isManagedAgentWorkspaceDir(ws)) continue
-          const ad = path.join(os.homedir(), '.openclaw', 'agents', d.name, 'agent')
-          fs.mkdirSync(ad, { recursive: true })
-          execSync(`openclaw agents add ${d.name} --workspace "${ws}" --agent-dir "${ad}" --non-interactive`, { stdio: 'pipe', timeout: 10000 })
-          fixed++
-        } catch {}
-      }
-      if (fixed > 0) console.log(`[Doctor] Auto-registered ${fixed} unregistered agent(s)`)
-    }
-  } catch {}
-
-  // Start workflow scheduler after server is ready
-  startScheduler()
-
-  // Start notification monitor
-  startNotificationMonitor()
-
-  // Initialize Opik tracing
-  initOpikTracing()
+  startBackgroundServices()
 })
 
 // Graceful shutdown
