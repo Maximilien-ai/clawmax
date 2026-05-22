@@ -697,6 +697,11 @@ export default function Templates() {
     templateName?: string
     templateType?: string
   }>(null)
+  const [builderTemplateDraft, setBuilderTemplateDraft] = useState<null | {
+    generationTarget: 'team' | 'company'
+    teamDescription: string
+    teamName?: string
+  }>(null)
   const [deleteDialog, setDeleteDialog] = useState<{
     itemName: string
     itemType: string
@@ -732,6 +737,27 @@ export default function Templates() {
       }
     } catch {
       sessionStorage.removeItem('clawmax-onboarding-template-query')
+    }
+  }, [])
+
+  const applyPendingBuilderTemplateDraft = React.useCallback(() => {
+    try {
+      const raw = sessionStorage.getItem('clawmax-builder-template-draft')
+      if (!raw) return
+      sessionStorage.removeItem('clawmax-builder-template-draft')
+      const parsed = JSON.parse(raw)
+      const teamDescription = typeof parsed?.teamDescription === 'string' ? parsed.teamDescription.trim() : ''
+      if (!teamDescription) return
+      setSelectedTemplate(null)
+      setEditingTemplate(null)
+      setBuilderTemplateDraft({
+        generationTarget: parsed?.generationTarget === 'company' ? 'company' : 'team',
+        teamDescription,
+        teamName: typeof parsed?.teamName === 'string' ? parsed.teamName : undefined,
+      })
+      setShowWizard(true)
+    } catch {
+      sessionStorage.removeItem('clawmax-builder-template-draft')
     }
   }, [])
 
@@ -853,6 +879,13 @@ export default function Templates() {
     window.addEventListener('clawmax-open-template-from-onboarding', handleOpenFromOnboarding)
     return () => window.removeEventListener('clawmax-open-template-from-onboarding', handleOpenFromOnboarding)
   }, [applyPendingOnboardingSelection])
+
+  useEffect(() => {
+    applyPendingBuilderTemplateDraft()
+    const handleOpenBuilderTemplateDraft = () => applyPendingBuilderTemplateDraft()
+    window.addEventListener('clawmax-open-builder-template-draft', handleOpenBuilderTemplateDraft)
+    return () => window.removeEventListener('clawmax-open-builder-template-draft', handleOpenBuilderTemplateDraft)
+  }, [applyPendingBuilderTemplateDraft])
 
   useEffect(() => {
     if (!showRegistryModal) return
@@ -2363,8 +2396,10 @@ export default function Templates() {
           onClose={() => {
             setShowWizard(false)
             setEditingTemplate(null)
+            setBuilderTemplateDraft(null)
           }}
           initialTemplate={editingTemplate}
+          initialDraft={editingTemplate ? null : builderTemplateDraft}
           onSave={async (template) => {
             try {
               const payload = editingTemplate && editingTemplate.type === 'organization'
@@ -2388,6 +2423,7 @@ export default function Templates() {
                 showSuccess(`Template "${template.name}" saved!`)
                 setShowWizard(false)
                 setEditingTemplate(null)
+                setBuilderTemplateDraft(null)
                 fetchTemplates()
               } else {
                 showError('Failed to save template')
@@ -2400,6 +2436,7 @@ export default function Templates() {
             setApplyingTemplate(template as OrganizationTemplate)
             setShowWizard(false)
             setEditingTemplate(null)
+            setBuilderTemplateDraft(null)
           }}
           showSuccess={showSuccess}
           showError={showError}

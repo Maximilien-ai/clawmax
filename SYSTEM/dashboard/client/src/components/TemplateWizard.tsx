@@ -174,6 +174,11 @@ interface TemplateWizardProps {
   showSuccess: (msg: string) => void
   showError: (msg: string) => void
   initialTemplate?: any | null
+  initialDraft?: {
+    generationTarget?: 'team' | 'company'
+    teamDescription?: string
+    teamName?: string
+  } | null
 }
 
 type FocusableField = HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
@@ -408,7 +413,7 @@ function MultiValueInput({
   )
 }
 
-export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, showError, initialTemplate }: TemplateWizardProps) {
+export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, showError, initialTemplate, initialDraft }: TemplateWizardProps) {
   const { config } = useAuth()
   const aiEnabled = hasAiGenerationAccess(config)
   const aiReadiness = getAiGenerationReadiness(config)
@@ -460,80 +465,92 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
   }, [])
 
   useEffect(() => {
-    if (!initialTemplate) {
-      setState(INITIAL_STATE)
+    if (initialTemplate) {
+      const sourceIsWorkspace = initialTemplate.source === 'workspace'
+      setState({
+        domain: 'custom',
+        teamDescription: initialTemplate.metadata?.aiPrompt || initialTemplate.description || '',
+        teamName: sourceIsWorkspace ? (initialTemplate.name || '') : `${initialTemplate.name || 'Template'} Copy`,
+        description: initialTemplate.description || '',
+        tags: initialTemplate.tags || [],
+        author: initialTemplate.author || '',
+        agents: (initialTemplate.agents || []).map((a: any) => ({
+          id: a.id,
+          name: a.name || a.id,
+          role: a.role || '',
+          tags: a.tags || [],
+          skills: a.skills || [],
+          communities: a.communities || [],
+          groups: a.groups || [],
+          count: 1,
+        })),
+        communities: (initialTemplate.communities || []).map((c: any) => ({
+          name: c.name,
+          description: c.description || '',
+          tags: c.tags || [],
+        })),
+        groups: (initialTemplate.groups || []).map((g: any) => ({
+          name: g.name,
+          description: g.description || '',
+          community: g.community || '',
+          tags: g.tags || [],
+        })),
+        teams: (initialTemplate.teams || []).map((team: any) => ({
+          id: team.id,
+          name: team.name || team.id,
+          purpose: team.purpose || '',
+          leaderAgentId: team.leaderAgentId || '',
+          memberAgentIds: team.memberAgentIds || [],
+          parentTeamId: team.parentTeamId || '',
+          tags: team.tags || [],
+        })),
+        workflows: (initialTemplate.workflows || []).map((w: any) => ({
+          id: w.id || w.name?.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'workflow',
+          name: w.name || '',
+          description: w.description || '',
+          schedule: w.schedule || 'manual',
+          executionMode: w.executionMode || 'managed',
+          owner: w.owner || '',
+          scaling: w.scaling || undefined,
+          parallelism: typeof w.parallelism === 'number' ? w.parallelism : undefined,
+          targetAgents: w.targeting?.agents || [],
+          targetTeamIds: w.targeting?.teamIds || [],
+          targetCommunities: w.targeting?.communities || [],
+          targetGroups: w.targeting?.groups || [],
+          tags: w.targeting?.tags || [],
+          dependsOn: w.dependsOn || [],
+          outputDefinitions: w.outputDefinitions || [],
+          inputRefs: w.inputRefs || [],
+          content: w.content || '',
+        })),
+        parameters: (initialTemplate.parameters || []).map((p: any) => ({
+          agentId: p.agentId,
+          label: p.label || p.agentId,
+          default: typeof p.default === 'number' ? p.default : 2,
+          min: typeof p.min === 'number' ? p.min : 1,
+          max: typeof p.max === 'number' ? p.max : 10,
+        })),
+      })
+      setStep(1)
+      return
+    }
+
+    if (initialDraft) {
+      setState({
+        ...INITIAL_STATE,
+        generationTarget: initialDraft.generationTarget || 'team',
+        teamDescription: initialDraft.teamDescription || '',
+        teamName: initialDraft.teamName || '',
+      })
       setStep(0)
       setAiSuggestedName(null)
       return
     }
 
-    const sourceIsWorkspace = initialTemplate.source === 'workspace'
-    setState({
-      domain: 'custom',
-      teamDescription: initialTemplate.metadata?.aiPrompt || initialTemplate.description || '',
-      teamName: sourceIsWorkspace ? (initialTemplate.name || '') : `${initialTemplate.name || 'Template'} Copy`,
-      description: initialTemplate.description || '',
-      tags: initialTemplate.tags || [],
-      author: initialTemplate.author || '',
-      agents: (initialTemplate.agents || []).map((a: any) => ({
-        id: a.id,
-        name: a.name || a.id,
-        role: a.role || '',
-        tags: a.tags || [],
-        skills: a.skills || [],
-        communities: a.communities || [],
-        groups: a.groups || [],
-        count: 1,
-      })),
-      communities: (initialTemplate.communities || []).map((c: any) => ({
-        name: c.name,
-        description: c.description || '',
-        tags: c.tags || [],
-      })),
-      groups: (initialTemplate.groups || []).map((g: any) => ({
-        name: g.name,
-        description: g.description || '',
-        community: g.community || '',
-        tags: g.tags || [],
-      })),
-      teams: (initialTemplate.teams || []).map((team: any) => ({
-        id: team.id,
-        name: team.name || team.id,
-        purpose: team.purpose || '',
-        leaderAgentId: team.leaderAgentId || '',
-        memberAgentIds: team.memberAgentIds || [],
-        parentTeamId: team.parentTeamId || '',
-        tags: team.tags || [],
-      })),
-      workflows: (initialTemplate.workflows || []).map((w: any) => ({
-        id: w.id || w.name?.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'workflow',
-        name: w.name || '',
-        description: w.description || '',
-        schedule: w.schedule || 'manual',
-        executionMode: w.executionMode || 'managed',
-        owner: w.owner || '',
-        scaling: w.scaling || undefined,
-        parallelism: typeof w.parallelism === 'number' ? w.parallelism : undefined,
-        targetAgents: w.targeting?.agents || [],
-        targetTeamIds: w.targeting?.teamIds || [],
-        targetCommunities: w.targeting?.communities || [],
-        targetGroups: w.targeting?.groups || [],
-        tags: w.targeting?.tags || [],
-        dependsOn: w.dependsOn || [],
-        outputDefinitions: w.outputDefinitions || [],
-        inputRefs: w.inputRefs || [],
-        content: w.content || '',
-      })),
-      parameters: (initialTemplate.parameters || []).map((p: any) => ({
-        agentId: p.agentId,
-        label: p.label || p.agentId,
-        default: typeof p.default === 'number' ? p.default : 2,
-        min: typeof p.min === 'number' ? p.min : 1,
-        max: typeof p.max === 'number' ? p.max : 10,
-      })),
-    })
-    setStep(1)
-  }, [initialTemplate])
+    setState(INITIAL_STATE)
+    setStep(0)
+    setAiSuggestedName(null)
+  }, [initialDraft, initialTemplate])
 
   // ---- AI Generate ----
   const handleAiGenerate = async (descriptionOverride?: string) => {

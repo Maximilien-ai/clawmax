@@ -8,6 +8,19 @@ type AIProvider = 'openai' | 'openai-compatible' | 'anthropic'
 export type TemplateGenerationTarget = 'agent' | 'team' | 'company'
 export type PromptExpansionTarget = 'agent' | 'workflow' | 'skill' | 'template'
 export type PromptExpansionFormat = 'markdown' | 'text'
+export type BuilderStarterPromptInput = {
+  workspaceName?: string
+  workspaceTags?: string[]
+  userName?: string
+  userEmail?: string
+  recentPrompts?: string[]
+  agents?: string[]
+  skills?: string[]
+  workflows?: string[]
+  agentTemplates?: string[]
+  organizationTemplates?: string[]
+  otherWorkspaceNames?: string[]
+}
 
 function detectProviderFromKeyShape(key: string): 'openai' | 'anthropic' | 'gemini' | null {
   const trimmed = key.trim()
@@ -116,6 +129,70 @@ export async function expandPromptWithAI(
   })
 
   return (completion.choices[0].message.content || prompt).trim()
+}
+
+function buildBuilderStarterPromptSystemPrompt(): string {
+  return `You generate suggested starter prompts for an AI Builder / Designer surface.
+
+The goal is to help the user get started in the current workspace with prompts they can click and submit directly.
+
+Rules:
+- Return strict JSON only.
+- Shape: {"prompts":["...","...","...","..."]}.
+- Return exactly 4 prompts.
+- Each prompt must be a direct user prompt, not an explanation.
+- Use the user's recent prompts as the strongest signal when available.
+- Use the workspace name as a strong signal for tone and domain.
+- Use existing agents, workflows, skills, and templates to make suggestions more grounded.
+- Only mention a skill, agent, workflow, or template if it appears in the provided context.
+- Do not invent skill names or suggest nonexistent skills.
+- If the workspace is empty or sparse, use other workspace names and available templates as inspiration.
+- Vary the 4 prompts across reuse, refine, template, and new-build paths when appropriate.
+- Avoid near-duplicate prompts or simple rewrites of the same idea.
+- Avoid generic filler like "help me get started".
+- Keep each prompt concise, specific, and actionable.`
+}
+
+export async function generateBuilderStarterPromptsWithAI(input: BuilderStarterPromptInput): Promise<string[]> {
+  const context = JSON.stringify({
+    workspaceName: input.workspaceName || '',
+    workspaceTags: input.workspaceTags || [],
+    userName: input.userName || '',
+    userEmail: input.userEmail || '',
+    recentPrompts: (input.recentPrompts || []).slice(0, 4),
+    agents: (input.agents || []).slice(0, 8),
+    skills: (input.skills || []).slice(0, 8),
+    workflows: (input.workflows || []).slice(0, 8),
+    agentTemplates: (input.agentTemplates || []).slice(0, 8),
+    organizationTemplates: (input.organizationTemplates || []).slice(0, 8),
+    otherWorkspaceNames: (input.otherWorkspaceNames || []).slice(0, 6),
+  }, null, 2)
+
+  const completion = await getSystemOpenAiClient().chat.completions.create({
+    model: resolveModel('gpt-4o-mini'),
+    messages: [
+      {
+        role: 'system',
+        content: buildBuilderStarterPromptSystemPrompt(),
+      },
+      {
+        role: 'user',
+        content: context,
+      },
+    ],
+    temperature: 0.8,
+    max_tokens: 500,
+  })
+
+  const raw = extractJsonResponseText(completion.choices[0].message.content || '')
+  const parsed = JSON.parse(raw)
+  const prompts = Array.isArray(parsed?.prompts)
+    ? parsed.prompts.map((value: unknown) => String(value || '').trim()).filter(Boolean)
+    : []
+  if (prompts.length === 0) {
+    throw new Error('Failed to generate builder starter prompts')
+  }
+  return prompts.slice(0, 4)
 }
 
 export function shouldGenerateCompanyTemplate(description: string, generationTarget: TemplateGenerationTarget = 'team'): boolean {

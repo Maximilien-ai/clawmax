@@ -19,7 +19,9 @@ const cases: Array<{
   operation?: ReturnType<typeof buildAiBuilderRecommendation>['operation']
   confidence?: ReturnType<typeof buildAiBuilderRecommendation>['confidence']
   page?: ReturnType<typeof buildAiBuilderRecommendation>['recommendedPath']['primaryAction']['page']
+  action?: ReturnType<typeof buildAiBuilderRecommendation>['recommendedPath']['primaryAction']['action']
   confirmationOptionsMin?: number
+  titleIncludes?: string
 }> = [
   {
     name: 'explicit team request maps to team template',
@@ -51,6 +53,15 @@ const cases: Array<{
     scope: 'team',
     operation: 'refine_template',
     page: 'templates',
+  },
+  {
+    name: 'niche team request prefers creating a new team template over a generic existing one',
+    prompt: 'Team of agents to optimize my peptide usage',
+    intent: 'team_template',
+    scope: 'team',
+    page: 'templates',
+    action: 'create-ai',
+    titleIncludes: 'Create a new team template',
   },
   {
     name: 'explicit agent template request beats existing-agent wording',
@@ -139,6 +150,8 @@ for (const scenario of cases) {
     if (scenario.operation) assert.equal(result.operation, scenario.operation)
     if (scenario.confidence) assert.equal(result.confidence, scenario.confidence)
     if (scenario.page) assert.equal(result.recommendedPath.primaryAction.page, scenario.page)
+    if (scenario.action) assert.equal(result.recommendedPath.primaryAction.action, scenario.action)
+    if (scenario.titleIncludes) assert(result.recommendedPath.title.includes(scenario.titleIncludes), `Expected title to include ${scenario.titleIncludes}`)
     if (scenario.confirmationOptionsMin) {
       assert(result.confirmationOptions.length >= scenario.confirmationOptionsMin, `Expected at least ${scenario.confirmationOptionsMin} confirmation options`)
     }

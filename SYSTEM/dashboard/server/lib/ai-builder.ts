@@ -33,6 +33,8 @@ export interface AiBuilderAction {
   page: 'builder' | 'agents' | 'templates' | 'skills' | 'workflows' | 'organizations'
   action?: 'create' | 'create-ai' | 'import'
   pageHint?: string
+  templateDraftTarget?: 'team' | 'company'
+  prefillPrompt?: string
 }
 
 export interface AiBuilderMatchedAsset {
@@ -328,6 +330,14 @@ function buildConfirmationOptions(args: {
         : 'The request sounds multi-role and coordination-heavy.',
     })
   }
+  if (scope === 'team' || scope === 'team_of_teams') {
+    options.push({
+      id: 'confirm-new-team-template',
+      label: scope === 'team_of_teams' ? 'Create a new company template' : 'Create a new team template',
+      prompt: `${prompt}\n\nConfirmation: create a new team template from this request instead of reusing a generic one.`,
+      reasoning: 'Use a fresh team template when the existing matches are too generic for the actual domain.',
+    })
+  }
   if (topAgentTemplate) {
     options.push({
       id: 'confirm-agent-template',
@@ -381,6 +391,13 @@ function chooseIntent(args: {
 
   if (hasSkillLanguage && matchedSkills.length > 0) {
     return { intent: 'skill_or_integration', scope, operation, confidence: matchedSkills[0].score >= 8 ? 'high' : 'medium' }
+  }
+
+  if (scope === 'single_agent' && (operation === 'reuse_existing' || operation === 'improve_existing')) {
+    const confidence: AiBuilderConfidence = matchedAgents.length > 0
+      ? (agentScore >= Math.max(strongestTemplateScore + 2, 8) ? 'high' : 'medium')
+      : 'medium'
+    return { intent: 'existing_agent', scope, operation, confidence }
   }
 
   if (scope === 'team_of_teams') {
@@ -469,6 +486,54 @@ function action(id: string, label: string, description: string, page: AiBuilderA
   return { id, label, description, page, action: actionValue, pageHint }
 }
 
+function getSpecificPromptTokens(prompt: string): string[] {
+  return tokenize(prompt).filter((token) => (
+    token.length > 3
+    && !NON_SCORING_TOKENS.has(token)
+    && !TEAM_KEYWORDS.includes(token)
+    && !AGENT_KEYWORDS.includes(token)
+    && !CREATE_KEYWORDS.includes(token)
+    && !REUSE_KEYWORDS.includes(token)
+    && !REFINE_KEYWORDS.includes(token)
+  ))
+}
+
+function countTokenOverlapInText(tokens: string[], text: string): number {
+  const normalized = normalizeText(text).toLowerCase()
+  if (!normalized) return 0
+  return tokens.filter((token) => normalized.includes(token)).length
+}
+
+function shouldPreferNewTeamTemplate(args: {
+  prompt: string
+  scope: AiBuilderScope
+  operation: AiBuilderOperation
+  matchedOrganizationTemplates: AiBuilderMatchedAsset[]
+  organizationTemplates: OrganizationTemplate[]
+}): boolean {
+  const { prompt, scope, operation, matchedOrganizationTemplates, organizationTemplates } = args
+  if (scope !== 'team' && scope !== 'team_of_teams') return false
+  const topOrgTemplate = matchedOrganizationTemplates[0]
+  if (!topOrgTemplate) return true
+  const domainTokens = getSpecificPromptTokens(prompt)
+  const matchedTemplate = organizationTemplates.find((template) => (
+    (template.slug || template.name) === topOrgTemplate.id || template.name === topOrgTemplate.name
+  ))
+  const haystack = [
+    matchedTemplate?.slug,
+    matchedTemplate?.name,
+    matchedTemplate?.description,
+    ...(matchedTemplate?.tags || []),
+    ...(matchedTemplate?.agents || []).flatMap((agent) => [agent.id, agent.name, agent.role]),
+  ].filter(Boolean).join(' ')
+  const overlap = countTokenOverlapInText(domainTokens, haystack)
+  const overlapRatio = domainTokens.length > 0 ? overlap / domainTokens.length : 0
+  const looksGeneric = overlap === 0 || (domainTokens.length >= 3 && overlapRatio < 0.34)
+  if (operation === 'create_new') return looksGeneric || topOrgTemplate.score < 10
+  if (operation === 'unknown') return looksGeneric && topOrgTemplate.score < 11
+  return false
+}
+
 export function buildAiBuilderRecommendation(prompt: string): AiBuilderRecommendation {
   const normalizedPrompt = normalizeText(prompt)
   const tokens = tokenize(normalizedPrompt)
@@ -516,6 +581,13 @@ export function buildAiBuilderRecommendation(prompt: string): AiBuilderRecommend
   const topSkill = matchedSkills[0]
   const topAgentTemplate = matchedAgentTemplates[0]
   const topOrgTemplate = matchedOrganizationTemplates[0]
+  const preferNewTeamTemplate = shouldPreferNewTeamTemplate({
+    prompt: normalizedPrompt,
+    scope,
+    operation,
+    matchedOrganizationTemplates,
+    organizationTemplates,
+  })
 
   let recommendedPath: AiBuilderRecommendation['recommendedPath']
   let alternativePaths: AiBuilderRecommendation['alternativePaths'] = []
@@ -617,14 +689,43 @@ export function buildAiBuilderRecommendation(prompt: string): AiBuilderRecommend
       ]
       break
     case 'team_template':
-      recommendedPath = {
-        title: topOrgTemplate ? `Start from team template ${topOrgTemplate.name}` : 'Start from a team or organization template',
-        reasoning: topOrgTemplate
-          ? `${topOrgTemplate.name} already suggests multiple roles and handoffs, which fits this request better than a single agent.`
-          : 'The request sounds multi-role and coordination-heavy, so a team template is a better fit than a standalone agent.',
-        primaryAction: action('open-team-template-library', 'Open Templates', 'Apply or refine a matching team template.', 'templates'),
-      }
+      recommendedPath = preferNewTeamTemplate
+        ? {
+            title: scope === 'team_of_teams' ? 'Create a new company template' : 'Create a new team template',
+            reasoning: topOrgTemplate
+              ? `${topOrgTemplate.name} is the closest existing team template, but it still looks too generic for this request, so a new AI-created template is the better starting point.`
+              : 'This request sounds multi-role and domain-specific, so a new AI-created team template is the best starting point.',
+            primaryAction: {
+              ...action(
+                'create-team-template',
+                scope === 'team_of_teams' ? 'AI Create Company Template' : 'AI Create Team Template',
+                scope === 'team_of_teams'
+                  ? 'Create a new company or team-of-teams template from this prompt.'
+                  : 'Create a new team template from this prompt.',
+                'templates',
+                'create-ai',
+              ),
+              templateDraftTarget: scope === 'team_of_teams' ? 'company' : 'team',
+              prefillPrompt: normalizedPrompt,
+            },
+          }
+        : {
+            title: topOrgTemplate ? `Start from team template ${topOrgTemplate.name}` : 'Start from a team or organization template',
+            reasoning: topOrgTemplate
+              ? `${topOrgTemplate.name} already suggests multiple roles and handoffs, which fits this request better than a single agent.`
+              : 'The request sounds multi-role and coordination-heavy, so a team template is a better fit than a standalone agent.',
+            primaryAction: action('open-team-template-library', 'Open Templates', 'Apply or refine a matching team template.', 'templates'),
+          }
       alternativePaths = [
+        ...(topOrgTemplate ? [{
+          title: `Refine ${topOrgTemplate.name}`,
+          reasoning: 'Use the closest existing template as a starting point if you want to adapt it instead of starting net-new.',
+          action: {
+            ...action('refine-team-template', 'Open Templates', 'Open the closest team template so you can inspect or refine it.', 'templates'),
+            templateDraftTarget: undefined,
+            prefillPrompt: undefined,
+          },
+        }] : []),
         {
           title: 'Use a single agent first',
           reasoning: 'If the work is still exploratory, prove the workflow with one agent before creating a full team.',
@@ -633,16 +734,23 @@ export function buildAiBuilderRecommendation(prompt: string): AiBuilderRecommend
         {
           title: 'Generate a custom team from AI',
           reasoning: 'Use AI generation if the available templates are close but do not reflect the right lanes or handoffs.',
-          action: action('generate-custom-team', 'Open Templates', 'Use AI template generation for a custom organization/team starter.', 'templates'),
+          action: {
+            ...action('generate-custom-team', 'Open Templates', 'Use AI template generation for a custom organization/team starter.', 'templates', 'create-ai'),
+            templateDraftTarget: scope === 'team_of_teams' ? 'company' : 'team',
+            prefillPrompt: normalizedPrompt,
+          },
         },
       ]
       suggestedActions = [
         recommendedPath.primaryAction,
+        ...(topOrgTemplate ? [action('review-existing-team-template', 'Open Templates', 'Inspect the closest team template before deciding to adapt or replace it.', 'templates')] : []),
         action('review-workflows', 'Review workflows', 'Check kickoff, specialist lanes, and final output flow before applying.', 'workflows'),
         action('review-org-shape', 'Review organization structure', 'Confirm the resulting groups and communities fit the intended collaboration model.', 'organizations'),
       ]
       testPlan = [
-        'Apply the team template into the active workspace and inspect the created agents, groups, and workflows.',
+        preferNewTeamTemplate
+          ? 'Generate the new team template, then inspect the created agents, groups, and workflows before saving or applying.'
+          : 'Apply the team template into the active workspace and inspect the created agents, groups, and workflows.',
         'Run the kickoff workflow or send a coordinated first prompt through the intended team entry point.',
         'Confirm handoffs, group structure, and final output match how the team is supposed to operate.',
       ]

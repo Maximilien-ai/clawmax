@@ -554,6 +554,16 @@ else
   fail "Discovery suggestion helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Builder starter prompt helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/builderStarterPrompts.test.ts > /tmp/clawmax-builder-starter-prompts.out 2>&1 || true
+if grep -q "builderStarterPrompts.test.ts: ok" /tmp/clawmax-builder-starter-prompts.out; then
+  builder_starter_prompt_count=$(grep -c "^✓" /tmp/clawmax-builder-starter-prompts.out | tr -cd '0-9')
+  pass "Builder starter prompt helper unit tests (${builder_starter_prompt_count:-?} tests)"
+else
+  cat /tmp/clawmax-builder-starter-prompts.out
+  fail "Builder starter prompt helper unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Skill setup helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/skillSetup.test.ts > /tmp/clawmax-skill-setup.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-skill-setup.out; then
@@ -2839,7 +2849,7 @@ echo "Integration Test Summary"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "Duration: ${INTEGRATION_DURATION}s"
 echo "Model: ${SYSTEM_TEST_MODEL:-openai/gpt-4o-mini}"
-echo "Est. cost: ~\$0.01-0.05 (based on ~3 agent calls)"
+echo "Est. cost: ~$0.01-0.05 (based on ~3 agent calls)"
 echo ""
 
 fi

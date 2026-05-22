@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useWorkspace } from '../contexts/WorkspaceContext'
+import { useAuth } from '../contexts/AuthContext'
+import { readStoredByokKeys } from '../lib/byok'
+import { readSharedSecrets } from '../lib/localSecrets'
+import { buildWorkspaceStarterPrompts, normalizeStarterPromptList, type StarterPromptAgent, type StarterPromptSkill, type StarterPromptTemplate, type StarterPromptWorkflow } from '../lib/builderStarterPrompts'
 
 type BuilderAction = {
   id: string
@@ -14,6 +18,8 @@ type BuilderAction = {
   templateId?: string
   templateName?: string
   templateType?: 'agent' | 'organization'
+  templateDraftTarget?: 'team' | 'company'
+  prefillPrompt?: string
 }
 
 type BuilderMatchedAsset = {
@@ -84,7 +90,7 @@ type BuilderArchive = {
   recommendation: BuilderRecommendation | null
 }
 
-type ApiAgent = {
+type ApiAgent = StarterPromptAgent & {
   id: string
   name?: string
   tags?: string[]
@@ -93,7 +99,7 @@ type ApiAgent = {
   communities?: Array<{ name: string }>
 }
 
-type ApiSkill = {
+type ApiSkill = StarterPromptSkill & {
   name: string
   description?: string
   tags?: string[]
@@ -102,7 +108,7 @@ type ApiSkill = {
   registryCategories?: string[]
 }
 
-type ApiWorkflow = {
+type ApiWorkflow = StarterPromptWorkflow & {
   id: string
   name: string
   description?: string
@@ -114,7 +120,7 @@ type ApiWorkflow = {
   }
 }
 
-type ApiTemplate = {
+type ApiTemplate = StarterPromptTemplate & {
   name: string
   slug?: string
   description?: string
@@ -122,13 +128,6 @@ type ApiTemplate = {
   tags?: string[]
   agents?: Array<{ id: string; name?: string; role?: string }>
 }
-
-const DEFAULT_STARTER_PROMPTS = [
-  'Design a competitor research assistant for this workspace.',
-  'Design a customer support escalation team with clean handoffs.',
-  'Refine an existing agent by adding the right skills and integrations.',
-  'Design a multi-role planning team for a new project.',
-]
 
 const TEMPLATE_KEYWORDS = ['template', 'templates', 'refine template', 'edit template', 'team template', 'organization template']
 const AGENT_TEMPLATE_KEYWORDS = ['agent template', 'agent starter', 'create agent from template', 'use template for agent']
@@ -143,6 +142,7 @@ const NON_SCORING_TOKENS = new Set(['agent', 'agents', 'team', 'teams', 'templat
 const BUILDER_SESSION_STORAGE_PREFIX = 'clawmax-builder-session'
 const BUILDER_ARCHIVES_STORAGE_PREFIX = 'clawmax-builder-archives'
 const BUILDER_FEEDBACK_STORAGE_PREFIX = 'clawmax-builder-feedback'
+const BUILDER_TEMPLATE_DRAFT_STORAGE_KEY = 'clawmax-builder-template-draft'
 
 function createIntroMessage(): BuilderMessage {
   return {
@@ -155,36 +155,6 @@ function createIntroMessage(): BuilderMessage {
 
 function createInitialMessages(): BuilderMessage[] {
   return [createIntroMessage()]
-}
-
-function buildWorkspaceStarterPrompts(args: {
-  agents: ApiAgent[]
-  skills: ApiSkill[]
-  templates: { agents: ApiTemplate[]; organizations: ApiTemplate[] }
-}): string[] {
-  const prompts: string[] = []
-  const firstAgent = args.agents[0]
-  const firstAgentSkill = firstAgent?.skills?.[0]
-  const firstSkill = args.skills[0]
-  const firstAgentTemplate = args.templates.agents[0]
-  const firstOrganizationTemplate = args.templates.organizations[0]
-
-  if (firstAgent) {
-    prompts.push(`Help me improve ${firstAgent.name || firstAgent.id} for the next real task in this workspace.`)
-  }
-  if (firstAgent && firstAgentSkill) {
-    prompts.push(`Check whether ${firstAgent.name || firstAgent.id} needs better ${firstAgentSkill} setup or other missing skills.`)
-  } else if (firstSkill) {
-    prompts.push(`Find the best agent in this workspace to use ${firstSkill.name} effectively.`)
-  }
-  if (firstOrganizationTemplate) {
-    prompts.push(`See whether the ${firstOrganizationTemplate.name} team template fits this workspace better than starting from scratch.`)
-  }
-  if (firstAgentTemplate) {
-    prompts.push(`Use the ${firstAgentTemplate.name} agent template if it is a better fit than my current agents.`)
-  }
-
-  return Array.from(new Set([...prompts, ...DEFAULT_STARTER_PROMPTS])).slice(0, 4)
 }
 
 function intentBadge(intent: BuilderRecommendation['intent']): string {
@@ -589,10 +559,18 @@ async function buildClientFallbackRecommendation(prompt: string): Promise<Builde
   const topSkill = matchedSkills[0]
   const topAgentTemplate = matchedAgentTemplates[0]
   const topOrgTemplate = matchedOrganizationTemplates[0]
+  const preferNewTeamTemplate = shouldPreferNewTeamTemplate({
+    prompt,
+    scope,
+    operation,
+    matchedOrganizationTemplates,
+    organizationTemplates: orgTemplates,
+  })
 
   let intent: BuilderRecommendation['intent'] = 'ai_generate'
   let confidence: BuilderRecommendation['confidence'] = 'medium'
   if (includesAnyPrompt(prompt, skillWords) && matchedSkills.length > 0) intent = 'skill_or_integration'
+  else if (scope === 'single_agent' && (operation === 'reuse_existing' || operation === 'improve_existing')) intent = 'existing_agent'
   else if (hasAgentTemplateLanguage && matchedAgentTemplates.length > 0) intent = 'agent_template'
   else if (hasTemplateLanguage && scope !== 'single_agent') intent = 'team_template'
   else if (hasTemplateLanguage && matchedOrganizationTemplates.length > 0) intent = 'team_template'
@@ -637,6 +615,12 @@ async function buildClientFallbackRecommendation(prompt: string): Promise<Builde
           label: `Use ${topOrgTemplate.name}`,
           prompt: `${prompt}\n\nConfirmation: I want a coordinated team or team template.`,
           reasoning: `${topOrgTemplate.name} is the closest multi-role match.`,
+        } : null,
+        (scope === 'team' || scope === 'team_of_teams') ? {
+          id: 'confirm-new-team-template',
+          label: 'Create a new team template',
+          prompt: `${prompt}\n\nConfirmation: create a new team template from this request instead of reusing a generic one.`,
+          reasoning: 'Use a fresh team template when the existing matches are too generic for the actual domain.',
         } : null,
         topAgentTemplate ? {
           id: 'confirm-agent-template',
@@ -714,20 +698,57 @@ async function buildClientFallbackRecommendation(prompt: string): Promise<Builde
   }
 
   if (intent === 'team_template') {
+    const createNewTeamAction: BuilderAction = {
+      id: 'create-team-template',
+      label: scope === 'team_of_teams' ? 'AI Create Company Template' : 'AI Create Team Template',
+      description: scope === 'team_of_teams'
+        ? 'Create a new company or team-of-teams template from this prompt.'
+        : 'Create a new team template from this prompt.',
+      page: 'templates',
+      action: 'create-ai',
+      templateDraftTarget: scope === 'team_of_teams' ? 'company' : 'team',
+      prefillPrompt: prompt,
+    }
+    const refineTeamTemplateAction: BuilderAction = {
+      id: 'open-team-templates',
+      label: topOrgTemplate ? `Refine ${topOrgTemplate.name}` : 'Open Templates',
+      description: topOrgTemplate
+        ? 'Open the closest team template so you can inspect or refine it.'
+        : 'Review existing team templates before creating a new one.',
+      page: 'templates',
+      templateId: topOrgTemplate?.id,
+      templateName: topOrgTemplate?.name,
+      templateType: 'organization',
+    }
     return {
       intent,
       scope,
       operation,
       confidence,
-      summary: `${topOrgTemplate ? `${topOrgTemplate.name} looks like the closest team template.` : 'This request sounds multi-role and coordination heavy.'} ${fallbackNotice}${confidence === 'low' ? ' Confirm below if you want a team template rather than reusing current assets.' : ''}`,
+      summary: `${preferNewTeamTemplate
+        ? (topOrgTemplate
+          ? `${topOrgTemplate.name} is the closest existing team template, but it still looks generic for this request.`
+          : 'This request sounds multi-role, but there is not a strong existing team template match yet.')
+        : (topOrgTemplate ? `${topOrgTemplate.name} looks like the closest team template.` : 'This request sounds multi-role and coordination heavy.')} ${fallbackNotice}${confidence === 'low' ? ' Confirm below if you want a team template rather than reusing current assets.' : ''}`,
       clarifyingQuestions: ['What are the core roles or lanes this team needs?', 'What should the kickoff and final output look like?'],
       confirmationOptions,
       recommendedPath: {
-        title: topOrgTemplate ? `Start from team template ${topOrgTemplate.name}` : 'Start from a team template',
-        reasoning: 'A multi-role template is the fastest path for handoffs and workflow structure.',
-        primaryAction: { id: 'open-team-templates', label: 'Open Templates', description: 'Apply or refine a matching team template.', page: 'templates' },
+        title: preferNewTeamTemplate
+          ? (scope === 'team_of_teams' ? 'Create a new company template' : 'Create a new team template')
+          : (topOrgTemplate ? `Start from team template ${topOrgTemplate.name}` : 'Start from a team template'),
+        reasoning: preferNewTeamTemplate
+          ? 'The closest existing team template is not specific enough, so a fresh AI-created template is the better starting point.'
+          : 'A multi-role template is the fastest path for handoffs and workflow structure.',
+        primaryAction: preferNewTeamTemplate
+          ? createNewTeamAction
+          : { id: 'open-team-templates', label: 'Open Templates', description: 'Apply or refine a matching team template.', page: 'templates' },
       },
       alternativePaths: [
+        ...(topOrgTemplate ? [{
+          title: `Refine ${topOrgTemplate.name}`,
+          reasoning: 'Use the closest existing template as a starting point if you want to adapt instead of starting net-new.',
+          action: refineTeamTemplateAction,
+        }] : []),
         {
           title: 'Prototype with one agent first',
           reasoning: 'Use a single agent if the process is still exploratory.',
@@ -736,11 +757,14 @@ async function buildClientFallbackRecommendation(prompt: string): Promise<Builde
       ],
       matchedAssets: { agents: matchedAgents, skills: matchedSkills, agentTemplates: matchedAgentTemplates, organizationTemplates: matchedOrganizationTemplates, workflows: matchedWorkflows },
       suggestedActions: [
-        { id: 'open-team-templates', label: 'Open Templates', description: 'Apply or refine a matching team template.', page: 'templates' },
+        preferNewTeamTemplate ? createNewTeamAction : { id: 'open-team-templates', label: 'Open Templates', description: 'Apply or refine a matching team template.', page: 'templates' },
+        ...(topOrgTemplate ? [refineTeamTemplateAction] : []),
         { id: 'open-workflows', label: 'Open Workflows', description: 'Review kickoff and final output flow expectations.', page: 'workflows' },
       ],
       testPlan: [
-        'Apply the team template and inspect the created agents, groups, and workflows.',
+        preferNewTeamTemplate
+          ? 'Generate the new team template, then inspect the created agents, groups, and workflows before saving or applying.'
+          : 'Apply the team template and inspect the created agents, groups, and workflows.',
         'Run the kickoff flow and confirm the handoffs and final output shape make sense.',
       ],
     }
@@ -882,7 +906,19 @@ function saveBuilderFeedback(workspaceKey: string, feedback: Record<string, 'up'
 }
 
 function buildTemplateSelection(action: BuilderAction): string | null {
-  if (action.page !== 'templates' || !action.templateType) return null
+  if (action.page !== 'templates') return null
+  if (action.action === 'create-ai' && action.templateDraftTarget && action.prefillPrompt) {
+    try {
+      sessionStorage.setItem(BUILDER_TEMPLATE_DRAFT_STORAGE_KEY, JSON.stringify({
+        generationTarget: action.templateDraftTarget,
+        teamDescription: action.prefillPrompt,
+      }))
+      return action.templateDraftTarget
+    } catch {
+      return null
+    }
+  }
+  if (!action.templateType) return null
   try {
     sessionStorage.setItem('clawmax-onboarding-template-query', JSON.stringify({
       search: action.templateName || action.templateId || '',
@@ -894,6 +930,54 @@ function buildTemplateSelection(action: BuilderAction): string | null {
   } catch {
     return null
   }
+}
+
+function getSpecificPromptTokens(prompt: string): string[] {
+  return tokenize(prompt).filter((token) => (
+    token.length > 3
+    && !NON_SCORING_TOKENS.has(token)
+    && !TEAM_KEYWORDS.includes(token)
+    && !AGENT_KEYWORDS.includes(token)
+    && !CREATE_KEYWORDS.includes(token)
+    && !REUSE_KEYWORDS.includes(token)
+    && !REFINE_KEYWORDS.includes(token)
+  ))
+}
+
+function countTokenOverlapInText(tokens: string[], text: string): number {
+  const normalized = normalizePrompt(text)
+  if (!normalized) return 0
+  return tokens.filter((token) => normalized.includes(token)).length
+}
+
+function shouldPreferNewTeamTemplate(args: {
+  prompt: string
+  scope: BuilderRecommendation['scope']
+  operation: BuilderRecommendation['operation']
+  matchedOrganizationTemplates: BuilderMatchedAsset[]
+  organizationTemplates: ApiTemplate[]
+}): boolean {
+  const { prompt, scope, operation, matchedOrganizationTemplates, organizationTemplates } = args
+  if (scope !== 'team' && scope !== 'team_of_teams') return false
+  const topOrgTemplate = matchedOrganizationTemplates[0]
+  if (!topOrgTemplate) return true
+  const domainTokens = getSpecificPromptTokens(prompt)
+  const matchedTemplate = organizationTemplates.find((template) => (
+    (template.slug || template.name) === topOrgTemplate.id || template.name === topOrgTemplate.name
+  ))
+  const haystack = [
+    matchedTemplate?.slug,
+    matchedTemplate?.name,
+    matchedTemplate?.description,
+    ...(matchedTemplate?.tags || []),
+    ...(matchedTemplate?.agents || []).flatMap((agent) => [agent.id, agent.name, agent.role]),
+  ].filter(Boolean).join(' ')
+  const overlap = countTokenOverlapInText(domainTokens, haystack)
+  const overlapRatio = domainTokens.length > 0 ? overlap / domainTokens.length : 0
+  const looksGeneric = overlap === 0 || (domainTokens.length >= 3 && overlapRatio < 0.34)
+  if (operation === 'create_new') return looksGeneric || topOrgTemplate.score < 10
+  if (operation === 'unknown') return looksGeneric && topOrgTemplate.score < 11
+  return false
 }
 
 function createAssetAction(asset: BuilderMatchedAsset, matchedAssets: BuilderRecommendation['matchedAssets']): BuilderAction {
@@ -954,6 +1038,7 @@ function hydrateBuilderAction(action: BuilderAction, recommendation: BuilderReco
     return { ...action, workflowId: topWorkflow.id }
   }
   if (action.page === 'templates') {
+    if (action.action === 'create-ai') return action
     const template = recommendation.intent === 'team_template' ? topOrgTemplate : (topAgentTemplate || topOrgTemplate)
     if (template) {
       return {
@@ -1000,6 +1085,7 @@ export default function Builder({
   onOpenWorkflow?: (workflowId: string) => void
 }) {
   const { activeWorkspace } = useWorkspace()
+  const { user } = useAuth()
   const workspaceKey = activeWorkspace?.id || activeWorkspace?.path || 'default'
   const [prompt, setPrompt] = useState('')
   const [loading, setLoading] = useState(false)
@@ -1013,7 +1099,13 @@ export default function Builder({
   const [showArchives, setShowArchives] = useState(false)
   const [viewingArchive, setViewingArchive] = useState<BuilderArchive | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
-  const [starterPrompts, setStarterPrompts] = useState<string[]>(DEFAULT_STARTER_PROMPTS)
+  const [starterPrompts, setStarterPrompts] = useState<string[]>(buildWorkspaceStarterPrompts({
+    agents: [],
+    skills: [],
+    workflows: [],
+    templates: { agents: [], organizations: [] },
+  }))
+  const [refreshingStarterPrompts, setRefreshingStarterPrompts] = useState(false)
   const [feedbackByRecommendation, setFeedbackByRecommendation] = useState<Record<string, 'up' | 'down'>>({})
   const [showRightPane, setShowRightPane] = useState(true)
   const recognitionRef = useRef<any>(null)
@@ -1044,33 +1136,110 @@ export default function Builder({
     setFeedbackByRecommendation(loadBuilderFeedback(workspaceKey))
   }, [workspaceKey])
 
-  useEffect(() => {
-    let cancelled = false
-    async function loadStarterPrompts() {
-      try {
-        const [agentsResp, skillsResp, templatesResp] = await Promise.all([
-          fetch('/api/agents').then(async (response) => response.ok ? response.json() : { agents: [] }).catch(() => ({ agents: [] })),
-          fetch('/api/skills').then(async (response) => response.ok ? response.json() : { skills: [] }).catch(() => ({ skills: [] })),
-          fetch('/api/templates').then(async (response) => response.ok ? response.json() : { agents: [], organizations: [] }).catch(() => ({ agents: [], organizations: [] })),
-        ])
-        if (cancelled) return
-        setStarterPrompts(buildWorkspaceStarterPrompts({
-          agents: (agentsResp.agents || []) as ApiAgent[],
-          skills: (skillsResp.skills || []) as ApiSkill[],
-          templates: {
-            agents: (templatesResp.agents || []) as ApiTemplate[],
-            organizations: (templatesResp.organizations || []) as ApiTemplate[],
-          },
-        }))
-      } catch {
-        if (!cancelled) setStarterPrompts(DEFAULT_STARTER_PROMPTS)
+  async function refreshStarterPrompts(options?: { seedPrompt?: string }) {
+    setRefreshingStarterPrompts(true)
+    try {
+      const [agentsResp, skillsResp, templatesResp, workflowsResp, workspacesResp] = await Promise.all([
+        fetch('/api/agents').then(async (response) => response.ok ? response.json() : { agents: [] }).catch(() => ({ agents: [] })),
+        fetch('/api/skills').then(async (response) => response.ok ? response.json() : { skills: [] }).catch(() => ({ skills: [] })),
+        fetch('/api/templates').then(async (response) => response.ok ? response.json() : { agents: [], organizations: [] }).catch(() => ({ agents: [], organizations: [] })),
+        fetch('/api/workflows').then(async (response) => response.ok ? response.json() : { workflows: [] }).catch(() => ({ workflows: [] })),
+        fetch('/api/workspaces').then(async (response) => response.ok ? response.json() : { workspaces: [] }).catch(() => ({ workspaces: [] })),
+      ])
+
+      const agents = (agentsResp.agents || []) as ApiAgent[]
+      const skills = (skillsResp.skills || []) as ApiSkill[]
+      const templates = {
+        agents: (templatesResp.agents || []) as ApiTemplate[],
+        organizations: (templatesResp.organizations || []) as ApiTemplate[],
       }
+      const workflows = (workflowsResp.workflows || []) as ApiWorkflow[]
+      const otherWorkspaceNames = ((workspacesResp.workspaces || []) as Array<{ id?: string; name?: string }>)
+        .filter((workspace) => workspace?.name && workspace.id !== activeWorkspace?.id)
+        .map((workspace) => String(workspace.name))
+
+      const recentPrompts = normalizeStarterPromptList([
+        options?.seedPrompt || '',
+        ...historyItems.map((item) => item.content),
+        ...archives.flatMap((archive) => archive.messages.filter((message) => message.role === 'user').map((message) => message.content)),
+      ])
+
+      const fallbackPrompts = buildWorkspaceStarterPrompts({
+        workspaceName: activeWorkspace?.name,
+        workspaceTags: activeWorkspace?.tags,
+        userName: user?.name || user?.login || undefined,
+        recentPrompts,
+        agents,
+        skills,
+        workflows,
+        templates,
+        otherWorkspaceNames,
+      })
+
+      const byok = readStoredByokKeys()
+      const shared = {
+        ...readSharedSecrets('global'),
+        ...readSharedSecrets('workspace'),
+      }
+      const openai = (shared.OPENAI_API_KEY || byok.openai || '').trim()
+      const anthropic = (shared.ANTHROPIC_API_KEY || byok.anthropic || '').trim()
+      const gemini = (shared.GEMINI_API_KEY || byok.geminiApiKey || '').trim()
+
+      try {
+        const response = await fetch('/api/ai-builder/starter-prompts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            workspaceName: activeWorkspace?.name,
+            workspaceTags: activeWorkspace?.tags || [],
+            userName: user?.name || user?.login || undefined,
+            userEmail: user?.email || undefined,
+            recentPrompts,
+            agents: agents.slice(0, 8).map((agent) => agent.name || agent.id),
+            skills: skills.slice(0, 8).map((skill) => skill.name),
+            workflows: workflows.slice(0, 8).map((workflow) => workflow.name),
+            agentTemplates: templates.agents.slice(0, 8).map((template) => template.name),
+            organizationTemplates: templates.organizations.slice(0, 8).map((template) => template.name),
+            otherWorkspaceNames,
+            byokKeys: {
+              openai: openai || undefined,
+              anthropic: anthropic || undefined,
+              gemini: gemini || undefined,
+              openaiCompatibleApiKey: byok.openaiCompatibleApiKey || undefined,
+              openaiCompatibleBaseUrl: byok.openaiCompatibleBaseUrl || undefined,
+              openaiCompatibleDefaultModel: byok.openaiCompatibleDefaultModel || undefined,
+            },
+          }),
+        })
+        const data = await response.json().catch(() => ({}))
+        if (response.ok && Array.isArray(data?.prompts) && data.prompts.length > 0) {
+          setStarterPrompts(normalizeStarterPromptList(data.prompts.map((value: unknown) => String(value || ''))))
+          return
+        }
+      } catch {
+        // Fall back below.
+      }
+
+      setStarterPrompts(fallbackPrompts)
+    } catch {
+      setStarterPrompts(buildWorkspaceStarterPrompts({
+        workspaceName: activeWorkspace?.name,
+        workspaceTags: activeWorkspace?.tags,
+        userName: user?.name || user?.login || undefined,
+        recentPrompts: options?.seedPrompt ? [options.seedPrompt] : [],
+        agents: [],
+        skills: [],
+        workflows: [],
+        templates: { agents: [], organizations: [] },
+      }))
+    } finally {
+      setRefreshingStarterPrompts(false)
     }
-    void loadStarterPrompts()
-    return () => {
-      cancelled = true
-    }
-  }, [workspaceKey])
+  }
+
+  useEffect(() => {
+    void refreshStarterPrompts()
+  }, [activeWorkspace?.id, activeWorkspace?.name, user?.id])
 
   useEffect(() => {
     if (!hasConversation && !recommendation) {
@@ -1215,6 +1384,7 @@ export default function Builder({
           ])
           setPrompt('')
           setAttachments([])
+          void refreshStarterPrompts({ seedPrompt: value })
           return
         }
         throw parseError
@@ -1235,6 +1405,7 @@ export default function Builder({
       ])
       setPrompt('')
       setAttachments([])
+      void refreshStarterPrompts({ seedPrompt: value })
     } catch (err: any) {
       setError(err?.message || 'Failed to build recommendation')
     } finally {
@@ -1329,6 +1500,11 @@ export default function Builder({
     void submitPrompt()
   }
 
+  function editPromptDraft(value: string) {
+    setPrompt(value)
+    setTimeout(() => textareaRef.current?.focus(), 0)
+  }
+
   const recommendationFeedbackKey = recommendation
     ? `${recommendation.intent}:${recommendation.recommendedPath.title}`
     : null
@@ -1355,7 +1531,7 @@ export default function Builder({
 
   return (
     <div className="h-full overflow-hidden bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.12),_transparent_32%),linear-gradient(180deg,_rgba(15,23,42,0.04),_rgba(15,23,42,0))] dark:bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.12),_transparent_28%),linear-gradient(180deg,_rgba(15,23,42,0.25),_rgba(15,23,42,0))]">
-      <div className={`mx-auto grid h-full max-w-7xl grid-cols-1 gap-4 overflow-hidden px-3 py-4 lg:px-5 ${
+      <div className={`relative mx-auto grid h-full max-w-7xl grid-cols-1 gap-4 overflow-hidden px-3 py-4 lg:px-5 ${
         showRightPane ? 'lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_380px]' : ''
       }`}>
         <section className="flex min-h-0 flex-col overflow-hidden rounded-3xl border border-gray-200 bg-white/90 p-4 shadow-sm backdrop-blur dark:border-gray-800 dark:bg-gray-900/80">
@@ -1393,14 +1569,6 @@ export default function Builder({
               {hasConversation && (
                 <div className="flex flex-wrap items-center gap-2">
                   <button
-                    onClick={() => setShowRightPane((value) => !value)}
-                    className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-600 transition-colors hover:border-sky-300 hover:text-sky-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-sky-700 dark:hover:text-sky-200"
-                    title={showRightPane ? 'Hide right pane' : 'Show right pane'}
-                    aria-label={showRightPane ? 'Hide right pane' : 'Show right pane'}
-                  >
-                    {showRightPane ? <ChevronRightIcon /> : <ChevronLeftIcon />}
-                  </button>
-                  <button
                     onClick={() => setShowClearConfirm(true)}
                     className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-600 transition-colors hover:border-sky-300 hover:text-sky-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-sky-700 dark:hover:text-sky-200"
                   >
@@ -1425,8 +1593,17 @@ export default function Builder({
 
             {!hasConversation && (
               <div className="mt-4">
-                <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">
-                  Suggested Prompts
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">
+                    Suggested Prompts
+                  </div>
+                  <button
+                    onClick={() => void refreshStarterPrompts({ seedPrompt: prompt })}
+                    disabled={refreshingStarterPrompts}
+                    className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-[11px] font-medium text-gray-600 transition-colors hover:border-sky-300 hover:text-sky-700 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-sky-700 dark:hover:text-sky-200"
+                  >
+                    {refreshingStarterPrompts ? 'Refreshing…' : 'Regenerate'}
+                  </button>
                 </div>
                 <div className="grid gap-2 md:grid-cols-2">
                   {starterPrompts.map((starter) => (
@@ -1449,6 +1626,15 @@ export default function Builder({
                 <div key={message.id} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   <div className="max-w-[88%]">
                     <div className={`mb-1 flex items-center gap-2 text-[11px] font-medium ${message.role === 'user' ? 'justify-end text-sky-200 dark:text-sky-200' : 'text-gray-500 dark:text-gray-400'}`}>
+                      {message.role === 'user' && (
+                        <button
+                          onClick={() => editPromptDraft(message.content)}
+                          className="rounded-full border border-sky-200/60 bg-sky-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-sky-100 transition-colors hover:border-white/60 hover:bg-sky-500/20"
+                          title="Edit this prompt"
+                        >
+                          Edit
+                        </button>
+                      )}
                       <span className={`inline-flex h-6 w-6 items-center justify-center rounded-full ${message.role === 'user' ? 'bg-sky-600 text-white' : 'bg-white text-sky-700 dark:bg-gray-900 dark:text-sky-300'}`}>
                         {message.role === 'user' ? <UserIcon /> : <BuilderIcon />}
                       </span>
@@ -1654,8 +1840,27 @@ export default function Builder({
           </div>
         </section>
 
+        {!showRightPane && (
+          <button
+            onClick={() => setShowRightPane(true)}
+            className="absolute right-5 top-1/2 z-10 hidden -translate-y-1/2 items-center gap-2 rounded-l-2xl rounded-r-xl border border-gray-200 bg-white/95 px-2 py-3 text-xs text-gray-600 shadow-sm transition-colors hover:border-sky-300 hover:text-sky-700 dark:border-gray-700 dark:bg-gray-900/95 dark:text-gray-300 dark:hover:border-sky-700 dark:hover:text-sky-200 lg:inline-flex"
+            title="Show right pane"
+            aria-label="Show right pane"
+          >
+            <ChevronLeftIcon />
+          </button>
+        )}
+
         {showRightPane && (
-        <aside className="min-h-0 overflow-hidden rounded-3xl border border-gray-200 bg-white/90 p-3 shadow-sm backdrop-blur dark:border-gray-800 dark:bg-gray-900/80">
+        <aside className="relative min-h-0 overflow-hidden rounded-3xl border border-gray-200 bg-white/90 p-3 shadow-sm backdrop-blur dark:border-gray-800 dark:bg-gray-900/80">
+          <button
+            onClick={() => setShowRightPane(false)}
+            className="absolute -left-3 top-6 z-10 hidden h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 shadow-sm transition-colors hover:border-sky-300 hover:text-sky-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-sky-700 dark:hover:text-sky-200 lg:inline-flex"
+            title="Hide right pane"
+            aria-label="Hide right pane"
+          >
+            <ChevronRightIcon />
+          </button>
           <div ref={rightPaneRef} className="h-full space-y-3 overflow-y-auto pr-1">
             <div ref={currentRecommendationRef} className="rounded-3xl border border-gray-200 bg-white/80 p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900/80">
               <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-500 dark:text-gray-400">
@@ -1875,9 +2080,14 @@ export default function Builder({
                   <div className="text-xs text-gray-500 dark:text-gray-400">No builder history yet.</div>
                 ) : (
                   historyItems.map((item) => (
-                    <div key={item.id} className="rounded-2xl border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-800 dark:text-gray-300">
+                    <button
+                      key={item.id}
+                      onClick={() => editPromptDraft(item.content)}
+                      className="w-full rounded-2xl border border-gray-200 px-3 py-2 text-left text-sm text-gray-700 transition-colors hover:border-sky-300 hover:bg-sky-50 dark:border-gray-800 dark:text-gray-300 dark:hover:border-sky-700 dark:hover:bg-sky-900/20"
+                      title="Load this prompt back into the composer"
+                    >
                       {item.content}
-                    </div>
+                    </button>
                   ))
                 )}
               </div>
