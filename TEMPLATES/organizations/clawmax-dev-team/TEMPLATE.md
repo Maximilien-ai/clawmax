@@ -3,39 +3,59 @@ name: ClawMax Dev Team
 type: organization
 version: 1.0.0
 category: technical
-description: Self-managing development team. Agents triage issues, review PRs, run tests, and prepare releases.
 author: ClawMax Team
-tags: [dev-team, self-management, github, ci-cd]
+tags:
+  - dev-team
+  - self-management
+  - github
+  - ci-cd
 ---
 
-# ClawMax Dev Team
-
-**Purpose:** Autonomous dev team that manages a GitHub repo — triage issues, review PRs, run tests, prepare releases.
+Self-managing development team for ClawMax. Agents triage issues, review PRs, run tests, and prepare releases. Pre-configured for the ClawMax repo with sensible defaults.
 
 ## Agents
-- **dev-lead**: Architecture decisions, PR approvals, sprint planning
-- **qa-engineer**: Test execution, coverage reporting, failure tracking
-- **github-triage**: Issue labeling, priority assignment, stale issue detection
-- **release-engineer**: Changelogs, version tags, release notes
 
-## Workflow DAG
-```
-dev-team-kickoff
-  → issue-triage (daily 9am)
-  → test-run (daily 10am)
-    → pr-review (manual, after triage)
-      → release-prep (manual, after PR review + tests)
-```
+| id | name | role | tags | skills |
+|----|------|------|------|--------|
+| dev-lead | Dev Lead | Development lead — coordinates the team, reviews architecture decisions, approves PRs, manages releases. | lead, dev, architecture | github, gh-issues, workspace-ls |
+| qa-engineer | QA Engineer | Quality assurance — runs test suites, reports failures, verifies fixes, maintains test coverage. | qa, testing | github, gh-issues, workspace-ls |
+| github-triage | GitHub Triage | Issue and PR triage — labels new issues, assigns priority, and routes work to the right team member. | triage, github, issues | github, gh-issues, workspace-ls |
+| release-engineer | Release Engineer | Release management — prepares changelogs, tags releases, verifies builds, and updates version numbers. | release, ci-cd, deploy | github, gh-issues, workspace-ls |
 
-## Defaults
-- GitHub repo: owner/repo-name
-- Main branch: main
-- Test command: ./SYSTEM/test.sh
-- Release prefix: v
+## Communities
+
+- **Dev Team** — ClawMax development team coordination.
 
 ## Groups
-- **Dev Status**: Daily standups
-- **Code Review**: PR discussions
-- **Testing**: Test results and QA
-- **Triage**: Issue management
-- **Release**: Release planning and deployment
+
+- **Dev Status** — Daily standups and status updates (Dev Team)
+- **Code Review** — PR reviews and code discussions (Dev Team)
+- **Testing** — Test results, coverage reports, and QA updates (Dev Team)
+- **Triage** — Issue triage, bug reports, and feature requests (Dev Team)
+- **Release** — Release planning, changelogs, and deployment (Dev Team)
+
+## Workflows
+
+### Dev Team Kickoff
+- **Schedule:** manual
+- **Mode:** managed
+- **Targets:** agents: dev-lead, qa-engineer, github-triage, release-engineer
+
+# Dev Team Kickoff
+
+You are the Dev Lead. Your team just came online.
+
+## Project Configuration
+- **GitHub repo:** [owner/repo-name]
+- **Main branch:** [main]
+- **Test command:** [./SYSTEM/test.sh]
+- **Release prefix:** [v]
+
+### Issue Triage
+- **Schedule:** 0 9 * * *
+- **Mode:** automated
+- **Targets:** agents: github-triage; groups: Triage
+
+# Daily Issue Triage
+
+Check the repository for new issues, apply labels and priorities, and post a triage summary.

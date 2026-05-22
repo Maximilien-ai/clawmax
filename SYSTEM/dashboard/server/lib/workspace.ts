@@ -6,6 +6,7 @@ import { execFileSync } from 'child_process'
 import { getWorkspaceManager } from './workspace-manager'
 import { getPausedAgents } from './agent-state'
 import { getBestAvailableModel, getDashboardEnvRaw, getDefaultOllamaBaseUrl, getSystemProviderKeys, getUserDefaultProviderKeys, isOllamaUiEnabled } from './dashboard-env'
+import { REPO_ROOT } from './paths'
 
 // Legacy constant for backward compatibility
 export const WORKSPACE = process.env.OPENCLAW_WORKSPACE || path.join(process.env.HOME || '', '.openclaw', 'workspace')
@@ -1765,6 +1766,49 @@ function findDashboardPackageVersion(): string | null {
   return null
 }
 
+function getHeadShortSha(): string | null {
+  try {
+    const output = execFileSync('git', ['rev-parse', '--short=7', 'HEAD'], {
+      cwd: REPO_ROOT,
+      stdio: ['ignore', 'pipe', 'ignore'],
+      encoding: 'utf-8',
+    }).trim()
+    return output || null
+  } catch {
+    return null
+  }
+}
+
+function getHeadExactTag(): string | null {
+  try {
+    const output = execFileSync('git', ['describe', '--tags', '--exact-match', 'HEAD'], {
+      cwd: REPO_ROOT,
+      stdio: ['ignore', 'pipe', 'ignore'],
+      encoding: 'utf-8',
+    }).trim()
+    return output || null
+  } catch {
+    return null
+  }
+}
+
+function isRepoDirty(): boolean {
+  try {
+    const output = execFileSync('git', ['status', '--porcelain'], {
+      cwd: REPO_ROOT,
+      stdio: ['ignore', 'pipe', 'ignore'],
+      encoding: 'utf-8',
+    }).trim()
+    return output.length > 0
+  } catch {
+    return false
+  }
+}
+
+function normalizeReleaseVersion(tag: string): string {
+  return tag.replace(/^v/, '')
+}
+
 export function getDashboardVersion(): string {
   const envVersion = process.env.CLAWMAX_VERSION?.trim()
   if (isUsableVersion(envVersion)) return envVersion
@@ -1775,7 +1819,17 @@ export function getDashboardVersion(): string {
   }
 
   const gitTag = getLatestTag()
-  if (isUsableVersion(gitTag)) return gitTag
+  if (isUsableVersion(gitTag)) {
+    const exactTag = getHeadExactTag()
+    if (exactTag === gitTag) return gitTag
+
+    const shortSha = getHeadShortSha()
+    if (shortSha) {
+      return `${normalizeReleaseVersion(gitTag)}-${shortSha}${isRepoDirty() ? '*' : ''}`
+    }
+
+    return gitTag
+  }
 
   if (packageVersion) return packageVersion
 

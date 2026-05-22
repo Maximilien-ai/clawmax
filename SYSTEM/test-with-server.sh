@@ -21,6 +21,14 @@ BACKEND_PORT="${DASHBOARD_PORT:-3001}"
 FRONTEND_PORT="${DASHBOARD_CLIENT_PORT:-5173}"
 FRONTEND_URL="${DASHBOARD_APP_URL:-http://localhost:${FRONTEND_PORT}}"
 API_BASE="http://localhost:${BACKEND_PORT}"
+RUN_INTEGRATION=false
+
+for arg in "$@"; do
+  if [ "$arg" = "integration" ]; then
+    RUN_INTEGRATION=true
+    break
+  fi
+done
 
 export DASHBOARD_PORT="$BACKEND_PORT"
 export DASHBOARD_CLIENT_PORT="$FRONTEND_PORT"
@@ -126,6 +134,16 @@ if ! health_ready; then
 
   if ! wait_for_health 60; then
     echo "Dashboard did not become healthy on $API_BASE"
+    echo "Logs: tail -f /tmp/dashboard.log"
+    cleanup_started_processes
+    exit 1
+  fi
+elif [ "$RUN_INTEGRATION" = true ] && [ "${CLAWMAX_TEST_REUSE_SERVER:-}" != "true" ]; then
+  echo "Integration mode detected; restarting dashboard to test the current source tree."
+  STARTED_SERVER=true
+  CLAWMAX_SKIP_GATEWAY_BOOTSTRAP=true "$SCRIPT_DIR/start.sh" --restart
+  if ! wait_for_health 60; then
+    echo "Dashboard did not become healthy on $API_BASE after restart"
     echo "Logs: tail -f /tmp/dashboard.log"
     cleanup_started_processes
     exit 1

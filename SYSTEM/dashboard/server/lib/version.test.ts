@@ -58,7 +58,22 @@ async function run() {
   await test('getDashboardVersion ignores placeholder env values and prefers git/source version', () => {
     process.env.CLAWMAX_VERSION = 'dev'
     const resolved = getDashboardVersion()
-    assert(resolved.startsWith('v') || /^\d+\.\d+\.\d+/.test(resolved), `Expected a real fallback version, got ${resolved}`)
+    assert(
+      resolved.startsWith('v') || /^\d+\.\d+\.\d+(?:-[0-9a-f]{7}\*?)?$/.test(resolved),
+      `Expected a real fallback version, got ${resolved}`,
+    )
+  })
+
+  await test('getDashboardVersion includes short sha when HEAD is past the latest stable tag', () => {
+    process.env.CLAWMAX_VERSION = 'dev'
+    const resolved = getDashboardVersion()
+    if (/^\d+\.\d+\.\d+-[0-9a-f]{7}\*?$/.test(resolved)) {
+      return
+    }
+    assert(
+      resolved.startsWith('v'),
+      `Expected exact tagged releases to keep their tag form, got ${resolved}`,
+    )
   })
 
   if (typeof originalVersion === 'undefined') delete process.env.CLAWMAX_VERSION

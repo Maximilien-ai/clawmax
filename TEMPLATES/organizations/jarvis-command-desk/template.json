@@ -319,7 +319,7 @@
       "executionMode": "managed",
       "dependsOn": [
         "daily-command-brief",
-        "comms-and-followups",
+        "comms-and-follow-ups",
         "briefing-pack"
       ],
       "tags": [
