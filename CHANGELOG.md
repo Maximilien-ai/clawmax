@@ -6,6 +6,16 @@ All notable changes to ClawMax are documented here.
 
 - No unreleased changes yet.
 
+## [v1.5.7] - 2026-05-22
+
+### Emergency Fix — On-Prem Readiness
+- **Non-Blocking Startup After Listen** — the dashboard no longer performs synchronous workspace-agent auto-registration immediately inside the server listen callback, which could block the Node event loop right after startup on real on-prem mounted workspaces.
+- **Podman Health Gate Recovery** — `/api/health` can now become ready as soon as the server is listening, instead of hanging behind auto-registration work that made `1.5.6` appear started while never satisfying the on-prem readiness gate.
+- **Background Startup Services** — workspace-agent auto-registration, scheduler startup, notification monitoring, and Opik initialization now run in a deferred background startup path with explicit error logging rather than delaying initial request handling.
+
+### Quality
+- **Hotfix Validation** — validated locally with `npx tsc --noEmit` and `sh ./docker-entrypoint.test.sh` in `SYSTEM/dashboard`.
+
 ## [v1.5.6] - 2026-05-21
 
 ### BYOK / Local Runtime Follow-Through
