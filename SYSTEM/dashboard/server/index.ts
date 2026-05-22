@@ -20,6 +20,7 @@ import workflowsRouter from './routes/workflows'
 import integrationsRouter from './routes/integrations'
 import teamsRouter from './routes/teams'
 import aiRouter from './routes/ai'
+import aiBuilderRouter from './routes/ai-builder'
 import templateRegistryRouter from './routes/template-registry'
 import { isTemplateRegistryWriteEnabled } from './lib/template-registry'
 import { WORKSPACE, getWorkspacePath, listAgents, getWorkspaceActivity, getDashboardVersion, writeWorkspaceFile, getOrgName, parseGroups, parseIdentity, isManagedAgentWorkspaceDir } from './lib/workspace'
@@ -585,6 +586,7 @@ app.use('/api/template-registry', templateRegistryRouter)
 app.use('/api/skills', protect, skillsRouter)
 app.use('/api/workflows', protect, workflowsRouter)
 app.use('/api/ai', protect, aiRouter)
+app.use('/api/ai-builder', protect, aiBuilderRouter)
 app.use('/api/workspaces', protect, workspacesRouter)
 app.use('/api/notifications', protect, notificationsRouter)
 app.use('/api/integrations', protect, integrationsRouter)

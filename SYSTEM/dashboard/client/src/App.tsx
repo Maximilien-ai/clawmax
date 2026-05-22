@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import Builder from './pages/Builder'
 import Agents from './pages/Agents'
 import DocHub from './pages/DocHub'
 import Activity from './pages/Activity'
@@ -78,6 +79,16 @@ function BotIcon({ className }: { className?: string }) {
       <path d="M9 13h.01" />
       <path d="M15 13h.01" />
       <path d="M9 17h6" />
+    </svg>
+  )
+}
+
+function SparkIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={iconClassName(className)}>
+      <path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3Z" />
+      <path d="M5 18.5 6 21l1-2.5L9.5 17 7 16l-1-2.5L5 16l-2.5 1L5 18.5Z" />
+      <path d="M19 16.5 19.7 18l1.8.7-1.8.7L19 21l-.7-1.6-1.8-.7 1.8-.7L19 16.5Z" />
     </svg>
   )
 }
@@ -186,6 +197,7 @@ function LogIcon({ className }: { className?: string }) {
 }
 
 const DEFAULT_NAV_ORDER: NavItem[] = [
+  { id: 'builder', label: 'Builder', icon: SparkIcon },
   { id: 'agents', label: 'Agents', icon: BotIcon },
   { id: 'workflows', label: 'Workflows', icon: WorkflowIcon },
   { id: 'communication', label: 'Communications', icon: MessageIcon },
@@ -200,7 +212,7 @@ const DEFAULT_NAV_ORDER: NavItem[] = [
 ]
 
 // User tabs that can be rearranged (first 5)
-const USER_TABS_COUNT = 5
+const USER_TABS_COUNT = 6
 const CREATION_TABS_ORDER: Page[] = ['skills', 'templates']
 const OPERATIONS_TABS_ORDER: Page[] = ['keys', 'activity', 'logs']
 const SYSTEM_TABS_ORDER: Page[] = [...CREATION_TABS_ORDER, ...OPERATIONS_TABS_ORDER]
@@ -222,6 +234,10 @@ function normalizeNavOrder(saved: NavItem[] | null | undefined): NavItem[] {
 
   const savedUserIds = uniqueSavedIds.filter(id => defaultUserIds.includes(id))
   const savedSystemIds = uniqueSavedIds.filter(id => defaultSystemIds.includes(id))
+
+  if (!savedUserIds.includes('builder')) {
+    savedUserIds.unshift('builder')
+  }
 
   for (const id of defaultUserIds) {
     if (!savedUserIds.includes(id)) savedUserIds.push(id)
@@ -693,6 +709,25 @@ export default function App() {
                   initialAction={initialAgentAction}
                   onInitialActionHandled={() => setInitialAgentAction(undefined)}
                   isActive={page === 'agents'}
+                />
+              </WorkspaceScoped>
+            </div>
+            )}
+            {visitedPages.has('builder') && (
+            <div className={`flex-1 overflow-auto ${page === 'builder' ? '' : 'hidden'}`}>
+              <WorkspaceScoped pageKey="builder">
+                <Builder
+                  onNavigateToPage={(nextPage) => setPage(nextPage as Page)}
+                  onOpenAgentCreate={() => { setInitialAgentAction('create'); setPage('agents') }}
+                  onOpenAgentCreateAI={() => { setInitialAgentAction('create-ai'); setPage('agents') }}
+                  onOpenAgentImport={() => { setInitialAgentAction('import'); setPage('agents') }}
+                  onOpenAgent={(agentId) => { setInitialAgentId(agentId); setPage('agents') }}
+                  onOpenSkill={(skillName, agentId) => {
+                    setInitialSkillsAgent(agentId)
+                    setInitialSkillsSkill(skillName)
+                    setPage('skills')
+                  }}
+                  onOpenWorkflow={(workflowId) => { setInitialWorkflowId(workflowId); setPage('workflows') }}
                 />
               </WorkspaceScoped>
             </div>
