@@ -10,6 +10,22 @@ export type AiBuilderIntent =
   | 'team_template'
   | 'ai_generate'
 
+export type AiBuilderScope =
+  | 'single_agent'
+  | 'team'
+  | 'team_of_teams'
+  | 'unknown'
+
+export type AiBuilderOperation =
+  | 'reuse_existing'
+  | 'improve_existing'
+  | 'use_template'
+  | 'refine_template'
+  | 'create_new'
+  | 'unknown'
+
+export type AiBuilderConfidence = 'high' | 'medium' | 'low'
+
 export interface AiBuilderAction {
   id: string
   label: string
@@ -25,13 +41,23 @@ export interface AiBuilderMatchedAsset {
   type: 'agent' | 'skill' | 'agent-template' | 'organization-template' | 'workflow'
   summary: string
   score: number
+  matchCount?: number
   source?: string
 }
 
 export interface AiBuilderRecommendation {
   intent: AiBuilderIntent
+  scope: AiBuilderScope
+  operation: AiBuilderOperation
+  confidence: AiBuilderConfidence
   summary: string
   clarifyingQuestions: string[]
+  confirmationOptions: Array<{
+    id: string
+    label: string
+    prompt: string
+    reasoning: string
+  }>
   recommendedPath: {
     title: string
     reasoning: string
@@ -62,6 +88,8 @@ type SearchableRecord = {
 }
 
 const TEAM_KEYWORDS = ['team', 'teams', 'handoff', 'handoffs', 'workflow', 'workflows', 'company', 'organization', 'org', 'lane', 'lanes', 'group', 'groups']
+const TEAM_OF_TEAMS_KEYWORDS = ['team of teams', 'teams of teams', 'multi-team', 'multiple teams', 'teams and subteams', 'org of teams', 'organization of teams']
+const AGENT_KEYWORDS = ['agent', 'assistant', 'helper', 'specialist']
 const SKILL_KEYWORDS = ['skill', 'skills', 'tool', 'tools', 'github', 'slack', 'whatsapp', 'gmail', 'calendar', 'integration', 'integrations', 'api', 'connect', 'connector']
 const CREATE_KEYWORDS = ['create', 'build', 'design', 'new', 'from scratch', 'generate']
 const REUSE_KEYWORDS = ['existing', 'already have', 'reuse', 'use my', 'current']
@@ -69,6 +97,11 @@ const TEMPLATE_KEYWORDS = ['template', 'templates', 'refine template', 'edit tem
 const AGENT_TEMPLATE_KEYWORDS = ['agent template', 'agent starter', 'create agent from template', 'use template for agent']
 const REFINE_KEYWORDS = ['refine', 'improve', 'edit', 'update', 'adjust', 'tune']
 const NEW_BUILD_KEYWORDS = ['new', 'from scratch', 'generate', 'net new']
+const IMPROVE_EXISTING_KEYWORDS = ['improve my', 'improve current', 'make better', 'upgrade', 'extend', 'enhance']
+const TEMPLATE_REFINE_KEYWORDS = ['refine template', 'edit template', 'adapt template', 'customize template', 'improve template']
+const EXISTING_TEMPLATE_KEYWORDS = ['existing template', 'current template', 'already have a template', 'local template']
+const AMBIGUITY_KEYWORDS = ['maybe', 'not sure', 'whichever fits best', 'or maybe', 'either']
+const NON_SCORING_TOKENS = new Set(['agent', 'agents', 'team', 'teams', 'template', 'templates', 'create', 'build', 'design', 'new', 'from', 'scratch', 'use'])
 
 function topScore(items: AiBuilderMatchedAsset[]): number {
   return items[0]?.score || 0
@@ -85,13 +118,35 @@ function tokenize(prompt: string): string[] {
       .replace(/[^a-z0-9\s-]/g, ' ')
       .split(/\s+/)
       .map((token) => token.trim())
-      .filter((token) => token.length >= 3)
+      .filter((token) => token.length >= 3 && !NON_SCORING_TOKENS.has(token))
   ))
 }
 
 function includesAny(prompt: string, words: string[]): boolean {
   const normalized = prompt.toLowerCase()
   return words.some((word) => normalized.includes(word))
+}
+
+function detectScope(prompt: string): AiBuilderScope {
+  if (includesAny(prompt, TEAM_OF_TEAMS_KEYWORDS)) return 'team_of_teams'
+  if (includesAny(prompt, TEAM_KEYWORDS)) return 'team'
+  if (includesAny(prompt, ['operations', 'ops', 'intake', 'delivery']) && includesAny(prompt, TEMPLATE_KEYWORDS)) return 'team'
+  if (includesAny(prompt, AGENT_KEYWORDS)) return 'single_agent'
+  return 'unknown'
+}
+
+function detectOperation(prompt: string): AiBuilderOperation {
+  const hasTemplateLanguage = includesAny(prompt, TEMPLATE_KEYWORDS)
+  if (hasTemplateLanguage && (includesAny(prompt, TEMPLATE_REFINE_KEYWORDS) || includesAny(prompt, EXISTING_TEMPLATE_KEYWORDS) || includesAny(prompt, REFINE_KEYWORDS))) {
+    return 'refine_template'
+  }
+  if (hasTemplateLanguage || includesAny(prompt, AGENT_TEMPLATE_KEYWORDS)) return 'use_template'
+  if ((includesAny(prompt, IMPROVE_EXISTING_KEYWORDS) || includesAny(prompt, REFINE_KEYWORDS)) && (includesAny(prompt, AGENT_KEYWORDS) || includesAny(prompt, REUSE_KEYWORDS))) {
+    return 'improve_existing'
+  }
+  if (includesAny(prompt, REUSE_KEYWORDS) && includesAny(prompt, AGENT_KEYWORDS)) return 'reuse_existing'
+  if (includesAny(prompt, CREATE_KEYWORDS) || includesAny(prompt, NEW_BUILD_KEYWORDS)) return 'create_new'
+  return 'unknown'
 }
 
 function scoreRecord(tokens: string[], record: SearchableRecord): number {
@@ -104,6 +159,22 @@ function scoreRecord(tokens: string[], record: SearchableRecord): number {
     if (record.id.toLowerCase().includes(token)) score += 2
   }
   return score
+}
+
+function countRecordMatches(tokens: string[], record: SearchableRecord): number {
+  let matches = 0
+  const haystack = record.haystack
+  for (const token of tokens) {
+    if (haystack.includes(token)) matches++
+  }
+  return matches
+}
+
+type IntentDecision = {
+  intent: AiBuilderIntent
+  scope: AiBuilderScope
+  operation: AiBuilderOperation
+  confidence: AiBuilderConfidence
 }
 
 function toAgentRecord(agent: AgentInfo): SearchableRecord {
@@ -194,6 +265,7 @@ function rankAssets<T extends SearchableRecord>(
       type,
       summary: record.summary,
       score: scoreRecord(tokens, record),
+      matchCount: countRecordMatches(tokens, record),
       source: record.source,
     }))
     .filter((item) => item.score > 0)
@@ -203,7 +275,7 @@ function rankAssets<T extends SearchableRecord>(
 
 function buildClarifyingQuestions(prompt: string, intent: AiBuilderIntent, matches: AiBuilderRecommendation['matchedAssets']): string[] {
   const questions: string[] = []
-  if (!includesAny(prompt, ['one agent', 'single agent', 'team', 'company', 'organization'])) {
+  if (!includesAny(prompt, ['one agent', 'single agent', 'team', 'company', 'organization', 'team of teams', 'multi-team'])) {
     questions.push('Is this best handled by one agent or a coordinated team?')
   }
   if (intent === 'skill_or_integration') {
@@ -221,42 +293,176 @@ function buildClarifyingQuestions(prompt: string, intent: AiBuilderIntent, match
   return questions.slice(0, 4)
 }
 
+function buildConfirmationOptions(args: {
+  prompt: string
+  scope: AiBuilderScope
+  operation: AiBuilderOperation
+  confidence: AiBuilderConfidence
+  matchedAgents: AiBuilderMatchedAsset[]
+  matchedAgentTemplates: AiBuilderMatchedAsset[]
+  matchedOrganizationTemplates: AiBuilderMatchedAsset[]
+}): AiBuilderRecommendation['confirmationOptions'] {
+  const { prompt, scope, operation, confidence, matchedAgents, matchedAgentTemplates, matchedOrganizationTemplates } = args
+  if (confidence !== 'low') return []
+
+  const options: AiBuilderRecommendation['confirmationOptions'] = []
+  const topAgent = matchedAgents[0]
+  const topAgentTemplate = matchedAgentTemplates[0]
+  const topOrgTemplate = matchedOrganizationTemplates[0]
+
+  if (topAgent) {
+    options.push({
+      id: 'confirm-existing-agent',
+      label: `Use ${topAgent.name}`,
+      prompt: `${prompt}\n\nConfirmation: reuse and improve my existing agent ${topAgent.name}.`,
+      reasoning: `${topAgent.name} already overlaps with the request.`,
+    })
+  }
+  if (scope === 'team' || scope === 'team_of_teams' || topOrgTemplate) {
+    options.push({
+      id: 'confirm-team-template',
+      label: topOrgTemplate ? `Use ${topOrgTemplate.name}` : 'Use a team template',
+      prompt: `${prompt}\n\nConfirmation: I want a coordinated team or team template, not a single agent.`,
+      reasoning: topOrgTemplate
+        ? `${topOrgTemplate.name} is the closest multi-role starting point.`
+        : 'The request sounds multi-role and coordination-heavy.',
+    })
+  }
+  if (topAgentTemplate) {
+    options.push({
+      id: 'confirm-agent-template',
+      label: `Use ${topAgentTemplate.name}`,
+      prompt: `${prompt}\n\nConfirmation: create a new agent from the ${topAgentTemplate.name} template.`,
+      reasoning: `${topAgentTemplate.name} looks like the closest single-agent template match.`,
+    })
+  }
+  if (operation === 'create_new' || options.length < 2) {
+    options.push({
+      id: 'confirm-generate-new',
+      label: 'Create something new',
+      prompt: `${prompt}\n\nConfirmation: create a new solution instead of reusing the current workspace assets.`,
+      reasoning: 'Use a fresh build path if the current assets are only partial matches.',
+    })
+  }
+
+  return options.slice(0, 3)
+}
+
 function chooseIntent(args: {
   prompt: string
+  tokenCount: number
   matchedAgents: AiBuilderMatchedAsset[]
   matchedSkills: AiBuilderMatchedAsset[]
   matchedAgentTemplates: AiBuilderMatchedAsset[]
   matchedOrganizationTemplates: AiBuilderMatchedAsset[]
-}): AiBuilderIntent {
-  const { prompt, matchedAgents, matchedSkills, matchedAgentTemplates, matchedOrganizationTemplates } = args
-  const hasTeamLanguage = includesAny(prompt, TEAM_KEYWORDS)
+}): IntentDecision {
+  const { prompt, tokenCount, matchedAgents, matchedSkills, matchedAgentTemplates, matchedOrganizationTemplates } = args
+  const scope = detectScope(prompt)
+  const operation = detectOperation(prompt)
+  const hasTeamLanguage = scope === 'team' || scope === 'team_of_teams'
   const hasSkillLanguage = includesAny(prompt, SKILL_KEYWORDS)
   const hasReuseLanguage = includesAny(prompt, REUSE_KEYWORDS)
-  const hasCreateLanguage = includesAny(prompt, CREATE_KEYWORDS)
   const hasTemplateLanguage = includesAny(prompt, TEMPLATE_KEYWORDS)
   const hasAgentTemplateLanguage = includesAny(prompt, AGENT_TEMPLATE_KEYWORDS)
   const hasRefineLanguage = includesAny(prompt, REFINE_KEYWORDS)
   const wantsSomethingNew = includesAny(prompt, NEW_BUILD_KEYWORDS)
+  const hasAmbiguityLanguage = includesAny(prompt, AMBIGUITY_KEYWORDS)
   const agentScore = topScore(matchedAgents)
   const agentTemplateScore = topScore(matchedAgentTemplates)
   const orgTemplateScore = topScore(matchedOrganizationTemplates)
   const strongestTemplateScore = Math.max(agentTemplateScore, orgTemplateScore)
+  const topAgentTemplate = matchedAgentTemplates[0]
+  const existingAgentPreferred = matchedAgents.length > 0
+    && (operation === 'reuse_existing'
+      || operation === 'improve_existing'
+      || (hasReuseLanguage && !hasTemplateLanguage && !wantsSomethingNew)
+      || (hasRefineLanguage && hasReuseLanguage && agentScore >= strongestTemplateScore)
+      || (!wantsSomethingNew && agentScore >= 8 && agentScore >= strongestTemplateScore + 3))
 
-  if (hasSkillLanguage && matchedSkills.length > 0) return 'skill_or_integration'
-  if (hasAgentTemplateLanguage && matchedAgentTemplates.length > 0) return 'agent_template'
-  if (hasTemplateLanguage && hasTeamLanguage) return 'team_template'
-  if (hasTemplateLanguage && matchedOrganizationTemplates.length > 0) return 'team_template'
-  if ((hasTemplateLanguage || hasAgentTemplateLanguage) && matchedAgentTemplates.length > 0) return 'agent_template'
-  if (hasTemplateLanguage && matchedAgentTemplates.length > 0) return 'agent_template'
-  if (hasTeamLanguage && matchedOrganizationTemplates.length > 0 && (wantsSomethingNew || orgTemplateScore >= agentScore)) return 'team_template'
-  if (hasReuseLanguage && matchedAgents.length > 0 && !hasTemplateLanguage && !wantsSomethingNew) return 'existing_agent'
-  if (hasRefineLanguage && hasReuseLanguage && matchedAgents.length > 0 && agentScore >= strongestTemplateScore) return 'existing_agent'
-  if (!wantsSomethingNew && matchedAgents.length > 0 && agentScore >= 8 && agentScore >= strongestTemplateScore + 3) return 'existing_agent'
-  if (matchedOrganizationTemplates.length > 0 && (hasTeamLanguage || orgTemplateScore >= Math.max(agentScore + 2, 7))) return 'team_template'
-  if (matchedAgentTemplates.length > 0 && (agentTemplateScore >= Math.max(agentScore + 2, 7) || (hasRefineLanguage && !hasReuseLanguage))) return 'agent_template'
-  if (wantsSomethingNew && strongestTemplateScore === 0) return 'ai_generate'
-  if (hasTeamLanguage) return 'team_template'
-  return 'ai_generate'
+  if (hasSkillLanguage && matchedSkills.length > 0) {
+    return { intent: 'skill_or_integration', scope, operation, confidence: matchedSkills[0].score >= 8 ? 'high' : 'medium' }
+  }
+
+  if (scope === 'team_of_teams') {
+    return { intent: 'team_template', scope, operation, confidence: hasAmbiguityLanguage ? 'low' : (orgTemplateScore >= 8 ? 'high' : 'medium') }
+  }
+
+  if (operation === 'refine_template' && scope !== 'single_agent' && matchedOrganizationTemplates.length > 0) {
+    return { intent: 'team_template', scope, operation, confidence: hasAmbiguityLanguage ? 'low' : (orgTemplateScore >= 6 ? 'high' : 'medium') }
+  }
+
+  if (operation === 'refine_template' && matchedAgentTemplates.length > 0) {
+    return { intent: 'agent_template', scope, operation, confidence: hasAmbiguityLanguage ? 'low' : (agentTemplateScore >= 6 ? 'high' : 'medium') }
+  }
+
+  if (
+    scope === 'single_agent'
+    && operation !== 'reuse_existing'
+    && operation !== 'improve_existing'
+    && matchedAgentTemplates.length > 0
+    && !hasSkillLanguage
+    && (
+      operation !== 'create_new'
+      || (
+        agentTemplateScore >= 9
+        && ((topAgentTemplate?.matchCount || 0) / Math.max(tokenCount, 1)) >= 0.6
+      )
+    )
+  ) {
+    const confidence: AiBuilderConfidence = hasAmbiguityLanguage ? 'low' : (matchedOrganizationTemplates.length > 0 && orgTemplateScore >= agentTemplateScore ? 'low' : (agentTemplateScore >= 7 ? 'high' : 'medium'))
+    return { intent: 'agent_template', scope, operation, confidence }
+  }
+
+  if (hasAgentTemplateLanguage && matchedAgentTemplates.length > 0) {
+    return { intent: 'agent_template', scope, operation, confidence: hasAmbiguityLanguage ? 'low' : (agentTemplateScore >= 7 ? 'high' : 'medium') }
+  }
+
+  if (hasTemplateLanguage && matchedOrganizationTemplates.length > 0 && (hasTeamLanguage || orgTemplateScore >= agentTemplateScore)) {
+    return { intent: 'team_template', scope, operation, confidence: hasAmbiguityLanguage ? 'low' : (orgTemplateScore >= 7 ? 'high' : 'medium') }
+  }
+
+  if ((hasTemplateLanguage || hasAgentTemplateLanguage) && matchedAgentTemplates.length > 0) {
+    return { intent: 'agent_template', scope, operation, confidence: hasAmbiguityLanguage ? 'low' : (agentTemplateScore >= 7 ? 'high' : 'medium') }
+  }
+
+  if (existingAgentPreferred) {
+    const confidence: AiBuilderConfidence = hasAmbiguityLanguage ? 'low' : (strongestTemplateScore >= agentScore - 1 ? 'low' : (agentScore >= 8 ? 'high' : 'medium'))
+    return { intent: 'existing_agent', scope, operation, confidence }
+  }
+
+  if (
+    scope === 'single_agent'
+    && operation === 'create_new'
+    && !hasTemplateLanguage
+    && !hasAgentTemplateLanguage
+    && (
+      agentTemplateScore < 9
+      || ((topAgentTemplate?.matchCount || 0) <= 1 && tokenCount >= 3)
+      || (((topAgentTemplate?.matchCount || 0) / Math.max(tokenCount, 1)) < 0.6 && tokenCount >= 4)
+    )
+  ) {
+    return { intent: 'ai_generate', scope, operation, confidence: 'medium' }
+  }
+
+  if (matchedOrganizationTemplates.length > 0 && (hasTeamLanguage || orgTemplateScore >= Math.max(agentScore + 2, 7))) {
+    const confidence: AiBuilderConfidence = hasAmbiguityLanguage ? 'low' : (agentScore >= orgTemplateScore - 1 ? 'low' : 'high')
+    return { intent: 'team_template', scope, operation, confidence }
+  }
+
+  if (matchedAgentTemplates.length > 0 && (agentTemplateScore >= Math.max(agentScore + 2, 7) || (hasRefineLanguage && !hasReuseLanguage))) {
+    const confidence: AiBuilderConfidence = hasAmbiguityLanguage ? 'low' : (agentScore >= agentTemplateScore - 1 ? 'low' : 'high')
+    return { intent: 'agent_template', scope, operation, confidence }
+  }
+
+  if (wantsSomethingNew && strongestTemplateScore === 0) {
+    return { intent: 'ai_generate', scope, operation, confidence: 'medium' }
+  }
+
+  if (hasTeamLanguage) {
+    return { intent: 'team_template', scope, operation, confidence: orgTemplateScore > 0 ? 'medium' : 'low' }
+  }
+
+  return { intent: 'ai_generate', scope, operation, confidence: strongestTemplateScore > 0 || agentScore > 0 ? 'low' : 'medium' }
 }
 
 function action(id: string, label: string, description: string, page: AiBuilderAction['page'], actionValue?: AiBuilderAction['action'], pageHint?: string): AiBuilderAction {
@@ -279,13 +485,15 @@ export function buildAiBuilderRecommendation(prompt: string): AiBuilderRecommend
   const matchedOrganizationTemplates = rankAssets(tokens, organizationTemplates.map(toTemplateRecord), 'organization-template')
   const matchedWorkflows = rankAssets(tokens, workflows.map(toWorkflowRecord), 'workflow')
 
-  const intent = chooseIntent({
+  const decision = chooseIntent({
     prompt: normalizedPrompt,
+    tokenCount: tokens.length,
     matchedAgents,
     matchedSkills,
     matchedAgentTemplates,
     matchedOrganizationTemplates,
   })
+  const { intent, scope, operation, confidence } = decision
 
   const clarifyingQuestions = buildClarifyingQuestions(normalizedPrompt, intent, {
     agents: matchedAgents,
@@ -293,6 +501,15 @@ export function buildAiBuilderRecommendation(prompt: string): AiBuilderRecommend
     agentTemplates: matchedAgentTemplates,
     organizationTemplates: matchedOrganizationTemplates,
     workflows: matchedWorkflows,
+  })
+  const confirmationOptions = buildConfirmationOptions({
+    prompt: normalizedPrompt,
+    scope,
+    operation,
+    confidence,
+    matchedAgents,
+    matchedAgentTemplates,
+    matchedOrganizationTemplates,
   })
 
   const topAgent = matchedAgents[0]
@@ -464,8 +681,14 @@ export function buildAiBuilderRecommendation(prompt: string): AiBuilderRecommend
 
   return {
     intent,
-    summary: recommendedPath.reasoning,
+    scope,
+    operation,
+    confidence,
+    summary: confidence === 'low'
+      ? `${recommendedPath.reasoning} I am not fully confident yet, so pick one of the confirmation paths below if needed.`
+      : recommendedPath.reasoning,
     clarifyingQuestions,
+    confirmationOptions,
     recommendedPath,
     alternativePaths,
     matchedAssets: {

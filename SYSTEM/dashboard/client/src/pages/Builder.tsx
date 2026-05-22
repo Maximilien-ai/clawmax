@@ -22,13 +22,23 @@ type BuilderMatchedAsset = {
   type: 'agent' | 'skill' | 'agent-template' | 'organization-template' | 'workflow'
   summary: string
   score: number
+  matchCount?: number
   source?: string
 }
 
 type BuilderRecommendation = {
   intent: 'existing_agent' | 'skill_or_integration' | 'agent_template' | 'team_template' | 'ai_generate'
+  scope: 'single_agent' | 'team' | 'team_of_teams' | 'unknown'
+  operation: 'reuse_existing' | 'improve_existing' | 'use_template' | 'refine_template' | 'create_new' | 'unknown'
+  confidence: 'high' | 'medium' | 'low'
   summary: string
   clarifyingQuestions: string[]
+  confirmationOptions: Array<{
+    id: string
+    label: string
+    prompt: string
+    reasoning: string
+  }>
   recommendedPath: {
     title: string
     reasoning: string
@@ -122,6 +132,13 @@ const DEFAULT_STARTER_PROMPTS = [
 
 const TEMPLATE_KEYWORDS = ['template', 'templates', 'refine template', 'edit template', 'team template', 'organization template']
 const AGENT_TEMPLATE_KEYWORDS = ['agent template', 'agent starter', 'create agent from template', 'use template for agent']
+const TEAM_KEYWORDS = ['team', 'teams', 'handoff', 'handoffs', 'workflow', 'workflows', 'company', 'organization', 'org', 'group', 'groups']
+const TEAM_OF_TEAMS_KEYWORDS = ['team of teams', 'teams of teams', 'multi-team', 'multiple teams', 'teams and subteams', 'org of teams', 'organization of teams']
+const AGENT_KEYWORDS = ['agent', 'assistant', 'helper', 'specialist']
+const CREATE_KEYWORDS = ['create', 'build', 'design', 'new', 'from scratch', 'generate']
+const REUSE_KEYWORDS = ['existing', 'already have', 'reuse', 'current']
+const REFINE_KEYWORDS = ['refine', 'improve', 'edit', 'update', 'adjust', 'tune']
+const NON_SCORING_TOKENS = new Set(['agent', 'agents', 'team', 'teams', 'template', 'templates', 'create', 'build', 'design', 'new', 'from', 'scratch', 'use'])
 
 const BUILDER_SESSION_STORAGE_PREFIX = 'clawmax-builder-session'
 const BUILDER_ARCHIVES_STORAGE_PREFIX = 'clawmax-builder-archives'
@@ -178,6 +195,15 @@ function intentBadge(intent: BuilderRecommendation['intent']): string {
     case 'team_template': return 'Team Template'
     case 'ai_generate':
     default: return 'AI Generate'
+  }
+}
+
+function confidenceBadge(confidence: BuilderRecommendation['confidence']): string {
+  switch (confidence) {
+    case 'high': return 'High confidence'
+    case 'medium': return 'Medium confidence'
+    case 'low':
+    default: return 'Needs confirmation'
   }
 }
 
@@ -268,6 +294,22 @@ function HistoryIcon() {
   )
 }
 
+function ChevronLeftIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+      <path d="m15 18-6-6 6-6" />
+    </svg>
+  )
+}
+
+function ChevronRightIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+      <path d="m9 18 6-6-6-6" />
+    </svg>
+  )
+}
+
 function ThumbUpIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
@@ -342,13 +384,33 @@ function tokenizePrompt(prompt: string): string[] {
       .replace(/[^a-z0-9\s-]/g, ' ')
       .split(/\s+/)
       .map((token) => token.trim())
-      .filter((token) => token.length >= 3)
+      .filter((token) => token.length >= 3 && !NON_SCORING_TOKENS.has(token))
   ))
 }
 
 function includesAnyPrompt(prompt: string, words: string[]): boolean {
   const normalized = prompt.toLowerCase()
   return words.some((word) => normalized.includes(word))
+}
+
+function detectPromptScope(prompt: string): BuilderRecommendation['scope'] {
+  if (includesAnyPrompt(prompt, TEAM_OF_TEAMS_KEYWORDS)) return 'team_of_teams'
+  if (includesAnyPrompt(prompt, TEAM_KEYWORDS)) return 'team'
+  if (includesAnyPrompt(prompt, ['operations', 'ops', 'intake', 'delivery']) && includesAnyPrompt(prompt, TEMPLATE_KEYWORDS)) return 'team'
+  if (includesAnyPrompt(prompt, AGENT_KEYWORDS)) return 'single_agent'
+  return 'unknown'
+}
+
+function detectPromptOperation(prompt: string): BuilderRecommendation['operation'] {
+  const hasTemplateLanguage = includesAnyPrompt(prompt, TEMPLATE_KEYWORDS) || includesAnyPrompt(prompt, AGENT_TEMPLATE_KEYWORDS)
+  if (hasTemplateLanguage && (includesAnyPrompt(prompt, REFINE_KEYWORDS) || includesAnyPrompt(prompt, ['adapt template', 'customize template', 'existing template']))) {
+    return 'refine_template'
+  }
+  if (hasTemplateLanguage) return 'use_template'
+  if (includesAnyPrompt(prompt, REFINE_KEYWORDS) && (includesAnyPrompt(prompt, AGENT_KEYWORDS) || includesAnyPrompt(prompt, REUSE_KEYWORDS))) return 'improve_existing'
+  if (includesAnyPrompt(prompt, REUSE_KEYWORDS) && includesAnyPrompt(prompt, AGENT_KEYWORDS)) return 'reuse_existing'
+  if (includesAnyPrompt(prompt, CREATE_KEYWORDS)) return 'create_new'
+  return 'unknown'
 }
 
 function scoreHaystack(tokens: string[], values: Array<string | undefined>): number {
@@ -360,6 +422,15 @@ function scoreHaystack(tokens: string[], values: Array<string | undefined>): num
   return score
 }
 
+function countHaystackMatches(tokens: string[], values: Array<string | undefined>): number {
+  const haystack = values.filter(Boolean).join(' ').toLowerCase()
+  let matches = 0
+  for (const token of tokens) {
+    if (haystack.includes(token)) matches++
+  }
+  return matches
+}
+
 async function buildClientFallbackRecommendation(prompt: string): Promise<BuilderRecommendation> {
   const [agentsResp, skillsResp, templatesResp, workflowsResp] = await Promise.all([
     fetch('/api/agents').then(async (response) => response.ok ? response.json() : { agents: [] }).catch(() => ({ agents: [] })),
@@ -369,11 +440,11 @@ async function buildClientFallbackRecommendation(prompt: string): Promise<Builde
   ])
 
   const tokens = tokenizePrompt(prompt)
-  const teamWords = ['team', 'teams', 'handoff', 'handoffs', 'workflow', 'workflows', 'company', 'organization', 'org', 'group', 'groups']
   const skillWords = ['skill', 'skills', 'tool', 'tools', 'github', 'slack', 'whatsapp', 'gmail', 'calendar', 'integration', 'integrations', 'api']
-  const reuseWords = ['existing', 'already have', 'reuse', 'current']
   const hasTemplateLanguage = includesAnyPrompt(prompt, TEMPLATE_KEYWORDS)
   const hasAgentTemplateLanguage = includesAnyPrompt(prompt, AGENT_TEMPLATE_KEYWORDS)
+  const scope = detectPromptScope(prompt)
+  const operation = detectPromptOperation(prompt)
 
   const matchedAgents: BuilderMatchedAsset[] = ((agentsResp.agents || []) as ApiAgent[])
     .map((agent) => ({
@@ -385,6 +456,14 @@ async function buildClientFallbackRecommendation(prompt: string): Promise<Builde
         agent.tags?.length ? `Tags: ${agent.tags.join(', ')}` : '',
       ].filter(Boolean).join(' · ') || 'Workspace agent',
       score: scoreHaystack(tokens, [
+        agent.id,
+        agent.name,
+        ...(agent.tags || []),
+        ...(agent.skills || []),
+        ...(agent.groups || []).map((group) => group.name),
+        ...(agent.communities || []).map((community) => community.name),
+      ]),
+      matchCount: countHaystackMatches(tokens, [
         agent.id,
         agent.name,
         ...(agent.tags || []),
@@ -411,6 +490,13 @@ async function buildClientFallbackRecommendation(prompt: string): Promise<Builde
         ...(skill.registryCategories || []),
         ...(skill.requires?.bins || []),
       ]),
+      matchCount: countHaystackMatches(tokens, [
+        skill.name,
+        skill.description,
+        ...(skill.tags || []),
+        ...(skill.registryCategories || []),
+        ...(skill.requires?.bins || []),
+      ]),
       source: skill.source,
     }))
     .filter((item) => item.score > 0)
@@ -430,6 +516,13 @@ async function buildClientFallbackRecommendation(prompt: string): Promise<Builde
         ...(template.tags || []),
         ...(template.agents || []).flatMap((agent) => [agent.id, agent.name, agent.role]),
       ]),
+      matchCount: countHaystackMatches(tokens, [
+        template.slug,
+        template.name,
+        template.description,
+        ...(template.tags || []),
+        ...(template.agents || []).flatMap((agent) => [agent.id, agent.name, agent.role]),
+      ]),
       source: template.source,
     }))
     .filter((item) => item.score > 0)
@@ -443,6 +536,13 @@ async function buildClientFallbackRecommendation(prompt: string): Promise<Builde
       type: 'organization-template' as const,
       summary: template.description || 'Organization template',
       score: scoreHaystack(tokens, [
+        template.slug,
+        template.name,
+        template.description,
+        ...(template.tags || []),
+        ...(template.agents || []).flatMap((agent) => [agent.id, agent.name, agent.role]),
+      ]),
+      matchCount: countHaystackMatches(tokens, [
         template.slug,
         template.name,
         template.description,
@@ -470,6 +570,15 @@ async function buildClientFallbackRecommendation(prompt: string): Promise<Builde
         ...(workflow.targeting?.communities || []),
         ...(workflow.targeting?.tags || []),
       ]),
+      matchCount: countHaystackMatches(tokens, [
+        workflow.id,
+        workflow.name,
+        workflow.description,
+        workflow.schedule,
+        ...(workflow.targeting?.groups || []),
+        ...(workflow.targeting?.communities || []),
+        ...(workflow.targeting?.tags || []),
+      ]),
       source: 'workspace',
     }))
     .filter((item) => item.score > 0)
@@ -482,25 +591,71 @@ async function buildClientFallbackRecommendation(prompt: string): Promise<Builde
   const topOrgTemplate = matchedOrganizationTemplates[0]
 
   let intent: BuilderRecommendation['intent'] = 'ai_generate'
+  let confidence: BuilderRecommendation['confidence'] = 'medium'
   if (includesAnyPrompt(prompt, skillWords) && matchedSkills.length > 0) intent = 'skill_or_integration'
   else if (hasAgentTemplateLanguage && matchedAgentTemplates.length > 0) intent = 'agent_template'
-  else if (hasTemplateLanguage && includesAnyPrompt(prompt, teamWords)) intent = 'team_template'
+  else if (hasTemplateLanguage && scope !== 'single_agent') intent = 'team_template'
   else if (hasTemplateLanguage && matchedOrganizationTemplates.length > 0) intent = 'team_template'
   else if ((hasTemplateLanguage || hasAgentTemplateLanguage) && matchedAgentTemplates.length > 0) intent = 'agent_template'
   else if (hasTemplateLanguage && matchedAgentTemplates.length > 0) intent = 'agent_template'
-  else if (includesAnyPrompt(prompt, teamWords) && matchedOrganizationTemplates.length > 0) intent = 'team_template'
-  else if (includesAnyPrompt(prompt, reuseWords) && matchedAgents.length > 0) intent = 'existing_agent'
+  else if (scope !== 'single_agent' && matchedOrganizationTemplates.length > 0) intent = 'team_template'
+  else if (operation === 'reuse_existing' && matchedAgents.length > 0) intent = 'existing_agent'
+  else if (
+    scope === 'single_agent'
+    && operation === 'create_new'
+    && !hasTemplateLanguage
+    && (
+      ((topAgentTemplate?.matchCount || 0) <= 1 && tokens.length >= 3)
+      || (((topAgentTemplate?.matchCount || 0) / Math.max(tokens.length, 1)) < 0.6 && tokens.length >= 4)
+    )
+  ) intent = 'ai_generate'
   else if (matchedAgents.length > 0 && topAgent.score >= 6) intent = 'existing_agent'
   else if (matchedAgentTemplates.length > 0 && topAgentTemplate.score >= 5) intent = 'agent_template'
-  else if (includesAnyPrompt(prompt, teamWords)) intent = 'team_template'
+  else if (scope !== 'single_agent' && scope !== 'unknown') intent = 'team_template'
+
+  if (
+    (intent === 'existing_agent' && ((topAgent?.score || 0) <= ((topAgentTemplate?.score || 0) + 1) || (topAgent?.score || 0) <= ((topOrgTemplate?.score || 0) + 1)))
+    || (intent === 'team_template' && (topAgent?.score || 0) >= ((topOrgTemplate?.score || 0) - 1))
+    || (intent === 'agent_template' && (topAgent?.score || 0) >= ((topAgentTemplate?.score || 0) - 1))
+  ) {
+    confidence = 'low'
+  } else if ((topAgent?.score || topAgentTemplate?.score || topOrgTemplate?.score || 0) >= 8) {
+    confidence = 'high'
+  }
 
   const fallbackNotice = 'Live Builder route is not available in the current server process, so this recommendation was generated locally in the browser from current workspace APIs.'
+  const confirmationOptions = confidence === 'low'
+    ? [
+        topAgent ? {
+          id: 'confirm-existing-agent',
+          label: `Use ${topAgent.name}`,
+          prompt: `${prompt}\n\nConfirmation: reuse and improve my existing agent ${topAgent.name}.`,
+          reasoning: `${topAgent.name} is already close to the request.`,
+        } : null,
+        topOrgTemplate ? {
+          id: 'confirm-team-template',
+          label: `Use ${topOrgTemplate.name}`,
+          prompt: `${prompt}\n\nConfirmation: I want a coordinated team or team template.`,
+          reasoning: `${topOrgTemplate.name} is the closest multi-role match.`,
+        } : null,
+        topAgentTemplate ? {
+          id: 'confirm-agent-template',
+          label: `Use ${topAgentTemplate.name}`,
+          prompt: `${prompt}\n\nConfirmation: create a new agent from the ${topAgentTemplate.name} template.`,
+          reasoning: `${topAgentTemplate.name} is the closest single-agent template match.`,
+        } : null,
+      ].filter(Boolean) as BuilderRecommendation['confirmationOptions']
+    : []
 
   if (intent === 'existing_agent') {
     return {
       intent,
-      summary: `${topAgent ? `${topAgent.name} looks like the closest existing workspace agent.` : 'A current workspace agent is likely the best starting point.'} ${fallbackNotice}`,
+      scope,
+      operation,
+      confidence,
+      summary: `${topAgent ? `${topAgent.name} looks like the closest existing workspace agent.` : 'A current workspace agent is likely the best starting point.'} ${fallbackNotice}${confidence === 'low' ? ' Confirm the path below if this could also be a template or new-build request.' : ''}`,
       clarifyingQuestions: ['Do you want to refine the existing agent before creating anything new?', 'What is the first real task you want this agent to handle?'],
+      confirmationOptions,
       recommendedPath: {
         title: topAgent ? `Start with existing agent ${topAgent.name}` : 'Start with an existing workspace agent',
         reasoning: 'The fastest path is to test or refine the closest agent before creating a new one.',
@@ -528,8 +683,12 @@ async function buildClientFallbackRecommendation(prompt: string): Promise<Builde
   if (intent === 'skill_or_integration') {
     return {
       intent,
+      scope,
+      operation,
+      confidence,
       summary: `${topSkill ? `${topSkill.name} looks like the nearest capability match.` : 'This request appears tool or integration driven.'} ${fallbackNotice}`,
       clarifyingQuestions: ['Is the main gap tooling, or do you also need a new agent role?', 'Which existing agent should own this capability?'],
+      confirmationOptions: [],
       recommendedPath: {
         title: topSkill ? `Resolve skill ${topSkill.name} first` : 'Resolve the skill or integration first',
         reasoning: 'The core gap looks capability-related rather than structural.',
@@ -557,8 +716,12 @@ async function buildClientFallbackRecommendation(prompt: string): Promise<Builde
   if (intent === 'team_template') {
     return {
       intent,
-      summary: `${topOrgTemplate ? `${topOrgTemplate.name} looks like the closest team template.` : 'This request sounds multi-role and coordination heavy.'} ${fallbackNotice}`,
+      scope,
+      operation,
+      confidence,
+      summary: `${topOrgTemplate ? `${topOrgTemplate.name} looks like the closest team template.` : 'This request sounds multi-role and coordination heavy.'} ${fallbackNotice}${confidence === 'low' ? ' Confirm below if you want a team template rather than reusing current assets.' : ''}`,
       clarifyingQuestions: ['What are the core roles or lanes this team needs?', 'What should the kickoff and final output look like?'],
+      confirmationOptions,
       recommendedPath: {
         title: topOrgTemplate ? `Start from team template ${topOrgTemplate.name}` : 'Start from a team template',
         reasoning: 'A multi-role template is the fastest path for handoffs and workflow structure.',
@@ -586,8 +749,12 @@ async function buildClientFallbackRecommendation(prompt: string): Promise<Builde
   if (intent === 'agent_template') {
     return {
       intent,
-      summary: `${topAgentTemplate ? `${topAgentTemplate.name} looks like the closest agent template.` : 'A role-specific agent template is probably the fastest starter here.'} ${fallbackNotice}`,
+      scope,
+      operation,
+      confidence,
+      summary: `${topAgentTemplate ? `${topAgentTemplate.name} looks like the closest agent template.` : 'A role-specific agent template is probably the fastest starter here.'} ${fallbackNotice}${confidence === 'low' ? ' Confirm below if you want a new template-based agent rather than reusing an existing one.' : ''}`,
       clarifyingQuestions: ['Is there already an agent in the workspace that is close enough to reuse?', 'What is the first task this agent should complete?'],
+      confirmationOptions,
       recommendedPath: {
         title: topAgentTemplate ? `Start from agent template ${topAgentTemplate.name}` : 'Start from an agent template',
         reasoning: 'A known role template is likely faster than building the whole identity by hand.',
@@ -614,8 +781,12 @@ async function buildClientFallbackRecommendation(prompt: string): Promise<Builde
 
   return {
     intent: 'ai_generate',
+    scope,
+    operation,
+    confidence,
     summary: `This request is specific enough that AI generation is a reasonable first path. ${fallbackNotice}`,
     clarifyingQuestions: ['Is this one agent or a team?', 'What should success look like when you test the result?'],
+    confirmationOptions,
     recommendedPath: {
       title: 'Generate a custom starter from AI',
       reasoning: 'When there is no obvious close asset, generation is the fastest way to get to a first draft.',
@@ -844,6 +1015,7 @@ export default function Builder({
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [starterPrompts, setStarterPrompts] = useState<string[]>(DEFAULT_STARTER_PROMPTS)
   const [feedbackByRecommendation, setFeedbackByRecommendation] = useState<Record<string, 'up' | 'down'>>({})
+  const [showRightPane, setShowRightPane] = useState(true)
   const recognitionRef = useRef<any>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -1183,7 +1355,9 @@ export default function Builder({
 
   return (
     <div className="h-full overflow-hidden bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.12),_transparent_32%),linear-gradient(180deg,_rgba(15,23,42,0.04),_rgba(15,23,42,0))] dark:bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.12),_transparent_28%),linear-gradient(180deg,_rgba(15,23,42,0.25),_rgba(15,23,42,0))]">
-      <div className="mx-auto grid h-full max-w-7xl grid-cols-1 gap-4 overflow-hidden px-3 py-4 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-5 xl:grid-cols-[minmax(0,1fr)_380px]">
+      <div className={`mx-auto grid h-full max-w-7xl grid-cols-1 gap-4 overflow-hidden px-3 py-4 lg:px-5 ${
+        showRightPane ? 'lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_380px]' : ''
+      }`}>
         <section className="flex min-h-0 flex-col overflow-hidden rounded-3xl border border-gray-200 bg-white/90 p-4 shadow-sm backdrop-blur dark:border-gray-800 dark:bg-gray-900/80">
           <div className="shrink-0">
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1201,12 +1375,31 @@ export default function Builder({
                 )}
               </div>
               {recommendation && (
-                <div className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700 dark:border-sky-700 dark:bg-sky-900/30 dark:text-sky-200">
-                  {intentBadge(recommendation.intent)}
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700 dark:border-sky-700 dark:bg-sky-900/30 dark:text-sky-200">
+                    {intentBadge(recommendation.intent)}
+                  </div>
+                  <div className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+                    recommendation.confidence === 'high'
+                      ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200'
+                      : recommendation.confidence === 'medium'
+                        ? 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200'
+                        : 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-800 dark:bg-rose-950/30 dark:text-rose-200'
+                  }`}>
+                    {confidenceBadge(recommendation.confidence)}
+                  </div>
                 </div>
               )}
               {hasConversation && (
                 <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={() => setShowRightPane((value) => !value)}
+                    className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-600 transition-colors hover:border-sky-300 hover:text-sky-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-sky-700 dark:hover:text-sky-200"
+                    title={showRightPane ? 'Hide right pane' : 'Show right pane'}
+                    aria-label={showRightPane ? 'Hide right pane' : 'Show right pane'}
+                  >
+                    {showRightPane ? <ChevronRightIcon /> : <ChevronLeftIcon />}
+                  </button>
                   <button
                     onClick={() => setShowClearConfirm(true)}
                     className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-600 transition-colors hover:border-sky-300 hover:text-sky-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-sky-700 dark:hover:text-sky-200"
@@ -1282,8 +1475,19 @@ export default function Builder({
                         <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">Latest Recommendation</div>
                         <div className="mt-1 text-sm font-semibold text-gray-950 dark:text-white">{recommendation.recommendedPath.title}</div>
                       </div>
-                      <div className="rounded-full border border-sky-200 bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-sky-700 dark:border-sky-800 dark:bg-gray-900 dark:text-sky-300">
-                        {intentBadge(recommendation.intent)}
+                      <div className="flex flex-col items-end gap-1">
+                        <div className="rounded-full border border-sky-200 bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-sky-700 dark:border-sky-800 dark:bg-gray-900 dark:text-sky-300">
+                          {intentBadge(recommendation.intent)}
+                        </div>
+                        <div className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${
+                          recommendation.confidence === 'high'
+                            ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300'
+                            : recommendation.confidence === 'medium'
+                              ? 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300'
+                              : 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-800 dark:bg-rose-950/30 dark:text-rose-300'
+                        }`}>
+                          {confidenceBadge(recommendation.confidence)}
+                        </div>
                       </div>
                     </div>
                     <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{recommendation.recommendedPath.reasoning}</p>
@@ -1295,6 +1499,23 @@ export default function Builder({
                         {recommendation.recommendedPath.primaryAction.label}
                       </button>
                     </div>
+                    {recommendation.confirmationOptions.length > 0 && (
+                      <div className="mt-3">
+                        <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">Confirm Path</div>
+                        <div className="flex flex-wrap gap-2">
+                          {recommendation.confirmationOptions.map((option) => (
+                            <button
+                              key={option.id}
+                              onClick={() => void submitPrompt(option.prompt)}
+                              className="rounded-full border border-sky-200 bg-white px-3 py-1.5 text-xs font-medium text-sky-700 transition-colors hover:border-sky-400 hover:bg-sky-100 dark:border-sky-800 dark:bg-gray-900 dark:text-sky-200 dark:hover:border-sky-700 dark:hover:bg-sky-950/40"
+                              title={option.reasoning}
+                            >
+                              {option.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     <div className="mt-3 flex justify-end">
                       <div className="inline-flex items-center gap-2">
                         <button
@@ -1433,6 +1654,7 @@ export default function Builder({
           </div>
         </section>
 
+        {showRightPane && (
         <aside className="min-h-0 overflow-hidden rounded-3xl border border-gray-200 bg-white/90 p-3 shadow-sm backdrop-blur dark:border-gray-800 dark:bg-gray-900/80">
           <div ref={rightPaneRef} className="h-full space-y-3 overflow-y-auto pr-1">
             <div ref={currentRecommendationRef} className="rounded-3xl border border-gray-200 bg-white/80 p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900/80">
@@ -1447,7 +1669,18 @@ export default function Builder({
               ) : (
                 <div className="mt-2 space-y-3">
                   <div>
-                    <div className="text-base font-semibold text-gray-950 dark:text-white">{recommendation.recommendedPath.title}</div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="text-base font-semibold text-gray-950 dark:text-white">{recommendation.recommendedPath.title}</div>
+                      <div className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${
+                        recommendation.confidence === 'high'
+                          ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300'
+                          : recommendation.confidence === 'medium'
+                            ? 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300'
+                            : 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-800 dark:bg-rose-950/30 dark:text-rose-300'
+                      }`}>
+                        {confidenceBadge(recommendation.confidence)}
+                      </div>
+                    </div>
                     <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">{recommendation.recommendedPath.reasoning}</p>
                   </div>
                   <button
@@ -1457,6 +1690,23 @@ export default function Builder({
                     {recommendation.recommendedPath.primaryAction.label}
                     <div className="mt-1 text-xs font-normal text-sky-100">{recommendation.recommendedPath.primaryAction.description}</div>
                   </button>
+                  {recommendation.confirmationOptions.length > 0 && (
+                    <div>
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">Confirm Path</div>
+                      <div className="mt-2 space-y-2">
+                        {recommendation.confirmationOptions.map((option) => (
+                          <button
+                            key={option.id}
+                            onClick={() => void submitPrompt(option.prompt)}
+                            className="w-full rounded-2xl border border-sky-200 bg-sky-50 px-3 py-2 text-left text-xs text-sky-800 transition-colors hover:border-sky-400 hover:bg-sky-100 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-200 dark:hover:border-sky-700 dark:hover:bg-sky-950/50"
+                          >
+                            <div className="font-semibold">{option.label}</div>
+                            <div className="mt-1 text-[11px] text-sky-700/80 dark:text-sky-300/80">{option.reasoning}</div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   <div className="flex justify-end">
                     <div className="inline-flex items-center gap-2">
                       <button
@@ -1634,6 +1884,7 @@ export default function Builder({
             </div>
           </div>
         </aside>
+        )}
       </div>
 
       {showClearConfirm && (
