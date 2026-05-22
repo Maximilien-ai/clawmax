@@ -56,6 +56,16 @@ apicurl() {
     curl -s $CURL_OPTS "$@"
   fi
 }
+
+# Some integration actions legitimately take longer than the default API timeout.
+apicurl_long() {
+  local long_opts="--connect-timeout 5 --max-time 60"
+  if [ -n "$DASHBOARD_AUTH" ]; then
+    curl -s $long_opts -H "Authorization: Bearer $DASHBOARD_AUTH" "$@"
+  else
+    curl -s $long_opts "$@"
+  fi
+}
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 YELLOW='\033[1;33m'
@@ -2567,7 +2577,7 @@ SYSTEM_TEST_MODEL=$(echo "$auth_config" | jq -r '.costEfficientModel // empty' 2
 if [ -z "$SYSTEM_TEST_MODEL" ] || [ "$SYSTEM_TEST_MODEL" = "null" ]; then
   SYSTEM_TEST_MODEL="openai/gpt-4o-mini"
 fi
-apply_result=$(apicurl -X POST "$API_BASE/api/templates/organizations/import" \
+apply_result=$(apicurl_long -X POST "$API_BASE/api/templates/organizations/import" \
   -H 'Content-Type: application/json' \
   -d "{\"templateSlug\":\"clawmax-system-test\",\"modelOverride\":\"$SYSTEM_TEST_MODEL\",\"agentCounts\":{\"test-agent\":2}}")
 
