@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { readStoredByokKeys } from '../lib/byok'
 import { readSharedSecrets } from '../lib/localSecrets'
 import { expandPromptWithAI } from '../lib/aiPrompt'
+import { appendPromptAttachmentContext, createPromptAttachment, type PromptAttachment } from '../lib/promptAttachments'
 import { buildWorkspaceStarterPrompts, normalizeStarterPromptList, type StarterPromptAgent, type StarterPromptSkill, type StarterPromptTemplate, type StarterPromptWorkflow } from '../lib/builderStarterPrompts'
 import AIPromptEditorModal from '../components/AIPromptEditorModal'
 
@@ -68,14 +69,7 @@ type BuilderRecommendation = {
   testPlan: string[]
 }
 
-type BuilderAttachment = {
-  id: string
-  name: string
-  type: string
-  size: number
-  contextSnippet?: string
-  isImage: boolean
-}
+type BuilderAttachment = PromptAttachment
 
 type BuilderMessage = {
   id: string
@@ -306,24 +300,6 @@ function sourceBadge(source?: string): string | null {
   if (source === 'system') return 'System'
   if (source === 'bundled') return 'Built-in'
   return source
-}
-
-async function readAttachmentContext(file: File): Promise<string | undefined> {
-  const lowerName = file.name.toLowerCase()
-  const isTextLike = file.type.startsWith('text/')
-    || lowerName.endsWith('.md')
-    || lowerName.endsWith('.txt')
-    || lowerName.endsWith('.json')
-    || lowerName.endsWith('.csv')
-    || lowerName.endsWith('.yaml')
-    || lowerName.endsWith('.yml')
-
-  if (!isTextLike) return undefined
-
-  const text = await file.text()
-  const compact = text.replace(/\s+/g, ' ').trim()
-  if (!compact) return undefined
-  return compact.slice(0, 800)
 }
 
 async function parseBuilderResponse(response: Response): Promise<any> {
@@ -1348,13 +1324,7 @@ export default function Builder({
   }
 
   function appendAttachmentContext(basePrompt: string): string {
-    if (attachments.length === 0) return basePrompt
-    const lines = attachments.map((attachment) => {
-      const label = attachment.isImage ? 'image' : 'file'
-      const snippet = attachment.contextSnippet ? ` Context: ${attachment.contextSnippet}` : ''
-      return `- ${label}: ${attachment.name}${snippet}`
-    })
-    return `${basePrompt}\n\nAttached context:\n${lines.join('\n')}`
+    return appendPromptAttachmentContext(basePrompt, attachments)
   }
 
   async function submitPrompt(nextPrompt?: string) {
@@ -1440,24 +1410,22 @@ export default function Builder({
     }
   }
 
-  async function handleAttachFiles(event: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(event.target.files || [])
+  async function addAttachments(files: File[]) {
     if (files.length === 0) return
 
-    const nextAttachments = await Promise.all(files.map(async (file) => ({
-      id: `${file.name}-${file.size}-${file.lastModified}`,
-      name: file.name,
-      type: file.type,
-      size: file.size,
-      contextSnippet: await readAttachmentContext(file),
-      isImage: file.type.startsWith('image/'),
-    })))
+    const nextAttachments = await Promise.all(files.map((file) => createPromptAttachment(file)))
 
     setAttachments((prev) => {
       const merged = new Map(prev.map((attachment) => [attachment.id, attachment]))
       for (const attachment of nextAttachments) merged.set(attachment.id, attachment)
       return Array.from(merged.values())
     })
+  }
+
+  async function handleAttachFiles(event: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files || [])
+    if (files.length === 0) return
+    await addAttachments(files)
 
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
@@ -1824,22 +1792,6 @@ export default function Builder({
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => setShowPromptEditor(true)}
-                    className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:border-sky-300 hover:text-sky-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:border-sky-700 dark:hover:text-sky-200"
-                  >
-                    Open Editor
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void improveCurrentPrompt()}
-                    disabled={loading || improvingPrompt || !prompt.trim()}
-                    className="inline-flex items-center gap-2 rounded-full border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-medium text-violet-700 transition-colors hover:border-violet-300 hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-violet-800 dark:bg-violet-950/30 dark:text-violet-200 dark:hover:border-violet-700 dark:hover:bg-violet-950/40"
-                    title="Improve this prompt with AI before submitting"
-                  >
-                    {improvingPrompt ? 'Improving…' : 'Improve with AI'}
-                  </button>
-                  <button
-                    type="button"
                     onClick={toggleListening}
                     className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
                       isListening
@@ -1853,11 +1805,28 @@ export default function Builder({
                   </button>
                   <button
                     type="button"
-                    onClick={() => fileInputRef.current?.click()}
+                    onClick={() => setShowPromptEditor(true)}
                     className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:border-sky-300 hover:text-sky-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:border-sky-700 dark:hover:text-sky-200"
                   >
+                    Open Editor
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 p-2 text-gray-700 transition-colors hover:border-sky-300 hover:text-sky-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:border-sky-700 dark:hover:text-sky-200"
+                    title="Attach files or images"
+                    aria-label="Attach files or images"
+                  >
                     <AttachIcon />
-                    Attach files or images
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void improveCurrentPrompt()}
+                    disabled={loading || improvingPrompt || !prompt.trim()}
+                    className="inline-flex items-center gap-2 rounded-full border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-medium text-violet-700 transition-colors hover:border-violet-300 hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-violet-800 dark:bg-violet-950/30 dark:text-violet-200 dark:hover:border-violet-700 dark:hover:bg-violet-950/40"
+                    title="Improve this prompt with AI before submitting"
+                  >
+                    {improvingPrompt ? 'Improving…' : 'Improve with AI'}
                   </button>
                   <input
                     ref={fileInputRef}
@@ -1909,9 +1878,12 @@ export default function Builder({
               void submitPrompt(value)
             }, 0)
           }}
-          onExpandWithAi={(value, format) => expandPromptWithAI(value, 'template', format)}
+          onExpandWithAi={(value, format, guidance) => expandPromptWithAI(value, 'template', format, guidance)}
           saveAndGenerateLabel="Save & Design"
           savingAndGenerating={loading}
+          attachments={attachments}
+          onAttachFiles={addAttachments}
+          onRemoveAttachment={removeAttachment}
         />
 
         {!showRightPane && (

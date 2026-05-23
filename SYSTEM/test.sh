@@ -574,6 +574,15 @@ else
   fail "Builder starter prompt helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Prompt attachment helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/promptAttachments.test.ts > /tmp/clawmax-prompt-attachments.out 2>&1 || true
+if grep -q "promptAttachments.test.ts: ok" /tmp/clawmax-prompt-attachments.out; then
+  pass "Prompt attachment helper unit tests (4 tests)"
+else
+  cat /tmp/clawmax-prompt-attachments.out
+  fail "Prompt attachment helper unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Skill setup helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/skillSetup.test.ts > /tmp/clawmax-skill-setup.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-skill-setup.out; then
