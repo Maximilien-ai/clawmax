@@ -57,10 +57,9 @@ export default function AIPromptEditorModal({
   return (
     <div
       className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"
-      onClick={onClose}
     >
       <div
-        className="w-full max-w-3xl rounded-lg bg-white shadow-2xl dark:bg-gray-800"
+        className="h-[78vh] w-[75vw] min-h-[420px] min-w-[320px] max-h-[90vh] max-w-[90vw] overflow-auto resize rounded-lg bg-white shadow-2xl dark:bg-gray-800"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4 dark:border-gray-700">

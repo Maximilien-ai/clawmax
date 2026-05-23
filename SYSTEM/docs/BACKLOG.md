@@ -85,6 +85,7 @@
 ### Quality & Testing
 - [ ] **Dashboard regression automation** — coverage for OAuth/auth, agent edit/model save, template apply, workspace switching. GitHub: `#141`
 - [ ] **Clean-room CI hardening** — keep `SYSTEM/test.sh` deterministic, GitHub Actions trustworthy on `main`. GitHub: `#142`
+- [ ] **AI Builder evaluation corpus expansion** — keep the external Builder eval file current with real prompts, expected routing outcomes, and ambiguity/confirmation cases so recommendation quality can be improved without regressing.
 
 ### UX & Product Polish
 - [ ] **Mobile responsiveness audit** — run a focused pass across login, top bar, notifications, agent cards, chat, dashboards, template apply, and integrations wizard on narrow/mobile widths; fix clipped popovers, off-screen dialogs, awkward stacking, and tap-target issues before broader external demos. GitHub: `#143`
@@ -94,6 +95,12 @@
 - [ ] **Evaluate AG-UI for agent-driven UI surfaces** — explore using the AG-UI standard/framework for notifications and agent chat so agents can render richer UI, collect structured user input, and drive interactive flows; consider the same pattern for template apply and workflow run modals if it fits cleanly.
 - [ ] **System agents use best available model** — default to the best available configured provider model instead of a fixed mini model
 - [ ] **BYOK provider preference** — when a user has multiple providers, let them choose a preferred default
+- [ ] **AI Builder prompt improvement flow** — add `Improve with AI` to Builder so weak/vague prompts can be rewritten into stronger build briefs before submission.
+- [ ] **AI Builder session export to DocHub** — export Builder conversations, recommendations, and feedback as markdown design documents and surface them through DocHub or a Builder-specific document area.
+- [ ] **AI Builder remote session / feedback sharing** — support optional sharing of Builder input/output sessions plus thumbs feedback to ClawMax.ai using a contract parallel to template feedback/share, with local-first behavior in OSS/dev.
+- [ ] **Privacy policy coverage for AI Builder collection** — keep Terms / privacy language explicit about optional collection of Builder prompts, responses, and feedback where remote sharing is enabled.
+- [ ] **Built-in/system-agent metering** — treat AI Builder and other system agents as separately identifiable meterable actors when metering is enabled.
+- [ ] **System-agent model selection** — let operators pick the model used by built-in/system agents when multiple providers/models are configured, defaulting to the best available model otherwise.
 - [ ] **Asset/IP cleanup for login and presentation visuals** — replace Star Wars-like robot elements (for example the R2-D2-style figure visible in current demo/login imagery) with owned or clearly safe ClawMax artwork across login screens and presentation assets to reduce copyright risk before wider external use.
 - [ ] **Agent/workflow logs filtering** — by agent or tag
 - [ ] **Workspace stats dashboard** — aggregate view with pause/disable

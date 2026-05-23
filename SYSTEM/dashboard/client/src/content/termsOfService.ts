@@ -1,4 +1,4 @@
-export const DASHBOARD_TERMS_UPDATED_AT = 'May 14, 2026'
+export const DASHBOARD_TERMS_UPDATED_AT = 'May 23, 2026'
 
 export interface TermsSection {
   title: string
@@ -71,7 +71,15 @@ export const DASHBOARD_TERMS_SECTIONS: TermsSection[] = [
     ],
   },
   {
-    title: '10. Changes to These Terms',
+    title: '10. Privacy and Quality Improvement',
+    body: [
+      'Some Dashboard features, including AI Builder / Designer and related feedback flows, may allow collection or sharing of prompts, responses, session summaries, and thumbs up / thumbs down feedback so the product can be improved over time.',
+      'Where such collection or remote sharing is enabled, it should be treated as product-quality and support data. Local, OSS, or on-prem deployments may keep this data only in the local workspace unless a remote sharing path is explicitly configured.',
+      'You should not include secrets, regulated personal data, or other sensitive information in AI Builder or feedback flows unless you intend that information to be processed and, where configured, shared for product operation, troubleshooting, or quality improvement.',
+    ],
+  },
+  {
+    title: '11. Changes to These Terms',
     body: [
       'These Dashboard Terms may be updated over time. Continued use of the Dashboard after updated terms are made available means you accept the updated version for future use.',
     ],

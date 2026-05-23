@@ -3,7 +3,9 @@ import { useWorkspace } from '../contexts/WorkspaceContext'
 import { useAuth } from '../contexts/AuthContext'
 import { readStoredByokKeys } from '../lib/byok'
 import { readSharedSecrets } from '../lib/localSecrets'
+import { expandPromptWithAI } from '../lib/aiPrompt'
 import { buildWorkspaceStarterPrompts, normalizeStarterPromptList, type StarterPromptAgent, type StarterPromptSkill, type StarterPromptTemplate, type StarterPromptWorkflow } from '../lib/builderStarterPrompts'
+import AIPromptEditorModal from '../components/AIPromptEditorModal'
 
 type BuilderAction = {
   id: string
@@ -1108,8 +1110,11 @@ export default function Builder({
     templates: { agents: [], organizations: [] },
   }))
   const [refreshingStarterPrompts, setRefreshingStarterPrompts] = useState(false)
+  const [improvingPrompt, setImprovingPrompt] = useState(false)
   const [feedbackByRecommendation, setFeedbackByRecommendation] = useState<Record<string, 'up' | 'down'>>({})
   const [showRightPane, setShowRightPane] = useState(true)
+  const [showPromptEditor, setShowPromptEditor] = useState(false)
+  const [showStarterPrompts, setShowStarterPrompts] = useState(true)
   const recognitionRef = useRef<any>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -1415,6 +1420,26 @@ export default function Builder({
     }
   }
 
+  async function improveCurrentPrompt() {
+    const value = prompt.trim()
+    if (!value || improvingPrompt) return
+
+    setImprovingPrompt(true)
+    setError(null)
+    try {
+      const improved = await expandPromptWithAI(value, 'template', 'text')
+      setPrompt(improved)
+      window.setTimeout(() => {
+        textareaRef.current?.focus()
+        textareaRef.current?.setSelectionRange(improved.length, improved.length)
+      }, 0)
+    } catch (err: any) {
+      setError(err?.message || 'Failed to improve prompt')
+    } finally {
+      setImprovingPrompt(false)
+    }
+  }
+
   async function handleAttachFiles(event: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files || [])
     if (files.length === 0) return
@@ -1596,28 +1621,41 @@ export default function Builder({
             {!hasConversation && (
               <div className="mt-4">
                 <div className="mb-2 flex items-center justify-between gap-3">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">
-                    Suggested Prompts
-                  </div>
                   <button
-                    onClick={() => void refreshStarterPrompts({ seedPrompt: prompt })}
-                    disabled={refreshingStarterPrompts}
-                    className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-[11px] font-medium text-gray-600 transition-colors hover:border-sky-300 hover:text-sky-700 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-sky-700 dark:hover:text-sky-200"
+                    type="button"
+                    onClick={() => setShowStarterPrompts((current) => !current)}
+                    className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500 transition-colors hover:text-sky-700 dark:text-gray-400 dark:hover:text-sky-200"
                   >
-                    {refreshingStarterPrompts ? 'Refreshing…' : 'Regenerate'}
+                    <span>{showStarterPrompts ? '▾' : '▸'}</span>
+                    Suggested Prompts
                   </button>
-                </div>
-                <div className="grid gap-2 md:grid-cols-2">
-                  {starterPrompts.map((starter) => (
+                  <div className="flex items-center gap-2">
                     <button
-                      key={starter}
-                      onClick={() => void submitPrompt(starter)}
-                      className="min-h-[3.25rem] rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2 text-left text-xs leading-5 text-gray-700 transition-colors hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-sky-700 dark:hover:bg-sky-900/30 dark:hover:text-sky-200"
+                      onClick={() => void refreshStarterPrompts({ seedPrompt: prompt })}
+                      disabled={refreshingStarterPrompts}
+                      className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-[11px] font-medium text-gray-600 transition-colors hover:border-sky-300 hover:text-sky-700 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-sky-700 dark:hover:text-sky-200"
                     >
-                      <span className="block overflow-hidden">{starter}</span>
+                      {refreshingStarterPrompts ? 'Refreshing…' : 'Regenerate'}
                     </button>
-                  ))}
+                  </div>
                 </div>
+                {showStarterPrompts ? (
+                  <div className="grid gap-2 md:grid-cols-2">
+                    {starterPrompts.map((starter) => (
+                      <button
+                        key={starter}
+                        onClick={() => void submitPrompt(starter)}
+                        className="min-h-[3.25rem] rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2 text-left text-xs leading-5 text-gray-700 transition-colors hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-sky-700 dark:hover:bg-sky-900/30 dark:hover:text-sky-200"
+                      >
+                        <span className="block overflow-hidden">{starter}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
+                    Suggested prompts are hidden. Expand this section if you want starter ideas.
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1786,6 +1824,22 @@ export default function Builder({
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
+                    onClick={() => setShowPromptEditor(true)}
+                    className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:border-sky-300 hover:text-sky-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:border-sky-700 dark:hover:text-sky-200"
+                  >
+                    Open Editor
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void improveCurrentPrompt()}
+                    disabled={loading || improvingPrompt || !prompt.trim()}
+                    className="inline-flex items-center gap-2 rounded-full border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-medium text-violet-700 transition-colors hover:border-violet-300 hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-violet-800 dark:bg-violet-950/30 dark:text-violet-200 dark:hover:border-violet-700 dark:hover:bg-violet-950/40"
+                    title="Improve this prompt with AI before submitting"
+                  >
+                    {improvingPrompt ? 'Improving…' : 'Improve with AI'}
+                  </button>
+                  <button
+                    type="button"
                     onClick={toggleListening}
                     className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
                       isListening
@@ -1841,6 +1895,24 @@ export default function Builder({
             )}
           </div>
         </section>
+
+        <AIPromptEditorModal
+          isOpen={showPromptEditor}
+          title="Edit Builder Prompt"
+          initialValue={prompt}
+          placeholder="Describe what you want to build, whether this is one agent or a team, what should be reused or created, and how you want to test success."
+          onClose={() => setShowPromptEditor(false)}
+          onSave={setPrompt}
+          onSaveAndGenerate={(value) => {
+            setPrompt(value)
+            window.setTimeout(() => {
+              void submitPrompt(value)
+            }, 0)
+          }}
+          onExpandWithAi={(value, format) => expandPromptWithAI(value, 'template', format)}
+          saveAndGenerateLabel="Save & Design"
+          savingAndGenerating={loading}
+        />
 
         {!showRightPane && (
           <button

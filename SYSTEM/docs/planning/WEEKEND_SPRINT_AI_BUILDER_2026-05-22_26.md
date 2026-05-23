@@ -22,6 +22,7 @@
 - smarter recommendation quality across broader real prompts
 - recommendation trust and ranking against mixed existing-vs-template-vs-new scenarios
 - tighter UI polish for compactness and clarity
+- stronger Builder evaluation coverage with externalized prompt cases
 
 ### Still Needed Before Prime Time
 
@@ -30,6 +31,8 @@
 - more robust “match quality” thresholds for reuse vs refine vs new
 - additional manual testing of handoff correctness and recommendation quality
 - feature-flag or private-deploy hardening before merge to `main`
+- built-in/system-agent metering and model-selection follow-through
+- privacy/share contract for Builder sessions and feedback
 
 ## Target
 
@@ -348,3 +351,58 @@ For first release:
 3. add more handoff and UI state coverage
 4. run another round of focused internal prompt validation
 5. decide whether the next cut stays branch-only or moves behind a flag
+
+## Weekend Priority Order
+
+Lowest-risk to hardest:
+
+1. keep running focused Builder manual tests against real prompts
+2. maintain the external Builder evaluation corpus and wire new prompts into automated checks
+3. expand the Builder design doc to cover the full built-in agent family
+4. add `Improve with AI` for Builder prompts
+5. add Builder markdown session export plus DocHub entry strategy
+6. define remote Builder session/feedback sharing contract with ClawMax.ai web
+7. add privacy-policy coverage for Builder session and feedback collection
+8. track built-in/system Builder usage in metering
+9. surface built-in/system agents distinctly in metering UI
+10. add explicit model-selection controls for built-in/system agents
+
+## This Weekend Deliverables
+
+### Documentation and Test Backbone
+
+- Builder design doc covers:
+  - router agent
+  - clarifier agent
+  - starter prompt agent
+  - prompt improver agent
+  - export agent
+  - telemetry/feedback sink
+- external evaluation set lives outside the test file
+- sprint/backlog explicitly track the remaining Builder work
+
+### Product Quality
+
+- continue real-prompt validation
+- add more ambiguous / niche prompt cases
+- confirm Builder chooses:
+  - one agent
+  - team
+  - team of teams
+  - existing asset improvement
+  - existing template refinement
+  - net-new template or generation
+
+### Web / Privacy Contract
+
+- define the web-team requirements for:
+  - sharing Builder input/output
+  - sharing thumbs feedback
+  - attribution/auth
+  - privacy/TOS support
+
+## Open Questions
+
+1. When Builder shares remote sessions, should it send full transcript turns or only final prompt/recommendation pairs by default?
+2. Should Builder export one markdown design document per archived session or support multi-session append in a single workspace design log?
+3. Should system-agent model selection live under `BYOK`, a dedicated `System Agents` section, or both?

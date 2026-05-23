@@ -57,6 +57,101 @@ First cut:
 
 The right rail should be persistent enough that users understand the builder is producing structured suggestions, not only chat text.
 
+## Builder Agent Roles
+
+The Builder surface should be treated as a small family of built-in/system agents rather than one opaque assistant.
+
+### 1. Builder Router Agent
+
+Purpose:
+
+- classify the user request
+- decide whether the next best step is:
+  - reuse existing agent
+  - improve existing agent
+  - add or create skill
+  - use agent template
+  - refine team template
+  - create new team template
+  - AI-generate net new
+
+Current implementation status:
+
+- shipped as deterministic routing logic plus workspace-aware matching
+
+### 2. Builder Clarifier Agent
+
+Purpose:
+
+- detect low-confidence or ambiguous prompts
+- ask for the minimum clarifying input needed
+- surface explicit confirmation options instead of pretending certainty
+
+Current implementation status:
+
+- partial
+- low-confidence recommendations already surface confirmation options
+- follow-up clarification prompts should expand over the weekend
+
+### 3. Builder Starter Prompt Agent
+
+Purpose:
+
+- suggest high-signal next prompts when the user is not sure how to begin
+- ground suggestions in:
+  - workspace name
+  - existing agents
+  - existing skills
+  - existing workflows
+  - existing templates
+  - recent Builder prompts
+
+Current implementation status:
+
+- shipped with deterministic workspace-aware generation
+- optionally enhanced with AI-backed regeneration
+
+### 4. Builder Prompt Improver Agent
+
+Purpose:
+
+- take a weak/vague user request and rewrite it into a stronger build brief
+- preserve user intent while making the request more actionable for:
+  - templates
+  - AI generation
+  - workflows
+  - skill suggestions
+
+Current implementation status:
+
+- planned
+- should mirror the existing `Improve with AI` pattern used elsewhere in the dashboard
+
+### 5. Builder Session Export Agent
+
+Purpose:
+
+- turn Builder conversation, recommendation, and feedback into a design artifact
+- export/share as markdown
+- support later DocHub browsing and sharing
+
+Current implementation status:
+
+- planned
+
+### 6. Builder Telemetry / Feedback Sink
+
+Purpose:
+
+- persist thumbs up / thumbs down
+- optionally share Builder session input/output with ClawMax.ai
+- provide attribution and privacy-aware collection for quality improvement
+
+Current implementation status:
+
+- local feedback exists today
+- remote sharing contract is planned
+
 ## Design Principles
 
 ### 1. Guide, do not dump
@@ -274,6 +369,57 @@ That keeps the nav compact while still describing the surface clearly on-page.
   - skills
   - workflows
 - deterministic recommendation output schema
+
+## Evaluation Set
+
+Builder quality should be measured with an external evaluation corpus rather than hardcoded test arrays.
+
+Current canonical file:
+
+- [ai-builder-evals.json](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/dashboard/server/lib/ai-builder-evals.json)
+
+This file should evolve into a broader suite covering:
+
+- one agent vs team vs team-of-teams
+- reuse existing vs improve existing
+- use template vs refine template vs create new
+- strong-signal vs low-confidence prompts
+- niche-domain prompts where generic templates should lose to net-new template creation
+
+## Sharing and Privacy Contract
+
+Builder should follow the same overall direction as template feedback/share:
+
+- local-first support in OSS/dev
+- optional remote share when configured
+- explicit attribution on the web side
+- no silent collection without product/legal copy in the Terms / Privacy section
+
+Planned remote data types:
+
+- Builder input prompts
+- Builder assistant recommendations
+- thumbs up / thumbs down feedback
+- optional session export metadata
+
+Required product/legal support:
+
+- privacy policy language in Dashboard terms
+- clear UI disclosure where remote sharing is enabled
+- ability to disable remote sharing in local/on-prem environments
+- detailed web handoff in:
+  - [AI_BUILDER_WEB_CONTRACT.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/specs/AI_BUILDER_WEB_CONTRACT.md)
+
+## Metering and Model Selection
+
+Built-in/system agents should not remain invisible when metering is enabled.
+
+Weekend target direction:
+
+- AI Builder and other built-in agents should have distinct meterable identities
+- built-in usage should surface separately from user-created agents
+- system agents should default to the best available configured model
+- when multiple providers/models are available, operators should be able to select the system-agent model explicitly
 
 ### Output schema idea
 
