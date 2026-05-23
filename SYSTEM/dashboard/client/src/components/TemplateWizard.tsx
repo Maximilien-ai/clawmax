@@ -178,6 +178,7 @@ interface TemplateWizardProps {
     generationTarget?: 'team' | 'company'
     teamDescription?: string
     teamName?: string
+    templateRefineMode?: boolean
   } | null
 }
 
@@ -199,6 +200,33 @@ function stripRunInputSections(content: string) {
     .replace(/\n?## Run Inputs[\s\S]*?(?=\n## |\s*$)/g, '')
     .replace(/\n?## Input Notes[\s\S]*?(?=\n## |\s*$)/g, '')
     .trim()
+}
+
+function buildTemplateRefinementPrompt(template: any, draft?: TemplateWizardProps['initialDraft']): string {
+  const refinementRequest = typeof draft?.teamDescription === 'string' ? draft.teamDescription.trim() : ''
+  const templatePrompt = typeof template?.metadata?.aiPrompt === 'string'
+    ? template.metadata.aiPrompt.trim()
+    : typeof template?.description === 'string'
+      ? template.description.trim()
+      : ''
+
+  if (!draft?.templateRefineMode) {
+    return refinementRequest || templatePrompt
+  }
+  if (!templatePrompt) return refinementRequest
+  if (!refinementRequest) return templatePrompt
+
+  const templateKind = draft?.generationTarget === 'company' ? 'company' : 'team'
+  const templateName = typeof template?.name === 'string' && template.name.trim() ? template.name.trim() : 'existing template'
+  return [
+    `Start from the existing ${templateKind} template "${templateName}" and refine it for this request.`,
+    '',
+    'Existing template intent:',
+    templatePrompt,
+    '',
+    'New refinement request:',
+    refinementRequest,
+  ].join('\n')
 }
 
 function buildSuggestedWorkflows(input: {
@@ -469,8 +497,9 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
       const sourceIsWorkspace = initialTemplate.source === 'workspace'
       setState({
         domain: 'custom',
-        teamDescription: initialTemplate.metadata?.aiPrompt || initialTemplate.description || '',
-        teamName: sourceIsWorkspace ? (initialTemplate.name || '') : `${initialTemplate.name || 'Template'} Copy`,
+        generationTarget: initialDraft?.generationTarget || initialTemplate.kind || 'team',
+        teamDescription: buildTemplateRefinementPrompt(initialTemplate, initialDraft),
+        teamName: initialDraft?.teamName || (sourceIsWorkspace ? (initialTemplate.name || '') : `${initialTemplate.name || 'Template'} Copy`),
         description: initialTemplate.description || '',
         tags: initialTemplate.tags || [],
         author: initialTemplate.author || '',
@@ -532,6 +561,7 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
         })),
       })
       setStep(1)
+      setAiSuggestedName(null)
       return
     }
 

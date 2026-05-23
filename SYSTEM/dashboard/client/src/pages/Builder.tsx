@@ -23,6 +23,7 @@ type BuilderAction = {
   templateType?: 'agent' | 'organization'
   templateDraftTarget?: 'team' | 'company'
   prefillPrompt?: string
+  templateRefineMode?: boolean
 }
 
 type BuilderMatchedAsset = {
@@ -890,9 +891,13 @@ function buildTemplateSelection(action: BuilderAction): string | null {
       sessionStorage.setItem(BUILDER_TEMPLATE_DRAFT_STORAGE_KEY, JSON.stringify({
         generationTarget: action.templateDraftTarget,
         teamDescription: action.prefillPrompt,
+        templateId: action.templateId,
+        templateName: action.templateName,
+        templateType: action.templateType,
+        templateRefineMode: action.templateRefineMode === true,
       }))
       window.dispatchEvent(new CustomEvent('clawmax-open-builder-template-draft'))
-      return action.templateDraftTarget
+      return action.templateRefineMode ? (action.templateType || action.templateDraftTarget) : action.templateDraftTarget
     } catch {
       return null
     }

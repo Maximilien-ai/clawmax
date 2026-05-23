@@ -701,6 +701,19 @@ export default function Templates() {
     generationTarget: 'team' | 'company'
     teamDescription: string
     teamName?: string
+    templateId?: string
+    templateName?: string
+    templateType?: 'agent' | 'organization'
+    templateRefineMode?: boolean
+  }>(null)
+  const [pendingBuilderTemplateDraft, setPendingBuilderTemplateDraft] = useState<null | {
+    generationTarget: 'team' | 'company'
+    teamDescription: string
+    teamName?: string
+    templateId?: string
+    templateName?: string
+    templateType?: 'agent' | 'organization'
+    templateRefineMode?: boolean
   }>(null)
   const [deleteDialog, setDeleteDialog] = useState<{
     itemName: string
@@ -748,13 +761,22 @@ export default function Templates() {
       const parsed = JSON.parse(raw)
       const teamDescription = typeof parsed?.teamDescription === 'string' ? parsed.teamDescription.trim() : ''
       if (!teamDescription) return
-      setSelectedTemplate(null)
-      setEditingTemplate(null)
-      setBuilderTemplateDraft({
+      const nextDraft = {
         generationTarget: parsed?.generationTarget === 'company' ? 'company' : 'team',
         teamDescription,
         teamName: typeof parsed?.teamName === 'string' ? parsed.teamName : undefined,
-      })
+        templateId: typeof parsed?.templateId === 'string' ? parsed.templateId : undefined,
+        templateName: typeof parsed?.templateName === 'string' ? parsed.templateName : undefined,
+        templateType: parsed?.templateType === 'agent' ? 'agent' : parsed?.templateType === 'organization' ? 'organization' : undefined,
+        templateRefineMode: parsed?.templateRefineMode === true,
+      } as const
+      setSelectedTemplate(null)
+      setEditingTemplate(null)
+      if (nextDraft.templateRefineMode && nextDraft.templateType === 'organization' && (nextDraft.templateId || nextDraft.templateName)) {
+        setPendingBuilderTemplateDraft(nextDraft)
+        return
+      }
+      setBuilderTemplateDraft(nextDraft)
       setShowWizard(true)
     } catch {
       sessionStorage.removeItem('clawmax-builder-template-draft')
@@ -912,6 +934,20 @@ export default function Templates() {
     setSelectedTemplate(match)
     setPendingOnboardingSelection(null)
   }, [pendingOnboardingSelection, agentTemplates, orgTemplates, workflowTemplates])
+
+  useEffect(() => {
+    if (!pendingBuilderTemplateDraft) return
+    const match = orgTemplates.find((template) => (
+      template.slug === pendingBuilderTemplateDraft.templateId
+      || template.name === pendingBuilderTemplateDraft.templateName
+    ))
+    if (!match) return
+    setSelectedTemplate(null)
+    setEditingTemplate(match)
+    setBuilderTemplateDraft(pendingBuilderTemplateDraft)
+    setPendingBuilderTemplateDraft(null)
+    setShowWizard(true)
+  }, [pendingBuilderTemplateDraft, orgTemplates])
 
   const handleDelete = async (type: 'agent' | 'organization' | 'workflow', name: string, id?: string) => {
     const targetTemplate = type === 'workflow'
@@ -2397,9 +2433,10 @@ export default function Templates() {
             setShowWizard(false)
             setEditingTemplate(null)
             setBuilderTemplateDraft(null)
+            setPendingBuilderTemplateDraft(null)
           }}
           initialTemplate={editingTemplate}
-          initialDraft={editingTemplate ? null : builderTemplateDraft}
+          initialDraft={builderTemplateDraft}
           onSave={async (template) => {
             try {
               const payload = editingTemplate && editingTemplate.type === 'organization'

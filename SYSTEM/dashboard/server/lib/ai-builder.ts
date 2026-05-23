@@ -33,8 +33,12 @@ export interface AiBuilderAction {
   page: 'builder' | 'agents' | 'templates' | 'skills' | 'workflows' | 'organizations'
   action?: 'create' | 'create-ai' | 'import'
   pageHint?: string
+  templateId?: string
+  templateName?: string
+  templateType?: 'agent' | 'organization'
   templateDraftTarget?: 'team' | 'company'
   prefillPrompt?: string
+  templateRefineMode?: boolean
 }
 
 export interface AiBuilderMatchedAsset {
@@ -608,6 +612,7 @@ export function buildAiBuilderRecommendation(prompt: string): AiBuilderRecommend
     matchedOrganizationTemplates,
     organizationTemplates,
   })
+  const teamTemplateDraftTarget: AiBuilderAction['templateDraftTarget'] = scope === 'team_of_teams' ? 'company' : 'team'
 
   let recommendedPath: AiBuilderRecommendation['recommendedPath']
   let alternativePaths: AiBuilderRecommendation['alternativePaths'] = []
@@ -725,7 +730,7 @@ export function buildAiBuilderRecommendation(prompt: string): AiBuilderRecommend
                 'templates',
                 'create-ai',
               ),
-              templateDraftTarget: scope === 'team_of_teams' ? 'company' : 'team',
+              templateDraftTarget: teamTemplateDraftTarget,
               prefillPrompt: normalizedPrompt,
             },
           }
@@ -734,16 +739,30 @@ export function buildAiBuilderRecommendation(prompt: string): AiBuilderRecommend
             reasoning: topOrgTemplate
               ? `${topOrgTemplate.name} already suggests multiple roles and handoffs, which fits this request better than a single agent.`
               : 'The request sounds multi-role and coordination-heavy, so a team template is a better fit than a standalone agent.',
-            primaryAction: action('open-team-template-library', 'Open Templates', 'Apply or refine a matching team template.', 'templates'),
+            primaryAction: topOrgTemplate
+              ? {
+                  ...action('refine-top-team-template', 'Refine Template', 'Open the closest team template in the AI editor and refine it with this prompt.', 'templates', 'create-ai'),
+                  templateDraftTarget: teamTemplateDraftTarget,
+                  templateId: topOrgTemplate.id,
+                  templateName: topOrgTemplate.name,
+                  templateType: 'organization' as const,
+                  templateRefineMode: true,
+                  prefillPrompt: normalizedPrompt,
+                }
+              : action('open-team-template-library', 'Open Templates', 'Apply or refine a matching team template.', 'templates'),
           }
       alternativePaths = [
         ...(topOrgTemplate ? [{
           title: `Refine ${topOrgTemplate.name}`,
           reasoning: 'Use the closest existing template as a starting point if you want to adapt it instead of starting net-new.',
           action: {
-            ...action('refine-team-template', 'Open Templates', 'Open the closest team template so you can inspect or refine it.', 'templates'),
-            templateDraftTarget: undefined,
-            prefillPrompt: undefined,
+            ...action('refine-team-template', 'Refine Template', 'Open the closest team template in the AI editor and refine it with this prompt.', 'templates', 'create-ai'),
+            templateDraftTarget: teamTemplateDraftTarget,
+            templateId: topOrgTemplate.id,
+            templateName: topOrgTemplate.name,
+            templateType: 'organization' as const,
+            templateRefineMode: true,
+            prefillPrompt: normalizedPrompt,
           },
         }] : []),
         {
@@ -756,14 +775,22 @@ export function buildAiBuilderRecommendation(prompt: string): AiBuilderRecommend
           reasoning: 'Use AI generation if the available templates are close but do not reflect the right lanes or handoffs.',
           action: {
             ...action('generate-custom-team', 'Open Templates', 'Use AI template generation for a custom organization/team starter.', 'templates', 'create-ai'),
-            templateDraftTarget: scope === 'team_of_teams' ? 'company' : 'team',
+            templateDraftTarget: teamTemplateDraftTarget,
             prefillPrompt: normalizedPrompt,
           },
         },
       ]
       suggestedActions = [
         recommendedPath.primaryAction,
-        ...(topOrgTemplate ? [action('review-existing-team-template', 'Open Templates', 'Inspect the closest team template before deciding to adapt or replace it.', 'templates')] : []),
+        ...(topOrgTemplate ? [{
+          ...action('review-existing-team-template', 'Refine Template', 'Open the closest team template in the AI editor with this prompt as refinement context.', 'templates', 'create-ai'),
+          templateDraftTarget: teamTemplateDraftTarget,
+          templateId: topOrgTemplate.id,
+          templateName: topOrgTemplate.name,
+          templateType: 'organization' as const,
+          templateRefineMode: true,
+          prefillPrompt: normalizedPrompt,
+        }] : []),
         action('review-workflows', 'Review workflows', 'Check kickoff, specialist lanes, and final output flow before applying.', 'workflows'),
         action('review-org-shape', 'Review organization structure', 'Confirm the resulting groups and communities fit the intended collaboration model.', 'organizations'),
       ]
