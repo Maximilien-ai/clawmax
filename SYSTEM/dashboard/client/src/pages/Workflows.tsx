@@ -2854,7 +2854,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
             void handleAiGenerate(value)
           }, 0)
         }}
-        onExpandWithAi={(value, format) => expandPromptWithAI(value, 'workflow', format)}
+        onExpandWithAi={(value, format, guidance) => expandPromptWithAI(value, 'workflow', format, guidance)}
         saveAndGenerateLabel="Save & Generate"
         savingAndGenerating={aiGenerating}
         generateDisabled={!aiEnabled}

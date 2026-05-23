@@ -13,11 +13,13 @@ router.post('/expand-prompt', async (req, res) => {
     prompt,
     target,
     format,
+    guidance,
     byokKeys,
   } = req.body as {
     prompt?: string
     target?: string
     format?: string
+    guidance?: string
     byokKeys?: { openai?: string; anthropic?: string; gemini?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string }
   }
 
@@ -31,6 +33,7 @@ router.post('/expand-prompt', async (req, res) => {
       prompt.trim(),
       normalizePromptExpansionTarget(target),
       normalizePromptExpansionFormat(format),
+      typeof guidance === 'string' ? guidance.trim() : '',
     )
     res.json({ ok: true, expandedPrompt })
   } catch (err: any) {

@@ -3477,7 +3477,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
               void handleGenerateSkill(false, value)
             }, 0)
           }}
-          onExpandWithAi={(value, format) => expandPromptWithAI(value, 'skill', format)}
+          onExpandWithAi={(value, format, guidance) => expandPromptWithAI(value, 'skill', format, guidance)}
           saveAndGenerateLabel="Save & Generate"
           savingAndGenerating={aiSkillGenerating}
           generateDisabled={!aiEnabled}

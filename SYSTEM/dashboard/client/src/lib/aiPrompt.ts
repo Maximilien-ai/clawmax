@@ -8,6 +8,7 @@ export async function expandPromptWithAI(
   prompt: string,
   target: AIPromptExpansionTarget,
   format: AIPromptExpansionFormat = 'markdown',
+  guidance: string = '',
 ): Promise<string> {
   const byok = readStoredByokKeys()
   const shared = {
@@ -24,6 +25,7 @@ export async function expandPromptWithAI(
       prompt,
       target,
       format,
+      guidance,
       byokKeys: {
         openai: openai || undefined,
         anthropic: anthropic || undefined,

@@ -8,6 +8,7 @@ type AIProvider = 'openai' | 'openai-compatible' | 'anthropic'
 export type TemplateGenerationTarget = 'agent' | 'team' | 'company'
 export type PromptExpansionTarget = 'agent' | 'workflow' | 'skill' | 'template'
 export type PromptExpansionFormat = 'markdown' | 'text'
+export type PromptExpansionGuidance = string
 export type BuilderStarterPromptInput = {
   workspaceName?: string
   workspaceTags?: string[]
@@ -82,7 +83,11 @@ export function normalizePromptExpansionFormat(value: unknown): PromptExpansionF
   return value === 'text' ? 'text' : 'markdown'
 }
 
-export function buildPromptExpansionSystemPrompt(target: PromptExpansionTarget, format: PromptExpansionFormat = 'markdown'): string {
+export function buildPromptExpansionSystemPrompt(
+  target: PromptExpansionTarget,
+  format: PromptExpansionFormat = 'markdown',
+  guidance: PromptExpansionGuidance = '',
+): string {
   const targetLabel = {
     agent: 'AI agent',
     workflow: 'workflow',
@@ -92,6 +97,11 @@ export function buildPromptExpansionSystemPrompt(target: PromptExpansionTarget, 
   const formatInstruction = format === 'markdown'
     ? '- Return the improved prompt as editable markdown with short sections and bullets where useful.'
     : '- Return the improved prompt as plain text paragraphs and lists without markdown headings.'
+
+  const normalizedGuidance = guidance.trim()
+  const guidanceInstruction = normalizedGuidance
+    ? `\nAdditional user direction for the improvement:\n- ${normalizedGuidance}`
+    : ''
 
   return `You improve short natural-language prompts for an ${targetLabel} generation wizard.
 
@@ -104,20 +114,21 @@ Rules:
 - Preserve any names, domains, or user-supplied constraints.
 - Do not mention that you are expanding or rewriting the prompt.
 - Write the result so the user can directly edit and submit it to an AI generation wizard.
-${formatInstruction}`
+${formatInstruction}${guidanceInstruction}`
 }
 
 export async function expandPromptWithAI(
   prompt: string,
   target: PromptExpansionTarget = 'template',
   format: PromptExpansionFormat = 'markdown',
+  guidance: PromptExpansionGuidance = '',
 ): Promise<string> {
   const completion = await getSystemOpenAiClient().chat.completions.create({
     model: resolveModel('gpt-4o'),
     messages: [
       {
         role: 'system',
-        content: buildPromptExpansionSystemPrompt(target, format),
+        content: buildPromptExpansionSystemPrompt(target, format, guidance),
       },
       {
         role: 'user',

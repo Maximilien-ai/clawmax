@@ -419,11 +419,14 @@ test('normalizePromptExpansionFormat defaults to markdown', () => {
 test('buildPromptExpansionSystemPrompt reflects requested format', () => {
   const markdownPrompt = buildPromptExpansionSystemPrompt('skill', 'markdown')
   const textPrompt = buildPromptExpansionSystemPrompt('agent', 'text')
+  const guidedPrompt = buildPromptExpansionSystemPrompt('template', 'markdown', 'Make it shorter and emphasize testing.')
 
   assert.match(markdownPrompt, /editable markdown/i)
   assert.match(textPrompt, /plain text paragraphs/i)
   assert.match(markdownPrompt, /skill generation wizard/i)
   assert.match(textPrompt, /AI agent generation wizard/i)
+  assert.match(guidedPrompt, /Additional user direction/i)
+  assert.match(guidedPrompt, /Make it shorter and emphasize testing\./i)
 })
 
 console.log('\n========================================')

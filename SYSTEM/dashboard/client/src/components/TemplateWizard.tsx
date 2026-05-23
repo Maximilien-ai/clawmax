@@ -2030,7 +2030,7 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
             void handleAiGenerate(value)
           }, 0)
         }}
-        onExpandWithAi={(value, format) => expandPromptWithAI(value, 'template', format)}
+        onExpandWithAi={(value, format, guidance) => expandPromptWithAI(value, 'template', format, guidance)}
         saveAndGenerateLabel="Save & Regenerate"
         savingAndGenerating={aiGenerating}
         generateDisabled={!aiEnabled}
