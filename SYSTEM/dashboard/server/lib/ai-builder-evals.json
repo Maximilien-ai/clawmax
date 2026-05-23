@@ -115,5 +115,96 @@
     "scope": "team",
     "confidence": "low",
     "confirmationOptionsMin": 2
+  },
+  {
+    "name": "explicit create-new team template request stays template-first",
+    "prompt": "Create a new team template for a founder office that handles investor updates, hiring loops, and weekly operating reviews",
+    "intent": "team_template",
+    "scope": "team",
+    "operation": "create_new",
+    "page": "templates",
+    "action": "create-ai",
+    "titleIncludes": "Create a new team template"
+  },
+  {
+    "name": "explicit create-new company template request maps to team-of-teams",
+    "prompt": "Create a new company template for a boutique agency with leadership, outbound, fulfillment, and client success teams",
+    "intent": "team_template",
+    "scope": "team_of_teams",
+    "operation": "create_new",
+    "page": "templates"
+  },
+  {
+    "name": "explicit team template wording beats generic creation language",
+    "prompt": "Use a team template for a podcast production operation with research, guest booking, editing, and publishing roles",
+    "intent": "team_template",
+    "scope": "team",
+    "operation": "use_template",
+    "confidence": "high",
+    "page": "templates"
+  },
+  {
+    "name": "existing agent plus concrete tools stays in skills path",
+    "prompt": "I already have a briefing writer agent. It just needs GitHub, Slack, and Google Calendar access",
+    "intent": "skill_or_integration",
+    "scope": "single_agent",
+    "page": "skills"
+  },
+  {
+    "name": "explicit create from agent template request maps to agent template",
+    "prompt": "Create a new agent from the People Researcher template and tune it for executive background research",
+    "intent": "agent_template",
+    "scope": "single_agent",
+    "operation": "use_template",
+    "page": "templates"
+  },
+  {
+    "name": "domain-specific team request prefers new team template over generic support match",
+    "prompt": "Build a team of agents for IVF protocol optimization and lab result tracking",
+    "intent": "team_template",
+    "scope": "team",
+    "operation": "create_new",
+    "page": "templates",
+    "action": "create-ai",
+    "titleIncludes": "Create a new team template"
+  },
+  {
+    "name": "single-agent domain request with no clear template stays ai-generate",
+    "prompt": "Create a single agent for municipal zoning permit intake triage",
+    "intent": "ai_generate",
+    "scope": "single_agent",
+    "operation": "create_new",
+    "page": "agents"
+  },
+  {
+    "name": "explicit refine current template request stays refine-template",
+    "prompt": "Refine my current customer support team template so it adds SLA tracking and escalation review",
+    "intent": "team_template",
+    "scope": "team",
+    "operation": "refine_template",
+    "page": "templates"
+  },
+  {
+    "name": "ambiguous single-agent reuse versus new request remains low confidence",
+    "prompt": "Either improve my current research agent or create a better new one for competitor teardown summaries",
+    "intent": "existing_agent",
+    "scope": "single_agent",
+    "confidence": "low",
+    "confirmationOptionsMin": 2
+  },
+  {
+    "name": "agent template request should not get routed to skills just because it mentions tools",
+    "prompt": "Use the software engineer agent template and make sure it can work with GitHub and Slack",
+    "intent": "agent_template",
+    "scope": "single_agent",
+    "operation": "use_template",
+    "page": "templates"
+  },
+  {
+    "name": "company-level legal ops request maps to team-of-teams template path",
+    "prompt": "Design an organization for legal operations with intake, contracts, outside counsel coordination, and reporting teams",
+    "intent": "team_template",
+    "scope": "team_of_teams",
+    "page": "templates"
   }
 ]

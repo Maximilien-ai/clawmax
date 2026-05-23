@@ -91,17 +91,19 @@ type SearchableRecord = {
 
 const TEAM_KEYWORDS = ['team', 'teams', 'handoff', 'handoffs', 'workflow', 'workflows', 'company', 'organization', 'org', 'lane', 'lanes', 'group', 'groups']
 const TEAM_OF_TEAMS_KEYWORDS = ['team of teams', 'teams of teams', 'multi-team', 'multiple teams', 'teams and subteams', 'org of teams', 'organization of teams']
+const COMPANY_SCOPE_KEYWORDS = ['company template', 'organization template', 'new company template', 'new organization template', 'create a new company template', 'create a new organization template']
 const AGENT_KEYWORDS = ['agent', 'assistant', 'helper', 'specialist']
 const SKILL_KEYWORDS = ['skill', 'skills', 'tool', 'tools', 'github', 'slack', 'whatsapp', 'gmail', 'calendar', 'integration', 'integrations', 'api', 'connect', 'connector']
 const CREATE_KEYWORDS = ['create', 'build', 'design', 'new', 'from scratch', 'generate']
 const REUSE_KEYWORDS = ['existing', 'already have', 'reuse', 'use my', 'current']
 const TEMPLATE_KEYWORDS = ['template', 'templates', 'refine template', 'edit template', 'team template', 'organization template']
-const AGENT_TEMPLATE_KEYWORDS = ['agent template', 'agent starter', 'create agent from template', 'use template for agent']
+const AGENT_TEMPLATE_KEYWORDS = ['agent template', 'agent starter', 'create agent from template', 'create a new agent from', 'create new agent from', 'new agent from', 'use template for agent']
 const REFINE_KEYWORDS = ['refine', 'improve', 'edit', 'update', 'adjust', 'tune']
 const NEW_BUILD_KEYWORDS = ['new', 'from scratch', 'generate', 'net new']
 const IMPROVE_EXISTING_KEYWORDS = ['improve my', 'improve current', 'make better', 'upgrade', 'extend', 'enhance']
 const TEMPLATE_REFINE_KEYWORDS = ['refine template', 'edit template', 'adapt template', 'customize template', 'improve template']
 const EXISTING_TEMPLATE_KEYWORDS = ['existing template', 'current template', 'already have a template', 'local template']
+const NEW_TEMPLATE_KEYWORDS = ['new template', 'new team template', 'new company template', 'new organization template', 'create a new template', 'create a new team template', 'create a new company template', 'create a new organization template']
 const AMBIGUITY_KEYWORDS = ['maybe', 'not sure', 'whichever fits best', 'or maybe', 'either']
 const NON_SCORING_TOKENS = new Set(['agent', 'agents', 'team', 'teams', 'template', 'templates', 'create', 'build', 'design', 'new', 'from', 'scratch', 'use'])
 
@@ -124,13 +126,22 @@ function tokenize(prompt: string): string[] {
   ))
 }
 
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 function includesAny(prompt: string, words: string[]): boolean {
   const normalized = prompt.toLowerCase()
-  return words.some((word) => normalized.includes(word))
+  return words.some((word) => {
+    const escaped = escapeRegex(word.toLowerCase()).replace(/\s+/g, '\\s+')
+    return new RegExp(`(?:^|\\b)${escaped}(?:\\b|$)`, 'i').test(normalized)
+  })
 }
 
 function detectScope(prompt: string): AiBuilderScope {
   if (includesAny(prompt, TEAM_OF_TEAMS_KEYWORDS)) return 'team_of_teams'
+  if (includesAny(prompt, COMPANY_SCOPE_KEYWORDS)) return 'team_of_teams'
+  if (includesAny(prompt, ['organization', 'company']) && includesAny(prompt, ['teams', 'leadership'])) return 'team_of_teams'
   if (includesAny(prompt, TEAM_KEYWORDS)) return 'team'
   if (includesAny(prompt, ['operations', 'ops', 'intake', 'delivery']) && includesAny(prompt, TEMPLATE_KEYWORDS)) return 'team'
   if (includesAny(prompt, AGENT_KEYWORDS)) return 'single_agent'
@@ -139,6 +150,13 @@ function detectScope(prompt: string): AiBuilderScope {
 
 function detectOperation(prompt: string): AiBuilderOperation {
   const hasTemplateLanguage = includesAny(prompt, TEMPLATE_KEYWORDS)
+  const hasAgentTemplateLanguage = includesAny(prompt, AGENT_TEMPLATE_KEYWORDS)
+  if (hasTemplateLanguage && includesAny(prompt, NEW_TEMPLATE_KEYWORDS)) {
+    return 'create_new'
+  }
+  if (hasAgentTemplateLanguage && !includesAny(prompt, EXISTING_TEMPLATE_KEYWORDS) && !includesAny(prompt, TEMPLATE_REFINE_KEYWORDS)) {
+    return 'use_template'
+  }
   if (hasTemplateLanguage && (includesAny(prompt, TEMPLATE_REFINE_KEYWORDS) || includesAny(prompt, EXISTING_TEMPLATE_KEYWORDS) || includesAny(prompt, REFINE_KEYWORDS))) {
     return 'refine_template'
   }
@@ -389,14 +407,20 @@ function chooseIntent(args: {
       || (hasRefineLanguage && hasReuseLanguage && agentScore >= strongestTemplateScore)
       || (!wantsSomethingNew && agentScore >= 8 && agentScore >= strongestTemplateScore + 3))
 
+  if (hasAgentTemplateLanguage && matchedAgentTemplates.length > 0) {
+    return { intent: 'agent_template', scope, operation, confidence: hasAmbiguityLanguage ? 'low' : (agentTemplateScore >= 7 ? 'high' : 'medium') }
+  }
+
   if (hasSkillLanguage && matchedSkills.length > 0) {
     return { intent: 'skill_or_integration', scope, operation, confidence: matchedSkills[0].score >= 8 ? 'high' : 'medium' }
   }
 
   if (scope === 'single_agent' && (operation === 'reuse_existing' || operation === 'improve_existing')) {
-    const confidence: AiBuilderConfidence = matchedAgents.length > 0
-      ? (agentScore >= Math.max(strongestTemplateScore + 2, 8) ? 'high' : 'medium')
-      : 'medium'
+    const confidence: AiBuilderConfidence = hasAmbiguityLanguage
+      ? 'low'
+      : matchedAgents.length > 0
+        ? (agentScore >= Math.max(strongestTemplateScore + 2, 8) ? 'high' : 'medium')
+        : 'medium'
     return { intent: 'existing_agent', scope, operation, confidence }
   }
 
@@ -428,10 +452,6 @@ function chooseIntent(args: {
   ) {
     const confidence: AiBuilderConfidence = hasAmbiguityLanguage ? 'low' : (matchedOrganizationTemplates.length > 0 && orgTemplateScore >= agentTemplateScore ? 'low' : (agentTemplateScore >= 7 ? 'high' : 'medium'))
     return { intent: 'agent_template', scope, operation, confidence }
-  }
-
-  if (hasAgentTemplateLanguage && matchedAgentTemplates.length > 0) {
-    return { intent: 'agent_template', scope, operation, confidence: hasAmbiguityLanguage ? 'low' : (agentTemplateScore >= 7 ? 'high' : 'medium') }
   }
 
   if (hasTemplateLanguage && matchedOrganizationTemplates.length > 0 && (hasTeamLanguage || orgTemplateScore >= agentTemplateScore)) {
