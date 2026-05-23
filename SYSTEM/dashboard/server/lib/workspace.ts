@@ -1821,7 +1821,7 @@ export function getDashboardVersion(): string {
   const gitTag = getLatestTag()
   if (isUsableVersion(gitTag)) {
     const exactTag = getHeadExactTag()
-    if (exactTag === gitTag) return gitTag
+    if (exactTag && normalizeReleaseVersion(exactTag) === normalizeReleaseVersion(gitTag)) return exactTag
 
     const shortSha = getHeadShortSha()
     if (shortSha) {
