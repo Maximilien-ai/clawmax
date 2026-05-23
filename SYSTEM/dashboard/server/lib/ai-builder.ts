@@ -110,6 +110,16 @@ const EXISTING_TEMPLATE_KEYWORDS = ['existing template', 'current template', 'al
 const NEW_TEMPLATE_KEYWORDS = ['new template', 'new team template', 'new company template', 'new organization template', 'create a new template', 'create a new team template', 'create a new company template', 'create a new organization template']
 const AMBIGUITY_KEYWORDS = ['maybe', 'not sure', 'whichever fits best', 'or maybe', 'either']
 const NON_SCORING_TOKENS = new Set(['agent', 'agents', 'team', 'teams', 'template', 'templates', 'create', 'build', 'design', 'new', 'from', 'scratch', 'use'])
+const DERIVED_SUBTOKENS = ['gallery', 'event', 'events', 'show', 'shows', 'artist', 'artists', 'art', 'conference', 'speaker', 'speakers', 'exhibit', 'exhibition']
+const EVENT_PROMPT_KEYWORDS = ['event', 'events', 'show', 'shows', 'gallery', 'artist', 'artists', 'art', 'exhibit', 'exhibition', 'opening', 'speaker', 'conference', 'attendees', 'venue', 'run-of-show', 'monthly']
+const EVENT_TEMPLATE_KEYWORDS = ['speaker', 'conference', 'venue', 'attendees', 'run-of-show', 'guest', 'guests', 'program', 'logistics', 'rsvp', 'check-in', 'event-day', 'sponsor', 'agenda']
+const CULTURAL_EVENT_PROMPT_KEYWORDS = ['gallery', 'show', 'shows', 'opening', 'artist', 'artists', 'exhibit', 'exhibition', 'monthly']
+const NON_EVENT_DOMAIN_KEYWORDS = ['astronomy', 'telescope', 'meteor', 'physics', 'mathematics', 'biology', 'research lab', 'research group']
+const OPERATIONAL_PROMPT_KEYWORDS = ['manage', 'planning', 'plan', 'organize', 'coordinate', 'coordination', 'host', 'run', 'monthly']
+const OPERATIONAL_TEMPLATE_KEYWORDS = ['logistics', 'run-of-show', 'guest', 'guests', 'host', 'check-in', 'readiness', 'operations', 'ops', 'agenda', 'speaker', 'venue', 'follow-up']
+const ANALYTICAL_TEMPLATE_KEYWORDS = ['analysis', 'analyzing', 'research', 'eval', 'evaluation', 'digest', 'signals']
+const INTERNAL_TEMPLATE_KEYWORDS = ['hack', 'hackathon', 'test', 'system', 'clawmax', 'dev']
+const INTERNAL_TEMPLATE_ALLOW_PROMPT_KEYWORDS = ['hackathon', 'system test', 'clawmax', 'dev team', 'platform validation', 'release test']
 
 function topScore(items: AiBuilderMatchedAsset[]): number {
   return items[0]?.score || 0
@@ -120,12 +130,19 @@ function normalizeText(value: unknown): string {
 }
 
 function tokenize(prompt: string): string[] {
+  const rawTokens = prompt
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, ' ')
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 3)
+
+  const derivedTokens = rawTokens.flatMap((token) => (
+    DERIVED_SUBTOKENS.filter((derived) => token !== derived && token.includes(derived))
+  ))
+
   return Array.from(new Set(
-    prompt
-      .toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, ' ')
-      .split(/\s+/)
-      .map((token) => token.trim())
+    [...rawTokens, ...derivedTokens]
       .filter((token) => token.length >= 3 && !NON_SCORING_TOKENS.has(token))
   ))
 }
@@ -261,6 +278,14 @@ function toTemplateRecord(template: Template): SearchableRecord {
   const participants = template.type === 'organization'
     ? template.agents.map((agent) => `${agent.name || agent.id} ${agent.role}`).join(' ')
     : template.agents.map((agent) => `${agent.name || agent.id} ${agent.role}`).join(' ')
+  const organizationContext = template.type === 'organization'
+    ? [
+        ...(template.communities || []).flatMap((community) => [community.name, community.description || '', ...(community.tags || [])]),
+        ...(template.groups || []).flatMap((group) => [group.name, group.description || '', ...(group.tags || [])]),
+        ...(template.teams || []).flatMap((team) => [team.name, team.purpose || '', ...(team.tags || [])]),
+        ...(template.workflows || []).flatMap((workflow) => [workflow.id, workflow.name, workflow.description || '']),
+      ]
+    : []
 
   return {
     id: template.slug || template.name,
@@ -273,28 +298,79 @@ function toTemplateRecord(template: Template): SearchableRecord {
       template.description,
       ...(template.tags || []),
       participants,
+      ...organizationContext,
     ].map(normalizeText).join(' ').toLowerCase(),
   }
 }
 
+function templateDomainScoreBoost(prompt: string, record: SearchableRecord, type: AiBuilderMatchedAsset['type']): number {
+  if (type !== 'organization-template') return 0
+  const normalizedPrompt = prompt.toLowerCase()
+  const haystack = record.haystack
+  let boost = 0
+
+  const eventPromptMatches = EVENT_PROMPT_KEYWORDS.filter((keyword) => normalizedPrompt.includes(keyword))
+  const eventTemplateMatches = EVENT_TEMPLATE_KEYWORDS.filter((keyword) => haystack.includes(keyword))
+  if (eventPromptMatches.length > 0 && eventTemplateMatches.length > 0) {
+    boost += 8 + Math.min(eventPromptMatches.length, 3) * 2 + Math.min(eventTemplateMatches.length, 3)
+  }
+
+  const culturalEventPromptMatches = CULTURAL_EVENT_PROMPT_KEYWORDS.filter((keyword) => normalizedPrompt.includes(keyword))
+  if (culturalEventPromptMatches.length > 0 && eventTemplateMatches.length > 0) {
+    boost += 6 + Math.min(culturalEventPromptMatches.length, 3) * 2
+  }
+
+  const hasNonEventDomainLanguage = NON_EVENT_DOMAIN_KEYWORDS.some((keyword) => haystack.includes(keyword))
+  if (culturalEventPromptMatches.length > 0 && hasNonEventDomainLanguage && eventTemplateMatches.length === 0) {
+    boost -= 10
+  }
+
+  const operationalPromptMatches = OPERATIONAL_PROMPT_KEYWORDS.filter((keyword) => normalizedPrompt.includes(keyword))
+  const operationalTemplateMatches = OPERATIONAL_TEMPLATE_KEYWORDS.filter((keyword) => haystack.includes(keyword))
+  const analyticalTemplateMatches = ANALYTICAL_TEMPLATE_KEYWORDS.filter((keyword) => haystack.includes(keyword))
+  if (operationalPromptMatches.length > 0 && operationalTemplateMatches.length > 0) {
+    boost += 6 + Math.min(operationalPromptMatches.length, 3) * 2 + Math.min(operationalTemplateMatches.length, 2)
+  }
+  if (operationalPromptMatches.length > 0 && analyticalTemplateMatches.length > 0) {
+    boost -= 8
+  }
+  if (operationalPromptMatches.length > 0 && analyticalTemplateMatches.length > 0 && operationalTemplateMatches.length === 0) {
+    boost -= 14
+  }
+
+  const isInternalTemplate = INTERNAL_TEMPLATE_KEYWORDS.some((keyword) => haystack.includes(keyword))
+  const promptAllowsInternalTemplate = INTERNAL_TEMPLATE_ALLOW_PROMPT_KEYWORDS.some((keyword) => normalizedPrompt.includes(keyword))
+  if (isInternalTemplate && !promptAllowsInternalTemplate) {
+    boost -= 18
+  }
+
+  return boost
+}
+
 function rankAssets<T extends SearchableRecord>(
+  prompt: string,
   tokens: string[],
   records: T[],
   type: AiBuilderMatchedAsset['type'],
 ): AiBuilderMatchedAsset[] {
   return records
-    .map((record) => ({
-      id: record.id,
-      name: record.name,
-      type,
-      summary: record.summary,
-      score: scoreRecord(tokens, record),
-      matchCount: countRecordMatches(tokens, record),
-      source: record.source,
-    }))
+    .map((record) => {
+      const domainBoost = templateDomainScoreBoost(prompt, record, type)
+      return {
+        id: record.id,
+        name: record.name,
+        type,
+        summary: record.summary,
+        score: scoreRecord(tokens, record) + domainBoost,
+        matchCount: countRecordMatches(tokens, record),
+        source: record.source,
+        domainBoost,
+      }
+    })
     .filter((item) => item.score > 0)
-    .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
+    .sort((a, b) => b.score - a.score || b.domainBoost - a.domainBoost || a.name.localeCompare(b.name))
     .slice(0, 5)
+    .map(({ domainBoost: _domainBoost, ...item }) => item)
 }
 
 function buildClarifyingQuestions(prompt: string, intent: AiBuilderIntent, matches: AiBuilderRecommendation['matchedAssets']): string[] {
@@ -568,11 +644,11 @@ export function buildAiBuilderRecommendation(prompt: string): AiBuilderRecommend
   const skills = listAvailableSkills()
   const workflows = listWorkflows()
 
-  const matchedAgents = rankAssets(tokens, agents.map(toAgentRecord), 'agent')
-  const matchedSkills = rankAssets(tokens, skills.map(toSkillRecord), 'skill')
-  const matchedAgentTemplates = rankAssets(tokens, agentTemplates.map(toTemplateRecord), 'agent-template')
-  const matchedOrganizationTemplates = rankAssets(tokens, organizationTemplates.map(toTemplateRecord), 'organization-template')
-  const matchedWorkflows = rankAssets(tokens, workflows.map(toWorkflowRecord), 'workflow')
+  const matchedAgents = rankAssets(normalizedPrompt, tokens, agents.map(toAgentRecord), 'agent')
+  const matchedSkills = rankAssets(normalizedPrompt, tokens, skills.map(toSkillRecord), 'skill')
+  const matchedAgentTemplates = rankAssets(normalizedPrompt, tokens, agentTemplates.map(toTemplateRecord), 'agent-template')
+  const matchedOrganizationTemplates = rankAssets(normalizedPrompt, tokens, organizationTemplates.map(toTemplateRecord), 'organization-template')
+  const matchedWorkflows = rankAssets(normalizedPrompt, tokens, workflows.map(toWorkflowRecord), 'workflow')
 
   const decision = chooseIntent({
     prompt: normalizedPrompt,

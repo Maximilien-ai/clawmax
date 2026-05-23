@@ -206,5 +206,17 @@
     "intent": "team_template",
     "scope": "team_of_teams",
     "page": "templates"
+  },
+  {
+    "name": "gallery monthly show prompt prefers event-oriented team template over internal hack template",
+    "prompt": "create a team of agents to help me manage monthly shows at incline gallery https://www.inclinegallerysf.com/",
+    "intent": "team_template",
+    "scope": "team",
+    "operation": "create_new",
+    "page": "templates",
+    "action": "create-ai",
+    "titleIncludes": "Create a new team template",
+    "topOrganizationTemplateIncludes": "Speaker Event Studio",
+    "topOrganizationTemplateExcludes": "Build-a-Company Hack Test"
   }
 ]

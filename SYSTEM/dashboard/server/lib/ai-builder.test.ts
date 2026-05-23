@@ -26,6 +26,8 @@ const cases = JSON.parse(
   action?: ReturnType<typeof buildAiBuilderRecommendation>['recommendedPath']['primaryAction']['action']
   confirmationOptionsMin?: number
   titleIncludes?: string
+  topOrganizationTemplateIncludes?: string
+  topOrganizationTemplateExcludes?: string
 }>
 
 for (const scenario of cases) {
@@ -38,6 +40,12 @@ for (const scenario of cases) {
     if (scenario.page) assert.equal(result.recommendedPath.primaryAction.page, scenario.page)
     if (scenario.action) assert.equal(result.recommendedPath.primaryAction.action, scenario.action)
     if (scenario.titleIncludes) assert(result.recommendedPath.title.includes(scenario.titleIncludes), `Expected title to include ${scenario.titleIncludes}`)
+    if (scenario.topOrganizationTemplateIncludes) {
+      assert.equal(result.matchedAssets.organizationTemplates[0]?.name, scenario.topOrganizationTemplateIncludes)
+    }
+    if (scenario.topOrganizationTemplateExcludes) {
+      assert.notEqual(result.matchedAssets.organizationTemplates[0]?.name, scenario.topOrganizationTemplateExcludes)
+    }
     if (scenario.confirmationOptionsMin) {
       assert(result.confirmationOptions.length >= scenario.confirmationOptionsMin, `Expected at least ${scenario.confirmationOptionsMin} confirmation options`)
     }
