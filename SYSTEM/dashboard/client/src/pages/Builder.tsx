@@ -913,6 +913,7 @@ function buildTemplateSelection(action: BuilderAction): string | null {
         generationTarget: action.templateDraftTarget,
         teamDescription: action.prefillPrompt,
       }))
+      window.dispatchEvent(new CustomEvent('clawmax-open-builder-template-draft'))
       return action.templateDraftTarget
     } catch {
       return null
@@ -926,6 +927,7 @@ function buildTemplateSelection(action: BuilderAction): string | null {
       templateName: action.templateName || action.templateId || '',
       templateType: action.templateType,
     }))
+    window.dispatchEvent(new CustomEvent('clawmax-open-template-from-onboarding'))
     return action.templateType
   } catch {
     return null
