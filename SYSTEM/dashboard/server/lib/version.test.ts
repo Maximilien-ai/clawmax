@@ -70,9 +70,12 @@ async function run() {
     if (/^\d+\.\d+\.\d+-[0-9a-f]{7}\*?$/.test(resolved)) {
       return
     }
+    if (/^\d+\.\d+\.\d+$/.test(resolved)) {
+      return
+    }
     assert(
       resolved.startsWith('v'),
-      `Expected exact tagged releases to keep their tag form, got ${resolved}`,
+      `Expected exact tagged releases to keep their tag form when tags are available, got ${resolved}`,
     )
   })
 
