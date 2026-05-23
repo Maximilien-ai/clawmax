@@ -57,6 +57,38 @@ First cut:
 
 The right rail should be persistent enough that users understand the builder is producing structured suggestions, not only chat text.
 
+## Current Implementation Snapshot
+
+As of the current `ai-builder-designer` branch, the first cut now includes:
+
+- top-level `Builder` nav entry
+- workspace-aware recommendation routing across:
+  - existing agents
+  - skills/integrations
+  - agent templates
+  - team/company templates
+  - AI-generate net-new agents
+- right rail with:
+  - current recommendation
+  - matched workspace assets
+  - suggested next actions
+  - test guidance
+  - session history
+- inline recommendation card in the transcript
+- low-confidence confirmation options
+- starter prompt generation:
+  - deterministic workspace-aware fallback
+  - optional AI-backed regeneration
+- shared full prompt editor with:
+  - markdown preview
+  - `Improve with AI`
+  - optional improvement-direction instructions
+  - attachment display/add/remove
+  - resizable dialog
+- Builder session history / archive / restore
+- thumbs up / thumbs down local feedback
+- direct handoff into Templates / Agents / Skills / Workflows
+
 ## Builder Agent Roles
 
 The Builder surface should be treated as a small family of built-in/system agents rather than one opaque assistant.
@@ -78,6 +110,7 @@ Purpose:
 Current implementation status:
 
 - shipped as deterministic routing logic plus workspace-aware matching
+- backed by an external evaluation corpus rather than only hardcoded test cases
 
 ### 2. Builder Clarifier Agent
 
@@ -110,6 +143,7 @@ Current implementation status:
 
 - shipped with deterministic workspace-aware generation
 - optionally enhanced with AI-backed regeneration
+- duplicate/near-duplicate prompt suppression is in place
 
 ### 4. Builder Prompt Improver Agent
 
@@ -124,8 +158,13 @@ Purpose:
 
 Current implementation status:
 
-- planned
-- should mirror the existing `Improve with AI` pattern used elsewhere in the dashboard
+- shipped
+- uses the shared prompt-expansion flow already used by other AI-generate surfaces
+- supports optional user guidance such as:
+  - make it shorter
+  - bias toward workflows
+  - keep the tone friendly
+- in Builder, prompt improvement also includes attached-file context
 
 ### 5. Builder Session Export Agent
 
@@ -138,6 +177,8 @@ Purpose:
 Current implementation status:
 
 - planned
+- Builder prompt editor already supports attachments and preview
+- markdown/session export is still pending
 
 ### 6. Builder Telemetry / Feedback Sink
 
@@ -151,6 +192,8 @@ Current implementation status:
 
 - local feedback exists today
 - remote sharing contract is planned
+- initial web handoff/spec exists in:
+  - [AI_BUILDER_WEB_CONTRACT.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/specs/AI_BUILDER_WEB_CONTRACT.md)
 
 ## Design Principles
 
@@ -265,6 +308,7 @@ Examples:
 - “Start AI Generate Agent with this prompt”
 - “Use existing agent `market-guide` and add skill `github`”
 - “Create team from `competitive-analysis-desk` and rename groups”
+- “Create a new team template from this prompt and open the AI template wizard with the draft prefilled”
 
 ### Step 6: Validate result
 
@@ -323,6 +367,22 @@ Prefer this path when:
 - Suggested next actions
 - Test this result
 - History
+
+## Prompt Editing and Attachments
+
+The shared prompt editor should now be treated as the canonical AI-prompt editing surface across Builder and the other AI-generation flows.
+
+Current behavior:
+
+- opens in a large, resizable dialog
+- no outside-click dismissal
+- supports markdown preview
+- supports `Improve with AI`
+- supports optional improvement-direction instructions
+- supports attachments
+- Builder passes attachment context into prompt improvement so uploaded files influence the rewritten brief
+
+This is intentionally better than the original small inline prompt fields and should become the default pattern rather than a Builder-only exception.
 
 ### Workspace matches
 
@@ -385,6 +445,23 @@ This file should evolve into a broader suite covering:
 - use template vs refine template vs create new
 - strong-signal vs low-confidence prompts
 - niche-domain prompts where generic templates should lose to net-new template creation
+
+Current progress:
+
+- the eval corpus now covers:
+  - explicit new team template asks
+  - explicit new company template asks
+  - explicit agent-template creation asks
+  - ambiguous reuse-vs-new single-agent requests
+  - domain-specific niche teams where generic templates should lose
+  - template-start requests that also mention tools/integrations
+
+Recent routing fixes driven by eval failures:
+
+- avoid false refine matches from substring collisions such as `updates`
+- treat explicit `create new ... template` language as `create_new`
+- elevate company/organization prompts to `team_of_teams` scope when appropriate
+- prevent explicit agent-template creation requests from being hijacked by tool-language/skills routing
 
 ## Sharing and Privacy Contract
 

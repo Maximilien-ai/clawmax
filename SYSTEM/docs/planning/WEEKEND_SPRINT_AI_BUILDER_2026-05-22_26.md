@@ -14,25 +14,42 @@
 - live chat transcript with inline recommendation card
 - exact handoff links into agent, skill, workflow, and template destinations
 - local Builder session history / archive / restore
-- keyboard submit, voice-to-text input, and file/image attachment scaffolding
+- keyboard submit, voice-to-text input, and file/image attachment support
 - focused automated Builder routing tests
+- externalized Builder evaluation corpus in `server/lib/ai-builder-evals.json`
+- stronger Builder recommendation routing for:
+  - explicit new team/company template requests
+  - explicit agent-template creation requests
+  - ambiguity/confirmation flows
+  - company/team-of-teams scope detection
+- workspace-aware starter prompts with AI-backed regenerate and stronger dedupe
+- `Improve with AI` for Builder prompts
+- shared full prompt editor for Builder with:
+  - markdown preview
+  - improvement-direction field
+  - visible/editable attachments
+  - resizable dialog
+  - no outside-click dismissal
+- collapsible suggested prompts section
+- local thumbs up / thumbs down recommendation feedback
+- privacy/TOS Builder collection language
+- web contract draft for Builder session/feedback sharing
 
 ### In Progress
 
-- smarter recommendation quality across broader real prompts
-- recommendation trust and ranking against mixed existing-vs-template-vs-new scenarios
-- tighter UI polish for compactness and clarity
-- stronger Builder evaluation coverage with externalized prompt cases
+- recommendation quality across a broader real-prompt corpus
+- recommendation trust and ranking against harder mixed existing-vs-template-vs-new scenarios
+- broader manual prompt validation and handoff QA
 
 ### Still Needed Before Prime Time
 
 - larger automated prompt suite based on real user queries
-- higher-confidence Builder evaluation set with expected answers
 - more robust “match quality” thresholds for reuse vs refine vs new
 - additional manual testing of handoff correctness and recommendation quality
 - feature-flag or private-deploy hardening before merge to `main`
 - built-in/system-agent metering and model-selection follow-through
-- privacy/share contract for Builder sessions and feedback
+- remote Builder session/feedback implementation against the web contract
+- Builder markdown/session export to DocHub
 
 ## Target
 
@@ -346,10 +363,10 @@ For first release:
 
 ## Immediate Next Build Slice
 
-1. expand Builder evaluation queries from real usage examples
-2. improve recommendation scoring and thresholds
-3. add more handoff and UI state coverage
-4. run another round of focused internal prompt validation
+1. expand Builder evals again from fresh real prompts
+2. tighten routing only where new evals fail
+3. test direct handoff correctness from Builder into Templates / Agents / Skills / Workflows
+4. add Builder session export / markdown design-doc path
 5. decide whether the next cut stays branch-only or moves behind a flag
 
 ## Weekend Priority Order
@@ -380,6 +397,7 @@ Lowest-risk to hardest:
   - telemetry/feedback sink
 - external evaluation set lives outside the test file
 - sprint/backlog explicitly track the remaining Builder work
+- Builder/web sharing contract is written down for web-team review
 
 ### Product Quality
 
@@ -406,3 +424,15 @@ Lowest-risk to hardest:
 1. When Builder shares remote sessions, should it send full transcript turns or only final prompt/recommendation pairs by default?
 2. Should Builder export one markdown design document per archived session or support multi-session append in a single workspace design log?
 3. Should system-agent model selection live under `BYOK`, a dedicated `System Agents` section, or both?
+
+## Tomorrow Start
+
+1. Review the updated Builder design doc before changing more product behavior.
+2. Add the next 15-20 real prompts into `ai-builder-evals.json`.
+3. Run `server/lib/ai-builder.test.ts` and fix only the newly exposed routing misses.
+4. Manually verify handoff correctness for:
+   - new team template
+   - refine local template
+   - reuse existing agent
+   - add skills/integrations
+5. Start the Builder markdown/session export path only after the next eval batch is green.
