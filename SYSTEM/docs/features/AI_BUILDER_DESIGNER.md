@@ -120,6 +120,12 @@ Current implementation status:
   - engineering / product
   - commerce / retail
   - business / company
+- important: these families are routing hints, not a closed whitelist
+- if Builder cannot confidently place a prompt into a known family, it should not force the request into one
+- instead it should:
+  - prefer `Create New Template` when the best existing match is still too generic
+  - keep `Refine Template` available when there is a plausible near match worth adapting
+  - surface both paths when the honest answer is “either refine this close starter or create a cleaner new one”
 
 ### 2. Builder Clarifier Agent
 
@@ -233,6 +239,17 @@ The builder should not stop at “create this.” It should also propose:
 ### 5. Keep first version deterministic and high-signal
 
 V1 should focus on good routing and recommendations, not broad autonomous building.
+
+### 6. Do not overfit the taxonomy
+
+The Builder family model should stay extensible.
+
+- new domains should still route well before they are given a named family
+- unknown domains should fall back to:
+  - refine a close existing template
+  - create a new template
+  - confirm the path with the user when confidence is low
+- evaluation coverage matters more than growing the family list too quickly
 
 ## V1 Scope
 

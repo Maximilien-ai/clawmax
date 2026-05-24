@@ -1,20 +1,60 @@
 import { Router } from 'express'
-import { buildAiBuilderRecommendation } from '../lib/ai-builder'
-import { generateBuilderStarterPromptsWithAI, setRequestByokKeys } from '../lib/ai-generator'
+import {
+  applyAiBuilderLlmFallback,
+  buildAiBuilderRecommendation,
+  shouldUseAiBuilderLlmFallback,
+} from '../lib/ai-builder'
+import {
+  generateBuilderStarterPromptsWithAI,
+  inferBuilderGroupingWithAI,
+  setRequestByokKeys,
+} from '../lib/ai-generator'
 
 const router = Router()
 
-router.post('/recommend', (req, res) => {
+router.post('/recommend', async (req, res) => {
   const prompt = `${req.body?.prompt || ''}`.trim()
+  const byokKeys = req.body?.byokKeys && typeof req.body.byokKeys === 'object'
+    ? req.body.byokKeys
+    : undefined
   if (!prompt) {
     return res.status(400).json({ error: 'Prompt is required' })
   }
 
   try {
-    const recommendation = buildAiBuilderRecommendation(prompt)
+    setRequestByokKeys(byokKeys)
+    let recommendation = buildAiBuilderRecommendation(prompt)
+    if (shouldUseAiBuilderLlmFallback(recommendation)) {
+      try {
+        const fallback = await inferBuilderGroupingWithAI({
+          prompt,
+          summary: recommendation.summary,
+          intent: recommendation.intent,
+          scope: recommendation.scope,
+          operation: recommendation.operation,
+          confidence: recommendation.confidence,
+          topOrganizationTemplates: recommendation.matchedAssets.organizationTemplates.slice(0, 3).map((template) => ({
+            name: template.name,
+            summary: template.summary,
+            family: template.family,
+          })),
+          topAgentTemplates: recommendation.matchedAssets.agentTemplates.slice(0, 3).map((template) => ({
+            name: template.name,
+            summary: template.summary,
+          })),
+        })
+        if (fallback.grouping && fallback.rationale) {
+          recommendation = applyAiBuilderLlmFallback(recommendation, prompt, fallback)
+        }
+      } catch {
+        // Keep deterministic recommendation if AI fallback is unavailable or fails.
+      }
+    }
     res.json({ ok: true, recommendation })
   } catch (error: any) {
     res.status(500).json({ error: error?.message || 'Failed to build recommendation' })
+  } finally {
+    setRequestByokKeys(undefined)
   }
 })
 

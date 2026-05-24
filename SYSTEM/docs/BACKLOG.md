@@ -86,6 +86,7 @@
 - [ ] **Dashboard regression automation** — coverage for OAuth/auth, agent edit/model save, template apply, workspace switching. GitHub: `#141`
 - [ ] **Clean-room CI hardening** — keep `SYSTEM/test.sh` deterministic, GitHub Actions trustworthy on `main`. GitHub: `#142`
 - [ ] **AI Builder evaluation corpus expansion** — keep the external Builder eval file current with real prompts, expected routing outcomes, and ambiguity/confirmation cases so recommendation quality can be improved without regressing.
+- [ ] **AI Builder open template-family taxonomy** — continue expanding Builder’s template-family hints without turning them into a closed whitelist; unknown domains should still fall back cleanly to `refine existing` vs `create new` template choices.
 
 ### UX & Product Polish
 - [ ] **Mobile responsiveness audit** — run a focused pass across login, top bar, notifications, agent cards, chat, dashboards, template apply, and integrations wizard on narrow/mobile widths; fix clipped popovers, off-screen dialogs, awkward stacking, and tap-target issues before broader external demos. GitHub: `#143`

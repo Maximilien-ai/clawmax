@@ -415,6 +415,11 @@ Lowest-risk to hardest:
   - existing asset improvement
   - existing template refinement
   - net-new template or generation
+- keep the template family model open-ended:
+  - do not force unknown domains into the current named families
+  - when a close starter exists but the fit is weak, surface both:
+    - `Refine Template`
+    - `Create New Template`
 
 ### Web / Privacy Contract
 

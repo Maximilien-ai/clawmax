@@ -23,6 +23,26 @@ export type BuilderStarterPromptInput = {
   otherWorkspaceNames?: string[]
 }
 
+export type BuilderLlmFallbackInput = {
+  prompt: string
+  summary: string
+  intent: string
+  scope: string
+  operation: string
+  confidence: string
+  topOrganizationTemplates?: Array<{ name: string; summary?: string; family?: string }>
+  topAgentTemplates?: Array<{ name: string; summary?: string }>
+}
+
+export type BuilderLlmFallbackOutput = {
+  grouping: string
+  rationale: string
+  candidateGroupings?: string[]
+  strategy: 'keep_current' | 'use_existing_template' | 'refine_existing_template' | 'create_new_template'
+  suggestedScope?: 'single_agent' | 'team' | 'team_of_teams' | 'unknown'
+  suggestedFamily?: string
+}
+
 function detectProviderFromKeyShape(key: string): 'openai' | 'anthropic' | 'gemini' | null {
   const trimmed = key.trim()
   if (!trimmed) return null
@@ -164,6 +184,37 @@ Rules:
 - Keep each prompt concise, specific, and actionable.`
 }
 
+function buildBuilderLlmFallbackSystemPrompt(): string {
+  return `You are a second-stage classifier for an AI Builder / Designer recommendation system.
+
+You are only called when the first deterministic pass is low-confidence or cannot confidently identify the domain grouping.
+
+Your job:
+- infer the most likely grouping/domain for the request
+- decide whether the user should:
+  - keep the current recommendation
+  - use an existing template
+  - refine an existing template
+  - create a new template
+
+Rules:
+- Return strict JSON only.
+- Shape:
+  {
+    "grouping": "short domain/grouping label",
+    "rationale": "1-2 sentence explanation",
+    "candidateGroupings": ["...", "..."],
+    "strategy": "keep_current" | "use_existing_template" | "refine_existing_template" | "create_new_template",
+    "suggestedScope": "single_agent" | "team" | "team_of_teams" | "unknown",
+    "suggestedFamily": "short existing family label or other"
+  }
+- Prefer practical groupings over abstract categories.
+- If the closest existing template looks structurally useful but domain-generic, choose "refine_existing_template".
+- If the domain looks novel or the existing templates are too generic, choose "create_new_template".
+- Do not invent product capabilities beyond the provided context.
+- Keep candidateGroupings short and useful.`
+}
+
 export async function generateBuilderStarterPromptsWithAI(input: BuilderStarterPromptInput): Promise<string[]> {
   const context = JSON.stringify({
     workspaceName: input.workspaceName || '',
@@ -204,6 +255,45 @@ export async function generateBuilderStarterPromptsWithAI(input: BuilderStarterP
     throw new Error('Failed to generate builder starter prompts')
   }
   return prompts.slice(0, 4)
+}
+
+export async function inferBuilderGroupingWithAI(input: BuilderLlmFallbackInput): Promise<BuilderLlmFallbackOutput> {
+  const context = JSON.stringify(input, null, 2)
+  const completion = await getSystemOpenAiClient().chat.completions.create({
+    model: resolveModel('gpt-4o-mini'),
+    messages: [
+      {
+        role: 'system',
+        content: buildBuilderLlmFallbackSystemPrompt(),
+      },
+      {
+        role: 'user',
+        content: context,
+      },
+    ],
+    temperature: 0.3,
+    max_tokens: 350,
+  })
+
+  const parsed = parseJsonResponse<BuilderLlmFallbackOutput>(completion.choices[0].message.content || '', {
+    grouping: '',
+    rationale: '',
+    candidateGroupings: [],
+    strategy: 'keep_current',
+    suggestedScope: 'unknown',
+    suggestedFamily: 'other',
+  })
+
+  return {
+    grouping: String(parsed.grouping || '').trim(),
+    rationale: String(parsed.rationale || '').trim(),
+    candidateGroupings: Array.isArray(parsed.candidateGroupings)
+      ? parsed.candidateGroupings.map((value) => String(value || '').trim()).filter(Boolean).slice(0, 3)
+      : [],
+    strategy: parsed.strategy || 'keep_current',
+    suggestedScope: parsed.suggestedScope || 'unknown',
+    suggestedFamily: String(parsed.suggestedFamily || 'other').trim() || 'other',
+  }
 }
 
 export function shouldGenerateCompanyTemplate(description: string, generationTarget: TemplateGenerationTarget = 'team'): boolean {
