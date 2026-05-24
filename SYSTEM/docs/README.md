@@ -1,6 +1,6 @@
 # ClawMax Documentation
 
-> Last updated: May 8, 2026 (v1.4.1)
+> Last updated: May 24, 2026
 
 ## Active Documents
 
@@ -13,6 +13,10 @@
 | [OAUTH_SETUP.md](OAUTH_SETUP.md) | GitHub OAuth configuration guide |
 | [SECURITY.md](SECURITY.md) | Security architecture and policies |
 | [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) | Pre-release verification steps |
+| [DEMO_VIDEOS.md](DEMO_VIDEOS.md) | Local demo video inventory and when to use it |
+| [architecture/DASHBOARD_RUNTIME_SPLIT.md](architecture/DASHBOARD_RUNTIME_SPLIT.md) | Investigation note for the 2-container vs 3-container dashboard runtime split |
+| [operations/TEMPLATE_CATALOG_AUDIT_2026-05-24.md](operations/TEMPLATE_CATALOG_AUDIT_2026-05-24.md) | First catalog audit pass for template lane/filesystem assumptions |
+| [operations/MOBILE_AUDIT_2026-05-24.md](operations/MOBILE_AUDIT_2026-05-24.md) | Focused narrow-width audit pass for high-traffic dashboard surfaces |
 
 ## Specifications (External)
 
@@ -38,4 +42,5 @@
 | `operations/` | Ops and deployment guides |
 | `planning/` | Sprint plans (current in root, completed in `archive/`) |
 | `presentations/` | Demo and talk materials |
+| `videos/` | Local backup demo videos for workflow execution and add-agent walkthroughs |
 | `archive/` | Historical docs no longer actively maintained |

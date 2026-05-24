@@ -332,6 +332,16 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Skill registry route unit tests...${NC}"
+npx ts-node --transpileOnly server/routes/skills.test.ts > /tmp/clawmax-skill-registry-routes.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-skill-registry-routes.out; then
+  skill_registry_route_count=$(grep "Tests passed:" /tmp/clawmax-skill-registry-routes.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Skill registry route unit tests (${skill_registry_route_count:-?} tests)"
+else
+  fail "Skill registry route unit tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Model discovery unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/model-discovery.test.ts > /tmp/clawmax-model-discovery.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-model-discovery.out; then
@@ -664,6 +674,16 @@ if grep -q "tests passed" /tmp/clawmax-skill-deletion.out; then
   pass "Skill deletion helper unit tests (${skill_deletion_count:-?} tests)"
 else
   fail "Skill deletion helper unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Agent skills scope helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/agentSkillsScope.test.ts > /tmp/clawmax-agent-skills-scope.out 2>&1 || true
+if grep -q "tests passed" /tmp/clawmax-agent-skills-scope.out; then
+  agent_skills_scope_count=$(grep -o '[0-9]\+ tests passed' /tmp/clawmax-agent-skills-scope.out | head -1 | grep -o '[0-9]\+')
+  pass "Agent skills scope helper unit tests (${agent_skills_scope_count:-?} tests)"
+else
+  cat /tmp/clawmax-agent-skills-scope.out
+  fail "Agent skills scope helper unit tests"
 fi
 
 echo -e "${YELLOW}→ Running Maintenance banner view unit tests...${NC}"

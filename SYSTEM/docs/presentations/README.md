@@ -2,6 +2,10 @@
 
 This directory contains presentation materials for ClawMax demos and launches.
 
+Related backup media:
+- [Demo Videos](../DEMO_VIDEOS.md)
+- local video files in [`../videos/`](../videos/)
+
 ## Presentation History
 
 ### 2026-04-26: Build-a-Company Hackathon
@@ -165,6 +169,7 @@ decktape reveal clawmax-v1-launch.html clawmax-v1-launch.pdf
 - Share link to GitHub repo
 - Share link to ClawMax.ai website
 - Collect feedback
+- If the live product path was unstable, note whether the backup videos were sufficient or need a refreshed recording
 
 ## Customization
 

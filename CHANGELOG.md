@@ -6,6 +6,21 @@ All notable changes to ClawMax are documented here.
 
 - No unreleased changes yet.
 
+## [v1.5.8] - 2026-05-24
+
+### Quality and CI Hardening
+- **Required CI Lane Unquarantined** — the main CI path now runs the previously quarantined template, dashboard-env, and docker-entrypoint coverage through `SYSTEM/test.sh` instead of letting those suites fail as optional follow-up signals.
+- **Secret Readiness Regression Coverage** — added direct client-side regression tests for `ready`, `missing`, and `degraded` local secret states so secret readiness logic stays stable as provider/setup behavior evolves.
+- **Registry Install Guidance Hardening** — Tessl and ClawHub registry install failures now return clearer actionable guidance for security-review blockers, missing runtime prerequisites, and packages that do not expose importable skill files.
+
+### Templates and Mobile Audit
+- **Template Catalog Guardrails** — shipped organization templates now have catalog-wide tests that ban hidden helper/runtime directory references in workflow content and catch duplicate explicit artifact filenames reused across multiple workflows in the same template.
+- **Catalog Audit Snapshot** — documented the first shipped-template audit batch in `SYSTEM/docs/operations/TEMPLATE_CATALOG_AUDIT_2026-05-24.md` so future template additions can follow the same assumptions and checks.
+- **Focused Mobile Responsiveness Fixes** — hardened narrow-width behavior for the notifications tray, the BYOK / Partner Integrations modal, and the Apply Agent Template modal so key flows remain usable on tighter screens.
+
+### Docs
+- **Runtime Split Investigation Recorded** — added the dashboard 3-container runtime split investigation doc to the architecture set so that operability/scalability follow-up work is tracked as an explicit design reference instead of an open question.
+
 ## [v1.5.7] - 2026-05-22
 
 ### Emergency Fix — On-Prem Readiness

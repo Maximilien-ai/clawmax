@@ -13,6 +13,7 @@ import { summarizeSkillDeleteImpact } from '../lib/skillsDeletion'
 import { filterAssignableAgents, isDeletableUserSkill, partitionSelectedSkills, partitionSkillsBySource, toggleItemSelection, toggleVisibleSelections } from '../lib/skillsSelection'
 import { getSkillSetupHint, maybeWarnSkillSetup, supportsDashboardSkillSetup } from '../lib/skillSetup'
 import { collectSkillTags, matchesSelectedSkillTags } from '../lib/skillTags'
+import { buildAgentSkillsScope, buildAssignedSkillBadges } from '../lib/agentSkillsScope'
 import { useAuth } from '../contexts/AuthContext'
 import { expandPromptWithAI } from '../lib/aiPrompt'
 import { ProductIconCell, resolveSkillVisual, resolveCategoryVisual } from '../lib/productIcons'
@@ -369,6 +370,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
   useEffect(() => {
     if (initialAgentId) {
       setAgentId(initialAgentId)
+      setFilterAssigned('assigned')
     }
   }, [initialAgentId])
 
@@ -1065,6 +1067,18 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
     () => Array.from(assignedSkills).sort((a, b) => a.localeCompare(b)),
     [assignedSkills]
   )
+  const assignedSkillBadges = useMemo(
+    () => buildAssignedSkillBadges(selectedAgentAssignedSkills),
+    [selectedAgentAssignedSkills]
+  )
+  const agentScope = useMemo(
+    () => buildAgentSkillsScope({
+      agentId,
+      initialAgentId,
+      assignedSkillNames: selectedAgentAssignedSkills,
+    }),
+    [agentId, initialAgentId, selectedAgentAssignedSkills]
+  )
 
   async function deleteSkillByName(skillName: string) {
     const response = await fetch(`${API_BASE}/api/skills/${encodeURIComponent(skillName)}`, {
@@ -1272,9 +1286,26 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
           </div>
           {availableAgents.length > 0 ? (
             <div className="space-y-3">
-              <p className="text-gray-600">
-                Assign skills to <span className="font-semibold text-gray-900 dark:text-gray-100">{agentId}</span> agent
-              </p>
+              <div className="rounded-xl border border-blue-200 bg-blue-50/80 px-4 py-3 dark:border-blue-900 dark:bg-blue-950/20">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold text-blue-900 dark:text-blue-200">{agentScope.title}</div>
+                    <div className="mt-1 text-xs text-blue-800/80 dark:text-blue-300/80">{agentScope.subtitle}</div>
+                  </div>
+                  {agentScope.isAgentScoped && (
+                    <div className="inline-flex items-center gap-2">
+                      <span className="rounded-full border border-blue-200 bg-white px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-blue-700 dark:border-blue-800 dark:bg-gray-900 dark:text-blue-300">
+                        {agentScope.assignedCountLabel}
+                      </span>
+                      {agentScope.isInitialScoped && (
+                        <span className="rounded-full border border-blue-200 bg-white px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-blue-700 dark:border-blue-800 dark:bg-gray-900 dark:text-blue-300">
+                          Agent Flow
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
               {agentId && (
                 <div className="rounded-lg border border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-800">
                   <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
@@ -1284,7 +1315,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                     <div className="text-sm text-gray-500 dark:text-gray-400">No skills assigned yet.</div>
                   ) : (
                     <div className="flex flex-wrap gap-2">
-                      {selectedAgentAssignedSkills.map((skillName) => (
+                      {assignedSkillBadges.map(({ name: skillName, needsSetup }) => (
                         <div
                           key={`selected-agent-skill-${skillName}`}
                           className="inline-flex items-center gap-1 rounded-full bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 text-xs font-medium pr-1"
@@ -1298,7 +1329,10 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                             className="rounded-full rounded-r-none px-3 py-1.5 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
                             title={`Focus ${skillName}`}
                           >
-                            {skillName}
+                            <span className="inline-flex items-center gap-1">
+                              {skillName}
+                              {needsSetup && <span className="text-[10px]">⚠</span>}
+                            </span>
                           </button>
                           <button
                             type="button"

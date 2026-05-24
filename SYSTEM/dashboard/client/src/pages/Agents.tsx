@@ -1959,6 +1959,12 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
             }
             window.setTimeout(() => { fetchAgents(true, true) }, 1200)
           }}
+          onNavigateToSkills={(agentId) => {
+            setShowAddWizard(false)
+            setCloneFromAgent(null)
+            setAiGenerateMode(false)
+            onNavigateToSkills?.(agentId)
+          }}
           defaultCloneFrom={cloneFromAgent || undefined}
           startWithAI={aiGenerateMode}
         />

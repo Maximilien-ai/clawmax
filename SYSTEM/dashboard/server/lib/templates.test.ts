@@ -1695,5 +1695,65 @@ test('system organization templates do not contain raw mustache workflow placeho
   assertEqual(JSON.stringify(placeholderHits), JSON.stringify([]), `Expected no raw mustache placeholders, got ${placeholderHits.join(', ')}`)
 })
 
+test('system organization templates do not reference hidden helper runtime directories in workflow content', () => {
+  const templatesDir = path.resolve(process.cwd(), '..', '..', 'TEMPLATES', 'organizations')
+  const bannedPatterns = [
+    /\.git\b/i,
+    /\.openclaw\b/i,
+    /AGENTS\/archive\b/i,
+    /WORKFLOWS\/executions\b/i,
+  ]
+  const hits: string[] = []
+
+  for (const slug of fs.readdirSync(templatesDir)) {
+    const templatePath = path.join(templatesDir, slug, 'template.json')
+    if (!fs.existsSync(templatePath)) continue
+    const template = JSON.parse(fs.readFileSync(templatePath, 'utf-8'))
+    for (const workflow of template.workflows || []) {
+      const content = typeof workflow?.content === 'string' ? workflow.content : ''
+      if (bannedPatterns.some((pattern) => pattern.test(content))) {
+        hits.push(`${slug}:${workflow.id}`)
+      }
+    }
+  }
+
+  assertEqual(JSON.stringify(hits), JSON.stringify([]), `Expected no helper-directory references, got ${hits.join(', ')}`)
+})
+
+test('system organization templates do not reuse explicit artifact filenames across multiple workflows', () => {
+  const templatesDir = path.resolve(process.cwd(), '..', '..', 'TEMPLATES', 'organizations')
+  const duplicateHits: string[] = []
+  const explicitArtifactPattern = /`([^`\n]+\.(?:md|txt|json|csv|yaml|yml))`/g
+
+  for (const slug of fs.readdirSync(templatesDir)) {
+    const templatePath = path.join(templatesDir, slug, 'template.json')
+    if (!fs.existsSync(templatePath)) continue
+    const template = JSON.parse(fs.readFileSync(templatePath, 'utf-8'))
+    const seenByFilename = new Map<string, string>()
+
+    for (const workflow of template.workflows || []) {
+      const workflowId = String(workflow?.id || '')
+      const content = typeof workflow?.content === 'string' ? workflow.content : ''
+      const filenames = new Set<string>()
+      let match: RegExpExecArray | null = null
+      explicitArtifactPattern.lastIndex = 0
+      while ((match = explicitArtifactPattern.exec(content)) !== null) {
+        filenames.add(match[1].toLowerCase())
+      }
+
+      for (const filename of filenames) {
+        const priorWorkflowId = seenByFilename.get(filename)
+        if (priorWorkflowId && priorWorkflowId !== workflowId) {
+          duplicateHits.push(`${slug}:${priorWorkflowId}->${workflowId}:${filename}`)
+        } else {
+          seenByFilename.set(filename, workflowId)
+        }
+      }
+    }
+  }
+
+  assertEqual(JSON.stringify(duplicateHits), JSON.stringify([]), `Expected no duplicate explicit artifact filenames, got ${duplicateHits.join(', ')}`)
+})
+
 // Summary
 void printSummaryAndExit()

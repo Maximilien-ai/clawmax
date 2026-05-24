@@ -81,6 +81,7 @@
 - [ ] **Launch smoke checklist** — run one short end-to-end smoke path covering login/BYOK, template apply, workflow trigger, company dashboards, delete/reapply, and integrations save/apply
 - [ ] **Signup/invite path verification** — verify the user-facing signup and invitation path is coherent from ClawMax.ai through first dashboard access
 - [ ] **First-user operations checklist** — prepare the minimum runbook for triaging auth, provider, template-apply, and workflow-execution issues during early user onboarding
+- [ ] **Refresh feature demo videos** — replace the legacy workflow/add-agent backup recordings with current feature videos for agents, templates, workflows, skills, BYOK/models, organization/team apply, Builder/Designer, and DocHub/document flows. Keep [DEMO_VIDEOS.md](DEMO_VIDEOS.md) as the source of truth for recording status and file inventory.
 
 ### Quality & Testing
 - [ ] **Dashboard regression automation** — coverage for OAuth/auth, agent edit/model save, template apply, workspace switching. GitHub: `#141`
