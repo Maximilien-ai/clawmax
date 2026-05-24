@@ -220,6 +220,15 @@ What it does:
 - extract the release bundle into `./clawmax` by default
 - continue into the normal repo `setup.sh` flow automatically
 
+## 🎬 Demo Videos
+
+ClawMax includes local backup demo videos for the two most common walkthroughs:
+
+- workflow execution: [SYSTEM/docs/videos/video1-workflow-execution.mov](SYSTEM/docs/videos/video1-workflow-execution.mov)
+- add-agent flow: [SYSTEM/docs/videos/video2-add-agent.mov](SYSTEM/docs/videos/video2-add-agent.mov)
+
+See [SYSTEM/docs/DEMO_VIDEOS.md](SYSTEM/docs/DEMO_VIDEOS.md) for when to use them and how they fit into demos and docs.
+
 You can also bootstrap directly with the checked-in wrapper:
 
 ```bash
