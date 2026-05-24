@@ -802,6 +802,12 @@ router.post('/registry/install', async (req, res) => {
       }
 
       if (lastError) {
+        if (provider === 'tessl') {
+          const blocker = getTesslInstallBlockerMessage(lastOutput)
+          if (blocker) {
+            return res.status(400).json({ error: blocker })
+          }
+        }
         throw lastError
       }
 

@@ -322,6 +322,16 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Skill registry route unit tests...${NC}"
+npx ts-node --transpileOnly server/routes/skills.test.ts > /tmp/clawmax-skill-registry-routes.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-skill-registry-routes.out; then
+  skill_registry_route_count=$(grep "Tests passed:" /tmp/clawmax-skill-registry-routes.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Skill registry route unit tests (${skill_registry_route_count:-?} tests)"
+else
+  fail "Skill registry route unit tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Model discovery unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/model-discovery.test.ts > /tmp/clawmax-model-discovery.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-model-discovery.out; then
