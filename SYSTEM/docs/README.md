@@ -14,6 +14,7 @@
 | [SECURITY.md](SECURITY.md) | Security architecture and policies |
 | [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) | Pre-release verification steps |
 | [DEMO_VIDEOS.md](DEMO_VIDEOS.md) | Local demo video inventory and when to use it |
+| [architecture/DASHBOARD_RUNTIME_SPLIT.md](architecture/DASHBOARD_RUNTIME_SPLIT.md) | Investigation note for the 2-container vs 3-container dashboard runtime split |
 
 ## Specifications (External)
 
