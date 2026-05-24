@@ -25,6 +25,17 @@ export type AiBuilderOperation =
   | 'unknown'
 
 export type AiBuilderConfidence = 'high' | 'medium' | 'low'
+export type AiBuilderTemplateFamily =
+  | 'operations_general'
+  | 'event_ops'
+  | 'event_analysis'
+  | 'research_analysis'
+  | 'personal_admin'
+  | 'content_media'
+  | 'engineering_product'
+  | 'commerce_retail'
+  | 'business_company'
+  | 'other'
 
 export interface AiBuilderAction {
   id: string
@@ -49,6 +60,7 @@ export interface AiBuilderMatchedAsset {
   score: number
   matchCount?: number
   source?: string
+  family?: AiBuilderTemplateFamily
 }
 
 export interface AiBuilderRecommendation {
@@ -91,6 +103,7 @@ type SearchableRecord = {
   summary: string
   source?: string
   haystack: string
+  family?: AiBuilderTemplateFamily
 }
 
 const TEAM_KEYWORDS = ['team', 'teams', 'handoff', 'handoffs', 'workflow', 'workflows', 'company', 'organization', 'org', 'lane', 'lanes', 'group', 'groups']
@@ -120,6 +133,31 @@ const OPERATIONAL_TEMPLATE_KEYWORDS = ['logistics', 'run-of-show', 'guest', 'gue
 const ANALYTICAL_TEMPLATE_KEYWORDS = ['analysis', 'analyzing', 'research', 'eval', 'evaluation', 'digest', 'signals']
 const INTERNAL_TEMPLATE_KEYWORDS = ['hack', 'hackathon', 'test', 'system', 'clawmax', 'dev']
 const INTERNAL_TEMPLATE_ALLOW_PROMPT_KEYWORDS = ['hackathon', 'system test', 'clawmax', 'dev team', 'platform validation', 'release test']
+const TEMPLATE_FAMILY_KEYWORDS: Record<AiBuilderTemplateFamily, string[]> = {
+  operations_general: ['operations', 'ops', 'handoff', 'handoffs', 'delivery', 'execution', 'status'],
+  event_ops: ['event', 'events', 'speaker', 'conference', 'venue', 'run-of-show', 'guest', 'guests', 'logistics', 'agenda', 'attendees', 'gallery', 'artist', 'show', 'shows', 'exhibit', 'exhibition'],
+  event_analysis: ['event analysis', 'analytics', 'attendee signals', 'engagement signals', 'luma', 'lu.ma', 'event patterns', 'post-event analysis'],
+  research_analysis: ['research', 'analysis', 'analyst', 'briefing', 'memo', 'competitive', 'competitor', 'competitors', 'evaluation', 'digest', 'insights', 'thesis', 'review', 'tam', 'positioning', 'market alternatives', 'market analysis'],
+  personal_admin: ['chief-of-staff', 'calendar', 'inbox', 'email', 'meeting', 'meetings', 'follow-up', 'family', 'household', 'bills', 'travel', 'assistant', 'admin'],
+  content_media: ['blog', 'writing', 'editorial', 'content', 'publishing', 'podcast', 'video', 'documentation', 'technical writing', 'substack', 'copy'],
+  engineering_product: ['engineering', 'software', 'product', 'prototype', 'robotics', 'website', 'github', 'devops', 'rag', 'pipeline', 'codebase'],
+  commerce_retail: ['retail', 'store', 'inventory', 'pricing', 'supplier', 'merchandising', 'customer service', 'ecommerce', 'catalog'],
+  business_company: ['company', 'leadership', 'sales', 'marketing', 'campaign', 'seo', 'social media', 'hr', 'legal', 'startup', 'revenue', 'client success', 'agency'],
+  other: [],
+}
+
+const FAMILY_DISPLAY_LABELS: Record<AiBuilderTemplateFamily, string> = {
+  operations_general: 'operations',
+  event_ops: 'event operations',
+  event_analysis: 'event analysis',
+  research_analysis: 'research and analysis',
+  personal_admin: 'personal admin',
+  content_media: 'content and media',
+  engineering_product: 'engineering and product',
+  commerce_retail: 'commerce and retail',
+  business_company: 'business and company',
+  other: 'general',
+}
 
 function topScore(items: AiBuilderMatchedAsset[]): number {
   return items[0]?.score || 0
@@ -211,6 +249,48 @@ function countRecordMatches(tokens: string[], record: SearchableRecord): number 
   return matches
 }
 
+function countKeywordsInText(text: string, keywords: string[]): number {
+  const normalized = text.toLowerCase()
+  return keywords.filter((keyword) => normalized.includes(keyword)).length
+}
+
+function detectTemplateFamilyFromText(text: string): AiBuilderTemplateFamily {
+  let bestFamily: AiBuilderTemplateFamily = 'other'
+  let bestScore = 0
+
+  for (const family of Object.keys(TEMPLATE_FAMILY_KEYWORDS) as AiBuilderTemplateFamily[]) {
+    if (family === 'other') continue
+    const score = countKeywordsInText(text, TEMPLATE_FAMILY_KEYWORDS[family])
+    if (score > bestScore) {
+      bestFamily = family
+      bestScore = score
+    }
+  }
+
+  return bestFamily
+}
+
+function detectPromptFamily(prompt: string): AiBuilderTemplateFamily {
+  return detectTemplateFamilyFromText(prompt)
+}
+
+function familyCompatibilityBoost(promptFamily: AiBuilderTemplateFamily, recordFamily: AiBuilderTemplateFamily): number {
+  if (promptFamily === 'other' || recordFamily === 'other') return 0
+  if (promptFamily === recordFamily) return 16
+  if (promptFamily === 'event_ops' && recordFamily === 'event_analysis') return 4
+  if (promptFamily === 'event_analysis' && recordFamily === 'event_ops') return 4
+  if (promptFamily === 'research_analysis' && recordFamily === 'business_company') return -6
+  if (promptFamily === 'personal_admin' && recordFamily === 'research_analysis') return -4
+  if (promptFamily === 'event_ops' && recordFamily === 'research_analysis') return -6
+  if (promptFamily === 'engineering_product' && recordFamily === 'business_company') return 2
+  return 0
+}
+
+function describeFamilyFit(family: AiBuilderTemplateFamily | undefined): string | null {
+  if (!family || family === 'other') return null
+  return FAMILY_DISPLAY_LABELS[family]
+}
+
 type IntentDecision = {
   intent: AiBuilderIntent
   scope: AiBuilderScope
@@ -237,6 +317,7 @@ function toAgentRecord(agent: AgentInfo): SearchableRecord {
       ...(agent.groups || []).map((group) => group.name),
       ...(agent.communities || []).map((community) => community.name),
     ].map(normalizeText).join(' ').toLowerCase(),
+    family: 'other',
   }
 }
 
@@ -253,6 +334,7 @@ function toSkillRecord(skill: OpenClawSkill): SearchableRecord {
       ...(skill.registryCategories || []),
       ...(skill.requires?.bins || []),
     ].map(normalizeText).join(' ').toLowerCase(),
+    family: 'other',
   }
 }
 
@@ -271,6 +353,7 @@ function toWorkflowRecord(workflow: Workflow): SearchableRecord {
       ...(workflow.targeting?.communities || []),
       ...(workflow.targeting?.tags || []),
     ].map(normalizeText).join(' ').toLowerCase(),
+    family: 'other',
   }
 }
 
@@ -300,6 +383,14 @@ function toTemplateRecord(template: Template): SearchableRecord {
       participants,
       ...organizationContext,
     ].map(normalizeText).join(' ').toLowerCase(),
+    family: template.type === 'organization'
+      ? detectTemplateFamilyFromText([
+          template.name,
+          template.description,
+          ...(template.tags || []),
+          ...organizationContext,
+        ].map(normalizeText).join(' ').toLowerCase())
+      : 'other',
   }
 }
 
@@ -308,6 +399,8 @@ function templateDomainScoreBoost(prompt: string, record: SearchableRecord, type
   const normalizedPrompt = prompt.toLowerCase()
   const haystack = record.haystack
   let boost = 0
+  const promptFamily = detectPromptFamily(normalizedPrompt)
+  boost += familyCompatibilityBoost(promptFamily, record.family || 'other')
 
   const eventPromptMatches = EVENT_PROMPT_KEYWORDS.filter((keyword) => normalizedPrompt.includes(keyword))
   const eventTemplateMatches = EVENT_TEMPLATE_KEYWORDS.filter((keyword) => haystack.includes(keyword))
@@ -365,6 +458,7 @@ function rankAssets<T extends SearchableRecord>(
         matchCount: countRecordMatches(tokens, record),
         source: record.source,
         domainBoost,
+        family: record.family,
       }
     })
     .filter((item) => item.score > 0)
@@ -475,9 +569,16 @@ function chooseIntent(args: {
   const hasRefineLanguage = includesAny(prompt, REFINE_KEYWORDS)
   const wantsSomethingNew = includesAny(prompt, NEW_BUILD_KEYWORDS)
   const hasAmbiguityLanguage = includesAny(prompt, AMBIGUITY_KEYWORDS)
+  const hasExplicitExistingAgentToolNeed = (
+    includesAny(prompt, ['have an agent', 'my agent', 'current agent', 'existing agent', 'already have an agent', 'already have a'])
+    && includesAny(prompt, ['needs', 'need', 'just needs', 'it needs'])
+    && hasSkillLanguage
+    && scope === 'single_agent'
+  )
   const agentScore = topScore(matchedAgents)
   const agentTemplateScore = topScore(matchedAgentTemplates)
   const orgTemplateScore = topScore(matchedOrganizationTemplates)
+  const skillScore = topScore(matchedSkills)
   const strongestTemplateScore = Math.max(agentTemplateScore, orgTemplateScore)
   const topAgentTemplate = matchedAgentTemplates[0]
   const existingAgentPreferred = matchedAgents.length > 0
@@ -491,7 +592,11 @@ function chooseIntent(args: {
     return { intent: 'agent_template', scope, operation, confidence: hasAmbiguityLanguage ? 'low' : (agentTemplateScore >= 7 ? 'high' : 'medium') }
   }
 
-  if (hasSkillLanguage && matchedSkills.length > 0) {
+  if (hasExplicitExistingAgentToolNeed && matchedSkills.length > 0) {
+    return { intent: 'skill_or_integration', scope, operation, confidence: matchedSkills[0].score >= 8 ? 'high' : 'medium' }
+  }
+
+  if (hasSkillLanguage && matchedSkills.length > 0 && !hasTeamLanguage && orgTemplateScore < Math.max(skillScore + 6, 14)) {
     return { intent: 'skill_or_integration', scope, operation, confidence: matchedSkills[0].score >= 8 ? 'high' : 'medium' }
   }
 
@@ -689,6 +794,7 @@ export function buildAiBuilderRecommendation(prompt: string): AiBuilderRecommend
     organizationTemplates,
   })
   const teamTemplateDraftTarget: AiBuilderAction['templateDraftTarget'] = scope === 'team_of_teams' ? 'company' : 'team'
+  const topOrgTemplateFamily = describeFamilyFit(topOrgTemplate?.family)
 
   let recommendedPath: AiBuilderRecommendation['recommendedPath']
   let alternativePaths: AiBuilderRecommendation['alternativePaths'] = []
@@ -794,7 +900,7 @@ export function buildAiBuilderRecommendation(prompt: string): AiBuilderRecommend
         ? {
             title: scope === 'team_of_teams' ? 'Create a new company template' : 'Create a new team template',
             reasoning: topOrgTemplate
-              ? `${topOrgTemplate.name} is the closest existing team template, but it still looks too generic for this request, so a new AI-created template is the better starting point.`
+              ? `${topOrgTemplate.name}${topOrgTemplateFamily ? ` is the closest existing ${topOrgTemplateFamily} template` : ' is the closest existing team template'}, but it still looks too generic for this request, so a new AI-created template is the better starting point.`
               : 'This request sounds multi-role and domain-specific, so a new AI-created team template is the best starting point.',
             primaryAction: {
               ...action(
@@ -813,7 +919,7 @@ export function buildAiBuilderRecommendation(prompt: string): AiBuilderRecommend
         : {
             title: topOrgTemplate ? `Start from team template ${topOrgTemplate.name}` : 'Start from a team or organization template',
             reasoning: topOrgTemplate
-              ? `${topOrgTemplate.name} already suggests multiple roles and handoffs, which fits this request better than a single agent.`
+              ? `${topOrgTemplate.name}${topOrgTemplateFamily ? ` is the closest ${topOrgTemplateFamily} template` : ''} and already suggests multiple roles and handoffs, which fits this request better than a single agent.`
               : 'The request sounds multi-role and coordination-heavy, so a team template is a better fit than a standalone agent.',
             primaryAction: topOrgTemplate
               ? {
@@ -830,7 +936,7 @@ export function buildAiBuilderRecommendation(prompt: string): AiBuilderRecommend
       alternativePaths = [
         ...(topOrgTemplate ? [{
           title: `Refine ${topOrgTemplate.name}`,
-          reasoning: 'Use the closest existing template as a starting point if you want to adapt it instead of starting net-new.',
+          reasoning: `Use the closest existing${topOrgTemplateFamily ? ` ${topOrgTemplateFamily}` : ''} template as a starting point if you want to adapt it instead of starting net-new.`,
           action: {
             ...action('refine-team-template', 'Refine Template', 'Open the closest team template in the AI editor and refine it with this prompt.', 'templates', 'create-ai'),
             templateDraftTarget: teamTemplateDraftTarget,

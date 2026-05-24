@@ -22,6 +22,11 @@
   - explicit agent-template creation requests
   - ambiguity/confirmation flows
   - company/team-of-teams scope detection
+- first-cut template-family routing for harder recommendation quality cases:
+  - event operations vs event analysis
+  - content/media vs accidental tool matches
+  - personal admin vs generic assistant templates
+  - research/analysis vs generic business/company templates
 - workspace-aware starter prompts with AI-backed regenerate and stronger dedupe
 - `Improve with AI` for Builder prompts
 - shared full prompt editor for Builder with:

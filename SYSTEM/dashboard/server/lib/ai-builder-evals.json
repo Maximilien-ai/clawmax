@@ -218,5 +218,55 @@
     "titleIncludes": "Create a new team template",
     "topOrganizationTemplateIncludes": "Speaker Event Studio",
     "topOrganizationTemplateExcludes": "Build-a-Company Hack Test"
+  },
+  {
+    "name": "conference operations prompt prefers conference ops family over generic event or company templates",
+    "prompt": "Create a team to run a conference with speakers, sponsors, attendee registration, and event-day logistics",
+    "intent": "team_template",
+    "scope": "team",
+    "operation": "create_new",
+    "page": "templates",
+    "action": "create-ai",
+    "topOrganizationTemplateIncludes": "Conference Ops Hub"
+  },
+  {
+    "name": "event analysis prompt prefers analytical event template over event operations templates",
+    "prompt": "Analyze Lu.ma event performance, attendee engagement, and invite conversion so I know what to improve next",
+    "intent": "team_template",
+    "scope": "unknown",
+    "page": "templates",
+    "topOrganizationTemplateIncludes": "Lu.ma Event Analysis Desk"
+  },
+  {
+    "name": "household bills prompt prefers personal admin family over general chief of staff",
+    "prompt": "Help me track recurring bills, payment reminders, and household paperwork each month",
+    "intent": "team_template",
+    "scope": "unknown",
+    "page": "templates",
+    "topOrganizationTemplateIncludes": "Household Bills Desk"
+  },
+  {
+    "name": "meeting prep prompt prefers meeting prep family over generic chief of staff",
+    "prompt": "Build a team that researches attendees and prepares concise briefing packets before my meetings",
+    "intent": "team_template",
+    "scope": "team",
+    "page": "templates",
+    "topOrganizationTemplateIncludes": "Meeting Prep Desk"
+  },
+  {
+    "name": "blog launch prompt prefers content media family over generic marketing",
+    "prompt": "Create a team to launch my blog with positioning, editorial calendar, and publish-ready drafts",
+    "intent": "team_template",
+    "scope": "team",
+    "page": "templates",
+    "topOrganizationTemplateIncludes": "Blog Launch Studio"
+  },
+  {
+    "name": "competitive research prompt prefers research analysis family over generic product team",
+    "prompt": "I need a team to analyze competitors, TAM, positioning, and market alternatives for a startup idea",
+    "intent": "team_template",
+    "scope": "team",
+    "page": "templates",
+    "topOrganizationTemplateFamily": "research_analysis"
   }
 ]

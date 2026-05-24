@@ -111,6 +111,15 @@ Current implementation status:
 
 - shipped as deterministic routing logic plus workspace-aware matching
 - backed by an external evaluation corpus rather than only hardcoded test cases
+- now includes a first-cut organization-template family model so Builder can distinguish:
+  - event operations
+  - event analysis
+  - research / analysis
+  - personal admin
+  - content / media
+  - engineering / product
+  - commerce / retail
+  - business / company
 
 ### 2. Builder Clarifier Agent
 
@@ -320,6 +329,32 @@ The builder should surface a short test plan:
 - verify this artifact exists
 
 ## Routing Heuristics
+
+### Template families
+
+Builder now uses a first-cut family classifier for organization templates and prompt intent. This is specifically to reduce “same words, wrong kind of template” failures.
+
+Current families:
+
+- `operations_general`
+- `event_ops`
+- `event_analysis`
+- `research_analysis`
+- `personal_admin`
+- `content_media`
+- `engineering_product`
+- `commerce_retail`
+- `business_company`
+
+This is not meant to be final taxonomy. It is the current quality layer used to keep cases like these from regressing:
+
+- gallery show management should prefer event-ops templates, not astronomy/event-adjacent templates
+- Lu.ma event analysis should prefer event-analysis templates, not event-ops templates
+- blog launch should prefer content/media templates, not accidental tool matches
+- household bills should prefer personal-admin templates, not broad executive-assistant templates
+- competitor/TAM/positioning prompts should prefer research-analysis templates, not generic company structures
+
+The family model should keep evolving as we add more eval cases.
 
 ### Existing agent
 

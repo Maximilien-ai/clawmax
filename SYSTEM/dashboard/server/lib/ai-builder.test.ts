@@ -28,6 +28,7 @@ const cases = JSON.parse(
   titleIncludes?: string
   topOrganizationTemplateIncludes?: string
   topOrganizationTemplateExcludes?: string
+  topOrganizationTemplateFamily?: ReturnType<typeof buildAiBuilderRecommendation>['matchedAssets']['organizationTemplates'][number]['family']
 }>
 
 for (const scenario of cases) {
@@ -45,6 +46,9 @@ for (const scenario of cases) {
     }
     if (scenario.topOrganizationTemplateExcludes) {
       assert.notEqual(result.matchedAssets.organizationTemplates[0]?.name, scenario.topOrganizationTemplateExcludes)
+    }
+    if (scenario.topOrganizationTemplateFamily) {
+      assert.equal(result.matchedAssets.organizationTemplates[0]?.family, scenario.topOrganizationTemplateFamily)
     }
     if (scenario.confirmationOptionsMin) {
       assert(result.confirmationOptions.length >= scenario.confirmationOptionsMin, `Expected at least ${scenario.confirmationOptionsMin} confirmation options`)
