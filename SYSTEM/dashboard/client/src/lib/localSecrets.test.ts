@@ -10,6 +10,7 @@ import {
   mergeSecretSources,
   parseEnvLikeSecrets,
   readPartnerValuesFromSharedSecrets,
+  summarizeSecretReadiness,
   writePartnerValuesToSharedSecrets,
 } from './localSecrets'
 
@@ -139,6 +140,63 @@ test('writePartnerValuesToSharedSecrets removes stale partner values when fields
   assert(!('OPIK_API_KEY' in written), 'Expected cleared apiKey to be removed from shared secrets')
   assert(!('OPIK_WORKSPACE' in written), 'Expected cleared workspace to be removed from shared secrets')
   assert(written.KEEP_ME === 'yes', 'Expected unrelated keys to be preserved')
+})
+
+test('summarizeSecretReadiness reports ready when all required inputs are configured', () => {
+  const readiness = summarizeSecretReadiness(
+    [
+      { key: 'OPENAI_API_KEY', label: 'OpenAI API Key', kind: 'api_key' },
+      { key: 'SLACK_BOT_TOKEN', label: 'Slack Bot Token', kind: 'token' },
+    ],
+    {
+      OPENAI_API_KEY: 'sk-live-12345678',
+      SLACK_BOT_TOKEN: 'xoxb-12345678',
+    }
+  )
+
+  assert(readiness.status === 'ready', 'Expected readiness to be ready')
+  assert(readiness.present === 2, 'Expected both secrets to be present')
+  assert(readiness.missingRequired === 0, 'Expected no required secrets missing')
+  assert(readiness.degraded === 0, 'Expected no degraded secrets')
+})
+
+test('summarizeSecretReadiness reports missing when required inputs are absent', () => {
+  const readiness = summarizeSecretReadiness(
+    [
+      { key: 'OPENAI_API_KEY', label: 'OpenAI API Key', kind: 'api_key' },
+      { key: 'PROJECT_ID', label: 'Project ID', kind: 'id' },
+      { key: 'OPTIONAL_NOTE', label: 'Optional Note', required: false, kind: 'text' },
+    ],
+    {
+      PROJECT_ID: 'project-123',
+    }
+  )
+
+  assert(readiness.status === 'missing', 'Expected readiness to be missing')
+  assert(readiness.missingRequired === 1, 'Expected one required secret missing')
+  assert(readiness.optionalMissing === 1, 'Expected one optional secret missing')
+  assert(readiness.missingLabels.includes('OpenAI API Key'), 'Expected missing label to include OpenAI API Key')
+})
+
+test('summarizeSecretReadiness reports degraded for placeholder and optional gaps', () => {
+  const readiness = summarizeSecretReadiness(
+    [
+      { key: 'API_BASE_URL', label: 'API Base URL', kind: 'url' },
+      { key: 'ACCESS_TOKEN', label: 'Access Token', kind: 'token' },
+      { key: 'TEAM_NAME', label: 'Team Name', required: false, kind: 'text' },
+    ],
+    {
+      API_BASE_URL: 'example.com',
+      ACCESS_TOKEN: 'changeme',
+    }
+  )
+
+  assert(readiness.status === 'degraded', 'Expected readiness to be degraded')
+  assert(readiness.degraded === 2, 'Expected two degraded inputs')
+  assert(readiness.optionalMissing === 1, 'Expected one optional secret missing')
+  assert(readiness.degradedLabels.includes('API Base URL'), 'Expected API Base URL to need review')
+  assert(readiness.degradedLabels.includes('Access Token'), 'Expected Access Token to need review')
+  assert(readiness.optionalMissingLabels.includes('Team Name'), 'Expected optional label to be tracked')
 })
 
 console.log('\n========================================')
