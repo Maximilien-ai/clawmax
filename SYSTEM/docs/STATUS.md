@@ -1,24 +1,19 @@
 # ClawMax Status
 
-**Current Version**: v1.5.6
-**Last Updated**: May 21, 2026
-**Status**: `v1.5.6` is the current release line on `main`
+**Current Version**: v1.5.8
+**Last Updated**: May 24, 2026
+**Status**: `v1.5.8` is the current release line on `main`
 
 ---
 
 ## Current State
 
-- `main` now carries the `1.5.6` release line: public tarball/checksum release packages are documented, and the curl bootstrap installer can install latest or pinned versions without `gh`, GitHub login, or a local clone
-- local/self-hosted model behavior is more deployment-aware: the dashboard distinguishes `local`, `onprem`, and `cloud`, keeps Ollama visible where it is actually usable, and uses better same-Mac on-prem defaults for LM Studio and Ollama
-- agent runtime model resolution is aligned across edit, detail, status, and chat paths so workspace-local model changes persist and hosted BYOK models are not lost when local model discovery is active
-- the first ClawMax.ai template registry browser/import flow is available, including duplicate-local-template prevention and the signed write-token contract for share/rate actions
-- targeted local validation is green on the current line, including the newer chat-session, Opik runtime, skill metadata, and skill-tag regressions
-- targeted local validation is also green for the new AI prompt expansion/editor path via `server/lib/ai-generator.test.ts` and repeated `npx tsc --noEmit`
-- Skills now support stronger day-to-day management: reverse assignment, workspace-copy editing, bulk selection/deletion, richer imported registry provenance, tag editing/filtering, and registry suggestions from ClawHub, Shipables, and Tessl
-- Tessl registry support is available as an **exploratory/experimental** feature for OpenClaw workspaces; installs are materially improved, but some tiles still require Tessl-side security review or additional format validation
-- recurring personal/ops templates now require less apply-time context for day-of or run-time fields, making repeated deploy/use flows much smoother
-- single-agent template apply now registers created agents correctly into active OpenClaw config so fresh agent-template deploys can chat immediately
-- on-prem runtimes now attach `instance_key`, `machine_id`, and `machine_name` into metering traces so different Macs stop colliding when a shared hostname is reused
+- `main` now carries the `1.5.8` release line: public tarball/checksum release packages remain the primary distribution path, and the curl bootstrap installer still supports latest or pinned installs without `gh`, GitHub login, or a local clone
+- focused mobile/narrow-width fixes are in for key dashboard surfaces, including the notifications tray, BYOK / Partner Integrations wizard, and Apply Agent Template modal
+- the dashboard CI required lane now runs the formerly quarantined template, dashboard-env, and docker-entrypoint coverage through the main `SYSTEM/test.sh` path instead of tolerating them as optional failures
+- shipped organization templates now have catalog-wide regression checks that catch hidden helper/runtime directory references in workflow content and duplicate explicit artifact filenames across workflows in the same template
+- secret readiness and registry install error handling are more actionable: local secret states are covered directly, Tessl security-review blockers are clearer, and ClawHub install/runtime prerequisite failures now surface actionable guidance
+- the first documented template catalog audit batch and focused mobile audit are now checked into `SYSTEM/docs/operations` for follow-through as the shipped catalog grows
 
 ## Release References
 
