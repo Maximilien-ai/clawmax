@@ -15,6 +15,8 @@
 | [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) | Pre-release verification steps |
 | [DEMO_VIDEOS.md](DEMO_VIDEOS.md) | Local demo video inventory and when to use it |
 | [architecture/DASHBOARD_RUNTIME_SPLIT.md](architecture/DASHBOARD_RUNTIME_SPLIT.md) | Investigation note for the 2-container vs 3-container dashboard runtime split |
+| [operations/TEMPLATE_CATALOG_AUDIT_2026-05-24.md](operations/TEMPLATE_CATALOG_AUDIT_2026-05-24.md) | First catalog audit pass for template lane/filesystem assumptions |
+| [operations/MOBILE_AUDIT_2026-05-24.md](operations/MOBILE_AUDIT_2026-05-24.md) | Focused narrow-width audit pass for high-traffic dashboard surfaces |
 
 ## Specifications (External)
 
