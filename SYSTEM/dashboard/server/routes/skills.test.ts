@@ -114,6 +114,36 @@ async function run() {
     assert(/security review/i.test(res.jsonBody?.error || ''), 'Expected security review guidance')
   })
 
+  await test('registry install returns actionable guidance when ClawHub runtime prerequisites are missing', async () => {
+    execFileMock = (_file, _args, _options, callback) => {
+      const err = new Error('npx not found') as NodeJS.ErrnoException
+      err.code = 'ENOENT'
+      callback(err, '', '')
+    }
+
+    const handler = getRouteHandler('post', '/registry/install')
+    const res = makeRes()
+    await handler(makeReq({ body: { provider: 'clawhub', name: 'gog' } }), res)
+
+    assert.strictEqual(res.statusCode, 400, 'Expected unavailable prerequisite guidance to return HTTP 400')
+    assert(/Node\.js and npx/i.test(res.jsonBody?.error || ''), 'Expected ClawHub prerequisite guidance')
+    assert.strictEqual(res.jsonBody?.source, 'clawhub', 'Expected clawhub source in response')
+  })
+
+  await test('registry install returns actionable guidance when ClawHub package is not importable', async () => {
+    execFileMock = (_file, _args, _options, callback) => {
+      callback(null, 'installed', '')
+    }
+
+    const handler = getRouteHandler('post', '/registry/install')
+    const res = makeRes()
+    await handler(makeReq({ body: { provider: 'clawhub', name: 'gog' } }), res)
+
+    assert.strictEqual(res.statusCode, 400, 'Expected unsupported ClawHub format to return HTTP 400')
+    assert(/no importable OpenClaw skill files/i.test(res.jsonBody?.error || ''), 'Expected ClawHub format guidance')
+    assert.strictEqual(res.jsonBody?.source, 'clawhub', 'Expected clawhub source in response')
+  })
+
   restoreExecFile()
 
   console.log('\n========================================')

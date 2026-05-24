@@ -64,6 +64,26 @@ function extractRegistryMetadata(raw: RegistryResultMetadata | undefined) {
   }
 }
 
+function getRegistryInstallUnavailableMessage(provider: 'clawhub' | 'shipables' | 'tessl') {
+  if (provider === 'clawhub') {
+    return 'ClawHub install needs Node.js and npx in this runtime. Verify the dashboard runtime has the required CLI prerequisites, then retry the install.'
+  }
+  if (provider === 'tessl') {
+    return 'Tessl install needs the Tessl CLI or npx access in this runtime. Verify the runtime prerequisites, then retry the install.'
+  }
+  return 'Registry install needs the provider CLI available in this runtime. Verify the runtime prerequisites, then retry the install.'
+}
+
+function getRegistryUnsupportedFormatMessage(provider: 'clawhub' | 'shipables' | 'tessl') {
+  if (provider === 'clawhub') {
+    return 'ClawHub install completed, but no importable OpenClaw skill files were found. The package may not expose a compatible SKILL.md-based layout for this runtime yet.'
+  }
+  if (provider === 'tessl') {
+    return 'No skill files found after install. The skill may use a format not yet supported.'
+  }
+  return 'No skill files found after install. The skill may use a format not yet supported.'
+}
+
 // GET /api/skills/browse-directory - Show native directory picker (macOS)
 router.get('/browse-directory', async (req, res) => {
   try {
@@ -802,6 +822,13 @@ router.post('/registry/install', async (req, res) => {
       }
 
       if (lastError) {
+        if (lastError?.code === 'ENOENT' || lastError?.message?.includes('not found')) {
+          return res.status(400).json({
+            error: getRegistryInstallUnavailableMessage(provider),
+            source: provider,
+            meta: getSkillRegistryProviderMeta(provider),
+          })
+        }
         if (provider === 'tessl') {
           const blocker = getTesslInstallBlockerMessage(lastOutput)
           if (blocker) {
@@ -821,7 +848,11 @@ router.post('/registry/install', async (req, res) => {
             return res.status(400).json({ error: blocker })
           }
         }
-        return res.status(400).json({ error: 'No skill files found after install. The skill may use a format not yet supported.' })
+        return res.status(400).json({
+          error: getRegistryUnsupportedFormatMessage(provider),
+          source: provider,
+          meta: getSkillRegistryProviderMeta(provider),
+        })
       }
 
       const { getWorkspacePath } = require('../lib/workspace')
