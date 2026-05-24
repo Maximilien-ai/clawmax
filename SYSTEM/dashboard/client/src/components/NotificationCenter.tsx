@@ -273,7 +273,7 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToWorkflow, on
         <>
         <div className="fixed inset-0 z-[70] bg-black/20 backdrop-blur-[1px] md:hidden" onClick={() => setOpen(false)} />
         <div
-          className="fixed left-1/2 top-16 z-[90] flex w-[min(36rem,calc(100vw-1rem))] -translate-x-1/2 flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-800 md:left-auto md:w-96 md:translate-x-0"
+          className="fixed inset-x-2 top-14 z-[90] flex max-h-[calc(100dvh-4rem)] w-auto flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-800 md:inset-x-auto md:left-auto md:top-16 md:w-96 md:max-h-none md:translate-x-0"
           style={desktopAnchor ? { top: desktopAnchor.top, right: desktopAnchor.right } : undefined}
         >
           {/* Header */}
@@ -308,7 +308,7 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToWorkflow, on
           )}
 
           {/* Content */}
-          <div className="max-h-[min(75vh,32rem)] overflow-auto md:max-h-[480px]">
+          <div className="max-h-[calc(100dvh-8rem)] overflow-auto md:max-h-[480px]">
           {activeCount === 0 ? (
             <div className="px-4 py-8 text-center">
               <div className="text-2xl mb-2">✓</div>

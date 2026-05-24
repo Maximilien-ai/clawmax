@@ -1494,10 +1494,10 @@ export function ByokWizard({
       </button>
 
       {!open ? null : (
-        <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4">
-          <div className="w-full max-w-3xl rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl p-5 max-h-[93vh] overflow-y-auto">
-            <div className="flex items-start justify-between gap-4">
-              <div>
+        <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-2 sm:p-4">
+          <div className="w-full max-w-3xl rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl p-4 sm:p-5 max-h-[96dvh] overflow-y-auto">
+            <div className="flex items-start justify-between gap-3 sm:gap-4">
+              <div className="min-w-0">
                 <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">BYOK & Partner Integrations</div>
                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                   Provider secrets stay local to this browser. Workspace defaults persist per workspace for template apply and runtime follow-through.
@@ -1505,7 +1505,7 @@ export function ByokWizard({
               </div>
               <button
                 onClick={() => { setOpen(false); setStep(initialStep) }}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                className="shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-1"
                 aria-label="Close"
               >
                 ✕
@@ -1571,14 +1571,14 @@ export function ByokWizard({
             {step === 'models' && (
               <>
                 <div className="mt-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-4 text-sm text-gray-600 dark:text-gray-300">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
                       <div className="font-medium text-gray-900 dark:text-gray-100">Model providers (BYOK)</div>
                       <div className="mt-1 text-sm">
                         System keys may be limited or unavailable. Bring Your Own Keys (BYOK) to ensure your agents can run with the models and providers you choose, billed to your own account.
                       </div>
                     </div>
-                    <div className="text-xs opacity-80 max-w-xl">
+                    <div className="text-xs opacity-80 max-w-xl sm:text-right">
                       We support broad model choice, but results vary by provider and version. Start with recommended defaults.
                     </div>
                   </div>
