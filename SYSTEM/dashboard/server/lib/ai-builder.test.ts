@@ -1,7 +1,11 @@
 import assert from 'assert'
 import fs from 'fs'
 import path from 'path'
-import { buildAiBuilderRecommendation } from './ai-builder'
+import {
+  applyAiBuilderLlmFallback,
+  buildAiBuilderRecommendation,
+  shouldUseAiBuilderLlmFallback,
+} from './ai-builder'
 
 function test(name: string, fn: () => void) {
   try {
@@ -29,6 +33,11 @@ const cases = JSON.parse(
   topOrganizationTemplateIncludes?: string
   topOrganizationTemplateExcludes?: string
   topOrganizationTemplateFamily?: ReturnType<typeof buildAiBuilderRecommendation>['matchedAssets']['organizationTemplates'][number]['family']
+  suggestedActionIdsInclude?: string[]
+  suggestedActionIdsExclude?: string[]
+  suggestedActionPagesInclude?: Array<ReturnType<typeof buildAiBuilderRecommendation>['suggestedActions'][number]['page']>
+  confirmationLabelsInclude?: string[]
+  confirmationLabelsExclude?: string[]
 }>
 
 for (const scenario of cases) {
@@ -53,6 +62,36 @@ for (const scenario of cases) {
     if (scenario.confirmationOptionsMin) {
       assert(result.confirmationOptions.length >= scenario.confirmationOptionsMin, `Expected at least ${scenario.confirmationOptionsMin} confirmation options`)
     }
+    if (scenario.suggestedActionIdsInclude) {
+      const actionIds = result.suggestedActions.map((action) => action.id)
+      for (const expectedId of scenario.suggestedActionIdsInclude) {
+        assert(actionIds.includes(expectedId), `Expected suggested actions to include ${expectedId}, got ${actionIds.join(', ')}`)
+      }
+    }
+    if (scenario.suggestedActionIdsExclude) {
+      const actionIds = result.suggestedActions.map((action) => action.id)
+      for (const unexpectedId of scenario.suggestedActionIdsExclude) {
+        assert(!actionIds.includes(unexpectedId), `Expected suggested actions to exclude ${unexpectedId}, got ${actionIds.join(', ')}`)
+      }
+    }
+    if (scenario.suggestedActionPagesInclude) {
+      const actionPages = result.suggestedActions.map((action) => action.page)
+      for (const expectedPage of scenario.suggestedActionPagesInclude) {
+        assert(actionPages.includes(expectedPage), `Expected suggested action pages to include ${expectedPage}, got ${actionPages.join(', ')}`)
+      }
+    }
+    if (scenario.confirmationLabelsInclude) {
+      const labels = result.confirmationOptions.map((option) => option.label)
+      for (const expectedLabel of scenario.confirmationLabelsInclude) {
+        assert(labels.includes(expectedLabel), `Expected confirmation labels to include ${expectedLabel}, got ${labels.join(', ')}`)
+      }
+    }
+    if (scenario.confirmationLabelsExclude) {
+      const labels = result.confirmationOptions.map((option) => option.label)
+      for (const unexpectedLabel of scenario.confirmationLabelsExclude) {
+        assert(!labels.includes(unexpectedLabel), `Expected confirmation labels to exclude ${unexpectedLabel}, got ${labels.join(', ')}`)
+      }
+    }
   })
 }
 
@@ -66,4 +105,45 @@ test('high-confidence recommendation does not add confirmation options', () => {
   const result = buildAiBuilderRecommendation('Use the Astro Guide agent template if it is a better fit than my current agents')
   assert.equal(result.confidence, 'high')
   assert.equal(result.confirmationOptions.length, 0)
+})
+
+test('llm fallback triggers for low-confidence team template recommendations', () => {
+  const result = buildAiBuilderRecommendation('Create a team of agents for a nonprofit food pantry to coordinate donors, volunteers, and weekly distribution')
+  assert.equal(result.confidence, 'low')
+  assert.equal(shouldUseAiBuilderLlmFallback(result), true)
+})
+
+test('llm fallback can steer a team recommendation to create-new while preserving refine as an alternative', () => {
+  const base = buildAiBuilderRecommendation('create a team of agents to help me manage monthly shows at incline gallery https://www.inclinegallerysf.com/')
+  const next = applyAiBuilderLlmFallback(base, 'create a team of agents to help me manage monthly shows at incline gallery https://www.inclinegallerysf.com/', {
+    grouping: 'creative venue operations',
+    rationale: 'This looks like a recurring gallery operations workflow with specialized community coordination.',
+    candidateGroupings: ['event operations', 'arts program operations'],
+    strategy: 'create_new_template',
+    suggestedScope: 'team',
+    suggestedFamily: 'other',
+  })
+
+  assert.equal(next.usedLlmFallback, true)
+  assert.equal(next.operation, 'create_new')
+  assert.equal(next.groupingSuggestion?.label, 'creative venue operations')
+  assert.equal(next.recommendedPath.primaryAction.action, 'create-ai')
+  assert(next.alternativePaths.some((path) => path.action.templateRefineMode), 'Expected refine-template alternative to remain available')
+})
+
+test('llm fallback can steer a team recommendation to refine an existing template', () => {
+  const base = buildAiBuilderRecommendation('I want to start from an existing template but adapt it for legal intake operations')
+  const next = applyAiBuilderLlmFallback(base, 'I want to start from an existing template but adapt it for legal intake operations', {
+    grouping: 'legal intake operations',
+    rationale: 'The closest existing operations template already has the right multi-role structure, but it needs domain-specific refinement.',
+    candidateGroupings: ['intake operations', 'service operations'],
+    strategy: 'refine_existing_template',
+    suggestedScope: 'team',
+    suggestedFamily: 'operations_general',
+  })
+
+  assert.equal(next.usedLlmFallback, true)
+  assert.equal(next.operation, 'refine_template')
+  assert.equal(next.recommendedPath.primaryAction.templateRefineMode, true)
+  assert(next.alternativePaths.some((path) => path.action.action === 'create-ai'), 'Expected create-new alternative to remain available')
 })

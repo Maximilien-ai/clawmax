@@ -574,6 +574,16 @@ else
   fail "Builder starter prompt helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running AI Builder routing unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/ai-builder.test.ts > /tmp/clawmax-ai-builder-routing.out 2>&1 || true
+if grep -q "^✓" /tmp/clawmax-ai-builder-routing.out; then
+  ai_builder_routing_count=$(grep -c "^✓" /tmp/clawmax-ai-builder-routing.out | tr -cd '0-9')
+  pass "AI Builder routing unit tests (${ai_builder_routing_count:-?} tests)"
+else
+  cat /tmp/clawmax-ai-builder-routing.out
+  fail "AI Builder routing unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Prompt attachment helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/promptAttachments.test.ts > /tmp/clawmax-prompt-attachments.out 2>&1 || true
 if grep -q "promptAttachments.test.ts: ok" /tmp/clawmax-prompt-attachments.out; then

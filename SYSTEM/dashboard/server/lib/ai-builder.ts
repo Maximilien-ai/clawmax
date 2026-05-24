@@ -30,12 +30,35 @@ export type AiBuilderTemplateFamily =
   | 'event_ops'
   | 'event_analysis'
   | 'research_analysis'
+  | 'education_learning'
   | 'personal_admin'
   | 'content_media'
   | 'engineering_product'
   | 'commerce_retail'
   | 'business_company'
   | 'other'
+
+export type AiBuilderFallbackStrategy =
+  | 'keep_current'
+  | 'use_existing_template'
+  | 'refine_existing_template'
+  | 'create_new_template'
+
+export interface AiBuilderGroupingSuggestion {
+  label: string
+  rationale: string
+  source: 'llm-fallback'
+  alternatives?: string[]
+}
+
+export interface AiBuilderLlmFallbackResult {
+  grouping: string
+  rationale: string
+  candidateGroupings?: string[]
+  strategy: AiBuilderFallbackStrategy
+  suggestedScope?: AiBuilderScope
+  suggestedFamily?: AiBuilderTemplateFamily | 'other' | string
+}
 
 export interface AiBuilderAction {
   id: string
@@ -44,6 +67,9 @@ export interface AiBuilderAction {
   page: 'builder' | 'agents' | 'templates' | 'skills' | 'workflows' | 'organizations'
   action?: 'create' | 'create-ai' | 'import'
   pageHint?: string
+  agentId?: string
+  skillName?: string
+  workflowId?: string
   templateId?: string
   templateName?: string
   templateType?: 'agent' | 'organization'
@@ -75,6 +101,7 @@ export interface AiBuilderRecommendation {
     label: string
     prompt: string
     reasoning: string
+    action?: AiBuilderAction
   }>
   recommendedPath: {
     title: string
@@ -95,6 +122,8 @@ export interface AiBuilderRecommendation {
   }
   suggestedActions: AiBuilderAction[]
   testPlan: string[]
+  groupingSuggestion?: AiBuilderGroupingSuggestion
+  usedLlmFallback?: boolean
 }
 
 type SearchableRecord = {
@@ -111,6 +140,7 @@ const TEAM_OF_TEAMS_KEYWORDS = ['team of teams', 'teams of teams', 'multi-team',
 const COMPANY_SCOPE_KEYWORDS = ['company template', 'organization template', 'new company template', 'new organization template', 'create a new company template', 'create a new organization template']
 const AGENT_KEYWORDS = ['agent', 'assistant', 'helper', 'specialist']
 const SKILL_KEYWORDS = ['skill', 'skills', 'tool', 'tools', 'github', 'slack', 'whatsapp', 'gmail', 'calendar', 'integration', 'integrations', 'api', 'connect', 'connector']
+const WORKFLOW_PROMPT_KEYWORDS = ['workflow', 'workflows', 'handoff', 'handoffs', 'sequence', 'pipeline', 'steps', 'stage', 'stages', 'process', 'processes', 'weekly', 'monthly', 'daily', 'recurring', 'routine', 'kickoff', 'review', 'approval', 'approvals', 'follow-up']
 const CREATE_KEYWORDS = ['create', 'build', 'design', 'new', 'from scratch', 'generate']
 const REUSE_KEYWORDS = ['existing', 'already have', 'reuse', 'use my', 'current']
 const TEMPLATE_KEYWORDS = ['template', 'templates', 'refine template', 'edit template', 'team template', 'organization template']
@@ -131,18 +161,23 @@ const NON_EVENT_DOMAIN_KEYWORDS = ['astronomy', 'telescope', 'meteor', 'physics'
 const OPERATIONAL_PROMPT_KEYWORDS = ['manage', 'planning', 'plan', 'organize', 'coordinate', 'coordination', 'host', 'run', 'monthly']
 const OPERATIONAL_TEMPLATE_KEYWORDS = ['logistics', 'run-of-show', 'guest', 'guests', 'host', 'check-in', 'readiness', 'operations', 'ops', 'agenda', 'speaker', 'venue', 'follow-up']
 const ANALYTICAL_TEMPLATE_KEYWORDS = ['analysis', 'analyzing', 'research', 'eval', 'evaluation', 'digest', 'signals']
+const EDUCATION_PROMPT_KEYWORDS = ['school', 'student', 'students', 'homework', 'study', 'subject', 'subjects', 'tutor', 'tutoring', 'class', 'classes', 'parent', 'parents', 'assignment', 'assignments']
+const EDUCATION_TEMPLATE_KEYWORDS = ['school', 'student', 'students', 'homework', 'study', 'study support', 'tutor', 'tutoring', 'assignment', 'assignments', 'project coach', 'review tutor', 'advisor', 'course']
+const RESEARCH_PROMPT_KEYWORDS = ['research', 'experiment', 'experiments', 'paper', 'papers', 'advisor', 'semester', 'reading', 'notes', 'methodology', 'project']
+const RESEARCH_TEMPLATE_KEYWORDS = ['research', 'literature', 'analysis', 'methodology', 'advisor', 'paper', 'writing', 'draft', 'experiment', 'findings', 'citations']
 const INTERNAL_TEMPLATE_KEYWORDS = ['hack', 'hackathon', 'test', 'system', 'clawmax', 'dev']
 const INTERNAL_TEMPLATE_ALLOW_PROMPT_KEYWORDS = ['hackathon', 'system test', 'clawmax', 'dev team', 'platform validation', 'release test']
 const TEMPLATE_FAMILY_KEYWORDS: Record<AiBuilderTemplateFamily, string[]> = {
   operations_general: ['operations', 'ops', 'handoff', 'handoffs', 'delivery', 'execution', 'status'],
   event_ops: ['event', 'events', 'speaker', 'conference', 'venue', 'run-of-show', 'guest', 'guests', 'logistics', 'agenda', 'attendees', 'gallery', 'artist', 'show', 'shows', 'exhibit', 'exhibition'],
   event_analysis: ['event analysis', 'analytics', 'attendee signals', 'engagement signals', 'luma', 'lu.ma', 'event patterns', 'post-event analysis'],
-  research_analysis: ['research', 'analysis', 'analyst', 'briefing', 'memo', 'competitive', 'competitor', 'competitors', 'evaluation', 'digest', 'insights', 'thesis', 'review', 'tam', 'positioning', 'market alternatives', 'market analysis'],
+  research_analysis: ['research', 'analysis', 'analyst', 'briefing', 'memo', 'competitive', 'competitor', 'competitors', 'evaluation', 'digest', 'insights', 'thesis', 'review', 'tam', 'positioning', 'market alternatives', 'market analysis', 'experiment', 'experiments', 'methodology', 'paper', 'papers', 'advisor', 'citations'],
+  education_learning: ['school', 'student', 'students', 'homework', 'study', 'study support', 'class', 'classes', 'teacher', 'tutor', 'tutoring', 'learning', 'assignment', 'assignments', 'advisor', 'course', 'courses', 'semester'],
   personal_admin: ['chief-of-staff', 'calendar', 'inbox', 'email', 'meeting', 'meetings', 'follow-up', 'family', 'household', 'bills', 'travel', 'assistant', 'admin'],
   content_media: ['blog', 'writing', 'editorial', 'content', 'publishing', 'podcast', 'video', 'documentation', 'technical writing', 'substack', 'copy'],
-  engineering_product: ['engineering', 'software', 'product', 'prototype', 'robotics', 'website', 'github', 'devops', 'rag', 'pipeline', 'codebase'],
+  engineering_product: ['engineering', 'software', 'product', 'prototype', 'robotics', 'website', 'github', 'devops', 'rag', 'pipeline', 'codebase', 'retrieval', 'ingestion', 'chunking', 'embedding', 'prompt iteration'],
   commerce_retail: ['retail', 'store', 'inventory', 'pricing', 'supplier', 'merchandising', 'customer service', 'ecommerce', 'catalog'],
-  business_company: ['company', 'leadership', 'sales', 'marketing', 'campaign', 'seo', 'social media', 'hr', 'legal', 'startup', 'revenue', 'client success', 'agency'],
+  business_company: ['company', 'leadership', 'sales', 'marketing', 'campaign', 'seo', 'social media', 'hr', 'legal', 'startup', 'revenue', 'client success', 'agency', 'launch', 'product launch', 'go-to-market', 'go to market', 'strategy', 'content strategy', 'delivery'],
   other: [],
 }
 
@@ -151,12 +186,18 @@ const FAMILY_DISPLAY_LABELS: Record<AiBuilderTemplateFamily, string> = {
   event_ops: 'event operations',
   event_analysis: 'event analysis',
   research_analysis: 'research and analysis',
+  education_learning: 'education and learning',
   personal_admin: 'personal admin',
   content_media: 'content and media',
   engineering_product: 'engineering and product',
   commerce_retail: 'commerce and retail',
   business_company: 'business and company',
   other: 'general',
+}
+
+type FamilyScore = {
+  family: AiBuilderTemplateFamily
+  score: number
 }
 
 function topScore(items: AiBuilderMatchedAsset[]): number {
@@ -200,7 +241,11 @@ function includesAny(prompt: string, words: string[]): boolean {
 function detectScope(prompt: string): AiBuilderScope {
   if (includesAny(prompt, TEAM_OF_TEAMS_KEYWORDS)) return 'team_of_teams'
   if (includesAny(prompt, COMPANY_SCOPE_KEYWORDS)) return 'team_of_teams'
+  if (includesAny(prompt, ['organization template', 'company template'])) return 'team_of_teams'
+  if (includesAny(prompt, ['team template'])) return 'team'
+  if (includesAny(prompt, ['template']) && !includesAny(prompt, AGENT_TEMPLATE_KEYWORDS) && !includesAny(prompt, AGENT_KEYWORDS)) return 'team'
   if (includesAny(prompt, ['organization', 'company']) && includesAny(prompt, ['teams', 'leadership'])) return 'team_of_teams'
+  if (includesAny(prompt, ['organization', 'company'])) return 'team_of_teams'
   if (includesAny(prompt, TEAM_KEYWORDS)) return 'team'
   if (includesAny(prompt, ['operations', 'ops', 'intake', 'delivery']) && includesAny(prompt, TEMPLATE_KEYWORDS)) return 'team'
   if (includesAny(prompt, AGENT_KEYWORDS)) return 'single_agent'
@@ -254,24 +299,31 @@ function countKeywordsInText(text: string, keywords: string[]): number {
   return keywords.filter((keyword) => normalized.includes(keyword)).length
 }
 
+function getFamilyScores(text: string): FamilyScore[] {
+  return (Object.keys(TEMPLATE_FAMILY_KEYWORDS) as AiBuilderTemplateFamily[])
+    .filter((family) => family !== 'other')
+    .map((family) => ({
+      family,
+      score: countKeywordsInText(text, TEMPLATE_FAMILY_KEYWORDS[family]),
+    }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score)
+}
+
 function detectTemplateFamilyFromText(text: string): AiBuilderTemplateFamily {
-  let bestFamily: AiBuilderTemplateFamily = 'other'
-  let bestScore = 0
-
-  for (const family of Object.keys(TEMPLATE_FAMILY_KEYWORDS) as AiBuilderTemplateFamily[]) {
-    if (family === 'other') continue
-    const score = countKeywordsInText(text, TEMPLATE_FAMILY_KEYWORDS[family])
-    if (score > bestScore) {
-      bestFamily = family
-      bestScore = score
-    }
-  }
-
-  return bestFamily
+  return getFamilyScores(text)[0]?.family || 'other'
 }
 
 function detectPromptFamily(prompt: string): AiBuilderTemplateFamily {
-  return detectTemplateFamilyFromText(prompt)
+  const rankedFamilies = getFamilyScores(prompt)
+  const topFamily = rankedFamilies[0]
+  const runnerUp = rankedFamilies[1]
+
+  if (!topFamily) return 'other'
+  if (topFamily.score < 2) return 'other'
+  if (runnerUp && topFamily.score - runnerUp.score < 2) return 'other'
+
+  return topFamily.family
 }
 
 function familyCompatibilityBoost(promptFamily: AiBuilderTemplateFamily, recordFamily: AiBuilderTemplateFamily): number {
@@ -280,6 +332,9 @@ function familyCompatibilityBoost(promptFamily: AiBuilderTemplateFamily, recordF
   if (promptFamily === 'event_ops' && recordFamily === 'event_analysis') return 4
   if (promptFamily === 'event_analysis' && recordFamily === 'event_ops') return 4
   if (promptFamily === 'research_analysis' && recordFamily === 'business_company') return -6
+  if (promptFamily === 'education_learning' && recordFamily === 'event_ops') return -8
+  if (promptFamily === 'education_learning' && recordFamily === 'research_analysis') return 6
+  if (promptFamily === 'education_learning' && recordFamily === 'personal_admin') return -4
   if (promptFamily === 'personal_admin' && recordFamily === 'research_analysis') return -4
   if (promptFamily === 'event_ops' && recordFamily === 'research_analysis') return -6
   if (promptFamily === 'engineering_product' && recordFamily === 'business_company') return 2
@@ -431,6 +486,24 @@ function templateDomainScoreBoost(prompt: string, record: SearchableRecord, type
     boost -= 14
   }
 
+  const educationPromptMatches = EDUCATION_PROMPT_KEYWORDS.filter((keyword) => normalizedPrompt.includes(keyword))
+  const educationTemplateMatches = EDUCATION_TEMPLATE_KEYWORDS.filter((keyword) => haystack.includes(keyword))
+  if (educationPromptMatches.length > 0 && educationTemplateMatches.length > 0) {
+    boost += 10 + Math.min(educationPromptMatches.length, 4) * 2 + Math.min(educationTemplateMatches.length, 3)
+  }
+  if (educationPromptMatches.length > 0 && record.family === 'operations_general' && educationTemplateMatches.length === 0) {
+    boost -= 8
+  }
+
+  const researchPromptMatches = RESEARCH_PROMPT_KEYWORDS.filter((keyword) => normalizedPrompt.includes(keyword))
+  const researchTemplateMatches = RESEARCH_TEMPLATE_KEYWORDS.filter((keyword) => haystack.includes(keyword))
+  if (researchPromptMatches.length > 0 && researchTemplateMatches.length > 0) {
+    boost += 10 + Math.min(researchPromptMatches.length, 4) * 2 + Math.min(researchTemplateMatches.length, 3)
+  }
+  if (researchPromptMatches.length > 0 && record.family === 'personal_admin' && researchTemplateMatches.length === 0) {
+    boost -= 10
+  }
+
   const isInternalTemplate = INTERNAL_TEMPLATE_KEYWORDS.some((keyword) => haystack.includes(keyword))
   const promptAllowsInternalTemplate = INTERNAL_TEMPLATE_ALLOW_PROMPT_KEYWORDS.some((keyword) => normalizedPrompt.includes(keyword))
   if (isInternalTemplate && !promptAllowsInternalTemplate) {
@@ -503,13 +576,26 @@ function buildConfirmationOptions(args: {
   const topAgent = matchedAgents[0]
   const topAgentTemplate = matchedAgentTemplates[0]
   const topOrgTemplate = matchedOrganizationTemplates[0]
+  const teamTemplateDraftTarget: AiBuilderAction['templateDraftTarget'] = scope === 'team_of_teams' ? 'company' : 'team'
+  const shouldOfferExistingAgentConfirmation = (
+    scope === 'single_agent'
+    || operation === 'reuse_existing'
+    || operation === 'improve_existing'
+  )
 
-  if (topAgent) {
+  if (topAgent && shouldOfferExistingAgentConfirmation) {
     options.push({
       id: 'confirm-existing-agent',
       label: `Use ${topAgent.name}`,
       prompt: `${prompt}\n\nConfirmation: reuse and improve my existing agent ${topAgent.name}.`,
       reasoning: `${topAgent.name} already overlaps with the request.`,
+      action: {
+        id: 'confirm-open-agent',
+        label: `Open ${topAgent.name}`,
+        description: 'Open the existing agent directly.',
+        page: 'agents',
+        agentId: topAgent.id,
+      },
     })
   }
   if (scope === 'team' || scope === 'team_of_teams' || topOrgTemplate) {
@@ -520,6 +606,24 @@ function buildConfirmationOptions(args: {
       reasoning: topOrgTemplate
         ? `${topOrgTemplate.name} is the closest multi-role starting point.`
         : 'The request sounds multi-role and coordination-heavy.',
+      action: topOrgTemplate ? {
+        id: 'confirm-refine-team-template',
+        label: `Refine ${topOrgTemplate.name}`,
+        description: 'Open the closest team template in the AI editor and refine it with this prompt.',
+        page: 'templates',
+        action: 'create-ai',
+        templateDraftTarget: teamTemplateDraftTarget,
+        templateId: topOrgTemplate.id,
+        templateName: topOrgTemplate.name,
+        templateType: 'organization',
+        templateRefineMode: true,
+        prefillPrompt: prompt,
+      } : {
+        id: 'confirm-open-team-templates',
+        label: 'Open Templates',
+        description: 'Browse the closest team templates.',
+        page: 'templates',
+      },
     })
   }
   if (scope === 'team' || scope === 'team_of_teams') {
@@ -528,6 +632,17 @@ function buildConfirmationOptions(args: {
       label: scope === 'team_of_teams' ? 'Create a new company template' : 'Create a new team template',
       prompt: `${prompt}\n\nConfirmation: create a new team template from this request instead of reusing a generic one.`,
       reasoning: 'Use a fresh team template when the existing matches are too generic for the actual domain.',
+      action: {
+        id: 'confirm-create-team-template',
+        label: scope === 'team_of_teams' ? 'AI Create Company Template' : 'AI Create Team Template',
+        description: scope === 'team_of_teams'
+          ? 'Create a new company or team-of-teams template from this prompt.'
+          : 'Create a new team template from this prompt.',
+        page: 'templates',
+        action: 'create-ai',
+        templateDraftTarget: teamTemplateDraftTarget,
+        prefillPrompt: prompt,
+      },
     })
   }
   if (topAgentTemplate) {
@@ -536,6 +651,15 @@ function buildConfirmationOptions(args: {
       label: `Use ${topAgentTemplate.name}`,
       prompt: `${prompt}\n\nConfirmation: create a new agent from the ${topAgentTemplate.name} template.`,
       reasoning: `${topAgentTemplate.name} looks like the closest single-agent template match.`,
+      action: {
+        id: 'confirm-open-agent-template',
+        label: `Open ${topAgentTemplate.name}`,
+        description: 'Open the closest agent template directly.',
+        page: 'templates',
+        templateId: topAgentTemplate.id,
+        templateName: topAgentTemplate.name,
+        templateType: 'agent',
+      },
     })
   }
   if (operation === 'create_new' || options.length < 2) {
@@ -544,6 +668,23 @@ function buildConfirmationOptions(args: {
       label: 'Create something new',
       prompt: `${prompt}\n\nConfirmation: create a new solution instead of reusing the current workspace assets.`,
       reasoning: 'Use a fresh build path if the current assets are only partial matches.',
+      action: scope === 'team' || scope === 'team_of_teams'
+        ? {
+            id: 'confirm-create-something-new-template',
+            label: scope === 'team_of_teams' ? 'AI Create Company Template' : 'AI Create Team Template',
+            description: 'Create a new template from this prompt.',
+            page: 'templates',
+            action: 'create-ai',
+            templateDraftTarget: teamTemplateDraftTarget,
+            prefillPrompt: prompt,
+          }
+        : {
+            id: 'confirm-create-something-new-agent',
+            label: 'AI Generate Agent',
+            description: 'Create a new agent from this prompt.',
+            page: 'agents',
+            action: 'create-ai',
+          },
     })
   }
 
@@ -709,6 +850,31 @@ function countTokenOverlapInText(tokens: string[], text: string): number {
   return tokens.filter((token) => normalized.includes(token)).length
 }
 
+function getOrganizationTemplateOverlap(args: {
+  prompt: string
+  topTemplate: AiBuilderMatchedAsset | undefined
+  organizationTemplates: OrganizationTemplate[]
+}): { overlap: number, overlapRatio: number, topTemplateScore: number } {
+  const { prompt, topTemplate, organizationTemplates } = args
+  if (!topTemplate) return { overlap: 0, overlapRatio: 0, topTemplateScore: 0 }
+
+  const domainTokens = getSpecificPromptTokens(prompt)
+  const matchedTemplate = organizationTemplates.find((template) => (
+    (template.slug || template.name) === topTemplate.id || template.name === topTemplate.name
+  ))
+  const haystack = [
+    matchedTemplate?.slug,
+    matchedTemplate?.name,
+    matchedTemplate?.description,
+    ...(matchedTemplate?.tags || []),
+    ...(matchedTemplate?.agents || []).flatMap((agent) => [agent.id, agent.name, agent.role]),
+  ].filter(Boolean).join(' ')
+  const overlap = countTokenOverlapInText(domainTokens, haystack)
+  const overlapRatio = domainTokens.length > 0 ? overlap / domainTokens.length : 0
+
+  return { overlap, overlapRatio, topTemplateScore: topTemplate.score }
+}
+
 function shouldPreferNewTeamTemplate(args: {
   prompt: string
   scope: AiBuilderScope
@@ -720,22 +886,17 @@ function shouldPreferNewTeamTemplate(args: {
   if (scope !== 'team' && scope !== 'team_of_teams') return false
   const topOrgTemplate = matchedOrganizationTemplates[0]
   if (!topOrgTemplate) return true
+  const { overlap, overlapRatio, topTemplateScore } = getOrganizationTemplateOverlap({
+    prompt,
+    topTemplate: topOrgTemplate,
+    organizationTemplates,
+  })
   const domainTokens = getSpecificPromptTokens(prompt)
-  const matchedTemplate = organizationTemplates.find((template) => (
-    (template.slug || template.name) === topOrgTemplate.id || template.name === topOrgTemplate.name
-  ))
-  const haystack = [
-    matchedTemplate?.slug,
-    matchedTemplate?.name,
-    matchedTemplate?.description,
-    ...(matchedTemplate?.tags || []),
-    ...(matchedTemplate?.agents || []).flatMap((agent) => [agent.id, agent.name, agent.role]),
-  ].filter(Boolean).join(' ')
-  const overlap = countTokenOverlapInText(domainTokens, haystack)
-  const overlapRatio = domainTokens.length > 0 ? overlap / domainTokens.length : 0
   const looksGeneric = overlap === 0 || (domainTokens.length >= 3 && overlapRatio < 0.34)
-  if (operation === 'create_new') return looksGeneric || topOrgTemplate.score < 10
-  if (operation === 'unknown') return looksGeneric && topOrgTemplate.score < 11
+  const promptFamily = detectPromptFamily(prompt)
+  const weakFamilySignal = promptFamily === 'other'
+  if (operation === 'create_new') return looksGeneric || weakFamilySignal || topTemplateScore < 10
+  if (operation === 'unknown') return (looksGeneric || weakFamilySignal) && topTemplateScore < 11
   return false
 }
 
@@ -754,6 +915,13 @@ export function buildAiBuilderRecommendation(prompt: string): AiBuilderRecommend
   const matchedAgentTemplates = rankAssets(normalizedPrompt, tokens, agentTemplates.map(toTemplateRecord), 'agent-template')
   const matchedOrganizationTemplates = rankAssets(normalizedPrompt, tokens, organizationTemplates.map(toTemplateRecord), 'organization-template')
   const matchedWorkflows = rankAssets(normalizedPrompt, tokens, workflows.map(toWorkflowRecord), 'workflow')
+  const topAgent = matchedAgents[0]
+  const topSkill = matchedSkills[0]
+  const topAgentTemplate = matchedAgentTemplates[0]
+  const topOrgTemplate = matchedOrganizationTemplates[0]
+  const topWorkflow = matchedWorkflows[0]
+  const hasWorkflowLanguage = includesAny(normalizedPrompt, WORKFLOW_PROMPT_KEYWORDS)
+  const hasSkillLanguage = includesAny(normalizedPrompt, SKILL_KEYWORDS)
 
   const decision = chooseIntent({
     prompt: normalizedPrompt,
@@ -764,6 +932,17 @@ export function buildAiBuilderRecommendation(prompt: string): AiBuilderRecommend
     matchedOrganizationTemplates,
   })
   const { intent, scope, operation, confidence } = decision
+  const preferNewTeamTemplate = shouldPreferNewTeamTemplate({
+    prompt: normalizedPrompt,
+    scope,
+    operation,
+    matchedOrganizationTemplates,
+    organizationTemplates,
+  })
+  const shouldOfferTeamChoice = Boolean(topOrgTemplate) && (preferNewTeamTemplate || operation === 'refine_template')
+  const effectiveConfidence: AiBuilderConfidence = intent === 'team_template' && shouldOfferTeamChoice
+    ? 'low'
+    : confidence
 
   const clarifyingQuestions = buildClarifyingQuestions(normalizedPrompt, intent, {
     agents: matchedAgents,
@@ -776,22 +955,10 @@ export function buildAiBuilderRecommendation(prompt: string): AiBuilderRecommend
     prompt: normalizedPrompt,
     scope,
     operation,
-    confidence,
+    confidence: effectiveConfidence,
     matchedAgents,
     matchedAgentTemplates,
     matchedOrganizationTemplates,
-  })
-
-  const topAgent = matchedAgents[0]
-  const topSkill = matchedSkills[0]
-  const topAgentTemplate = matchedAgentTemplates[0]
-  const topOrgTemplate = matchedOrganizationTemplates[0]
-  const preferNewTeamTemplate = shouldPreferNewTeamTemplate({
-    prompt: normalizedPrompt,
-    scope,
-    operation,
-    matchedOrganizationTemplates,
-    organizationTemplates,
   })
   const teamTemplateDraftTarget: AiBuilderAction['templateDraftTarget'] = scope === 'team_of_teams' ? 'company' : 'team'
   const topOrgTemplateFamily = describeFamilyFit(topOrgTemplate?.family)
@@ -822,16 +989,45 @@ export function buildAiBuilderRecommendation(prompt: string): AiBuilderRecommend
           action: action('ai-generate-agent', 'AI Generate Agent', 'Create a new agent with a sharper prompt for this use case.', 'agents', 'create-ai'),
         },
       ]
-      suggestedActions = [
-        recommendedPath.primaryAction,
-        action('test-agent-chat', 'Test in agent chat', 'Send a representative prompt to the chosen agent and inspect the response quality.', 'agents'),
+      suggestedActions = [recommendedPath.primaryAction]
+      if (hasWorkflowLanguage) {
+        suggestedActions.push(
+          action(
+            topWorkflow ? 'review-existing-workflow' : 'create-workflow',
+            topWorkflow ? `Review workflow ${topWorkflow.name}` : 'Create workflow',
+            topWorkflow
+              ? 'Use or adapt the closest workflow so the existing agent participates in a real recurring process.'
+              : 'Create a workflow that routes work to the existing agent on the right trigger or cadence.',
+            'workflows',
+            topWorkflow ? undefined : 'create',
+            topWorkflow ? topWorkflow.name : undefined,
+          ),
+        )
+      } else {
+        suggestedActions.push(
+          action('test-agent-chat', 'Test in agent chat', 'Send a representative prompt to the chosen agent and inspect the response quality.', 'agents'),
+        )
+      }
+      suggestedActions.push(
         action('review-skills', 'Review agent skills', 'Check whether the agent is missing an integration or tool capability.', 'skills'),
-      ]
-      testPlan = [
-        'Open the closest existing agent and send a real first prompt from your use case.',
-        'Confirm whether the agent has the right role, model, and required skills.',
-        'If the response is close but limited, add the missing skill or refine the identity before creating a new agent.',
-      ]
+      )
+      testPlan = hasWorkflowLanguage
+        ? [
+            'Open the closest existing agent and confirm it is still the right role for this process.',
+            'Create or adapt a workflow so the agent is triggered on the right cadence, handoff, or review step.',
+            'Run one real workflow-triggered scenario and verify the agent output is usable in the full process, not just in chat.',
+          ]
+        : hasSkillLanguage
+          ? [
+              'Open the closest existing agent and confirm it is the right base role.',
+              'Review the agent skills and add the missing integration or tool capability before changing the role.',
+              'Run one real task that forces the new skill to be used, not just a generic chat exchange.',
+            ]
+          : [
+              'Open the closest existing agent and send a real first prompt from your use case.',
+              'Confirm whether the agent has the right role, model, and required skills.',
+              'If the response is close but limited, add the missing skill or refine the identity before creating a new agent.',
+            ]
       break
     case 'skill_or_integration':
       recommendedPath = {
@@ -900,7 +1096,7 @@ export function buildAiBuilderRecommendation(prompt: string): AiBuilderRecommend
         ? {
             title: scope === 'team_of_teams' ? 'Create a new company template' : 'Create a new team template',
             reasoning: topOrgTemplate
-              ? `${topOrgTemplate.name}${topOrgTemplateFamily ? ` is the closest existing ${topOrgTemplateFamily} template` : ' is the closest existing team template'}, but it still looks too generic for this request, so a new AI-created template is the better starting point.`
+              ? `${topOrgTemplate.name}${topOrgTemplateFamily ? ` is the closest existing ${topOrgTemplateFamily} template` : ' is the closest existing team template'}, but this request still looks more domain-specific than the current family hints. Start with a new AI-created template, or refine ${topOrgTemplate.name} if you want the fastest existing base.`
               : 'This request sounds multi-role and domain-specific, so a new AI-created team template is the best starting point.',
             primaryAction: {
               ...action(
@@ -1020,8 +1216,8 @@ export function buildAiBuilderRecommendation(prompt: string): AiBuilderRecommend
     intent,
     scope,
     operation,
-    confidence,
-    summary: confidence === 'low'
+    confidence: effectiveConfidence,
+    summary: effectiveConfidence === 'low'
       ? `${recommendedPath.reasoning} I am not fully confident yet, so pick one of the confirmation paths below if needed.`
       : recommendedPath.reasoning,
     clarifyingQuestions,
@@ -1037,5 +1233,135 @@ export function buildAiBuilderRecommendation(prompt: string): AiBuilderRecommend
     },
     suggestedActions,
     testPlan,
+  }
+}
+
+export function shouldUseAiBuilderLlmFallback(recommendation: AiBuilderRecommendation): boolean {
+  if (recommendation.confidence === 'low') return true
+  if (recommendation.intent === 'team_template') {
+    const topOrgTemplate = recommendation.matchedAssets.organizationTemplates[0]
+    if (!topOrgTemplate) return true
+    if ((topOrgTemplate.family || 'other') === 'other') return true
+  }
+  return false
+}
+
+export function applyAiBuilderLlmFallback(
+  recommendation: AiBuilderRecommendation,
+  prompt: string,
+  fallback: AiBuilderLlmFallbackResult,
+): AiBuilderRecommendation {
+  const groupingSuggestion: AiBuilderGroupingSuggestion = {
+    label: fallback.grouping,
+    rationale: fallback.rationale,
+    source: 'llm-fallback',
+    alternatives: (fallback.candidateGroupings || []).filter((candidate) => candidate && candidate !== fallback.grouping).slice(0, 3),
+  }
+
+  const topOrgTemplate = recommendation.matchedAssets.organizationTemplates[0]
+  const teamTemplateDraftTarget: AiBuilderAction['templateDraftTarget'] = (
+    (fallback.suggestedScope || recommendation.scope) === 'team_of_teams' ? 'company' : 'team'
+  )
+
+  const createNewAction: AiBuilderAction = {
+    id: 'llm-create-team-template',
+    label: teamTemplateDraftTarget === 'company' ? 'AI Create Company Template' : 'AI Create Team Template',
+    description: teamTemplateDraftTarget === 'company'
+      ? 'Create a new company or team-of-teams template from this prompt.'
+      : 'Create a new team template from this prompt.',
+    page: 'templates',
+    action: 'create-ai',
+    templateDraftTarget: teamTemplateDraftTarget,
+    prefillPrompt: prompt,
+  }
+
+  const refineAction: AiBuilderAction | null = topOrgTemplate
+    ? {
+        id: 'llm-refine-team-template',
+        label: 'Refine Template',
+        description: 'Open the closest team template in the AI editor and refine it with this prompt.',
+        page: 'templates',
+        action: 'create-ai',
+        templateDraftTarget: teamTemplateDraftTarget,
+        templateId: topOrgTemplate.id,
+        templateName: topOrgTemplate.name,
+        templateType: 'organization',
+        templateRefineMode: true,
+        prefillPrompt: prompt,
+      }
+    : null
+
+  const nextRecommendation: AiBuilderRecommendation = {
+    ...recommendation,
+    scope: fallback.suggestedScope || recommendation.scope,
+    confidence: recommendation.confidence === 'high' ? 'medium' : 'low',
+    groupingSuggestion,
+    usedLlmFallback: true,
+  }
+
+  if (recommendation.intent !== 'team_template') {
+    return {
+      ...nextRecommendation,
+      summary: `${recommendation.summary} Suggested grouping: ${fallback.grouping}. ${fallback.rationale}`,
+    }
+  }
+
+  if (fallback.strategy === 'create_new_template') {
+    const alternativePaths = [
+      ...(refineAction ? [{
+        title: topOrgTemplate ? `Refine ${topOrgTemplate.name}` : 'Refine a close existing template',
+        reasoning: `The AI fallback sees a plausible nearby template, but it still recommends a cleaner net-new template for the inferred grouping "${fallback.grouping}".`,
+        action: refineAction,
+      }] : []),
+      ...recommendation.alternativePaths.filter((path) => path.action.id !== 'refine-team-template' && path.action.id !== 'refine-top-team-template'),
+    ]
+    return {
+      ...nextRecommendation,
+      operation: 'create_new',
+      recommendedPath: {
+        title: teamTemplateDraftTarget === 'company' ? 'Create a new company template' : 'Create a new team template',
+        reasoning: `${fallback.rationale} The inferred grouping is "${fallback.grouping}", so a new template is the safest starting point.`,
+        primaryAction: createNewAction,
+      },
+      alternativePaths,
+      suggestedActions: [
+        createNewAction,
+        ...(refineAction ? [refineAction] : []),
+        ...recommendation.suggestedActions.filter((action) => action.id !== 'review-existing-team-template').slice(0, 2),
+      ],
+      summary: `${fallback.rationale} I infer the grouping "${fallback.grouping}", so I recommend creating a new template first. If the nearby template is close enough, you can refine that instead.`,
+    }
+  }
+
+  if ((fallback.strategy === 'refine_existing_template' || fallback.strategy === 'use_existing_template') && refineAction) {
+    const alternativePaths = [
+      {
+        title: teamTemplateDraftTarget === 'company' ? 'Create a new company template' : 'Create a new team template',
+        reasoning: `If ${topOrgTemplate?.name || 'the closest template'} still feels too generic for "${fallback.grouping}", start net-new instead.`,
+        action: createNewAction,
+      },
+      ...recommendation.alternativePaths.filter((path) => path.action.id !== 'generate-custom-team'),
+    ]
+    return {
+      ...nextRecommendation,
+      operation: fallback.strategy === 'refine_existing_template' ? 'refine_template' : 'use_template',
+      recommendedPath: {
+        title: topOrgTemplate ? `Refine ${topOrgTemplate.name}` : 'Refine the closest team template',
+        reasoning: `${fallback.rationale} The inferred grouping is "${fallback.grouping}", and ${topOrgTemplate?.name || 'the closest existing template'} looks close enough to adapt.`,
+        primaryAction: refineAction,
+      },
+      alternativePaths,
+      suggestedActions: [
+        refineAction,
+        createNewAction,
+        ...recommendation.suggestedActions.filter((action) => action.id !== 'review-existing-team-template').slice(0, 2),
+      ],
+      summary: `${fallback.rationale} I infer the grouping "${fallback.grouping}", so refining ${topOrgTemplate?.name || 'the closest existing template'} is the best first move. If it is still too generic, create a new template instead.`,
+    }
+  }
+
+  return {
+    ...nextRecommendation,
+    summary: `${recommendation.summary} Suggested grouping: ${fallback.grouping}. ${fallback.rationale}`,
   }
 }

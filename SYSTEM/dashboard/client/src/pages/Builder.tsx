@@ -48,6 +48,7 @@ type BuilderRecommendation = {
     label: string
     prompt: string
     reasoning: string
+    action?: BuilderAction
   }>
   recommendedPath: {
     title: string
@@ -68,6 +69,13 @@ type BuilderRecommendation = {
   }
   suggestedActions: BuilderAction[]
   testPlan: string[]
+  groupingSuggestion?: {
+    label: string
+    rationale: string
+    source: 'llm-fallback'
+    alternatives?: string[]
+  }
+  usedLlmFallback?: boolean
 }
 
 type BuilderAttachment = PromptAttachment
@@ -1005,6 +1013,13 @@ function createAssetAction(asset: BuilderMatchedAsset, matchedAssets: BuilderRec
   }
 }
 
+function getSecondarySuggestedActions(recommendation: BuilderRecommendation | null): BuilderAction[] {
+  if (!recommendation) return []
+  return recommendation.suggestedActions
+    .filter((action) => action.id !== recommendation.recommendedPath.primaryAction.id)
+    .slice(0, 2)
+}
+
 function hydrateBuilderAction(action: BuilderAction, recommendation: BuilderRecommendation): BuilderAction {
   if (action.agentId || action.skillName || action.workflowId || action.templateId) return action
   const topAgent = recommendation.matchedAssets.agents[0]
@@ -1047,6 +1062,10 @@ function hydrateBuilderRecommendation(recommendation: BuilderRecommendation): Bu
     alternativePaths: recommendation.alternativePaths.map((path) => ({
       ...path,
       action: hydrateBuilderAction(path.action, recommendation),
+    })),
+    confirmationOptions: recommendation.confirmationOptions.map((option) => ({
+      ...option,
+      action: option.action ? hydrateBuilderAction(option.action, recommendation) : undefined,
     })),
     suggestedActions: recommendation.suggestedActions.map((action) => hydrateBuilderAction(action, recommendation)),
   }
@@ -1093,6 +1112,8 @@ export default function Builder({
   const [refreshingStarterPrompts, setRefreshingStarterPrompts] = useState(false)
   const [improvingPrompt, setImprovingPrompt] = useState(false)
   const [feedbackByRecommendation, setFeedbackByRecommendation] = useState<Record<string, 'up' | 'down'>>({})
+  const [promptHistoryIndex, setPromptHistoryIndex] = useState<number | null>(null)
+  const [promptDraftBeforeHistory, setPromptDraftBeforeHistory] = useState('')
   const [showRightPane, setShowRightPane] = useState(true)
   const [showPromptEditor, setShowPromptEditor] = useState(false)
   const [showStarterPrompts, setShowStarterPrompts] = useState(true)
@@ -1107,6 +1128,18 @@ export default function Builder({
 
   const historyItems = useMemo(() => messages.filter((message) => message.role === 'user').slice().reverse(), [messages])
   const hasConversation = historyItems.length > 0
+  const secondarySuggestedActions = useMemo(() => getSecondarySuggestedActions(recommendation), [recommendation])
+  const promptHistory = useMemo(() => {
+    const seen = new Set<string>()
+    const nextHistory: string[] = []
+    for (const item of historyItems) {
+      const normalized = item.content.trim()
+      if (!normalized || seen.has(normalized)) continue
+      seen.add(normalized)
+      nextHistory.push(item.content)
+    }
+    return nextHistory
+  }, [historyItems])
 
   useEffect(() => {
     const storedSession = loadStoredBuilderSession(workspaceKey)
@@ -1114,6 +1147,8 @@ export default function Builder({
     setRecommendation(storedSession?.recommendation || null)
     setPrompt('')
     setAttachments([])
+    setPromptHistoryIndex(null)
+    setPromptDraftBeforeHistory('')
     setError(null)
     setLoading(false)
     setArchives(loadBuilderArchives(workspaceKey))
@@ -1164,15 +1199,6 @@ export default function Builder({
         otherWorkspaceNames,
       })
 
-      const byok = readStoredByokKeys()
-      const shared = {
-        ...readSharedSecrets('global'),
-        ...readSharedSecrets('workspace'),
-      }
-      const openai = (shared.OPENAI_API_KEY || byok.openai || '').trim()
-      const anthropic = (shared.ANTHROPIC_API_KEY || byok.anthropic || '').trim()
-      const gemini = (shared.GEMINI_API_KEY || byok.geminiApiKey || '').trim()
-
       try {
         const response = await fetch('/api/ai-builder/starter-prompts', {
           method: 'POST',
@@ -1189,14 +1215,7 @@ export default function Builder({
             agentTemplates: templates.agents.slice(0, 8).map((template) => template.name),
             organizationTemplates: templates.organizations.slice(0, 8).map((template) => template.name),
             otherWorkspaceNames,
-            byokKeys: {
-              openai: openai || undefined,
-              anthropic: anthropic || undefined,
-              gemini: gemini || undefined,
-              openaiCompatibleApiKey: byok.openaiCompatibleApiKey || undefined,
-              openaiCompatibleBaseUrl: byok.openaiCompatibleBaseUrl || undefined,
-              openaiCompatibleDefaultModel: byok.openaiCompatibleDefaultModel || undefined,
-            },
+            byokKeys: getBuilderByokKeys(),
           }),
         })
         const data = await response.json().catch(() => ({}))
@@ -1288,6 +1307,8 @@ export default function Builder({
   function resetBuilderSession() {
     setPrompt('')
     setAttachments([])
+    setPromptHistoryIndex(null)
+    setPromptDraftBeforeHistory('')
     setError(null)
     setRecommendation(null)
     setMessages(createInitialMessages())
@@ -1332,6 +1353,33 @@ export default function Builder({
     return appendPromptAttachmentContext(basePrompt, attachments)
   }
 
+  function focusPromptAtEnd(nextValue: string) {
+    window.setTimeout(() => {
+      textareaRef.current?.focus()
+      textareaRef.current?.setSelectionRange(nextValue.length, nextValue.length)
+    }, 0)
+  }
+
+  function getBuilderByokKeys() {
+    const byok = readStoredByokKeys()
+    const shared = {
+      ...readSharedSecrets('global'),
+      ...readSharedSecrets('workspace'),
+    }
+    const openai = (shared.OPENAI_API_KEY || byok.openai || '').trim()
+    const anthropic = (shared.ANTHROPIC_API_KEY || byok.anthropic || '').trim()
+    const gemini = (shared.GEMINI_API_KEY || byok.geminiApiKey || '').trim()
+
+    return {
+      openai: openai || undefined,
+      anthropic: anthropic || undefined,
+      gemini: gemini || undefined,
+      openaiCompatibleApiKey: byok.openaiCompatibleApiKey || undefined,
+      openaiCompatibleBaseUrl: byok.openaiCompatibleBaseUrl || undefined,
+      openaiCompatibleDefaultModel: byok.openaiCompatibleDefaultModel || undefined,
+    }
+  }
+
   async function submitPrompt(nextPrompt?: string) {
     const value = (nextPrompt ?? prompt).trim()
     if (!value) return
@@ -1340,13 +1388,18 @@ export default function Builder({
 
     setLoading(true)
     setError(null)
+    setPromptHistoryIndex(null)
+    setPromptDraftBeforeHistory('')
     setMessages((prev) => [...prev, { id: `user-${Date.now()}`, role: 'user', label: 'You', content: value }])
 
     try {
       const response = await fetch('/api/ai-builder/recommend', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: effectivePrompt }),
+        body: JSON.stringify({
+          prompt: effectivePrompt,
+          byokKeys: getBuilderByokKeys(),
+        }),
       })
       let data: any
       try {
@@ -1366,6 +1419,8 @@ export default function Builder({
           ])
           setPrompt('')
           setAttachments([])
+          setPromptHistoryIndex(null)
+          setPromptDraftBeforeHistory('')
           void refreshStarterPrompts({ seedPrompt: value })
           return
         }
@@ -1387,6 +1442,8 @@ export default function Builder({
       ])
       setPrompt('')
       setAttachments([])
+      setPromptHistoryIndex(null)
+      setPromptDraftBeforeHistory('')
       void refreshStarterPrompts({ seedPrompt: value })
     } catch (err: any) {
       setError(err?.message || 'Failed to build recommendation')
@@ -1404,10 +1461,7 @@ export default function Builder({
     try {
       const improved = await expandPromptWithAI(value, 'template', 'text')
       setPrompt(improved)
-      window.setTimeout(() => {
-        textareaRef.current?.focus()
-        textareaRef.current?.setSelectionRange(improved.length, improved.length)
-      }, 0)
+      focusPromptAtEnd(improved)
     } catch (err: any) {
       setError(err?.message || 'Failed to improve prompt')
     } finally {
@@ -1494,15 +1548,66 @@ export default function Builder({
   }
 
   function handlePromptKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (event.key !== 'Enter' || event.shiftKey) return
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault()
+      if (loading || !prompt.trim()) return
+      void submitPrompt()
+      return
+    }
+
+    if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return
+    if (event.shiftKey || event.metaKey || event.ctrlKey || event.altKey) return
+    if (promptHistory.length === 0) return
+
+    const textarea = event.currentTarget
+    const selectionStart = textarea.selectionStart ?? 0
+    const selectionEnd = textarea.selectionEnd ?? 0
+    if (selectionStart !== selectionEnd) return
+
+    const beforeCursor = prompt.slice(0, selectionStart)
+    const afterCursor = prompt.slice(selectionEnd)
+    const onFirstLine = !beforeCursor.includes('\n')
+    const onLastLine = !afterCursor.includes('\n')
+
+    if (event.key === 'ArrowUp' && !onFirstLine) return
+    if (event.key === 'ArrowDown' && !onLastLine) return
+
     event.preventDefault()
-    if (loading || !prompt.trim()) return
-    void submitPrompt()
+
+    if (event.key === 'ArrowUp') {
+      const nextIndex = promptHistoryIndex === null ? 0 : Math.min(promptHistory.length - 1, promptHistoryIndex + 1)
+      if (promptHistoryIndex === null) {
+        setPromptDraftBeforeHistory(prompt)
+      }
+      const nextPrompt = promptHistory[nextIndex] || ''
+      setPromptHistoryIndex(nextIndex)
+      setPrompt(nextPrompt)
+      focusPromptAtEnd(nextPrompt)
+      return
+    }
+
+    if (promptHistoryIndex === null) return
+
+    if (promptHistoryIndex === 0) {
+      const restoredDraft = promptDraftBeforeHistory
+      setPromptHistoryIndex(null)
+      setPrompt(restoredDraft)
+      focusPromptAtEnd(restoredDraft)
+      return
+    }
+
+    const nextIndex = Math.max(0, promptHistoryIndex - 1)
+    const nextPrompt = promptHistory[nextIndex] || ''
+    setPromptHistoryIndex(nextIndex)
+    setPrompt(nextPrompt)
+    focusPromptAtEnd(nextPrompt)
   }
 
   function editPromptDraft(value: string) {
+    setPromptHistoryIndex(null)
+    setPromptDraftBeforeHistory('')
     setPrompt(value)
-    setTimeout(() => textareaRef.current?.focus(), 0)
+    focusPromptAtEnd(value)
   }
 
   const recommendationFeedbackKey = recommendation
@@ -1690,6 +1795,31 @@ export default function Builder({
                       </div>
                     </div>
                     <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{recommendation.recommendedPath.reasoning}</p>
+                    {recommendation.groupingSuggestion && (
+                      <div className="mt-3 rounded-2xl border border-sky-200/70 bg-white/80 px-3 py-2 dark:border-sky-900/70 dark:bg-gray-900/60">
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">
+                          Suggested Grouping
+                        </div>
+                        <div className="mt-1 text-sm font-medium text-gray-900 dark:text-gray-100">
+                          {recommendation.groupingSuggestion.label}
+                        </div>
+                        <div className="mt-1 text-xs leading-5 text-gray-600 dark:text-gray-300">
+                          {recommendation.groupingSuggestion.rationale}
+                        </div>
+                        {recommendation.groupingSuggestion.alternatives && recommendation.groupingSuggestion.alternatives.length > 0 && (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {recommendation.groupingSuggestion.alternatives.map((alternative) => (
+                              <span
+                                key={alternative}
+                                className="rounded-full border border-sky-200 bg-sky-50 px-2 py-1 text-[10px] font-medium text-sky-700 dark:border-sky-800 dark:bg-sky-950/30 dark:text-sky-300"
+                              >
+                                {alternative}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                     <div className="mt-3 flex flex-wrap gap-2">
                       <button
                         onClick={() => runAction(recommendation.recommendedPath.primaryAction)}
@@ -1698,6 +1828,25 @@ export default function Builder({
                         {recommendation.recommendedPath.primaryAction.label}
                       </button>
                     </div>
+                    {secondarySuggestedActions.length > 0 && (
+                      <div className="mt-3">
+                        <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">
+                          Then Consider
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {secondarySuggestedActions.map((nextAction) => (
+                            <button
+                              key={nextAction.id}
+                              onClick={() => runAction(nextAction)}
+                              className="rounded-full border border-sky-200 bg-white px-3 py-1.5 text-xs font-medium text-sky-700 transition-colors hover:border-sky-400 hover:bg-sky-100 dark:border-sky-800 dark:bg-gray-900 dark:text-sky-200 dark:hover:border-sky-700 dark:hover:bg-sky-950/40"
+                              title={nextAction.description}
+                            >
+                              {nextAction.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     {recommendation.confirmationOptions.length > 0 && (
                       <div className="mt-3">
                         <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">Confirm Path</div>
@@ -1705,7 +1854,13 @@ export default function Builder({
                           {recommendation.confirmationOptions.map((option) => (
                             <button
                               key={option.id}
-                              onClick={() => void submitPrompt(option.prompt)}
+                              onClick={() => {
+                                if (option.action) {
+                                  runAction(option.action)
+                                  return
+                                }
+                                void submitPrompt(option.prompt)
+                              }}
                               className="rounded-full border border-sky-200 bg-white px-3 py-1.5 text-xs font-medium text-sky-700 transition-colors hover:border-sky-400 hover:bg-sky-100 dark:border-sky-800 dark:bg-gray-900 dark:text-sky-200 dark:hover:border-sky-700 dark:hover:bg-sky-950/40"
                               title={option.reasoning}
                             >
@@ -1772,11 +1927,24 @@ export default function Builder({
               <div ref={transcriptEndRef} />
             </div>
 
-            <div className="mt-3 shrink-0 rounded-2xl border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
+            <div className="mt-3 shrink-0 rounded-2xl border border-sky-200/80 bg-sky-50/70 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] dark:border-sky-900/60 dark:bg-sky-950/20">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">
+                    Your Builder Prompt
+                  </div>
+                  <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                    Enter what you want to build, then submit or refine it before sending.
+                  </div>
+                </div>
+                <div className="rounded-full border border-sky-200 bg-white px-2.5 py-1 text-[10px] font-medium text-sky-700 dark:border-sky-800 dark:bg-gray-900 dark:text-sky-300">
+                  Input
+                </div>
+              </div>
               {attachments.length > 0 && (
                 <div className="mb-3 flex flex-wrap gap-2">
                   {attachments.map((attachment) => (
-                    <div key={attachment.id} className="inline-flex max-w-full items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
+                    <div key={attachment.id} className="inline-flex max-w-full items-center gap-2 rounded-full border border-sky-200 bg-white px-3 py-1.5 text-xs text-gray-700 dark:border-sky-800 dark:bg-gray-900 dark:text-gray-200">
                       <span>{attachment.isImage ? 'Image' : 'File'}: {attachment.name}</span>
                       <button onClick={() => removeAttachment(attachment.id)} className="text-gray-400 hover:text-red-500">×</button>
                     </div>
@@ -1790,10 +1958,10 @@ export default function Builder({
                 onChange={(event) => setPrompt(event.target.value)}
                 onKeyDown={handlePromptKeyDown}
                 placeholder="Example: I want a small team that watches competitor launches, writes concise summaries, and posts a final brief every Friday."
-                className="min-h-[64px] max-h-[110px] w-full resize-y border-0 bg-transparent text-sm text-gray-900 outline-none placeholder:text-gray-400 dark:text-gray-100"
+                className="min-h-[64px] max-h-[110px] w-full resize-y rounded-xl border border-sky-200 bg-white/95 px-3 py-2 text-sm text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-sky-400 dark:border-sky-900 dark:bg-gray-900 dark:text-gray-100 dark:focus:border-sky-700"
               />
 
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 pt-3 dark:border-gray-800">
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-sky-200/80 pt-3 dark:border-sky-900/60">
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
@@ -1853,12 +2021,12 @@ export default function Builder({
               </div>
 
               {!hasConversation && (
-                <div className="mt-2 text-[11px] text-gray-500 dark:text-gray-400">
+                <div className="mt-2 text-[11px] text-gray-600 dark:text-gray-300">
                   Good prompts mention the user, whether this is one agent or a team, and what success should look like.
                 </div>
               )}
-              <div className="mt-2 text-[11px] text-gray-400 dark:text-gray-500">
-                Press <span className="font-medium text-gray-500 dark:text-gray-400">Enter</span> to submit. Use <span className="font-medium text-gray-500 dark:text-gray-400">Shift + Enter</span> for a new line.
+              <div className="mt-2 text-[11px] text-gray-500 dark:text-gray-400">
+                Press <span className="font-medium text-gray-700 dark:text-gray-200">Enter</span> to submit. Use <span className="font-medium text-gray-700 dark:text-gray-200">Shift + Enter</span> for a new line. Use <span className="font-medium text-gray-700 dark:text-gray-200">↑ / ↓</span> at the top or bottom line to revisit recent prompts.
               </div>
             </div>
 
@@ -1938,6 +2106,31 @@ export default function Builder({
                       </div>
                     </div>
                     <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">{recommendation.recommendedPath.reasoning}</p>
+                    {recommendation.groupingSuggestion && (
+                      <div className="mt-3 rounded-2xl border border-sky-200 bg-sky-50/70 px-3 py-2 dark:border-sky-900 dark:bg-sky-950/20">
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">
+                          Suggested Grouping
+                        </div>
+                        <div className="mt-1 text-sm font-medium text-gray-900 dark:text-gray-100">
+                          {recommendation.groupingSuggestion.label}
+                        </div>
+                        <p className="mt-1 text-xs leading-5 text-gray-600 dark:text-gray-300">
+                          {recommendation.groupingSuggestion.rationale}
+                        </p>
+                        {recommendation.groupingSuggestion.alternatives && recommendation.groupingSuggestion.alternatives.length > 0 && (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {recommendation.groupingSuggestion.alternatives.map((alternative) => (
+                              <span
+                                key={alternative}
+                                className="rounded-full border border-sky-200 bg-white px-2 py-1 text-[10px] font-medium text-sky-700 dark:border-sky-800 dark:bg-gray-900 dark:text-sky-300"
+                              >
+                                {alternative}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <button
                     onClick={() => runAction(recommendation.recommendedPath.primaryAction)}
@@ -1946,6 +2139,23 @@ export default function Builder({
                     {recommendation.recommendedPath.primaryAction.label}
                     <div className="mt-1 text-xs font-normal text-sky-100">{recommendation.recommendedPath.primaryAction.description}</div>
                   </button>
+                  {secondarySuggestedActions.length > 0 && (
+                    <div>
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">Then Consider</div>
+                      <div className="mt-2 space-y-2">
+                        {secondarySuggestedActions.map((nextAction) => (
+                          <button
+                            key={nextAction.id}
+                            onClick={() => runAction(nextAction)}
+                            className="w-full rounded-2xl border border-sky-200 bg-sky-50 px-3 py-2 text-left text-xs text-sky-800 transition-colors hover:border-sky-400 hover:bg-sky-100 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-200 dark:hover:border-sky-700 dark:hover:bg-sky-950/50"
+                          >
+                            <div className="font-semibold">{nextAction.label}</div>
+                            <div className="mt-1 text-[11px] text-sky-700/80 dark:text-sky-300/80">{nextAction.description}</div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   {recommendation.confirmationOptions.length > 0 && (
                     <div>
                       <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">Confirm Path</div>
@@ -1953,7 +2163,13 @@ export default function Builder({
                         {recommendation.confirmationOptions.map((option) => (
                           <button
                             key={option.id}
-                            onClick={() => void submitPrompt(option.prompt)}
+                            onClick={() => {
+                              if (option.action) {
+                                runAction(option.action)
+                                return
+                              }
+                              void submitPrompt(option.prompt)
+                            }}
                             className="w-full rounded-2xl border border-sky-200 bg-sky-50 px-3 py-2 text-left text-xs text-sky-800 transition-colors hover:border-sky-400 hover:bg-sky-100 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-200 dark:hover:border-sky-700 dark:hover:bg-sky-950/50"
                           >
                             <div className="font-semibold">{option.label}</div>

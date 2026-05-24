@@ -151,6 +151,24 @@
     "page": "skills"
   },
   {
+    "name": "existing agent recurring process suggests workflow next",
+    "prompt": "I already have a client success agent. I want a weekly renewal review process with final approval",
+    "intent": "existing_agent",
+    "scope": "single_agent",
+    "operation": "reuse_existing",
+    "page": "agents",
+    "suggestedActionIdsInclude": ["review-skills"],
+    "suggestedActionPagesInclude": ["workflows"],
+    "suggestedActionIdsExclude": ["test-agent-chat"]
+  },
+  {
+    "name": "existing agent missing integrations still prefers skills path",
+    "prompt": "I already have a people ops agent. It needs Slack, Gmail, and calendar integrations before I create anything new",
+    "intent": "skill_or_integration",
+    "scope": "single_agent",
+    "page": "skills"
+  },
+  {
     "name": "explicit create from agent template request maps to agent template",
     "prompt": "Create a new agent from the People Researcher template and tune it for executive background research",
     "intent": "agent_template",
@@ -213,9 +231,11 @@
     "intent": "team_template",
     "scope": "team",
     "operation": "create_new",
+    "confidence": "low",
     "page": "templates",
     "action": "create-ai",
     "titleIncludes": "Create a new team template",
+    "confirmationOptionsMin": 2,
     "topOrganizationTemplateIncludes": "Speaker Event Studio",
     "topOrganizationTemplateExcludes": "Build-a-Company Hack Test"
   },
@@ -268,5 +288,175 @@
     "scope": "team",
     "page": "templates",
     "topOrganizationTemplateFamily": "research_analysis"
+  },
+  {
+    "name": "nonprofit volunteer operations prompt can stay template-first without forcing a known family",
+    "prompt": "Create a team of agents for a nonprofit food pantry to coordinate donors, volunteers, and weekly distribution",
+    "intent": "team_template",
+    "scope": "team",
+    "operation": "create_new",
+    "confidence": "low",
+    "page": "templates",
+    "action": "create-ai",
+    "titleIncludes": "Create a new team template",
+    "confirmationOptionsMin": 2
+  },
+  {
+    "name": "civic permitting prompt can fall back to a new company template when family match is weak",
+    "prompt": "Design an organization for municipal permit intake, inspections, neighborhood follow-up, and compliance reporting",
+    "intent": "team_template",
+    "scope": "team_of_teams",
+    "operation": "create_new",
+    "confidence": "low",
+    "page": "templates",
+    "action": "create-ai",
+    "confirmationOptionsMin": 2
+  },
+  {
+    "name": "creative studio prompt can offer refine versus create-new instead of forcing an existing family",
+    "prompt": "Build a team for a ceramic studio that manages classes, kiln schedules, member communication, and gallery sales",
+    "intent": "team_template",
+    "scope": "team",
+    "operation": "create_new",
+    "confidence": "low",
+    "page": "templates",
+    "action": "create-ai",
+    "confirmationOptionsMin": 2
+  },
+  {
+    "name": "healthcare coding company prompt prefers business company or create-new company path",
+    "prompt": "Create an organization for a medical coding company with intake, coder QA, compliance review, and client reporting teams",
+    "intent": "team_template",
+    "scope": "team_of_teams",
+    "operation": "create_new",
+    "page": "templates"
+  },
+  {
+    "name": "school homework help prompt prefers education-oriented team templates over generic support",
+    "prompt": "Build a team that helps middle school students with homework planning, subject tutoring, and parent updates",
+    "intent": "team_template",
+    "scope": "team",
+    "page": "templates",
+    "topOrganizationTemplateIncludes": "Homework Support Team"
+  },
+  {
+    "name": "research student prompt stays template-first and low-confidence so llm fallback can infer the grouping",
+    "prompt": "Create a team for a student to manage a semester research project with reading, experiment notes, and advisor check-ins",
+    "intent": "team_template",
+    "scope": "team",
+    "confidence": "low",
+    "page": "templates",
+    "confirmationOptionsMin": 2
+  },
+  {
+    "name": "travel planning prompt prefers personal admin family travel desk",
+    "prompt": "Help me coordinate flights, lodging, itinerary changes, and packing reminders for a family trip",
+    "intent": "team_template",
+    "scope": "unknown",
+    "page": "templates",
+    "topOrganizationTemplateIncludes": "Travel Planning Desk"
+  },
+  {
+    "name": "family operations prompt prefers family ops over household bills only",
+    "prompt": "Build a team to coordinate school schedules, errands, groceries, and family logistics each week",
+    "intent": "team_template",
+    "scope": "team",
+    "page": "templates",
+    "topOrganizationTemplateIncludes": "Family Ops Hub"
+  },
+  {
+    "name": "local retailer prompt prefers commerce retail family",
+    "prompt": "Create a team for a neighborhood specialty retailer to manage inventory, suppliers, merchandising, and customer service",
+    "intent": "team_template",
+    "scope": "team",
+    "page": "templates",
+    "topOrganizationTemplateFamily": "commerce_retail"
+  },
+  {
+    "name": "convenience store prompt prefers convenience store template",
+    "prompt": "Build a team for a convenience store that handles vendor orders, stock checks, pricing updates, and shift handoff notes",
+    "intent": "team_template",
+    "scope": "team",
+    "page": "templates",
+    "topOrganizationTemplateIncludes": "Convenience Store"
+  },
+  {
+    "name": "field service prompt can create new when no strong family starter exists",
+    "prompt": "Create a team for HVAC field service dispatch, technician scheduling, parts tracking, and follow-up maintenance reminders",
+    "intent": "team_template",
+    "scope": "team",
+    "operation": "create_new",
+    "confidence": "low",
+    "page": "templates",
+    "action": "create-ai",
+    "confirmationOptionsMin": 2
+  },
+  {
+    "name": "restaurant hospitality prompt can create new instead of forcing retail",
+    "prompt": "Design a team for a small restaurant to manage reservations, prep lists, supplier ordering, and nightly closeout",
+    "intent": "team_template",
+    "scope": "team",
+    "operation": "create_new",
+    "confidence": "low",
+    "page": "templates",
+    "action": "create-ai",
+    "confirmationOptionsMin": 2
+  },
+  {
+    "name": "engineering product prompt prefers engineering product family",
+    "prompt": "Build a team to plan product requirements, prototype features, manage GitHub issues, and ship updates each sprint",
+    "intent": "team_template",
+    "scope": "team",
+    "page": "templates",
+    "topOrganizationTemplateFamily": "engineering_product"
+  },
+  {
+    "name": "rag knowledge team prompt prefers engineering product family over research desk",
+    "prompt": "Create a team for a RAG pipeline with ingestion, chunking, retrieval evaluation, and prompt iteration",
+    "intent": "team_template",
+    "scope": "team",
+    "page": "templates",
+    "topOrganizationTemplateFamily": "engineering_product"
+  },
+  {
+    "name": "marketing campaign org prompt prefers business company family over content-only",
+    "prompt": "Design an organization for campaign planning, paid acquisition, lifecycle email, and reporting across a startup marketing team",
+    "intent": "team_template",
+    "scope": "team_of_teams",
+    "page": "templates",
+    "topOrganizationTemplateFamily": "business_company"
+  },
+  {
+    "name": "refine existing event template prompt stays refine-template not create-new",
+    "prompt": "Refine my current event planning template so it handles sponsors, speaker prep, and day-of coordination better",
+    "intent": "team_template",
+    "scope": "team",
+    "operation": "refine_template",
+    "page": "templates"
+  },
+  {
+    "name": "ambiguous template adaptation prompt offers low confidence for close refine versus new choice",
+    "prompt": "Maybe adapt an existing conference or event template for a monthly creative workshop series, or create a cleaner new one",
+    "intent": "team_template",
+    "scope": "team",
+    "confidence": "low",
+    "confirmationOptionsMin": 2,
+    "confirmationLabelsExclude": ["Use Lead Coder"],
+    "page": "templates"
+  },
+  {
+    "name": "single-agent hospitality assistant stays ai-generate when request is not a team",
+    "prompt": "Create one agent to help a bed and breakfast owner answer guest questions and draft weekly supply lists",
+    "intent": "ai_generate",
+    "scope": "single_agent",
+    "operation": "create_new",
+    "page": "agents"
+  },
+  {
+    "name": "existing agent with crm and calendar need still prefers skills path",
+    "prompt": "I already have a client success agent but it needs CRM sync, calendar follow-ups, and Gmail drafting",
+    "intent": "skill_or_integration",
+    "scope": "single_agent",
+    "page": "skills"
   }
 ]
