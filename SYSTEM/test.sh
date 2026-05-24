@@ -627,6 +627,16 @@ else
   fail "Skill deletion helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Agent skills scope helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/agentSkillsScope.test.ts > /tmp/clawmax-agent-skills-scope.out 2>&1 || true
+if grep -q "tests passed" /tmp/clawmax-agent-skills-scope.out; then
+  agent_skills_scope_count=$(grep -o '[0-9]\+ tests passed' /tmp/clawmax-agent-skills-scope.out | head -1 | grep -o '[0-9]\+')
+  pass "Agent skills scope helper unit tests (${agent_skills_scope_count:-?} tests)"
+else
+  cat /tmp/clawmax-agent-skills-scope.out
+  fail "Agent skills scope helper unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Maintenance banner view unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/maintenanceBannerView.test.ts > /tmp/clawmax-maintenance-banner-view.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-maintenance-banner-view.out; then

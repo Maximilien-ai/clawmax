@@ -17,6 +17,7 @@ const PREDEFINED_TAGS = [
 interface WizardProps {
   onClose: () => void
   onDone: (agentId?: string) => void
+  onNavigateToSkills?: (agentId: string) => void
   defaultCloneFrom?: string
   startWithAI?: boolean
 }
@@ -67,7 +68,7 @@ function friendlyProvisionError(message: string): string {
   return text
 }
 
-export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, startWithAI }: WizardProps) {
+export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, defaultCloneFrom, startWithAI }: WizardProps) {
   const { config } = useAuth()
   const aiEnabled = hasAiGenerationAccess(config)
   const aiReadiness = getAiGenerationReadiness(config)
@@ -1012,8 +1013,30 @@ export default function AddAgentWizard({ onClose, onDone, defaultCloneFrom, star
               )}
 
               {done && (
-                <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-sm text-green-700 dark:text-green-400 font-medium">
-                  Agent <code>{form.name}</code> provisioned successfully!
+                <div className="space-y-3">
+                  <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-sm text-green-700 dark:text-green-400 font-medium">
+                    Agent <code>{form.name}</code> provisioned successfully!
+                  </div>
+                  {onNavigateToSkills && (
+                    <div className="rounded-lg border border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-900/20 px-4 py-3">
+                      <div className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                        Next recommended step
+                      </div>
+                      <div className="mt-1 text-xs text-blue-800/80 dark:text-blue-200/80">
+                        Open the agent-scoped skills view to assign GitHub, Slack, Google Workspace, or other tools before first use.
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onNavigateToSkills(form.name)
+                          onClose()
+                        }}
+                        className="mt-3 px-3 py-1.5 text-xs font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+                      >
+                        Manage Skills
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
