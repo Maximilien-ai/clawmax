@@ -1,28 +1,53 @@
 # Demo Videos
 
-ClawMax keeps a small set of local demo videos in this repo for backup walkthroughs, documentation, and presentation prep.
+ClawMax has a small set of legacy local backup videos today, but it does **not** yet have a refreshed, current feature-demo catalog.
 
-## Available Videos
+This document tracks:
+- the legacy backup files that still exist
+- the feature demo videos we still need to record
 
-| Video | File | Purpose |
-|---|---|---|
-| Workflow execution demo | [`videos/video1-workflow-execution.mov`](videos/video1-workflow-execution.mov) | Backup for showing workflow execution, progress, and agent coordination when a live run is risky. |
-| Add-agent demo | [`videos/video2-add-agent.mov`](videos/video2-add-agent.mov) | Backup for showing agent creation and the add-agent flow when presenting or documenting onboarding. |
+## Current Local Backup Files
 
-## When To Use Them
+These are older backup walkthroughs, useful as references, but they should not be treated as the current polished demo set.
 
-- live demos need a fallback path
-- docs need a quick visual reference
-- presentation rehearsals need a known-good walkthrough
-- release/docs validation wants a concrete example of the user flow
+| Video | File | Status | Notes |
+|---|---|---|---|
+| Workflow execution demo | [`videos/video1-workflow-execution.mov`](videos/video1-workflow-execution.mov) | Legacy | Older backup flow for workflow execution and progress. |
+| Add-agent demo | [`videos/video2-add-agent.mov`](videos/video2-add-agent.mov) | Legacy | Older backup flow for agent creation / onboarding. |
 
-## Recommended Usage
+## Needed Refreshed Feature Videos
 
-- Prefer live product demos when the environment is stable.
-- Use these recordings as backup material when:
-  - the local runtime is flaky
-  - network or model dependencies are uncertain
-  - you need a short, repeatable walkthrough for documentation or talks
+These are the recordings we should capture to properly cover the current product.
+
+| Feature Area | Planned Video | Status | Notes |
+|---|---|---|---|
+| Agents | Create agent / AI generate / first chat | TODO | Cover create, template-backed create, and first successful chat. |
+| Templates | Browse, apply, refine, AI create | TODO | Include local template refine and new AI-generated template flow. |
+| Workflows | Create, trigger, DAG progress, result | TODO | Show kickoff, dependency progression, and result visibility. |
+| Skills | Browse, assign, import, verify | TODO | Include built-in skills, registry/local import, and agent assignment. |
+| BYOK / Models | Configure hosted + local models | TODO | Include OpenAI, Ollama, and OpenAI-compatible examples. |
+| Organization / Teams | Apply org template and inspect teams/groups | TODO | Show groups, communities, and resulting structure. |
+| Builder / Designer | Prompt, refine, choose path, handoff | TODO | Cover Builder recommendations, refine/create paths, and prompt editor. |
+| DocHub / Documents | Export/save/edit generated artifacts | TODO | Show design docs, template/workflow docs, and result artifacts. |
+
+## Recommended Order
+
+If we only record a few first, prioritize:
+
+1. Agents
+2. Templates
+3. Workflows
+4. Skills
+5. Builder / Designer
+
+## Usage Guidance
+
+- Prefer live demos when the environment is stable.
+- Use the legacy files only as fallback material until the refreshed videos are recorded.
+- When a new feature video is recorded, add:
+  - the file path
+  - a short purpose/coverage note
+  - whether it is customer-facing, internal backup, or both
 
 ## Related Material
 
