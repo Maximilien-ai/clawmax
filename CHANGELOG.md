@@ -6,6 +6,12 @@ All notable changes to ClawMax are documented here.
 
 - No unreleased changes yet.
 
+## [v1.5.10] - 2026-05-25
+
+### Image Publish Hardening
+- **Registry Smoke Gate** — the container-image workflow now smoke-pulls and runs the published top-level and explicit arch tags from GHCR before the workflow can succeed, so the release path waits for consumer-usable registry artifacts instead of only a green build/publish step.
+- **Runtime Version Diagnostics Retained** — dashboard containers continue to log packaged dashboard version and `CLAWMAX_VERSION` on startup and fail fast if live packaged files do not match the image version contract.
+
 ## [v1.5.9] - 2026-05-25
 
 ### Runtime Diagnostics
