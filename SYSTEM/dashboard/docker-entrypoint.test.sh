@@ -11,6 +11,8 @@ BIN_DIR="$TMP_DIR/bin"
 NODE_ONLY_BIN_DIR="$TMP_DIR/node-only-bin"
 LOG_FILE="$TMP_DIR/openclaw.log"
 mkdir -p "$BIN_DIR" "$NODE_ONLY_BIN_DIR" "$TMP_DIR/home" "$TMP_DIR/workspace" "$TMP_DIR/fake-node"
+printf '{\n  "name": "clawmax-dashboard",\n  "version": "1.5.8"\n}\n' > "$TMP_DIR/package.json"
+printf '{\n  "name": "clawmax-dashboard",\n  "version": "1.5.4"\n}\n' > "$TMP_DIR/package-old.json"
 
 cat > "$BIN_DIR/openclaw" <<'EOF'
 #!/bin/sh
@@ -80,6 +82,8 @@ export OPENCLAW_LOG="$LOG_FILE"
 export HOME="$TMP_DIR/home"
 export OPENCLAW_WORKSPACE="$TMP_DIR/workspace"
 export CLAWMAX_ENTRYPOINT_TEST_MODE=true
+export CLAWMAX_RUNTIME_PACKAGE_JSON="$TMP_DIR/package.json"
+export CLAWMAX_VERSION="v1.5.8"
 
 . "$SCRIPT"
 
@@ -107,6 +111,16 @@ fi
 
 if PATH="$NODE_ONLY_BIN_DIR:/bin" HOME="$TMP_DIR/home" OPENCLAW_WORKSPACE="$TMP_DIR/workspace" CLAWMAX_ENTRYPOINT_TEST_MODE=true OPENCLAW_LOG="$LOG_FILE" NODE_EXIT_CODE=1 sh -c '. "$1"; gateway_port_listening "18789"' _ "$SCRIPT"; then
   echo "Expected node-based gateway probe to fail when NODE_EXIT_CODE=1" >&2
+  exit 1
+fi
+
+if ! CLAWMAX_RUNTIME_PACKAGE_JSON="$TMP_DIR/package.json" CLAWMAX_VERSION="v1.5.8" sh -c '. "$1"; verify_runtime_version_matches_image' _ "$SCRIPT"; then
+  echo "Expected matching runtime package version to pass verification" >&2
+  exit 1
+fi
+
+if CLAWMAX_RUNTIME_PACKAGE_JSON="$TMP_DIR/package-old.json" CLAWMAX_VERSION="v1.5.8" sh -c '. "$1"; verify_runtime_version_matches_image' _ "$SCRIPT"; then
+  echo "Expected mismatched runtime package version to fail verification" >&2
   exit 1
 fi
 
