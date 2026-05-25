@@ -5,12 +5,23 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.5.8-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
+[![Version](https://img.shields.io/badge/version-1.5.9-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
 [![Tests](https://img.shields.io/badge/tests-96%20default--safe-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 Latest Release: v1.5.8
+## 🔥 Latest Release: v1.5.9
+
+- Runtime diagnostics are stronger:
+  - dashboard containers now log the packaged dashboard version and image `CLAWMAX_VERSION` at startup
+  - startup now fails fast when the live packaged dashboard files do not match the image version contract, instead of only surfacing a later health-gate failure
+  - the container-image workflow verifies the packaged dashboard version and `CLAWMAX_VERSION` inside each per-arch image before publishing manifest tags
+- Release assets and no-clone install remain the standard release path:
+  - tagged releases publish `clawmax-vX.Y.Z.tar.gz`, `clawmax-vX.Y.Z.sha256`, and `install.sh`
+  - users can run the latest installer without GitHub CLI or a GitHub login, or pin a version with `bash -s -- v1.5.9`
+  - `./setup.sh v1.5.9` delegates to the same release bootstrapper, verifies the checksum, expands the bundle, and continues into normal setup
+
+## 🔥 Previous Release: v1.5.8
 
 - Reliability and release hardening are stronger:
   - the main CI lane now includes the formerly quarantined template, dashboard-env, and docker-entrypoint coverage directly through `SYSTEM/test.sh`
@@ -20,19 +31,8 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
   - shipped organization templates now have catalog-wide checks for hidden helper/runtime directory references and duplicate explicit artifact filenames across workflows
   - the first template catalog audit batch is documented in `SYSTEM/docs/operations/TEMPLATE_CATALOG_AUDIT_2026-05-24.md`
   - narrow-width usability is improved for the notifications tray, BYOK / Partner Integrations, and Apply Agent Template flows
-- Release assets and no-clone install remain the standard release path:
-  - tagged releases publish `clawmax-vX.Y.Z.tar.gz`, `clawmax-vX.Y.Z.sha256`, and `install.sh`
-  - users can run the latest installer without GitHub CLI or a GitHub login, or pin a version with `bash -s -- v1.5.8`
-  - `./setup.sh v1.5.8` delegates to the same release bootstrapper, verifies the checksum, expands the bundle, and continues into normal setup
 
-## 🔥 Previous Release: v1.5.7
-
-- Emergency on-prem readiness fix:
-  - the dashboard no longer blocks `/api/health` behind synchronous workspace-agent auto-registration during startup
-  - startup services that previously delayed health readiness now run in the background after the server is listening
-  - real Podman/on-prem stacks can satisfy the health gate instead of appearing started while never becoming ready
-
-## 🔥 Previous Release: v1.5.5–v1.5.6
+## 🔥 Previous Release: v1.5.5–v1.5.7
 
 - Local/self-hosted model support is much stronger:
   - `OpenAI-Compatible` is now a first-class BYOK provider for LM Studio and other OpenAI-style APIs that expose `/v1/models` and `/v1/chat/completions`
@@ -208,7 +208,7 @@ curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/ins
 Pinned release:
 
 ```bash
-curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.5.8
+curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.5.9
 ```
 
 What it does:
@@ -229,13 +229,13 @@ See [SYSTEM/docs/DEMO_VIDEOS.md](SYSTEM/docs/DEMO_VIDEOS.md) for the current inv
 You can also bootstrap directly with the checked-in wrapper:
 
 ```bash
-./setup.sh v1.5.8
+./setup.sh v1.5.9
 ```
 
 or choose a custom install directory:
 
 ```bash
-curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.5.8 --dir /opt/clawmax
+curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.5.9 --dir /opt/clawmax
 ```
 
 See [SYSTEM/docs/RELEASE_DISTRIBUTION.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/RELEASE_DISTRIBUTION.md) for the release distribution contract.

@@ -6,6 +6,13 @@ All notable changes to ClawMax are documented here.
 
 - No unreleased changes yet.
 
+## [v1.5.9] - 2026-05-25
+
+### Runtime Diagnostics
+- **Fail-Fast Version Mismatch Guard** — the dashboard entrypoint now compares the image `CLAWMAX_VERSION` contract with the live packaged `/app/SYSTEM/dashboard/package.json` version and exits immediately with an explicit error when they diverge.
+- **Startup Version Logging** — dashboard containers now log the packaged dashboard version, image `CLAWMAX_VERSION`, `HOME`, and `OPENCLAW_WORKSPACE` on startup so on-prem/runtime issues can be diagnosed from first-line logs instead of inferred from later health-gate failures.
+- **Image Publish Verification** — the container-image workflow now runs each per-arch image after build and verifies both the packaged dashboard version and `CLAWMAX_VERSION` before publishing manifest tags.
+
 ## [v1.5.8] - 2026-05-24
 
 ### Quality and CI Hardening
