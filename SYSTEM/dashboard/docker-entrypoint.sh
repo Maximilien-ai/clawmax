@@ -101,6 +101,26 @@ try {
 NODE
 }
 
+log_runtime_version_diagnostics() {
+  actual="$(get_runtime_dashboard_version || true)"
+  expected="$(normalize_version "${CLAWMAX_VERSION:-}")"
+
+  if [ -n "$actual" ]; then
+    echo "[entrypoint] packaged dashboard version: ${actual}"
+  else
+    echo "[entrypoint] packaged dashboard version: unavailable"
+  fi
+
+  if [ -n "$expected" ]; then
+    echo "[entrypoint] image CLAWMAX_VERSION: ${expected}"
+  else
+    echo "[entrypoint] image CLAWMAX_VERSION: unset"
+  fi
+
+  echo "[entrypoint] HOME=${HOME}"
+  echo "[entrypoint] OPENCLAW_WORKSPACE=${OPENCLAW_WORKSPACE}"
+}
+
 verify_runtime_version_matches_image() {
   expected="$(normalize_version "${CLAWMAX_VERSION:-}")"
   [ -n "$expected" ] || return 0
@@ -184,6 +204,7 @@ start_gateway_watchdog() {
 
 main() {
   ensure_runtime_dirs
+  log_runtime_version_diagnostics
   verify_runtime_version_matches_image
   ensure_openclaw_cli
   sync_gateway_config
