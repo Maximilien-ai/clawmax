@@ -118,6 +118,37 @@ jobs:
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.version=${{ steps.vars.outputs.version }}
 
+      - name: Verify packaged dashboard version in image
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          image="${IMAGE_NAME}:${{ steps.vars.outputs.version }}-${{ matrix.arch_tag }}"
+          expected="${{ steps.vars.outputs.semver }}"
+          expected_env="${{ steps.vars.outputs.version }}"
+
+          actual_version="$(docker run --rm \
+            --platform "${{ matrix.platform }}" \
+            --entrypoint /bin/sh \
+            "${image}" \
+            -lc "node -p \"require('/app/SYSTEM/dashboard/package.json').version\"")"
+
+          actual_env="$(docker run --rm \
+            --platform "${{ matrix.platform }}" \
+            --entrypoint /bin/sh \
+            "${image}" \
+            -lc "printf '%s' \"\$CLAWMAX_VERSION\"")"
+
+          if [ "${actual_version}" != "${expected}" ]; then
+            echo "Packaged dashboard version mismatch: expected ${expected}, got ${actual_version}" >&2
+            exit 1
+          fi
+
+          if [ "${actual_env}" != "${expected_env}" ]; then
+            echo "CLAWMAX_VERSION mismatch: expected ${expected_env}, got ${actual_env}" >&2
+            exit 1
+          fi
+
   publish-manifest:
     runs-on: ubuntu-latest
     needs: build
