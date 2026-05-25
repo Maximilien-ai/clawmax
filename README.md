@@ -5,32 +5,33 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.5.10-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
+[![Version](https://img.shields.io/badge/version-1.5.11-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
 [![Tests](https://img.shields.io/badge/tests-96%20default--safe-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 Latest Release: v1.5.10
+## 🔥 Latest Release: v1.5.11
 
-- Image publication is stricter:
-  - the container-image workflow now smoke-pulls and runs the published top-level and explicit arch tags from GHCR before the workflow can succeed
-  - release image status now reflects consumer pull/use readiness rather than only successful build and manifest publication
+- On-prem/system version reporting is corrected:
+  - `api/system` now prefers the packaged dashboard version over a stale injected `CLAWMAX_VERSION` mismatch
+  - healthy newer images should stop reporting an older dashboard version string purely because an on-prem env value lagged behind
+- Image publication remains stricter:
+  - the container-image workflow smoke-pulls and runs the published top-level and explicit arch tags from GHCR before the workflow can succeed
 - Runtime diagnostics remain stronger:
   - dashboard containers log the packaged dashboard version and image `CLAWMAX_VERSION` at startup
   - startup fails fast when the live packaged dashboard files do not match the image version contract, instead of only surfacing a later health-gate failure
 - Release assets and no-clone install remain the standard release path:
   - tagged releases publish `clawmax-vX.Y.Z.tar.gz`, `clawmax-vX.Y.Z.sha256`, and `install.sh`
-  - users can run the latest installer without GitHub CLI or a GitHub login, or pin a version with `bash -s -- v1.5.10`
-  - `./setup.sh v1.5.10` delegates to the same release bootstrapper, verifies the checksum, expands the bundle, and continues into normal setup
+  - users can run the latest installer without GitHub CLI or a GitHub login, or pin a version with `bash -s -- v1.5.11`
+  - `./setup.sh v1.5.11` delegates to the same release bootstrapper, verifies the checksum, expands the bundle, and continues into normal setup
 
-## 🔥 Previous Release: v1.5.9
+## 🔥 Previous Release: v1.5.10
 
-- Runtime diagnostics are stronger:
-  - dashboard containers now log the packaged dashboard version and image `CLAWMAX_VERSION` at startup
-  - startup now fails fast when the live packaged dashboard files do not match the image version contract, instead of only surfacing a later health-gate failure
-  - the container-image workflow verifies the packaged dashboard version and `CLAWMAX_VERSION` inside each per-arch image before publishing manifest tags
+- Image publication is stricter:
+  - the container-image workflow now smoke-pulls and runs the published top-level and explicit arch tags from GHCR before the workflow can succeed
+  - release image status now reflects consumer pull/use readiness rather than only successful build and manifest publication
 
-## 🔥 Previous Release: v1.5.8–v1.5.9
+## 🔥 Previous Release: v1.5.8–v1.5.10
 
 - Local/self-hosted model support is much stronger:
   - `OpenAI-Compatible` is now a first-class BYOK provider for LM Studio and other OpenAI-style APIs that expose `/v1/models` and `/v1/chat/completions`
@@ -206,7 +207,7 @@ curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/ins
 Pinned release:
 
 ```bash
-curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.5.10
+curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.5.11
 ```
 
 What it does:
@@ -227,13 +228,13 @@ See [SYSTEM/docs/DEMO_VIDEOS.md](SYSTEM/docs/DEMO_VIDEOS.md) for the current inv
 You can also bootstrap directly with the checked-in wrapper:
 
 ```bash
-./setup.sh v1.5.10
+./setup.sh v1.5.11
 ```
 
 or choose a custom install directory:
 
 ```bash
-curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.5.10 --dir /opt/clawmax
+curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.5.11 --dir /opt/clawmax
 ```
 
 See [SYSTEM/docs/RELEASE_DISTRIBUTION.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/RELEASE_DISTRIBUTION.md) for the release distribution contract.

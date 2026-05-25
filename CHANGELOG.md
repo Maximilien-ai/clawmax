@@ -6,6 +6,12 @@ All notable changes to ClawMax are documented here.
 
 - No unreleased changes yet.
 
+## [v1.5.11] - 2026-05-25
+
+### On-Prem Version Reporting
+- **Packaged Version Wins Over Stale Env Version** — `api/system` now prefers the packaged dashboard `package.json` version when it disagrees with an injected `CLAWMAX_VERSION`, preventing healthy newer images from reporting an older on-prem env value like `1.5.4`.
+- **Regression Coverage** — added a direct version-resolution test for the stale-env / newer-package mismatch case.
+
 ## [v1.5.10] - 2026-05-25
 
 ### Image Publish Hardening

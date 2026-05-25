@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       release_ref:
-        description: Git ref to build, usually a release tag like v1.5.10
+        description: Git ref to build, usually a release tag like v1.5.11
         required: true
-        default: v1.5.10
+        default: v1.5.11
       publish_latest:
         description: Also publish the latest tag
         required: true
