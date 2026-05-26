@@ -911,7 +911,6 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
   }
 
   return (
-  return (
     <>
       <WorkspaceFirstRunTour
         visible={workspaceTourVisible}
