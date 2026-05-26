@@ -619,6 +619,22 @@ async function buildClientFallbackRecommendation(prompt: string): Promise<Builde
     : []
 
   if (intent === 'existing_agent') {
+    const workflowFollowThroughAction: BuilderAction = topWorkflow
+      ? {
+          id: 'review-workflow',
+          label: `Review workflow ${topWorkflow.name}`,
+          description: 'Inspect the closest recurring process before creating a new one.',
+          page: 'workflows',
+          workflowId: topWorkflow.id,
+        }
+      : {
+          id: 'create-workflow',
+          label: 'Generate Workflow',
+          description: 'Turn this recurring process into a workflow draft with AI.',
+          page: 'workflows',
+          action: 'create-ai',
+          prefillPrompt: prompt,
+        }
     return {
       intent,
       scope,
@@ -642,6 +658,7 @@ async function buildClientFallbackRecommendation(prompt: string): Promise<Builde
       matchedAssets: { agents: matchedAgents, skills: matchedSkills, agentTemplates: matchedAgentTemplates, organizationTemplates: matchedOrganizationTemplates, workflows: matchedWorkflows },
       suggestedActions: [
         { id: 'reuse-agent', label: 'Open Agents', description: 'Review and test the closest existing agent.', page: 'agents' },
+        ...(hasWorkflowLanguage ? [workflowFollowThroughAction] : []),
         { id: 'review-skills', label: 'Open Skills', description: 'Check whether the agent is missing tools or integrations.', page: 'skills' },
       ],
       testPlan: [
@@ -652,6 +669,15 @@ async function buildClientFallbackRecommendation(prompt: string): Promise<Builde
   }
 
   if (intent === 'skill_or_integration') {
+    const createSkillAction: BuilderAction = {
+      id: 'create-skill',
+      label: 'Create Skill with AI',
+      description: 'Generate a custom skill draft when the needed capability is not already covered.',
+      page: 'skills',
+      action: 'create-ai',
+      prefillPrompt: prompt,
+      agentId: topAgent?.id,
+    }
     return {
       intent,
       scope,
@@ -676,6 +702,7 @@ async function buildClientFallbackRecommendation(prompt: string): Promise<Builde
       suggestedActions: [
         { id: 'open-skills', label: 'Open Skills', description: 'Browse and assign the needed capability.', page: 'skills' },
         { id: 'open-agents', label: 'Open Agents', description: 'Choose which agent should own the capability.', page: 'agents' },
+        createSkillAction,
       ],
       testPlan: [
         'Verify setup requirements and assign the skill to the target agent.',
@@ -1518,6 +1545,20 @@ export default function Builder({
     if (action.page === 'templates') {
       buildTemplateSelection(action)
       onNavigateToPage?.('templates')
+      return
+    }
+    if (action.page === 'workflows' && action.action === 'create-ai') {
+      onNavigateToPage?.('workflows')
+      window.setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('clawmax-open-builder-workflow-draft', { detail: { prompt: action.prefillPrompt } }))
+      }, 0)
+      return
+    }
+    if (action.page === 'skills' && action.action === 'create-ai') {
+      onNavigateToPage?.('skills')
+      window.setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('clawmax-open-builder-skill-draft', { detail: { prompt: action.prefillPrompt, agentId: action.agentId } }))
+      }, 0)
       return
     }
     if (action.page === 'agents' && action.agentId) {

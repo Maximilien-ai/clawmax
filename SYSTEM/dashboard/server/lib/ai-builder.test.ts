@@ -147,3 +147,21 @@ test('llm fallback can steer a team recommendation to refine an existing templat
   assert.equal(next.recommendedPath.primaryAction.templateRefineMode, true)
   assert(next.alternativePaths.some((path) => path.action.action === 'create-ai'), 'Expected create-new alternative to remain available')
 })
+
+test('existing-agent recurring process includes workflow generation follow-through', () => {
+  const result = buildAiBuilderRecommendation('I already have a client success agent. I want a weekly renewal review process with final approval')
+  const workflowAction = result.suggestedActions.find((action) => action.id === 'create-workflow' || action.id === 'review-existing-workflow')
+  assert(workflowAction, 'Expected workflow follow-through action')
+  if (workflowAction?.id === 'create-workflow') {
+    assert.equal(workflowAction.action, 'create-ai')
+    assert(typeof workflowAction.prefillPrompt === 'string' && workflowAction.prefillPrompt.includes('weekly renewal review process'))
+  }
+})
+
+test('skill or integration recommendation includes create skill with AI follow-through', () => {
+  const result = buildAiBuilderRecommendation('I already have a people ops agent. It needs Slack, Gmail, and calendar integrations before I create anything new')
+  const skillAction = result.suggestedActions.find((action) => action.id === 'create-skill')
+  assert(skillAction, 'Expected create skill follow-through action')
+  assert.equal(skillAction?.action, 'create-ai')
+  assert.equal(skillAction?.page, 'skills')
+})

@@ -425,6 +425,21 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   } | null>(null)
   const handledInitialWorkflowIdRef = useRef<string | null>(null)
 
+  useEffect(() => {
+    const handleBuilderGenerateWorkflow = (event: Event) => {
+      const detail = (event as CustomEvent<{ prompt?: string }>).detail
+      if (typeof detail?.prompt === 'string') {
+        setAiPromptText(detail.prompt)
+      }
+      setShowAiPrompt(true)
+      setShowAiPromptEditor(false)
+      setShowEditorDialog(false)
+    }
+
+    window.addEventListener('clawmax-open-builder-workflow-draft', handleBuilderGenerateWorkflow as EventListener)
+    return () => window.removeEventListener('clawmax-open-builder-workflow-draft', handleBuilderGenerateWorkflow as EventListener)
+  }, [])
+
   const markRateLimited = useCallback((retryAfterMs = 15000) => {
     setRateLimitedUntil(Date.now() + retryAfterMs)
   }, [])

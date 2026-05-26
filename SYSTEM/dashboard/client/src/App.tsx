@@ -982,10 +982,12 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
         <OnboardingWizard
           visible={onboardingVisible}
           suppressAutoOpen={workspaceTourVisible}
+          canShowWorkspaceTour={Boolean(effectiveOnboardingWorkspaceKey && (activeWorkspace?.agentCount ?? 0) === 0)}
           onOpenByok={() => onOpenByok?.()}
           onOpenPartners={() => onOpenPartners?.()}
           onImportAgents={() => onOpenAgentImport?.()}
           onOpenBuilder={() => onOpenBuilder?.()}
+          onOpenWorkspaceTour={() => setWorkspaceTourVisible(true)}
           onCreateAgent={() => onOpenAgentCreate?.()}
           onCreateAgentAI={() => onOpenAgentCreateAI?.()}
           onOpenTemplates={() => onNavigateToPage?.('templates')}

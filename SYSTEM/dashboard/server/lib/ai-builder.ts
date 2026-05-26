@@ -992,16 +992,25 @@ export function buildAiBuilderRecommendation(prompt: string): AiBuilderRecommend
       suggestedActions = [recommendedPath.primaryAction]
       if (hasWorkflowLanguage) {
         suggestedActions.push(
-          action(
-            topWorkflow ? 'review-existing-workflow' : 'create-workflow',
-            topWorkflow ? `Review workflow ${topWorkflow.name}` : 'Create workflow',
-            topWorkflow
-              ? 'Use or adapt the closest workflow so the existing agent participates in a real recurring process.'
-              : 'Create a workflow that routes work to the existing agent on the right trigger or cadence.',
-            'workflows',
-            topWorkflow ? undefined : 'create',
-            topWorkflow ? topWorkflow.name : undefined,
-          ),
+          topWorkflow
+            ? action(
+                'review-existing-workflow',
+                `Review workflow ${topWorkflow.name}`,
+                'Use or adapt the closest workflow so the existing agent participates in a real recurring process.',
+                'workflows',
+                undefined,
+                topWorkflow.name,
+              )
+            : {
+                ...action(
+                  'create-workflow',
+                  'Generate Workflow',
+                  'Turn this recurring process into a workflow draft with AI.',
+                  'workflows',
+                  'create-ai',
+                ),
+                prefillPrompt: prompt,
+              },
         )
       } else {
         suggestedActions.push(
@@ -1053,6 +1062,11 @@ export function buildAiBuilderRecommendation(prompt: string): AiBuilderRecommend
         recommendedPath.primaryAction,
         action('browse-agent-templates', 'Browse templates', 'Check whether a template already includes the right role and tools.', 'templates'),
         action('verify-setup', 'Verify setup requirements', 'Confirm keys, binaries, or auth are available for the target skill.', 'skills'),
+        {
+          ...action('create-skill', 'Create Skill with AI', 'Generate a custom skill draft when the needed capability is not already covered.', 'skills', 'create-ai'),
+          prefillPrompt: prompt,
+          agentId: topAgent?.id,
+        },
       ]
       testPlan = [
         'Open the skill and confirm setup requirements, keys, and local binaries are satisfied.',
