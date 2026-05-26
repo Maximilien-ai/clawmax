@@ -594,6 +594,16 @@ else
   fail "Onboarding tour helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Builder session helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/builderSession.test.ts > /tmp/clawmax-builder-session.out 2>&1 || true
+if grep -q "^✓" /tmp/clawmax-builder-session.out; then
+  builder_session_count=$(grep -c "^✓" /tmp/clawmax-builder-session.out | tr -cd '0-9')
+  pass "Builder session helper unit tests (${builder_session_count:-?} tests)"
+else
+  cat /tmp/clawmax-builder-session.out
+  fail "Builder session helper unit tests"
+fi
+
 echo -e "${YELLOW}→ Running AI Builder routing unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/ai-builder.test.ts > /tmp/clawmax-ai-builder-routing.out 2>&1 || true
 if grep -q "^✓" /tmp/clawmax-ai-builder-routing.out; then
@@ -604,6 +614,16 @@ else
   fail "AI Builder routing unit tests"
 fi
 
+echo -e "${YELLOW}→ Running AI Builder share unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/ai-builder-share.test.ts > /tmp/clawmax-ai-builder-share.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-ai-builder-share.out; then
+  ai_builder_share_count=$(grep "Tests passed:" /tmp/clawmax-ai-builder-share.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "AI Builder share unit tests (${ai_builder_share_count:-?} tests)"
+else
+  cat /tmp/clawmax-ai-builder-share.out
+  fail "AI Builder share unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Prompt attachment helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/promptAttachments.test.ts > /tmp/clawmax-prompt-attachments.out 2>&1 || true
 if grep -q "promptAttachments.test.ts: ok" /tmp/clawmax-prompt-attachments.out; then
@@ -611,6 +631,16 @@ if grep -q "promptAttachments.test.ts: ok" /tmp/clawmax-prompt-attachments.out; 
 else
   cat /tmp/clawmax-prompt-attachments.out
   fail "Prompt attachment helper unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Metering presentation helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/meteringPresentation.test.ts > /tmp/clawmax-metering-presentation.out 2>&1 || true
+if grep -q "^✓" /tmp/clawmax-metering-presentation.out; then
+  metering_presentation_count=$(grep -c "^✓" /tmp/clawmax-metering-presentation.out | tr -cd '0-9')
+  pass "Metering presentation helper unit tests (${metering_presentation_count:-?} tests)"
+else
+  cat /tmp/clawmax-metering-presentation.out
+  fail "Metering presentation helper unit tests"
 fi
 
 echo -e "${YELLOW}→ Running Skill setup helper unit tests...${NC}"

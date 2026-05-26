@@ -9,6 +9,11 @@ import {
   inferBuilderGroupingWithAI,
   setRequestByokKeys,
 } from '../lib/ai-generator'
+import {
+  isAiBuilderShareEnabled,
+  shareAiBuilderFeedback,
+  shareAiBuilderSession,
+} from '../lib/ai-builder-share'
 
 const router = Router()
 
@@ -114,6 +119,65 @@ router.post('/starter-prompts', async (req, res) => {
     res.status(500).json({ error: message })
   } finally {
     setRequestByokKeys(undefined)
+  }
+})
+
+router.get('/share-status', (_req, res) => {
+  res.json({ ok: true, enabled: isAiBuilderShareEnabled() })
+})
+
+router.post('/share-session', async (req, res) => {
+  const sessionId = `${req.body?.sessionId || ''}`.trim()
+  const messages = Array.isArray(req.body?.messages) ? req.body.messages : []
+  if (!sessionId || messages.length === 0) {
+    return res.status(400).json({ error: 'sessionId and messages are required' })
+  }
+
+  try {
+    const result = await shareAiBuilderSession({
+      workspaceName: typeof req.body?.workspaceName === 'string' ? req.body.workspaceName : undefined,
+      workspaceId: typeof req.body?.workspaceId === 'string' ? req.body.workspaceId : undefined,
+      sessionId,
+      source: 'dashboard_builder',
+      messages: messages
+        .filter((message: any) => message && (message.role === 'user' || message.role === 'assistant') && typeof message.content === 'string')
+        .map((message: any) => ({ role: message.role, content: message.content })),
+      recommendation: req.body?.recommendation && typeof req.body.recommendation === 'object'
+        ? {
+            intent: typeof req.body.recommendation.intent === 'string' ? req.body.recommendation.intent : undefined,
+            scope: typeof req.body.recommendation.scope === 'string' ? req.body.recommendation.scope : undefined,
+            operation: typeof req.body.recommendation.operation === 'string' ? req.body.recommendation.operation : undefined,
+            confidence: typeof req.body.recommendation.confidence === 'string' ? req.body.recommendation.confidence : undefined,
+          }
+        : null,
+      matchedAssets: Array.isArray(req.body?.matchedAssets) ? req.body.matchedAssets.filter((value: any) => typeof value === 'string') : undefined,
+      feedback: req.body?.feedback === 'up' || req.body?.feedback === 'down' ? req.body.feedback : undefined,
+    })
+    res.json(result)
+  } catch (error: any) {
+    res.status(500).json({ error: error?.message || 'Failed to share Builder session' })
+  }
+})
+
+router.post('/share-feedback', async (req, res) => {
+  const sessionId = `${req.body?.sessionId || ''}`.trim()
+  const recommendationKey = `${req.body?.recommendationKey || ''}`.trim()
+  const feedback = req.body?.feedback
+  if (!sessionId || !recommendationKey || (feedback !== 'up' && feedback !== 'down')) {
+    return res.status(400).json({ error: 'sessionId, recommendationKey, and feedback are required' })
+  }
+
+  try {
+    const result = await shareAiBuilderFeedback({
+      workspaceName: typeof req.body?.workspaceName === 'string' ? req.body.workspaceName : undefined,
+      workspaceId: typeof req.body?.workspaceId === 'string' ? req.body.workspaceId : undefined,
+      sessionId,
+      recommendationKey,
+      feedback,
+    })
+    res.json(result)
+  } catch (error: any) {
+    res.status(500).json({ error: error?.message || 'Failed to share Builder feedback' })
   }
 })
 

@@ -29,7 +29,7 @@ import { useWorkspace } from './contexts/WorkspaceContext'
 import { CHANNEL_API_ENDPOINTS } from './lib/channelApi'
 import { getVisibleMaintenanceBanner } from './lib/maintenanceBannerView'
 import { type DashboardPage, pageToPath, pathToPage } from './lib/navigation'
-import { readWorkspaceTourState, shouldShowWorkspaceTour, writeWorkspaceTourState } from './lib/onboardingTour'
+import { readGlobalWorkspaceTourDisabled, readWorkspaceTourState, shouldShowWorkspaceTour, writeWorkspaceTourState } from './lib/onboardingTour'
 
 type Page = DashboardPage
 
@@ -889,6 +889,7 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
       workspaceAgentCount: activeWorkspace?.agentCount,
       onboardingVisible,
       storedState,
+      globallyDisabled: readGlobalWorkspaceTourDisabled(),
     }))
   }, [activeWorkspace?.agentCount, effectiveOnboardingWorkspaceKey, onboardingVisible])
 

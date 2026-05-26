@@ -3,6 +3,11 @@ import { useWorkspace } from '../contexts/WorkspaceContext'
 import { useAuth } from '../contexts/AuthContext'
 import { readStoredByokKeys } from '../lib/byok'
 import { readSharedSecrets } from '../lib/localSecrets'
+import {
+  buildBuilderRecommendationKey,
+  createBuilderSessionDocPath,
+  createBuilderSessionMarkdown,
+} from '../lib/builderSession'
 import { expandPromptWithAI } from '../lib/aiPrompt'
 import { appendPromptAttachmentContext, createPromptAttachment, type PromptAttachment } from '../lib/promptAttachments'
 import { buildWorkspaceStarterPrompts, normalizeStarterPromptList, type StarterPromptAgent, type StarterPromptSkill, type StarterPromptTemplate, type StarterPromptWorkflow } from '../lib/builderStarterPrompts'
@@ -93,6 +98,15 @@ type BuilderArchive = {
   timestamp: number
   messages: BuilderMessage[]
   recommendation: BuilderRecommendation | null
+}
+
+type BuilderSessionSnapshot = {
+  sessionId: string
+  title: string
+  timestamp: number
+  messages: BuilderMessage[]
+  recommendation: BuilderRecommendation | null
+  feedback?: 'up' | 'down'
 }
 
 type ApiAgent = StarterPromptAgent & {
@@ -1144,6 +1158,10 @@ export default function Builder({
   const [showRightPane, setShowRightPane] = useState(true)
   const [showPromptEditor, setShowPromptEditor] = useState(false)
   const [showStarterPrompts, setShowStarterPrompts] = useState(true)
+  const [sessionActionNotice, setSessionActionNotice] = useState<{
+    tone: 'success' | 'error' | 'info'
+    text: string
+  } | null>(null)
   const recognitionRef = useRef<any>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -1167,6 +1185,30 @@ export default function Builder({
     }
     return nextHistory
   }, [historyItems])
+
+  function getRecommendationFeedbackValue(nextRecommendation: BuilderRecommendation | null): 'up' | 'down' | undefined {
+    const key = buildBuilderRecommendationKey(nextRecommendation as any)
+    return key ? feedbackByRecommendation[key] : undefined
+  }
+
+  function buildSessionSnapshot(source?: BuilderArchive | null): BuilderSessionSnapshot | null {
+    const fallbackTitle = historyItems[historyItems.length - 1]?.content?.slice(0, 80) || recommendation?.recommendedPath.title || 'Builder session'
+    const nextMessages = source?.messages || messages
+    const nextRecommendation = source?.recommendation || recommendation
+    const nextTitle = source?.title || fallbackTitle
+    const nextTimestamp = source?.timestamp || Date.now()
+    if (!Array.isArray(nextMessages) || nextMessages.length === 0) return null
+    const userMessages = nextMessages.filter((message) => message.role === 'user')
+    if (userMessages.length === 0) return null
+    return {
+      sessionId: source?.id || `builder-live:${workspaceKey}`,
+      title: nextTitle,
+      timestamp: nextTimestamp,
+      messages: nextMessages,
+      recommendation: nextRecommendation,
+      feedback: getRecommendationFeedbackValue(nextRecommendation),
+    }
+  }
 
   useEffect(() => {
     const storedSession = loadStoredBuilderSession(workspaceKey)
@@ -1337,6 +1379,7 @@ export default function Builder({
     setPromptHistoryIndex(null)
     setPromptDraftBeforeHistory('')
     setError(null)
+    setSessionActionNotice(null)
     setRecommendation(null)
     setMessages(createInitialMessages())
     clearStoredBuilderSession(workspaceKey)
@@ -1404,6 +1447,148 @@ export default function Builder({
       openaiCompatibleApiKey: byok.openaiCompatibleApiKey || undefined,
       openaiCompatibleBaseUrl: byok.openaiCompatibleBaseUrl || undefined,
       openaiCompatibleDefaultModel: byok.openaiCompatibleDefaultModel || undefined,
+    }
+  }
+
+  function setSessionNotice(tone: 'success' | 'error' | 'info', text: string) {
+    setSessionActionNotice({ tone, text })
+  }
+
+  async function saveSessionToDocHub(source?: BuilderArchive | null) {
+    try {
+      const snapshot = buildSessionSnapshot(source)
+      if (!snapshot) {
+        setSessionNotice('error', 'There is no Builder session to save yet.')
+        return
+      }
+      const docPath = createBuilderSessionDocPath({
+        workspaceName: activeWorkspace?.name,
+        sessionTitle: snapshot.title,
+        timestamp: snapshot.timestamp,
+      })
+      const markdown = createBuilderSessionMarkdown({
+        workspaceName: activeWorkspace?.name,
+        workspaceId: activeWorkspace?.id,
+        sessionId: snapshot.sessionId,
+        sessionTitle: snapshot.title,
+        timestamp: snapshot.timestamp,
+        messages: snapshot.messages,
+        recommendation: snapshot.recommendation as any,
+        feedback: snapshot.feedback,
+      })
+      const response = await fetch('/api/docs/content', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: docPath, content: markdown }),
+      })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(data?.error || 'Failed to save Builder session to DocHub')
+      }
+      setSessionNotice('success', `Saved Builder session to ${docPath}`)
+    } catch (err: any) {
+      setSessionNotice('error', err?.message || 'Failed to save Builder session to DocHub.')
+    }
+  }
+
+  function downloadSessionMarkdown(source?: BuilderArchive | null) {
+    const snapshot = buildSessionSnapshot(source)
+    if (!snapshot) {
+      setSessionNotice('error', 'There is no Builder session to export yet.')
+      return
+    }
+    const markdown = createBuilderSessionMarkdown({
+      workspaceName: activeWorkspace?.name,
+      workspaceId: activeWorkspace?.id,
+      sessionId: snapshot.sessionId,
+      sessionTitle: snapshot.title,
+      timestamp: snapshot.timestamp,
+      messages: snapshot.messages,
+      recommendation: snapshot.recommendation as any,
+      feedback: snapshot.feedback,
+    })
+    const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = createBuilderSessionDocPath({
+      workspaceName: activeWorkspace?.name,
+      sessionTitle: snapshot.title,
+      timestamp: snapshot.timestamp,
+    }).split('/').pop() || 'builder-session.md'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+    setSessionNotice('success', 'Downloaded Builder session as markdown.')
+  }
+
+  async function shareSessionRemotely(source?: BuilderArchive | null) {
+    try {
+      const snapshot = buildSessionSnapshot(source)
+      if (!snapshot) {
+        setSessionNotice('error', 'There is no Builder session to share yet.')
+        return
+      }
+      const response = await fetch('/api/ai-builder/share-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          workspaceName: activeWorkspace?.name,
+          workspaceId: activeWorkspace?.id,
+          sessionId: snapshot.sessionId,
+          messages: snapshot.messages.map((message) => ({ role: message.role, content: message.content })),
+          recommendation: snapshot.recommendation
+            ? {
+                intent: snapshot.recommendation.intent,
+                scope: snapshot.recommendation.scope,
+                operation: snapshot.recommendation.operation,
+                confidence: snapshot.recommendation.confidence,
+              }
+            : null,
+          matchedAssets: [
+            ...(snapshot.recommendation?.matchedAssets.organizationTemplates || []).slice(0, 2).map((item) => item.name),
+            ...(snapshot.recommendation?.matchedAssets.agentTemplates || []).slice(0, 2).map((item) => item.name),
+            ...(snapshot.recommendation?.matchedAssets.agents || []).slice(0, 2).map((item) => item.name),
+            ...(snapshot.recommendation?.matchedAssets.skills || []).slice(0, 2).map((item) => item.name),
+            ...(snapshot.recommendation?.matchedAssets.workflows || []).slice(0, 2).map((item) => item.name),
+          ],
+          feedback: snapshot.feedback,
+        }),
+      })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(data?.error || 'Failed to share Builder session')
+      }
+      if (data?.shared === false) {
+        setSessionNotice('info', 'Remote Builder sharing is disabled for this deployment. The session stays local.')
+        return
+      }
+      setSessionNotice('success', 'Shared Builder session with ClawMax.ai.')
+    } catch (err: any) {
+      setSessionNotice('error', err?.message || 'Failed to share Builder session.')
+    }
+  }
+
+  async function shareFeedbackRemotely(nextFeedback: 'up' | 'down', nextRecommendation: BuilderRecommendation | null) {
+    const recommendationKey = buildBuilderRecommendationKey(nextRecommendation as any)
+    if (!recommendationKey) return
+    const snapshot = buildSessionSnapshot()
+    if (!snapshot) return
+    try {
+      await fetch('/api/ai-builder/share-feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          workspaceName: activeWorkspace?.name,
+          workspaceId: activeWorkspace?.id,
+          sessionId: snapshot.sessionId,
+          recommendationKey,
+          feedback: nextFeedback,
+        }),
+      })
+    } catch {
+      // Keep local feedback even if remote sharing is unavailable.
     }
   }
 
@@ -1651,9 +1836,7 @@ export default function Builder({
     focusPromptAtEnd(value)
   }
 
-  const recommendationFeedbackKey = recommendation
-    ? `${recommendation.intent}:${recommendation.recommendedPath.title}`
-    : null
+  const recommendationFeedbackKey = buildBuilderRecommendationKey(recommendation as any)
   const currentRecommendationFeedback = recommendationFeedbackKey ? feedbackByRecommendation[recommendationFeedbackKey] : undefined
 
   function setRecommendationFeedback(value: 'up' | 'down') {
@@ -1673,6 +1856,9 @@ export default function Builder({
     }
     setFeedbackByRecommendation(nextFeedback)
     saveBuilderFeedback(workspaceKey, nextFeedback)
+    if (nextFeedback[recommendationFeedbackKey] === value) {
+      void shareFeedbackRemotely(value, recommendation)
+    }
   }
 
   return (
@@ -1714,6 +1900,24 @@ export default function Builder({
               )}
               {hasConversation && (
                 <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={() => void saveSessionToDocHub()}
+                    className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-600 transition-colors hover:border-sky-300 hover:text-sky-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-sky-700 dark:hover:text-sky-200"
+                  >
+                    Save to DocHub
+                  </button>
+                  <button
+                    onClick={() => downloadSessionMarkdown()}
+                    className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-600 transition-colors hover:border-sky-300 hover:text-sky-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-sky-700 dark:hover:text-sky-200"
+                  >
+                    Download MD
+                  </button>
+                  <button
+                    onClick={() => void shareSessionRemotely()}
+                    className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-600 transition-colors hover:border-sky-300 hover:text-sky-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-sky-700 dark:hover:text-sky-200"
+                  >
+                    Share
+                  </button>
                   <button
                     onClick={() => setShowClearConfirm(true)}
                     className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-600 transition-colors hover:border-sky-300 hover:text-sky-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-sky-700 dark:hover:text-sky-200"
@@ -2070,6 +2274,20 @@ export default function Builder({
                 Press <span className="font-medium text-gray-700 dark:text-gray-200">Enter</span> to submit. Use <span className="font-medium text-gray-700 dark:text-gray-200">Shift + Enter</span> for a new line. Use <span className="font-medium text-gray-700 dark:text-gray-200">↑ / ↓</span> at the top or bottom line to revisit recent prompts.
               </div>
             </div>
+
+            {sessionActionNotice && (
+              <div
+                className={`mt-3 rounded-xl border px-3 py-2 text-sm ${
+                  sessionActionNotice.tone === 'success'
+                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300'
+                    : sessionActionNotice.tone === 'info'
+                      ? 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900/60 dark:bg-sky-950/40 dark:text-sky-300'
+                      : 'border-red-200 bg-red-50 text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300'
+                }`}
+              >
+                {sessionActionNotice.text}
+              </div>
+            )}
 
             {error && (
               <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">
@@ -2483,6 +2701,24 @@ export default function Builder({
                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{new Date(viewingArchive.timestamp).toLocaleString()}</p>
               </div>
               <div className="flex items-center gap-2">
+                <button
+                  onClick={() => void saveSessionToDocHub(viewingArchive)}
+                  className="rounded-full border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:border-sky-300 hover:text-sky-700 dark:border-gray-700 dark:text-gray-300 dark:hover:border-sky-700 dark:hover:text-sky-200"
+                >
+                  Save to DocHub
+                </button>
+                <button
+                  onClick={() => downloadSessionMarkdown(viewingArchive)}
+                  className="rounded-full border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:border-sky-300 hover:text-sky-700 dark:border-gray-700 dark:text-gray-300 dark:hover:border-sky-700 dark:hover:text-sky-200"
+                >
+                  Download MD
+                </button>
+                <button
+                  onClick={() => void shareSessionRemotely(viewingArchive)}
+                  className="rounded-full border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:border-sky-300 hover:text-sky-700 dark:border-gray-700 dark:text-gray-300 dark:hover:border-sky-700 dark:hover:text-sky-200"
+                >
+                  Share
+                </button>
                 <button
                   onClick={() => {
                     setMessages(viewingArchive.messages)

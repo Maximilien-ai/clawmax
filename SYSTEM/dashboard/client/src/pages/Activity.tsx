@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { PageLoading, LoadingSpinner } from '../components/LoadingSpinner'
 import { ProductIconCell } from '../lib/productIcons'
+import { summarizeMeteringByAgentType } from '../lib/meteringPresentation'
 
 interface MeteringData {
   enabled?: boolean
@@ -132,6 +133,7 @@ export default function Activity({ onNavigateToDoc, isActive = false }: Activity
   const [costBudgetReason, setCostBudgetReason] = useState(cachedActivityCostBudgetReason)
   const [budget, setBudget] = useState<{ config: { limitUsd: number; warningPct: number; enforced: boolean; paused: boolean }; currentSpendUsd: number; remainingUsd: number; usedPct: number; level: 'ok' | 'warning' | 'exceeded' } | null>(cachedActivityBudget)
   const [agentCostLimits, setAgentCostLimits] = useState<Record<string, number>>(cachedActivityAgentCostLimits)
+  const [builtInAgentIds, setBuiltInAgentIds] = useState<Set<string>>(new Set())
   const [editingBudget, setEditingBudget] = useState(false)
   const [budgetInput, setBudgetInput] = useState(cachedActivityBudget ? String(cachedActivityBudget.config.limitUsd) : '')
   const lastActivationRefreshRef = useRef(0)
@@ -235,12 +237,30 @@ export default function Activity({ onNavigateToDoc, isActive = false }: Activity
       .catch(() => {})
   }, [])
 
+  const fetchBuiltInAgentIds = useCallback(() => {
+    fetch('/api/agents')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        const next = new Set<string>()
+        for (const agent of Array.isArray(d?.agents) ? d.agents : []) {
+          if (Array.isArray(agent?.tags) && agent.tags.includes('built-in') && typeof agent?.id === 'string') {
+            next.add(agent.id)
+          }
+        }
+        setBuiltInAgentIds(next)
+      })
+      .catch(() => {
+        setBuiltInAgentIds(new Set())
+      })
+  }, [])
+
   const refreshActivityPage = useCallback(() => {
     fetchFeed()
     fetchMetering()
     fetchAgentCostLimits()
     fetchBudget()
-  }, [fetchFeed, fetchMetering, fetchAgentCostLimits, fetchBudget])
+    fetchBuiltInAgentIds()
+  }, [fetchFeed, fetchMetering, fetchAgentCostLimits, fetchBudget, fetchBuiltInAgentIds])
 
   useEffect(() => {
     refreshActivityPage()
@@ -300,6 +320,7 @@ export default function Activity({ onNavigateToDoc, isActive = false }: Activity
   }
 
   const rows = sortEntries(feed, sortCol, sortDir)
+  const meteringByAgentType = summarizeMeteringByAgentType(metering?.byAgent || [], builtInAgentIds)
 
   const thCls = 'px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wider cursor-pointer select-none hover:text-gray-600 transition-colors text-left'
 
@@ -526,7 +547,7 @@ export default function Activity({ onNavigateToDoc, isActive = false }: Activity
             </div>
           ) : null}
           {/* Summary cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+          <div className="grid grid-cols-2 gap-3 mb-4 sm:grid-cols-3 xl:grid-cols-6">
             <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
               <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{metering.totalTraces}</div>
               <div className="text-xs text-gray-500">Total Calls</div>
@@ -542,6 +563,14 @@ export default function Activity({ onNavigateToDoc, isActive = false }: Activity
             <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
               <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{metering.byAgent.length}</div>
               <div className="text-xs text-gray-500">Active Agents</div>
+            </div>
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
+              <div className="text-2xl font-bold text-violet-700 dark:text-violet-300">{meteringByAgentType.builtInAgentCount}</div>
+              <div className="text-xs text-gray-500">Built-in Agents</div>
+            </div>
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
+              <div className="text-2xl font-bold text-violet-700 dark:text-violet-300">${meteringByAgentType.builtInEstimatedCostUsd.toFixed(2)}</div>
+              <div className="text-xs text-gray-500">Built-in Cost</div>
             </div>
           </div>
 
@@ -579,7 +608,16 @@ export default function Activity({ onNavigateToDoc, isActive = false }: Activity
 
                     return (
                       <tr key={agent.agentId} className="border-t border-gray-100 dark:border-gray-800">
-                        <td className="px-3 py-2 font-medium text-sky-700 dark:text-sky-400">{agent.agentId}</td>
+                        <td className="px-3 py-2 font-medium text-sky-700 dark:text-sky-400">
+                          <div className="flex items-center gap-2">
+                            <span>{agent.agentId}</span>
+                            {builtInAgentIds.has(agent.agentId) && (
+                              <span className="inline-flex items-center rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-medium text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">
+                                Built-in
+                              </span>
+                            )}
+                          </div>
+                        </td>
                         <td className="px-3 py-2 text-right text-gray-700 dark:text-gray-300">{agent.totalCalls}</td>
                         <td className="px-3 py-2 text-right text-gray-700 dark:text-gray-300">{((agent.totalTokens || 0) / 1000).toFixed(1)}k</td>
                         <td className="px-3 py-2 text-right text-green-600">${(agent.estimatedCostUsd || 0).toFixed(2)}</td>
