@@ -6,6 +6,25 @@ All notable changes to ClawMax are documented here.
 
 - No unreleased changes yet.
 
+## [v1.5.11] - 2026-05-25
+
+### On-Prem Version Reporting
+- **Packaged Version Wins Over Stale Env Version** — `api/system` now prefers the packaged dashboard `package.json` version when it disagrees with an injected `CLAWMAX_VERSION`, preventing healthy newer images from reporting an older on-prem env value like `1.5.4`.
+- **Regression Coverage** — added a direct version-resolution test for the stale-env / newer-package mismatch case.
+
+## [v1.5.10] - 2026-05-25
+
+### Image Publish Hardening
+- **Registry Smoke Gate** — the container-image workflow now smoke-pulls and runs the published top-level and explicit arch tags from GHCR before the workflow can succeed, so the release path waits for consumer-usable registry artifacts instead of only a green build/publish step.
+- **Runtime Version Diagnostics Retained** — dashboard containers continue to log packaged dashboard version and `CLAWMAX_VERSION` on startup and fail fast if live packaged files do not match the image version contract.
+
+## [v1.5.9] - 2026-05-25
+
+### Runtime Diagnostics
+- **Fail-Fast Version Mismatch Guard** — the dashboard entrypoint now compares the image `CLAWMAX_VERSION` contract with the live packaged `/app/SYSTEM/dashboard/package.json` version and exits immediately with an explicit error when they diverge.
+- **Startup Version Logging** — dashboard containers now log the packaged dashboard version, image `CLAWMAX_VERSION`, `HOME`, and `OPENCLAW_WORKSPACE` on startup so on-prem/runtime issues can be diagnosed from first-line logs instead of inferred from later health-gate failures.
+- **Image Publish Verification** — the container-image workflow now runs each per-arch image after build and verifies both the packaged dashboard version and `CLAWMAX_VERSION` before publishing manifest tags.
+
 ## [v1.5.8] - 2026-05-24
 
 ### Quality and CI Hardening

@@ -7,6 +7,7 @@ export CLAWMAX_AUTO_START_GATEWAY="${CLAWMAX_AUTO_START_GATEWAY:-true}"
 export CLAWMAX_GATEWAY_WATCHDOG="${CLAWMAX_GATEWAY_WATCHDOG:-true}"
 export CLAWMAX_GATEWAY_WATCHDOG_INTERVAL_SEC="${CLAWMAX_GATEWAY_WATCHDOG_INTERVAL_SEC:-30}"
 export CLAWMAX_HOST_OPENCLAW_CONFIG="${CLAWMAX_HOST_OPENCLAW_CONFIG:-/root/.openclaw/openclaw.json}"
+export CLAWMAX_RUNTIME_PACKAGE_JSON="${CLAWMAX_RUNTIME_PACKAGE_JSON:-/app/SYSTEM/dashboard/package.json}"
 
 sync_gateway_config() {
   HOST_CONFIG="$CLAWMAX_HOST_OPENCLAW_CONFIG" WORKING_CONFIG="$HOME/.openclaw/openclaw.json" node <<'NODE'
@@ -73,6 +74,66 @@ ensure_openclaw_cli() {
   if ! openclaw config get gateway.mode >/dev/null 2>&1; then
     echo "[entrypoint] initializing openclaw gateway.mode=local"
     openclaw config set gateway.mode local >/dev/null 2>&1 || true
+  fi
+}
+
+normalize_version() {
+  printf '%s' "$1" | sed 's/^v//'
+}
+
+get_runtime_dashboard_version() {
+  package_json="$CLAWMAX_RUNTIME_PACKAGE_JSON"
+  if [ ! -f "$package_json" ]; then
+    return 1
+  fi
+
+  PACKAGE_JSON="$package_json" node <<'NODE'
+const fs = require('fs')
+const pkgPath = process.env.PACKAGE_JSON
+try {
+  const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'))
+  const version = typeof pkg.version === 'string' ? pkg.version.trim() : ''
+  if (!version) process.exit(1)
+  process.stdout.write(version)
+} catch {
+  process.exit(1)
+}
+NODE
+}
+
+log_runtime_version_diagnostics() {
+  actual="$(get_runtime_dashboard_version || true)"
+  expected="$(normalize_version "${CLAWMAX_VERSION:-}")"
+
+  if [ -n "$actual" ]; then
+    echo "[entrypoint] packaged dashboard version: ${actual}"
+  else
+    echo "[entrypoint] packaged dashboard version: unavailable"
+  fi
+
+  if [ -n "$expected" ]; then
+    echo "[entrypoint] image CLAWMAX_VERSION: ${expected}"
+  else
+    echo "[entrypoint] image CLAWMAX_VERSION: unset"
+  fi
+
+  echo "[entrypoint] HOME=${HOME}"
+  echo "[entrypoint] OPENCLAW_WORKSPACE=${OPENCLAW_WORKSPACE}"
+}
+
+verify_runtime_version_matches_image() {
+  expected="$(normalize_version "${CLAWMAX_VERSION:-}")"
+  [ -n "$expected" ] || return 0
+
+  actual="$(get_runtime_dashboard_version || true)"
+  [ -n "$actual" ] || return 0
+
+  actual="$(normalize_version "$actual")"
+  if [ "$actual" != "$expected" ]; then
+    echo "[entrypoint] ERROR: runtime dashboard files report version ${actual}, but image expects ${expected}" >&2
+    echo "[entrypoint] This usually means a host mount or stack override replaced /app/SYSTEM/dashboard with older files." >&2
+    echo "[entrypoint] Check stack volume mounts and ensure the runtime is not overlaying bundled dashboard contents from another version." >&2
+    return 1
   fi
 }
 
@@ -143,6 +204,8 @@ start_gateway_watchdog() {
 
 main() {
   ensure_runtime_dirs
+  log_runtime_version_diagnostics
+  verify_runtime_version_matches_image
   ensure_openclaw_cli
   sync_gateway_config
 

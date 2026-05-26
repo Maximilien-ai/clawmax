@@ -35,9 +35,34 @@ function assert(condition: boolean, message: string) {
 console.log(`\n${YELLOW}=== Version Test Suite ===${RESET}\n`)
 
 async function run() {
-  await test('getDashboardVersion prefers explicit CLAWMAX_VERSION', () => {
+  await test('getDashboardVersion prefers explicit CLAWMAX_VERSION when package version is unavailable or aligned', () => {
     process.env.CLAWMAX_VERSION = 'v1.3.3'
-    assert(getDashboardVersion() === 'v1.3.3', 'Expected explicit CLAWMAX_VERSION to win')
+    const packageJsonPath = require('path').join(__dirname, '..', '..', 'package.json')
+    const fs = require('fs')
+    const original = fs.readFileSync(packageJsonPath, 'utf-8')
+    const parsed = JSON.parse(original)
+    parsed.version = '1.3.3'
+    fs.writeFileSync(packageJsonPath, JSON.stringify(parsed, null, 2), 'utf-8')
+    try {
+      assert(getDashboardVersion() === '1.3.3', `Expected aligned package/env version, got ${getDashboardVersion()}`)
+    } finally {
+      fs.writeFileSync(packageJsonPath, original, 'utf-8')
+    }
+  })
+
+  await test('getDashboardVersion prefers packaged dashboard version over stale env version mismatch', () => {
+    process.env.CLAWMAX_VERSION = '1.5.4'
+    const packageJsonPath = require('path').join(__dirname, '..', '..', 'package.json')
+    const fs = require('fs')
+    const original = fs.readFileSync(packageJsonPath, 'utf-8')
+    const parsed = JSON.parse(original)
+    parsed.version = '1.5.10'
+    fs.writeFileSync(packageJsonPath, JSON.stringify(parsed, null, 2), 'utf-8')
+    try {
+      assert(getDashboardVersion() === '1.5.10', `Expected packaged version to beat stale env version, got ${getDashboardVersion()}`)
+    } finally {
+      fs.writeFileSync(packageJsonPath, original, 'utf-8')
+    }
   })
 
   await test('getDashboardVersion prefers prerelease package versions for hack builds', () => {

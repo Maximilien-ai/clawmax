@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       release_ref:
-        description: Git ref to build, usually a release tag like v1.5.8
+        description: Git ref to build, usually a release tag like v1.5.11
         required: true
-        default: v1.5.8
+        default: v1.5.11
       publish_latest:
         description: Also publish the latest tag
         required: true
@@ -118,6 +118,37 @@ jobs:
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.version=${{ steps.vars.outputs.version }}
 
+      - name: Verify packaged dashboard version in image
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          image="${IMAGE_NAME}:${{ steps.vars.outputs.version }}-${{ matrix.arch_tag }}"
+          expected="${{ steps.vars.outputs.semver }}"
+          expected_env="${{ steps.vars.outputs.version }}"
+
+          actual_version="$(docker run --rm \
+            --platform "${{ matrix.platform }}" \
+            --entrypoint /bin/sh \
+            "${image}" \
+            -lc "node -p \"require('/app/SYSTEM/dashboard/package.json').version\"")"
+
+          actual_env="$(docker run --rm \
+            --platform "${{ matrix.platform }}" \
+            --entrypoint /bin/sh \
+            "${image}" \
+            -lc "printf '%s' \"\$CLAWMAX_VERSION\"")"
+
+          if [ "${actual_version}" != "${expected}" ]; then
+            echo "Packaged dashboard version mismatch: expected ${expected}, got ${actual_version}" >&2
+            exit 1
+          fi
+
+          if [ "${actual_env}" != "${expected_env}" ]; then
+            echo "CLAWMAX_VERSION mismatch: expected ${expected_env}, got ${actual_env}" >&2
+            exit 1
+          fi
+
   publish-manifest:
     runs-on: ubuntu-latest
     needs: build
@@ -189,3 +220,73 @@ jobs:
             esac
             docker buildx imagetools create -t "$tag" "$source_a" "$source_b"
           done <<< "${{ steps.tags.outputs.tags }}"
+
+  registry-smoke:
+    runs-on: ubuntu-latest
+    needs: [build, publish-manifest]
+    steps:
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Smoke published tags from registry
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          semver="${{ needs.build.outputs.semver }}"
+          version="${{ needs.build.outputs.version }}"
+          image="${IMAGE_NAME}"
+
+          retry() {
+            attempts="$1"
+            shift
+            delay="$1"
+            shift
+
+            i=1
+            while true; do
+              if "$@"; then
+                return 0
+              fi
+              if [ "$i" -ge "$attempts" ]; then
+                return 1
+              fi
+              echo "Retry $i/$attempts failed for: $*"
+              i=$((i + 1))
+              sleep "$delay"
+            done
+          }
+
+          verify_image() {
+            ref="$1"
+            platform="$2"
+            expected_version="$3"
+            expected_env="$4"
+
+            docker image rm -f "$ref" >/dev/null 2>&1 || true
+            retry 6 10 docker pull --platform "$platform" "$ref"
+
+            actual_version="$(retry 3 5 docker run --rm --platform "$platform" --entrypoint /bin/sh "$ref" -lc "node -p \"require('/app/SYSTEM/dashboard/package.json').version\"")"
+            actual_env="$(retry 3 5 docker run --rm --platform "$platform" --entrypoint /bin/sh "$ref" -lc "printf '%s' \"\$CLAWMAX_VERSION\"")"
+
+            if [ "$actual_version" != "$expected_version" ]; then
+              echo "Packaged dashboard version mismatch for $ref: expected $expected_version, got $actual_version" >&2
+              return 1
+            fi
+
+            if [ "$actual_env" != "$expected_env" ]; then
+              echo "CLAWMAX_VERSION mismatch for $ref: expected $expected_env, got $actual_env" >&2
+              return 1
+            fi
+          }
+
+          verify_image "${image}:${semver}" "linux/arm64" "${semver}" "${version}"
+          verify_image "${image}:${semver}-arm64" "linux/arm64" "${semver}" "${version}"
+          verify_image "${image}:${semver}-amd64" "linux/amd64" "${semver}" "${version}"

@@ -1811,9 +1811,16 @@ function normalizeReleaseVersion(tag: string): string {
 
 export function getDashboardVersion(): string {
   const envVersion = process.env.CLAWMAX_VERSION?.trim()
+  const packageVersion = findDashboardPackageVersion()
+  if (isUsableVersion(envVersion) && packageVersion) {
+    if (normalizeReleaseVersion(envVersion) !== normalizeReleaseVersion(packageVersion)) {
+      return packageVersion
+    }
+    return packageVersion
+  }
+
   if (isUsableVersion(envVersion)) return envVersion
 
-  const packageVersion = findDashboardPackageVersion()
   if (packageVersion && /(?:^|[-.])(hack|alpha|beta|rc)(?:[.-]|$)/i.test(packageVersion)) {
     return packageVersion
   }
