@@ -152,10 +152,10 @@ export function WorkspaceFirstRunTour({
         />
       )}
       <div
-        className={`absolute rounded-3xl p-5 backdrop-blur ${
+        className={`absolute z-10 rounded-3xl p-5 ${
           isDarkMode
-            ? 'border border-sky-800 bg-gray-900/97 text-gray-100 shadow-2xl'
-            : 'border border-slate-200 bg-white/98 text-slate-950 shadow-[0_28px_80px_rgba(15,23,42,0.18)]'
+            ? 'border border-sky-800 bg-gray-900 text-gray-100 shadow-2xl'
+            : 'border border-slate-200 bg-white text-slate-950 shadow-[0_28px_80px_rgba(15,23,42,0.22)]'
         }`}
         style={cardStyle}
       >
@@ -180,7 +180,7 @@ export function WorkspaceFirstRunTour({
           </button>
         </div>
 
-        <p className={`mt-3 text-sm leading-6 ${isDarkMode ? 'text-gray-300' : 'text-slate-600'}`}>{step.description}</p>
+        <p className={`mt-3 text-sm leading-6 ${isDarkMode ? 'text-gray-300' : 'text-slate-700'}`}>{step.description}</p>
 
         <div className="mt-4 flex flex-wrap gap-2">
           {TOUR_STEPS.map((tourStep, index) => (
@@ -199,7 +199,7 @@ export function WorkspaceFirstRunTour({
         </div>
 
         <div className="mt-5 flex items-center justify-between gap-3">
-          <div className={`flex items-center gap-2 text-xs ${isDarkMode ? 'text-gray-400' : 'text-slate-500'}`}>
+          <div className={`flex items-center gap-2 text-xs ${isDarkMode ? 'text-gray-400' : 'text-slate-600'}`}>
             <span>{stepIndex + 1} / {TOUR_STEPS.length}</span>
             <button
               type="button"
@@ -207,7 +207,7 @@ export function WorkspaceFirstRunTour({
               className={`rounded-full px-2.5 py-1 transition-colors ${
                 isDarkMode
                   ? 'border border-gray-700 hover:border-gray-600 hover:bg-gray-800'
-                  : 'border border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                  : 'border border-slate-300 text-slate-700 hover:border-slate-400 hover:bg-slate-50'
               }`}
             >
               Don&apos;t show again
