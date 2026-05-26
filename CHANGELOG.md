@@ -6,6 +6,12 @@ All notable changes to ClawMax are documented here.
 
 - No unreleased changes yet.
 
+## [v1.6.1] - 2026-05-26
+
+### On-Prem Runtime Env Fix
+- **Runtime Env Values Win in `/api/system`** — fixed dashboard env resolution so on-prem container-injected values such as `DASHBOARD_DEPLOYMENT_KIND=onprem`, `DASHBOARD_INSTANCE_LABEL=On-Prem`, `OPENAI_COMPATIBLE_BASE_URL`, and `OLLAMA_BASE_URL` are honored by `/api/system`, auth config, BYOK defaults, and local-model defaults.
+- **Regression Coverage** — added dashboard-env coverage for the exact on-prem Podman runtime env contract reported by the CLI team.
+
 ## [v1.6.0] - 2026-05-26
 
 ### AI Builder and Onboarding

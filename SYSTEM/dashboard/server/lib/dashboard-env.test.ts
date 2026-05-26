@@ -10,6 +10,7 @@ import {
   getDashboardInstanceLabel,
   getBestAvailableModel,
   getCostEfficientModel,
+  getDashboardEnvRaw,
   getDefaultOllamaBaseUrl,
   getDefaultOpenAICompatibleBaseUrl,
   getMaintenanceBanner,
@@ -57,6 +58,37 @@ test('deployment kind infers onprem from local-provider managed runtime hints', 
     getDashboardDeploymentKind({ OLLAMA_BASE_URL: 'http://host.containers.internal:11434' }) === 'onprem',
     'Expected onprem deployment kind from host-container Ollama hint'
   )
+})
+
+test('runtime env overrides parsed dashboard env for on-prem system config', () => {
+  const previous = {
+    deploymentKind: process.env.DASHBOARD_DEPLOYMENT_KIND,
+    instanceLabel: process.env.DASHBOARD_INSTANCE_LABEL,
+    openaiCompatibleBaseUrl: process.env.OPENAI_COMPATIBLE_BASE_URL,
+    ollamaBaseUrl: process.env.OLLAMA_BASE_URL,
+  }
+
+  process.env.DASHBOARD_DEPLOYMENT_KIND = 'onprem'
+  process.env.DASHBOARD_INSTANCE_LABEL = 'On-Prem'
+  process.env.OPENAI_COMPATIBLE_BASE_URL = 'http://host.containers.internal:1234/v1'
+  process.env.OLLAMA_BASE_URL = 'http://host.containers.internal:11434'
+
+  try {
+    const raw = getDashboardEnvRaw()
+    assert(getDashboardDeploymentKind(raw) === 'onprem', 'Expected runtime deployment kind to win')
+    assert(getDashboardInstanceLabel(raw) === 'On-Prem', 'Expected runtime instance label to win')
+    assert(getDefaultOpenAICompatibleBaseUrl(raw) === 'http://host.containers.internal:1234/v1', 'Expected runtime OpenAI-compatible base URL to win')
+    assert(getDefaultOllamaBaseUrl(raw) === 'http://host.containers.internal:11434', 'Expected runtime Ollama base URL to win')
+  } finally {
+    if (previous.deploymentKind === undefined) delete process.env.DASHBOARD_DEPLOYMENT_KIND
+    else process.env.DASHBOARD_DEPLOYMENT_KIND = previous.deploymentKind
+    if (previous.instanceLabel === undefined) delete process.env.DASHBOARD_INSTANCE_LABEL
+    else process.env.DASHBOARD_INSTANCE_LABEL = previous.instanceLabel
+    if (previous.openaiCompatibleBaseUrl === undefined) delete process.env.OPENAI_COMPATIBLE_BASE_URL
+    else process.env.OPENAI_COMPATIBLE_BASE_URL = previous.openaiCompatibleBaseUrl
+    if (previous.ollamaBaseUrl === undefined) delete process.env.OLLAMA_BASE_URL
+    else process.env.OLLAMA_BASE_URL = previous.ollamaBaseUrl
+  }
 })
 
 test('deployment kind falls back to cloud for managed runtime without onprem hints', () => {

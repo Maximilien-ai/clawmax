@@ -75,8 +75,61 @@ function readDashboardEnvFile(): Record<string, string> {
 
 const dashboardEnv = readDashboardEnvFile()
 
-// Load dashboard-local env into process.env and explicitly override shell exports.
+// Load dashboard-local env for legacy process.env readers. API config uses
+// getDashboardEnvRaw(), which overlays explicit runtime/container env values.
 dotenv.config({ path: DASHBOARD_ENV_PATH, override: true })
+
+const DASHBOARD_RUNTIME_ENV_KEYS = [
+  'DASHBOARD_DEPLOYMENT_KIND',
+  'CLAWMAX_DEPLOYMENT_KIND',
+  'DASHBOARD_INSTANCE_LABEL',
+  'DASHBOARD_ENABLE_OLLAMA',
+  'OLLAMA_BASE_URL',
+  'OPENAI_COMPATIBLE_BASE_URL',
+  'SYSTEM_OPENAI_COMPATIBLE_BASE_URL',
+  'SYSTEM_OPENAI_COMPATIBLE_API_KEY',
+  'OPENAI_COMPATIBLE_API_KEY',
+  'SYSTEM_OPENAI_COMPATIBLE_DEFAULT_MODEL',
+  'OPENAI_COMPATIBLE_DEFAULT_MODEL',
+  'SYSTEM_OPENAI_API_KEY',
+  'OPENAI_API_KEY',
+  'SYSTEM_ANTHROPIC_API_KEY',
+  'ANTHROPIC_API_KEY',
+  'SYSTEM_GEMINI_API_KEY',
+  'GEMINI_API_KEY',
+  'USER_OPENAI_API_KEY',
+  'USER_ANTHROPIC_API_KEY',
+  'USER_GEMINI_API_KEY',
+  'USER_OPENAI_COMPATIBLE_API_KEY',
+  'USER_OPENAI_COMPATIBLE_BASE_URL',
+  'USER_OPENAI_COMPATIBLE_DEFAULT_MODEL',
+  'ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION',
+  'MAINTENANCE_STATE',
+  'MAINTENANCE_MESSAGE',
+  'MAINTENANCE_STARTS_AT',
+  'MAINTENANCE_ENDS_AT',
+  'MAINTENANCE_BANNER_ENABLED',
+  'MAINTENANCE_BANNER_TEXT',
+  'MAINTENANCE_BANNER_LEVEL',
+  'MAINTENANCE_BANNER_START_AT',
+  'MAINTENANCE_BANNER_END_AT',
+  'MAINTENANCE_BANNER_LINK',
+  'MAINTENANCE_BANNER_DISMISSIBLE',
+  'DASHBOARD_PORT',
+  'DASHBOARD_HOST',
+  'NODE_ENV',
+]
+
+function getDashboardRuntimeEnvOverrides(): Record<string, string> {
+  const overrides: Record<string, string> = {}
+  for (const key of DASHBOARD_RUNTIME_ENV_KEYS) {
+    const value = process.env[key]
+    if (typeof value === 'string' && value.trim().length > 0) {
+      overrides[key] = value.trim()
+    }
+  }
+  return overrides
+}
 
 function firstNonEmpty(rawEnv: Record<string, string>, ...keys: string[]): string | undefined {
   for (const key of keys) {
@@ -136,7 +189,7 @@ function parseIsoWindow(value?: string): string | undefined {
 }
 
 export function getDashboardEnvRaw(): Record<string, string> {
-  return { ...dashboardEnv }
+  return { ...dashboardEnv, ...getDashboardRuntimeEnvOverrides() }
 }
 
 export function isManagedRuntime(rawEnv: Record<string, string> = dashboardEnv): boolean {

@@ -5,12 +5,19 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.6.0-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
+[![Version](https://img.shields.io/badge/version-1.6.1-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
 [![Tests](https://img.shields.io/badge/tests-96%20default--safe-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 Latest Release: v1.6.0
+## 🔥 Latest Release: v1.6.1
+
+- On-prem runtime env values are honored correctly:
+  - `/api/system` reports `deploymentKind: "onprem"` when the container receives `DASHBOARD_DEPLOYMENT_KIND=onprem`
+  - `OPENAI_COMPATIBLE_BASE_URL` and `OLLAMA_BASE_URL` injected by the CLI now flow into local-model defaults
+  - `DASHBOARD_INSTANCE_LABEL=On-Prem` is reflected in system/auth config responses
+
+## 🔥 Previous Release: v1.6.0
 
 - AI Builder is now the recommended starting point for new workspaces:
   - routes prompts toward existing agents, skills, workflows, agent templates, team templates, or AI generation
@@ -32,13 +39,7 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
   - `api/system` now prefers the packaged dashboard version over a stale injected `CLAWMAX_VERSION` mismatch
   - healthy newer images should stop reporting an older dashboard version string purely because an on-prem env value lagged behind
 
-## 🔥 Previous Release: v1.5.10
-
-- Image publication is stricter:
-  - the container-image workflow now smoke-pulls and runs the published top-level and explicit arch tags from GHCR before the workflow can succeed
-  - release image status now reflects consumer pull/use readiness rather than only successful build and manifest publication
-
-Earlier release themes include local/self-hosted model support, setup simplification, template reliability, chat normalization, and on-prem/runtime hardening. Full details are kept in [CHANGELOG.md](CHANGELOG.md).
+Earlier release themes include image publication hardening, local/self-hosted model support, setup simplification, template reliability, chat normalization, and on-prem/runtime hardening. Full details are kept in [CHANGELOG.md](CHANGELOG.md).
 
 ---
 
@@ -172,7 +173,7 @@ curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/ins
 Pinned release:
 
 ```bash
-curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.6.0
+curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.6.1
 ```
 
 What it does:
@@ -193,13 +194,13 @@ See [SYSTEM/docs/DEMO_VIDEOS.md](SYSTEM/docs/DEMO_VIDEOS.md) for the current inv
 You can also bootstrap directly with the checked-in wrapper:
 
 ```bash
-./setup.sh v1.6.0
+./setup.sh v1.6.1
 ```
 
 or choose a custom install directory:
 
 ```bash
-curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.6.0 --dir /opt/clawmax
+curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.6.1 --dir /opt/clawmax
 ```
 
 See [SYSTEM/docs/RELEASE_DISTRIBUTION.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/RELEASE_DISTRIBUTION.md) for the release distribution contract.
