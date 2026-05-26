@@ -25,6 +25,8 @@ interface AIPromptEditorModalProps {
   onRemoveAttachment?: (id: string) => void
 }
 
+const EMPTY_ATTACHMENTS: PromptAttachment[] = []
+
 function AttachIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
@@ -44,11 +46,11 @@ export default function AIPromptEditorModal({
   saveLabel = 'Save',
   saveAndGenerateLabel = 'Save & Generate',
   placeholder,
-  rows = 14,
+  rows = 10,
   savingAndGenerating = false,
   generateDisabled = false,
   expandLabel = 'Expand with AI',
-  attachments = [],
+  attachments,
   onAttachFiles,
   onRemoveAttachment,
 }: AIPromptEditorModalProps) {
@@ -57,10 +59,12 @@ export default function AIPromptEditorModal({
   const [expandFormat, setExpandFormat] = useState<PromptExpandFormat>('markdown')
   const [expandGuidance, setExpandGuidance] = useState('')
   const [expandError, setExpandError] = useState<string | null>(null)
+  const [expandedFlash, setExpandedFlash] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
   const [localAttachments, setLocalAttachments] = useState<PromptAttachment[]>([])
   const fileInputRef = useRef<HTMLInputElement | null>(null)
-  const effectiveAttachments = attachments ?? localAttachments
+  const flashTimeoutRef = useRef<number | null>(null)
+  const effectiveAttachments = attachments ?? localAttachments ?? EMPTY_ATTACHMENTS
 
   useEffect(() => {
     if (isOpen) {
@@ -68,6 +72,11 @@ export default function AIPromptEditorModal({
       setExpandFormat('markdown')
       setExpandGuidance('')
       setExpandError(null)
+      setExpandedFlash(false)
+      if (flashTimeoutRef.current !== null) {
+        window.clearTimeout(flashTimeoutRef.current)
+        flashTimeoutRef.current = null
+      }
       setShowPreview(false)
       if (attachments == null) {
         setLocalAttachments([])
@@ -75,14 +84,22 @@ export default function AIPromptEditorModal({
     }
   }, [attachments, initialValue, isOpen])
 
+  useEffect(() => {
+    return () => {
+      if (flashTimeoutRef.current !== null) {
+        window.clearTimeout(flashTimeoutRef.current)
+      }
+    }
+  }, [])
+
   if (!isOpen) return null
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"
+      className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 p-4"
     >
       <div
-        className="h-[78vh] w-[75vw] min-h-[420px] min-w-[320px] max-h-[90vh] max-w-[90vw] overflow-auto resize rounded-lg bg-white shadow-2xl dark:bg-gray-800"
+        className="relative flex h-[78vh] w-[75vw] min-h-[420px] min-w-[320px] max-h-[90vh] max-w-[90vw] resize flex-col overflow-hidden rounded-lg bg-white shadow-2xl dark:bg-gray-800"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4 dark:border-gray-700">
@@ -95,7 +112,8 @@ export default function AIPromptEditorModal({
             ✕
           </button>
         </div>
-        <div className="space-y-4 px-5 py-4">
+        <div className="flex min-h-0 flex-1 flex-col px-5 py-4">
+          <div className="space-y-4 overflow-y-auto pr-1">
           <div className="flex items-center justify-between">
             <div className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
               Prompt Editor
@@ -169,20 +187,31 @@ export default function AIPromptEditorModal({
               ))}
             </div>
           ) : null}
-          <div className={`grid gap-4 ${showPreview ? 'lg:grid-cols-[minmax(0,1fr)_minmax(280px,420px)]' : 'grid-cols-1'}`}>
-            <textarea
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              rows={rows}
-              placeholder={placeholder}
-              className="w-full resize-y rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 focus:ring-2 focus:ring-purple-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
-            />
+          <div className={`grid min-h-0 gap-4 ${showPreview ? 'lg:grid-cols-[minmax(0,1fr)_minmax(280px,420px)]' : 'grid-cols-1'}`}>
+            <div className="relative">
+              {expandedFlash ? (
+                <div className="pointer-events-none absolute right-3 top-3 z-10 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 shadow-sm dark:border-emerald-900/60 dark:bg-emerald-950 dark:text-emerald-200">
+                  AI expanded
+                </div>
+              ) : null}
+              <textarea
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                rows={rows}
+                placeholder={placeholder}
+                className={`min-h-[200px] max-h-[42vh] w-full resize-y rounded-lg border bg-white px-4 py-3 text-sm text-gray-900 transition-[border-color,box-shadow,background-color] duration-300 focus:ring-2 focus:ring-purple-500 dark:bg-gray-900 dark:text-gray-100 ${
+                  expandedFlash
+                    ? 'border-emerald-300 bg-emerald-50/50 shadow-[0_0_0_3px_rgba(16,185,129,0.18)] dark:border-emerald-700 dark:bg-emerald-950/20'
+                    : 'border-gray-200 dark:border-gray-700'
+                }`}
+              />
+            </div>
             {showPreview ? (
-              <div className="rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900">
+              <div className="min-h-[200px] rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900">
                 <div className="border-b border-gray-200 px-4 py-2 text-xs font-medium uppercase tracking-wide text-gray-500 dark:border-gray-700 dark:text-gray-400">
                   Markdown Preview
                 </div>
-                <div className="max-h-[480px] overflow-y-auto px-4 py-3 prose prose-sm max-w-none text-gray-900 dark:prose-invert dark:text-gray-100">
+                <div className="max-h-[42vh] overflow-y-auto px-4 py-3 prose prose-sm max-w-none text-gray-900 dark:prose-invert dark:text-gray-100">
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>
                     {draft || '_Nothing to preview yet._'}
                   </ReactMarkdown>
@@ -190,7 +219,71 @@ export default function AIPromptEditorModal({
               </div>
             ) : null}
           </div>
-          <div className="flex justify-between gap-2">
+          {onExpandWithAi ? (
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  Improvement Direction
+                </label>
+                <input
+                  type="text"
+                  value={expandGuidance}
+                  onChange={(e) => setExpandGuidance(e.target.value)}
+                  placeholder="Optional: make it shorter, bias toward workflows, keep the tone friendly..."
+                  className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+                />
+              </div>
+              <div className="flex items-center justify-start gap-3">
+                <select
+                  value={expandFormat}
+                  onChange={(e) => setExpandFormat(e.target.value as PromptExpandFormat)}
+                  className="rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+                >
+                  <option value="markdown">Markdown</option>
+                  <option value="text">Plain text</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!draft.trim() || expanding) return
+                    setExpanding(true)
+                    setExpandError(null)
+                    try {
+                      const expanded = await onExpandWithAi(
+                        appendPromptAttachmentContext(draft, effectiveAttachments),
+                        expandFormat,
+                        expandGuidance,
+                      )
+                      setDraft(expanded)
+                      setExpandedFlash(true)
+                      if (flashTimeoutRef.current !== null) {
+                        window.clearTimeout(flashTimeoutRef.current)
+                      }
+                      flashTimeoutRef.current = window.setTimeout(() => {
+                        setExpandedFlash(false)
+                        flashTimeoutRef.current = null
+                      }, 1600)
+                    } catch (err: any) {
+                      setExpandError(err?.message || 'Failed to expand prompt')
+                    } finally {
+                      setExpanding(false)
+                    }
+                  }}
+                  disabled={expanding || !draft.trim()}
+                  className="rounded-md border border-purple-200 bg-purple-50 px-4 py-2 text-sm font-medium text-purple-700 hover:bg-purple-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-purple-800 dark:bg-purple-900/20 dark:text-purple-200 dark:hover:bg-purple-900/30"
+                >
+                  {expanding ? 'Expanding…' : expandLabel}
+                </button>
+              </div>
+              {expandError ? (
+                <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">
+                  {expandError}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          </div>
+          <div className="mt-4 flex shrink-0 justify-between gap-2 border-t border-gray-200 pt-4 dark:border-gray-700">
             <button
               type="button"
               onClick={() => {
@@ -224,61 +317,6 @@ export default function AIPromptEditorModal({
               ) : null}
             </div>
           </div>
-          {onExpandWithAi ? (
-            <div className="space-y-3">
-              <div className="space-y-1">
-                <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                  Improvement Direction
-                </label>
-                <input
-                  type="text"
-                  value={expandGuidance}
-                  onChange={(e) => setExpandGuidance(e.target.value)}
-                  placeholder="Optional: make it shorter, bias toward workflows, keep the tone friendly..."
-                  className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
-                />
-              </div>
-              <div className="flex items-center justify-start gap-3">
-              <select
-                value={expandFormat}
-                onChange={(e) => setExpandFormat(e.target.value as PromptExpandFormat)}
-                className="rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
-              >
-                <option value="markdown">Markdown</option>
-                <option value="text">Plain text</option>
-              </select>
-              <button
-                type="button"
-                onClick={async () => {
-                  if (!draft.trim() || expanding) return
-                  setExpanding(true)
-                  setExpandError(null)
-                  try {
-                    const expanded = await onExpandWithAi(
-                      appendPromptAttachmentContext(draft, effectiveAttachments),
-                      expandFormat,
-                      expandGuidance,
-                    )
-                    setDraft(expanded)
-                  } catch (err: any) {
-                    setExpandError(err?.message || 'Failed to expand prompt')
-                  } finally {
-                    setExpanding(false)
-                  }
-                }}
-                disabled={expanding || !draft.trim()}
-                className="rounded-md border border-purple-200 bg-purple-50 px-4 py-2 text-sm font-medium text-purple-700 hover:bg-purple-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-purple-800 dark:bg-purple-900/20 dark:text-purple-200 dark:hover:bg-purple-900/30"
-              >
-                {expanding ? 'Expanding…' : expandLabel}
-              </button>
-            </div>
-              {expandError ? (
-                <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">
-                  {expandError}
-                </div>
-              ) : null}
-            </div>
-          ) : null}
         </div>
       </div>
     </div>

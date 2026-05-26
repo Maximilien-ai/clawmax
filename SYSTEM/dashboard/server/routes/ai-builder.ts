@@ -4,11 +4,13 @@ import {
   buildAiBuilderRecommendation,
   shouldUseAiBuilderLlmFallback,
 } from '../lib/ai-builder'
+import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
 import {
   generateBuilderStarterPromptsWithAI,
   inferBuilderGroupingWithAI,
   setRequestByokKeys,
 } from '../lib/ai-generator'
+import { getAuthenticatedSession } from '../lib/github-auth'
 import {
   isAiBuilderShareEnabled,
   shareAiBuilderFeedback,
@@ -16,6 +18,23 @@ import {
 } from '../lib/ai-builder-share'
 
 const router = Router()
+const AI_BUILDER_LLM_FALLBACK_TIMEOUT_MS = 8000
+
+function withAiBuilderTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error('AI Builder fallback timed out')), timeoutMs)
+    promise.then(
+      (value) => {
+        clearTimeout(timeout)
+        resolve(value)
+      },
+      (error) => {
+        clearTimeout(timeout)
+        reject(error)
+      },
+    )
+  })
+}
 
 router.post('/recommend', async (req, res) => {
   const prompt = `${req.body?.prompt || ''}`.trim()
@@ -28,26 +47,30 @@ router.post('/recommend', async (req, res) => {
 
   try {
     setRequestByokKeys(byokKeys)
+    const session = getAuthenticatedSession(req)
     let recommendation = buildAiBuilderRecommendation(prompt)
     if (shouldUseAiBuilderLlmFallback(recommendation)) {
       try {
-        const fallback = await inferBuilderGroupingWithAI({
-          prompt,
-          summary: recommendation.summary,
-          intent: recommendation.intent,
-          scope: recommendation.scope,
-          operation: recommendation.operation,
-          confidence: recommendation.confidence,
-          topOrganizationTemplates: recommendation.matchedAssets.organizationTemplates.slice(0, 3).map((template) => ({
-            name: template.name,
-            summary: template.summary,
-            family: template.family,
-          })),
-          topAgentTemplates: recommendation.matchedAssets.agentTemplates.slice(0, 3).map((template) => ({
-            name: template.name,
-            summary: template.summary,
-          })),
-        })
+        const fallback = await withAiBuilderTimeout(
+          inferBuilderGroupingWithAI({
+            prompt,
+            summary: recommendation.summary,
+            intent: recommendation.intent,
+            scope: recommendation.scope,
+            operation: recommendation.operation,
+            confidence: recommendation.confidence,
+            topOrganizationTemplates: recommendation.matchedAssets.organizationTemplates.slice(0, 3).map((template) => ({
+              name: template.name,
+              summary: template.summary,
+              family: template.family,
+            })),
+            topAgentTemplates: recommendation.matchedAssets.agentTemplates.slice(0, 3).map((template) => ({
+              name: template.name,
+              summary: template.summary,
+            })),
+          }),
+          AI_BUILDER_LLM_FALLBACK_TIMEOUT_MS,
+        )
         if (fallback.grouping && fallback.rationale) {
           recommendation = applyAiBuilderLlmFallback(recommendation, prompt, fallback)
         }
@@ -55,6 +78,15 @@ router.post('/recommend', async (req, res) => {
         // Keep deterministic recommendation if AI fallback is unavailable or fails.
       }
     }
+    traceAgentChat('builder-agent', prompt, recommendation.summary, {
+      model: recommendation.usedLlmFallback ? 'builder-routing+llm-fallback' : 'builder-routing',
+      provider: recommendation.usedLlmFallback ? 'hybrid' : 'system',
+      sessionId: `builder:${Date.now()}`,
+      actorUserId: session?.userId,
+      actorLogin: session?.login,
+      actorEmail: session?.email || null,
+      dashboardInstanceId: getRequestDashboardInstanceId(req),
+    })
     res.json({ ok: true, recommendation })
   } catch (error: any) {
     res.status(500).json({ error: error?.message || 'Failed to build recommendation' })

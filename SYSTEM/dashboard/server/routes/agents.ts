@@ -22,6 +22,8 @@ import { writeDashboardManagedOpenClawConfig } from '../lib/openclaw-config'
 import { runExclusiveAgentExecution } from '../lib/agent-execution'
 import { scopeSessionIdToModel, resolveAgentExecutionConfig, resolvePersistedAgentSessionId } from '../lib/agent-execution'
 import { resolveDefaultAgentModel } from '../lib/agent-default-model'
+import { getAuthenticatedSession } from '../lib/github-auth'
+import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
 
 /** Find the root dir of a pnpm package by scanning .pnpm store for a prefix */
 function findPnpmPkg(repoDir: string, prefix: string, pkgSubPath: string): string | null {
@@ -274,6 +276,7 @@ router.post('/generate', async (req, res) => {
   }
 
   try {
+    const session = getAuthenticatedSession(req)
     // Set BYOK keys for this request
     const { setRequestByokKeys } = require('../lib/ai-generator')
     setRequestByokKeys(byokKeys)
@@ -297,6 +300,15 @@ router.post('/generate', async (req, res) => {
       description,
       name: suggestedName,
       tags: suggestedTags,
+    })
+    traceAgentChat('ai-generate-agent', description, `Generated agent scaffold for ${suggestedName || 'new agent'}`, {
+      model: suggestedModel || 'ai-generate-agent',
+      provider: 'system',
+      sessionId: `ai-generate-agent:${Date.now()}`,
+      actorUserId: session?.userId,
+      actorLogin: session?.login,
+      actorEmail: session?.email || null,
+      dashboardInstanceId: getRequestDashboardInstanceId(req),
     })
     res.json({
       ...files,

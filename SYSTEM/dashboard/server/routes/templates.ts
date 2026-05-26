@@ -30,6 +30,7 @@ import { generateTemplateFromNL, normalizeTemplateGenerationTarget, setRequestBy
 import { getWorkspacePath, listAgents as listWorkspaceAgents, parseGroups } from '../lib/workspace'
 import { addTemplateFeedback, getAllTemplateFeedbackSummaries, getTemplateApplyCount, getTemplateFeedbackSummary } from '../lib/template-feedback'
 import { getAuthenticatedSession } from '../lib/github-auth'
+import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
 
 const router = Router()
 
@@ -620,6 +621,16 @@ router.post('/generate', async (req, res) => {
       normalizeTemplateGenerationTarget(generationTarget),
       resolveSessionAuthor(req) || 'ClawMax AI',
     )
+    const session = getAuthenticatedSession(req)
+    traceAgentChat('ai-generate-template', description, `Generated template draft ${template.name || 'template'}`, {
+      model: 'ai-generate-template',
+      provider: 'system',
+      sessionId: `ai-generate-template:${Date.now()}`,
+      actorUserId: session?.userId,
+      actorLogin: session?.login,
+      actorEmail: session?.email || null,
+      dashboardInstanceId: getRequestDashboardInstanceId(req),
+    })
     res.json({ ok: true, template })
   } catch (err: any) {
     console.error('Error generating template:', err)

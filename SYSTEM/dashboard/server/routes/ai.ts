@@ -1,4 +1,6 @@
 import express from 'express'
+import { getAuthenticatedSession } from '../lib/github-auth'
+import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
 import {
   expandPromptWithAI,
   normalizePromptExpansionFormat,
@@ -29,12 +31,24 @@ router.post('/expand-prompt', async (req, res) => {
 
   try {
     setRequestByokKeys(byokKeys && typeof byokKeys === 'object' ? byokKeys : undefined)
+    const normalizedTarget = normalizePromptExpansionTarget(target)
     const expandedPrompt = await expandPromptWithAI(
       prompt.trim(),
-      normalizePromptExpansionTarget(target),
+      normalizedTarget,
       normalizePromptExpansionFormat(format),
       typeof guidance === 'string' ? guidance.trim() : '',
     )
+    const session = getAuthenticatedSession(req)
+    const systemAgentId = `ai-improve-${normalizedTarget}-prompt`
+    traceAgentChat(systemAgentId, prompt.trim(), expandedPrompt, {
+      model: systemAgentId,
+      provider: 'system',
+      sessionId: `${systemAgentId}:${Date.now()}`,
+      actorUserId: session?.userId,
+      actorLogin: session?.login,
+      actorEmail: session?.email || null,
+      dashboardInstanceId: getRequestDashboardInstanceId(req),
+    })
     res.json({ ok: true, expandedPrompt })
   } catch (err: any) {
     const message = err?.message || 'Failed to expand prompt'

@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { expandPromptWithAI } from '../lib/aiPrompt'
+import AIPromptEditorModal from './AIPromptEditorModal'
 
 type FocusableField = HTMLInputElement | HTMLTextAreaElement
 
@@ -148,6 +150,7 @@ export default function AgentTemplateWizard({
   const [focusedField, setFocusedField] = useState<string | null>(null)
   const [filesLoading, setFilesLoading] = useState(false)
   const [generatingFiles, setGeneratingFiles] = useState(false)
+  const [showPromptEditor, setShowPromptEditor] = useState(false)
   const [validationErrors, setValidationErrors] = useState<string[]>([])
   const [validationWarnings, setValidationWarnings] = useState<string[]>([])
   const fieldRefs = useRef<Record<string, FocusableField | null>>({})
@@ -199,8 +202,8 @@ export default function AgentTemplateWizard({
       .finally(() => setFilesLoading(false))
   }, [initialTemplate.slug])
 
-  const generateFilesFromDescription = async () => {
-    const description = form.aiPrompt.trim() || form.description.trim() || form.role.trim()
+  const generateFilesFromDescription = async (overridePrompt?: string) => {
+    const description = (overridePrompt ?? form.aiPrompt).trim() || form.description.trim() || form.role.trim()
     if (!description) {
       showError('Add a description, AI prompt, or role before generating files')
       return
@@ -383,7 +386,16 @@ export default function AgentTemplateWizard({
                 <MultiValueInput values={form.templateTags} suggestions={tagSuggestions} placeholder="Add template tags..." onChange={(values) => setField('templateTags', values)} inputRef={registerFieldRef('template-tags')} />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">AI Prompt</label>
+                <div className="mb-1 flex items-center justify-between gap-3">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">AI Prompt</label>
+                  <button
+                    type="button"
+                    onClick={() => setShowPromptEditor(true)}
+                    className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-medium text-gray-700 transition-colors hover:border-purple-300 hover:text-purple-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-purple-700 dark:hover:text-purple-200"
+                  >
+                    Open Editor
+                  </button>
+                </div>
                 <textarea ref={registerFieldRef('template-ai-prompt')} value={form.aiPrompt} onChange={(e) => setField('aiPrompt', e.target.value)} rows={3} className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm resize-y" />
               </div>
             </div>
@@ -498,6 +510,22 @@ export default function AgentTemplateWizard({
             )}
           </div>
         </div>
+        <AIPromptEditorModal
+          isOpen={showPromptEditor}
+          title="Edit Agent Template Prompt"
+          initialValue={form.aiPrompt}
+          onClose={() => setShowPromptEditor(false)}
+          onSave={(value) => setField('aiPrompt', value)}
+          onSaveAndGenerate={(value) => {
+            setField('aiPrompt', value)
+            void generateFilesFromDescription(value)
+          }}
+          onExpandWithAi={(value, format, guidance) => expandPromptWithAI(value, 'agent', format, guidance)}
+          saveAndGenerateLabel="Save & Regenerate"
+          expandLabel="Expand with AI"
+          placeholder="Describe what this agent template should optimize for."
+          savingAndGenerating={generatingFiles}
+        />
       </div>
     </div>
   )

@@ -8,7 +8,7 @@ import https from 'https'
 import path from 'path'
 import fs from 'fs'
 import { getWorkspaceManager } from './workspace-manager'
-import { listAgents, parseTags } from './workspace'
+import { parseTags } from './workspace'
 import { estimateTraceCostUsd } from './model-pricing'
 import { resolveOpikRuntimeConfig } from './opik'
 
@@ -80,6 +80,63 @@ interface MeteringAgentMetadata {
   isBuiltIn: boolean
 }
 
+const SYSTEM_AGENT_METADATA = new Map<string, MeteringAgentMetadata>([
+  ['builder-agent', {
+    agentName: 'AI Builder',
+    agentTags: ['built-in', 'system'],
+    agentType: 'built-in',
+    isBuiltIn: true,
+  }],
+  ['ai-generate-agent', {
+    agentName: 'AI Generate Agent',
+    agentTags: ['built-in', 'system', 'ai-generate'],
+    agentType: 'built-in',
+    isBuiltIn: true,
+  }],
+  ['ai-generate-template', {
+    agentName: 'AI Generate Template',
+    agentTags: ['built-in', 'system', 'ai-generate'],
+    agentType: 'built-in',
+    isBuiltIn: true,
+  }],
+  ['ai-generate-skill', {
+    agentName: 'AI Generate Skill',
+    agentTags: ['built-in', 'system', 'ai-generate'],
+    agentType: 'built-in',
+    isBuiltIn: true,
+  }],
+  ['ai-generate-workflow', {
+    agentName: 'AI Generate Workflow',
+    agentTags: ['built-in', 'system', 'ai-generate'],
+    agentType: 'built-in',
+    isBuiltIn: true,
+  }],
+  ['ai-improve-agent-prompt', {
+    agentName: 'AI Improve Agent Prompt',
+    agentTags: ['built-in', 'system', 'ai-improve'],
+    agentType: 'built-in',
+    isBuiltIn: true,
+  }],
+  ['ai-improve-workflow-prompt', {
+    agentName: 'AI Improve Workflow Prompt',
+    agentTags: ['built-in', 'system', 'ai-improve'],
+    agentType: 'built-in',
+    isBuiltIn: true,
+  }],
+  ['ai-improve-skill-prompt', {
+    agentName: 'AI Improve Skill Prompt',
+    agentTags: ['built-in', 'system', 'ai-improve'],
+    agentType: 'built-in',
+    isBuiltIn: true,
+  }],
+  ['ai-improve-template-prompt', {
+    agentName: 'AI Improve Template Prompt',
+    agentTags: ['built-in', 'system', 'ai-improve'],
+    agentType: 'built-in',
+    isBuiltIn: true,
+  }],
+])
+
 function createEmptyAgentMetering(agentId: string): AgentMetering {
   return {
     agentId,
@@ -110,23 +167,12 @@ function parseAgentNameFromIdentityContent(content: string, fallback: string): s
 }
 
 function getWorkspaceAgentMetadata(workspaceId?: string): Map<string, MeteringAgentMetadata> {
-  const metadata = new Map<string, MeteringAgentMetadata>()
-
-  if (!workspaceId) {
-    for (const agent of listAgents()) {
-      const agentTags = Array.isArray(agent.tags) ? agent.tags : []
-      metadata.set(agent.id, {
-        agentName: agent.name || agent.id,
-        agentTags,
-        agentType: classifyAgentTypeFromTags(agentTags),
-        isBuiltIn: agentTags.includes('built-in'),
-      })
-    }
-    return metadata
-  }
+  const metadata = new Map<string, MeteringAgentMetadata>(SYSTEM_AGENT_METADATA)
 
   try {
-    const workspacePath = getWorkspaceManager().resolveWorkspacePath(workspaceId)
+    const workspacePath = workspaceId
+      ? getWorkspaceManager().resolveWorkspacePath(workspaceId)
+      : getWorkspaceManager().getActiveWorkspace().path
     const agentsDir = path.join(workspacePath, 'AGENTS')
     for (const entry of fs.readdirSync(agentsDir, { withFileTypes: true })) {
       if (!entry.isDirectory()) continue
@@ -331,24 +377,17 @@ function getWorkspaceTraceIds(workspaceId?: string): string[] {
 
 function getWorkspaceAgentAndWorkflowIds(workspaceId?: string): { agentIds: Set<string>; workflowIds: Set<string> } {
   try {
-    if (!workspaceId) {
-      const agentIds = new Set(listAgents().map((agent) => agent.id).filter(Boolean))
-      const workflowDir = path.join(getWorkspaceManager().getActiveWorkspace().path, 'WORKFLOWS')
-      const workflowIds = new Set<string>()
-      try {
-        for (const entry of fs.readdirSync(workflowDir, { withFileTypes: true })) {
-          if (!entry.isFile() || !entry.name.endsWith('.md')) continue
-          workflowIds.add(entry.name.replace(/\.md$/, ''))
-        }
-      } catch {}
-      return { agentIds, workflowIds }
-    }
-
-    const workspacePath = getWorkspaceManager().resolveWorkspacePath(workspaceId)
+    const workspacePath = workspaceId
+      ? getWorkspaceManager().resolveWorkspacePath(workspaceId)
+      : getWorkspaceManager().getActiveWorkspace().path
     const agentsDir = path.join(workspacePath, 'AGENTS')
     const workflowDir = path.join(workspacePath, 'WORKFLOWS')
     const agentIds = new Set<string>()
     const workflowIds = new Set<string>()
+
+    for (const agentId of SYSTEM_AGENT_METADATA.keys()) {
+      agentIds.add(agentId)
+    }
 
     try {
       for (const entry of fs.readdirSync(agentsDir, { withFileTypes: true })) {
@@ -608,6 +647,7 @@ export function traceMatchesViewer(trace: TraceData, viewer?: MeteringViewer): b
   if (viewer.userId && meta.user_id && String(meta.user_id) === String(viewer.userId)) return true
   if (viewer.login && meta.user_login && String(meta.user_login).toLowerCase() === String(viewer.login).toLowerCase()) return true
   if (viewer.email && meta.user_email && String(meta.user_email).toLowerCase() === String(viewer.email).toLowerCase()) return true
+  if (!meta.user_id && !meta.user_login && !meta.user_email) return true
   if (viewer.userId || viewer.login || viewer.email) return false
   return true
 }

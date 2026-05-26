@@ -242,7 +242,7 @@ async function run() {
     }
 
     const enriched = enrichWorkspaceMeteringWithAgentMetadata(base, new Map([
-      ['builder-agent', { agentName: 'Builder agent', agentTags: ['built-in', 'system'], agentType: 'built-in', isBuiltIn: true }],
+      ['builder-agent', { agentName: 'AI Builder', agentTags: ['built-in', 'system'], agentType: 'built-in', isBuiltIn: true }],
       ['sales-lead', { agentName: 'Sales Lead', agentTags: ['sales'], agentType: 'user', isBuiltIn: false }],
     ]))
 
@@ -251,7 +251,7 @@ async function run() {
 
     assert(!!builtIn && builtIn.isBuiltIn === true, 'Expected built-in agent flag')
     assert(!!builtIn && builtIn.agentType === 'built-in', 'Expected built-in agent type')
-    assert(!!builtIn && builtIn.agentName === 'Builder agent', 'Expected enriched agent name')
+    assert(!!builtIn && builtIn.agentName === 'AI Builder', 'Expected enriched agent name')
     assert(!!user && user.agentType === 'user', 'Expected user agent type')
     assert(!!user && user.isBuiltIn === false, 'Expected non built-in user agent')
   })
@@ -417,6 +417,34 @@ async function run() {
     })
 
     assert(allowed === true, 'Expected matching machine identity to preserve on-prem metering visibility')
+  })
+
+  await test('traceMatchesViewer keeps system traces without user identity when instance scope already matches', () => {
+    const trace = {
+      id: 'a8',
+      name: 'agent.chat.builder-agent',
+      start_time: '2026-04-08T19:00:00.000Z',
+      end_time: '2026-04-08T19:00:10.000Z',
+      metadata: {
+        agent_id: 'builder-agent',
+        dashboard_instance_id: 'http://localhost:3001',
+        machine_id: 'machine-a',
+        machine_name: 'MBP14',
+        tokens_input: 100,
+        tokens_output: 50,
+        tokens_total: 150,
+      },
+    } as any
+
+    const allowed = traceMatchesViewer(trace, {
+      userId: 'user-a',
+      login: 'alpha',
+      dashboardInstanceId: 'http://localhost:3001',
+      machineId: 'machine-a',
+      machineName: 'MBP14',
+    })
+
+    assert(allowed === true, 'Expected system traces without user identity to remain visible after instance scoping matches')
   })
 
   await test('mergeWorkspaceMetering preserves highest known values across refreshes', () => {

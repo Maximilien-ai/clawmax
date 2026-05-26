@@ -325,6 +325,8 @@ function sourceBadge(source?: string): string | null {
   return source
 }
 
+const BUILDER_RECOMMENDATION_TIMEOUT_MS = 45000
+
 async function parseBuilderResponse(response: Response): Promise<any> {
   const contentType = response.headers.get('content-type') || ''
   const raw = await response.text()
@@ -1680,15 +1682,23 @@ export default function Builder({
     setPromptDraftBeforeHistory('')
     setMessages((prev) => [...prev, { id: `user-${Date.now()}`, role: 'user', label: 'You', content: value }])
 
+    let timeout: number | null = null
     try {
+      const controller = new AbortController()
+      timeout = window.setTimeout(() => controller.abort(), BUILDER_RECOMMENDATION_TIMEOUT_MS)
       const response = await fetch('/api/ai-builder/recommend', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
           prompt: effectivePrompt,
           byokKeys: getBuilderByokKeys(),
         }),
       })
+      if (timeout !== null) {
+        window.clearTimeout(timeout)
+        timeout = null
+      }
       let data: any
       try {
         data = await parseBuilderResponse(response)
@@ -1734,8 +1744,30 @@ export default function Builder({
       setPromptDraftBeforeHistory('')
       void refreshStarterPrompts({ seedPrompt: value })
     } catch (err: any) {
+      if (err?.name === 'AbortError') {
+        const localRecommendation = hydrateBuilderRecommendation(await buildClientFallbackRecommendation(effectivePrompt))
+        setRecommendation(localRecommendation)
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `assistant-${Date.now()}`,
+            role: 'assistant',
+            label: 'Builder agent',
+            content: `${localRecommendation.summary} Live AI routing took too long, so I used the local workspace matcher instead.`,
+          },
+        ])
+        setPrompt('')
+        setAttachments([])
+        setPromptHistoryIndex(null)
+        setPromptDraftBeforeHistory('')
+        void refreshStarterPrompts({ seedPrompt: value })
+        return
+      }
       setError(err?.message || 'Failed to build recommendation')
     } finally {
+      if (timeout !== null) {
+        window.clearTimeout(timeout)
+      }
       setLoading(false)
     }
   }

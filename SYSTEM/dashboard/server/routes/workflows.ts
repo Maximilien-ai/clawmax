@@ -21,6 +21,7 @@ import { getWorkspacePath, listAgents } from '../lib/workspace'
 import { explainOneTimeCronLimitation, generateCronFromText, generateWorkflowFromNL, isOneTimeScheduleRequest, setRequestByokKeys } from '../lib/ai-generator'
 import { syncAllWorkflows } from '../lib/scheduler'
 import { getAuthenticatedSession } from '../lib/github-auth'
+import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
 
 const router = Router()
 
@@ -143,10 +144,22 @@ router.post('/generate', async (req, res) => {
     const agentIds = agents.filter(a => !a.archived).map(a => a.id)
     const allTags = [...new Set(agents.flatMap(a => a.tags))]
     const workflow = await generateWorkflowFromNL(description, agentIds, allTags)
+    const session = getAuthenticatedSession(req)
     const author = resolveSessionAuthor(req)
     if (author && (!workflow.author || workflow.author === 'dashboard' || workflow.author === 'ClawMax AI')) {
       workflow.author = author
     }
+    traceAgentChat('ai-generate-workflow', description, `Generated workflow draft ${workflow.name || workflow.id || 'workflow'}`, {
+      model: 'ai-generate-workflow',
+      provider: 'system',
+      sessionId: `ai-generate-workflow:${Date.now()}`,
+      workflowId: workflow.id,
+      workflowName: workflow.name,
+      actorUserId: session?.userId,
+      actorLogin: session?.login,
+      actorEmail: session?.email || null,
+      dashboardInstanceId: getRequestDashboardInstanceId(req),
+    })
     res.json({ ok: true, workflow })
   } catch (err: any) {
     console.error('Error generating workflow:', err)

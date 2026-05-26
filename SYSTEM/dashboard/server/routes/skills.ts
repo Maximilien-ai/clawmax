@@ -34,6 +34,8 @@ import { exec } from 'child_process'
 import { promisify } from 'util'
 import fs from 'fs'
 import path from 'path'
+import { getAuthenticatedSession } from '../lib/github-auth'
+import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
 
 const execAsync = promisify(exec)
 const execFileAsync = promisify(require('child_process').execFile)
@@ -158,6 +160,16 @@ router.post('/generate', async (req, res) => {
   try {
     setRequestByokKeys(byokKeys)
     const skill = await generateSkillFromNL(description.trim(), currentDraft)
+    const session = getAuthenticatedSession(req)
+    traceAgentChat('ai-generate-skill', description.trim(), `Generated skill scaffold ${skill.name || 'skill'}`, {
+      model: 'ai-generate-skill',
+      provider: 'system',
+      sessionId: `ai-generate-skill:${Date.now()}`,
+      actorUserId: session?.userId,
+      actorLogin: session?.login,
+      actorEmail: session?.email || null,
+      dashboardInstanceId: getRequestDashboardInstanceId(req),
+    })
     res.json({ ok: true, skill })
   } catch (err: any) {
     console.error('AI skill generation error:', err)
