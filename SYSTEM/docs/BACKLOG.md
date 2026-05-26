@@ -88,6 +88,7 @@
 - [ ] **Clean-room CI hardening** — keep `SYSTEM/test.sh` deterministic, GitHub Actions trustworthy on `main`. GitHub: `#142`
 - [ ] **AI Builder evaluation corpus expansion** — keep the external Builder eval file current with real prompts, expected routing outcomes, and ambiguity/confirmation cases so recommendation quality can be improved without regressing.
 - [ ] **AI Builder open template-family taxonomy** — continue expanding Builder’s template-family hints without turning them into a closed whitelist; unknown domains should still fall back cleanly to `refine existing` vs `create new` template choices.
+- [ ] **AI Builder `1.6.0` merge / release-candidate QA pass** — before merging `ai-builder-designer`, run one final manual pass across Builder routing, handoffs, session export/share, onboarding tour, BYOK/system model behavior, and built-in/system metering visibility; feed any misses back into the eval corpus before the final merge.
 
 ### UX & Product Polish
 - [ ] **Mobile responsiveness audit** — run a focused pass across login, top bar, notifications, agent cards, chat, dashboards, template apply, and integrations wizard on narrow/mobile widths; fix clipped popovers, off-screen dialogs, awkward stacking, and tap-target issues before broader external demos. GitHub: `#143`

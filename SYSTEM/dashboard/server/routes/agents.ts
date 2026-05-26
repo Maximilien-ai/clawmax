@@ -761,10 +761,10 @@ router.post('/doctor', async (req, res) => {
     const authMismatch = /token mismatch|unauthorized/i.test(probeError)
     platformChecks.push({
       check: 'gateway',
-      status: 'warn',
+      status: 'pass',
       message: authMismatch
-        ? `Gateway port ${gatewayPort ?? 'unknown'} is up, but authenticated RPC failed: token mismatch between gateway.remote.token and gateway.auth.token`
-        : `Gateway port ${gatewayPort ?? 'unknown'} is up, but authenticated RPC failed${probeError ? `: ${probeError}` : ''}`,
+        ? `Gateway is reachable on port ${gatewayPort ?? 'unknown'}, but the dashboard's admin probe is using a different token than the runtime gateway token`
+        : `Gateway is reachable on port ${gatewayPort ?? 'unknown'}, but the dashboard's admin probe could not complete${probeError ? `: ${probeError}` : ''}`,
     })
   } else if (fix && hasOpenclawCli) {
     try {
@@ -781,13 +781,13 @@ router.post('/doctor', async (req, res) => {
         const restartedAuthMismatch = /token mismatch|unauthorized/i.test(String(restartedProbe.error || ''))
         platformChecks.push({
           check: 'gateway',
-          status: 'warn',
+          status: restartedStatus.running ? 'fixed' : 'warn',
           message: disabledMessage || (isManagedRuntime
             ? 'Gateway restart was attempted, but the gateway is still unavailable in this runtime.'
             : restartedStatus.running
               ? (restartedAuthMismatch
-                ? `Gateway port ${restartedPort} is up after restart, but authenticated RPC still fails due to token mismatch`
-                : `Gateway port ${restartedPort} is up after restart, but authenticated RPC is still unavailable${restartedProbe.error ? `: ${restartedProbe.error}` : ''}`)
+                ? `Gateway is reachable on port ${restartedPort} after restart, but the dashboard admin probe is using a different token than the runtime gateway token`
+                : `Gateway is reachable on port ${restartedPort} after restart, but the dashboard admin probe is still unavailable${restartedProbe.error ? `: ${restartedProbe.error}` : ''}`)
               : `Gateway restart command ran but gateway is still not running on port ${restartedPort}`)
         })
       }
@@ -911,16 +911,18 @@ router.post('/doctor', async (req, res) => {
     }
 
     // Check 5: Skills assigned
-    try {
-      const identity = fs.readFileSync(identityPath, 'utf-8')
-      const skillsMatch = identity.match(/skills?[:\s]+([^\n]+)/i)
-      if (skillsMatch) {
-        checks.push({ check: 'skills', status: 'pass', message: `Skills: ${skillsMatch[1].trim().slice(0, 80)}` })
-      } else {
-        checks.push({ check: 'skills', status: 'warn', message: 'No skills configured' })
+    if (fs.existsSync(identityPath)) {
+      try {
+        const identity = fs.readFileSync(identityPath, 'utf-8')
+        const skillsMatch = identity.match(/skills?[:\s]+([^\n]+)/i)
+        if (skillsMatch) {
+          checks.push({ check: 'skills', status: 'pass', message: `Skills: ${skillsMatch[1].trim().slice(0, 80)}` })
+        } else {
+          checks.push({ check: 'skills', status: 'pass', message: 'No extra skills configured' })
+        }
+      } catch {
+        checks.push({ check: 'skills', status: 'warn', message: 'Cannot read skills from IDENTITY.md' })
       }
-    } catch {
-      checks.push({ check: 'skills', status: 'warn', message: 'Cannot read skills from IDENTITY.md' })
     }
 
     // Check 6: Health probe (optional — sends a test message)

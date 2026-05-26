@@ -43,6 +43,8 @@ export default function Logs() {
   const [showDoctor, setShowDoctor] = useState(false)
   const [doctorResults, setDoctorResults] = useState<DoctorResults | null>(null)
   const [doctorFixing, setDoctorFixing] = useState(false)
+  const [showDoctorInfoChecks, setShowDoctorInfoChecks] = useState(false)
+  const [refreshNonce, setRefreshNonce] = useState(0)
   const logsEndRef = useRef<HTMLDivElement>(null)
   const logsContainerRef = useRef<HTMLDivElement>(null)
   const eventSourceRef = useRef<EventSource | null>(null)
@@ -74,6 +76,36 @@ export default function Logs() {
     : logs.find(log => log.raw.includes('openclaw fixture'))
       ? 'This runtime is still using a fixture OpenClaw build instead of the real CLI/runtime.'
       : null
+  const visibleDoctorResults = (doctorResults?.results || [])
+    .map((agent) => ({
+      ...agent,
+      visibleChecks: (agent.checks || []).filter((check) => showDoctorInfoChecks || check.status !== 'pass'),
+    }))
+    .filter((agent) => showDoctorInfoChecks || agent.visibleChecks.length > 0)
+
+  const downloadLogs = () => {
+    const lines = filteredLogs.map((log) => log.raw)
+    const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `clawmax-system-logs-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.txt`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
+  const refreshLogs = () => {
+    setError(null)
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close()
+      eventSourceRef.current = null
+    }
+    pausedLogsBufferRef.current = []
+    setPaused(false)
+    setRefreshNonce((value) => value + 1)
+  }
 
   // Parse log line into structured entry
   const parseLogLine = (line: string): LogEntry => {
@@ -156,7 +188,7 @@ export default function Logs() {
         eventSourceRef.current.close()
       }
     }
-  }, [paused])
+  }, [paused, refreshNonce])
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -246,6 +278,23 @@ export default function Logs() {
               Clear
             </button>
             <button
+              onClick={downloadLogs}
+              disabled={filteredLogs.length === 0}
+              className={`px-3 py-1.5 text-sm rounded transition-colors ${
+                filteredLogs.length === 0
+                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed dark:bg-gray-800 dark:text-gray-500'
+                  : 'bg-violet-50 hover:bg-violet-100 text-violet-700 dark:bg-violet-900/20 dark:text-violet-300 dark:hover:bg-violet-900/40 border border-violet-200 dark:border-violet-800'
+              }`}
+            >
+              Download Logs
+            </button>
+            <button
+              onClick={refreshLogs}
+              className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded transition-colors dark:bg-gray-800 dark:text-gray-300"
+            >
+              Refresh
+            </button>
+            <button
               onClick={() => setAutoScroll(!autoScroll)}
               className={`px-3 py-1.5 text-sm rounded transition-colors ${
                 autoScroll
@@ -280,6 +329,15 @@ export default function Logs() {
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-medium text-cyan-800 dark:text-cyan-200 text-sm">Platform Health Check</h3>
             <div className="flex items-center gap-2">
+              <label className="inline-flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mr-1">
+                <input
+                  type="checkbox"
+                  checked={showDoctorInfoChecks}
+                  onChange={(e) => setShowDoctorInfoChecks(e.target.checked)}
+                  className="rounded"
+                />
+                Show info checks
+              </label>
               <button
                 onClick={async () => {
                   setDoctorFixing(true)
@@ -312,11 +370,14 @@ export default function Logs() {
                 <span className={`px-2 py-1 rounded ${doctorResults.platform?.gateway ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'}`}>{doctorResults.platform?.gateway ? '✓' : '⚠'} Gateway{doctorResults.platform?.gatewayPort ? `:${doctorResults.platform.gatewayPort}` : ''}</span>
                 <span className={`px-2 py-1 rounded ${doctorResults.healthy && doctorResults.summary.warn === 0 ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'}`}>{doctorResults.summary.pass} pass, {doctorResults.summary.fail} fail, {doctorResults.summary.warn} warn, {doctorResults.summary.fixed} fixed</span>
               </div>
-              {(doctorResults.results || []).filter((r: any) => (r.checks || []).some((c: any) => c.status !== 'pass')).map((r: any) => (
+              {visibleDoctorResults.map((r: any) => (
                 <div key={r.id} className="text-xs text-gray-600 dark:text-gray-400">
-                  <span className="font-mono font-medium">{r.id}:</span> {(r.checks || []).filter((c: any) => c.status !== 'pass').map((c: any) => `${c.status === 'fixed' ? '⟳' : c.status === 'fail' ? '✗' : '⚠'} ${c.message}`).join(' | ')}
+                  <span className="font-mono font-medium">{r.id}:</span> {r.visibleChecks.map((c: any) => `${c.status === 'pass' ? '✓' : c.status === 'fixed' ? '⟳' : c.status === 'fail' ? '✗' : '⚠'} ${c.message}`).join(' | ')}
                 </div>
               ))}
+              {doctorResults.results.length > 0 && visibleDoctorResults.length === 0 && !showDoctorInfoChecks && (
+                <div className="text-xs text-gray-500 dark:text-gray-400">No warnings or failures. Enable info checks to see full agent details.</div>
+              )}
               {doctorResults.healthy && doctorResults.summary.warn === 0 && <div className="text-xs text-green-600 dark:text-green-400">All agents healthy</div>}
               {doctorResults.healthy && doctorResults.summary.warn > 0 && <div className="text-xs text-amber-700 dark:text-amber-300">Agents are healthy, but runtime warnings still need attention.</div>}
               {doctorResults.message && doctorResults.results.length === 0 && (

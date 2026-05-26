@@ -90,6 +90,12 @@ What would you like me to work on?`
   )
 })
 
+test('suppresses metadata-only json blobs when no human text is present', () => {
+  const raw = '{ "results": [], "provider": "openai", "model": "text-embedding-3-small", "citations": "auto", "mode": "hybrid" }'
+  const normalized = normalizeChatMessage(raw)
+  assert(normalized === '', `Expected metadata-only JSON to be suppressed, got: ${normalized}`)
+})
+
 console.log('\n========================================')
 console.log(`Tests passed: ${testsPassed}`)
 console.log(`Tests failed: ${testsFailed}`)

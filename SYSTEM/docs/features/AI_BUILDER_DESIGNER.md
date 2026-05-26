@@ -88,6 +88,36 @@ As of the current `ai-builder-designer` branch, the first cut now includes:
 - Builder session history / archive / restore
 - thumbs up / thumbs down local feedback
 - direct handoff into Templates / Agents / Skills / Workflows
+- built-in/system model preference support for Builder/system flows
+- first-run onboarding that now points users toward Builder and BYOK before deeper setup
+
+## Current Release Readiness
+
+The branch is now feature-complete enough to start a real `1.6.0` manual QA pass.
+
+What is considered release-candidate ready:
+
+- Builder is the recommended first-run path
+- direct handoffs exist for:
+  - create workflow
+  - create skill
+  - refine template
+  - create template
+- session save/download/share flows exist
+- built-in/system metering and model-preference support exist
+- onboarding tour is implemented and theme-aware
+
+What is still quality hardening rather than missing core scope:
+
+- adding more real prompts to the Builder eval corpus
+- tightening ambiguous reuse vs refine vs create-new ranking
+- polishing share/export naming and remote-share UX
+
+That means the next phase is:
+
+- manual QA
+- capture any bad prompts or handoff misses
+- feed those back into the eval corpus before final merge
 
 ## Builder Agent Roles
 

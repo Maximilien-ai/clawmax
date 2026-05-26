@@ -53,20 +53,28 @@
 - built-in/system-agent metering presentation split in Activity/Budget
 - real built-in/system-agent metering identity in the server metering API
 - built-in/system-agent model selection via workspace `systemPreferredModel`
+- Doctor signal-vs-info cleanup so neutral checks do not dominate the default view
+- onboarding improvements that route first-time users toward BYOK and Builder
 
 ### In Progress
 
 - recommendation quality across a broader real-prompt corpus
 - recommendation trust and ranking against harder mixed existing-vs-template-vs-new scenarios
 - broader manual prompt validation and handoff QA
+- final branch-to-`main` merge prep for `1.6.0`
 
 ### Still Needed Before Prime Time
 
-- larger automated prompt suite based on real user queries
-- more robust “match quality” thresholds for reuse vs refine vs new
-- additional manual testing of handoff correctness and recommendation quality
+- final manual testing of:
+  - Builder routing quality
+  - workflow / skill / template handoffs
+  - save / download / share
+  - onboarding tour in light/dark mode
+  - built-in/system model and metering behavior
+- harvest the final bad/manual prompts from that pass into the eval corpus
 - Builder remote sharing UX/opt-in polish
 - Builder markdown/session export naming/index polish
+- final merge of `ai-builder-designer` into `main` once QA is clean
 
 ## Target
 

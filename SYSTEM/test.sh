@@ -342,6 +342,16 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Agent doctor route unit tests...${NC}"
+npx ts-node --transpileOnly server/routes/agents.test.ts > /tmp/clawmax-agent-routes.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-agent-routes.out; then
+  agent_route_count=$(grep "Tests passed:" /tmp/clawmax-agent-routes.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Agent doctor route unit tests (${agent_route_count:-?} tests)"
+else
+  fail "Agent doctor route unit tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Model discovery unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/model-discovery.test.ts > /tmp/clawmax-model-discovery.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-model-discovery.out; then

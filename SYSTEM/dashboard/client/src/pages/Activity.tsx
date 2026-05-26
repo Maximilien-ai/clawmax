@@ -128,7 +128,6 @@ export default function Activity({ onNavigateToDoc, isActive = false }: Activity
   const [sortCol, setSortCol] = useState<SortCol>('age')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [debugAgent, setDebugAgent] = useState<string | null>(null)
-  const [showSystemLogs, setShowSystemLogs] = useState(false)
   const [showDoctor, setShowDoctor] = useState(false)
   const [metering, setMetering] = useState<MeteringData | null>(cachedActivityMetering)
   const [meteringLoading, setMeteringLoading] = useState(!cachedActivityMetering)
@@ -306,61 +305,9 @@ export default function Activity({ onNavigateToDoc, isActive = false }: Activity
 
   const rows = sortEntries(feed, sortCol, sortDir)
   const meteringByAgentType = summarizeMeteringByAgentType(metering?.byAgent || [])
+  const hasBuiltInTraces = meteringByAgentType.builtInAgentCount > 0
 
   const thCls = 'px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wider cursor-pointer select-none hover:text-gray-600 transition-colors text-left'
-
-  const handleExportCSV = () => {
-    const headers = ['Age (mins)', 'Agent ID', 'Type', 'File', 'Last Modified']
-    const csvRows = [
-      headers.join(','),
-      ...rows.map(entry => {
-        const ft = fileType(entry.file)
-        return [
-          (entry.ageMins || 0).toFixed(2),
-          `"${entry.agentId}"`,
-          `"${ft.label}"`,
-          `"${entry.file}"`,
-          `"${entry.mtime}"`
-        ].join(',')
-      })
-    ]
-    const csvContent = csvRows.join('\n')
-    const blob = new Blob([csvContent], { type: 'text/csv' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `activity-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.csv`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-  }
-
-  const handleExportJSON = () => {
-    const exportData = {
-      exportedAt: new Date().toISOString(),
-      totalEntries: rows.length,
-      sortedBy: sortCol,
-      sortDirection: sortDir,
-      entries: rows.map(entry => ({
-        agentId: entry.agentId,
-        file: entry.file,
-        type: fileType(entry.file).label,
-        lastModified: entry.mtime,
-        ageMinutes: entry.ageMins
-      }))
-    }
-    const jsonContent = JSON.stringify(exportData, null, 2)
-    const blob = new Blob([jsonContent], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `activity-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.json`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-  }
 
   return (
     <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 sm:py-6">
@@ -378,44 +325,6 @@ export default function Activity({ onNavigateToDoc, isActive = false }: Activity
           </p>
         </div>
         <div className="flex gap-3">
-          <div className="relative group">
-            <button
-              disabled={rows.length === 0}
-              className={`inline-flex items-center gap-2 text-sm font-medium transition-colors ${
-                rows.length === 0
-                  ? 'text-gray-300 cursor-not-allowed'
-                  : 'text-purple-600 hover:text-purple-800'
-              }`}
-            >
-              <ProductIconCell iconName="export" label="Export" size="sm" className="border-transparent bg-transparent text-current" />
-              Export
-            </button>
-            {rows.length > 0 && (
-              <div className="absolute right-0 top-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10 min-w-[120px] dark:border-gray-700">
-                <button
-                  onClick={handleExportCSV}
-                  className="inline-flex w-full items-center gap-2 text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors rounded-t-lg dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-700"
-                >
-                  <ProductIconCell iconName="docs" label="CSV" size="sm" className="border-sky-200 bg-sky-50 text-sky-600 dark:border-sky-700 dark:bg-sky-900/30 dark:text-sky-300" />
-                  CSV
-                </button>
-                <button
-                  onClick={handleExportJSON}
-                  className="inline-flex w-full items-center gap-2 text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors rounded-b-lg dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-700"
-                >
-                  <ProductIconCell iconName="export" label="JSON" size="sm" className="border-indigo-200 bg-indigo-50 text-indigo-600 dark:border-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300" />
-                  JSON
-                </button>
-              </div>
-            )}
-          </div>
-          <button
-            onClick={() => setShowSystemLogs(true)}
-            className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-800 transition-colors dark:text-gray-200"
-          >
-            <ProductIconCell iconName="docs" label="System Logs" size="sm" className="border-transparent bg-transparent text-current" />
-            System Logs
-          </button>
           <button
             onClick={handleRefresh}
             disabled={cooling}
@@ -558,6 +467,11 @@ export default function Activity({ onNavigateToDoc, isActive = false }: Activity
               <div className="text-xs text-gray-500">Built-in Cost</div>
             </div>
           </div>
+          {!meteringLoading && metering.totalTraces > 0 && !hasBuiltInTraces && (
+            <div className="mb-4 rounded-lg border border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-900/20 px-4 py-3 text-sm text-violet-900 dark:text-violet-200">
+              No built-in or system-agent traces have been recorded in this workspace yet. Built-in badges appear here after Builder or another system flow generates metered activity.
+            </div>
+          )}
 
           {/* Per-agent breakdown */}
           {metering.byAgent.length > 0 && (
@@ -706,11 +620,6 @@ export default function Activity({ onNavigateToDoc, isActive = false }: Activity
       {/* Agent Debug Modal */}
       {debugAgent && (
         <AgentDebugModal agentId={debugAgent} onClose={() => setDebugAgent(null)} />
-      )}
-
-      {/* System Logs Modal */}
-      {showSystemLogs && (
-        <SystemLogsModal onClose={() => setShowSystemLogs(false)} />
       )}
       {showDoctor && (
         <DoctorModal onClose={() => setShowDoctor(false)} />
@@ -903,85 +812,12 @@ function HealthDisplay({ health }: { health: any }) {
   )
 }
 
-// System Logs Modal Component
-function SystemLogsModal({ onClose }: { onClose: () => void }) {
-  const [logs, setLogs] = useState<string[]>([])
-  const logsEndRef = React.useRef<HTMLDivElement>(null)
-
-  // Auto-scroll logs
-  React.useEffect(() => {
-    if (logsEndRef.current) {
-      logsEndRef.current.scrollIntoView({ behavior: 'smooth' })
-    }
-  }, [logs])
-
-  // Fetch logs via SSE - system-wide, no agent ID
-  React.useEffect(() => {
-    const eventSource = new EventSource('/api/system/logs')
-
-    eventSource.onmessage = (event) => {
-      const data = JSON.parse(event.data)
-      if (data.line) {
-        setLogs(prev => [...prev, data.line])
-      }
-    }
-
-    eventSource.onerror = () => {
-      eventSource.close()
-    }
-
-    return () => {
-      eventSource.close()
-    }
-  }, [])
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
-      <div
-        className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl w-[90vw] max-w-5xl h-[80vh] flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between shrink-0 dark:border-gray-700">
-          <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200">System Logs</h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors text-xl"
-          >
-            ×
-          </button>
-        </div>
-
-        {/* Logs Content */}
-        <div className="flex-1 overflow-auto p-6">
-          <div className="bg-gray-900 rounded-lg p-4 font-mono text-xs text-green-400 h-full overflow-auto">
-            {logs.length === 0 && <div className="text-gray-500">Waiting for logs...</div>}
-            {logs.map((line, i) => (
-              <div key={i} className="whitespace-pre-wrap break-all">{line}</div>
-            ))}
-            <div ref={logsEndRef} />
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-200 flex justify-end shrink-0 dark:border-gray-700">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
-          >
-            Close
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 // Doctor Modal Component
 function DoctorModal({ onClose }: { onClose: () => void }) {
   const [loading, setLoading] = useState(true)
   const [results, setResults] = useState<any>(null)
   const [fixing, setFixing] = useState(false)
+  const [showInfoChecks, setShowInfoChecks] = useState(false)
   const normalizeDoctorResults = (data: any) => ({
     healthy: Boolean(data?.healthy),
     summary: {
@@ -1011,6 +847,12 @@ function DoctorModal({ onClose }: { onClose: () => void }) {
       .then(data => { setResults(data); setLoading(false); setFixing(false) })
       .catch(() => { setResults(normalizeDoctorResults(null)); setLoading(false); setFixing(false) })
   }, [])
+  const visibleDoctorResults = (results?.results || [])
+    .map((agent: any) => ({
+      ...agent,
+      visibleChecks: (agent.checks || []).filter((check: any) => showInfoChecks || check.status !== 'pass'),
+    }))
+    .filter((agent: any) => showInfoChecks || agent.visibleChecks.length > 0)
   useEffect(() => { runDoctor() }, [runDoctor])
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
@@ -1018,6 +860,15 @@ function DoctorModal({ onClose }: { onClose: () => void }) {
         <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
           <div><h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200">ClawMax Doctor</h2><p className="text-xs text-gray-500 dark:text-gray-400">Platform and agent health check</p></div>
           <div className="flex items-center gap-2">
+            <label className="inline-flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mr-2">
+              <input
+                type="checkbox"
+                checked={showInfoChecks}
+                onChange={(e) => setShowInfoChecks(e.target.checked)}
+                className="rounded"
+              />
+              Show info checks
+            </label>
             <button onClick={() => runDoctor(true)} disabled={fixing} className="text-sm px-3 py-1.5 rounded-md bg-cyan-600 text-white hover:bg-cyan-700 disabled:bg-gray-300 transition-colors">{fixing ? 'Fixing...' : 'Auto-Fix'}</button>
             <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-xl leading-none">&times;</button>
           </div>
@@ -1030,10 +881,10 @@ function DoctorModal({ onClose }: { onClose: () => void }) {
                 <span className={`px-3 py-1.5 rounded-lg ${results.platform?.gateway ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300' : 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300'}`}>{results.platform?.gateway ? '✓' : '⚠'} Gateway{results.platform?.gatewayPort ? `:${results.platform.gatewayPort}` : ''}</span>
                 <span className={`px-3 py-1.5 rounded-lg ${results.healthy && results.summary.warn === 0 ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300' : 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300'}`}>{results.summary.pass} pass, {results.summary.fail} fail, {results.summary.warn} warn, {results.summary.fixed} fixed</span>
               </div>
-              {results.results?.map((agent: any) => (
+              {visibleDoctorResults.map((agent: any) => (
                 <div key={agent.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-3">
                   <div className="font-medium text-sm text-gray-900 dark:text-gray-100 mb-2 font-mono">{agent.id}</div>
-                  <div className="space-y-1">{(agent.checks || []).map((c: any, i: number) => (
+                  <div className="space-y-1">{agent.visibleChecks.map((c: any, i: number) => (
                     <div key={i} className="flex items-center gap-2 text-xs">
                       <span className={c.status === 'pass' ? 'text-green-500' : c.status === 'fixed' ? 'text-cyan-500' : c.status === 'fail' ? 'text-red-500' : 'text-amber-500'}>{c.status === 'pass' ? '✓' : c.status === 'fixed' ? '⟳' : c.status === 'fail' ? '✗' : '⚠'}</span>
                       <span className="text-gray-600 dark:text-gray-400">{c.check}:</span>
@@ -1043,6 +894,9 @@ function DoctorModal({ onClose }: { onClose: () => void }) {
                 </div>
               ))}
               {results.results?.length === 0 && <div className="text-center text-gray-400 py-4">No agents in workspace</div>}
+              {results.results?.length > 0 && visibleDoctorResults.length === 0 && !showInfoChecks && (
+                <div className="text-center text-gray-400 py-4 text-sm">No warnings or failures. Enable info checks to see full agent details.</div>
+              )}
               {results.healthy && results.summary.warn > 0 && <div className="text-center text-amber-700 dark:text-amber-300 py-2 text-sm">Agents are healthy, but runtime warnings still need attention.</div>}
               {results.message && results.results?.length === 0 && <div className="text-center text-gray-500 dark:text-gray-400 py-2 text-sm">{results.message}</div>}
             </div>

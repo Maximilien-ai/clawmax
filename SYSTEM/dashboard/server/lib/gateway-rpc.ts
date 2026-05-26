@@ -17,6 +17,10 @@ interface GatewayConfig {
   }
 }
 
+function getGatewayOrigin(config: GatewayConfig): string {
+  return config.httpUrl || `http://localhost:${config.port}`
+}
+
 function normalizeGatewayHttpUrl(raw: string): string | null {
   const trimmed = String(raw || '').trim()
   if (!trimmed) return null
@@ -142,7 +146,12 @@ export class GatewayRPCClient {
   async call<T = any>(method: string, params?: any): Promise<T> {
     return new Promise((resolve, reject) => {
       const requestId = randomUUID()
-      const ws = new WebSocket(this.gatewayUrl)
+      const config = this.loadGatewayConfig()
+      const ws = new WebSocket(this.gatewayUrl, {
+        headers: {
+          Origin: getGatewayOrigin(config),
+        },
+      })
       let responseReceived = false
       let authenticated = false
       let connectNonce: string | null = null
@@ -424,7 +433,11 @@ export async function probeGatewayResponsive(timeoutMs = 3000): Promise<{ runnin
   if (!config) return { running: false, port: null }
 
   return new Promise((resolve) => {
-    const ws = new WebSocket(config.wsUrl || `ws://127.0.0.1:${config.port}`)
+    const ws = new WebSocket(config.wsUrl || `ws://127.0.0.1:${config.port}`, {
+      headers: {
+        Origin: getGatewayOrigin(config),
+      },
+    })
     const timer = setTimeout(() => {
       try { ws.close() } catch {}
       resolve({ running: false, port: config.port, error: 'Gateway timed out during authenticated probe' })

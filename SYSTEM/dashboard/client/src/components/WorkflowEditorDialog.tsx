@@ -74,24 +74,52 @@ function getBrowserTimezone() {
   return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
 }
 
-export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialData, mode }: WorkflowEditorDialogProps) {
-  const [formData, setFormData] = useState<WorkflowFormData>({
+function buildWorkflowFormData(initialData?: Partial<WorkflowFormData>): WorkflowFormData {
+  const {
+    timezone: initialTimezone,
+    targeting: initialTargeting,
+    outputDefinitions: initialOutputDefinitions,
+    inputRefs: initialInputRefs,
+    ...restInitialData
+  } = initialData || {}
+  const targeting = initialTargeting || {}
+  const base: WorkflowFormData = {
     name: '',
     description: '',
     schedule: '0 9 * * *',
     timezone: getBrowserTimezone(),
     enabled: true,
     executionMode: 'automated',
-      targeting: {
-        communities: [],
-        groups: [],
-        tags: [],
-        agents: [],
-        teamIds: []
-      },
-      content: '',
-      ...initialData
-  })
+    targeting: {
+      communities: [],
+      groups: [],
+      tags: [],
+      agents: [],
+      teamIds: [],
+    },
+    content: '',
+    outputDefinitions: [],
+    inputRefs: [],
+  }
+  return {
+    ...base,
+    ...restInitialData,
+    timezone: initialTimezone || base.timezone,
+    targeting: {
+      ...base.targeting,
+      communities: targeting.communities || [],
+      groups: targeting.groups || [],
+      tags: targeting.tags || [],
+      agents: targeting.agents || [],
+      teamIds: targeting.teamIds || [],
+    },
+    outputDefinitions: initialOutputDefinitions || [],
+    inputRefs: initialInputRefs || [],
+  }
+}
+
+export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialData, mode }: WorkflowEditorDialogProps) {
+  const [formData, setFormData] = useState<WorkflowFormData>(() => buildWorkflowFormData(initialData))
   const [saving, setSaving] = useState(false)
   const [cronError, setCronError] = useState<string | null>(null)
   const [cronHuman, setCronHuman] = useState<string>('')
@@ -162,33 +190,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
 
   useEffect(() => {
     if (!isOpen) return
-    setFormData({
-      name: '',
-      description: '',
-      schedule: '0 9 * * *',
-      timezone: getBrowserTimezone(),
-      enabled: true,
-      executionMode: 'automated',
-      targeting: {
-        communities: [],
-        groups: [],
-        tags: [],
-        agents: [],
-        teamIds: [],
-      },
-      content: '',
-      ...initialData,
-      timezone: initialData?.timezone || getBrowserTimezone(),
-      targeting: {
-        communities: initialData?.targeting?.communities || [],
-        groups: initialData?.targeting?.groups || [],
-        tags: initialData?.targeting?.tags || [],
-        agents: initialData?.targeting?.agents || [],
-        teamIds: initialData?.targeting?.teamIds || [],
-      },
-      outputDefinitions: initialData?.outputDefinitions || [],
-      inputRefs: initialData?.inputRefs || [],
-    })
+    setFormData(buildWorkflowFormData(initialData))
     setProducesMarkdownOutput(Boolean(initialData?.outputDefinitions?.length))
   }, [initialData, isOpen])
 
