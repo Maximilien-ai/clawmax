@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import Builder from './pages/Builder'
 import Agents from './pages/Agents'
 import DocHub from './pages/DocHub'
 import Activity from './pages/Activity'
@@ -23,10 +24,12 @@ import { MaintenanceBanner } from './components/MaintenanceBanner'
 import { NotificationCenter } from './components/NotificationCenter'
 import { OnboardingWizard } from './components/OnboardingWizard'
 import { TermsOfServiceModal } from './components/TermsOfServiceModal'
+import { WorkspaceFirstRunTour } from './components/WorkspaceFirstRunTour'
 import { useWorkspace } from './contexts/WorkspaceContext'
 import { CHANNEL_API_ENDPOINTS } from './lib/channelApi'
 import { getVisibleMaintenanceBanner } from './lib/maintenanceBannerView'
 import { type DashboardPage, pageToPath, pathToPage } from './lib/navigation'
+import { readGlobalWorkspaceTourDisabled, readWorkspaceTourState, shouldShowWorkspaceTour, writeWorkspaceTourState } from './lib/onboardingTour'
 
 type Page = DashboardPage
 
@@ -78,6 +81,16 @@ function BotIcon({ className }: { className?: string }) {
       <path d="M9 13h.01" />
       <path d="M15 13h.01" />
       <path d="M9 17h6" />
+    </svg>
+  )
+}
+
+function SparkIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={iconClassName(className)}>
+      <path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3Z" />
+      <path d="M5 18.5 6 21l1-2.5L9.5 17 7 16l-1-2.5L5 16l-2.5 1L5 18.5Z" />
+      <path d="M19 16.5 19.7 18l1.8.7-1.8.7L19 21l-.7-1.6-1.8-.7 1.8-.7L19 16.5Z" />
     </svg>
   )
 }
@@ -186,6 +199,7 @@ function LogIcon({ className }: { className?: string }) {
 }
 
 const DEFAULT_NAV_ORDER: NavItem[] = [
+  { id: 'builder', label: 'Builder', icon: SparkIcon },
   { id: 'agents', label: 'Agents', icon: BotIcon },
   { id: 'workflows', label: 'Workflows', icon: WorkflowIcon },
   { id: 'communication', label: 'Communications', icon: MessageIcon },
@@ -200,7 +214,7 @@ const DEFAULT_NAV_ORDER: NavItem[] = [
 ]
 
 // User tabs that can be rearranged (first 5)
-const USER_TABS_COUNT = 5
+const USER_TABS_COUNT = 6
 const CREATION_TABS_ORDER: Page[] = ['skills', 'templates']
 const OPERATIONS_TABS_ORDER: Page[] = ['keys', 'activity', 'logs']
 const SYSTEM_TABS_ORDER: Page[] = [...CREATION_TABS_ORDER, ...OPERATIONS_TABS_ORDER]
@@ -222,6 +236,10 @@ function normalizeNavOrder(saved: NavItem[] | null | undefined): NavItem[] {
 
   const savedUserIds = uniqueSavedIds.filter(id => defaultUserIds.includes(id))
   const savedSystemIds = uniqueSavedIds.filter(id => defaultSystemIds.includes(id))
+
+  if (!savedUserIds.includes('builder')) {
+    savedUserIds.unshift('builder')
+  }
 
   for (const id of defaultUserIds) {
     if (!savedUserIds.includes(id)) savedUserIds.push(id)
@@ -580,6 +598,7 @@ export default function App() {
                   <NavItemDraggable
                     label={item.label}
                     icon={item.icon}
+                    dataTourId={`nav-${item.id}`}
                     active={page === item.id}
                     badge={item.id === 'communication' && totalUnread > 0 ? totalUnread : undefined}
                     onClick={() => {
@@ -662,6 +681,7 @@ export default function App() {
               onOpenAgentCreate={() => { setInitialAgentAction('create'); setPage('agents') }}
               onOpenAgentCreateAI={() => { setInitialAgentAction('create-ai'); setPage('agents') }}
               onOpenAgentImport={() => { setInitialAgentAction('import'); setPage('agents') }}
+              onOpenBuilder={() => setPage('builder')}
               onOpenByok={() => window.dispatchEvent(new CustomEvent('open-byok-wizard'))}
               onOpenPartners={() => window.dispatchEvent(new CustomEvent('open-partners-wizard'))}
             />
@@ -693,6 +713,25 @@ export default function App() {
                   initialAction={initialAgentAction}
                   onInitialActionHandled={() => setInitialAgentAction(undefined)}
                   isActive={page === 'agents'}
+                />
+              </WorkspaceScoped>
+            </div>
+            )}
+            {visitedPages.has('builder') && (
+            <div className={`flex-1 overflow-auto ${page === 'builder' ? '' : 'hidden'}`}>
+              <WorkspaceScoped pageKey="builder">
+                <Builder
+                  onNavigateToPage={(nextPage) => setPage(nextPage as Page)}
+                  onOpenAgentCreate={() => { setInitialAgentAction('create'); setPage('agents') }}
+                  onOpenAgentCreateAI={() => { setInitialAgentAction('create-ai'); setPage('agents') }}
+                  onOpenAgentImport={() => { setInitialAgentAction('import'); setPage('agents') }}
+                  onOpenAgent={(agentId) => { setInitialAgentId(agentId); setPage('agents') }}
+                  onOpenSkill={(skillName, agentId) => {
+                    setInitialSkillsAgent(agentId)
+                    setInitialSkillsSkill(skillName)
+                    setPage('skills')
+                  }}
+                  onOpenWorkflow={(workflowId) => { setInitialWorkflowId(workflowId); setPage('workflows') }}
                 />
               </WorkspaceScoped>
             </div>
@@ -798,7 +837,7 @@ export default function App() {
   )
 }
 
-function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWorkflowsCount, onClickRunningWorkflows, darkMode, onToggleDarkMode, onNavigateToAgent, onNavigateToWorkflow, onNavigateToPage, onNavigateToDoc, onOpenAgentCreate, onOpenAgentCreateAI, onOpenAgentImport, onOpenByok, onOpenPartners }: {
+function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWorkflowsCount, onClickRunningWorkflows, darkMode, onToggleDarkMode, onNavigateToAgent, onNavigateToWorkflow, onNavigateToPage, onNavigateToDoc, onOpenAgentCreate, onOpenAgentCreateAI, onOpenAgentImport, onOpenBuilder, onOpenByok, onOpenPartners }: {
   system: SystemInfo | null
   onMobileMenuToggle?: () => void
   onOpenWorkspaceDialog?: () => void
@@ -813,6 +852,7 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
   onOpenAgentCreate?: () => void
   onOpenAgentCreateAI?: () => void
   onOpenAgentImport?: () => void
+  onOpenBuilder?: () => void
   onOpenByok?: () => void
   onOpenPartners?: () => void
 }) {
@@ -821,6 +861,7 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
   const activeWorkspaceKey = activeWorkspace?.path || activeWorkspace?.id || null
   const rawOnboardingVisible = !workspaceLoading && !!activeWorkspace && (activeWorkspace.agentCount ?? 0) === 0
   const [stickyOnboardingWorkspaceKey, setStickyOnboardingWorkspaceKey] = useState<string | null>(null)
+  const [workspaceTourVisible, setWorkspaceTourVisible] = useState(false)
 
   useEffect(() => {
     if (!activeWorkspaceKey) return
@@ -835,6 +876,22 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
 
   const effectiveOnboardingWorkspaceKey = activeWorkspaceKey || stickyOnboardingWorkspaceKey
   const onboardingVisible = rawOnboardingVisible || (!!effectiveOnboardingWorkspaceKey && stickyOnboardingWorkspaceKey === effectiveOnboardingWorkspaceKey)
+
+  useEffect(() => {
+    const workspaceKey = effectiveOnboardingWorkspaceKey
+    if (!workspaceKey) {
+      setWorkspaceTourVisible(false)
+      return
+    }
+    const storedState = readWorkspaceTourState(workspaceKey)
+    setWorkspaceTourVisible(shouldShowWorkspaceTour({
+      workspaceKey,
+      workspaceAgentCount: activeWorkspace?.agentCount,
+      onboardingVisible,
+      storedState,
+      globallyDisabled: readGlobalWorkspaceTourDisabled(),
+    }))
+  }, [activeWorkspace?.agentCount, effectiveOnboardingWorkspaceKey, onboardingVisible])
 
   const effectiveActiveAgentCount = system
     ? (typeof system.activeAgentCount === 'number'
@@ -855,7 +912,18 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
   }
 
   return (
-    <div className="min-h-11 flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 bg-white px-3 py-2 shrink-0 dark:border-gray-700 dark:bg-gray-800 md:min-h-14 md:px-5 md:py-2">
+    <>
+      <WorkspaceFirstRunTour
+        visible={workspaceTourVisible}
+        onNavigateToPage={(nextPage) => onNavigateToPage?.(nextPage)}
+        onDismiss={(state) => {
+          if (effectiveOnboardingWorkspaceKey) {
+            writeWorkspaceTourState(effectiveOnboardingWorkspaceKey, state)
+          }
+          setWorkspaceTourVisible(false)
+        }}
+      />
+      <div className="min-h-11 flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 bg-white px-3 py-2 shrink-0 dark:border-gray-700 dark:bg-gray-800 md:min-h-14 md:px-5 md:py-2">
       <div className="flex min-w-0 flex-1 items-center gap-2 md:gap-4">
         {/* Mobile menu button */}
         <button
@@ -870,7 +938,9 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
 
         {/* Workspace switcher */}
         {onOpenWorkspaceDialog && (
-          <WorkspaceSwitcher onCreateNew={onOpenWorkspaceDialog} />
+          <div data-tour="workspace-switcher">
+            <WorkspaceSwitcher onCreateNew={onOpenWorkspaceDialog} />
+          </div>
         )}
 
         {orgBase && (
@@ -903,30 +973,38 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
         </div>
       </div>
       <div className="flex w-full items-center justify-end gap-2 md:w-auto md:gap-3">
-        <NotificationCenter
-          onNavigateToAgent={onNavigateToAgent}
-          onNavigateToWorkflow={onNavigateToWorkflow}
-          onNavigateToPage={onNavigateToPage}
-          onNavigateToDoc={onNavigateToDoc}
-          onAgentRestarted={() => window.dispatchEvent(new CustomEvent('agents-updated'))}
-        />
+        <div data-tour="notifications">
+          <NotificationCenter
+            onNavigateToAgent={onNavigateToAgent}
+            onNavigateToWorkflow={onNavigateToWorkflow}
+            onNavigateToPage={onNavigateToPage}
+            onNavigateToDoc={onNavigateToDoc}
+            onAgentRestarted={() => window.dispatchEvent(new CustomEvent('agents-updated'))}
+          />
+        </div>
         <OnboardingWizard
           visible={onboardingVisible}
+          suppressAutoOpen={workspaceTourVisible}
+          canShowWorkspaceTour={Boolean(effectiveOnboardingWorkspaceKey && (activeWorkspace?.agentCount ?? 0) === 0)}
           onOpenByok={() => onOpenByok?.()}
           onOpenPartners={() => onOpenPartners?.()}
           onImportAgents={() => onOpenAgentImport?.()}
+          onOpenBuilder={() => onOpenBuilder?.()}
+          onOpenWorkspaceTour={() => setWorkspaceTourVisible(true)}
           onCreateAgent={() => onOpenAgentCreate?.()}
           onCreateAgentAI={() => onOpenAgentCreateAI?.()}
           onOpenTemplates={() => onNavigateToPage?.('templates')}
           workspaceId={effectiveOnboardingWorkspaceKey}
         />
-        <ByokWizard
-          triggerLabel="BYOK"
-          triggerTitle="Configure model providers and local runtime"
-          initialStep="models"
-          openEventName="open-byok-wizard"
-          suppressAutoOpen={onboardingVisible}
-        />
+        <div data-tour="byok">
+          <ByokWizard
+            triggerLabel="BYOK"
+            triggerTitle="Configure model providers and local runtime"
+            initialStep="models"
+            openEventName="open-byok-wizard"
+            suppressAutoOpen={onboardingVisible}
+          />
+        </div>
         <ByokWizard
           triggerLabel="Partners"
           triggerTitle="Configure optional partner integrations"
@@ -976,13 +1054,15 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
         )}
         <span className="hidden md:inline text-xs text-gray-300 dark:text-gray-600 font-mono">{system?.version}</span>
       </div>
-    </div>
+      </div>
+    </>
   )
 }
 
-function NavItemDraggable({ label, icon: Icon, active, badge, onClick, collapsed, onDragStart, onDragOver, onDragEnd }: {
+function NavItemDraggable({ label, icon: Icon, dataTourId, active, badge, onClick, collapsed, onDragStart, onDragOver, onDragEnd }: {
   label: string
   icon: React.ComponentType<{ className?: string }>
+  dataTourId?: string
   active: boolean
   badge?: number
   onClick: () => void
@@ -993,6 +1073,7 @@ function NavItemDraggable({ label, icon: Icon, active, badge, onClick, collapsed
 }) {
   return (
     <button
+      data-tour={dataTourId}
       draggable
       onDragStart={onDragStart}
       onDragOver={onDragOver}

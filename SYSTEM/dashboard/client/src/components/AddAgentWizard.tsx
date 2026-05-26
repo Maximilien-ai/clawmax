@@ -1099,7 +1099,7 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
             void generateWithAI(value)
           }, 0)
         }}
-        onExpandWithAi={(value, format) => expandPromptWithAI(value, 'agent', format)}
+        onExpandWithAi={(value, format, guidance) => expandPromptWithAI(value, 'agent', format, guidance)}
         saveAndGenerateLabel="Save & Generate"
         savingAndGenerating={generating}
         generateDisabled={!aiEnabled}

@@ -19,6 +19,7 @@ export interface StoredByokKeys {
   opikProject?: string
   githubDefaultRepo?: string
   preferredModel?: string
+  systemPreferredModel?: string
   partnerSecrets?: Record<string, Record<string, string>>
   partnerValues?: Record<string, Record<string, string>>
 }

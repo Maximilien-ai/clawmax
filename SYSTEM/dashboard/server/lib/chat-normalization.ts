@@ -47,6 +47,29 @@ function extractPayloadText(value: unknown): string | null {
   return null
 }
 
+function isSuppressibleStructuredPayload(value: unknown): boolean {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+
+  const record = value as Record<string, unknown>
+  const keys = Object.keys(record)
+  if (keys.length === 0) return false
+
+  const searchMetadataKeys = ['results', 'provider', 'model', 'citations', 'mode']
+  const sessionMetadataKeys = ['count', 'sessions']
+
+  const matchesKeySet = (allowedKeys: string[]) => keys.every((key) => allowedKeys.includes(key))
+
+  if (matchesKeySet(searchMetadataKeys) && Array.isArray(record.results)) {
+    return true
+  }
+
+  if (matchesKeySet(sessionMetadataKeys) && Array.isArray(record.sessions)) {
+    return true
+  }
+
+  return false
+}
+
 function extractStructuredText(content: string): string | null {
   const trimmed = content.trim()
   if (!trimmed) return null
@@ -55,7 +78,11 @@ function extractStructuredText(content: string): string | null {
   }
 
   try {
-    return extractPayloadText(JSON.parse(trimmed))
+    const parsed = JSON.parse(trimmed)
+    const payloadText = extractPayloadText(parsed)
+    if (payloadText !== null) return payloadText
+    if (isSuppressibleStructuredPayload(parsed)) return ''
+    return null
   } catch {
     return null
   }
@@ -83,7 +110,7 @@ export function normalizeChatMessage(content: string): string {
 
   const withoutAnsi = stripAnsi(content)
   const structured = extractStructuredText(withoutAnsi)
-  if (structured) return structured.trim()
+  if (structured !== null) return structured.trim()
 
   const lines = withoutAnsi.split('\n')
   const cleanedLines: string[] = []

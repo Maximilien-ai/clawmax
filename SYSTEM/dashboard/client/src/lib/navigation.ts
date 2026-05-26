@@ -1,4 +1,5 @@
 export type DashboardPage =
+  | 'builder'
   | 'agents'
   | 'activity'
   | 'communication'
@@ -13,6 +14,7 @@ export type DashboardPage =
 const DEFAULT_PAGE: DashboardPage = 'agents'
 
 const PAGE_PATHS: Record<DashboardPage, string> = {
+  builder: '/builder',
   agents: '/agents',
   activity: '/activity',
   communication: '/communication',
@@ -34,4 +36,3 @@ export function pathToPage(pathname: string): DashboardPage {
   const matchedEntry = Object.entries(PAGE_PATHS).find(([, path]) => path === normalizedPath)
   return (matchedEntry?.[0] as DashboardPage | undefined) || DEFAULT_PAGE
 }
-

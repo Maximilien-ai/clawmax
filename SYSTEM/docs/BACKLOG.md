@@ -1,6 +1,6 @@
 # Backlog
 
-> Last updated: May 21, 2026
+> Last updated: May 23, 2026
 > Completed and verified work is archived into [CHANGELOG.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/CHANGELOG.md) and historical notes under `SYSTEM/docs/**/archive/`
 
 ## Top Priority
@@ -86,6 +86,9 @@
 ### Quality & Testing
 - [ ] **Dashboard regression automation** — coverage for OAuth/auth, agent edit/model save, template apply, workspace switching. GitHub: `#141`
 - [ ] **Clean-room CI hardening** — keep `SYSTEM/test.sh` deterministic, GitHub Actions trustworthy on `main`. GitHub: `#142`
+- [ ] **AI Builder evaluation corpus expansion** — keep the external Builder eval file current with real prompts, expected routing outcomes, and ambiguity/confirmation cases so recommendation quality can be improved without regressing.
+- [ ] **AI Builder open template-family taxonomy** — continue expanding Builder’s template-family hints without turning them into a closed whitelist; unknown domains should still fall back cleanly to `refine existing` vs `create new` template choices.
+- [ ] **AI Builder `1.6.0` merge / release-candidate QA pass** — before merging `ai-builder-designer`, run one final manual pass across Builder routing, handoffs, session export/share, onboarding tour, BYOK/system model behavior, and built-in/system metering visibility; feed any misses back into the eval corpus before the final merge.
 
 ### UX & Product Polish
 - [ ] **Mobile responsiveness audit** — run a focused pass across login, top bar, notifications, agent cards, chat, dashboards, template apply, and integrations wizard on narrow/mobile widths; fix clipped popovers, off-screen dialogs, awkward stacking, and tap-target issues before broader external demos. GitHub: `#143`
@@ -95,6 +98,8 @@
 - [ ] **Evaluate AG-UI for agent-driven UI surfaces** — explore using the AG-UI standard/framework for notifications and agent chat so agents can render richer UI, collect structured user input, and drive interactive flows; consider the same pattern for template apply and workflow run modals if it fits cleanly.
 - [ ] **System agents use best available model** — default to the best available configured provider model instead of a fixed mini model
 - [ ] **BYOK provider preference** — when a user has multiple providers, let them choose a preferred default
+- [ ] **AI Builder session export / DocHub polish** — Builder sessions can now save/download as markdown and land under `SYSTEM/Builder Sessions/...`; remaining work is naming/index polish, Builder-specific browsing affordances, and deciding whether to offer summary-only vs. full-transcript exports.
+- [ ] **AI Builder remote session / feedback sharing UX polish** — Builder now has optional remote share scaffolding plus local-only status messaging; remaining work is better opt-in/disclosure UX, stronger disabled/error states, and product decisions around manual vs. automatic sharing.
 - [ ] **Asset/IP cleanup for login and presentation visuals** — replace Star Wars-like robot elements (for example the R2-D2-style figure visible in current demo/login imagery) with owned or clearly safe ClawMax artwork across login screens and presentation assets to reduce copyright risk before wider external use.
 - [ ] **Agent/workflow logs filtering** — by agent or tag
 - [ ] **Workspace stats dashboard** — aggregate view with pause/disable

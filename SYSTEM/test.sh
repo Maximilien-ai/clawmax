@@ -56,6 +56,16 @@ apicurl() {
     curl -s $CURL_OPTS "$@"
   fi
 }
+
+# Some integration actions legitimately take longer than the default API timeout.
+apicurl_long() {
+  local long_opts="--connect-timeout 5 --max-time 60"
+  if [ -n "$DASHBOARD_AUTH" ]; then
+    curl -s $long_opts -H "Authorization: Bearer $DASHBOARD_AUTH" "$@"
+  else
+    curl -s $long_opts "$@"
+  fi
+}
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 YELLOW='\033[1;33m'
@@ -332,6 +342,16 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Agent doctor route unit tests...${NC}"
+npx ts-node --transpileOnly server/routes/agents.test.ts > /tmp/clawmax-agent-routes.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-agent-routes.out; then
+  agent_route_count=$(grep "Tests passed:" /tmp/clawmax-agent-routes.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Agent doctor route unit tests (${agent_route_count:-?} tests)"
+else
+  fail "Agent doctor route unit tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Model discovery unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/model-discovery.test.ts > /tmp/clawmax-model-discovery.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-model-discovery.out; then
@@ -562,6 +582,75 @@ if grep -q "All tests passed" /tmp/clawmax-discovery-suggestions.out; then
   pass "Discovery suggestion helper unit tests (${discovery_suggestions_count:-?} tests)"
 else
   fail "Discovery suggestion helper unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Builder starter prompt helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/builderStarterPrompts.test.ts > /tmp/clawmax-builder-starter-prompts.out 2>&1 || true
+if grep -q "builderStarterPrompts.test.ts: ok" /tmp/clawmax-builder-starter-prompts.out; then
+  builder_starter_prompt_count=$(grep -c "^✓" /tmp/clawmax-builder-starter-prompts.out | tr -cd '0-9')
+  pass "Builder starter prompt helper unit tests (${builder_starter_prompt_count:-?} tests)"
+else
+  cat /tmp/clawmax-builder-starter-prompts.out
+  fail "Builder starter prompt helper unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Onboarding tour helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/onboardingTour.test.ts > /tmp/clawmax-onboarding-tour.out 2>&1 || true
+if grep -q "onboardingTour.test.ts: ok" /tmp/clawmax-onboarding-tour.out; then
+  onboarding_tour_count=$(grep -c "^✓" /tmp/clawmax-onboarding-tour.out | tr -cd '0-9')
+  pass "Onboarding tour helper unit tests (${onboarding_tour_count:-?} tests)"
+else
+  cat /tmp/clawmax-onboarding-tour.out
+  fail "Onboarding tour helper unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Builder session helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/builderSession.test.ts > /tmp/clawmax-builder-session.out 2>&1 || true
+if grep -q "^✓" /tmp/clawmax-builder-session.out; then
+  builder_session_count=$(grep -c "^✓" /tmp/clawmax-builder-session.out | tr -cd '0-9')
+  pass "Builder session helper unit tests (${builder_session_count:-?} tests)"
+else
+  cat /tmp/clawmax-builder-session.out
+  fail "Builder session helper unit tests"
+fi
+
+echo -e "${YELLOW}→ Running AI Builder routing unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/ai-builder.test.ts > /tmp/clawmax-ai-builder-routing.out 2>&1 || true
+if grep -q "^✓" /tmp/clawmax-ai-builder-routing.out; then
+  ai_builder_routing_count=$(grep -c "^✓" /tmp/clawmax-ai-builder-routing.out | tr -cd '0-9')
+  pass "AI Builder routing unit tests (${ai_builder_routing_count:-?} tests)"
+else
+  cat /tmp/clawmax-ai-builder-routing.out
+  fail "AI Builder routing unit tests"
+fi
+
+echo -e "${YELLOW}→ Running AI Builder share unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/ai-builder-share.test.ts > /tmp/clawmax-ai-builder-share.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-ai-builder-share.out; then
+  ai_builder_share_count=$(grep "Tests passed:" /tmp/clawmax-ai-builder-share.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "AI Builder share unit tests (${ai_builder_share_count:-?} tests)"
+else
+  cat /tmp/clawmax-ai-builder-share.out
+  fail "AI Builder share unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Prompt attachment helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/promptAttachments.test.ts > /tmp/clawmax-prompt-attachments.out 2>&1 || true
+if grep -q "promptAttachments.test.ts: ok" /tmp/clawmax-prompt-attachments.out; then
+  pass "Prompt attachment helper unit tests (4 tests)"
+else
+  cat /tmp/clawmax-prompt-attachments.out
+  fail "Prompt attachment helper unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Metering presentation helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/meteringPresentation.test.ts > /tmp/clawmax-metering-presentation.out 2>&1 || true
+if grep -q "^✓" /tmp/clawmax-metering-presentation.out; then
+  metering_presentation_count=$(grep -c "^✓" /tmp/clawmax-metering-presentation.out | tr -cd '0-9')
+  pass "Metering presentation helper unit tests (${metering_presentation_count:-?} tests)"
+else
+  cat /tmp/clawmax-metering-presentation.out
+  fail "Metering presentation helper unit tests"
 fi
 
 echo -e "${YELLOW}→ Running Skill setup helper unit tests...${NC}"
@@ -2577,7 +2666,7 @@ SYSTEM_TEST_MODEL=$(echo "$auth_config" | jq -r '.costEfficientModel // empty' 2
 if [ -z "$SYSTEM_TEST_MODEL" ] || [ "$SYSTEM_TEST_MODEL" = "null" ]; then
   SYSTEM_TEST_MODEL="openai/gpt-4o-mini"
 fi
-apply_result=$(apicurl -X POST "$API_BASE/api/templates/organizations/import" \
+apply_result=$(apicurl_long -X POST "$API_BASE/api/templates/organizations/import" \
   -H 'Content-Type: application/json' \
   -d "{\"templateSlug\":\"clawmax-system-test\",\"modelOverride\":\"$SYSTEM_TEST_MODEL\",\"agentCounts\":{\"test-agent\":2}}")
 
@@ -2859,7 +2948,7 @@ echo "Integration Test Summary"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "Duration: ${INTEGRATION_DURATION}s"
 echo "Model: ${SYSTEM_TEST_MODEL:-openai/gpt-4o-mini}"
-echo "Est. cost: ~\$0.01-0.05 (based on ~3 agent calls)"
+echo "Est. cost: ~$0.01-0.05 (based on ~3 agent calls)"
 echo ""
 
 fi

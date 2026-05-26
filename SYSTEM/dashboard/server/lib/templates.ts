@@ -2616,6 +2616,7 @@ export function importOrganizationTemplate(
         const applySystemTemplateLatest = templateSource === 'system'
         const appliedModel = resolveDefaultAgentModel({
           explicitModel: options?.modelOverride,
+          builtIn: Array.isArray(templateAgent.tags) && templateAgent.tags.includes('built-in'),
           templateModel: applySystemTemplateLatest ? undefined : templateAgent.model,
           rawEnv: process.env as Record<string, string>,
         })

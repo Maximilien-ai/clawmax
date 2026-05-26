@@ -4,6 +4,7 @@ import { getWorkspacePath } from './workspace'
 
 export interface WorkspaceIntegrationConfig {
   preferredModel?: string
+  systemPreferredModel?: string
   githubDefaultRepo?: string
   sensoContextLabel?: string
   ollamaBaseUrl?: string
@@ -57,6 +58,7 @@ export function writeWorkspaceIntegrationConfig(input: WorkspaceIntegrationConfi
 
   const next: WorkspaceIntegrationConfig = {
     preferredModel: input.preferredModel?.trim() || undefined,
+    systemPreferredModel: input.systemPreferredModel?.trim() || undefined,
     githubDefaultRepo: input.githubDefaultRepo?.trim() || undefined,
     sensoContextLabel: input.sensoContextLabel?.trim() || undefined,
     ollamaBaseUrl: input.ollamaBaseUrl?.trim() || undefined,

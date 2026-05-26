@@ -7,6 +7,7 @@
 import {
   aggregateWorkspaceMeteringFromTraces,
   buildDailyCostSeries,
+  enrichWorkspaceMeteringWithAgentMetadata,
   mergeWorkspaceMetering,
   recordMeteringFetchFailure,
   resetMeteringFetchFailureStateForTests,
@@ -207,6 +208,54 @@ async function run() {
     assert(metering.byAgent.some((agent) => agent.agentId === 'analysis-lead' && agent.estimatedCostUsd > 0), 'Expected per-agent derived cost')
   })
 
+  await test('enrichWorkspaceMeteringWithAgentMetadata marks built-in agents from workspace metadata', () => {
+    const base = {
+      ...aggregateWorkspaceMeteringFromTraces([
+        {
+          id: 'a1',
+          name: 'agent.chat.builder-agent',
+          start_time: '2026-04-08T19:00:00.000Z',
+          end_time: '2026-04-08T19:00:10.000Z',
+          metadata: {
+            agent_id: 'builder-agent',
+            tokens_input: 100,
+            tokens_output: 50,
+            tokens_total: 150,
+            estimated_cost_usd: 0.1,
+          },
+        },
+        {
+          id: 'a2',
+          name: 'agent.chat.sales-lead',
+          start_time: '2026-04-08T19:01:00.000Z',
+          end_time: '2026-04-08T19:01:04.000Z',
+          metadata: {
+            agent_id: 'sales-lead',
+            tokens_input: 200,
+            tokens_output: 100,
+            tokens_total: 300,
+            estimated_cost_usd: 0.2,
+          },
+        },
+      ] as any),
+      period: 'all',
+    }
+
+    const enriched = enrichWorkspaceMeteringWithAgentMetadata(base, new Map([
+      ['builder-agent', { agentName: 'Builder agent', agentTags: ['built-in', 'system'], agentType: 'built-in', isBuiltIn: true }],
+      ['sales-lead', { agentName: 'Sales Lead', agentTags: ['sales'], agentType: 'user', isBuiltIn: false }],
+    ]))
+
+    const builtIn = enriched.byAgent.find((agent) => agent.agentId === 'builder-agent')
+    const user = enriched.byAgent.find((agent) => agent.agentId === 'sales-lead')
+
+    assert(!!builtIn && builtIn.isBuiltIn === true, 'Expected built-in agent flag')
+    assert(!!builtIn && builtIn.agentType === 'built-in', 'Expected built-in agent type')
+    assert(!!builtIn && builtIn.agentName === 'Builder agent', 'Expected enriched agent name')
+    assert(!!user && user.agentType === 'user', 'Expected user agent type')
+    assert(!!user && user.isBuiltIn === false, 'Expected non built-in user agent')
+  })
+
   await test('aggregateWorkspaceMeteringFromTraces can be safely pre-filtered by viewer identity', () => {
     const traces = [
       {
@@ -384,6 +433,10 @@ async function run() {
       byAgent: [
         {
           agentId: 'alpha',
+          agentName: 'Alpha',
+          agentTags: ['built-in'],
+          agentType: 'built-in',
+          isBuiltIn: true,
           totalCalls: 10,
           totalInputTokens: 1000,
           totalOutputTokens: 500,
@@ -422,6 +475,10 @@ async function run() {
       byAgent: [
         {
           agentId: 'alpha',
+          agentName: 'Alpha Agent',
+          agentTags: [],
+          agentType: 'unknown',
+          isBuiltIn: false,
           totalCalls: 8,
           totalInputTokens: 800,
           totalOutputTokens: 400,
@@ -455,6 +512,8 @@ async function run() {
     assert(!!today && Math.abs(today!.estimatedCostUsd - 1.25) < 0.0001, 'Expected existing daily bucket to keep max value')
     assert(!!newDay && Math.abs(newDay!.estimatedCostUsd - 0.2) < 0.0001, 'Expected new daily bucket to be added')
     assert(merged.byAgent[0].totalCalls === 10, 'Expected per-agent totals to remain monotonic')
+    assert(merged.byAgent[0].agentType === 'built-in', 'Expected richer built-in metadata to survive refreshes')
+    assert(merged.byAgent[0].isBuiltIn === true, 'Expected built-in flag to remain true')
     assert(merged.byWorkflow[0].totalRuns === 3, 'Expected per-workflow totals to remain monotonic')
   })
 

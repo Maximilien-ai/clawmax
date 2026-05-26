@@ -8,7 +8,7 @@ import https from 'https'
 import path from 'path'
 import fs from 'fs'
 import { getWorkspaceManager } from './workspace-manager'
-import { listAgents } from './workspace'
+import { listAgents, parseTags } from './workspace'
 import { estimateTraceCostUsd } from './model-pricing'
 import { resolveOpikRuntimeConfig } from './opik'
 
@@ -22,6 +22,10 @@ interface TraceData {
 
 export interface AgentMetering {
   agentId: string
+  agentName: string
+  agentTags: string[]
+  agentType: 'built-in' | 'user' | 'unknown'
+  isBuiltIn: boolean
   totalCalls: number
   totalInputTokens: number
   totalOutputTokens: number
@@ -69,6 +73,113 @@ export interface MeteringViewer {
   machineName?: string | null
 }
 
+interface MeteringAgentMetadata {
+  agentName: string
+  agentTags: string[]
+  agentType: AgentMetering['agentType']
+  isBuiltIn: boolean
+}
+
+function createEmptyAgentMetering(agentId: string): AgentMetering {
+  return {
+    agentId,
+    agentName: agentId,
+    agentTags: [],
+    agentType: 'unknown',
+    isBuiltIn: false,
+    totalCalls: 0,
+    totalInputTokens: 0,
+    totalOutputTokens: 0,
+    totalTokens: 0,
+    estimatedCostUsd: 0,
+    avgDurationMs: 0,
+    lastActivity: '',
+    models: {},
+  }
+}
+
+function classifyAgentTypeFromTags(tags: string[]): AgentMetering['agentType'] {
+  return tags.includes('built-in') ? 'built-in' : 'user'
+}
+
+function parseAgentNameFromIdentityContent(content: string, fallback: string): string {
+  const match = content.match(/\*\*Name[:\*\s]+\s*(.+)/m)
+    || content.match(/^-\s+Name[:\s]+(.+)$/m)
+    || content.match(/^#\s+(.+)$/m)
+  return match?.[1]?.trim() || fallback
+}
+
+function getWorkspaceAgentMetadata(workspaceId?: string): Map<string, MeteringAgentMetadata> {
+  const metadata = new Map<string, MeteringAgentMetadata>()
+
+  if (!workspaceId) {
+    for (const agent of listAgents()) {
+      const agentTags = Array.isArray(agent.tags) ? agent.tags : []
+      metadata.set(agent.id, {
+        agentName: agent.name || agent.id,
+        agentTags,
+        agentType: classifyAgentTypeFromTags(agentTags),
+        isBuiltIn: agentTags.includes('built-in'),
+      })
+    }
+    return metadata
+  }
+
+  try {
+    const workspacePath = getWorkspaceManager().resolveWorkspacePath(workspaceId)
+    const agentsDir = path.join(workspacePath, 'AGENTS')
+    for (const entry of fs.readdirSync(agentsDir, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue
+      if (entry.name.startsWith('.') || entry.name.startsWith('_') || entry.name === 'archive') continue
+
+      const agentId = entry.name
+      const identityPath = path.join(agentsDir, agentId, 'IDENTITY.md')
+      let identityContent = ''
+      try {
+        identityContent = fs.readFileSync(identityPath, 'utf-8')
+      } catch {}
+      const agentTags = identityContent ? parseTags(identityContent) : []
+      metadata.set(agentId, {
+        agentName: parseAgentNameFromIdentityContent(identityContent, agentId),
+        agentTags,
+        agentType: classifyAgentTypeFromTags(agentTags),
+        isBuiltIn: agentTags.includes('built-in'),
+      })
+    }
+  } catch {}
+
+  return metadata
+}
+
+function mergeAgentType(
+  left: AgentMetering['agentType'],
+  right: AgentMetering['agentType'],
+): AgentMetering['agentType'] {
+  if (left === 'built-in' || right === 'built-in') return 'built-in'
+  if (left === 'user' || right === 'user') return 'user'
+  return 'unknown'
+}
+
+export function enrichWorkspaceMeteringWithAgentMetadata(
+  metering: WorkspaceMetering,
+  agentMetadata: Map<string, MeteringAgentMetadata>,
+): WorkspaceMetering {
+  return {
+    ...metering,
+    byAgent: metering.byAgent.map((entry) => {
+      const metadata = agentMetadata.get(entry.agentId)
+      if (!metadata) return entry
+      return {
+        ...entry,
+        agentName: metadata.agentName || entry.agentName || entry.agentId,
+        agentTags: metadata.agentTags || entry.agentTags || [],
+        agentType: metadata.agentType || entry.agentType || 'unknown',
+        isBuiltIn: typeof metadata.isBuiltIn === 'boolean' ? metadata.isBuiltIn : entry.isBuiltIn,
+      }
+    }),
+  }
+}
+
 export function aggregateWorkspaceMeteringFromTraces(traces: TraceData[]): Omit<WorkspaceMetering, 'period'> {
   const agentMap = new Map<string, AgentMetering>()
   const workflowMap = new Map<string, WorkflowMetering>()
@@ -82,17 +193,7 @@ export function aggregateWorkspaceMeteringFromTraces(traces: TraceData[]): Omit<
 
     if (trace.name.startsWith('agent.chat.')) {
       const agentId = meta.agent_id || trace.name.replace('agent.chat.', '')
-      const existing = agentMap.get(agentId) || {
-        agentId,
-        totalCalls: 0,
-        totalInputTokens: 0,
-        totalOutputTokens: 0,
-        totalTokens: 0,
-        estimatedCostUsd: 0,
-        avgDurationMs: 0,
-        lastActivity: '',
-        models: {},
-      }
+      const existing = agentMap.get(agentId) || createEmptyAgentMetering(agentId)
 
       existing.totalCalls++
       existing.totalInputTokens += meta.tokens_input || 0
@@ -313,12 +414,12 @@ export function mergeWorkspaceMetering(previous: WorkspaceMetering, next: Worksp
 
   const mergedAgents = new Map<string, AgentMetering>()
   for (const entry of previous.byAgent || []) {
-    mergedAgents.set(entry.agentId, { ...entry, models: { ...(entry.models || {}) } })
+    mergedAgents.set(entry.agentId, { ...entry, agentTags: [...(entry.agentTags || [])], models: { ...(entry.models || {}) } })
   }
   for (const entry of next.byAgent || []) {
     const existing = mergedAgents.get(entry.agentId)
     if (!existing) {
-      mergedAgents.set(entry.agentId, { ...entry, models: { ...(entry.models || {}) } })
+      mergedAgents.set(entry.agentId, { ...entry, agentTags: [...(entry.agentTags || [])], models: { ...(entry.models || {}) } })
       continue
     }
     const mergedModels = { ...(existing.models || {}) }
@@ -327,6 +428,10 @@ export function mergeWorkspaceMetering(previous: WorkspaceMetering, next: Worksp
     }
     mergedAgents.set(entry.agentId, {
       ...existing,
+      agentName: entry.agentName || existing.agentName || entry.agentId,
+      agentTags: (entry.agentTags && entry.agentTags.length > 0) ? [...entry.agentTags] : [...(existing.agentTags || [])],
+      agentType: mergeAgentType(existing.agentType || 'unknown', entry.agentType || 'unknown'),
+      isBuiltIn: !!existing.isBuiltIn || !!entry.isBuiltIn,
       totalCalls: Math.max(existing.totalCalls || 0, entry.totalCalls || 0),
       totalInputTokens: Math.max(existing.totalInputTokens || 0, entry.totalInputTokens || 0),
       totalOutputTokens: Math.max(existing.totalOutputTokens || 0, entry.totalOutputTokens || 0),
@@ -540,8 +645,9 @@ export async function getWorkspaceMetering(workspaceId?: string, viewer?: Meteri
       ...aggregateWorkspaceMeteringFromTraces(traces),
       period: 'all',
     }
+    const enrichedFresh = enrichWorkspaceMeteringWithAgentMetadata(fresh, getWorkspaceAgentMetadata(workspaceId))
     const previous = meteringCache.get(cacheKey)?.data
-    const merged = previous ? mergeWorkspaceMetering(previous, fresh) : fresh
+    const merged = previous ? mergeWorkspaceMetering(previous, enrichedFresh) : enrichedFresh
     meteringCache.set(cacheKey, {
       data: merged,
       fetchedAt: Date.now(),

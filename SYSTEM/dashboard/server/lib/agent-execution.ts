@@ -155,19 +155,23 @@ export function resolveAgentExecutionConfig(agentId: string): {
       : path.join(process.env.OPENCLAW_WORKSPACE || '', 'AGENTS', agentId, 'IDENTITY.md')
 
   let identityModel: string | undefined
+  let identityTags: string[] = []
   try {
     const identity = fs.readFileSync(identityPath, 'utf-8')
-    identityModel = normalizeMissingModel(parseIdentity(identity).model || undefined)
+    const parsedIdentity = parseIdentity(identity)
+    identityModel = normalizeMissingModel(parsedIdentity.model || undefined)
+    identityTags = Array.isArray(parsedIdentity.tags) ? parsedIdentity.tags : []
   } catch {}
 
   // If the active workspace contains this agent, trust its local identity first.
   // A stale global openclaw.json entry may point at a different workspace with the same agent id.
   const recordModel = normalizeMissingModel(record?.model)
   let model = hasActiveWorkspaceAgent
-    ? (identityModel || recordModel || resolveDefaultAgentModel({ rawEnv: process.env as Record<string, string> }))
-    : (recordModel || identityModel || resolveDefaultAgentModel({ rawEnv: process.env as Record<string, string> }))
+    ? (identityModel || recordModel || resolveDefaultAgentModel({ rawEnv: process.env as Record<string, string>, builtIn: identityTags.includes('built-in') }))
+    : (recordModel || identityModel || resolveDefaultAgentModel({ rawEnv: process.env as Record<string, string>, builtIn: identityTags.includes('built-in') }))
   if (model && !isSupportedHostedModel(model)) {
     model = resolveDefaultAgentModel({
+      builtIn: identityTags.includes('built-in'),
       rawEnv: process.env as Record<string, string>,
       availableModels: getAvailableModelsCached(process.env as Record<string, string>),
     }) || model

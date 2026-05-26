@@ -8,6 +8,40 @@ type AIProvider = 'openai' | 'openai-compatible' | 'anthropic'
 export type TemplateGenerationTarget = 'agent' | 'team' | 'company'
 export type PromptExpansionTarget = 'agent' | 'workflow' | 'skill' | 'template'
 export type PromptExpansionFormat = 'markdown' | 'text'
+export type PromptExpansionGuidance = string
+export type BuilderStarterPromptInput = {
+  workspaceName?: string
+  workspaceTags?: string[]
+  userName?: string
+  userEmail?: string
+  recentPrompts?: string[]
+  agents?: string[]
+  skills?: string[]
+  workflows?: string[]
+  agentTemplates?: string[]
+  organizationTemplates?: string[]
+  otherWorkspaceNames?: string[]
+}
+
+export type BuilderLlmFallbackInput = {
+  prompt: string
+  summary: string
+  intent: string
+  scope: string
+  operation: string
+  confidence: string
+  topOrganizationTemplates?: Array<{ name: string; summary?: string; family?: string }>
+  topAgentTemplates?: Array<{ name: string; summary?: string }>
+}
+
+export type BuilderLlmFallbackOutput = {
+  grouping: string
+  rationale: string
+  candidateGroupings?: string[]
+  strategy: 'keep_current' | 'use_existing_template' | 'refine_existing_template' | 'create_new_template'
+  suggestedScope?: 'single_agent' | 'team' | 'team_of_teams' | 'unknown'
+  suggestedFamily?: string
+}
 
 function detectProviderFromKeyShape(key: string): 'openai' | 'anthropic' | 'gemini' | null {
   const trimmed = key.trim()
@@ -69,7 +103,11 @@ export function normalizePromptExpansionFormat(value: unknown): PromptExpansionF
   return value === 'text' ? 'text' : 'markdown'
 }
 
-export function buildPromptExpansionSystemPrompt(target: PromptExpansionTarget, format: PromptExpansionFormat = 'markdown'): string {
+export function buildPromptExpansionSystemPrompt(
+  target: PromptExpansionTarget,
+  format: PromptExpansionFormat = 'markdown',
+  guidance: PromptExpansionGuidance = '',
+): string {
   const targetLabel = {
     agent: 'AI agent',
     workflow: 'workflow',
@@ -79,6 +117,11 @@ export function buildPromptExpansionSystemPrompt(target: PromptExpansionTarget, 
   const formatInstruction = format === 'markdown'
     ? '- Return the improved prompt as editable markdown with short sections and bullets where useful.'
     : '- Return the improved prompt as plain text paragraphs and lists without markdown headings.'
+
+  const normalizedGuidance = guidance.trim()
+  const guidanceInstruction = normalizedGuidance
+    ? `\nAdditional user direction for the improvement:\n- ${normalizedGuidance}`
+    : ''
 
   return `You improve short natural-language prompts for an ${targetLabel} generation wizard.
 
@@ -91,20 +134,21 @@ Rules:
 - Preserve any names, domains, or user-supplied constraints.
 - Do not mention that you are expanding or rewriting the prompt.
 - Write the result so the user can directly edit and submit it to an AI generation wizard.
-${formatInstruction}`
+${formatInstruction}${guidanceInstruction}`
 }
 
 export async function expandPromptWithAI(
   prompt: string,
   target: PromptExpansionTarget = 'template',
   format: PromptExpansionFormat = 'markdown',
+  guidance: PromptExpansionGuidance = '',
 ): Promise<string> {
   const completion = await getSystemOpenAiClient().chat.completions.create({
     model: resolveModel('gpt-4o'),
     messages: [
       {
         role: 'system',
-        content: buildPromptExpansionSystemPrompt(target, format),
+        content: buildPromptExpansionSystemPrompt(target, format, guidance),
       },
       {
         role: 'user',
@@ -116,6 +160,140 @@ export async function expandPromptWithAI(
   })
 
   return (completion.choices[0].message.content || prompt).trim()
+}
+
+function buildBuilderStarterPromptSystemPrompt(): string {
+  return `You generate suggested starter prompts for an AI Builder / Designer surface.
+
+The goal is to help the user get started in the current workspace with prompts they can click and submit directly.
+
+Rules:
+- Return strict JSON only.
+- Shape: {"prompts":["...","...","...","..."]}.
+- Return exactly 4 prompts.
+- Each prompt must be a direct user prompt, not an explanation.
+- Use the user's recent prompts as the strongest signal when available.
+- Use the workspace name as a strong signal for tone and domain.
+- Use existing agents, workflows, skills, and templates to make suggestions more grounded.
+- Only mention a skill, agent, workflow, or template if it appears in the provided context.
+- Do not invent skill names or suggest nonexistent skills.
+- If the workspace is empty or sparse, use other workspace names and available templates as inspiration.
+- Vary the 4 prompts across reuse, refine, template, and new-build paths when appropriate.
+- Avoid near-duplicate prompts or simple rewrites of the same idea.
+- Avoid generic filler like "help me get started".
+- Keep each prompt concise, specific, and actionable.`
+}
+
+function buildBuilderLlmFallbackSystemPrompt(): string {
+  return `You are a second-stage classifier for an AI Builder / Designer recommendation system.
+
+You are only called when the first deterministic pass is low-confidence or cannot confidently identify the domain grouping.
+
+Your job:
+- infer the most likely grouping/domain for the request
+- decide whether the user should:
+  - keep the current recommendation
+  - use an existing template
+  - refine an existing template
+  - create a new template
+
+Rules:
+- Return strict JSON only.
+- Shape:
+  {
+    "grouping": "short domain/grouping label",
+    "rationale": "1-2 sentence explanation",
+    "candidateGroupings": ["...", "..."],
+    "strategy": "keep_current" | "use_existing_template" | "refine_existing_template" | "create_new_template",
+    "suggestedScope": "single_agent" | "team" | "team_of_teams" | "unknown",
+    "suggestedFamily": "short existing family label or other"
+  }
+- Prefer practical groupings over abstract categories.
+- If the closest existing template looks structurally useful but domain-generic, choose "refine_existing_template".
+- If the domain looks novel or the existing templates are too generic, choose "create_new_template".
+- Do not invent product capabilities beyond the provided context.
+- Keep candidateGroupings short and useful.`
+}
+
+export async function generateBuilderStarterPromptsWithAI(input: BuilderStarterPromptInput): Promise<string[]> {
+  const context = JSON.stringify({
+    workspaceName: input.workspaceName || '',
+    workspaceTags: input.workspaceTags || [],
+    userName: input.userName || '',
+    userEmail: input.userEmail || '',
+    recentPrompts: (input.recentPrompts || []).slice(0, 4),
+    agents: (input.agents || []).slice(0, 8),
+    skills: (input.skills || []).slice(0, 8),
+    workflows: (input.workflows || []).slice(0, 8),
+    agentTemplates: (input.agentTemplates || []).slice(0, 8),
+    organizationTemplates: (input.organizationTemplates || []).slice(0, 8),
+    otherWorkspaceNames: (input.otherWorkspaceNames || []).slice(0, 6),
+  }, null, 2)
+
+  const completion = await getSystemOpenAiClient().chat.completions.create({
+    model: resolveModel('gpt-4o-mini'),
+    messages: [
+      {
+        role: 'system',
+        content: buildBuilderStarterPromptSystemPrompt(),
+      },
+      {
+        role: 'user',
+        content: context,
+      },
+    ],
+    temperature: 0.8,
+    max_tokens: 500,
+  })
+
+  const raw = extractJsonResponseText(completion.choices[0].message.content || '')
+  const parsed = JSON.parse(raw)
+  const prompts = Array.isArray(parsed?.prompts)
+    ? parsed.prompts.map((value: unknown) => String(value || '').trim()).filter(Boolean)
+    : []
+  if (prompts.length === 0) {
+    throw new Error('Failed to generate builder starter prompts')
+  }
+  return prompts.slice(0, 4)
+}
+
+export async function inferBuilderGroupingWithAI(input: BuilderLlmFallbackInput): Promise<BuilderLlmFallbackOutput> {
+  const context = JSON.stringify(input, null, 2)
+  const completion = await getSystemOpenAiClient().chat.completions.create({
+    model: resolveModel('gpt-4o-mini'),
+    messages: [
+      {
+        role: 'system',
+        content: buildBuilderLlmFallbackSystemPrompt(),
+      },
+      {
+        role: 'user',
+        content: context,
+      },
+    ],
+    temperature: 0.3,
+    max_tokens: 350,
+  })
+
+  const parsed = parseJsonResponse<BuilderLlmFallbackOutput>(completion.choices[0].message.content || '', {
+    grouping: '',
+    rationale: '',
+    candidateGroupings: [],
+    strategy: 'keep_current',
+    suggestedScope: 'unknown',
+    suggestedFamily: 'other',
+  })
+
+  return {
+    grouping: String(parsed.grouping || '').trim(),
+    rationale: String(parsed.rationale || '').trim(),
+    candidateGroupings: Array.isArray(parsed.candidateGroupings)
+      ? parsed.candidateGroupings.map((value) => String(value || '').trim()).filter(Boolean).slice(0, 3)
+      : [],
+    strategy: parsed.strategy || 'keep_current',
+    suggestedScope: parsed.suggestedScope || 'unknown',
+    suggestedFamily: String(parsed.suggestedFamily || 'other').trim() || 'other',
+  }
 }
 
 export function shouldGenerateCompanyTemplate(description: string, generationTarget: TemplateGenerationTarget = 'team'): boolean {
@@ -263,20 +441,46 @@ function currentClient(): { client: OpenAI; model: string } {
   return getAIClient(_requestByokKeys)
 }
 
+export function resolveSystemGenerationModelForProvider(
+  provider: AIProvider,
+  configuredModel: string | undefined,
+  anthropicFallback: string,
+): string | undefined {
+  const trimmed = String(configuredModel || '').trim()
+  if (!trimmed) return undefined
+
+  if (provider === 'openai-compatible') return undefined
+
+  if (provider === 'openai') {
+    if (trimmed.startsWith('openai/')) return trimmed.replace(/^openai\//, '')
+    if (trimmed.startsWith('gpt-') || /^o[134](?:-|$)/.test(trimmed)) return trimmed
+    return undefined
+  }
+
+  if (trimmed.startsWith('anthropic/')) return trimmed.replace(/^anthropic\//, '')
+  if (trimmed.startsWith('claude')) return trimmed
+  if (trimmed.startsWith('openai/')) return anthropicFallback
+  if (trimmed.startsWith('gpt-') || /^o[134](?:-|$)/.test(trimmed)) return anthropicFallback
+  return undefined
+}
+
 /**
  * Get the appropriate model name for the available provider.
  * Maps OpenAI model names to Anthropic equivalents when needed.
  */
 function resolveModel(requestedModel: string): string {
   const { provider } = getAvailableProvider(_requestByokKeys)
+  const systemPreferredModel = readWorkspaceIntegrationConfig().systemPreferredModel?.trim()
   if (provider === 'openai-compatible') {
     const model = resolveOpenAiCompatibleGenerationDefaults(_requestByokKeys).defaultModel
     if (model) return model
     throw new Error('OpenAI-compatible AI generation requires a default model. Set one in BYOK first.')
   }
+  const anthropicModel = getPreferredAnthropicGenerationModel()
+  const preferredForProvider = resolveSystemGenerationModelForProvider(provider, systemPreferredModel, anthropicModel)
+  if (preferredForProvider) return preferredForProvider
   if (provider === 'openai') return requestedModel
   // Map OpenAI models to Anthropic equivalents
-  const anthropicModel = getPreferredAnthropicGenerationModel()
   if (requestedModel.includes('gpt-4o-mini') || requestedModel.includes('gpt-4')) return anthropicModel
   if (requestedModel.includes('gpt-4o') || requestedModel.includes('gpt-5')) return anthropicModel
   return anthropicModel

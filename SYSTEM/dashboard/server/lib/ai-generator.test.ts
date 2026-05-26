@@ -16,6 +16,7 @@ import {
   normalizePromptExpansionFormat,
   normalizePromptExpansionTarget,
   parseJsonResponse,
+  resolveSystemGenerationModelForProvider,
   resolveOpenAiCompatibleGenerationDefaults,
   shouldGenerateCompanyTemplate,
   validateAiGenerationProviderKeys,
@@ -110,6 +111,21 @@ test('resolveOpenAiCompatibleGenerationDefaults falls back to workspace integrat
     if (originalWorkspace === undefined) delete process.env.OPENCLAW_WORKSPACE
     else process.env.OPENCLAW_WORKSPACE = originalWorkspace
   }
+})
+
+test('resolveSystemGenerationModelForProvider applies system preferred model when it matches the provider', () => {
+  assert.strictEqual(
+    resolveSystemGenerationModelForProvider('openai', 'openai/gpt-5', 'claude-sonnet-4-20250514'),
+    'gpt-5',
+  )
+  assert.strictEqual(
+    resolveSystemGenerationModelForProvider('anthropic', 'anthropic/claude-opus-4-6', 'claude-sonnet-4-20250514'),
+    'claude-opus-4-6',
+  )
+  assert.strictEqual(
+    resolveSystemGenerationModelForProvider('openai-compatible', 'openai/gpt-5', 'claude-sonnet-4-20250514'),
+    undefined,
+  )
 })
 
 test('shouldGenerateCompanyTemplate infers company from prompt unless agent is explicit', () => {
@@ -419,11 +435,14 @@ test('normalizePromptExpansionFormat defaults to markdown', () => {
 test('buildPromptExpansionSystemPrompt reflects requested format', () => {
   const markdownPrompt = buildPromptExpansionSystemPrompt('skill', 'markdown')
   const textPrompt = buildPromptExpansionSystemPrompt('agent', 'text')
+  const guidedPrompt = buildPromptExpansionSystemPrompt('template', 'markdown', 'Make it shorter and emphasize testing.')
 
   assert.match(markdownPrompt, /editable markdown/i)
   assert.match(textPrompt, /plain text paragraphs/i)
   assert.match(markdownPrompt, /skill generation wizard/i)
   assert.match(textPrompt, /AI agent generation wizard/i)
+  assert.match(guidedPrompt, /Additional user direction/i)
+  assert.match(guidedPrompt, /Make it shorter and emphasize testing\./i)
 })
 
 console.log('\n========================================')

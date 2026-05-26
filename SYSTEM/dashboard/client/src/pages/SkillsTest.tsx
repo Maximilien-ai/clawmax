@@ -320,6 +320,27 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
   }, [allSkills])
 
   useEffect(() => {
+    const handleBuilderCreateSkill = (event: Event) => {
+      const detail = (event as CustomEvent<{ prompt?: string; agentId?: string }>).detail
+      if (typeof detail?.prompt === 'string') {
+        setAiSkillPrompt(detail.prompt)
+      }
+      if (typeof detail?.agentId === 'string' && detail.agentId.trim()) {
+        setAgentId(detail.agentId)
+      }
+      setImportSource('ai')
+      setShowImportDialog(true)
+      setGeneratedSkillDraft(null)
+      setAiSkillRefinementPrompt('')
+      setError(null)
+      setShowAiPromptEditor(false)
+    }
+
+    window.addEventListener('clawmax-open-builder-skill-draft', handleBuilderCreateSkill as EventListener)
+    return () => window.removeEventListener('clawmax-open-builder-skill-draft', handleBuilderCreateSkill as EventListener)
+  }, [])
+
+  useEffect(() => {
     if (!searchQuery.trim() || searchQuery.trim().length < 2) {
       setInlineRegistrySuggestions({ clawhub: [], shipables: [], tessl: [] })
       setInlineRegistryLoading(false)
@@ -3511,7 +3532,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
               void handleGenerateSkill(false, value)
             }, 0)
           }}
-          onExpandWithAi={(value, format) => expandPromptWithAI(value, 'skill', format)}
+          onExpandWithAi={(value, format, guidance) => expandPromptWithAI(value, 'skill', format, guidance)}
           saveAndGenerateLabel="Save & Generate"
           savingAndGenerating={aiSkillGenerating}
           generateDisabled={!aiEnabled}
