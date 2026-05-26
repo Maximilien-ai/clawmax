@@ -1158,6 +1158,8 @@ export default function Builder({
   const [showRightPane, setShowRightPane] = useState(true)
   const [showPromptEditor, setShowPromptEditor] = useState(false)
   const [showStarterPrompts, setShowStarterPrompts] = useState(true)
+  const [remoteShareEnabled, setRemoteShareEnabled] = useState(false)
+  const [remoteShareChecked, setRemoteShareChecked] = useState(false)
   const [sessionActionNotice, setSessionActionNotice] = useState<{
     tone: 'success' | 'error' | 'info'
     text: string
@@ -1227,6 +1229,25 @@ export default function Builder({
     setDeleteConfirm(null)
     setFeedbackByRecommendation(loadBuilderFeedback(workspaceKey))
   }, [workspaceKey])
+
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/ai-builder/share-status')
+      .then(async (response) => response.ok ? response.json() : { enabled: false })
+      .then((data) => {
+        if (cancelled) return
+        setRemoteShareEnabled(Boolean(data?.enabled))
+        setRemoteShareChecked(true)
+      })
+      .catch(() => {
+        if (cancelled) return
+        setRemoteShareEnabled(false)
+        setRemoteShareChecked(true)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   async function refreshStarterPrompts(options?: { seedPrompt?: string }) {
     setRefreshingStarterPrompts(true)
@@ -1881,6 +1902,22 @@ export default function Builder({
                     Builder is now focused on the active conversation and recommendations for this workspace.
                   </p>
                 )}
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
+                  <span className={`rounded-full border px-2 py-1 font-medium ${
+                    remoteShareEnabled
+                      ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300'
+                      : 'border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                  }`}>
+                    {remoteShareChecked
+                      ? (remoteShareEnabled ? 'Remote sharing available' : 'Local-only by default')
+                      : 'Checking share status…'}
+                  </span>
+                  <span className="text-gray-500 dark:text-gray-400">
+                    {remoteShareEnabled
+                      ? 'Use Share to send Builder sessions and feedback to ClawMax.ai.'
+                      : 'Sessions and feedback stay local unless this deployment enables remote sharing.'}
+                  </span>
+                </div>
               </div>
               {recommendation && (
                 <div className="flex flex-wrap items-center gap-2">

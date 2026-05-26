@@ -458,5 +458,54 @@
     "intent": "skill_or_integration",
     "scope": "single_agent",
     "page": "skills"
+  },
+  {
+    "name": "existing agent recurring intake process keeps workflow follow-through visible",
+    "prompt": "I already have an intake coordinator agent. Using only that agent, I need a weekly lead triage workflow with final approval and follow-up reminders",
+    "intent": "existing_agent",
+    "scope": "team",
+    "operation": "reuse_existing",
+    "page": "agents",
+    "suggestedActionPagesInclude": ["workflows"]
+  },
+  {
+    "name": "existing agent missing domain capability can create a new skill with ai",
+    "prompt": "I already have a recruiting agent, but it needs a new scorecard skill for interview debriefs before we create anything else",
+    "intent": "skill_or_integration",
+    "scope": "single_agent",
+    "page": "skills",
+    "suggestedActionIdsInclude": ["create-skill"]
+  },
+  {
+    "name": "team of teams finance request maps to company scope",
+    "prompt": "Design an organization for finance operations with AP, AR, close process, and executive reporting teams",
+    "intent": "team_template",
+    "scope": "team_of_teams",
+    "page": "templates"
+  },
+  {
+    "name": "refine existing local template keeps refine action primary",
+    "prompt": "Refine the existing founder office team template so it adds board prep, investor updates, and weekly operating reviews",
+    "intent": "team_template",
+    "scope": "team",
+    "operation": "refine_template",
+    "page": "templates"
+  },
+  {
+    "name": "explicit one agent request avoids template team path even with admin language",
+    "prompt": "Create one agent to help me manage invoices, receipts, and simple monthly bookkeeping tasks",
+    "intent": "ai_generate",
+    "scope": "single_agent",
+    "page": "agents"
+  },
+  {
+    "name": "team prompt with close existing template still offers refine and create choices",
+    "prompt": "Maybe use an existing founder office or chief of staff team template for a solo founder operating cadence, or create a cleaner new one",
+    "intent": "team_template",
+    "scope": "team",
+    "confidence": "low",
+    "page": "templates",
+    "confirmationOptionsMin": 2,
+    "confirmationLabelsInclude": ["Create a new team template"]
   }
 ]
