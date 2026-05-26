@@ -1,5 +1,7 @@
 export type MeteringAgentRow = {
   agentId: string
+  agentType?: 'built-in' | 'user' | 'unknown'
+  isBuiltIn?: boolean
   totalCalls: number
   totalTokens: number
   estimatedCostUsd: number
@@ -10,7 +12,7 @@ export type MeteringAgentRow = {
 
 export function summarizeMeteringByAgentType(
   byAgent: MeteringAgentRow[],
-  builtInAgentIds: Set<string>,
+  builtInAgentIds: Set<string> = new Set(),
 ): {
   builtInAgentCount: number
   builtInEstimatedCostUsd: number
@@ -23,7 +25,8 @@ export function summarizeMeteringByAgentType(
   let userEstimatedCostUsd = 0
 
   for (const agent of byAgent) {
-    if (builtInAgentIds.has(agent.agentId)) {
+    const isBuiltIn = agent.isBuiltIn === true || agent.agentType === 'built-in' || builtInAgentIds.has(agent.agentId)
+    if (isBuiltIn) {
       builtInAgentCount += 1
       builtInEstimatedCostUsd += Number(agent.estimatedCostUsd || 0)
     } else {

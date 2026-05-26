@@ -13,6 +13,10 @@ interface MeteringData {
   estimatedCostUsd: number
   byAgent: Array<{
     agentId: string
+    agentName?: string
+    agentTags?: string[]
+    agentType?: 'built-in' | 'user' | 'unknown'
+    isBuiltIn?: boolean
     totalCalls: number
     totalTokens: number
     estimatedCostUsd: number
@@ -133,7 +137,6 @@ export default function Activity({ onNavigateToDoc, isActive = false }: Activity
   const [costBudgetReason, setCostBudgetReason] = useState(cachedActivityCostBudgetReason)
   const [budget, setBudget] = useState<{ config: { limitUsd: number; warningPct: number; enforced: boolean; paused: boolean }; currentSpendUsd: number; remainingUsd: number; usedPct: number; level: 'ok' | 'warning' | 'exceeded' } | null>(cachedActivityBudget)
   const [agentCostLimits, setAgentCostLimits] = useState<Record<string, number>>(cachedActivityAgentCostLimits)
-  const [builtInAgentIds, setBuiltInAgentIds] = useState<Set<string>>(new Set())
   const [editingBudget, setEditingBudget] = useState(false)
   const [budgetInput, setBudgetInput] = useState(cachedActivityBudget ? String(cachedActivityBudget.config.limitUsd) : '')
   const lastActivationRefreshRef = useRef(0)
@@ -237,30 +240,12 @@ export default function Activity({ onNavigateToDoc, isActive = false }: Activity
       .catch(() => {})
   }, [])
 
-  const fetchBuiltInAgentIds = useCallback(() => {
-    fetch('/api/agents')
-      .then(r => r.ok ? r.json() : null)
-      .then(d => {
-        const next = new Set<string>()
-        for (const agent of Array.isArray(d?.agents) ? d.agents : []) {
-          if (Array.isArray(agent?.tags) && agent.tags.includes('built-in') && typeof agent?.id === 'string') {
-            next.add(agent.id)
-          }
-        }
-        setBuiltInAgentIds(next)
-      })
-      .catch(() => {
-        setBuiltInAgentIds(new Set())
-      })
-  }, [])
-
   const refreshActivityPage = useCallback(() => {
     fetchFeed()
     fetchMetering()
     fetchAgentCostLimits()
     fetchBudget()
-    fetchBuiltInAgentIds()
-  }, [fetchFeed, fetchMetering, fetchAgentCostLimits, fetchBudget, fetchBuiltInAgentIds])
+  }, [fetchFeed, fetchMetering, fetchAgentCostLimits, fetchBudget])
 
   useEffect(() => {
     refreshActivityPage()
@@ -320,7 +305,7 @@ export default function Activity({ onNavigateToDoc, isActive = false }: Activity
   }
 
   const rows = sortEntries(feed, sortCol, sortDir)
-  const meteringByAgentType = summarizeMeteringByAgentType(metering?.byAgent || [], builtInAgentIds)
+  const meteringByAgentType = summarizeMeteringByAgentType(metering?.byAgent || [])
 
   const thCls = 'px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wider cursor-pointer select-none hover:text-gray-600 transition-colors text-left'
 
@@ -611,7 +596,7 @@ export default function Activity({ onNavigateToDoc, isActive = false }: Activity
                         <td className="px-3 py-2 font-medium text-sky-700 dark:text-sky-400">
                           <div className="flex items-center gap-2">
                             <span>{agent.agentId}</span>
-                            {builtInAgentIds.has(agent.agentId) && (
+                            {(agent.isBuiltIn === true || agent.agentType === 'built-in') && (
                               <span className="inline-flex items-center rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-medium text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">
                                 Built-in
                               </span>

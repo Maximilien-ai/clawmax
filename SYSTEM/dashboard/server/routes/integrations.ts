@@ -50,6 +50,7 @@ router.put('/config', (req, res) => {
   const ollamaEnabled = isOllamaUiEnabled(getDashboardEnvRaw())
   const config = writeWorkspaceIntegrationConfig({
     preferredModel: typeof body.preferredModel === 'string' ? body.preferredModel : undefined,
+    systemPreferredModel: typeof body.systemPreferredModel === 'string' ? body.systemPreferredModel : undefined,
     githubDefaultRepo: typeof body.githubDefaultRepo === 'string' ? body.githubDefaultRepo : undefined,
     sensoContextLabel: typeof body.sensoContextLabel === 'string' ? body.sensoContextLabel : undefined,
     ollamaBaseUrl: ollamaEnabled && typeof body.ollamaBaseUrl === 'string' ? body.ollamaBaseUrl : undefined,

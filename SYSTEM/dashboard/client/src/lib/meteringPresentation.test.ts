@@ -14,11 +14,10 @@ function test(name: string, fn: () => void) {
 test('summarizeMeteringByAgentType separates built-in and user agents', () => {
   const summary = summarizeMeteringByAgentType(
     [
-      { agentId: 'builder-agent', totalCalls: 2, totalTokens: 1000, estimatedCostUsd: 0.12, avgDurationMs: 1000, lastActivity: '', models: {} },
-      { agentId: 'chief-of-staff', totalCalls: 1, totalTokens: 500, estimatedCostUsd: 0.08, avgDurationMs: 1000, lastActivity: '', models: {} },
-      { agentId: 'sales-lead', totalCalls: 3, totalTokens: 1500, estimatedCostUsd: 0.25, avgDurationMs: 1000, lastActivity: '', models: {} },
+      { agentId: 'builder-agent', agentType: 'built-in', isBuiltIn: true, totalCalls: 2, totalTokens: 1000, estimatedCostUsd: 0.12, avgDurationMs: 1000, lastActivity: '', models: {} },
+      { agentId: 'chief-of-staff', agentType: 'built-in', isBuiltIn: true, totalCalls: 1, totalTokens: 500, estimatedCostUsd: 0.08, avgDurationMs: 1000, lastActivity: '', models: {} },
+      { agentId: 'sales-lead', agentType: 'user', isBuiltIn: false, totalCalls: 3, totalTokens: 1500, estimatedCostUsd: 0.25, avgDurationMs: 1000, lastActivity: '', models: {} },
     ],
-    new Set(['builder-agent', 'chief-of-staff']),
   )
 
   assert.equal(summary.builtInAgentCount, 2)

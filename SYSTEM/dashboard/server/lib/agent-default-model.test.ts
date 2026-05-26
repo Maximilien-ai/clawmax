@@ -45,6 +45,21 @@ async function main() {
       assert.equal(resolved, 'openai/gpt-4.1')
     })
 
+    await test('workspace system preferred model wins for built-in agents when available', () => {
+      const systemDir = path.join(tmpHome, '.openclaw', 'workspace', 'SYSTEM')
+      fs.mkdirSync(systemDir, { recursive: true })
+      fs.writeFileSync(path.join(systemDir, 'integrations.json'), JSON.stringify({
+        preferredModel: 'openai/gpt-4.1',
+        systemPreferredModel: 'anthropic/claude-sonnet-4-20250514',
+      }, null, 2))
+      const resolved = resolveDefaultAgentModel({
+        builtIn: true,
+        availableModels: ['openai/gpt-4.1', 'anthropic/claude-sonnet-4-20250514', 'openai/gpt-5'],
+        rawEnv: { SYSTEM_OPENAI_API_KEY: 'key', SYSTEM_ANTHROPIC_API_KEY: 'key' },
+      })
+      assert.equal(resolved, 'anthropic/claude-sonnet-4-20250514')
+    })
+
     await test('on-prem ollama default resolves when enabled', () => {
       const systemDir = path.join(tmpHome, '.openclaw', 'workspace', 'SYSTEM')
       fs.mkdirSync(systemDir, { recursive: true })

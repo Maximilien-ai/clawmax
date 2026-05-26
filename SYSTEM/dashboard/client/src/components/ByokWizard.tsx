@@ -60,6 +60,7 @@ type IntegrationStatus = {
 }
 type WorkspaceIntegrationConfig = {
   preferredModel?: string
+  systemPreferredModel?: string
   githubDefaultRepo?: string
   sensoContextLabel?: string
   ollamaBaseUrl?: string
@@ -168,6 +169,7 @@ export function ByokWizard({
   const [openaiCompatibleBaseUrl, setOpenaiCompatibleBaseUrl] = useState('')
   const [openaiCompatibleDefaultModel, setOpenaiCompatibleDefaultModel] = useState('')
   const [preferredModel, setPreferredModel] = useState('')
+  const [systemPreferredModel, setSystemPreferredModel] = useState('')
   const [partnerSecrets, setPartnerSecrets] = useState<PartnerValueMap>({})
   const [serverPartnerSecretPresence, setServerPartnerSecretPresence] = useState<PartnerSecretPresence>({})
   const [partnerValues, setPartnerValues] = useState<PartnerValueMap>({})
@@ -233,6 +235,7 @@ export function ByokWizard({
     setOpenaiCompatibleBaseUrl(stored.openaiCompatibleBaseUrl || '')
     setOpenaiCompatibleDefaultModel(stored.openaiCompatibleDefaultModel || '')
     setPreferredModel(stored.preferredModel || '')
+    setSystemPreferredModel(stored.systemPreferredModel || '')
     setPartnerSecrets(stored.partnerSecrets || {})
     setPartnerValues(stored.partnerValues || {})
     setDismissed(localStorage.getItem(getByokDismissKey()) === 'true')
@@ -356,6 +359,7 @@ export function ByokWizard({
         const workspaceConfig = (data?.config || {}) as WorkspaceIntegrationConfig
         setServerPartnerSecretPresence(typeof data?.secretPresence === 'object' && data.secretPresence ? data.secretPresence : {})
         setPreferredModel((current) => current || workspaceConfig.preferredModel || '')
+        setSystemPreferredModel((current) => current || workspaceConfig.systemPreferredModel || '')
         setOllamaBaseUrl((current) => {
           const nextDefault = resolveOllamaBaseUrlForRuntime({
             configuredBaseUrl: workspaceConfig.ollamaBaseUrl || '',
@@ -1088,6 +1092,7 @@ export function ByokWizard({
       opikProject: opikProject.trim(),
       githubDefaultRepo: githubDefaultRepo.trim(),
       preferredModel: preferredModel || undefined,
+      systemPreferredModel: systemPreferredModel || undefined,
       partnerSecrets: browserPartnerSecrets,
       partnerValues: persistedPartnerValues,
     })
@@ -1117,6 +1122,7 @@ export function ByokWizard({
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         preferredModel: preferredModel || undefined,
+        systemPreferredModel: systemPreferredModel || undefined,
         githubDefaultRepo: githubDefaultRepo.trim() || undefined,
         sensoContextLabel: sensoContextLabel.trim() || undefined,
         ollamaBaseUrl: ollamaEnabled ? (effectiveOllamaBaseUrl.trim() || undefined) : undefined,
@@ -1903,6 +1909,42 @@ export function ByokWizard({
                           Set this once for shared background execution in this workspace.
                         </div>
                       )}
+                    </div>
+                  )}
+                  {(hasOpenAiAvailable || hasAnthropicAvailable || hasGeminiAvailable || ollamaConfigured) && (
+                    <div className="pt-3">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Preferred model for built-in/system agents</label>
+                      <select value={systemPreferredModel} onChange={(e) => setSystemPreferredModel(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm">
+                        <option value="">Auto (follow the best available configured model)</option>
+                        {uniquePreferredOptions.length > 0 ? uniquePreferredOptions.map((option) => (
+                          <option key={`system-${option.value}`} value={option.value}>{option.label}</option>
+                        )) : (
+                          <>
+                            {hasAnthropicAvailable && (
+                              <>
+                                <option value="anthropic/claude-opus-4-6">Claude Opus 4.6 (best reasoning)</option>
+                                <option value="anthropic/claude-sonnet-4-20250514">Claude Sonnet 4 (fast)</option>
+                              </>
+                            )}
+                            {hasOpenAiAvailable && (
+                              <>
+                                <option value="openai/gpt-5">GPT-5 (latest)</option>
+                                <option value="openai/gpt-4o">GPT-4o (balanced)</option>
+                                <option value="openai/gpt-4o-mini">GPT-4o Mini (cost efficient)</option>
+                              </>
+                            )}
+                            {hasGeminiAvailable && (
+                              <>
+                                <option value="google/gemini-3.1-pro-preview">Gemini 3.1 Pro Preview (best reasoning)</option>
+                                <option value="google/gemini-2.5-flash">Gemini 2.5 Flash (balanced)</option>
+                                <option value="google/gemini-2.5-flash-lite">Gemini 2.5 Flash Lite (cost efficient)</option>
+                              </>
+                            )}
+                            {ollamaEnabled && ollamaConfigured && ollamaDefaultModel && <option value={`ollama/${ollamaDefaultModel}`}>Ollama {ollamaDefaultModel} (local default)</option>}
+                          </>
+                        )}
+                      </select>
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Used for built-in/system agents when they do not already have an explicit model.</p>
                     </div>
                   )}
                 </div>

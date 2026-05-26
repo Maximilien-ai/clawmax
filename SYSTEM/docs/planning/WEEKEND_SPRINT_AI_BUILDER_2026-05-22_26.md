@@ -51,21 +51,20 @@
   - company/team-of-teams finance scope
   - refine-vs-create ambiguity
 - built-in/system-agent metering presentation split in Activity/Budget
+- real built-in/system-agent metering identity in the server metering API
+- built-in/system-agent model selection via workspace `systemPreferredModel`
 
 ### In Progress
 
 - recommendation quality across a broader real-prompt corpus
 - recommendation trust and ranking against harder mixed existing-vs-template-vs-new scenarios
 - broader manual prompt validation and handoff QA
-- real built-in/system-agent metering at the tracing/runtime layer
-- built-in/system-agent model selection
 
 ### Still Needed Before Prime Time
 
 - larger automated prompt suite based on real user queries
 - more robust “match quality” thresholds for reuse vs refine vs new
 - additional manual testing of handoff correctness and recommendation quality
-- built-in/system-agent metering and model-selection follow-through
 - Builder remote sharing UX/opt-in polish
 - Builder markdown/session export naming/index polish
 

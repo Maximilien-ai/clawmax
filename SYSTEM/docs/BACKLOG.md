@@ -99,8 +99,6 @@
 - [ ] **BYOK provider preference** — when a user has multiple providers, let them choose a preferred default
 - [ ] **AI Builder session export / DocHub polish** — Builder sessions can now save/download as markdown and land under `SYSTEM/Builder Sessions/...`; remaining work is naming/index polish, Builder-specific browsing affordances, and deciding whether to offer summary-only vs. full-transcript exports.
 - [ ] **AI Builder remote session / feedback sharing UX polish** — Builder now has optional remote share scaffolding plus local-only status messaging; remaining work is better opt-in/disclosure UX, stronger disabled/error states, and product decisions around manual vs. automatic sharing.
-- [ ] **Built-in/system-agent metering** — treat AI Builder and other system agents as separately identifiable meterable actors when metering is enabled.
-- [ ] **System-agent model selection** — let operators pick the model used by built-in/system agents when multiple providers/models are configured, defaulting to the best available model otherwise.
 - [ ] **Asset/IP cleanup for login and presentation visuals** — replace Star Wars-like robot elements (for example the R2-D2-style figure visible in current demo/login imagery) with owned or clearly safe ClawMax artwork across login screens and presentation assets to reduce copyright risk before wider external use.
 - [ ] **Agent/workflow logs filtering** — by agent or tag
 - [ ] **Workspace stats dashboard** — aggregate view with pause/disable

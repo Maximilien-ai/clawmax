@@ -399,6 +399,7 @@ router.post('/provision', (req, res) => {
 
   const resolvedModel = resolveDefaultAgentModel({
     explicitModel: model,
+    builtIn: Array.isArray(tags) && tags.includes('built-in'),
     availableModels: getAvailableModels(),
     rawEnv: process.env as Record<string, string>,
   })

@@ -441,20 +441,46 @@ function currentClient(): { client: OpenAI; model: string } {
   return getAIClient(_requestByokKeys)
 }
 
+export function resolveSystemGenerationModelForProvider(
+  provider: AIProvider,
+  configuredModel: string | undefined,
+  anthropicFallback: string,
+): string | undefined {
+  const trimmed = String(configuredModel || '').trim()
+  if (!trimmed) return undefined
+
+  if (provider === 'openai-compatible') return undefined
+
+  if (provider === 'openai') {
+    if (trimmed.startsWith('openai/')) return trimmed.replace(/^openai\//, '')
+    if (trimmed.startsWith('gpt-') || /^o[134](?:-|$)/.test(trimmed)) return trimmed
+    return undefined
+  }
+
+  if (trimmed.startsWith('anthropic/')) return trimmed.replace(/^anthropic\//, '')
+  if (trimmed.startsWith('claude')) return trimmed
+  if (trimmed.startsWith('openai/')) return anthropicFallback
+  if (trimmed.startsWith('gpt-') || /^o[134](?:-|$)/.test(trimmed)) return anthropicFallback
+  return undefined
+}
+
 /**
  * Get the appropriate model name for the available provider.
  * Maps OpenAI model names to Anthropic equivalents when needed.
  */
 function resolveModel(requestedModel: string): string {
   const { provider } = getAvailableProvider(_requestByokKeys)
+  const systemPreferredModel = readWorkspaceIntegrationConfig().systemPreferredModel?.trim()
   if (provider === 'openai-compatible') {
     const model = resolveOpenAiCompatibleGenerationDefaults(_requestByokKeys).defaultModel
     if (model) return model
     throw new Error('OpenAI-compatible AI generation requires a default model. Set one in BYOK first.')
   }
+  const anthropicModel = getPreferredAnthropicGenerationModel()
+  const preferredForProvider = resolveSystemGenerationModelForProvider(provider, systemPreferredModel, anthropicModel)
+  if (preferredForProvider) return preferredForProvider
   if (provider === 'openai') return requestedModel
   // Map OpenAI models to Anthropic equivalents
-  const anthropicModel = getPreferredAnthropicGenerationModel()
   if (requestedModel.includes('gpt-4o-mini') || requestedModel.includes('gpt-4')) return anthropicModel
   if (requestedModel.includes('gpt-4o') || requestedModel.includes('gpt-5')) return anthropicModel
   return anthropicModel

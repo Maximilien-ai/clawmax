@@ -36,10 +36,17 @@
   - explicit single-agent admin prompts
   - ambiguous refine-vs-create prompts
 - Activity/Budget now separates built-in agent usage/cost presentation from user-agent usage
+- `/api/metering` now enriches agent rows with built-in/system identity from workspace metadata instead of relying on client-side agent lookups
+- built-in/system agents can now use a separate workspace-level `systemPreferredModel`
+- Builder/system AI generation also honors the workspace system model when it matches the active execution provider
 
 ## Validation
 
 - `npx tsc --noEmit`
+- `npx ts-node --transpileOnly server/lib/metering.test.ts`
+- `npx ts-node --transpileOnly server/lib/workspace-integrations.test.ts`
+- `npx ts-node --transpileOnly server/lib/agent-default-model.test.ts`
+- `npx ts-node --transpileOnly server/lib/ai-generator.test.ts`
 - `npx ts-node --transpileOnly client/src/lib/onboardingTour.test.ts`
 - `npx ts-node --transpileOnly client/src/lib/builderSession.test.ts`
 - `npx ts-node --transpileOnly server/lib/ai-builder-share.test.ts`
@@ -53,7 +60,6 @@ Latest wrapper result:
 
 ## Next Focus
 
-- real built-in/system-agent metering at the tracing/runtime layer
-- built-in/system-agent model selection
 - more real-prompt Builder eval growth and routing fixes
 - manual Builder QA before merge to `main`
+- Builder export/share naming and DocHub polish

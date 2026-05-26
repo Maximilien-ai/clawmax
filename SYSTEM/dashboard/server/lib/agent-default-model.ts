@@ -6,6 +6,8 @@ type ResolveDefaultAgentModelOptions = {
   explicitModel?: string
   templateModel?: string
   preferredModel?: string
+  builtIn?: boolean
+  systemPreferredModel?: string
   availableModels?: string[]
   rawEnv?: Record<string, string>
 }
@@ -35,6 +37,11 @@ export function resolveDefaultAgentModel(options: ResolveDefaultAgentModelOption
 
   const explicitModel = normalizeCandidate(options.explicitModel)
   if (explicitModel) return explicitModel
+
+  const systemPreferredModel = normalizeCandidate(
+    options.systemPreferredModel || (options.builtIn ? integrations.systemPreferredModel : undefined),
+  )
+  if (matchesAvailable(systemPreferredModel, availableModels) || (!explicitAvailableModels && isLocalRuntimeModel(systemPreferredModel))) return systemPreferredModel
 
   const preferredModel = normalizeCandidate(options.preferredModel || integrations.preferredModel)
   if (matchesAvailable(preferredModel, availableModels) || (!explicitAvailableModels && isLocalRuntimeModel(preferredModel))) return preferredModel

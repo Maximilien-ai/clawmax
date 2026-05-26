@@ -81,6 +81,7 @@ test('readWorkspaceIntegrationConfig returns empty object when no config exists'
 test('writeWorkspaceIntegrationConfig persists trimmed workspace defaults', () => {
   const config = writeWorkspaceIntegrationConfig({
     preferredModel: ' openai/gpt-4.1 ',
+    systemPreferredModel: ' anthropic/claude-sonnet-4-20250514 ',
     githubDefaultRepo: ' Maximilien-ai/clawmax ',
     sensoContextLabel: ' Launch / Demo ',
     ollamaBaseUrl: ' http://localhost:11434 ',
@@ -90,11 +91,13 @@ test('writeWorkspaceIntegrationConfig persists trimmed workspace defaults', () =
   })
 
   assert(config.preferredModel === 'openai/gpt-4.1', 'Expected trimmed preferredModel')
+  assert(config.systemPreferredModel === 'anthropic/claude-sonnet-4-20250514', 'Expected trimmed systemPreferredModel')
   assert(config.githubDefaultRepo === 'Maximilien-ai/clawmax', 'Expected trimmed github repo')
   assert(config.sensoContextLabel === 'Launch / Demo', 'Expected trimmed senso context')
   assert(typeof config.updatedAt === 'string' && config.updatedAt.length > 0, 'Expected updatedAt')
 
   const persisted = readWorkspaceIntegrationConfig()
+  assert(persisted.systemPreferredModel === 'anthropic/claude-sonnet-4-20250514', 'Expected persisted systemPreferredModel')
   assert(persisted.githubDefaultRepo === 'Maximilien-ai/clawmax', 'Expected persisted github repo')
   assert(persisted.ollamaDefaultModel === 'llama3.2', 'Expected persisted ollama model')
   assert(persisted.opikProject === 'clawmax', 'Expected persisted opik project')
