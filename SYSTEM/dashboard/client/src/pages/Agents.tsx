@@ -157,10 +157,14 @@ function openDashboardTermsOfService() {
   window.dispatchEvent(new CustomEvent('open-terms-of-service'))
 }
 
+function normalizeAgentLookup(value: string): string {
+  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+}
+
 type ViewMode = 'grid' | 'list' | 'table'
 type ArchiveTab = 'active' | 'archived'
 
-export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateToSkills, onNavigateToWorkflows, onNavigateToTemplates, initialAgentId, initialAction, onInitialActionHandled, isActive }: { onNavigateToDoc?: (file: string) => void; onNavigateToGroup?: (groupName: string) => void; onNavigateToSkills?: (agentId: string, skillName?: string) => void; onNavigateToWorkflows?: (workflowId: string) => void; onNavigateToTemplates?: () => void; initialAgentId?: string; initialAction?: 'create' | 'create-ai' | 'import'; onInitialActionHandled?: () => void; isActive?: boolean } = {}) {
+export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateToSkills, onNavigateToWorkflows, onNavigateToTemplates, initialAgentId, initialAction, onInitialActionHandled, isActive }: { onNavigateToDoc?: (file: string) => void; onNavigateToGroup?: (groupName: string) => void; onNavigateToSkills?: (agentId: string, skillName?: string) => void; onNavigateToWorkflows?: (workflowId: string) => void; onNavigateToTemplates?: () => void; initialAgentId?: string; initialAction?: 'create' | 'create-ai' | 'import' | 'chat'; onInitialActionHandled?: () => void; isActive?: boolean } = {}) {
   const { showSuccess, showError, showInfo } = useToast()
   const { config } = useAuth()
   const aiEnabled = hasAiGenerationAccess(config)
@@ -398,9 +402,22 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
       setShowAddWizard(true)
     } else if (initialAction === 'import') {
       setShowImportModal(true)
+    } else if (initialAction === 'chat' && initialAgentId && agents.length > 0) {
+      const target = normalizeAgentLookup(initialAgentId)
+      const agent = agents.find(a => (
+        normalizeAgentLookup(a.id) === target
+        || normalizeAgentLookup(a.name) === target
+        || normalizeAgentLookup(a.id).includes(target)
+        || normalizeAgentLookup(a.name).includes(target)
+      ))
+      if (!agent) return
+      setSelectedAgent(agent)
+      setChatTarget(agent)
+    } else if (initialAction === 'chat') {
+      return
     }
     onInitialActionHandled?.()
-  }, [initialAction, isActive, onInitialActionHandled])
+  }, [agents, initialAction, initialAgentId, isActive, onInitialActionHandled])
 
   const handleRefresh = () => {
     if (cooling) return

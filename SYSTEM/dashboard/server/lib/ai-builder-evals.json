@@ -57,6 +57,15 @@
     "page": "agents"
   },
   {
+    "name": "agent chat request opens existing agent chat",
+    "prompt": "Can you chat with ceo?",
+    "intent": "existing_agent",
+    "scope": "single_agent",
+    "page": "agents",
+    "action": "chat",
+    "titleIncludes": "Chat with"
+  },
+  {
     "name": "template adaptation prompt prefers team template",
     "prompt": "I want to start from an existing template but adapt it for legal intake operations",
     "intent": "team_template",

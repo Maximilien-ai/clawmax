@@ -65,7 +65,7 @@ export interface AiBuilderAction {
   label: string
   description: string
   page: 'builder' | 'agents' | 'templates' | 'skills' | 'workflows' | 'organizations'
-  action?: 'create' | 'create-ai' | 'import'
+  action?: 'create' | 'create-ai' | 'import' | 'chat'
   pageHint?: string
   agentId?: string
   skillName?: string
@@ -140,6 +140,7 @@ const TEAM_OF_TEAMS_KEYWORDS = ['team of teams', 'teams of teams', 'multi-team',
 const COMPANY_SCOPE_KEYWORDS = ['company template', 'organization template', 'new company template', 'new organization template', 'create a new company template', 'create a new organization template']
 const AGENT_KEYWORDS = ['agent', 'assistant', 'helper', 'specialist']
 const SKILL_KEYWORDS = ['skill', 'skills', 'tool', 'tools', 'github', 'slack', 'whatsapp', 'gmail', 'calendar', 'integration', 'integrations', 'api', 'connect', 'connector']
+const CHAT_KEYWORDS = ['chat', 'talk', 'message', 'ask', 'speak']
 const WORKFLOW_PROMPT_KEYWORDS = ['workflow', 'workflows', 'handoff', 'handoffs', 'sequence', 'pipeline', 'steps', 'stage', 'stages', 'process', 'processes', 'weekly', 'monthly', 'daily', 'recurring', 'routine', 'kickoff', 'review', 'approval', 'approvals', 'follow-up']
 const CREATE_KEYWORDS = ['create', 'build', 'design', 'new', 'from scratch', 'generate']
 const REUSE_KEYWORDS = ['existing', 'already have', 'reuse', 'use my', 'current']
@@ -266,6 +267,24 @@ function hasExplicitSingleAgentConstraint(prompt: string): boolean {
     'with this agent',
     'with my current agent',
   ])
+}
+
+function hasAgentChatLanguage(prompt: string): boolean {
+  return includesAny(prompt, CHAT_KEYWORDS)
+}
+
+function extractAgentChatTarget(prompt: string): string | undefined {
+  const normalized = normalizeText(prompt).toLowerCase().replace(/[?!.]+$/g, '')
+  const patterns = [
+    /\b(?:chat|talk|speak)\s+(?:with|to)\s+(?:agent\s+|assistant\s+)?([a-z0-9][a-z0-9._ -]{0,60})$/,
+    /\b(?:message|ask)\s+(?:agent\s+|assistant\s+)?([a-z0-9][a-z0-9._ -]{0,60})$/,
+  ]
+  for (const pattern of patterns) {
+    const match = normalized.match(pattern)
+    const target = match?.[1]?.trim()
+    if (target) return target
+  }
+  return undefined
 }
 
 function detectScope(prompt: string): AiBuilderScope {
@@ -767,6 +786,10 @@ function chooseIntent(args: {
       || (hasRefineLanguage && hasReuseLanguage && agentScore >= strongestTemplateScore)
       || (!wantsSomethingNew && agentScore >= 8 && agentScore >= strongestTemplateScore + 3))
 
+  if (hasAgentChatLanguage(prompt) && (matchedAgents.length > 0 || extractAgentChatTarget(prompt))) {
+    return { intent: 'existing_agent', scope: 'single_agent', operation, confidence: agentScore >= 6 ? 'high' : 'medium' }
+  }
+
   if (hasAgentTemplateLanguage && matchedAgentTemplates.length > 0) {
     return { intent: 'agent_template', scope, operation, confidence: hasAmbiguityLanguage ? 'low' : (agentTemplateScore >= 7 ? 'high' : 'medium') }
   }
@@ -982,6 +1005,8 @@ export function buildAiBuilderRecommendation(prompt: string): AiBuilderRecommend
   const topWorkflow = matchedWorkflows[0]
   const hasWorkflowLanguage = includesAny(normalizedPrompt, WORKFLOW_PROMPT_KEYWORDS)
   const hasSkillLanguage = includesAny(normalizedPrompt, SKILL_KEYWORDS)
+  const wantsAgentChat = hasAgentChatLanguage(normalizedPrompt)
+  const agentChatTarget = extractAgentChatTarget(normalizedPrompt)
 
   const decision = chooseIntent({
     prompt: normalizedPrompt,
@@ -1030,12 +1055,29 @@ export function buildAiBuilderRecommendation(prompt: string): AiBuilderRecommend
 
   switch (intent) {
     case 'existing_agent':
+      const chatTargetLabel = topAgent?.name || agentChatTarget
+      const chatTargetId = topAgent?.id || agentChatTarget
+      const chatAction: AiBuilderAction | null = wantsAgentChat && chatTargetLabel && chatTargetId
+        ? {
+            ...action(
+              'chat-agent',
+              `Chat with ${chatTargetLabel}`,
+              'Open this agent chat directly.',
+              'agents',
+              'chat',
+              chatTargetLabel,
+            ),
+            agentId: chatTargetId,
+          }
+        : null
       recommendedPath = {
-        title: topAgent ? `Start with existing agent ${topAgent.name}` : 'Start with an existing workspace agent',
-        reasoning: topAgent
+        title: chatAction ? `Chat with ${chatTargetLabel}` : (topAgent ? `Start with existing agent ${topAgent.name}` : 'Start with an existing workspace agent'),
+        reasoning: chatAction
+          ? `${chatTargetLabel} is the requested workspace agent, so the right next step is to open its chat.`
+          : topAgent
           ? `${topAgent.name} already overlaps with this request, so the fastest path is to test or refine that agent before creating something new.`
           : 'An existing workspace agent is the lowest-friction path if it already covers most of the use case.',
-        primaryAction: action('reuse-agent', 'Open Agents', 'Review or test the closest existing agent in this workspace.', 'agents'),
+        primaryAction: chatAction || action('reuse-agent', 'Open Agents', 'Review or test the closest existing agent in this workspace.', 'agents'),
       }
       alternativePaths = [
         {
@@ -1073,14 +1115,22 @@ export function buildAiBuilderRecommendation(prompt: string): AiBuilderRecommend
               },
         )
       } else {
-        suggestedActions.push(
-          action('test-agent-chat', 'Test in agent chat', 'Send a representative prompt to the chosen agent and inspect the response quality.', 'agents'),
-        )
+        if (!chatAction) {
+          suggestedActions.push(
+            action('test-agent-chat', 'Test in agent chat', 'Send a representative prompt to the chosen agent and inspect the response quality.', 'agents'),
+          )
+        }
       }
       suggestedActions.push(
         action('review-skills', 'Review agent skills', 'Check whether the agent is missing an integration or tool capability.', 'skills'),
       )
-      testPlan = hasWorkflowLanguage
+      testPlan = chatAction
+        ? [
+            `Open ${chatTargetLabel} chat directly from Builder.`,
+            'Send the intended question or task and confirm the agent responds with the expected identity and context.',
+            'If the response is off, refine the agent identity or add missing skills before creating anything new.',
+          ]
+        : hasWorkflowLanguage
         ? [
             'Open the closest existing agent and confirm it is still the right role for this process.',
             'Create or adapt a workflow so the agent is triggered on the right cadence, handoff, or review step.',

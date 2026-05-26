@@ -328,7 +328,7 @@ export default function App() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [docFile, setDocFile] = useState<string | undefined>(undefined)
   const [initialAgentId, setInitialAgentId] = useState<string | undefined>(undefined)
-  const [initialAgentAction, setInitialAgentAction] = useState<'create' | 'create-ai' | 'import' | undefined>(undefined)
+  const [initialAgentAction, setInitialAgentAction] = useState<'create' | 'create-ai' | 'import' | 'chat' | undefined>(undefined)
   const [initialGroupName, setInitialGroupName] = useState<string | undefined>(undefined)
   const [initialOpenChatName, setInitialOpenChatName] = useState<string | undefined>(undefined)
   const [initialSkillsAgent, setInitialSkillsAgent] = useState<string | undefined>(undefined)
@@ -726,6 +726,7 @@ export default function App() {
                   onOpenAgentCreateAI={() => { setInitialAgentAction('create-ai'); setPage('agents') }}
                   onOpenAgentImport={() => { setInitialAgentAction('import'); setPage('agents') }}
                   onOpenAgent={(agentId) => { setInitialAgentId(agentId); setPage('agents') }}
+                  onOpenAgentChat={(agentId) => { setInitialAgentId(agentId); setInitialAgentAction('chat'); setPage('agents') }}
                   onOpenSkill={(skillName, agentId) => {
                     setInitialSkillsAgent(agentId)
                     setInitialSkillsSkill(skillName)

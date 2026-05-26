@@ -18,7 +18,7 @@ type BuilderAction = {
   label: string
   description: string
   page: 'builder' | 'agents' | 'templates' | 'skills' | 'workflows' | 'organizations'
-  action?: 'create' | 'create-ai' | 'import'
+  action?: 'create' | 'create-ai' | 'import' | 'chat'
   pageHint?: string
   agentId?: string
   skillName?: string
@@ -1175,6 +1175,7 @@ export default function Builder({
   onOpenAgentCreateAI,
   onOpenAgentImport,
   onOpenAgent,
+  onOpenAgentChat,
   onOpenSkill,
   onOpenWorkflow,
 }: {
@@ -1183,6 +1184,7 @@ export default function Builder({
   onOpenAgentCreateAI?: () => void
   onOpenAgentImport?: () => void
   onOpenAgent?: (agentId: string) => void
+  onOpenAgentChat?: (agentId: string) => void
   onOpenSkill?: (skillName: string, agentId?: string) => void
   onOpenWorkflow?: (workflowId: string) => void
 }) {
@@ -1852,6 +1854,10 @@ export default function Builder({
       window.setTimeout(() => {
         window.dispatchEvent(new CustomEvent('clawmax-open-builder-skill-draft', { detail: { prompt: action.prefillPrompt, agentId: action.agentId } }))
       }, 0)
+      return
+    }
+    if (action.page === 'agents' && action.action === 'chat' && action.agentId) {
+      onOpenAgentChat?.(action.agentId)
       return
     }
     if (action.page === 'agents' && action.agentId) {
