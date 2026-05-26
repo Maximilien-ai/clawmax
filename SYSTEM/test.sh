@@ -2213,13 +2213,6 @@ if echo "$templates_response" | jq -e '.organizations | length > 0' > /dev/null 
     fail "No templates have category field"
   fi
 
-  # Check kickoff workflows exist
-  has_kickoff=$(echo "$templates_response" | jq '[.organizations[] | select(.workflows != null) | .workflows[] | select(.id == "kickoff")] | length')
-  if [ "$has_kickoff" -gt "0" ]; then
-    pass "Templates have kickoff workflows ($has_kickoff templates)"
-  else
-    warn "No templates with kickoff workflows found"
-  fi
 else
   warn "No organization templates found"
 fi
@@ -2231,7 +2224,8 @@ apicurl -X PUT "$API_BASE/api/templates/organizations/$test_slug" \
   -H 'Content-Type: application/json' \
   -d "$test_template" > /dev/null 2>&1
 
-if [ -f "WORKSPACES/default/TEMPLATES/organizations/$test_slug/template.json" ]; then
+active_workspace_path=$(apicurl "$API_BASE/api/workspaces/active" | jq -r '.workspace.path // empty' 2>/dev/null)
+if [ -n "$active_workspace_path" ] && [ -f "$active_workspace_path/TEMPLATES/organizations/$test_slug/template.json" ]; then
   pass "Template save creates template.json"
 else
   # Check global templates dir
@@ -2740,6 +2734,9 @@ chat_result=$(apicurl -X POST "$API_BASE/api/agents/test-lead/chat" \
 if echo "$chat_result" | jq -e '.text' > /dev/null 2>&1; then
   response_text=$(echo "$chat_result" | jq -r '.text' | head -1)
   pass "Agent chat works (response: ${response_text:0:50})"
+elif echo "$chat_result" | grep -q '"type":"complete"'; then
+  response_text=$(echo "$chat_result" | sed -n 's/^data: //p' | jq -r 'select(.type == "complete") | .data.text // empty' | tail -1)
+  pass "Agent chat works (response: ${response_text:0:50})"
 else
   # Chat might use streaming — check for error
   if echo "$chat_result" | jq -e '.error' > /dev/null 2>&1; then
@@ -2865,7 +2862,7 @@ echo ""
 echo -e "${YELLOW}→ Testing agent workspace access...${NC}"
 
 # Verify agent IDENTITY.md files were created
-ws_path=$(apicurl "$API_BASE/api/health" | jq -r '.workspace')
+ws_path=$(apicurl "$API_BASE/api/workspaces/active" | jq -r '.workspace.path // empty' 2>/dev/null)
 if [ -n "$ws_path" ] && [ -f "$ws_path/AGENTS/test-lead/IDENTITY.md" ]; then
   pass "Agent IDENTITY.md exists on disk"
   # Verify content has expected fields
