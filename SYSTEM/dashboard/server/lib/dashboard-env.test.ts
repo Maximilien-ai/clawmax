@@ -68,7 +68,14 @@ test('dashboard instance label honors explicit env override', () => {
 })
 
 test('local/native runtime defaults dashboard instance label to Dev', () => {
-  assert(getDashboardInstanceLabel({ DASHBOARD_PORT: '3001' }) === 'Dev', 'Expected local runtime to default instance label to Dev')
+  const previous = process.env.NODE_ENV
+  delete process.env.NODE_ENV
+  try {
+    assert(getDashboardInstanceLabel({ DASHBOARD_PORT: '3001' }) === 'Dev', 'Expected local runtime to default instance label to Dev')
+  } finally {
+    if (previous === undefined) delete process.env.NODE_ENV
+    else process.env.NODE_ENV = previous
+  }
 })
 
 test('test runtime defaults dashboard instance label to Test', () => {
