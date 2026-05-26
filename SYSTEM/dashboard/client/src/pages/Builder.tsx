@@ -364,6 +364,36 @@ function includesAnyPrompt(prompt: string, words: string[]): boolean {
   return words.some((word) => normalized.includes(word))
 }
 
+function hasExplicitAgentCreationPrompt(prompt: string): boolean {
+  if (includesAnyPrompt(prompt, CREATE_KEYWORDS) && includesAnyPrompt(prompt, AGENT_KEYWORDS)) {
+    return true
+  }
+  return includesAnyPrompt(prompt, [
+    'create an agent',
+    'create agent',
+    'build an agent',
+    'build agent',
+    'design an agent',
+    'design agent',
+    'new agent',
+    'agent like',
+    'agent, like',
+  ])
+}
+
+function hasExplicitSingleAgentConstraintPrompt(prompt: string): boolean {
+  return includesAnyPrompt(prompt, [
+    'using only that agent',
+    'using only this agent',
+    'using only my agent',
+    'using that agent',
+    'using this agent',
+    'with that agent',
+    'with this agent',
+    'with my current agent',
+  ])
+}
+
 function detectPromptScope(prompt: string): BuilderRecommendation['scope'] {
   if (includesAnyPrompt(prompt, TEAM_OF_TEAMS_KEYWORDS)) return 'team_of_teams'
   if (includesAnyPrompt(prompt, TEAM_KEYWORDS)) return 'team'
@@ -416,6 +446,15 @@ async function buildClientFallbackRecommendation(prompt: string): Promise<Builde
   const hasAgentTemplateLanguage = includesAnyPrompt(prompt, AGENT_TEMPLATE_KEYWORDS)
   const scope = detectPromptScope(prompt)
   const operation = detectPromptOperation(prompt)
+  const hasSkillLanguage = includesAnyPrompt(prompt, skillWords)
+  const hasWorkflowLanguage = includesAnyPrompt(prompt, ['workflow', 'workflows', 'handoff', 'handoffs', 'sequence', 'pipeline', 'steps', 'process', 'weekly', 'monthly', 'daily', 'recurring', 'review', 'approval', 'follow-up'])
+  const hasSingleAgentConstraint = hasExplicitSingleAgentConstraintPrompt(prompt)
+  const hasExplicitCreateAgentToolNeed = (
+    hasExplicitAgentCreationPrompt(prompt)
+    && hasSkillLanguage
+    && scope === 'single_agent'
+    && operation === 'create_new'
+  )
 
   const matchedAgents: BuilderMatchedAsset[] = ((agentsResp.agents || []) as ApiAgent[])
     .map((agent) => ({
@@ -570,8 +609,10 @@ async function buildClientFallbackRecommendation(prompt: string): Promise<Builde
 
   let intent: BuilderRecommendation['intent'] = 'ai_generate'
   let confidence: BuilderRecommendation['confidence'] = 'medium'
-  if (includesAnyPrompt(prompt, skillWords) && matchedSkills.length > 0) intent = 'skill_or_integration'
+  if (hasExplicitCreateAgentToolNeed && matchedAgentTemplates.length > 0 && (topAgentTemplate?.score || 0) >= Math.max(6, (topSkill?.score || 0) - 2)) intent = 'agent_template'
+  else if (includesAnyPrompt(prompt, skillWords) && matchedSkills.length > 0) intent = 'skill_or_integration'
   else if (scope === 'single_agent' && (operation === 'reuse_existing' || operation === 'improve_existing')) intent = 'existing_agent'
+  else if (hasSingleAgentConstraint && (operation === 'reuse_existing' || operation === 'improve_existing')) intent = 'existing_agent'
   else if (hasAgentTemplateLanguage && matchedAgentTemplates.length > 0) intent = 'agent_template'
   else if (hasTemplateLanguage && scope !== 'single_agent') intent = 'team_template'
   else if (hasTemplateLanguage && matchedOrganizationTemplates.length > 0) intent = 'team_template'
@@ -804,12 +845,18 @@ async function buildClientFallbackRecommendation(prompt: string): Promise<Builde
       scope,
       operation,
       confidence,
-      summary: `${topAgentTemplate ? `${topAgentTemplate.name} looks like the closest agent template.` : 'A role-specific agent template is probably the fastest starter here.'} ${fallbackNotice}${confidence === 'low' ? ' Confirm below if you want a new template-based agent rather than reusing an existing one.' : ''}`,
+      summary: `${topAgentTemplate
+        ? (hasSkillLanguage
+          ? `${topAgentTemplate.name} looks like the closest agent template, so create that role first and then add the requested skill or integration.`
+          : `${topAgentTemplate.name} looks like the closest agent template.`)
+        : 'A role-specific agent template is probably the fastest starter here.'} ${fallbackNotice}${confidence === 'low' ? ' Confirm below if you want a new template-based agent rather than reusing an existing one.' : ''}`,
       clarifyingQuestions: ['Is there already an agent in the workspace that is close enough to reuse?', 'What is the first task this agent should complete?'],
       confirmationOptions,
       recommendedPath: {
         title: topAgentTemplate ? `Start from agent template ${topAgentTemplate.name}` : 'Start from an agent template',
-        reasoning: 'A known role template is likely faster than building the whole identity by hand.',
+        reasoning: hasSkillLanguage
+          ? 'Create the closest matching role first, then add the missing skill or integration as the next step.'
+          : 'A known role template is likely faster than building the whole identity by hand.',
         primaryAction: { id: 'open-agent-templates', label: 'Open Templates', description: 'Use a matching agent template as the starting point.', page: 'templates' },
       },
       alternativePaths: [
@@ -823,8 +870,16 @@ async function buildClientFallbackRecommendation(prompt: string): Promise<Builde
       suggestedActions: [
         { id: 'open-agent-templates', label: 'Open Templates', description: 'Use a matching agent template as the starting point.', page: 'templates' },
         { id: 'open-agents', label: 'Open Agents', description: 'Compare against current workspace agents before duplicating a role.', page: 'agents' },
+        ...(hasSkillLanguage ? [
+          { id: 'review-skills', label: 'Open Skills', description: 'Add the requested skill or integration after creating the agent role.', page: 'skills' as const },
+          { id: 'create-skill', label: 'Create Skill with AI', description: 'Generate a custom skill draft when the needed capability is not already covered.', page: 'skills' as const, action: 'create-ai' as const, prefillPrompt: prompt },
+        ] : []),
       ],
-      testPlan: [
+      testPlan: hasSkillLanguage ? [
+        'Apply the template and review identity, tools, and model before first use.',
+        'Add the requested skill or integration before testing the first real task.',
+        'Run a real task that forces both the role and the requested capability to be used together.',
+      ] : [
         'Apply the template and review identity, tools, and model before first use.',
         'Send a real task prompt and see whether the result is close enough.',
       ],
@@ -1887,12 +1942,16 @@ export default function Builder({
       <div className={`relative mx-auto grid h-full max-w-7xl grid-cols-1 gap-4 overflow-hidden px-3 py-4 lg:px-5 ${
         showRightPane ? 'lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_380px]' : ''
       }`}>
-        <section className="flex min-h-0 flex-col overflow-hidden rounded-3xl border border-gray-200 bg-white/90 p-4 shadow-sm backdrop-blur dark:border-gray-800 dark:bg-gray-900/80">
+        <section className={`flex min-h-0 flex-col overflow-hidden rounded-3xl border border-gray-200 bg-white/90 shadow-sm backdrop-blur dark:border-gray-800 dark:bg-gray-900/80 ${
+          hasConversation ? 'p-3' : 'p-4'
+        }`}>
           <div className="shrink-0">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-sky-600 dark:text-sky-300">Builder</div>
-                <h1 className="mt-1 text-2xl font-semibold tracking-tight text-gray-950 dark:text-white xl:text-[2rem]">AI Builder / Designer</h1>
+                <h1 className={`mt-1 font-semibold tracking-tight text-gray-950 dark:text-white ${
+                  hasConversation ? 'text-xl xl:text-[1.75rem]' : 'text-2xl xl:text-[2rem]'
+                }`}>AI Builder / Designer</h1>
                 {!hasConversation ? (
                   <p className="mt-2 max-w-3xl text-sm text-gray-600 dark:text-gray-300">
                     Describe what you want to build in the active workspace. The builder will look at current agents, skills, templates, and workflows, then route you toward the fastest next step.
@@ -2020,7 +2079,9 @@ export default function Builder({
             )}
           </div>
 
-          <div className="mt-4 flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border border-gray-200 bg-gray-50/70 p-3 dark:border-gray-800 dark:bg-gray-950/50">
+          <div className={`flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border border-gray-200 bg-gray-50/70 dark:border-gray-800 dark:bg-gray-950/50 ${
+            hasConversation ? 'mt-3 p-2.5' : 'mt-4 p-3'
+          }`}>
             <div ref={transcriptViewportRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
               {messages.map((message) => (
                 <div key={message.id} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
@@ -2055,11 +2116,11 @@ export default function Builder({
 
               {recommendation && !loading && (
                 <div className="flex justify-start">
-                  <div className="max-w-[92%] rounded-2xl border border-sky-200 bg-sky-50/80 p-3 dark:border-sky-900 dark:bg-sky-950/30">
+                  <div className="max-w-[90%] rounded-2xl border border-sky-200 bg-sky-50/80 p-2.5 dark:border-sky-900 dark:bg-sky-950/30">
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">Latest Recommendation</div>
-                        <div className="mt-1 text-sm font-semibold text-gray-950 dark:text-white">{recommendation.recommendedPath.title}</div>
+                        <div className="mt-0.5 text-sm font-semibold text-gray-950 dark:text-white">{recommendation.recommendedPath.title}</div>
                       </div>
                       <div className="flex flex-col items-end gap-1">
                         <div className="rounded-full border border-sky-200 bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-sky-700 dark:border-sky-800 dark:bg-gray-900 dark:text-sky-300">
@@ -2076,9 +2137,9 @@ export default function Builder({
                         </div>
                       </div>
                     </div>
-                    <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{recommendation.recommendedPath.reasoning}</p>
+                    <p className="mt-1.5 text-sm text-gray-600 dark:text-gray-300">{recommendation.recommendedPath.reasoning}</p>
                     {recommendation.groupingSuggestion && (
-                      <div className="mt-3 rounded-2xl border border-sky-200/70 bg-white/80 px-3 py-2 dark:border-sky-900/70 dark:bg-gray-900/60">
+                      <div className="mt-2 rounded-2xl border border-sky-200/70 bg-white/80 px-3 py-2 dark:border-sky-900/70 dark:bg-gray-900/60">
                         <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">
                           Suggested Grouping
                         </div>
@@ -2102,7 +2163,7 @@ export default function Builder({
                         )}
                       </div>
                     )}
-                    <div className="mt-3 flex flex-wrap gap-2">
+                    <div className="mt-2.5 flex flex-wrap gap-2">
                       <button
                         onClick={() => runAction(recommendation.recommendedPath.primaryAction)}
                         className="rounded-full bg-sky-600 px-3 py-2 text-xs font-medium text-white hover:bg-sky-700"
@@ -2111,8 +2172,8 @@ export default function Builder({
                       </button>
                     </div>
                     {secondarySuggestedActions.length > 0 && (
-                      <div className="mt-3">
-                        <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">
+                      <div className="mt-2.5">
+                        <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">
                           Then Consider
                         </div>
                         <div className="flex flex-wrap gap-2">
@@ -2130,8 +2191,8 @@ export default function Builder({
                       </div>
                     )}
                     {recommendation.confirmationOptions.length > 0 && (
-                      <div className="mt-3">
-                        <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">Confirm Path</div>
+                      <div className="mt-2.5">
+                        <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">Confirm Path</div>
                         <div className="flex flex-wrap gap-2">
                           {recommendation.confirmationOptions.map((option) => (
                             <button
@@ -2152,7 +2213,7 @@ export default function Builder({
                         </div>
                       </div>
                     )}
-                    <div className="mt-3 flex justify-end">
+                    <div className="mt-2.5 flex justify-end">
                       <div className="inline-flex items-center gap-2">
                         <button
                           onClick={() => toggleRecommendationFeedback('up')}
@@ -2209,8 +2270,8 @@ export default function Builder({
               <div ref={transcriptEndRef} />
             </div>
 
-            <div className="mt-3 shrink-0 rounded-2xl border border-sky-200/80 bg-sky-50/70 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] dark:border-sky-900/60 dark:bg-sky-950/20">
-              <div className="mb-3 flex items-center justify-between gap-3">
+            <div className="mt-2.5 shrink-0 rounded-2xl border border-sky-200/80 bg-sky-50/70 p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] dark:border-sky-900/60 dark:bg-sky-950/20">
+              <div className="mb-2 flex items-center justify-between gap-3">
                 <div>
                   <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">
                     Your Builder Prompt
@@ -2224,7 +2285,7 @@ export default function Builder({
                 </div>
               </div>
               {attachments.length > 0 && (
-                <div className="mb-3 flex flex-wrap gap-2">
+                <div className="mb-2 flex flex-wrap gap-2">
                   {attachments.map((attachment) => (
                     <div key={attachment.id} className="inline-flex max-w-full items-center gap-2 rounded-full border border-sky-200 bg-white px-3 py-1.5 text-xs text-gray-700 dark:border-sky-800 dark:bg-gray-900 dark:text-gray-200">
                       <span>{attachment.isImage ? 'Image' : 'File'}: {attachment.name}</span>
@@ -2240,10 +2301,10 @@ export default function Builder({
                 onChange={(event) => setPrompt(event.target.value)}
                 onKeyDown={handlePromptKeyDown}
                 placeholder="Example: I want a small team that watches competitor launches, writes concise summaries, and posts a final brief every Friday."
-                className="min-h-[64px] max-h-[110px] w-full resize-y rounded-xl border border-sky-200 bg-white/95 px-3 py-2 text-sm text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-sky-400 dark:border-sky-900 dark:bg-gray-900 dark:text-gray-100 dark:focus:border-sky-700"
+                className="min-h-[56px] max-h-[96px] w-full resize-y rounded-xl border border-sky-200 bg-white/95 px-3 py-2 text-sm text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-sky-400 dark:border-sky-900 dark:bg-gray-900 dark:text-gray-100 dark:focus:border-sky-700"
               />
 
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-sky-200/80 pt-3 dark:border-sky-900/60">
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-3 border-t border-sky-200/80 pt-2.5 dark:border-sky-900/60">
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"

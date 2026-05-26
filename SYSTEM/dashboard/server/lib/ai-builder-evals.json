@@ -219,6 +219,17 @@
     "page": "templates"
   },
   {
+    "name": "explicit agent creation plus skill should create the role first and keep skills as follow-through",
+    "prompt": "create ceo agent and give him gmail skill",
+    "intent": "agent_template",
+    "scope": "single_agent",
+    "operation": "create_new",
+    "page": "templates",
+    "titleIncludes": "CEO",
+    "suggestedActionPagesInclude": ["skills"],
+    "suggestedActionIdsInclude": ["create-skill"]
+  },
+  {
     "name": "company-level legal ops request maps to team-of-teams template path",
     "prompt": "Design an organization for legal operations with intake, contracts, outside counsel coordination, and reporting teams",
     "intent": "team_template",
@@ -463,7 +474,7 @@
     "name": "existing agent recurring intake process keeps workflow follow-through visible",
     "prompt": "I already have an intake coordinator agent. Using only that agent, I need a weekly lead triage workflow with final approval and follow-up reminders",
     "intent": "existing_agent",
-    "scope": "team",
+    "scope": "single_agent",
     "operation": "reuse_existing",
     "page": "agents",
     "suggestedActionPagesInclude": ["workflows"]

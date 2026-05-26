@@ -238,6 +238,36 @@ function includesAny(prompt: string, words: string[]): boolean {
   })
 }
 
+function hasExplicitAgentCreationLanguage(prompt: string): boolean {
+  if (includesAny(prompt, CREATE_KEYWORDS) && includesAny(prompt, AGENT_KEYWORDS)) {
+    return true
+  }
+  return includesAny(prompt, [
+    'create an agent',
+    'create agent',
+    'build an agent',
+    'build agent',
+    'design an agent',
+    'design agent',
+    'new agent',
+    'agent like',
+    'agent, like',
+  ])
+}
+
+function hasExplicitSingleAgentConstraint(prompt: string): boolean {
+  return includesAny(prompt, [
+    'using only that agent',
+    'using only this agent',
+    'using only my agent',
+    'using that agent',
+    'using this agent',
+    'with that agent',
+    'with this agent',
+    'with my current agent',
+  ])
+}
+
 function detectScope(prompt: string): AiBuilderScope {
   if (includesAny(prompt, TEAM_OF_TEAMS_KEYWORDS)) return 'team_of_teams'
   if (includesAny(prompt, COMPANY_SCOPE_KEYWORDS)) return 'team_of_teams'
@@ -710,11 +740,19 @@ function chooseIntent(args: {
   const hasRefineLanguage = includesAny(prompt, REFINE_KEYWORDS)
   const wantsSomethingNew = includesAny(prompt, NEW_BUILD_KEYWORDS)
   const hasAmbiguityLanguage = includesAny(prompt, AMBIGUITY_KEYWORDS)
+  const hasExplicitAgentCreation = hasExplicitAgentCreationLanguage(prompt)
+  const hasSingleAgentConstraint = hasExplicitSingleAgentConstraint(prompt)
   const hasExplicitExistingAgentToolNeed = (
     includesAny(prompt, ['have an agent', 'my agent', 'current agent', 'existing agent', 'already have an agent', 'already have a'])
     && includesAny(prompt, ['needs', 'need', 'just needs', 'it needs'])
     && hasSkillLanguage
     && scope === 'single_agent'
+  )
+  const hasExplicitCreateAgentToolNeed = (
+    hasExplicitAgentCreation
+    && hasSkillLanguage
+    && scope === 'single_agent'
+    && operation === 'create_new'
   )
   const agentScore = topScore(matchedAgents)
   const agentTemplateScore = topScore(matchedAgentTemplates)
@@ -737,6 +775,19 @@ function chooseIntent(args: {
     return { intent: 'skill_or_integration', scope, operation, confidence: matchedSkills[0].score >= 8 ? 'high' : 'medium' }
   }
 
+  if (
+    hasExplicitCreateAgentToolNeed
+    && matchedAgentTemplates.length > 0
+    && agentTemplateScore >= Math.max(6, skillScore - 2)
+  ) {
+    const confidence: AiBuilderConfidence = hasAmbiguityLanguage
+      ? 'low'
+      : agentTemplateScore >= Math.max(skillScore, 8)
+        ? 'high'
+        : 'medium'
+    return { intent: 'agent_template', scope, operation, confidence }
+  }
+
   if (hasSkillLanguage && matchedSkills.length > 0 && !hasTeamLanguage && orgTemplateScore < Math.max(skillScore + 6, 14)) {
     return { intent: 'skill_or_integration', scope, operation, confidence: matchedSkills[0].score >= 8 ? 'high' : 'medium' }
   }
@@ -748,6 +799,15 @@ function chooseIntent(args: {
         ? (agentScore >= Math.max(strongestTemplateScore + 2, 8) ? 'high' : 'medium')
         : 'medium'
     return { intent: 'existing_agent', scope, operation, confidence }
+  }
+
+  if (hasSingleAgentConstraint && (operation === 'reuse_existing' || operation === 'improve_existing')) {
+    const confidence: AiBuilderConfidence = hasAmbiguityLanguage
+      ? 'low'
+      : matchedAgents.length > 0
+        ? (agentScore >= Math.max(strongestTemplateScore, 7) ? 'high' : 'medium')
+        : 'medium'
+    return { intent: 'existing_agent', scope: 'single_agent', operation, confidence }
   }
 
   if (scope === 'team_of_teams') {
@@ -1078,7 +1138,9 @@ export function buildAiBuilderRecommendation(prompt: string): AiBuilderRecommend
       recommendedPath = {
         title: topAgentTemplate ? `Start from agent template ${topAgentTemplate.name}` : 'Start from an agent template',
         reasoning: topAgentTemplate
-          ? `${topAgentTemplate.name} is the closest role match and should be faster than building a single agent from scratch.`
+          ? hasSkillLanguage
+            ? `${topAgentTemplate.name} is the closest role match, so create that agent first and then add the missing skill or integration.`
+            : `${topAgentTemplate.name} is the closest role match and should be faster than building a single agent from scratch.`
           : 'A role-specific agent template is likely the fastest path for a focused use case.',
         primaryAction: action('open-agent-template-library', 'Open Templates', 'Use a matching agent template as the starting point.', 'templates'),
       }
@@ -1097,13 +1159,26 @@ export function buildAiBuilderRecommendation(prompt: string): AiBuilderRecommend
       suggestedActions = [
         recommendedPath.primaryAction,
         action('compare-existing-agents', 'Compare existing agents', 'Make sure you are not duplicating a role already present in the workspace.', 'agents'),
+        ...(hasSkillLanguage ? [
+          action('review-skills', 'Open Skills', 'Add the requested skill or integration after creating the agent role.', 'skills'),
+          {
+            ...action('create-skill', 'Create Skill with AI', 'Generate a custom skill draft when the needed capability is not already covered.', 'skills', 'create-ai'),
+            prefillPrompt: prompt,
+          },
+        ] : []),
         action('plan-first-test', 'Plan first test', 'Prepare the first prompt you will use to validate the created agent.', 'builder'),
       ]
-      testPlan = [
-        'Apply the template and review the generated identity, tools, and model before first use.',
-        'Send a real task prompt that matches the actual job this agent should perform.',
-        'If the agent is close but generic, refine the identity or clone into a workspace-specific variant.',
-      ]
+      testPlan = hasSkillLanguage
+        ? [
+            'Apply the template and review the generated identity, tools, and model before first use.',
+            'Add the requested skill or integration before testing the first real task.',
+            'Run a real task that forces both the role and the requested capability to be used together.',
+          ]
+        : [
+            'Apply the template and review the generated identity, tools, and model before first use.',
+            'Send a real task prompt that matches the actual job this agent should perform.',
+            'If the agent is close but generic, refine the identity or clone into a workspace-specific variant.',
+          ]
       break
     case 'team_template':
       recommendedPath = preferNewTeamTemplate
