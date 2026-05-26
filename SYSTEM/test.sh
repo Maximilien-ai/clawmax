@@ -584,6 +584,16 @@ else
   fail "Builder starter prompt helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Onboarding tour helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/onboardingTour.test.ts > /tmp/clawmax-onboarding-tour.out 2>&1 || true
+if grep -q "onboardingTour.test.ts: ok" /tmp/clawmax-onboarding-tour.out; then
+  onboarding_tour_count=$(grep -c "^✓" /tmp/clawmax-onboarding-tour.out | tr -cd '0-9')
+  pass "Onboarding tour helper unit tests (${onboarding_tour_count:-?} tests)"
+else
+  cat /tmp/clawmax-onboarding-tour.out
+  fail "Onboarding tour helper unit tests"
+fi
+
 echo -e "${YELLOW}→ Running AI Builder routing unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/ai-builder.test.ts > /tmp/clawmax-ai-builder-routing.out 2>&1 || true
 if grep -q "^✓" /tmp/clawmax-ai-builder-routing.out; then

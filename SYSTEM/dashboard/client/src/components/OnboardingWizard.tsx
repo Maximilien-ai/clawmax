@@ -14,16 +14,18 @@ type TemplateCandidate = {
 
 interface OnboardingWizardProps {
   visible: boolean
+  suppressAutoOpen?: boolean
   onOpenByok: () => void
   onOpenPartners: () => void
   onImportAgents: () => void
+  onOpenBuilder: () => void
   onCreateAgent: () => void
   onCreateAgentAI: () => void
   onOpenTemplates: () => void
   workspaceId?: string | null
 }
 
-export function OnboardingWizard({ visible, onOpenByok, onOpenPartners, onImportAgents, onCreateAgent, onCreateAgentAI, onOpenTemplates, workspaceId }: OnboardingWizardProps) {
+export function OnboardingWizard({ visible, suppressAutoOpen = false, onOpenByok, onOpenPartners, onImportAgents, onOpenBuilder, onCreateAgent, onCreateAgentAI, onOpenTemplates, workspaceId }: OnboardingWizardProps) {
   const { config } = useAuth()
   const aiEnabled = hasAnyLLMKeys(config)
   const [open, setOpen] = useState(false)
@@ -82,11 +84,12 @@ export function OnboardingWizard({ visible, onOpenByok, onOpenPartners, onImport
       setOpen(false)
       return
     }
+    if (suppressAutoOpen) return
     const key = `clawmax-onboarding-auto-opened:${workspaceId || 'default'}`
     if (localStorage.getItem(key) === 'true') return
     setOpen(true)
     localStorage.setItem(key, 'true')
-  }, [visible, workspaceId])
+  }, [suppressAutoOpen, visible, workspaceId])
 
   useEffect(() => {
     window.dispatchEvent(new CustomEvent('clawmax-onboarding-visibility', { detail: { open } }))
@@ -183,7 +186,7 @@ export function OnboardingWizard({ visible, onOpenByok, onOpenPartners, onImport
                 <div className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-600 dark:text-emerald-400">First Run</div>
                 <h2 className="mt-1 text-xl font-semibold text-gray-900 dark:text-gray-100">Get this workspace running</h2>
                 <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                  Use the shortest path that fits how you already work. You can reopen this until the workspace has agents.
+                  Start with BYOK, then use AI Builder as the default way to design what this workspace should contain. You can reopen this until the workspace has agents.
                 </p>
               </div>
               <button onClick={() => setOpen(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">✕</button>
@@ -243,8 +246,8 @@ export function OnboardingWizard({ visible, onOpenByok, onOpenPartners, onImport
                   <div className="text-sm font-medium text-amber-800 dark:text-amber-200">Set BYOK and runtime first</div>
                   <p className="mt-1 text-sm text-amber-700 dark:text-amber-300">
                     {config?.ollamaEnabled === false
-                      ? 'If you want templates, AI generation, or system agents to work cleanly, configure BYOK before you start.'
-                      : 'If you want templates, AI generation, or system agents to work cleanly, configure BYOK or Ollama before you start.'}
+                      ? 'Nothing else will work cleanly until model keys are configured. Set BYOK before you start building agents, templates, or workflows.'
+                      : 'Nothing else will work cleanly until model access is configured. Set BYOK or Ollama before you start building agents, templates, or workflows.'}
                   </p>
                 </div>
 
@@ -311,7 +314,19 @@ export function OnboardingWizard({ visible, onOpenByok, onOpenPartners, onImport
                   </div>
                 </div>
 
-                <div className="grid gap-3 md:grid-cols-2">
+                <div className="grid gap-3 md:grid-cols-3">
+                  <button
+                    onClick={() => { onOpenBuilder(); setOpen(false) }}
+                    className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-left hover:bg-sky-100/80 dark:border-sky-800 dark:bg-sky-900/20 dark:hover:bg-sky-900/30"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="rounded-full bg-sky-600/10 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">Recommended</span>
+                    </div>
+                    <div className="mt-2 text-sm font-semibold text-gray-900 dark:text-gray-100">Open AI Builder</div>
+                    <div className="mt-1 text-sm text-gray-600 dark:text-gray-300">
+                      Describe what you want in plain language and let Builder route you toward agents, skills, workflows, or templates.
+                    </div>
+                  </button>
                   <button
                     onClick={() => { onImportAgents(); setOpen(false) }}
                     className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 text-left hover:bg-gray-50 dark:hover:bg-gray-900/40"
@@ -332,7 +347,7 @@ export function OnboardingWizard({ visible, onOpenByok, onOpenPartners, onImport
                     </div>
                     <div className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                       {aiEnabled
-                        ? 'BYOK is configured, so the fastest path is AI-assisted agent creation.'
+                        ? 'Use this when you know you want one direct agent rather than Builder-guided routing.'
                         : 'Start with one role, validate it, then expand from there.'}
                     </div>
                   </button>
@@ -349,7 +364,7 @@ export function OnboardingWizard({ visible, onOpenByok, onOpenPartners, onImport
                 <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4">
                   <div className="text-sm font-medium text-gray-900 dark:text-gray-100">Start from a template if you want faster results</div>
                   <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                    Templates are the fastest way to get kickoff, specialist lanes, and a final output workflow without building everything by hand.
+                    Templates are the fastest way to get kickoff, specialist lanes, and a final output workflow without building everything by hand. Builder can also route you here when a template is a better fit than creating from scratch.
                   </p>
                 </div>
 
