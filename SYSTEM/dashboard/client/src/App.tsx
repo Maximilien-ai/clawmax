@@ -973,13 +973,15 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
         </div>
       </div>
       <div className="flex w-full items-center justify-end gap-2 md:w-auto md:gap-3">
-        <NotificationCenter
-          onNavigateToAgent={onNavigateToAgent}
-          onNavigateToWorkflow={onNavigateToWorkflow}
-          onNavigateToPage={onNavigateToPage}
-          onNavigateToDoc={onNavigateToDoc}
-          onAgentRestarted={() => window.dispatchEvent(new CustomEvent('agents-updated'))}
-        />
+        <div data-tour="notifications">
+          <NotificationCenter
+            onNavigateToAgent={onNavigateToAgent}
+            onNavigateToWorkflow={onNavigateToWorkflow}
+            onNavigateToPage={onNavigateToPage}
+            onNavigateToDoc={onNavigateToDoc}
+            onAgentRestarted={() => window.dispatchEvent(new CustomEvent('agents-updated'))}
+          />
+        </div>
         <OnboardingWizard
           visible={onboardingVisible}
           suppressAutoOpen={workspaceTourVisible}

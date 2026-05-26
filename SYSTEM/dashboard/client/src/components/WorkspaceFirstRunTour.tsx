@@ -1,56 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import type { DashboardPage } from '../lib/navigation'
-
-type TourStep = {
-  id: string
-  target: string
-  title: string
-  description: string
-  page?: DashboardPage
-}
-
-const TOUR_STEPS: TourStep[] = [
-  {
-    id: 'workspace',
-    target: '[data-tour="workspace-switcher"]',
-    title: 'Workspaces live here',
-    description: 'Create or switch workspaces here. Use separate workspaces when you want different agents, docs, and teams to stay isolated.',
-  },
-  {
-    id: 'byok',
-    target: '[data-tour="byok"]',
-    title: 'Set BYOK before you build',
-    description: 'Add your model keys here first. AI Builder, templates, and AI-assisted generation depend on this being configured cleanly.',
-  },
-  {
-    id: 'builder',
-    target: '[data-tour="nav-builder"]',
-    title: 'Start with AI Builder',
-    description: 'This is the fastest path for a new workspace. Tell Builder what you want, and it will route you toward agents, skills, workflows, or templates.',
-    page: 'builder',
-  },
-  {
-    id: 'agents',
-    target: '[data-tour="nav-agents"]',
-    title: 'Your agents show up here',
-    description: 'Use Agents to inspect, edit, and chat with the roles you create. This is where single agents live after Builder or template setup.',
-    page: 'agents',
-  },
-  {
-    id: 'workflows',
-    target: '[data-tour="nav-workflows"]',
-    title: 'Workflows coordinate repeatable work',
-    description: 'Use Workflows when an agent or team needs a recurring process, approvals, or handoffs instead of one-off chats.',
-    page: 'workflows',
-  },
-  {
-    id: 'templates',
-    target: '[data-tour="nav-templates"]',
-    title: 'Templates save you from starting from scratch',
-    description: 'Browse or refine templates here when you want a starter team, workspace structure, or prebuilt flow instead of building from zero.',
-    page: 'templates',
-  },
-]
+import { WORKSPACE_TOUR_STEPS } from '../lib/onboardingTour'
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max)
@@ -68,8 +18,37 @@ export function WorkspaceFirstRunTour({
   const [stepIndex, setStepIndex] = useState(0)
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null)
 
-  const step = TOUR_STEPS[stepIndex]
+  const step = WORKSPACE_TOUR_STEPS[stepIndex]
   const isDarkMode = typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
+
+  function getUnionRect(targets: Array<HTMLElement>): DOMRect | null {
+    if (targets.length === 0) return null
+    const rects = targets.map((target) => target.getBoundingClientRect())
+    const left = Math.min(...rects.map((rect) => rect.left))
+    const top = Math.min(...rects.map((rect) => rect.top))
+    const right = Math.max(...rects.map((rect) => rect.right))
+    const bottom = Math.max(...rects.map((rect) => rect.bottom))
+    return {
+      x: left,
+      y: top,
+      left,
+      top,
+      right,
+      bottom,
+      width: right - left,
+      height: bottom - top,
+      toJSON: () => ({
+        x: left,
+        y: top,
+        left,
+        top,
+        right,
+        bottom,
+        width: right - left,
+        height: bottom - top,
+      }),
+    } as DOMRect
+  }
 
   useEffect(() => {
     if (!visible) return
@@ -84,12 +63,11 @@ export function WorkspaceFirstRunTour({
   useEffect(() => {
     if (!visible) return
     const refreshRect = () => {
-      const element = document.querySelector(step.target)
-      if (element instanceof HTMLElement) {
-        setTargetRect(element.getBoundingClientRect())
-      } else {
-        setTargetRect(null)
-      }
+      const selectors = Array.isArray(step.target) ? step.target : [step.target]
+      const elements = selectors
+        .map((selector) => document.querySelector(selector))
+        .filter((element): element is HTMLElement => element instanceof HTMLElement)
+      setTargetRect(getUnionRect(elements))
     }
 
     refreshRect()
@@ -183,7 +161,7 @@ export function WorkspaceFirstRunTour({
         <p className={`mt-3 text-sm leading-6 ${isDarkMode ? 'text-gray-300' : 'text-slate-700'}`}>{step.description}</p>
 
         <div className="mt-4 flex flex-wrap gap-2">
-          {TOUR_STEPS.map((tourStep, index) => (
+          {WORKSPACE_TOUR_STEPS.map((tourStep, index) => (
             <button
               key={tourStep.id}
               type="button"
@@ -200,7 +178,7 @@ export function WorkspaceFirstRunTour({
 
         <div className="mt-5 flex items-center justify-between gap-3">
           <div className={`flex items-center gap-2 text-xs ${isDarkMode ? 'text-gray-400' : 'text-slate-600'}`}>
-            <span>{stepIndex + 1} / {TOUR_STEPS.length}</span>
+            <span>{stepIndex + 1} / {WORKSPACE_TOUR_STEPS.length}</span>
             <button
               type="button"
               onClick={() => onDismiss('dismissed')}
@@ -229,7 +207,8 @@ export function WorkspaceFirstRunTour({
             <button
               type="button"
               onClick={() => {
-                if (stepIndex === TOUR_STEPS.length - 1) {
+                if (stepIndex === WORKSPACE_TOUR_STEPS.length - 1) {
+                  onNavigateToPage('builder')
                   onDismiss('completed')
                   return
                 }
@@ -239,7 +218,7 @@ export function WorkspaceFirstRunTour({
                 isDarkMode ? 'bg-sky-600 hover:bg-sky-700' : 'bg-sky-700 hover:bg-sky-800'
               }`}
             >
-              {stepIndex === TOUR_STEPS.length - 1 ? 'Finish' : 'Next'}
+              {stepIndex === WORKSPACE_TOUR_STEPS.length - 1 ? 'Finish' : 'Next'}
             </button>
           </div>
         </div>

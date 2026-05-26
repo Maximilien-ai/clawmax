@@ -2,6 +2,83 @@ export const WORKSPACE_TOUR_VERSION = 1
 export const GLOBAL_WORKSPACE_TOUR_DISABLE_KEY = `clawmax-workspace-tour:disable:v${WORKSPACE_TOUR_VERSION}`
 
 export type WorkspaceTourState = 'completed' | 'dismissed'
+export type WorkspaceTourStep = {
+  id: string
+  target: string | string[]
+  title: string
+  description: string
+  page?: 'builder' | 'agents' | 'workflows' | 'communication' | 'organizations' | 'docs' | 'skills' | 'templates' | 'keys' | 'activity' | 'logs'
+}
+
+export const WORKSPACE_TOUR_STEPS: WorkspaceTourStep[] = [
+  {
+    id: 'workspace',
+    target: '[data-tour="workspace-switcher"]',
+    title: 'Workspaces live here',
+    description: 'Create or switch workspaces here. Use separate workspaces when you want different agents, docs, and teams to stay isolated.',
+  },
+  {
+    id: 'byok',
+    target: '[data-tour="byok"]',
+    title: 'Set BYOK before you build',
+    description: 'Add your model keys here first. AI Builder, templates, and AI-assisted generation depend on this being configured cleanly.',
+  },
+  {
+    id: 'notifications',
+    target: '[data-tour="notifications"]',
+    title: 'Watch for notifications here',
+    description: 'This is where you will see alerts when agents are stuck, blocked, or anything needs your attention. Check here first when the system needs you.',
+  },
+  {
+    id: 'builder',
+    target: '[data-tour="nav-builder"]',
+    title: 'Start with AI Builder',
+    description: 'This is the fastest path for a new workspace. Tell Builder what you want, and it will route you toward agents, skills, workflows, or templates.',
+    page: 'builder',
+  },
+  {
+    id: 'agents',
+    target: '[data-tour="nav-agents"]',
+    title: 'Your agents show up here',
+    description: 'Use Agents to inspect, edit, and chat with the roles you create. This is where single and teams of agents live after Builder or template setup.',
+    page: 'agents',
+  },
+  {
+    id: 'communications',
+    target: '[data-tour="nav-communication"]',
+    title: 'Agent conversations happen here',
+    description: 'Use Communications to watch agents chat and coordinate with each other. You can monitor the conversation and interject when needed.',
+    page: 'communication',
+  },
+  {
+    id: 'workflows',
+    target: '[data-tour="nav-workflows"]',
+    title: 'Workflows coordinate repeatable work',
+    description: 'Use Workflows when an agent or team needs a recurring process, approvals, or handoffs instead of one-off chats.',
+    page: 'workflows',
+  },
+  {
+    id: 'skills',
+    target: '[data-tour="nav-skills"]',
+    title: 'Skills extend what agents can do',
+    description: 'Use Skills to add tools, integrations, and reusable capabilities. This is where you improve an existing agent before rebuilding from scratch.',
+    page: 'skills',
+  },
+  {
+    id: 'templates',
+    target: '[data-tour="nav-templates"]',
+    title: 'Templates save you from starting from scratch',
+    description: 'Browse or refine templates here when you want a starter team, workspace structure, or prebuilt flow instead of building from zero.',
+    page: 'templates',
+  },
+  {
+    id: 'system',
+    target: ['[data-tour="nav-keys"]', '[data-tour="nav-activity"]', '[data-tour="nav-logs"]'],
+    title: 'System controls live down here',
+    description: 'Use Keys & Secrets for credentials, Activity & Budget for usage and cost tracking, and System & Logs when you need diagnostics or runtime details.',
+    page: 'keys',
+  },
+]
 
 export function getWorkspaceTourStorageKey(workspaceKey: string) {
   return `clawmax-workspace-tour:${workspaceKey}:v${WORKSPACE_TOUR_VERSION}`

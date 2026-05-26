@@ -4,6 +4,7 @@ import {
   getWorkspaceTourStorageKey,
   readGlobalWorkspaceTourDisabled,
   shouldShowWorkspaceTour,
+  WORKSPACE_TOUR_STEPS,
   writeWorkspaceTourState,
 } from './onboardingTour'
 
@@ -81,6 +82,17 @@ test('does not show workspace tour for populated workspaces or when onboarding i
 
 test('workspace tour storage key is versioned per workspace', () => {
   assert.equal(getWorkspaceTourStorageKey('personal'), 'clawmax-workspace-tour:personal:v1')
+})
+
+test('workspace tour exposes the expected ten guided steps', () => {
+  assert.equal(WORKSPACE_TOUR_STEPS.length, 10)
+  assert.deepEqual(
+    WORKSPACE_TOUR_STEPS.map((step) => step.id),
+    ['workspace', 'byok', 'notifications', 'builder', 'agents', 'communications', 'workflows', 'skills', 'templates', 'system'],
+  )
+  const systemStep = WORKSPACE_TOUR_STEPS.find((step) => step.id === 'system')
+  assert(Array.isArray(systemStep?.target), 'Expected system step to target multiple system nav items')
+  assert.deepEqual(systemStep?.target, ['[data-tour="nav-keys"]', '[data-tour="nav-activity"]', '[data-tour="nav-logs"]'])
 })
 
 console.log('onboardingTour.test.ts: ok')
