@@ -50,6 +50,26 @@ export function buildCommunicationCacheKey(type: 'community' | 'group', name: st
   return `${type}:${name}`
 }
 
+export function resolveCommunicationDocPath(
+  target: string,
+  docEntries: Array<{ path: string }>
+): string {
+  if (!target || target.includes('/')) return target
+
+  const exact = docEntries.find((entry) => entry.path === target)
+  if (exact) return exact.path
+
+  const matches = docEntries.filter((entry) => entry.path.endsWith(`/${target}`) || entry.path === target)
+  if (matches.length === 1) return matches[0].path
+
+  const preferred = matches.find((entry) => entry.path.startsWith('AGENTS/'))
+    || matches.find((entry) => entry.path.startsWith('WORKFLOWS/'))
+    || matches.find((entry) => entry.path.startsWith('ORG/'))
+    || matches[0]
+
+  return preferred?.path || target
+}
+
 export function shouldUpdateChannelMessages(
   previousMessages: ComparableMessage[],
   nextMessages: ComparableMessage[]

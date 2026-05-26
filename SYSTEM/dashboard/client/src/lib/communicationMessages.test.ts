@@ -3,6 +3,7 @@ import {
   buildCommunicationCacheKey,
   mergeTypingAgents,
   removeRespondedAgentsFromPending,
+  resolveCommunicationDocPath,
   shouldUpdateChannelMessages,
 } from './communicationMessages'
 
@@ -54,7 +55,21 @@ function run() {
   )
   assert.deepStrictEqual(Array.from(pendingAfterNamedResponse).sort(), ['agent-b'])
 
-  console.log('communicationMessages.test.ts: 7 tests passed')
+  const docEntries = [
+    { path: 'WORKFLOWS/outputs/final-review/peptide-optimization-final-report.md' },
+    { path: 'AGENTS/researcher/IDENTITY.md' },
+    { path: 'ORG/MASTER_PLAN.md' },
+  ]
+  assert.strictEqual(
+    resolveCommunicationDocPath('peptide-optimization-final-report.md', docEntries),
+    'WORKFLOWS/outputs/final-review/peptide-optimization-final-report.md'
+  )
+  assert.strictEqual(
+    resolveCommunicationDocPath('WORKFLOWS/outputs/final-review/peptide-optimization-final-report.md', docEntries),
+    'WORKFLOWS/outputs/final-review/peptide-optimization-final-report.md'
+  )
+
+  console.log('communicationMessages.test.ts: 9 tests passed')
 }
 
 run()

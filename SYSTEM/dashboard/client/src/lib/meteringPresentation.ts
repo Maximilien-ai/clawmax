@@ -37,8 +37,21 @@ export function summarizeMeteringByAgentType(
 
   return {
     builtInAgentCount,
-    builtInEstimatedCostUsd: Math.round(builtInEstimatedCostUsd * 100) / 100,
+    builtInEstimatedCostUsd,
     userAgentCount,
-    userEstimatedCostUsd: Math.round(userEstimatedCostUsd * 100) / 100,
+    userEstimatedCostUsd,
   }
+}
+
+export function formatMeteringCost(value: number): string {
+  const cost = Number(value || 0)
+  if (cost <= 0) return '$0.00'
+  if (cost < 0.01) return '<$0.01'
+  return `$${cost.toFixed(2)}`
+}
+
+export function formatMeteringTokens(value: number): string {
+  const tokens = Math.max(0, Math.round(Number(value || 0)))
+  if (tokens < 1000) return `${tokens}`
+  return `${(tokens / 1000).toFixed(1)}k`
 }

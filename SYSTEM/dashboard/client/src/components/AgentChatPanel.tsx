@@ -896,9 +896,11 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
                             key={file}
                             type="button"
                             onClick={() => onNavigateToDoc(file)}
-                            className="text-[11px] px-2 py-1 rounded-full bg-sky-100 text-sky-700 hover:bg-sky-200 dark:bg-sky-900/30 dark:text-sky-300 dark:hover:bg-sky-900/50"
+                            className="cursor-pointer text-[11px] px-2 py-1 rounded-full bg-sky-100 text-sky-700 underline decoration-sky-300 underline-offset-2 hover:bg-sky-200 hover:text-sky-900 dark:bg-sky-900/30 dark:text-sky-300 dark:decoration-sky-500 dark:hover:bg-sky-900/50"
+                            title="Open in Documents"
                           >
                             {file}
+                            <span className="ml-1 font-semibold">Open</span>
                           </button>
                         ))}
                       </div>
@@ -927,9 +929,11 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
                             key={file}
                             type="button"
                             onClick={() => onNavigateToDoc(file)}
-                            className="text-[11px] px-2 py-1 rounded-full bg-white/20 hover:bg-white/30 underline"
+                            className="cursor-pointer text-[11px] px-2 py-1 rounded-full bg-white/20 hover:bg-white/30 underline underline-offset-2"
+                            title="Open in Documents"
                           >
                             {file}
+                            <span className="ml-1 font-semibold">Open</span>
                           </button>
                         ))}
                       </div>

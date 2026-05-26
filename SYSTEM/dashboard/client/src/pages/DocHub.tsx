@@ -224,6 +224,10 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
             openEntry(targetFile)
             return
           }
+          setSelected(null)
+          setContent('')
+          setError(`File not found in Documents: ${initialFile}`)
+          return
         }
         const mp = list.find(e => e.path === 'ORG/MASTER_PLAN.md') ?? list.find(e => e.path.endsWith('MASTER_PLAN.md'))
         if (mp) openEntry(mp)

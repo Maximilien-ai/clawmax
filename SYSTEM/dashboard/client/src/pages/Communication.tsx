@@ -3,6 +3,7 @@ import GroupChatPanel from '../components/GroupChatPanel'
 import { useToast } from '../components/Toast'
 import { ConfirmDeleteDialog } from '../components/ConfirmDeleteDialog'
 import { buildBulkHistoryClearPlan, getChannelHistoryClearEndpoint } from '../lib/communicationBulkActions'
+import { resolveCommunicationDocPath } from '../lib/communicationMessages'
 import { ProductIconCell } from '../lib/productIcons'
 
 interface GroupEntry {
@@ -165,26 +166,10 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
     return () => { cancelled = true }
   }, [])
 
-  const resolveDocPath = useCallback((target: string) => {
-    if (!target || target.includes('/')) return target
-
-    const exact = docEntries.find((entry) => entry.path === target)
-    if (exact) return exact.path
-
-    const matches = docEntries.filter((entry) => entry.path.endsWith(`/${target}`) || entry.path === target)
-    if (matches.length === 1) return matches[0].path
-
-    const preferred = matches.find((entry) => entry.path.startsWith('AGENTS/'))
-      || matches.find((entry) => entry.path.startsWith('WORKFLOWS/'))
-      || matches.find((entry) => entry.path.startsWith('ORG/'))
-      || matches[0]
-
-    return preferred?.path || target
-  }, [docEntries])
-
   const handleNavigateToDoc = useCallback((target: string) => {
-    onNavigateToDoc?.(resolveDocPath(target))
-  }, [onNavigateToDoc, resolveDocPath])
+    setChatPanelChannel(null)
+    onNavigateToDoc?.(resolveCommunicationDocPath(target, docEntries))
+  }, [docEntries, onNavigateToDoc])
 
   const closeChatPanel = useCallback(() => {
     setChatPanelChannel(null)
