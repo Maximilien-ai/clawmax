@@ -39,22 +39,35 @@
 - local thumbs up / thumbs down recommendation feedback
 - privacy/TOS Builder collection language
 - web contract draft for Builder session/feedback sharing
+- Builder session export/save to markdown + DocHub
+- optional Builder remote session and feedback sharing scaffolding
+- onboarding-first empty-workspace tour with:
+  - global "Don't show again"
+  - Builder-first finish state
+  - BYOK, notifications, communications, skills, templates, and system controls coverage
+- stronger Builder eval coverage for:
+  - workflow follow-through from existing agents
+  - create-skill follow-through from existing agents
+  - company/team-of-teams finance scope
+  - refine-vs-create ambiguity
+- built-in/system-agent metering presentation split in Activity/Budget
 
 ### In Progress
 
 - recommendation quality across a broader real-prompt corpus
 - recommendation trust and ranking against harder mixed existing-vs-template-vs-new scenarios
 - broader manual prompt validation and handoff QA
+- real built-in/system-agent metering at the tracing/runtime layer
+- built-in/system-agent model selection
 
 ### Still Needed Before Prime Time
 
 - larger automated prompt suite based on real user queries
 - more robust “match quality” thresholds for reuse vs refine vs new
 - additional manual testing of handoff correctness and recommendation quality
-- feature-flag or private-deploy hardening before merge to `main`
 - built-in/system-agent metering and model-selection follow-through
-- remote Builder session/feedback implementation against the web contract
-- Builder markdown/session export to DocHub
+- Builder remote sharing UX/opt-in polish
+- Builder markdown/session export naming/index polish
 
 ## Target
 
