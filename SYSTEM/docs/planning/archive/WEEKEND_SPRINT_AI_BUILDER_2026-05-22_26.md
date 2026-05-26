@@ -1,6 +1,7 @@
 # Weekend Sprint: AI Builder / Designer
 
 > Goal: ship a private first cut of the new AI Builder / Designer surface by Monday so we can test it internally and refine before public release.
+> Status: completed and merged to `main` for `v1.6.0`; remaining quality work is tracked in [BACKLOG.md](../../BACKLOG.md).
 
 ## Sprint Status
 
@@ -58,23 +59,14 @@
 
 ### In Progress
 
-- recommendation quality across a broader real-prompt corpus
-- recommendation trust and ranking against harder mixed existing-vs-template-vs-new scenarios
-- broader manual prompt validation and handoff QA
-- final branch-to-`main` merge prep for `1.6.0`
+- none for this sprint; follow-up quality work moved to backlog
 
 ### Still Needed Before Prime Time
 
-- final manual testing of:
-  - Builder routing quality
-  - workflow / skill / template handoffs
-  - save / download / share
-  - onboarding tour in light/dark mode
-  - built-in/system model and metering behavior
-- harvest the final bad/manual prompts from that pass into the eval corpus
+- broader real-prompt eval corpus expansion
 - Builder remote sharing UX/opt-in polish
 - Builder markdown/session export naming/index polish
-- final merge of `ai-builder-designer` into `main` once QA is clean
+- continued manual QA against real workspace scenarios
 
 ## Target
 

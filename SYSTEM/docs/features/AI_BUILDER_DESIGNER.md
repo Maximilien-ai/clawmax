@@ -59,7 +59,7 @@ The right rail should be persistent enough that users understand the builder is 
 
 ## Current Implementation Snapshot
 
-As of the current `ai-builder-designer` branch, the first cut now includes:
+As of `v1.6.0` on `main`, the first cut includes:
 
 - top-level `Builder` nav entry
 - workspace-aware recommendation routing across:
@@ -91,11 +91,11 @@ As of the current `ai-builder-designer` branch, the first cut now includes:
 - built-in/system model preference support for Builder/system flows
 - first-run onboarding that now points users toward Builder and BYOK before deeper setup
 
-## Current Release Readiness
+## Release Status
 
-The branch is now feature-complete enough to start a real `1.6.0` manual QA pass.
+The initial Builder/Designer scope has landed for `v1.6.0`.
 
-What is considered release-candidate ready:
+What is considered shipped in the first cut:
 
 - Builder is the recommended first-run path
 - direct handoffs exist for:
@@ -113,11 +113,11 @@ What is still quality hardening rather than missing core scope:
 - tightening ambiguous reuse vs refine vs create-new ranking
 - polishing share/export naming and remote-share UX
 
-That means the next phase is:
+The next phase is:
 
-- manual QA
-- capture any bad prompts or handoff misses
-- feed those back into the eval corpus before final merge
+- continue manual prompt QA against real workspace scenarios
+- capture bad prompts or handoff misses
+- feed those cases back into the eval corpus before the next release
 
 ## Builder Agent Roles
 

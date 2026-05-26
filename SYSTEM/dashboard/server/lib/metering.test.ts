@@ -208,6 +208,41 @@ async function run() {
     assert(metering.byAgent.some((agent) => agent.agentId === 'analysis-lead' && agent.estimatedCostUsd > 0), 'Expected per-agent derived cost')
   })
 
+  await test('aggregateWorkspaceMeteringFromTraces derives cost for built-in AI traces', () => {
+    const metering = aggregateWorkspaceMeteringFromTraces([
+      {
+        id: 'a1',
+        name: 'agent.chat.ai-generate-template',
+        start_time: '2026-04-08T19:00:00.000Z',
+        end_time: '2026-04-08T19:00:10.000Z',
+        metadata: {
+          agent_id: 'ai-generate-template',
+          model: 'ai-generate-template',
+          tokens_input: 1500,
+          tokens_output: 900,
+          tokens_total: 2400,
+        },
+      },
+      {
+        id: 'a2',
+        name: 'agent.chat.builder-agent',
+        start_time: '2026-04-08T19:01:00.000Z',
+        end_time: '2026-04-08T19:01:05.000Z',
+        metadata: {
+          agent_id: 'builder-agent',
+          model: 'builder-routing+llm-fallback',
+          tokens_input: 800,
+          tokens_output: 300,
+          tokens_total: 1100,
+        },
+      },
+    ] as any)
+
+    assert(metering.estimatedCostUsd > 0, 'Expected built-in AI traces to derive non-zero estimated cost')
+    assert(metering.byAgent.some((agent) => agent.agentId === 'ai-generate-template' && agent.estimatedCostUsd > 0), 'Expected AI Generate Template cost')
+    assert(metering.byAgent.some((agent) => agent.agentId === 'builder-agent' && agent.estimatedCostUsd > 0), 'Expected Builder LLM fallback cost')
+  })
+
   await test('enrichWorkspaceMeteringWithAgentMetadata marks built-in agents from workspace metadata', () => {
     const base = {
       ...aggregateWorkspaceMeteringFromTraces([

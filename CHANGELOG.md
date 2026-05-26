@@ -6,6 +6,21 @@ All notable changes to ClawMax are documented here.
 
 - No unreleased changes yet.
 
+## [v1.6.0] - 2026-05-26
+
+### AI Builder and Onboarding
+- **AI Builder Launch Path** — added the Builder-first workspace flow for routing user intent toward existing agents, skills, workflows, agent templates, team templates, or AI generation.
+- **Routing Quality Evals** — expanded AI Builder evaluation coverage for single-agent vs. team/team-of-teams intent, existing-agent reuse, workflow follow-through, skill follow-through, template refinement, and create-new template decisions.
+- **Prompt Editing Upgrade** — shared AI prompt editors now support expandable markdown editing, improvement direction, file/image context, save-and-generate, resize-safe layout, and a brief success highlight after AI expansion.
+- **First-Run Guided Tour** — new workspaces can show a dismissible product tour covering workspaces, Builder, agents, communications, workflows, templates, skills, notifications, and system controls.
+
+### Metering, Diagnostics, and Release Readiness
+- **Built-In Agent Metering** — AI Builder and AI generation/improvement surfaces now emit built-in system-agent traces so Activity and Budget can separate product AI usage from user-created agents.
+- **Built-In AI Cost Estimates** — built-in AI generation/improvement traces now derive token and cost estimates instead of showing as zero-cost system activity when pricing metadata is available.
+- **System Logs Cleanup** — improved dashboard log export/refresh flows and reduced misleading platform-health noise by treating no-skill agents as informational detail instead of default warnings.
+- **Builder Reliability Guardrails** — Builder recommendation requests now fall back instead of hanging indefinitely when AI grouping is slow or unavailable.
+- **Release Regression Coverage** — surfaced AI Builder routing, prompt attachment, metering, onboarding, and related helper tests through the standard test suite for release validation.
+
 ## [v1.5.11] - 2026-05-25
 
 ### On-Prem Version Reporting

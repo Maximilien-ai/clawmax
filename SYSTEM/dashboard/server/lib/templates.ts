@@ -634,6 +634,26 @@ export function upsertOpenClawAgentRegistration(
   return { status: 'already-registered' }
 }
 
+function createOpenClawAgentRegistration(
+  configPath: string,
+  agentId: string,
+  workspaceArg: string,
+  agentDirArg: string
+): OpenClawAgentRegistrationResult {
+  const config = readOpenClawConfig(configPath)
+  config.agents = config.agents || { list: [] }
+  config.agents.list = Array.isArray(config.agents.list) ? config.agents.list : []
+  config.agents.list.push({
+    id: agentId,
+    name: agentId,
+    workspace: workspaceArg,
+    agentDir: agentDirArg,
+  })
+  fs.mkdirSync(path.dirname(configPath), { recursive: true })
+  fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8')
+  return { status: 'created' }
+}
+
 function ensureOpenClawAgentRegisteredForWorkspace(
   agentId: string,
   workspaceArg: string,
@@ -650,8 +670,8 @@ function ensureOpenClawAgentRegisteredForWorkspace(
       stdio: 'pipe',
       env: registrationEnv,
     })
-    upsertOpenClawAgentRegistration(configPath, agentId, workspaceArg, agentDirArg)
-    return { status: 'created' }
+    const registered = upsertOpenClawAgentRegistration(configPath, agentId, workspaceArg, agentDirArg)
+    return registered || createOpenClawAgentRegistration(configPath, agentId, workspaceArg, agentDirArg)
   } catch (err) {
     if (isOpenClawAgentAlreadyExistsError(err)) {
       const adopted = upsertOpenClawAgentRegistration(configPath, agentId, workspaceArg, agentDirArg)

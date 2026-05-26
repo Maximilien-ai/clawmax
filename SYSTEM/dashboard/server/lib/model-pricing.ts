@@ -4,6 +4,15 @@ export interface ModelPricing {
 }
 
 const MODEL_PRICING: Array<{ match: string; pricing: ModelPricing }> = [
+  { match: 'builder-routing+llm-fallback', pricing: { inputPer1kUsd: 0.00015, outputPer1kUsd: 0.0006 } },
+  { match: 'ai-generate-skill', pricing: { inputPer1kUsd: 0.00015, outputPer1kUsd: 0.0006 } },
+  { match: 'ai-generate-agent', pricing: { inputPer1kUsd: 0.005, outputPer1kUsd: 0.015 } },
+  { match: 'ai-generate-template', pricing: { inputPer1kUsd: 0.005, outputPer1kUsd: 0.015 } },
+  { match: 'ai-generate-workflow', pricing: { inputPer1kUsd: 0.005, outputPer1kUsd: 0.015 } },
+  { match: 'ai-improve-agent-prompt', pricing: { inputPer1kUsd: 0.005, outputPer1kUsd: 0.015 } },
+  { match: 'ai-improve-workflow-prompt', pricing: { inputPer1kUsd: 0.005, outputPer1kUsd: 0.015 } },
+  { match: 'ai-improve-skill-prompt', pricing: { inputPer1kUsd: 0.005, outputPer1kUsd: 0.015 } },
+  { match: 'ai-improve-template-prompt', pricing: { inputPer1kUsd: 0.005, outputPer1kUsd: 0.015 } },
   { match: 'claude-opus-4-6', pricing: { inputPer1kUsd: 0.015, outputPer1kUsd: 0.075 } },
   { match: 'claude-sonnet-4-6', pricing: { inputPer1kUsd: 0.003, outputPer1kUsd: 0.015 } },
   { match: 'claude-haiku-4-5', pricing: { inputPer1kUsd: 0.001, outputPer1kUsd: 0.005 } },
@@ -38,4 +47,3 @@ export function estimateTraceCostUsd(metadata: Record<string, any>): number {
 
   return estimateModelCostUsd(String(metadata?.model || ''), resolvedInput, resolvedOutput)
 }
-

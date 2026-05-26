@@ -73,6 +73,13 @@ wait about one minute for the auth rate limiter window to reset.
 
 ## 4. Core Manual Smoke
 
+- Onboarding / Builder
+  - create or switch to an empty workspace
+  - verify the first-run tour can be shown, skipped, and reopened from onboarding
+  - confirm "Don't show again" suppresses the tour across additional new workspaces
+  - submit Builder prompts for a single agent, team template, existing-agent workflow, and skill follow-through
+  - verify Builder handoffs open the intended Agent, Skill, Workflow, or Template flow with useful prefilled context
+  - verify Builder session save/download/share controls still work
 - Agents
   - open agent detail panel
   - confirm model is visible
@@ -93,10 +100,16 @@ wait about one minute for the auth rate limiter window to reset.
   - verify masked provider keys can be saved locally for dev flow testing
   - verify validation shows live/fallback status clearly
   - verify direct agent chat and manual workflow execution use the configured provider/defaults
+- Activity / Budget / Logs
+  - verify built-in/system agents appear separately after AI Builder or AI Generate calls when metering is enabled
+  - verify System Logs refresh and export work
+  - verify neutral Doctor details, such as agents without skills, do not dominate the default warning list
 
 ## 5. Release Messaging
 
 - README reflects:
+  - latest release and previous two releases only
+  - pinned installer examples for the current tag
   - GitHub OAuth and Email OTP setup
   - system keys vs user/BYOK keys
   - provider-key precedence and shell-env isolation
@@ -107,11 +120,14 @@ wait about one minute for the auth rate limiter window to reset.
   - OTP dev file flow
   - rate-limit troubleshooting
 - Backlog reflects:
-  - post-release workflow table view
+  - completed release work has moved to changelog/archive
+  - remaining Builder quality work is framed as post-release eval/export/share polish
   - test automation priority
 
 ## 6. Deferred to Post-Release
 
-- Workflow table view
-- BYOK wizard / user key capture flow
+- broader Builder eval corpus expansion
+- Builder export/share UX polish
+- system/built-in model selection polish
+- workflow table view
 - rotating login-page marketing copy from the website

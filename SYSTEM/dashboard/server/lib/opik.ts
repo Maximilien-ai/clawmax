@@ -173,6 +173,12 @@ export function isOpikEnabled(): boolean {
   return enabled
 }
 
+function estimateTokensFromText(value: string): number {
+  const text = String(value || '').trim()
+  if (!text) return 0
+  return Math.max(1, Math.ceil(text.length / 4))
+}
+
 /**
  * Trace an agent chat interaction
  */
@@ -204,13 +210,15 @@ export function traceAgentChat(
   const startTime = meta.durationMs
     ? new Date(Date.now() - meta.durationMs).toISOString()
     : now
+  const inputTokens = meta.inputTokens || estimateTokensFromText(message)
+  const outputTokens = meta.outputTokens || estimateTokensFromText(response)
 
   const cost = typeof meta.estimatedCostUsd === 'number'
     ? meta.estimatedCostUsd
     : estimateModelCostUsd(
       meta.model || '',
-      meta.inputTokens || 0,
-      meta.outputTokens || 0
+      inputTokens,
+      outputTokens
     )
 
   sendTrace({
@@ -232,10 +240,10 @@ export function traceAgentChat(
       machine_name: runtimeIdentity.machineName,
       model: meta.model || 'unknown',
       provider: meta.provider || 'unknown',
-      tokens_input: meta.inputTokens || 0,
-      tokens_output: meta.outputTokens || 0,
+      tokens_input: inputTokens,
+      tokens_output: outputTokens,
       tokens_cache_read: meta.cacheReadTokens || 0,
-      tokens_total: (meta.inputTokens || 0) + (meta.outputTokens || 0),
+      tokens_total: inputTokens + outputTokens,
       duration_ms: meta.durationMs || 0,
       estimated_cost_usd: Math.round(cost * 10000) / 10000,
       session_id: meta.sessionId || '',

@@ -5,25 +5,32 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.5.11-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
+[![Version](https://img.shields.io/badge/version-1.6.0-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
 [![Tests](https://img.shields.io/badge/tests-96%20default--safe-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 Latest Release: v1.5.11
+## 🔥 Latest Release: v1.6.0
+
+- AI Builder is now the recommended starting point for new workspaces:
+  - routes prompts toward existing agents, skills, workflows, agent templates, team templates, or AI generation
+  - handles ambiguous cases with confirmation paths instead of forcing weak template matches
+  - includes regression evals for agent-vs-team intent, workflow follow-through, skills follow-through, template refinement, and create-new template decisions
+- First-run onboarding is more complete:
+  - new workspaces can show a dismissible guided tour covering workspaces, Builder, agents, communications, workflows, templates, skills, notifications, keys, budget, and logs
+  - setup guidance points users to BYOK / Keys & Secrets before agent execution
+- AI prompt editing is materially better:
+  - shared Builder, agent, workflow, skill, and template editors support resize-safe markdown editing, optional improvement direction, file/image context, save-and-generate, and a brief highlight after AI expansion
+- Metering and diagnostics are clearer:
+  - AI Builder and AI generation/improvement surfaces are tracked as built-in system agents when metering is enabled
+  - built-in AI calls derive token and cost estimates instead of appearing as free system activity
+  - system logs can be refreshed/exported, and platform-health warnings are less noisy for informational no-skill cases
+
+## 🔥 Previous Release: v1.5.11
 
 - On-prem/system version reporting is corrected:
   - `api/system` now prefers the packaged dashboard version over a stale injected `CLAWMAX_VERSION` mismatch
   - healthy newer images should stop reporting an older dashboard version string purely because an on-prem env value lagged behind
-- Image publication remains stricter:
-  - the container-image workflow smoke-pulls and runs the published top-level and explicit arch tags from GHCR before the workflow can succeed
-- Runtime diagnostics remain stronger:
-  - dashboard containers log the packaged dashboard version and image `CLAWMAX_VERSION` at startup
-  - startup fails fast when the live packaged dashboard files do not match the image version contract, instead of only surfacing a later health-gate failure
-- Release assets and no-clone install remain the standard release path:
-  - tagged releases publish `clawmax-vX.Y.Z.tar.gz`, `clawmax-vX.Y.Z.sha256`, and `install.sh`
-  - users can run the latest installer without GitHub CLI or a GitHub login, or pin a version with `bash -s -- v1.5.11`
-  - `./setup.sh v1.5.11` delegates to the same release bootstrapper, verifies the checksum, expands the bundle, and continues into normal setup
 
 ## 🔥 Previous Release: v1.5.10
 
@@ -31,49 +38,7 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
   - the container-image workflow now smoke-pulls and runs the published top-level and explicit arch tags from GHCR before the workflow can succeed
   - release image status now reflects consumer pull/use readiness rather than only successful build and manifest publication
 
-## 🔥 Previous Release: v1.5.8–v1.5.10
-
-- Local/self-hosted model support is much stronger:
-  - `OpenAI-Compatible` is now a first-class BYOK provider for LM Studio and other OpenAI-style APIs that expose `/v1/models` and `/v1/chat/completions`
-  - users can configure a `Base URL`, optional `API key`, and optional `Default model`, then validate connectivity directly from the dashboard
-  - discovered compatible models now flow into model selection as a distinct provider instead of being confused with official OpenAI models
-  - AI generate, prompt expansion, and normal execution paths now understand that compatible provider configuration end to end
-- Runtime shape is now clearer and more automatic:
-  - the dashboard can distinguish `local`, `onprem`, and `cloud` deployment kinds explicitly
-  - `Ollama` stays available in local and on-prem runtimes, but stays hidden in cloud by default
-  - same-Mac on-prem LM Studio and Ollama setups now steer users to `host.containers.internal` instead of loopback-only defaults
-  - saved local-provider defaults now follow through into AI generate, new-agent defaults, and local-model fallback paths more reliably
-- BYOK is easier to scan:
-  - provider selection is now grouped into `Hosted` and `Local / Self-Hosted`
-  - official hosted providers remain visually separate from self-managed runtimes like Ollama and OpenAI-compatible endpoints
-- Deployment identity is clearer:
-  - the dashboard tab title now mirrors the instance label as `ClawMax · Dev`, `ClawMax · Cloud`, `ClawMax · On-Prem`, and similar values
-  - the same `DASHBOARD_INSTANCE_LABEL` now drives both the sidebar label and the browser tab title
-- OpenAI key validation is less brittle:
-  - model-specific probe failures now surface as warnings when the key is otherwise usable, instead of falsely blocking valid keys just because one probe model is unavailable
-
-## 🔥 Previous Release: v1.5.2–v1.5.4
-
-- Setup and onboarding are much lower-friction:
-  - `setup.sh` no longer asks for provider API keys or GitHub OAuth credentials during setup
-  - OpenClaw is installed by `setup.sh` if it is missing, so it is no longer a separate Quick Start prerequisite
-  - partner integrations now stay opt-in by default, and the generated `.env` keeps shared runtime credentials as later placeholders instead of setup-time prompts
-  - the Quick Start docs now match the real flow: get the dashboard running first, then add keys in `BYOK` or `Keys & Secrets`
-- Agent creation and first-use flows are much more reliable:
-  - `Create Agent` now preserves real backend template slugs, validates earlier, and shows friendlier template/clone/model errors before users hit a broken final `Provision`
-  - newly created agents now appear immediately in the Agents page instead of waiting on a background refresh or wizard close timing
-  - plain `Create Agent` now seeds valid managed agent files so a new agent shows up as a real agent instead of only as a raw Documents directory
-  - `Create Agent` now resolves the full shipped agent template catalog by human-facing display name as well as backend/directory slug, so template-backed create is materially more reliable
-  - the final validation step now offers direct recovery actions like `Change Name` and `Back to Identity` for common failures
-- Chat output is cleaner:
-  - live agent chat now replaces streamed raw tool/session dumps with the normalized final assistant text
-  - persisted chat history strips runtime metadata, file-artifact dumps, and tool/session JSON much more aggressively
-- Dashboard/CLI runtime alignment improved:
-  - maintenance banners now derive scheduled vs. active vs. stale states from time instead of staying stuck
-  - dashboard now reads the canonical host-agent local state contract and surfaces reconnect, unreachable, and degraded host-agent states directly
-  - split-container gateway setups are supported through `OPENCLAW_GATEWAY_URL`, so dashboard chat/logs/health do not assume loopback-only gateway access
-
-Older releases are kept in [CHANGELOG.md](CHANGELOG.md).
+Earlier release themes include local/self-hosted model support, setup simplification, template reliability, chat normalization, and on-prem/runtime hardening. Full details are kept in [CHANGELOG.md](CHANGELOG.md).
 
 ---
 
@@ -207,7 +172,7 @@ curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/ins
 Pinned release:
 
 ```bash
-curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.5.11
+curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.6.0
 ```
 
 What it does:
@@ -228,13 +193,13 @@ See [SYSTEM/docs/DEMO_VIDEOS.md](SYSTEM/docs/DEMO_VIDEOS.md) for the current inv
 You can also bootstrap directly with the checked-in wrapper:
 
 ```bash
-./setup.sh v1.5.11
+./setup.sh v1.6.0
 ```
 
 or choose a custom install directory:
 
 ```bash
-curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.5.11 --dir /opt/clawmax
+curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.6.0 --dir /opt/clawmax
 ```
 
 See [SYSTEM/docs/RELEASE_DISTRIBUTION.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/RELEASE_DISTRIBUTION.md) for the release distribution contract.

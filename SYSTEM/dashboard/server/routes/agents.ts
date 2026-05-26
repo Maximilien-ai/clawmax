@@ -302,7 +302,7 @@ router.post('/generate', async (req, res) => {
       tags: suggestedTags,
     })
     traceAgentChat('ai-generate-agent', description, `Generated agent scaffold for ${suggestedName || 'new agent'}`, {
-      model: suggestedModel || 'ai-generate-agent',
+      model: 'ai-generate-agent',
       provider: 'system',
       sessionId: `ai-generate-agent:${Date.now()}`,
       actorUserId: session?.userId,
