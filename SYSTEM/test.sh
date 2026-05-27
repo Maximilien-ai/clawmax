@@ -277,8 +277,12 @@ test_validation() {
   cd ..
 
   local result
-  result=$(cat /tmp/clawmax-validation.out)
+  result=$(grep -E '^\{.*\}$' /tmp/clawmax-validation.out | tail -n 1)
   if [ "$ts_status" -ne 0 ]; then
+    fail "$name"
+    return 1
+  fi
+  if [ -z "$result" ]; then
     fail "$name"
     return 1
   fi
