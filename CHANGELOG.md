@@ -4,11 +4,7 @@ All notable changes to ClawMax are documented here.
 
 ## [Unreleased]
 
-- No unreleased changes yet.
-
-## [v1.6.2] - 2026-05-27
-
-### Client Console Simplification
+- **Client Console Simplification** —
 - **AI Builder First-Pass Simplification** — reduced duplicate startup copy, removed low-value session/share clutter from the main header, restored a clear visible reset flow, widened the Builder layout on large screens, improved light-mode readability for transcript controls, and kept the right-side detail/history surfaces progressively disclosed instead of always expanded.
 - **Client Navigation Regrouping** — default client navigation now lands on `Builder` and groups the main surfaces into clearer product clusters: `Builder | Organization`, `Agents | Workflows | Communications`, and `Skills | Templates`, with lower-frequency utility pages collapsed under `System`.
 - **Templates Surface Cleanup** — simplified the Templates header/actions, added template-type tabs for `All`, `Agents`, `Teams`, and `Companies`, removed workflow templates from the Templates client surface, removed redundant collapse/twisty layers now that tabs handle category navigation, and added `Export TEMPLATE.md` plus resettable search/filter narrowing.

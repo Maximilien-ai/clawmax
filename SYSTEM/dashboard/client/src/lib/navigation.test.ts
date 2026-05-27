@@ -38,13 +38,14 @@ test('pathToPage resolves known paths', () => {
   assert(pathToPage('/docs/') === 'docs', 'Expected trailing slash to be ignored')
 })
 
-test('pathToPage falls back to agents for unknown paths', () => {
-  assert(pathToPage('/') === 'agents', 'Expected root path to default to agents')
-  assert(pathToPage('/unknown') === 'agents', 'Expected unknown path to default to agents')
+test('pathToPage falls back to builder for unknown paths', () => {
+  assert(pathToPage('/') === 'builder', 'Expected root path to default to builder')
+  assert(pathToPage('/unknown') === 'builder', 'Expected unknown path to default to builder')
 })
 
 test('pageToPath returns canonical route paths', () => {
   assert(pageToPath('agents') === '/agents', 'Expected agents page path')
+  assert(pageToPath('builder') === '/builder', 'Expected builder page path')
   assert(pageToPath('keys') === '/keys', 'Expected keys page path')
 })
 
@@ -58,4 +59,3 @@ if (testsFailed > 0) {
 }
 
 console.log(`${GREEN}All tests passed${RESET}`)
-
