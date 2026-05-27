@@ -2014,6 +2014,14 @@ export default function Builder({
                   }`}>
                     {confidenceBadge(recommendation.confidence)}
                   </div>
+                  {hasConversation && (
+                    <button
+                      onClick={() => setShowClearConfirm(true)}
+                      className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-medium text-gray-600 transition-colors hover:border-sky-300 hover:text-sky-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-sky-700 dark:hover:text-sky-200"
+                    >
+                      Clear
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -2733,9 +2741,9 @@ export default function Builder({
       {showClearConfirm && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-md rounded-3xl border border-gray-200 bg-white p-6 shadow-2xl dark:border-gray-700 dark:bg-gray-900">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Reset Builder Session</h3>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Clear Builder Session</h3>
             <p className="mt-3 text-sm text-gray-600 dark:text-gray-300">
-              This will archive the current Builder conversation and recommendation, then start a fresh session. You can recover it later from History.
+              Choose whether to keep this conversation in History or remove it completely before starting fresh.
             </p>
             <div className="mt-5 flex justify-end gap-2">
               <button
@@ -2743,6 +2751,15 @@ export default function Builder({
                 className="rounded-full border border-gray-200 px-4 py-2 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-300"
               >
                 Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowClearConfirm(false)
+                  resetBuilderSession()
+                }}
+                className="rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:border-sky-300 hover:text-sky-700 dark:border-gray-700 dark:text-gray-200 dark:hover:border-sky-700 dark:hover:text-sky-200"
+              >
+                Clear only
               </button>
               <button
                 onClick={() => {
