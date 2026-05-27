@@ -11,7 +11,7 @@ export type DashboardPage =
   | 'keys'
   | 'logs'
 
-const DEFAULT_PAGE: DashboardPage = 'agents'
+const DEFAULT_PAGE: DashboardPage = 'builder'
 
 const PAGE_PATHS: Record<DashboardPage, string> = {
   builder: '/builder',

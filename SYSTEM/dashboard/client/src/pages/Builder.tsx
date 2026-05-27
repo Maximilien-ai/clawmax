@@ -168,7 +168,7 @@ function createIntroMessage(): BuilderMessage {
     id: 'intro',
     role: 'assistant',
     label: 'Builder agent',
-    content: 'Describe what you want to build in this workspace. I will route you toward the best starting path: existing agent, skill, agent template, team template, or AI generation.',
+    content: 'Describe what you want to build. I will route you to the best next step in this workspace.',
   }
 }
 
@@ -1977,7 +1977,7 @@ export default function Builder({
 
   return (
     <div className="h-full overflow-hidden bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.12),_transparent_32%),linear-gradient(180deg,_rgba(15,23,42,0.04),_rgba(15,23,42,0))] dark:bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.12),_transparent_28%),linear-gradient(180deg,_rgba(15,23,42,0.25),_rgba(15,23,42,0))]">
-      <div className={`relative mx-auto grid h-full max-w-7xl grid-cols-1 gap-4 overflow-hidden px-3 py-4 lg:px-5 ${
+      <div className={`relative grid h-full w-full grid-cols-1 gap-4 overflow-hidden px-3 py-4 lg:px-5 ${
         showRightPane ? 'lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_380px]' : ''
       }`}>
         <section className={`flex min-h-0 flex-col overflow-hidden rounded-3xl border border-gray-200 bg-white/90 shadow-sm backdrop-blur dark:border-gray-800 dark:bg-gray-900/80 ${
@@ -1989,32 +1989,16 @@ export default function Builder({
                 <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-sky-600 dark:text-sky-300">Builder</div>
                 <h1 className={`mt-1 font-semibold tracking-tight text-gray-950 dark:text-white ${
                   hasConversation ? 'text-xl xl:text-[1.75rem]' : 'text-2xl xl:text-[2rem]'
-                }`}>AI Builder / Designer</h1>
+                }`}>AI Builder</h1>
                 {!hasConversation ? (
                   <p className="mt-2 max-w-3xl text-sm text-gray-600 dark:text-gray-300">
-                    Describe what you want to build in the active workspace. The builder will look at current agents, skills, templates, and workflows, then route you toward the fastest next step.
+                    Start with a prompt or use a suggestion below.
                   </p>
                 ) : (
                   <p className="mt-2 max-w-3xl text-xs text-gray-500 dark:text-gray-400">
-                    Builder is now focused on the active conversation and recommendations for this workspace.
+                    Focused on the current conversation and recommendation.
                   </p>
                 )}
-                <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
-                  <span className={`rounded-full border px-2 py-1 font-medium ${
-                    remoteShareEnabled
-                      ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300'
-                      : 'border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300'
-                  }`}>
-                    {remoteShareChecked
-                      ? (remoteShareEnabled ? 'Remote sharing available' : 'Local-only by default')
-                      : 'Checking share status…'}
-                  </span>
-                  <span className="text-gray-500 dark:text-gray-400">
-                    {remoteShareEnabled
-                      ? 'Use Share to send Builder sessions and feedback to ClawMax.ai.'
-                      : 'Sessions and feedback stay local unless this deployment enables remote sharing.'}
-                  </span>
-                </div>
               </div>
               {recommendation && (
                 <div className="flex flex-wrap items-center gap-2">
@@ -2030,47 +2014,14 @@ export default function Builder({
                   }`}>
                     {confidenceBadge(recommendation.confidence)}
                   </div>
-                </div>
-              )}
-              {hasConversation && (
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    onClick={() => void saveSessionToDocHub()}
-                    className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-600 transition-colors hover:border-sky-300 hover:text-sky-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-sky-700 dark:hover:text-sky-200"
-                  >
-                    Save to DocHub
-                  </button>
-                  <button
-                    onClick={() => downloadSessionMarkdown()}
-                    className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-600 transition-colors hover:border-sky-300 hover:text-sky-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-sky-700 dark:hover:text-sky-200"
-                  >
-                    Download MD
-                  </button>
-                  <button
-                    onClick={() => void shareSessionRemotely()}
-                    className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-600 transition-colors hover:border-sky-300 hover:text-sky-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-sky-700 dark:hover:text-sky-200"
-                  >
-                    Share
-                  </button>
-                  <button
-                    onClick={() => setShowClearConfirm(true)}
-                    className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-600 transition-colors hover:border-sky-300 hover:text-sky-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-sky-700 dark:hover:text-sky-200"
-                  >
-                    Reset Session
-                  </button>
-                  <button
-                    onClick={() => setShowArchives(true)}
-                    disabled={archives.length === 0}
-                    className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-600 transition-colors hover:border-sky-300 hover:text-sky-700 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-sky-700 dark:hover:text-sky-200"
-                  >
-                    History
-                  </button>
-                  <button
-                    onClick={resetBuilderSession}
-                    className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-600 transition-colors hover:border-sky-300 hover:text-sky-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-sky-700 dark:hover:text-sky-200"
-                  >
-                    Clear
-                  </button>
+                  {hasConversation && (
+                    <button
+                      onClick={() => setShowClearConfirm(true)}
+                      className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-medium text-gray-600 transition-colors hover:border-sky-300 hover:text-sky-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-sky-700 dark:hover:text-sky-200"
+                    >
+                      Clear
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -2110,7 +2061,7 @@ export default function Builder({
                   </div>
                 ) : (
                   <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
-                    Suggested prompts are hidden. Expand this section if you want starter ideas.
+                    Hidden until you want starter ideas.
                   </div>
                 )}
               </div>
@@ -2124,11 +2075,11 @@ export default function Builder({
               {messages.map((message) => (
                 <div key={message.id} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   <div className="max-w-[88%]">
-                    <div className={`mb-1 flex items-center gap-2 text-[11px] font-medium ${message.role === 'user' ? 'justify-end text-sky-200 dark:text-sky-200' : 'text-gray-500 dark:text-gray-400'}`}>
+                    <div className={`mb-1 flex items-center gap-2 text-[11px] font-medium ${message.role === 'user' ? 'justify-end text-sky-700 dark:text-sky-200' : 'text-gray-500 dark:text-gray-400'}`}>
                       {message.role === 'user' && (
                         <button
                           onClick={() => editPromptDraft(message.content)}
-                          className="rounded-full border border-sky-200/60 bg-sky-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-sky-100 transition-colors hover:border-white/60 hover:bg-sky-500/20"
+                          className="rounded-full border border-sky-300 bg-sky-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-sky-700 transition-colors hover:border-sky-400 hover:bg-sky-100 dark:border-sky-200/60 dark:bg-sky-500/10 dark:text-sky-100 dark:hover:border-white/60 dark:hover:bg-sky-500/20"
                           title="Edit this prompt"
                         >
                           Edit
@@ -2315,7 +2266,7 @@ export default function Builder({
                     Your Builder Prompt
                   </div>
                   <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
-                    Enter what you want to build, then submit or refine it before sending.
+                    Start with the outcome you want.
                   </div>
                 </div>
                 <div className="rounded-full border border-sky-200 bg-white px-2.5 py-1 text-[10px] font-medium text-sky-700 dark:border-sky-800 dark:bg-gray-900 dark:text-sky-300">
@@ -2403,11 +2354,11 @@ export default function Builder({
 
               {!hasConversation && (
                 <div className="mt-2 text-[11px] text-gray-600 dark:text-gray-300">
-                  Good prompts mention the user, whether this is one agent or a team, and what success should look like.
+                  Say whether this is one agent or a team.
                 </div>
               )}
               <div className="mt-2 text-[11px] text-gray-500 dark:text-gray-400">
-                Press <span className="font-medium text-gray-700 dark:text-gray-200">Enter</span> to submit. Use <span className="font-medium text-gray-700 dark:text-gray-200">Shift + Enter</span> for a new line. Use <span className="font-medium text-gray-700 dark:text-gray-200">↑ / ↓</span> at the top or bottom line to revisit recent prompts.
+                <span className="font-medium text-gray-700 dark:text-gray-200">Enter</span> sends. <span className="font-medium text-gray-700 dark:text-gray-200">Shift + Enter</span> adds a line. <span className="font-medium text-gray-700 dark:text-gray-200">↑ / ↓</span> revisits recent prompts.
               </div>
             </div>
 
@@ -2479,7 +2430,7 @@ export default function Builder({
             <div ref={currentRecommendationRef} className="rounded-3xl border border-gray-200 bg-white/80 p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900/80">
               <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-500 dark:text-gray-400">
                 <RecommendationIcon />
-                <span>Current Recommendation</span>
+                <span>Recommendation</span>
               </div>
               {!recommendation ? (
                 <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
@@ -2536,7 +2487,7 @@ export default function Builder({
                   </button>
                   {secondarySuggestedActions.length > 0 && (
                     <div>
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">Then Consider</div>
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">Also Try</div>
                       <div className="mt-2 space-y-2">
                         {secondarySuggestedActions.map((nextAction) => (
                           <button
@@ -2633,12 +2584,12 @@ export default function Builder({
               )}
             </div>
 
-            <div className="rounded-3xl border border-gray-200 bg-white/80 p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900/80">
-              <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-500 dark:text-gray-400">
+            <details className="rounded-3xl border border-gray-200 bg-white/80 p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900/80">
+              <summary className="flex cursor-pointer list-none items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-500 dark:text-gray-400">
                 <ActionsIcon />
-                <span>Suggested Next Actions</span>
-              </div>
-              <div className="mt-2 space-y-2">
+                <span>More Options</span>
+              </summary>
+              <div className="mt-3 space-y-2">
                 {(recommendation?.suggestedActions || []).map((nextAction) => (
                   <button
                     key={nextAction.id}
@@ -2655,14 +2606,14 @@ export default function Builder({
                   </div>
                 )}
               </div>
-            </div>
+            </details>
 
-            <div className="rounded-3xl border border-gray-200 bg-white/80 p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900/80">
-              <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-500 dark:text-gray-400">
+            <details className="rounded-3xl border border-gray-200 bg-white/80 p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900/80">
+              <summary className="flex cursor-pointer list-none items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-500 dark:text-gray-400">
                 <AssetsIcon />
-                <span>Matched Workspace Assets</span>
-              </div>
-              <div className="mt-2 space-y-3">
+                <span>Matched Assets</span>
+              </summary>
+              <div className="mt-3 space-y-3">
                 {[
                   { label: 'Agents', items: recommendation?.matchedAssets.agents || [] },
                   { label: 'Skills', items: recommendation?.matchedAssets.skills || [] },
@@ -2704,32 +2655,60 @@ export default function Builder({
                   </div>
                 ))}
               </div>
-            </div>
+            </details>
 
-            <div className="rounded-3xl border border-gray-200 bg-white/80 p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900/80">
-              <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-500 dark:text-gray-400">
+            <details className="rounded-3xl border border-gray-200 bg-white/80 p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900/80">
+              <summary className="flex cursor-pointer list-none items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-500 dark:text-gray-400">
                 <TestIcon />
-                <span>Test This Result</span>
-              </div>
+                <span>Test Result</span>
+              </summary>
               {!recommendation ? (
-                <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                <div className="mt-3 text-xs text-gray-500 dark:text-gray-400">
                   Validation steps will appear after the first recommendation.
                 </div>
               ) : (
-                <ol className="mt-2 space-y-2 text-sm text-gray-600 dark:text-gray-300">
+                <ol className="mt-3 space-y-2 text-sm text-gray-600 dark:text-gray-300">
                   {recommendation.testPlan.map((step) => (
                     <li key={step} className="rounded-2xl bg-gray-50 px-3 py-2 dark:bg-gray-950/50">{step}</li>
                   ))}
                 </ol>
               )}
-            </div>
+            </details>
 
-            <div className="rounded-3xl border border-gray-200 bg-white/80 p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900/80">
-              <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-500 dark:text-gray-400">
+            <details className="rounded-3xl border border-gray-200 bg-white/80 p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900/80">
+              <summary className="flex cursor-pointer list-none items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-500 dark:text-gray-400">
                 <HistoryIcon />
                 <span>History</span>
-              </div>
-              <div className="mt-2 space-y-2">
+              </summary>
+              <div className="mt-3 space-y-2">
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => void saveSessionToDocHub()}
+                    className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-600 transition-colors hover:border-sky-300 hover:text-sky-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-sky-700 dark:hover:text-sky-200"
+                  >
+                    Save
+                  </button>
+                  <button
+                    onClick={() => downloadSessionMarkdown()}
+                    className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-600 transition-colors hover:border-sky-300 hover:text-sky-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-sky-700 dark:hover:text-sky-200"
+                  >
+                    Download
+                  </button>
+                  {remoteShareEnabled && (
+                    <button
+                      onClick={() => void shareSessionRemotely()}
+                      className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-600 transition-colors hover:border-sky-300 hover:text-sky-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-sky-700 dark:hover:text-sky-200"
+                    >
+                      Share
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setShowClearConfirm(true)}
+                    className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-600 transition-colors hover:border-sky-300 hover:text-sky-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-sky-700 dark:hover:text-sky-200"
+                  >
+                    Reset
+                  </button>
+                </div>
                 {archives.length > 0 && (
                   <button
                     onClick={() => setShowArchives(true)}
@@ -2753,7 +2732,7 @@ export default function Builder({
                   ))
                 )}
               </div>
-            </div>
+            </details>
           </div>
         </aside>
         )}
@@ -2762,9 +2741,9 @@ export default function Builder({
       {showClearConfirm && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-md rounded-3xl border border-gray-200 bg-white p-6 shadow-2xl dark:border-gray-700 dark:bg-gray-900">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Reset Builder Session</h3>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Clear Builder Session</h3>
             <p className="mt-3 text-sm text-gray-600 dark:text-gray-300">
-              This will archive the current Builder conversation and recommendation, then start a fresh session. You can recover it later from History.
+              Choose whether to keep this conversation in History or remove it completely before starting fresh.
             </p>
             <div className="mt-5 flex justify-end gap-2">
               <button
@@ -2772,6 +2751,15 @@ export default function Builder({
                 className="rounded-full border border-gray-200 px-4 py-2 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-300"
               >
                 Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowClearConfirm(false)
+                  resetBuilderSession()
+                }}
+                className="rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:border-sky-300 hover:text-sky-700 dark:border-gray-700 dark:text-gray-200 dark:hover:border-sky-700 dark:hover:text-sky-200"
+              >
+                Clear only
               </button>
               <button
                 onClick={() => {

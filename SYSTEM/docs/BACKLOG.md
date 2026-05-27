@@ -90,6 +90,7 @@
 - [ ] **AI Builder open template-family taxonomy** — continue expanding Builder’s template-family hints without turning them into a closed whitelist; unknown domains should still fall back cleanly to `refine existing` vs `create new` template choices.
 
 ### UX & Product Polish
+- [ ] **Client console simplification pass** — reduce redundant copy, lower first-screen feature density, and move less-common actions behind `Actions`/expanders across Builder first, then Templates, Agents, Skills, and Workflows. Preserve core capability and familiar navigation while making the default client surfaces easier to scan.
 - [ ] **Mobile responsiveness audit** — run a focused pass across login, top bar, notifications, agent cards, chat, dashboards, template apply, and integrations wizard on narrow/mobile widths; fix clipped popovers, off-screen dialogs, awkward stacking, and tap-target issues before broader external demos. GitHub: `#143`
 - [ ] **Bulk actions from notifications** — dismiss works, but pause/restart/open chat not yet inline
 - [ ] **Mobile notifications panel positioning** — on narrow/mobile layouts the notifications popover can render off-center and partially off-screen instead of switching to a properly centered or full-width mobile-friendly sheet.
