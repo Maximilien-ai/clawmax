@@ -96,6 +96,13 @@ test('suppresses metadata-only json blobs when no human text is present', () => 
   assert(normalized === '', `Expected metadata-only JSON to be suppressed, got: ${normalized}`)
 })
 
+test('extracts human-friendly text from mechdog tool json blobs', () => {
+  const moveRaw = '{ "status": "ok", "message": "Moving forward for 5000ms", "state": { "rotation": 0 } }'
+  const actionRaw = '{ "status": "ok", "action": "wave", "estimated_duration": 2.5, "state": { "rotation": 0 } }'
+  assert(normalizeChatMessage(moveRaw) === 'Moving forward for 5000ms', 'Expected move tool JSON to collapse to its message')
+  assert(normalizeChatMessage(actionRaw) === 'Performed action: wave', 'Expected action tool JSON to collapse to a concise summary')
+})
+
 console.log('\n========================================')
 console.log(`Tests passed: ${testsPassed}`)
 console.log(`Tests failed: ${testsFailed}`)

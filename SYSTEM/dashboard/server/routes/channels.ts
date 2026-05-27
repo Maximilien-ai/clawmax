@@ -491,8 +491,8 @@ async function callAgent(
       clearTimeout(timer)
       reject(err)
     })
-  })
-  }))
+    })
+  }, { persistAuthProfiles: true }))
 }
 
 // Update community tags

@@ -538,6 +538,115 @@ test('withTemporaryAgentAuthProfiles writes both gemini and google auth profiles
   })
 })
 
+test('withTemporaryAgentAuthProfiles can persist generated auth profiles for async subagents', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
+  const agentDir = path.join(home, '.openclaw', 'agents', 'test1', 'agent')
+  const authProfilePath = path.join(agentDir, 'auth-profiles.json')
+  const configPath = path.join(home, '.openclaw', 'openclaw.json')
+  fs.mkdirSync(agentDir, { recursive: true })
+  fs.mkdirSync(path.join(home, '.openclaw'), { recursive: true })
+  fs.writeFileSync(configPath, JSON.stringify({
+    agents: {
+      list: [
+        { id: 'test1', workspace: path.join(home, 'workspace', 'AGENTS', 'test1'), agentDir }
+      ]
+    }
+  }, null, 2))
+
+  process.env.HOME = home
+  resetWorkspaceManagerForTests()
+
+  await withTemporaryAgentAuthProfiles('test1', { openai: 'fresh-openai' }, 'openai/gpt-4o-mini', 'openai', async () => {
+    const current = JSON.parse(fs.readFileSync(authProfilePath, 'utf-8'))
+    assert(current.profiles['openai-key']?.key === 'fresh-openai', 'Expected OpenAI profile during execution')
+  }, { persistAuthProfiles: true })
+
+  const persisted = JSON.parse(fs.readFileSync(authProfilePath, 'utf-8'))
+  assert(persisted.profiles['openai-key']?.key === 'fresh-openai', 'Expected generated auth profile to remain for async subagents')
+})
+
+test('withTemporaryAgentAuthProfiles registers workspace custom skill root with OpenClaw', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
+  const workspace = path.join(home, '.openclaw', 'workspaces', 'robotics')
+  const agentWorkspace = path.join(workspace, 'AGENTS', 'mechdog')
+  const agentDir = path.join(home, '.openclaw', 'agents', 'mechdog', 'agent')
+  const customSkillRoot = path.join(workspace, 'SKILLS', 'custom')
+  const configPath = path.join(home, '.openclaw', 'openclaw.json')
+  fs.mkdirSync(agentWorkspace, { recursive: true })
+  fs.mkdirSync(agentDir, { recursive: true })
+  fs.mkdirSync(customSkillRoot, { recursive: true })
+  fs.mkdirSync(path.join(home, '.openclaw'), { recursive: true })
+  fs.writeFileSync(path.join(agentWorkspace, 'IDENTITY.md'), '# Identity\n\n- **Model:** openai/gpt-4o-mini\n', 'utf-8')
+  fs.writeFileSync(configPath, JSON.stringify({
+    agents: {
+      list: [
+        { id: 'mechdog', workspace: agentWorkspace, agentDir, model: 'openai/gpt-4o-mini', skills: ['mechdog'] }
+      ]
+    }
+  }, null, 2))
+  fs.writeFileSync(path.join(home, '.openclaw', 'dashboard-workspaces.json'), JSON.stringify({
+    version: '1.0.0',
+    activeWorkspaceId: 'robotics',
+    workspaces: [
+      { id: 'robotics', name: 'Robotics', path: workspace, createdAt: new Date().toISOString(), lastAccessedAt: new Date().toISOString() },
+    ]
+  }, null, 2))
+
+  process.env.HOME = home
+  process.env.OPENCLAW_WORKSPACE = workspace
+  resetWorkspaceManagerForTests()
+
+  await withTemporaryAgentAuthProfiles('mechdog', { openai: 'fresh-openai' }, 'openai/gpt-4o-mini', 'openai', async () => {})
+
+  const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  const extraDirs = config.skills?.load?.extraDirs || []
+  assert(extraDirs.includes(customSkillRoot), 'Expected workspace SKILLS/custom to be registered as OpenClaw extra skill dir')
+})
+
+test('withTemporaryAgentAuthProfiles resets persisted sessions when workspace custom skill files changed', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
+  const workspace = path.join(home, '.openclaw', 'workspaces', 'robotics')
+  const agentWorkspace = path.join(workspace, 'AGENTS', 'mechdog')
+  const agentDir = path.join(home, '.openclaw', 'agents', 'mechdog', 'agent')
+  const sessionsDir = path.join(home, '.openclaw', 'agents', 'mechdog', 'sessions')
+  const customSkillDir = path.join(workspace, 'SKILLS', 'custom', 'mechdog')
+  const customSkillFile = path.join(customSkillDir, 'index.ts')
+  const sessionFile = path.join(sessionsDir, 'chat-openai-gpt-4o-mini.jsonl')
+  const configPath = path.join(home, '.openclaw', 'openclaw.json')
+  fs.mkdirSync(agentWorkspace, { recursive: true })
+  fs.mkdirSync(agentDir, { recursive: true })
+  fs.mkdirSync(sessionsDir, { recursive: true })
+  fs.mkdirSync(customSkillDir, { recursive: true })
+  fs.mkdirSync(path.join(home, '.openclaw'), { recursive: true })
+  fs.writeFileSync(path.join(agentWorkspace, 'IDENTITY.md'), '# Identity\n\n- **Model:** openai/gpt-4o-mini\n', 'utf-8')
+  fs.writeFileSync(customSkillFile, 'export const updated = true\n', 'utf-8')
+  fs.writeFileSync(sessionFile, '{"type":"message","message":{"role":"assistant"}}\n', 'utf-8')
+  fs.utimesSync(sessionFile, new Date(Date.now() - 60_000), new Date(Date.now() - 60_000))
+  fs.utimesSync(customSkillFile, new Date(), new Date())
+  fs.writeFileSync(configPath, JSON.stringify({
+    agents: {
+      list: [
+        { id: 'mechdog', workspace: agentWorkspace, agentDir, model: 'openai/gpt-4o-mini', skills: ['mechdog'] }
+      ]
+    }
+  }, null, 2))
+  fs.writeFileSync(path.join(home, '.openclaw', 'dashboard-workspaces.json'), JSON.stringify({
+    version: '1.0.0',
+    activeWorkspaceId: 'robotics',
+    workspaces: [
+      { id: 'robotics', name: 'Robotics', path: workspace, createdAt: new Date().toISOString(), lastAccessedAt: new Date().toISOString() },
+    ]
+  }, null, 2))
+
+  process.env.HOME = home
+  process.env.OPENCLAW_WORKSPACE = workspace
+  resetWorkspaceManagerForTests()
+
+  await withTemporaryAgentAuthProfiles('mechdog', { openai: 'fresh-openai' }, 'openai/gpt-4o-mini', 'openai', async () => {})
+
+  assert(!fs.existsSync(sessionFile), 'Expected persisted session snapshot to be reset after workspace custom skill update')
+})
+
 test('withTemporaryAgentAuthProfiles preserves gateway config fields during temporary model override', async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
   const agentDir = path.join(home, '.openclaw', 'agents', 'test1', 'agent')

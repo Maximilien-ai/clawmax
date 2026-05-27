@@ -1747,7 +1747,7 @@ export function triggerWorkflow(workflowId: string, options?: {
                   innerResolve()
                 })
               })
-            }).catch(reject)
+            }, { persistAuthProfiles: true }).catch(reject)
           }))
 
           const agentResult = agentResponse as any

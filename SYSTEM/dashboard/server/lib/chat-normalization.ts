@@ -81,6 +81,15 @@ function extractStructuredText(content: string): string | null {
     const parsed = JSON.parse(trimmed)
     const payloadText = extractPayloadText(parsed)
     if (payloadText !== null) return payloadText
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const record = parsed as Record<string, unknown>
+      if (typeof record.status === 'string' && typeof record.message === 'string') {
+        return record.message
+      }
+      if (typeof record.status === 'string' && typeof record.action === 'string') {
+        return `Performed action: ${record.action}`
+      }
+    }
     if (isSuppressibleStructuredPayload(parsed)) return ''
     return null
   } catch {

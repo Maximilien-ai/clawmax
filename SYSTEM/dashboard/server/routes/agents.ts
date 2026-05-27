@@ -2070,6 +2070,7 @@ router.get('/:id/chat/messages', async (req, res) => {
         const entry = JSON.parse(line)
         if (entry.type === 'message' && entry.message) {
           const msg = entry.message
+          if (!isVisibleChatRole(msg.role)) continue
           const contentArray = Array.isArray(msg.content) ? msg.content : [msg.content]
           const textContent = contentArray
             .map((c: any) => {
@@ -2191,6 +2192,7 @@ router.get('/:id/chat/archives', async (req, res) => {
                 messageCount++
 
                 const msg = obj.message
+                if (!isVisibleChatRole(msg.role)) continue
                 let textContent = ''
 
                 if (Array.isArray(msg.content)) {
@@ -2288,6 +2290,7 @@ router.get('/:id/chat/archives/:filename', async (req, res) => {
         const obj = JSON.parse(line)
         if (obj.type === 'message' && obj.message) {
           const msg = obj.message
+          if (!isVisibleChatRole(msg.role)) continue
           let content = ''
 
           // Handle content array format
@@ -2952,3 +2955,6 @@ router.post('/:id/export-openclaw', async (req, res) => {
 })
 
 export default router
+function isVisibleChatRole(role: unknown): role is 'user' | 'assistant' {
+  return role === 'user' || role === 'assistant'
+}

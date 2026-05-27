@@ -29,10 +29,20 @@ interface OpenClawConfigFile {
   agents?: {
     list?: Array<Record<string, any>>
   }
+  skills?: {
+    load?: {
+      extraDirs?: string[]
+      [key: string]: any
+    }
+    [key: string]: any
+  }
   [key: string]: any
 }
 
 type ExecutionProvider = 'openai' | 'openai-compatible' | 'anthropic' | 'gemini' | 'ollama' | null
+interface AgentAuthProfileOptions {
+  persistAuthProfiles?: boolean
+}
 let openClawConfigMutationLock: Promise<void> = Promise.resolve()
 const agentExecutionLocks = new Map<string, Promise<void>>()
 const AGENT_EXECUTION_SESSION_LOCK_RETRIES = 2
@@ -414,6 +424,123 @@ function ensureWorkspaceAgentRecordForExecution(
   writeOpenClawConfigFile(configPath, config)
 }
 
+function normalizePathForConfig(value: string): string {
+  return path.resolve(value)
+}
+
+function ensureWorkspaceSkillRootForExecution(
+  configPath: string,
+  execution: { workspace?: string }
+): boolean {
+  if (!execution.workspace || !fs.existsSync(configPath)) return false
+
+  const workspaceRoot = deriveWorkspaceRootFromAgentWorkspace(execution.workspace)
+  if (!workspaceRoot) return false
+
+  const customSkillsDir = path.join(workspaceRoot, 'SKILLS', 'custom')
+  if (!fs.existsSync(customSkillsDir)) return false
+
+  const config = readOpenClawConfigFile(configPath)
+  config.skills = config.skills || {}
+  config.skills.load = config.skills.load || {}
+  const extraDirs = Array.isArray(config.skills.load.extraDirs) ? config.skills.load.extraDirs : []
+  const normalizedCustomSkillsDir = normalizePathForConfig(customSkillsDir)
+  const alreadyPresent = extraDirs.some((entry) => normalizePathForConfig(entry) === normalizedCustomSkillsDir)
+  if (alreadyPresent) return false
+
+  config.skills.load.extraDirs = [...extraDirs, customSkillsDir]
+  writeOpenClawConfigFile(configPath, config)
+  return true
+}
+
+function getWorkspaceCustomSkillsDir(execution: { workspace?: string }): string | undefined {
+  if (!execution.workspace) return undefined
+  const workspaceRoot = deriveWorkspaceRootFromAgentWorkspace(execution.workspace)
+  if (!workspaceRoot) return undefined
+  const customSkillsDir = path.join(workspaceRoot, 'SKILLS', 'custom')
+  return fs.existsSync(customSkillsDir) ? customSkillsDir : undefined
+}
+
+function listWorkspaceCustomSkillDirsForAgent(
+  configPath: string,
+  agentId: string,
+  execution: { workspace?: string }
+): string[] {
+  const customSkillsDir = getWorkspaceCustomSkillsDir(execution)
+  if (!customSkillsDir || !fs.existsSync(configPath)) return []
+
+  try {
+    const config = readOpenClawConfigFile(configPath)
+    const agentList = Array.isArray(config?.agents?.list) ? config.agents.list : []
+    const matchingAgent = agentList.find((agent: any) =>
+      agent?.id === agentId && (!execution.workspace || agent?.workspace === execution.workspace)
+    ) || agentList.find((agent: any) => agent?.id === agentId)
+    const skills = Array.isArray(matchingAgent?.skills) ? matchingAgent.skills.map((entry: any) => String(entry || '').trim()).filter(Boolean) : []
+    if (skills.length === 0) return []
+
+    return skills
+      .map((skillId) => path.join(customSkillsDir, skillId))
+      .filter((skillDir) => fs.existsSync(skillDir))
+  } catch {
+    return []
+  }
+}
+
+function getNewestFileMtimeMs(targetPath: string): number {
+  if (!fs.existsSync(targetPath)) return 0
+  try {
+    const stats = fs.statSync(targetPath)
+    if (!stats.isDirectory()) {
+      return stats.mtimeMs
+    }
+
+    let newest = stats.mtimeMs
+    for (const entry of fs.readdirSync(targetPath, { withFileTypes: true })) {
+      newest = Math.max(newest, getNewestFileMtimeMs(path.join(targetPath, entry.name)))
+    }
+    return newest
+  } catch {
+    return 0
+  }
+}
+
+function getLatestPersistedSessionMtimeMs(agentId: string, homeDir: string = process.env.HOME || ''): number {
+  if (!agentId || !homeDir) return 0
+  const sessionsDir = path.join(homeDir, '.openclaw', 'agents', agentId, 'sessions')
+  if (!fs.existsSync(sessionsDir)) return 0
+
+  try {
+    return fs.readdirSync(sessionsDir, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && entry.name.endsWith('.jsonl'))
+      .map((entry) => fs.statSync(path.join(sessionsDir, entry.name)).mtimeMs)
+      .reduce((max, value) => Math.max(max, value), 0)
+  } catch {
+    return 0
+  }
+}
+
+function resetSessionsIfWorkspaceSkillsChanged(
+  configPath: string,
+  agentId: string,
+  execution: { workspace?: string }
+) {
+  const skillDirs = listWorkspaceCustomSkillDirsForAgent(configPath, agentId, execution)
+  if (skillDirs.length === 0) return
+
+  const newestSkillMtime = skillDirs
+    .map((skillDir) => getNewestFileMtimeMs(skillDir))
+    .reduce((max, value) => Math.max(max, value), 0)
+  if (!newestSkillMtime) return
+
+  const latestSessionMtime = getLatestPersistedSessionMtimeMs(agentId)
+  if (latestSessionMtime >= newestSkillMtime) return
+
+  const reset = resetAgentSessionsForModelChange(process.env.HOME || '', agentId)
+  if (!reset.ok) {
+    console.warn(`[Agent Execution] Failed to reset sessions after workspace skill update for ${agentId}: ${reset.error || 'unknown error'}`)
+  }
+}
+
 function buildAuthProfiles(providerKeys: ProviderKeys, preferredProvider?: ExecutionProvider): AuthProfileFile {
   const profiles: AuthProfileFile['profiles'] = {}
   const lastGood: Record<string, string> = {}
@@ -458,13 +585,19 @@ export async function withTemporaryAgentAuthProfiles<T>(
   providerKeys: ProviderKeys,
   preferredModel: string | undefined,
   preferredProvider: ExecutionProvider | undefined,
-  fn: () => Promise<T>
+  fn: () => Promise<T>,
+  options: AgentAuthProfileOptions = {}
 ): Promise<T> {
   const execution = resolveAgentExecutionConfig(agentId)
   const configPath = path.join(process.env.HOME || '', '.openclaw', 'openclaw.json')
   const hadConfig = fs.existsSync(configPath)
   if (hadConfig) {
     ensureWorkspaceAgentRecordForExecution(configPath, agentId, execution, preferredModel)
+    const skillRootChanged = ensureWorkspaceSkillRootForExecution(configPath, execution)
+    if (skillRootChanged) {
+      resetAgentSessionsForModelChange(process.env.HOME || '', agentId)
+    }
+    resetSessionsIfWorkspaceSkillsChanged(configPath, agentId, execution)
   }
   resetSessionsIfModelChanged(agentId, preferredModel)
   const workspaceOptions = { workspacePath: execution.workspace }
@@ -658,7 +791,10 @@ export async function withTemporaryAgentAuthProfiles<T>(
       }
     })
   } finally {
-    if (previous !== null) {
+    if (options.persistAuthProfiles) {
+      // Agent runs can launch async OpenClaw subagents after the parent CLI command exits.
+      // Leave Dashboard-provided auth in place so those child lanes can authenticate.
+    } else if (previous !== null) {
       fs.writeFileSync(authProfilePath, previous, 'utf-8')
     } else if (fs.existsSync(authProfilePath)) {
       fs.unlinkSync(authProfilePath)

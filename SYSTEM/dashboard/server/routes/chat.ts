@@ -435,7 +435,7 @@ router.post('/:id/chat', (req, res) => {
         resolve()
       })
     })
-  })).catch((err) => {
+  }, { persistAuthProfiles: true })).catch((err) => {
     console.error(`[Chat Route] Auth profile prep error for ${id}:`, err)
     clearInterval(keepalive)
     send('error', `Failed to prepare agent execution: ${err.message}`)
