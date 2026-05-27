@@ -198,26 +198,53 @@ function LogIcon({ className }: { className?: string }) {
   )
 }
 
+function ChevronDownIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={iconClassName(className)}>
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  )
+}
+
+function ChevronRightSmallIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={iconClassName(className)}>
+      <path d="m9 18 6-6-6-6" />
+    </svg>
+  )
+}
+
 const DEFAULT_NAV_ORDER: NavItem[] = [
   { id: 'builder', label: 'Builder', icon: SparkIcon },
+  { id: 'organizations', label: 'Organization', icon: BuildingIcon },
   { id: 'agents', label: 'Agents', icon: BotIcon },
   { id: 'workflows', label: 'Workflows', icon: WorkflowIcon },
   { id: 'communication', label: 'Communications', icon: MessageIcon },
-  { id: 'organizations', label: 'Organization', icon: BuildingIcon },
-  { id: 'docs', label: 'Documents', icon: FileIcon },
-  // System tabs below - separated by divider
   { id: 'skills', label: 'Skills', icon: WrenchIcon },
   { id: 'templates', label: 'Templates', icon: TemplateIcon },
+  // System tabs below - separated by divider
+  { id: 'docs', label: 'Documents', icon: FileIcon },
   { id: 'keys', label: 'Keys & Secrets', icon: KeyIcon },
   { id: 'activity', label: 'Activity & Budget', icon: ActivityIcon },
   { id: 'logs', label: 'System & Logs', icon: LogIcon },
 ]
 
-// User tabs that can be rearranged (first 5)
-const USER_TABS_COUNT = 6
-const CREATION_TABS_ORDER: Page[] = ['skills', 'templates']
+const USER_TABS_COUNT = 7
+const PRIMARY_CLIENT_GROUPS: Page[][] = [
+  ['builder', 'organizations'],
+  ['agents', 'workflows', 'communication'],
+  ['skills', 'templates'],
+]
+const DOCUMENTS_TABS_ORDER: Page[] = ['docs']
+const CREATION_TABS_ORDER: Page[] = []
 const OPERATIONS_TABS_ORDER: Page[] = ['keys', 'activity', 'logs']
-const SYSTEM_TABS_ORDER: Page[] = [...CREATION_TABS_ORDER, ...OPERATIONS_TABS_ORDER]
+const SYSTEM_TABS_ORDER: Page[] = [...DOCUMENTS_TABS_ORDER, ...CREATION_TABS_ORDER, ...OPERATIONS_TABS_ORDER]
+const SYSTEM_NAV_EXPANDED_STORAGE_KEY = 'clawmax-system-nav-expanded'
+
+function getPrimaryClientGroupIndex(page: Page | undefined): number {
+  if (!page) return -1
+  return PRIMARY_CLIENT_GROUPS.findIndex((group) => group.includes(page))
+}
 
 function normalizeNavOrder(saved: NavItem[] | null | undefined): NavItem[] {
   if (!Array.isArray(saved) || saved.length === 0) return DEFAULT_NAV_ORDER
@@ -236,20 +263,23 @@ function normalizeNavOrder(saved: NavItem[] | null | undefined): NavItem[] {
 
   const savedUserIds = uniqueSavedIds.filter(id => defaultUserIds.includes(id))
   const savedSystemIds = uniqueSavedIds.filter(id => defaultSystemIds.includes(id))
-
-  if (!savedUserIds.includes('builder')) {
-    savedUserIds.unshift('builder')
-  }
-
-  for (const id of defaultUserIds) {
-    if (!savedUserIds.includes(id)) savedUserIds.push(id)
+  const normalizedUserIds: Page[] = []
+  for (const group of PRIMARY_CLIENT_GROUPS) {
+    const savedGroupIds = savedUserIds.filter((id) => group.includes(id))
+    const nextGroupIds = savedGroupIds.length > 0
+      ? savedGroupIds
+      : group.slice()
+    for (const id of group) {
+      if (!nextGroupIds.includes(id)) nextGroupIds.push(id)
+    }
+    normalizedUserIds.push(...nextGroupIds)
   }
 
   for (const id of defaultSystemIds) {
     if (!savedSystemIds.includes(id)) savedSystemIds.push(id)
   }
 
-  return [...savedUserIds, ...savedSystemIds].map(id => byId.get(id)!).filter(Boolean)
+  return [...normalizedUserIds, ...savedSystemIds].map(id => byId.get(id)!).filter(Boolean)
 }
 
 /** Sidebar user badge with avatar and logout */
@@ -325,6 +355,10 @@ export default function App() {
   const [visitedPages, setVisitedPages] = useState<Set<Page>>(() => new Set<Page>([pathToPage(window.location.pathname)]))
   const [system, setSystem] = useState<SystemInfo | null>(null)
   const [navCollapsed, setNavCollapsed] = useState(false)
+  const [systemNavExpanded, setSystemNavExpanded] = useState<boolean>(() => {
+    const saved = localStorage.getItem(SYSTEM_NAV_EXPANDED_STORAGE_KEY)
+    return saved === 'true'
+  })
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [docFile, setDocFile] = useState<string | undefined>(undefined)
   const [initialAgentId, setInitialAgentId] = useState<string | undefined>(undefined)
@@ -514,9 +548,16 @@ export default function App() {
     e.preventDefault()
     if (draggedNavIndex === null || draggedNavIndex === index) return
 
-    // Prevent dragging across the separator
     if (draggedNavIndex < USER_TABS_COUNT && index >= USER_TABS_COUNT) return
     if (draggedNavIndex >= USER_TABS_COUNT && index < USER_TABS_COUNT) return
+    if (
+      draggedNavIndex < USER_TABS_COUNT &&
+      index < USER_TABS_COUNT
+    ) {
+      const draggedId = navOrder[draggedNavIndex]?.id
+      const targetId = navOrder[index]?.id
+      if (getPrimaryClientGroupIndex(draggedId) !== getPrimaryClientGroupIndex(targetId)) return
+    }
     if (
       draggedNavIndex >= USER_TABS_COUNT &&
       index >= USER_TABS_COUNT
@@ -547,6 +588,10 @@ export default function App() {
       localStorage.setItem('nav-order', JSON.stringify(normalized))
     }
   }, [navOrder])
+
+  useEffect(() => {
+    localStorage.setItem(SYSTEM_NAV_EXPANDED_STORAGE_KEY, String(systemNavExpanded))
+  }, [systemNavExpanded])
 
   return (
     <ErrorBoundary>
@@ -593,7 +638,7 @@ export default function App() {
 
             {/* Nav */}
             <nav className="flex-1 px-2 py-4 space-y-1">
-              {navOrder.map((item, index) => (
+              {navOrder.slice(0, USER_TABS_COUNT).map((item, index) => (
                 <React.Fragment key={item.id}>
                   <NavItemDraggable
                     label={item.label}
@@ -610,12 +655,49 @@ export default function App() {
                     onDragOver={(e) => handleNavDragOver(e, index)}
                     onDragEnd={handleNavDragEnd}
                   />
-                  {/* Dividers between major sidebar sections */}
-                  {(index === USER_TABS_COUNT - 1 || navOrder[index + 1]?.id === OPERATIONS_TABS_ORDER[0]) && (
+                  {index < USER_TABS_COUNT - 1 && getPrimaryClientGroupIndex(item.id) !== getPrimaryClientGroupIndex(navOrder[index + 1]?.id as Page) && (
                     <div className="my-2 mx-3 border-t border-gray-700"></div>
                   )}
                 </React.Fragment>
               ))}
+              <div className="my-2 mx-3 border-t border-gray-700"></div>
+              <button
+                type="button"
+                onClick={() => setSystemNavExpanded((current) => !current)}
+                className={`flex w-full items-center rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-300 transition-colors hover:bg-gray-800 hover:text-white ${navCollapsed ? 'justify-center' : 'justify-between'}`}
+                title={navCollapsed ? 'Toggle system navigation' : undefined}
+              >
+                {navCollapsed ? (
+                  systemNavExpanded ? <ChevronDownIcon className="h-4 w-4" /> : <ChevronRightSmallIcon className="h-4 w-4" />
+                ) : (
+                  <>
+                    <span className="uppercase tracking-[0.18em] text-[11px] text-gray-400">System</span>
+                    {systemNavExpanded ? <ChevronDownIcon className="h-4 w-4" /> : <ChevronRightSmallIcon className="h-4 w-4" />}
+                  </>
+                )}
+              </button>
+              {systemNavExpanded && navOrder.slice(USER_TABS_COUNT).map((item, offset) => {
+                const index = USER_TABS_COUNT + offset
+                return (
+                  <React.Fragment key={item.id}>
+                    <NavItemDraggable
+                      label={item.label}
+                      icon={item.icon}
+                      dataTourId={`nav-${item.id}`}
+                      active={page === item.id}
+                      badge={item.id === 'communication' && totalUnread > 0 ? totalUnread : undefined}
+                      onClick={() => {
+                        setPage(item.id)
+                        setMobileNavOpen(false)
+                      }}
+                      collapsed={navCollapsed}
+                      onDragStart={() => handleNavDragStart(index)}
+                      onDragOver={(e) => handleNavDragOver(e, index)}
+                      onDragEnd={handleNavDragEnd}
+                    />
+                  </React.Fragment>
+                )
+              })}
             </nav>
 
             {/* User info */}
