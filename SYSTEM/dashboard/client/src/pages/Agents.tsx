@@ -1037,9 +1037,9 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div className="min-w-0">
-          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Agent Roster</h1>
+          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Agents</h1>
           <p className="text-sm text-gray-500 mt-0.5 flex items-center gap-1.5">
-            {filteredAgents.length} agent{filteredAgents.length !== 1 ? 's' : ''}
+            {filteredAgents.length} shown
             {selectedTags.size > 0 && <span className="text-gray-300">({agents.length} total)</span>}
             <span className="text-gray-300">·</span>
             <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse inline-block" title="Auto-refresh every 30s" />
@@ -1070,95 +1070,6 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
             >
               <ProductIconCell iconName="list" label="List view" size="sm" className="border-transparent bg-transparent text-current" />
             </button>
-          </div>
-          <button
-            onClick={handleRefresh}
-            disabled={cooling}
-            className={`text-sm font-medium transition-colors ${
-              cooling ? 'text-gray-300 cursor-not-allowed' : 'text-sky-600 hover:text-sky-800'
-            }`}
-          >
-            {cooling ? 'Refreshing…' : '↻ Refresh'}
-          </button>
-          <div className="relative">
-            <button
-              onClick={() => setShowRestartMenu(!showRestartMenu)}
-              className="text-sm font-medium px-3 py-1.5 rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:bg-gray-900 transition-colors flex items-center gap-1.5 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-700"
-              title="Restart agents"
-            >
-              ↻ Restart {showRestartMenu ? '▲' : '▼'}
-            </button>
-            {showRestartMenu && (
-              <>
-                <div className="fixed inset-0 z-10" onClick={() => setShowRestartMenu(false)} />
-                <div className="absolute right-0 mt-1 w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20 overflow-hidden dark:border-gray-700">
-                  {/* System Status */}
-                  {systemStatus && (
-                    <div className="px-4 py-3 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 dark:bg-gray-900">
-                      <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2 dark:text-gray-300">System Status</div>
-                      <div className="space-y-1 text-xs text-gray-600 dark:text-gray-400">
-                        <div className="flex justify-between">
-                          <span>Total Agents:</span>
-                          <span className="font-medium">{systemStatus.total}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Online:</span>
-                          <span className="font-medium text-green-600">{systemStatus.online}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Offline:</span>
-                          <span className="font-medium text-yellow-600">{systemStatus.offline}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Unknown:</span>
-                          <span className="font-medium text-gray-400">{systemStatus.unknown}</span>
-                        </div>
-                        <div className="flex justify-between pt-1 border-t border-gray-200 dark:border-gray-700">
-                          <span>Running Gateways:</span>
-                          <span className="font-medium text-sky-600">{systemStatus.runningGateways}</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  {/* Restart Actions */}
-                  {systemStatus && !systemStatus.gatewayAvailable && (
-                    <div className="px-4 py-3 bg-amber-50 border-b border-amber-200">
-                      <div className="text-xs text-amber-800">
-                        <span className="font-semibold">⚠️ Restart Unavailable</span>
-                        <p className="mt-1">openclaw CLI not found in PATH, so gateway restart commands are unavailable</p>
-                      </div>
-                    </div>
-                  )}
-                  <div className="py-1">
-                    <button
-                      onClick={handleRestartAll}
-                      disabled={!systemStatus?.gatewayAvailable}
-                      className={`w-full px-4 py-2 text-left text-sm flex items-center gap-2 transition-colors ${
-                        systemStatus?.gatewayAvailable
-                          ? 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:bg-gray-900'
-                          : 'text-gray-400 cursor-not-allowed bg-gray-50 dark:bg-gray-900'
-                      }`}
-                    >
-                      <span className="text-amber-500">↻</span> Restart All Agents
-                    </button>
-                    <button
-                      onClick={handleRestartOffline}
-                      disabled={!systemStatus?.gatewayAvailable || !agents.some(a => a.status === 'offline')}
-                      className={`w-full px-4 py-2 text-left text-sm flex items-center gap-2 transition-colors ${
-                        systemStatus?.gatewayAvailable && agents.some(a => a.status === 'offline')
-                          ? 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:bg-gray-900'
-                          : 'text-gray-400 cursor-not-allowed bg-gray-50 dark:bg-gray-900'
-                      }`}
-                    >
-                      <span className="text-yellow-500">↻</span> Restart Offline Agents
-                      {systemStatus && systemStatus.offline > 0 && (
-                        <span className="ml-auto text-xs text-gray-400">({systemStatus.offline})</span>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              </>
-            )}
           </div>
           <div className="flex gap-2">
             <button
@@ -1191,13 +1102,23 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                 {selectedAgentIds.size === filteredAgents.length ? 'Deselect All' : 'Select All'}
               </button>
             )}
+            <button
+              onClick={() => {
+                setCloneFromAgent(null)
+                setAiGenerateMode(false)
+                setShowAddWizard(true)
+              }}
+              className="text-sm font-medium px-3 py-1.5 rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors"
+            >
+              Create
+            </button>
             <div className="relative">
               <button
                 onClick={() => setShowAgentActionsMenu(!showAgentActionsMenu)}
-                className="text-sm font-medium px-3 py-1.5 rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors flex items-center gap-1.5"
-                title="Agent actions"
+                className="text-sm font-medium px-3 py-1.5 rounded-md bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors flex items-center gap-1.5"
+                title="Actions"
               >
-                <ProductIconCell iconName="ai" label="Agent Actions" size="sm" className="border-white/20 bg-white/10 text-white" /> Agent Actions <span className="text-xs">▾</span>
+                <ProductIconCell iconName="ai" label="Actions" size="sm" className="border-transparent bg-transparent text-current" /> Actions <span className="text-xs">▾</span>
               </button>
               {showAgentActionsMenu && (
                 <>
@@ -1240,6 +1161,29 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                     >
                       <ProductIconCell iconName="import" label="Import" size="sm" className="border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" /> Import
                     </button>
+                    <button
+                      onClick={() => {
+                        setShowAgentActionsMenu(false)
+                        handleRefresh()
+                      }}
+                      disabled={cooling}
+                      className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 transition-colors ${
+                        cooling
+                          ? 'text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                          : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      <ProductIconCell iconName="refresh" label="Refresh" size="sm" className="border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" /> {cooling ? 'Refreshing…' : 'Refresh'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowAgentActionsMenu(false)
+                        setShowRestartMenu(true)
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center gap-2"
+                    >
+                      <ProductIconCell iconName="refresh" label="Restart" size="sm" className="border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-300" /> Restart
+                    </button>
                   </div>
                 </>
               )}
@@ -1247,6 +1191,59 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
           </div>
         </div>
       </div>
+
+      {showRestartMenu && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setShowRestartMenu(false)} />
+          <div className="absolute right-6 top-28 mt-1 w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20 overflow-hidden dark:border-gray-700">
+            {systemStatus && (
+              <div className="px-4 py-3 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 dark:bg-gray-900">
+                <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2 dark:text-gray-300">System Status</div>
+                <div className="space-y-1 text-xs text-gray-600 dark:text-gray-400">
+                  <div className="flex justify-between"><span>Total Agents:</span><span className="font-medium">{systemStatus.total}</span></div>
+                  <div className="flex justify-between"><span>Online:</span><span className="font-medium text-green-600">{systemStatus.online}</span></div>
+                  <div className="flex justify-between"><span>Offline:</span><span className="font-medium text-yellow-600">{systemStatus.offline}</span></div>
+                </div>
+              </div>
+            )}
+            {systemStatus && !systemStatus.gatewayAvailable && (
+              <div className="px-4 py-3 bg-amber-50 border-b border-amber-200">
+                <div className="text-xs text-amber-800">
+                  <span className="font-semibold">⚠ Restart unavailable</span>
+                  <p className="mt-1">openclaw CLI not found in PATH.</p>
+                </div>
+              </div>
+            )}
+            <div className="py-1">
+              <button
+                onClick={handleRestartAll}
+                disabled={!systemStatus?.gatewayAvailable}
+                className={`w-full px-4 py-2 text-left text-sm flex items-center gap-2 transition-colors ${
+                  systemStatus?.gatewayAvailable
+                    ? 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:bg-gray-900'
+                    : 'text-gray-400 cursor-not-allowed bg-gray-50 dark:bg-gray-900'
+                }`}
+              >
+                <span className="text-amber-500">↻</span> Restart All Agents
+              </button>
+              <button
+                onClick={handleRestartOffline}
+                disabled={!systemStatus?.gatewayAvailable || !agents.some(a => a.status === 'offline')}
+                className={`w-full px-4 py-2 text-left text-sm flex items-center gap-2 transition-colors ${
+                  systemStatus?.gatewayAvailable && agents.some(a => a.status === 'offline')
+                    ? 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:bg-gray-900'
+                    : 'text-gray-400 cursor-not-allowed bg-gray-50 dark:bg-gray-900'
+                }`}
+              >
+                <span className="text-yellow-500">↻</span> Restart Offline Agents
+                {systemStatus && systemStatus.offline > 0 && (
+                  <span className="ml-auto text-xs text-gray-400">({systemStatus.offline})</span>
+                )}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Archive tabs */}
       <div className="mb-4">

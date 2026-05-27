@@ -20,6 +20,175 @@ import { ProductIconCell, resolveSkillVisual, resolveCategoryVisual } from '../l
 
 // Use relative path so it works with ngrok and localhost
 const API_BASE = ''
+const SKILLS_VIEW_MODE_STORAGE_KEY = 'clawmax-skills-view-mode'
+
+function SkillsListTable({
+  skills,
+  assignedSkills,
+  skillUsage,
+  selectionMode,
+  selectedSkillIds,
+  onToggle,
+  onView,
+  onDelete,
+  canDelete,
+  onToggleSelect,
+  onToggleSelectAll,
+  getSetupHint,
+}: {
+  skills: OpenClawSkill[]
+  assignedSkills: Set<string>
+  skillUsage: Map<string, string[]>
+  selectionMode: boolean
+  selectedSkillIds: Set<string>
+  onToggle: (skillName: string) => void
+  onView: (skill: OpenClawSkill) => void
+  onDelete: (skill: OpenClawSkill) => void
+  canDelete: (skill: OpenClawSkill) => boolean
+  onToggleSelect: (skillName: string) => void
+  onToggleSelectAll: () => void
+  getSetupHint: (skill: OpenClawSkill) => ReturnType<typeof getSkillSetupHint>
+}) {
+  const allSelected = skills.length > 0 && skills.every((skill) => selectedSkillIds.has(skill.name))
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+      <div className="overflow-auto">
+        <table className="w-full text-sm">
+          <thead className="border-b border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40">
+            <tr>
+              {selectionMode && (
+                <th className="w-10 px-4 py-3 text-left">
+                  <button
+                    type="button"
+                    onClick={onToggleSelectAll}
+                    className={`flex h-6 w-6 items-center justify-center rounded border text-xs font-bold transition-colors ${
+                      allSelected
+                        ? 'border-sky-600 bg-sky-600 text-white'
+                        : 'border-gray-300 bg-white text-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-500'
+                    }`}
+                    title="Toggle select all"
+                  >
+                    {allSelected ? '✓' : '□'}
+                  </button>
+                </th>
+              )}
+              <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Skill</th>
+              <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Source</th>
+              <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Status</th>
+              <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Used By</th>
+              <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Tags</th>
+              <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {skills.map((skill) => {
+              const isSelected = selectedSkillIds.has(skill.name)
+              const assigned = assignedSkills.has(skill.name)
+              const users = skillUsage.get(skill.name) || []
+              const setupHint = getSetupHint(skill)
+              const visual = resolveSkillVisual(skill)
+              const sourceLabel = skill.variantOf ? 'Workspace Copy' : skill.source === 'workspace' ? 'Workspace' : skill.source === 'managed' ? 'Managed' : 'Built-in'
+
+              return (
+                <tr key={skill.name} className="border-b border-gray-100 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-700/40">
+                  {selectionMode && (
+                    <td className="px-4 py-3">
+                      <button
+                        type="button"
+                        onClick={() => onToggleSelect(skill.name)}
+                        className={`flex h-6 w-6 items-center justify-center rounded border text-xs font-bold transition-colors ${
+                          isSelected
+                            ? 'border-sky-600 bg-sky-600 text-white'
+                            : 'border-gray-300 bg-white text-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-500'
+                        }`}
+                        title={isSelected ? 'Deselect skill' : 'Select skill'}
+                      >
+                        {isSelected ? '✓' : '□'}
+                      </button>
+                    </td>
+                  )}
+                  <td className="px-4 py-3">
+                    <button
+                      onClick={() => onView(skill)}
+                      className="text-left"
+                    >
+                      <div className="flex items-start gap-2">
+                        <ProductIconCell iconName={visual.iconName} emoji={visual.emoji} label={skill.name} size="sm" className="mt-0.5 flex-shrink-0" />
+                        <div className="min-w-0">
+                          <div className="font-medium text-gray-900 dark:text-gray-100">{skill.name}</div>
+                          <div className="line-clamp-1 text-xs text-gray-500 dark:text-gray-400">{skill.description}</div>
+                        </div>
+                      </div>
+                    </button>
+                  </td>
+                  <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{sourceLabel}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-wrap gap-1">
+                      {assigned && (
+                        <span className="rounded border border-green-200 bg-green-50 px-1.5 py-0.5 text-[11px] text-green-700 dark:border-green-700 dark:bg-green-900/20 dark:text-green-300">
+                          Assigned
+                        </span>
+                      )}
+                      {skill.dirty && (
+                        <span className="rounded border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[11px] text-amber-700 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
+                          DIRTY
+                        </span>
+                      )}
+                      {setupHint && (
+                        <span className="rounded border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[11px] text-amber-700 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
+                          {setupHint.label}
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{users.length}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-wrap gap-1">
+                      {(skill.tags || []).slice(0, 3).map((tag) => (
+                        <span key={tag} className="rounded border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[11px] text-sky-600 dark:border-sky-700 dark:bg-sky-900/30 dark:text-sky-300">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex justify-end gap-2">
+                      <button
+                        onClick={() => onView(skill)}
+                        className="rounded bg-gray-100 px-2 py-1 text-xs text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+                      >
+                        View
+                      </button>
+                      <button
+                        onClick={() => onToggle(skill.name)}
+                        className={`rounded px-2 py-1 text-xs ${
+                          assigned
+                            ? 'bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-300 dark:hover:bg-green-900/40'
+                            : 'bg-blue-600 text-white hover:bg-blue-700'
+                        }`}
+                      >
+                        {assigned ? 'Assigned' : 'Add'}
+                      </button>
+                      {!selectionMode && canDelete(skill) && (
+                        <button
+                          onClick={() => onDelete(skill)}
+                          className="rounded bg-red-50 px-2 py-1 text-xs text-red-600 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-300 dark:hover:bg-red-900/40"
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
 
 function normalizePromptInput(override: unknown, fallback: string): string {
   return typeof override === 'string' ? override.trim() : fallback.trim()
@@ -163,6 +332,10 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>(() => {
+    if (typeof window === 'undefined') return 'grid'
+    return localStorage.getItem(SKILLS_VIEW_MODE_STORAGE_KEY) === 'list' ? 'list' : 'grid'
+  })
   const [filterAssigned, setFilterAssigned] = useState<'all' | 'assigned' | 'available'>('all')
   const [selectedSkillTags, setSelectedSkillTags] = useState<Set<string>>(new Set())
   const [agentId, setAgentId] = useState(initialAgentId || '')
@@ -218,6 +391,9 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
   const [showAiPromptEditor, setShowAiPromptEditor] = useState(false)
   const [aiSkillRefinementPrompt, setAiSkillRefinementPrompt] = useState('')
   const [aiSkillGenerating, setAiSkillGenerating] = useState(false)
+  useEffect(() => {
+    localStorage.setItem(SKILLS_VIEW_MODE_STORAGE_KEY, viewMode)
+  }, [viewMode])
   const [aiSkillCreating, setAiSkillCreating] = useState(false)
   const [generatedSkillDraft, setGeneratedSkillDraft] = useState<null | {
     name: string
@@ -1167,70 +1343,168 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
           <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
             <div className="flex flex-wrap items-center gap-3 sm:gap-4">
               <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100">
-                Skills Manager
+                Skills
               </h1>
+              {availableAgents.length > 0 && (
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={agentSearchQuery || agentId}
+                    onChange={(e) => {
+                      setAgentSearchQuery(e.target.value)
+                      setShowAgentDropdown(true)
+                    }}
+                    onFocus={() => setShowAgentDropdown(true)}
+                    placeholder="Selected agent"
+                    className="min-w-48 rounded-lg border border-gray-200 bg-white px-4 py-2 pr-10 text-sm text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+                  />
+                  {(agentSearchQuery || agentId) && (
+                    <button
+                      onClick={() => {
+                        setAgentId(availableAgents.length > 0 ? availableAgents[0] : '')
+                        setAgentSearchQuery('')
+                        setShowAgentDropdown(false)
+                      }}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                      title="Clear agent selection"
+                    >
+                      ✕
+                    </button>
+                  )}
+                  {showAgentDropdown && filteredAgents.length > 0 && (
+                    <div className="absolute z-10 mt-1 w-full rounded-lg border bg-white shadow-lg max-h-60 overflow-y-auto dark:border-gray-700 dark:bg-gray-800">
+                      {filteredAgents.map(id => (
+                        <button
+                          key={id}
+                          onClick={() => {
+                            setAgentId(id)
+                            setAgentSearchQuery('')
+                            setShowAgentDropdown(false)
+                            setFilterAssigned('assigned')
+                          }}
+                          className={`w-full text-left px-4 py-2 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors ${
+                            id === agentId ? 'bg-blue-100 dark:bg-blue-900/30 font-medium' : ''
+                          }`}
+                        >
+                          {id}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+                <button
+                  onClick={() => setViewMode('grid')}
+                  title="Grid view"
+                  className={`px-2.5 py-2 text-xs transition-colors ${viewMode === 'grid' ? 'bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400' : 'text-gray-400 hover:bg-gray-50 hover:text-gray-600 dark:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-gray-300'}`}
+                >
+                  <ProductIconCell iconName="grid" label="Grid view" size="sm" className="border-transparent bg-transparent text-current" />
+                </button>
+                <button
+                  onClick={() => setViewMode('list')}
+                  title="List view"
+                  className={`border-l border-gray-200 px-2.5 py-2 text-xs transition-colors dark:border-gray-700 ${viewMode === 'list' ? 'bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400' : 'text-gray-400 hover:bg-gray-50 hover:text-gray-600 dark:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-gray-300'}`}
+                >
+                  <ProductIconCell iconName="list" label="List view" size="sm" className="border-transparent bg-transparent text-current" />
+                </button>
+              </div>
+              <button
+                onClick={() => {
+                  setSelectionMode((current) => {
+                    if (current) {
+                      setSelectedSkillIds(new Set())
+                    }
+                    return !current
+                  })
+                }}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  selectionMode
+                    ? 'bg-blue-600 text-white hover:bg-blue-700'
+                    : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                }`}
+              >
+                {selectionMode ? 'Cancel' : 'Select'}
+              </button>
+              {selectionMode && filteredSkills.length > 0 && (
+                <button
+                  onClick={() => setSelectedSkillIds((current) => toggleVisibleSelections(current, filteredSkills.map((skill) => skill.name)))}
+                  className="px-4 py-2 rounded-lg text-sm font-medium bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                  title="Toggle select all visible skills"
+                >
+                  {filteredSkills.every((skill) => selectedSkillIds.has(skill.name)) ? 'Deselect All' : 'Select All'}
+                </button>
+              )}
+              <button
+                onClick={() => openImportDialog('ai')}
+                className="px-4 py-2 rounded-lg bg-sky-600 text-white hover:bg-sky-700 transition-colors text-sm font-medium"
+              >
+                Create
+              </button>
               <div className="relative">
                 <button
                   onClick={() => setShowSkillActionsMenu(!showSkillActionsMenu)}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium"
-                  title="Create, import, or export skills"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors text-sm font-medium"
+                  title="Actions"
                 >
-                  <ProductIconCell iconName="ai" label="Skill Actions" size="sm" className="border-white/20 bg-white/10 text-white" /> Skill Actions <span className="text-xs">▾</span>
+                  <ProductIconCell iconName="ai" label="Actions" size="sm" className="border-transparent bg-transparent text-current" /> Actions <span className="text-xs">▾</span>
                 </button>
                 {showSkillActionsMenu && (
                   <>
                     <div className="fixed inset-0 z-10" onClick={() => setShowSkillActionsMenu(false)} />
-                    <div className="absolute left-0 top-full z-20 mt-2 w-64 rounded-xl border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800">
+                    <div className="absolute right-0 top-full z-20 mt-2 w-56 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800">
                       <button
-                        onClick={() => openImportDialog('ai')}
-                        className="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                        onClick={() => {
+                          setShowSkillActionsMenu(false)
+                          openImportDialog('ai')
+                        }}
+                        className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700/50"
                       >
                         <ProductIconCell iconName="ai" label="Create Skill with AI" size="sm" className="border-purple-200 bg-purple-50 text-purple-600 dark:border-purple-700 dark:bg-purple-900/30 dark:text-purple-300" />
-                        <span>
-                          <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">Create Skill with AI</span>
-                          <span className="block text-xs text-gray-500 dark:text-gray-400">Generate, refine, and save a new custom skill.</span>
-                        </span>
+                        <span className="font-medium text-gray-900 dark:text-gray-100">Create Skill with AI</span>
                       </button>
                       <button
-                        onClick={() => openImportDialog('local')}
-                        className="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                        onClick={() => {
+                          setShowSkillActionsMenu(false)
+                          openImportDialog('local')
+                        }}
+                        className="flex w-full items-center gap-2 border-t border-gray-100 px-4 py-3 text-left text-sm hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-700/50"
                       >
                         <ProductIconCell iconName="directory" label="Import Local Skill" size="sm" className="border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300" />
-                        <span>
-                          <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">Import Local Skill</span>
-                          <span className="block text-xs text-gray-500 dark:text-gray-400">Bring in a skill from a directory on disk.</span>
-                        </span>
+                        <span className="font-medium text-gray-900 dark:text-gray-100">Import Local Skill</span>
                       </button>
                       <button
-                        onClick={() => openImportDialog('github')}
-                        className="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                        onClick={() => {
+                          setShowSkillActionsMenu(false)
+                          openImportDialog('github')
+                        }}
+                        className="flex w-full items-center gap-2 border-t border-gray-100 px-4 py-3 text-left text-sm hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-700/50"
                       >
                         <ProductIconCell iconName="github" label="Import from GitHub" size="sm" className="border-gray-200 bg-gray-50 text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200" />
-                        <span>
-                          <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">Import from GitHub</span>
-                          <span className="block text-xs text-gray-500 dark:text-gray-400">Clone and import a skill from a GitHub repo.</span>
-                        </span>
+                        <span className="font-medium text-gray-900 dark:text-gray-100">Import from GitHub</span>
                       </button>
                       <button
-                        onClick={() => openImportDialog('registry')}
-                        className="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                        onClick={() => {
+                          setShowSkillActionsMenu(false)
+                          openImportDialog('registry')
+                        }}
+                        className="flex w-full items-center gap-2 border-t border-gray-100 px-4 py-3 text-left text-sm hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-700/50"
                       >
                         <ProductIconCell iconName="registry" label="Browse Registries" size="sm" className="border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-300" />
-                        <span>
-                          <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">Browse Registries</span>
-                          <span className="block text-xs text-gray-500 dark:text-gray-400">Discover and install skills from ClawHub, Shipables, or Tessl.</span>
-                        </span>
+                        <span className="font-medium text-gray-900 dark:text-gray-100">Browse Registries</span>
                       </button>
                       {partnerInstallers.length > 0 && (
                         <button
-                          onClick={() => openImportDialog('partner')}
-                          className="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                          onClick={() => {
+                            setShowSkillActionsMenu(false)
+                            openImportDialog('partner')
+                          }}
+                          className="flex w-full items-center gap-2 border-t border-gray-100 px-4 py-3 text-left text-sm hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-700/50"
                         >
                           <ProductIconCell iconName="partner" label="Partner Skills" size="sm" className="border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" />
-                          <span>
-                            <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">Partner Skills</span>
-                            <span className="block text-xs text-gray-500 dark:text-gray-400">Install or browse skills from integrated partners.</span>
-                          </span>
+                          <span className="font-medium text-gray-900 dark:text-gray-100">Partner Skills</span>
                         </button>
                       )}
                       <button
@@ -1238,72 +1512,26 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                           setShowSkillActionsMenu(false)
                           showWarning('Skill export is coming soon.')
                         }}
-                        className="flex w-full items-start gap-3 border-t border-gray-200 px-4 py-3 text-left hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-700/50"
+                        className="flex w-full items-center gap-2 border-t border-gray-100 px-4 py-3 text-left text-sm hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-700/50"
                       >
                         <ProductIconCell iconName="export" label="Export Skill" size="sm" className="border-indigo-200 bg-indigo-50 text-indigo-600 dark:border-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300" />
-                        <span>
-                          <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">Export Skill</span>
-                          <span className="block text-xs text-gray-500 dark:text-gray-400">Coming soon. Package a skill for sharing or reuse.</span>
-                        </span>
+                        <span className="font-medium text-gray-900 dark:text-gray-100">Export Skill</span>
+                      </button>
+                      <button
+                        onClick={async () => {
+                          setShowSkillActionsMenu(false)
+                          await loadSkills()
+                        }}
+                        className="flex w-full items-center gap-2 border-t border-gray-100 px-4 py-3 text-left text-sm hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-700/50"
+                      >
+                        <ProductIconCell iconName="refresh" label="Refresh Skills" size="sm" className="border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" />
+                        <span className="font-medium text-gray-900 dark:text-gray-100">Refresh Skills</span>
                       </button>
                     </div>
                   </>
                 )}
               </div>
             </div>
-
-            {/* Searchable Agent Selector */}
-            {availableAgents.length > 0 && (
-              <div className="relative">
-                <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                  Selected Agent
-                </label>
-                <input
-                  type="text"
-                  value={agentSearchQuery || agentId}
-                  onChange={(e) => {
-                    setAgentSearchQuery(e.target.value)
-                    setShowAgentDropdown(true)
-                  }}
-                  onFocus={() => setShowAgentDropdown(true)}
-                  placeholder="Search agents..."
-                  className="px-4 py-2 pr-10 border rounded-lg bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-w-48"
-                />
-                {(agentSearchQuery || agentId) && (
-                  <button
-                    onClick={() => {
-                      setAgentId(availableAgents.length > 0 ? availableAgents[0] : '')
-                      setAgentSearchQuery('')
-                      setShowAgentDropdown(false)
-                    }}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                    title="Clear agent selection"
-                  >
-                    ✕
-                  </button>
-                )}
-                {showAgentDropdown && filteredAgents.length > 0 && (
-                  <div className="absolute z-10 mt-1 w-full bg-white dark:bg-gray-800 border rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                    {filteredAgents.map(id => (
-                      <button
-                        key={id}
-                        onClick={() => {
-                          setAgentId(id)
-                          setAgentSearchQuery('')
-                          setShowAgentDropdown(false)
-                          setFilterAssigned('assigned') // Auto-filter to assigned skills when selecting agent
-                        }}
-                        className={`w-full text-left px-4 py-2 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors ${
-                          id === agentId ? 'bg-blue-100 dark:bg-blue-900/30 font-medium' : ''
-                        }`}
-                      >
-                        {id}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
           </div>
           {availableAgents.length > 0 ? (
             <div className="space-y-3">
@@ -1400,37 +1628,6 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
 
         {(availableAgents.length > 0 || allSkills.length > 0) && (
           <>
-        {/* Stats */}
-        <div className="grid grid-cols-3 gap-4 mb-6">
-          <button
-            onClick={() => setFilterAssigned('all')}
-            className={`bg-white dark:bg-gray-800 p-4 rounded-lg border dark:border-gray-700 text-left hover:shadow-md transition-shadow ${
-              filterAssigned === 'all' ? 'ring-2 ring-blue-500' : ''
-            }`}
-          >
-            <div className="text-2xl font-bold text-blue-600">{allSkills.length}</div>
-            <div className="text-sm text-gray-600 dark:text-gray-300">Total Skills</div>
-          </button>
-          <button
-            onClick={() => setFilterAssigned('assigned')}
-            className={`bg-white dark:bg-gray-800 p-4 rounded-lg border dark:border-gray-700 text-left hover:shadow-md transition-shadow ${
-              filterAssigned === 'assigned' ? 'ring-2 ring-green-500' : ''
-            }`}
-          >
-            <div className="text-2xl font-bold text-green-600">{assignedSkills.size}</div>
-            <div className="text-sm text-gray-600 dark:text-gray-300">Assigned</div>
-          </button>
-          <button
-            onClick={() => setFilterAssigned('available')}
-            className={`bg-white dark:bg-gray-800 p-4 rounded-lg border dark:border-gray-700 text-left hover:shadow-md transition-shadow ${
-              filterAssigned === 'available' ? 'ring-2 ring-gray-500' : ''
-            }`}
-          >
-            <div className="text-2xl font-bold text-gray-600">{allSkills.length - assignedSkills.size}</div>
-            <div className="text-sm text-gray-600">Available</div>
-          </button>
-        </div>
-
         {/* Popular Skills */}
         {skillUsage.size > 0 && (
           <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border mb-6">
@@ -1484,23 +1681,6 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
 
             {/* Filter buttons */}
             <div className="flex gap-2">
-              <button
-                onClick={() => {
-                  setSelectionMode((current) => {
-                    if (current) {
-                      setSelectedSkillIds(new Set())
-                    }
-                    return !current
-                  })
-                }}
-                className={`px-4 py-2 rounded-lg font-medium ${
-                  selectionMode
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-                }`}
-              >
-                {selectionMode ? 'Done Selecting' : 'Select'}
-              </button>
               <button
                 onClick={() => setFilterAssigned('all')}
                 className={`px-4 py-2 rounded-lg font-medium ${
@@ -1955,34 +2135,54 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                     {sortedUserSkills.length} skill{sortedUserSkills.length !== 1 ? 's' : ''}
                   </span>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {sortedUserSkills.map(skill => {
-                    const users = skillUsage.get(skill.name) || []
-                    return (
-                      <SkillCard
-                        key={skill.name}
-                        skill={skill}
-                        assigned={assignedSkills.has(skill.name)}
-                        onToggle={() => toggleSkill(skill.name)}
-                        onView={() => openSkillViewer(skill)}
-                        canDelete={isDeletableUserSkill(skill)}
-                        onDelete={() => {
-                          setPendingDeleteSkillNames([skill.name])
-                          setShowBulkDeleteConfirm(true)
-                        }}
-                        usageCount={users.length}
-                        usedBy={users}
-                        selectionMode={selectionMode}
-                        isSelected={selectedSkillIds.has(skill.name)}
-                        onToggleSelect={() => setSelectedSkillIds((current) => toggleItemSelection(current, skill.name))}
-                        onInstallRequirements={skill.install && skill.install.length > 0 ? () => openInstallRequirementsModal(skill) : undefined}
-                        installingRequirements={installingSkillRequirementsName === skill.name}
-                        setupHint={getSkillSetupHint(skill)}
-                        onOpenSetup={supportsDashboardSkillSetup(skill) ? () => openSkillSetupModal(skill) : undefined}
-                      />
-                    )
-                  })}
-                </div>
+                {viewMode === 'list' ? (
+                  <SkillsListTable
+                    skills={sortedUserSkills}
+                    assignedSkills={assignedSkills}
+                    skillUsage={skillUsage}
+                    selectionMode={selectionMode}
+                    selectedSkillIds={selectedSkillIds}
+                    onToggle={toggleSkill}
+                    onView={openSkillViewer}
+                    onDelete={(skill) => {
+                      setPendingDeleteSkillNames([skill.name])
+                      setShowBulkDeleteConfirm(true)
+                    }}
+                    canDelete={isDeletableUserSkill}
+                    onToggleSelect={(skillName) => setSelectedSkillIds((current) => toggleItemSelection(current, skillName))}
+                    onToggleSelectAll={() => setSelectedSkillIds((current) => toggleVisibleSelections(current, sortedUserSkills.map((skill) => skill.name)))}
+                    getSetupHint={getSkillSetupHint}
+                  />
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {sortedUserSkills.map(skill => {
+                      const users = skillUsage.get(skill.name) || []
+                      return (
+                        <SkillCard
+                          key={skill.name}
+                          skill={skill}
+                          assigned={assignedSkills.has(skill.name)}
+                          onToggle={() => toggleSkill(skill.name)}
+                          onView={() => openSkillViewer(skill)}
+                          canDelete={isDeletableUserSkill(skill)}
+                          onDelete={() => {
+                            setPendingDeleteSkillNames([skill.name])
+                            setShowBulkDeleteConfirm(true)
+                          }}
+                          usageCount={users.length}
+                          usedBy={users}
+                          selectionMode={selectionMode}
+                          isSelected={selectedSkillIds.has(skill.name)}
+                          onToggleSelect={() => setSelectedSkillIds((current) => toggleItemSelection(current, skill.name))}
+                          onInstallRequirements={skill.install && skill.install.length > 0 ? () => openInstallRequirementsModal(skill) : undefined}
+                          installingRequirements={installingSkillRequirementsName === skill.name}
+                          setupHint={getSkillSetupHint(skill)}
+                          onOpenSetup={supportsDashboardSkillSetup(skill) ? () => openSkillSetupModal(skill) : undefined}
+                        />
+                      )
+                    })}
+                  </div>
+                )}
               </div>
             )}
             {sortedUserSkills.length > 0 && sortedBuiltInSkills.length > 0 && (
@@ -2000,30 +2200,47 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                 </div>
               </div>
             )}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {sortedBuiltInSkills.map(skill => {
-                const users = skillUsage.get(skill.name) || []
-                return (
-                  <SkillCard
-                    key={skill.name}
-                    skill={skill}
-                    assigned={assignedSkills.has(skill.name)}
-                    onToggle={() => toggleSkill(skill.name)}
-                    onView={() => openSkillViewer(skill)}
-                    canDelete={false}
-                    usageCount={users.length}
-                    usedBy={users}
-                    selectionMode={selectionMode}
-                    isSelected={selectedSkillIds.has(skill.name)}
-                    onToggleSelect={() => setSelectedSkillIds((current) => toggleItemSelection(current, skill.name))}
-                    onInstallRequirements={skill.install && skill.install.length > 0 ? () => openInstallRequirementsModal(skill) : undefined}
-                    installingRequirements={installingSkillRequirementsName === skill.name}
-                    setupHint={getSkillSetupHint(skill)}
-                    onOpenSetup={supportsDashboardSkillSetup(skill) ? () => openSkillSetupModal(skill) : undefined}
-                  />
-                )
-              })}
-            </div>
+            {viewMode === 'list' ? (
+              <SkillsListTable
+                skills={sortedBuiltInSkills}
+                assignedSkills={assignedSkills}
+                skillUsage={skillUsage}
+                selectionMode={selectionMode}
+                selectedSkillIds={selectedSkillIds}
+                onToggle={toggleSkill}
+                onView={openSkillViewer}
+                onDelete={() => {}}
+                canDelete={() => false}
+                onToggleSelect={(skillName) => setSelectedSkillIds((current) => toggleItemSelection(current, skillName))}
+                onToggleSelectAll={() => setSelectedSkillIds((current) => toggleVisibleSelections(current, sortedBuiltInSkills.map((skill) => skill.name)))}
+                getSetupHint={getSkillSetupHint}
+              />
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {sortedBuiltInSkills.map(skill => {
+                  const users = skillUsage.get(skill.name) || []
+                  return (
+                    <SkillCard
+                      key={skill.name}
+                      skill={skill}
+                      assigned={assignedSkills.has(skill.name)}
+                      onToggle={() => toggleSkill(skill.name)}
+                      onView={() => openSkillViewer(skill)}
+                      canDelete={false}
+                      usageCount={users.length}
+                      usedBy={users}
+                      selectionMode={selectionMode}
+                      isSelected={selectedSkillIds.has(skill.name)}
+                      onToggleSelect={() => setSelectedSkillIds((current) => toggleItemSelection(current, skill.name))}
+                      onInstallRequirements={skill.install && skill.install.length > 0 ? () => openInstallRequirementsModal(skill) : undefined}
+                      installingRequirements={installingSkillRequirementsName === skill.name}
+                      setupHint={getSkillSetupHint(skill)}
+                      onOpenSetup={supportsDashboardSkillSetup(skill) ? () => openSkillSetupModal(skill) : undefined}
+                    />
+                  )
+                })}
+              </div>
+            )}
           </div>
         )}
         </>

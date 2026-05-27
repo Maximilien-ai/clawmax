@@ -165,6 +165,7 @@ type Template = AgentTemplate | OrganizationTemplate | WorkflowTemplate
 type TemplateViewMode = 'grid' | 'list'
 type TemplateSortColumn = 'name' | 'type' | 'agents' | 'groups' | 'workflows' | 'version' | 'author'
 type TemplateSourceFilter = 'all' | 'workspace' | 'system' | 'enterprise'
+type TemplateTypeFilter = 'all' | 'agent' | 'team' | 'company'
 
 function ImportTemplateModal({
   onClose,
@@ -579,6 +580,16 @@ const TEMPLATE_SOURCE_OPTIONS: Array<{
   { key: 'enterprise', label: 'Enterprise' },
 ]
 
+const TEMPLATE_TYPE_OPTIONS: Array<{
+  key: TemplateTypeFilter
+  label: string
+}> = [
+  { key: 'all', label: 'All' },
+  { key: 'agent', label: 'Agents' },
+  { key: 'team', label: 'Teams' },
+  { key: 'company', label: 'Companies' },
+]
+
 function registryEntryVisual(entry: TemplateRegistryEntry) {
   if (entry.templateType === 'agent') {
     return resolveTemplateVisual({
@@ -651,6 +662,7 @@ export default function Templates() {
   const [applyingTemplate, setApplyingTemplate] = useState<OrganizationTemplate | null>(null)
   const [applyingAgentTemplate, setApplyingAgentTemplate] = useState<AgentTemplate | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [typeFilter, setTypeFilter] = useState<TemplateTypeFilter>('all')
   const [sourceFilter, setSourceFilter] = useState<TemplateSourceFilter>('all')
   const [categoryFilter, setCategoryFilter] = useState<'all' | 'business' | 'technical' | 'personal' | 'events' | 'science' | 'travel' | 'hobbies' | 'family'>('all')
   const [ratingFilter, setRatingFilter] = useState<'all' | 'unrated' | '4plus' | '3plus'>('all')
@@ -722,13 +734,6 @@ export default function Templates() {
     consequences: string[]
     onConfirm: () => Promise<void>
   } | null>(null)
-  const [collapsedSections, setCollapsedSections] = useState<{ agents: boolean; teams: boolean; companies: boolean; workflows: boolean }>({
-    agents: false,
-    teams: false,
-    companies: false,
-    workflows: false,
-  })
-
   const applyPendingOnboardingSelection = React.useCallback(() => {
     try {
       const raw = sessionStorage.getItem('clawmax-onboarding-template-query')
@@ -1092,21 +1097,6 @@ export default function Templates() {
     return filtered.filter(t => matchesOrgSearch(t, searchQuery))
   }, [orgTemplates, searchQuery, categoryFilter, matchesOrgCategory, matchesRatingFilter, matchesOrgSearch, matchesSourceFilter])
 
-  const filteredWorkflowTemplates = React.useMemo(() => {
-    const visibleWorkflowTemplates = workflowTemplates.filter(matchesSourceFilter)
-    if (!searchQuery.trim()) return visibleWorkflowTemplates
-    const query = searchQuery.trim().toLowerCase()
-    return visibleWorkflowTemplates.filter(t =>
-      t.name.toLowerCase().includes(query) ||
-      t.description.toLowerCase().includes(query) ||
-      t.author.toLowerCase().includes(query) ||
-      t.targeting.communities.some(c => c.toLowerCase().includes(query)) ||
-      t.targeting.groups.some(g => g.toLowerCase().includes(query)) ||
-      t.targeting.tags.some(tag => tag.toLowerCase().includes(query)) ||
-      t.targeting.agents.some(a => a.toLowerCase().includes(query))
-    )
-  }, [workflowTemplates, searchQuery, matchesSourceFilter])
-
   const filteredTeamTemplates = React.useMemo(
     () => filteredOrgTemplates.filter((template) => getOrganizationTemplateKind(template) === 'team'),
     [filteredOrgTemplates]
@@ -1124,10 +1114,15 @@ export default function Templates() {
     [registryCommunityTemplates, registryQuery]
   )
 
-  const totalFiltered = filteredAgentTemplates.length + filteredOrgTemplates.length + filteredWorkflowTemplates.length
+  const totalFiltered = filteredAgentTemplates.length + filteredOrgTemplates.length
+  const visibleFilteredTotal = (
+    (typeFilter === 'all' || typeFilter === 'agent' ? filteredAgentTemplates.length : 0)
+    + (typeFilter === 'all' || typeFilter === 'team' ? filteredTeamTemplates.length : 0)
+    + (typeFilter === 'all' || typeFilter === 'company' ? filteredCompanyTemplates.length : 0)
+  )
   const templateRows = React.useMemo(
-    () => [...filteredAgentTemplates, ...filteredOrgTemplates, ...filteredWorkflowTemplates].map(getTemplateRow),
-    [filteredAgentTemplates, filteredOrgTemplates, filteredWorkflowTemplates]
+    () => [...filteredAgentTemplates, ...filteredOrgTemplates].map(getTemplateRow),
+    [filteredAgentTemplates, filteredOrgTemplates]
   )
 
   const sortedTemplateRows = React.useMemo(() => {
@@ -1165,7 +1160,7 @@ export default function Templates() {
     return 2
   }, [])
 
-  const totalTemplates = agentTemplates.length + orgTemplates.length + workflowTemplates.length
+  const totalTemplates = agentTemplates.length + orgTemplates.length
   const totalTeamTemplates = React.useMemo(
     () => orgTemplates.filter((template) => getOrganizationTemplateKind(template) === 'team').length,
     [orgTemplates]
@@ -1198,10 +1193,6 @@ export default function Templates() {
     () => sortedOrgRows.filter((row) => row.templateLabel === 'company'),
     [sortedOrgRows]
   )
-  const sortedWorkflowRows = React.useMemo(
-    () => [...sortedTemplateRows.filter(row => row.type === 'workflow')].sort((a, b) => sourceRank(a.source) - sourceRank(b.source) || a.name.localeCompare(b.name)),
-    [sortedTemplateRows, sourceRank]
-  )
   const splitRowsBySource = React.useCallback((rows: TemplateRow[]) => ({
     workspace: rows.filter((row) => row.source === 'workspace'),
     other: rows.filter((row) => row.source !== 'workspace'),
@@ -1209,6 +1200,31 @@ export default function Templates() {
   const agentRowBuckets = React.useMemo(() => splitRowsBySource(sortedAgentRows), [sortedAgentRows, splitRowsBySource])
   const teamRowBuckets = React.useMemo(() => splitRowsBySource(sortedTeamRows), [sortedTeamRows, splitRowsBySource])
   const companyRowBuckets = React.useMemo(() => splitRowsBySource(sortedCompanyRows), [sortedCompanyRows, splitRowsBySource])
+  const filteredTypeCounts = React.useMemo(() => ({
+    agent: filteredAgentTemplates.length,
+    team: filteredTeamTemplates.length,
+    company: filteredCompanyTemplates.length,
+  }), [filteredAgentTemplates.length, filteredTeamTemplates.length, filteredCompanyTemplates.length])
+  const totalTypeCounts = React.useMemo(() => ({
+    agent: agentTemplates.length,
+    team: totalTeamTemplates,
+    company: totalCompanyTemplates,
+  }), [agentTemplates.length, totalTeamTemplates, totalCompanyTemplates])
+  const showAgentTemplates = typeFilter === 'all' || typeFilter === 'agent'
+  const showTeamTemplates = typeFilter === 'all' || typeFilter === 'team'
+  const showCompanyTemplates = typeFilter === 'all' || typeFilter === 'company'
+  const hasActiveFilters = searchQuery.trim().length > 0
+    || typeFilter !== 'all'
+    || sourceFilter !== 'all'
+    || categoryFilter !== 'all'
+    || ratingFilter !== 'all'
+  const resetFilters = React.useCallback(() => {
+    setSearchQuery('')
+    setTypeFilter('all')
+    setSourceFilter('all')
+    setCategoryFilter('all')
+    setRatingFilter('all')
+  }, [])
 
   const handleImportRegistryTemplate = React.useCallback(async (entry: TemplateRegistryEntry) => {
     if (!entry.sourceUrl) {
@@ -1403,6 +1419,14 @@ export default function Templates() {
   }, [searchQuery, matchingOrgTemplatesIgnoringCategory, matchesOrgCategory, categoryFilter])
   const hasHiddenCategoryMatches = totalFiltered === 0 && categoryFilter !== 'all' && matchingOrgTemplatesIgnoringCategory.length > 0
   const suggestedCategoryLabels = suggestedCategoriesForSearch.map((category) => category.label)
+  const exportSelectedTemplate = React.useCallback(() => {
+    if (!selectedTemplate || selectedTemplate.type === 'workflow' || !selectedTemplate.slug) {
+      showError('Select an agent or team template to export.')
+      return
+    }
+    const typeParam = selectedTemplate.type === 'agent' ? 'agents' : 'organizations'
+    window.open(`/api/templates/${typeParam}/${selectedTemplate.slug}/export-md`, '_blank')
+  }, [selectedTemplate, showError])
 
   if (loading) {
     return (
@@ -1412,9 +1436,6 @@ export default function Templates() {
     )
   }
 
-  const toggleSectionCollapsed = (section: 'agents' | 'teams' | 'companies' | 'workflows') => {
-    setCollapsedSections(prev => ({ ...prev, [section]: !prev[section] }))
-  }
   const selectedRows = sortedTemplateRows.filter(row => selectedTemplateKeys.has(row.key))
   const canApplySelected = selectedRows.length === 1 && selectedRows[0].template.type !== 'workflow'
 
@@ -1536,26 +1557,9 @@ export default function Templates() {
         <div className="min-w-0">
           <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Templates</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-              {searchQuery ? (
-                <>
-                  {totalFiltered} of {totalTemplates} template{totalTemplates !== 1 ? 's' : ''} •
-                  {' '}{filteredAgentTemplates.length} agent{filteredAgentTemplates.length !== 1 ? 's' : ''},
-                  {' '}{filteredTeamTemplates.length} team{filteredTeamTemplates.length !== 1 ? 's' : ''},
-                  {' '}{filteredCompanyTemplates.length} compan{filteredCompanyTemplates.length !== 1 ? 'y' : 'ies'},
-                  {' '}{filteredWorkflowTemplates.length} workflow{filteredWorkflowTemplates.length !== 1 ? 's' : ''}
-                </>
-              ) : (
-                <>
-                  {totalTemplates} template{totalTemplates !== 1 ? 's' : ''} •
-                  {' '}{agentTemplates.length} agent{agentTemplates.length !== 1 ? 's' : ''},
-                  {' '}{totalTeamTemplates} team{totalTeamTemplates !== 1 ? 's' : ''},
-                  {' '}{totalCompanyTemplates} compan{totalCompanyTemplates !== 1 ? 'y' : 'ies'},
-                  {' '}{workflowTemplates.length} workflow{workflowTemplates.length !== 1 ? 's' : ''}
-                </>
-              )}
-            </p>
-          <p className="text-xs text-gray-400 mt-1">
-            Your templates: {workspaceTemplateCount} · System templates: {systemTemplateCount}
+            {hasActiveFilters
+              ? `${visibleFilteredTotal} matching template${visibleFilteredTotal !== 1 ? 's' : ''}`
+              : `${totalTemplates} template${totalTemplates !== 1 ? 's' : ''}`}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
@@ -1605,12 +1609,27 @@ export default function Templates() {
                 {selectedTemplateKeys.size === sortedTemplateRows.length ? 'Deselect All' : 'Select All'}
               </button>
             )}
+            <button
+              onClick={() => {
+                if (!aiEnabled) return
+                setShowWizard(true)
+              }}
+              disabled={!aiEnabled}
+              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                aiEnabled
+                  ? 'bg-sky-600 text-white hover:bg-sky-700'
+                  : 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+              }`}
+              title={aiEnabled ? 'Create template with AI' : 'Configure browser keys or a shared execution path first'}
+            >
+              Create
+            </button>
             <div className="relative">
               <button
                 onClick={() => setShowActionsMenu((v) => !v)}
-                className="px-3 py-1.5 text-sm font-medium rounded-md bg-purple-600 text-white hover:bg-purple-700 transition-colors flex items-center gap-1.5"
+                className="px-3 py-1.5 text-sm font-medium rounded-md bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors flex items-center gap-1.5"
               >
-                <ProductIconCell iconName="template" label="Template Actions" size="sm" className="border-white/20 bg-white/10 text-white" /> Template Actions <span className="text-xs">▾</span>
+                <ProductIconCell iconName="template" label="Actions" size="sm" className="border-transparent bg-transparent text-current" /> Actions <span className="text-xs">▾</span>
               </button>
               {showActionsMenu && (
                 <div className="absolute right-0 mt-2 w-56 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-xl z-20 overflow-hidden">
@@ -1650,6 +1669,20 @@ export default function Templates() {
                   </button>
                   <button
                     onClick={() => {
+                      setShowActionsMenu(false)
+                      exportSelectedTemplate()
+                    }}
+                    disabled={!selectedTemplate || selectedTemplate.type === 'workflow' || !selectedTemplate.slug}
+                    className={`w-full text-left px-4 py-3 text-sm flex items-center gap-2 border-t border-gray-100 dark:border-gray-700 ${
+                      selectedTemplate && selectedTemplate.type !== 'workflow' && selectedTemplate.slug
+                        ? 'hover:bg-gray-50 dark:hover:bg-gray-700'
+                        : 'text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                    }`}
+                  >
+                    <ProductIconCell iconName="export" label="Export TEMPLATE.md" size="sm" className="border-indigo-200 bg-indigo-50 text-indigo-600 dark:border-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300" /> Export TEMPLATE.md
+                  </button>
+                  <button
+                    onClick={() => {
                       fetchTemplates()
                       setShowActionsMenu(false)
                     }}
@@ -1663,6 +1696,43 @@ export default function Templates() {
           </div>
         </div>
 
+      </div>
+
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        {TEMPLATE_TYPE_OPTIONS.map((option) => {
+          const count = option.key === 'all'
+            ? totalTemplates
+            : filteredTypeCounts[option.key]
+          const totalCount = option.key === 'all'
+            ? totalTemplates
+            : totalTypeCounts[option.key]
+          const showSplitCount = searchQuery.trim() || sourceFilter !== 'all' || categoryFilter !== 'all' || ratingFilter !== 'all'
+          return (
+            <button
+              key={option.key}
+              onClick={() => setTypeFilter(option.key)}
+              className={`px-3 py-1.5 text-sm font-medium rounded-full transition-colors ${
+                typeFilter === option.key
+                  ? 'bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300 border border-sky-300 dark:border-sky-700'
+                  : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+              }`}
+            >
+              {option.label}{' '}
+              <span className="text-xs opacity-70">
+                {count}
+                {showSplitCount ? `/${totalCount}` : ''}
+              </span>
+            </button>
+          )
+        })}
+        {hasActiveFilters && (
+          <button
+            onClick={resetFilters}
+            className="ml-auto px-3 py-1.5 text-sm font-medium rounded-full border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-gray-400 dark:hover:border-gray-500"
+          >
+            Reset filters
+          </button>
+        )}
       </div>
 
       <div className="flex gap-2 mb-4 flex-wrap">
@@ -1797,7 +1867,7 @@ export default function Templates() {
               Click the 💾 button on any agent card to create a template
             </p>
           </div>
-        ) : totalFiltered === 0 && searchQuery ? (
+        ) : visibleFilteredTotal === 0 && hasActiveFilters ? (
           <div className="flex flex-col items-center justify-center h-full text-center">
             <div className="text-6xl mb-4">🔍</div>
             <h2 className="text-xl font-semibold text-gray-700 dark:text-gray-300 mb-2 dark:text-gray-300">No templates found</h2>
@@ -1841,7 +1911,7 @@ export default function Templates() {
               </div>
             ) : (
               <p className="text-gray-500 mb-4">
-                No templates match your search query "{searchQuery}"
+                No templates match the current search and filters.
               </p>
             )}
             {templateSuggestionRows.length > 0 && (
@@ -1907,17 +1977,13 @@ export default function Templates() {
               </section>
             )}
             {/* Agent Templates */}
-            {filteredAgentTemplates.length > 0 && (
+            {showAgentTemplates && filteredAgentTemplates.length > 0 && (
               <section>
                 <div className="mb-3 flex items-center gap-2">
-                  <button
-                    onClick={() => toggleSectionCollapsed('agents')}
-                    className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-gray-100 hover:text-sky-700 dark:hover:text-sky-400"
-                  >
-                    <span className="text-sm text-gray-500 dark:text-gray-400">{collapsedSections.agents ? '▸' : '▾'}</span>
+                  <div className="inline-flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-gray-100">
                     <span className="inline-flex items-center gap-2"><ProductIconCell iconName="ai" label="Agent Templates" size="sm" />Agent Templates</span>
                     <span className="text-sm font-normal text-gray-400">({filteredAgentTemplates.length})</span>
-                  </button>
+                  </div>
                   {selectionMode && (
                     <button
                       onClick={() => toggleSectionSelection(filteredAgentTemplates.map(getTemplateRow))}
@@ -1927,8 +1993,7 @@ export default function Templates() {
                     </button>
                   )}
                 </div>
-                {!collapsedSections.agents && (
-                  <div className="space-y-5">
+                <div className="space-y-5">
                     {agentRowBuckets.workspace.length > 0 && (
                       <div>
                         {agentRowBuckets.other.length > 0 && (
@@ -1975,23 +2040,18 @@ export default function Templates() {
                         </div>
                       </div>
                     )}
-                  </div>
-                )}
+                </div>
               </section>
             )}
 
             {/* Team Templates */}
-            {filteredTeamTemplates.length > 0 && (
+            {showTeamTemplates && filteredTeamTemplates.length > 0 && (
               <section>
                 <div className="mb-3 flex items-center gap-2">
-                  <button
-                    onClick={() => toggleSectionCollapsed('teams')}
-                    className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-gray-100 hover:text-sky-700 dark:hover:text-sky-400"
-                  >
-                    <span className="text-sm text-gray-500 dark:text-gray-400">{collapsedSections.teams ? '▸' : '▾'}</span>
+                  <div className="inline-flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-gray-100">
                     <span className="inline-flex items-center gap-2"><ProductIconCell iconName="template" label="Team Templates" size="sm" />Team Templates</span>
                     <span className="text-sm font-normal text-gray-400">({filteredTeamTemplates.length})</span>
-                  </button>
+                  </div>
                   {selectionMode && (
                     <button
                       onClick={() => toggleSectionSelection(filteredTeamTemplates.map(getTemplateRow))}
@@ -2001,8 +2061,7 @@ export default function Templates() {
                     </button>
                   )}
                 </div>
-                {!collapsedSections.teams && (
-                  <div className="space-y-5">
+                <div className="space-y-5">
                     {teamRowBuckets.workspace.length > 0 && (
                       <div>
                         {teamRowBuckets.other.length > 0 && (
@@ -2049,23 +2108,18 @@ export default function Templates() {
                         </div>
                       </div>
                     )}
-                  </div>
-                )}
+                </div>
               </section>
             )}
 
             {/* Company Templates */}
-            {filteredCompanyTemplates.length > 0 && (
+            {showCompanyTemplates && filteredCompanyTemplates.length > 0 && (
               <section>
                 <div className="mb-3 flex items-center gap-2">
-                  <button
-                    onClick={() => toggleSectionCollapsed('companies')}
-                    className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-gray-100 hover:text-sky-700 dark:hover:text-sky-400"
-                  >
-                    <span className="text-sm text-gray-500 dark:text-gray-400">{collapsedSections.companies ? '▸' : '▾'}</span>
+                  <div className="inline-flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-gray-100">
                     <span className="inline-flex items-center gap-2"><ProductIconCell iconName="business" label="Company Templates" size="sm" />Company Templates</span>
                     <span className="text-sm font-normal text-gray-400">({filteredCompanyTemplates.length})</span>
-                  </button>
+                  </div>
                   {selectionMode && (
                     <button
                       onClick={() => toggleSectionSelection(filteredCompanyTemplates.map(getTemplateRow))}
@@ -2075,8 +2129,7 @@ export default function Templates() {
                     </button>
                   )}
                 </div>
-                {!collapsedSections.companies && (
-                  <div className="space-y-5">
+                <div className="space-y-5">
                     {companyRowBuckets.workspace.length > 0 && (
                       <div>
                         {companyRowBuckets.other.length > 0 && (
@@ -2123,64 +2176,19 @@ export default function Templates() {
                         </div>
                       </div>
                     )}
-                  </div>
-                )}
-              </section>
-            )}
-
-            {/* Workflow Templates */}
-            {filteredWorkflowTemplates.length > 0 && (
-              <section>
-                <div className="mb-3 flex items-center gap-2">
-                  <button
-                    onClick={() => toggleSectionCollapsed('workflows')}
-                    className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-gray-100 hover:text-sky-700 dark:hover:text-sky-400"
-                  >
-                    <span className="text-sm text-gray-500 dark:text-gray-400">{collapsedSections.workflows ? '▸' : '▾'}</span>
-                    <span className="inline-flex items-center gap-2"><ProductIconCell iconName="workflow" label="Workflow Templates" size="sm" />Workflow Templates</span>
-                    <span className="text-sm font-normal text-gray-400">({filteredWorkflowTemplates.length})</span>
-                  </button>
-                  {selectionMode && (
-                    <button
-                      onClick={() => toggleSectionSelection(filteredWorkflowTemplates.map(getTemplateRow))}
-                      className="ml-auto text-xs px-2.5 py-1 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
-                    >
-                      {filteredWorkflowTemplates.every(template => selectedTemplateKeys.has(getTemplateRow(template).key)) ? 'Deselect All Workflows' : 'Select All Workflows'}
-                    </button>
-                  )}
                 </div>
-                {!collapsedSections.workflows && (
-                  <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                    {filteredWorkflowTemplates.map((template, idx) => (
-                      <WorkflowTemplateCard
-                        key={idx}
-                        template={template}
-                        onClick={() => setSelectedTemplate(template)}
-                        selected={selectedTemplate?.name === template.name}
-                        selectionMode={selectionMode}
-                        isSelected={selectedTemplateKeys.has(getTemplateRow(template).key)}
-                        onToggleSelect={() => toggleTemplateSelection(getTemplateRow(template).key)}
-                      />
-                    ))}
-                  </div>
-                )}
               </section>
             )}
           </div>
           ) : (
           <div className="space-y-8">
-            {sortedAgentRows.length > 0 && (
+            {showAgentTemplates && sortedAgentRows.length > 0 && (
               <section>
-                <button
-                  onClick={() => toggleSectionCollapsed('agents')}
-                  className="mb-3 flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-gray-100 hover:text-sky-700 dark:hover:text-sky-400"
-                >
-                  <span className="text-sm text-gray-500 dark:text-gray-400">{collapsedSections.agents ? '▸' : '▾'}</span>
+                <div className="mb-3 flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-gray-100">
                   <span className="inline-flex items-center gap-2"><ProductIconCell iconName="ai" label="Agent Templates" size="sm" />Agent Templates</span>
                   <span className="text-sm font-normal text-gray-400">({sortedAgentRows.length})</span>
-                </button>
-                {!collapsedSections.agents && (
-                  <div className="space-y-5">
+                </div>
+                <div className="space-y-5">
                     {agentRowBuckets.workspace.length > 0 && (
                       <div>
                         {agentRowBuckets.other.length > 0 && (
@@ -2223,22 +2231,16 @@ export default function Templates() {
                         />
                       </div>
                     )}
-                  </div>
-                )}
+                </div>
               </section>
             )}
-            {sortedTeamRows.length > 0 && (
+            {showTeamTemplates && sortedTeamRows.length > 0 && (
               <section>
-                <button
-                  onClick={() => toggleSectionCollapsed('teams')}
-                  className="mb-3 flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-gray-100 hover:text-sky-700 dark:hover:text-sky-400"
-                >
-                  <span className="text-sm text-gray-500 dark:text-gray-400">{collapsedSections.teams ? '▸' : '▾'}</span>
+                <div className="mb-3 flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-gray-100">
                   <span className="inline-flex items-center gap-2"><ProductIconCell iconName="template" label="Team Templates" size="sm" />Team Templates</span>
                   <span className="text-sm font-normal text-gray-400">({sortedTeamRows.length})</span>
-                </button>
-                {!collapsedSections.teams && (
-                  <div className="space-y-5">
+                </div>
+                <div className="space-y-5">
                     {teamRowBuckets.workspace.length > 0 && (
                       <div>
                         {teamRowBuckets.other.length > 0 && (
@@ -2281,22 +2283,16 @@ export default function Templates() {
                         />
                       </div>
                     )}
-                  </div>
-                )}
+                </div>
               </section>
             )}
-            {sortedCompanyRows.length > 0 && (
+            {showCompanyTemplates && sortedCompanyRows.length > 0 && (
               <section>
-                <button
-                  onClick={() => toggleSectionCollapsed('companies')}
-                  className="mb-3 flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-gray-100 hover:text-sky-700 dark:hover:text-sky-400"
-                >
-                  <span className="text-sm text-gray-500 dark:text-gray-400">{collapsedSections.companies ? '▸' : '▾'}</span>
+                <div className="mb-3 flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-gray-100">
                   <span className="inline-flex items-center gap-2"><ProductIconCell iconName="business" label="Company Templates" size="sm" />Company Templates</span>
                   <span className="text-sm font-normal text-gray-400">({sortedCompanyRows.length})</span>
-                </button>
-                {!collapsedSections.companies && (
-                  <div className="space-y-5">
+                </div>
+                <div className="space-y-5">
                     {companyRowBuckets.workspace.length > 0 && (
                       <div>
                         {companyRowBuckets.other.length > 0 && (
@@ -2339,36 +2335,7 @@ export default function Templates() {
                         />
                       </div>
                     )}
-                  </div>
-                )}
-              </section>
-            )}
-            {sortedWorkflowRows.length > 0 && (
-              <section>
-                <button
-                  onClick={() => toggleSectionCollapsed('workflows')}
-                  className="mb-3 flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-gray-100 hover:text-sky-700 dark:hover:text-sky-400"
-                >
-                  <span className="text-sm text-gray-500 dark:text-gray-400">{collapsedSections.workflows ? '▸' : '▾'}</span>
-                  <span className="inline-flex items-center gap-2"><ProductIconCell iconName="workflow" label="Workflow Templates" size="sm" />Workflow Templates</span>
-                  <span className="text-sm font-normal text-gray-400">({sortedWorkflowRows.length})</span>
-                </button>
-                {!collapsedSections.workflows && (
-                  <TemplatesTable
-                    rows={sortedWorkflowRows}
-                    selectionMode={selectionMode}
-                    selectedTemplateKeys={selectedTemplateKeys}
-                    selectedTemplate={selectedTemplate}
-                    onSort={handleSort}
-                    sortColumn={sortColumn}
-                    sortDirection={sortDirection}
-                    onToggleSelect={toggleTemplateSelection}
-                    onToggleSelectAll={setSelectedTemplateKeys}
-                    onOpenTemplate={setSelectedTemplate}
-                    onDeleteTemplate={(template) => handleDelete(template.type, template.name, template.type === 'workflow' ? template.id : undefined)}
-                    onApplyTemplate={openApplyForTemplate}
-                  />
-                )}
+                </div>
               </section>
             )}
           </div>
