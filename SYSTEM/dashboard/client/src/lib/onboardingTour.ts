@@ -1,5 +1,6 @@
 export const WORKSPACE_TOUR_VERSION = 1
 export const GLOBAL_WORKSPACE_TOUR_DISABLE_KEY = `clawmax-workspace-tour:disable:v${WORKSPACE_TOUR_VERSION}`
+const WORKSPACE_TOUR_KEY_PREFIX = 'clawmax-workspace-tour:'
 
 export type WorkspaceTourState = 'completed' | 'dismissed'
 export type WorkspaceTourStep = {
@@ -97,6 +98,38 @@ export function writeWorkspaceTourState(workspaceKey: string, state: WorkspaceTo
   if (state === 'dismissed') {
     window.localStorage.setItem(GLOBAL_WORKSPACE_TOUR_DISABLE_KEY, 'dismissed')
   }
+}
+
+export function clearWorkspaceTourState(workspaceKey: string) {
+  if (typeof window === 'undefined') return
+  window.localStorage.removeItem(getWorkspaceTourStorageKey(workspaceKey))
+}
+
+export function clearAllWorkspaceTourStates() {
+  if (typeof window === 'undefined') return
+  const keysToRemove: string[] = []
+  for (let index = 0; index < window.localStorage.length; index += 1) {
+    const key = window.localStorage.key(index)
+    if (!key) continue
+    if (key.startsWith(WORKSPACE_TOUR_KEY_PREFIX) && key !== GLOBAL_WORKSPACE_TOUR_DISABLE_KEY) {
+      keysToRemove.push(key)
+    }
+  }
+  for (const key of keysToRemove) {
+    window.localStorage.removeItem(key)
+  }
+}
+
+export function clearGlobalWorkspaceTourDisabled() {
+  if (typeof window === 'undefined') return
+  window.localStorage.removeItem(GLOBAL_WORKSPACE_TOUR_DISABLE_KEY)
+}
+
+export function resetWorkspaceTourState(workspaceKey: string) {
+  if (typeof window === 'undefined') return
+  clearWorkspaceTourState(workspaceKey)
+  clearAllWorkspaceTourStates()
+  clearGlobalWorkspaceTourDisabled()
 }
 
 export function readGlobalWorkspaceTourDisabled() {

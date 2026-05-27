@@ -4,6 +4,7 @@ import {
   getMaintenanceBannerTitle,
   type MaintenanceBannerConfig,
 } from '../lib/maintenanceBannerView'
+import { renderMaintenanceBannerText } from '../lib/maintenanceBannerLinks'
 
 export function MaintenanceBanner({
   banner,
@@ -47,7 +48,9 @@ export function MaintenanceBanner({
               </div>
             )}
           </div>
-          <div className="mt-1 whitespace-pre-wrap font-medium">{banner.text}</div>
+          <div className="mt-1 whitespace-pre-wrap font-medium break-words">
+            {renderMaintenanceBannerText(banner.text, tone.link)}
+          </div>
           {banner.link && (
             <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs opacity-90">
               <a href={banner.link} target="_blank" rel="noreferrer" className={tone.link}>
@@ -69,4 +72,3 @@ export function MaintenanceBanner({
     </div>
   )
 }
-

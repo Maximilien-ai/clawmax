@@ -1,8 +1,12 @@
 import assert from 'assert'
 import {
+  clearAllWorkspaceTourStates,
+  clearGlobalWorkspaceTourDisabled,
+  clearWorkspaceTourState,
   GLOBAL_WORKSPACE_TOUR_DISABLE_KEY,
   getWorkspaceTourStorageKey,
   readGlobalWorkspaceTourDisabled,
+  resetWorkspaceTourState,
   shouldShowWorkspaceTour,
   WORKSPACE_TOUR_STEPS,
   writeWorkspaceTourState,
@@ -61,6 +65,46 @@ test('global dismissal suppresses the tour in other empty workspaces', () => {
     storedState: null,
     globallyDisabled: true,
   }), false)
+
+  delete (globalThis as any).window
+})
+
+test('reset helpers clear workspace and global tour dismissals', () => {
+  const store = new Map<string, string>()
+  ;(globalThis as any).window = {
+    localStorage: {
+      getItem: (key: string) => store.get(key) ?? null,
+      setItem: (key: string, value: string) => { store.set(key, value) },
+      removeItem: (key: string) => { store.delete(key) },
+      key: (index: number) => Array.from(store.keys())[index] ?? null,
+      get length() { return store.size },
+    },
+  }
+
+  writeWorkspaceTourState('personal', 'dismissed')
+  assert.equal(store.get(getWorkspaceTourStorageKey('personal')), 'dismissed')
+  assert.equal(store.get(GLOBAL_WORKSPACE_TOUR_DISABLE_KEY), 'dismissed')
+
+  clearWorkspaceTourState('personal')
+  assert.equal(store.has(getWorkspaceTourStorageKey('personal')), false)
+  assert.equal(store.get(GLOBAL_WORKSPACE_TOUR_DISABLE_KEY), 'dismissed')
+
+  writeWorkspaceTourState('personal', 'dismissed')
+  writeWorkspaceTourState('team', 'dismissed')
+  clearAllWorkspaceTourStates()
+  assert.equal(store.has(getWorkspaceTourStorageKey('personal')), false)
+  assert.equal(store.has(getWorkspaceTourStorageKey('team')), false)
+  assert.equal(store.get(GLOBAL_WORKSPACE_TOUR_DISABLE_KEY), 'dismissed')
+
+  clearGlobalWorkspaceTourDisabled()
+  assert.equal(store.has(GLOBAL_WORKSPACE_TOUR_DISABLE_KEY), false)
+
+  writeWorkspaceTourState('personal', 'dismissed')
+  writeWorkspaceTourState('team', 'dismissed')
+  resetWorkspaceTourState('personal')
+  assert.equal(store.has(getWorkspaceTourStorageKey('personal')), false)
+  assert.equal(store.has(getWorkspaceTourStorageKey('team')), false)
+  assert.equal(store.has(GLOBAL_WORKSPACE_TOUR_DISABLE_KEY), false)
 
   delete (globalThis as any).window
 })

@@ -16,18 +16,20 @@ interface OnboardingWizardProps {
   visible: boolean
   suppressAutoOpen?: boolean
   canShowWorkspaceTour?: boolean
+  workspaceTourDismissed?: boolean
   onOpenByok: () => void
   onOpenPartners: () => void
   onImportAgents: () => void
   onOpenBuilder: () => void
   onOpenWorkspaceTour: () => void
+  onResetWorkspaceTour: () => void
   onCreateAgent: () => void
   onCreateAgentAI: () => void
   onOpenTemplates: () => void
   workspaceId?: string | null
 }
 
-export function OnboardingWizard({ visible, suppressAutoOpen = false, canShowWorkspaceTour = false, onOpenByok, onOpenPartners, onImportAgents, onOpenBuilder, onOpenWorkspaceTour, onCreateAgent, onCreateAgentAI, onOpenTemplates, workspaceId }: OnboardingWizardProps) {
+export function OnboardingWizard({ visible, suppressAutoOpen = false, canShowWorkspaceTour = false, workspaceTourDismissed = false, onOpenByok, onOpenPartners, onImportAgents, onOpenBuilder, onOpenWorkspaceTour, onResetWorkspaceTour, onCreateAgent, onCreateAgentAI, onOpenTemplates, workspaceId }: OnboardingWizardProps) {
   const { config } = useAuth()
   const aiEnabled = hasAnyLLMKeys(config)
   const [open, setOpen] = useState(false)
@@ -237,12 +239,22 @@ export function OnboardingWizard({ visible, suppressAutoOpen = false, canShowWor
 
                 <div className="flex items-center justify-end gap-2">
                   {canShowWorkspaceTour && (
-                    <button
-                      onClick={() => { onOpenWorkspaceTour(); setOpen(false) }}
-                      className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300"
-                    >
-                      Show workspace tour
-                    </button>
+                    <>
+                      {workspaceTourDismissed && (
+                        <button
+                          onClick={onResetWorkspaceTour}
+                          className="px-4 py-2 text-sm rounded-md border border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300"
+                        >
+                          Reset tour dismissal
+                        </button>
+                      )}
+                      <button
+                        onClick={() => { onOpenWorkspaceTour(); setOpen(false) }}
+                        className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300"
+                      >
+                        Show workspace tour
+                      </button>
+                    </>
                   )}
                   <button onClick={() => setOpen(false)} className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300">Skip for now</button>
                   <button onClick={() => setStep('byok')} className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700">Continue</button>

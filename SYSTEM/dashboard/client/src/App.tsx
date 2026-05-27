@@ -29,7 +29,7 @@ import { useWorkspace } from './contexts/WorkspaceContext'
 import { CHANNEL_API_ENDPOINTS } from './lib/channelApi'
 import { getVisibleMaintenanceBanner } from './lib/maintenanceBannerView'
 import { type DashboardPage, pageToPath, pathToPage } from './lib/navigation'
-import { readGlobalWorkspaceTourDisabled, readWorkspaceTourState, shouldShowWorkspaceTour, writeWorkspaceTourState } from './lib/onboardingTour'
+import { readGlobalWorkspaceTourDisabled, readWorkspaceTourState, resetWorkspaceTourState, shouldShowWorkspaceTour, writeWorkspaceTourState } from './lib/onboardingTour'
 
 type Page = DashboardPage
 
@@ -863,6 +863,7 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
   const rawOnboardingVisible = !workspaceLoading && !!activeWorkspace && (activeWorkspace.agentCount ?? 0) === 0
   const [stickyOnboardingWorkspaceKey, setStickyOnboardingWorkspaceKey] = useState<string | null>(null)
   const [workspaceTourVisible, setWorkspaceTourVisible] = useState(false)
+  const [workspaceTourStateVersion, setWorkspaceTourStateVersion] = useState(0)
 
   useEffect(() => {
     if (!activeWorkspaceKey) return
@@ -877,6 +878,9 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
 
   const effectiveOnboardingWorkspaceKey = activeWorkspaceKey || stickyOnboardingWorkspaceKey
   const onboardingVisible = rawOnboardingVisible || (!!effectiveOnboardingWorkspaceKey && stickyOnboardingWorkspaceKey === effectiveOnboardingWorkspaceKey)
+  const workspaceTourStoredState = effectiveOnboardingWorkspaceKey ? readWorkspaceTourState(effectiveOnboardingWorkspaceKey) : null
+  const workspaceTourGloballyDisabled = readGlobalWorkspaceTourDisabled()
+  const workspaceTourDismissed = workspaceTourStoredState === 'dismissed' || workspaceTourGloballyDisabled
 
   useEffect(() => {
     const workspaceKey = effectiveOnboardingWorkspaceKey
@@ -884,15 +888,14 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
       setWorkspaceTourVisible(false)
       return
     }
-    const storedState = readWorkspaceTourState(workspaceKey)
     setWorkspaceTourVisible(shouldShowWorkspaceTour({
       workspaceKey,
       workspaceAgentCount: activeWorkspace?.agentCount,
       onboardingVisible,
-      storedState,
-      globallyDisabled: readGlobalWorkspaceTourDisabled(),
+      storedState: workspaceTourStoredState,
+      globallyDisabled: workspaceTourGloballyDisabled,
     }))
-  }, [activeWorkspace?.agentCount, effectiveOnboardingWorkspaceKey, onboardingVisible])
+  }, [activeWorkspace?.agentCount, effectiveOnboardingWorkspaceKey, onboardingVisible, workspaceTourGloballyDisabled, workspaceTourStateVersion, workspaceTourStoredState])
 
   const effectiveActiveAgentCount = system
     ? (typeof system.activeAgentCount === 'number'
@@ -920,6 +923,7 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
         onDismiss={(state) => {
           if (effectiveOnboardingWorkspaceKey) {
             writeWorkspaceTourState(effectiveOnboardingWorkspaceKey, state)
+            setWorkspaceTourStateVersion((current) => current + 1)
           }
           setWorkspaceTourVisible(false)
         }}
@@ -987,11 +991,18 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
           visible={onboardingVisible}
           suppressAutoOpen={workspaceTourVisible}
           canShowWorkspaceTour={Boolean(effectiveOnboardingWorkspaceKey && (activeWorkspace?.agentCount ?? 0) === 0)}
+          workspaceTourDismissed={workspaceTourDismissed}
           onOpenByok={() => onOpenByok?.()}
           onOpenPartners={() => onOpenPartners?.()}
           onImportAgents={() => onOpenAgentImport?.()}
           onOpenBuilder={() => onOpenBuilder?.()}
           onOpenWorkspaceTour={() => setWorkspaceTourVisible(true)}
+          onResetWorkspaceTour={() => {
+            if (!effectiveOnboardingWorkspaceKey) return
+            resetWorkspaceTourState(effectiveOnboardingWorkspaceKey)
+            setWorkspaceTourVisible(false)
+            setWorkspaceTourStateVersion((current) => current + 1)
+          }}
           onCreateAgent={() => onOpenAgentCreate?.()}
           onCreateAgentAI={() => onOpenAgentCreateAI?.()}
           onOpenTemplates={() => onNavigateToPage?.('templates')}
