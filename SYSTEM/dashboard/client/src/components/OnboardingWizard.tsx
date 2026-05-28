@@ -271,6 +271,9 @@ export function OnboardingWizard({ visible, suppressAutoOpen = false, canShowWor
                       ? 'Nothing else will work cleanly until model keys are configured. Set BYOK before you start building agents, templates, or workflows.'
                       : 'Nothing else will work cleanly until model access is configured. Set BYOK or Ollama before you start building agents, templates, or workflows.'}
                   </p>
+                  <p className="mt-2 text-sm text-amber-700 dark:text-amber-300">
+                    Partner integrations are separate and optional. You can set up BYOK now and come back to Partners later if this workspace needs them.
+                  </p>
                 </div>
 
                 <div className="flex flex-wrap gap-3">
@@ -284,7 +287,13 @@ export function OnboardingWizard({ visible, suppressAutoOpen = false, canShowWor
                     onClick={() => setStep('partners')}
                     className="rounded-lg border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm text-gray-700 dark:text-gray-200"
                   >
-                    Continue
+                    Optional: Partners
+                  </button>
+                  <button
+                    onClick={() => setStep('build')}
+                    className="rounded-lg border border-sky-300 dark:border-sky-700 px-4 py-2 text-sm font-medium text-sky-700 dark:text-sky-300"
+                  >
+                    Continue to Build
                   </button>
                 </div>
               </div>
@@ -310,7 +319,7 @@ export function OnboardingWizard({ visible, suppressAutoOpen = false, canShowWor
                     onClick={() => setStep('build')}
                     className="rounded-lg border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm text-gray-700 dark:text-gray-200"
                   >
-                    Continue
+                    Continue to Build
                   </button>
                 </div>
               </div>
