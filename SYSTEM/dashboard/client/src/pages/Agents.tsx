@@ -17,6 +17,7 @@ import BulkOperationsPanel from '../components/BulkOperationsPanel'
 import SaveAsTemplatePanel from '../components/SaveAsTemplatePanel'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import { useToast } from '../components/Toast'
+import TruncatedText from '../components/TruncatedText'
 import { getSkillSetupHint } from '../lib/skillSetup'
 import { ProductIconCell } from '../lib/productIcons'
 import { mergeAgentToFront } from '../lib/agentList'
@@ -220,6 +221,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
   const [tagManageTarget, setTagManageTarget] = useState<Agent | null>(null)
   const [showSecondaryTags, setShowSecondaryTags] = useState(false)
   const [expandedSecondaryAgents, setExpandedSecondaryAgents] = useState<Set<string>>(new Set())
+  const [openGroupActionsMenu, setOpenGroupActionsMenu] = useState<string | null>(null)
   const [selectionMode, setSelectionMode] = useState(false)
   const [selectedAgentIds, setSelectedAgentIds] = useState<Set<string>>(new Set())
   const [showBulkOperations, setShowBulkOperations] = useState(false)
@@ -832,6 +834,22 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
       }
       return next
     })
+  }
+
+  const selectAgentGroup = (agentsList: Agent[]) => {
+    setSelectionMode(true)
+    setSelectedAgentIds(new Set(agentsList.map((agent) => agent.id)))
+  }
+
+  const openBulkOperationsForGroup = (agentsList: Agent[]) => {
+    selectAgentGroup(agentsList)
+    setShowBulkOperations(true)
+    setOpenGroupActionsMenu(null)
+  }
+
+  const openBulkChatForGroup = (agentsList: Agent[]) => {
+    handleBulkChat(agentsList.map((agent) => agent.id))
+    setOpenGroupActionsMenu(null)
   }
 
   const fetchWorkflows = useCallback(async (agentId: string) => {
@@ -1558,6 +1576,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                   </div>
                 )}
                 {Array.from(groupedAgents.entries()).map(([tag, tagAgents]) => {
+              const groupMenuKey = `${sectionTitle || 'agents'}:${tag}`
               // Split agents by primary (first tag matches) vs secondary
               const primaryAgents = tagAgents.filter(a => a.tags[0] === tag && !shownAgentIds.has(a.id))
               const secondaryAgentsNotShown = tagAgents.filter(a => a.tags[0] !== tag && !shownAgentIds.has(a.id))
@@ -1583,6 +1602,49 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                         {primaryAgents.length} agent{primaryAgents.length !== 1 ? 's' : ''}
                       </span>
                     </h2>
+                    {primaryAgents.length > 0 && (
+                      <div className="relative">
+                        <button
+                          onClick={() => setOpenGroupActionsMenu((current) => current === groupMenuKey ? null : groupMenuKey)}
+                          className="rounded-full border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-500 transition-colors hover:border-sky-300 hover:text-sky-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-sky-700 dark:hover:text-sky-200"
+                          title={`Actions for ${tag === '__untagged__' ? 'untagged agents' : `${tag} agents`}`}
+                          aria-label={`Actions for ${tag === '__untagged__' ? 'untagged agents' : `${tag} agents`}`}
+                        >
+                          ⋯
+                        </button>
+                        {openGroupActionsMenu === groupMenuKey && (
+                          <>
+                            <div className="fixed inset-0 z-10" onClick={() => setOpenGroupActionsMenu(null)} />
+                            <div className="absolute left-0 top-full z-20 mt-2 w-44 overflow-hidden rounded-xl border border-gray-200 bg-white p-1 shadow-xl dark:border-gray-700 dark:bg-gray-900">
+                              <button
+                                onClick={() => openBulkChatForGroup(primaryAgents)}
+                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
+                              >
+                                <ProductIconCell iconName="communication" label="Chat group" size="sm" className="border-transparent bg-transparent text-current" />
+                                <span>Group chat</span>
+                              </button>
+                              <button
+                                onClick={() => {
+                                  selectAgentGroup(primaryAgents)
+                                  setOpenGroupActionsMenu(null)
+                                }}
+                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
+                              >
+                                <ProductIconCell iconName="select" label="Select group" size="sm" className="border-transparent bg-transparent text-current" />
+                                <span>Select group</span>
+                              </button>
+                              <button
+                                onClick={() => openBulkOperationsForGroup(primaryAgents)}
+                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
+                              >
+                                <ProductIconCell iconName="ai" label="Bulk actions" size="sm" className="border-transparent bg-transparent text-current" />
+                                <span>Bulk actions</span>
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )}
                     {selectionMode && primaryAgents.length > 0 && (
                       <button
                         onClick={() => toggleAgentSectionSelection(primaryAgents)}
@@ -2213,10 +2275,14 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
             {selectedAgentIds.size} agent{selectedAgentIds.size !== 1 ? 's' : ''} selected
           </span>
           <button
-            onClick={() => setSelectedAgentIds(new Set())}
+            onClick={() => {
+              setSelectedAgentIds(new Set())
+              setSelectionMode(false)
+              setShowBulkOperations(false)
+            }}
             className="px-3 py-1 bg-blue-700 hover:bg-blue-800 rounded transition-colors text-sm"
           >
-            Clear
+            Cancel
           </button>
           <button
             onClick={() => setShowBulkOperations(true)}
@@ -2233,7 +2299,11 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
             selectedAgents={agents.filter(a => selectedAgentIds.has(a.id) && a.archived === (archiveTab === 'archived'))}
             allCommunities={allCommunities}
             allGroups={allGroups}
-            onClose={() => setShowBulkOperations(false)}
+            onClose={() => {
+              setShowBulkOperations(false)
+              setSelectedAgentIds(new Set())
+              setSelectionMode(false)
+            }}
             onAddToCommunities={handleBulkAddToCommunities}
             onAddToGroups={handleBulkAddToGroups}
             onArchive={handleBulkArchive}
@@ -3769,30 +3839,36 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
           {isSelected ? '✓' : '□'}
         </button>
       )}
-      {/* Line 1: Name + chat icon */}
+      {/* Line 1: Name + identity badges */}
       <div className="flex items-center gap-1.5 mb-1">
         <span className={`w-2 h-2 rounded-full shrink-0 ${agent.archived ? 'bg-orange-500' : agent.paused ? 'bg-gray-400 dark:bg-gray-50 dark:bg-gray-9000' : STATUS_COLORS[agent.status]}`} />
-        <span className="font-semibold text-gray-900 dark:text-gray-100 text-sm truncate flex-1 dark:text-gray-100">{agent.name}</span>
+        <TruncatedText
+          text={agent.name}
+          className="font-semibold text-gray-900 dark:text-gray-100 text-sm truncate flex-1 dark:text-gray-100"
+        />
         {agent.tags.includes('built-in') && (
           <ProductIconCell iconName="ai" label="Built-in system agent" size="sm" className="border-transparent bg-transparent text-gray-500 dark:text-gray-300" />
         )}
         {agent.archived && (
           <ProductIconCell iconName="archive" label="Archived" size="sm" className="border-transparent bg-transparent text-orange-500 dark:text-orange-400" />
         )}
-        {!agent.archived && (
-          <button
-            onClick={(e) => { e.stopPropagation(); onChat(); }}
-            className="text-sky-500 hover:text-sky-700 transition-colors text-sm leading-none shrink-0"
-            title="Chat"
-          >
-            <ProductIconCell iconName="communication" label="Chat" size="sm" className="border-transparent bg-transparent text-current" />
-          </button>
-        )}
       </div>
-      {/* Line 2: ID + cost + file */}
+      <TruncatedText
+        text={agent.id}
+        className="mb-1 block text-[10px] font-mono text-gray-400 truncate"
+      />
+      {/* Line 3: quick actions + cost */}
       <div className="flex items-center gap-2 mb-1">
-        <span className="text-xs font-mono text-gray-400 truncate">{agent.id}</span>
         <div className="ml-auto flex items-center gap-2 shrink-0">
+          {!agent.archived && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onChat(); }}
+              className="text-sky-500 hover:text-sky-700 transition-colors text-xs leading-none"
+              title="Chat"
+            >
+              <ProductIconCell iconName="communication" label="Chat" size="sm" className="border-transparent bg-transparent text-current" />
+            </button>
+          )}
           {costTrackingEnabled && metering && metering.calls > 0 && (
             <span
               className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400"
@@ -3810,6 +3886,13 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
               <ProductIconCell iconName="docs" label="View docs" size="sm" className="border-transparent bg-transparent text-current" />
             </button>
           )}
+          <button
+            onClick={(e) => { e.stopPropagation(); onStatus(); }}
+            className="text-gray-300 hover:text-emerald-600 transition-colors text-xs leading-none"
+            title="View status"
+          >
+            <ProductIconCell iconName="status" label="View status" size="sm" className="border-transparent bg-transparent text-current" />
+          </button>
           {costTrackingEnabled && (
             <button
               onClick={(e) => { e.stopPropagation(); onSetBudget(); }}

@@ -9,7 +9,18 @@ import AgentTemplateWizard from '../components/AgentTemplateWizard'
 import { getDiscoverySuggestions } from '../lib/discoverySuggestions'
 import { useAuth } from '../contexts/AuthContext'
 import { hasAiGenerationAccess } from '../lib/byok'
+import { organizationTemplateCanApplyNow } from '../lib/templateApplyReadiness'
 import { ProductIconCell, resolveTemplateVisual, resolveCategoryVisual } from '../lib/productIcons'
+
+function markTemplateLiteracy() {
+  if (typeof window === 'undefined') return
+  try {
+    localStorage.setItem('clawmax-template-literacy', '1')
+    window.dispatchEvent(new CustomEvent('clawmax-template-applied'))
+  } catch {
+    // Ignore localStorage failures.
+  }
+}
 
 interface AgentTemplate {
   name: string
@@ -64,6 +75,7 @@ interface OrganizationTemplate {
     id: string
     name: string
     description?: string
+    content?: string
     schedule?: string
     owner?: string
     scaling?: 'singleton' | 'parallel'
@@ -85,6 +97,13 @@ interface OrganizationTemplate {
       label?: string
       type?: string
     }>
+  }>
+  secretRequirements?: Array<{
+    key: string
+    label: string
+    required?: boolean
+    sensitive?: boolean
+    workflowFieldLabel?: string
   }>
   metadata?: {
     createdAt?: string
@@ -708,7 +727,10 @@ export default function Templates() {
     templateId?: string
     templateName?: string
     templateType?: string
+    applyMode?: 'customize' | 'apply-now'
   }>(null)
+  const [applyTemplateMode, setApplyTemplateMode] = useState<'customize' | 'apply-now'>('customize')
+  const [applyAgentTemplateMode, setApplyAgentTemplateMode] = useState<'customize' | 'apply-now'>('customize')
   const [builderTemplateDraft, setBuilderTemplateDraft] = useState<null | {
     generationTarget: 'team' | 'company'
     teamDescription: string
@@ -751,6 +773,7 @@ export default function Templates() {
           templateId: typeof parsed?.templateId === 'string' ? parsed.templateId : undefined,
           templateName: typeof parsed?.templateName === 'string' ? parsed.templateName : undefined,
           templateType: typeof parsed?.templateType === 'string' ? parsed.templateType : undefined,
+          applyMode: parsed?.applyMode === 'apply-now' ? 'apply-now' : 'customize',
         })
       }
     } catch {
@@ -936,7 +959,18 @@ export default function Templates() {
       return template.slug === pendingOnboardingSelection.templateId || template.name === pendingOnboardingSelection.templateName
     })
     if (!match) return
-    setSelectedTemplate(match)
+    if (pendingOnboardingSelection.applyMode && match.type !== 'workflow') {
+      if (match.type === 'organization') {
+        setApplyTemplateMode(pendingOnboardingSelection.applyMode)
+        setApplyingTemplate(match)
+      } else if (match.type === 'agent') {
+        setApplyAgentTemplateMode(pendingOnboardingSelection.applyMode)
+        setApplyingAgentTemplate(match)
+      }
+      setSelectedTemplate(null)
+    } else {
+      setSelectedTemplate(match)
+    }
     setPendingOnboardingSelection(null)
   }, [pendingOnboardingSelection, agentTemplates, orgTemplates, workflowTemplates])
 
@@ -1439,12 +1473,15 @@ export default function Templates() {
   const selectedRows = sortedTemplateRows.filter(row => selectedTemplateKeys.has(row.key))
   const canApplySelected = selectedRows.length === 1 && selectedRows[0].template.type !== 'workflow'
 
-  const openApplyForTemplate = (template: Template) => {
+  const openApplyForTemplate = (template: Template, mode: 'customize' | 'apply-now' = 'customize') => {
     if (template.type === 'organization') {
+      const nextMode = mode === 'apply-now' && !organizationTemplateCanApplyNow(template) ? 'customize' : mode
+      setApplyTemplateMode(nextMode)
       setApplyingTemplate(template)
       return
     }
     if (template.type === 'agent') {
+      setApplyAgentTemplateMode(mode)
       setApplyingAgentTemplate(template)
     }
   }
@@ -2354,7 +2391,11 @@ export default function Templates() {
             selectedTemplate.type === 'workflow' ? selectedTemplate.id : undefined
           )}
           onApply={selectedTemplate.type !== 'workflow' ? () => {
-            openApplyForTemplate(selectedTemplate)
+            openApplyForTemplate(selectedTemplate, 'customize')
+            setSelectedTemplate(null)
+          } : undefined}
+          onApplyNow={selectedTemplate.type !== 'workflow' ? () => {
+            openApplyForTemplate(selectedTemplate, 'apply-now')
             setSelectedTemplate(null)
           } : undefined}
           onRefine={selectedTemplate.type !== 'workflow' ? () => {
@@ -2370,9 +2411,11 @@ export default function Templates() {
       {applyingTemplate && (
         <ApplyOrgTemplateModal
           template={applyingTemplate}
+          initialMode={applyTemplateMode}
           onClose={() => setApplyingTemplate(null)}
           onSuccess={() => {
             setApplyingTemplate(null)
+            markTemplateLiteracy()
             showSuccess('Organization template applied successfully! Refreshing...')
             fetchTemplates()
             window.dispatchEvent(new CustomEvent('agents-updated'))
@@ -2385,9 +2428,11 @@ export default function Templates() {
       {applyingAgentTemplate && (
         <ApplyAgentTemplateModal
           template={applyingAgentTemplate}
+          initialMode={applyAgentTemplateMode}
           onClose={() => setApplyingAgentTemplate(null)}
           onSuccess={() => {
             setApplyingAgentTemplate(null)
+            markTemplateLiteracy()
             window.dispatchEvent(new CustomEvent('agents-updated'))
           }}
         />
@@ -2930,11 +2975,12 @@ function TemplateCard({ template, onDelete, onApply, onClick, selected, ratingSu
   )
 }
 
-function TemplateDetailPanel({ template, onClose, onDelete, onApply, onRefine, onEdit, onInstantiate }: {
+function TemplateDetailPanel({ template, onClose, onDelete, onApply, onApplyNow, onRefine, onEdit, onInstantiate }: {
   template: Template
   onClose: () => void
   onDelete: () => void
   onApply?: () => void
+  onApplyNow?: () => void
   onRefine?: () => void
   onEdit?: () => void
   onInstantiate?: () => void
@@ -2942,6 +2988,7 @@ function TemplateDetailPanel({ template, onClose, onDelete, onApply, onRefine, o
   const { showSuccess, showError } = useToast()
   const isOrg = template.type === 'organization'
   const isWorkflow = template.type === 'workflow'
+  const canApplyNow = isOrg ? organizationTemplateCanApplyNow(template as OrganizationTemplate) : !isWorkflow
   const organizationKind = isOrg ? getOrganizationTemplateKind(template as OrganizationTemplate) : null
   const organizationTemplate = isOrg ? template as OrganizationTemplate : null
   const templateTeams = organizationTemplate?.teams || []
@@ -3363,7 +3410,15 @@ function TemplateDetailPanel({ template, onClose, onDelete, onApply, onRefine, o
                 onClick={onApply}
                 className="flex-1 px-4 py-2 bg-sky-600 text-white rounded-md hover:bg-sky-700 transition-colors text-sm font-medium"
               >
-                ⚡ Apply Template
+                ⚡ Apply with Customization
+              </button>
+            )}
+            {!isWorkflow && onApplyNow && canApplyNow && (
+              <button
+                onClick={onApplyNow}
+                className="px-4 py-2 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 rounded-md hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-colors text-sm font-medium"
+              >
+                Apply Now
               </button>
             )}
             {!isWorkflow && onRefine && (

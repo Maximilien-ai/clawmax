@@ -1,4 +1,5 @@
 import React, { useMemo, useRef, useEffect, useState } from 'react'
+import TruncatedText from './TruncatedText'
 
 interface Workflow {
   id: string
@@ -62,6 +63,17 @@ function inferPipelineLabel(workflows: Workflow[]): { title: string; subtitle?: 
     title: `Pipeline`,
     subtitle: `${workflows.length} workflow${workflows.length === 1 ? '' : 's'}`,
   }
+}
+
+function getWorkflowDisplayName(workflowName: string, pipelineTitle?: string): string {
+  const name = workflowName.trim()
+  const title = (pipelineTitle || '').trim()
+  if (!name || !title || title === 'Pipeline') return name
+  const prefix = `${title} · `
+  if (name.startsWith(prefix)) {
+    return name.slice(prefix.length).trim() || name
+  }
+  return name
 }
 
 function groupForestLayouts(
@@ -527,7 +539,10 @@ export default function WorkflowDAG({
                           >
                             <div className="flex items-center gap-2 mb-1">
                               <span className={`w-2 h-2 rounded-full shrink-0 ${colors.dot}`} />
-                              <span className={`text-sm font-medium truncate ${colors.text}`}>{wf.name}</span>
+                              <TruncatedText
+                                text={getWorkflowDisplayName(wf.name, group.title)}
+                                className={`text-sm font-medium truncate ${colors.text}`}
+                              />
                               {!selectionMode && onTrigger && status !== 'running' && (
                                 <button
                                   onClick={(e) => { e.stopPropagation(); onTrigger(wf.id) }}

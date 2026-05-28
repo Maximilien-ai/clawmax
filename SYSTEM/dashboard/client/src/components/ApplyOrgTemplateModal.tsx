@@ -50,6 +50,7 @@ interface ApplyOrgTemplateModalProps {
   template: OrganizationTemplate
   onClose: () => void
   onSuccess: () => void
+  initialMode?: 'customize' | 'apply-now'
 }
 
 function getOrgMetaStorageKey(workspaceId?: string | null) {
@@ -77,6 +78,7 @@ type ExecutionConfig = {
   allowSystemKeysForUserExecution?: boolean
   ollamaEnabled?: boolean
   defaultOllamaBaseUrl?: string
+  preferredModel?: string
   recommendedModel?: string
   systemKeyDefaults?: {
     openai?: boolean
@@ -184,9 +186,9 @@ function isTemplateTokenValue(value: string): boolean {
   return /^\[[^\]]*\]$/.test(trimmed) || /^\{\{[^}]+\}\}$/.test(trimmed)
 }
 
-export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: ApplyOrgTemplateModalProps) {
+export default function ApplyOrgTemplateModal({ template, onClose, onSuccess, initialMode = 'customize' }: ApplyOrgTemplateModalProps) {
   const { activeWorkspace } = useWorkspace()
-  const [wizardStep, setWizardStep] = useState<WizardStep>('preview')
+  const [wizardStep, setWizardStep] = useState<WizardStep>(initialMode === 'apply-now' ? 'deploy' : 'preview')
   const [prefix, setPrefix] = useState('')
   const [suffix, setSuffix] = useState('')
   const [prefixTouched, setPrefixTouched] = useState(false)
@@ -604,7 +606,9 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
   const previewId = `${prefix}${exampleAgentId}${suffix}`
   const hasExecutionPath = hasChatExecutionAccess(executionConfig)
   const templateHasDefaultModel = agentsToCreate.some((agent) => !!agent.model?.trim())
-  const hasResolvedDefaultModel = !!(modelOverride || templateHasDefaultModel || executionConfig?.recommendedModel || availableModels[0])
+  const browserPreferredModel = readStoredByokKeys().preferredModel?.trim() || ''
+  const resolvedDefaultModel = modelOverride || agentsToCreate.find((agent) => agent.model?.trim())?.model || executionConfig?.preferredModel || browserPreferredModel || executionConfig?.recommendedModel || ''
+  const hasResolvedDefaultModel = !!resolvedDefaultModel
   const applyBlockReason = !hasExecutionPath
     ? 'No chat execution path is configured for this dashboard. Add provider keys or enable the on-prem Ollama runtime before applying this template.'
     : !hasResolvedDefaultModel
@@ -972,7 +976,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
           prefix: prefix || undefined,
           suffix: suffix || undefined,
           includeBuiltIn,
-          modelOverride: modelOverride || undefined,
+          modelOverride: modelOverride || (!templateHasDefaultModel ? resolvedDefaultModel : '') || undefined,
           agentCounts: Object.keys(agentCounts).length > 0 ? agentCounts : undefined,
           workflowOverrides: Object.keys(finalOverrides).length > 0 ? finalOverrides : undefined,
           groupRenames: Object.keys(effectiveGroupRenames).length > 0 ? effectiveGroupRenames : undefined,
@@ -1323,6 +1327,12 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
         {/* Step: Customize + Deploy */}
         {(wizardStep === 'customize' || wizardStep === 'deploy') && (
           <>
+
+        {wizardStep === 'deploy' && initialMode === 'apply-now' && (
+          <div className="mb-4 rounded border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200">
+            Apply now uses the template defaults unless you go back and customize them.
+          </div>
+        )}
 
         {error && (
           <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-sm text-red-800 dark:text-red-200">
@@ -2275,6 +2285,11 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess }: 
                   {!showAllModels && availableModels.length > 0 && (
                     <p className="text-xs text-amber-700 dark:text-amber-300 mt-2 dark:text-amber-500">
                       Showing the conservative compatibility list by default. Enable <span className="font-medium">Show all models</span> only if you know your runtime supports a newer model.
+                    </p>
+                  )}
+                  {hasResolvedDefaultModel && (
+                    <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-2">
+                      Default model that will be used: <span className="font-medium">{resolvedDefaultModel}</span>
                     </p>
                   )}
                   {applyBlockReason && (
