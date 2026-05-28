@@ -276,6 +276,47 @@ test('buildOrganizationDisplayTeams merges duplicate derived root children into 
   assert(teams.some((team) => team.parentTeamId === 'build-a-company-hackathon-org' && team.id !== 'leadership'), 'Expected derived child lane/team to merge under persisted company root')
 })
 
+test('buildOrganizationDisplayTeams merges dangling derived branch under a single persisted company root', () => {
+  const teams = buildOrganizationDisplayTeams({
+    persistedTeams: [
+      {
+        id: 'developer-event-analysis-hub',
+        name: 'Developer Event Analysis Hub',
+        leaderAgentId: 'event-discovery-agent1',
+        memberAgentIds: [],
+        tags: ['company', 'org-root'],
+      },
+      {
+        id: 'research-team',
+        name: 'Research Team',
+        leaderAgentId: 'event-discovery-agent1',
+        memberAgentIds: ['event-discovery-agent2'],
+        parentTeamId: 'developer-event-analysis-hub',
+        tags: ['research'],
+      },
+    ],
+    agents: [
+      { id: 'event-discovery-agent1', name: 'Event Discovery Agent 1' },
+      { id: 'event-discovery-agent2', name: 'Event Discovery Agent 2' },
+      { id: 'reporting-agent', name: 'Reporting Agent' },
+    ],
+    groups: [
+      { name: 'Specialized Teams', members: [{ id: 'reporting-agent' }] },
+    ],
+    workflows: [
+      { id: 'final-report', name: 'Developer Event Analysis Hub · Developer Event Analysis Hub / Final Report', owner: 'reporting-agent', targeting: { groups: ['Specialized Teams'], teamIds: [] } } as any,
+    ],
+    organizationName: 'Bernhard Demo Org',
+    organizationDescription: 'Describe this workspace organization',
+  })
+
+  const topLevelTeams = teams.filter((team) => !team.parentTeamId)
+  assert(topLevelTeams.length === 1, `Expected one top-level company, got ${topLevelTeams.map((team) => team.id).join(', ')}`)
+  assert(topLevelTeams[0].id === 'developer-event-analysis-hub', `Expected imported company root to remain top-level, got ${topLevelTeams[0].id}`)
+  assert(!teams.some((team) => team.id === 'organization'), 'Did not expect synthetic workspace organization root when a single company root exists')
+  assert(teams.some((team) => team.parentTeamId === 'developer-event-analysis-hub' && team.id !== 'research-team'), 'Expected dangling derived branch to merge under imported company root')
+})
+
 test('buildOrganizationDisplayTeams derives root plus group teams when no persisted teams exist', () => {
   const teams = buildOrganizationDisplayTeams({
     agents: [

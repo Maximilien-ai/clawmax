@@ -412,7 +412,7 @@ export function listDocEntries(): DocEntry[] {
       }
     })
 
-  function walkAssetDir(currentDir: string, topLevelDir: string) {
+  function walkAssetDir(currentDir: string, section: DocSection, assetSource: 'uploaded' | 'generated', canDelete = false) {
     let entries: fs.Dirent[]
     try {
       entries = fs.readdirSync(currentDir, { withFileTypes: true })
@@ -425,7 +425,7 @@ export function listDocEntries(): DocEntry[] {
       const full = path.join(currentDir, entry.name)
       const rel = path.relative(workspacePath, full)
       if (entry.isDirectory()) {
-        walkAssetDir(full, topLevelDir)
+        walkAssetDir(full, section, assetSource, canDelete)
         continue
       }
       if (!entry.isFile()) continue
@@ -433,10 +433,10 @@ export function listDocEntries(): DocEntry[] {
       const timestamps = readTimestamps(full)
       results.push({
         path: rel,
-        section: 'AGENTS',
+        section,
         kind: 'asset',
-        assetSource: getAgentAssetSource(rel),
-        canDelete: true,
+        assetSource: section === 'AGENTS' ? getAgentAssetSource(rel) : assetSource,
+        canDelete,
         isAgentWorkspace: false,
         createdAt: timestamps.createdAt,
         updatedAt: timestamps.updatedAt,
@@ -451,7 +451,7 @@ export function listDocEntries(): DocEntry[] {
       const full = path.join(agentsDir, entry.name)
       if (entry.isDirectory()) {
         if (!registeredAgentDirs.has(entry.name)) {
-          walkAssetDir(full, entry.name)
+          walkAssetDir(full, 'AGENTS', 'uploaded', true)
         }
         continue
       }
@@ -471,6 +471,11 @@ export function listDocEntries(): DocEntry[] {
       })
     }
   } catch {}
+
+  const workflowOutputsDir = path.join(workspacePath, 'WORKFLOWS', 'outputs')
+  if (fs.existsSync(workflowOutputsDir)) {
+    walkAssetDir(workflowOutputsDir, 'WORKFLOWS', 'generated', false)
+  }
 
   return results.sort((a, b) => {
     const sOrder: Record<DocSection, number> = { ORG: 0, AGENTS: 1, WORKFLOWS: 2, SYSTEM: 3 }

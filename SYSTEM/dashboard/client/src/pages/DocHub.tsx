@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { buildDocHubTree, getDocHubChildDirectories, type FileTree } from '../lib/docHubTree'
 
 type DocSection = 'ORG' | 'AGENTS' | 'WORKFLOWS' | 'SYSTEM'
 
@@ -26,36 +27,6 @@ interface DeleteConfirmationState {
   path: string
   label: string
   isDirectory: boolean
-}
-
-interface FileTree {
-  [dir: string]: string[]
-}
-
-function buildTree(paths: string[]): FileTree {
-  const tree: FileTree = { '': [] }
-  for (const f of paths) {
-    const parts = f.split('/')
-    if (parts.length === 1) {
-      tree[''].push(f)
-    } else {
-      const dir = parts.slice(0, -1).join('/')
-      if (!tree[dir]) tree[dir] = []
-      tree[dir].push(f)
-    }
-  }
-  return tree
-}
-
-function getChildDirectories(tree: FileTree, parentDir: string): string[] {
-  return Object.keys(tree)
-    .filter((dir) => {
-      if (!dir || dir === parentDir) return false
-      if (!parentDir) return !dir.includes('/')
-      if (!dir.startsWith(`${parentDir}/`)) return false
-      return !dir.slice(parentDir.length + 1).includes('/')
-    })
-    .sort((a, b) => a.localeCompare(b))
 }
 
 const SECTION_CONFIG: Record<DocSection, { label: string; accent: string; headerCls: string; itemCls: string; selectedCls: string }> = {
@@ -172,7 +143,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
     SECTION_ORDER.forEach(section => {
       const sectionEntries = entries.filter(e => e.section === section)
       const displayPaths = sectionEntries.map(e => stripPrefix(e.path, section))
-      const tree = buildTree(displayPaths)
+      const tree = buildDocHubTree(displayPaths)
       Object.keys(tree).forEach(dir => {
         if (dir) { // Exclude root ('')
           allDirKeys.add(`${section}/${dir}`)
@@ -642,7 +613,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
     const dirMode = getDirAssetMode(section, dir, sectionEntries)
     const canDeleteDir = section === 'AGENTS' && (dirMode === 'asset' || dirMode === 'generated')
     const dirDeletePath = canDeleteDir ? `${section}/${dir}` : null
-    const childDirs = getChildDirectories(tree, dir)
+    const childDirs = getDocHubChildDirectories(tree, dir)
     const files = tree[dir] || []
     const dirName = dir.split('/').pop() || dir
     const dirTone = dirMode === 'generated'
@@ -896,7 +867,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
                 if (sectionEntries.length === 0) return null
 
                 const displayPaths = sectionEntries.map(e => stripPrefix(e.path, section))
-                const tree = buildTree(displayPaths)
+                const tree = buildDocHubTree(displayPaths)
                 const entriesByDisplayPath = new Map(sectionEntries.map((entry) => [stripPrefix(entry.path, section), entry]))
                 const dirs = Object.keys(tree).sort((a, b) => {
                   if (a === '') return -1
@@ -953,7 +924,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
                             </div>
                           )
                         })}
-                        {getChildDirectories(tree, '').map((dir) =>
+                        {getDocHubChildDirectories(tree, '').map((dir) =>
                           renderDocDirectory(section, dir, 1, tree, sectionEntries, entriesByDisplayPath, cfg)
                         )}
                       </div>

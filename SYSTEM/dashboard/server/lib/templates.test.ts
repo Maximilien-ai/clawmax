@@ -1676,6 +1676,166 @@ test('importOrganizationTemplate sanitizes invalid team ancestry before creating
   }
 })
 
+test('importOrganizationTemplate maps parameterized agent references for teams and workflows', () => {
+  const originalWorkspace = process.env.OPENCLAW_WORKSPACE
+  const originalHome = process.env.HOME
+  const originalOpenAi = process.env.SYSTEM_OPENAI_API_KEY
+  const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-company-import-parameterized-home-'))
+  const tempWorkspace = path.join(tempHome, 'workspace')
+
+  process.env.HOME = tempHome
+  process.env.OPENCLAW_WORKSPACE = tempWorkspace
+  process.env.SYSTEM_OPENAI_API_KEY = 'test-openai-key'
+  resetWorkspaceManagerForTests()
+  seedOpenClawConfig(tempHome)
+
+  try {
+    const templateDir = path.join(tempWorkspace, 'TEMPLATES', 'organizations', 'parameterized-team')
+    fs.mkdirSync(templateDir, { recursive: true })
+    fs.writeFileSync(path.join(templateDir, 'template.json'), JSON.stringify({
+      name: 'Parameterized Team',
+      type: 'organization',
+      kind: 'team',
+      version: '1.0.0',
+      parameters: [
+        { agentId: 'researcher', label: 'Number of Researchers', default: 2, min: 1, max: 4 },
+      ],
+      agents: [
+        { id: 'researcher', role: 'Researcher' },
+        { id: 'lead', role: 'Lead' },
+      ],
+      teams: [
+        {
+          id: 'research-team',
+          name: 'Research Team',
+          leaderAgentId: 'researcher',
+          memberAgentIds: ['researcher', 'lead'],
+        },
+      ],
+      workflows: [
+        {
+          id: 'research-kickoff',
+          name: 'Research Kickoff',
+          description: 'Kick off research',
+          schedule: 'manual',
+          enabled: true,
+          executionMode: 'managed',
+          owner: 'researcher',
+          targeting: {
+            communities: [],
+            groups: [],
+            tags: [],
+            agents: ['researcher'],
+          },
+          content: '# Research Kickoff',
+        },
+      ],
+    }, null, 2), 'utf-8')
+
+    const imported = importOrganizationTemplate('parameterized-team', {
+      agentCounts: { researcher: 2 },
+    })
+    assert(imported.ok === true, `Expected parameterized import to succeed, got ${imported.error || 'unknown error'}`)
+
+    const team = getTeam('research-team')
+    assert(team !== null, 'Expected parameterized team to exist after import')
+    assertEqual(team?.leaderAgentId as any, 'researcher1', 'Expected team leader to use first expanded agent')
+    assert(team?.memberAgentIds.includes('researcher2') === true, 'Expected team members to include second expanded agent')
+    assert(team?.memberAgentIds.includes('lead') === true, 'Expected team members to preserve non-parameterized agent')
+
+    const workflow = getWorkflow('research-kickoff')
+    assert(workflow !== null, 'Expected parameterized workflow to exist after import')
+    assertEqual(workflow?.owner as any, 'researcher1', 'Expected workflow owner to use first expanded agent')
+    assertEqual(JSON.stringify(workflow?.targeting.agents || []), JSON.stringify(['researcher1', 'researcher2']), 'Expected workflow targeting to expand all parameterized agents')
+  } finally {
+    if (typeof originalOpenAi === 'undefined') delete process.env.SYSTEM_OPENAI_API_KEY
+    else process.env.SYSTEM_OPENAI_API_KEY = originalOpenAi
+    if (typeof originalHome === 'undefined') delete process.env.HOME
+    else process.env.HOME = originalHome
+    if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
+    else process.env.OPENCLAW_WORKSPACE = originalWorkspace
+    resetWorkspaceManagerForTests()
+    fs.rmSync(tempHome, { recursive: true, force: true })
+  }
+})
+
+test('importOrganizationTemplate infers workflow output channels from targeted teams when groups are omitted', () => {
+  const originalWorkspace = process.env.OPENCLAW_WORKSPACE
+  const originalHome = process.env.HOME
+  const originalOpenAi = process.env.SYSTEM_OPENAI_API_KEY
+  const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-company-import-team-channels-home-'))
+  const tempWorkspace = path.join(tempHome, 'workspace')
+
+  process.env.HOME = tempHome
+  process.env.OPENCLAW_WORKSPACE = tempWorkspace
+  process.env.SYSTEM_OPENAI_API_KEY = 'test-openai-key'
+  resetWorkspaceManagerForTests()
+  seedOpenClawConfig(tempHome)
+
+  try {
+    const templateDir = path.join(tempWorkspace, 'TEMPLATES', 'organizations', 'team-channel-inference')
+    fs.mkdirSync(templateDir, { recursive: true })
+    fs.writeFileSync(path.join(templateDir, 'template.json'), JSON.stringify({
+      name: 'Team Channel Inference',
+      type: 'organization',
+      kind: 'team',
+      version: '1.0.0',
+      agents: [
+        { id: 'lead', role: 'Lead' },
+      ],
+      communities: [
+        { name: 'Ops Hub', description: 'Ops community' },
+      ],
+      groups: [
+        { name: 'Research Team', description: 'Research group', community: 'Ops Hub' },
+      ],
+      teams: [
+        {
+          id: 'research-team',
+          name: 'Research Team',
+          leaderAgentId: 'lead',
+        },
+      ],
+      workflows: [
+        {
+          id: 'research-kickoff',
+          name: 'Research Kickoff',
+          description: 'Kick off research',
+          schedule: 'manual',
+          enabled: true,
+          executionMode: 'managed',
+          owner: 'lead',
+          targeting: {
+            communities: [],
+            groups: [],
+            tags: [],
+            agents: ['lead'],
+            teamIds: ['research-team'],
+          },
+          content: '# Research Kickoff',
+        },
+      ],
+    }, null, 2), 'utf-8')
+
+    const imported = importOrganizationTemplate('team-channel-inference', {})
+    assert(imported.ok === true, `Expected team-channel import to succeed, got ${imported.error || 'unknown error'}`)
+
+    const workflow = getWorkflow('research-kickoff')
+    assert(workflow !== null, 'Expected inferred-channel workflow to exist after import')
+    assertEqual(JSON.stringify(workflow?.targeting.groups || []), JSON.stringify(['Research Team']), 'Expected workflow to infer the matching group target from teamIds')
+    assertEqual(JSON.stringify(workflow?.targeting.communities || []), JSON.stringify(['Ops Hub']), 'Expected workflow to infer the matching community target from group membership')
+  } finally {
+    if (typeof originalOpenAi === 'undefined') delete process.env.SYSTEM_OPENAI_API_KEY
+    else process.env.SYSTEM_OPENAI_API_KEY = originalOpenAi
+    if (typeof originalHome === 'undefined') delete process.env.HOME
+    else process.env.HOME = originalHome
+    if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
+    else process.env.OPENCLAW_WORKSPACE = originalWorkspace
+    resetWorkspaceManagerForTests()
+    fs.rmSync(tempHome, { recursive: true, force: true })
+  }
+})
+
 test('system organization templates do not contain raw mustache workflow placeholders', () => {
   const templatesDir = path.resolve(process.cwd(), '..', '..', 'TEMPLATES', 'organizations')
   const placeholderHits: string[] = []

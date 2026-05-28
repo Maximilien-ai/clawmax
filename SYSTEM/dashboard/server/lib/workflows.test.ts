@@ -32,6 +32,7 @@ import {
   isWorkflowSessionLockError,
   getWorkflowAgentRetryDelay,
   getWorkflowAgentTimeoutMs,
+  formatWorkflowAgentTimeoutMessage,
   normalizeWorkflowExecutionOutputs,
   compactWorkflowExecutionContent,
   resolveWorkflowRunInputPath,
@@ -814,6 +815,17 @@ test('getWorkflowAgentTimeoutMs falls back on invalid values', () => {
     if (typeof previous === 'undefined') delete process.env.CLAWMAX_WORKFLOW_AGENT_TIMEOUT_MS
     else process.env.CLAWMAX_WORKFLOW_AGENT_TIMEOUT_MS = previous
   }
+})
+
+test('formatWorkflowAgentTimeoutMessage renders minute-based limits clearly', () => {
+  assert(
+    formatWorkflowAgentTimeoutMessage(600000) === 'Agent timeout after 10 minutes',
+    `Expected 10 minute timeout label, got ${formatWorkflowAgentTimeoutMessage(600000)}`
+  )
+  assert(
+    formatWorkflowAgentTimeoutMessage(120000) === 'Agent timeout after 2 minutes',
+    `Expected 2 minute timeout label, got ${formatWorkflowAgentTimeoutMessage(120000)}`
+  )
 })
 
 test('triggerWorkflow supports rerunning upstream DAG workflows', () => {

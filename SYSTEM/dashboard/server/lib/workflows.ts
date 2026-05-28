@@ -645,6 +645,15 @@ export function getWorkflowAgentTimeoutMs(): number {
   return Math.floor(parsed)
 }
 
+export function formatWorkflowAgentTimeoutMessage(timeoutMs = getWorkflowAgentTimeoutMs()): string {
+  const roundedMinutes = timeoutMs % 60000 === 0 ? timeoutMs / 60000 : null
+  if (roundedMinutes && roundedMinutes >= 1) {
+    return `Agent timeout after ${roundedMinutes} minute${roundedMinutes === 1 ? '' : 's'}`
+  }
+  const roundedSeconds = timeoutMs % 1000 === 0 ? timeoutMs / 1000 : Number((timeoutMs / 1000).toFixed(1))
+  return `Agent timeout after ${roundedSeconds} second${roundedSeconds === 1 ? '' : 's'}`
+}
+
 export {
   getAgentExecutionRetryDelay as getWorkflowAgentRetryDelay,
   isOpenClawSessionLockError as isWorkflowSessionLockError,
@@ -1710,7 +1719,11 @@ export function triggerWorkflow(workflowId: string, options?: {
                 const proc = spawn('openclaw', args, { env: executionEnv })
                 let stdout = ''
                 let stderr = ''
-                const timer = setTimeout(() => { proc.kill(); reject(new Error('Agent timeout')) }, getWorkflowAgentTimeoutMs())
+                const timeoutMs = getWorkflowAgentTimeoutMs()
+                const timer = setTimeout(() => {
+                  proc.kill()
+                  reject(new Error(formatWorkflowAgentTimeoutMessage(timeoutMs)))
+                }, timeoutMs)
 
                 let progressTicks = 0
                 proc.stdout.on('data', (d: Buffer) => {

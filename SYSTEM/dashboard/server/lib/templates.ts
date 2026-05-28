@@ -43,6 +43,79 @@ export function getOrgTemplatesDir(): string {
   return path.join(getTemplatesDir(), 'organizations')
 }
 
+function normalizeTemplateChannelKey(value: string): string {
+  return `${value || ''}`
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
+function inferWorkflowChannelTargetsFromTeams(args: {
+  workspacePath: string
+  targeting: {
+    communities?: string[]
+    groups?: string[]
+    teamIds?: string[]
+  }
+}): { communities: string[]; groups: string[] } {
+  const existingGroups = Array.isArray(args.targeting.groups) ? args.targeting.groups.filter(Boolean) : []
+  const existingCommunities = Array.isArray(args.targeting.communities) ? args.targeting.communities.filter(Boolean) : []
+  if (existingGroups.length > 0 || existingCommunities.length > 0) {
+    return {
+      communities: Array.from(new Set(existingCommunities)),
+      groups: Array.from(new Set(existingGroups)),
+    }
+  }
+
+  const teamIds = Array.isArray(args.targeting.teamIds) ? args.targeting.teamIds.map((value) => `${value || ''}`.trim()).filter(Boolean) : []
+  if (teamIds.length === 0) {
+    return { communities: existingCommunities, groups: existingGroups }
+  }
+
+  const groupsPath = path.join(args.workspacePath, 'ORG', 'GROUPS.md')
+  const communitiesPath = path.join(args.workspacePath, 'ORG', 'COMMUNITIES.md')
+  const parsedGroups = fs.existsSync(groupsPath) ? parseGroups(fs.readFileSync(groupsPath, 'utf-8')).groups : []
+  const parsedCommunities = fs.existsSync(communitiesPath) ? parseGroups(fs.readFileSync(communitiesPath, 'utf-8')).communities : []
+
+  const groupsByKey = new Map<string, { name: string; community?: string | null }>()
+  for (const group of parsedGroups) {
+    const key = normalizeTemplateChannelKey(group.name || '')
+    if (!key || groupsByKey.has(key)) continue
+    groupsByKey.set(key, { name: group.name, community: group.community })
+  }
+
+  const communitiesByKey = new Map<string, string>()
+  for (const community of parsedCommunities) {
+    const key = normalizeTemplateChannelKey(community.name || '')
+    if (!key || communitiesByKey.has(key)) continue
+    communitiesByKey.set(key, community.name)
+  }
+
+  const inferredGroups = new Set<string>(existingGroups)
+  const inferredCommunities = new Set<string>(existingCommunities)
+
+  for (const teamId of teamIds) {
+    const team = getTeam(teamId, args.workspacePath)
+    const candidateKeys = new Set<string>([
+      normalizeTemplateChannelKey(teamId),
+      normalizeTemplateChannelKey(team?.name || ''),
+    ].filter(Boolean))
+
+    for (const candidateKey of candidateKeys) {
+      const matchingGroup = groupsByKey.get(candidateKey)
+      if (!matchingGroup) continue
+      inferredGroups.add(matchingGroup.name)
+      if (matchingGroup.community) inferredCommunities.add(matchingGroup.community)
+    }
+  }
+
+  return {
+    communities: Array.from(inferredCommunities),
+    groups: Array.from(inferredGroups),
+  }
+}
+
 function scaffoldAgentMemory(agentId: string) {
   const agentDir = path.join(getAgentsDir(), agentId)
   fs.mkdirSync(agentDir, { recursive: true })
@@ -2628,6 +2701,30 @@ export function importOrganizationTemplate(
       ? expandedAgents
       : expandedAgents.filter((a: any) => !a.tags?.includes('built-in'))
 
+    const importedAgentIdsBySourceId = new Map<string, string[]>()
+    for (const templateAgent of agentsToCreate as any[]) {
+      const sourceAgentId = templateAgent._sourceAgentId || templateAgent.id
+      const targetAgentId = `${prefix}${templateAgent.id}${suffix}`
+      const existing = importedAgentIdsBySourceId.get(sourceAgentId) || []
+      existing.push(targetAgentId)
+      importedAgentIdsBySourceId.set(sourceAgentId, existing)
+    }
+
+    const mapImportedAgentId = (agentId?: string): string | undefined => {
+      if (!agentId) return undefined
+      const mapped = importedAgentIdsBySourceId.get(agentId)
+      return mapped?.[0] || `${prefix}${agentId}${suffix}`
+    }
+
+    const mapImportedAgentIds = (agentIds?: string[]): string[] => {
+      if (!Array.isArray(agentIds) || agentIds.length === 0) return []
+      return Array.from(
+        new Set(
+          agentIds.flatMap((agentId) => importedAgentIdsBySourceId.get(agentId) || [`${prefix}${agentId}${suffix}`])
+        )
+      )
+    }
+
     try {
       // Step 1: Create all agents with their files
       for (const templateAgent of agentsToCreate) {
@@ -3125,8 +3222,8 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
             id: mappedTeamId,
             name: templateTeam.name,
             purpose: templateTeam.purpose,
-            leaderAgentId: templateTeam.leaderAgentId ? `${prefix}${templateTeam.leaderAgentId}${suffix}` : undefined,
-            memberAgentIds: (templateTeam.memberAgentIds || []).map((agentId) => `${prefix}${agentId}${suffix}`),
+            leaderAgentId: mapImportedAgentId(templateTeam.leaderAgentId),
+            memberAgentIds: mapImportedAgentIds(templateTeam.memberAgentIds),
             parentTeamId: mappedParentTeamId,
             tags: templateTeam.tags,
           }
@@ -3154,7 +3251,7 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
           workflowIdMap[wf.id] = mappedWorkflowId
 
           // Update targeting to use new agent IDs if prefix/suffix was applied
-          const newAgents = (wf.targeting.agents || []).map(agentId => `${prefix}${agentId}${suffix}`)
+          const newAgents = mapImportedAgentIds(wf.targeting.agents || [])
           const newTeamIds = (wf.targeting.teamIds || []).map(teamId => `${prefix}${teamId}${suffix}`)
           const mappedDependsOn = wf.dependsOn?.map(dep => workflowIdMap[dep] || mapImportedId(dep))
           const mappedInputRefs = wf.inputRefs?.map((ref) => ({
@@ -3163,10 +3260,21 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
           }))
           const importedWorkflowName = getImportedWorkflowName(wf)
 
+          const inferredChannels = inferWorkflowChannelTargetsFromTeams({
+            workspacePath: getWorkspacePath(),
+            targeting: {
+              communities: wf.targeting.communities || [],
+              groups: wf.targeting.groups || [],
+              teamIds: newTeamIds,
+            },
+          })
+
           const updatedTargeting = {
             ...wf.targeting,
             agents: newAgents,
             teamIds: newTeamIds,
+            groups: inferredChannels.groups,
+            communities: inferredChannels.communities,
           }
 
           // For managed workflows, auto-assign owner from first targeted agent.
@@ -3174,7 +3282,7 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
           // current namespace and preserve it.
           const execMode = wf.executionMode || 'automated'
           const importedOwner = `${(wf as any).owner || ''}`.trim()
-          const mappedOwner = importedOwner ? `${prefix}${importedOwner}${suffix}` : ''
+          const mappedOwner = importedOwner ? (mapImportedAgentId(importedOwner) || '') : ''
           const owner = execMode === 'managed'
             ? (mappedOwner || newAgents[0] || createdAgents[0] || undefined)
             : (mappedOwner || undefined)

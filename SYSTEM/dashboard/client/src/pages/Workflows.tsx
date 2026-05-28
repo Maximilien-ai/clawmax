@@ -10,6 +10,8 @@ import WorkflowDAG from '../components/WorkflowDAG'
 import { getDiscoverySuggestions } from '../lib/discoverySuggestions'
 import { readLocalSecrets, SecretRequirement, summarizeSecretReadiness, writeLocalSecrets, writeSharedSecrets } from '../lib/localSecrets'
 import { ProductIconCell } from '../lib/productIcons'
+import TruncatedText from '../components/TruncatedText'
+import { getWorkflowDisplayName } from '../lib/workflowDisplay'
 
 interface AgentTargeting {
   communities: string[]
@@ -1608,7 +1610,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                           onClick={() => fetchWorkflowDetails(workflow.id)}
                           className="rounded-lg border border-sky-200 dark:border-sky-700 bg-white/80 dark:bg-gray-900/40 px-3 py-3 text-left hover:border-sky-400 transition-colors"
                         >
-                          <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{workflow.name}</div>
+                          <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{getWorkflowDisplayName(workflow.name)}</div>
                           <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{workflow.id}</div>
                           {reasons.length > 0 && (
                             <div className="mt-2 text-xs text-sky-700 dark:text-sky-300">
@@ -1697,7 +1699,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                       onClick={() => fetchWorkflowDetails(workflow.id)}
                       className="rounded-lg border border-sky-200 dark:border-sky-700 bg-white/80 dark:bg-gray-900/40 px-3 py-3 text-left hover:border-sky-400 transition-colors"
                     >
-                      <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{workflow.name}</div>
+                      <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{getWorkflowDisplayName(workflow.name)}</div>
                       <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{workflow.id}</div>
                       {reasons.length > 0 && (
                         <div className="mt-2 text-xs text-sky-700 dark:text-sky-300">
@@ -1742,7 +1744,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                       onClick={() => fetchWorkflowDetails(workflow.id)}
                       className="rounded-lg border border-sky-200 dark:border-sky-700 bg-white/80 dark:bg-gray-900/40 px-3 py-3 text-left hover:border-sky-400 transition-colors"
                     >
-                      <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{workflow.name}</div>
+                      <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{getWorkflowDisplayName(workflow.name)}</div>
                       <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{workflow.id}</div>
                       {reasons.length > 0 && (
                         <div className="mt-2 text-xs text-sky-700 dark:text-sky-300">
@@ -3171,7 +3173,11 @@ function WorkflowsTable({
                     >
                       <div className="flex items-center gap-2">
                         <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${statusDotClass}`} />
-                        <div className="font-medium text-gray-900 dark:text-gray-100 truncate max-w-[260px]">{workflow.name}</div>
+                        <TruncatedText
+                          text={getWorkflowDisplayName(workflow.name)}
+                          titleText={workflow.name}
+                          className="font-medium text-gray-900 dark:text-gray-100 truncate max-w-[260px]"
+                        />
                       </div>
                       <div className="text-xs text-gray-500 truncate mt-0.5 max-w-[300px]">{workflow.description}</div>
                     </button>
@@ -3315,7 +3321,11 @@ function WorkflowCard({ workflow, onClick, onToggle, onDelete, onOpenFile, isSel
         <div className="flex items-start justify-between mb-2">
           <div className="flex items-center gap-2 pr-8">
             <span className={`mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full ${statusDotClass}`} />
-            <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-sm dark:text-gray-100">{workflow.name}</h3>
+            <TruncatedText
+              text={getWorkflowDisplayName(workflow.name)}
+              titleText={workflow.name}
+              className="font-semibold text-gray-900 dark:text-gray-100 text-sm dark:text-gray-100"
+            />
             {isRunning && (
               <span className="px-1.5 py-0.5 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded animate-pulse">
                 Running

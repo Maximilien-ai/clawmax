@@ -2,9 +2,11 @@ import React, { useEffect, useRef, useState } from 'react'
 
 export default function TruncatedText({
   text,
+  titleText,
   className = '',
 }: {
   text: string
+  titleText?: string
   className?: string
 }) {
   const ref = useRef<HTMLSpanElement | null>(null)
@@ -31,7 +33,7 @@ export default function TruncatedText({
     <span
       ref={ref}
       className={className}
-      title={isTruncated ? text : undefined}
+      title={isTruncated ? (titleText || text) : undefined}
     >
       {text}
     </span>

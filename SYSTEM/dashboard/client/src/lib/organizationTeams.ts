@@ -306,6 +306,15 @@ function humanizeDisplayName(value: string): string {
     .join(' ')
 }
 
+function isGenericOrganizationLabel(value: string): boolean {
+  const normalized = normalizeName(value)
+  return normalized === 'workspace org'
+    || normalized === 'workspace organization'
+    || normalized === 'organization'
+    || normalized.endsWith(' org')
+    || normalized.endsWith(' organization')
+}
+
 function stripNamespacePrefix(value: string, namespacePrefix?: string): string {
   const trimmed = `${value || ''}`.trim()
   if (!trimmed || !namespacePrefix) return humanizeDisplayName(trimmed)
@@ -559,11 +568,25 @@ export function buildOrganizationDisplayTeams(args: {
   const derivedExtrasWithUncoveredAgents = derivedExtras.filter((team) =>
     getTeamAgentIds(team).some((agentId) => !coveredAgentIds.has(agentId))
   )
-  const shouldIncludeDerivedRoot = derivedExtrasWithUncoveredAgents.some((team) => team.id !== 'organization')
+  const persistedTopLevelTeams = wrappedPersistedTeams.filter((team) => !team.parentTeamId)
+  const solePersistedRootId = persistedTopLevelTeams.length === 1 ? persistedTopLevelTeams[0].id : undefined
+  const shouldMergeDerivedBranchIntoSoleRoot = !!(
+    solePersistedRootId
+    && derivedExtrasWithUncoveredAgents.some((team) => team.id === 'organization')
+    && isGenericOrganizationLabel(args.organizationName || '')
+  )
+  const mergedDerivedExtras = shouldMergeDerivedBranchIntoSoleRoot
+    ? derivedExtrasWithUncoveredAgents
+        .filter((team) => team.id !== 'organization')
+        .map((team) => team.parentTeamId === 'organization'
+          ? { ...team, parentTeamId: solePersistedRootId }
+          : team)
+    : derivedExtrasWithUncoveredAgents
+  const shouldIncludeDerivedRoot = mergedDerivedExtras.some((team) => team.id !== 'organization')
   return sanitizeOrganizationDisplayTeams([
     ...wrappedPersistedTeams,
     ...(shouldIncludeDerivedRoot
-      ? derivedExtrasWithUncoveredAgents
-      : derivedExtrasWithUncoveredAgents.filter((team) => team.id !== 'organization')),
+      ? mergedDerivedExtras
+      : mergedDerivedExtras.filter((team) => team.id !== 'organization')),
   ])
 }

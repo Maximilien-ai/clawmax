@@ -40,9 +40,14 @@ const workspacePath = path.join(tmpRoot, 'workspace')
 fs.mkdirSync(path.join(workspacePath, 'AGENTS', 'cw-items', 'item1'), { recursive: true })
 fs.mkdirSync(path.join(workspacePath, 'AGENTS', 'cw-items', '.git'), { recursive: true })
 fs.mkdirSync(path.join(workspacePath, 'AGENTS', 'cw-items', '.openclaw'), { recursive: true })
+fs.mkdirSync(path.join(workspacePath, 'WORKFLOWS', 'outputs', 'demo-workflow', 'nested'), { recursive: true })
+fs.mkdirSync(path.join(workspacePath, 'WORKFLOWS', 'outputs', 'demo-workflow', '.git'), { recursive: true })
 fs.writeFileSync(path.join(workspacePath, 'AGENTS', 'cw-items', 'item1', 'post.md'), '# post', 'utf-8')
 fs.writeFileSync(path.join(workspacePath, 'AGENTS', 'cw-items', '.git', 'config'), '[core]\n', 'utf-8')
 fs.writeFileSync(path.join(workspacePath, 'AGENTS', 'cw-items', '.openclaw', 'state.json'), '{}', 'utf-8')
+fs.writeFileSync(path.join(workspacePath, 'WORKFLOWS', 'outputs', 'demo-workflow', 'brief.txt'), 'brief', 'utf-8')
+fs.writeFileSync(path.join(workspacePath, 'WORKFLOWS', 'outputs', 'demo-workflow', 'nested', 'chart.png'), 'png', 'utf-8')
+fs.writeFileSync(path.join(workspacePath, 'WORKFLOWS', 'outputs', 'demo-workflow', '.git', 'config'), '[core]\n', 'utf-8')
 
 const previousWorkspace = process.env.OPENCLAW_WORKSPACE
 const previousHome = process.env.HOME
@@ -54,6 +59,20 @@ test('listDocEntries hides hidden helper dirs inside AGENTS asset trees', () => 
   assert(entries.includes('AGENTS/cw-items/item1/post.md'), 'Expected normal visible asset markdown to remain')
   assert(!entries.some((entry) => entry.includes('/.git/') || entry.endsWith('/.git')), 'Expected .git entries to be hidden')
   assert(!entries.some((entry) => entry.includes('/.openclaw/') || entry.endsWith('/.openclaw')), 'Expected .openclaw entries to be hidden')
+})
+
+test('listDocEntries surfaces workflow output assets and nested files', () => {
+  const entries = listDocEntries()
+  const paths = entries.map((entry) => entry.path)
+  const brief = entries.find((entry) => entry.path === 'WORKFLOWS/outputs/demo-workflow/brief.txt')
+  const chart = entries.find((entry) => entry.path === 'WORKFLOWS/outputs/demo-workflow/nested/chart.png')
+
+  assert(!!brief, 'Expected workflow output text artifact to be listed')
+  assert(!!chart, 'Expected nested workflow output asset to be listed')
+  assert(brief?.section === 'WORKFLOWS', `Expected workflow output section, got ${brief?.section}`)
+  assert(brief?.kind === 'asset', `Expected workflow output kind=asset, got ${brief?.kind}`)
+  assert(brief?.assetSource === 'generated', `Expected workflow output assetSource=generated, got ${brief?.assetSource}`)
+  assert(!paths.some((entry) => entry.includes('WORKFLOWS/outputs/demo-workflow/.git/')), 'Expected hidden workflow output helper dirs to remain hidden')
 })
 
 if (previousWorkspace === undefined) {
