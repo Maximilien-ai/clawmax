@@ -5,6 +5,7 @@ import { byokForRequest, hasAiGenerationAccess, readStoredByokKeys } from '../li
 import { buildPersistentDashboardChatSessionId } from '../lib/agentChatSession'
 import { ProductIconCell } from '../lib/productIcons'
 import { useAuth } from '../contexts/AuthContext'
+import { resolveAgentChatDocPath } from '../lib/agentChatDocs'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -25,6 +26,10 @@ interface Props {
   onClose: () => void
   onSuccess?: () => void
   onNavigateToDoc?: (path: string) => void
+}
+
+interface DocEntryRef {
+  path: string
 }
 
 // Strip ANSI escape codes from text
@@ -207,11 +212,22 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [inputHistory, setInputHistory] = useState<string[]>([])
   const [historyIndex, setHistoryIndex] = useState(-1)
+  const [docEntries, setDocEntries] = useState<DocEntryRef[]>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const sendButtonRef = useRef<HTMLButtonElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
   const recognitionRef = useRef<any>(null)
+
+  const resolveDocPath = useCallback((target: string) => (
+    resolveAgentChatDocPath(target, agentId, docEntries)
+  ), [agentId, docEntries])
+
+  const getResolvedFileMentions = useCallback((content: string) => (
+    extractWorkspaceFileMentions(content)
+      .map((file) => ({ file, path: resolveDocPath(file) }))
+      .filter((entry): entry is { file: string; path: string } => !!entry.path)
+  ), [resolveDocPath])
 
   // Poll for new messages (agent-initiated updates)
   useEffect(() => {
@@ -241,6 +257,21 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
     const interval = setInterval(pollMessages, 3000)
     return () => clearInterval(interval)
   }, [agentId, messages.length, streaming])
+
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/docs')
+      .then((r) => r.ok ? r.json() : { entries: [] })
+      .then((data) => {
+        if (!cancelled) {
+          setDocEntries(Array.isArray(data.entries) ? data.entries : [])
+        }
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     checkGateway()
@@ -300,10 +331,14 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
         a: ({ href, children }) => {
           if (href?.startsWith('workspace-file:') && onNavigateToDoc) {
             const file = href.replace('workspace-file:', '')
+            const resolvedPath = resolveDocPath(file)
+            if (!resolvedPath) {
+              return <>{children}</>
+            }
             return (
               <button
                 type="button"
-                onClick={() => onNavigateToDoc(file)}
+                onClick={() => onNavigateToDoc(resolvedPath)}
                 className="text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300 underline"
               >
                 {children}
@@ -888,14 +923,14 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
                         {renderMarkdown(msg.content || (streaming && idx === messages.length - 1 ? '▌' : ''), true)}
                       </div>
                     )}
-                    {onNavigateToDoc && extractWorkspaceFileMentions(msg.content || '').length > 0 && (
+                    {onNavigateToDoc && getResolvedFileMentions(msg.content || '').length > 0 && (
                       <div className="mt-2 flex flex-wrap items-center gap-2">
                         <span className="text-[11px] opacity-70">Files:</span>
-                        {extractWorkspaceFileMentions(msg.content || '').map((file) => (
+                        {getResolvedFileMentions(msg.content || '').map(({ file, path }) => (
                           <button
-                            key={file}
+                            key={path}
                             type="button"
-                            onClick={() => onNavigateToDoc(file)}
+                            onClick={() => onNavigateToDoc(path)}
                             className="cursor-pointer text-[11px] px-2 py-1 rounded-full bg-sky-100 text-sky-700 underline decoration-sky-300 underline-offset-2 hover:bg-sky-200 hover:text-sky-900 dark:bg-sky-900/30 dark:text-sky-300 dark:decoration-sky-500 dark:hover:bg-sky-900/50"
                             title="Open in Documents"
                           >
@@ -921,14 +956,14 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
                     <div className="text-sm prose prose-sm prose-invert max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
                       {renderMarkdown(msg.content || '')}
                     </div>
-                    {onNavigateToDoc && extractWorkspaceFileMentions(msg.content || '').length > 0 && (
+                    {onNavigateToDoc && getResolvedFileMentions(msg.content || '').length > 0 && (
                       <div className="mt-2 flex flex-wrap items-center gap-2">
                         <span className="text-[11px] opacity-70">Files:</span>
-                        {extractWorkspaceFileMentions(msg.content || '').map((file) => (
+                        {getResolvedFileMentions(msg.content || '').map(({ file, path }) => (
                           <button
-                            key={file}
+                            key={path}
                             type="button"
-                            onClick={() => onNavigateToDoc(file)}
+                            onClick={() => onNavigateToDoc(path)}
                             className="cursor-pointer text-[11px] px-2 py-1 rounded-full bg-white/20 hover:bg-white/30 underline underline-offset-2"
                             title="Open in Documents"
                           >
