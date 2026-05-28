@@ -647,6 +647,16 @@ else
   fail "Prompt attachment helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Single flight helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/singleFlight.test.ts > /tmp/clawmax-single-flight.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-single-flight.out; then
+  single_flight_count=$(grep "Tests passed:" /tmp/clawmax-single-flight.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Single flight helper unit tests (${single_flight_count:-?} tests)"
+else
+  cat /tmp/clawmax-single-flight.out
+  fail "Single flight helper unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Metering presentation helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/meteringPresentation.test.ts > /tmp/clawmax-metering-presentation.out 2>&1 || true
 if grep -q "^✓" /tmp/clawmax-metering-presentation.out; then
@@ -1088,6 +1098,19 @@ if grep -q "All tests passed" /tmp/clawmax-ai-generator.out; then
   pass "AI generator unit tests (${ai_generator_count:-?} tests)"
 else
   fail "AI generator unit tests"
+fi
+
+echo -e "${YELLOW}→ Running AI generator live GPT-5 smoke test...${NC}"
+npx ts-node --transpileOnly server/lib/ai-generator-live.test.ts > /tmp/clawmax-ai-generator-live.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-ai-generator-live.out; then
+  if grep -q "Skipped" /tmp/clawmax-ai-generator-live.out; then
+    warn "AI generator live GPT-5 smoke test skipped (no SYSTEM_OPENAI_API_KEY configured)"
+  else
+    pass "AI generator live GPT-5 smoke test"
+  fi
+else
+  tail -n 40 /tmp/clawmax-ai-generator-live.out
+  fail "AI generator live GPT-5 smoke test"
 fi
 
 echo ""

@@ -6,6 +6,7 @@ import {
   applyCompanyWorkflowExecutionDefaults,
   applyGeneratedWorkflowHandoffs,
   buildPromptExpansionSystemPrompt,
+  createChatCompletionWithCompatibilityRetry,
   ensureGeneratedCompanyRoot,
   enforceVisibleCompanyWorkflowChain,
   explainOneTimeCronLimitation,
@@ -136,6 +137,35 @@ test('shouldUseMaxCompletionTokens enables GPT-5 token compatibility', () => {
   assert.strictEqual(shouldUseMaxCompletionTokens('openai/gpt-5'), true)
   assert.strictEqual(shouldUseMaxCompletionTokens('gpt-4o'), false)
   setRequestByokKeys(undefined)
+})
+
+test('createChatCompletionWithCompatibilityRetry retries unsupported max_tokens errors with max_completion_tokens', async () => {
+  let calls = 0
+  const client = {
+    chat: {
+      completions: {
+        create: async (request: any) => {
+          calls++
+          if (calls === 1) {
+            assert.strictEqual(request.max_tokens, 123)
+            throw new Error("400 Unsupported parameter: 'max_tokens' is not supported with this model. Use 'max_completion_tokens' instead.")
+          }
+          assert.strictEqual(request.max_tokens, undefined)
+          assert.strictEqual(request.max_completion_tokens, 123)
+          return { choices: [{ message: { content: 'ok' } }] }
+        }
+      }
+    }
+  } as any
+
+  const response = await createChatCompletionWithCompatibilityRetry(client, {
+    model: 'gpt-4o',
+    messages: [{ role: 'user', content: 'hi' }],
+    max_tokens: 123,
+  })
+
+  assert.strictEqual(calls, 2)
+  assert.strictEqual(response.choices[0].message.content, 'ok')
 })
 
 test('shouldGenerateCompanyTemplate infers company from prompt unless agent is explicit', () => {

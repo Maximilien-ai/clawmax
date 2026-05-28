@@ -1,9 +1,10 @@
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useRef, useState } from 'react'
 import { useToast } from './Toast'
 import { fetchModelsWithByok, hasChatExecutionAccess, readStoredByokKeys } from '../lib/byok'
 import { CHANNEL_API_ENDPOINTS } from '../lib/channelApi'
 import { readLocalSecrets, replaceWorkflowFieldValue, SecretRequirement, summarizeSecretReadiness, writeLocalSecrets, writeSharedSecrets } from '../lib/localSecrets'
 import { ProductIconCell } from '../lib/productIcons'
+import { beginSingleFlight, endSingleFlight } from '../lib/singleFlight'
 import { useWorkspace } from '../contexts/WorkspaceContext'
 
 interface TemplateParameter {
@@ -242,6 +243,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess, in
   const { showSuccess, showError: showToastError } = useToast()
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [validatingRepo, setValidatingRepo] = useState<string | null>(null)
+  const applyInFlightRef = useRef(false)
 
   const templateSlug = template.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
   const [resolvedTemplateSlug, setResolvedTemplateSlug] = useState(template.slug || templateSlug)
@@ -844,33 +846,39 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess, in
   }
 
   const handleApply = async () => {
+    if (!beginSingleFlight(applyInFlightRef)) return
     if (applyBlockReason) {
       setError(applyBlockReason)
       showToastError(applyBlockReason)
+      endSingleFlight(applyInFlightRef)
       return
     }
     if (agentConflicts.length > 0) {
       const message = `Agent ID conflict: ${agentConflicts[0]} already exists. Add a prefix or suffix before applying.`
       setError(message)
       showToastError(message)
+      endSingleFlight(applyInFlightRef)
       return
     }
     if (hasUnresolvedWorkflowConflicts) {
       const message = 'This template reuses existing workflow names. Rename the conflicting workflows in the Workflows step before applying.'
       setError(message)
       showToastError(message)
+      endSingleFlight(applyInFlightRef)
       return
     }
     if (hasUnresolvedChannelConflicts && !acknowledgedChannelConflicts) {
       const message = 'This template reuses existing groups or communities. Review the conflict warning and confirm reuse before applying.'
       setError(message)
       showToastError(message)
+      endSingleFlight(applyInFlightRef)
       return
     }
     if (conflictResolutionErrors.length > 0) {
       const message = conflictResolutionErrors[0]
       setError(message)
       showToastError(message)
+      endSingleFlight(applyInFlightRef)
       return
     }
 
@@ -891,6 +899,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess, in
             setError(message)
             showToastError(message)
             setApplying(false)
+            endSingleFlight(applyInFlightRef)
             return
           }
         }
@@ -952,6 +961,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess, in
         setError(message)
         showToastError(message)
         setApplying(false)
+        endSingleFlight(applyInFlightRef)
         return
       }
       if (Array.isArray(validation.warnings) && validation.warnings.length > 0) {
@@ -1053,6 +1063,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess, in
       setError('Network error')
     } finally {
       setApplying(false)
+      endSingleFlight(applyInFlightRef)
     }
   }
 

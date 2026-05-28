@@ -144,7 +144,7 @@ export async function expandPromptWithAI(
   guidance: PromptExpansionGuidance = '',
 ): Promise<string> {
   const model = resolveModel('gpt-4o')
-  const completion = await getSystemOpenAiClient().chat.completions.create({
+  const completion = await createChatCompletionWithCompatibilityRetry(getSystemOpenAiClient(), {
     model,
     messages: [
       {
@@ -232,7 +232,7 @@ export async function generateBuilderStarterPromptsWithAI(input: BuilderStarterP
   }, null, 2)
 
   const model = resolveModel('gpt-4o-mini')
-  const completion = await getSystemOpenAiClient().chat.completions.create({
+  const completion = await createChatCompletionWithCompatibilityRetry(getSystemOpenAiClient(), {
     model,
     messages: [
       {
@@ -262,7 +262,7 @@ export async function generateBuilderStarterPromptsWithAI(input: BuilderStarterP
 export async function inferBuilderGroupingWithAI(input: BuilderLlmFallbackInput): Promise<BuilderLlmFallbackOutput> {
   const context = JSON.stringify(input, null, 2)
   const model = resolveModel('gpt-4o-mini')
-  const completion = await getSystemOpenAiClient().chat.completions.create({
+  const completion = await createChatCompletionWithCompatibilityRetry(getSystemOpenAiClient(), {
     model,
     messages: [
       {
@@ -506,6 +506,38 @@ function completionTokenLimit(model: string, limit: number): { max_tokens?: numb
   return shouldUseMaxCompletionTokens(model)
     ? { max_completion_tokens: limit }
     : { max_tokens: limit }
+}
+
+function isOpenAiMaxTokensCompatibilityError(err: unknown): boolean {
+  const message = String((err as any)?.error?.message || (err as any)?.message || '').toLowerCase()
+  return message.includes('unsupported parameter')
+    && message.includes('max_tokens')
+    && message.includes('max_completion_tokens')
+}
+
+export async function createChatCompletionWithCompatibilityRetry(
+  client: OpenAI,
+  request: Record<string, any>,
+): Promise<any> {
+  try {
+    return await client.chat.completions.create(request as any)
+  } catch (err) {
+    const model = String(request?.model || '')
+    if (
+      isOpenAiMaxTokensCompatibilityError(err)
+      && typeof request?.max_tokens === 'number'
+      && typeof request?.max_completion_tokens === 'undefined'
+      && !shouldUseMaxCompletionTokens(model)
+    ) {
+      const retryRequest: Record<string, any> = {
+        ...request,
+        max_completion_tokens: request.max_tokens,
+      }
+      delete retryRequest.max_tokens
+      return await client.chat.completions.create(retryRequest as any)
+    }
+    throw err
+  }
 }
 
 interface GenerateAgentFilesInput {
@@ -1177,7 +1209,7 @@ export async function generateAgentMeta(description: string): Promise<{
   } catch {}
 
   const model = resolveModel('gpt-4o')
-  const completion = await getSystemOpenAiClient().chat.completions.create({
+  const completion = await createChatCompletionWithCompatibilityRetry(getSystemOpenAiClient(), {
     model,
     messages: [
       {
@@ -1225,7 +1257,7 @@ Rules:
 }
 
 async function generateIdentity(input: GenerateAgentFilesInput): Promise<string> {
-  const completion = await getSystemOpenAiClient().chat.completions.create({
+  const completion = await createChatCompletionWithCompatibilityRetry(getSystemOpenAiClient(), {
     model: resolveModel('gpt-4'),
     messages: [
       {
@@ -1261,7 +1293,7 @@ Respond in JSON format: { "role": "...", "vibe": "...", "emoji": "..." }`
 }
 
 async function generateSoul(input: GenerateAgentFilesInput): Promise<string> {
-  const completion = await getSystemOpenAiClient().chat.completions.create({
+  const completion = await createChatCompletionWithCompatibilityRetry(getSystemOpenAiClient(), {
     model: resolveModel('gpt-4'),
     messages: [
       {
@@ -1295,7 +1327,7 @@ Respond in JSON format: { "role_description": "...", "personality": "..." }`
 }
 
 async function generateTools(input: GenerateAgentFilesInput): Promise<string> {
-  const completion = await getSystemOpenAiClient().chat.completions.create({
+  const completion = await createChatCompletionWithCompatibilityRetry(getSystemOpenAiClient(), {
     model: resolveModel('gpt-4'),
     messages: [
       {
@@ -1347,7 +1379,7 @@ export async function generateSkillFromNL(description: string, currentDraft?: Pa
 
   const isRefinement = !!currentDraft
   const model = resolveModel('gpt-4o-mini')
-  const completion = await getSystemOpenAiClient().chat.completions.create({
+  const completion = await createChatCompletionWithCompatibilityRetry(getSystemOpenAiClient(), {
     model,
     messages: [
       {
@@ -1424,7 +1456,7 @@ export async function generateArchiveTitle(messages: Message[]): Promise<string>
 
   try {
     const model = resolveModel('gpt-4o-mini')
-    const completion = await getSystemOpenAiClient().chat.completions.create({
+    const completion = await createChatCompletionWithCompatibilityRetry(getSystemOpenAiClient(), {
       model,
       messages: [
         {
@@ -1454,7 +1486,7 @@ export async function generateArchiveTitle(messages: Message[]): Promise<string>
 export async function generateWorkflowFromNL(description: string, availableAgents: string[], availableTags: string[]): Promise<any> {
   getAvailableProvider(_requestByokKeys)
 
-  const completion = await getSystemOpenAiClient().chat.completions.create({
+  const completion = await createChatCompletionWithCompatibilityRetry(getSystemOpenAiClient(), {
     model: resolveModel('gpt-4o'),
     messages: [
       {
@@ -1519,7 +1551,7 @@ export async function generateTemplateFromNL(
     availableSkills = listAvailableSkills().map((s: any) => s.id || s.name).filter(Boolean)
   } catch {}
 
-  const completion = await getSystemOpenAiClient().chat.completions.create({
+  const completion = await createChatCompletionWithCompatibilityRetry(getSystemOpenAiClient(), {
     model: resolveModel('gpt-4o'),
     messages: [
       {
@@ -2083,7 +2115,7 @@ export async function generateCronFromText(text: string, timezone?: string): Pro
       day: '2-digit',
     }).format(new Date())
     const model = resolveModel('gpt-4o-mini')
-    const completion = await getSystemOpenAiClient().chat.completions.create({
+    const completion = await createChatCompletionWithCompatibilityRetry(getSystemOpenAiClient(), {
       model,
       messages: [
         {
