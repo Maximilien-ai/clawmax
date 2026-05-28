@@ -6,6 +6,27 @@ All notable changes to ClawMax are documented here.
 
 - No unreleased changes yet.
 
+## [v1.6.3] - 2026-05-28
+
+### Release Hardening and Installer Reliability
+- **GPT-5 Compatibility Retry** — OpenAI GPT-5 generation paths now use `max_completion_tokens` where required and retry once on the exact `max_tokens` compatibility error instead of failing the request outright.
+- **Fresh-Install Runtime Hardening** — normalized minimal `openclaw.json` handling, added a shared OpenClaw CLI resolver, improved fallback registration when the CLI is not on `PATH`, and added `update.sh` for local dev installs that need to pull and re-run setup cleanly.
+- **Cleaner Runtime Errors** — chat/runtime paths now fail with clearer messages when the OpenClaw CLI is actually unavailable rather than leaking raw spawn errors.
+
+### Client Console Follow-Through
+- **Onboarding BYOK/Partners Separation** — onboarding now treats BYOK as its own required setup path and keeps Partner Integrations explicit and optional instead of forcing that step before users can continue into Build.
+- **Agent Chat File Links** — chat-generated file links now resolve against real DocHub entries, prefer agent-local documents under `AGENTS/<agent-id>/...`, and avoid surfacing broken `Open` actions when no real file exists.
+- **Workspace Header Refresh** — switching workspaces now refreshes the top summary counts immediately instead of showing stale agent totals from the previous workspace.
+
+### Workflow and DocHub Reliability
+- **Workflow Output Visibility** — DocHub now renders nested `WORKFLOWS/outputs/**` directories and files correctly so workflow-generated artifacts remain discoverable after execution.
+- **Workflow Display Cleanup** — workflow names in cards and DAG views now emphasize the concise step name first while preserving the full imported label on hover when truncated.
+- **Template Apply Follow-Through** — workflow channel targeting, parameterized leader resolution, apply-now guardrails, and default-model resolution were tightened so more templates apply cleanly without late runtime surprises.
+
+### Test and Release Validation
+- **Deferred Import Timer Cleanup** — non-critical deferred template import follow-through now uses an unref’d timer so heavy template suites finish more cleanly instead of lingering after assertions complete.
+- **Release/Test Coverage** — added or surfaced focused coverage for GPT-5 compatibility retry, live GPT-5 smoke, OpenClaw CLI resolution, agent-chat doc resolution, DocHub workflow outputs, and related template/runtime regressions.
+
 ## [v1.6.2] - 2026-05-27
 
 ### Client Console Simplification
