@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import Builder from './pages/Builder'
 import Agents from './pages/Agents'
 import DocHub from './pages/DocHub'
+import { subscribeSystemRefresh } from './lib/systemRefresh'
 import Activity from './pages/Activity'
 import Communication from './pages/Communication'
 import Templates from './pages/Templates'
@@ -456,7 +457,11 @@ export default function App() {
         .catch(() => {})
     load()
     const t = setInterval(load, 30000)
-    return () => clearInterval(t)
+    const unsubscribe = subscribeSystemRefresh(load)
+    return () => {
+      clearInterval(t)
+      unsubscribe()
+    }
   }, [])
 
   useEffect(() => {
