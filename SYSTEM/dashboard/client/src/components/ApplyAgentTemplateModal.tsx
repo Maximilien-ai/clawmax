@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useToast } from './Toast'
-import { fetchModelsWithByok, hasChatExecutionAccess } from '../lib/byok'
+import { fetchModelsWithByok, hasChatExecutionAccess, readStoredByokKeys } from '../lib/byok'
 
 interface AgentTemplate {
   name: string
@@ -12,6 +12,7 @@ interface ExecutionConfig {
   allowSystemKeysForUserExecution?: boolean
   ollamaEnabled?: boolean
   defaultOllamaBaseUrl?: string
+  preferredModel?: string
   recommendedModel?: string
   systemKeyDefaults?: {
     openai?: boolean
@@ -30,11 +31,13 @@ export default function ApplyAgentTemplateModal({
   onClose,
   onSuccess,
   defaultAgentId,
+  initialMode = 'customize',
 }: {
   template: AgentTemplate
   onClose: () => void
   onSuccess: () => void
   defaultAgentId?: string
+  initialMode?: 'customize' | 'apply-now'
 }) {
   const { showSuccess, showError } = useToast()
   const [agentId, setAgentId] = useState(defaultAgentId || template.agents[0]?.id || '')
@@ -57,8 +60,10 @@ export default function ApplyAgentTemplateModal({
   }, [showAllModels])
 
   const templateDefaultModel = template.agents[0]?.model?.trim() || ''
+  const browserPreferredModel = readStoredByokKeys().preferredModel?.trim() || ''
+  const resolvedDefaultModel = model || templateDefaultModel || executionConfig?.preferredModel || browserPreferredModel || executionConfig?.recommendedModel || ''
   const hasExecutionPath = hasChatExecutionAccess(executionConfig)
-  const hasResolvedDefaultModel = !!(model || templateDefaultModel || executionConfig?.recommendedModel || availableModels[0])
+  const hasResolvedDefaultModel = !!resolvedDefaultModel
   const applyBlockReason = !hasExecutionPath
     ? 'No chat execution path is configured for this dashboard. Add provider keys or enable the on-prem Ollama runtime before applying this agent.'
     : !hasResolvedDefaultModel
@@ -85,7 +90,7 @@ export default function ApplyAgentTemplateModal({
         body: JSON.stringify({
           templateSlug: template.slug || template.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
           agentId: agentId.trim(),
-          model: model || undefined,
+          model: model || (!templateDefaultModel ? resolvedDefaultModel : '') || undefined,
         }),
       })
 
@@ -112,6 +117,11 @@ export default function ApplyAgentTemplateModal({
         <p className="text-sm text-gray-600 mb-4 dark:text-gray-300">
           <span className="font-semibold">{template.name}</span> will create 1 new agent from the template.
         </p>
+        {initialMode === 'apply-now' && (
+          <div className="mb-4 rounded border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200">
+            Applying now uses the template defaults unless you override them below.
+          </div>
+        )}
 
         {error && (
           <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-800">
@@ -160,6 +170,11 @@ export default function ApplyAgentTemplateModal({
             {!showAllModels && (
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                 Showing the conservative compatibility list by default. Enable <span className="font-medium">Show all models</span> if you need to try a newer runtime model.
+              </p>
+            )}
+            {hasResolvedDefaultModel && (
+              <p className="mt-2 text-xs text-emerald-700 dark:text-emerald-300">
+                Default model that will be used: <span className="font-medium">{resolvedDefaultModel}</span>
               </p>
             )}
           </div>

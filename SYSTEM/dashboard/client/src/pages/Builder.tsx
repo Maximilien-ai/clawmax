@@ -11,6 +11,7 @@ import {
 import { expandPromptWithAI } from '../lib/aiPrompt'
 import { appendPromptAttachmentContext, createPromptAttachment, type PromptAttachment } from '../lib/promptAttachments'
 import { buildWorkspaceStarterPrompts, normalizeStarterPromptList, type StarterPromptAgent, type StarterPromptSkill, type StarterPromptTemplate, type StarterPromptWorkflow } from '../lib/builderStarterPrompts'
+import { organizationTemplateCanApplyNow } from '../lib/templateApplyReadiness'
 import AIPromptEditorModal from '../components/AIPromptEditorModal'
 
 type BuilderAction = {
@@ -29,6 +30,7 @@ type BuilderAction = {
   templateDraftTarget?: 'team' | 'company'
   prefillPrompt?: string
   templateRefineMode?: boolean
+  templateApplyMode?: 'customize' | 'apply-now'
 }
 
 type BuilderMatchedAsset = {
@@ -144,8 +146,12 @@ type ApiTemplate = StarterPromptTemplate & {
   slug?: string
   description?: string
   source?: string
+  type?: 'agent' | 'organization'
+  kind?: 'team' | 'company'
   tags?: string[]
   agents?: Array<{ id: string; name?: string; role?: string }>
+  workflows?: Array<{ id: string; name: string; content?: string }>
+  secretRequirements?: Array<{ key: string; label: string; required?: boolean; sensitive?: boolean; workflowFieldLabel?: string }>
 }
 
 const TEMPLATE_KEYWORDS = ['template', 'templates', 'refine template', 'edit template', 'team template', 'organization template']
@@ -769,12 +775,21 @@ async function buildClientFallbackRecommendation(prompt: string): Promise<Builde
   }
 
   if (intent === 'team_template') {
+    const orgTemplateKindLabel = scope === 'team_of_teams' ? 'company template' : 'team template'
+    const orgTemplateKindLabelTitle = scope === 'team_of_teams' ? 'Company Template' : 'Team Template'
+    const canApplyTopOrgTemplateNow = topOrgTemplate
+      ? organizationTemplateCanApplyNow(
+          organizationTemplates.find((template) => (
+            (template.slug || template.name) === topOrgTemplate.id || template.name === topOrgTemplate.name
+          )) || {}
+        )
+      : false
     const createNewTeamAction: BuilderAction = {
       id: 'create-team-template',
       label: scope === 'team_of_teams' ? 'AI Create Company Template' : 'AI Create Team Template',
       description: scope === 'team_of_teams'
-        ? 'Create a new company or team-of-teams template from this prompt.'
-        : 'Create a new team template from this prompt.',
+        ? 'Create a new company or team-of-teams template blueprint from this prompt.'
+        : 'Create a new team template blueprint from this prompt.',
       page: 'templates',
       action: 'create-ai',
       templateDraftTarget: scope === 'team_of_teams' ? 'company' : 'team',
@@ -782,14 +797,35 @@ async function buildClientFallbackRecommendation(prompt: string): Promise<Builde
     }
     const refineTeamTemplateAction: BuilderAction = {
       id: 'open-team-templates',
-      label: topOrgTemplate ? `Refine ${topOrgTemplate.name}` : 'Open Templates',
+      label: topOrgTemplate ? `Refine ${orgTemplateKindLabelTitle}` : 'Open Templates',
       description: topOrgTemplate
-        ? 'Open the closest team template so you can inspect or refine it.'
-        : 'Review existing team templates before creating a new one.',
+        ? `Open the closest ${orgTemplateKindLabel} blueprint so you can inspect or refine ${topOrgTemplate.name}.`
+        : `Review existing ${orgTemplateKindLabel} blueprints before creating a new one.`,
       page: 'templates',
       templateId: topOrgTemplate?.id,
       templateName: topOrgTemplate?.name,
       templateType: 'organization',
+      templateApplyMode: 'customize',
+    }
+    const applyTeamTemplateAction: BuilderAction = {
+      id: 'apply-team-template',
+      label: `Apply ${orgTemplateKindLabelTitle}`,
+      description: `Open the matched ${orgTemplateKindLabel} and customize it before applying.`,
+      page: 'templates',
+      templateId: topOrgTemplate?.id,
+      templateName: topOrgTemplate?.name,
+      templateType: 'organization',
+      templateApplyMode: 'customize',
+    }
+    const applyTeamTemplateNowAction: BuilderAction = {
+      id: 'apply-team-template-now',
+      label: `Apply ${orgTemplateKindLabelTitle} Now`,
+      description: `Apply the matched ${orgTemplateKindLabel} using its defaults first.`,
+      page: 'templates',
+      templateId: topOrgTemplate?.id,
+      templateName: topOrgTemplate?.name,
+      templateType: 'organization',
+      templateApplyMode: 'apply-now',
     }
     return {
       intent,
@@ -798,26 +834,26 @@ async function buildClientFallbackRecommendation(prompt: string): Promise<Builde
       confidence,
       summary: `${preferNewTeamTemplate
         ? (topOrgTemplate
-          ? `${topOrgTemplate.name} is the closest existing team template, but it still looks generic for this request.`
-          : 'This request sounds multi-role, but there is not a strong existing team template match yet.')
-        : (topOrgTemplate ? `${topOrgTemplate.name} looks like the closest team template.` : 'This request sounds multi-role and coordination heavy.')} ${fallbackNotice}${confidence === 'low' ? ' Confirm below if you want a team template rather than reusing current assets.' : ''}`,
+          ? `${topOrgTemplate.name} is the closest existing ${orgTemplateKindLabel}, but it still looks generic for this request.`
+          : `This request sounds multi-role, but there is not a strong existing ${orgTemplateKindLabel} match yet.`)
+        : (topOrgTemplate ? `${topOrgTemplate.name} looks like the closest ${orgTemplateKindLabel}.` : 'This request sounds multi-role and coordination heavy.')} ${fallbackNotice}${confidence === 'low' ? ` Confirm below if you want a ${orgTemplateKindLabel} rather than reusing current assets.` : ''}`,
       clarifyingQuestions: ['What are the core roles or lanes this team needs?', 'What should the kickoff and final output look like?'],
       confirmationOptions,
       recommendedPath: {
         title: preferNewTeamTemplate
           ? (scope === 'team_of_teams' ? 'Create a new company template' : 'Create a new team template')
-          : (topOrgTemplate ? `Start from team template ${topOrgTemplate.name}` : 'Start from a team template'),
+          : (topOrgTemplate ? `Start from ${orgTemplateKindLabel} ${topOrgTemplate.name}` : `Start from a ${orgTemplateKindLabel}`),
         reasoning: preferNewTeamTemplate
-          ? 'The closest existing team template is not specific enough, so a fresh AI-created template is the better starting point.'
-          : 'A multi-role template is the fastest path for handoffs and workflow structure.',
+          ? 'The closest existing team template blueprint is not specific enough, so a fresh AI-created template is the better starting point.'
+          : 'A multi-role template blueprint is the fastest path for handoffs, groups, and workflow structure.',
         primaryAction: preferNewTeamTemplate
           ? createNewTeamAction
-          : { id: 'open-team-templates', label: 'Open Templates', description: 'Apply or refine a matching team template.', page: 'templates' },
+          : applyTeamTemplateAction,
       },
       alternativePaths: [
         ...(topOrgTemplate ? [{
-          title: `Refine ${topOrgTemplate.name}`,
-          reasoning: 'Use the closest existing template as a starting point if you want to adapt instead of starting net-new.',
+          title: `Refine ${orgTemplateKindLabel} ${topOrgTemplate.name}`,
+          reasoning: `Use the closest existing ${orgTemplateKindLabel} as a starting point if you want to adapt instead of starting net-new.`,
           action: refineTeamTemplateAction,
         }] : []),
         {
@@ -828,8 +864,9 @@ async function buildClientFallbackRecommendation(prompt: string): Promise<Builde
       ],
       matchedAssets: { agents: matchedAgents, skills: matchedSkills, agentTemplates: matchedAgentTemplates, organizationTemplates: matchedOrganizationTemplates, workflows: matchedWorkflows },
       suggestedActions: [
-        preferNewTeamTemplate ? createNewTeamAction : { id: 'open-team-templates', label: 'Open Templates', description: 'Apply or refine a matching team template.', page: 'templates' },
-        ...(topOrgTemplate ? [refineTeamTemplateAction] : []),
+        preferNewTeamTemplate ? createNewTeamAction : applyTeamTemplateAction,
+        ...(topOrgTemplate ? [canApplyTopOrgTemplateNow ? applyTeamTemplateNowAction : refineTeamTemplateAction] : []),
+        ...(topOrgTemplate && canApplyTopOrgTemplateNow ? [refineTeamTemplateAction] : []),
         { id: 'open-workflows', label: 'Open Workflows', description: 'Review kickoff and final output flow expectations.', page: 'workflows' },
       ],
       testPlan: [
@@ -842,6 +879,26 @@ async function buildClientFallbackRecommendation(prompt: string): Promise<Builde
   }
 
   if (intent === 'agent_template') {
+    const applyAgentTemplateAction: BuilderAction = {
+      id: 'apply-agent-template',
+      label: 'Apply Agent Template',
+      description: 'Open the matched agent template and customize it before applying.',
+      page: 'templates',
+      templateId: topAgentTemplate?.id,
+      templateName: topAgentTemplate?.name,
+      templateType: 'agent',
+      templateApplyMode: 'customize',
+    }
+    const applyAgentTemplateNowAction: BuilderAction = {
+      id: 'apply-agent-template-now',
+      label: 'Apply Agent Template Now',
+      description: 'Apply the matched agent template using its defaults first.',
+      page: 'templates',
+      templateId: topAgentTemplate?.id,
+      templateName: topAgentTemplate?.name,
+      templateType: 'agent',
+      templateApplyMode: 'apply-now',
+    }
     return {
       intent,
       scope,
@@ -851,15 +908,15 @@ async function buildClientFallbackRecommendation(prompt: string): Promise<Builde
         ? (hasSkillLanguage
           ? `${topAgentTemplate.name} looks like the closest agent template, so create that role first and then add the requested skill or integration.`
           : `${topAgentTemplate.name} looks like the closest agent template.`)
-        : 'A role-specific agent template is probably the fastest starter here.'} ${fallbackNotice}${confidence === 'low' ? ' Confirm below if you want a new template-based agent rather than reusing an existing one.' : ''}`,
+        : 'A role-specific agent template blueprint is probably the fastest starter here.'} ${fallbackNotice}${confidence === 'low' ? ' Confirm below if you want a new template-based agent rather than reusing an existing one.' : ''}`,
       clarifyingQuestions: ['Is there already an agent in the workspace that is close enough to reuse?', 'What is the first task this agent should complete?'],
       confirmationOptions,
       recommendedPath: {
         title: topAgentTemplate ? `Start from agent template ${topAgentTemplate.name}` : 'Start from an agent template',
         reasoning: hasSkillLanguage
           ? 'Create the closest matching role first, then add the missing skill or integration as the next step.'
-          : 'A known role template is likely faster than building the whole identity by hand.',
-        primaryAction: { id: 'open-agent-templates', label: 'Open Templates', description: 'Use a matching agent template as the starting point.', page: 'templates' },
+          : 'A known role template blueprint is likely faster than building the whole identity by hand.',
+        primaryAction: topAgentTemplate ? applyAgentTemplateAction : { id: 'open-agent-templates', label: 'Open Templates', description: 'Use a matching agent template blueprint as the starting point.', page: 'templates', templateApplyMode: 'customize' },
       },
       alternativePaths: [
         {
@@ -870,7 +927,8 @@ async function buildClientFallbackRecommendation(prompt: string): Promise<Builde
       ],
       matchedAssets: { agents: matchedAgents, skills: matchedSkills, agentTemplates: matchedAgentTemplates, organizationTemplates: matchedOrganizationTemplates, workflows: matchedWorkflows },
       suggestedActions: [
-        { id: 'open-agent-templates', label: 'Open Templates', description: 'Use a matching agent template as the starting point.', page: 'templates' },
+        topAgentTemplate ? applyAgentTemplateAction : { id: 'open-agent-templates', label: 'Open Templates', description: 'Use a matching agent template blueprint as the starting point.', page: 'templates', templateApplyMode: 'customize' },
+        ...(topAgentTemplate ? [applyAgentTemplateNowAction] : []),
         { id: 'open-agents', label: 'Open Agents', description: 'Compare against current workspace agents before duplicating a role.', page: 'agents' },
         ...(hasSkillLanguage ? [
           { id: 'review-skills', label: 'Open Skills', description: 'Add the requested skill or integration after creating the agent role.', page: 'skills' as const },
@@ -932,6 +990,19 @@ function getBuilderFeedbackStorageKey(workspaceKey: string): string {
   return `${BUILDER_FEEDBACK_STORAGE_PREFIX}:${workspaceKey}`
 }
 
+function getBuilderStarterPromptsVisibilityKey(workspaceKey: string): string {
+  return `clawmax-builder-starter-prompts:${workspaceKey}`
+}
+
+function hasUserAppliedTemplateBefore(): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    return localStorage.getItem('clawmax-template-literacy') === '1'
+  } catch {
+    return false
+  }
+}
+
 function loadStoredBuilderSession(workspaceKey: string): { messages: BuilderMessage[]; recommendation: BuilderRecommendation | null } | null {
   if (typeof window === 'undefined') return null
   try {
@@ -990,6 +1061,20 @@ function saveBuilderFeedback(workspaceKey: string, feedback: Record<string, 'up'
   localStorage.setItem(getBuilderFeedbackStorageKey(workspaceKey), JSON.stringify(feedback))
 }
 
+function loadBuilderStarterPromptsVisibility(workspaceKey: string): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    return localStorage.getItem(getBuilderStarterPromptsVisibilityKey(workspaceKey)) === '1'
+  } catch {
+    return false
+  }
+}
+
+function saveBuilderStarterPromptsVisibility(workspaceKey: string, visible: boolean) {
+  if (typeof window === 'undefined') return
+  localStorage.setItem(getBuilderStarterPromptsVisibilityKey(workspaceKey), visible ? '1' : '0')
+}
+
 function buildTemplateSelection(action: BuilderAction): string | null {
   if (action.page !== 'templates') return null
   if (action.action === 'create-ai' && action.templateDraftTarget && action.prefillPrompt) {
@@ -1015,6 +1100,7 @@ function buildTemplateSelection(action: BuilderAction): string | null {
       templateId: action.templateId || action.templateName || '',
       templateName: action.templateName || action.templateId || '',
       templateType: action.templateType,
+      applyMode: action.templateApplyMode || undefined,
     }))
     window.dispatchEvent(new CustomEvent('clawmax-open-template-from-onboarding'))
     return action.templateType
@@ -1113,8 +1199,36 @@ function createAssetAction(asset: BuilderMatchedAsset, matchedAssets: BuilderRec
 
 function getSecondarySuggestedActions(recommendation: BuilderRecommendation | null): BuilderAction[] {
   if (!recommendation) return []
+  const primary = recommendation.recommendedPath.primaryAction
+  const semanticKey = (action: BuilderAction) => {
+    if (action.page !== 'templates') {
+      return [
+        action.label.trim().toLowerCase(),
+        action.page,
+        action.action || '',
+        action.agentId || '',
+        action.skillName || '',
+        action.workflowId || '',
+        action.templateId || '',
+        action.templateApplyMode || '',
+      ].join('|')
+    }
+    const normalizedLabel = action.label.trim().toLowerCase()
+    if (action.action === 'create-ai') return `templates:create-ai:${action.templateDraftTarget || ''}`
+    if (action.templateApplyMode === 'apply-now') return `templates:apply-now:${action.templateId || action.templateName || ''}`
+    if (action.templateApplyMode === 'customize' && normalizedLabel.includes('apply')) return `templates:apply-customize:${action.templateId || action.templateName || ''}`
+    if (normalizedLabel.includes('refine') || normalizedLabel.includes('edit')) return `templates:refine:${action.templateId || action.templateName || ''}`
+    return `templates:open:${action.templateId || action.templateName || normalizedLabel}`
+  }
+  const seen = new Set([semanticKey(primary), primary.id])
   return recommendation.suggestedActions
-    .filter((action) => action.id !== recommendation.recommendedPath.primaryAction.id)
+    .filter((action) => {
+      const key = semanticKey(action)
+      if (seen.has(action.id) || seen.has(key)) return false
+      seen.add(action.id)
+      seen.add(key)
+      return true
+    })
     .slice(0, 2)
 }
 
@@ -1216,7 +1330,8 @@ export default function Builder({
   const [promptDraftBeforeHistory, setPromptDraftBeforeHistory] = useState('')
   const [showRightPane, setShowRightPane] = useState(true)
   const [showPromptEditor, setShowPromptEditor] = useState(false)
-  const [showStarterPrompts, setShowStarterPrompts] = useState(true)
+  const [showStarterPrompts, setShowStarterPrompts] = useState(false)
+  const [hasAppliedTemplate, setHasAppliedTemplate] = useState(false)
   const [remoteShareEnabled, setRemoteShareEnabled] = useState(false)
   const [remoteShareChecked, setRemoteShareChecked] = useState(false)
   const [sessionActionNotice, setSessionActionNotice] = useState<{
@@ -1287,7 +1402,19 @@ export default function Builder({
     setViewingArchive(null)
     setDeleteConfirm(null)
     setFeedbackByRecommendation(loadBuilderFeedback(workspaceKey))
+    setShowStarterPrompts(loadBuilderStarterPromptsVisibility(workspaceKey))
+    setHasAppliedTemplate(hasUserAppliedTemplateBefore())
   }, [workspaceKey])
+
+  useEffect(() => {
+    saveBuilderStarterPromptsVisibility(workspaceKey, showStarterPrompts)
+  }, [showStarterPrompts, workspaceKey])
+
+  useEffect(() => {
+    const syncTemplateLiteracy = () => setHasAppliedTemplate(hasUserAppliedTemplateBefore())
+    window.addEventListener('clawmax-template-applied', syncTemplateLiteracy)
+    return () => window.removeEventListener('clawmax-template-applied', syncTemplateLiteracy)
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -1992,13 +2119,9 @@ export default function Builder({
                 }`}>AI Builder</h1>
                 {!hasConversation ? (
                   <p className="mt-2 max-w-3xl text-sm text-gray-600 dark:text-gray-300">
-                    Start with a prompt or use a suggestion below.
+                    Start with a prompt or open suggestions.
                   </p>
-                ) : (
-                  <p className="mt-2 max-w-3xl text-xs text-gray-500 dark:text-gray-400">
-                    Focused on the current conversation and recommendation.
-                  </p>
-                )}
+                ) : null}
               </div>
               {recommendation && (
                 <div className="flex flex-wrap items-center gap-2">
@@ -2061,7 +2184,7 @@ export default function Builder({
                   </div>
                 ) : (
                   <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
-                    Hidden until you want starter ideas.
+                    Hidden until you want ideas.
                   </div>
                 )}
               </div>
@@ -2127,6 +2250,11 @@ export default function Builder({
                       </div>
                     </div>
                     <p className="mt-1.5 text-sm text-gray-600 dark:text-gray-300">{recommendation.recommendedPath.reasoning}</p>
+                    {!hasAppliedTemplate && (recommendation.intent === 'team_template' || recommendation.intent === 'agent_template') && (
+                      <p className="mt-1 text-xs text-sky-700 dark:text-sky-300">
+                        Templates are blueprints for agents, workflows, groups, and related setup.
+                      </p>
+                    )}
                     {recommendation.groupingSuggestion && (
                       <div className="mt-2 rounded-2xl border border-sky-200/70 bg-white/80 px-3 py-2 dark:border-sky-900/70 dark:bg-gray-900/60">
                         <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">
@@ -2163,7 +2291,7 @@ export default function Builder({
                     {secondarySuggestedActions.length > 0 && (
                       <div className="mt-2.5">
                         <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">
-                          Then Consider
+                          Also Try
                         </div>
                         <div className="flex flex-wrap gap-2">
                           {secondarySuggestedActions.map((nextAction) => (
@@ -2352,11 +2480,6 @@ export default function Builder({
                 </button>
               </div>
 
-              {!hasConversation && (
-                <div className="mt-2 text-[11px] text-gray-600 dark:text-gray-300">
-                  Say whether this is one agent or a team.
-                </div>
-              )}
               <div className="mt-2 text-[11px] text-gray-500 dark:text-gray-400">
                 <span className="font-medium text-gray-700 dark:text-gray-200">Enter</span> sends. <span className="font-medium text-gray-700 dark:text-gray-200">Shift + Enter</span> adds a line. <span className="font-medium text-gray-700 dark:text-gray-200">↑ / ↓</span> revisits recent prompts.
               </div>
@@ -2755,20 +2878,20 @@ export default function Builder({
               <button
                 onClick={() => {
                   setShowClearConfirm(false)
-                  resetBuilderSession()
+                  archiveCurrentSession()
                 }}
                 className="rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:border-sky-300 hover:text-sky-700 dark:border-gray-700 dark:text-gray-200 dark:hover:border-sky-700 dark:hover:text-sky-200"
               >
-                Clear only
+                Archive & Reset
               </button>
               <button
                 onClick={() => {
                   setShowClearConfirm(false)
-                  archiveCurrentSession()
+                  resetBuilderSession()
                 }}
                 className="rounded-full bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700"
               >
-                Archive & Reset
+                Clear only
               </button>
             </div>
           </div>
