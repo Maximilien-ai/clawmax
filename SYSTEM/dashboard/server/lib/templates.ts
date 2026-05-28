@@ -834,7 +834,7 @@ function runOrganizationPostImportSetup(args: {
     }
   }
 
-  setTimeout(() => {
+  const deferredPostImport = setTimeout(() => {
     // Non-critical follow-through can stay off the request path.
 
     for (const templateAgent of agentsToCreate) {
@@ -876,6 +876,7 @@ function runOrganizationPostImportSetup(args: {
       }
     }
   }, 0)
+  deferredPostImport.unref?.()
 }
 
 // ============================================================================
