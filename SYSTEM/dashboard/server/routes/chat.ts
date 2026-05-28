@@ -11,6 +11,7 @@ import { readWorkspaceIntegrationConfig } from '../lib/workspace-integrations'
 import { userExecutionEnv } from '../lib/safe-env'
 import { checkBudgetBlock } from '../lib/budget'
 import { normalizeChatMessage } from '../lib/chat-normalization'
+import { resolveOpenClawCliPath } from '../lib/openclaw-cli'
 import {
   deriveWorkspaceRootFromAgentWorkspace,
   readLatestAssistantUsageFromPersistedSession,
@@ -343,7 +344,8 @@ router.post('/:id/chat', (req, res) => {
     '--message', message,
     ...(useLocal ? ['--local'] : []),
   ]
-  console.log(`[Chat Route] Spawning: openclaw ${args.join(' ')}`)
+  const openclawCli = resolveOpenClawCliPath()
+  console.log(`[Chat Route] Spawning: ${openclawCli || 'openclaw'} ${args.join(' ')}`)
 
   let procExited = false
   let proc: ReturnType<typeof spawn> | null = null
@@ -360,7 +362,13 @@ router.post('/:id/chat', (req, res) => {
     openaiCompatibleDefaultModel: useOpenAiCompatible ? (byok?.openaiCompatibleDefaultModel || integrationConfig.openaiCompatibleDefaultModel) : undefined,
   }, resolvedAgent.model, resolvedAgent.provider, async () => {
     await new Promise<void>((resolve) => {
-      const spawned = spawn('openclaw', args, {
+      if (!openclawCli) {
+        send('error', 'OpenClaw CLI is not available in this runtime. Install or bundle the CLI, or set OPENCLAW_BIN to the executable path.')
+        resolve()
+        return
+      }
+
+      const spawned = spawn(openclawCli, args, {
         env: executionEnv,
         stdio: ['pipe', 'pipe', 'pipe']
       })

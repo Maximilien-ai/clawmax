@@ -143,8 +143,9 @@ export async function expandPromptWithAI(
   format: PromptExpansionFormat = 'markdown',
   guidance: PromptExpansionGuidance = '',
 ): Promise<string> {
+  const model = resolveModel('gpt-4o')
   const completion = await getSystemOpenAiClient().chat.completions.create({
-    model: resolveModel('gpt-4o'),
+    model,
     messages: [
       {
         role: 'system',
@@ -156,7 +157,7 @@ export async function expandPromptWithAI(
       },
     ],
     temperature: 0.5,
-    max_tokens: 500,
+    ...completionTokenLimit(model, 500),
   })
 
   return (completion.choices[0].message.content || prompt).trim()
@@ -230,8 +231,9 @@ export async function generateBuilderStarterPromptsWithAI(input: BuilderStarterP
     otherWorkspaceNames: (input.otherWorkspaceNames || []).slice(0, 6),
   }, null, 2)
 
+  const model = resolveModel('gpt-4o-mini')
   const completion = await getSystemOpenAiClient().chat.completions.create({
-    model: resolveModel('gpt-4o-mini'),
+    model,
     messages: [
       {
         role: 'system',
@@ -243,7 +245,7 @@ export async function generateBuilderStarterPromptsWithAI(input: BuilderStarterP
       },
     ],
     temperature: 0.8,
-    max_tokens: 500,
+    ...completionTokenLimit(model, 500),
   })
 
   const raw = extractJsonResponseText(completion.choices[0].message.content || '')
@@ -259,8 +261,9 @@ export async function generateBuilderStarterPromptsWithAI(input: BuilderStarterP
 
 export async function inferBuilderGroupingWithAI(input: BuilderLlmFallbackInput): Promise<BuilderLlmFallbackOutput> {
   const context = JSON.stringify(input, null, 2)
+  const model = resolveModel('gpt-4o-mini')
   const completion = await getSystemOpenAiClient().chat.completions.create({
-    model: resolveModel('gpt-4o-mini'),
+    model,
     messages: [
       {
         role: 'system',
@@ -272,7 +275,7 @@ export async function inferBuilderGroupingWithAI(input: BuilderLlmFallbackInput)
       },
     ],
     temperature: 0.3,
-    max_tokens: 350,
+    ...completionTokenLimit(model, 350),
   })
 
   const parsed = parseJsonResponse<BuilderLlmFallbackOutput>(completion.choices[0].message.content || '', {
@@ -488,6 +491,21 @@ function resolveModel(requestedModel: string): string {
 
 function getSystemOpenAiClient(): OpenAI {
   return currentClient().client
+}
+
+function stripProviderPrefix(model: string): string {
+  return String(model || '').trim().replace(/^[^/]+\//, '')
+}
+
+export function shouldUseMaxCompletionTokens(model: string): boolean {
+  const { provider } = getAvailableProvider(_requestByokKeys)
+  return provider === 'openai' && /^gpt-5(?:-|$)/i.test(stripProviderPrefix(model))
+}
+
+function completionTokenLimit(model: string, limit: number): { max_tokens?: number; max_completion_tokens?: number } {
+  return shouldUseMaxCompletionTokens(model)
+    ? { max_completion_tokens: limit }
+    : { max_tokens: limit }
 }
 
 interface GenerateAgentFilesInput {
@@ -1158,8 +1176,9 @@ export async function generateAgentMeta(description: string): Promise<{
     availableSkills = listAvailableSkills().map((s: any) => s.id || s.name)
   } catch {}
 
+  const model = resolveModel('gpt-4o')
   const completion = await getSystemOpenAiClient().chat.completions.create({
-    model: resolveModel('gpt-4o'),
+    model,
     messages: [
       {
         role: 'system',
@@ -1188,7 +1207,7 @@ Rules:
       { role: 'user', content: description }
     ],
     temperature: 0.7,
-    max_tokens: 200,
+    ...completionTokenLimit(model, 200),
   })
 
   const parsed = parseJsonResponse<{
@@ -1327,8 +1346,9 @@ export async function generateSkillFromNL(description: string, currentDraft?: Pa
   getAvailableProvider(_requestByokKeys)
 
   const isRefinement = !!currentDraft
+  const model = resolveModel('gpt-4o-mini')
   const completion = await getSystemOpenAiClient().chat.completions.create({
-    model: resolveModel('gpt-4o-mini'),
+    model,
     messages: [
       {
         role: 'system',
@@ -1369,7 +1389,7 @@ Respond with JSON only.`
       }
     ],
     temperature: 0.6,
-    max_tokens: 500,
+    ...completionTokenLimit(model, 500),
   })
 
   const parsed = parseJsonResponse<Partial<GeneratedSkillScaffold>>(
@@ -1403,8 +1423,9 @@ export async function generateArchiveTitle(messages: Message[]): Promise<string>
   const contextMessages = messages.slice(0, 5).map(m => `${m.role}: ${m.content}`).join('\n')
 
   try {
+    const model = resolveModel('gpt-4o-mini')
     const completion = await getSystemOpenAiClient().chat.completions.create({
-      model: resolveModel('gpt-4o-mini'),
+      model,
       messages: [
         {
           role: 'system',
@@ -1416,7 +1437,7 @@ export async function generateArchiveTitle(messages: Message[]): Promise<string>
         }
       ],
       temperature: 0.7,
-      max_tokens: 20,
+      ...completionTokenLimit(model, 20),
     })
 
     const title = completion.choices[0].message.content?.trim() || ''
@@ -2061,8 +2082,9 @@ export async function generateCronFromText(text: string, timezone?: string): Pro
       month: '2-digit',
       day: '2-digit',
     }).format(new Date())
+    const model = resolveModel('gpt-4o-mini')
     const completion = await getSystemOpenAiClient().chat.completions.create({
-      model: resolveModel('gpt-4o-mini'),
+      model,
       messages: [
         {
           role: 'system',
@@ -2087,7 +2109,7 @@ Rules:
         }
       ],
       temperature: 0.1,
-      max_tokens: 100,
+      ...completionTokenLimit(model, 100),
     })
 
     const raw = completion.choices[0].message.content?.trim() || ''

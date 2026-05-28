@@ -24,6 +24,7 @@ import { scopeSessionIdToModel, resolveAgentExecutionConfig, resolvePersistedAge
 import { resolveDefaultAgentModel } from '../lib/agent-default-model'
 import { getAuthenticatedSession } from '../lib/github-auth'
 import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
+import { resolveOpenClawCliPath } from '../lib/openclaw-cli'
 
 /** Find the root dir of a pnpm package by scanning .pnpm store for a prefix */
 function findPnpmPkg(repoDir: string, prefix: string, pkgSubPath: string): string | null {
@@ -709,6 +710,7 @@ router.post('/doctor', async (req, res) => {
 
   // Check if openclaw CLI is available
   let hasOpenclawCli = false
+  const openclawCliPath = resolveOpenClawCliPath()
   let platformMessage: string | undefined
   let gatewayFixOutput: string | undefined
   const isManagedRuntime = Object.keys(getDashboardEnvRaw()).length === 0
@@ -746,8 +748,9 @@ router.post('/doctor', async (req, res) => {
     return null
   }
   try {
-    execSync('which openclaw', { stdio: 'pipe' })
-    const versionText = String(execSync('openclaw --version', { stdio: 'pipe', env: safeEnv() }) || '').trim()
+    if (!openclawCliPath) throw new Error('missing')
+    const { execFileSync } = require('child_process')
+    const versionText = String(execFileSync(openclawCliPath, ['--version'], { stdio: 'pipe', env: safeEnv() }) || '').trim()
     if (versionText.includes('openclaw fixture')) {
       platformMessage = 'OpenClaw CLI resolves to a fixture runtime instead of a real build.'
     } else {
@@ -888,9 +891,11 @@ router.post('/doctor', async (req, res) => {
       const agentDirArg = path.join(process.env.HOME || '', '.openclaw', 'agents', agentId, 'agent')
       try {
         fs.mkdirSync(agentDirArg, { recursive: true })
-        const { execSync } = require('child_process')
-        execSync(
-          `openclaw agents add ${agentId} --workspace "${workspaceArg}" --agent-dir "${agentDirArg}" --non-interactive`,
+        if (!openclawCliPath) throw new Error('OpenClaw CLI unavailable')
+        const { execFileSync } = require('child_process')
+        execFileSync(
+          openclawCliPath,
+          ['agents', 'add', agentId, '--workspace', workspaceArg, '--agent-dir', agentDirArg, '--non-interactive'],
           { encoding: 'utf-8', stdio: 'pipe', timeout: 15000, env: safeEnv() }
         )
         checks.push({ check: 'registered', status: 'fixed', message: 'Registered with openclaw CLI' })

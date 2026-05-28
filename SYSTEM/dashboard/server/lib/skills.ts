@@ -1184,7 +1184,10 @@ const OPENCLAW_CONFIG_PATH = findOpenClawConfigPath()
 function loadOpenClawConfig(): OpenClawConfig {
   try {
     const content = fs.readFileSync(OPENCLAW_CONFIG_PATH, 'utf-8')
-    return JSON.parse(content)
+    const parsed = JSON.parse(content || '{}')
+    if (!parsed.agents || typeof parsed.agents !== 'object') parsed.agents = {}
+    if (!Array.isArray(parsed.agents.list)) parsed.agents.list = []
+    return parsed
   } catch (err) {
     console.error('Error loading openclaw.json:', err)
     throw new Error('Failed to load openclaw.json')

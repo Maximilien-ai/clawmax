@@ -18,6 +18,8 @@ import {
   parseJsonResponse,
   resolveSystemGenerationModelForProvider,
   resolveOpenAiCompatibleGenerationDefaults,
+  setRequestByokKeys,
+  shouldUseMaxCompletionTokens,
   shouldGenerateCompanyTemplate,
   validateAiGenerationProviderKeys,
 } from './ai-generator'
@@ -126,6 +128,14 @@ test('resolveSystemGenerationModelForProvider applies system preferred model whe
     resolveSystemGenerationModelForProvider('openai-compatible', 'openai/gpt-5', 'claude-sonnet-4-20250514'),
     undefined,
   )
+})
+
+test('shouldUseMaxCompletionTokens enables GPT-5 token compatibility', () => {
+  setRequestByokKeys({ openai: 'sk-test-openai-key' } as any)
+  assert.strictEqual(shouldUseMaxCompletionTokens('gpt-5'), true)
+  assert.strictEqual(shouldUseMaxCompletionTokens('openai/gpt-5'), true)
+  assert.strictEqual(shouldUseMaxCompletionTokens('gpt-4o'), false)
+  setRequestByokKeys(undefined)
 })
 
 test('shouldGenerateCompanyTemplate infers company from prompt unless agent is explicit', () => {

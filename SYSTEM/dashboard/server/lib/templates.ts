@@ -3,7 +3,7 @@ import path from 'path'
 import matter from 'gray-matter'
 import { getSystemProviderKeys } from './dashboard-env'
 import Ajv from 'ajv'
-import { execSync } from 'child_process'
+import { execFileSync, execSync } from 'child_process'
 import { getWorkspacePath, getAgentsDir, parseIdentity, listAgents, parseGroups, readWorkspaceFile, writeWorkspaceFile } from './workspace'
 import { setAgentSkills, getAgentSkills } from './skills'
 import { listWorkflows, createWorkflow } from './workflows'
@@ -14,6 +14,7 @@ import { resetAgentSessionsForModelChange, updateAgentModelInConfigFile } from '
 import { safeEnv } from './safe-env'
 import { recordTemplateApply, type CanonicalTemplateFeedbackSource, type CanonicalTemplateFeedbackType } from './template-feedback'
 import { resolveDefaultAgentModel } from './agent-default-model'
+import { resolveOpenClawCliPath } from './openclaw-cli'
 
 // Template storage paths (dynamic functions)
 
@@ -737,8 +738,13 @@ function ensureOpenClawAgentRegisteredForWorkspace(
   const existing = upsertOpenClawAgentRegistration(configPath, agentId, workspaceArg, agentDirArg)
   if (existing) return existing
 
+  const openclawCli = resolveOpenClawCliPath()
+  if (!openclawCli) {
+    return createOpenClawAgentRegistration(configPath, agentId, workspaceArg, agentDirArg)
+  }
+
   try {
-    execSync(`openclaw agents add ${agentId} --workspace "${workspaceArg}" --agent-dir "${agentDirArg}" --non-interactive`, {
+    execFileSync(openclawCli, ['agents', 'add', agentId, '--workspace', workspaceArg, '--agent-dir', agentDirArg, '--non-interactive'], {
       encoding: 'utf-8',
       stdio: 'pipe',
       env: registrationEnv,
@@ -746,6 +752,9 @@ function ensureOpenClawAgentRegisteredForWorkspace(
     const registered = upsertOpenClawAgentRegistration(configPath, agentId, workspaceArg, agentDirArg)
     return registered || createOpenClawAgentRegistration(configPath, agentId, workspaceArg, agentDirArg)
   } catch (err) {
+    if ((err as NodeJS.ErrnoException)?.code === 'ENOENT') {
+      return createOpenClawAgentRegistration(configPath, agentId, workspaceArg, agentDirArg)
+    }
     if (isOpenClawAgentAlreadyExistsError(err)) {
       const adopted = upsertOpenClawAgentRegistration(configPath, agentId, workspaceArg, agentDirArg)
       if (adopted) return adopted

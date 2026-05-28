@@ -616,6 +616,49 @@ test('setAgentSkills() is a no-op when the requested skills are unchanged', () =
   assertEqual(after, before, 'Expected no config rewrite when skills are unchanged')
 })
 
+test('setAgentSkills() tolerates minimal openclaw.json root shape', () => {
+  const configPath = path.join(testEnv.tempHome, '.openclaw', 'openclaw.json')
+  const workspacePath = path.join(testEnv.tempHome, '.openclaw', 'workspaces', 'skills-minimal-config-test')
+  const workspaceAgent = path.join(workspacePath, 'AGENTS', 'minimal-agent')
+
+  fs.mkdirSync(workspaceAgent, { recursive: true })
+  fs.writeFileSync(path.join(testEnv.tempHome, '.openclaw', 'dashboard-workspaces.json'), JSON.stringify({
+    version: '1.0.0',
+    activeWorkspaceId: 'skills-minimal-config-test',
+    workspaces: [
+      {
+        id: 'default',
+        name: 'Test',
+        path: path.join(testEnv.tempHome, '.openclaw', 'workspace'),
+        createdAt: new Date().toISOString(),
+        lastAccessedAt: new Date().toISOString()
+      },
+      {
+        id: 'skills-minimal-config-test',
+        name: 'Minimal Skills Config Test',
+        path: workspacePath,
+        createdAt: new Date().toISOString(),
+        lastAccessedAt: new Date().toISOString()
+      }
+    ]
+  }, null, 2))
+  fs.writeFileSync(configPath, JSON.stringify({
+    gateway: { auth: { token: 'stable-token' } },
+    agents: {
+      list: [
+        { id: 'minimal-agent', workspace: workspaceAgent },
+      ]
+    }
+  }, null, 2))
+  process.env.OPENCLAW_WORKSPACE = workspacePath
+  resetWorkspaceManagerForTests()
+
+  setAgentSkills('minimal-agent', ['github'])
+
+  const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  assertEqual(JSON.stringify(config.agents.list[0].skills), JSON.stringify(['github']), 'Expected skills to persist even from a minimal agent record')
+})
+
 test('setAgentSkills() refreshes TOOLS skill hints and resets cached sessions', () => {
   const configPath = path.join(testEnv.tempHome, '.openclaw', 'openclaw.json')
   const workspacePath = path.join(testEnv.tempHome, '.openclaw', 'workspaces', 'skills-sync-test')

@@ -40,6 +40,7 @@ import { allowSystemKeysForUserExecution, getSystemProviderKeys, getUserDefaultP
 import { getResolvedMaintenanceBanner } from './lib/cloud-maintenance-status'
 import { getHostAgentStatus } from './lib/host-agent-status'
 import { readWorkspaceIntegrationConfig } from './lib/workspace-integrations'
+import { resolveOpenClawCliPath } from './lib/openclaw-cli'
 
 // ============================================================================
 // Crash Protection & Error Logging
@@ -67,9 +68,8 @@ function execFileAsync(command: string, args: string[], options: { timeout?: num
 }
 
 async function autoRegisterWorkspaceAgents(): Promise<void> {
-  try {
-    await execFileAsync('which', ['openclaw'])
-  } catch {
+  const openclawCli = resolveOpenClawCliPath()
+  if (!openclawCli) {
     return
   }
 
@@ -95,7 +95,7 @@ async function autoRegisterWorkspaceAgents(): Promise<void> {
       if (!isManagedAgentWorkspaceDir(ws)) continue
       const ad = path.join(os.homedir(), '.openclaw', 'agents', d.name, 'agent')
       fs.mkdirSync(ad, { recursive: true })
-      await execFileAsync('openclaw', ['agents', 'add', d.name, '--workspace', ws, '--agent-dir', ad, '--non-interactive'], { timeout: 10000 })
+      await execFileAsync(openclawCli, ['agents', 'add', d.name, '--workspace', ws, '--agent-dir', ad, '--non-interactive'], { timeout: 10000 })
       fixed++
     } catch (err) {
       logToFile(`Auto-register skipped for ${d.name}: ${err instanceof Error ? err.message : String(err)}`)
