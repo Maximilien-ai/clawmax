@@ -166,6 +166,9 @@ print_ok "Installed release bundle to $TARGET_DIR_ABS"
 
 print_info "Starting setup..."
 cd "$TARGET_DIR_ABS"
+if [ ! -t 0 ] && [ -z "${AUTH_MODE:-}" ]; then
+  export AUTH_MODE="bypass"
+fi
 if [ "${#SETUP_ARGS[@]}" -gt 0 ]; then
   exec ./setup.sh "${SETUP_ARGS[@]}"
 fi

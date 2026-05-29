@@ -22,6 +22,7 @@ cat >"$release_root/setup.sh" <<'EOF'
 set -euo pipefail
 printf '%s\n' "$#" > /tmp/clawmax-install-args-count.txt
 printf '%s\n' "$*" > /tmp/clawmax-install-args.txt
+printf '%s\n' "${AUTH_MODE:-}" > /tmp/clawmax-install-auth-mode.txt
 EOF
 chmod +x "$release_root/setup.sh"
 
@@ -68,7 +69,7 @@ EOF
 chmod +x "$fake_curl_dir/curl"
 
 target_dir="$tmp_dir/install-target"
-rm -f /tmp/clawmax-install-args-count.txt /tmp/clawmax-install-args.txt
+rm -f /tmp/clawmax-install-args-count.txt /tmp/clawmax-install-args.txt /tmp/clawmax-install-auth-mode.txt
 
 (
   cd "$ROOT_DIR"
@@ -80,10 +81,11 @@ rm -f /tmp/clawmax-install-args-count.txt /tmp/clawmax-install-args.txt
 
 [[ -f /tmp/clawmax-install-args-count.txt ]] || fail "setup.sh was not invoked"
 [[ "$(cat /tmp/clawmax-install-args-count.txt)" == "0" ]] || fail "expected zero setup args when installer is called without pass-through args"
+[[ "$(cat /tmp/clawmax-install-auth-mode.txt)" == "bypass" ]] || fail "expected installer to default AUTH_MODE=bypass for non-interactive setup"
 pass "install.sh invokes setup.sh without error when no passthrough args are provided"
 
 rm -rf "$target_dir"
-rm -f /tmp/clawmax-install-args-count.txt /tmp/clawmax-install-args.txt
+rm -f /tmp/clawmax-install-args-count.txt /tmp/clawmax-install-args.txt /tmp/clawmax-install-auth-mode.txt
 
 (
   cd "$ROOT_DIR"
@@ -96,4 +98,5 @@ rm -f /tmp/clawmax-install-args-count.txt /tmp/clawmax-install-args.txt
 [[ -f /tmp/clawmax-install-args-count.txt ]] || fail "setup.sh was not invoked for passthrough args case"
 [[ "$(cat /tmp/clawmax-install-args-count.txt)" == "3" ]] || fail "expected passthrough args to reach setup.sh"
 [[ "$(cat /tmp/clawmax-install-args.txt)" == "--non-interactive --port 3001" ]] || fail "expected passthrough args to preserve ordering"
+[[ "$(cat /tmp/clawmax-install-auth-mode.txt)" == "bypass" ]] || fail "expected installer to preserve bypass default for passthrough setup"
 pass "install.sh forwards setup.sh passthrough args"
