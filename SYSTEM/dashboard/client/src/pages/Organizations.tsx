@@ -3,6 +3,7 @@ import SaveAsOrgTemplateModal from '../components/SaveAsOrgTemplateModal'
 import { ConfirmDeleteDialog } from '../components/ConfirmDeleteDialog'
 import { PageLoading } from '../components/LoadingSpinner'
 import { useWorkspace } from '../contexts/WorkspaceContext'
+import { headerSecondaryButtonClass, headerSecondaryButtonIdleClass } from '../lib/headerControls'
 import { buildOrganizationDeletePlan, buildOrganizationDisplayTeams } from '../lib/organizationTeams'
 import { ProductIconCell } from '../lib/productIcons'
 
@@ -549,6 +550,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
   const [latestWorkflowOutputs, setLatestWorkflowOutputs] = useState<Map<string, WorkflowExecutionOutputSummary>>(new Map())
   const [communitiesSectionCollapsed, setCommunitiesSectionCollapsed] = useState(false)
   const [groupsSectionCollapsed, setGroupsSectionCollapsed] = useState(false)
+  const [agentsSectionCollapsed, setAgentsSectionCollapsed] = useState(false)
   const [teamsSectionCollapsed, setTeamsSectionCollapsed] = useState(false)
   const [collapsedCompanyIds, setCollapsedCompanyIds] = useState<Set<string>>(new Set())
   const [organizationViewMode, setOrganizationViewMode] = useState<OrganizationViewMode>(() => {
@@ -563,6 +565,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
     return saved === 'comfortable' || saved === 'compact' || saved === 'dense' ? saved : 'compact'
   })
   const [showSaveModal, setShowSaveModal] = useState(false)
+  const [showOrganizationActionsMenu, setShowOrganizationActionsMenu] = useState(false)
   const [orgName, setOrgName] = useState('Workspace Org')
   const [orgDescription, setOrgDescription] = useState('Describe this workspace organization')
   const [editingOrg, setEditingOrg] = useState(false)
@@ -842,6 +845,11 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
     }
     return map
   }, [filteredTeams])
+
+  const rootTeamCount = filteredTeams.filter((team) => !team.parentTeamId).length
+  const nestedTeamCount = filteredTeams.filter((team) => !!team.parentTeamId).length
+  const uniqueLeaderCount = new Set(filteredTeams.map((team) => team.leaderAgentId).filter(Boolean)).size
+
   const teamWorkflows = useMemo(() => {
     const workflowsByTeam = new Map<string, Workflow[]>()
     const teamMembership = filteredTeams.map((team) => ({
@@ -1090,11 +1098,21 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
   }, [initialGroupName, groups])
 
   const expandAll = () => {
+    setTeamsSectionCollapsed(false)
+    setAgentsSectionCollapsed(false)
+    setCommunitiesSectionCollapsed(false)
+    setGroupsSectionCollapsed(false)
+    setCollapsedCompanyIds(new Set())
     setExpandedCommunities(new Set(communities.map(c => c.name)))
     setExpandedGroups(new Set(groups.map(g => g.name)))
   }
 
   const collapseAll = () => {
+    setTeamsSectionCollapsed(false)
+    setAgentsSectionCollapsed(true)
+    setCommunitiesSectionCollapsed(true)
+    setGroupsSectionCollapsed(true)
+    setCollapsedCompanyIds(new Set(filteredTeams.filter((team) => !team.parentTeamId).map((team) => team.id)))
     setExpandedCommunities(new Set())
     setExpandedGroups(new Set())
   }
@@ -1567,33 +1585,55 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
               ☰
             </button>
           </div>
-          <button
-            onClick={expandAll}
-            className="inline-flex items-center gap-2 text-sm font-medium text-sky-600 hover:text-sky-800 transition-colors"
-          >
-            <ProductIconCell iconName="create" label="Expand All" size="sm" className="border-transparent bg-transparent text-current rotate-45" />
-            Expand All
-          </button>
-          <button
-            onClick={collapseAll}
-            className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-800 transition-colors dark:text-gray-200"
-          >
-            <ProductIconCell iconName="import" label="Collapse All" size="sm" className="border-transparent bg-transparent text-current -rotate-90" />
-            Collapse All
-          </button>
-          <button
-            onClick={() => setShowSaveModal(true)}
-            disabled={agents.length === 0}
-            className={`inline-flex items-center gap-2 px-4 py-2 text-sm rounded transition-colors ${
-              agents.length === 0
-                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                : 'bg-sky-600 text-white hover:bg-sky-700'
-            }`}
-            title={agents.length === 0 ? 'No agents to export' : 'Export organization as template'}
-          >
-            <ProductIconCell iconName="export" label="Export as Template" size="sm" className={agents.length === 0 ? 'border-white/10 bg-white/10 text-white/70' : 'border-white/20 bg-white/10 text-white'} />
-            Export as Template
-          </button>
+          <div className="relative">
+            <button
+              onClick={() => setShowOrganizationActionsMenu(!showOrganizationActionsMenu)}
+              className={`${headerSecondaryButtonClass} ${headerSecondaryButtonIdleClass}`}
+              title="Organization actions"
+            >
+              <ProductIconCell iconName="organization" label="Actions" size="sm" className="border-transparent bg-transparent text-current" /> Actions <span className="text-xs">▾</span>
+            </button>
+            {showOrganizationActionsMenu && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setShowOrganizationActionsMenu(false)} />
+                <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20 py-1">
+                  <button
+                    onClick={() => {
+                      setShowOrganizationActionsMenu(false)
+                      expandAll()
+                    }}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-sky-50 dark:hover:bg-sky-900/30 transition-colors flex items-center gap-2"
+                  >
+                    <ProductIconCell iconName="create" label="Expand All" size="sm" className="border-sky-200 bg-sky-50 text-sky-600 dark:border-sky-700 dark:bg-sky-900/30 dark:text-sky-300 rotate-45" /> Expand All
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowOrganizationActionsMenu(false)
+                      collapseAll()
+                    }}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center gap-2"
+                  >
+                    <ProductIconCell iconName="import" label="Collapse All" size="sm" className="border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900/30 dark:text-gray-300 -rotate-90" /> Collapse All
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (agents.length === 0) return
+                      setShowOrganizationActionsMenu(false)
+                      setShowSaveModal(true)
+                    }}
+                    disabled={agents.length === 0}
+                    className={`w-full text-left px-4 py-2 text-sm transition-colors flex items-center gap-2 ${
+                      agents.length === 0
+                        ? 'text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                        : 'text-gray-700 dark:text-gray-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30'
+                    }`}
+                  >
+                    <ProductIconCell iconName="export" label="Export as Template" size="sm" className={agents.length === 0 ? 'border-gray-200 bg-gray-50 text-gray-400 dark:border-gray-700 dark:bg-gray-900/30 dark:text-gray-500' : 'border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'} /> Export as Template
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -1705,23 +1745,32 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
                   </h2>
                 </div>
                 <div className="text-xs text-amber-700 dark:text-amber-400">
-                  {filteredTeams.filter((team) => !team.parentTeamId).length} top-level · {filteredTeams.filter((team) => !!team.parentTeamId).length} nested
+                  {rootTeamCount} org chart{rootTeamCount !== 1 ? 's' : ''} · {nestedTeamCount} subteam{nestedTeamCount !== 1 ? 's' : ''}
                 </div>
               </div>
               {!teamsSectionCollapsed && (
                 <div className="p-4">
                   <div className="mb-4 grid gap-3 md:grid-cols-3">
-                    <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/70 dark:bg-amber-900/10 p-3">
-                      <div className="text-[11px] uppercase tracking-wide text-amber-700 dark:text-amber-400">Top Level</div>
-                      <div className="mt-1 text-2xl font-semibold text-amber-950 dark:text-amber-200">{filteredTeams.filter((team) => !team.parentTeamId).length}</div>
+                    <div className="rounded-lg border border-amber-200/80 dark:border-amber-800 bg-white/80 dark:bg-amber-900/10 p-3.5">
+                      <div className="flex items-center gap-2">
+                        <div className="text-[11px] uppercase tracking-wide text-amber-700 dark:text-amber-400">Org Charts</div>
+                        <div className="inline-flex min-w-7 items-center justify-center rounded-full bg-amber-100 px-2 py-0.5 text-sm font-semibold text-amber-950 dark:bg-amber-900/30 dark:text-amber-200">{rootTeamCount}</div>
+                      </div>
+                      <div className="mt-2 text-sm leading-snug text-amber-900/85 dark:text-amber-300/85">Independent top-level structures in this workspace.</div>
                     </div>
-                    <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/70 dark:bg-amber-900/10 p-3">
-                      <div className="text-[11px] uppercase tracking-wide text-amber-700 dark:text-amber-400">Nested Teams</div>
-                      <div className="mt-1 text-2xl font-semibold text-amber-950 dark:text-amber-200">{filteredTeams.filter((team) => !!team.parentTeamId).length}</div>
+                    <div className="rounded-lg border border-amber-200/80 dark:border-amber-800 bg-white/80 dark:bg-amber-900/10 p-3.5">
+                      <div className="flex items-center gap-2">
+                        <div className="text-[11px] uppercase tracking-wide text-amber-700 dark:text-amber-400">Subteams</div>
+                        <div className="inline-flex min-w-7 items-center justify-center rounded-full bg-amber-100 px-2 py-0.5 text-sm font-semibold text-amber-950 dark:bg-amber-900/30 dark:text-amber-200">{nestedTeamCount}</div>
+                      </div>
+                      <div className="mt-2 text-sm leading-snug text-amber-900/85 dark:text-amber-300/85">Teams nested under another team in the chart.</div>
                     </div>
-                    <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/70 dark:bg-amber-900/10 p-3">
-                      <div className="text-[11px] uppercase tracking-wide text-amber-700 dark:text-amber-400">Leaders</div>
-                      <div className="mt-1 text-2xl font-semibold text-amber-950 dark:text-amber-200">{new Set(filteredTeams.map((team) => team.leaderAgentId).filter(Boolean)).size}</div>
+                    <div className="rounded-lg border border-amber-200/80 dark:border-amber-800 bg-white/80 dark:bg-amber-900/10 p-3.5">
+                      <div className="flex items-center gap-2">
+                        <div className="text-[11px] uppercase tracking-wide text-amber-700 dark:text-amber-400">Team Leads</div>
+                        <div className="inline-flex min-w-7 items-center justify-center rounded-full bg-amber-100 px-2 py-0.5 text-sm font-semibold text-amber-950 dark:bg-amber-900/30 dark:text-amber-200">{uniqueLeaderCount}</div>
+                      </div>
+                      <div className="mt-2 text-sm leading-snug text-amber-900/85 dark:text-amber-300/85">Unique agents currently leading a team.</div>
                     </div>
                   </div>
 
@@ -1834,27 +1883,32 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
 
           {/* All Agents */}
           <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 shadow-sm dark:border-gray-700">
-            <div className="px-4 py-3 border-b border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900">
-              <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                <span className="inline-flex items-center gap-2"><ProductIconCell iconName="ai" label="All Agents" size="sm" />All Agents ({agents.length})</span>
-              </h2>
-            </div>
-            <div className="p-4">
-              <div className="flex flex-wrap gap-2">
-                {filteredAgents.sort((a, b) => a.name.localeCompare(b.name)).map(agent => (
-                  <button
-                    key={agent.id}
-                    onClick={() => onNavigateToAgent?.(agent.id)}
-                    className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded border border-gray-200 bg-gray-50 font-medium hover:bg-gray-100 hover:border-gray-300 transition-colors cursor-pointer dark:border-gray-700 dark:bg-gray-900 dark:bg-gray-800 dark:border-gray-600 dark:hover:bg-gray-700"
-                    title={`Go to ${agent.name} in Agents page`}
-                  >
-                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_DOT[agent.status]}`} />
-                    {agent.name}
-                    <span className="text-gray-400">({agent.id})</span>
-                  </button>
-                ))}
+            <div className="px-4 py-3 border-b border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900 flex items-center justify-between">
+              <div className="flex items-center gap-2 cursor-pointer" onClick={() => setAgentsSectionCollapsed(!agentsSectionCollapsed)}>
+                <span className="text-sm">{agentsSectionCollapsed ? '▶' : '▼'}</span>
+                <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                  <span className="inline-flex items-center gap-2"><ProductIconCell iconName="ai" label="All Agents" size="sm" />All Agents ({agents.length})</span>
+                </h2>
               </div>
             </div>
+            {!agentsSectionCollapsed && (
+              <div className="p-4">
+                <div className="flex flex-wrap gap-2">
+                  {filteredAgents.sort((a, b) => a.name.localeCompare(b.name)).map(agent => (
+                    <button
+                      key={agent.id}
+                      onClick={() => onNavigateToAgent?.(agent.id)}
+                      className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded border border-gray-200 bg-gray-50 font-medium hover:bg-gray-100 hover:border-gray-300 transition-colors cursor-pointer dark:border-gray-700 dark:bg-gray-900 dark:bg-gray-800 dark:border-gray-600 dark:hover:bg-gray-700"
+                      title={`Go to ${agent.name} in Agents page`}
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_DOT[agent.status]}`} />
+                      {agent.name}
+                      <span className="text-gray-400">({agent.id})</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Communities */}
