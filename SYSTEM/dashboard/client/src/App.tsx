@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import Builder from './pages/Builder'
 import Agents from './pages/Agents'
 import DocHub from './pages/DocHub'
@@ -360,6 +360,7 @@ export default function App() {
     const saved = localStorage.getItem(SYSTEM_NAV_EXPANDED_STORAGE_KEY)
     return saved === 'true'
   })
+  const systemTourAutoExpandRef = useRef<null | boolean>(null)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [docFile, setDocFile] = useState<string | undefined>(undefined)
   const [initialAgentId, setInitialAgentId] = useState<string | undefined>(undefined)
@@ -596,6 +597,34 @@ export default function App() {
 
   useEffect(() => {
     localStorage.setItem(SYSTEM_NAV_EXPANDED_STORAGE_KEY, String(systemNavExpanded))
+  }, [systemNavExpanded])
+
+  useEffect(() => {
+    const handleWorkspaceTourStep = (event: Event) => {
+      const detail = (event as CustomEvent<{ visible?: boolean; stepId?: string | null }>).detail
+      const isSystemStep = detail?.visible === true && detail?.stepId === 'system'
+
+      if (isSystemStep) {
+        if (systemTourAutoExpandRef.current === null) {
+          systemTourAutoExpandRef.current = systemNavExpanded
+        }
+        if (!systemNavExpanded) {
+          setSystemNavExpanded(true)
+        }
+        return
+      }
+
+      if (systemTourAutoExpandRef.current !== null) {
+        const wasExpandedBeforeTourStep = systemTourAutoExpandRef.current
+        systemTourAutoExpandRef.current = null
+        if (!wasExpandedBeforeTourStep) {
+          setSystemNavExpanded(false)
+        }
+      }
+    }
+
+    window.addEventListener('clawmax-workspace-tour-step', handleWorkspaceTourStep as EventListener)
+    return () => window.removeEventListener('clawmax-workspace-tour-step', handleWorkspaceTourStep as EventListener)
   }, [systemNavExpanded])
 
   return (

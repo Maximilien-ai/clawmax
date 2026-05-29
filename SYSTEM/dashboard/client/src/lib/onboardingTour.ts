@@ -45,18 +45,18 @@ export const WORKSPACE_TOUR_STEPS: WorkspaceTourStep[] = [
     page: 'agents',
   },
   {
-    id: 'communications',
-    target: '[data-tour="nav-communication"]',
-    title: 'Agent conversations happen here',
-    description: 'Use Communications to watch agents chat and coordinate with each other. You can monitor the conversation and interject when needed.',
-    page: 'communication',
-  },
-  {
     id: 'workflows',
     target: '[data-tour="nav-workflows"]',
     title: 'Workflows coordinate repeatable work',
     description: 'Use Workflows when an agent or team needs a recurring process, approvals, or handoffs instead of one-off chats.',
     page: 'workflows',
+  },
+  {
+    id: 'communications',
+    target: '[data-tour="nav-communication"]',
+    title: 'Agent conversations happen here',
+    description: 'Use Communications to watch agents chat and coordinate with each other. You can monitor the conversation and interject when needed.',
+    page: 'communication',
   },
   {
     id: 'skills',
@@ -74,10 +74,9 @@ export const WORKSPACE_TOUR_STEPS: WorkspaceTourStep[] = [
   },
   {
     id: 'system',
-    target: ['[data-tour="nav-keys"]', '[data-tour="nav-activity"]', '[data-tour="nav-logs"]'],
+    target: '[data-tour="nav-docs"]',
     title: 'System controls live down here',
-    description: 'Use Keys & Secrets for credentials, Activity & Budget for usage and cost tracking, and System & Logs when you need diagnostics or runtime details.',
-    page: 'keys',
+    description: 'Use Documents for DocHub and agent/workflow files, Keys & Secrets for credentials, Activity & Budget for usage and cost tracking, and System & Logs when you need diagnostics or runtime details.',
   },
 ]
 

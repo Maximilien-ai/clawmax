@@ -132,11 +132,10 @@ test('workspace tour exposes the expected ten guided steps', () => {
   assert.equal(WORKSPACE_TOUR_STEPS.length, 10)
   assert.deepEqual(
     WORKSPACE_TOUR_STEPS.map((step) => step.id),
-    ['workspace', 'byok', 'notifications', 'builder', 'agents', 'communications', 'workflows', 'skills', 'templates', 'system'],
+    ['workspace', 'byok', 'notifications', 'builder', 'agents', 'workflows', 'communications', 'skills', 'templates', 'system'],
   )
   const systemStep = WORKSPACE_TOUR_STEPS.find((step) => step.id === 'system')
-  assert(Array.isArray(systemStep?.target), 'Expected system step to target multiple system nav items')
-  assert.deepEqual(systemStep?.target, ['[data-tour="nav-keys"]', '[data-tour="nav-activity"]', '[data-tour="nav-logs"]'])
+  assert.equal(systemStep?.target, '[data-tour="nav-docs"]')
 })
 
 console.log('onboardingTour.test.ts: ok')

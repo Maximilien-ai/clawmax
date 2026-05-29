@@ -56,12 +56,32 @@ export function WorkspaceFirstRunTour({
   }, [visible])
 
   useEffect(() => {
+    window.dispatchEvent(new CustomEvent('clawmax-workspace-tour-step', {
+      detail: {
+        visible,
+        stepId: visible ? step.id : null,
+      },
+    }))
+    return () => {
+      window.dispatchEvent(new CustomEvent('clawmax-workspace-tour-step', {
+        detail: {
+          visible: false,
+          stepId: null,
+        },
+      }))
+    }
+  }, [visible, step.id])
+
+  useEffect(() => {
     if (!visible || !step?.page) return
     onNavigateToPage(step.page)
   }, [visible, step?.page, onNavigateToPage])
 
   useEffect(() => {
     if (!visible) return
+    let rafId: number | null = null
+    let timeoutId: number | null = null
+
     const refreshRect = () => {
       const selectors = Array.isArray(step.target) ? step.target : [step.target]
       const elements = selectors
@@ -71,9 +91,15 @@ export function WorkspaceFirstRunTour({
     }
 
     refreshRect()
+    rafId = window.requestAnimationFrame(() => {
+      refreshRect()
+      timeoutId = window.setTimeout(refreshRect, 120)
+    })
     window.addEventListener('resize', refreshRect)
     window.addEventListener('scroll', refreshRect, true)
     return () => {
+      if (rafId !== null) window.cancelAnimationFrame(rafId)
+      if (timeoutId !== null) window.clearTimeout(timeoutId)
       window.removeEventListener('resize', refreshRect)
       window.removeEventListener('scroll', refreshRect, true)
     }
