@@ -34,6 +34,7 @@ export interface SkillInstallOption {
   label: string
   formula?: string
   package?: string
+  module?: string
   bins?: string[]
 }
 
@@ -90,7 +91,7 @@ export interface OpenClawSkill {
 }
 
 export interface SkillRequirementInstallCommand {
-  kind: 'brew'
+  kind: 'brew' | 'apt' | 'npm' | 'pnpm' | 'uv' | 'go' | 'node'
   command: string
   args: string[]
   display: string
@@ -192,6 +193,41 @@ const DEFAULT_SKILL_SETUP_REQUIREMENTS: Record<string, NonNullable<OpenClawSkill
   },
 }
 
+const DEFAULT_SKILL_INSTALL_OPTIONS: Record<string, SkillInstallOption[]> = {
+  github: [
+    {
+      id: 'brew',
+      kind: 'brew',
+      formula: 'gh',
+      bins: ['gh'],
+      label: 'Install GitHub CLI (brew)',
+    },
+    {
+      id: 'apt',
+      kind: 'apt',
+      package: 'gh',
+      bins: ['gh'],
+      label: 'Install GitHub CLI (apt)',
+    },
+  ],
+  himalaya: [
+    {
+      id: 'brew',
+      kind: 'brew',
+      formula: 'himalaya',
+      bins: ['himalaya'],
+      label: 'Install Himalaya (brew)',
+    },
+    {
+      id: 'apt',
+      kind: 'apt',
+      package: 'himalaya',
+      bins: ['himalaya'],
+      label: 'Install Himalaya (apt)',
+    },
+  ],
+}
+
 function buildGenericSkillSetupRequirement(skill: {
   requires?: SkillRequirements
   secretRequirements?: OpenClawSkill['secretRequirements']
@@ -250,6 +286,25 @@ function normalizeStringArray(values: unknown): string[] {
 
 function normalizeSkillTags(tags: string[] | undefined): string[] {
   return normalizeStringArray(tags).slice(0, 12)
+}
+
+function normalizeSkillInstallOptions(name: string, install: SkillInstallOption[] | undefined): SkillInstallOption[] | undefined {
+  const merged = [...(DEFAULT_SKILL_INSTALL_OPTIONS[name] || []), ...(Array.isArray(install) ? install : [])]
+  if (merged.length === 0) return undefined
+  const seen = new Set<string>()
+  const normalized: SkillInstallOption[] = []
+  for (const option of merged) {
+    const key = [
+      option.kind,
+      option.formula?.trim() || '',
+      option.package?.trim() || '',
+      option.label?.trim() || '',
+    ].join(':')
+    if (seen.has(key)) continue
+    seen.add(key)
+    normalized.push(option)
+  }
+  return normalized
 }
 
 // Paths to skill directories
@@ -322,6 +377,50 @@ function defaultBinaryExists(bin: string): boolean {
   }
 
   return buildBinarySearchPaths().some((dir) => fs.existsSync(path.join(dir, bin)))
+}
+
+function commandExists(command: string): boolean {
+  return defaultBinaryExists(command)
+}
+
+function getPreferredInstallKinds(platform: NodeJS.Platform = process.platform, commandExistsFn: (command: string) => boolean = commandExists): Array<SkillInstallOption['kind']> {
+  switch (platform) {
+    case 'darwin':
+      return ['brew', 'npm', 'pnpm', 'uv', 'go', 'node', 'apt']
+    case 'linux':
+      if (commandExistsFn('apt-get') || commandExistsFn('apt')) return ['apt', 'npm', 'pnpm', 'uv', 'go', 'node', 'brew']
+      if (commandExistsFn('brew')) return ['brew', 'npm', 'pnpm', 'uv', 'go', 'node', 'apt']
+      return ['apt', 'npm', 'pnpm', 'uv', 'go', 'node', 'brew']
+    default:
+      return ['npm', 'pnpm', 'uv', 'go', 'node', 'brew', 'apt']
+  }
+}
+
+function canRunInstallOption(
+  option: SkillInstallOption,
+  platform: NodeJS.Platform = process.platform,
+  commandExistsFn: (command: string) => boolean = commandExists
+): boolean {
+  if ((option as any).os && Array.isArray((option as any).os) && (option as any).os.length > 0 && !(option as any).os.includes(platform)) {
+    return false
+  }
+  switch (option.kind) {
+    case 'brew':
+      return commandExistsFn('brew')
+    case 'apt':
+      return commandExistsFn('apt-get') || commandExistsFn('apt')
+    case 'npm':
+    case 'node':
+      return commandExistsFn('npm')
+    case 'pnpm':
+      return commandExistsFn('pnpm')
+    case 'uv':
+      return commandExistsFn('uv')
+    case 'go':
+      return commandExistsFn('go')
+    default:
+      return false
+  }
 }
 
 function getInstallCheckBins(skill: Pick<OpenClawSkill, 'requires' | 'install'>): string[] {
@@ -579,8 +678,8 @@ function parseSkillFile(
       variantOf: openclawMeta.variantOf,
       originalSource: openclawMeta.originalSource,
       requires,
-      install: openclawMeta.install,
-      requirementStatus: getSkillRequirementStatus({ requires, install: openclawMeta.install }),
+      install: normalizeSkillInstallOptions(data.name, openclawMeta.install),
+      requirementStatus: getSkillRequirementStatus({ requires, install: normalizeSkillInstallOptions(data.name, openclawMeta.install) }),
       homepage: openclawMeta.homepage,
       tags: openclawMeta.tags || data.tags || [],
       registryProvider: openclawMeta.registryProvider,
@@ -635,8 +734,8 @@ function parseWorkspaceSkillFile(filePath: string, skillId: string): OpenClawSki
       variantOf: openclawMeta.variantOf,
       originalSource: openclawMeta.originalSource,
       requires,
-      install: data.install || openclawMeta.install,
-      requirementStatus: getSkillRequirementStatus({ requires, install: data.install || openclawMeta.install }),
+      install: normalizeSkillInstallOptions(name, data.install || openclawMeta.install),
+      requirementStatus: getSkillRequirementStatus({ requires, install: normalizeSkillInstallOptions(name, data.install || openclawMeta.install) }),
       homepage: data.homepage || openclawMeta.homepage,
       tags: data.tags || openclawMeta.tags || [],
       registryProvider: openclawMeta.registryProvider,
@@ -695,21 +794,119 @@ export function getSkillContent(skillId: string): { skill: OpenClawSkill; conten
   return { skill, content, editable }
 }
 
-export function getSkillRequirementInstallCommands(skill: OpenClawSkill): SkillRequirementInstallCommand[] {
+export function getSkillRequirementInstallCommands(
+  skill: OpenClawSkill,
+  options?: {
+    platform?: NodeJS.Platform
+    commandExists?: (command: string) => boolean
+  }
+): SkillRequirementInstallCommand[] {
   const commands: SkillRequirementInstallCommand[] = []
   const seen = new Set<string>()
+  const installOptions = skill.install || []
+  const platform = options?.platform || process.platform
+  const commandExistsFn = options?.commandExists || commandExists
+  const preferredKinds = getPreferredInstallKinds(platform, commandExistsFn)
 
-  for (const option of skill.install || []) {
-    if (option.kind !== 'brew' || !option.formula) continue
-    const formula = option.formula.trim()
-    if (!formula || seen.has(formula)) continue
-    seen.add(formula)
-    commands.push({
-      kind: 'brew',
-      command: 'brew',
-      args: ['install', formula],
-      display: `brew install ${formula}`,
-    })
+  const sortedOptions = [...installOptions].sort((a, b) => {
+    const ai = preferredKinds.indexOf(a.kind)
+    const bi = preferredKinds.indexOf(b.kind)
+    return (ai === -1 ? Number.MAX_SAFE_INTEGER : ai) - (bi === -1 ? Number.MAX_SAFE_INTEGER : bi)
+  })
+
+  for (const option of sortedOptions) {
+    if (!canRunInstallOption(option, platform, commandExistsFn)) continue
+    if (option.kind === 'brew' && option.formula) {
+      const formula = option.formula.trim()
+      const key = `brew:${formula}`
+      if (!formula || seen.has(key)) continue
+      seen.add(key)
+      commands.push({
+        kind: 'brew',
+        command: 'brew',
+        args: ['install', formula],
+        display: `brew install ${formula}`,
+      })
+      continue
+    }
+    if (option.kind === 'apt' && option.package) {
+      const pkg = option.package.trim()
+      const key = `apt:${pkg}`
+      if (!pkg || seen.has(key)) continue
+      seen.add(key)
+      commands.push({
+        kind: 'apt',
+        command: 'apt-get',
+        args: ['install', '-y', pkg],
+        display: `apt-get install -y ${pkg}`,
+      })
+      continue
+    }
+    if (option.kind === 'npm' && option.package) {
+      const pkg = option.package.trim()
+      const key = `npm:${pkg}`
+      if (!pkg || seen.has(key)) continue
+      seen.add(key)
+      commands.push({
+        kind: 'npm',
+        command: 'npm',
+        args: ['install', '-g', pkg],
+        display: `npm install -g ${pkg}`,
+      })
+      continue
+    }
+    if (option.kind === 'pnpm' && option.package) {
+      const pkg = option.package.trim()
+      const key = `pnpm:${pkg}`
+      if (!pkg || seen.has(key)) continue
+      seen.add(key)
+      commands.push({
+        kind: 'pnpm',
+        command: 'pnpm',
+        args: ['add', '-g', pkg],
+        display: `pnpm add -g ${pkg}`,
+      })
+      continue
+    }
+    if (option.kind === 'uv' && option.package) {
+      const pkg = option.package.trim()
+      const key = `uv:${pkg}`
+      if (!pkg || seen.has(key)) continue
+      seen.add(key)
+      commands.push({
+        kind: 'uv',
+        command: 'uv',
+        args: ['tool', 'install', pkg],
+        display: `uv tool install ${pkg}`,
+      })
+      continue
+    }
+    if ((option.kind === 'go') && ((option as any).module || option.package)) {
+      const moduleName = String((option as any).module || option.package || '').trim()
+      const key = `go:${moduleName}`
+      if (!moduleName || seen.has(key)) continue
+      seen.add(key)
+      commands.push({
+        kind: 'go',
+        command: 'go',
+        args: ['install', moduleName],
+        display: `go install ${moduleName}`,
+      })
+      continue
+    }
+    if ((option.kind === 'node') && option.package) {
+      const pkg = option.package.trim()
+      const key = `node:${pkg}`
+      if (!pkg || seen.has(key)) continue
+      seen.add(key)
+      commands.push({
+        kind: 'node',
+        command: 'npm',
+        args: ['install', '-g', pkg],
+        display: `npm install -g ${pkg}`,
+      })
+      continue
+    }
   }
 
   return commands

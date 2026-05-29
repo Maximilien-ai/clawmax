@@ -803,6 +803,51 @@ test('getSkillRequirementInstallCommands() builds deduplicated brew commands', (
   assertEqual(commands[0].display, 'brew install gh', 'Expected brew install command display')
 })
 
+test('getSkillRequirementInstallCommands() prefers apt on linux when available', () => {
+  const skill = getSkillById('github')
+  assert(skill !== null, 'GitHub skill should exist')
+  const commands = getSkillRequirementInstallCommands(skill!, {
+    platform: 'linux',
+    commandExists: (command: string) => command === 'apt-get' || command === 'npm',
+  })
+
+  assertEqual(commands.length, 1, 'Expected a single linux-preferred install command')
+  assertEqual(commands[0].display, 'apt-get install -y gh', 'Expected apt install command on linux')
+})
+
+test('getSkillRequirementInstallCommands() does not emit brew on linux when brew is unavailable', () => {
+  const skill = getSkillById('himalaya')
+  assert(skill !== null, 'Himalaya skill should exist')
+  const commands = getSkillRequirementInstallCommands(skill!, {
+    platform: 'linux',
+    commandExists: (command: string) => command === 'apt-get',
+  })
+
+  assertEqual(commands.length, 1, 'Expected linux fallback install command for himalaya')
+  assertEqual(commands[0].display, 'apt-get install -y himalaya', 'Expected apt fallback install command for himalaya')
+})
+
+test('getSkillRequirementInstallCommands() supports go and node installers on linux', () => {
+  const commands = getSkillRequirementInstallCommands({
+    name: 'mixed-install-test',
+    description: 'test',
+    filePath: '',
+    bundled: false,
+    source: 'workspace',
+    install: [
+      { id: 'go-tool', kind: 'go', module: 'github.com/example/tool/cmd/tool@latest', bins: ['tool'], label: 'Install tool (go)' },
+      { id: 'node-tool', kind: 'node', package: '@example/tool', bins: ['tool'], label: 'Install tool (npm)' },
+    ],
+  }, {
+    platform: 'linux',
+    commandExists: (command: string) => command === 'go' || command === 'npm',
+  })
+
+  assertEqual(commands.length, 2, 'Expected go and node installers to both be supported')
+  assertEqual(commands[0].display, 'go install github.com/example/tool/cmd/tool@latest', 'Expected go install command')
+  assertEqual(commands[1].display, 'npm install -g @example/tool', 'Expected node install command')
+})
+
 test('validateSkillChanges() warns about preserved invalid skills without blocking valid additions', () => {
   const result = validateSkillChanges(
     ['fake-old-skill', 'github'],
@@ -1031,6 +1076,38 @@ This skill only ships index.js.`
   fs.rmSync(tmpDir, { recursive: true, force: true })
 
   console.log('  ✓ index.ts shim generated for index.js-only skill')
+})
+
+test('importWorkspaceSkill() applies install-option normalization for imported linux-relevant skills', () => {
+  try { deleteWorkspaceSkill('test-himalaya-skill') } catch (e) {}
+
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'test-skill-'))
+  const skillDir = path.join(tmpDir, 'test-himalaya-skill')
+  fs.mkdirSync(skillDir)
+
+  const skillContent = `---
+name: himalaya
+description: Imported Himalaya skill
+---
+
+# Himalaya
+
+Imported test skill.`
+
+  fs.writeFileSync(path.join(skillDir, 'SKILL.md'), skillContent)
+  fs.writeFileSync(path.join(skillDir, 'index.ts'), 'export default function() {}')
+
+  const result = importWorkspaceSkill(skillDir)
+  assert(result.success === true, `Import should succeed. Error: ${result.error}`)
+
+  const imported = getSkillById('test-himalaya-skill') || getSkillById('himalaya')
+  assert(imported !== null, 'Imported himalaya skill should be discoverable')
+  const aptOption = imported!.install?.find((option: SkillInstallOption) => option.kind === 'apt')
+  assert(aptOption !== undefined, 'Imported himalaya skill should gain apt install fallback')
+  assertEqual(aptOption!.package, 'himalaya', 'Expected himalaya apt package name')
+
+  deleteWorkspaceSkill('test-himalaya-skill')
+  fs.rmSync(tmpDir, { recursive: true, force: true })
 })
 
 // Test 19: createCustomSkill() writes index.ts stub
