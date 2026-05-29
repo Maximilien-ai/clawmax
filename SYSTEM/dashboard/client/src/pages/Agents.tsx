@@ -3859,7 +3859,7 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
       />
       {/* Line 3: quick actions + cost */}
       <div className="flex items-center gap-2 mb-1">
-        <div className="ml-auto flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
           {!agent.archived && (
             <button
               onClick={(e) => { e.stopPropagation(); onChat(); }}
@@ -3877,22 +3877,6 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
               {(metering.cost || 0).toFixed(2)}
             </span>
           )}
-          {onViewDocs && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onViewDocs(); }}
-              className="text-gray-300 hover:text-purple-500 transition-colors text-xs leading-none"
-              title="View docs"
-            >
-              <ProductIconCell iconName="docs" label="View docs" size="sm" className="border-transparent bg-transparent text-current" />
-            </button>
-          )}
-          <button
-            onClick={(e) => { e.stopPropagation(); onStatus(); }}
-            className="text-gray-300 hover:text-emerald-600 transition-colors text-xs leading-none"
-            title="View status"
-          >
-            <ProductIconCell iconName="status" label="View status" size="sm" className="border-transparent bg-transparent text-current" />
-          </button>
           {costTrackingEnabled && (
             <button
               onClick={(e) => { e.stopPropagation(); onSetBudget(); }}
@@ -3900,6 +3884,15 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
               title="Update agent budget"
             >
               <ProductIconCell iconName="budget" label="Update agent budget" size="sm" className="border-transparent bg-transparent text-current" />
+            </button>
+          )}
+          {onViewDocs && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onViewDocs(); }}
+              className="text-gray-300 hover:text-purple-500 transition-colors text-xs leading-none"
+              title="View docs"
+            >
+              <ProductIconCell iconName="docs" label="View docs" size="sm" className="border-transparent bg-transparent text-current" />
             </button>
           )}
         </div>
