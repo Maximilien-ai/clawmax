@@ -4,6 +4,12 @@ import { useToast } from '../components/Toast'
 import { ConfirmDeleteDialog } from '../components/ConfirmDeleteDialog'
 import { buildBulkHistoryClearPlan, getChannelHistoryClearEndpoint } from '../lib/communicationBulkActions'
 import { resolveCommunicationDocPath } from '../lib/communicationMessages'
+import {
+  headerPrimaryButtonClass,
+  headerSecondaryButtonActiveClass,
+  headerSecondaryButtonClass,
+  headerSecondaryButtonIdleClass,
+} from '../lib/headerControls'
 import { ProductIconCell } from '../lib/productIcons'
 
 interface GroupEntry {
@@ -96,6 +102,15 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
   const [memberCountFilter, setMemberCountFilter] = useState<'all' | 'zero' | 'one' | 'multi'>('all')
   const [selectionMode, setSelectionMode] = useState(false)
   const [selectedChannelKeys, setSelectedChannelKeys] = useState<Set<string>>(new Set())
+  const [showChannelActionsMenu, setShowChannelActionsMenu] = useState(false)
+  const [showCreateMenu, setShowCreateMenu] = useState(false)
+  const [showCreateCommunity, setShowCreateCommunity] = useState(false)
+  const [showCreateGroup, setShowCreateGroup] = useState(false)
+  const [newCommunityName, setNewCommunityName] = useState('')
+  const [newCommunityDesc, setNewCommunityDesc] = useState('')
+  const [newGroupName, setNewGroupName] = useState('')
+  const [newGroupDesc, setNewGroupDesc] = useState('')
+  const [newGroupCommunity, setNewGroupCommunity] = useState('')
   const [sortColumn, setSortColumn] = useState<ChannelSortColumn>('name')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [showSecondaryTags, setShowSecondaryTags] = useState(false)
@@ -260,6 +275,70 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
     setCooling(true)
     fetchAgents()
     setTimeout(() => setCooling(false), 3000)
+  }
+
+  const handleCreateCommunity = async () => {
+    if (!newCommunityName.trim()) return
+    if (workspaceCommunities.some((community) => community.name.toLowerCase() === newCommunityName.trim().toLowerCase())) {
+      showSuccess(`Community "${newCommunityName}" already exists`)
+      return
+    }
+
+    try {
+      const response = await fetch('/api/communities', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newCommunityName.trim(),
+          description: newCommunityDesc.trim() || undefined,
+          channels: ['whatsapp'],
+        }),
+      })
+
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+
+      setShowCreateCommunity(false)
+      setNewCommunityName('')
+      setNewCommunityDesc('')
+      showSuccess(`Community "${newCommunityName}" created`)
+      window.dispatchEvent(new CustomEvent('channels-updated'))
+      fetchAgents()
+    } catch (error) {
+      console.error('Failed to create community:', error)
+    }
+  }
+
+  const handleCreateGroup = async () => {
+    if (!newGroupName.trim()) return
+    if (workspaceGroups.some((group) => group.name.toLowerCase() === newGroupName.trim().toLowerCase())) {
+      showSuccess(`Group "${newGroupName}" already exists`)
+      return
+    }
+
+    try {
+      const response = await fetch('/api/groups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newGroupName.trim(),
+          description: newGroupDesc.trim() || undefined,
+          community: newGroupCommunity.trim() || undefined,
+          channels: ['whatsapp'],
+        }),
+      })
+
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+
+      setShowCreateGroup(false)
+      setNewGroupName('')
+      setNewGroupDesc('')
+      setNewGroupCommunity('')
+      showSuccess(`Group "${newGroupName}" created`)
+      window.dispatchEvent(new CustomEvent('channels-updated'))
+      fetchAgents()
+    } catch (error) {
+      console.error('Failed to create group:', error)
+    }
   }
 
   const handleDeleteChannel = async (channel: Channel) => {
@@ -651,8 +730,8 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
         onClick={() => chatPanelChannel && viewMode === 'list' && setChatPanelChannel(null)}
       >
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+        <div className="min-w-0">
           <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Communications</h1>
           <p className="text-sm text-gray-500 mt-0.5 flex items-center gap-1.5">
             {filteredChannels.length} channel{filteredChannels.length !== 1 ? 's' : ''}
@@ -662,7 +741,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
             refreshed {refreshedLabel}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           {/* View toggle */}
           <div className="flex items-center border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden dark:border-gray-700 bg-white dark:bg-gray-800">
             <button
@@ -680,34 +759,19 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
               <ProductIconCell iconName="list" label="List view" size="sm" className="border-transparent bg-transparent text-current" />
             </button>
           </div>
-          <button
-            onClick={handleRefresh}
-            disabled={cooling}
-            className={`inline-flex items-center gap-2 text-sm font-medium transition-colors ${
-              cooling ? 'text-gray-300 cursor-not-allowed' : 'text-sky-600 hover:text-sky-800'
-            }`}
-          >
-            <ProductIconCell iconName="refresh" label="Refresh" size="sm" className="border-transparent bg-transparent text-current" />
-            {cooling ? 'Refreshing…' : 'Refresh'}
-          </button>
-          <button
-            onClick={() => {
-              setSelectionMode(!selectionMode)
-              if (selectionMode) {
-                setSelectedChannelKeys(new Set())
-              }
-            }}
-            className={`text-sm font-medium px-3 py-1.5 rounded-md transition-colors flex items-center gap-1.5 ${
-              selectionMode
-                ? 'bg-blue-600 text-white hover:bg-blue-700'
-                : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
-            }`}
-          >
-            <ProductIconCell iconName="details" label={selectionMode ? 'Cancel selection' : 'Select'} size="sm" className={selectionMode ? 'border-white/20 bg-white/10 text-white' : 'border-transparent bg-transparent text-current'} />
-            {selectionMode ? 'Cancel' : 'Select'}
-          </button>
-          {selectionMode && (
-            <>
+          <div className="flex gap-2">
+            <button
+              onClick={() => {
+                setSelectionMode(!selectionMode)
+                if (selectionMode) {
+                  setSelectedChannelKeys(new Set())
+                }
+              }}
+              className={`${headerSecondaryButtonClass} ${selectionMode ? headerSecondaryButtonActiveClass : headerSecondaryButtonIdleClass}`}
+            >
+              <span className="text-base leading-none">☑</span> {selectionMode ? 'Cancel' : 'Select'}
+            </button>
+            {selectionMode && (
               <button
                 onClick={() => {
                   if (selectedChannelKeys.size === sortedChannels.length) {
@@ -716,28 +780,108 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
                     setSelectedChannelKeys(new Set(sortedChannels.map(channel => `${channel.type}:${channel.name}`)))
                   }
                 }}
-                className="text-sm font-medium px-3 py-1.5 rounded-md bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                className={`${headerSecondaryButtonClass} ${headerSecondaryButtonIdleClass}`}
               >
                 {selectedChannelKeys.size === sortedChannels.length ? 'Deselect All' : 'Select All'}
               </button>
-            </>
-          )}
-          {selectionMode && selectedChannelKeys.size > 0 && (
-            <button
-              onClick={handleBulkClearChannelHistory}
-              className="text-sm font-medium px-3 py-1.5 rounded-md bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors"
-            >
-              Clear History ({selectedChannelKeys.size})
-            </button>
-          )}
-          {selectionMode && selectedChannelKeys.size > 0 && (
-            <button
-              onClick={handleBulkDeleteChannels}
-              className="text-sm font-medium px-3 py-1.5 rounded-md bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors"
-            >
-              Delete Selected ({selectedChannelKeys.size})
-            </button>
-          )}
+            )}
+            <div className="relative">
+              <button
+                onClick={() => setShowCreateMenu(!showCreateMenu)}
+                className={headerPrimaryButtonClass}
+                title="Create communication channel"
+              >
+                <span>Create</span> <span className="text-xs leading-none">▾</span>
+              </button>
+              {showCreateMenu && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowCreateMenu(false)} />
+                  <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20 py-1">
+                    <button
+                      onClick={() => {
+                        setShowCreateMenu(false)
+                        setShowCreateCommunity(true)
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-sky-50 dark:hover:bg-sky-900/30 transition-colors flex items-center gap-2"
+                    >
+                      <ProductIconCell iconName="community" label="Create Community" size="sm" className="border-sky-200 bg-sky-50 text-sky-600 dark:border-sky-700 dark:bg-sky-900/30 dark:text-sky-300" /> Create Community
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowCreateMenu(false)
+                        setShowCreateGroup(true)
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors flex items-center gap-2"
+                    >
+                      <ProductIconCell iconName="group" label="Create Group" size="sm" className="border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" /> Create Group
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+            <div className="relative">
+              <button
+                onClick={() => setShowChannelActionsMenu(!showChannelActionsMenu)}
+                className={`${headerSecondaryButtonClass} ${headerSecondaryButtonIdleClass}`}
+                title="Communication actions"
+              >
+                <ProductIconCell iconName="community" label="Actions" size="sm" className="border-transparent bg-transparent text-current" /> <span>Actions</span> <span className="text-xs leading-none">▾</span>
+              </button>
+              {showChannelActionsMenu && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowChannelActionsMenu(false)} />
+                  <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20 py-1">
+                    <button
+                      onClick={() => {
+                        if (cooling) return
+                        setShowChannelActionsMenu(false)
+                        handleRefresh()
+                      }}
+                      disabled={cooling}
+                      className={`w-full text-left px-4 py-2 text-sm transition-colors flex items-center gap-2 ${
+                        cooling
+                          ? 'text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                          : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      <ProductIconCell iconName="refresh" label="Refresh" size="sm" className="border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900/30 dark:text-gray-300" /> {cooling ? 'Refreshing…' : 'Refresh'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowChannelActionsMenu(false)
+                        setShowSecondaryTags((current) => !current)
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-sky-50 dark:hover:bg-sky-900/30 transition-colors flex items-center gap-2"
+                    >
+                      <ProductIconCell iconName="tags" label="Secondary tags" size="sm" className="border-sky-200 bg-sky-50 text-sky-600 dark:border-sky-700 dark:bg-sky-900/30 dark:text-sky-300" /> {showSecondaryTags ? 'Hide Secondary Tags' : 'Show Secondary Tags'}
+                    </button>
+                    {selectionMode && selectedChannelKeys.size > 0 && (
+                      <button
+                        onClick={() => {
+                          setShowChannelActionsMenu(false)
+                          handleBulkClearChannelHistory()
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors flex items-center gap-2"
+                      >
+                        <ProductIconCell iconName="refresh" label="Clear History" size="sm" className="border-amber-200 bg-amber-50 text-amber-600 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-300" /> Clear History ({selectedChannelKeys.size})
+                      </button>
+                    )}
+                    {selectionMode && selectedChannelKeys.size > 0 && (
+                      <button
+                        onClick={() => {
+                          setShowChannelActionsMenu(false)
+                          handleBulkDeleteChannels()
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors flex items-center gap-2"
+                      >
+                        <ProductIconCell iconName="delete" label="Delete Selected" size="sm" className="border-red-200 bg-red-50 text-red-600 dark:border-red-700 dark:bg-red-900/30 dark:text-red-300" /> Delete Selected ({selectedChannelKeys.size})
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -748,7 +892,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search communities/groups by name, tags, or members (supports * wildcard)"
+            placeholder="Search channels by name, tags, or members"
             className="w-full px-4 py-2 pr-10 border border-gray-200 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm"
           />
           {searchQuery && (
@@ -772,7 +916,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
       {allTags.length > 0 && (
         <div className="mb-4">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs text-gray-400 font-medium">Filter by tags:</span>
+            <span className="text-xs text-gray-400 font-medium">Tags</span>
             <button
               onClick={() => setSelectedTags(new Set())}
               className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
@@ -829,7 +973,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
       {allAgentIds.length > 0 && (
         <div className="mb-6">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs text-gray-400 font-medium">Filter by members:</span>
+            <span className="text-xs text-gray-400 font-medium">Members</span>
             <button
               onClick={() => setSelectedAgents(new Set())}
               className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
@@ -862,7 +1006,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
             )}
           </div>
           <div className="flex items-center gap-2 flex-wrap mt-3">
-            <span className="text-xs text-gray-400 font-medium">Filter by membership:</span>
+            <span className="text-xs text-gray-400 font-medium">Member count</span>
             {[
               ['all', 'All'],
               ['zero', '0 members'],
@@ -1089,6 +1233,90 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
           }
         }}
       />
+    )}
+
+    {showCreateCommunity && (
+      <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50" onClick={() => setShowCreateCommunity(false)}>
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg p-6" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Create Community</h2>
+            <button onClick={() => setShowCreateCommunity(false)} className="text-gray-400 hover:text-gray-600 dark:text-gray-400 text-xl">✕</button>
+          </div>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
+              <input
+                type="text"
+                value={newCommunityName}
+                onChange={(e) => setNewCommunityName(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
+                placeholder="e.g. Research Ops"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
+              <textarea
+                value={newCommunityDesc}
+                onChange={(e) => setNewCommunityDesc(e.target.value)}
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
+                placeholder="Optional description"
+              />
+            </div>
+          </div>
+          <div className="mt-6 flex justify-end gap-3">
+            <button onClick={() => setShowCreateCommunity(false)} className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300">Cancel</button>
+            <button onClick={handleCreateCommunity} className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700">Create Community</button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {showCreateGroup && (
+      <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50" onClick={() => setShowCreateGroup(false)}>
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg p-6" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Create Group</h2>
+            <button onClick={() => setShowCreateGroup(false)} className="text-gray-400 hover:text-gray-600 dark:text-gray-400 text-xl">✕</button>
+          </div>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
+              <input
+                type="text"
+                value={newGroupName}
+                onChange={(e) => setNewGroupName(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
+                placeholder="e.g. Status"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Community</label>
+              <input
+                type="text"
+                value={newGroupCommunity}
+                onChange={(e) => setNewGroupCommunity(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
+                placeholder="Optional community name"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
+              <textarea
+                value={newGroupDesc}
+                onChange={(e) => setNewGroupDesc(e.target.value)}
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
+                placeholder="Optional description"
+              />
+            </div>
+          </div>
+          <div className="mt-6 flex justify-end gap-3">
+            <button onClick={() => setShowCreateGroup(false)} className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300">Cancel</button>
+            <button onClick={handleCreateGroup} className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700">Create Group</button>
+          </div>
+        </div>
+      </div>
     )}
 
     {memberManageTarget && (

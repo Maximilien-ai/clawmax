@@ -9,6 +9,12 @@ import { useAuth } from '../contexts/AuthContext'
 import WorkflowDAG from '../components/WorkflowDAG'
 import { getDiscoverySuggestions } from '../lib/discoverySuggestions'
 import { readLocalSecrets, SecretRequirement, summarizeSecretReadiness, writeLocalSecrets, writeSharedSecrets } from '../lib/localSecrets'
+import {
+  headerPrimaryButtonClass,
+  headerSecondaryButtonActiveClass,
+  headerSecondaryButtonClass,
+  headerSecondaryButtonIdleClass,
+} from '../lib/headerControls'
 import { ProductIconCell } from '../lib/productIcons'
 import TruncatedText from '../components/TruncatedText'
 import { getWorkflowDisplayName } from '../lib/workflowDisplay'
@@ -1437,11 +1443,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                   setSelectedWorkflowIds(new Set())
                 }
               }}
-              className={`text-sm font-medium px-3 py-1.5 rounded-md transition-colors flex items-center gap-1.5 ${
-                selectionMode
-                  ? 'bg-blue-600 text-white hover:bg-blue-700'
-                  : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
-              }`}
+              className={`${headerSecondaryButtonClass} ${selectionMode ? headerSecondaryButtonActiveClass : headerSecondaryButtonIdleClass}`}
               title={selectionMode ? 'Exit selection mode' : 'Select multiple workflows'}
             >
               <span className="text-base leading-none">☑</span> {selectionMode ? 'Cancel' : 'Select'}
@@ -1455,7 +1457,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                     selectVisibleWorkflows()
                   }
                 }}
-                className="text-sm font-medium px-3 py-1.5 rounded-md bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                className={`${headerSecondaryButtonClass} ${headerSecondaryButtonIdleClass}`}
               >
                 {allVisibleSelected ? 'Deselect All' : 'Select All'}
               </button>
@@ -1465,7 +1467,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                 setAiInitialData(null)
                 setShowEditorDialog(true)
               }}
-              className="text-sm font-medium px-3 py-1.5 rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors"
+              className={headerPrimaryButtonClass}
               title="Create workflow"
             >
               Create
@@ -1473,7 +1475,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
             <div className="relative">
               <button
                 onClick={() => setShowWorkflowActionsMenu(!showWorkflowActionsMenu)}
-                className="text-sm font-medium px-3 py-1.5 rounded-md bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors flex items-center gap-1.5"
+                className={`${headerSecondaryButtonClass} ${headerSecondaryButtonIdleClass}`}
                 title="Workflow actions"
               >
                 <ProductIconCell iconName="workflow" label="Actions" size="sm" className="border-transparent bg-transparent text-current" /> Actions <span className="text-xs">▾</span>
