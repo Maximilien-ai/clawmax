@@ -6,6 +6,20 @@ All notable changes to ClawMax are documented here.
 
 - No unreleased changes yet.
 
+## [v1.6.4] - 2026-05-29
+
+### Installer and Setup Reliability
+- **Installer Empty-Args Fix** — `install.sh` no longer fails under `set -u` when it hands off to `setup.sh` without passthrough arguments.
+- **Non-Interactive Auth Default** — public installer/setup flows now assume `AUTH_MODE=bypass` for non-interactive local installs unless the caller explicitly sets another supported mode.
+- **Public Setup Simplification** — the public setup menu now advertises only `bypass` and `email_otp`, removing GitHub OAuth from the default open-source setup path.
+- **Regression Coverage** — added focused installer and setup shell coverage so release bootstrap and auth-mode handoff regressions are caught before publishing.
+
+### Builder and Client Console Simplification
+- **Builder Prompt Handoff** — Builder recommendations that route to `AI Generate Agent` now carry the original user prompt all the way into the agent-generation wizard instead of opening an empty flow.
+- **Builder Routing Hardening** — Builder better distinguishes single-agent vs. team vs. company requests, and improves skill-related follow-through when the named target agent does or does not already exist.
+- **Workflow/Communications/Organization Consistency** — Workflows and Communications now follow the same simpler header/action rhythm as Agents, and Organization uses clearer summary labels plus `Actions`-based overview controls with working expand/collapse behavior across the full page.
+- **Workspace Tour Follow-Through** — the final `System` tour step now works with the collapsible System nav section and highlights the correct entry during the walkthrough.
+
 ## [v1.6.3] - 2026-05-28
 
 ### Release Hardening and Installer Reliability
