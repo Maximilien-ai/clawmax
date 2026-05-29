@@ -1375,6 +1375,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   const selectedWorkflows = workflows.filter(workflow => selectedWorkflowIds.has(workflow.id))
   const selectedEnabledCount = selectedWorkflows.filter(workflow => workflow.enabled).length
   const selectedDisabledCount = selectedWorkflows.filter(workflow => !workflow.enabled).length
+  const runningWorkflowCount = workflows.filter((workflow) => workflow.status === 'running').length
 
   const selectVisibleWorkflows = () => {
     setSelectedWorkflowIds(new Set(sortedWorkflows.map(w => w.id)))
@@ -1401,34 +1402,34 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
         <div className="min-w-0">
           <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Workflows</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            Scheduled tasks and multiagent coordination
+            {sortedWorkflows.length} shown · {runningWorkflowCount} running · {workflows.length} total
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-          <div className="flex items-center gap-2">
-            <div className="flex items-center border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden dark:border-gray-700 bg-white dark:bg-gray-800">
-              <button
-                onClick={() => setViewMode('dag')}
-                className={`px-2.5 py-1.5 text-xs transition-colors ${viewMode === 'dag' ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
-                title="DAG view"
-              >
-                <ProductIconCell iconName="workflow" label="DAG view" size="sm" className="border-transparent bg-transparent text-current" />
-              </button>
-              <button
-                onClick={() => setViewMode('grid')}
-                className={`inline-flex items-center justify-center px-2.5 py-1.5 text-xs transition-colors border-l border-gray-200 dark:border-gray-700 ${viewMode === 'grid' ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
-                title="Grid view"
-              >
-                <ProductIconCell iconName="grid" label="Grid view" size="sm" className="border-transparent bg-transparent text-current" />
-              </button>
-              <button
-                onClick={() => setViewMode('list')}
-                className={`px-2.5 py-1.5 text-xs transition-colors border-l border-gray-200 dark:border-gray-700 ${viewMode === 'list' ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
-                title="List view"
-              >
-                <ProductIconCell iconName="list" label="List view" size="sm" className="border-transparent bg-transparent text-current" />
-              </button>
-            </div>
+          <div className="flex items-center border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden dark:border-gray-700 bg-white dark:bg-gray-800">
+            <button
+              onClick={() => setViewMode('dag')}
+              className={`px-2.5 py-1.5 text-xs transition-colors ${viewMode === 'dag' ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+              title="DAG view"
+            >
+              <ProductIconCell iconName="workflow" label="DAG view" size="sm" className="border-transparent bg-transparent text-current" />
+            </button>
+            <button
+              onClick={() => setViewMode('grid')}
+              className={`inline-flex items-center justify-center px-2.5 py-1.5 text-xs transition-colors border-l border-gray-200 dark:border-gray-700 ${viewMode === 'grid' ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+              title="Grid view"
+            >
+              <ProductIconCell iconName="grid" label="Grid view" size="sm" className="border-transparent bg-transparent text-current" />
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              className={`px-2.5 py-1.5 text-xs transition-colors border-l border-gray-200 dark:border-gray-700 ${viewMode === 'list' ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+              title="List view"
+            >
+              <ProductIconCell iconName="list" label="List view" size="sm" className="border-transparent bg-transparent text-current" />
+            </button>
+          </div>
+          <div className="flex gap-2">
             <button
               onClick={() => {
                 setSelectionMode(!selectionMode)
@@ -1443,8 +1444,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
               }`}
               title={selectionMode ? 'Exit selection mode' : 'Select multiple workflows'}
             >
-              <ProductIconCell iconName="details" label={selectionMode ? 'Cancel selection' : 'Select'} size="sm" className={selectionMode ? 'border-white/20 bg-white/10 text-white' : 'border-transparent bg-transparent text-current'} />
-              {selectionMode ? 'Cancel' : 'Select'}
+              <span className="text-base leading-none">☑</span> {selectionMode ? 'Cancel' : 'Select'}
             </button>
             {selectionMode && (
               <button
@@ -1460,18 +1460,28 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                 {allVisibleSelected ? 'Deselect All' : 'Select All'}
               </button>
             )}
+            <button
+              onClick={() => {
+                setAiInitialData(null)
+                setShowEditorDialog(true)
+              }}
+              className="text-sm font-medium px-3 py-1.5 rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors"
+              title="Create workflow"
+            >
+              Create
+            </button>
             <div className="relative">
               <button
                 onClick={() => setShowWorkflowActionsMenu(!showWorkflowActionsMenu)}
-                className="px-4 py-2 bg-sky-600 text-white text-sm font-medium rounded-md hover:bg-sky-700 transition-colors flex items-center gap-1.5"
+                className="text-sm font-medium px-3 py-1.5 rounded-md bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors flex items-center gap-1.5"
                 title="Workflow actions"
               >
-                <ProductIconCell iconName="workflow" label="Workflow Actions" size="sm" className="border-white/20 bg-white/10 text-white" /> Workflow Actions <span className="text-xs">▾</span>
+                <ProductIconCell iconName="workflow" label="Actions" size="sm" className="border-transparent bg-transparent text-current" /> Actions <span className="text-xs">▾</span>
               </button>
               {showWorkflowActionsMenu && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setShowWorkflowActionsMenu(false)} />
-                  <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20 py-1">
+                  <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20 py-1">
                     <button
                       onClick={() => {
                         if (!aiEnabled) return
@@ -1487,16 +1497,6 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                       title={aiEnabled ? 'Generate workflow with AI' : 'Configure browser keys or a shared execution path first'}
                     >
                       <ProductIconCell iconName="ai" label="AI Generate" size="sm" className="border-purple-200 bg-purple-50 text-purple-600 dark:border-purple-700 dark:bg-purple-900/30 dark:text-purple-300" /> AI Generate
-                    </button>
-                    <button
-                      onClick={() => {
-                        setShowWorkflowActionsMenu(false)
-                        setAiInitialData(null)
-                        setShowEditorDialog(true)
-                      }}
-                      className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-sky-50 dark:hover:bg-sky-900/30 transition-colors flex items-center gap-2"
-                    >
-                      <ProductIconCell iconName="create" label="Create" size="sm" className="border-sky-200 bg-sky-50 text-sky-600 dark:border-sky-700 dark:bg-sky-900/30 dark:text-sky-300" /> Create
                     </button>
                     <button
                       onClick={() => {
@@ -1540,7 +1540,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
         {allTags.length > 0 && (
           <div className="mb-6">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs text-gray-400 font-medium">Filter by tags:</span>
+              <span className="text-xs text-gray-400 font-medium">Tags</span>
               <button
                 onClick={() => setSelectedTags(new Set())}
                 className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
@@ -1567,7 +1567,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
             </div>
             {selectionMode && (
               <div className="flex items-center gap-2 flex-wrap mt-2">
-                <span className="text-xs text-gray-400 font-medium">Select tag groups:</span>
+                <span className="text-xs text-gray-400 font-medium">Select by tag</span>
                 {allTags.map(tag => {
                   const matchingVisible = sortedWorkflows.filter(workflow => workflow.targeting.tags.includes(tag))
                   const allMatchingSelected = matchingVisible.length > 0 && matchingVisible.every(workflow => selectedWorkflowIds.has(workflow.id))
@@ -1629,7 +1629,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
           <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
             <div className="flex items-center justify-between px-4 pt-3">
               <span className="text-xs text-gray-500 dark:text-gray-400">
-                {dagEditing ? 'Click a node to add dependency, click × on a line to remove' : 'Workflow dependency graph'}
+                {dagEditing ? 'Click nodes to add dependencies. Use × on a line to remove one.' : 'Workflow dependency graph'}
               </span>
               <button
                 onClick={() => setDagEditing(!dagEditing)}
