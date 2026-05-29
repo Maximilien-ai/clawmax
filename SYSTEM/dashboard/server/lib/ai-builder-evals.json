@@ -527,5 +527,59 @@
     "page": "templates",
     "confirmationOptionsMin": 2,
     "confirmationLabelsInclude": ["Create a new team template"]
+  },
+  {
+    "name": "single focused helper request stays on one agent",
+    "prompt": "Create one agent to triage support emails and draft replies for me",
+    "intent": "ai_generate",
+    "scope": "single_agent",
+    "operation": "create_new",
+    "page": "agents"
+  },
+  {
+    "name": "team of agents request stays team level not company level",
+    "prompt": "Create a team of agents to run weekly podcast production with research, guest booking, editing, and publishing",
+    "intent": "team_template",
+    "scope": "team",
+    "page": "templates"
+  },
+  {
+    "name": "company of agents request maps to team of teams",
+    "prompt": "Create a company of agents with leadership, recruiting, operations, and finance teams",
+    "intent": "team_template",
+    "scope": "team_of_teams",
+    "page": "templates"
+  },
+  {
+    "name": "single agent skill enablement stays on skills",
+    "prompt": "Give my newsletter summarizer agent Slack and Gmail access",
+    "intent": "skill_or_integration",
+    "scope": "single_agent",
+    "page": "skills",
+    "suggestedActionIdsInclude": ["create-skill"]
+  },
+  {
+    "name": "multi agent skill enablement maps to a team-scoped skills path",
+    "prompt": "Enable the GitHub skill for all engineering agents",
+    "intent": "skill_or_integration",
+    "scope": "team",
+    "page": "skills",
+    "suggestedActionIdsInclude": ["create-skill"]
+  },
+  {
+    "name": "refining a current skill stays in skills",
+    "prompt": "Refine my current research review skill for analysts",
+    "intent": "skill_or_integration",
+    "scope": "unknown",
+    "page": "skills"
+  },
+  {
+    "name": "creating a brand new skill stays in skills with AI follow-through",
+    "prompt": "Create a new skill for a people ops agent that posts status updates to Discord",
+    "intent": "skill_or_integration",
+    "scope": "single_agent",
+    "operation": "create_new",
+    "page": "skills",
+    "suggestedActionIdsInclude": ["create-skill"]
   }
 ]

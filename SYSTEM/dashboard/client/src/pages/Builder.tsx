@@ -758,7 +758,7 @@ async function buildClientFallbackRecommendation(prompt: string): Promise<Builde
         {
           title: 'Create a new agent with this capability',
           reasoning: 'If no current agent fits, generate a purpose-built one.',
-          action: { id: 'fallback-create-agent', label: 'AI Generate Agent', description: 'Create a new agent around the required tools.', page: 'agents', action: 'create-ai' },
+          action: { id: 'fallback-create-agent', label: 'AI Generate Agent', description: 'Create a new agent around the required tools.', page: 'agents', action: 'create-ai', prefillPrompt: prompt },
         },
       ],
       matchedAssets: { agents: matchedAgents, skills: matchedSkills, agentTemplates: matchedAgentTemplates, organizationTemplates: matchedOrganizationTemplates, workflows: matchedWorkflows },
@@ -922,7 +922,7 @@ async function buildClientFallbackRecommendation(prompt: string): Promise<Builde
         {
           title: 'Generate a fresh custom agent',
           reasoning: 'If the template is too generic, generate a sharper first draft.',
-          action: { id: 'fallback-generate-agent', label: 'AI Generate Agent', description: 'Create a more tailored agent draft.', page: 'agents', action: 'create-ai' },
+          action: { id: 'fallback-generate-agent', label: 'AI Generate Agent', description: 'Create a more tailored agent draft.', page: 'agents', action: 'create-ai', prefillPrompt: prompt },
         },
       ],
       matchedAssets: { agents: matchedAgents, skills: matchedSkills, agentTemplates: matchedAgentTemplates, organizationTemplates: matchedOrganizationTemplates, workflows: matchedWorkflows },
@@ -957,7 +957,7 @@ async function buildClientFallbackRecommendation(prompt: string): Promise<Builde
     recommendedPath: {
       title: 'Generate a custom starter from AI',
       reasoning: 'When there is no obvious close asset, generation is the fastest way to get to a first draft.',
-      primaryAction: { id: 'open-ai-generate', label: 'AI Generate Agent', description: 'Create a tailored starter from this prompt.', page: 'agents', action: 'create-ai' },
+      primaryAction: { id: 'open-ai-generate', label: 'AI Generate Agent', description: 'Create a tailored starter from this prompt.', page: 'agents', action: 'create-ai', prefillPrompt: prompt },
     },
     alternativePaths: [
       {
@@ -968,7 +968,7 @@ async function buildClientFallbackRecommendation(prompt: string): Promise<Builde
     ],
     matchedAssets: { agents: matchedAgents, skills: matchedSkills, agentTemplates: matchedAgentTemplates, organizationTemplates: matchedOrganizationTemplates, workflows: matchedWorkflows },
     suggestedActions: [
-      { id: 'open-ai-generate', label: 'AI Generate Agent', description: 'Create a tailored starter from this prompt.', page: 'agents', action: 'create-ai' },
+      { id: 'open-ai-generate', label: 'AI Generate Agent', description: 'Create a tailored starter from this prompt.', page: 'agents', action: 'create-ai', prefillPrompt: prompt },
       { id: 'fallback-templates', label: 'Open Templates', description: 'Check the catalog before generating from scratch.', page: 'templates' },
     ],
     testPlan: [
@@ -1295,7 +1295,7 @@ export default function Builder({
 }: {
   onNavigateToPage?: (page: 'builder' | 'agents' | 'templates' | 'skills' | 'workflows' | 'organizations') => void
   onOpenAgentCreate?: () => void
-  onOpenAgentCreateAI?: () => void
+  onOpenAgentCreateAI?: (prompt?: string) => void
   onOpenAgentImport?: () => void
   onOpenAgent?: (agentId: string) => void
   onOpenAgentChat?: (agentId: string) => void
@@ -2000,7 +2000,7 @@ export default function Builder({
       return
     }
     if (action.page === 'agents' && action.action === 'create-ai') {
-      onOpenAgentCreateAI?.()
+      onOpenAgentCreateAI?.(action.prefillPrompt)
       return
     }
     if (action.page === 'agents' && action.action === 'create') {

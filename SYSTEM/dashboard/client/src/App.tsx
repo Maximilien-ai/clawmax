@@ -365,6 +365,7 @@ export default function App() {
   const [docFile, setDocFile] = useState<string | undefined>(undefined)
   const [initialAgentId, setInitialAgentId] = useState<string | undefined>(undefined)
   const [initialAgentAction, setInitialAgentAction] = useState<'create' | 'create-ai' | 'import' | 'chat' | undefined>(undefined)
+  const [initialAgentAiDescription, setInitialAgentAiDescription] = useState<string | undefined>(undefined)
   const [initialGroupName, setInitialGroupName] = useState<string | undefined>(undefined)
   const [initialOpenChatName, setInitialOpenChatName] = useState<string | undefined>(undefined)
   const [initialSkillsAgent, setInitialSkillsAgent] = useState<string | undefined>(undefined)
@@ -795,7 +796,7 @@ export default function App() {
               onNavigateToPage={(p) => setPage(p as any)}
               onNavigateToDoc={(file) => { setDocFile(file); setPage('docs') }}
               onOpenAgentCreate={() => { setInitialAgentAction('create'); setPage('agents') }}
-              onOpenAgentCreateAI={() => { setInitialAgentAction('create-ai'); setPage('agents') }}
+              onOpenAgentCreateAI={(prompt?: string) => { setInitialAgentAiDescription(prompt); setInitialAgentAction('create-ai'); setPage('agents') }}
               onOpenAgentImport={() => { setInitialAgentAction('import'); setPage('agents') }}
               onOpenBuilder={() => setPage('builder')}
               onOpenByok={() => window.dispatchEvent(new CustomEvent('open-byok-wizard'))}
@@ -827,7 +828,8 @@ export default function App() {
                   onNavigateToTemplates={() => { setPage('templates'); }}
                   initialAgentId={initialAgentId}
                   initialAction={initialAgentAction}
-                  onInitialActionHandled={() => setInitialAgentAction(undefined)}
+                  initialAiDescription={initialAgentAiDescription}
+                  onInitialActionHandled={() => { setInitialAgentAction(undefined); setInitialAgentAiDescription(undefined) }}
                   isActive={page === 'agents'}
                 />
               </WorkspaceScoped>
@@ -839,7 +841,7 @@ export default function App() {
                 <Builder
                   onNavigateToPage={(nextPage) => setPage(nextPage as Page)}
                   onOpenAgentCreate={() => { setInitialAgentAction('create'); setPage('agents') }}
-                  onOpenAgentCreateAI={() => { setInitialAgentAction('create-ai'); setPage('agents') }}
+                  onOpenAgentCreateAI={(prompt?: string) => { setInitialAgentAiDescription(prompt); setInitialAgentAction('create-ai'); setPage('agents') }}
                   onOpenAgentImport={() => { setInitialAgentAction('import'); setPage('agents') }}
                   onOpenAgent={(agentId) => { setInitialAgentId(agentId); setPage('agents') }}
                   onOpenAgentChat={(agentId) => { setInitialAgentId(agentId); setInitialAgentAction('chat'); setPage('agents') }}
@@ -967,7 +969,7 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
   onNavigateToPage?: (page: string) => void
   onNavigateToDoc?: (path: string) => void
   onOpenAgentCreate?: () => void
-  onOpenAgentCreateAI?: () => void
+  onOpenAgentCreateAI?: (prompt?: string) => void
   onOpenAgentImport?: () => void
   onOpenBuilder?: () => void
   onOpenByok?: () => void

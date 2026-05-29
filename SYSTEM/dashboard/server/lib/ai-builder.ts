@@ -269,6 +269,21 @@ function hasExplicitSingleAgentConstraint(prompt: string): boolean {
   ])
 }
 
+function hasExplicitMultiAgentConstraint(prompt: string): boolean {
+  const normalized = normalizeText(prompt).toLowerCase()
+  if (includesAny(normalized, [
+    'multiple agents',
+    'several agents',
+    'all agents',
+    'group of agents',
+    'groups of agents',
+    'across agents',
+  ])) {
+    return true
+  }
+  return /\ball\s+[a-z0-9-]+\s+agents\b/.test(normalized)
+}
+
 function hasAgentChatLanguage(prompt: string): boolean {
   return includesAny(prompt, CHAT_KEYWORDS)
 }
@@ -287,10 +302,41 @@ function extractAgentChatTarget(prompt: string): string | undefined {
   return undefined
 }
 
+function extractExplicitAgentReference(prompt: string): string | undefined {
+  const normalized = normalizeText(prompt).replace(/[?!.]+$/g, '')
+  const patterns = [
+    /\b(?:my|the|our)\s+([a-z0-9][a-z0-9&/._ -]{0,60}?)\s+agent\b/i,
+    /\bfor\s+(?:my|the|our)\s+([a-z0-9][a-z0-9&/._ -]{0,60}?)\s+agent\b/i,
+  ]
+  for (const pattern of patterns) {
+    const match = normalized.match(pattern)
+    const target = match?.[1]?.trim()
+    if (target) return target
+  }
+  return undefined
+}
+
+function normalizeLookupToken(value: string): string {
+  return normalizeText(value).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+}
+
+function isCloseAgentReferenceMatch(reference: string | undefined, candidate: AiBuilderMatchedAsset | undefined): boolean {
+  if (!reference || !candidate) return false
+  const normalizedReference = normalizeLookupToken(reference)
+  const normalizedName = normalizeLookupToken(candidate.name)
+  const normalizedId = normalizeLookupToken(candidate.id)
+  if (!normalizedReference || (!normalizedName && !normalizedId)) return false
+  return normalizedName.includes(normalizedReference)
+    || normalizedReference.includes(normalizedName)
+    || normalizedId.includes(normalizedReference)
+    || normalizedReference.includes(normalizedId)
+}
+
 function detectScope(prompt: string): AiBuilderScope {
   if (includesAny(prompt, TEAM_OF_TEAMS_KEYWORDS)) return 'team_of_teams'
   if (includesAny(prompt, COMPANY_SCOPE_KEYWORDS)) return 'team_of_teams'
   if (includesAny(prompt, ['organization template', 'company template'])) return 'team_of_teams'
+  if (hasExplicitMultiAgentConstraint(prompt)) return 'team'
   if (includesAny(prompt, ['team template'])) return 'team'
   if (includesAny(prompt, ['template']) && !includesAny(prompt, AGENT_TEMPLATE_KEYWORDS) && !includesAny(prompt, AGENT_KEYWORDS)) return 'team'
   if (includesAny(prompt, ['organization', 'company']) && includesAny(prompt, ['teams', 'leadership'])) return 'team_of_teams'
@@ -767,6 +813,26 @@ function chooseIntent(args: {
     && hasSkillLanguage
     && scope === 'single_agent'
   )
+  const hasExplicitMultiAgentToolNeed = (
+    hasExplicitMultiAgentConstraint(prompt)
+    && hasSkillLanguage
+    && (
+      includesAny(prompt, ['enable', 'add', 'give', 'assign', 'use', 'need', 'needs'])
+      || includesAny(prompt, ['for all', 'across'])
+    )
+  )
+  const hasExplicitSkillRefinementNeed = (
+    hasSkillLanguage
+    && hasRefineLanguage
+    && (
+      includesAny(prompt, ['current skill', 'existing skill', 'my skill', 'this skill'])
+      || /(current|existing|my)\s+[a-z0-9 -]{0,40}\s+skill\b/i.test(prompt)
+    )
+  )
+  const hasExplicitNewSkillNeed = (
+    hasSkillLanguage
+    && includesAny(prompt, ['create a new skill', 'create new skill', 'create a skill', 'new skill'])
+  )
   const hasExplicitCreateAgentToolNeed = (
     hasExplicitAgentCreation
     && hasSkillLanguage
@@ -796,6 +862,18 @@ function chooseIntent(args: {
 
   if (hasExplicitExistingAgentToolNeed && matchedSkills.length > 0) {
     return { intent: 'skill_or_integration', scope, operation, confidence: matchedSkills[0].score >= 8 ? 'high' : 'medium' }
+  }
+
+  if (hasExplicitMultiAgentToolNeed && matchedSkills.length > 0) {
+    return { intent: 'skill_or_integration', scope: 'team', operation, confidence: matchedSkills[0].score >= 8 ? 'high' : 'medium' }
+  }
+
+  if (hasExplicitSkillRefinementNeed) {
+    return { intent: 'skill_or_integration', scope, operation, confidence: matchedSkills[0]?.score >= 8 ? 'high' : 'medium' }
+  }
+
+  if (hasExplicitNewSkillNeed) {
+    return { intent: 'skill_or_integration', scope, operation: 'create_new', confidence: matchedSkills[0]?.score >= 8 ? 'high' : 'medium' }
   }
 
   if (
@@ -1003,6 +1081,8 @@ export function buildAiBuilderRecommendation(prompt: string): AiBuilderRecommend
   const topAgentTemplate = matchedAgentTemplates[0]
   const topOrgTemplate = matchedOrganizationTemplates[0]
   const topWorkflow = matchedWorkflows[0]
+  const explicitAgentReference = extractExplicitAgentReference(normalizedPrompt)
+  const explicitAgentReferenceMatched = isCloseAgentReferenceMatch(explicitAgentReference, topAgent) && (topAgent?.score || 0) >= 6
   const hasWorkflowLanguage = includesAny(normalizedPrompt, WORKFLOW_PROMPT_KEYWORDS)
   const hasSkillLanguage = includesAny(normalizedPrompt, SKILL_KEYWORDS)
   const wantsAgentChat = hasAgentChatLanguage(normalizedPrompt)
@@ -1088,7 +1168,10 @@ export function buildAiBuilderRecommendation(prompt: string): AiBuilderRecommend
         {
           title: 'Generate a fresh agent from AI',
           reasoning: 'Use this if the current workspace agents are too far from the actual job to be done.',
-          action: action('ai-generate-agent', 'AI Generate Agent', 'Create a new agent with a sharper prompt for this use case.', 'agents', 'create-ai'),
+          action: {
+            ...action('ai-generate-agent', 'AI Generate Agent', 'Create a new agent with a sharper prompt for this use case.', 'agents', 'create-ai'),
+            prefillPrompt: normalizedPrompt,
+          },
         },
       ]
       suggestedActions = [recommendedPath.primaryAction]
@@ -1149,40 +1232,84 @@ export function buildAiBuilderRecommendation(prompt: string): AiBuilderRecommend
             ]
       break
     case 'skill_or_integration':
-      recommendedPath = {
-        title: topSkill ? `Add or use skill ${topSkill.name}` : 'Resolve the missing skill or integration first',
-        reasoning: topSkill
-          ? `The request sounds tool-driven, and ${topSkill.name} looks like the closest capability match.`
-          : 'The main gap appears to be capability or integration, not agent structure.',
-        primaryAction: action('open-skills', 'Open Skills', 'Browse or assign matching skills before creating new agents.', 'skills'),
+      if (explicitAgentReference && !explicitAgentReferenceMatched) {
+        recommendedPath = {
+          title: `Create ${explicitAgentReference} agent first`,
+          reasoning: topSkill
+            ? `I do not see a close existing agent matching "${explicitAgentReference}". Create that role first, then add ${topSkill.name} or another matching skill.`
+            : `I do not see a close existing agent matching "${explicitAgentReference}". Create that role first, then add the needed skill or integration.`,
+          primaryAction: {
+            ...action('ai-generate-agent-with-skill-gap', 'AI Generate Agent', 'Create the missing agent role before assigning the requested skill.', 'agents', 'create-ai'),
+            prefillPrompt: normalizedPrompt,
+          },
+        }
+        alternativePaths = [
+          ...(topAgent ? [{
+            title: `Use ${topAgent.name} instead`,
+            reasoning: `${topAgent.name} is the closest existing agent in this workspace if you want to adapt a nearby role instead of creating a new one.`,
+            action: {
+              ...action('open-skills-for-closest-agent', 'Open Skills', 'Review skills for the closest existing agent instead.', 'skills'),
+              agentId: topAgent.id,
+            },
+          }] : []),
+          {
+            title: 'Browse templates for a better starting role',
+            reasoning: 'If a nearby agent template already fits the role, start there and then add the skill.',
+            action: action('browse-agent-templates', 'Browse templates', 'Check whether a template already includes the right role and tools.', 'templates'),
+          },
+        ]
+        suggestedActions = [
+          recommendedPath.primaryAction,
+          {
+            ...action('create-skill', 'Create Skill with AI', 'Generate a custom skill draft when the needed capability is not already covered.', 'skills', 'create-ai'),
+            prefillPrompt: prompt,
+          },
+          action('browse-agent-templates', 'Browse templates', 'Check whether a template already includes the right role and tools.', 'templates'),
+        ]
+        testPlan = [
+          'Create the missing agent role first and confirm the identity matches the intended job.',
+          'Add the requested skill or integration to that new agent.',
+          'Run one real task that forces both the role and the added capability to be used together.',
+        ]
+      } else {
+        recommendedPath = {
+          title: topSkill ? `Add or use skill ${topSkill.name}` : 'Resolve the missing skill or integration first',
+          reasoning: topSkill
+            ? `The request sounds tool-driven, and ${topSkill.name} looks like the closest capability match.`
+            : 'The main gap appears to be capability or integration, not agent structure.',
+          primaryAction: action('open-skills', 'Open Skills', 'Browse or assign matching skills before creating new agents.', 'skills'),
+        }
+        alternativePaths = [
+          {
+            title: 'Use an existing agent plus a skill',
+            reasoning: 'If there is already a close agent in the workspace, adding a skill is lighter than spinning up a new role.',
+            action: action('open-agents-for-skill', 'Review agents', 'Pick the closest existing agent and add the needed skill.', 'agents'),
+          },
+          {
+            title: 'Create a new agent with the skill in mind',
+            reasoning: 'If no existing agent fits the job, create a purpose-built agent after choosing the needed tools.',
+            action: {
+              ...action('ai-generate-agent-with-skill', 'AI Generate Agent', 'Generate a new agent once the tool/integration choice is clear.', 'agents', 'create-ai'),
+              prefillPrompt: normalizedPrompt,
+            },
+          },
+        ]
+        suggestedActions = [
+          recommendedPath.primaryAction,
+          action('browse-agent-templates', 'Browse templates', 'Check whether a template already includes the right role and tools.', 'templates'),
+          action('verify-setup', 'Verify setup requirements', 'Confirm keys, binaries, or auth are available for the target skill.', 'skills'),
+          {
+            ...action('create-skill', 'Create Skill with AI', 'Generate a custom skill draft when the needed capability is not already covered.', 'skills', 'create-ai'),
+            prefillPrompt: prompt,
+            agentId: explicitAgentReferenceMatched ? topAgent?.id : undefined,
+          },
+        ]
+        testPlan = [
+          'Open the skill and confirm setup requirements, keys, and local binaries are satisfied.',
+          'Assign the skill to the target agent or create a new agent with that capability in mind.',
+          'Run one real task that forces the integration to be used, not just a generic chat exchange.',
+        ]
       }
-      alternativePaths = [
-        {
-          title: 'Use an existing agent plus a skill',
-          reasoning: 'If there is already a close agent in the workspace, adding a skill is lighter than spinning up a new role.',
-          action: action('open-agents-for-skill', 'Review agents', 'Pick the closest existing agent and add the needed skill.', 'agents'),
-        },
-        {
-          title: 'Create a new agent with the skill in mind',
-          reasoning: 'If no existing agent fits the job, create a purpose-built agent after choosing the needed tools.',
-          action: action('ai-generate-agent-with-skill', 'AI Generate Agent', 'Generate a new agent once the tool/integration choice is clear.', 'agents', 'create-ai'),
-        },
-      ]
-      suggestedActions = [
-        recommendedPath.primaryAction,
-        action('browse-agent-templates', 'Browse templates', 'Check whether a template already includes the right role and tools.', 'templates'),
-        action('verify-setup', 'Verify setup requirements', 'Confirm keys, binaries, or auth are available for the target skill.', 'skills'),
-        {
-          ...action('create-skill', 'Create Skill with AI', 'Generate a custom skill draft when the needed capability is not already covered.', 'skills', 'create-ai'),
-          prefillPrompt: prompt,
-          agentId: topAgent?.id,
-        },
-      ]
-      testPlan = [
-        'Open the skill and confirm setup requirements, keys, and local binaries are satisfied.',
-        'Assign the skill to the target agent or create a new agent with that capability in mind.',
-        'Run one real task that forces the integration to be used, not just a generic chat exchange.',
-      ]
       break
     case 'agent_template':
       recommendedPath = {
@@ -1203,7 +1330,10 @@ export function buildAiBuilderRecommendation(prompt: string): AiBuilderRecommend
         {
           title: 'Generate a custom agent from AI',
           reasoning: 'Use this if the template is close but still too generic for the actual job.',
-          action: action('generate-custom-agent', 'AI Generate Agent', 'Create a more tailored agent from the prompt.', 'agents', 'create-ai'),
+          action: {
+            ...action('generate-custom-agent', 'AI Generate Agent', 'Create a more tailored agent from the prompt.', 'agents', 'create-ai'),
+            prefillPrompt: normalizedPrompt,
+          },
         },
       ]
       suggestedActions = [
@@ -1324,7 +1454,10 @@ export function buildAiBuilderRecommendation(prompt: string): AiBuilderRecommend
       recommendedPath = {
         title: 'Generate a custom starter from AI',
         reasoning: 'This request appears specific enough that a custom generated agent or team starter is likely the fastest path.',
-        primaryAction: action('ai-generate-starter', 'AI Generate Agent', 'Use AI generation to create a first tailored draft from your prompt.', 'agents', 'create-ai'),
+        primaryAction: {
+          ...action('ai-generate-starter', 'AI Generate Agent', 'Use AI generation to create a first tailored draft from your prompt.', 'agents', 'create-ai'),
+          prefillPrompt: normalizedPrompt,
+        },
       }
       alternativePaths = [
         {

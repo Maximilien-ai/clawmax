@@ -20,6 +20,7 @@ interface WizardProps {
   onNavigateToSkills?: (agentId: string) => void
   defaultCloneFrom?: string
   startWithAI?: boolean
+  initialAiDescription?: string
 }
 
 type Step = 1 | 2 | 3 | 4
@@ -68,7 +69,7 @@ function friendlyProvisionError(message: string): string {
   return text
 }
 
-export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, defaultCloneFrom, startWithAI }: WizardProps) {
+export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, defaultCloneFrom, startWithAI, initialAiDescription }: WizardProps) {
   const { config } = useAuth()
   const aiEnabled = hasAiGenerationAccess(config)
   const aiReadiness = getAiGenerationReadiness(config)
@@ -121,6 +122,17 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
   const hasTemplateIssue = /Template ".*" was not found/i.test(combinedProvisionIssues)
   const hasCloneIssue = /Clone source ".*" was not found/i.test(combinedProvisionIssues)
   const hasModelIssue = /Model is required/i.test(combinedProvisionIssues)
+
+  useEffect(() => {
+    if (!startWithAI) return
+    const nextPrompt = normalizePromptInput(initialAiDescription, '')
+    if (!nextPrompt) return
+    setForm((current) => (
+      current.aiDescription.trim()
+        ? current
+        : { ...current, aiDescription: nextPrompt, useAI: true }
+    ))
+  }, [initialAiDescription, startWithAI])
 
   // Fetch available models, suggested ID + port and existing agents list on mount
   useEffect(() => {

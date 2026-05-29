@@ -171,7 +171,7 @@ function normalizeAgentLookup(value: string): string {
 type ViewMode = 'grid' | 'list' | 'table'
 type ArchiveTab = 'active' | 'archived'
 
-export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateToSkills, onNavigateToWorkflows, onNavigateToTemplates, initialAgentId, initialAction, onInitialActionHandled, isActive }: { onNavigateToDoc?: (file: string) => void; onNavigateToGroup?: (groupName: string) => void; onNavigateToSkills?: (agentId: string, skillName?: string) => void; onNavigateToWorkflows?: (workflowId: string) => void; onNavigateToTemplates?: () => void; initialAgentId?: string; initialAction?: 'create' | 'create-ai' | 'import' | 'chat'; onInitialActionHandled?: () => void; isActive?: boolean } = {}) {
+export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateToSkills, onNavigateToWorkflows, onNavigateToTemplates, initialAgentId, initialAction, initialAiDescription, onInitialActionHandled, isActive }: { onNavigateToDoc?: (file: string) => void; onNavigateToGroup?: (groupName: string) => void; onNavigateToSkills?: (agentId: string, skillName?: string) => void; onNavigateToWorkflows?: (workflowId: string) => void; onNavigateToTemplates?: () => void; initialAgentId?: string; initialAction?: 'create' | 'create-ai' | 'import' | 'chat'; initialAiDescription?: string; onInitialActionHandled?: () => void; isActive?: boolean } = {}) {
   const { showSuccess, showError, showInfo } = useToast()
   const { config } = useAuth()
   const aiEnabled = hasAiGenerationAccess(config)
@@ -209,6 +209,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
   const [showImportModal, setShowImportModal] = useState(false)
   const [showAgentActionsMenu, setShowAgentActionsMenu] = useState(false)
   const [aiGenerateMode, setAiGenerateMode] = useState(false)
+  const [pendingAiDescription, setPendingAiDescription] = useState<string>('')
   const [cloneFromAgent, setCloneFromAgent] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   const [archiveTarget, setArchiveTarget] = useState<Agent | null>(null)
@@ -407,6 +408,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
     if (initialAction === 'create' || initialAction === 'create-ai') {
       setCloneFromAgent(null)
       setAiGenerateMode(initialAction === 'create-ai')
+      setPendingAiDescription(initialAction === 'create-ai' ? (initialAiDescription || '') : '')
       setShowAddWizard(true)
     } else if (initialAction === 'import') {
       setShowImportModal(true)
@@ -2041,10 +2043,12 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
             setShowAddWizard(false)
             setCloneFromAgent(null)
             setAiGenerateMode(false)
+            setPendingAiDescription('')
             onNavigateToSkills?.(agentId)
           }}
           defaultCloneFrom={cloneFromAgent || undefined}
           startWithAI={aiGenerateMode}
+          initialAiDescription={pendingAiDescription}
         />
       )}
 
