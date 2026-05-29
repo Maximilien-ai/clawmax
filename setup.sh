@@ -2,7 +2,7 @@
 
 # ClawMax Setup Script v2
 # Automated installation and configuration for ClawMax Dashboard
-# Supports: local dev with Email OTP or bypass, and production with GitHub OAuth or Email OTP
+# Supports: local dev with Email OTP or bypass
 
 set -e
 
@@ -440,10 +440,9 @@ OTP_DEV_MODE=""
 if [ "$INTERACTIVE" = true ]; then
   echo -e "  ${BOLD}1) Local dev with bypass${NC}    — fastest, no login, good default for developers"
   echo -e "  ${BOLD}2) Local dev with Email OTP${NC} — realistic auth testing with login codes"
-  echo -e "  ${BOLD}3) Production with GitHub OAuth${NC}"
   echo ""
   while true; do
-    read -p "  Choose auth mode [1-3]: " AUTH_CHOICE
+    read -p "  Choose auth mode [1-2]: " AUTH_CHOICE
     case "${AUTH_CHOICE}" in
     1)
       AUTH_MODE="bypass"
@@ -459,17 +458,15 @@ if [ "$INTERACTIVE" = true ]; then
       print_info "Codes will be written to .clawmax-otp-dev.json at the repo root"
       break
       ;;
-    3)
-      AUTH_MODE="github_oauth"
-      print_success "Production mode selected (GitHub OAuth)"
-      break
-      ;;
     *)
-      print_warning "Choose 1, 2, or 3."
+      print_warning "Choose 1 or 2."
       ;;
     esac
   done
 else
+  if [ -z "$AUTH_MODE" ]; then
+    AUTH_MODE="bypass"
+  fi
   case "$AUTH_MODE" in
     bypass)
       print_info "Non-interactive: using local dev bypass"
@@ -479,11 +476,8 @@ else
       OTP_ALLOWED_EMAILS="${OTP_ALLOWED_EMAILS:-dev@example.com}"
       print_info "Non-interactive: using Email OTP"
       ;;
-    github_oauth)
-      print_info "Non-interactive: using GitHub OAuth"
-      ;;
     *)
-      print_error "Non-interactive setup requires AUTH_MODE to be set to bypass, email_otp, or github_oauth"
+      print_error "Non-interactive setup supports AUTH_MODE=bypass or AUTH_MODE=email_otp"
       exit 1
       ;;
   esac
