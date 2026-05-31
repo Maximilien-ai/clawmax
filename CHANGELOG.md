@@ -6,6 +6,24 @@ All notable changes to ClawMax are documented here.
 
 - No unreleased changes yet.
 
+## [v1.6.5] - 2026-05-31
+
+### Skills Platform Readiness
+- **Platform-Aware Skill Install Guidance** — Skills now surface install/prerequisite guidance for the actual dashboard runtime OS instead of showing macOS-first commands on Linux/on-prem instances.
+- **Registry Platform Filtering** — registry suggestions and registry search results now hide skills that are confidently incompatible with the current runtime platform, reducing bad-install dead ends on Linux/on-prem.
+- **Linux Install Coverage for Built-In Skills** — Linux-visible install metadata was added or hardened for skills like `himalaya`, and bundled/local/imported skill normalization now follows the same platform-aware path.
+
+### Skills Surface Simplification
+- **Canonical Header Controls** — Skills now follows the same shared header control sizing and action pattern as Agents/Templates, including matching `Select`, `Create`, and `Actions` treatment.
+- **Action/Icon Consistency** — cleaned up Skills header icons and control spacing so the page matches the canonical Agents surface instead of drifting in button height, iconography, or spacing.
+
+### Client Simplification Follow-Through
+- **Workflows / Communications / Organization Simplification** — Workflows, Communications, and Organization now follow the clearer client-console action rhythm introduced in earlier `1.6.x` releases, with simpler header controls, clearer summary labels, and more behavior moved under `Actions` where appropriate.
+- **Builder Prompt Handoff Reliability** — Builder-to-agent-generation handoff now reliably carries the original user prompt into `AI Generate Agent`, closing a common “empty wizard” dead-end.
+
+### Quality
+- **New Regression Coverage** — added focused client helper coverage for runtime platform filtering and kept the server/client Skills regression suites green alongside typecheck.
+
 ## [v1.6.4] - 2026-05-29
 
 ### Installer and Setup Reliability

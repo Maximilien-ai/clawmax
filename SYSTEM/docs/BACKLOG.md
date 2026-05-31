@@ -1,6 +1,6 @@
 # Backlog
 
-> Last updated: May 27, 2026
+> Last updated: May 31, 2026
 > Completed and verified work is archived into [CHANGELOG.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/CHANGELOG.md) and historical notes under `SYSTEM/docs/**/archive/`
 
 ## Top Priority
@@ -90,7 +90,7 @@
 - [ ] **AI Builder open template-family taxonomy** — continue expanding Builder’s template-family hints without turning them into a closed whitelist; unknown domains should still fall back cleanly to `refine existing` vs `create new` template choices.
 
 ### UX & Product Polish
-- [ ] **Client console simplification follow-through** — pass `#1` shipped across Builder, client navigation, Templates, Agents, and Skills. Continue simplifying Workflows/Communications and use real client feedback to decide what should stay visible vs. move behind `Actions`, tabs, or progressive disclosure in later passes.
+- [ ] **Client console simplification follow-through** — pass `#1` shipped across Builder, client navigation, Templates, Agents, and Skills, and the next pass landed for Workflows, Communications, Organization, and more Skills consistency. Continue with remaining Builder/Agents/template-apply follow-through and use real client feedback to decide what should stay visible vs. move behind `Actions`, tabs, or progressive disclosure.
 - [ ] **Mobile responsiveness audit** — run a focused pass across login, top bar, notifications, agent cards, chat, dashboards, template apply, and integrations wizard on narrow/mobile widths; fix clipped popovers, off-screen dialogs, awkward stacking, and tap-target issues before broader external demos. GitHub: `#143`
 - [ ] **Bulk actions from notifications** — dismiss works, but pause/restart/open chat not yet inline
 - [ ] **Mobile notifications panel positioning** — on narrow/mobile layouts the notifications popover can render off-center and partially off-screen instead of switching to a properly centered or full-width mobile-friendly sheet.
