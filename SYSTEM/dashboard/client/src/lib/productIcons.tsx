@@ -216,6 +216,13 @@ function IconSvg({ iconName, className }: { iconName: ProductIconName; className
           <path d="M3 18h.01" />
         </svg>
       )
+    case 'select':
+      return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={cls}>
+          <rect x="3" y="3" width="18" height="18" rx="2.5" />
+          <path d="m8 12 2.5 2.5 5.5-5.5" />
+        </svg>
+      )
     case 'history':
       return (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={cls}>

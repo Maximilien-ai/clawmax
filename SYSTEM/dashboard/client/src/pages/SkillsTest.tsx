@@ -1438,7 +1438,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                     : headerSecondaryButtonIdleClass
                 }`}
               >
-                <ProductIconCell iconName="select" label={selectionMode ? 'Cancel selection' : 'Select skills'} size="sm" className="border-transparent bg-transparent text-current" />
+                <span className="text-base leading-none">☑</span>
                 {selectionMode ? 'Cancel' : 'Select'}
               </button>
               {selectionMode && filteredSkills.length > 0 && (

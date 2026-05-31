@@ -80,6 +80,21 @@ async function run() {
     }
   })
 
+  await test('getDashboardVersion prefers newer packaged version over older local git tag', () => {
+    process.env.CLAWMAX_VERSION = 'dev'
+    const packageJsonPath = require('path').join(__dirname, '..', '..', 'package.json')
+    const fs = require('fs')
+    const original = fs.readFileSync(packageJsonPath, 'utf-8')
+    const parsed = JSON.parse(original)
+    parsed.version = '9.9.9'
+    fs.writeFileSync(packageJsonPath, JSON.stringify(parsed, null, 2), 'utf-8')
+    try {
+      assert(getDashboardVersion() === '9.9.9', `Expected newer packaged version to beat older local tag, got ${getDashboardVersion()}`)
+    } finally {
+      fs.writeFileSync(packageJsonPath, original, 'utf-8')
+    }
+  })
+
   await test('getDashboardVersion ignores placeholder env values and prefers git/source version', () => {
     process.env.CLAWMAX_VERSION = 'dev'
     const resolved = getDashboardVersion()

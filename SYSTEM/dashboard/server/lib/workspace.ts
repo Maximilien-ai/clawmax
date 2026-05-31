@@ -1814,6 +1814,16 @@ function normalizeReleaseVersion(tag: string): string {
   return tag.replace(/^v/, '')
 }
 
+function compareReleaseVersions(a: string, b: string): number {
+  const av = normalizeReleaseVersion(a).split('.').map((part) => Number.parseInt(part, 10) || 0)
+  const bv = normalizeReleaseVersion(b).split('.').map((part) => Number.parseInt(part, 10) || 0)
+  for (let i = 0; i < Math.max(av.length, bv.length); i++) {
+    const delta = (av[i] ?? 0) - (bv[i] ?? 0)
+    if (delta !== 0) return delta
+  }
+  return 0
+}
+
 export function getDashboardVersion(): string {
   const envVersion = process.env.CLAWMAX_VERSION?.trim()
   const packageVersion = findDashboardPackageVersion()
@@ -1831,6 +1841,9 @@ export function getDashboardVersion(): string {
   }
 
   const gitTag = getLatestTag()
+  if (packageVersion && isUsableVersion(gitTag) && compareReleaseVersions(packageVersion, gitTag) > 0) {
+    return packageVersion
+  }
   if (isUsableVersion(gitTag)) {
     const exactTag = getHeadExactTag()
     if (exactTag && normalizeReleaseVersion(exactTag) === normalizeReleaseVersion(gitTag)) return exactTag
