@@ -1462,7 +1462,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                   className={`${headerSecondaryButtonClass} ${headerSecondaryButtonIdleClass}`}
                   title="Actions"
                 >
-                  <ProductIconCell iconName="ai" label="Actions" size="sm" className="border-transparent bg-transparent text-current" /> Actions <span className="text-xs">▾</span>
+                  <ProductIconCell iconName="skill" label="Actions" size="sm" className="border-transparent bg-transparent text-current" /> Actions <span className="text-xs">▾</span>
                 </button>
                 {showSkillActionsMenu && (
                   <>
