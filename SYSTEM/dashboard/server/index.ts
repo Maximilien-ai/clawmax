@@ -301,6 +301,7 @@ app.get('/api/system', protect, async (req, res) => {
   res.json({
     workspace: workspacePath,
     hostname: os.hostname(),
+    platform: process.platform,
     instanceKey: runtimeIdentity.instanceKey || null,
     machineId: runtimeIdentity.machineId || null,
     machineName: runtimeIdentity.machineName || null,

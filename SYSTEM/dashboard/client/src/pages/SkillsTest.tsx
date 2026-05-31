@@ -14,6 +14,7 @@ import { filterAssignableAgents, isDeletableUserSkill, partitionSelectedSkills, 
 import { getSkillSetupHint, maybeWarnSkillSetup, supportsDashboardSkillSetup } from '../lib/skillSetup'
 import { collectSkillTags, matchesSelectedSkillTags } from '../lib/skillTags'
 import { buildAgentSkillsScope, buildAssignedSkillBadges } from '../lib/agentSkillsScope'
+import { getRegistrySkillCompatibility, normalizeRuntimePlatform, type RuntimePlatform } from '../lib/skillPlatform'
 import { useAuth } from '../contexts/AuthContext'
 import { expandPromptWithAI } from '../lib/aiPrompt'
 import {
@@ -437,6 +438,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
   const [viewerAgentSearchQuery, setViewerAgentSearchQuery] = useState('')
   const [savingSkillAssignmentAgentId, setSavingSkillAssignmentAgentId] = useState<string | null>(null)
   const [removingAssignedSkillName, setRemovingAssignedSkillName] = useState<string | null>(null)
+  const [runtimePlatform, setRuntimePlatform] = useState<RuntimePlatform>('unknown')
 
   const focusSkill = (skillName: string) => {
     const normalized = skillName.trim().toLowerCase()
@@ -489,6 +491,15 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
         )
       })
       .catch(() => setPartnerInstallers([]))
+  }, [])
+
+  useEffect(() => {
+    fetch('/api/system')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        setRuntimePlatform(normalizeRuntimePlatform(typeof data?.platform === 'string' ? data.platform : null))
+      })
+      .catch(() => setRuntimePlatform('unknown'))
   }, [])
 
   useEffect(() => {
@@ -1213,17 +1224,30 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
   const visibleInlineRegistrySuggestionsByProvider = useMemo(() => ({
     clawhub: inlineRegistrySuggestions.clawhub
       .map((skill) => ({ ...skill, installName: skill.install_name || skill.full_name || skill.name }))
+      .filter((skill) => getRegistrySkillCompatibility(skill, runtimePlatform).compatible)
       .filter((skill) => !registryInstalledNames.has(`clawhub:${skill.installName}`))
       .slice(0, 5),
     shipables: inlineRegistrySuggestions.shipables
       .map((skill) => ({ ...skill, installName: skill.install_name || skill.full_name || skill.name }))
+      .filter((skill) => getRegistrySkillCompatibility(skill, runtimePlatform).compatible)
       .filter((skill) => !registryInstalledNames.has(`shipables:${skill.installName}`))
       .slice(0, 5),
     tessl: inlineRegistrySuggestions.tessl
       .map((skill) => ({ ...skill, installName: skill.install_name || skill.full_name || skill.name }))
+      .filter((skill) => getRegistrySkillCompatibility(skill, runtimePlatform).compatible)
       .filter((skill) => !registryInstalledNames.has(`tessl:${skill.installName}`))
       .slice(0, 5),
-  }), [inlineRegistrySuggestions, registryInstalledNames])
+  }), [inlineRegistrySuggestions, registryInstalledNames, runtimePlatform])
+  const hiddenInlineRegistrySuggestionsCount = useMemo(() => (
+    inlineRegistrySuggestions.clawhub.filter((skill) => !getRegistrySkillCompatibility(skill, runtimePlatform).compatible).length +
+    inlineRegistrySuggestions.shipables.filter((skill) => !getRegistrySkillCompatibility(skill, runtimePlatform).compatible).length +
+    inlineRegistrySuggestions.tessl.filter((skill) => !getRegistrySkillCompatibility(skill, runtimePlatform).compatible).length
+  ), [inlineRegistrySuggestions, runtimePlatform])
+  const visibleRegistryResults = useMemo(
+    () => registryResults.filter((skill) => getRegistrySkillCompatibility(skill, runtimePlatform).compatible),
+    [registryResults, runtimePlatform]
+  )
+  const hiddenRegistryResultsCount = registryResults.length - visibleRegistryResults.length
   const activeRegistryProvider = REGISTRY_PROVIDERS.find((provider) => provider.id === registryProvider) || REGISTRY_PROVIDERS[0]
   const viewingSkillSetupHint = viewingSkill ? getSkillSetupHint(viewingSkill) : null
   const allSkillTags = useMemo(() => collectSkillTags(allSkills), [allSkills])
@@ -1991,7 +2015,13 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                   {inlineRegistryLoading ? (
                     <div className="text-sm text-gray-500 dark:text-gray-400">Searching registry…</div>
                   ) : (visibleInlineRegistrySuggestionsByProvider.clawhub.length > 0 || visibleInlineRegistrySuggestionsByProvider.shipables.length > 0 || visibleInlineRegistrySuggestionsByProvider.tessl.length > 0) ? (
-                    <div className="grid gap-3 lg:grid-cols-2">
+                    <div className="space-y-3">
+                      {hiddenInlineRegistrySuggestionsCount > 0 && runtimePlatform !== 'unknown' && (
+                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                          Showing only skills compatible with this {runtimePlatform === 'darwin' ? 'macOS' : runtimePlatform} runtime.
+                        </div>
+                      )}
+                      <div className="grid gap-3 lg:grid-cols-2">
                       {(['clawhub', 'shipables', 'tessl'] as RegistryProvider[]).map((provider) => {
                         const suggestions = visibleInlineRegistrySuggestionsByProvider[provider]
                         if (suggestions.length === 0) return null
@@ -2037,6 +2067,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                           </div>
                         )
                       })}
+                      </div>
                     </div>
                   ) : (
                     <div className="text-sm text-gray-500 dark:text-gray-400">No registry suggestions yet for “{searchQuery.trim()}”.</div>
@@ -2085,7 +2116,13 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                     {inlineRegistryLoading ? (
                       <div className="text-sm text-gray-500 dark:text-gray-400">Searching registry…</div>
                     ) : (
-                      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                      <div className="space-y-3">
+                        {hiddenInlineRegistrySuggestionsCount > 0 && runtimePlatform !== 'unknown' && (
+                          <div className="text-xs text-gray-500 dark:text-gray-400">
+                            Showing only skills compatible with this {runtimePlatform === 'darwin' ? 'macOS' : runtimePlatform} runtime.
+                          </div>
+                        )}
+                        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
                         {(['clawhub', 'shipables', 'tessl'] as RegistryProvider[]).map((provider) => {
                           const suggestions = visibleInlineRegistrySuggestionsByProvider[provider]
                           if (suggestions.length === 0) return null
@@ -2129,6 +2166,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                             </div>
                           )
                         })}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -3380,13 +3418,18 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                     )}
 
                     {/* Results */}
-                    {!registrySearching && registryResults.length > 0 && (
+                    {!registrySearching && visibleRegistryResults.length > 0 && (
                       <div>
                         <div className="text-xs text-gray-400 mb-2">
-                          Showing {registryResults.length} of {registryTotal} skill{registryTotal !== 1 ? 's' : ''}
+                          Showing {visibleRegistryResults.length} compatible skill{visibleRegistryResults.length !== 1 ? 's' : ''} of {registryTotal} result{registryTotal !== 1 ? 's' : ''}
                         </div>
+                        {hiddenRegistryResultsCount > 0 && runtimePlatform !== 'unknown' && (
+                          <div className="mb-2 text-xs text-gray-500 dark:text-gray-400">
+                            Hidden {hiddenRegistryResultsCount} skill{hiddenRegistryResultsCount !== 1 ? 's' : ''} that appear incompatible with this {runtimePlatform === 'darwin' ? 'macOS' : runtimePlatform} runtime.
+                          </div>
+                        )}
                         <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden max-h-80 overflow-y-auto">
-                          {registryResults.map((skill: any, idx: number) => {
+                          {visibleRegistryResults.map((skill: any, idx: number) => {
                             const installName = skill.install_name || skill.full_name || skill.name
                             const isInstalled = registryInstalledNames.has(`${registryProvider}:${installName}`)
                             return (
@@ -3431,7 +3474,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                       </div>
                     )}
 
-                    {!registrySearching && registryResults.length === 0 && registryQuery && (
+                    {!registrySearching && visibleRegistryResults.length === 0 && registryQuery && (
                       <div className="text-center py-6 text-gray-400 text-sm">
                         No {activeRegistryProvider.label} results for "{registryQuery}". Try a different term.
                       </div>
