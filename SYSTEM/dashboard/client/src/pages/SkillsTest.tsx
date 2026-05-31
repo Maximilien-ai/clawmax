@@ -16,6 +16,13 @@ import { collectSkillTags, matchesSelectedSkillTags } from '../lib/skillTags'
 import { buildAgentSkillsScope, buildAssignedSkillBadges } from '../lib/agentSkillsScope'
 import { useAuth } from '../contexts/AuthContext'
 import { expandPromptWithAI } from '../lib/aiPrompt'
+import {
+  headerPrimaryButtonClass,
+  headerSecondaryButtonActiveClass,
+  headerSecondaryButtonClass,
+  headerSecondaryButtonIdleClass,
+  headerToggleButtonClass,
+} from '../lib/headerControls'
 import { ProductIconCell, resolveSkillVisual, resolveCategoryVisual } from '../lib/productIcons'
 
 // Use relative path so it works with ngrok and localhost
@@ -1340,11 +1347,12 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-6">
-          <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
-            <div className="flex flex-wrap items-center gap-3 sm:gap-4">
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100">
-                Skills
-              </h1>
+          <div className="flex flex-wrap items-start justify-between gap-4 mb-2">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-3 sm:gap-4">
+                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100">
+                  Skills
+                </h1>
               {availableAgents.length > 0 && (
                 <div className="relative">
                   <input
@@ -1356,7 +1364,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                     }}
                     onFocus={() => setShowAgentDropdown(true)}
                     placeholder="Selected agent"
-                    className="min-w-48 rounded-lg border border-gray-200 bg-white px-4 py-2 pr-10 text-sm text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+                    className="h-11 min-w-48 rounded-lg border border-gray-200 bg-white px-4 py-2 pr-10 text-sm text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
                   />
                   {(agentSearchQuery || agentId) && (
                     <button
@@ -1393,20 +1401,24 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                   )}
                 </div>
               )}
+              </div>
+              <div className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                {allSkills.length} skill{allSkills.length !== 1 ? 's' : ''}
+              </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <div className="flex items-center overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
                 <button
                   onClick={() => setViewMode('grid')}
                   title="Grid view"
-                  className={`px-2.5 py-2 text-xs transition-colors ${viewMode === 'grid' ? 'bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400' : 'text-gray-400 hover:bg-gray-50 hover:text-gray-600 dark:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-gray-300'}`}
+                  className={`${headerToggleButtonClass} ${viewMode === 'grid' ? 'bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400' : 'text-gray-400 hover:bg-gray-50 hover:text-gray-600 dark:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-gray-300'}`}
                 >
                   <ProductIconCell iconName="grid" label="Grid view" size="sm" className="border-transparent bg-transparent text-current" />
                 </button>
                 <button
                   onClick={() => setViewMode('list')}
                   title="List view"
-                  className={`border-l border-gray-200 px-2.5 py-2 text-xs transition-colors dark:border-gray-700 ${viewMode === 'list' ? 'bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400' : 'text-gray-400 hover:bg-gray-50 hover:text-gray-600 dark:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-gray-300'}`}
+                  className={`border-l border-gray-200 dark:border-gray-700 ${headerToggleButtonClass} ${viewMode === 'list' ? 'bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400' : 'text-gray-400 hover:bg-gray-50 hover:text-gray-600 dark:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-gray-300'}`}
                 >
                   <ProductIconCell iconName="list" label="List view" size="sm" className="border-transparent bg-transparent text-current" />
                 </button>
@@ -1420,18 +1432,19 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                     return !current
                   })
                 }}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                className={`${headerSecondaryButtonClass} ${
                   selectionMode
-                    ? 'bg-blue-600 text-white hover:bg-blue-700'
-                    : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                    ? headerSecondaryButtonActiveClass
+                    : headerSecondaryButtonIdleClass
                 }`}
               >
+                <ProductIconCell iconName="select" label={selectionMode ? 'Cancel selection' : 'Select skills'} size="sm" className="border-transparent bg-transparent text-current" />
                 {selectionMode ? 'Cancel' : 'Select'}
               </button>
               {selectionMode && filteredSkills.length > 0 && (
                 <button
                   onClick={() => setSelectedSkillIds((current) => toggleVisibleSelections(current, filteredSkills.map((skill) => skill.name)))}
-                  className="px-4 py-2 rounded-lg text-sm font-medium bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                  className={`${headerSecondaryButtonClass} ${headerSecondaryButtonIdleClass}`}
                   title="Toggle select all visible skills"
                 >
                   {filteredSkills.every((skill) => selectedSkillIds.has(skill.name)) ? 'Deselect All' : 'Select All'}
@@ -1439,14 +1452,14 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
               )}
               <button
                 onClick={() => openImportDialog('ai')}
-                className="px-4 py-2 rounded-lg bg-sky-600 text-white hover:bg-sky-700 transition-colors text-sm font-medium"
+                className={headerPrimaryButtonClass}
               >
                 Create
               </button>
               <div className="relative">
                 <button
                   onClick={() => setShowSkillActionsMenu(!showSkillActionsMenu)}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors text-sm font-medium"
+                  className={`${headerSecondaryButtonClass} ${headerSecondaryButtonIdleClass}`}
                   title="Actions"
                 >
                   <ProductIconCell iconName="ai" label="Actions" size="sm" className="border-transparent bg-transparent text-current" /> Actions <span className="text-xs">▾</span>
@@ -1658,7 +1671,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
 
         {/* Filters */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border mb-6">
-          <div className="flex gap-4 flex-wrap">
+          <div className="flex gap-4 flex-wrap items-start">
             {/* Search */}
             <div className="relative flex-1 min-w-64">
               <input
@@ -1666,7 +1679,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                 placeholder="Search skills..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full px-4 py-2 pr-10 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="h-11 w-full px-4 py-2 pr-10 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
               {searchQuery && (
                 <button
@@ -1680,33 +1693,33 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
             </div>
 
             {/* Filter buttons */}
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <button
                 onClick={() => setFilterAssigned('all')}
-                className={`px-4 py-2 rounded-lg font-medium ${
+                className={`${headerSecondaryButtonClass} ${
                   filterAssigned === 'all'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                    ? headerSecondaryButtonActiveClass
+                    : headerSecondaryButtonIdleClass
                 }`}
               >
                 All
               </button>
               <button
                 onClick={() => setFilterAssigned('assigned')}
-                className={`px-4 py-2 rounded-lg font-medium ${
+                className={`${headerSecondaryButtonClass} ${
                   filterAssigned === 'assigned'
-                    ? 'bg-green-600 text-white'
-                    : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                    ? headerSecondaryButtonActiveClass
+                    : headerSecondaryButtonIdleClass
                 }`}
               >
                 Assigned
               </button>
               <button
                 onClick={() => setFilterAssigned('available')}
-                className={`px-4 py-2 rounded-lg font-medium ${
+                className={`${headerSecondaryButtonClass} ${
                   filterAssigned === 'available'
-                    ? 'bg-gray-600 text-white'
-                    : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                    ? headerSecondaryButtonActiveClass
+                    : headerSecondaryButtonIdleClass
                 }`}
               >
                 Available

@@ -778,11 +778,17 @@ test('GitHub skill has install options', () => {
 
   assert(skill !== null, 'GitHub skill should exist')
   assert(Array.isArray(skill!.install), 'Should have install array')
-  assert((skill!.install?.length || 0) > 0, 'Should have at least one install option')
+  assert((skill!.install?.length || 0) > 0, 'Should have at least one visible install option')
 
-  const brewInstall = skill!.install?.find((i: SkillInstallOption) => i.kind === 'brew')
-  assert(brewInstall !== undefined, 'Should have brew install option')
-  assertEqual(brewInstall!.formula, 'gh', 'Brew formula should be "gh"')
+  if (process.platform === 'darwin') {
+    const brewInstall = skill!.install?.find((i: SkillInstallOption) => i.kind === 'brew')
+    assert(brewInstall !== undefined, 'Should have brew install option on macOS')
+    assertEqual(brewInstall!.formula, 'gh', 'Brew formula should be "gh"')
+  } else if (process.platform === 'linux') {
+    const aptInstall = skill!.install?.find((i: SkillInstallOption) => i.kind === 'apt')
+    assert(aptInstall !== undefined, 'Should have apt install option on Linux')
+    assertEqual(aptInstall!.package, 'gh', 'APT package should be "gh"')
+  }
 
   console.log(`  Install options: ${skill!.install?.map((i: SkillInstallOption) => i.kind).join(', ')}`)
 })
@@ -804,9 +810,17 @@ test('getSkillRequirementInstallCommands() builds deduplicated brew commands', (
 })
 
 test('getSkillRequirementInstallCommands() prefers apt on linux when available', () => {
-  const skill = getSkillById('github')
-  assert(skill !== null, 'GitHub skill should exist')
-  const commands = getSkillRequirementInstallCommands(skill!, {
+  const commands = getSkillRequirementInstallCommands({
+    name: 'github',
+    description: 'test',
+    filePath: '',
+    bundled: false,
+    source: 'workspace',
+    install: [
+      { id: 'brew', kind: 'brew', formula: 'gh', bins: ['gh'], label: 'Install GitHub CLI (brew)' },
+      { id: 'apt', kind: 'apt', package: 'gh', bins: ['gh'], label: 'Install GitHub CLI (apt)' },
+    ],
+  }, {
     platform: 'linux',
     commandExists: (command: string) => command === 'apt-get' || command === 'npm',
   })
@@ -816,9 +830,17 @@ test('getSkillRequirementInstallCommands() prefers apt on linux when available',
 })
 
 test('getSkillRequirementInstallCommands() does not emit brew on linux when brew is unavailable', () => {
-  const skill = getSkillById('himalaya')
-  assert(skill !== null, 'Himalaya skill should exist')
-  const commands = getSkillRequirementInstallCommands(skill!, {
+  const commands = getSkillRequirementInstallCommands({
+    name: 'himalaya',
+    description: 'test',
+    filePath: '',
+    bundled: false,
+    source: 'workspace',
+    install: [
+      { id: 'brew', kind: 'brew', formula: 'himalaya', bins: ['himalaya'], label: 'Install Himalaya (brew)' },
+      { id: 'apt', kind: 'apt', package: 'himalaya', bins: ['himalaya'], label: 'Install Himalaya (apt)' },
+    ],
+  }, {
     platform: 'linux',
     commandExists: (command: string) => command === 'apt-get',
   })
@@ -1078,7 +1100,7 @@ This skill only ships index.js.`
   console.log('  ✓ index.ts shim generated for index.js-only skill')
 })
 
-test('importWorkspaceSkill() applies install-option normalization for imported linux-relevant skills', () => {
+test('importWorkspaceSkill() applies install-option normalization for imported skills on the current platform', () => {
   try { deleteWorkspaceSkill('test-himalaya-skill') } catch (e) {}
 
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'test-skill-'))
@@ -1102,9 +1124,15 @@ Imported test skill.`
 
   const imported = getSkillById('test-himalaya-skill') || getSkillById('himalaya')
   assert(imported !== null, 'Imported himalaya skill should be discoverable')
-  const aptOption = imported!.install?.find((option: SkillInstallOption) => option.kind === 'apt')
-  assert(aptOption !== undefined, 'Imported himalaya skill should gain apt install fallback')
-  assertEqual(aptOption!.package, 'himalaya', 'Expected himalaya apt package name')
+  if (process.platform === 'darwin') {
+    const brewOption = imported!.install?.find((option: SkillInstallOption) => option.kind === 'brew')
+    assert(brewOption !== undefined, 'Imported himalaya skill should expose brew on macOS')
+    assertEqual(brewOption!.formula, 'himalaya', 'Expected himalaya brew formula name')
+  } else if (process.platform === 'linux') {
+    const aptOption = imported!.install?.find((option: SkillInstallOption) => option.kind === 'apt')
+    assert(aptOption !== undefined, 'Imported himalaya skill should expose apt on Linux')
+    assertEqual(aptOption!.package, 'himalaya', 'Expected himalaya apt package name')
+  }
 
   deleteWorkspaceSkill('test-himalaya-skill')
   fs.rmSync(tmpDir, { recursive: true, force: true })

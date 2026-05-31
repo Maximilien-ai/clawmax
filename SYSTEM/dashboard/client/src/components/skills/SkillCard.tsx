@@ -213,9 +213,11 @@ export function SkillCard({ skill, assigned, onToggle, onView, onDelete, canDele
                       {option.kind === 'brew' && `brew install ${option.formula}`}
                       {option.kind === 'apt' && `apt install ${option.package}`}
                       {option.kind === 'npm' && `npm install -g ${option.package}`}
+                      {option.kind === 'node' && `npm install -g ${option.package}`}
+                      {option.kind === 'pnpm' && `pnpm add -g ${option.package}`}
                       {option.kind === 'go' && `go install ${option.module || option.package}`}
                       {option.kind === 'uv' && `uv tool install ${option.package}`}
-                      {!['brew', 'apt', 'npm', 'go', 'uv'].includes(option.kind) && option.label}
+                      {!['brew', 'apt', 'npm', 'node', 'pnpm', 'go', 'uv'].includes(option.kind) && option.label}
                     </div>
                   ))}
                   {installSatisfied ? (

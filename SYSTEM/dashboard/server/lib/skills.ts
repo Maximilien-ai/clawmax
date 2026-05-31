@@ -307,6 +307,38 @@ function normalizeSkillInstallOptions(name: string, install: SkillInstallOption[
   return normalized
 }
 
+function getPreferredDisplayInstallKinds(platform: NodeJS.Platform = process.platform): Array<SkillInstallOption['kind']> {
+  switch (platform) {
+    case 'darwin':
+      return ['brew', 'uv', 'go', 'npm', 'pnpm', 'node', 'apt', 'download']
+    case 'linux':
+      return ['apt', 'uv', 'go', 'npm', 'pnpm', 'node', 'brew', 'download']
+    default:
+      return ['npm', 'pnpm', 'uv', 'go', 'node', 'apt', 'brew', 'download']
+  }
+}
+
+function getVisibleSkillInstallOptions(
+  install: SkillInstallOption[] | undefined,
+  platform: NodeJS.Platform = process.platform,
+): SkillInstallOption[] | undefined {
+  const options = Array.isArray(install) ? install : []
+  if (options.length === 0) return undefined
+  const compatible = options.filter((option) => {
+    const supportedPlatforms = (option as any).os
+    return !Array.isArray(supportedPlatforms) || supportedPlatforms.length === 0 || supportedPlatforms.includes(platform)
+  })
+  if (compatible.length === 0) return undefined
+
+  const preferredKinds = getPreferredDisplayInstallKinds(platform)
+  for (const kind of preferredKinds) {
+    const matching = compatible.filter((option) => option.kind === kind)
+    if (matching.length > 0) return matching
+  }
+
+  return compatible
+}
+
 // Paths to skill directories
 // Auto-detect OpenClaw installation path instead of hardcoding
 function findOpenClawSkillsDir(): string {
@@ -665,6 +697,7 @@ function parseSkillFile(
     const openclawMeta = data.metadata?.openclaw || {}
 
     const requires = openclawMeta.requires
+    const normalizedInstall = normalizeSkillInstallOptions(data.name, openclawMeta.install)
     const secretRequirements = openclawMeta.secretRequirements || data.secretRequirements || []
     return {
       id: source === 'bundled' ? undefined : getSkillDirectoryId(filePath),
@@ -678,8 +711,8 @@ function parseSkillFile(
       variantOf: openclawMeta.variantOf,
       originalSource: openclawMeta.originalSource,
       requires,
-      install: normalizeSkillInstallOptions(data.name, openclawMeta.install),
-      requirementStatus: getSkillRequirementStatus({ requires, install: normalizeSkillInstallOptions(data.name, openclawMeta.install) }),
+      install: getVisibleSkillInstallOptions(normalizedInstall),
+      requirementStatus: getSkillRequirementStatus({ requires, install: normalizedInstall }),
       homepage: openclawMeta.homepage,
       tags: openclawMeta.tags || data.tags || [],
       registryProvider: openclawMeta.registryProvider,
@@ -721,6 +754,7 @@ function parseWorkspaceSkillFile(filePath: string, skillId: string): OpenClawSki
     const openclawMeta = data.metadata?.openclaw || {}
 
     const requires = data.requires || openclawMeta.requires
+    const normalizedInstall = normalizeSkillInstallOptions(name, data.install || openclawMeta.install)
     const secretRequirements = data.secretRequirements || openclawMeta.secretRequirements || []
     return {
       id: skillId, // Store directory name for deletion
@@ -734,8 +768,8 @@ function parseWorkspaceSkillFile(filePath: string, skillId: string): OpenClawSki
       variantOf: openclawMeta.variantOf,
       originalSource: openclawMeta.originalSource,
       requires,
-      install: normalizeSkillInstallOptions(name, data.install || openclawMeta.install),
-      requirementStatus: getSkillRequirementStatus({ requires, install: normalizeSkillInstallOptions(name, data.install || openclawMeta.install) }),
+      install: getVisibleSkillInstallOptions(normalizedInstall),
+      requirementStatus: getSkillRequirementStatus({ requires, install: normalizedInstall }),
       homepage: data.homepage || openclawMeta.homepage,
       tags: data.tags || openclawMeta.tags || [],
       registryProvider: openclawMeta.registryProvider,

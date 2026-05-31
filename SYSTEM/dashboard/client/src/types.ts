@@ -2,12 +2,13 @@
 
 export interface SkillInstallOption {
   id: string
-  kind: 'brew' | 'apt' | 'npm' | 'go' | 'manual'
+  kind: 'brew' | 'apt' | 'npm' | 'pnpm' | 'uv' | 'go' | 'node' | 'download' | 'manual'
   formula?: string      // For brew
   package?: string      // For apt/npm
   module?: string       // For go
   bins?: string[]       // Binaries installed
   label: string         // Display label
+  os?: string[]
 }
 
 export interface SkillRequirements {
