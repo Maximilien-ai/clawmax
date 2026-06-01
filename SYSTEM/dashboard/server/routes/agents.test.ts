@@ -82,6 +82,7 @@ function makeReq(overrides: Record<string, any> = {}) {
     params: {},
     query: {},
     body: {},
+    headers: {},
     ...overrides,
   } as any
 }
@@ -179,6 +180,28 @@ async function run() {
     assert.strictEqual(res.statusCode, 200, 'Expected validate-provision route success')
     assert.strictEqual(res.jsonBody?.valid, false, 'Expected duplicate agent id to invalidate provisioning')
     assert((res.jsonBody?.errors || []).some((error: string) => /already exists/i.test(error)), 'Expected duplicate id error guidance')
+  })
+
+  await test('gateway-status rejects invalid ids and missing agents cleanly', async () => {
+    const handler = getRouteHandler('get', '/:id/gateway-status')
+
+    let res = makeRes()
+    await handler(makeReq({ params: { id: 'BAD ID' } }), res)
+    assert.strictEqual(res.statusCode, 400, 'Expected invalid gateway-status id to return HTTP 400')
+
+    res = makeRes()
+    await handler(makeReq({ params: { id: 'missing-agent' } }), res)
+    assert.strictEqual(res.statusCode, 404, 'Expected missing agent gateway-status to return HTTP 404')
+    assert(/Agent not found/i.test(res.jsonBody?.error || ''), 'Expected missing agent guidance')
+  })
+
+  await test('health returns 404 for missing agents before invoking openclaw', async () => {
+    const handler = getRouteHandler('get', '/:id/health')
+    const res = makeRes()
+    await handler(makeReq({ params: { id: 'missing-agent' } }), res)
+
+    assert.strictEqual(res.statusCode, 404, 'Expected missing agent health to return HTTP 404')
+    assert(/Agent not found/i.test(res.jsonBody?.error || ''), 'Expected missing agent health guidance')
   })
 
   if (typeof originalHome === 'undefined') delete process.env.HOME

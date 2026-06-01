@@ -65,14 +65,14 @@ function ensureWorkspaceScaffold(workspacePath: string) {
   fs.writeFileSync(path.join(workspacePath, 'ORG', 'GROUPS.md'), '# Groups\n\n## Groups\n\n', 'utf-8')
 }
 
-function getRouteHandler(method: 'get' | 'post' | 'delete', routePath: string) {
+function getRouteHandler(method: 'get' | 'post' | 'delete' | 'put', routePath: string) {
   const layer = (router as any).stack.find((entry: any) => entry.route?.path === routePath && entry.route?.methods?.[method])
   if (!layer) throw new Error(`Route ${method.toUpperCase()} ${routePath} not found`)
   return layer.route.stack[0].handle as Function
 }
 
-function makeReq(params: Record<string, string>) {
-  return { params, query: {}, body: {} } as any
+function makeReq(params: Record<string, string>, overrides: Record<string, any> = {}) {
+  return { params, query: {}, body: {}, headers: {}, ...overrides } as any
 }
 
 function makeRes() {
@@ -154,6 +154,70 @@ async function run() {
     await deleteHandler(makeReq({ id: workflowId, executionId: 'exec-001' }), res)
     assert(res.statusCode === 200, `Expected delete success, got ${res.statusCode}`)
     assert(!fs.existsSync(path.join(executionDir, 'exec-001.json')), 'Expected execution deleted from active workspace')
+  })
+
+  await test('workflow mutation routes reject invalid and missing workflow ids', async () => {
+    const triggerHandler = getRouteHandler('post', '/:id/trigger')
+    const updateHandler = getRouteHandler('put', '/:id')
+    const participantsHandler = getRouteHandler('get', '/:id/participants')
+    const progressHandler = getRouteHandler('post', '/:id/progress')
+    const completeHandler = getRouteHandler('post', '/:id/complete')
+
+    let res = makeRes()
+    await triggerHandler(makeReq({ id: 'BAD ID' }), res)
+    assert(res.statusCode === 400, `Expected invalid workflow id for trigger, got ${res.statusCode}`)
+
+    res = makeRes()
+    await updateHandler(makeReq({ id: 'BAD ID' }, { body: {} }), res)
+    assert(res.statusCode === 400, `Expected invalid workflow id for update, got ${res.statusCode}`)
+
+    res = makeRes()
+    await participantsHandler(makeReq({ id: 'BAD ID' }), res)
+    assert(res.statusCode === 400, `Expected invalid workflow id for participants, got ${res.statusCode}`)
+
+    res = makeRes()
+    await progressHandler(makeReq({ id: 'missing-workflow' }, { body: { progress: 25 } }), res)
+    assert(res.statusCode === 404, `Expected missing workflow for progress, got ${res.statusCode}`)
+
+    res = makeRes()
+    await completeHandler(makeReq({ id: 'missing-workflow' }), res)
+    assert(res.statusCode === 404, `Expected missing workflow for complete, got ${res.statusCode}`)
+  })
+
+  await test('workflow progress route validates progress bounds', async () => {
+    const created = createWorkflow({
+      name: 'Progress Route Test',
+      description: 'Validate progress route guards',
+      schedule: 'manual',
+      content: '# Test\nProgress me.',
+      executionMode: 'managed',
+      owner: 'test-owner',
+      targeting: { agents: [], groups: [], tags: [], communities: [] },
+    } as any)
+    assert(!!(created.success && created.id), `Workflow should be created: ${created.error}`)
+
+    const workflowId = created.id!
+    const progressHandler = getRouteHandler('post', '/:id/progress')
+
+    let res = makeRes()
+    await progressHandler(makeReq({ id: workflowId }, { body: { progress: 150 } }), res)
+    assert(res.statusCode === 400, `Expected invalid progress >100 to return 400, got ${res.statusCode}`)
+
+    res = makeRes()
+    await progressHandler(makeReq({ id: workflowId }, { body: { progress: -1 } }), res)
+    assert(res.statusCode === 400, `Expected invalid progress <0 to return 400, got ${res.statusCode}`)
+  })
+
+  await test('workflow creation route rejects invalid payloads', async () => {
+    const createHandler = getRouteHandler('post', '/')
+    const res = makeRes()
+    await createHandler(makeReq({}, {
+      body: {
+        name: 'Broken Workflow',
+      },
+    }), res)
+    assert(res.statusCode === 400, `Expected invalid workflow payload to return 400, got ${res.statusCode}`)
+    assert(res.jsonBody?.error === 'Invalid workflow data', 'Expected invalid workflow data response')
   })
 
   if (typeof originalHome === 'undefined') delete process.env.HOME
