@@ -821,6 +821,14 @@ else
   fail "Setup shell tests"
 fi
 
+echo -e "${YELLOW}→ Running Update shell tests...${NC}"
+sh "$SYSTEM_DIR/update.test.sh" > /tmp/clawmax-update-shell.out 2>&1 || true
+if grep -q "PASS: update.sh reruns setup in non-interactive mode" /tmp/clawmax-update-shell.out && grep -q "PASS: update.sh delegates to install.sh" /tmp/clawmax-update-shell.out; then
+  pass "Update shell tests"
+else
+  fail "Update shell tests"
+fi
+
 echo -e "${YELLOW}→ Running Cloud maintenance status unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/cloud-maintenance-status.test.ts > /tmp/clawmax-cloud-maintenance-status.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-cloud-maintenance-status.out; then

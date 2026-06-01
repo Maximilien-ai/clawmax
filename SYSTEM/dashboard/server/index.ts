@@ -41,6 +41,7 @@ import { getResolvedMaintenanceBanner } from './lib/cloud-maintenance-status'
 import { getHostAgentStatus } from './lib/host-agent-status'
 import { readWorkspaceIntegrationConfig } from './lib/workspace-integrations'
 import { resolveOpenClawCliPath } from './lib/openclaw-cli'
+import { buildSystemInfoPayload } from './lib/system-info'
 
 // ============================================================================
 // Crash Protection & Error Logging
@@ -298,17 +299,11 @@ app.get('/api/system', protect, async (req, res) => {
   const maintenanceBanner = await getResolvedMaintenanceBanner(rawEnv, requestHost)
   const hostAgentStatus = getHostAgentStatus()
   const runtimeIdentity = getRuntimeInstanceIdentity()
-  res.json({
+  res.json(buildSystemInfoPayload({
     workspace: workspacePath,
     hostname: os.hostname(),
     platform: process.platform,
-    instanceKey: runtimeIdentity.instanceKey || null,
-    machineId: runtimeIdentity.machineId || null,
-    machineName: runtimeIdentity.machineName || null,
-    agentCount: agents.length,
-    activeAgentCount: activeAgents.length,
-    pausedAgentCount: agents.length - activeAgents.length,
-    onlineCount: activeAgents.filter(a => a.status === 'online').length,
+    agents,
     version: getDashboardVersion(),
     instanceLabel: getDashboardInstanceLabel(rawEnv),
     gitBranch,
@@ -319,8 +314,9 @@ app.get('/api/system', protect, async (req, res) => {
     defaultOpenAiCompatibleBaseUrl: getDefaultOpenAICompatibleBaseUrl(rawEnv),
     maintenanceBanner,
     hostAgentStatus,
+    runtimeIdentity,
     orgName: getOrgName() ?? null,
-  })
+  }))
 })
 
 // Active workspace activity feed
