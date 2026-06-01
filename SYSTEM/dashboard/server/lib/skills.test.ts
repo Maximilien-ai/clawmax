@@ -868,6 +868,9 @@ test('getSkillRequirementInstallCommands() builds deduplicated brew commands', (
       ...(skill!.install || []),
       { id: 'dup-gh', kind: 'brew', formula: 'gh', label: 'Duplicate gh install' },
     ],
+  }, {
+    platform: 'darwin',
+    commandExists: (command: string) => command === 'brew',
   })
 
   assertEqual(commands.length, 1, 'Expected duplicate brew formulas to collapse into one command')
