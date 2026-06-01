@@ -10,11 +10,61 @@ Goal: upgrade ClawMax from the current pinned OpenClaw ref to the latest stable 
 - Current `main` remains stable on the old OpenClaw pin.
 - Upgrade work is isolated on `openclaw-upgrade`.
 
+## Immediate Problem: We Do Not Have One OpenClaw Version Today
+
+Before changing the upgrade target, we need to acknowledge that ClawMax currently exercises multiple OpenClaw baselines:
+
+1. Docker/runtime image
+- pinned by `OPENCLAW_GIT_REF=1116ae97662cce066dd130bc07d925fdd1dd3f32` in [Dockerfile](/Users/maximilien/github/Maximilien-ai/clawmax-codex/Dockerfile)
+
+2. CI
+- `.github/workflows/ci.yml` currently clones OpenClaw and attempts `git checkout v0.2.16`
+- if that path fails or drifts, CI is not guaranteed to match the runtime image
+
+3. local/dev environments
+- local machines may already have a different globally installed `openclaw`
+- recent real-machine checks showed a working local CLI around `2026.3.13`
+
+### Upgrade implication
+
+The first upgrade step is not “change to latest”.
+The first upgrade step is:
+
+- define one OpenClaw source of truth for this branch
+- make Docker, CI, and local branch testing use that same baseline deliberately
+
+Without that, the branch can appear green while each environment is testing a different OpenClaw behavior.
+
 ## Target Selection
 
 - Preferred upgrade target: latest stable upstream OpenClaw release
 - Do not target beta/prerelease first unless the stable release is blocked for a specific reason
 - If stable is too disruptive, document the blocker instead of silently drifting to prerelease
+
+### Current target choice
+
+- target stable: `v2026.5.26`
+- do not target `v2026.6.1-beta.1` first
+
+### Why this target
+
+- it is the latest stable upstream release as of 2026-06-01
+- upstream release notes emphasize Gateway/runtime, transcript, channel, provider, and install/update hardening, which overlaps directly with ClawMax’s main OpenClaw dependency surface
+- the beta line should only be used if the stable line is blocked and we have a specific reason
+
+### Known likely delta from the current baseline
+
+Even before the exact pin-to-release mapping is finalized, there is already one likely compatibility pressure point:
+
+- stricter exec approval behavior appeared in newer 2026.3.x / 2026.4.x era OpenClaw builds
+- that can affect agent runtime behavior, workflow execution, and any assumptions around safe command execution in trusted directories
+
+This means the upgrade work must explicitly validate:
+
+- workflow execution
+- agent chat actions that trigger tools/commands
+- skill setup/install flows
+- any local/runtime command allowlist assumptions
 
 ## First Rule: Keep Old and New OpenClaw Isolated
 
@@ -107,6 +157,18 @@ These suites should be run before and after the pin bump:
 - capture release notes and API/runtime changes
 - compare against our pinned ref
 - list likely breaking areas before changing code
+- confirm whether the current pinned ref maps roughly to the local/dev `2026.3.13` baseline or another nearby release
+
+### Phase 1.5: Unify the branch on one OpenClaw baseline
+
+- decide the target release/ref for `openclaw-upgrade`
+- update Docker runtime pin to that exact target
+- update CI so it uses that exact same target instead of an unrelated fallback tag
+- keep local testing branch-scoped via:
+  - `OPENCLAW_BIN`
+  - `OPENCLAW_SKILLS_DIR`
+
+This must happen before trusting any green test run on the branch.
 
 ### Phase 2: Make branch-local OpenClaw usage explicit everywhere needed
 
@@ -155,3 +217,4 @@ These suites should be run before and after the pin bump:
 - do we need a repo-local OpenClaw config home override in addition to `OPENCLAW_BIN`?
 - do any cloud/container paths still bypass the new override model?
 - does the latest stable release change gateway auth or method contracts enough that we need a compatibility shim layer?
+- should CI install OpenClaw from the same packed artifact/ref as the Docker image instead of cloning a separate tag path?
