@@ -9,7 +9,10 @@
 #   ./SYSTEM/start.sh --ngrok    - Start with ngrok tunnel on drmaximilien.ngrok.dev
 #   ./SYSTEM/start.sh -n         - Same as --ngrok
 
-cd "$(dirname "$0")/dashboard"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+. "$SCRIPT_DIR/openclaw-cli.sh"
+
+cd "$SCRIPT_DIR/dashboard"
 
 BACKEND_PORT="${DASHBOARD_PORT:-3001}"
 FRONTEND_PORT="${DASHBOARD_CLIENT_PORT:-5173}"
@@ -90,7 +93,7 @@ read_dotenv_var() {
 }
 
 ensure_local_gateway_ready() {
-  if [ "$(uname -s)" != "Darwin" ] || ! command -v openclaw >/dev/null 2>&1; then
+  if [ "$(uname -s)" != "Darwin" ] || ! openclaw_cli_available; then
     return
   fi
 
@@ -99,20 +102,20 @@ ensure_local_gateway_ready() {
   fi
 
   local gateway_status
-  gateway_status="$(openclaw gateway status 2>/dev/null || true)"
+  gateway_status="$(openclaw_cli_run gateway status 2>/dev/null || true)"
 
   if echo "$gateway_status" | grep -qi "Service not installed"; then
     echo "↻ Installing local OpenClaw gateway LaunchAgent..."
-    openclaw gateway install >/dev/null 2>&1 || true
+    openclaw_cli_run gateway install >/dev/null 2>&1 || true
   fi
 
   if ! echo "$gateway_status" | grep -qi "RPC probe: ok"; then
     echo "↻ Ensuring local OpenClaw gateway is running..."
-    openclaw gateway restart >/dev/null 2>&1 || true
+    openclaw_cli_run gateway restart >/dev/null 2>&1 || true
   fi
 }
 
-if [ -z "$CLAWMAX_SKIP_GATEWAY_BOOTSTRAP" ] && [ "$(uname -s)" = "Darwin" ] && command -v openclaw >/dev/null 2>&1; then
+if [ -z "$CLAWMAX_SKIP_GATEWAY_BOOTSTRAP" ] && [ "$(uname -s)" = "Darwin" ] && openclaw_cli_available; then
   WATCHDOG_SCRIPT="$REPO_ROOT/SYSTEM/scripts/gateway-watchdog.sh"
   WATCHDOG_PLIST="$HOME/Library/LaunchAgents/ai.clawmax.gateway-watchdog.plist"
   mkdir -p "$HOME/Library/LaunchAgents" "$HOME/.openclaw/logs"
@@ -333,8 +336,8 @@ else
       fi
 
       # Show gateway pairing URL if gateway is running
-      if command -v openclaw &> /dev/null; then
-        GATEWAY_URL=$(openclaw dashboard --no-open 2>/dev/null | grep -o 'http://[^ ]*')
+      if openclaw_cli_available; then
+        GATEWAY_URL=$(openclaw_cli_run dashboard --no-open 2>/dev/null | grep -o 'http://[^ ]*')
         if [ -n "$GATEWAY_URL" ]; then
           echo ""
           echo "🔗 Gateway Control UI (pair device for agent chat):"

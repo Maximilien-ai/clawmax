@@ -7,6 +7,9 @@
 
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+. "$SCRIPT_DIR/openclaw-cli.sh"
+
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -55,11 +58,11 @@ probe_gateway() {
       ;;
     000)
       warn "Gateway probe failed (no HTTP response)"
-      info "Check: openclaw gateway status --deep"
+      info "Check: ${OPENCLAW_BIN:-openclaw} gateway status --deep"
       ;;
     *)
       warn "Gateway probe returned unexpected HTTP $code"
-      info "Check: openclaw gateway status --deep"
+      info "Check: ${OPENCLAW_BIN:-openclaw} gateway status --deep"
       ;;
   esac
 }
@@ -137,9 +140,10 @@ echo ""
 
 # ── 2. OpenClaw CLI ─────────────────────────────────────────────────
 echo -e "${BOLD}2. OpenClaw CLI${NC}"
-if command -v openclaw &> /dev/null; then
-  OC_VER=$(openclaw --version 2>&1 | head -1 | grep -o '[0-9]\{4\}\.[0-9]*\.[0-9]*' || echo "unknown")
-  pass "OpenClaw CLI: $OC_VER ($(which openclaw))"
+if openclaw_cli_available; then
+  OC_PATH="$(resolve_openclaw_cli)"
+  OC_VER=$(openclaw_cli_run --version 2>&1 | head -1 | grep -o '[0-9]\{4\}\.[0-9]*\.[0-9]*' || echo "unknown")
+  pass "OpenClaw CLI: $OC_VER ($OC_PATH)"
 else
   fail "OpenClaw CLI not installed"
   info "Fix: npm install -g openclaw"
@@ -157,9 +161,9 @@ if [ -f "$OC_CONFIG" ]; then
       pass "OpenClaw config valid"
     else
       warn "OpenClaw config has unrecognized 'version' key in meta"
-      info "Fix: openclaw doctor --fix"
-      if [ "$FIX_MODE" = true ] && command -v openclaw &> /dev/null; then
-        echo "y" | openclaw doctor --fix 2>/dev/null && fix "Ran openclaw doctor --fix" || true
+      info "Fix: ${OPENCLAW_BIN:-openclaw} doctor --fix"
+      if [ "$FIX_MODE" = true ] && openclaw_cli_available; then
+        echo "y" | openclaw_cli_run doctor --fix 2>/dev/null && fix "Ran openclaw doctor --fix" || true
       fi
     fi
   else
@@ -177,28 +181,28 @@ echo ""
 
 # ── 3. Gateway ──────────────────────────────────────────────────────
 echo -e "${BOLD}3. Gateway${NC}"
-if command -v openclaw &> /dev/null; then
+if openclaw_cli_available; then
   # Check gateway mode
-  GW_MODE=$(openclaw config get gateway.mode 2>/dev/null || echo "")
+  GW_MODE=$(openclaw_cli_run config get gateway.mode 2>/dev/null || echo "")
   if [ -n "$GW_MODE" ] && [ "$GW_MODE" != "unset" ] && [ "$GW_MODE" != "undefined" ]; then
     pass "Gateway mode: $GW_MODE"
   else
     fail "Gateway mode not configured"
-    info "Fix: openclaw config set gateway.mode local"
+    info "Fix: ${OPENCLAW_BIN:-openclaw} config set gateway.mode local"
     if [ "$FIX_MODE" = true ]; then
-      openclaw config set gateway.mode local 2>/dev/null && fix "Set gateway.mode=local" || true
+      openclaw_cli_run config set gateway.mode local 2>/dev/null && fix "Set gateway.mode=local" || true
     fi
   fi
 
   # Check gateway auth token
-  GW_TOKEN=$(openclaw config get gateway.auth.token 2>/dev/null || echo "")
+  GW_TOKEN=$(openclaw_cli_run config get gateway.auth.token 2>/dev/null || echo "")
   if [ -n "$GW_TOKEN" ] && [ "$GW_TOKEN" != "unset" ] && [ "$GW_TOKEN" != "undefined" ]; then
     pass "Gateway auth token configured"
   else
     fail "Gateway auth token missing"
     if [ "$FIX_MODE" = true ]; then
       GW_TOKEN=$(openssl rand -hex 32 2>/dev/null || head -c 64 /dev/urandom | od -An -tx1 | tr -d ' \n')
-      openclaw config set gateway.auth.token "$GW_TOKEN" 2>/dev/null && fix "Generated gateway token" || true
+      openclaw_cli_run config set gateway.auth.token "$GW_TOKEN" 2>/dev/null && fix "Generated gateway token" || true
     fi
   fi
 
@@ -208,15 +212,15 @@ if command -v openclaw &> /dev/null; then
     probe_gateway
   else
     fail "Gateway not running (port 18789 free)"
-    info "Fix: openclaw gateway restart"
+    info "Fix: ${OPENCLAW_BIN:-openclaw} gateway restart"
     if [ "$FIX_MODE" = true ]; then
-      openclaw gateway install 2>/dev/null || true
-      openclaw gateway restart 2>/dev/null &
+      openclaw_cli_run gateway install 2>/dev/null || true
+      openclaw_cli_run gateway restart 2>/dev/null &
       sleep 5
       if lsof -ti:18789 > /dev/null 2>&1; then
         fix "Gateway started"
       else
-        fail "Gateway failed to start — check: openclaw gateway status --deep"
+        fail "Gateway failed to start — check: ${OPENCLAW_BIN:-openclaw} gateway status --deep"
       fi
     fi
   fi
@@ -367,7 +371,7 @@ echo ""
 
 # ── 8. Agents Registration ─────────────────────────────────────────
 echo -e "${BOLD}8. Agent Registration${NC}"
-if command -v openclaw &> /dev/null && [ -f "$OC_CONFIG" ]; then
+if openclaw_cli_available && [ -f "$OC_CONFIG" ]; then
   REGISTERED=$(cat "$OC_CONFIG" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d.get('agents',{}).get('list',[])))" 2>/dev/null || echo "0")
   pass "$REGISTERED agent(s) registered in openclaw"
 
@@ -385,7 +389,7 @@ if command -v openclaw &> /dev/null && [ -f "$OC_CONFIG" ]; then
           WS_ARG="$WS_PATH/AGENTS/$AGENT_NAME"
           AD_ARG="$HOME/.openclaw/agents/$AGENT_NAME/agent"
           mkdir -p "$AD_ARG"
-          openclaw agents add "$AGENT_NAME" --workspace "$WS_ARG" --agent-dir "$AD_ARG" --non-interactive 2>/dev/null && fix "Registered $AGENT_NAME" || true
+          openclaw_cli_run agents add "$AGENT_NAME" --workspace "$WS_ARG" --agent-dir "$AD_ARG" --non-interactive 2>/dev/null && fix "Registered $AGENT_NAME" || true
         fi
       fi
     done

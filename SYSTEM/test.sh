@@ -18,6 +18,7 @@
 # Ensure we're in the SYSTEM directory
 cd "$(dirname "$0")"
 SYSTEM_DIR="$(pwd)"
+. "$SYSTEM_DIR/openclaw-cli.sh"
 
 BACKEND_PORT="${DASHBOARD_PORT:-3001}"
 FRONTEND_PORT="${DASHBOARD_CLIENT_PORT:-5173}"
@@ -102,11 +103,11 @@ else
 fi
 
 # Check OpenClaw
-if ! command -v openclaw &> /dev/null; then
+if ! openclaw_cli_available; then
   echo -e "  ${RED}✗${NC} OpenClaw CLI not found"
   preflight_ok=false
 else
-  echo -e "  ${GREEN}✓${NC} OpenClaw CLI"
+  echo -e "  ${GREEN}✓${NC} OpenClaw CLI ($(resolve_openclaw_cli))"
 fi
 
 # Check OpenClaw config
@@ -2001,7 +2002,7 @@ TEST_AGENT="engineer"
 TEST_SKILLS_PAYLOAD='["github","slack"]'
 
 # Check if agent exists in global config
-if ! openclaw agents list 2>&1 | grep -q "$TEST_AGENT"; then
+if ! openclaw_cli_run agents list 2>&1 | grep -q "$TEST_AGENT"; then
   warn "Agent '$TEST_AGENT' not found in global config - skipping Gateway RPC tests"
   warn "Gateway RPC tests require agent registered in ~/.openclaw/openclaw.json"
 else
@@ -2032,7 +2033,7 @@ else
   fi
 
     # Verify OpenClaw CLI can still read config
-    if openclaw agents list 2>&1 | grep -q "$TEST_AGENT"; then
+    if openclaw_cli_run agents list 2>&1 | grep -q "$TEST_AGENT"; then
       pass "OpenClaw CLI can read Gateway-modified config"
     else
       fail "OpenClaw CLI cannot read config (validation may have failed)"
