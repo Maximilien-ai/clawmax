@@ -6,6 +6,25 @@ All notable changes to ClawMax are documented here.
 
 - No unreleased changes yet.
 
+## [v1.6.6] - 2026-06-01
+
+### OpenClaw Upgrade Readiness
+- **Broad Route-Contract Coverage** — every current dashboard server route now has direct contract coverage in the standard test lane, including agents, AI/Builder, channels, chat, docs, integrations, logs, notifications, skills, teams, template registry, templates, workflows, workspace dashboards, and workspaces.
+- **OpenClaw/Gateway Contract Suite Expansion** — added explicit regression coverage for CLI resolution precedence and fallback behavior, protected gateway-config persistence, gateway token precedence, workspace registration/layout assumptions, and active-workspace agent resolution when stale duplicate records exist.
+- **Workspace Dashboard Route Coverage** — added focused contract coverage for workspace-dashboard token resolution, missing-workspace handling, and the happy-path payload snapshot.
+
+### Installer, Update, and Uninstall Hardening
+- **Release Shell Coverage Expansion** — the standard release gate now includes `install.sh`, `setup.sh`, `update.sh`, and `uninstall` shell coverage so bootstrap, handoff, update, and teardown regressions are caught before release.
+- **Uninstall Cleanup Reliability** — uninstall now sweeps Podman orphan residue such as leaked `efi-bl-*` and `*-ignition.sock` files and handles privileged packaged artifacts like `/Applications/ClawMax.app` and `/usr/local/bin/clawmax` more cleanly.
+
+### Skills and Runtime Follow-Through
+- **Wider Skills Layout** — the Skills surface now uses wide screens better with denser desktop grids instead of leaving large unused margins.
+- **Built-In Platform Visibility** — Linux/on-prem/cloud runtimes now hide known macOS-only built-in skills and show more appropriate install guidance for Linux-capable built-ins like `1password`.
+- **Registry/Imported Skill Readiness** — registry-installed and imported skills preserve runtime-appropriate setup/install guidance after import, reinforcing the platform-aware filtering added in `1.6.5`.
+
+### Quality
+- **Default Suite Growth** — `SYSTEM/test.sh integration` now includes materially broader route, shell, client-flow, and OpenClaw contract coverage, reducing the remaining `1.6.x` risk mostly to manual/browser smoke rather than missing backend regression protection.
+
 ## [v1.6.5] - 2026-05-31
 
 ### Skills Platform Readiness
