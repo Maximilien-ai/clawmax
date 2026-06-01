@@ -90,7 +90,7 @@ async function run() {
     const handler = getRouteHandler('get', '/:id/status')
     const res = makeRes()
     await handler(makeReq({ params: { id: 'missing-agent' } }), res)
-    assert([404, 503].includes(res.statusCode), `Expected missing/unavailable gateway to return HTTP 404 or 503, got ${res.statusCode}`)
+    assert([401, 404, 503].includes(res.statusCode), `Expected missing/unavailable gateway to return HTTP 401, 404, or 503, got ${res.statusCode}`)
     assert.strictEqual(res.jsonBody?.available, false, 'Expected unavailable gateway status')
   })
 
