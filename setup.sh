@@ -6,8 +6,13 @@
 
 set -e
 
-# Keep local setup aligned with the tested runtime pin used by the canonical Docker image.
-OPENCLAW_GIT_REF="${OPENCLAW_GIT_REF:-1116ae97662cce066dd130bc07d925fdd1dd3f32}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$SCRIPT_DIR/SYSTEM/openclaw-version.sh" ]; then
+  . "$SCRIPT_DIR/SYSTEM/openclaw-version.sh"
+fi
+
+# Keep local setup aligned with the branch-tested OpenClaw target when present.
+OPENCLAW_GIT_REF="${OPENCLAW_GIT_REF:-${CLAWMAX_OPENCLAW_TARGET:-1116ae97662cce066dd130bc07d925fdd1dd3f32}}"
 
 # Colors
 RED='\033[0;31m'

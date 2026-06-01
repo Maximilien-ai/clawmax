@@ -18,7 +18,6 @@ jobs:
       contents: read
     env:
       OPENCLAW_WORKSPACE: ${{ github.workspace }}/WORKSPACES/default
-      OPENCLAW_SKILLS_DIR: /tmp/openclaw/skills
       AUTH_MODE: bypass
       DASHBOARD_AUTH_DISABLED: "true"
       DASHBOARD_PORT: "3001"
@@ -30,26 +29,19 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22.19.0
           cache: npm
           cache-dependency-path: SYSTEM/dashboard/package-lock.json
 
-      - uses: actions/setup-go@v5
-        with:
-          go-version: stable
-
       - name: Install OpenClaw CLI
         run: |
-          . ./SYSTEM/openclaw-version.sh
-          git clone https://github.com/openclaw/openclaw.git /tmp/openclaw
-          cd /tmp/openclaw
-          git checkout "${CLAWMAX_OPENCLAW_TARGET}" 2>/dev/null || true
-          go build -o /usr/local/bin/openclaw . 2>/dev/null || {
-            echo "::warning::OpenClaw CLI build failed — creating stub for CI"
-            echo '#!/bin/sh' > /usr/local/bin/openclaw
-            echo 'echo "openclaw stub for CI"' >> /usr/local/bin/openclaw
-            chmod +x /usr/local/bin/openclaw
-          }
+          chmod +x ./SYSTEM/prepare-openclaw-target.sh
+          openclaw_bin="$(./SYSTEM/prepare-openclaw-target.sh --print-bin)"
+          openclaw_skills_dir="$(./SYSTEM/prepare-openclaw-target.sh --print-skills-dir)"
+          echo "OPENCLAW_BIN=${openclaw_bin}" >> "$GITHUB_ENV"
+          echo "OPENCLAW_SKILLS_DIR=${openclaw_skills_dir}" >> "$GITHUB_ENV"
+          echo "$(dirname "$openclaw_bin")" >> "$GITHUB_PATH"
+          "$openclaw_bin" --version
 
       - name: Install jq
         run: sudo apt-get install -y jq

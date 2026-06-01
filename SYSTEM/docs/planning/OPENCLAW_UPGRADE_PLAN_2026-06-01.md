@@ -46,6 +46,19 @@ Without that, the branch can appear green while each environment is testing a di
 - target stable: `v2026.5.26`
 - do not target `v2026.6.1-beta.1` first
 
+### Important packaging finding
+
+- `v2026.5.26` is no longer a root Go CLI checkout
+- it is a Node/PNPM workspace package with:
+  - `bin.openclaw = openclaw.mjs`
+  - `engines.node = >=22.19.0`
+  - explicit `build:docker` packaging flow
+
+Upgrade implication:
+
+- old `git clone && go build -o openclaw .` assumptions are invalid on this branch target
+- CI, Docker, and any local isolated branch prep must use the Node package build/install path instead
+
 ### Why this target
 
 - it is the latest stable upstream release as of 2026-06-01
@@ -163,7 +176,7 @@ These suites should be run before and after the pin bump:
 
 - decide the target release/ref for `openclaw-upgrade`
 - update Docker runtime pin to that exact target
-- update CI so it uses that exact same target instead of an unrelated fallback tag
+- update CI so it uses that exact same target and the correct Node-based install flow
 - keep local testing branch-scoped via:
   - `OPENCLAW_BIN`
   - `OPENCLAW_SKILLS_DIR`

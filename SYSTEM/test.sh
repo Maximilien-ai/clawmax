@@ -930,6 +930,15 @@ else
   fail "Setup shell tests"
 fi
 
+echo -e "${YELLOW}→ Running OpenClaw target prep shell tests...${NC}"
+bash "$SYSTEM_DIR/prepare-openclaw-target.test.sh" > /tmp/clawmax-openclaw-target-shell.out 2>&1 || true
+if grep -q "PASS: prepare-openclaw-target.sh uses the branch target Node/PNPM OpenClaw build flow" /tmp/clawmax-openclaw-target-shell.out; then
+  pass "OpenClaw target prep shell tests"
+else
+  [ -f /tmp/clawmax-openclaw-target-shell.out ] && cat /tmp/clawmax-openclaw-target-shell.out
+  fail "OpenClaw target prep shell tests"
+fi
+
 echo -e "${YELLOW}→ Running Uninstall shell tests...${NC}"
 bash "$SYSTEM_DIR/uninstall.test.sh" > /tmp/clawmax-uninstall-shell.out 2>&1 || true
 if grep -q "PASS: setup.sh uninstall covers podman orphan cleanup and privileged packaged-app removal" /tmp/clawmax-uninstall-shell.out; then
