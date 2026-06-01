@@ -45,6 +45,8 @@ function ensureWorkspaceScaffold(workspacePath: string) {
 
 function getRouteHandler(method: 'get' | 'post' | 'delete' | 'patch', routePath: string) {
   resetWorkspaceManagerForTests()
+  delete require.cache[require.resolve('../lib/messages')]
+  delete require.cache[require.resolve('../lib/workspace')]
   delete require.cache[require.resolve('./channels')]
   const router = require('./channels').default
   const layer = router.stack.find((entry: any) => entry.route?.path === routePath && entry.route?.methods?.[method])
