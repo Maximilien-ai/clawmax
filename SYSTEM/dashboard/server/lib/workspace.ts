@@ -760,6 +760,7 @@ export function updateGroupTags(type: 'community' | 'group', name: string, newTa
 
     let inTargetEntry = false
     let foundEntry = false
+    let hasTags = false
     const newLines: string[] = []
 
     for (let i = 0; i < lines.length; i++) {
@@ -771,7 +772,11 @@ export function updateGroupTags(type: 'community' | 'group', name: string, newTa
         const entryName = trimmed.replace(/^###\s+/, '').trim()
         // If we were in target entry and now hit a different entry, exit
         if (inTargetEntry && entryName !== name) {
+          if (!hasTags && newTags.length > 0) {
+            newLines.push(`- **Tags:** ${newTags.join(', ')}`)
+          }
           inTargetEntry = false
+          hasTags = false
         }
         // Check if this is the start of our target entry
         if (entryName === name) {
@@ -784,18 +789,27 @@ export function updateGroupTags(type: 'community' | 'group', name: string, newTa
 
       // If we hit a section header ##, exit the current entry
       if (trimmed.startsWith('##')) {
+        if (inTargetEntry && !hasTags && newTags.length > 0) {
+          newLines.push(`- **Tags:** ${newTags.join(', ')}`)
+        }
         inTargetEntry = false
+        hasTags = false
         newLines.push(line)
         continue
       }
 
       // If we're in the target entry and this is the Tags line, replace it
       if (inTargetEntry && trimmed.match(/^-\s+\*\*Tags:\*\*/i)) {
+        hasTags = true
         newLines.push(`- **Tags:** ${newTags.join(', ')}`)
         continue
       }
 
       newLines.push(line)
+    }
+
+    if (inTargetEntry && !hasTags && newTags.length > 0) {
+      newLines.push(`- **Tags:** ${newTags.join(', ')}`)
     }
 
     if (!foundEntry) return false

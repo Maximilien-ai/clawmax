@@ -42,7 +42,7 @@ function ensureWorkspaceScaffold(workspacePath: string) {
   fs.writeFileSync(path.join(workspacePath, 'ORG', 'GROUPS.md'), '# Groups\n\n## Groups\n\n', 'utf-8')
 }
 
-function getRouteHandler(method: 'get' | 'post' | 'delete', routePath: string) {
+function getRouteHandler(method: 'get' | 'post' | 'delete' | 'patch', routePath: string) {
   delete require.cache[require.resolve('./channels')]
   const router = require('./channels').default
   const layer = router.stack.find((entry: any) => entry.route?.path === routePath && entry.route?.methods?.[method])
@@ -266,6 +266,164 @@ async function run() {
       const agents = conversation.agents || []
       return agents.includes('agent-a') && agents.includes('agent-b')
     }), 'Expected direct message conversation to be discoverable')
+  })
+
+  await test('community and group tag routes validate payloads and persist tags', async () => {
+    const createCommunity = getRouteHandler('post', '/communities')
+    const createGroup = getRouteHandler('post', '/groups')
+    const patchCommunityTags = getRouteHandler('patch', '/communities/:name/tags')
+    const patchGroupTags = getRouteHandler('patch', '/groups/:name/tags')
+    const listCommunities = getRouteHandler('get', '/communities')
+    const listGroups = getRouteHandler('get', '/groups')
+
+    await createCommunity(makeReq({
+      body: { name: 'Design Guild', description: 'Design community' },
+    }), makeRes())
+    await createGroup(makeReq({
+      body: { name: 'Design Systems', description: 'Design systems group', community: 'Design Guild' },
+    }), makeRes())
+
+    const invalidCommunityRes = makeRes()
+    await patchCommunityTags(makeReq({
+      params: { name: encodeURIComponent('Design Guild') },
+      body: { tags: 'not-an-array' },
+    }), invalidCommunityRes)
+    assert.strictEqual(invalidCommunityRes.statusCode, 400, 'Expected community tag validation error')
+
+    const communityRes = makeRes()
+    await patchCommunityTags(makeReq({
+      params: { name: encodeURIComponent('Design Guild') },
+      body: { tags: ['design', 'ux'] },
+    }), communityRes)
+    assert.strictEqual(communityRes.statusCode, 200, 'Expected community tag update success')
+
+    const groupRes = makeRes()
+    await patchGroupTags(makeReq({
+      params: { name: encodeURIComponent('Design Systems') },
+      body: { tags: ['design-systems'] },
+    }), groupRes)
+    assert.strictEqual(groupRes.statusCode, 200, 'Expected group tag update success')
+
+    const communitiesRes = makeRes()
+    await listCommunities(makeReq(), communitiesRes)
+    assert((communitiesRes.jsonBody?.communities || []).some((community: any) => community.name === 'Design Guild'), 'Expected community to remain listable after tag update')
+
+    const groupsRes = makeRes()
+    await listGroups(makeReq(), groupsRes)
+    assert((groupsRes.jsonBody?.groups || []).some((group: any) => group.name === 'Design Systems'), 'Expected group to remain listable after tag update')
+
+    const communitiesMd = fs.readFileSync(path.join(workspacePath, 'ORG', 'COMMUNITIES.md'), 'utf-8')
+    assert(communitiesMd.includes('- **Tags:** design, ux'), 'Expected community tags to persist to COMMUNITIES.md')
+
+    const groupsMd = fs.readFileSync(path.join(workspacePath, 'ORG', 'GROUPS.md'), 'utf-8')
+    assert(groupsMd.includes('- **Tags:** design-systems'), 'Expected group tags to persist to GROUPS.md')
+  })
+
+  await test('rename routes validate conflicts and update persisted names', async () => {
+    const createCommunity = getRouteHandler('post', '/communities')
+    const createGroup = getRouteHandler('post', '/groups')
+    const renameCommunity = getRouteHandler('patch', '/communities/:name/rename')
+    const renameGroup = getRouteHandler('patch', '/groups/:name/rename')
+    const listCommunities = getRouteHandler('get', '/communities')
+    const listGroups = getRouteHandler('get', '/groups')
+
+    await createCommunity(makeReq({
+      body: { name: 'Research Ops', description: 'Research operations' },
+    }), makeRes())
+    await createCommunity(makeReq({
+      body: { name: 'Already Taken', description: 'Conflict target' },
+    }), makeRes())
+    await createGroup(makeReq({
+      body: { name: 'Interview Team', description: 'Interviewers', community: 'Research Ops' },
+    }), makeRes())
+    await createGroup(makeReq({
+      body: { name: 'Existing Group', description: 'Conflict group' },
+    }), makeRes())
+
+    const communityConflictRes = makeRes()
+    await renameCommunity(makeReq({
+      params: { name: encodeURIComponent('Research Ops') },
+      body: { newName: 'Already Taken' },
+    }), communityConflictRes)
+    assert.strictEqual(communityConflictRes.statusCode, 409, 'Expected community rename conflict')
+
+    const communityRenameRes = makeRes()
+    await renameCommunity(makeReq({
+      params: { name: encodeURIComponent('Research Ops') },
+      body: { newName: 'Research Operations' },
+    }), communityRenameRes)
+    assert.strictEqual(communityRenameRes.statusCode, 200, 'Expected community rename success')
+
+    const groupConflictRes = makeRes()
+    await renameGroup(makeReq({
+      params: { name: encodeURIComponent('Interview Team') },
+      body: { newName: 'Existing Group' },
+    }), groupConflictRes)
+    assert.strictEqual(groupConflictRes.statusCode, 409, 'Expected group rename conflict')
+
+    const groupRenameRes = makeRes()
+    await renameGroup(makeReq({
+      params: { name: encodeURIComponent('Interview Team') },
+      body: { newName: 'Interview Squad' },
+    }), groupRenameRes)
+    assert.strictEqual(groupRenameRes.statusCode, 200, 'Expected group rename success')
+
+    const communitiesRes = makeRes()
+    await listCommunities(makeReq(), communitiesRes)
+    assert((communitiesRes.jsonBody?.communities || []).some((community: any) => community.name === 'Research Operations'), 'Expected renamed community in list')
+
+    const groupsRes = makeRes()
+    await listGroups(makeReq(), groupsRes)
+    const renamedGroup = (groupsRes.jsonBody?.groups || []).find((group: any) => group.name === 'Interview Squad')
+    assert(renamedGroup, 'Expected renamed group in list')
+    assert.strictEqual(renamedGroup.community, 'Research Operations', 'Expected group community reference to follow renamed community')
+  })
+
+  await test('group member updates auto-add members to the parent community', async () => {
+    const createCommunity = getRouteHandler('post', '/communities')
+    const createGroup = getRouteHandler('post', '/groups')
+    const patchCommunityMembers = getRouteHandler('patch', '/communities/:name/members')
+    const patchGroupMembers = getRouteHandler('patch', '/groups/:name/members')
+    const listCommunities = getRouteHandler('get', '/communities')
+    const listGroups = getRouteHandler('get', '/groups')
+
+    await createCommunity(makeReq({
+      body: { name: 'Engineering', description: 'Engineering community' },
+    }), makeRes())
+    await createGroup(makeReq({
+      body: { name: 'Backend', description: 'Backend group', community: 'Engineering' },
+    }), makeRes())
+
+    const invalidMembersRes = makeRes()
+    await patchCommunityMembers(makeReq({
+      params: { name: encodeURIComponent('Engineering') },
+      body: { members: 'not-an-array' },
+    }), invalidMembersRes)
+    assert.strictEqual(invalidMembersRes.statusCode, 400, 'Expected member validation error')
+
+    const communityMembersRes = makeRes()
+    await patchCommunityMembers(makeReq({
+      params: { name: encodeURIComponent('Engineering') },
+      body: { members: ['lead1'] },
+    }), communityMembersRes)
+    assert.strictEqual(communityMembersRes.statusCode, 200, 'Expected community members update success')
+
+    const groupMembersRes = makeRes()
+    await patchGroupMembers(makeReq({
+      params: { name: encodeURIComponent('Backend') },
+      body: { members: ['lead1', 'eng2'] },
+    }), groupMembersRes)
+    assert.strictEqual(groupMembersRes.statusCode, 200, 'Expected group members update success')
+
+    const groupsRes = makeRes()
+    await listGroups(makeReq(), groupsRes)
+    const backendGroup = (groupsRes.jsonBody?.groups || []).find((group: any) => group.name === 'Backend')
+    assert.deepStrictEqual(backendGroup?.members || [], ['lead1', 'eng2'], 'Expected group members to persist')
+
+    const communitiesRes = makeRes()
+    await listCommunities(makeReq(), communitiesRes)
+    const engineeringCommunity = (communitiesRes.jsonBody?.communities || []).find((community: any) => community.name === 'Engineering')
+    assert.deepStrictEqual(engineeringCommunity?.members || [], ['lead1', 'eng2'], 'Expected parent community to absorb group members')
   })
 
   if (typeof originalHome === 'undefined') delete process.env.HOME

@@ -1293,6 +1293,17 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Chat route contract tests...${NC}"
+npx ts-node --transpileOnly server/routes/chat-routes.test.ts > /tmp/clawmax-chat-routes-contract.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-chat-routes-contract.out; then
+  chat_route_contract_count=$(grep "Tests passed:" /tmp/clawmax-chat-routes-contract.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Chat route contract tests (${chat_route_contract_count:-?} tests)"
+else
+  cat /tmp/clawmax-chat-routes-contract.out
+  fail "Chat route contract tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Build-a-Company demo smoke tests...${NC}"
 npx ts-node --transpileOnly server/lib/build-company-demo-smoke.test.ts > /tmp/clawmax-build-company-demo-smoke.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-build-company-demo-smoke.out; then
