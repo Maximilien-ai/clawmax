@@ -721,6 +721,16 @@ else
   fail "AI Builder routing unit tests"
 fi
 
+echo -e "${YELLOW}→ Running AI Builder route unit tests...${NC}"
+npx ts-node --transpileOnly server/routes/ai-builder.test.ts > /tmp/clawmax-ai-builder-routes.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-ai-builder-routes.out; then
+  ai_builder_route_count=$(grep "Tests passed:" /tmp/clawmax-ai-builder-routes.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "AI Builder route unit tests (${ai_builder_route_count:-?} tests)"
+else
+  cat /tmp/clawmax-ai-builder-routes.out
+  fail "AI Builder route unit tests"
+fi
+
 echo -e "${YELLOW}→ Running AI Builder share unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/ai-builder-share.test.ts > /tmp/clawmax-ai-builder-share.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-ai-builder-share.out; then
