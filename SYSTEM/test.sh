@@ -1210,6 +1210,17 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Docs route unit tests...${NC}"
+npx ts-node --transpileOnly server/routes/docs.test.ts > /tmp/clawmax-docs-routes.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-docs-routes.out; then
+  docs_route_count=$(grep "Tests passed:" /tmp/clawmax-docs-routes.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Docs route unit tests (${docs_route_count:-?} tests)"
+else
+  cat /tmp/clawmax-docs-routes.out
+  fail "Docs route unit tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Workspace dashboard route helper unit tests...${NC}"
 npx ts-node --transpileOnly server/routes/workspace-dashboards.test.ts > /tmp/clawmax-workspace-dashboard-routes.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-workspace-dashboard-routes.out; then
