@@ -11,8 +11,15 @@ import { REPO_ROOT } from './paths'
 // Legacy constant for backward compatibility
 export const WORKSPACE = process.env.OPENCLAW_WORKSPACE || path.join(process.env.HOME || '', '.openclaw', 'workspace')
 
+function getTestWorkspaceOverride(): string {
+  return String(process.env.CLAWMAX_TEST_WORKSPACE || '').trim()
+}
+
 /** Get the active workspace path (dynamic, supports multi-workspace) */
 export function getWorkspacePath(): string {
+  const testWorkspace = getTestWorkspaceOverride()
+  if (testWorkspace) return testWorkspace
+
   // Always check workspace manager first — it tracks the user's active workspace
   try {
     const manager = getWorkspaceManager()

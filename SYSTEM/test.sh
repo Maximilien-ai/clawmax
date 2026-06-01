@@ -323,6 +323,7 @@ npx ts-node --transpileOnly server/lib/skills.test.ts > /tmp/clawmax-skills.out 
 if grep -v "Skill file missing name" /tmp/clawmax-skills.out | grep -v "Failed to parse skill" | grep -q "All tests passed"; then
   pass "Skills API unit tests (17 tests)"
 else
+  cat /tmp/clawmax-skills.out
   fail "Skills API unit tests"
 fi
 

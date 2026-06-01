@@ -20,6 +20,7 @@ let testsFailed = 0
 
 const originalHome = process.env.HOME
 const originalWorkspace = process.env.OPENCLAW_WORKSPACE
+const originalTestWorkspace = process.env.CLAWMAX_TEST_WORKSPACE
 
 function test(name: string, fn: () => void | Promise<void>) {
   return Promise.resolve()
@@ -89,6 +90,7 @@ async function run() {
   ensureWorkspaceScaffold(workspacePath)
   process.env.HOME = tmpHome
   process.env.OPENCLAW_WORKSPACE = workspacePath
+  process.env.CLAWMAX_TEST_WORKSPACE = workspacePath
   resetWorkspaceManagerForTests()
 
   fs.writeFileSync(path.join(workspacePath, 'SYSTEM', 'notes.md'), '# Notes\n\nAlpha project status\n', 'utf-8')
@@ -164,6 +166,8 @@ async function run() {
   else process.env.HOME = originalHome
   if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
   else process.env.OPENCLAW_WORKSPACE = originalWorkspace
+  if (typeof originalTestWorkspace === 'undefined') delete process.env.CLAWMAX_TEST_WORKSPACE
+  else process.env.CLAWMAX_TEST_WORKSPACE = originalTestWorkspace
   resetWorkspaceManagerForTests()
 
   console.log('\n========================================')
@@ -184,6 +188,8 @@ run().catch((err) => {
   else process.env.HOME = originalHome
   if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
   else process.env.OPENCLAW_WORKSPACE = originalWorkspace
+  if (typeof originalTestWorkspace === 'undefined') delete process.env.CLAWMAX_TEST_WORKSPACE
+  else process.env.CLAWMAX_TEST_WORKSPACE = originalTestWorkspace
   resetWorkspaceManagerForTests()
   console.error(err)
   process.exit(1)
