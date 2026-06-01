@@ -984,8 +984,14 @@ test('All skills have unique names', () => {
 test('Bundled skills have correct file path', () => {
   const skills = listAvailableSkills()
   const bundledSkills = skills.filter((s: OpenClawSkill) => s.bundled)
+  const home = os.homedir()
   const allowedRoots = [
     process.env.OPENCLAW_SKILLS_DIR,
+    path.join(home, 'Library/pnpm/global/5/.pnpm'),
+    '/opt/openclaw/node_modules/openclaw/skills',
+    '/opt/homebrew/lib/node_modules/openclaw/skills',
+    '/usr/local/lib/node_modules/openclaw/skills',
+    path.join(home, 'github/maximilien/openclaw/skills'),
     path.join(process.cwd(), 'SKILLS', 'custom'),
   ]
     .filter((value): value is string => Boolean(value))
@@ -995,7 +1001,10 @@ test('Bundled skills have correct file path', () => {
 
   const firstBundled = bundledSkills[0]
   assert(
-    allowedRoots.some(root => firstBundled.filePath.startsWith(root)),
+    allowedRoots.some(root =>
+      firstBundled.filePath.startsWith(root) ||
+      (root.endsWith('.pnpm') && firstBundled.filePath.includes(`${path.sep}node_modules${path.sep}openclaw${path.sep}skills${path.sep}`)),
+    ),
     'Path should resolve under a packaged bundled skills root',
   )
   assert(firstBundled.filePath.endsWith('SKILL.md'), 'Path should end with SKILL.md')
