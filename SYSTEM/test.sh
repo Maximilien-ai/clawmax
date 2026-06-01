@@ -1073,6 +1073,16 @@ else
   fail "Template registry unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Template registry route unit tests...${NC}"
+npx ts-node --transpileOnly server/routes/template-registry.test.ts > /tmp/clawmax-template-registry-routes.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-template-registry-routes.out; then
+  template_registry_route_count=$(grep "Tests passed:" /tmp/clawmax-template-registry-routes.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Template registry route unit tests (${template_registry_route_count:-?} tests)"
+else
+  cat /tmp/clawmax-template-registry-routes.out
+  fail "Template registry route unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Validator unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/validator.test.ts > /tmp/clawmax-validator.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-validator.out; then
