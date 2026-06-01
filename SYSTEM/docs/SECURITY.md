@@ -4,9 +4,9 @@
 
 ClawMax Dashboard provides a web-based interface for managing OpenClaw agents. Security is paramount as the dashboard enables direct interaction with agent gateways that can execute commands and access sensitive data.
 
-**Last Updated:** 2026-03-23
-**Dashboard Version:** v1.1.8
-**OpenClaw Protocol:** Version 3
+**Last Updated:** 2026-06-01
+**Dashboard Version:** v1.7.0
+**OpenClaw Protocol:** Version 4
 
 ---
 
@@ -55,7 +55,7 @@ OpenClaw Gateway implements scope-based access control:
 - `server/routes/logs.ts:30-34, 188-192`
 
 #### Challenge-Response Authentication
-OpenClaw Gateway Protocol v3 implements challenge-response:
+OpenClaw Gateway Protocol v4 implements challenge-response:
 1. Client connects to WebSocket
 2. Gateway sends `connect.challenge` event with nonce
 3. Client responds with `connect` request including token and nonce
@@ -179,14 +179,14 @@ None currently identified.
 
 ## OpenClaw Protocol Security
 
-### Protocol Version 3
-ClawMax Dashboard implements OpenClaw Gateway Protocol Version 3:
-- Negotiates protocol version during connect (minProtocol: 3, maxProtocol: 3)
+### Protocol Version 4
+ClawMax Dashboard implements OpenClaw Gateway Protocol Version 4:
+- Negotiates protocol version during connect (minProtocol: 4, maxProtocol: 4)
 - Uses challenge-response authentication
 - Supports scope-based authorization
 - Event-driven message format
 
-**Reference:** OpenClaw Gateway Protocol Specification v3
+**Reference:** OpenClaw Gateway Protocol Specification v4
 
 ### Message Format
 ```typescript
@@ -255,9 +255,9 @@ ClawMax Dashboard implements OpenClaw Gateway Protocol Version 3:
 ## Upgrading OpenClaw for Security
 
 ### Current Status
-- **Dashboard:** v0.8.8
+- **Dashboard:** v1.7.0
 - **OpenClaw:** Using system installation
-- **Gateway Protocol:** v3
+- **Gateway Protocol:** v4
 
 ### Upgrade Process
 ```bash
@@ -286,11 +286,11 @@ openclaw gateway restart --all
 - Review breaking changes in release notes
 
 ### Protocol Version Compatibility
-Dashboard currently requires Protocol v3. If OpenClaw upgrades to v4:
+Dashboard currently requires Protocol v4. If OpenClaw upgrades again:
 1. Update `minProtocol` and `maxProtocol` in connect requests
-2. Test backward compatibility with v3
+2. Test backward compatibility or required migration behavior explicitly
 3. Update message handlers for new event types
-4. Document migration path
+4. Document migration path in the OpenClaw upgrade runbook
 
 **Locations to update:**
 - `server/routes/chat.ts:143-156`

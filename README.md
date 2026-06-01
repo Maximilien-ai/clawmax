@@ -5,40 +5,33 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.6.7-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
+[![Version](https://img.shields.io/badge/version-1.7.0-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
 [![Tests](https://img.shields.io/badge/tests-96%20default--safe-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 Latest Release Line: v1.6.1–v1.6.7
+## 🔥 Latest Release: v1.7.0
 
-- The `1.6.x` line materially simplifies the client console without removing capability:
-  - AI Builder uses less duplicate copy, a clearer clear/reset flow, a wider layout, and progressive disclosure for secondary details
-  - client navigation now defaults to `Builder` and groups the main surfaces into clearer product sections
-  - Templates, Skills, Agents, Workflows, Communications, and Organization now use more consistent actions, list/grid patterns, clearer quick actions, and less first-screen clutter
-- Release hardening across `1.6.1–1.6.7` also improved:
-  - on-prem runtime env values now flow correctly into `/api/system`, auth config, and local model defaults
-  - template apply defaults, workflow/channel follow-through, and DocHub workflow outputs are more reliable
-  - GPT-5, installer/setup defaults, and fresh local runtime paths are more robust on fresh local installs
-  - Skills now show platform-appropriate install guidance and hide obviously incompatible registry results on non-macOS runtimes
-  - release gating now includes broader route-contract, shell, and OpenClaw/Gateway compatibility coverage ahead of the planned OpenClaw upgrade line
-  - the shared AI prompt editor now supports a resizable markdown preview split, and CI shell-test execution now matches the intended bash runtime
+- `1.7.0` upgrades ClawMax to OpenClaw `2026.5.26`, bringing the dashboard, CI, and container/image runtime onto the same tested OpenClaw baseline.
+- Hosted/BYOK runtime behavior is more reliable across local, containerized, on-prem, and cloud environments:
+  - hosted chat, workflow execution, and channel-driven agent execution now wait briefly for Gateway readiness before falling back
+  - agent provisioning and workflow execution use the same resolved OpenClaw CLI path as chat/runtime flows
+  - Gateway RPC negotiation is updated for the newer OpenClaw protocol/runtime contract
+- The release gate is much stronger than earlier lines:
+  - route-contract coverage now spans all current dashboard server routes
+  - shell coverage covers install/setup/update/uninstall plus OpenClaw target prep
+  - OpenClaw/Gateway contract coverage validates CLI resolution, gateway token precedence, workspace registration assumptions, and packaged runtime expectations
+- Client/runtime follow-through from the late `1.6.x` hardening line remains included:
+  - wider Skills layout with more accurate runtime-specific install guidance
+  - AI prompt editor resizable markdown preview split
+  - broader Builder/Templates/Skills/Workflows handoff coverage before the OpenClaw upgrade cut
 
-## 🔥 Previous Release: v1.6.0
+## 🔥 Previous Release: v1.6.7
 
-- AI Builder is now the recommended starting point for new workspaces:
-  - routes prompts toward existing agents, skills, workflows, agent templates, team templates, or AI generation
-  - handles ambiguous cases with confirmation paths instead of forcing weak template matches
-  - includes regression evals for agent-vs-team intent, workflow follow-through, skills follow-through, template refinement, and create-new template decisions
-- First-run onboarding is more complete:
-  - new workspaces can show a dismissible guided tour covering workspaces, Builder, agents, communications, workflows, templates, skills, notifications, keys, budget, and logs
-  - setup guidance points users to BYOK / Keys & Secrets before agent execution
-- AI prompt editing is materially better:
-  - shared Builder, agent, workflow, skill, and template editors support resize-safe markdown editing, optional improvement direction, file/image context, save-and-generate, and a brief highlight after AI expansion
-- Metering and diagnostics are clearer:
-  - AI Builder and AI generation/improvement surfaces are tracked as built-in system agents when metering is enabled
-  - built-in AI calls derive token and cost estimates instead of appearing as free system activity
-  - system logs can be refreshed/exported, and platform-health warnings are less noisy for informational no-skill cases
+- `1.6.7` closed out the stabilization line before the OpenClaw upgrade:
+  - CI shell coverage was corrected to run through `bash`, matching the intended release wrapper runtime
+  - the shared AI prompt editor gained a resizable markdown preview split
+  - the broader `1.6.x` hardening/test coverage stayed green and ready for the `1.7.0` OpenClaw cut
 
 Earlier release themes include packaged-version hardening, image publication hardening, local/self-hosted model support, setup simplification, template reliability, chat normalization, and on-prem/runtime hardening. Full details are kept in [CHANGELOG.md](CHANGELOG.md).
 
@@ -174,7 +167,7 @@ curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/ins
 Pinned release:
 
 ```bash
-curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.6.7
+curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.7.0
 ```
 
 What it does:
@@ -195,13 +188,13 @@ See [SYSTEM/docs/DEMO_VIDEOS.md](SYSTEM/docs/DEMO_VIDEOS.md) for the current inv
 You can also bootstrap directly with the checked-in wrapper:
 
 ```bash
-./setup.sh v1.6.7
+./setup.sh v1.7.0
 ```
 
 or choose a custom install directory:
 
 ```bash
-curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.6.7 --dir /opt/clawmax
+curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.7.0 --dir /opt/clawmax
 ```
 
 See [SYSTEM/docs/RELEASE_DISTRIBUTION.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/RELEASE_DISTRIBUTION.md) for the release distribution contract.

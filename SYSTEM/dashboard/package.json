@@ -1,6 +1,6 @@
 {
   "name": "clawmax-dashboard",
-  "version": "1.6.7",
+  "version": "1.7.0",
   "description": "ClawMax.ai owner dashboard",
   "private": true,
   "engines": {

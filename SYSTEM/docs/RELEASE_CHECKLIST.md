@@ -26,6 +26,9 @@ Use this as the final pass before the next dashboard release.
   - `USER_*` keys are set if you want default user execution without BYOK entry
   - `ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION=false` unless you explicitly want user agents/workflows to fall back to system keys
 - Confirm provider keys are defined in `SYSTEM/dashboard/.env`, not only in shell exports like `~/.zshrc`
+- Confirm the intended OpenClaw runtime version:
+  - `openclaw --version`
+  - compare against the current pinned target in `SYSTEM/openclaw-version.sh`
 - Run from `SYSTEM/dashboard`:
 
 ```bash
@@ -110,12 +113,17 @@ Use [MANUAL_RELEASE_SMOKE_CHECKLIST.md](MANUAL_RELEASE_SMOKE_CHECKLIST.md) as th
 ## 5. Release Messaging
 
 - README reflects:
-  - latest release and previous two releases only
+  - latest release and previous major/minor reference only
   - pinned installer examples for the current tag
+  - current OpenClaw baseline and upgrade significance when applicable
   - GitHub OAuth and Email OTP setup
   - system keys vs user/BYOK keys
   - provider-key precedence and shell-env isolation
   - build command
+- OpenClaw runbook reflects:
+  - current pinned target
+  - CI / Docker / local alignment points
+  - recurring upgrade cadence and validation steps
 - Auth doc reflects:
   - GitHub callback on `3001`
   - app redirect on `5173`

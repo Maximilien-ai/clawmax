@@ -1,26 +1,24 @@
 # ClawMax Status
 
-**Current Version**: v1.5.11
-**Last Updated**: May 24, 2026
-**Status**: `v1.5.11` is the current release line on `main`
+**Current Version**: v1.7.0
+**Last Updated**: June 1, 2026
+**Status**: `v1.7.0` is the current release candidate line on `main`
 
 ---
 
 ## Current State
 
-- `main` now carries the `1.5.11` release line: public tarball/checksum release packages remain the primary distribution path, and the curl bootstrap installer still supports latest or pinned installs without `gh`, GitHub login, or a local clone
-- dashboard runtime startup is more diagnosable for on-prem/container issues: every start now logs the packaged dashboard version and image `CLAWMAX_VERSION`, and startup fails fast if the packaged dashboard files do not match the image version contract
-- image publication is stricter: the release workflow now smoke-pulls and runs the top-level and explicit arch tags from GHCR before the image workflow can succeed
-- `api/system` version reporting now prefers the packaged dashboard version over a stale injected `CLAWMAX_VERSION` env mismatch, which directly addresses on-prem cases where a healthy newer image was still reporting an old dashboard version string
-- focused mobile/narrow-width fixes are in for key dashboard surfaces, including the notifications tray, BYOK / Partner Integrations wizard, and Apply Agent Template modal
-- the dashboard CI required lane now runs the formerly quarantined template, dashboard-env, and docker-entrypoint coverage through the main `SYSTEM/test.sh` path instead of tolerating them as optional failures
-- shipped organization templates now have catalog-wide regression checks that catch hidden helper/runtime directory references in workflow content and duplicate explicit artifact filenames across workflows in the same template
-- secret readiness and registry install error handling are more actionable: local secret states are covered directly, Tessl security-review blockers are clearer, and ClawHub install/runtime prerequisite failures now surface actionable guidance
-- the first documented template catalog audit batch and focused mobile audit are now checked into `SYSTEM/docs/operations` for follow-through as the shipped catalog grows
+- `main` now carries the `1.7.0` release candidate line, the first line built around upgraded OpenClaw `2026.5.26`
+- dashboard, CI, and container/image paths now share the same tested OpenClaw baseline instead of drifting across older local, CI, and Docker-era versions
+- hosted/BYOK runtime paths now wait briefly for Gateway readiness before falling back, which makes startup-time chat/workflow/channel execution more predictable across local, containerized, on-prem, and cloud environments
+- the release gate now includes broad route-contract coverage across all current server routes, shell coverage for install/setup/update/uninstall/OpenClaw target prep, and explicit OpenClaw/Gateway contract suites
+- the late `1.6.x` hardening work remains in place: platform-aware Skills guidance, AI prompt editor preview resizing, and broader Builder/Templates/Skills/Workflows follow-through coverage
+- image and release validation should now focus on real built artifacts rather than dev-only runtime testing
 
 ## Release References
 
 - changelog: [CHANGELOG.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/CHANGELOG.md)
 - latest release notes: [README.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/README.md)
 - testing guide: [TESTING_GUIDE.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/TESTING_GUIDE.md)
+- OpenClaw upgrade runbook: [operations/OPENCLAW_UPGRADE_RUNBOOK.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/operations/OPENCLAW_UPGRADE_RUNBOOK.md)
 - older release planning context: [RELEASE_1_3_0_PREP_2026-04-13.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/RELEASE_1_3_0_PREP_2026-04-13.md)

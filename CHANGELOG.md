@@ -6,6 +6,22 @@ All notable changes to ClawMax are documented here.
 
 - No unreleased changes yet.
 
+## [v1.7.0] - 2026-06-01
+
+### OpenClaw Upgrade
+- **OpenClaw `2026.5.26` Baseline** — ClawMax now runs against the newer packaged OpenClaw runtime across the dashboard, CI, and container/image build paths instead of mixing older local, CI, and Docker-era baselines.
+- **Packaged Runtime Alignment** — the OpenClaw install/build path now matches the modern Node/PNPM packaging flow used by current upstream OpenClaw releases instead of assuming the older root-level Go CLI layout.
+- **Protocol/CLI Compatibility** — Gateway RPC negotiation is updated for the newer OpenClaw runtime contract, packaged skill-root expectations are covered directly, and provisioning/workflow/chat paths consistently use the resolved OpenClaw CLI path.
+
+### Runtime Reliability
+- **Gateway Readiness Before Hosted Fallback** — hosted/BYOK chat, workflow execution, and channel-driven agent execution now wait briefly for Gateway readiness before deciding to fall back, reducing false "missing auth" or wrong-path runtime failures during startup.
+- **Hosted Chat / Provisioning Hardening** — hosted BYOK chat prefers Gateway when available, agent provisioning uses the same resolved OpenClaw path as the rest of the runtime, and bundled-plugin prep now verifies packaged channel metadata more aggressively.
+- **Cross-Environment Consistency** — the same upgrade/runtime logic now applies across local dev, containerized runs, on-prem, and cloud rather than depending on ad hoc local shell state.
+
+### Release Engineering
+- **Upgrade Runbook Added** — added a dedicated OpenClaw upgrade runbook documenting where the version is pinned, how to validate the upgrade, and how to keep OpenClaw current on a short release cadence.
+- **Release Story Cleanup** — archived the old upgrade-planning posture from the active release docs/backlog and moved the active line forward to `1.7.0` as the first OpenClaw-upgrade release.
+
 ## [v1.6.7] - 2026-06-01
 
 ### Release Follow-Through
