@@ -1,11 +1,11 @@
 # Backlog
 
-> Last updated: May 31, 2026
+> Last updated: June 1, 2026
 > Completed and verified work is archived into [CHANGELOG.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/CHANGELOG.md) and historical notes under `SYSTEM/docs/**/archive/`
 
 ## Top Priority
 
-- [ ] **OpenClaw upgrade readiness follow-through** — the June 1 audit is complete and archived under `SYSTEM/docs/planning/archive/OPENCLAW_UPGRADE_READINESS_AUDIT_2026-06-01.md`. Before the `1.6.x` line ends, finish the highest-value remaining protections: a focused `/api/system` route test, page-level smoke coverage for Skills/Templates apply/Agents create, explicit `update.sh` coverage, and a small suite that checks ClawMax’s assumed OpenClaw config/CLI/runtime contracts before attempting the broader OpenClaw upgrade branch.
+- [ ] **OpenClaw upgrade readiness follow-through** — the June 1 audit is complete and archived under `SYSTEM/docs/planning/archive/OPENCLAW_UPGRADE_READINESS_AUDIT_2026-06-01.md`. The focused `/api/system` route test, explicit `update.sh` coverage, and the first OpenClaw/Gateway contract suite are now in place. Before the `1.6.x` line ends, finish the remaining high-value protections: page-level smoke coverage for Skills/Templates apply/Agents create and any extra contract assertions we discover while rehearsing the upgrade branch.
 - [ ] **Template audit for lane/subdirectory assumptions** — audit organization and workflow templates for the same class of bug seen in CW reruns: hidden/helper dirs being treated as work items, ambiguous lane ownership, weak filesystem verification, or success reporting that does not re-check on-disk outputs. Prioritize templates that scan subdirectories, split work across multiple agents, or rely on reruns/idempotent regeneration. GitHub: `#132`
 - [ ] **Template markdown integrity manifest / checksum follow-through** — explore adding a lightweight integrity marker to exported `TEMPLATE.md` / agent template markdown (for example a hash over canonicalized sections or per-section checksums) so import can detect lossy edits, broken round-trips, or missing agent/workflow blocks before save/apply. Keep this generic: the goal is not to block legitimate user edits by default, but to warn clearly when markdown no longer matches a structurally sound template payload.
 - [ ] **Tessl registry hardening (experimental)** — improve install guidance for Tessl security-review blockers, continue validating real OpenClaw-compatible tiles, and decide what “supported” vs. “exploratory” means before promoting Tessl beyond experimental. GitHub: `#134`

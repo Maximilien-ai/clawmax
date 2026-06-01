@@ -1072,6 +1072,15 @@ else
   fail "OpenClaw CLI resolver unit tests"
 fi
 
+echo -e "${YELLOW}→ Running OpenClaw contract unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/openclaw-contract.test.ts > /tmp/clawmax-openclaw-contract.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-openclaw-contract.out; then
+  openclaw_contract_count=$(grep "Tests passed:" /tmp/clawmax-openclaw-contract.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "OpenClaw contract unit tests (${openclaw_contract_count:-?} tests)"
+else
+  fail "OpenClaw contract unit tests"
+fi
+
 echo ""
 echo -e "${YELLOW}→ Running Agent execution runtime unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/agent-execution.test.ts > /tmp/clawmax-agent-execution.out 2>&1 || true
