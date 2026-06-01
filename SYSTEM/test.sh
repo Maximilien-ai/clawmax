@@ -327,6 +327,16 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Skill platform helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/skillPlatform.test.ts > /tmp/clawmax-skill-platform.out 2>&1 || true
+if grep -q "tests passed" /tmp/clawmax-skill-platform.out; then
+  skill_platform_count=$(grep -o '[0-9]\+ tests passed' /tmp/clawmax-skill-platform.out | head -1 | grep -o '[0-9]\+')
+  pass "Skill platform helper unit tests (${skill_platform_count:-?} tests)"
+else
+  fail "Skill platform helper unit tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Skill registry unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/skill-registry.test.ts > /tmp/clawmax-skill-registry.out 2>&1 || true
 if grep -q "tests passed" /tmp/clawmax-skill-registry.out; then
@@ -793,6 +803,22 @@ if grep -q "dockerfile openclaw builder tests passed" /tmp/clawmax-dockerfile-op
   pass "Dockerfile OpenClaw builder tests"
 else
   fail "Dockerfile OpenClaw builder tests"
+fi
+
+echo -e "${YELLOW}→ Running Installer shell tests...${NC}"
+sh "$SYSTEM_DIR/install.test.sh" > /tmp/clawmax-install-shell.out 2>&1 || true
+if grep -q "install.sh invokes setup.sh without error" /tmp/clawmax-install-shell.out && grep -q "install.sh forwards setup.sh passthrough args" /tmp/clawmax-install-shell.out; then
+  pass "Installer shell tests"
+else
+  fail "Installer shell tests"
+fi
+
+echo -e "${YELLOW}→ Running Setup shell tests...${NC}"
+sh "$SYSTEM_DIR/setup.test.sh" > /tmp/clawmax-setup-shell.out 2>&1 || true
+if grep -q "PASS: setup.sh defaults non-interactive auth to bypass" /tmp/clawmax-setup-shell.out; then
+  pass "Setup shell tests"
+else
+  fail "Setup shell tests"
 fi
 
 echo -e "${YELLOW}→ Running Cloud maintenance status unit tests...${NC}"

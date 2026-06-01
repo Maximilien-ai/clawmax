@@ -5,6 +5,7 @@
 
 ## Top Priority
 
+- [ ] **OpenClaw upgrade readiness follow-through** — the June 1 audit is complete and archived under `SYSTEM/docs/planning/archive/OPENCLAW_UPGRADE_READINESS_AUDIT_2026-06-01.md`. Before the `1.6.x` line ends, finish the highest-value remaining protections: a focused `/api/system` route test, page-level smoke coverage for Skills/Templates apply/Agents create, explicit `update.sh` coverage, and a small suite that checks ClawMax’s assumed OpenClaw config/CLI/runtime contracts before attempting the broader OpenClaw upgrade branch.
 - [ ] **Template audit for lane/subdirectory assumptions** — audit organization and workflow templates for the same class of bug seen in CW reruns: hidden/helper dirs being treated as work items, ambiguous lane ownership, weak filesystem verification, or success reporting that does not re-check on-disk outputs. Prioritize templates that scan subdirectories, split work across multiple agents, or rely on reruns/idempotent regeneration. GitHub: `#132`
 - [ ] **Template markdown integrity manifest / checksum follow-through** — explore adding a lightweight integrity marker to exported `TEMPLATE.md` / agent template markdown (for example a hash over canonicalized sections or per-section checksums) so import can detect lossy edits, broken round-trips, or missing agent/workflow blocks before save/apply. Keep this generic: the goal is not to block legitimate user edits by default, but to warn clearly when markdown no longer matches a structurally sound template payload.
 - [ ] **Tessl registry hardening (experimental)** — improve install guidance for Tessl security-review blockers, continue validating real OpenClaw-compatible tiles, and decide what “supported” vs. “exploratory” means before promoting Tessl beyond experimental. GitHub: `#134`
@@ -109,6 +110,7 @@
 - [ ] **Add skills to agents directly from agent flows** — allow assigning/searching/adding skills from agent creation, agent detail, or agent edit flows without forcing a separate trip to the Skills page. GitHub: `#137`
 - [ ] **Agent-scoped skills page/panel** — add a dedicated `Skills...` entry from agent detail/edit that shows current agent skills plus search/browse to add more in place. GitHub: `#138`
 - [ ] **Imported Shipables/Tessl skills emoji/metadata** — imported skills should preserve richer registry metadata beyond current provider/source pills.
+- [ ] **Platform audit for built-in skills** — continue auditing built-in system skills for true OS/runtime compatibility so Linux/on-prem/cloud only sees supported skills and install guidance, not just registry filtering. The first pass now hides known mac-only skills and adjusts `1password`/`himalaya`, but the catalog still needs a fuller review.
 - [ ] **Skills publish to SkillsHub** — package and publish workspace skills to GitHub/registry
 
 ### Research / Self-Management
