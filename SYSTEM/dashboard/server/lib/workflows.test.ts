@@ -27,6 +27,7 @@ import {
   extractGitHubResultLinks,
   summarizeGitHubResultLink,
   buildWorkflowSessionId,
+  resolveWorkflowOpenClawCliPath,
   repairWorkflowSessionEntryForRun,
   getLatestAgentSessionErrorMessage,
   isWorkflowSessionLockError,
@@ -493,6 +494,21 @@ test('buildWorkflowSessionId produces distinct sessions per agent and run', () =
 
   assert(first !== second, 'Expected different agents in same execution to use different sessions')
   assert(first !== third, 'Expected same agent across executions to use different sessions')
+})
+
+test('resolveWorkflowOpenClawCliPath honors OPENCLAW_BIN override', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-workflow-cli-'))
+  const fakeCli = path.join(dir, 'openclaw')
+  const original = process.env.OPENCLAW_BIN
+  fs.writeFileSync(fakeCli, '#!/bin/sh\necho workflow-openclaw\n', 'utf-8')
+  fs.chmodSync(fakeCli, 0o755)
+  process.env.OPENCLAW_BIN = fakeCli
+  try {
+    assert(resolveWorkflowOpenClawCliPath() === fakeCli, 'Expected workflow execution to use the resolved OPENCLAW_BIN override')
+  } finally {
+    if (typeof original === 'undefined') delete process.env.OPENCLAW_BIN
+    else process.env.OPENCLAW_BIN = original
+  }
 })
 
 test('buildWorkflowSessionId stays within provider cache key limits for long ids', () => {

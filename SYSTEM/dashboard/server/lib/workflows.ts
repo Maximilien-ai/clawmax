@@ -18,6 +18,7 @@ import {
   withTemporaryAgentAuthProfiles,
 } from './agent-execution'
 import { readWorkspaceIntegrationConfig } from './workspace-integrations'
+import { resolveOpenClawCliPath } from './openclaw-cli'
 
 // Use dynamic workspace path to support multi-workspace
 function getWorkflowsDir(): string {
@@ -516,6 +517,14 @@ export function buildWorkflowSessionId(executionId: string, agentId: string): st
     .slice(0, 10)
   const agentTail = normalizedAgentId.slice(-18) || 'agent'
   return `wf-${hash}-${agentTail}`.slice(0, 48)
+}
+
+export function resolveWorkflowOpenClawCliPath(): string {
+  const cliPath = resolveOpenClawCliPath()
+  if (!cliPath) {
+    throw new Error('OpenClaw CLI is not available for workflow execution')
+  }
+  return cliPath
 }
 
 function resolveAgentSessionsDir(agentId: string, home: string): string {
@@ -1706,6 +1715,7 @@ export function triggerWorkflow(workflowId: string, options?: {
               reject(new Error(`Agent ${participant.agentId} is configured for ${resolvedAgent.model || 'ollama'}, but no Ollama runtime is configured`))
               return
             }
+            const openclawCliPath = resolveWorkflowOpenClawCliPath()
             const useLocal = resolvedAgent.provider === 'ollama' || !isGatewayRunning().running
             const sessionId = buildWorkflowSessionId(executionId, participant.agentId)
             repairWorkflowSessionEntryForRun(participant.agentId, sessionId)
@@ -1716,7 +1726,7 @@ export function triggerWorkflow(workflowId: string, options?: {
               gemini: executionEnv.GEMINI_API_KEY,
             }, resolvedAgent.model, resolvedAgent.provider, async () => {
               await new Promise<void>((innerResolve) => {
-                const proc = spawn('openclaw', args, { env: executionEnv })
+                const proc = spawn(openclawCliPath, args, { env: executionEnv })
                 let stdout = ''
                 let stderr = ''
                 const timeoutMs = getWorkflowAgentTimeoutMs()
