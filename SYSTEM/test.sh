@@ -996,6 +996,16 @@ else
   fail "Workspace manager unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Workspaces route unit tests...${NC}"
+npx ts-node --transpileOnly server/routes/workspaces.test.ts > /tmp/clawmax-workspaces-routes.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-workspaces-routes.out; then
+  workspaces_route_count=$(grep "Tests passed:" /tmp/clawmax-workspaces-routes.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Workspaces route unit tests (${workspaces_route_count:-?} tests)"
+else
+  cat /tmp/clawmax-workspaces-routes.out
+  fail "Workspaces route unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Integration validation unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/integration-validation.test.ts > /tmp/clawmax-integration-validation.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-integration-validation.out; then
