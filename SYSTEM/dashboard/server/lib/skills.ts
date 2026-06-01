@@ -36,6 +36,7 @@ export interface SkillInstallOption {
   package?: string
   module?: string
   bins?: string[]
+  os?: string[]
 }
 
 export interface OpenClawSkill {
@@ -194,6 +195,24 @@ const DEFAULT_SKILL_SETUP_REQUIREMENTS: Record<string, NonNullable<OpenClawSkill
 }
 
 const DEFAULT_SKILL_INSTALL_OPTIONS: Record<string, SkillInstallOption[]> = {
+  '1password': [
+    {
+      id: 'brew',
+      kind: 'brew',
+      formula: '1password-cli',
+      bins: ['op'],
+      label: 'Install 1Password CLI (brew)',
+      os: ['darwin'],
+    },
+    {
+      id: 'apt',
+      kind: 'apt',
+      package: '1password-cli',
+      bins: ['op'],
+      label: 'Install 1Password CLI (apt)',
+      os: ['linux'],
+    },
+  ],
   github: [
     {
       id: 'brew',
@@ -217,6 +236,7 @@ const DEFAULT_SKILL_INSTALL_OPTIONS: Record<string, SkillInstallOption[]> = {
       formula: 'himalaya',
       bins: ['himalaya'],
       label: 'Install Himalaya (brew)',
+      os: ['darwin'],
     },
     {
       id: 'apt',
@@ -224,8 +244,19 @@ const DEFAULT_SKILL_INSTALL_OPTIONS: Record<string, SkillInstallOption[]> = {
       package: 'himalaya',
       bins: ['himalaya'],
       label: 'Install Himalaya (apt)',
+      os: ['linux'],
     },
   ],
+}
+
+const SKILL_PLATFORM_SUPPORT: Record<string, NodeJS.Platform[]> = {
+  'apple-notes': ['darwin'],
+  'apple-reminders': ['darwin'],
+  'calendar-app': ['darwin'],
+  'contacts-app': ['darwin'],
+  imsg: ['darwin'],
+  'mail-app': ['darwin'],
+  'things-mac': ['darwin'],
 }
 
 function buildGenericSkillSetupRequirement(skill: {
@@ -288,7 +319,7 @@ function normalizeSkillTags(tags: string[] | undefined): string[] {
   return normalizeStringArray(tags).slice(0, 12)
 }
 
-function normalizeSkillInstallOptions(name: string, install: SkillInstallOption[] | undefined): SkillInstallOption[] | undefined {
+export function normalizeSkillInstallOptions(name: string, install: SkillInstallOption[] | undefined): SkillInstallOption[] | undefined {
   const merged = [...(DEFAULT_SKILL_INSTALL_OPTIONS[name] || []), ...(Array.isArray(install) ? install : [])]
   if (merged.length === 0) return undefined
   const seen = new Set<string>()
@@ -318,7 +349,7 @@ function getPreferredDisplayInstallKinds(platform: NodeJS.Platform = process.pla
   }
 }
 
-function getVisibleSkillInstallOptions(
+export function getVisibleSkillInstallOptions(
   install: SkillInstallOption[] | undefined,
   platform: NodeJS.Platform = process.platform,
 ): SkillInstallOption[] | undefined {
@@ -337,6 +368,17 @@ function getVisibleSkillInstallOptions(
   }
 
   return compatible
+}
+
+export function isSkillSupportedOnPlatform(
+  name: string,
+  platform: NodeJS.Platform = process.platform,
+): boolean {
+  const supportedPlatforms = SKILL_PLATFORM_SUPPORT[name]
+  if (!Array.isArray(supportedPlatforms) || supportedPlatforms.length === 0) {
+    return true
+  }
+  return supportedPlatforms.includes(platform)
 }
 
 // Paths to skill directories
@@ -693,6 +735,9 @@ function parseSkillFile(
       // Silently skip skills without names (common in OpenClaw dev skills)
       return null
     }
+    if (!isSkillSupportedOnPlatform(data.name)) {
+      return null
+    }
 
     const openclawMeta = data.metadata?.openclaw || {}
 
@@ -750,6 +795,9 @@ function parseWorkspaceSkillFile(filePath: string, skillId: string): OpenClawSki
     const lines = markdownContent.split('\n').filter(l => l.trim())
     const name = data.name || lines[0]?.replace(/^#\s*/, '') || skillId
     const description = data.description || lines.find(l => !l.startsWith('#'))?.trim() || 'Custom skill'
+    if (!isSkillSupportedOnPlatform(name)) {
+      return null
+    }
 
     const openclawMeta = data.metadata?.openclaw || {}
 
@@ -1117,11 +1165,11 @@ export function stampImportedRegistrySkillMetadata(
         ...(parsed.data?.metadata?.openclaw || {}),
         registryProvider: metadata.provider,
         registryName: metadata.registryName,
-        registryInstallName: metadata.installName || metadata.registryName,
-        registryVersion: metadata.version,
-        registryDownloadsWeekly: metadata.downloadsWeekly,
-        registryCategories: metadata.categories || [],
-        registryHomepage: metadata.homepage,
+        ...(metadata.installName || metadata.registryName ? { registryInstallName: metadata.installName || metadata.registryName } : {}),
+        ...(metadata.version ? { registryVersion: metadata.version } : {}),
+        ...(typeof metadata.downloadsWeekly === 'number' ? { registryDownloadsWeekly: metadata.downloadsWeekly } : {}),
+        ...(metadata.categories ? { registryCategories: metadata.categories } : {}),
+        ...(metadata.homepage ? { registryHomepage: metadata.homepage } : {}),
         registryImportedAt: new Date().toISOString(),
       },
     },

@@ -63,7 +63,11 @@ const {
   getSkillRequirementInstallCommands,
   getSkillRequirementStatus,
   getSkillSetupCommands,
-  validateSkillChanges
+  validateSkillChanges,
+  normalizeSkillInstallOptions,
+  getVisibleSkillInstallOptions,
+  isSkillSupportedOnPlatform,
+  stampImportedRegistrySkillMetadata
 } = require('./skills')
 
 // ANSI color codes
@@ -145,6 +149,21 @@ test('getSkillById("github") returns github skill', () => {
   assert(skill!.setupRequirements?.message?.includes('GitHub CLI needs account authentication'), 'Expected GitHub setup warning metadata')
 
   console.log(`  Found: ${skill!.name} ${skill!.emoji}`)
+})
+
+test('1password defaults prefer apt on linux runtimes', () => {
+  const options = normalizeSkillInstallOptions('1password', undefined)
+  assert(options && options.length >= 2, 'Expected default 1password install options')
+  const visible = getVisibleSkillInstallOptions(options, 'linux')
+  assert(visible && visible.length > 0, 'Expected visible linux install options')
+  assertEqual(visible![0].kind, 'apt', 'Expected apt to be the visible linux installer for 1password')
+  assertEqual(visible![0].package, '1password-cli', 'Expected linux 1password apt package')
+})
+
+test('mac-only built-in skills are hidden on linux runtimes', () => {
+  assertEqual(isSkillSupportedOnPlatform('apple-notes', 'linux'), false, 'Expected apple-notes to be unsupported on linux')
+  assertEqual(isSkillSupportedOnPlatform('apple-reminders', 'linux'), false, 'Expected apple-reminders to be unsupported on linux')
+  assertEqual(isSkillSupportedOnPlatform('apple-notes', 'darwin'), true, 'Expected apple-notes to remain supported on macOS')
 })
 
 test('getSkillRequirementStatus() marks requirements installed when all bins are present', () => {
@@ -354,6 +373,52 @@ metadata:
   assertEqual(skill!.registryHomepage as any, 'https://clawhub.dev/skills/test-clawhub-skill', 'Expected registry homepage metadata')
 
   deleteWorkspaceSkill('test-clawhub-skill')
+})
+
+test('registry-imported workspace skills keep linux-specific install guidance after metadata stamping', () => {
+  const workspaceSkillsDir = getWorkspaceSkillsDir()
+  const skillDir = path.join(workspaceSkillsDir, 'test-registry-linux-install-skill')
+  fs.mkdirSync(skillDir, { recursive: true })
+  fs.writeFileSync(path.join(skillDir, 'SKILL.md'), `---
+name: test-registry-linux-install-skill
+description: Registry-imported skill with platform-specific installers
+install:
+  - id: brew
+    kind: brew
+    formula: demo-skill
+    label: Install Demo Skill (brew)
+    os:
+      - darwin
+  - id: apt
+    kind: apt
+    package: demo-skill
+    label: Install Demo Skill (apt)
+    os:
+      - linux
+---
+
+# Test Registry Linux Install Skill
+`, 'utf-8')
+
+  stampImportedRegistrySkillMetadata(skillDir, {
+    provider: 'clawhub',
+    registryName: 'clawhub/test-registry-linux-install-skill',
+    installName: 'clawhub/test-registry-linux-install-skill',
+  })
+
+  const skill = getSkillById('test-registry-linux-install-skill')
+  assert(skill !== null, 'Expected registry-imported skill to load after metadata stamping')
+  assertEqual(skill!.registryProvider as any, 'clawhub', 'Expected registry provider to persist')
+  assert(skill!.install && skill!.install.length > 0, 'Expected visible install options')
+  if (process.platform === 'linux') {
+    assertEqual(skill!.install![0].kind, 'apt', 'Expected linux runtime to show apt installer after registry import')
+    assertEqual(skill!.install![0].package as any, 'demo-skill', 'Expected apt package metadata to persist')
+  } else {
+    assertEqual(skill!.install![0].kind, 'brew', 'Expected macOS runtime to keep brew installer after registry import')
+    assertEqual(skill!.install![0].formula as any, 'demo-skill', 'Expected brew formula metadata to persist')
+  }
+
+  deleteWorkspaceSkill('test-registry-linux-install-skill')
 })
 
 test('workspace skills expose setup requirement metadata when present', () => {

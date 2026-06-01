@@ -1367,8 +1367,8 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 px-4 sm:p-6 py-4 dark:bg-gray-900">
-      <div className="max-w-7xl mx-auto">
+    <div className="flex-1 overflow-y-auto bg-gray-50 px-4 py-4 dark:bg-gray-900 sm:px-6 sm:py-6">
+      <div>
         {/* Header */}
         <div className="mb-6">
           <div className="flex flex-wrap items-start justify-between gap-4 mb-2">
