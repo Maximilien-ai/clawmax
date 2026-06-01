@@ -123,6 +123,19 @@ test('gateway config accepts remote token fallback and localhost defaults', () =
   assert.strictEqual(parsed?.wsUrl, 'ws://127.0.0.1:18789')
 })
 
+test('gateway config prefers auth token over remote token when both are present', () => {
+  const parsed = gatewayTest.parseGatewayConfig({
+    gateway: {
+      port: 18789,
+      auth: { mode: 'token', token: 'auth-token' },
+      remote: { token: 'remote-token' },
+    },
+  })
+
+  assert(!!parsed, 'Expected gateway config to parse')
+  assert.strictEqual(parsed?.auth.token, 'auth-token')
+})
+
 test('gateway config honors OPENCLAW_GATEWAY_URL override', () => {
   withEnv({ OPENCLAW_GATEWAY_URL: 'http://host.containers.internal:19999' }, () => {
     const parsed = gatewayTest.parseGatewayConfig({

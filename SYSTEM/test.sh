@@ -1281,11 +1281,12 @@ fi
 
 echo ""
 echo -e "${YELLOW}→ Running Workspace dashboard route helper unit tests...${NC}"
-npx ts-node --transpileOnly server/routes/workspace-dashboards.test.ts > /tmp/clawmax-workspace-dashboard-routes.out 2>&1 || true
+npx ts-node --transpileOnly server/routes/workspace-dashboards-routes.test.ts > /tmp/clawmax-workspace-dashboard-routes.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-workspace-dashboard-routes.out; then
   workspace_dashboard_routes_count=$(grep "Tests passed:" /tmp/clawmax-workspace-dashboard-routes.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
   pass "Workspace dashboard route helper unit tests (${workspace_dashboard_routes_count:-?} tests)"
 else
+  cat /tmp/clawmax-workspace-dashboard-routes.out
   fail "Workspace dashboard route helper unit tests"
 fi
 

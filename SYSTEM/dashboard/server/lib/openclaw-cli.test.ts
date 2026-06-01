@@ -61,6 +61,22 @@ test('resolveOpenClawCliPath returns PATH entry when available', () => {
   })
 })
 
+test('resolveOpenClawCliPath falls back to PATH when OPENCLAW_BIN is not executable', () => {
+  withTempDir('clawmax-openclaw-cli-fallback-', (dir) => {
+    const badOverride = path.join(dir, 'not-executable-openclaw')
+    const binDir = path.join(dir, 'bin')
+    fs.mkdirSync(binDir, { recursive: true })
+    const pathCli = path.join(binDir, 'openclaw')
+    fs.writeFileSync(badOverride, 'echo broken\n', 'utf-8')
+    fs.writeFileSync(pathCli, '#!/bin/sh\necho test-openclaw\n', 'utf-8')
+    fs.chmodSync(pathCli, 0o755)
+
+    process.env.OPENCLAW_BIN = badOverride
+    process.env.PATH = `${binDir}:${originalPath || ''}`
+    assert.strictEqual(resolveOpenClawCliPath(), pathCli)
+  })
+})
+
 if (typeof originalOpenClawBin === 'undefined') delete process.env.OPENCLAW_BIN
 else process.env.OPENCLAW_BIN = originalOpenClawBin
 if (typeof originalPath === 'undefined') delete process.env.PATH
