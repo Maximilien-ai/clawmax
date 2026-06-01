@@ -6,6 +6,7 @@
 
 import assert from 'assert'
 import childProcess from 'child_process'
+import { getSkillById, getSkillRequirementInstallCommands, listAvailableSkills } from '../lib/skills'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -80,6 +81,85 @@ function makeRes() {
 
 async function run() {
   console.log(`\n${YELLOW}=== Skills Routes Test Suite ===${RESET}\n`)
+
+  await test('install-requirements returns 404 for unknown skills', async () => {
+    const handler = getRouteHandler('post', '/:skillId/install-requirements')
+    const res = makeRes()
+    await handler(makeReq({ params: { skillId: 'missing-skill' } }), res)
+
+    assert.strictEqual(res.statusCode, 404, 'Expected unknown skill to return HTTP 404')
+    assert(/not found/i.test(res.jsonBody?.error || ''), 'Expected missing skill guidance')
+  })
+
+  await test('install-requirements returns 400 when a skill has no dashboard-installable requirements', async () => {
+    const skillWithoutInstaller = listAvailableSkills().find((skill) => {
+      if (!skill.id) return false
+      const resolved = getSkillById(skill.id)
+      return !!resolved && getSkillRequirementInstallCommands(resolved).length === 0
+    })
+    assert(skillWithoutInstaller, 'Expected at least one skill without dashboard-installable requirements')
+
+    const handler = getRouteHandler('post', '/:skillId/install-requirements')
+    const res = makeRes()
+    await handler(makeReq({ params: { skillId: skillWithoutInstaller.id } }), res)
+
+    assert.strictEqual(res.statusCode, 400, 'Expected skills without installers to return HTTP 400')
+    assert(/no dashboard-installable requirements yet/i.test(res.jsonBody?.error || ''), 'Expected no-installer guidance')
+  })
+
+  await test('install-requirements executes dashboard install commands for supported skills', async () => {
+    const skillWithInstaller = listAvailableSkills().find((skill) => getSkillRequirementInstallCommands(skill).length > 0)
+    assert(skillWithInstaller, 'Expected at least one skill with dashboard-installable requirements')
+    const expectedCommands = getSkillRequirementInstallCommands(skillWithInstaller)
+    const calls: Array<{ file: string; args: string[] }> = []
+
+    execFileMock = (file, args, _options, callback) => {
+      calls.push({ file, args })
+      callback(null, 'installed', '')
+    }
+
+    const handler = getRouteHandler('post', '/:skillId/install-requirements')
+    const res = makeRes()
+    await handler(makeReq({ params: { skillId: skillWithInstaller.id } }), res)
+
+    assert.strictEqual(res.statusCode, 200, 'Expected installable skill to return HTTP 200')
+    assert.strictEqual(calls.length, expectedCommands.length, 'Expected every install command to be executed')
+    assert.strictEqual(res.jsonBody?.commands?.length, expectedCommands.length, 'Expected displayed commands to match executed commands')
+  })
+
+  await test('complete-setup returns actionable input errors for gog when required fields are missing', async () => {
+    const handler = getRouteHandler('post', '/:skillId/complete-setup')
+    const res = makeRes()
+    await handler(makeReq({ params: { skillId: 'gog' }, body: { inputs: { accountEmail: 'user@example.com' } } }), res)
+
+    assert.strictEqual(res.statusCode, 500, 'Expected missing gog setup inputs to return HTTP 500')
+    assert(/client secret json path is required/i.test(res.jsonBody?.error || ''), 'Expected missing client secret guidance')
+  })
+
+  await test('complete-setup executes gog guided setup commands with provided inputs', async () => {
+    const calls: Array<{ file: string; args: string[] }> = []
+    execFileMock = (file, args, _options, callback) => {
+      calls.push({ file, args })
+      callback(null, 'ok', '')
+    }
+
+    const handler = getRouteHandler('post', '/:skillId/complete-setup')
+    const res = makeRes()
+    await handler(makeReq({
+      params: { skillId: 'gog' },
+      body: {
+        inputs: {
+          clientSecretPath: '/tmp/client-secret.json',
+          accountEmail: 'user@example.com',
+        },
+      },
+    }), res)
+
+    assert.strictEqual(res.statusCode, 200, 'Expected gog setup to return HTTP 200')
+    assert.strictEqual(calls.length, 3, 'Expected gog setup to execute three commands')
+    assert(calls.every((call) => call.file === 'gog'), 'Expected gog binary to be invoked for all commands')
+    assert.strictEqual(res.jsonBody?.commands?.[2], 'gog auth list', 'Expected auth verification command to be surfaced')
+  })
 
   await test('registry search returns actionable warning when Tessl CLI is unavailable', async () => {
     execFileMock = (_file, _args, _options, callback) => {

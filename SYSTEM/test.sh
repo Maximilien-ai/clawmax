@@ -446,6 +446,17 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Template route contract unit tests...${NC}"
+npx ts-node --transpileOnly server/routes/templates-routes.test.ts > /tmp/clawmax-template-routes.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-template-routes.out; then
+  template_route_count=$(grep "Tests passed:" /tmp/clawmax-template-routes.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Template route contract unit tests (${template_route_count:-?} tests)"
+else
+  cat /tmp/clawmax-template-routes.out
+  fail "Template route contract unit tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Organization structure client unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/organizationTeams.test.ts > /tmp/clawmax-organization-teams.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-organization-teams.out; then

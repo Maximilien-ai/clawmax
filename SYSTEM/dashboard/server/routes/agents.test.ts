@@ -68,7 +68,7 @@ function writeAgent(workspacePath: string, agentId: string, identityContent?: st
   }
 }
 
-function getRouteHandler(method: 'post', routePath: string) {
+function getRouteHandler(method: 'get' | 'post', routePath: string) {
   // Load after env is set so helper modules resolve the temp workspace/home.
   delete require.cache[require.resolve('./agents')]
   const router = require('./agents').default
@@ -148,6 +148,37 @@ async function run() {
     assert(identityCheck && identityCheck.status === 'fail', 'Expected identity failure for broken-agent')
     const skillsCheck = agentResult.checks.find((check: any) => check.check === 'skills')
     assert.strictEqual(skillsCheck, undefined, 'Expected no separate skills warning when IDENTITY.md is missing')
+  })
+
+  await test('generate rejects missing descriptions before invoking AI generation', async () => {
+    const handler = getRouteHandler('post', '/generate')
+    const res = makeRes()
+    await handler(makeReq({ body: {} }), res)
+
+    assert.strictEqual(res.statusCode, 400, 'Expected missing description to return HTTP 400')
+    assert(/description is required/i.test(res.jsonBody?.error || ''), 'Expected missing description guidance')
+  })
+
+  await test('validate-provision surfaces duplicate agent IDs from the active workspace', async () => {
+    writeAgent(workspacePath, 'plain-agent', [
+      '# IDENTITY.md',
+      '**Name:** plain-agent',
+      '**Role:** General assistant',
+    ].join('\n'))
+
+    const handler = getRouteHandler('post', '/validate-provision')
+    const res = makeRes()
+    await handler(makeReq({
+      body: {
+        name: 'plain-agent',
+        model: 'openai/gpt-4o',
+        tags: ['support'],
+      },
+    }), res)
+
+    assert.strictEqual(res.statusCode, 200, 'Expected validate-provision route success')
+    assert.strictEqual(res.jsonBody?.valid, false, 'Expected duplicate agent id to invalidate provisioning')
+    assert((res.jsonBody?.errors || []).some((error: string) => /already exists/i.test(error)), 'Expected duplicate id error guidance')
   })
 
   if (typeof originalHome === 'undefined') delete process.env.HOME
