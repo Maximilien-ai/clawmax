@@ -980,15 +980,24 @@ test('All skills have unique names', () => {
   console.log(`  ${uniqueNames.size} unique skills`)
 })
 
-// Test 14: Bundled skills are from OpenClaw repo
+// Test 14: Bundled skills resolve to packaged skill roots
 test('Bundled skills have correct file path', () => {
   const skills = listAvailableSkills()
   const bundledSkills = skills.filter((s: OpenClawSkill) => s.bundled)
+  const allowedRoots = [
+    process.env.OPENCLAW_SKILLS_DIR,
+    path.join(process.cwd(), 'SKILLS', 'custom'),
+  ]
+    .filter((value): value is string => Boolean(value))
+    .map(value => path.resolve(value))
 
   assert(bundledSkills.length > 0, 'Should have bundled skills')
 
   const firstBundled = bundledSkills[0]
-  assert(firstBundled.filePath.includes('/openclaw/skills/'), 'Path should include /openclaw/skills/')
+  assert(
+    allowedRoots.some(root => firstBundled.filePath.startsWith(root)),
+    'Path should resolve under a packaged bundled skills root',
+  )
   assert(firstBundled.filePath.endsWith('SKILL.md'), 'Path should end with SKILL.md')
 
   console.log(`  ${bundledSkills.length} bundled skills found`)

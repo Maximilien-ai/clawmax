@@ -51,11 +51,12 @@ sanitize_ref() {
 }
 
 prepare_checkout() {
-  local sanitized_ref cache_root work_root src_dir current_ref
+  local sanitized_ref cache_root work_root src_dir current_tag prepared_stamp current_commit
   sanitized_ref="$(sanitize_ref "$CLAWMAX_OPENCLAW_TARGET")"
   cache_root="${CLAWMAX_OPENCLAW_CACHE_DIR:-${TMPDIR:-/tmp}/clawmax-openclaw-targets}"
   work_root="${cache_root}/${sanitized_ref}"
   src_dir="${work_root}/src"
+  prepared_stamp="${work_root}/.prepared-commit"
 
   mkdir -p "$work_root"
 
@@ -64,25 +65,33 @@ prepare_checkout() {
   fi
 
   if [ ! -d "$src_dir/.git" ]; then
-    git clone --depth 1 --branch "$CLAWMAX_OPENCLAW_TARGET" https://github.com/openclaw/openclaw.git "$src_dir"
+    git clone --depth 1 --branch "$CLAWMAX_OPENCLAW_TARGET" https://github.com/openclaw/openclaw.git "$src_dir" >&2
   fi
 
   (
     cd "$src_dir"
-    current_ref="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
-    if [ "$current_ref" != "$CLAWMAX_OPENCLAW_TARGET" ] && [ "$(git rev-parse HEAD 2>/dev/null || true)" != "$(git rev-parse "$CLAWMAX_OPENCLAW_TARGET" 2>/dev/null || true)" ]; then
-      git fetch --depth 1 --tags --force origin "$CLAWMAX_OPENCLAW_TARGET"
-      git checkout --force "$CLAWMAX_OPENCLAW_TARGET"
+    current_tag="$(git describe --tags --exact-match HEAD 2>/dev/null || true)"
+    if [ "$current_tag" != "$CLAWMAX_OPENCLAW_TARGET" ]; then
+      git fetch --depth 1 --tags --force origin "$CLAWMAX_OPENCLAW_TARGET" >&2
+      git checkout --force "$CLAWMAX_OPENCLAW_TARGET" >&2
     fi
   )
 
   ensure_supported_node
 
-  (
+  current_commit="$(
     cd "$src_dir"
-    run_pnpm install --frozen-lockfile --ignore-scripts
-    npm run build:docker
-  )
+    git rev-parse HEAD
+  )"
+
+  if [ ! -f "${src_dir}/dist/index.js" ] || [ ! -f "$prepared_stamp" ] || [ "$(cat "$prepared_stamp" 2>/dev/null || true)" != "$current_commit" ]; then
+    (
+      cd "$src_dir"
+      run_pnpm install --frozen-lockfile --ignore-scripts >&2
+      npm run build:docker >&2
+    )
+    printf '%s\n' "$current_commit" > "$prepared_stamp"
+  fi
 
   mkdir -p "${work_root}/bin"
   cat >"${work_root}/bin/openclaw" <<EOF
