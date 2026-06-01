@@ -144,6 +144,22 @@ async function run() {
     assert.strictEqual(res.jsonBody?.source, 'clawhub', 'Expected clawhub source in response')
   })
 
+  await test('registry install rejects invalid skill name format before invoking any installer', async () => {
+    let called = false
+    execFileMock = (_file, _args, _options, callback) => {
+      called = true
+      callback(null, '', '')
+    }
+
+    const handler = getRouteHandler('post', '/registry/install')
+    const res = makeRes()
+    await handler(makeReq({ body: { provider: 'clawhub', name: 'bad skill name!' } }), res)
+
+    assert.strictEqual(res.statusCode, 400, 'Expected invalid skill name to return HTTP 400')
+    assert(/invalid skill name format/i.test(res.jsonBody?.error || ''), 'Expected invalid format guidance')
+    assert.strictEqual(called, false, 'Expected installer command not to run for invalid names')
+  })
+
   restoreExecFile()
 
   console.log('\n========================================')

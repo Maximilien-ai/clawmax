@@ -352,6 +352,7 @@ if grep -q "All tests passed" /tmp/clawmax-skill-registry-routes.out; then
   skill_registry_route_count=$(grep "Tests passed:" /tmp/clawmax-skill-registry-routes.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
   pass "Skill registry route unit tests (${skill_registry_route_count:-?} tests)"
 else
+  cat /tmp/clawmax-skill-registry-routes.out
   fail "Skill registry route unit tests"
 fi
 
@@ -431,6 +432,17 @@ if grep -q "All tests passed" /tmp/clawmax-template-feedback.out; then
   pass "Template feedback unit tests (${template_feedback_count:-?} tests)"
 else
   fail "Template feedback unit tests"
+fi
+
+echo ""
+echo -e "${YELLOW}→ Running Template customization route unit tests...${NC}"
+npx ts-node --transpileOnly server/routes/templates-customization.test.ts > /tmp/clawmax-templates-customization.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-templates-customization.out; then
+  template_customization_count=$(grep "Tests passed:" /tmp/clawmax-templates-customization.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Template customization route unit tests (${template_customization_count:-?} tests)"
+else
+  cat /tmp/clawmax-templates-customization.out
+  fail "Template customization route unit tests"
 fi
 
 echo ""

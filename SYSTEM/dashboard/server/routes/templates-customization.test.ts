@@ -103,6 +103,40 @@ test('accepts valid github repo and optional placeholders', () => {
   assert(result.errors.length === 0, 'Expected no validation errors')
 })
 
+test('accepts optional URL placeholders without treating them as invalid links', () => {
+  const result = validateOrganizationCustomization({
+    workflows: [
+      {
+        id: 'wf-optional-url',
+        name: 'Optional URL Workflow',
+        content: `
+- **Reference URL (optional):** [...]
+`,
+      },
+    ],
+  })
+
+  assert(result.valid === true, 'Expected optional URL placeholder to pass')
+  assert(result.errors.length === 0, 'Expected no URL validation errors for optional placeholders')
+})
+
+test('rejects invalid GitHub repo values inside workflow fields', () => {
+  const result = validateOrganizationCustomization({
+    workflows: [
+      {
+        id: 'wf-bad-repo',
+        name: 'Repo Validation Workflow',
+        content: `
+- **GitHub repo:** owner only
+`,
+      },
+    ],
+  })
+
+  assert(result.valid === false, 'Expected invalid workflow repo to fail validation')
+  assert(result.errors.some((error) => error.includes('invalid GitHub repo')), 'Expected invalid GitHub repo error')
+})
+
 test('accepts chief-of-staff style optional daily-run placeholders', () => {
   const result = validateOrganizationCustomization({
     workflows: [
