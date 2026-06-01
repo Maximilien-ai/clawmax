@@ -5,23 +5,24 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.6.6-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
+[![Version](https://img.shields.io/badge/version-1.6.7-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
 [![Tests](https://img.shields.io/badge/tests-96%20default--safe-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 Latest Release Line: v1.6.1–v1.6.6
+## 🔥 Latest Release Line: v1.6.1–v1.6.7
 
 - The `1.6.x` line materially simplifies the client console without removing capability:
   - AI Builder uses less duplicate copy, a clearer clear/reset flow, a wider layout, and progressive disclosure for secondary details
   - client navigation now defaults to `Builder` and groups the main surfaces into clearer product sections
   - Templates, Skills, Agents, Workflows, Communications, and Organization now use more consistent actions, list/grid patterns, clearer quick actions, and less first-screen clutter
-- Release hardening across `1.6.1–1.6.6` also improved:
+- Release hardening across `1.6.1–1.6.7` also improved:
   - on-prem runtime env values now flow correctly into `/api/system`, auth config, and local model defaults
   - template apply defaults, workflow/channel follow-through, and DocHub workflow outputs are more reliable
   - GPT-5, installer/setup defaults, and fresh local runtime paths are more robust on fresh local installs
   - Skills now show platform-appropriate install guidance and hide obviously incompatible registry results on non-macOS runtimes
   - release gating now includes broader route-contract, shell, and OpenClaw/Gateway compatibility coverage ahead of the planned OpenClaw upgrade line
+  - the shared AI prompt editor now supports a resizable markdown preview split, and CI shell-test execution now matches the intended bash runtime
 
 ## 🔥 Previous Release: v1.6.0
 
@@ -173,7 +174,7 @@ curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/ins
 Pinned release:
 
 ```bash
-curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.6.6
+curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.6.7
 ```
 
 What it does:
@@ -194,13 +195,13 @@ See [SYSTEM/docs/DEMO_VIDEOS.md](SYSTEM/docs/DEMO_VIDEOS.md) for the current inv
 You can also bootstrap directly with the checked-in wrapper:
 
 ```bash
-./setup.sh v1.6.6
+./setup.sh v1.6.7
 ```
 
 or choose a custom install directory:
 
 ```bash
-curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.6.6 --dir /opt/clawmax
+curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.6.7 --dir /opt/clawmax
 ```
 
 See [SYSTEM/docs/RELEASE_DISTRIBUTION.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/RELEASE_DISTRIBUTION.md) for the release distribution contract.

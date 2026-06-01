@@ -909,7 +909,7 @@ else
 fi
 
 echo -e "${YELLOW}→ Running Installer shell tests...${NC}"
-sh "$SYSTEM_DIR/install.test.sh" > /tmp/clawmax-install-shell.out 2>&1 || true
+bash "$SYSTEM_DIR/install.test.sh" > /tmp/clawmax-install-shell.out 2>&1 || true
 if [ -f /tmp/clawmax-install-shell.out ] \
   && grep -Fq "install.sh invokes setup.sh without error when no passthrough args are provided" /tmp/clawmax-install-shell.out \
   && grep -Fq "install.sh forwards setup.sh passthrough args" /tmp/clawmax-install-shell.out; then
@@ -920,15 +920,16 @@ else
 fi
 
 echo -e "${YELLOW}→ Running Setup shell tests...${NC}"
-sh "$SYSTEM_DIR/setup.test.sh" > /tmp/clawmax-setup-shell.out 2>&1 || true
+bash "$SYSTEM_DIR/setup.test.sh" > /tmp/clawmax-setup-shell.out 2>&1 || true
 if grep -q "PASS: setup.sh defaults non-interactive auth to bypass" /tmp/clawmax-setup-shell.out; then
   pass "Setup shell tests"
 else
+  [ -f /tmp/clawmax-setup-shell.out ] && cat /tmp/clawmax-setup-shell.out
   fail "Setup shell tests"
 fi
 
 echo -e "${YELLOW}→ Running Uninstall shell tests...${NC}"
-sh "$SYSTEM_DIR/uninstall.test.sh" > /tmp/clawmax-uninstall-shell.out 2>&1 || true
+bash "$SYSTEM_DIR/uninstall.test.sh" > /tmp/clawmax-uninstall-shell.out 2>&1 || true
 if grep -q "PASS: setup.sh uninstall covers podman orphan cleanup and privileged packaged-app removal" /tmp/clawmax-uninstall-shell.out; then
   pass "Uninstall shell tests"
 else
@@ -937,10 +938,11 @@ else
 fi
 
 echo -e "${YELLOW}→ Running Update shell tests...${NC}"
-sh "$SYSTEM_DIR/update.test.sh" > /tmp/clawmax-update-shell.out 2>&1 || true
+bash "$SYSTEM_DIR/update.test.sh" > /tmp/clawmax-update-shell.out 2>&1 || true
 if grep -q "PASS: update.sh reruns setup in non-interactive mode" /tmp/clawmax-update-shell.out && grep -q "PASS: update.sh delegates to install.sh" /tmp/clawmax-update-shell.out; then
   pass "Update shell tests"
 else
+  [ -f /tmp/clawmax-update-shell.out ] && cat /tmp/clawmax-update-shell.out
   fail "Update shell tests"
 fi
 

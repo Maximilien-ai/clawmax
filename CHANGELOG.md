@@ -6,6 +6,16 @@ All notable changes to ClawMax are documented here.
 
 - No unreleased changes yet.
 
+## [v1.6.7] - 2026-06-01
+
+### Release Follow-Through
+- **CI Shell Test Fix** — GitHub Actions now runs installer/setup/update/uninstall shell tests through `bash`, matching the intended runtime of those wrappers and preventing false failures from `/bin/sh` rejecting `pipefail`.
+- **Better Shell Test Failures** — `SYSTEM/test.sh` now prints shell test output for setup/update failures as well, making CI diagnosis faster when one of those wrappers regresses again.
+
+### AI Prompt Editor
+- **Resizable Preview Split** — the shared AI prompt editor now supports dragging the divider between the raw prompt and rendered markdown preview on desktop, making it easier to inspect long AI-expanded markdown without changing the default layout.
+- **Resettable Preview Width** — double-clicking the divider restores the default preview width for quick recovery after manual resizing.
+
 ## [v1.6.6] - 2026-06-01
 
 ### OpenClaw Upgrade Readiness
