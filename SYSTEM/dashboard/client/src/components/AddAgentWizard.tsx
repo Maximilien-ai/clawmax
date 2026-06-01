@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { readStoredByokKeys, fetchModelsWithByok, getAiGenerationReadiness, hasAiGenerationAccess, isOllamaUiAvailable } from '../lib/byok'
 import { expandPromptWithAI } from '../lib/aiPrompt'
 import { normalizeAgentTemplateOption } from '../lib/agentTemplateOptions'
+import { normalizePromptInput, resolveAddAgentWizardLaunchState } from '../lib/addAgentWizardFlow'
 import { useAuth } from '../contexts/AuthContext'
 import AIPromptEditorModal from './AIPromptEditorModal'
 
@@ -50,10 +51,6 @@ interface ValidationResult {
   warnings: string[]
 }
 
-function normalizePromptInput(override: unknown, fallback: string): string {
-  return typeof override === 'string' ? override.trim() : fallback.trim()
-}
-
 function friendlyProvisionError(message: string): string {
   const text = String(message || '').trim()
   if (!text) return 'Provisioning failed. Check the fields above and try again.'
@@ -74,7 +71,8 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
   const aiEnabled = hasAiGenerationAccess(config)
   const aiReadiness = getAiGenerationReadiness(config)
   const ollamaEnabled = isOllamaUiAvailable(config)
-  const [step, setStep] = useState<Step>(startWithAI ? 2 : 1)
+  const launchState = resolveAddAgentWizardLaunchState({ startWithAI, initialAiDescription })
+  const [step, setStep] = useState<Step>(launchState.initialStep)
   const [form, setForm] = useState<FormState>({
     name: '',
     model: '',
@@ -84,8 +82,8 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
     port: 0,
     tags: [],
     customTag: '',
-    aiDescription: '',
-    useAI: false,
+    aiDescription: launchState.aiPrompt,
+    useAI: launchState.enableAi,
   })
   const [suggested, setSuggested] = useState<{ id: string; port: number } | null>(null)
   const [existingAgents, setExistingAgents] = useState<string[]>([])
@@ -125,14 +123,14 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
 
   useEffect(() => {
     if (!startWithAI) return
-    const nextPrompt = normalizePromptInput(initialAiDescription, '')
+    const nextPrompt = launchState.aiPrompt
     if (!nextPrompt) return
     setForm((current) => (
       current.aiDescription.trim()
         ? current
         : { ...current, aiDescription: nextPrompt, useAI: true }
     ))
-  }, [initialAiDescription, startWithAI])
+  }, [launchState.aiPrompt, startWithAI])
 
   // Fetch available models, suggested ID + port and existing agents list on mount
   useEffect(() => {

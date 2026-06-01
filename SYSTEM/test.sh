@@ -570,6 +570,16 @@ else
   fail "Agent template option helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Add agent wizard flow smoke tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/addAgentWizardFlow.test.ts > /tmp/clawmax-add-agent-wizard-flow.out 2>&1 || true
+if grep -q "addAgentWizardFlow.test.ts: ok" /tmp/clawmax-add-agent-wizard-flow.out; then
+  add_agent_wizard_flow_count=$(grep -c "^✓" /tmp/clawmax-add-agent-wizard-flow.out | tr -cd '0-9')
+  pass "Add agent wizard flow smoke tests (${add_agent_wizard_flow_count:-?} tests)"
+else
+  cat /tmp/clawmax-add-agent-wizard-flow.out
+  fail "Add agent wizard flow smoke tests"
+fi
+
 echo -e "${YELLOW}→ Running Agent list helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/agentList.test.ts > /tmp/clawmax-agent-list.out 2>&1 || true
 if grep -q "agentList.test.ts: ok" /tmp/clawmax-agent-list.out; then
@@ -616,6 +626,16 @@ if grep -q "onboardingTour.test.ts: ok" /tmp/clawmax-onboarding-tour.out; then
 else
   cat /tmp/clawmax-onboarding-tour.out
   fail "Onboarding tour helper unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Apply organization template flow smoke tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/applyOrgTemplateFlow.test.ts > /tmp/clawmax-apply-org-template-flow.out 2>&1 || true
+if grep -q "applyOrgTemplateFlow.test.ts: ok" /tmp/clawmax-apply-org-template-flow.out; then
+  apply_org_template_flow_count=$(grep -c "^✓" /tmp/clawmax-apply-org-template-flow.out | tr -cd '0-9')
+  pass "Apply organization template flow smoke tests (${apply_org_template_flow_count:-?} tests)"
+else
+  cat /tmp/clawmax-apply-org-template-flow.out
+  fail "Apply organization template flow smoke tests"
 fi
 
 echo -e "${YELLOW}→ Running Builder session helper unit tests...${NC}"
@@ -693,6 +713,16 @@ if grep -q "All tests passed" /tmp/clawmax-skill-tags.out; then
   pass "Skill tags helper unit tests (${skill_tags_count:-?} tests)"
 else
   fail "Skill tags helper unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Skills page smoke tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/skillsPageFlow.test.ts > /tmp/clawmax-skills-page-flow.out 2>&1 || true
+if grep -q "skillsPageFlow.test.ts: ok" /tmp/clawmax-skills-page-flow.out; then
+  skills_page_flow_count=$(grep -c "^✓" /tmp/clawmax-skills-page-flow.out | tr -cd '0-9')
+  pass "Skills page smoke tests (${skills_page_flow_count:-?} tests)"
+else
+  cat /tmp/clawmax-skills-page-flow.out
+  fail "Skills page smoke tests"
 fi
 
 echo -e "${YELLOW}→ Running Product icon helper unit tests...${NC}"

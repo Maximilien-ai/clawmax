@@ -15,6 +15,7 @@ import { getSkillSetupHint, maybeWarnSkillSetup, supportsDashboardSkillSetup } f
 import { collectSkillTags, matchesSelectedSkillTags } from '../lib/skillTags'
 import { buildAgentSkillsScope, buildAssignedSkillBadges } from '../lib/agentSkillsScope'
 import { getRegistrySkillCompatibility, normalizeRuntimePlatform, type RuntimePlatform } from '../lib/skillPlatform'
+import { buildRegistryCompatibilityNote, buildSkillsPageCountLabel } from '../lib/skillsPageFlow'
 import { useAuth } from '../contexts/AuthContext'
 import { expandPromptWithAI } from '../lib/aiPrompt'
 import {
@@ -1248,6 +1249,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
     [registryResults, runtimePlatform]
   )
   const hiddenRegistryResultsCount = registryResults.length - visibleRegistryResults.length
+  const registryCompatibilityNote = buildRegistryCompatibilityNote(runtimePlatform)
   const activeRegistryProvider = REGISTRY_PROVIDERS.find((provider) => provider.id === registryProvider) || REGISTRY_PROVIDERS[0]
   const viewingSkillSetupHint = viewingSkill ? getSkillSetupHint(viewingSkill) : null
   const allSkillTags = useMemo(() => collectSkillTags(allSkills), [allSkills])
@@ -1787,9 +1789,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
           )}
 
           <div className="mt-2 flex flex-wrap items-center justify-between gap-3 text-sm text-gray-600 dark:text-gray-300">
-            <span>
-            Showing {filteredSkills.length} of {allSkills.length} skills
-            </span>
+            <span>{buildSkillsPageCountLabel(filteredSkills.length, allSkills.length)}</span>
             {selectionMode && filteredSkills.length > 0 && (
               <button
                 onClick={() => setSelectedSkillIds((current) => toggleVisibleSelections(current, filteredSkills.map((skill) => skill.name)))}
@@ -3426,6 +3426,11 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                         {hiddenRegistryResultsCount > 0 && runtimePlatform !== 'unknown' && (
                           <div className="mb-2 text-xs text-gray-500 dark:text-gray-400">
                             Hidden {hiddenRegistryResultsCount} skill{hiddenRegistryResultsCount !== 1 ? 's' : ''} that appear incompatible with this {runtimePlatform === 'darwin' ? 'macOS' : runtimePlatform} runtime.
+                          </div>
+                        )}
+                        {registryCompatibilityNote && (
+                          <div className="mb-2 text-xs text-gray-500 dark:text-gray-400">
+                            {registryCompatibilityNote}
                           </div>
                         )}
                         <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden max-h-80 overflow-y-auto">

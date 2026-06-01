@@ -5,6 +5,7 @@ import { CHANNEL_API_ENDPOINTS } from '../lib/channelApi'
 import { readLocalSecrets, replaceWorkflowFieldValue, SecretRequirement, summarizeSecretReadiness, writeLocalSecrets, writeSharedSecrets } from '../lib/localSecrets'
 import { ProductIconCell } from '../lib/productIcons'
 import { beginSingleFlight, endSingleFlight } from '../lib/singleFlight'
+import { buildApplyOrgCustomizeSteps, resolveInitialApplyOrgWizardStep } from '../lib/applyOrgTemplateFlow'
 import { useWorkspace } from '../contexts/WorkspaceContext'
 
 interface TemplateParameter {
@@ -189,7 +190,7 @@ function isTemplateTokenValue(value: string): boolean {
 
 export default function ApplyOrgTemplateModal({ template, onClose, onSuccess, initialMode = 'customize' }: ApplyOrgTemplateModalProps) {
   const { activeWorkspace } = useWorkspace()
-  const [wizardStep, setWizardStep] = useState<WizardStep>(initialMode === 'apply-now' ? 'deploy' : 'preview')
+  const [wizardStep, setWizardStep] = useState<WizardStep>(resolveInitialApplyOrgWizardStep(initialMode))
   const [prefix, setPrefix] = useState('')
   const [suffix, setSuffix] = useState('')
   const [prefixTouched, setPrefixTouched] = useState(false)
@@ -250,13 +251,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess, in
   const [resolvingTemplateSlug, setResolvingTemplateSlug] = useState(!template.slug)
   const secretRequirements = template.secretRequirements || []
   const secretReadiness = summarizeSecretReadiness(secretRequirements, templateSecrets)
-  const customizeSteps: Array<{ id: CustomizeStep; label: string }> = [
-    { id: 'team', label: 'Team' },
-    { id: 'context', label: 'Context' },
-    ...(secretRequirements.length > 0 ? [{ id: 'secrets' as CustomizeStep, label: 'Secrets' }] : []),
-    { id: 'workflows', label: 'Workflows' },
-    { id: 'agents', label: 'Agents' },
-  ]
+  const customizeSteps: Array<{ id: CustomizeStep; label: string }> = buildApplyOrgCustomizeSteps(secretRequirements.length)
 
   // Prerequisites check
   const [prereqs, setPrereqs] = useState<PrereqState | null>(null)
