@@ -638,6 +638,16 @@ else
   fail "Apply organization template flow smoke tests"
 fi
 
+echo -e "${YELLOW}→ Running Template apply readiness helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/templateApplyReadiness.test.ts > /tmp/clawmax-template-apply-readiness.out 2>&1 || true
+if grep -q "templateApplyReadiness.test.ts: ok" /tmp/clawmax-template-apply-readiness.out; then
+  template_apply_readiness_count=$(grep -c "^✓" /tmp/clawmax-template-apply-readiness.out | tr -cd '0-9')
+  pass "Template apply readiness helper unit tests (${template_apply_readiness_count:-?} tests)"
+else
+  cat /tmp/clawmax-template-apply-readiness.out
+  fail "Template apply readiness helper unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Builder session helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/builderSession.test.ts > /tmp/clawmax-builder-session.out 2>&1 || true
 if grep -q "^✓" /tmp/clawmax-builder-session.out; then
@@ -837,9 +847,12 @@ fi
 
 echo -e "${YELLOW}→ Running Installer shell tests...${NC}"
 sh "$SYSTEM_DIR/install.test.sh" > /tmp/clawmax-install-shell.out 2>&1 || true
-if grep -q "install.sh invokes setup.sh without error" /tmp/clawmax-install-shell.out && grep -q "install.sh forwards setup.sh passthrough args" /tmp/clawmax-install-shell.out; then
+if [ -f /tmp/clawmax-install-shell.out ] \
+  && grep -Fq "install.sh invokes setup.sh without error when no passthrough args are provided" /tmp/clawmax-install-shell.out \
+  && grep -Fq "install.sh forwards setup.sh passthrough args" /tmp/clawmax-install-shell.out; then
   pass "Installer shell tests"
 else
+  [ -f /tmp/clawmax-install-shell.out ] && cat /tmp/clawmax-install-shell.out
   fail "Installer shell tests"
 fi
 

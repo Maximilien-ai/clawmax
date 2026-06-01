@@ -76,7 +76,20 @@ async function main() {
     const hint = getSkillSetupHint({ name: 'gog' })
     assert(!!hint, 'Expected gog fallback setup hint')
     assert(hint?.inputs?.length === 2, 'Expected gog fallback to expose setup inputs')
+    assert(hint?.commands?.includes('gog auth list'), 'Expected gog fallback to include auth verification command')
     assert(supportsDashboardSkillSetup({ name: 'gog' }) === true, 'Expected gog fallback to keep guided setup support')
+  })
+
+  await test('generic secret requirements automatically produce setup warnings', () => {
+    const hint = getSkillSetupHint({
+      name: 'notion',
+      secretRequirements: [
+        { key: 'NOTION_TOKEN', label: 'Notion Token', required: true },
+      ],
+    })
+
+    assert(!!hint, 'Expected secret-based setup hint')
+    assert(hint?.message.includes('NOTION_TOKEN'), 'Expected secret key to appear in setup hint')
   })
 
   await test('generic env/config requirements automatically produce setup warnings', () => {
@@ -103,6 +116,10 @@ async function main() {
     const githubHint = getSkillSetupHint({ name: 'github' })
     assert(!!githubHint, 'Expected GitHub setup hint')
     assert(githubHint?.commands?.includes('gh auth login'), 'Expected GitHub auth command hint')
+
+    const himalayaHint = getSkillSetupHint({ name: 'himalaya' })
+    assert(!!himalayaHint, 'Expected Himalaya setup hint')
+    assert(himalayaHint?.commands?.includes('himalaya account configure'), 'Expected Himalaya account setup command hint')
   })
 
   console.log('\n========================================')
