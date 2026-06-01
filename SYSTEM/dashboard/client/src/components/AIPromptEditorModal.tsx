@@ -61,8 +61,10 @@ export default function AIPromptEditorModal({
   const [expandError, setExpandError] = useState<string | null>(null)
   const [expandedFlash, setExpandedFlash] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
+  const [previewWidth, setPreviewWidth] = useState(380)
   const [localAttachments, setLocalAttachments] = useState<PromptAttachment[]>([])
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const splitContainerRef = useRef<HTMLDivElement | null>(null)
   const flashTimeoutRef = useRef<number | null>(null)
   const effectiveAttachments = attachments ?? localAttachments ?? EMPTY_ATTACHMENTS
 
@@ -73,6 +75,7 @@ export default function AIPromptEditorModal({
       setExpandGuidance('')
       setExpandError(null)
       setExpandedFlash(false)
+      setPreviewWidth(380)
       if (flashTimeoutRef.current !== null) {
         window.clearTimeout(flashTimeoutRef.current)
         flashTimeoutRef.current = null
@@ -93,6 +96,27 @@ export default function AIPromptEditorModal({
   }, [])
 
   if (!isOpen) return null
+
+  const startPreviewResize = (startEvent: React.MouseEvent<HTMLDivElement>) => {
+    const startX = startEvent.clientX
+    const startWidth = previewWidth
+
+    const handleMove = (moveEvent: MouseEvent) => {
+      const delta = startX - moveEvent.clientX
+      const containerWidth = splitContainerRef.current?.getBoundingClientRect().width || 0
+      const maxWidth = containerWidth > 0 ? Math.max(320, Math.floor(containerWidth * 0.68)) : 720
+      const nextWidth = Math.min(maxWidth, Math.max(280, startWidth + delta))
+      setPreviewWidth(nextWidth)
+    }
+
+    const handleUp = () => {
+      window.removeEventListener('mousemove', handleMove)
+      window.removeEventListener('mouseup', handleUp)
+    }
+
+    window.addEventListener('mousemove', handleMove)
+    window.addEventListener('mouseup', handleUp)
+  }
 
   return (
     <div
@@ -187,7 +211,11 @@ export default function AIPromptEditorModal({
               ))}
             </div>
           ) : null}
-          <div className={`grid min-h-0 gap-4 ${showPreview ? 'lg:grid-cols-[minmax(0,1fr)_minmax(280px,420px)]' : 'grid-cols-1'}`}>
+          <div
+            ref={splitContainerRef}
+            className={`grid min-h-0 gap-4 ${showPreview ? 'grid-cols-1 lg:grid-cols-[minmax(0,1fr)_12px_minmax(280px,var(--ai-preview-width,380px))]' : 'grid-cols-1'}`}
+            style={showPreview ? ({ ['--ai-preview-width' as string]: `${previewWidth}px` }) : undefined}
+          >
             <div className="relative">
               {expandedFlash ? (
                 <div className="pointer-events-none absolute right-3 top-3 z-10 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 shadow-sm dark:border-emerald-900/60 dark:bg-emerald-950 dark:text-emerald-200">
@@ -206,6 +234,18 @@ export default function AIPromptEditorModal({
                 }`}
               />
             </div>
+            {showPreview ? (
+              <div
+                role="separator"
+                aria-orientation="vertical"
+                aria-label="Resize preview"
+                onMouseDown={startPreviewResize}
+                onDoubleClick={() => setPreviewWidth(380)}
+                className="hidden lg:flex min-h-[200px] cursor-col-resize items-center justify-center rounded-full bg-transparent text-gray-300 transition-colors hover:bg-sky-100 hover:text-sky-500 dark:text-gray-600 dark:hover:bg-sky-900/40 dark:hover:text-sky-300"
+              >
+                <div className="h-16 w-1.5 rounded-full bg-current/70" />
+              </div>
+            ) : null}
             {showPreview ? (
               <div className="min-h-[200px] rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900">
                 <div className="border-b border-gray-200 px-4 py-2 text-xs font-medium uppercase tracking-wide text-gray-500 dark:border-gray-700 dark:text-gray-400">
