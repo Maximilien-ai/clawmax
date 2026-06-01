@@ -23,6 +23,7 @@ jobs:
       DASHBOARD_AUTH_DISABLED: "true"
       DASHBOARD_PORT: "3001"
       CORS_ORIGIN: http://localhost:5173
+      CLAWMAX_OPENCLAW_TARGET: v2026.5.26
 
     steps:
       - uses: actions/checkout@v4
@@ -39,10 +40,10 @@ jobs:
 
       - name: Install OpenClaw CLI
         run: |
+          . ./SYSTEM/openclaw-version.sh
           git clone https://github.com/openclaw/openclaw.git /tmp/openclaw
           cd /tmp/openclaw
-          # Pin to a known-good commit to avoid upstream breakage
-          git checkout v0.2.16 2>/dev/null || true
+          git checkout "${CLAWMAX_OPENCLAW_TARGET}" 2>/dev/null || true
           go build -o /usr/local/bin/openclaw . 2>/dev/null || {
             echo "::warning::OpenClaw CLI build failed — creating stub for CI"
             echo '#!/bin/sh' > /usr/local/bin/openclaw

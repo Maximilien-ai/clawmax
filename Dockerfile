@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 ARG CLAWMAX_VERSION=
-ARG OPENCLAW_GIT_REF=1116ae97662cce066dd130bc07d925fdd1dd3f32
+ARG OPENCLAW_GIT_REF=v2026.5.26
 
 FROM node:22-bookworm-slim AS openclaw-builder
 

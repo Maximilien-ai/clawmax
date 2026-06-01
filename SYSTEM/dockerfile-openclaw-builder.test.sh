@@ -13,6 +13,7 @@ assert_contains() {
 }
 
 assert_contains "RUN npm install -g pnpm"
+assert_contains "ARG OPENCLAW_GIT_REF=v2026.5.26"
 assert_contains "if [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile --ignore-scripts;"
 assert_contains "elif [ -f package-lock.json ]; then npm ci --legacy-peer-deps --ignore-scripts;"
 assert_contains "RUN if [ -f package-lock.json ]; then npm ci --legacy-peer-deps; else npm install --legacy-peer-deps; fi"
