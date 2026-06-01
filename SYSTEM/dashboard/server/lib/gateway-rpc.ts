@@ -6,6 +6,8 @@ import { randomUUID } from 'crypto'
 import { execSync } from 'child_process'
 import { safeEnv } from './safe-env'
 
+export const GATEWAY_PROTOCOL_VERSION = 4
+
 interface GatewayConfig {
   port: number
   host?: string
@@ -84,6 +86,7 @@ function loadGatewayConfigFromDisk(): GatewayConfig | null {
 
 export const __test = {
   parseGatewayConfig,
+  GATEWAY_PROTOCOL_VERSION,
 }
 
 interface RPCRequest {
@@ -173,8 +176,8 @@ export class GatewayRPCClient {
           id: randomUUID(),
           method: 'connect',
           params: {
-            minProtocol: 3,
-            maxProtocol: 3,
+            minProtocol: GATEWAY_PROTOCOL_VERSION,
+            maxProtocol: GATEWAY_PROTOCOL_VERSION,
             client: {
               id: 'cli',  // Must use approved client ID from GATEWAY_CLIENT_IDS
               displayName: 'Dashboard RPC Client',
@@ -459,8 +462,8 @@ export async function probeGatewayResponsive(timeoutMs = 3000): Promise<{ runnin
             id: randomUUID(),
             method: 'connect',
             params: {
-              minProtocol: 3,
-              maxProtocol: 3,
+              minProtocol: GATEWAY_PROTOCOL_VERSION,
+              maxProtocol: GATEWAY_PROTOCOL_VERSION,
               client: {
                 id: 'openclaw-control-ui',
                 displayName: 'Dashboard Probe',

@@ -1,5 +1,5 @@
 import express, { Router } from 'express'
-import { execSync, spawn } from 'child_process'
+import { execFileSync, execSync, spawn } from 'child_process'
 import path from 'path'
 import fs from 'fs'
 import archiver from 'archiver'
@@ -62,6 +62,17 @@ function detectWaPaths(): { baileys: string | null; boom: string | null } {
 /** Synchronous model list for validation — uses cached discovery or fallback */
 function getAvailableModels(): string[] {
   return getAvailableModelsCached()
+}
+
+function resolveAgentProvisionCliPath(): string | null {
+  const cliPath = resolveOpenClawCliPath()
+  if (!cliPath) return null
+  try {
+    execFileSync(cliPath, ['--version'], { stdio: 'pipe', env: safeEnv() })
+    return cliPath
+  } catch {
+    return null
+  }
 }
 
 // buildModelsResponse removed — replaced by discoverModels() from model-discovery.ts
@@ -619,11 +630,8 @@ router.post('/provision', (req, res) => {
   }
 
   // Check if openclaw CLI is available
-  let hasOpenclawCli = false
-  try {
-    require('child_process').execSync('which openclaw', { stdio: 'pipe' })
-    hasOpenclawCli = true
-  } catch {}
+  const openclawCliPath = resolveAgentProvisionCliPath()
+  const hasOpenclawCli = !!openclawCliPath
 
   if (!hasOpenclawCli) {
     // Register agent without CLI — just ensure directory structure exists
@@ -662,9 +670,9 @@ router.post('/provision', (req, res) => {
   }
 
   // openclaw CLI available — use it
-  send('log', `Command: openclaw ${args.join(' ')}\n`)
+  send('log', `Command: ${openclawCliPath} ${args.join(' ')}\n`)
 
-  const child = spawn('openclaw', args, {
+  const child = spawn(openclawCliPath!, args, {
     cwd: getWorkspacePath(),
     env: safeEnv({ TERM: 'dumb' }),
     stdio: ['ignore', 'pipe', 'pipe'],

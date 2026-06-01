@@ -2,6 +2,7 @@ import { Router } from 'express'
 import WebSocket from 'ws'
 import { randomUUID } from 'crypto'
 import { getAgentGatewayConfig } from '../lib/workspace'
+import { GATEWAY_PROTOCOL_VERSION } from '../lib/gateway-rpc'
 
 const router = Router()
 
@@ -53,8 +54,8 @@ router.get('/:id/status', async (req, res) => {
         id: randomUUID(),
         method: 'connect',
         params: {
-          minProtocol: 3,
-          maxProtocol: 3,
+          minProtocol: GATEWAY_PROTOCOL_VERSION,
+          maxProtocol: GATEWAY_PROTOCOL_VERSION,
           client: {
             id: 'openclaw-control-ui',  // Use Control UI client ID for scope permissions
             displayName: 'Dashboard Status',
@@ -214,8 +215,8 @@ router.get('/:id/logs', (req, res) => {
       id: randomUUID(),
       method: 'connect',
       params: {
-        minProtocol: 3,
-        maxProtocol: 3,
+        minProtocol: GATEWAY_PROTOCOL_VERSION,
+        maxProtocol: GATEWAY_PROTOCOL_VERSION,
         client: {
           id: 'openclaw-control-ui',  // Use Control UI client ID for scope permissions
           displayName: 'Dashboard Logs',

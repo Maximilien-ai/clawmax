@@ -39,12 +39,20 @@ test('hasByokExecutionPathForProvider detects matching hosted provider keys', ()
   assert(!hasByokExecutionPathForProvider('openai', { anthropic: 'sk-ant-test' }), 'Expected Anthropic key not to satisfy OpenAI provider')
 })
 
-test('shouldUseLocalChatExecution uses direct mode for BYOK hosted models even when gateway is running', () => {
-  assert(shouldUseLocalChatExecution({
+test('shouldUseLocalChatExecution prefers gateway for hosted BYOK models when gateway is running', () => {
+  assert(!shouldUseLocalChatExecution({
     provider: 'openai',
     byok: { openai: 'sk-test' },
     gatewayRunning: true,
-  }), 'Expected BYOK OpenAI chat to use local execution instead of gateway')
+  }), 'Expected BYOK OpenAI chat to use gateway when available')
+})
+
+test('shouldUseLocalChatExecution still falls back to direct mode for hosted BYOK when gateway is down', () => {
+  assert(shouldUseLocalChatExecution({
+    provider: 'openai',
+    byok: { openai: 'sk-test' },
+    gatewayRunning: false,
+  }), 'Expected BYOK OpenAI chat to use local execution when gateway is unavailable')
 })
 
 test('shouldUseLocalChatExecution uses gateway for hosted env-key execution when gateway is running', () => {

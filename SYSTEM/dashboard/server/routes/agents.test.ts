@@ -19,6 +19,7 @@ let testsFailed = 0
 
 const originalHome = process.env.HOME
 const originalWorkspace = process.env.OPENCLAW_WORKSPACE
+const originalOpenClawBin = process.env.OPENCLAW_BIN
 
 function test(name: string, fn: () => void | Promise<void>) {
   return Promise.resolve()
@@ -160,6 +161,62 @@ async function run() {
     assert(/description is required/i.test(res.jsonBody?.error || ''), 'Expected missing description guidance')
   })
 
+  await test('provision route honors OPENCLAW_BIN override when creating agents', async () => {
+    const tmpCliDir = path.join(tmpHome, 'bin')
+    const fakeCli = path.join(tmpCliDir, 'openclaw')
+    fs.mkdirSync(tmpCliDir, { recursive: true })
+    fs.writeFileSync(fakeCli, '#!/bin/sh\necho test-openclaw\n', 'utf-8')
+    fs.chmodSync(fakeCli, 0o755)
+    process.env.OPENCLAW_BIN = fakeCli
+
+    const childProcess = require('child_process')
+    const originalSpawn = childProcess.spawn
+
+    childProcess.spawn = (command: string, args: string[]) => {
+      assert.strictEqual(command, fakeCli, 'Expected create route to spawn the resolved OPENCLAW_BIN override')
+      assert.deepStrictEqual(args.slice(0, 3), ['agents', 'add', 'fresh-agent'], 'Expected create route to invoke openclaw agents add')
+      const listeners: Record<string, Function> = {}
+      return {
+        stdout: { on() {} },
+        stderr: { on() {} },
+        on(event: string, handler: Function) {
+          listeners[event] = handler
+          if (event === 'close') {
+            setTimeout(() => handler(0, null), 0)
+          }
+        },
+      }
+    }
+
+    try {
+      const handler = getRouteHandler('post', '/provision')
+      const writes: string[] = []
+      const res: any = {
+        writableEnded: false,
+        headers: {} as Record<string, string>,
+        setHeader(name: string, value: string) { this.headers[name] = value },
+        writeHead() { return this },
+        flushHeaders() {},
+        write(chunk: string) { writes.push(String(chunk)) },
+        end() { this.writableEnded = true },
+      }
+      const req: any = makeReq({
+        body: {
+          name: 'fresh-agent',
+          model: 'openai/gpt-4o-mini',
+          tags: [],
+        },
+        on() {},
+      })
+      await handler(req, res)
+      await new Promise(resolve => setTimeout(resolve, 20))
+      assert(writes.some(chunk => chunk.includes(fakeCli)), 'Expected streamed logs to include the resolved CLI path')
+      assert(writes.some(chunk => chunk.includes('"type":"done"') && chunk.includes('"data":"ok"')), 'Expected successful create completion event')
+    } finally {
+      childProcess.spawn = originalSpawn
+    }
+  })
+
   await test('validate-provision surfaces duplicate agent IDs from the active workspace', async () => {
     writeAgent(workspacePath, 'plain-agent', [
       '# IDENTITY.md',
@@ -210,6 +267,9 @@ async function run() {
   if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
   else process.env.OPENCLAW_WORKSPACE = originalWorkspace
 
+  if (typeof originalOpenClawBin === 'undefined') delete process.env.OPENCLAW_BIN
+  else process.env.OPENCLAW_BIN = originalOpenClawBin
+
   console.log('\n========================================')
   console.log(`Tests passed: ${testsPassed}`)
   console.log(`Tests failed: ${testsFailed}`)
@@ -228,6 +288,8 @@ run().catch((err) => {
   else process.env.HOME = originalHome
   if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
   else process.env.OPENCLAW_WORKSPACE = originalWorkspace
+  if (typeof originalOpenClawBin === 'undefined') delete process.env.OPENCLAW_BIN
+  else process.env.OPENCLAW_BIN = originalOpenClawBin
   console.error(err)
   process.exit(1)
 })

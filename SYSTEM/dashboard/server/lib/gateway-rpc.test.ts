@@ -64,6 +64,10 @@ test('parseGatewayConfig honors OPENCLAW_GATEWAY_URL override', () => {
   }
 })
 
+test('gateway RPC negotiates protocol 4 for upgraded OpenClaw runtimes', () => {
+  assert(__test.GATEWAY_PROTOCOL_VERSION === 4, `Expected gateway protocol version 4, got ${__test.GATEWAY_PROTOCOL_VERSION}`)
+})
+
 setTimeout(() => {
   console.log(`\nPassed: ${testsPassed}`)
   console.log(`Failed: ${testsFailed}`)

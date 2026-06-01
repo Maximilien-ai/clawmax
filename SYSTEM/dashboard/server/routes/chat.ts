@@ -63,7 +63,7 @@ export function shouldUseLocalChatExecution(input: {
   gatewayRunning: boolean
 }): boolean {
   if (input.provider === 'ollama' || input.provider === 'openai-compatible') return true
-  if (hasByokExecutionPathForProvider(input.provider, input.byok)) return true
+  if (hasByokExecutionPathForProvider(input.provider, input.byok)) return !input.gatewayRunning
   return !input.gatewayRunning
 }
 
