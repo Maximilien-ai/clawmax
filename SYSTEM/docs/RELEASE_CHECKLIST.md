@@ -73,6 +73,8 @@ wait about one minute for the auth rate limiter window to reset.
 
 ## 4. Core Manual Smoke
 
+Use [MANUAL_RELEASE_SMOKE_CHECKLIST.md](MANUAL_RELEASE_SMOKE_CHECKLIST.md) as the reusable detailed surface-by-surface smoke list. The items below are the minimum release-pass reminder set.
+
 - Onboarding / Builder
   - create or switch to an empty workspace
   - verify the first-run tour can be shown, skipped, and reopened from onboarding
