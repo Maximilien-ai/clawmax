@@ -475,6 +475,16 @@ else
   fail "Notifications unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Notifications route contract tests...${NC}"
+npx ts-node --transpileOnly server/routes/notifications-routes.test.ts > /tmp/clawmax-notifications-routes.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-notifications-routes.out; then
+  notifications_route_count=$(grep "Tests passed:" /tmp/clawmax-notifications-routes.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Notifications route contract tests (${notifications_route_count:-?} tests)"
+else
+  cat /tmp/clawmax-notifications-routes.out
+  fail "Notifications route contract tests"
+fi
+
 echo -e "${YELLOW}→ Running Workspace artifact notification unit tests...${NC}"
 OPENCLAW_WORKSPACE=/tmp/clawmax-workspace-artifact-notifications npx ts-node --transpileOnly server/lib/workspace-artifact-notifications.test.ts > /tmp/clawmax-workspace-artifact-notifications.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-workspace-artifact-notifications.out; then
