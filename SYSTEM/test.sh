@@ -1299,6 +1299,16 @@ else
   fail "AI generator unit tests"
 fi
 
+echo -e "${YELLOW}→ Running AI route unit tests...${NC}"
+npx ts-node --transpileOnly server/routes/ai.test.ts > /tmp/clawmax-ai-route.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-ai-route.out; then
+  ai_route_count=$(grep "Tests passed:" /tmp/clawmax-ai-route.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "AI route unit tests (${ai_route_count:-?} tests)"
+else
+  cat /tmp/clawmax-ai-route.out
+  fail "AI route unit tests"
+fi
+
 echo -e "${YELLOW}→ Running AI generator live GPT-5 smoke test...${NC}"
 npx ts-node --transpileOnly server/lib/ai-generator-live.test.ts > /tmp/clawmax-ai-generator-live.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-ai-generator-live.out; then
