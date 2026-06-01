@@ -565,6 +565,16 @@ else
   fail "Channel API helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Channels route unit tests...${NC}"
+npx ts-node --transpileOnly server/routes/channels.test.ts > /tmp/clawmax-channels-routes.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-channels-routes.out; then
+  channels_route_count=$(grep "Tests passed:" /tmp/clawmax-channels-routes.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Channels route unit tests (${channels_route_count:-?} tests)"
+else
+  cat /tmp/clawmax-channels-routes.out
+  fail "Channels route unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Navigation helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/navigation.test.ts > /tmp/clawmax-navigation.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-navigation.out; then
@@ -885,6 +895,15 @@ if grep -q "PASS: setup.sh defaults non-interactive auth to bypass" /tmp/clawmax
   pass "Setup shell tests"
 else
   fail "Setup shell tests"
+fi
+
+echo -e "${YELLOW}→ Running Uninstall shell tests...${NC}"
+sh "$SYSTEM_DIR/uninstall.test.sh" > /tmp/clawmax-uninstall-shell.out 2>&1 || true
+if grep -q "PASS: setup.sh uninstall covers podman orphan cleanup and privileged packaged-app removal" /tmp/clawmax-uninstall-shell.out; then
+  pass "Uninstall shell tests"
+else
+  [ -f /tmp/clawmax-uninstall-shell.out ] && cat /tmp/clawmax-uninstall-shell.out
+  fail "Uninstall shell tests"
 fi
 
 echo -e "${YELLOW}→ Running Update shell tests...${NC}"

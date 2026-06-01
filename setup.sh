@@ -25,6 +25,105 @@ print_warning() { echo -e "${YELLOW}⚠${NC} $1"; }
 print_info() { echo -e "${BLUE}ℹ${NC} $1"; }
 ask_yn() { read -p "  $1 (y/N): " -n 1 -r; echo; [[ $REPLY =~ ^[Yy]$ ]]; }
 
+remove_path_with_optional_sudo() {
+  local target="$1"
+  local label="$2"
+
+  if [ ! -e "$target" ] && [ ! -L "$target" ]; then
+    return 0
+  fi
+
+  if rm -rf "$target" 2>/dev/null; then
+    print_success "Removed $label"
+    return 0
+  fi
+
+  if [ "$INTERACTIVE" = true ] && command -v sudo >/dev/null 2>&1; then
+    print_info "Requesting admin access to remove $label"
+    if sudo rm -rf "$target"; then
+      print_success "Removed $label"
+      return 0
+    fi
+  fi
+
+  print_warning "Could not remove $label automatically"
+  print_info "Remove manually: sudo rm -rf \"$target\""
+  return 1
+}
+
+collect_podman_machine_names() {
+  if ! command -v podman >/dev/null 2>&1; then
+    return 0
+  fi
+
+  local machine_json=""
+  machine_json="$(podman machine list --format json 2>/dev/null || true)"
+  if [ -z "$machine_json" ]; then
+    return 0
+  fi
+
+  printf '%s\n' "$machine_json" \
+    | tr '{},' '\n' \
+    | sed -n 's/.*"Name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p'
+}
+
+cleanup_orphaned_podman_machine_files() {
+  if ! command -v podman >/dev/null 2>&1; then
+    print_info "Podman not installed, skipping Podman cleanup"
+    return 0
+  fi
+
+  local machine_names existing_names
+  machine_names="$(collect_podman_machine_names)"
+  existing_names="$(printf '%s\n' "$machine_names" | sed '/^$/d')"
+
+  local search_dirs=(
+    "$HOME/.local/share/containers/podman/machine"
+    "$HOME/.config/containers/podman/machine"
+    "$HOME/Library/Containers/podman/machine"
+  )
+  local removed=0
+  local found_any=false
+
+  for dir in "${search_dirs[@]}"; do
+    [ -d "$dir" ] || continue
+    found_any=true
+
+    while IFS= read -r orphan; do
+      [ -n "$orphan" ] || continue
+      local base machine_name
+      base="$(basename "$orphan")"
+      machine_name=""
+      case "$base" in
+        efi-bl-*)
+          machine_name="${base#efi-bl-}"
+          ;;
+        *-ignition.sock)
+          machine_name="${base%-ignition.sock}"
+          ;;
+      esac
+      [ -n "$machine_name" ] || continue
+
+      if printf '%s\n' "$existing_names" | grep -Fxq "$machine_name"; then
+        continue
+      fi
+
+      rm -f "$orphan" 2>/dev/null || true
+      if [ ! -e "$orphan" ]; then
+        removed=$((removed + 1))
+      fi
+    done < <(find "$dir" -type f \( -name 'efi-bl-*' -o -name '*-ignition.sock' \) 2>/dev/null)
+  done
+
+  if [ "$found_any" = false ]; then
+    print_info "No Podman machine directories found"
+  elif [ "$removed" -gt 0 ]; then
+    print_success "Removed $removed orphaned Podman machine file(s)"
+  else
+    print_info "No orphaned Podman machine files found"
+  fi
+}
+
 # Non-interactive mode (CI)
 INTERACTIVE=true
 if [ ! -t 0 ] || [ "$CI" = "true" ] || [ "$1" = "--non-interactive" ]; then
@@ -164,6 +263,13 @@ EOF
   if command -v brew &> /dev/null && brew tap | grep -q "maximilien-ai/openclaw"; then
     brew untap maximilien-ai/openclaw 2>/dev/null && print_success "Removed Homebrew tap" || true
   fi
+
+  print_header "Cleaning Podman Residue"
+  cleanup_orphaned_podman_machine_files
+
+  print_header "Removing Packaged App Artifacts"
+  remove_path_with_optional_sudo "/Applications/ClawMax.app" "ClawMax.app"
+  remove_path_with_optional_sudo "/usr/local/bin/clawmax" "clawmax launcher"
 
   echo ""
   echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"

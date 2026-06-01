@@ -1369,8 +1369,8 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
   }
 
   return (
-    <div className="flex-1 overflow-y-auto bg-gray-50 px-4 py-4 dark:bg-gray-900 sm:px-6 sm:py-6">
-      <div>
+    <div className="min-w-0 flex-1 overflow-y-auto bg-gray-50 px-4 py-4 dark:bg-gray-900 sm:px-6 sm:py-6">
+      <div className="w-full min-w-0 max-w-none">
         {/* Header */}
         <div className="mb-6">
           <div className="flex flex-wrap items-start justify-between gap-4 mb-2">
@@ -2205,7 +2205,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                     getSetupHint={getSkillSetupHint}
                   />
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
                     {sortedUserSkills.map(skill => {
                       const users = skillUsage.get(skill.name) || []
                       return (
@@ -2267,7 +2267,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                 getSetupHint={getSkillSetupHint}
               />
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
                 {sortedBuiltInSkills.map(skill => {
                   const users = skillUsage.get(skill.name) || []
                   return (
