@@ -8,6 +8,7 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import assert from 'assert'
+import { resetWorkspaceManagerForTests } from '../lib/workspace-manager'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -43,6 +44,7 @@ function ensureWorkspaceScaffold(workspacePath: string) {
 }
 
 function getRouteHandler(method: 'get' | 'post' | 'delete' | 'patch', routePath: string) {
+  resetWorkspaceManagerForTests()
   delete require.cache[require.resolve('./channels')]
   const router = require('./channels').default
   const layer = router.stack.find((entry: any) => entry.route?.path === routePath && entry.route?.methods?.[method])
@@ -83,6 +85,7 @@ async function run() {
   ensureWorkspaceScaffold(workspacePath)
   process.env.HOME = tmpHome
   process.env.OPENCLAW_WORKSPACE = workspacePath
+  resetWorkspaceManagerForTests()
 
   await test('community and group creation reject missing names', async () => {
     const createCommunity = getRouteHandler('post', '/communities')
@@ -430,6 +433,7 @@ async function run() {
   else process.env.HOME = originalHome
   if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
   else process.env.OPENCLAW_WORKSPACE = originalWorkspace
+  resetWorkspaceManagerForTests()
 
   console.log('\n========================================')
   console.log(`Tests passed: ${testsPassed}`)
@@ -449,6 +453,7 @@ run().catch((err) => {
   else process.env.HOME = originalHome
   if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
   else process.env.OPENCLAW_WORKSPACE = originalWorkspace
+  resetWorkspaceManagerForTests()
   console.error(err)
   process.exit(1)
 })

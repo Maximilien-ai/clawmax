@@ -8,6 +8,7 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import assert from 'assert'
+import { resetWorkspaceManagerForTests } from '../lib/workspace-manager'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -43,6 +44,7 @@ function ensureWorkspaceScaffold(workspacePath: string) {
 }
 
 function getRouteHandler(method: 'get' | 'post', routePath: string) {
+  resetWorkspaceManagerForTests()
   delete require.cache[require.resolve('./docs')]
   const router = require('./docs').default
   const layer = router.stack.find((entry: any) => entry.route?.path === routePath && entry.route?.methods?.[method])
@@ -86,6 +88,7 @@ async function run() {
   ensureWorkspaceScaffold(workspacePath)
   process.env.HOME = tmpHome
   process.env.OPENCLAW_WORKSPACE = workspacePath
+  resetWorkspaceManagerForTests()
 
   fs.writeFileSync(path.join(workspacePath, 'SYSTEM', 'notes.md'), '# Notes\n\nAlpha project status\n', 'utf-8')
   fs.writeFileSync(path.join(workspacePath, 'SYSTEM', 'runtime.log'), 'gateway ready\nline two\n', 'utf-8')
@@ -160,6 +163,7 @@ async function run() {
   else process.env.HOME = originalHome
   if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
   else process.env.OPENCLAW_WORKSPACE = originalWorkspace
+  resetWorkspaceManagerForTests()
 
   console.log('\n========================================')
   console.log(`Tests passed: ${testsPassed}`)
@@ -179,6 +183,7 @@ run().catch((err) => {
   else process.env.HOME = originalHome
   if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
   else process.env.OPENCLAW_WORKSPACE = originalWorkspace
+  resetWorkspaceManagerForTests()
   console.error(err)
   process.exit(1)
 })
