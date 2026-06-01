@@ -9,7 +9,7 @@ import { getWorkspacePath } from './workspace'
 import { listTeams, type Team } from './teams'
 import { addMessage } from './messages'
 import { getConfiguredDashboardInstanceId, traceAgentChat, traceWorkflowExecution } from './opik'
-import { isGatewayRunning } from './gateway-rpc'
+import { waitForGatewayResponsive } from './gateway-rpc'
 import { checkBudgetBlock } from './budget'
 import { validateWorkflow } from './validator'
 import {
@@ -1708,70 +1708,74 @@ export function triggerWorkflow(workflowId: string, options?: {
           persistExecution()
 
           // Call agent via CLI
-          const agentResponse = await runExclusiveAgentExecution(participant.agentId, () => new Promise<string>((resolve, reject) => {
+          const agentResponse = await runExclusiveAgentExecution(participant.agentId, async () => {
             const resolvedAgent = resolveAgentExecutionConfig(participant.agentId)
             const hasOllamaPath = !!(executionEnv.OLLAMA_BASE_URL || integrationDefaults.ollamaDefaultModel)
             if (resolvedAgent.provider === 'ollama' && !hasOllamaPath) {
-              reject(new Error(`Agent ${participant.agentId} is configured for ${resolvedAgent.model || 'ollama'}, but no Ollama runtime is configured`))
-              return
+              throw new Error(`Agent ${participant.agentId} is configured for ${resolvedAgent.model || 'ollama'}, but no Ollama runtime is configured`)
             }
             const openclawCliPath = resolveWorkflowOpenClawCliPath()
-            const useLocal = resolvedAgent.provider === 'ollama' || !isGatewayRunning().running
+            const gatewayRunning = resolvedAgent.provider === 'ollama'
+              ? false
+              : (await waitForGatewayResponsive()).running
+            const useLocal = resolvedAgent.provider === 'ollama' || !gatewayRunning
             const sessionId = buildWorkflowSessionId(executionId, participant.agentId)
             repairWorkflowSessionEntryForRun(participant.agentId, sessionId)
             const args = ['agent', '--agent', participant.agentId, '--session-id', sessionId, '--message', executionMessage, '--json', ...(useLocal ? ['--local'] : [])]
-            withTemporaryAgentAuthProfiles(participant.agentId, {
+            return await new Promise<string>((resolve, reject) => {
+              withTemporaryAgentAuthProfiles(participant.agentId, {
               openai: executionEnv.OPENAI_API_KEY,
               anthropic: executionEnv.ANTHROPIC_API_KEY,
               gemini: executionEnv.GEMINI_API_KEY,
-            }, resolvedAgent.model, resolvedAgent.provider, async () => {
-              await new Promise<void>((innerResolve) => {
-                const proc = spawn(openclawCliPath, args, { env: executionEnv })
-                let stdout = ''
-                let stderr = ''
-                const timeoutMs = getWorkflowAgentTimeoutMs()
-                const timer = setTimeout(() => {
-                  proc.kill()
-                  reject(new Error(formatWorkflowAgentTimeoutMessage(timeoutMs)))
-                }, timeoutMs)
+              }, resolvedAgent.model, resolvedAgent.provider, async () => {
+                await new Promise<void>((innerResolve) => {
+                  const proc = spawn(openclawCliPath, args, { env: executionEnv })
+                  let stdout = ''
+                  let stderr = ''
+                  const timeoutMs = getWorkflowAgentTimeoutMs()
+                  const timer = setTimeout(() => {
+                    proc.kill()
+                    reject(new Error(formatWorkflowAgentTimeoutMessage(timeoutMs)))
+                  }, timeoutMs)
 
                 let progressTicks = 0
-                proc.stdout.on('data', (d: Buffer) => {
-                  stdout += d.toString()
-                  // Mark visible forward motion once work is actually streaming.
-                  progressTicks++
-                  const estimated = Math.min(20 + progressTicks * 10, 90)
-                  const current = getWorkflow(workflowId)?.progress || 0
-                  updateWorkflow(workflowId, { progress: Math.max(current, estimated) } as any)
-                })
-                proc.stderr.on('data', (d: Buffer) => { stderr += d.toString() })
-                proc.on('close', (code: number) => {
-                  clearTimeout(timer)
-                  const payloadText = extractWorkflowAgentResultPayload(stdout, stderr)
-                  if (code !== 0 && !payloadText) {
-                    reject(new Error(`Agent failed: ${stderr.slice(0, 200)}`))
+                  proc.stdout.on('data', (d: Buffer) => {
+                    stdout += d.toString()
+                    // Mark visible forward motion once work is actually streaming.
+                    progressTicks++
+                    const estimated = Math.min(20 + progressTicks * 10, 90)
+                    const current = getWorkflow(workflowId)?.progress || 0
+                    updateWorkflow(workflowId, { progress: Math.max(current, estimated) } as any)
+                  })
+                  proc.stderr.on('data', (d: Buffer) => { stderr += d.toString() })
+                  proc.on('close', (code: number) => {
+                    clearTimeout(timer)
+                    const payloadText = extractWorkflowAgentResultPayload(stdout, stderr)
+                    if (code !== 0 && !payloadText) {
+                      reject(new Error(`Agent failed: ${stderr.slice(0, 200)}`))
+                      innerResolve()
+                      return
+                    }
+                    try {
+                      const result = JSON.parse(payloadText)
+                      const text = result?.payloads?.[0]?.text || result?.result?.payloads?.[0]?.text || ''
+                      // Extract meta for tracing
+                      const meta = result?.result?.meta || result?.meta || {}
+                      const agentMeta = meta.agentMeta || {}
+                      resolve({ text, meta: agentMeta, durationMs: meta.durationMs } as any)
+                    } catch {
+                      resolve({ text: payloadText, meta: {}, durationMs: 0 } as any)
+                    }
                     innerResolve()
-                    return
-                  }
-                  try {
-                    const result = JSON.parse(payloadText)
-                    const text = result?.payloads?.[0]?.text || result?.result?.payloads?.[0]?.text || ''
-                    // Extract meta for tracing
-                    const meta = result?.result?.meta || result?.meta || {}
-                    const agentMeta = meta.agentMeta || {}
-                    resolve({ text, meta: agentMeta, durationMs: meta.durationMs } as any)
-                  } catch {
-                    resolve({ text: payloadText, meta: {}, durationMs: 0 } as any)
-                  }
-                  innerResolve()
+                  })
+                  proc.on('error', (err) => {
+                    reject(err)
+                    innerResolve()
+                  })
                 })
-                proc.on('error', (err) => {
-                  reject(err)
-                  innerResolve()
-                })
-              })
-            }, { persistAuthProfiles: true }).catch(reject)
-          }))
+              }, { persistAuthProfiles: true }).catch(reject)
+            })
+          })
 
           const agentResult = agentResponse as any
           const rawAgentText = agentResult.text || ''

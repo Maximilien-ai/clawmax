@@ -500,3 +500,17 @@ export async function probeGatewayResponsive(timeoutMs = 3000): Promise<{ runnin
     ws.on('close', () => cleanup({ running: false, port: config.port, error: 'Gateway connection closed before authenticated probe completed' }))
   })
 }
+
+export async function waitForGatewayResponsive(timeoutMs = 8000, pollMs = 500): Promise<{ running: boolean; port: number | null; error?: string }> {
+  const deadline = Date.now() + Math.max(0, timeoutMs)
+  let last = await probeGatewayResponsive(Math.min(3000, Math.max(1000, pollMs * 2)))
+  if (last.running || timeoutMs <= 0) return last
+
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, pollMs))
+    last = await probeGatewayResponsive(Math.min(3000, Math.max(1000, pollMs * 2)))
+    if (last.running) return last
+  }
+
+  return last
+}

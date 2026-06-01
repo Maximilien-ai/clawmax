@@ -8,7 +8,7 @@ import { getMessages, addMessage, clearMessages, getArchives, getArchivedMessage
 import { normalizeChatMessage } from '../lib/chat-normalization'
 import { listWorkflows, resolveParticipants, deleteWorkflow } from '../lib/workflows'
 import { getConfiguredDashboardInstanceId, traceAgentChat } from '../lib/opik'
-import { isGatewayConfigured, isGatewayRunning } from '../lib/gateway-rpc'
+import { isGatewayConfigured, waitForGatewayResponsive } from '../lib/gateway-rpc'
 import { deleteTeams, listTeams } from '../lib/teams'
 import { findImpactedTopLevelTeamsForCommunityDelete } from '../lib/organization-delete'
 import {
@@ -345,7 +345,12 @@ async function callAgent(
     openaiCompatibleDefaultModel: useOpenAiCompatible ? (byokKeys?.openaiCompatibleDefaultModel || integrationConfig.openaiCompatibleDefaultModel) : undefined,
   })
   const effectiveSessionId = scopeSessionIdToModel(sessionId, resolvedAgent.model)
-  const useLocal = !isGatewayRunning().running
+  const gatewayRunning = (
+    resolvedAgent.provider === 'ollama' || resolvedAgent.provider === 'openai-compatible'
+  )
+    ? false
+    : (await waitForGatewayResponsive()).running
+  const useLocal = !gatewayRunning
   const hasOllamaPath = !!(executionEnv.OLLAMA_BASE_URL || integrationConfig.ollamaDefaultModel)
   const hasOpenAiCompatiblePath = !!(executionEnv.OPENAI_BASE_URL || integrationConfig.openaiCompatibleBaseUrl)
   if (resolvedAgent.provider === 'ollama' && !hasOllamaPath) {

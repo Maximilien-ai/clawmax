@@ -5,7 +5,7 @@ import { spawn } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 import { getAgentGatewayConfig, getWorkspacePath, invalidateAgentStatusCache } from '../lib/workspace'
-import { isGatewayRunning } from '../lib/gateway-rpc'
+import { waitForGatewayResponsive } from '../lib/gateway-rpc'
 import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
 import { readWorkspaceIntegrationConfig } from '../lib/workspace-integrations'
 import { userExecutionEnv } from '../lib/safe-env'
@@ -262,7 +262,7 @@ router.post('/:id/chat/readiness', (req, res) => {
  * SSE proxy that spawns `openclaw agent` CLI to handle chat.
  * The CLI handles gateway auth, device identity, and agent routing.
  */
-router.post('/:id/chat', (req, res) => {
+router.post('/:id/chat', async (req, res) => {
   const { id } = req.params
   const { message, sessionId, byok } = req.body as {
     message?: string
@@ -332,10 +332,16 @@ router.post('/:id/chat', (req, res) => {
 
   // Use plain-text mode so stdout can stream deltas to the UI in real time.
   // History/persistence is handled by the explicit session id and the CLI itself.
+  const gatewayRunning = (
+    resolvedAgent.provider === 'ollama' || resolvedAgent.provider === 'openai-compatible'
+  )
+    ? false
+    : (await waitForGatewayResponsive()).running
+
   const useLocal = shouldUseLocalChatExecution({
     provider: resolvedAgent.provider,
     byok,
-    gatewayRunning: isGatewayRunning().running,
+    gatewayRunning,
   })
   const args = [
     'agent',
