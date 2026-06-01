@@ -2,45 +2,55 @@
 
 Use this after images/assets are built and before pushing a release broadly to customers.
 
-This checklist is intentionally:
-- short
-- product-surface oriented
-- easy to execute manually
-- reusable across future releases
+This file is intended to be edited directly during testing.
 
-How to use it:
-- duplicate this file or annotate a local copy for a specific release
-- check only the surfaces that changed if you are doing a very small patch
-- for larger releases, run the full checklist on at least:
-  - local/dev
-  - on-prem
-  - cloud
+Conventions:
+- change `[ ]` to `[x]` when complete
+- change `[ ]` to `[!]` by adding a note line if something failed
+- use `[-]` for not applicable
+- add short notes directly under any item
 
-Recommended notation:
-- `[ ]` not run yet
-- `[x]` passed
-- `[!]` failed / needs follow-up
-- `[-]` not applicable for this environment
+Template use:
+- keep this file as the reusable master checklist
+- for a specific release, duplicate it and rename it with the release number/date if you want a permanent testing record
 
-Release under test:
-- Version:
-- Date:
-- Tester:
-- Environments:
+---
+
+## Release Metadata
+
+- [ ] Fill in release metadata
+  - Version:
+  - Date:
+  - Tester:
+  - Environment:
+  - Image/tag:
+
+Notes:
 
 ---
 
 ## 1. Runtime Identity
 
-- [ ] Open the dashboard and confirm the visible version matches the release under test.
-- [ ] Verify `/api/system` reports the expected:
-  - version
-  - deployment kind
-  - instance label
-  - runtime platform
-- [ ] Confirm the correct environment-specific defaults are present when expected:
-  - Ollama base URL
-  - OpenAI-compatible base URL
+- [ ] Dashboard visible version matches the release under test
+  - Observed:
+
+- [ ] `/api/system` reports the expected version
+  - Observed:
+
+- [ ] `/api/system` reports the expected deployment kind
+  - Observed:
+
+- [ ] `/api/system` reports the expected instance label
+  - Observed:
+
+- [ ] `/api/system` reports the expected runtime platform
+  - Observed:
+
+- [ ] Expected runtime defaults are correct
+  - Check when relevant:
+    - `defaultOllamaBaseUrl`
+    - `defaultOpenAiCompatibleBaseUrl`
+  - Observed:
 
 Notes:
 
@@ -48,13 +58,21 @@ Notes:
 
 ## 2. Startup / Auth / Session
 
-- [ ] Dashboard loads without a blank screen or infinite spinner.
-- [ ] Login/auth path is the expected one for the environment:
-  - bypass
-  - email OTP
-  - GitHub OAuth
-- [ ] Logout works and returns to the expected screen.
-- [ ] Reloading the page preserves a healthy session state.
+- [ ] Dashboard loads without blank screen or infinite spinner
+  - Observed:
+
+- [ ] Auth mode is the expected one for this environment
+  - Expected:
+  - Observed:
+
+- [ ] Login succeeds
+  - Observed:
+
+- [ ] Logout succeeds
+  - Observed:
+
+- [ ] Page reload preserves a healthy session state
+  - Observed:
 
 Notes:
 
@@ -62,16 +80,27 @@ Notes:
 
 ## 3. Builder
 
-- [ ] Single-agent prompt routes correctly.
-  - Example: `Create one agent to triage support emails and draft replies for me`
-- [ ] Team prompt routes correctly.
-  - Example: `Create a team of agents to run weekly podcast production`
-- [ ] Company prompt routes correctly.
-  - Example: `Create a company of agents with leadership, recruiting, operations, and finance teams`
-- [ ] Skill follow-through prompt routes correctly.
-  - Example: `Give my newsletter summarizer agent Slack and Gmail access`
-- [ ] `AI Generate Agent` opens with the original Builder prompt prefilled.
-- [ ] Builder session save/download still works if that surface was touched.
+- [ ] Single-agent prompt routes correctly
+  - Prompt: `Create one agent to triage support emails and draft replies for me`
+  - Observed:
+
+- [ ] Team prompt routes correctly
+  - Prompt: `Create a team of agents to run weekly podcast production`
+  - Observed:
+
+- [ ] Company prompt routes correctly
+  - Prompt: `Create a company of agents with leadership, recruiting, operations, and finance teams`
+  - Observed:
+
+- [ ] Skill follow-through prompt routes correctly
+  - Prompt: `Give my newsletter summarizer agent Slack and Gmail access`
+  - Observed:
+
+- [ ] `AI Generate Agent` opens with the original Builder prompt prefilled
+  - Observed:
+
+- [ ] Builder session save/download still works
+  - Observed:
 
 Notes:
 
@@ -79,15 +108,21 @@ Notes:
 
 ## 4. AI Prompt Editor
 
-- [ ] Open a shared AI prompt editor from a surface that uses it:
-  - Builder
-  - Templates
-  - Skills
-  - Agent generation/refinement
-- [ ] Expand a prompt with AI and confirm the expanded content is inserted back correctly.
-- [ ] Turn on markdown preview and confirm rendered content matches the raw markdown reasonably.
-- [ ] Resize the preview/editor split and confirm the divider works smoothly.
-- [ ] Double-click the divider and confirm it resets to the default width.
+- [ ] Shared AI prompt editor opens normally from a real surface
+  - Surface used:
+  - Observed:
+
+- [ ] `Expand with AI` inserts expanded content back into the editor
+  - Observed:
+
+- [ ] Markdown preview matches the raw markdown reasonably
+  - Observed:
+
+- [ ] Preview/editor split can be resized
+  - Observed:
+
+- [ ] Double-clicking the divider resets preview width
+  - Observed:
 
 Notes:
 
@@ -95,12 +130,26 @@ Notes:
 
 ## 5. Agents
 
-- [ ] Open the Agents surface and confirm list/grid layout looks healthy.
-- [ ] Create one plain agent.
-- [ ] Create one agent via `AI Generate Agent`.
-- [ ] Open an existing agent and confirm detail/edit flows still render cleanly.
-- [ ] Confirm the created/edited agent appears immediately without requiring a manual refresh.
-- [ ] If models were touched, verify the visible model/default model behavior is correct.
+- [ ] Agents surface renders cleanly
+  - Observed:
+
+- [ ] Plain agent creation works
+  - Agent created:
+  - Observed:
+
+- [ ] `AI Generate Agent` creation works
+  - Agent created:
+  - Observed:
+
+- [ ] Existing agent detail/edit flow renders cleanly
+  - Agent used:
+  - Observed:
+
+- [ ] Created/edited agent appears immediately without manual refresh
+  - Observed:
+
+- [ ] Model/default-model behavior is correct if touched in this release
+  - Observed:
 
 Notes:
 
@@ -108,17 +157,33 @@ Notes:
 
 ## 6. Skills
 
-- [ ] Open the Skills page on a wide screen and confirm it uses width well.
-- [ ] On Linux/on-prem/cloud, confirm obvious macOS-only built-ins are hidden.
-- [ ] On macOS, confirm macOS-only skills still appear where expected.
-- [ ] Confirm install/setup guidance matches the runtime OS:
-  - Linux should not show `brew` for Linux-supported skills
-  - macOS can show `brew` where appropriate
-- [ ] Search/filter the registry and confirm obviously incompatible results are hidden for the current runtime.
-- [ ] Import or install one skill and confirm the imported skill still shows the correct platform-specific setup guidance.
-- [ ] Assign one skill to one agent and verify the change sticks.
-- [ ] If possible, smoke one real skill-backed action with gateway up.
-  - Good candidate: GitHub or another known-working skill in that environment
+- [ ] Skills page uses wide screens well
+  - Observed:
+
+- [ ] On Linux/on-prem/cloud, obvious macOS-only built-ins are hidden
+  - Observed:
+
+- [ ] On macOS, macOS-only built-ins still appear where expected
+  - Observed:
+
+- [ ] Install/setup guidance matches the runtime OS
+  - Observed:
+
+- [ ] Registry filtering hides obviously incompatible results for this runtime
+  - Observed:
+
+- [ ] Imported or installed skill preserves correct platform-specific guidance
+  - Skill used:
+  - Observed:
+
+- [ ] Skill assignment to an agent works and sticks
+  - Agent:
+  - Skill:
+  - Observed:
+
+- [ ] One real skill-backed action works if gateway/runtime supports it
+  - Skill/action used:
+  - Observed:
 
 Notes:
 
@@ -126,12 +191,24 @@ Notes:
 
 ## 7. Templates
 
-- [ ] Open Templates and confirm system/workspace templates load normally.
-- [ ] Apply one known-good organization template.
-- [ ] Verify the resulting agents, workflows, groups, and communities appear.
-- [ ] Reapply the same template or apply it with a prefix once.
-- [ ] Confirm readiness/conflict guidance is clear and correct.
-- [ ] If template customization was touched, edit one parameterized field and confirm it affects the result.
+- [ ] Templates page loads system/workspace templates normally
+  - Observed:
+
+- [ ] One known-good organization template applies successfully
+  - Template:
+  - Observed:
+
+- [ ] Applied template creates expected agents/workflows/groups/communities
+  - Observed:
+
+- [ ] Reapply or apply-with-prefix flow behaves correctly
+  - Observed:
+
+- [ ] Readiness/conflict guidance is clear and correct
+  - Observed:
+
+- [ ] Template customization affects the result correctly when applicable
+  - Observed:
 
 Notes:
 
@@ -139,11 +216,21 @@ Notes:
 
 ## 8. Workflows
 
-- [ ] Open Workflows and confirm the page renders with the expected controls/layout.
-- [ ] Create or trigger one workflow manually.
-- [ ] Confirm workflow progress/status updates appear.
-- [ ] If DAG workflows are present, confirm downstream progression still works.
-- [ ] Open one workflow output/result and confirm the artifact is accessible.
+- [ ] Workflows page renders cleanly
+  - Observed:
+
+- [ ] One workflow can be created or triggered manually
+  - Workflow:
+  - Observed:
+
+- [ ] Workflow progress/status updates appear
+  - Observed:
+
+- [ ] DAG/downstream progression still works when applicable
+  - Observed:
+
+- [ ] One workflow output/result artifact is accessible
+  - Observed:
 
 Notes:
 
@@ -151,11 +238,19 @@ Notes:
 
 ## 9. Communications
 
-- [ ] Open Communications and confirm the page renders with the expected controls/layout.
-- [ ] Open one group chat.
-- [ ] Send one message.
-- [ ] Open one community chat.
-- [ ] Confirm unread/message counts behave reasonably.
+- [ ] Communications page renders cleanly
+  - Observed:
+
+- [ ] Group chat opens and sends one message successfully
+  - Group:
+  - Observed:
+
+- [ ] Community chat opens successfully
+  - Community:
+  - Observed:
+
+- [ ] Unread/message counts behave reasonably
+  - Observed:
 
 Notes:
 
@@ -163,10 +258,17 @@ Notes:
 
 ## 10. Organization
 
-- [ ] Open Organization and confirm the overview cards render clearly.
-- [ ] Use `Expand All` and `Collapse All`.
-- [ ] Confirm those actions affect all intended collapsible sections.
-- [ ] Confirm the chart/list still makes sense after template apply or workspace switching.
+- [ ] Organization page renders clearly
+  - Observed:
+
+- [ ] `Expand All` works across intended sections
+  - Observed:
+
+- [ ] `Collapse All` works across intended sections
+  - Observed:
+
+- [ ] Organization state still makes sense after apply or workspace switch
+  - Observed:
 
 Notes:
 
@@ -174,10 +276,19 @@ Notes:
 
 ## 11. DocHub / Documents
 
-- [ ] Open Documents / DocHub and confirm the tree loads.
-- [ ] Open one markdown doc.
-- [ ] Open one generated workflow/agent artifact if available.
-- [ ] Confirm agent/workflow-created files still appear in the expected sections.
+- [ ] Documents / DocHub tree loads
+  - Observed:
+
+- [ ] One markdown document opens correctly
+  - Document:
+  - Observed:
+
+- [ ] One generated workflow or agent artifact opens correctly
+  - Artifact:
+  - Observed:
+
+- [ ] Agent/workflow-created files appear in the expected sections
+  - Observed:
 
 Notes:
 
@@ -185,10 +296,18 @@ Notes:
 
 ## 12. Chat / Gateway
 
-- [ ] Open one agent chat and send a normal prompt.
-- [ ] Confirm the response renders without transcript junk or raw runtime metadata.
-- [ ] If gateway-backed skills are expected, run one skill-backed request.
-- [ ] If gateway diagnostics changed, confirm gateway-dependent surfaces fail clearly rather than hanging.
+- [ ] One normal agent chat succeeds
+  - Agent:
+  - Observed:
+
+- [ ] Chat response renders without transcript junk or raw runtime metadata
+  - Observed:
+
+- [ ] One gateway/skill-backed request succeeds when expected
+  - Observed:
+
+- [ ] Gateway-dependent failures are clear rather than hanging
+  - Observed:
 
 Notes:
 
@@ -196,11 +315,20 @@ Notes:
 
 ## 13. Notifications / Activity / Budget / Logs
 
-- [ ] Open Notifications and confirm the panel renders.
-- [ ] Trigger or inspect at least one notification.
-- [ ] Open Activity and confirm recent entries appear.
-- [ ] Open Budget/usage and confirm values look plausible for the environment.
-- [ ] Open System/Logs and confirm logs load and refresh/export still works if relevant.
+- [ ] Notifications panel renders correctly
+  - Observed:
+
+- [ ] At least one notification can be inspected or exercised
+  - Observed:
+
+- [ ] Activity view shows recent entries
+  - Observed:
+
+- [ ] Budget/usage values look plausible for the environment
+  - Observed:
+
+- [ ] System/Logs load correctly
+  - Observed:
 
 Notes:
 
@@ -208,9 +336,15 @@ Notes:
 
 ## 14. Workspace Switching
 
-- [ ] Switch between at least two workspaces.
-- [ ] Confirm counts/header state update correctly after switching.
-- [ ] Confirm Builder/Agents/Templates/Skills do not show obviously stale data from the previous workspace.
+- [ ] Switching between at least two workspaces works
+  - Workspaces used:
+  - Observed:
+
+- [ ] Header/count state updates correctly after switching
+  - Observed:
+
+- [ ] Builder/Agents/Templates/Skills do not show stale cross-workspace data
+  - Observed:
 
 Notes:
 
@@ -220,13 +354,25 @@ Notes:
 
 Run only where appropriate. Do not use uninstall on a development machine unless you intend to remove the install.
 
-- [ ] Latest installer smoke:
-  - `curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash`
-- [ ] Pinned installer smoke for the release under test.
-- [ ] Confirm setup completes without blocking on unexpected interactive prompts.
-- [ ] Confirm update flow works if you maintain an existing install.
-- [ ] On a disposable or packaged-install machine, run uninstall once.
-- [ ] If Podman is involved, confirm orphaned `efi-bl-*` / `*-ignition.sock` residue is removed.
+- [ ] Latest installer smoke succeeds
+  - Command used:
+  - Observed:
+
+- [ ] Pinned installer smoke succeeds
+  - Command used:
+  - Observed:
+
+- [ ] Setup completes without unexpected prompts
+  - Observed:
+
+- [ ] Update flow works when applicable
+  - Observed:
+
+- [ ] Uninstall works on a disposable or packaged-install machine
+  - Observed:
+
+- [ ] Podman orphan residue is removed when applicable
+  - Observed:
 
 Notes:
 
@@ -234,13 +380,17 @@ Notes:
 
 ## 16. Release Decision
 
-- [ ] I am comfortable deploying this release to broader internal environments.
-- [ ] I am comfortable deploying this release to customers.
-- [ ] Any failing items are documented with enough detail to reproduce.
+- [ ] I am comfortable deploying this release to broader internal environments
+  - Notes:
+
+- [ ] I am comfortable deploying this release to customers
+  - Notes:
+
+- [ ] Any failing items are documented clearly enough to reproduce
+  - Notes:
 
 Blocking issues:
 
 Non-blocking issues:
 
 Follow-up release target:
-
