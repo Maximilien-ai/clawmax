@@ -114,6 +114,7 @@ function readOpenClawAgentRecord(agentId: string, activeWorkspaceAgentDir?: stri
 function providerFromModel(model?: string): ExecutionProvider {
   if (!model) return null
   if (model.startsWith('openai-compatible/')) return 'openai-compatible'
+  if (model.startsWith('lmstudio/')) return 'openai-compatible'
   if (model.startsWith('openai/') || model.startsWith('gpt-') || /^o[134](?:-|$)/.test(model)) return 'openai'
   if (model.startsWith('anthropic/') || model.startsWith('claude')) return 'anthropic'
   if (model.startsWith('gemini/') || model.startsWith('gemini-') || model.startsWith('google/')) return 'gemini'
@@ -138,7 +139,11 @@ function isSupportedHostedModel(model: string | undefined): boolean {
   if (provider === 'ollama' || provider === 'openai-compatible') {
     const hasKnownLocalDefaults = availableModels.some((entry) => entry.startsWith(`${provider}/`))
     if (!hasKnownLocalDefaults) return true
-    return availableModels.includes(model)
+    if (availableModels.includes(model)) return true
+    if (provider === 'openai-compatible' && model.startsWith('lmstudio/')) {
+      return availableModels.includes(`openai-compatible/${model.slice('lmstudio/'.length)}`)
+    }
+    return false
   }
   if (availableModels.length === 0) return true
   return availableModels.includes(model)
@@ -330,6 +335,7 @@ function normalizeSessionModel(model?: string): string | undefined {
   if (trimmed.startsWith('anthropic/') || trimmed.startsWith('openai/') || trimmed.startsWith('gemini/') || trimmed.startsWith('google/') || trimmed.startsWith('ollama/')) {
     return trimmed
   }
+  if (trimmed.startsWith('lmstudio/')) return trimmed
   if (trimmed.startsWith('openai-compatible/')) return trimmed
   if (trimmed.startsWith('claude')) return `anthropic/${trimmed}`
   if (trimmed.startsWith('gpt-') || trimmed.startsWith('o1')) return `openai/${trimmed}`
@@ -342,7 +348,7 @@ function toExecutionModelOverride(model: string | undefined, provider: Execution
   const trimmed = model?.trim()
   if (!trimmed) return undefined
   if (provider === 'openai-compatible' && trimmed.startsWith('openai-compatible/')) {
-    return trimmed.slice('openai-compatible/'.length)
+    return `lmstudio/${trimmed.slice('openai-compatible/'.length)}`
   }
   return trimmed
 }
@@ -562,10 +568,10 @@ function buildAuthProfiles(providerKeys: ProviderKeys, preferredProvider?: Execu
     }
   } else if (providerKeys.openaiCompatibleBaseUrl) {
     profiles['openai-key'] = { type: 'api_key', provider: 'openai', key: providerKeys.openaiCompatibleApiKey || 'openai-compatible' }
-    profiles['openai-compatible-key'] = { type: 'api_key', provider: 'openai-compatible', key: providerKeys.openaiCompatibleApiKey || 'openai-compatible' }
+    profiles['lmstudio-key'] = { type: 'api_key', provider: 'lmstudio', key: providerKeys.openaiCompatibleApiKey || 'lmstudio-local' }
     if (preferredProvider === 'openai-compatible' || (!providerKeys.anthropic && preferredProvider !== 'gemini')) {
       lastGood.openai = 'openai-key'
-      lastGood['openai-compatible'] = 'openai-compatible-key'
+      lastGood.lmstudio = 'lmstudio-key'
     }
   }
   if (providerKeys.anthropic) {
@@ -641,9 +647,9 @@ export async function withTemporaryAgentAuthProfiles<T>(
   const readCurrentOpenAiCompatibleProviderConfig = () => {
     if (!hadConfig) return { exists: false, config: undefined as Record<string, any> | undefined }
     const config = readOpenClawConfigFile(configPath)
-    const providerConfig = config.models?.providers?.['openai-compatible']
+    const providerConfig = config.models?.providers?.lmstudio
     return {
-      exists: Object.prototype.hasOwnProperty.call(config.models?.providers || {}, 'openai-compatible'),
+      exists: Object.prototype.hasOwnProperty.call(config.models?.providers || {}, 'lmstudio'),
       config: providerConfig && typeof providerConfig === 'object' ? cloneJsonValue(providerConfig) : providerConfig,
     }
   }
@@ -671,27 +677,41 @@ export async function withTemporaryAgentAuthProfiles<T>(
     writeOpenClawConfigFile(configPath, config)
     return true
   }
-  const applyOpenAiCompatibleProviderConfig = (baseUrl?: string) => {
+  const applyOpenAiCompatibleProviderConfig = (baseUrl?: string, preferredModel?: string, apiKey?: string) => {
     if (!hadConfig) return false
     const normalizedBaseUrl = baseUrl?.trim().replace(/\/+$/, '')
     const config = readOpenClawConfigFile(configPath)
     const providers = config.models?.providers || {}
-    const previousProviderConfig = providers['openai-compatible']
+    const previousProviderConfig = providers.lmstudio
     const nextProviderConfig = previousProviderConfig && typeof previousProviderConfig === 'object'
       ? cloneJsonValue(previousProviderConfig)
       : {}
+    const normalizedModel = preferredModel?.trim().replace(/^lmstudio\//, '')
     if (normalizedBaseUrl) {
       nextProviderConfig.baseUrl = normalizedBaseUrl
     }
     if (!nextProviderConfig.api) {
-      nextProviderConfig.api = 'openai-responses'
+      nextProviderConfig.api = 'openai-completions'
     }
-    if (!Array.isArray(nextProviderConfig.models)) {
+    if (apiKey?.trim()) {
+      nextProviderConfig.apiKey = apiKey.trim()
+    } else if (!nextProviderConfig.apiKey) {
+      nextProviderConfig.apiKey = 'lmstudio-local'
+    }
+    const existingModels = Array.isArray(nextProviderConfig.models) ? nextProviderConfig.models : []
+    if (normalizedModel) {
+      const hasModel = existingModels.some((entry: any) =>
+        typeof entry === 'object' && entry !== null && String(entry.id || '').trim() === normalizedModel
+      )
+      nextProviderConfig.models = hasModel
+        ? existingModels
+        : [...existingModels, { id: normalizedModel, name: normalizedModel }]
+    } else if (!Array.isArray(nextProviderConfig.models)) {
       nextProviderConfig.models = []
     }
     config.models = config.models || {}
     config.models.providers = providers
-    config.models.providers['openai-compatible'] = nextProviderConfig
+    config.models.providers.lmstudio = nextProviderConfig
     writeOpenClawConfigFile(configPath, config)
     return true
   }
@@ -719,9 +739,9 @@ export async function withTemporaryAgentAuthProfiles<T>(
     config.models = config.models || {}
     config.models.providers = config.models.providers || {}
     if (previous.exists) {
-      config.models.providers['openai-compatible'] = previous.config
+      config.models.providers.lmstudio = previous.config
     } else {
-      delete config.models.providers['openai-compatible']
+      delete config.models.providers.lmstudio
       if (Object.keys(config.models.providers).length === 0) {
         delete config.models.providers
       }
@@ -807,6 +827,14 @@ export async function withTemporaryAgentAuthProfiles<T>(
     const previousOpenAiCompatibleProvider = readCurrentOpenAiCompatibleProviderConfig()
     const normalizedOpenAiCompatibleBaseUrl = providerKeys.openaiCompatibleBaseUrl?.trim().replace(/\/+$/, '')
     const executionModelOverride = toExecutionModelOverride(preferredModel, preferredProvider)
+    const executionLmstudioModelId = executionModelOverride?.replace(/^lmstudio\//, '')
+    const hasExecutionLmstudioModel = Boolean(
+      executionLmstudioModelId &&
+      Array.isArray(previousOpenAiCompatibleProvider.config?.models) &&
+      previousOpenAiCompatibleProvider.config?.models.some((entry: any) =>
+        typeof entry === 'object' && entry !== null && String(entry.id || '').trim() === executionLmstudioModelId
+      )
+    )
     const shouldOverrideModel = Boolean(
       hadConfig &&
       executionModelOverride &&
@@ -817,7 +845,9 @@ export async function withTemporaryAgentAuthProfiles<T>(
       (
         (normalizedOpenAiCompatibleBaseUrl && !previousOpenAiCompatibleProvider.exists) ||
         (normalizedOpenAiCompatibleBaseUrl && previousOpenAiCompatibleProvider.config?.baseUrl !== normalizedOpenAiCompatibleBaseUrl) ||
-        (previousOpenAiCompatibleProvider.exists && !previousOpenAiCompatibleProvider.config?.api)
+        (previousOpenAiCompatibleProvider.exists && !previousOpenAiCompatibleProvider.config?.api) ||
+        (providerKeys.openaiCompatibleApiKey?.trim() && previousOpenAiCompatibleProvider.config?.apiKey !== providerKeys.openaiCompatibleApiKey.trim()) ||
+        !hasExecutionLmstudioModel
       )
     )
 
@@ -827,7 +857,11 @@ export async function withTemporaryAgentAuthProfiles<T>(
 
     return await runWithConfigMutationLock(async () => {
       if (shouldInjectOpenAiCompatibleProvider) {
-        applyOpenAiCompatibleProviderConfig(normalizedOpenAiCompatibleBaseUrl)
+        applyOpenAiCompatibleProviderConfig(
+          normalizedOpenAiCompatibleBaseUrl,
+          executionModelOverride,
+          providerKeys.openaiCompatibleApiKey,
+        )
       }
       if (shouldOverrideModel) {
         applyModelOverride(executionModelOverride)

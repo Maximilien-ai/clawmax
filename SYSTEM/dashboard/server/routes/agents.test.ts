@@ -20,6 +20,7 @@ let testsFailed = 0
 const originalHome = process.env.HOME
 const originalWorkspace = process.env.OPENCLAW_WORKSPACE
 const originalOpenClawBin = process.env.OPENCLAW_BIN
+const gatewayRpcModulePath = require.resolve('../lib/gateway-rpc')
 
 function test(name: string, fn: () => void | Promise<void>) {
   return Promise.resolve()
@@ -76,6 +77,19 @@ function getRouteHandler(method: 'get' | 'post', routePath: string) {
   const layer = router.stack.find((entry: any) => entry.route?.path === routePath && entry.route?.methods?.[method])
   if (!layer) throw new Error(`Route ${method.toUpperCase()} ${routePath} not found`)
   return layer.route.stack[0].handle as Function
+}
+
+function withGatewayRpcStubs<T>(overrides: Record<string, any>, fn: () => Promise<T> | T): Promise<T> | T {
+  delete require.cache[gatewayRpcModulePath]
+  const gatewayRpc = require('../lib/gateway-rpc')
+  const originals = Object.fromEntries(Object.keys(overrides).map((key) => [key, gatewayRpc[key]]))
+  Object.assign(gatewayRpc, overrides)
+  try {
+    return fn()
+  } finally {
+    Object.assign(gatewayRpc, originals)
+    delete require.cache[require.resolve('./agents')]
+  }
 }
 
 function makeReq(overrides: Record<string, any> = {}) {
@@ -150,6 +164,25 @@ async function run() {
     assert(identityCheck && identityCheck.status === 'fail', 'Expected identity failure for broken-agent')
     const skillsCheck = agentResult.checks.find((check: any) => check.check === 'skills')
     assert.strictEqual(skillsCheck, undefined, 'Expected no separate skills warning when IDENTITY.md is missing')
+  })
+
+  await test('doctor reports gateway healthy when the runtime gateway is reachable but the admin probe token differs', async () => {
+    await withGatewayRpcStubs({
+      probeGatewayResponsive: async () => ({ running: false, port: 18789, error: 'token mismatch' }),
+      isGatewayRunning: () => ({ running: true, port: 18789 }),
+      getConfiguredGatewayPort: () => 18789,
+    }, async () => {
+      const handler = getRouteHandler('post', '/doctor')
+      const res = makeRes()
+      await handler(makeReq({ body: {} }), res)
+
+      assert.strictEqual(res.statusCode, 200, 'Expected doctor route success')
+      assert.strictEqual(res.jsonBody?.platform?.gateway, true, 'Expected doctor platform gateway flag to stay healthy when the gateway process is reachable')
+      const gatewayCheck = (res.jsonBody?.results || [])
+        .flatMap((entry: any) => entry.checks || [])
+        .find((check: any) => check.check === 'gateway')
+      assert.strictEqual(gatewayCheck, undefined, 'Expected gateway health to be represented only in platform checks, not as an agent warning')
+    })
   })
 
   await test('generate rejects missing descriptions before invoking AI generation', async () => {

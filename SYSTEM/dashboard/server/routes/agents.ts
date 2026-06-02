@@ -780,6 +780,7 @@ router.post('/doctor', async (req, res) => {
   if (gatewayProbe.running) {
     platformChecks.push({ check: 'gateway', status: 'pass', message: `Gateway authenticated on port ${gatewayPort ?? 'unknown'}` })
   } else if (gatewayRunning) {
+    effectiveGatewayRunning = true
     const probeError = String(gatewayProbe.error || '').trim()
     const authMismatch = /token mismatch|unauthorized/i.test(probeError)
     platformChecks.push({

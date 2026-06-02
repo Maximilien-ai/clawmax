@@ -856,7 +856,7 @@ test('withTemporaryAgentAuthProfiles injects and restores temporary Ollama provi
   assert(typeof restoredConfig.models === 'undefined', 'Expected temporary Ollama provider config removed after execution')
 })
 
-test('withTemporaryAgentAuthProfiles strips the dashboard prefix for OpenAI-compatible execution and restores the saved model', async () => {
+test('withTemporaryAgentAuthProfiles maps dashboard openai-compatible models to the LM Studio provider for execution and restores the saved model', async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
   const workspace = path.join(home, 'workspace')
   const agentWorkspace = path.join(workspace, 'AGENTS', 'test-compatible')
@@ -880,21 +880,23 @@ test('withTemporaryAgentAuthProfiles strips the dashboard prefix for OpenAI-comp
 
   await withTemporaryAgentAuthProfiles(
     'test-compatible',
-    { openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1' },
+    { openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1', openaiCompatibleApiKey: 'lmstudio-secret' },
     'openai-compatible/qwen/qwen3.6-27b',
     'openai-compatible',
     async () => {
       const currentConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-      assert(currentConfig.agents.list[0].model === 'qwen/qwen3.6-27b', `Expected execution override to strip openai-compatible prefix, got ${currentConfig.agents.list[0].model}`)
-      assert(currentConfig.models.providers['openai-compatible'].baseUrl === 'http://127.0.0.1:1234/v1', 'Expected temporary OpenAI-compatible base URL injected')
-      assert(currentConfig.models.providers['openai-compatible'].api === 'openai-responses', 'Expected temporary OpenAI-compatible api marker injected')
-      assert(Array.isArray(currentConfig.models.providers['openai-compatible'].models), 'Expected temporary OpenAI-compatible provider models array injected')
+      assert(currentConfig.agents.list[0].model === 'lmstudio/qwen/qwen3.6-27b', `Expected execution override to translate to lmstudio/<model>, got ${currentConfig.agents.list[0].model}`)
+      assert(currentConfig.models.providers.lmstudio.baseUrl === 'http://127.0.0.1:1234/v1', 'Expected temporary LM Studio base URL injected')
+      assert(currentConfig.models.providers.lmstudio.api === 'openai-completions', 'Expected temporary LM Studio api marker injected')
+      assert(currentConfig.models.providers.lmstudio.apiKey === 'lmstudio-secret', 'Expected temporary LM Studio api key injected')
+      assert(Array.isArray(currentConfig.models.providers.lmstudio.models), 'Expected temporary LM Studio provider models array injected')
+      assert(currentConfig.models.providers.lmstudio.models.some((entry: any) => entry?.id === 'qwen/qwen3.6-27b'), 'Expected temporary LM Studio catalog entry for the active model')
     }
   )
 
   const restoredConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
   assert(restoredConfig.agents.list[0].model === 'openai-compatible/qwen/qwen3.6-27b', 'Expected saved dashboard model to be restored after execution')
-  assert(typeof restoredConfig.models === 'undefined', 'Expected temporary OpenAI-compatible provider config removed after execution')
+  assert(typeof restoredConfig.models === 'undefined', 'Expected temporary LM Studio provider config removed after execution')
 })
 
 test('withTemporaryAgentAuthProfiles preserves existing Ollama provider config fields while applying a temporary base URL', async () => {
