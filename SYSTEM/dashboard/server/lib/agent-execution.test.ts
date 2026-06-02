@@ -887,7 +887,7 @@ test('withTemporaryAgentAuthProfiles strips the dashboard prefix for OpenAI-comp
       const currentConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
       assert(currentConfig.agents.list[0].model === 'qwen/qwen3.6-27b', `Expected execution override to strip openai-compatible prefix, got ${currentConfig.agents.list[0].model}`)
       assert(currentConfig.models.providers['openai-compatible'].baseUrl === 'http://127.0.0.1:1234/v1', 'Expected temporary OpenAI-compatible base URL injected')
-      assert(currentConfig.models.providers['openai-compatible'].api === 'openai-compatible', 'Expected temporary OpenAI-compatible api marker injected')
+      assert(currentConfig.models.providers['openai-compatible'].api === 'openai-responses', 'Expected temporary OpenAI-compatible api marker injected')
       assert(Array.isArray(currentConfig.models.providers['openai-compatible'].models), 'Expected temporary OpenAI-compatible provider models array injected')
     }
   )

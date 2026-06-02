@@ -684,7 +684,7 @@ export async function withTemporaryAgentAuthProfiles<T>(
       nextProviderConfig.baseUrl = normalizedBaseUrl
     }
     if (!nextProviderConfig.api) {
-      nextProviderConfig.api = 'openai-compatible'
+      nextProviderConfig.api = 'openai-responses'
     }
     if (!Array.isArray(nextProviderConfig.models)) {
       nextProviderConfig.models = []
