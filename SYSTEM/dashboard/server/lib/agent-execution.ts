@@ -43,6 +43,7 @@ type ExecutionProvider = 'openai' | 'openai-compatible' | 'anthropic' | 'gemini'
 interface AgentAuthProfileOptions {
   persistAuthProfiles?: boolean
 }
+const LMSTUDIO_DEFAULT_CONTEXT_TOKENS = 64_000
 let openClawConfigMutationLock: Promise<void> = Promise.resolve()
 const agentExecutionLocks = new Map<string, Promise<void>>()
 const AGENT_EXECUTION_SESSION_LOCK_RETRIES = 2
@@ -704,8 +705,26 @@ export async function withTemporaryAgentAuthProfiles<T>(
         typeof entry === 'object' && entry !== null && String(entry.id || '').trim() === normalizedModel
       )
       nextProviderConfig.models = hasModel
-        ? existingModels
-        : [...existingModels, { id: normalizedModel, name: normalizedModel }]
+        ? existingModels.map((entry: any) => {
+            if (typeof entry !== 'object' || entry === null || String(entry.id || '').trim() !== normalizedModel) {
+              return entry
+            }
+            return {
+              ...entry,
+              id: normalizedModel,
+              name: entry.name || normalizedModel,
+              contextWindow: typeof entry.contextWindow === 'number' && entry.contextWindow > 0 ? entry.contextWindow : LMSTUDIO_DEFAULT_CONTEXT_TOKENS,
+              contextTokens: typeof entry.contextTokens === 'number' && entry.contextTokens > 0 ? entry.contextTokens : LMSTUDIO_DEFAULT_CONTEXT_TOKENS,
+              maxTokens: typeof entry.maxTokens === 'number' && entry.maxTokens > 0 ? entry.maxTokens : Math.min(8_192, LMSTUDIO_DEFAULT_CONTEXT_TOKENS),
+            }
+          })
+        : [...existingModels, {
+            id: normalizedModel,
+            name: normalizedModel,
+            contextWindow: LMSTUDIO_DEFAULT_CONTEXT_TOKENS,
+            contextTokens: LMSTUDIO_DEFAULT_CONTEXT_TOKENS,
+            maxTokens: 8_192,
+          }]
     } else if (!Array.isArray(nextProviderConfig.models)) {
       nextProviderConfig.models = []
     }

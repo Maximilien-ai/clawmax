@@ -890,7 +890,11 @@ test('withTemporaryAgentAuthProfiles maps dashboard openai-compatible models to 
       assert(currentConfig.models.providers.lmstudio.api === 'openai-completions', 'Expected temporary LM Studio api marker injected')
       assert(currentConfig.models.providers.lmstudio.apiKey === 'lmstudio-secret', 'Expected temporary LM Studio api key injected')
       assert(Array.isArray(currentConfig.models.providers.lmstudio.models), 'Expected temporary LM Studio provider models array injected')
-      assert(currentConfig.models.providers.lmstudio.models.some((entry: any) => entry?.id === 'qwen/qwen3.6-27b'), 'Expected temporary LM Studio catalog entry for the active model')
+      const activeEntry = currentConfig.models.providers.lmstudio.models.find((entry: any) => entry?.id === 'qwen/qwen3.6-27b')
+      assert(activeEntry, 'Expected temporary LM Studio catalog entry for the active model')
+      assert(activeEntry.contextWindow === 64000, 'Expected temporary LM Studio model entry to carry a larger context window')
+      assert(activeEntry.contextTokens === 64000, 'Expected temporary LM Studio model entry to carry a larger context token limit')
+      assert(activeEntry.maxTokens === 8192, 'Expected temporary LM Studio model entry to carry a bounded max token output limit')
     }
   )
 
