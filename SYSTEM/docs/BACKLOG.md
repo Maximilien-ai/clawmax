@@ -118,7 +118,7 @@
 
 ### Infrastructure & Deployment
 - [ ] **Auto-backup** — optional scheduled backups
-- [ ] **Issue #32** Consolidate cron with OpenClaw native
+- [ ] **Decide cron ownership with native OpenClaw** — make an explicit design decision on whether recurring workflow scheduling should move fully to OpenClaw, stay split, or remain ClawMax-managed before doing more scheduler work.
 - [ ] **Gateway process management (CLI team)** — supervisor, health check, start/stop isolation, and gateway-down notifications
 
 ### Future / Lower Priority
