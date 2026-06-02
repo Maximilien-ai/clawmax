@@ -1755,6 +1755,8 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                 >
                   Clear tags
                 </button>
+              )}
+            </div>
           )}
         </div>
 
