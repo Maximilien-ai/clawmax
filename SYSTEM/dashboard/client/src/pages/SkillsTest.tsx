@@ -11,7 +11,7 @@ import { getAiGenerationReadiness, hasAiGenerationAccess, readStoredByokKeys } f
 import { getSkillAssignmentBuckets } from '../lib/skillAssignments'
 import { summarizeSkillDeleteImpact } from '../lib/skillsDeletion'
 import { filterAssignableAgents, isDeletableUserSkill, partitionSelectedSkills, partitionSkillsBySource, toggleItemSelection, toggleVisibleSelections } from '../lib/skillsSelection'
-import { getSkillSetupHint, maybeWarnSkillSetup, supportsDashboardSkillSetup } from '../lib/skillSetup'
+import { getSkillSetupHint, maybeWarnSkillSetup, supportsDashboardInteractiveSkillSetup, supportsDashboardSkillSetup } from '../lib/skillSetup'
 import { collectSkillTags, matchesSelectedSkillTags } from '../lib/skillTags'
 import { buildAgentSkillsScope, buildAssignedSkillBadges } from '../lib/agentSkillsScope'
 import { getRegistrySkillCompatibility, normalizeRuntimePlatform, type RuntimePlatform } from '../lib/skillPlatform'
@@ -435,6 +435,8 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
   const [skillSetupDone, setSkillSetupDone] = useState(false)
   const [runningSkillSetupName, setRunningSkillSetupName] = useState<string | null>(null)
   const [skillSetupValues, setSkillSetupValues] = useState<Record<string, string>>({})
+  const [interactiveSkillSetupSessionId, setInteractiveSkillSetupSessionId] = useState<string | null>(null)
+  const [interactiveSkillSetupInput, setInteractiveSkillSetupInput] = useState('')
   const [didHandleInitialSkillName, setDidHandleInitialSkillName] = useState(false)
   const [skillSecrets, setSkillSecrets] = useState<Record<string, string>>({})
   const [viewerAgentSearchQuery, setViewerAgentSearchQuery] = useState('')
@@ -1080,6 +1082,8 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
     setSkillSetupLogs([`# ${skill.name} setup`, ...((setupHint.commands || []).map((command) => `$ ${command}`))])
     setSkillSetupError(null)
     setSkillSetupDone(false)
+    setInteractiveSkillSetupSessionId(null)
+    setInteractiveSkillSetupInput('')
     setShowSkillSetupModal(true)
   }
 
@@ -1124,6 +1128,93 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
     } finally {
       setRunningSkillSetupName(null)
     }
+  }
+
+  async function pollInteractiveSkillSetupSession(sessionId: string) {
+    const res = await fetch(`${API_BASE}/api/skills/setup-session/${encodeURIComponent(sessionId)}`)
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      throw new Error(data.error || 'Failed to refresh setup session')
+    }
+    if (Array.isArray(data.logs)) {
+      setSkillSetupLogs(data.logs)
+    }
+    if (data.error) {
+      setSkillSetupError(data.error)
+    }
+    if (data.status === 'completed') {
+      setRunningSkillSetupName(null)
+      setSkillSetupDone(true)
+      setInteractiveSkillSetupSessionId(null)
+      showSuccess(getSkillSetupHint(pendingSetupSkill || { name: '' })?.successMessage || 'Setup session completed')
+    } else if (data.status === 'failed') {
+      setRunningSkillSetupName(null)
+      setInteractiveSkillSetupSessionId(null)
+      if (data.error) {
+        setSkillSetupError(data.error)
+      }
+    }
+  }
+
+  async function startInteractiveSkillSetup(skill: OpenClawSkill) {
+    setRunningSkillSetupName(skill.name)
+    setSkillSetupError(null)
+    setSkillSetupDone(false)
+    setError(null)
+    try {
+      const res = await fetch(`${API_BASE}/api/skills/${encodeURIComponent(skill.name)}/setup-session/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ inputs: skillSetupValues }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(data.error || `Failed to start setup for ${skill.name}`)
+      }
+      setInteractiveSkillSetupSessionId(data.sessionId || null)
+      setSkillSetupLogs(Array.isArray(data.logs) ? data.logs : skillSetupLogs)
+      if (data.status !== 'running') {
+        setRunningSkillSetupName(null)
+      }
+    } catch (err: any) {
+      const message = err.message || `Failed to start setup for ${skill.name}`
+      setSkillSetupError(message)
+      setSkillSetupLogs((current) => [...current, `✗ ${message}`])
+      setRunningSkillSetupName(null)
+      showToastError(message)
+    }
+  }
+
+  async function sendInteractiveSkillSetupInput() {
+    if (!interactiveSkillSetupSessionId || !interactiveSkillSetupInput.trim()) return
+    try {
+      const res = await fetch(`${API_BASE}/api/skills/setup-session/${encodeURIComponent(interactiveSkillSetupSessionId)}/input`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input: interactiveSkillSetupInput }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to send setup input')
+      }
+      setInteractiveSkillSetupInput('')
+      await pollInteractiveSkillSetupSession(interactiveSkillSetupSessionId)
+    } catch (err: any) {
+      const message = err.message || 'Failed to send setup input'
+      setSkillSetupError(message)
+      showToastError(message)
+    }
+  }
+
+  async function closeInteractiveSkillSetupSession() {
+    if (!interactiveSkillSetupSessionId) return
+    try {
+      await fetch(`${API_BASE}/api/skills/setup-session/${encodeURIComponent(interactiveSkillSetupSessionId)}/close`, {
+        method: 'POST',
+      })
+    } catch {}
+    setInteractiveSkillSetupSessionId(null)
+    setRunningSkillSetupName(null)
   }
 
   async function installSkillRequirements(skill: OpenClawSkill) {
@@ -1253,6 +1344,15 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
   const viewingSkillSetupHint = viewingSkill ? getSkillSetupHint(viewingSkill) : null
   const pendingSkillSetupHint = pendingSetupSkill ? getSkillSetupHint(pendingSetupSkill) : null
   const pendingSkillSupportsDashboardSetup = pendingSetupSkill ? supportsDashboardSkillSetup(pendingSetupSkill) : false
+  const pendingSkillSupportsInteractiveSetup = pendingSetupSkill ? supportsDashboardInteractiveSkillSetup(pendingSetupSkill) : false
+
+  useEffect(() => {
+    if (!interactiveSkillSetupSessionId) return
+    const timer = window.setInterval(() => {
+      void pollInteractiveSkillSetupSession(interactiveSkillSetupSessionId)
+    }, 1000)
+    return () => window.clearInterval(timer)
+  }, [interactiveSkillSetupSessionId])
   const allSkillTags = useMemo(() => collectSkillTags(allSkills), [allSkills])
   const visiblePartnerInstallers = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
@@ -2899,21 +2999,26 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
             <div className="w-full max-w-3xl rounded-xl bg-white shadow-xl dark:bg-gray-800">
               <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-700">
                 <div>
-                  <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">{pendingSkillSupportsDashboardSetup ? 'Complete Setup' : 'Setup Instructions'}</h2>
+                  <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                    {pendingSkillSupportsDashboardSetup ? 'Complete Setup' : pendingSkillSupportsInteractiveSetup ? 'Interactive Setup' : 'Setup Instructions'}
+                  </h2>
                   <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                     {pendingSkillSupportsDashboardSetup
                       ? <>Finish auth/setup for <span className="font-medium text-gray-900 dark:text-gray-100">{pendingSetupSkill.name}</span> so agents can actually use it.</>
-                      : <>Review the manual setup steps for <span className="font-medium text-gray-900 dark:text-gray-100">{pendingSetupSkill.name}</span>. Some CLIs still require an interactive terminal flow that the dashboard cannot safely automate yet.</>}
+                      : pendingSkillSupportsInteractiveSetup
+                        ? <>Run the setup wizard for <span className="font-medium text-gray-900 dark:text-gray-100">{pendingSetupSkill.name}</span> in a constrained skill-only session, then respond to its prompts below.</>
+                        : <>Review the manual setup steps for <span className="font-medium text-gray-900 dark:text-gray-100">{pendingSetupSkill.name}</span>. Some CLIs still require an interactive terminal flow that the dashboard cannot safely automate yet.</>}
                   </p>
                 </div>
                 <button
                   onClick={() => {
-                    if (runningSkillSetupName) return
+                    if (runningSkillSetupName && !interactiveSkillSetupSessionId) return
                     setShowSkillSetupModal(false)
                     setPendingSetupSkill(null)
+                    void closeInteractiveSkillSetupSession()
                   }}
                   className="text-2xl leading-none text-gray-400 hover:text-gray-600 disabled:cursor-not-allowed dark:hover:text-gray-300"
-                  disabled={!!runningSkillSetupName}
+                  disabled={!!runningSkillSetupName && !interactiveSkillSetupSessionId}
                 >
                   ×
                 </button>
@@ -2924,12 +3029,14 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                   title="Auth and setup reminder"
                   body={pendingSkillSupportsDashboardSetup
                     ? 'Completing skill setup may authenticate external accounts, grant runtime access, or store credentials and configuration. Only continue if you trust the skill and understand the permissions being granted.'
+                    : pendingSkillSupportsInteractiveSetup
+                      ? 'This setup session is limited to the selected skill flow, but it still runs real commands inside your runtime and may store credentials or configuration. Only continue if you trust the skill and understand the permissions being granted.'
                     : 'Some skills still require manual setup in the host runtime or terminal. Review the commands and finish any interactive login or account configuration steps outside the dashboard before retrying the agent.'}
                 />
                 <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
                   {pendingSkillSetupHint?.message}
                 </div>
-                {pendingSkillSupportsDashboardSetup && (pendingSkillSetupHint?.inputs || []).length > 0 && (
+                {(pendingSkillSupportsDashboardSetup || pendingSkillSupportsInteractiveSetup) && (pendingSkillSetupHint?.inputs || []).length > 0 && (
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     {(pendingSkillSetupHint?.inputs || []).map((input) => (
                       <div key={input.key}>
@@ -2954,6 +3061,31 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                   {skillSetupLogs.join('\n')}
                   {runningSkillSetupName === pendingSetupSkill.name && <span className="animate-pulse">▌</span>}
                 </div>
+                {pendingSkillSupportsInteractiveSetup && interactiveSkillSetupSessionId && (
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="text"
+                      value={interactiveSkillSetupInput}
+                      onChange={(e) => setInteractiveSkillSetupInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          void sendInteractiveSkillSetupInput()
+                        }
+                      }}
+                      placeholder="Type a response for the setup wizard and press Enter"
+                      className="flex-1 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void sendInteractiveSkillSetupInput()}
+                      disabled={!interactiveSkillSetupInput.trim()}
+                      className="rounded-lg border border-emerald-300 px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:border-gray-300 disabled:text-gray-400 dark:border-emerald-700 dark:text-emerald-300 dark:hover:bg-emerald-900/20 dark:disabled:border-gray-700 dark:disabled:text-gray-500"
+                    >
+                      Send
+                    </button>
+                  </div>
+                )}
                 {skillSetupError && (
                   <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300">
                     {skillSetupError}
@@ -2971,22 +3103,26 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                   onClick={() => {
                     setShowSkillSetupModal(false)
                     setPendingSetupSkill(null)
+                    void closeInteractiveSkillSetupSession()
                   }}
-                  disabled={!!runningSkillSetupName}
+                  disabled={!!runningSkillSetupName && !interactiveSkillSetupSessionId}
                   className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
                 >
                   {skillSetupDone ? 'Close' : 'Cancel'}
                 </button>
-                {pendingSkillSupportsDashboardSetup && (
+                {(pendingSkillSupportsDashboardSetup || pendingSkillSupportsInteractiveSetup) && (
                   <button
-                    onClick={() => void completeSkillSetup(pendingSetupSkill)}
+                    onClick={() => void (pendingSkillSupportsDashboardSetup ? completeSkillSetup(pendingSetupSkill) : startInteractiveSkillSetup(pendingSetupSkill))}
                     disabled={
                       runningSkillSetupName === pendingSetupSkill.name ||
+                      !!interactiveSkillSetupSessionId ||
                       (pendingSkillSetupHint?.inputs || []).some((input) => input.required && !String(skillSetupValues[input.key] || '').trim())
                     }
                     className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-gray-300 dark:disabled:bg-gray-600"
                   >
-                    {runningSkillSetupName === pendingSetupSkill.name ? 'Running Setup…' : (pendingSkillSetupHint?.actionLabel || 'Complete Setup')}
+                    {runningSkillSetupName === pendingSetupSkill.name
+                      ? (pendingSkillSupportsInteractiveSetup ? 'Setup Running…' : 'Running Setup…')
+                      : (pendingSkillSetupHint?.actionLabel || 'Complete Setup')}
                   </button>
                 )}
               </div>

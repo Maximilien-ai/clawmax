@@ -48,6 +48,99 @@ let openClawConfigMutationLock: Promise<void> = Promise.resolve()
 const agentExecutionLocks = new Map<string, Promise<void>>()
 const AGENT_EXECUTION_SESSION_LOCK_RETRIES = 2
 
+function resolveLmstudioServerBase(baseUrl?: string): string | undefined {
+  const trimmed = baseUrl?.trim()
+  if (!trimmed) return undefined
+  return trimmed.replace(/\/api\/v1\/?$/i, '').replace(/\/v1\/?$/i, '').replace(/\/+$/, '')
+}
+
+type LmstudioLoadedInstance = {
+  id?: string
+  config?: {
+    context_length?: number
+  }
+}
+
+type LmstudioWireModel = {
+  key?: string
+  loaded_instances?: LmstudioLoadedInstance[]
+}
+
+function getLmstudioLoadedInstancesBelowContext(model: LmstudioWireModel | undefined, minContextTokens: number): string[] {
+  const instances = Array.isArray(model?.loaded_instances) ? model!.loaded_instances : []
+  return instances
+    .filter((instance) => {
+      const length = typeof instance?.config?.context_length === 'number' ? Math.floor(instance.config.context_length) : 0
+      return !!instance?.id && length > 0 && length < minContextTokens
+    })
+    .map((instance) => String(instance!.id))
+}
+
+function hasLmstudioLoadedInstanceAtOrAboveContext(model: LmstudioWireModel | undefined, minContextTokens: number): boolean {
+  const instances = Array.isArray(model?.loaded_instances) ? model!.loaded_instances : []
+  return instances.some((instance) => {
+    const length = typeof instance?.config?.context_length === 'number' ? Math.floor(instance.config.context_length) : 0
+    return length >= minContextTokens
+  })
+}
+
+async function normalizeLmstudioLoadedModelState(params: {
+  baseUrl?: string
+  apiKey?: string
+  modelId?: string
+  requestedContextTokens?: number
+}): Promise<void> {
+  const serverBaseUrl = resolveLmstudioServerBase(params.baseUrl)
+  const modelId = params.modelId?.trim()
+  const requestedContextTokens = typeof params.requestedContextTokens === 'number' && params.requestedContextTokens > 0
+    ? Math.floor(params.requestedContextTokens)
+    : LMSTUDIO_DEFAULT_CONTEXT_TOKENS
+  if (!serverBaseUrl || !modelId) return
+
+  const headers: Record<string, string> = {}
+  if (params.apiKey?.trim()) {
+    headers.Authorization = `Bearer ${params.apiKey.trim()}`
+  }
+
+  const modelsResponse = await fetch(`${serverBaseUrl}/api/v1/models`, {
+    headers,
+    signal: AbortSignal.timeout(5000),
+  })
+  if (!modelsResponse.ok) return
+  const modelsBody = await modelsResponse.json() as { models?: LmstudioWireModel[] }
+  const matchingModel = (modelsBody.models || []).find((entry) => entry?.key?.trim() === modelId)
+
+  const staleInstances = getLmstudioLoadedInstancesBelowContext(matchingModel, requestedContextTokens)
+  for (const instanceId of staleInstances) {
+    await fetch(`${serverBaseUrl}/api/v1/models/unload`, {
+      method: 'POST',
+      headers: {
+        ...headers,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ instance_id: instanceId }),
+      signal: AbortSignal.timeout(10000),
+    }).catch(() => undefined)
+  }
+
+  if (staleInstances.length === 0 && hasLmstudioLoadedInstanceAtOrAboveContext(matchingModel, requestedContextTokens)) {
+    return
+  }
+
+  await fetch(`${serverBaseUrl}/api/v1/models/load`, {
+    method: 'POST',
+    headers: {
+      ...headers,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: modelId,
+      context_length: requestedContextTokens,
+    }),
+    signal: AbortSignal.timeout(30000),
+  }).catch(() => undefined)
+}
+
 export function isOpenClawSessionLockError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error || '')
   return /session file locked/i.test(message)
@@ -886,6 +979,12 @@ export async function withTemporaryAgentAuthProfiles<T>(
         applyModelOverride(executionModelOverride)
       }
       try {
+        await normalizeLmstudioLoadedModelState({
+          baseUrl: normalizedOpenAiCompatibleBaseUrl,
+          apiKey: providerKeys.openaiCompatibleApiKey,
+          modelId: executionLmstudioModelId,
+          requestedContextTokens: LMSTUDIO_DEFAULT_CONTEXT_TOKENS,
+        })
         return await fn()
       } finally {
         if (shouldOverrideModel) {

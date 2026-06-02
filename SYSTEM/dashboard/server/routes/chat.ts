@@ -89,9 +89,15 @@ function buildDashboardChatSeed(agentId: string, agentWorkspaceDir?: string): st
   return `dashboard-${agentId}-${stamp}-chat`
 }
 
-function deriveChatError(raw: string): string {
+export function deriveChatError(raw: string, provider?: ChatProvider): string {
   const text = raw.trim()
   if (!text) return 'No reply from agent.'
+  if (/n_keep:\s*\d+\s*>=\s*n_ctx:\s*\d+/i.test(text)) {
+    if (provider === 'openai-compatible') {
+      return 'LM Studio rejected this prompt because the model is loaded with too little context. Increase the LM Studio context length for this model to at least 32768 tokens, reload the model, and try again.'
+    }
+    return 'The local model runtime rejected this prompt because the loaded model context is too small. Increase the model context length, reload the model, and try again.'
+  }
   if (/Unknown model:/i.test(text)) {
     return 'This agent is configured with a model that the current runtime does not support. Choose a different model for the agent and try again.'
   }
@@ -430,7 +436,10 @@ router.post('/:id/chat', async (req, res) => {
         persistDashboardChatSession(id, effectiveSessionId)
 
         if (!normalizedText) {
-          send('error', deriveChatError(stderrOutput.slice(0, 300) || (code !== 0 ? 'Agent failed.' : 'No reply from agent.')))
+          send('error', deriveChatError(
+            stderrOutput.slice(0, 300) || (code !== 0 ? 'Agent failed.' : 'No reply from agent.'),
+            resolvedAgent.provider
+          ))
         }
         send('complete', { text: normalizedText || '' })
         if (!res.writableEnded) {

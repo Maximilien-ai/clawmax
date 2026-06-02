@@ -4,7 +4,7 @@
  * Run with: npx ts-node --transpileOnly server/routes/chat.test.ts
  */
 
-import { hasByokExecutionPathForProvider, shouldUseLocalChatExecution } from './chat'
+import { deriveChatError, hasByokExecutionPathForProvider, shouldUseLocalChatExecution } from './chat'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -72,6 +72,23 @@ test('shouldUseLocalChatExecution always uses direct mode for local providers', 
     provider: 'openai-compatible',
     gatewayRunning: true,
   }), 'Expected OpenAI-compatible chat to use local execution')
+})
+
+test('deriveChatError returns an LM Studio-specific context hint for openai-compatible models', () => {
+  const message = deriveChatError(
+    'The number of tokens to keep from the initial prompt is greater than the context length (n_keep: 17493>= n_ctx: 4096).',
+    'openai-compatible'
+  )
+  assert(/LM Studio rejected this prompt/i.test(message), 'Expected LM Studio-specific remediation message')
+  assert(/32768/i.test(message), 'Expected larger context guidance in LM Studio remediation message')
+})
+
+test('deriveChatError returns a generic local-runtime context hint for other local providers', () => {
+  const message = deriveChatError(
+    'The number of tokens to keep from the initial prompt is greater than the context length (n_keep: 17493>= n_ctx: 4096).',
+    'ollama'
+  )
+  assert(/local model runtime rejected this prompt/i.test(message), 'Expected generic local-runtime remediation message')
 })
 
 setTimeout(() => {

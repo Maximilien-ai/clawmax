@@ -877,30 +877,76 @@ test('withTemporaryAgentAuthProfiles maps dashboard openai-compatible models to 
   process.env.HOME = home
   process.env.OPENCLAW_WORKSPACE = workspace
   resetWorkspaceManagerForTests()
-
-  await withTemporaryAgentAuthProfiles(
-    'test-compatible',
-    { openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1', openaiCompatibleApiKey: 'lmstudio-secret' },
-    'openai-compatible/qwen/qwen3.6-27b',
-    'openai-compatible',
-    async () => {
-      const currentConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-      assert(currentConfig.agents.list[0].model === 'lmstudio/qwen/qwen3.6-27b', `Expected execution override to translate to lmstudio/<model>, got ${currentConfig.agents.list[0].model}`)
-      assert(currentConfig.models.providers.lmstudio.baseUrl === 'http://127.0.0.1:1234/v1', 'Expected temporary LM Studio base URL injected')
-      assert(currentConfig.models.providers.lmstudio.api === 'openai-completions', 'Expected temporary LM Studio api marker injected')
-      assert(currentConfig.models.providers.lmstudio.apiKey === 'lmstudio-secret', 'Expected temporary LM Studio api key injected')
-      assert(Array.isArray(currentConfig.models.providers.lmstudio.models), 'Expected temporary LM Studio provider models array injected')
-      const activeEntry = currentConfig.models.providers.lmstudio.models.find((entry: any) => entry?.id === 'qwen/qwen3.6-27b')
-      assert(activeEntry, 'Expected temporary LM Studio catalog entry for the active model')
-      assert(activeEntry.contextWindow === 64000, 'Expected temporary LM Studio model entry to carry a larger context window')
-      assert(activeEntry.contextTokens === 64000, 'Expected temporary LM Studio model entry to carry a larger context token limit')
-      assert(activeEntry.maxTokens === 8192, 'Expected temporary LM Studio model entry to carry a bounded max token output limit')
+  const originalFetch = global.fetch
+  const fetchCalls: Array<{ url: string; method: string; body?: string }> = []
+  global.fetch = (async (input: any, init?: any) => {
+    const url = String(input)
+    const method = String(init?.method || 'GET').toUpperCase()
+    const body = typeof init?.body === 'string' ? init.body : undefined
+    fetchCalls.push({ url, method, body })
+    if (url.endsWith('/api/v1/models') && method === 'GET') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          models: [{
+            key: 'qwen/qwen3.6-27b',
+            loaded_instances: [
+              { id: 'qwen/qwen3.6-27b', config: { context_length: 4096 } },
+              { id: 'qwen/qwen3.6-27b:2', config: { context_length: 200000 } },
+            ],
+          }],
+        }),
+      } as any
     }
-  )
+    if (url.endsWith('/api/v1/models/unload') && method === 'POST') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ status: 'unloaded' }),
+      } as any
+    }
+    if (url.endsWith('/api/v1/models/load') && method === 'POST') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ status: 'loaded' }),
+      } as any
+    }
+    throw new Error(`Unexpected fetch call: ${method} ${url}`)
+  }) as any
+
+  try {
+    await withTemporaryAgentAuthProfiles(
+      'test-compatible',
+      { openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1', openaiCompatibleApiKey: 'lmstudio-secret' },
+      'openai-compatible/qwen/qwen3.6-27b',
+      'openai-compatible',
+      async () => {
+        const currentConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+        assert(currentConfig.agents.list[0].model === 'lmstudio/qwen/qwen3.6-27b', `Expected execution override to translate to lmstudio/<model>, got ${currentConfig.agents.list[0].model}`)
+        assert(currentConfig.models.providers.lmstudio.baseUrl === 'http://127.0.0.1:1234/v1', 'Expected temporary LM Studio base URL injected')
+        assert(currentConfig.models.providers.lmstudio.api === 'openai-completions', 'Expected temporary LM Studio api marker injected')
+        assert(currentConfig.models.providers.lmstudio.apiKey === 'lmstudio-secret', 'Expected temporary LM Studio api key injected')
+        assert(Array.isArray(currentConfig.models.providers.lmstudio.models), 'Expected temporary LM Studio provider models array injected')
+        const activeEntry = currentConfig.models.providers.lmstudio.models.find((entry: any) => entry?.id === 'qwen/qwen3.6-27b')
+        assert(activeEntry, 'Expected temporary LM Studio catalog entry for the active model')
+        assert(activeEntry.contextWindow === 64000, 'Expected temporary LM Studio model entry to carry a larger context window')
+        assert(activeEntry.contextTokens === 64000, 'Expected temporary LM Studio model entry to carry a larger context token limit')
+        assert(activeEntry.maxTokens === 8192, 'Expected temporary LM Studio model entry to carry a bounded max token output limit')
+      }
+    )
+  } finally {
+    global.fetch = originalFetch
+  }
 
   const restoredConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
   assert(restoredConfig.agents.list[0].model === 'openai-compatible/qwen/qwen3.6-27b', 'Expected saved dashboard model to be restored after execution')
   assert(typeof restoredConfig.models === 'undefined', 'Expected temporary LM Studio provider config removed after execution')
+  const unloadCall = fetchCalls.find((call) => call.url.endsWith('/api/v1/models/unload'))
+  assert(!!(unloadCall && unloadCall.body?.includes('"instance_id":"qwen/qwen3.6-27b"')), 'Expected undersized LM Studio instance to be unloaded before execution')
+  const loadCall = fetchCalls.find((call) => call.url.endsWith('/api/v1/models/load'))
+  assert(!!(loadCall && loadCall.body?.includes('"context_length":64000')), 'Expected LM Studio load request to target the larger execution context window')
 })
 
 test('withTemporaryAgentAuthProfiles preserves existing Ollama provider config fields while applying a temporary base URL', async () => {

@@ -31,15 +31,81 @@ import {
   selectBestRegistryInstallName,
 } from '../lib/skill-registry'
 import { exec } from 'child_process'
+import { spawn, type ChildProcessWithoutNullStreams } from 'child_process'
 import { promisify } from 'util'
 import fs from 'fs'
 import path from 'path'
 import { getAuthenticatedSession } from '../lib/github-auth'
 import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
+import { randomUUID } from 'crypto'
 
 const execAsync = promisify(exec)
 const execFileAsync = promisify(require('child_process').execFile)
 const router = express.Router()
+
+type SkillSetupSession = {
+  id: string
+  skillId: string
+  process: ChildProcessWithoutNullStreams
+  logs: string[]
+  status: 'running' | 'completed' | 'failed'
+  startedAt: number
+  endedAt?: number
+  exitCode?: number | null
+  error?: string
+}
+
+const interactiveSkillSetupSessions = new Map<string, SkillSetupSession>()
+
+function trimTrailingLines(lines: string[], maxLines = 400) {
+  return lines.length > maxLines ? lines.slice(lines.length - maxLines) : lines
+}
+
+function buildInteractiveSetupCommand(
+  skill: ReturnType<typeof getSkillById>,
+  inputs: Record<string, string>
+): { command: string; args: string[]; display: string } | null {
+  if (!skill?.setupRequirements?.actionId) return null
+
+  if (skill.setupRequirements.actionId === 'himalaya-account-configure') {
+    const accountName = String(inputs.accountName || '').trim()
+    const configPath = String(inputs.configPath || '').trim()
+    if (!accountName) {
+      throw new Error('Account name is required for Himalaya setup')
+    }
+
+    const args = ['account', 'configure', accountName]
+    if (configPath) {
+      args.push('--config', configPath)
+    }
+    return {
+      command: 'himalaya',
+      args,
+      display: `himalaya ${args.join(' ')}`,
+    }
+  }
+
+  return null
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`
+}
+
+function spawnInteractiveSetupProcess(command: string, args: string[]) {
+  if (process.platform === 'darwin') {
+    return spawn('script', ['-q', '/dev/null', command, ...args], {
+      env: safeEnv(),
+      stdio: ['pipe', 'pipe', 'pipe'],
+    })
+  }
+
+  const rendered = [command, ...args].map(shellQuote).join(' ')
+  return spawn('script', ['-qfc', rendered, '/dev/null'], {
+    env: safeEnv(),
+    stdio: ['pipe', 'pipe', 'pipe'],
+  })
+}
 
 type RegistryResultMetadata = {
   name?: string
@@ -363,6 +429,133 @@ router.post('/:skillId/complete-setup', async (req, res) => {
       detail: detail || undefined,
     })
   }
+})
+
+// POST /api/skills/:skillId/setup-session/start - Run a constrained interactive setup session for a skill
+router.post('/:skillId/setup-session/start', async (req, res) => {
+  try {
+    const { skillId } = req.params
+    const skill = getSkillById(skillId)
+
+    if (!skill) {
+      return res.status(404).json({ error: `Skill '${skillId}' not found` })
+    }
+
+    const command = buildInteractiveSetupCommand(skill, req.body?.inputs || {})
+    if (!command) {
+      return res.status(400).json({ error: `Skill "${skill.name}" has no interactive dashboard setup flow yet` })
+    }
+
+    const child = spawnInteractiveSetupProcess(command.command, command.args)
+    const sessionId = randomUUID()
+    const session: SkillSetupSession = {
+      id: sessionId,
+      skillId,
+      process: child,
+      logs: [`$ ${command.display}`],
+      status: 'running',
+      startedAt: Date.now(),
+    }
+    interactiveSkillSetupSessions.set(sessionId, session)
+
+    const appendLog = (chunk: string) => {
+      session.logs = trimTrailingLines([...session.logs, chunk])
+    }
+
+    child.stdout.on('data', (chunk) => appendLog(String(chunk)))
+    child.stderr.on('data', (chunk) => appendLog(String(chunk)))
+    child.on('error', (err) => {
+      session.status = 'failed'
+      session.error = err.message
+      session.endedAt = Date.now()
+      appendLog(`✗ ${err.message}`)
+    })
+    child.on('close', (code) => {
+      session.exitCode = code
+      session.endedAt = Date.now()
+      if (session.status !== 'failed') {
+        session.status = code === 0 ? 'completed' : 'failed'
+        if (code === 0) {
+          appendLog(`✓ Completed setup flow for ${skill.name}`)
+        } else {
+          session.error = session.error || `Setup session exited with code ${code}`
+          appendLog(`✗ Setup session exited with code ${code}`)
+        }
+      }
+    })
+
+    res.json({
+      ok: true,
+      sessionId,
+      skill: skill.name,
+      command: command.display,
+      status: session.status,
+      logs: session.logs,
+    })
+  } catch (err: any) {
+    console.error('Interactive skill setup start error:', err.message)
+    res.status(500).json({
+      error: err.message || 'Failed to start interactive skill setup',
+    })
+  }
+})
+
+// GET /api/skills/setup-session/:sessionId - Poll interactive setup session state
+router.get('/setup-session/:sessionId', (req, res) => {
+  const session = interactiveSkillSetupSessions.get(req.params.sessionId)
+  if (!session) {
+    return res.status(404).json({ error: 'Setup session not found' })
+  }
+
+  res.json({
+    ok: true,
+    sessionId: session.id,
+    skillId: session.skillId,
+    status: session.status,
+    logs: session.logs,
+    error: session.error,
+    startedAt: session.startedAt,
+    endedAt: session.endedAt,
+    exitCode: session.exitCode,
+  })
+})
+
+// POST /api/skills/setup-session/:sessionId/input - Send one line of input to an interactive setup session
+router.post('/setup-session/:sessionId/input', (req, res) => {
+  const session = interactiveSkillSetupSessions.get(req.params.sessionId)
+  if (!session) {
+    return res.status(404).json({ error: 'Setup session not found' })
+  }
+  if (session.status !== 'running') {
+    return res.status(400).json({ error: 'Setup session is no longer running' })
+  }
+
+  const input = String(req.body?.input || '')
+  if (!input.trim()) {
+    return res.status(400).json({ error: 'input is required' })
+  }
+
+  session.logs = trimTrailingLines([...session.logs, `> ${input}`])
+  session.process.stdin.write(`${input}\n`)
+  res.json({ ok: true })
+})
+
+// POST /api/skills/setup-session/:sessionId/close - Stop an interactive setup session
+router.post('/setup-session/:sessionId/close', (req, res) => {
+  const session = interactiveSkillSetupSessions.get(req.params.sessionId)
+  if (!session) {
+    return res.status(404).json({ error: 'Setup session not found' })
+  }
+
+  if (session.status === 'running') {
+    session.process.kill()
+    session.status = 'failed'
+    session.error = session.error || 'Setup session stopped'
+    session.endedAt = Date.now()
+    session.logs = trimTrailingLines([...session.logs, '✗ Setup session stopped'])
+  }
+
+  res.json({ ok: true })
 })
 
 // GET /api/skills/agent/:agentId - Get agent's assigned skills

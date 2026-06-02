@@ -10,7 +10,7 @@ export interface SkillSetupHint {
   mode?: SkillSetupSupportMode
 }
 
-export type SkillSetupSupportMode = 'guided' | 'manual'
+export type SkillSetupSupportMode = 'guided' | 'interactive' | 'manual'
 
 const DEFAULT_SETUP_REQUIREMENTS: Record<string, SkillSetupRequirement> = {
   '1password': {
@@ -66,10 +66,31 @@ const DEFAULT_SETUP_REQUIREMENTS: Record<string, SkillSetupRequirement> = {
   },
   himalaya: {
     label: 'Needs setup',
-    message: 'Himalaya needs an email account configured before an agent can use it. Its upstream CLI setup is an interactive wizard today, so the dashboard cannot safely automate it yet.',
+    message: 'Himalaya needs an email account configured before an agent can use it. The dashboard can open the upstream account wizard in a constrained setup session for this skill.',
     commands: [
       'himalaya account configure <account-name>',
       'himalaya account list',
+    ],
+    actionId: 'himalaya-account-configure',
+    actionLabel: 'Open Setup Session',
+    successMessage: 'Himalaya setup session completed. Verify the account with `himalaya account list` if needed.',
+    inputs: [
+      {
+        key: 'accountName',
+        label: 'Account Name',
+        kind: 'text',
+        required: true,
+        placeholder: 'work',
+        help: 'This becomes the Himalaya account key in the config file.',
+      },
+      {
+        key: 'configPath',
+        label: 'Config File Path',
+        kind: 'path',
+        required: false,
+        placeholder: '~/.config/himalaya/config.toml',
+        help: 'Optional custom Himalaya config path. Leave empty to use the default runtime location.',
+      },
     ],
   },
   wacli: {
@@ -95,12 +116,16 @@ const DASHBOARD_RUNNABLE_SETUP_ACTIONS = new Set([
   'gog-google-workspace-auth',
 ])
 
+const DASHBOARD_INTERACTIVE_SETUP_ACTIONS = new Set([
+  'himalaya-account-configure',
+])
+
 const DEFAULT_SKILL_SETUP_SUPPORT_MODES: Record<string, SkillSetupSupportMode> = {
   '1password': 'manual',
   github: 'manual',
   gog: 'guided',
   gemini: 'manual',
-  himalaya: 'manual',
+  himalaya: 'interactive',
   wacli: 'manual',
   eightctl: 'manual',
 }
@@ -166,12 +191,18 @@ export function supportsDashboardSkillSetup(skill: Pick<OpenClawSkill, 'name' | 
   return !!actionId && DASHBOARD_RUNNABLE_SETUP_ACTIONS.has(actionId)
 }
 
+export function supportsDashboardInteractiveSkillSetup(skill: Pick<OpenClawSkill, 'name' | 'setupRequirements'>): boolean {
+  const actionId = resolveSkillSetupRequirement(skill)?.actionId
+  return !!actionId && DASHBOARD_INTERACTIVE_SETUP_ACTIONS.has(actionId)
+}
+
 export function getSkillSetupSupportMode(
   skill: Pick<OpenClawSkill, 'name' | 'setupRequirements' | 'requires' | 'secretRequirements'>
 ): SkillSetupSupportMode | null {
   const requirement = resolveSkillSetupRequirement(skill)
   if (!requirement?.message) return null
   if (supportsDashboardSkillSetup(skill)) return 'guided'
+  if (supportsDashboardInteractiveSkillSetup(skill)) return 'interactive'
   return DEFAULT_SKILL_SETUP_SUPPORT_MODES[skill.name] || 'manual'
 }
 

@@ -6,6 +6,7 @@
 
 import assert from 'assert'
 import childProcess from 'child_process'
+import { EventEmitter } from 'events'
 import { getSkillById, getSkillRequirementInstallCommands, listAvailableSkills } from '../lib/skills'
 
 const GREEN = '\x1b[32m'
@@ -20,7 +21,9 @@ type ExecFileCallback = (error: NodeJS.ErrnoException | null, stdout?: string, s
 type ExecFileMock = (file: string, args: string[], options: any, callback: ExecFileCallback) => void
 
 const originalExecFile = childProcess.execFile
+const originalSpawn = childProcess.spawn
 let execFileMock: ExecFileMock = (_file, _args, _options, callback) => callback(null, '', '')
+let spawnMock: any = null
 
 ;(childProcess as any).execFile = ((file: string, args: string[], options: any, callback?: ExecFileCallback) => {
   const cb = typeof options === 'function' ? options : callback
@@ -29,10 +32,16 @@ let execFileMock: ExecFileMock = (_file, _args, _options, callback) => callback(
   return execFileMock(file, args, opts, cb)
 }) as typeof childProcess.execFile
 
+;(childProcess as any).spawn = ((...args: any[]) => {
+  if (spawnMock) return spawnMock(...args)
+  return (originalSpawn as any)(...args)
+}) as typeof childProcess.spawn
+
 const router = require('./skills').default
 
 function restoreExecFile() {
   ;(childProcess as any).execFile = originalExecFile
+  ;(childProcess as any).spawn = originalSpawn
 }
 
 function test(name: string, fn: () => void | Promise<void>) {
@@ -159,6 +168,56 @@ async function run() {
     assert.strictEqual(calls.length, 3, 'Expected gog setup to execute three commands')
     assert(calls.every((call) => call.file === 'gog'), 'Expected gog binary to be invoked for all commands')
     assert.strictEqual(res.jsonBody?.commands?.[2], 'gog auth list', 'Expected auth verification command to be surfaced')
+  })
+
+  await test('interactive Himalaya setup starts a constrained setup session and accepts input', async () => {
+    const writes: string[] = []
+    let killed = false
+    spawnMock = (file: string, args: string[]) => {
+      assert.strictEqual(file, 'script', 'Expected interactive setup to run in a constrained PTY wrapper')
+      assert(args.some((entry) => String(entry).includes('himalaya') || entry === 'himalaya'), 'Expected himalaya command to be wrapped')
+
+      const proc = new EventEmitter() as any
+      proc.stdout = new EventEmitter()
+      proc.stderr = new EventEmitter()
+      proc.stdin = {
+        write: (input: string) => {
+          writes.push(input)
+        },
+      }
+      proc.kill = () => {
+        killed = true
+      }
+      return proc
+    }
+
+    const startHandler = getRouteHandler('post', '/:skillId/setup-session/start')
+    const startRes = makeRes()
+    await startHandler(makeReq({
+      params: { skillId: 'himalaya' },
+      body: { inputs: { accountName: 'work' } },
+    }), startRes)
+
+    assert.strictEqual(startRes.statusCode, 200, 'Expected Himalaya session start to return HTTP 200')
+    assert(startRes.jsonBody?.sessionId, 'Expected interactive setup session id')
+    assert(/himalaya account configure work/i.test(startRes.jsonBody?.command || ''), 'Expected rendered Himalaya setup command')
+
+    const inputHandler = getRouteHandler('post', '/setup-session/:sessionId/input')
+    const inputRes = makeRes()
+    await inputHandler(makeReq({
+      params: { sessionId: startRes.jsonBody.sessionId },
+      body: { input: 'y' },
+    }), inputRes)
+
+    assert.strictEqual(inputRes.statusCode, 200, 'Expected session input to return HTTP 200')
+    assert.strictEqual(writes[0], 'y\n', 'Expected one line of interactive input to be forwarded')
+
+    const closeHandler = getRouteHandler('post', '/setup-session/:sessionId/close')
+    const closeRes = makeRes()
+    await closeHandler(makeReq({ params: { sessionId: startRes.jsonBody.sessionId } }), closeRes)
+    assert.strictEqual(closeRes.statusCode, 200, 'Expected interactive session close to return HTTP 200')
+    assert.strictEqual(killed, true, 'Expected interactive session close to stop the PTY process')
+    spawnMock = null
   })
 
   await test('registry search returns actionable warning when Tessl CLI is unavailable', async () => {

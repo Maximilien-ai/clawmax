@@ -169,10 +169,31 @@ const DEFAULT_SKILL_SETUP_REQUIREMENTS: Record<string, NonNullable<OpenClawSkill
   },
   himalaya: {
     label: 'Needs setup',
-    message: 'Himalaya needs an email account configured before an agent can use it. Its upstream CLI setup is an interactive wizard today, so the dashboard cannot safely automate it yet.',
+    message: 'Himalaya needs an email account configured before an agent can use it. The dashboard can open the upstream account wizard in a constrained setup session for this skill.',
     commands: [
       'himalaya account configure <account-name>',
       'himalaya account list',
+    ],
+    actionId: 'himalaya-account-configure',
+    actionLabel: 'Open Setup Session',
+    successMessage: 'Himalaya setup session completed. Verify the account with `himalaya account list` if needed.',
+    inputs: [
+      {
+        key: 'accountName',
+        label: 'Account Name',
+        kind: 'text',
+        required: true,
+        placeholder: 'work',
+        help: 'This becomes the Himalaya account key in the config file.',
+      },
+      {
+        key: 'configPath',
+        label: 'Config File Path',
+        kind: 'path',
+        required: false,
+        placeholder: '~/.config/himalaya/config.toml',
+        help: 'Optional custom Himalaya config path. Leave empty to use the default runtime location.',
+      },
     ],
   },
   wacli: {

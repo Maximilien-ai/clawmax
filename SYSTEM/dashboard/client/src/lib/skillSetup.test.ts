@@ -1,4 +1,4 @@
-import { getSetupCatalogAuditEntries, getSkillSetupHint, getSkillSetupSupportMode, supportsDashboardSkillSetup } from './skillSetup'
+import { getSetupCatalogAuditEntries, getSkillSetupHint, getSkillSetupSupportMode, supportsDashboardInteractiveSkillSetup, supportsDashboardSkillSetup } from './skillSetup'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -120,8 +120,9 @@ async function main() {
     const himalayaHint = getSkillSetupHint({ name: 'himalaya' })
     assert(!!himalayaHint, 'Expected Himalaya setup hint')
     assert(himalayaHint?.commands?.includes('himalaya account configure <account-name>'), 'Expected Himalaya account setup command hint')
-    assert(himalayaHint?.message.includes('interactive wizard'), 'Expected Himalaya setup warning to explain why dashboard automation is unavailable')
-    assert(himalayaHint?.mode === 'manual', 'Expected Himalaya setup to remain manual-only until a guided flow exists')
+    assert(himalayaHint?.actionLabel === 'Open Setup Session', 'Expected Himalaya to expose the interactive setup action label')
+    assert(himalayaHint?.mode === 'interactive', 'Expected Himalaya setup to expose the interactive setup mode')
+    assert(supportsDashboardInteractiveSkillSetup({ name: 'himalaya' }) === true, 'Expected Himalaya to advertise interactive setup support')
   })
 
   await test('built-in setup catalog is explicitly classified as guided or manual', () => {
