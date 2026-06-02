@@ -96,6 +96,11 @@ function secAgo(ts: number): string {
   return `${Math.floor(s / 60)}m ago`
 }
 
+function isGatewayDoctorBadgeHealthy(results: { healthy: boolean; summary: { warn: number }; platform?: { gateway?: boolean } }): boolean {
+  if (results.healthy && results.summary.warn === 0) return true
+  return !!results.platform?.gateway
+}
+
 function sortEntries(entries: ActivityEntry[], col: SortCol, dir: SortDir): ActivityEntry[] {
   const sorted = [...entries].sort((a, b) => {
     let cmp = 0
@@ -878,7 +883,7 @@ function DoctorModal({ onClose }: { onClose: () => void }) {
             <div className="space-y-4">
               <div className="flex gap-3 text-sm flex-wrap">
                 <span className={`px-3 py-1.5 rounded-lg ${results.platform?.cli ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300' : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300'}`}>{results.platform?.cli ? '✓' : '✗'} CLI</span>
-                <span className={`px-3 py-1.5 rounded-lg ${results.platform?.gateway ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300' : 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300'}`}>{results.platform?.gateway ? '✓' : '⚠'} Gateway{results.platform?.gatewayPort ? `:${results.platform.gatewayPort}` : ''}</span>
+                <span className={`px-3 py-1.5 rounded-lg ${isGatewayDoctorBadgeHealthy(results) ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300' : 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300'}`}>{isGatewayDoctorBadgeHealthy(results) ? '✓' : '⚠'} Gateway{results.platform?.gatewayPort ? `:${results.platform.gatewayPort}` : ''}</span>
                 <span className={`px-3 py-1.5 rounded-lg ${results.healthy && results.summary.warn === 0 ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300' : 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300'}`}>{results.summary.pass} pass, {results.summary.fail} fail, {results.summary.warn} warn, {results.summary.fixed} fixed</span>
               </div>
               {visibleDoctorResults.map((agent: any) => (

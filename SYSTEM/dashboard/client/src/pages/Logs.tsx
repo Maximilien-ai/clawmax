@@ -16,6 +16,11 @@ type DoctorResults = {
   message?: string
 }
 
+function isGatewayBadgeHealthy(results: DoctorResults): boolean {
+  if (results.healthy && results.summary.warn === 0) return true
+  return !!results.platform?.gateway
+}
+
 function normalizeDoctorResults(data: any): DoctorResults {
   return {
     healthy: Boolean(data?.healthy),
@@ -367,7 +372,7 @@ export default function Logs() {
             <div className="space-y-2">
               <div className="flex gap-2 text-xs flex-wrap">
                 <span className={`px-2 py-1 rounded ${doctorResults.platform?.cli ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'}`}>{doctorResults.platform?.cli ? '✓' : '✗'} CLI</span>
-                <span className={`px-2 py-1 rounded ${doctorResults.platform?.gateway ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'}`}>{doctorResults.platform?.gateway ? '✓' : '⚠'} Gateway{doctorResults.platform?.gatewayPort ? `:${doctorResults.platform.gatewayPort}` : ''}</span>
+                <span className={`px-2 py-1 rounded ${isGatewayBadgeHealthy(doctorResults) ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'}`}>{isGatewayBadgeHealthy(doctorResults) ? '✓' : '⚠'} Gateway{doctorResults.platform?.gatewayPort ? `:${doctorResults.platform.gatewayPort}` : ''}</span>
                 <span className={`px-2 py-1 rounded ${doctorResults.healthy && doctorResults.summary.warn === 0 ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'}`}>{doctorResults.summary.pass} pass, {doctorResults.summary.fail} fail, {doctorResults.summary.warn} warn, {doctorResults.summary.fixed} fixed</span>
               </div>
               {visibleDoctorResults.map((r: any) => (
