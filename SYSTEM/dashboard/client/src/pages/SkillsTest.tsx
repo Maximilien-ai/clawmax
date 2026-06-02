@@ -15,6 +15,7 @@ import { getSkillSetupHint, maybeWarnSkillSetup, supportsDashboardSkillSetup } f
 import { collectSkillTags, matchesSelectedSkillTags } from '../lib/skillTags'
 import { buildAgentSkillsScope, buildAssignedSkillBadges } from '../lib/agentSkillsScope'
 import { getRegistrySkillCompatibility, normalizeRuntimePlatform, type RuntimePlatform } from '../lib/skillPlatform'
+import { getDashboardInstallRequirementCommands } from '../lib/skillInstall'
 import { buildRegistryCompatibilityNote, buildSkillsPageCountLabel } from '../lib/skillsPageFlow'
 import { useAuth } from '../contexts/AuthContext'
 import { expandPromptWithAI } from '../lib/aiPrompt'
@@ -1049,9 +1050,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
   }
 
   function getInstallRequirementCommands(skill: OpenClawSkill): string[] {
-    return (skill.install || [])
-      .filter((option) => option.kind === 'brew' && option.formula)
-      .map((option) => `brew install ${option.formula}`)
+    return getDashboardInstallRequirementCommands(skill, runtimePlatform)
   }
 
   function openInstallRequirementsModal(skill: OpenClawSkill) {

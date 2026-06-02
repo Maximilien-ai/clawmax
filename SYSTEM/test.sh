@@ -339,6 +339,17 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Skill install helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/skillInstall.test.ts > /tmp/clawmax-skill-install.out 2>&1 || true
+if grep -q "tests passed" /tmp/clawmax-skill-install.out; then
+  skill_install_count=$(grep -o '[0-9]\+ tests passed' /tmp/clawmax-skill-install.out | head -1 | grep -o '[0-9]\+')
+  pass "Skill install helper unit tests (${skill_install_count:-?} tests)"
+else
+  cat /tmp/clawmax-skill-install.out
+  fail "Skill install helper unit tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Skill registry unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/skill-registry.test.ts > /tmp/clawmax-skill-registry.out 2>&1 || true
 if grep -q "tests passed" /tmp/clawmax-skill-registry.out; then

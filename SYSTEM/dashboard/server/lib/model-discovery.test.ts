@@ -1,4 +1,4 @@
-import { __test } from './model-discovery'
+import { __test, clearModelCache, discoverModels } from './model-discovery'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -7,6 +7,7 @@ const RESET = '\x1b[0m'
 
 let testsPassed = 0
 let testsFailed = 0
+const originalFetch = global.fetch
 
 function test(name: string, fn: () => void) {
   try {
@@ -63,8 +64,48 @@ test('OpenAI-compatible models are never compatibility filtered', () => {
   assert(filtered.length === 2, `Expected both OpenAI-compatible models, got ${filtered.length}`)
 })
 
+test('discoverModels loads LM Studio models from an OpenAI-compatible endpoint', async () => {
+  clearModelCache()
+  global.fetch = (async (url: string) => {
+    assert(url === 'http://127.0.0.1:1234/v1/models', `Expected LM Studio models endpoint, got ${url}`)
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ data: [{ id: 'granite-3.3-8b-instruct' }, { id: 'qwen3-8b' }] }),
+    } as any
+  }) as any
+
+  const result = await discoverModels({
+    openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1',
+  }, { showAll: true })
+
+  assert(result.modelsByProvider['openai-compatible']?.models.includes('openai-compatible/granite-3.3-8b-instruct'), 'Expected granite LM Studio model')
+  assert(result.modelsByProvider['openai-compatible']?.models.includes('openai-compatible/qwen3-8b'), 'Expected second LM Studio model')
+})
+
+test('discoverModels loads Ollama models from the local tags endpoint', async () => {
+  clearModelCache()
+  global.fetch = (async (url: string) => {
+    assert(url === 'http://127.0.0.1:11434/api/tags', `Expected Ollama tags endpoint, got ${url}`)
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ models: [{ name: 'qwen2.5:latest' }, { name: 'llama3.2:latest' }] }),
+    } as any
+  }) as any
+
+  const result = await discoverModels({
+    ollamaBaseUrl: 'http://127.0.0.1:11434',
+  }, { showAll: true })
+
+  assert(result.modelsByProvider.ollama?.models.includes('ollama/qwen2.5:latest'), 'Expected qwen Ollama model')
+  assert(result.modelsByProvider.ollama?.models.includes('ollama/llama3.2:latest'), 'Expected llama Ollama model')
+})
+
 console.log(`\nTests passed: ${testsPassed}`)
 console.log(`Tests failed: ${testsFailed}`)
+
+global.fetch = originalFetch
 
 if (testsFailed > 0) {
   console.log(`\n${RED}Some tests failed${RESET}`)

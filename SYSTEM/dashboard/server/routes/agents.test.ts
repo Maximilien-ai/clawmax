@@ -239,6 +239,85 @@ async function run() {
     assert((res.jsonBody?.errors || []).some((error: string) => /already exists/i.test(error)), 'Expected duplicate id error guidance')
   })
 
+  await test('models route forwards LM Studio and Ollama local model settings into discovery', async () => {
+    const discoveryModule = require('../lib/model-discovery')
+    const originalDiscoverModels = discoveryModule.discoverModels
+
+    try {
+      discoveryModule.discoverModels = async (byokKeys: any, options: any) => {
+        assert.strictEqual(byokKeys?.openaiCompatibleBaseUrl, 'http://127.0.0.1:1234/v1', 'Expected LM Studio base URL to be forwarded')
+        assert.strictEqual(byokKeys?.ollamaBaseUrl, 'http://127.0.0.1:11434', 'Expected Ollama base URL to be forwarded')
+        assert.strictEqual(options?.showAll, true, 'Expected showAll query to be forwarded')
+        return {
+          models: ['openai-compatible/granite-3.3-8b-instruct', 'ollama/qwen2.5:latest'],
+          modelsByProvider: {
+            'openai-compatible': { name: 'OpenAI-Compatible', models: ['openai-compatible/granite-3.3-8b-instruct'] },
+            ollama: { name: 'Ollama', models: ['ollama/qwen2.5:latest'] },
+          },
+        }
+      }
+
+      const handler = getRouteHandler('get', '/models')
+      const res = makeRes()
+      await handler(makeReq({
+        query: {
+          openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1',
+          ollamaBaseUrl: 'http://127.0.0.1:11434',
+          showAll: 'true',
+        },
+      }), res)
+
+      assert.strictEqual(res.statusCode, 200, 'Expected models route success')
+      assert(res.jsonBody?.modelsByProvider?.['openai-compatible'], 'Expected LM Studio provider in response')
+      assert(res.jsonBody?.modelsByProvider?.ollama, 'Expected Ollama provider in response')
+    } finally {
+      discoveryModule.discoverModels = originalDiscoverModels
+      delete require.cache[require.resolve('./agents')]
+    }
+  })
+
+  await test('models refresh clears cache and forwards local model endpoints', async () => {
+    const discoveryModule = require('../lib/model-discovery')
+    const originalDiscoverModels = discoveryModule.discoverModels
+    const originalClearModelCache = discoveryModule.clearModelCache
+    let cacheCleared = false
+
+    try {
+      discoveryModule.clearModelCache = () => { cacheCleared = true }
+      discoveryModule.discoverModels = async (byokKeys: any, options: any) => {
+        assert.strictEqual(byokKeys?.openaiCompatibleBaseUrl, 'http://127.0.0.1:1234/v1', 'Expected LM Studio base URL in refresh body')
+        assert.strictEqual(byokKeys?.ollamaBaseUrl, 'http://127.0.0.1:11434', 'Expected Ollama base URL in refresh body')
+        assert.strictEqual(options?.showAll, true, 'Expected refresh showAll body to be forwarded')
+        return {
+          models: ['openai-compatible/granite-3.3-8b-instruct', 'ollama/granite3.3:8b'],
+          modelsByProvider: {
+            'openai-compatible': { name: 'OpenAI-Compatible', models: ['openai-compatible/granite-3.3-8b-instruct'] },
+            ollama: { name: 'Ollama', models: ['ollama/granite3.3:8b'] },
+          },
+        }
+      }
+
+      const handler = getRouteHandler('post', '/models/refresh')
+      const res = makeRes()
+      await handler(makeReq({
+        body: {
+          openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1',
+          ollamaBaseUrl: 'http://127.0.0.1:11434',
+          showAll: true,
+        },
+      }), res)
+
+      assert.strictEqual(cacheCleared, true, 'Expected refresh route to clear model cache')
+      assert.strictEqual(res.statusCode, 200, 'Expected refresh route success')
+      assert(res.jsonBody?.modelsByProvider?.['openai-compatible'], 'Expected LM Studio provider in refresh response')
+      assert(res.jsonBody?.modelsByProvider?.ollama, 'Expected Ollama provider in refresh response')
+    } finally {
+      discoveryModule.discoverModels = originalDiscoverModels
+      discoveryModule.clearModelCache = originalClearModelCache
+      delete require.cache[require.resolve('./agents')]
+    }
+  })
+
   await test('gateway-status rejects invalid ids and missing agents cleanly', async () => {
     const handler = getRouteHandler('get', '/:id/gateway-status')
 
