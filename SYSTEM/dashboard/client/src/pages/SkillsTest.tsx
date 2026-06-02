@@ -1800,7 +1800,6 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
               </button>
             )}
           </div>
-        </div>
 
         {/* Error display */}
         {error && (
