@@ -8,7 +8,7 @@ Keep `1.7.1` focused on:
 
 - Linux/on-prem Skills install correctness
 - local-model readiness for LM Studio and Ollama
-- the OpenClaw `2026.5.26` runtime baseline introduced in `1.7.0`
+- the OpenClaw `2026.5.26` runtime baseline introduced in `1.7.0` and hardened in `1.7.1`
 
 ## CLI / Deployment Team
 
@@ -105,6 +105,7 @@ If using OTP:
 ## Notes for `1.7.1`
 
 - `1.7.0` introduced the upgraded OpenClaw runtime line
+- `1.7.1` carries the first operational/local-model/setup follow-through on that line
 - `1.7.1` should stay tight and operational:
   - fix concrete follow-ups
   - keep image/runtime validation explicit

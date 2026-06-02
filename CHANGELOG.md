@@ -6,6 +6,22 @@ All notable changes to ClawMax are documented here.
 
 - No unreleased changes yet.
 
+## [v1.7.1] - 2026-06-02
+
+### Local Model Reliability
+- **LM Studio Runtime Hardening** — OpenAI-compatible / LM Studio execution now maps cleanly onto OpenClaw’s `lmstudio` provider contract at runtime, normalizes undersized loaded model instances more safely, and carries a larger default execution context for agent chat.
+- **Actionable LM Studio Errors** — local-model context-limit failures now surface a concrete remediation hint instead of only returning the raw `n_keep >= n_ctx` runtime error.
+- **Ollama No-Regression Pass** — Ollama-backed agent chat remained green through the local-model execution changes, and status/code blocks are rendered with readable light-mode styling instead of disappearing into black-on-black output.
+
+### Skills and Setup
+- **Linux / On-Prem Skill Install Guidance** — dashboard install flows now respect runtime platform when deciding whether built-in skills like `himalaya` are installable from the UI.
+- **Interactive Himalaya Setup Session** — `himalaya` now exposes a constrained in-dashboard setup session rather than a dead-end manual warning, allowing operators on cloud/on-prem runtimes to answer the upstream wizard without leaving the product.
+- **Skills Flow Polish** — the Skills controls were reordered around `All / Assigned / Available` plus search, and setup states now distinguish guided, interactive, and manual-only flows more explicitly.
+
+### Runtime / Operations
+- **Gateway Health Signal Cleanup** — Doctor/System surfaces now avoid false unhealthy gateway badges when the runtime service is actually reachable and healthy.
+- **Release Handoff Refresh** — `1.7.1` handoff guidance for CLI/deployment and Web/ops now captures the OpenClaw runtime baseline, local-model env defaults, and the minimum release/deploy smoke path.
+
 ## [v1.7.0] - 2026-06-01
 
 ### OpenClaw Upgrade
