@@ -1787,7 +1787,6 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
             </div>
           </div>
         )}
-          )}
 
           <div className="mt-2 flex flex-wrap items-center justify-between gap-3 text-sm text-gray-600 dark:text-gray-300">
             <span>{buildSkillsPageCountLabel(filteredSkills.length, allSkills.length)}</span>
