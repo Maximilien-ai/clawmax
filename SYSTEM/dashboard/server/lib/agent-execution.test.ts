@@ -856,6 +856,43 @@ test('withTemporaryAgentAuthProfiles injects and restores temporary Ollama provi
   assert(typeof restoredConfig.models === 'undefined', 'Expected temporary Ollama provider config removed after execution')
 })
 
+test('withTemporaryAgentAuthProfiles strips the dashboard prefix for OpenAI-compatible execution and restores the saved model', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
+  const workspace = path.join(home, 'workspace')
+  const agentWorkspace = path.join(workspace, 'AGENTS', 'test-compatible')
+  const agentDir = path.join(home, '.openclaw', 'agents', 'test-compatible', 'agent')
+  const configPath = path.join(home, '.openclaw', 'openclaw.json')
+  fs.mkdirSync(agentDir, { recursive: true })
+  fs.mkdirSync(agentWorkspace, { recursive: true })
+  fs.mkdirSync(path.join(home, '.openclaw'), { recursive: true })
+  fs.writeFileSync(path.join(agentWorkspace, 'IDENTITY.md'), '# Identity\n\n- **Model:** openai-compatible/qwen/qwen3.6-27b\n', 'utf-8')
+  fs.writeFileSync(configPath, JSON.stringify({
+    agents: {
+      list: [
+        { id: 'test-compatible', workspace: agentWorkspace, agentDir, model: 'openai-compatible/qwen/qwen3.6-27b' }
+      ]
+    }
+  }, null, 2))
+
+  process.env.HOME = home
+  process.env.OPENCLAW_WORKSPACE = workspace
+  resetWorkspaceManagerForTests()
+
+  await withTemporaryAgentAuthProfiles(
+    'test-compatible',
+    { openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1' },
+    'openai-compatible/qwen/qwen3.6-27b',
+    'openai-compatible',
+    async () => {
+      const currentConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+      assert(currentConfig.agents.list[0].model === 'qwen/qwen3.6-27b', `Expected execution override to strip openai-compatible prefix, got ${currentConfig.agents.list[0].model}`)
+    }
+  )
+
+  const restoredConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  assert(restoredConfig.agents.list[0].model === 'openai-compatible/qwen/qwen3.6-27b', 'Expected saved dashboard model to be restored after execution')
+})
+
 test('withTemporaryAgentAuthProfiles preserves existing Ollama provider config fields while applying a temporary base URL', async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
   const agentDir = path.join(home, '.openclaw', 'agents', 'test-ollama', 'agent')

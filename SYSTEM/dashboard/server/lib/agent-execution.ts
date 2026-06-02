@@ -338,6 +338,15 @@ function normalizeSessionModel(model?: string): string | undefined {
   return trimmed
 }
 
+function toExecutionModelOverride(model: string | undefined, provider: ExecutionProvider | undefined): string | undefined {
+  const trimmed = model?.trim()
+  if (!trimmed) return undefined
+  if (provider === 'openai-compatible' && trimmed.startsWith('openai-compatible/')) {
+    return trimmed.slice('openai-compatible/'.length)
+  }
+  return trimmed
+}
+
 function resetSessionsIfModelChanged(agentId: string, preferredModel?: string) {
   const normalizedPreferred = normalizeSessionModel(preferredModel)
   if (!normalizedPreferred) return
@@ -767,6 +776,7 @@ export async function withTemporaryAgentAuthProfiles<T>(
   }
 
   const nextAuthProfiles = buildAuthProfiles(providerKeys, effectiveProvider)
+  effectiveModel = toExecutionModelOverride(effectiveModel, effectiveProvider)
 
   fs.writeFileSync(authProfilePath, JSON.stringify(nextAuthProfiles, null, 2), 'utf-8')
   const currentConfigModel = readCurrentModel()

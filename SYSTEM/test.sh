@@ -792,6 +792,15 @@ else
   fail "Skill setup helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Agent chat markdown helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/agentChatMarkdown.test.ts > /tmp/clawmax-agent-chat-markdown.out 2>&1 || true
+if grep -q "Agent chat markdown helper tests passed" /tmp/clawmax-agent-chat-markdown.out; then
+  pass "Agent chat markdown helper unit tests"
+else
+  cat /tmp/clawmax-agent-chat-markdown.out
+  fail "Agent chat markdown helper unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Skill tags helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/skillTags.test.ts > /tmp/clawmax-skill-tags.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-skill-tags.out; then

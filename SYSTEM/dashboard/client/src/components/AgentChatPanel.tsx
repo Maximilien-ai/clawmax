@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { byokForRequest, hasAiGenerationAccess, readStoredByokKeys } from '../lib/byok'
 import { buildPersistentDashboardChatSessionId } from '../lib/agentChatSession'
+import { getAgentChatCodeBlockClassName, getAgentChatInlineCodeClassName, type AgentChatMarkdownRole } from '../lib/agentChatMarkdown'
 import { ProductIconCell } from '../lib/productIcons'
 import { useAuth } from '../contexts/AuthContext'
 import { resolveAgentChatDocPath } from '../lib/agentChatDocs'
@@ -324,7 +325,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  const renderMarkdown = (content: string, clean = false) => (
+  const renderMarkdown = (content: string, clean = false, role: AgentChatMarkdownRole = 'assistant') => (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
       components={{
@@ -347,6 +348,14 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
           }
           return <a href={href} target="_blank" rel="noreferrer">{children}</a>
         },
+        code: ({ children, className }) => (
+          <code className={className?.includes('language-') ? className : getAgentChatInlineCodeClassName(role)}>
+            {children}
+          </code>
+        ),
+        pre: ({ children }) => (
+          <pre className={getAgentChatCodeBlockClassName(role)}>{children}</pre>
+        ),
       }}
     >
       {linkifyWorkspaceFiles(clean ? cleanMessageContent(content) : content)}
@@ -920,7 +929,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
                       <pre className="text-xs whitespace-pre-wrap break-words font-mono overflow-auto max-h-60">{cleanMessageContent(msg.content)}</pre>
                     ) : (
                       <div className="text-sm prose prose-sm dark:prose-invert max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
-                        {renderMarkdown(msg.content || (streaming && idx === messages.length - 1 ? '▌' : ''), true)}
+                        {renderMarkdown(msg.content || (streaming && idx === messages.length - 1 ? '▌' : ''), true, 'assistant')}
                       </div>
                     )}
                     {onNavigateToDoc && getResolvedFileMentions(msg.content || '').length > 0 && (
@@ -954,7 +963,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
                 ) : (
                   <>
                     <div className="text-sm prose prose-sm prose-invert max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
-                      {renderMarkdown(msg.content || '')}
+                      {renderMarkdown(msg.content || '', false, 'user')}
                     </div>
                     {onNavigateToDoc && getResolvedFileMentions(msg.content || '').length > 0 && (
                       <div className="mt-2 flex flex-wrap items-center gap-2">
