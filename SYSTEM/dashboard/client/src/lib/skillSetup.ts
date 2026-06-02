@@ -7,7 +7,10 @@ export interface SkillSetupHint {
   actionLabel?: string
   successMessage?: string
   inputs?: SkillSetupRequirement['inputs']
+  mode?: SkillSetupSupportMode
 }
+
+export type SkillSetupSupportMode = 'guided' | 'manual'
 
 const DEFAULT_SETUP_REQUIREMENTS: Record<string, SkillSetupRequirement> = {
   '1password': {
@@ -92,6 +95,16 @@ const DASHBOARD_RUNNABLE_SETUP_ACTIONS = new Set([
   'gog-google-workspace-auth',
 ])
 
+const DEFAULT_SKILL_SETUP_SUPPORT_MODES: Record<string, SkillSetupSupportMode> = {
+  '1password': 'manual',
+  github: 'manual',
+  gog: 'guided',
+  gemini: 'manual',
+  himalaya: 'manual',
+  wacli: 'manual',
+  eightctl: 'manual',
+}
+
 function buildGenericSetupRequirement(skill: Pick<OpenClawSkill, 'requires' | 'secretRequirements'>): SkillSetupRequirement | null {
   const secretKeys = (skill.secretRequirements || []).map((entry) => entry.key).filter(Boolean)
   if (secretKeys.length > 0) {
@@ -136,6 +149,7 @@ function resolveSkillSetupRequirement(skill: Pick<OpenClawSkill, 'name' | 'setup
 export function getSkillSetupHint(skill: Pick<OpenClawSkill, 'name' | 'setupRequirements' | 'requires' | 'secretRequirements'>): SkillSetupHint | null {
   const requirement = resolveSkillSetupRequirement(skill)
   if (!requirement?.message) return null
+  const mode = getSkillSetupSupportMode(skill)
   return {
     label: requirement.label || 'Needs setup',
     message: requirement.message,
@@ -143,12 +157,26 @@ export function getSkillSetupHint(skill: Pick<OpenClawSkill, 'name' | 'setupRequ
     actionLabel: requirement.actionLabel,
     successMessage: requirement.successMessage,
     inputs: requirement.inputs || [],
+    mode,
   }
 }
 
 export function supportsDashboardSkillSetup(skill: Pick<OpenClawSkill, 'name' | 'setupRequirements'>): boolean {
   const actionId = resolveSkillSetupRequirement(skill)?.actionId
   return !!actionId && DASHBOARD_RUNNABLE_SETUP_ACTIONS.has(actionId)
+}
+
+export function getSkillSetupSupportMode(
+  skill: Pick<OpenClawSkill, 'name' | 'setupRequirements' | 'requires' | 'secretRequirements'>
+): SkillSetupSupportMode | null {
+  const requirement = resolveSkillSetupRequirement(skill)
+  if (!requirement?.message) return null
+  if (supportsDashboardSkillSetup(skill)) return 'guided'
+  return DEFAULT_SKILL_SETUP_SUPPORT_MODES[skill.name] || 'manual'
+}
+
+export function getSetupCatalogAuditEntries(): Array<{ skillName: string; mode: SkillSetupSupportMode }> {
+  return Object.entries(DEFAULT_SKILL_SETUP_SUPPORT_MODES).map(([skillName, mode]) => ({ skillName, mode }))
 }
 
 export function skillNeedsSetup(skillName: string): boolean {

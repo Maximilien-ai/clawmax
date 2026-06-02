@@ -1,4 +1,4 @@
-import { getSkillSetupHint, supportsDashboardSkillSetup } from './skillSetup'
+import { getSetupCatalogAuditEntries, getSkillSetupHint, getSkillSetupSupportMode, supportsDashboardSkillSetup } from './skillSetup'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -120,6 +120,16 @@ async function main() {
     const himalayaHint = getSkillSetupHint({ name: 'himalaya' })
     assert(!!himalayaHint, 'Expected Himalaya setup hint')
     assert(himalayaHint?.commands?.includes('himalaya account configure'), 'Expected Himalaya account setup command hint')
+    assert(himalayaHint?.mode === 'manual', 'Expected Himalaya setup to remain manual-only until a guided flow exists')
+  })
+
+  await test('built-in setup catalog is explicitly classified as guided or manual', () => {
+    const auditEntries = getSetupCatalogAuditEntries()
+    assert(auditEntries.length >= 6, 'Expected shipped setup catalog audit coverage')
+    for (const entry of auditEntries) {
+      const mode = getSkillSetupSupportMode({ name: entry.skillName })
+      assert(mode === entry.mode, `Expected ${entry.skillName} setup mode to stay ${entry.mode}, got ${mode || 'none'}`)
+    }
   })
 
   console.log('\n========================================')

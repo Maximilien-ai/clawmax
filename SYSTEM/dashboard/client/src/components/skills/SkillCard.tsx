@@ -261,7 +261,7 @@ export function SkillCard({ skill, assigned, onToggle, onView, onDelete, canDele
                       onClick={onOpenSetup}
                       className="mt-3 rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-800"
                     >
-                      {setupHint.actionLabel || 'Complete Setup'}
+                      {setupHint.mode === 'guided' ? (setupHint.actionLabel || 'Complete Setup') : 'View Setup'}
                     </button>
                   )}
                 </div>

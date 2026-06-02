@@ -1251,6 +1251,8 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
   const registryCompatibilityNote = buildRegistryCompatibilityNote(runtimePlatform)
   const activeRegistryProvider = REGISTRY_PROVIDERS.find((provider) => provider.id === registryProvider) || REGISTRY_PROVIDERS[0]
   const viewingSkillSetupHint = viewingSkill ? getSkillSetupHint(viewingSkill) : null
+  const pendingSkillSetupHint = pendingSetupSkill ? getSkillSetupHint(pendingSetupSkill) : null
+  const pendingSkillSupportsDashboardSetup = pendingSetupSkill ? supportsDashboardSkillSetup(pendingSetupSkill) : false
   const allSkillTags = useMemo(() => collectSkillTags(allSkills), [allSkills])
   const visiblePartnerInstallers = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
@@ -1666,58 +1668,9 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
 
         {(availableAgents.length > 0 || allSkills.length > 0) && (
           <>
-        {/* Popular Skills */}
-        {skillUsage.size > 0 && (
-          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border mb-6">
-            <h3 className="text-sm font-semibold text-gray-700 mb-3 dark:text-gray-300">Most Popular Skills</h3>
-            <div className="flex flex-wrap gap-2">
-              {Array.from(skillUsage.entries())
-                .sort((a, b) => b[1].length - a[1].length)
-                .slice(0, 10)
-                .map(([skillName, users]) => (
-                  <button
-                    key={skillName}
-                    onClick={() => {
-                      setSearchQuery(skillName)
-                      setFilterAssigned('all')
-                    }}
-                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-50 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-700 hover:bg-purple-100 dark:hover:bg-purple-900/50 hover:border-purple-300 dark:hover:border-purple-600 transition-colors cursor-pointer"
-                    title={`Search for ${skillName}`}
-                  >
-                    <span className="text-sm font-medium text-purple-900 dark:text-purple-400">{skillName}</span>
-                    <span className="text-xs text-purple-600 dark:text-purple-400 bg-purple-100 dark:bg-purple-900/50 px-2 py-0.5 rounded-full">
-                      {users.length}
-                    </span>
-                  </button>
-                ))}
-            </div>
-          </div>
-        )}
-
         {/* Filters */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border mb-6">
-          <div className="flex gap-4 flex-wrap items-start">
-            {/* Search */}
-            <div className="relative flex-1 min-w-64">
-              <input
-                type="text"
-                placeholder="Search skills..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-11 w-full px-4 py-2 pr-10 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
-                  title="Clear search"
-                >
-                  ✕
-                </button>
-              )}
-            </div>
-
-            {/* Filter buttons */}
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
             <div className="flex flex-wrap gap-2">
               <button
                 onClick={() => setFilterAssigned('all')}
@@ -1749,6 +1702,25 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
               >
                 Available
               </button>
+            </div>
+
+            <div className="relative min-w-64 flex-1 lg:max-w-xl">
+              <input
+                type="text"
+                placeholder="Search skills..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-11 w-full px-4 py-2 pr-10 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
+                  title="Clear search"
+                >
+                  ✕
+                </button>
+              )}
             </div>
           </div>
 
@@ -1783,8 +1755,36 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                 >
                   Clear tags
                 </button>
-              )}
+          )}
+        </div>
+
+        {/* Popular Skills */}
+        {skillUsage.size > 0 && (
+          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border mb-6">
+            <h3 className="text-sm font-semibold text-gray-700 mb-3 dark:text-gray-300">Most Popular Skills</h3>
+            <div className="flex flex-wrap gap-2">
+              {Array.from(skillUsage.entries())
+                .sort((a, b) => b[1].length - a[1].length)
+                .slice(0, 10)
+                .map(([skillName, users]) => (
+                  <button
+                    key={skillName}
+                    onClick={() => {
+                      setSearchQuery(skillName)
+                      setFilterAssigned('all')
+                    }}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-50 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-700 hover:bg-purple-100 dark:hover:bg-purple-900/50 hover:border-purple-300 dark:hover:border-purple-600 transition-colors cursor-pointer"
+                    title={`Search for ${skillName}`}
+                  >
+                    <span className="text-sm font-medium text-purple-900 dark:text-purple-400">{skillName}</span>
+                    <span className="text-xs text-purple-600 dark:text-purple-400 bg-purple-100 dark:bg-purple-900/50 px-2 py-0.5 rounded-full">
+                      {users.length}
+                    </span>
+                  </button>
+                ))}
             </div>
+          </div>
+        )}
           )}
 
           <div className="mt-2 flex flex-wrap items-center justify-between gap-3 text-sm text-gray-600 dark:text-gray-300">
@@ -2227,7 +2227,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                           onInstallRequirements={skill.install && skill.install.length > 0 ? () => openInstallRequirementsModal(skill) : undefined}
                           installingRequirements={installingSkillRequirementsName === skill.name}
                           setupHint={getSkillSetupHint(skill)}
-                          onOpenSetup={supportsDashboardSkillSetup(skill) ? () => openSkillSetupModal(skill) : undefined}
+                          onOpenSetup={getSkillSetupHint(skill) ? () => openSkillSetupModal(skill) : undefined}
                         />
                       )
                     })}
@@ -2285,7 +2285,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                       onInstallRequirements={skill.install && skill.install.length > 0 ? () => openInstallRequirementsModal(skill) : undefined}
                       installingRequirements={installingSkillRequirementsName === skill.name}
                       setupHint={getSkillSetupHint(skill)}
-                      onOpenSetup={supportsDashboardSkillSetup(skill) ? () => openSkillSetupModal(skill) : undefined}
+                      onOpenSetup={getSkillSetupHint(skill) ? () => openSkillSetupModal(skill) : undefined}
                     />
                   )
                 })}
@@ -2371,7 +2371,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                       onClick={() => openSkillSetupModal(viewingSkill)}
                       className="px-3 py-1.5 rounded-md bg-emerald-700 text-white hover:bg-emerald-800 text-sm font-medium"
                     >
-                      Complete Setup
+                      {viewingSkillSetupHint.mode === 'guided' ? 'Complete Setup' : 'View Setup'}
                     </button>
                   )}
                   {!editingSkill && (
@@ -2899,9 +2899,11 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
             <div className="w-full max-w-3xl rounded-xl bg-white shadow-xl dark:bg-gray-800">
               <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-700">
                 <div>
-                  <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Complete Setup</h2>
+                  <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">{pendingSkillSupportsDashboardSetup ? 'Complete Setup' : 'Setup Instructions'}</h2>
                   <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                    Finish auth/setup for <span className="font-medium text-gray-900 dark:text-gray-100">{pendingSetupSkill.name}</span> so agents can actually use it.
+                    {pendingSkillSupportsDashboardSetup
+                      ? <>Finish auth/setup for <span className="font-medium text-gray-900 dark:text-gray-100">{pendingSetupSkill.name}</span> so agents can actually use it.</>
+                      : <>Review the manual setup steps for <span className="font-medium text-gray-900 dark:text-gray-100">{pendingSetupSkill.name}</span> before assigning it to agents.</>}
                   </p>
                 </div>
                 <button
@@ -2920,14 +2922,16 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
               <div className="space-y-4 px-6 py-4">
                 <TermsRiskNotice
                   title="Auth and setup reminder"
-                  body="Completing skill setup may authenticate external accounts, grant runtime access, or store credentials and configuration. Only continue if you trust the skill and understand the permissions being granted."
+                  body={pendingSkillSupportsDashboardSetup
+                    ? 'Completing skill setup may authenticate external accounts, grant runtime access, or store credentials and configuration. Only continue if you trust the skill and understand the permissions being granted.'
+                    : 'Some skills still require manual setup in the host runtime or terminal. Review the commands and finish any interactive login or account configuration steps outside the dashboard before retrying the agent.'}
                 />
                 <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
-                  {getSkillSetupHint(pendingSetupSkill)?.message}
+                  {pendingSkillSetupHint?.message}
                 </div>
-                {(getSkillSetupHint(pendingSetupSkill)?.inputs || []).length > 0 && (
+                {pendingSkillSupportsDashboardSetup && (pendingSkillSetupHint?.inputs || []).length > 0 && (
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    {(getSkillSetupHint(pendingSetupSkill)?.inputs || []).map((input) => (
+                    {(pendingSkillSetupHint?.inputs || []).map((input) => (
                       <div key={input.key}>
                         <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-200">
                           {input.label}
@@ -2973,16 +2977,18 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                 >
                   {skillSetupDone ? 'Close' : 'Cancel'}
                 </button>
-                <button
-                  onClick={() => void completeSkillSetup(pendingSetupSkill)}
-                  disabled={
-                    runningSkillSetupName === pendingSetupSkill.name ||
-                    (getSkillSetupHint(pendingSetupSkill)?.inputs || []).some((input) => input.required && !String(skillSetupValues[input.key] || '').trim())
-                  }
-                  className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-gray-300 dark:disabled:bg-gray-600"
-                >
-                  {runningSkillSetupName === pendingSetupSkill.name ? 'Running Setup…' : (getSkillSetupHint(pendingSetupSkill)?.actionLabel || 'Complete Setup')}
-                </button>
+                {pendingSkillSupportsDashboardSetup && (
+                  <button
+                    onClick={() => void completeSkillSetup(pendingSetupSkill)}
+                    disabled={
+                      runningSkillSetupName === pendingSetupSkill.name ||
+                      (pendingSkillSetupHint?.inputs || []).some((input) => input.required && !String(skillSetupValues[input.key] || '').trim())
+                    }
+                    className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-gray-300 dark:disabled:bg-gray-600"
+                  >
+                    {runningSkillSetupName === pendingSetupSkill.name ? 'Running Setup…' : (pendingSkillSetupHint?.actionLabel || 'Complete Setup')}
+                  </button>
+                )}
               </div>
             </div>
           </div>
