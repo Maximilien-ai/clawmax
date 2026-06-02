@@ -2903,7 +2903,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                   <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                     {pendingSkillSupportsDashboardSetup
                       ? <>Finish auth/setup for <span className="font-medium text-gray-900 dark:text-gray-100">{pendingSetupSkill.name}</span> so agents can actually use it.</>
-                      : <>Review the manual setup steps for <span className="font-medium text-gray-900 dark:text-gray-100">{pendingSetupSkill.name}</span> before assigning it to agents.</>}
+                      : <>Review the manual setup steps for <span className="font-medium text-gray-900 dark:text-gray-100">{pendingSetupSkill.name}</span>. Some CLIs still require an interactive terminal flow that the dashboard cannot safely automate yet.</>}
                   </p>
                 </div>
                 <button

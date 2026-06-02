@@ -119,7 +119,8 @@ async function main() {
 
     const himalayaHint = getSkillSetupHint({ name: 'himalaya' })
     assert(!!himalayaHint, 'Expected Himalaya setup hint')
-    assert(himalayaHint?.commands?.includes('himalaya account configure'), 'Expected Himalaya account setup command hint')
+    assert(himalayaHint?.commands?.includes('himalaya account configure <account-name>'), 'Expected Himalaya account setup command hint')
+    assert(himalayaHint?.message.includes('interactive wizard'), 'Expected Himalaya setup warning to explain why dashboard automation is unavailable')
     assert(himalayaHint?.mode === 'manual', 'Expected Himalaya setup to remain manual-only until a guided flow exists')
   })
 

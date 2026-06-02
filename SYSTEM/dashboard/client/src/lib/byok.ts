@@ -106,6 +106,24 @@ export function resolveOllamaBaseUrlForRuntime(input: {
   return configuredBaseUrl
 }
 
+export function resolveOpenAiCompatibleBaseUrlForRuntime(input: {
+  configuredBaseUrl?: string | null
+  managedRuntime?: boolean
+  runtimeDefaultBaseUrl?: string | null
+}): string {
+  const configuredBaseUrl = normalizeOllamaBaseUrlCandidate(input.configuredBaseUrl)
+  const runtimeDefaultBaseUrl = normalizeOllamaBaseUrlCandidate(input.runtimeDefaultBaseUrl)
+  if (!input.managedRuntime || !runtimeDefaultBaseUrl) {
+    return configuredBaseUrl || runtimeDefaultBaseUrl
+  }
+  if (!configuredBaseUrl) return runtimeDefaultBaseUrl
+  if (configuredBaseUrl === runtimeDefaultBaseUrl) return configuredBaseUrl
+  if (isLocalOllamaBaseUrl(configuredBaseUrl) && !isLocalOllamaBaseUrl(runtimeDefaultBaseUrl)) {
+    return runtimeDefaultBaseUrl
+  }
+  return configuredBaseUrl
+}
+
 export type ProviderKeyMismatch = {
   provider: 'openai' | 'anthropic' | 'gemini'
   expectedLabel: string

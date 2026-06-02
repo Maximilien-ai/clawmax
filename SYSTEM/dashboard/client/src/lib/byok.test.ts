@@ -4,7 +4,7 @@
  * Run with: npx ts-node --transpileOnly client/src/lib/byok.test.ts
  */
 
-import { byokForRequest, detectProviderKeyMismatch, getAiGenerationReadiness, hasAiGenerationAccess, hasChatExecutionAccess, isOllamaUiAvailable, refreshModelsWithByok, resolveOllamaBaseUrlForRuntime, writeStoredByokKeys } from './byok'
+import { byokForRequest, detectProviderKeyMismatch, getAiGenerationReadiness, hasAiGenerationAccess, hasChatExecutionAccess, isOllamaUiAvailable, refreshModelsWithByok, resolveOllamaBaseUrlForRuntime, resolveOpenAiCompatibleBaseUrlForRuntime, writeStoredByokKeys } from './byok'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -191,6 +191,30 @@ async function main() {
     })
     assert(
       resolved === 'http://10.0.0.5:11434',
+      `Expected explicit custom runtime URL to win, got ${resolved}`
+    )
+  })
+
+  await test('managed on-prem OpenAI-compatible prefers runtime host bridge over stale localhost', () => {
+    const resolved = resolveOpenAiCompatibleBaseUrlForRuntime({
+      configuredBaseUrl: 'http://127.0.0.1:1234/v1',
+      managedRuntime: true,
+      runtimeDefaultBaseUrl: 'http://host.containers.internal:1234/v1',
+    })
+    assert(
+      resolved === 'http://host.containers.internal:1234/v1',
+      `Expected runtime host bridge URL, got ${resolved}`
+    )
+  })
+
+  await test('managed on-prem OpenAI-compatible preserves explicit non-local custom overrides', () => {
+    const resolved = resolveOpenAiCompatibleBaseUrlForRuntime({
+      configuredBaseUrl: 'http://10.0.0.5:1234/v1',
+      managedRuntime: true,
+      runtimeDefaultBaseUrl: 'http://host.containers.internal:1234/v1',
+    })
+    assert(
+      resolved === 'http://10.0.0.5:1234/v1',
       `Expected explicit custom runtime URL to win, got ${resolved}`
     )
   })

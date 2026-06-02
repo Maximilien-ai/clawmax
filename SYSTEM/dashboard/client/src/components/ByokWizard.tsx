@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from './Toast'
-import { buildByokVerificationFingerprint, detectProviderKeyMismatch, getByokDismissKey, isOllamaUiAvailable, readStoredByokKeys, resolveOllamaBaseUrlForRuntime, writeStoredByokKeys } from '../lib/byok'
+import { buildByokVerificationFingerprint, detectProviderKeyMismatch, getByokDismissKey, isOllamaUiAvailable, readStoredByokKeys, resolveOllamaBaseUrlForRuntime, resolveOpenAiCompatibleBaseUrlForRuntime, writeStoredByokKeys } from '../lib/byok'
 import { DEFAULT_VISIBLE_PARTNERS, getDefaultPartnerDefinitions } from '../lib/defaultPartners'
 import { BROWSER_VAULT_UPDATED_EVENT, readPartnerValuesFromSharedSecrets, readSharedSecrets, writePartnerValuesToSharedSecrets, writeSharedSecrets } from '../lib/localSecrets'
 
@@ -232,7 +232,11 @@ export function ByokWizard({
     }))
     setOllamaDefaultModel(stored.ollamaDefaultModel || '')
     setOpenaiCompatibleApiKey(stored.openaiCompatibleApiKey || '')
-    setOpenaiCompatibleBaseUrl(stored.openaiCompatibleBaseUrl || '')
+    setOpenaiCompatibleBaseUrl(resolveOpenAiCompatibleBaseUrlForRuntime({
+      configuredBaseUrl: stored.openaiCompatibleBaseUrl || '',
+      managedRuntime,
+      runtimeDefaultBaseUrl: defaultOpenAiCompatibleBaseUrl,
+    }))
     setOpenaiCompatibleDefaultModel(stored.openaiCompatibleDefaultModel || '')
     setPreferredModel(stored.preferredModel || '')
     setSystemPreferredModel(stored.systemPreferredModel || '')
@@ -375,7 +379,20 @@ export function ByokWizard({
           return isCustomCurrent ? current : nextDefault
         })
         setOllamaDefaultModel((current) => current || workspaceConfig.ollamaDefaultModel || '')
-        setOpenaiCompatibleBaseUrl((current) => current || workspaceConfig.openaiCompatibleBaseUrl || '')
+        setOpenaiCompatibleBaseUrl((current) => {
+          const nextDefault = resolveOpenAiCompatibleBaseUrlForRuntime({
+            configuredBaseUrl: workspaceConfig.openaiCompatibleBaseUrl || '',
+            managedRuntime,
+            runtimeDefaultBaseUrl: defaultOpenAiCompatibleBaseUrl,
+          })
+          const normalizedCurrent = resolveOpenAiCompatibleBaseUrlForRuntime({
+            configuredBaseUrl: current,
+            managedRuntime,
+            runtimeDefaultBaseUrl: defaultOpenAiCompatibleBaseUrl,
+          })
+          const isCustomCurrent = !!normalizedCurrent && normalizedCurrent !== nextDefault
+          return isCustomCurrent ? current : nextDefault
+        })
         setOpenaiCompatibleDefaultModel((current) => current || workspaceConfig.openaiCompatibleDefaultModel || '')
         setPartnerValues((current) => mergePartnerMaps(current, {
           ...Object.fromEntries(
@@ -994,7 +1011,7 @@ export function ByokWizard({
     }
     if (provider === 'openaiCompatible') {
       setOpenaiCompatibleApiKey('')
-      setOpenaiCompatibleBaseUrl('')
+      setOpenaiCompatibleBaseUrl(defaultOpenAiCompatibleBaseUrl)
       setOpenaiCompatibleDefaultModel('')
       setValidation((current) => ({ ...current, openaiCompatible: { status: 'idle', message: '' } }))
       updateStoredVerification((current) => { const next = { ...current }; delete next.openaiCompatible; return next })

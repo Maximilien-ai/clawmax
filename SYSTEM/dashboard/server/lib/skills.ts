@@ -169,9 +169,9 @@ const DEFAULT_SKILL_SETUP_REQUIREMENTS: Record<string, NonNullable<OpenClawSkill
   },
   himalaya: {
     label: 'Needs setup',
-    message: 'Himalaya needs an email account configured before an agent can use it.',
+    message: 'Himalaya needs an email account configured before an agent can use it. Its upstream CLI setup is an interactive wizard today, so the dashboard cannot safely automate it yet.',
     commands: [
-      'himalaya account configure',
+      'himalaya account configure <account-name>',
       'himalaya account list',
     ],
   },

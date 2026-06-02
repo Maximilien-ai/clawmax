@@ -886,11 +886,15 @@ test('withTemporaryAgentAuthProfiles strips the dashboard prefix for OpenAI-comp
     async () => {
       const currentConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
       assert(currentConfig.agents.list[0].model === 'qwen/qwen3.6-27b', `Expected execution override to strip openai-compatible prefix, got ${currentConfig.agents.list[0].model}`)
+      assert(currentConfig.models.providers['openai-compatible'].baseUrl === 'http://127.0.0.1:1234/v1', 'Expected temporary OpenAI-compatible base URL injected')
+      assert(currentConfig.models.providers['openai-compatible'].api === 'openai-compatible', 'Expected temporary OpenAI-compatible api marker injected')
+      assert(Array.isArray(currentConfig.models.providers['openai-compatible'].models), 'Expected temporary OpenAI-compatible provider models array injected')
     }
   )
 
   const restoredConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
   assert(restoredConfig.agents.list[0].model === 'openai-compatible/qwen/qwen3.6-27b', 'Expected saved dashboard model to be restored after execution')
+  assert(typeof restoredConfig.models === 'undefined', 'Expected temporary OpenAI-compatible provider config removed after execution')
 })
 
 test('withTemporaryAgentAuthProfiles preserves existing Ollama provider config fields while applying a temporary base URL', async () => {

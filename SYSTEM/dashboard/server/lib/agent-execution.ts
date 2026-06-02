@@ -562,8 +562,10 @@ function buildAuthProfiles(providerKeys: ProviderKeys, preferredProvider?: Execu
     }
   } else if (providerKeys.openaiCompatibleBaseUrl) {
     profiles['openai-key'] = { type: 'api_key', provider: 'openai', key: providerKeys.openaiCompatibleApiKey || 'openai-compatible' }
+    profiles['openai-compatible-key'] = { type: 'api_key', provider: 'openai-compatible', key: providerKeys.openaiCompatibleApiKey || 'openai-compatible' }
     if (preferredProvider === 'openai-compatible' || (!providerKeys.anthropic && preferredProvider !== 'gemini')) {
       lastGood.openai = 'openai-key'
+      lastGood['openai-compatible'] = 'openai-compatible-key'
     }
   }
   if (providerKeys.anthropic) {
@@ -636,6 +638,15 @@ export async function withTemporaryAgentAuthProfiles<T>(
       config: providerConfig && typeof providerConfig === 'object' ? cloneJsonValue(providerConfig) : providerConfig,
     }
   }
+  const readCurrentOpenAiCompatibleProviderConfig = () => {
+    if (!hadConfig) return { exists: false, config: undefined as Record<string, any> | undefined }
+    const config = readOpenClawConfigFile(configPath)
+    const providerConfig = config.models?.providers?.['openai-compatible']
+    return {
+      exists: Object.prototype.hasOwnProperty.call(config.models?.providers || {}, 'openai-compatible'),
+      config: providerConfig && typeof providerConfig === 'object' ? cloneJsonValue(providerConfig) : providerConfig,
+    }
+  }
   const applyOllamaProviderConfig = (baseUrl?: string) => {
     if (!hadConfig) return false
     const normalizedBaseUrl = baseUrl?.trim().replace(/\/+$/, '')
@@ -660,6 +671,30 @@ export async function withTemporaryAgentAuthProfiles<T>(
     writeOpenClawConfigFile(configPath, config)
     return true
   }
+  const applyOpenAiCompatibleProviderConfig = (baseUrl?: string) => {
+    if (!hadConfig) return false
+    const normalizedBaseUrl = baseUrl?.trim().replace(/\/+$/, '')
+    const config = readOpenClawConfigFile(configPath)
+    const providers = config.models?.providers || {}
+    const previousProviderConfig = providers['openai-compatible']
+    const nextProviderConfig = previousProviderConfig && typeof previousProviderConfig === 'object'
+      ? cloneJsonValue(previousProviderConfig)
+      : {}
+    if (normalizedBaseUrl) {
+      nextProviderConfig.baseUrl = normalizedBaseUrl
+    }
+    if (!nextProviderConfig.api) {
+      nextProviderConfig.api = 'openai-compatible'
+    }
+    if (!Array.isArray(nextProviderConfig.models)) {
+      nextProviderConfig.models = []
+    }
+    config.models = config.models || {}
+    config.models.providers = providers
+    config.models.providers['openai-compatible'] = nextProviderConfig
+    writeOpenClawConfigFile(configPath, config)
+    return true
+  }
   const restoreOllamaProviderConfig = (previous: { exists: boolean; config?: Record<string, any> }) => {
     if (!hadConfig) return
     const config = readOpenClawConfigFile(configPath)
@@ -669,6 +704,24 @@ export async function withTemporaryAgentAuthProfiles<T>(
       config.models.providers.ollama = previous.config
     } else {
       delete config.models.providers.ollama
+      if (Object.keys(config.models.providers).length === 0) {
+        delete config.models.providers
+      }
+      if (config.models && Object.keys(config.models).length === 0) {
+        delete config.models
+      }
+    }
+    writeOpenClawConfigFile(configPath, config)
+  }
+  const restoreOpenAiCompatibleProviderConfig = (previous: { exists: boolean; config?: Record<string, any> }) => {
+    if (!hadConfig) return
+    const config = readOpenClawConfigFile(configPath)
+    config.models = config.models || {}
+    config.models.providers = config.models.providers || {}
+    if (previous.exists) {
+      config.models.providers['openai-compatible'] = previous.config
+    } else {
+      delete config.models.providers['openai-compatible']
       if (Object.keys(config.models.providers).length === 0) {
         delete config.models.providers
       }
@@ -748,6 +801,50 @@ export async function withTemporaryAgentAuthProfiles<T>(
     })
   }
 
+  if (preferredProvider === 'openai-compatible') {
+    const currentConfigModel = readCurrentModel()
+    const previousModel = currentConfigModel.ok ? currentConfigModel.model : undefined
+    const previousOpenAiCompatibleProvider = readCurrentOpenAiCompatibleProviderConfig()
+    const normalizedOpenAiCompatibleBaseUrl = providerKeys.openaiCompatibleBaseUrl?.trim().replace(/\/+$/, '')
+    const executionModelOverride = toExecutionModelOverride(preferredModel, preferredProvider)
+    const shouldOverrideModel = Boolean(
+      hadConfig &&
+      executionModelOverride &&
+      executionModelOverride !== previousModel
+    )
+    const shouldInjectOpenAiCompatibleProvider = Boolean(
+      hadConfig &&
+      (
+        (normalizedOpenAiCompatibleBaseUrl && !previousOpenAiCompatibleProvider.exists) ||
+        (normalizedOpenAiCompatibleBaseUrl && previousOpenAiCompatibleProvider.config?.baseUrl !== normalizedOpenAiCompatibleBaseUrl) ||
+        (previousOpenAiCompatibleProvider.exists && !previousOpenAiCompatibleProvider.config?.api)
+      )
+    )
+
+    if (!shouldOverrideModel && !shouldInjectOpenAiCompatibleProvider) {
+      return await fn()
+    }
+
+    return await runWithConfigMutationLock(async () => {
+      if (shouldInjectOpenAiCompatibleProvider) {
+        applyOpenAiCompatibleProviderConfig(normalizedOpenAiCompatibleBaseUrl)
+      }
+      if (shouldOverrideModel) {
+        applyModelOverride(executionModelOverride)
+      }
+      try {
+        return await fn()
+      } finally {
+        if (shouldOverrideModel) {
+          restoreModelOverride(previousModel)
+        }
+        if (shouldInjectOpenAiCompatibleProvider) {
+          restoreOpenAiCompatibleProviderConfig(previousOpenAiCompatibleProvider)
+        }
+      }
+    })
+  }
+
   const agentDir = execution.agentDir || path.join(process.env.HOME || '', '.openclaw', 'agents', agentId, 'agent')
   const authProfilePath = path.join(agentDir, 'auth-profiles.json')
   fs.mkdirSync(agentDir, { recursive: true })
@@ -757,11 +854,12 @@ export async function withTemporaryAgentAuthProfiles<T>(
   // If preferred provider's key is missing, fall back to available provider's model
   let effectiveModel = preferredModel
   let effectiveProvider = preferredProvider
+  const prefersOpenAiFamily = preferredProvider === 'openai'
   if (preferredProvider === 'anthropic' && !providerKeys.anthropic && providerKeys.openai) {
     effectiveModel = 'openai/gpt-4o'
     effectiveProvider = 'openai'
     console.log(`[Auth] Agent ${agentId}: no Anthropic key, falling back to ${effectiveModel}`)
-  } else if ((preferredProvider === 'openai' || preferredProvider === 'openai-compatible') && !providerKeys.openai && !providerKeys.openaiCompatibleBaseUrl && providerKeys.anthropic) {
+  } else if (prefersOpenAiFamily && !providerKeys.openai && !providerKeys.openaiCompatibleBaseUrl && providerKeys.anthropic) {
     effectiveModel = 'anthropic/claude-sonnet-4-20250514'
     effectiveProvider = 'anthropic'
     console.log(`[Auth] Agent ${agentId}: no OpenAI key, falling back to ${effectiveModel}`)
