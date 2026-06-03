@@ -165,3 +165,17 @@ test('skill or integration recommendation includes create skill with AI follow-t
   assert.equal(skillAction?.action, 'create-ai')
   assert.equal(skillAction?.page, 'skills')
 })
+
+test('github repo maintenance prompt prefers the ClawMax Dev Team template', () => {
+  const result = buildAiBuilderRecommendation('create a team of agents to help me maintain Maximilien-ai/clawmax project on github')
+  assert.equal(result.intent, 'team_template')
+  assert.equal(result.matchedAssets.organizationTemplates[0]?.name, 'ClawMax Dev Team')
+  assert.equal(result.recommendedPath.primaryAction.templateName, 'ClawMax Dev Team')
+  assert.equal(result.recommendedPath.primaryAction.templateRefineMode, true)
+})
+
+test('team prompts do not suggest irrelevant single-agent template confirmations', () => {
+  const result = buildAiBuilderRecommendation('create a team of agents to help me maintain Maximilien-ai/clawmax project on github')
+  const labels = result.confirmationOptions.map((option) => option.label)
+  assert(!labels.includes('Use Student Research'), `Expected confirmation labels to exclude Student Research, got ${labels.join(', ')}`)
+})

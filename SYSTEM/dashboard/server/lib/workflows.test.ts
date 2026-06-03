@@ -42,6 +42,8 @@ import {
   persistWorkflowExecutionOutputArtifacts,
   resolveTargetTeamAgentIds,
   extractWorkflowAgentResultPayload,
+  isBenignOpenClawRuntimeWarning,
+  stripBenignOpenClawRuntimeWarnings,
   summarizeAgentInputRequest,
 } from './workflows'
 
@@ -101,6 +103,23 @@ test('extractWorkflowAgentResultPayload falls back to stderr json when stdout is
     'Gateway warning: embedded fallback engaged\n{"payloads":[{"text":"hello from stderr json"}]}'
   )
   assert(payload.includes('"hello from stderr json"'), `Expected stderr JSON payload, got ${payload}`)
+})
+
+test('extractWorkflowAgentResultPayload ignores benign plugin symlink warnings', () => {
+  const payload = extractWorkflowAgentResultPayload(
+    '',
+    '[skills] failed to create plugin skill symlink "/app/DATA/.home/.openclaw/plugin-skills/browser-automation" → "/usr/local/lib/node_modules/openclaw/dist/extensions/browser/skills/browser-automation": Error: EEXIST: file already exists, symlink\n{"payloads":[{"text":"workflow output"}]}'
+  )
+  assert(payload.includes('"workflow output"'), `Expected stderr JSON payload after stripping benign warnings, got ${payload}`)
+})
+
+test('stripBenignOpenClawRuntimeWarnings removes idempotent symlink warnings', () => {
+  const cleaned = stripBenignOpenClawRuntimeWarnings([
+    '[skills] failed to create plugin skill symlink "/plugin" → "/target": Error: EEXIST: file already exists, symlink',
+    'real output line',
+  ].join('\n'))
+  assert(cleaned === 'real output line', `Unexpected cleaned warning output: ${cleaned}`)
+  assert(isBenignOpenClawRuntimeWarning('[skills] failed to create plugin skill symlink "/plugin" → "/target": Error: EEXIST: file already exists, symlink') === true, 'Expected EEXIST plugin symlink warning to be benign')
 })
 
 // ============================================================================

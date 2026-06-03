@@ -1,6 +1,7 @@
 import React, { useMemo, useRef, useEffect, useState } from 'react'
 import TruncatedText from './TruncatedText'
 import { getWorkflowDisplayName } from '../lib/workflowDisplay'
+import { getWorkflowDagScaledCanvasStyle } from '../lib/workflowDagZoom'
 
 interface Workflow {
   id: string
@@ -234,6 +235,7 @@ export default function WorkflowDAG({
   const forestLayouts = useMemo(() => forests.map(f => ({ workflows: f, ...layoutDAG(f) })), [forests])
   const groupedForestLayouts = useMemo(() => groupForestLayouts(forestLayouts), [forestLayouts])
   const containerRef = useRef<HTMLDivElement>(null)
+  const scaledCanvasRef = useRef<HTMLDivElement>(null)
   const forestRefs = useRef<Map<number, HTMLDivElement>>(new Map())
   const nodeRefs = useRef<Map<string, HTMLDivElement>>(new Map())
   const [linesByForest, setLinesByForest] = useState<Map<number, Array<{ x1: number; y1: number; x2: number; y2: number; status: string; fromId: string; toId: string; kind: 'dependency' | 'handoff' }>>>(new Map())
@@ -241,6 +243,7 @@ export default function WorkflowDAG({
   const [lastAction, setLastAction] = useState<{ type: 'add' | 'remove'; fromId: string; toId: string } | null>(null)
   const [zoom, setZoom] = useState(1)
   const [collapsedForests, setCollapsedForests] = useState<Set<string>>(new Set())
+  const [scaledCanvasSize, setScaledCanvasSize] = useState<{ width: number; height: number }>({ width: 0, height: 0 })
 
   // Escape key cancels connecting, Ctrl+Z undoes last action
   useEffect(() => {
@@ -308,6 +311,25 @@ export default function WorkflowDAG({
     return () => clearTimeout(timer)
   }, [forestLayouts, workflows, zoom])
 
+  useEffect(() => {
+    const element = scaledCanvasRef.current
+    if (!element) return
+
+    const updateSize = () => {
+      setScaledCanvasSize({
+        width: element.scrollWidth || element.offsetWidth || 0,
+        height: element.scrollHeight || element.offsetHeight || 0,
+      })
+    }
+
+    updateSize()
+    if (typeof ResizeObserver === 'undefined') return
+
+    const observer = new ResizeObserver(() => updateSize())
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [forestLayouts, groupedForestLayouts, collapsedForests, connectingFrom, lastAction, selectionMode, selectedId, selectedWorkflowIds, workflows])
+
   if (workflows.length === 0) {
     return (
       <div className="text-center py-8 text-gray-400 text-sm">
@@ -336,7 +358,11 @@ export default function WorkflowDAG({
     <div ref={containerRef} className="relative overflow-auto" style={{ maxHeight: '70vh' }}
       onWheel={(e) => { if (e.ctrlKey || e.metaKey) { e.preventDefault(); setZoom(z => Math.max(0.25, Math.min(2, z - e.deltaY * 0.002))) } }}
     >
-    <div style={{ transform: `scale(${zoom})`, transformOrigin: 'top left', minWidth: zoom < 1 ? `${100 / zoom}%` : undefined }}>
+    {(() => {
+      const styles = getWorkflowDagScaledCanvasStyle(zoom, scaledCanvasSize.width, scaledCanvasSize.height)
+      return (
+        <div style={styles.outer}>
+          <div ref={scaledCanvasRef} style={styles.inner}>
       {/* Aggregate progress */}
       <div className="px-4 pt-3 pb-1 flex items-center gap-3">
         <div className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
@@ -624,7 +650,10 @@ export default function WorkflowDAG({
           </div>
         )
       })}
-    </div>
+          </div>
+        </div>
+      )
+    })()}
   </div>
 </div>
   )

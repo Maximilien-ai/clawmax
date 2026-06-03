@@ -464,6 +464,24 @@ export function detectParticipantReportedFailure(agentText: string): string | nu
   return null
 }
 
+const BENIGN_OPENCLAW_RUNTIME_WARNING_PATTERNS = [
+  /\[skills\]\s+failed to create plugin skill symlink\b.*\bEEXIST\b/i,
+  /\[skills\]\s+failed to create plugin skill symlink\b.*\bfile already exists\b/i,
+]
+
+export function isBenignOpenClawRuntimeWarning(line: string): boolean {
+  const text = line.trim()
+  return BENIGN_OPENCLAW_RUNTIME_WARNING_PATTERNS.some((pattern) => pattern.test(text))
+}
+
+export function stripBenignOpenClawRuntimeWarnings(text: string): string {
+  return text
+    .split('\n')
+    .filter((line) => !isBenignOpenClawRuntimeWarning(line))
+    .join('\n')
+    .trim()
+}
+
 function formatParticipantFailure(reportedFailure: string): string {
   if (/^LLM request rejected:/i.test(reportedFailure) || /usage limits|quota|insufficient_quota/i.test(reportedFailure)) {
     return `Model provider rejected the request. Check the active model account, quota, or billing state. Raw error: ${reportedFailure}`
@@ -1778,7 +1796,7 @@ export function triggerWorkflow(workflowId: string, options?: {
           })
 
           const agentResult = agentResponse as any
-          const rawAgentText = agentResult.text || ''
+          const rawAgentText = stripBenignOpenClawRuntimeWarnings(agentResult.text || '')
           const agentText = enrichAgentContextOverflow(participant.agentId, rawAgentText)
           const agentMeta = agentResult.meta || {}
           const reportedFailure = detectParticipantReportedFailure(agentText)
@@ -2073,7 +2091,7 @@ export function extractWorkflowAgentResultPayload(stdout: string, stderr: string
   const trimmedStdout = stdout.trim()
   if (trimmedStdout) return trimmedStdout
 
-  const trimmedStderr = stderr.trim()
+  const trimmedStderr = stripBenignOpenClawRuntimeWarnings(stderr)
   if (!trimmedStderr) return ''
 
   const jsonObjectStart = trimmedStderr.indexOf('{')

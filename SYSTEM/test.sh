@@ -350,6 +350,17 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Workflow DAG zoom helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/workflowDagZoom.test.ts > /tmp/clawmax-workflow-dag-zoom.out 2>&1 || true
+if grep -q "workflowDagZoom.test.ts: ok" /tmp/clawmax-workflow-dag-zoom.out; then
+  workflow_dag_zoom_count=$(grep -c "^✓" /tmp/clawmax-workflow-dag-zoom.out | tr -cd '0-9')
+  pass "Workflow DAG zoom helper unit tests (${workflow_dag_zoom_count:-?} tests)"
+else
+  cat /tmp/clawmax-workflow-dag-zoom.out
+  fail "Workflow DAG zoom helper unit tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Skill registry unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/skill-registry.test.ts > /tmp/clawmax-skill-registry.out 2>&1 || true
 if grep -q "tests passed" /tmp/clawmax-skill-registry.out; then

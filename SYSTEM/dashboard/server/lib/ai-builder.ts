@@ -162,12 +162,14 @@ const NON_EVENT_DOMAIN_KEYWORDS = ['astronomy', 'telescope', 'meteor', 'physics'
 const OPERATIONAL_PROMPT_KEYWORDS = ['manage', 'planning', 'plan', 'organize', 'coordinate', 'coordination', 'host', 'run', 'monthly']
 const OPERATIONAL_TEMPLATE_KEYWORDS = ['logistics', 'run-of-show', 'guest', 'guests', 'host', 'check-in', 'readiness', 'operations', 'ops', 'agenda', 'speaker', 'venue', 'follow-up']
 const ANALYTICAL_TEMPLATE_KEYWORDS = ['analysis', 'analyzing', 'research', 'eval', 'evaluation', 'digest', 'signals']
+const REPO_MAINTENANCE_PROMPT_KEYWORDS = ['github', 'repo', 'repository', 'pull request', 'pull requests', 'issue', 'issues', 'maintain', 'maintenance', 'release', 'releases', 'tests', 'test suite', 'codebase', 'clawmax']
+const REPO_MAINTENANCE_TEMPLATE_KEYWORDS = ['clawmax', 'dev team', 'triage', 'code review', 'release', 'qa', 'testing', 'github', 'gh-issues', 'workspace-ls', 'pull request', 'issue triage', 'test suite']
 const EDUCATION_PROMPT_KEYWORDS = ['school', 'student', 'students', 'homework', 'study', 'subject', 'subjects', 'tutor', 'tutoring', 'class', 'classes', 'parent', 'parents', 'assignment', 'assignments']
 const EDUCATION_TEMPLATE_KEYWORDS = ['school', 'student', 'students', 'homework', 'study', 'study support', 'tutor', 'tutoring', 'assignment', 'assignments', 'project coach', 'review tutor', 'advisor', 'course']
 const RESEARCH_PROMPT_KEYWORDS = ['research', 'experiment', 'experiments', 'paper', 'papers', 'advisor', 'semester', 'reading', 'notes', 'methodology', 'project']
 const RESEARCH_TEMPLATE_KEYWORDS = ['research', 'literature', 'analysis', 'methodology', 'advisor', 'paper', 'writing', 'draft', 'experiment', 'findings', 'citations']
 const INTERNAL_TEMPLATE_KEYWORDS = ['hack', 'hackathon', 'test', 'system', 'clawmax', 'dev']
-const INTERNAL_TEMPLATE_ALLOW_PROMPT_KEYWORDS = ['hackathon', 'system test', 'clawmax', 'dev team', 'platform validation', 'release test']
+const INTERNAL_TEMPLATE_ALLOW_PROMPT_KEYWORDS = ['hackathon', 'system test', 'clawmax', 'dev team', 'platform validation', 'release test', 'github repo', 'repository maintenance', 'maintain github', 'maintain repo']
 const TEMPLATE_FAMILY_KEYWORDS: Record<AiBuilderTemplateFamily, string[]> = {
   operations_general: ['operations', 'ops', 'handoff', 'handoffs', 'delivery', 'execution', 'status'],
   event_ops: ['event', 'events', 'speaker', 'conference', 'venue', 'run-of-show', 'guest', 'guests', 'logistics', 'agenda', 'attendees', 'gallery', 'artist', 'show', 'shows', 'exhibit', 'exhibition'],
@@ -599,6 +601,18 @@ function templateDomainScoreBoost(prompt: string, record: SearchableRecord, type
     boost -= 10
   }
 
+  const repoMaintenancePromptMatches = REPO_MAINTENANCE_PROMPT_KEYWORDS.filter((keyword) => normalizedPrompt.includes(keyword))
+  const repoMaintenanceTemplateMatches = REPO_MAINTENANCE_TEMPLATE_KEYWORDS.filter((keyword) => haystack.includes(keyword))
+  if (repoMaintenancePromptMatches.length > 0 && repoMaintenanceTemplateMatches.length > 0) {
+    boost += 14 + Math.min(repoMaintenancePromptMatches.length, 5) * 2 + Math.min(repoMaintenanceTemplateMatches.length, 4)
+  }
+  if (repoMaintenancePromptMatches.length > 1 && record.family === 'education_learning') {
+    boost -= 12
+  }
+  if (repoMaintenancePromptMatches.length > 1 && record.family === 'research_analysis' && repoMaintenanceTemplateMatches.length === 0) {
+    boost -= 10
+  }
+
   const isInternalTemplate = INTERNAL_TEMPLATE_KEYWORDS.some((keyword) => haystack.includes(keyword))
   const promptAllowsInternalTemplate = INTERNAL_TEMPLATE_ALLOW_PROMPT_KEYWORDS.some((keyword) => normalizedPrompt.includes(keyword))
   if (isInternalTemplate && !promptAllowsInternalTemplate) {
@@ -740,7 +754,7 @@ function buildConfirmationOptions(args: {
       },
     })
   }
-  if (topAgentTemplate) {
+  if (topAgentTemplate && scope === 'single_agent') {
     options.push({
       id: 'confirm-agent-template',
       label: `Use ${topAgentTemplate.name}`,
@@ -1047,6 +1061,7 @@ function shouldPreferNewTeamTemplate(args: {
   if (scope !== 'team' && scope !== 'team_of_teams') return false
   const topOrgTemplate = matchedOrganizationTemplates[0]
   if (!topOrgTemplate) return true
+  if (isRepoMaintenancePrompt(prompt) && /clawmax dev team/i.test(topOrgTemplate.name)) return false
   const { overlap, overlapRatio, topTemplateScore } = getOrganizationTemplateOverlap({
     prompt,
     topTemplate: topOrgTemplate,
@@ -1059,6 +1074,12 @@ function shouldPreferNewTeamTemplate(args: {
   if (operation === 'create_new') return looksGeneric || weakFamilySignal || topTemplateScore < 10
   if (operation === 'unknown') return (looksGeneric || weakFamilySignal) && topTemplateScore < 11
   return false
+}
+
+function isRepoMaintenancePrompt(prompt: string): boolean {
+  const normalized = prompt.toLowerCase()
+  const matches = REPO_MAINTENANCE_PROMPT_KEYWORDS.filter((keyword) => normalized.includes(keyword))
+  return matches.length >= 2
 }
 
 export function buildAiBuilderRecommendation(prompt: string): AiBuilderRecommendation {
@@ -1083,6 +1104,7 @@ export function buildAiBuilderRecommendation(prompt: string): AiBuilderRecommend
   const topWorkflow = matchedWorkflows[0]
   const explicitAgentReference = extractExplicitAgentReference(normalizedPrompt)
   const explicitAgentReferenceMatched = isCloseAgentReferenceMatch(explicitAgentReference, topAgent) && (topAgent?.score || 0) >= 6
+  const explicitExistingAgentReference = /\b(?:my|our|current|existing)\s+[a-z0-9][a-z0-9&/._ -]{0,60}?\s+agent\b/i.test(normalizedPrompt)
   const hasWorkflowLanguage = includesAny(normalizedPrompt, WORKFLOW_PROMPT_KEYWORDS)
   const hasSkillLanguage = includesAny(normalizedPrompt, SKILL_KEYWORDS)
   const wantsAgentChat = hasAgentChatLanguage(normalizedPrompt)
@@ -1232,7 +1254,7 @@ export function buildAiBuilderRecommendation(prompt: string): AiBuilderRecommend
             ]
       break
     case 'skill_or_integration':
-      if (explicitAgentReference && !explicitAgentReferenceMatched) {
+      if (explicitAgentReference && !explicitAgentReferenceMatched && !explicitExistingAgentReference) {
         recommendedPath = {
           title: `Create ${explicitAgentReference} agent first`,
           reasoning: topSkill
