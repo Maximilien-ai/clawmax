@@ -28,7 +28,7 @@ import {
 } from '../lib/headerControls'
 import { ProductIconCell, resolveSkillVisual, resolveCategoryVisual } from '../lib/productIcons'
 import { getPartnerLogoClass } from '../lib/partnerCatalog'
-import { listServerManagedIntegrationSecretKeys } from '../lib/keysSecretsInventory'
+import { buildServerManagedWorkspaceEntries } from '../lib/keysSecretsInventory'
 
 // Use relative path so it works with ngrok and localhost
 const API_BASE = ''
@@ -455,7 +455,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
     slug: string
     fields?: Array<{ key: string; secret?: boolean; storage?: 'browser' | 'server' }>
   }>>([])
-  const [serverPartnerSecretPresence, setServerPartnerSecretPresence] = useState<Record<string, Record<string, boolean>>>({})
+  const [serverPartnerSecretSummaries, setServerPartnerSecretSummaries] = useState<Record<string, Record<string, { present?: boolean; preview?: string }>>>({})
 
   const focusSkill = (skillName: string) => {
     const normalized = skillName.trim().toLowerCase()
@@ -513,11 +513,13 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
 
   function refreshIntegrationSecretPresence() {
     fetch('/api/integrations/config')
-      .then((res) => (res.ok ? res.json() : { secretPresence: {} }))
+      .then((res) => (res.ok ? res.json() : { secretPresence: {}, secretSummaries: {} }))
       .then((data) => {
-        setServerPartnerSecretPresence(typeof data?.secretPresence === 'object' && data.secretPresence ? data.secretPresence : {})
+        setServerPartnerSecretSummaries(typeof data?.secretSummaries === 'object' && data.secretSummaries ? data.secretSummaries : {})
       })
-      .catch(() => setServerPartnerSecretPresence({}))
+      .catch(() => {
+        setServerPartnerSecretSummaries({})
+      })
   }
 
   useEffect(() => {
@@ -1445,9 +1447,9 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
   const hiddenRegistryResultsCount = registryResults.length - visibleRegistryResults.length
   const registryCompatibilityNote = buildRegistryCompatibilityNote(runtimePlatform)
   const activeRegistryProvider = REGISTRY_PROVIDERS.find((provider) => provider.id === registryProvider) || REGISTRY_PROVIDERS[0]
-  const serverManagedIntegrationSecretKeys = useMemo(
-    () => listServerManagedIntegrationSecretKeys(partnerDefinitions, serverPartnerSecretPresence),
-    [partnerDefinitions, serverPartnerSecretPresence]
+  const serverManagedIntegrationSecrets = useMemo(
+    () => buildServerManagedWorkspaceEntries(partnerDefinitions, serverPartnerSecretSummaries),
+    [partnerDefinitions, serverPartnerSecretSummaries]
   )
   const sharedAvailableSecretKeys = useMemo(() => {
     const keys = new Set<string>()
@@ -1457,11 +1459,11 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
     for (const [key, value] of Object.entries(sharedWorkspaceSecrets)) {
       if (value.trim()) keys.add(key)
     }
-    for (const key of serverManagedIntegrationSecretKeys) {
-      keys.add(key)
+    for (const [key, value] of Object.entries(serverManagedIntegrationSecrets)) {
+      if (value.trim()) keys.add(key)
     }
     return keys
-  }, [serverManagedIntegrationSecretKeys, sharedGlobalSecrets, sharedWorkspaceSecrets])
+  }, [serverManagedIntegrationSecrets, sharedGlobalSecrets, sharedWorkspaceSecrets])
   function getAvailableSecretKeysForSkill(skill: Pick<OpenClawSkill, 'name'>, localSecretsOverride?: Record<string, string>) {
     const keys = new Set(sharedAvailableSecretKeys)
     const localSecrets = localSecretsOverride || readLocalSecrets('skill', skill.name)
