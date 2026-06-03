@@ -1,5 +1,5 @@
 import assert from 'assert'
-import { buildRegistryCompatibilityNote, buildSkillsPageCountLabel } from './skillsPageFlow'
+import { buildRegistryCompatibilityNote, buildSkillsPageCountLabel, partitionSkillsBySection } from './skillsPageFlow'
 
 function test(name: string, fn: () => void) {
   try {
@@ -21,6 +21,21 @@ test('skills page registry note is Linux-specific on Linux runtimes', () => {
 
 test('skills page registry note is macOS-specific on darwin runtimes', () => {
   assert.equal(buildRegistryCompatibilityNote('darwin'), 'Showing skills compatible with this macOS runtime.')
+})
+
+test('skills page partitions partner-backed workspace skills into a dedicated section', () => {
+  const partitioned = partitionSkillsBySection(
+    [
+      { name: 'custom-notes', source: 'workspace' as const },
+      { name: 'resend', source: 'workspace' as const },
+      { name: 'github', source: 'bundled' as const },
+    ],
+    ['resend', 'resend-cli']
+  )
+
+  assert.deepEqual(partitioned.userSkills.map((skill) => skill.name), ['custom-notes'])
+  assert.deepEqual(partitioned.partnerSkills.map((skill) => skill.name), ['resend'])
+  assert.deepEqual(partitioned.builtInSkills.map((skill) => skill.name), ['github'])
 })
 
 console.log('skillsPageFlow.test.ts: ok')

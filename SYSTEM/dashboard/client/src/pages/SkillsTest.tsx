@@ -10,13 +10,13 @@ import { readLocalSecrets, writeLocalSecrets, writeSharedSecrets } from '../lib/
 import { getAiGenerationReadiness, hasAiGenerationAccess, readStoredByokKeys } from '../lib/byok'
 import { getSkillAssignmentBuckets } from '../lib/skillAssignments'
 import { summarizeSkillDeleteImpact } from '../lib/skillsDeletion'
-import { filterAssignableAgents, isDeletableUserSkill, partitionSelectedSkills, partitionSkillsBySource, toggleItemSelection, toggleVisibleSelections } from '../lib/skillsSelection'
+import { filterAssignableAgents, isDeletableUserSkill, partitionSelectedSkills, toggleItemSelection, toggleVisibleSelections } from '../lib/skillsSelection'
 import { getSkillSetupHint, maybeWarnSkillSetup, supportsDashboardInteractiveSkillSetup, supportsDashboardSkillSetup } from '../lib/skillSetup'
 import { collectSkillTags, matchesSelectedSkillTags } from '../lib/skillTags'
 import { buildAgentSkillsScope, buildAssignedSkillBadges } from '../lib/agentSkillsScope'
 import { getRegistrySkillCompatibility, normalizeRuntimePlatform, type RuntimePlatform } from '../lib/skillPlatform'
 import { getDashboardInstallRequirementCommands } from '../lib/skillInstall'
-import { buildRegistryCompatibilityNote, buildSkillsPageCountLabel } from '../lib/skillsPageFlow'
+import { buildRegistryCompatibilityNote, buildSkillsPageCountLabel, partitionSkillsBySection } from '../lib/skillsPageFlow'
 import { useAuth } from '../contexts/AuthContext'
 import { expandPromptWithAI } from '../lib/aiPrompt'
 import {
@@ -1295,9 +1295,18 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
     return a.name.localeCompare(b.name)
   })
 
-  const { userSkills: sortedUserSkills, builtInSkills: sortedBuiltInSkills } = useMemo(
-    () => partitionSkillsBySource(sortedSkills),
-    [sortedSkills]
+  const partnerSkillNames = useMemo(
+    () => Array.from(new Set(partnerInstallers.flatMap((partner) => partner.skills.items || []))),
+    [partnerInstallers]
+  )
+
+  const {
+    userSkills: sortedUserSkills,
+    partnerSkills: sortedPartnerSkills,
+    builtInSkills: sortedBuiltInSkills,
+  } = useMemo(
+    () => partitionSkillsBySection(sortedSkills, partnerSkillNames),
+    [partnerSkillNames, sortedSkills]
   )
 
   const closeMatchSkills = useMemo(() => {
@@ -2336,7 +2345,71 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                 )}
               </div>
             )}
-            {sortedUserSkills.length > 0 && sortedBuiltInSkills.length > 0 && (
+            {sortedPartnerSkills.length > 0 && (
+              <div className="mb-4">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Partner Skills</h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      Skills imported from enabled partner integrations and partner-backed catalogs.
+                    </p>
+                  </div>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">
+                    {sortedPartnerSkills.length} skill{sortedPartnerSkills.length !== 1 ? 's' : ''}
+                  </span>
+                </div>
+                {viewMode === 'list' ? (
+                  <SkillsListTable
+                    skills={sortedPartnerSkills}
+                    assignedSkills={assignedSkills}
+                    skillUsage={skillUsage}
+                    selectionMode={selectionMode}
+                    selectedSkillIds={selectedSkillIds}
+                    onToggle={toggleSkill}
+                    onView={openSkillViewer}
+                    onDelete={(skill) => {
+                      setPendingDeleteSkillNames([skill.name])
+                      setShowBulkDeleteConfirm(true)
+                    }}
+                    canDelete={isDeletableUserSkill}
+                    onToggleSelect={(skillName) => setSelectedSkillIds((current) => toggleItemSelection(current, skillName))}
+                    onToggleSelectAll={() => setSelectedSkillIds((current) => toggleVisibleSelections(current, sortedPartnerSkills.map((skill) => skill.name)))}
+                    getSetupHint={getSkillSetupHint}
+                  />
+                ) : (
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+                    {sortedPartnerSkills.map(skill => {
+                      const users = skillUsage.get(skill.name) || []
+                      return (
+                        <SkillCard
+                          key={skill.name}
+                          skill={skill}
+                          assigned={assignedSkills.has(skill.name)}
+                          onToggle={() => toggleSkill(skill.name)}
+                          onView={() => openSkillViewer(skill)}
+                          canDelete={isDeletableUserSkill(skill)}
+                          onDelete={() => {
+                            setPendingDeleteSkillNames([skill.name])
+                            setShowBulkDeleteConfirm(true)
+                          }}
+                          usageCount={users.length}
+                          usedBy={users}
+                          selectionMode={selectionMode}
+                          isSelected={selectedSkillIds.has(skill.name)}
+                          onToggleSelect={() => setSelectedSkillIds((current) => toggleItemSelection(current, skill.name))}
+                          onInstallRequirements={skill.install && skill.install.length > 0 ? () => openInstallRequirementsModal(skill) : undefined}
+                          installingRequirements={installingSkillRequirementsName === skill.name}
+                          setupHint={getSkillSetupHint(skill)}
+                          onOpenSetup={getSkillSetupHint(skill) ? () => openSkillSetupModal(skill) : undefined}
+                          runtimePlatform={runtimePlatform}
+                        />
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+            {(sortedUserSkills.length > 0 || sortedPartnerSkills.length > 0) && sortedBuiltInSkills.length > 0 && (
               <div className="pt-2">
                 <div className="mb-3 flex items-center justify-between gap-3">
                   <div>
