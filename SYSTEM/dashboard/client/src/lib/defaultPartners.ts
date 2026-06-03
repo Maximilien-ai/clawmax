@@ -111,7 +111,7 @@ export const DEFAULT_PARTNER_DEFINITIONS: DefaultPartnerDefinition[] = [
   {
     slug: 'resend',
     name: 'Resend',
-    logoUrl: 'https://resend.com/static/logo.svg',
+    logoUrl: 'https://cdn.resend.com/brand/resend-wordmark-black.svg',
     website: 'https://resend.com',
     docsUrl: 'https://resend.com/docs',
     description: 'Transactional email delivery for agent notifications, outbound messages, and React Email workflows.',
