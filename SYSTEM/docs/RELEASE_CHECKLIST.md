@@ -101,10 +101,15 @@ Use [MANUAL_RELEASE_SMOKE_CHECKLIST.md](MANUAL_RELEASE_SMOKE_CHECKLIST.md) as th
   - confirm active workspace stays selected
 - Workspaces Integrations
   - verify the `Workspaces Integrations` entry is visible after login
-  - verify Models / Senso / Opik / GitHub sections render
+  - verify Models / Senso / Opik / GitHub / Resend sections render
   - verify masked provider keys can be saved locally for dev flow testing
   - verify validation shows live/fallback status clearly
   - verify direct agent chat and manual workflow execution use the configured provider/defaults
+  - verify partner tabs, select-all/unselect-all behavior, and locked Opik behavior are correct when Opik is runtime-configured
+- Partner-backed Skills
+  - verify partner-backed skills appear under `Partner Skills`
+  - verify Resend partner browse/import flow can add skills to the workspace
+  - verify one imported partner skill shows the expected setup/install guidance
 - Activity / Budget / Logs
   - verify built-in/system agents appear separately after AI Builder or AI Generate calls when metering is enabled
   - verify System Logs refresh and export work

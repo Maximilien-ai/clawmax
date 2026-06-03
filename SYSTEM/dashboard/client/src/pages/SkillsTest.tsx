@@ -27,6 +27,7 @@ import {
   headerToggleButtonClass,
 } from '../lib/headerControls'
 import { ProductIconCell, resolveSkillVisual, resolveCategoryVisual } from '../lib/productIcons'
+import { getPartnerLogoClass } from '../lib/partnerCatalog'
 
 // Use relative path so it works with ngrok and localhost
 const API_BASE = ''
@@ -394,8 +395,10 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
       items?: string[]
       matchNames?: string[]
       matchPrefixes?: string[]
+      sourceUrl?: string
     }
   }>>([])
+  const [focusedPartnerSlug, setFocusedPartnerSlug] = useState<string | null>(null)
   const [partnerInstalling, setPartnerInstalling] = useState<string | null>(null)
   const [installedPartnerSlugs, setInstalledPartnerSlugs] = useState<Set<string>>(new Set())
   const [showPartnerInstallers, setShowPartnerInstallers] = useState(false)
@@ -828,9 +831,10 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
     }
   }
 
-  function openImportDialog(source: 'local' | 'github' | 'registry' | 'partner' | 'ai') {
+  function openImportDialog(source: 'local' | 'github' | 'registry' | 'partner' | 'ai', partnerSlug?: string | null) {
     setError(null)
     setImportSource(source)
+    setFocusedPartnerSlug(source === 'partner' ? (partnerSlug || null) : null)
     setShowImportDialog(true)
     setShowSkillActionsMenu(false)
     if (source !== 'registry') {
@@ -894,6 +898,54 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
       }
     } catch (error: any) {
       setError(error.message || 'Error importing skill')
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  async function importPartnerCatalog(partner: {
+    name: string
+    skills: { sourceUrl?: string }
+  }) {
+    if (!partner.skills.sourceUrl) {
+      showToastError(`No import source configured for ${partner.name}`)
+      return
+    }
+    setImporting(true)
+    setError(null)
+    try {
+      const res = await fetch(`${API_BASE}/api/skills/import-github`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ githubUrl: partner.skills.sourceUrl })
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(data.error || `Failed to import ${partner.name} skills`)
+      }
+      await loadSkills()
+      if (data.warning) {
+        showWarning(data.warning)
+      }
+      if (data.total && data.total > 1) {
+        const failed = data.skills?.filter((s: any) => !s.ok) || []
+        const importedSkillNames = data.skills?.filter((s: any) => s.ok).map((s: any) => s.skillId).filter(Boolean) || []
+        showSuccess(`Imported ${data.imported}/${data.total} ${partner.name} skills`)
+        if (importedSkillNames.length > 0) {
+          await warnForSkillSetupByNames(importedSkillNames)
+        }
+        if (failed.length > 0) {
+          showToastError(`Failed: ${failed.map((f: any) => f.skillId).join(', ')}`)
+        }
+      } else if (data.skillId) {
+        showSuccess(`Imported ${partner.name} skill: ${data.skillId}`)
+        await warnForSkillSetupByNames([data.skillId])
+      } else {
+        showSuccess(`Imported ${partner.name} skills`)
+      }
+      setShowImportDialog(false)
+    } catch (err: any) {
+      setError(err.message || `Failed to import ${partner.name} skills`)
     } finally {
       setImporting(false)
     }
@@ -1980,7 +2032,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                       <img
                         src={partner.logoUrl}
                         alt={`${partner.name} logo`}
-                        className="h-6 w-auto max-w-[96px] object-contain rounded-sm bg-white/80 px-1 py-0.5 dark:bg-gray-800/80"
+                        className={getPartnerLogoClass(partner.slug)}
                         loading="lazy"
                       />
                     ) : null}
@@ -2048,7 +2100,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                       )
                     ) : (
                       <button
-                        onClick={() => openImportDialog('partner')}
+                        onClick={() => openImportDialog('partner', partner.slug)}
                         className="px-3 py-1.5 text-xs font-medium rounded-md border border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/20"
                       >
                         Browse
@@ -3721,7 +3773,9 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                       </div>
                     ) : (
                       <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-                        {partnerInstallers.map((partner, idx) => (
+                        {partnerInstallers
+                          .filter((partner) => !focusedPartnerSlug || partner.slug === focusedPartnerSlug)
+                          .map((partner, idx, visible) => (
                           <div key={partner.slug} className={`flex items-start justify-between gap-4 px-4 py-4 ${idx < partnerInstallers.length - 1 ? 'border-b border-gray-100 dark:border-gray-800' : ''}`}>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
@@ -3729,7 +3783,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                                   <img
                                     src={partner.logoUrl}
                                     alt={`${partner.name} logo`}
-                                    className="h-6 w-auto max-w-[96px] object-contain rounded-sm bg-white/80 px-1 py-0.5 dark:bg-gray-800/80"
+                                    className={getPartnerLogoClass(partner.slug)}
                                     loading="lazy"
                                   />
                                 ) : null}
@@ -3801,6 +3855,14 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                                 className="px-3 py-1.5 text-xs font-medium bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed shrink-0"
                               >
                                 {partnerInstalling === partner.slug ? 'Installing...' : 'Install'}
+                              </button>
+                            ) : partner.skills.mode === 'catalog' && partner.skills.sourceUrl ? (
+                              <button
+                                onClick={() => void importPartnerCatalog(partner)}
+                                disabled={importing}
+                                className="px-3 py-1.5 text-xs font-medium bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed shrink-0"
+                              >
+                                {importing ? 'Importing...' : 'Import Skills'}
                               </button>
                             ) : (
                               <div className="shrink-0 text-xs text-gray-400 dark:text-gray-500">

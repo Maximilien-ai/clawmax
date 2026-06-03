@@ -8,7 +8,7 @@ Keep ClawMax on a recent, deliberate OpenClaw baseline without letting local dev
 
 ## Current Baseline
 
-- ClawMax release line: `v1.7.1`
+- ClawMax release line: `v1.7.3`
 - Tested OpenClaw target: `v2026.5.26`
 - Source of truth:
   - [SYSTEM/openclaw-version.sh](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/openclaw-version.sh)

@@ -1,13 +1,14 @@
-# `1.7.2` Handoff
+# `1.7.3` Handoff
 
-Use this as the minimum handoff for CLI/deployment and Web/ops teams before cutting or deploying `1.7.2`.
+Use this as the minimum handoff for CLI/deployment and Web/ops teams before cutting or deploying `1.7.3`.
 
 ## Goal
 
-Keep `1.7.2` focused on:
+Keep `1.7.3` focused on:
 
 - Linux/on-prem Skills install correctness
 - local-model readiness for LM Studio and Ollama
+- partner integrations and partner-backed skills readiness, especially Resend
 - the OpenClaw `2026.5.26` runtime baseline introduced in `1.7.0` and hardened through `1.7.2`
 
 ## CLI / Deployment Team
@@ -69,7 +70,8 @@ Expected result:
 5. one LM Studio/OpenAI-compatible agent chat if enabled
 6. one template apply
 7. one workflow run
-8. Skills install flow for a Linux-visible skill like `himalaya`
+8. Skills install/setup flow for a Linux-visible skill like `himalaya`
+9. Resend partner visibility, key save, skill import, and one partner-backed skill sanity check
 
 ## Web / Ops Team
 
@@ -102,11 +104,11 @@ If using OTP:
 - local-model hints match the deployment kind
 - maintenance/status links still point to the correct web destination
 
-## Notes for `1.7.2`
+## Notes for `1.7.3`
 
 - `1.7.0` introduced the upgraded OpenClaw runtime line
-- `1.7.2` carries the next AI-builder/local-model/on-prem follow-through on that line
-- `1.7.2` should stay tight and operational:
+- `1.7.3` carries the next partner-integrations/skills/operator follow-through on that line
+- `1.7.3` should stay tight and operational:
   - fix concrete follow-ups
   - keep image/runtime validation explicit
   - avoid broad unrelated surface changes unless they are needed for deployment correctness

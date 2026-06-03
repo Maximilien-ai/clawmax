@@ -54,6 +54,7 @@ test('resend partner exposes server-stored API key field and skill catalog', () 
   assert(partner.fields?.some((field) => field.key === 'apiKey' && field.secret === true && field.storage === 'server') === true, 'Expected resend server-stored apiKey field')
   assert(partner.skills?.mode === 'catalog', 'Expected resend catalog-mode skills')
   assert((partner.skills?.items || []).includes('resend-cli'), 'Expected resend-cli in partner skills')
+  assert(partner.skills?.sourceUrl === 'https://github.com/resend/resend-skills', 'Expected resend source URL for one-click import')
 })
 
 if (typeof previous === 'undefined') delete process.env.WORKSPACES_INTEGRATIONS_THIRD_PARTIES

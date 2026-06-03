@@ -20,6 +20,7 @@
   "skills": {
     "mode": "catalog",
     "label": "Official Resend skills",
+    "sourceUrl": "https://github.com/resend/resend-skills",
     "matchNames": [
       "agent-email-inbox",
       "email-best-practices",

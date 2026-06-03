@@ -6,6 +6,23 @@ All notable changes to ClawMax are documented here.
 
 - No unreleased changes yet.
 
+## [v1.7.3] - 2026-06-03
+
+### Partner Integrations and Skills
+- **Resend Partner Integration** — added a first-cut `Resend` partner integration with server-stored `RESEND_API_KEY` support, curated partner skills, and partner-specific import/browse flows for the official skill catalog.
+- **Partner Skill Catalog Separation** — Skills now distinguishes `User Skills`, `Partner Skills`, and `Built-in Skills`, with partner-family matching for Resend and Senso-style skill catalogs.
+- **Partner Picker UX Cleanup** — partner selection is now opt-in by default, supports category tabs and bulk select/unselect actions, and keeps Opik pinned when the runtime is already configured for it.
+- **Partner Logo Normalization** — partner wordmarks such as GitHub, Resend, and Senso now render at more consistent visual sizes across the chooser and skills surfaces.
+
+### Skills Import / Install Reliability
+- **Markdown-Only Skill Imports** — GitHub/local skill import now accepts markdown-only `SKILL.md` skills without requiring `index.ts`, and import failures return clearer per-skill reasons.
+- **Package-Based Install Detection** — package-installed skills like `react-email` now resolve their actual installed CLI/bin names correctly, so install status can be remembered after refresh/restart.
+- **Partner Catalog Import Flow** — catalog-mode partners such as Resend can now expose a direct one-click import path to their upstream GitHub skill repositories.
+
+### Workspace and Surface Follow-Through
+- **Workspace Scope / Ordering** — activity and budgeting follow-through is better aligned to the active workspace, and workspace ordering follow-through remains part of the `1.7.x` operator usability pass.
+- **Workflow / Builder Follow-Through** — workflow zoom behavior, benign plugin-symlink warning handling, and Builder recommendation routing were tightened further during the `1.7.3` stabilization pass.
+
 ## [v1.7.2] - 2026-06-03
 
 ### AI Builder and AI Generate

@@ -185,6 +185,16 @@ Notes:
   - Skill/action used:
   - Observed:
 
+- [ ] `himalaya` install/setup flow works for the runtime under test
+  - Observed:
+
+- [ ] `Resend` partner skills can be imported and show under `Partner Skills`
+  - Observed:
+
+- [ ] One imported Resend skill shows the expected `RESEND_API_KEY` readiness/setup state
+  - Skill:
+  - Observed:
+
 Notes:
 
 ---

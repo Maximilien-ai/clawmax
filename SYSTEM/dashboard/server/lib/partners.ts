@@ -15,6 +15,7 @@ export interface PartnerSkillsDefinition {
   items?: string[]
   matchNames?: string[]
   matchPrefixes?: string[]
+  sourceUrl?: string
   commandId?: string
   label?: string
 }
@@ -34,6 +35,7 @@ export interface PartnerDefinition {
   docsUrl?: string
   description: string
   category?: string
+  categories?: string[]
   enabledByDefault?: boolean
   fields?: PartnerFieldDefinition[]
   skills?: PartnerSkillsDefinition
