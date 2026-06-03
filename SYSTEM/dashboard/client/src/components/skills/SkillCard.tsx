@@ -47,11 +47,17 @@ export function SkillCard({ skill, assigned, onToggle, onView, onDelete, canDele
   const hasVisibleInstallOptions = !!skill.install?.length
   const hasExpandableSetup = !!setupHint && (!!setupHint.commands?.length || !!onOpenSetup)
   const showDetailsToggle = !compact && (hasVisibleRequirements || hasVisibleInstallOptions || hasExpandableSetup)
+  const toggleDetails = () => {
+    if (!showDetailsToggle) return
+    setShowDetails((current) => !current)
+  }
 
   return (
     <div
+      onClick={toggleDetails}
       className={`
         relative border dark:border-gray-700 rounded-lg p-4 bg-white dark:bg-gray-800 hover:shadow-md transition-shadow
+        ${showDetailsToggle ? 'cursor-pointer' : ''}
         ${isSelected ? 'ring-2 ring-blue-100 border-blue-400 dark:ring-blue-900/40 dark:border-blue-500' : ''}
         ${compact ? 'p-3' : 'p-4'}
       `}
@@ -89,7 +95,10 @@ export function SkillCard({ skill, assigned, onToggle, onView, onDelete, canDele
             <div className="flex items-center gap-1">
               {onView && (
                 <button
-                  onClick={onView}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onView()
+                  }}
                   className="h-8 w-8 inline-flex items-center justify-center rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:text-gray-500 dark:hover:text-gray-200 dark:hover:bg-gray-700 transition-colors"
                   title={`View ${skill.name} skill.md`}
                   aria-label={`View ${skill.name} skill.md`}
@@ -99,7 +108,10 @@ export function SkillCard({ skill, assigned, onToggle, onView, onDelete, canDele
               )}
               {!selectionMode && canDelete && onDelete && (
                 <button
-                  onClick={onDelete}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onDelete()
+                  }}
                   className="h-8 w-8 inline-flex items-center justify-center rounded-md text-gray-400 hover:text-red-600 hover:bg-red-50 dark:text-gray-500 dark:hover:text-red-300 dark:hover:bg-red-900/30 transition-colors"
                   title={`Delete ${skill.name}`}
                   aria-label={`Delete ${skill.name}`}
@@ -110,7 +122,10 @@ export function SkillCard({ skill, assigned, onToggle, onView, onDelete, canDele
             </div>
             {onToggle && (
               <button
-                onClick={onToggle}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onToggle()
+                }}
                 className={`
                   px-3 py-1 rounded text-sm font-medium transition-colors
                   ${assigned
@@ -182,7 +197,10 @@ export function SkillCard({ skill, assigned, onToggle, onView, onDelete, canDele
       {showDetailsToggle && (
         <div className="mt-3">
           <button
-            onClick={() => setShowDetails(!showDetails)}
+            onClick={(e) => {
+              e.stopPropagation()
+              setShowDetails(!showDetails)
+            }}
             className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
           >
             <span>{showDetails ? '▼' : '▶'}</span>
@@ -229,7 +247,10 @@ export function SkillCard({ skill, assigned, onToggle, onView, onDelete, canDele
                     </div>
                   ) : onInstallRequirements ? (
                     <button
-                      onClick={onInstallRequirements}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onInstallRequirements()
+                      }}
                       disabled={installingRequirements}
                       className="mt-2 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-700"
                     >
@@ -258,7 +279,10 @@ export function SkillCard({ skill, assigned, onToggle, onView, onDelete, canDele
                   )}
                   {onOpenSetup && (
                     <button
-                      onClick={onOpenSetup}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onOpenSetup()
+                      }}
                       className="mt-3 rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-800"
                     >
                       {setupHint.mode === 'guided' ? (setupHint.actionLabel || 'Complete Setup') : 'View Setup'}
