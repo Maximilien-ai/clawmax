@@ -142,7 +142,7 @@ export function SkillCard({ skill, assigned, onToggle, onView, onDelete, canDele
           )}
         </div>
 
-        <p className="text-sm text-gray-600 line-clamp-2 dark:text-gray-300">
+        <p className="text-sm text-gray-600 line-clamp-3 dark:text-gray-300">
           {skill.description}
         </p>
 
