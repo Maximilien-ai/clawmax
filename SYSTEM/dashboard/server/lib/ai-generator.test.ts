@@ -13,6 +13,7 @@ import {
   extractJsonResponseText,
   isOneTimeScheduleRequest,
   normalizeGeneratedSkillScaffold,
+  normalizeGeneratedAgentMeta,
   normalizeGeneratedWorkflowReferences,
   normalizePromptExpansionFormat,
   normalizePromptExpansionTarget,
@@ -254,6 +255,24 @@ test('normalizeGeneratedSkillScaffold derives a better name when the model retur
 
   assert.notStrictEqual(normalized.name, 'custom-skill')
   assert.strictEqual(normalized.name, 'research-startup-competitors-summarize-market')
+})
+
+test('normalizeGeneratedAgentMeta replaces generic names with role-based names and inferred resend skills', () => {
+  const normalized = normalizeGeneratedAgentMeta(
+    'create a resend agent to test sending emails with resend skills',
+    {
+      name: 'New Agent',
+      tags: ['assistant'],
+      model: 'openai/gpt-4o-mini',
+      skills: [],
+    },
+    ['resend', 'react-email', 'resend-cli', 'email-best-practices', 'agent-email-inbox', 'github'],
+  )
+
+  assert.strictEqual(normalized.name, 'resend-agent')
+  assert(normalized.tags.includes('email'))
+  assert(normalized.skills.includes('resend'))
+  assert(normalized.skills.includes('react-email'))
 })
 
 test('applyGeneratedWorkflowHandoffs infers markdown outputs and dependency inputs', () => {

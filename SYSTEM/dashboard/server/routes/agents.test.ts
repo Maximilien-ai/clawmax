@@ -194,6 +194,46 @@ async function run() {
     assert(/description is required/i.test(res.jsonBody?.error || ''), 'Expected missing description guidance')
   })
 
+  await test('generate returns AI-suggested names, tags, models, and skills for new agents', async () => {
+    const aiGeneratorPath = require.resolve('../lib/ai-generator')
+    delete require.cache[aiGeneratorPath]
+    const aiGenerator = require('../lib/ai-generator')
+    const originalGenerateAgentMeta = aiGenerator.generateAgentMeta
+    const originalGenerateAgentFiles = aiGenerator.generateAgentFiles
+
+    aiGenerator.generateAgentMeta = async () => ({
+      name: 'resend-agent',
+      tags: ['email', 'assistant'],
+      model: 'openai/gpt-4o-mini',
+      skills: ['resend', 'react-email'],
+    })
+    aiGenerator.generateAgentFiles = async () => ({
+      identity: '# IDENTITY',
+      soul: '# SOUL',
+      tools: '# TOOLS',
+    })
+
+    try {
+      const handler = getRouteHandler('post', '/generate')
+      const res = makeRes()
+      await handler(makeReq({
+        body: {
+          description: 'create a resend agent to test sending emails with resend skills',
+          suggestMeta: true,
+        },
+      }), res)
+
+      assert.strictEqual(res.statusCode, 200, 'Expected generate route success')
+      assert.strictEqual(res.jsonBody?.suggestedName, 'resend-agent')
+      assert.deepStrictEqual(res.jsonBody?.suggestedTags, ['email', 'assistant'])
+      assert.deepStrictEqual(res.jsonBody?.suggestedSkills, ['resend', 'react-email'])
+    } finally {
+      aiGenerator.generateAgentMeta = originalGenerateAgentMeta
+      aiGenerator.generateAgentFiles = originalGenerateAgentFiles
+      delete require.cache[require.resolve('./agents')]
+    }
+  })
+
   await test('generate surfaces a friendly network error when OpenAI DNS resolution fails', async () => {
     const aiGeneratorPath = require.resolve('../lib/ai-generator')
     delete require.cache[aiGeneratorPath]
@@ -284,6 +324,71 @@ async function run() {
       assert(writes.some(chunk => chunk.includes('"type":"done"') && chunk.includes('"data":"ok"')), 'Expected successful create completion event')
     } finally {
       childProcess.spawn = originalSpawn
+    }
+  })
+
+  await test('provision assigns inferred skills after agent creation succeeds', async () => {
+    const tmpCliDir = path.join(tmpHome, 'bin-skills')
+    const fakeCli = path.join(tmpCliDir, 'openclaw')
+    fs.mkdirSync(tmpCliDir, { recursive: true })
+    fs.writeFileSync(fakeCli, '#!/bin/sh\necho test-openclaw\n', 'utf-8')
+    fs.chmodSync(fakeCli, 0o755)
+    process.env.OPENCLAW_BIN = fakeCli
+
+    const childProcess = require('child_process')
+    const skillsModule = require('../lib/skills')
+    const originalSpawn = childProcess.spawn
+    const originalSetAgentSkills = skillsModule.setAgentSkills
+    const assigned: Array<{ agentId: string; skills: string[] }> = []
+
+    childProcess.spawn = () => {
+      const listeners: Record<string, Function> = {}
+      return {
+        stdout: { on() {} },
+        stderr: { on() {} },
+        on(event: string, handler: Function) {
+          listeners[event] = handler
+          if (event === 'close') {
+            setTimeout(() => handler(0, null), 0)
+          }
+        },
+      }
+    }
+    skillsModule.setAgentSkills = (agentId: string, skills: string[]) => {
+      assigned.push({ agentId, skills })
+    }
+
+    try {
+      const handler = getRouteHandler('post', '/provision')
+      const writes: string[] = []
+      const res: any = {
+        writableEnded: false,
+        headers: {} as Record<string, string>,
+        setHeader(name: string, value: string) { this.headers[name] = value },
+        writeHead() { return this },
+        flushHeaders() {},
+        write(chunk: string) { writes.push(String(chunk)) },
+        end() { this.writableEnded = true },
+      }
+      const req: any = makeReq({
+        body: {
+          name: 'resend-agent',
+          model: 'openai/gpt-4o-mini',
+          tags: ['email'],
+          skills: ['github', 'workspace-ls'],
+        },
+        on() {},
+      })
+      await handler(req, res)
+      await new Promise(resolve => setTimeout(resolve, 20))
+
+      assert.deepStrictEqual(assigned, [{ agentId: 'resend-agent', skills: ['github', 'workspace-ls'] }])
+      assert(writes.some(chunk => chunk.includes('Assigned inferred skills: github, workspace-ls')), 'Expected streamed logs to mention inferred skill assignment')
+      assert(writes.some(chunk => chunk.includes('"type":"done"') && chunk.includes('"data":"ok"')), 'Expected successful create completion event')
+    } finally {
+      childProcess.spawn = originalSpawn
+      skillsModule.setAgentSkills = originalSetAgentSkills
+      delete require.cache[require.resolve('./agents')]
     }
   })
 

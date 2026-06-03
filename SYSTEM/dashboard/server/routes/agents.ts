@@ -25,6 +25,7 @@ import { resolveDefaultAgentModel } from '../lib/agent-default-model'
 import { getAuthenticatedSession } from '../lib/github-auth'
 import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
 import { resolveOpenClawCliPath } from '../lib/openclaw-cli'
+import { listAvailableSkills, setAgentSkills } from '../lib/skills'
 
 /** Find the root dir of a pnpm package by scanning .pnpm store for a prefix */
 function findPnpmPkg(repoDir: string, prefix: string, pkgSubPath: string): string | null {
@@ -436,7 +437,7 @@ router.post('/models/refresh', async (req, res) => {
 
 // POST /api/agents/provision — spawn setup.sh and stream output via SSE
 router.post('/provision', (req, res) => {
-  const { name, model, whatsapp, port, profile, cloneFrom, templateSlug, generatedFiles, tags, aiDescription } = req.body as {
+  const { name, model, whatsapp, port, profile, cloneFrom, templateSlug, generatedFiles, tags, aiDescription, skills } = req.body as {
     name?: string
     model?: string
     whatsapp?: string
@@ -447,6 +448,7 @@ router.post('/provision', (req, res) => {
     generatedFiles?: { identity: string; soul: string; tools: string }
     tags?: string[]
     aiDescription?: string
+    skills?: string[]
   }
 
   const resolvedModel = resolveDefaultAgentModel({
@@ -479,6 +481,10 @@ router.post('/provision', (req, res) => {
 
   const validatedName = name!
   const validatedModel = resolvedModel
+  const availableSkillIds = new Set(listAvailableSkills().map((skill) => skill.id || skill.name).filter(Boolean))
+  const requestedSkills = Array.isArray(skills)
+    ? Array.from(new Set(skills.map((skill) => String(skill || '').trim()).filter((skill) => availableSkillIds.has(skill))))
+    : []
 
   // SSE headers
   res.setHeader('Content-Type', 'text/event-stream')
@@ -488,6 +494,12 @@ router.post('/provision', (req, res) => {
 
   const send = (type: string, data: string) => {
     res.write(`data: ${JSON.stringify({ type, data })}\n\n`)
+  }
+
+  const applyAssignedSkills = () => {
+    if (requestedSkills.length === 0) return
+    setAgentSkills(validatedName, requestedSkills)
+    send('log', `Assigned inferred skills: ${requestedSkills.join(', ')}\n`)
   }
 
   // Write AI-generated files before provisioning
@@ -542,6 +554,7 @@ router.post('/provision', (req, res) => {
   if (isRegistered) {
     // Agent already registered - skip openclaw agents add
     send('log', `Agent "${validatedName}" is already registered\n`)
+    applyAssignedSkills()
     send('done', 'ok')
     res.end()
     return
@@ -691,6 +704,7 @@ router.post('/provision', (req, res) => {
     }
 
     send('log', `Agent ${validatedName} created successfully\n`)
+    applyAssignedSkills()
     saveCreationMetadata()
     send('done', 'ok')
     res.end()
@@ -720,6 +734,7 @@ router.post('/provision', (req, res) => {
     cleanup()
     if (code === 0) {
       send('log', `Agent ${validatedName} created successfully\n`)
+      applyAssignedSkills()
       saveCreationMetadata()
       send('done', 'ok')
     } else {

@@ -35,6 +35,7 @@ interface FormState {
   port: number
   tags: string[]
   customTag: string
+  skills: string[]
   aiDescription: string
   useAI: boolean
 }
@@ -82,6 +83,7 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
     port: 0,
     tags: [],
     customTag: '',
+    skills: [],
     aiDescription: launchState.aiPrompt,
     useAI: launchState.enableAi,
   })
@@ -420,6 +422,7 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
       if (data.suggestedName) set('name', aiName)
       if (data.suggestedTags?.length > 0) set('tags', [...new Set(data.suggestedTags)])
       if (data.suggestedModel) set('model', data.suggestedModel)
+      if (data.suggestedSkills?.length > 0) set('skills', [...new Set(data.suggestedSkills)])
 
       // Update IDENTITY.md with the AI-suggested name (replace placeholder)
       if (data.suggestedName && files.identity) {
@@ -458,6 +461,7 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
     if (form.whatsapp) body.whatsapp = form.whatsapp
     if (form.port > 0) body.port = form.port
     if (form.tags.length > 0) body.tags = [...new Set(form.tags)]
+    if (form.skills.length > 0) body.skills = [...new Set(form.skills)]
     if (form.aiDescription) body.aiDescription = form.aiDescription
     if (generatedFiles) body.generatedFiles = generatedFiles
     body.profile = true  // always use profile mode (isolated ~/.openclaw-<name>/ state dir)

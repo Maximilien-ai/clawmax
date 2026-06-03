@@ -1293,11 +1293,128 @@ Rules:
     model?: string
     skills?: string[]
   }>(completion.choices[0].message.content || '{}', {})
+  return normalizeGeneratedAgentMeta(description, parsed, availableSkills)
+}
+
+function extractExplicitAgentName(description: string): string | null {
+  const explicitNameMatch = description.match(/\b(?:called|named)\s+["']?([a-z0-9][a-z0-9 -]{1,40})["']?/i)
+  if (!explicitNameMatch?.[1]) return null
+  return explicitNameMatch[1].trim()
+}
+
+function inferFallbackAgentName(description: string): string {
+  const lower = description.toLowerCase()
+  const explicitName = extractExplicitAgentName(description)
+  if (explicitName) return slugifyGeneratedTemplateValue(explicitName, 'agent')
+  if (/\bresend\b/.test(lower)) return 'resend-agent'
+  if (/\bemail\b/.test(lower)) return 'email-agent'
+  if (/\bgithub\b/.test(lower) && /\btriage\b/.test(lower)) return 'github-triage-agent'
+  if (/\bexecutive\b/.test(lower) && /\bresearch\b/.test(lower)) return 'executive-research-agent'
+  if (/\bpeople\b/.test(lower) && /\bresearch\b/.test(lower)) return 'people-research-agent'
+  if (/\brelease\b/.test(lower) && /\bengineer\b/.test(lower)) return 'release-engineer-agent'
+
+  const tokens = description
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean)
+    .filter((token) => !new Set([
+      'a', 'an', 'the', 'to', 'for', 'of', 'and', 'or', 'with', 'using',
+      'create', 'make', 'build', 'new', 'agent', 'bot', 'assistant', 'help',
+      'test', 'testing', 'skills',
+    ]).has(token))
+    .slice(0, 3)
+
+  return `${slugifyGeneratedTemplateValue(tokens.join(' '), 'agent')}-agent`
+}
+
+function inferFallbackAgentTags(description: string): string[] {
+  const lower = description.toLowerCase()
+  const tags: string[] = []
+  if (/\bresend\b|\bemail\b/.test(lower)) tags.push('email')
+  if (/\bresearch\b/.test(lower)) tags.push('researcher')
+  if (/\bexecutive\b/.test(lower)) tags.push('executive')
+  if (/\bgithub\b/.test(lower)) tags.push('github')
+  if (/\btriage\b/.test(lower)) tags.push('triage')
+  if (/\brelease\b/.test(lower)) tags.push('release')
+  if (/\bengineer\b|\bcoding\b|\bcode\b/.test(lower)) tags.push('engineer')
+  if (/\bsupport\b/.test(lower)) tags.push('support')
+  if (tags.length === 0) tags.push('assistant')
+  return Array.from(new Set(tags)).slice(0, 4)
+}
+
+function inferFallbackAgentSkills(description: string, availableSkills: string[]): string[] {
+  const lower = description.toLowerCase()
+  const matched: string[] = []
+  const add = (skillId: string) => {
+    if (availableSkills.includes(skillId) && !matched.includes(skillId)) matched.push(skillId)
+  }
+
+  if (/\bresend\b|\bemail\b/.test(lower)) {
+    ;['resend', 'react-email', 'resend-cli', 'email-best-practices', 'agent-email-inbox'].forEach(add)
+  }
+  if (/\bgithub\b/.test(lower)) {
+    ;['github', 'gh-issues'].forEach(add)
+  }
+  if (/\bcalendar\b|\bgmail\b|\bgoogle workspace\b/.test(lower)) {
+    add('gog')
+  }
+  if (/\bworkspace\b|\bfilesystem\b|\bfiles\b/.test(lower)) {
+    add('workspace-ls')
+  }
+
+  return matched.slice(0, 4)
+}
+
+const GENERIC_GENERATED_AGENT_NAMES = new Set([
+  'new-agent',
+  'newagent',
+  'agent',
+  'assistant',
+  'ai-agent',
+  'custom-agent',
+  'bot',
+])
+
+export function normalizeGeneratedAgentMeta(
+  description: string,
+  parsed: {
+    name?: string
+    tags?: string[]
+    model?: string
+    skills?: string[]
+  },
+  availableSkills: string[] = [],
+): {
+  name: string
+  tags: string[]
+  model: string
+  skills: string[]
+} {
+  const fallbackName = inferFallbackAgentName(description)
+  const normalizedName = slugifyGeneratedTemplateValue(parsed.name || '', fallbackName)
+  const finalName = GENERIC_GENERATED_AGENT_NAMES.has(normalizedName) ? fallbackName : normalizedName
+
+  const parsedTags = Array.isArray(parsed.tags)
+    ? parsed.tags
+      .map((tag) => slugifyGeneratedTemplateValue(String(tag || '').trim(), ''))
+      .filter(Boolean)
+    : []
+  const fallbackTags = inferFallbackAgentTags(description)
+  const finalTags = Array.from(new Set([...(parsedTags.length >= 2 ? parsedTags : []), ...fallbackTags])).slice(0, 4)
+
+  const validSkills = new Set(availableSkills)
+  const parsedSkills = Array.isArray(parsed.skills)
+    ? parsed.skills.filter((skillId) => validSkills.size === 0 || validSkills.has(skillId))
+    : []
+  const fallbackSkills = inferFallbackAgentSkills(description, availableSkills)
+  const finalSkills = Array.from(new Set([...(parsedSkills.length > 0 ? parsedSkills : []), ...fallbackSkills])).slice(0, 4)
+
   return {
-    name: parsed.name || 'New Agent',
-    tags: parsed.tags || [],
+    name: finalName,
+    tags: finalTags,
     model: parsed.model || getBestAvailableModel(),
-    skills: parsed.skills || [],
+    skills: finalSkills,
   }
 }
 
