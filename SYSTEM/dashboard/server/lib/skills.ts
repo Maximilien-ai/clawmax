@@ -531,6 +531,13 @@ function getInstallCheckBins(skill: Pick<OpenClawSkill, 'requires' | 'install'>)
     for (const bin of option.bins || []) {
       if (typeof bin === 'string' && bin.trim()) bins.add(bin.trim())
     }
+
+    if ((!option.bins || option.bins.length === 0) && option.package) {
+      if (option.kind === 'npm' || option.kind === 'pnpm' || option.kind === 'uv' || option.kind === 'node') {
+        const inferred = option.package.trim().split('/').pop()
+        if (inferred) bins.add(inferred)
+      }
+    }
   }
 
   return Array.from(bins)

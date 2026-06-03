@@ -198,6 +198,19 @@ test('getSkillRequirementStatus() reports missing bins when requirements are not
   assertEqual(status!.missingBins[0], 'jq', 'Expected jq to be marked missing')
 })
 
+test('getSkillRequirementStatus() infers CLI bins for package-based node installs', () => {
+  const status = getSkillRequirementStatus(
+    {
+      install: [{ id: 'react-email', kind: 'node', package: 'react-email', label: 'Install react-email' } as SkillInstallOption],
+    },
+    (bin: string) => bin === 'react-email',
+  )
+
+  assert(status, 'Expected inferred package install requirement status')
+  assertEqual(status!.installSatisfied, true, 'Expected inferred package bin to satisfy install status')
+  assertEqual(status!.presentBins[0], 'react-email', 'Expected react-email CLI to be inferred as present')
+})
+
 test('skills with required env/config automatically expose setup warnings', () => {
   const trello = getSkillById('trello')
   assert(trello !== null, 'Expected trello skill')

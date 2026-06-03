@@ -33,7 +33,7 @@ export function formatDashboardInstallRequirementCommand(
       : `uv tool install ${option.package.trim()}`
   }
   if (option.kind === 'go' && (option.module || option.package)) return `go install ${String(option.module || option.package).trim()}`
-  if (option.kind === 'node' && option.package) return `node ${option.package.trim()}`
+  if (option.kind === 'node' && option.package) return `npm install -g ${option.package.trim()}`
   return null
 }
 

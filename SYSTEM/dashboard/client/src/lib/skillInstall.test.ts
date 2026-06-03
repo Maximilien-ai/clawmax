@@ -56,4 +56,14 @@ test('linux uv installer preview falls back to python pip for dashboard runtimes
   assert.strictEqual(command, 'python3 -m pip install --user nano-pdf')
 })
 
+test('node installer preview uses npm global install command', () => {
+  const command = formatDashboardInstallRequirementCommand(
+    { name: 'react-email' } as any,
+    { id: 'node', kind: 'node', package: 'react-email', label: 'Install react-email (node)' } as any,
+    'linux'
+  )
+
+  assert.strictEqual(command, 'npm install -g react-email')
+})
+
 console.log(`\n${testsPassed} tests passed`)
