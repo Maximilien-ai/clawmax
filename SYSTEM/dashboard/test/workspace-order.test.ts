@@ -82,6 +82,11 @@ test('reorderWorkspaceList() moves an item to a new index', () => {
   assertOrder(reordered, ['client-a', 'sandbox', 'default'], 'Item should move to target index')
 })
 
+test('reorderWorkspaceList() supports moving a workspace to the top', () => {
+  const reordered = reorderWorkspaceList(fixtures, 2, 0)
+  assertOrder(reordered, ['sandbox', 'default', 'client-a'], 'Workspace should move to the top')
+})
+
 test('reorderWorkspaceList() returns original order for invalid indexes', () => {
   const reordered = reorderWorkspaceList(fixtures, -1, 2)
   assert(reordered === fixtures, 'Invalid reorder should return original array reference')

@@ -266,6 +266,12 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
     setDraggedIndex(null)
   }
 
+  const moveWorkspaceToTop = (index: number) => {
+    if (index <= 0) return
+    reorderWorkspaces(index, 0)
+    showSuccess('Workspace moved to top')
+  }
+
   const moveSection = (index: number, direction: -1 | 1) => {
     setDashboardSectionOrder((prev) => {
       const nextIndex = index + direction
@@ -513,6 +519,19 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
                   </button>
                   <div className="ml-2 flex shrink-0 flex-col items-end gap-1 self-stretch opacity-70 transition-opacity group-hover:opacity-100">
                     <div className="flex items-center gap-0.5">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          moveWorkspaceToTop(index)
+                        }}
+                        disabled={index === 0}
+                        className="rounded p-1 text-amber-600 transition-all hover:bg-amber-50 disabled:cursor-not-allowed disabled:text-gray-300 disabled:hover:bg-transparent"
+                        title={index === 0 ? 'Already at top' : 'Move workspace to top'}
+                      >
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7M5 20h14" />
+                        </svg>
+                      </button>
                       <button
                         onClick={(e) => {
                           e.stopPropagation()

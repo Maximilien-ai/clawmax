@@ -27,6 +27,8 @@ import {
 } from '../lib/headerControls'
 import { ProductIconCell } from '../lib/productIcons'
 import { mergeAgentToFront } from '../lib/agentList'
+import { useWorkspace } from '../contexts/WorkspaceContext'
+import { buildWorkspaceScopedPath } from '../lib/workspaceScope'
 
 type MenuPlacement = 'top' | 'bottom'
 
@@ -174,6 +176,7 @@ type ArchiveTab = 'active' | 'archived'
 export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateToSkills, onNavigateToWorkflows, onNavigateToTemplates, initialAgentId, initialAction, initialAiDescription, onInitialActionHandled, isActive }: { onNavigateToDoc?: (file: string) => void; onNavigateToGroup?: (groupName: string) => void; onNavigateToSkills?: (agentId: string, skillName?: string) => void; onNavigateToWorkflows?: (workflowId: string) => void; onNavigateToTemplates?: () => void; initialAgentId?: string; initialAction?: 'create' | 'create-ai' | 'import' | 'chat'; initialAiDescription?: string; onInitialActionHandled?: () => void; isActive?: boolean } = {}) {
   const { showSuccess, showError, showInfo } = useToast()
   const { config } = useAuth()
+  const { activeWorkspace } = useWorkspace()
   const aiEnabled = hasAiGenerationAccess(config)
   const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(true)
@@ -311,7 +314,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
 
   // Fetch metering data
   useEffect(() => {
-    fetch('/api/metering').then(r => r.json()).then(d => {
+    fetch(buildWorkspaceScopedPath('/api/metering', activeWorkspace?.id)).then(r => r.json()).then(d => {
       if (d && d.enabled === false) {
         setCostTrackingEnabled(false)
         setAgentMetering({})
@@ -326,7 +329,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
       setAgentMetering(map)
       setMeteringLoaded(true)
     }).catch(() => { setMeteringLoaded(true) })
-  }, [])
+  }, [activeWorkspace?.id])
 
   useEffect(() => {
     if (!costTrackingEnabled) {
@@ -337,7 +340,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
       .then(r => r.ok ? r.json() : null)
       .then(d => setAgentCostLimits(d?.limits && typeof d.limits === 'object' ? d.limits : {}))
       .catch(() => setAgentCostLimits({}))
-  }, [costTrackingEnabled])
+  }, [activeWorkspace?.id, costTrackingEnabled])
 
   useEffect(() => {
     fetchAgents()

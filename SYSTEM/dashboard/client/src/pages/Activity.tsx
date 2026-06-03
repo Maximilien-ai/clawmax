@@ -2,6 +2,8 @@ import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { PageLoading, LoadingSpinner } from '../components/LoadingSpinner'
 import { ProductIconCell } from '../lib/productIcons'
 import { formatMeteringCost, formatMeteringTokens, summarizeMeteringByAgentType } from '../lib/meteringPresentation'
+import { useWorkspace } from '../contexts/WorkspaceContext'
+import { buildWorkspaceScopedPath } from '../lib/workspaceScope'
 
 interface MeteringData {
   enabled?: boolean
@@ -44,17 +46,21 @@ const EMPTY_METERING: MeteringData = {
   byWorkflow: [],
 }
 
-let cachedActivityMetering: MeteringData | null = null
-let cachedActivityBudget: {
+const cachedActivityMeteringByWorkspace: Record<string, MeteringData | null> = {}
+const cachedActivityBudgetByWorkspace: Record<string, {
   config: { limitUsd: number; warningPct: number; enforced: boolean; paused: boolean }
   currentSpendUsd: number
   remainingUsd: number
   usedPct: number
   level: 'ok' | 'warning' | 'exceeded'
-} | null = null
-let cachedActivityCostBudgetEnabled = true
-let cachedActivityCostBudgetReason = ''
-let cachedActivityAgentCostLimits: Record<string, number> = {}
+} | null> = {}
+const cachedActivityCostBudgetEnabledByWorkspace: Record<string, boolean> = {}
+const cachedActivityCostBudgetReasonByWorkspace: Record<string, string> = {}
+const cachedActivityAgentCostLimitsByWorkspace: Record<string, Record<string, number>> = {}
+
+function getWorkspaceCacheKey(workspaceId?: string | null): string {
+  return workspaceId || '__default__'
+}
 
 interface ActivityEntry {
   agentId: string
@@ -124,6 +130,8 @@ interface ActivityProps {
 }
 
 export default function Activity({ onNavigateToDoc, isActive = false }: ActivityProps = {}) {
+  const { activeWorkspace } = useWorkspace()
+  const workspaceCacheKey = getWorkspaceCacheKey(activeWorkspace?.id)
   const [feed, setFeed] = useState<ActivityEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -134,16 +142,32 @@ export default function Activity({ onNavigateToDoc, isActive = false }: Activity
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [debugAgent, setDebugAgent] = useState<string | null>(null)
   const [showDoctor, setShowDoctor] = useState(false)
-  const [metering, setMetering] = useState<MeteringData | null>(cachedActivityMetering)
-  const [meteringLoading, setMeteringLoading] = useState(!cachedActivityMetering)
+  const [metering, setMetering] = useState<MeteringData | null>(cachedActivityMeteringByWorkspace[workspaceCacheKey] ?? null)
+  const [meteringLoading, setMeteringLoading] = useState(!(cachedActivityMeteringByWorkspace[workspaceCacheKey] ?? null))
   const [showMetering, setShowMetering] = useState(true)
-  const [costBudgetEnabled, setCostBudgetEnabled] = useState(cachedActivityCostBudgetEnabled)
-  const [costBudgetReason, setCostBudgetReason] = useState(cachedActivityCostBudgetReason)
-  const [budget, setBudget] = useState<{ config: { limitUsd: number; warningPct: number; enforced: boolean; paused: boolean }; currentSpendUsd: number; remainingUsd: number; usedPct: number; level: 'ok' | 'warning' | 'exceeded' } | null>(cachedActivityBudget)
-  const [agentCostLimits, setAgentCostLimits] = useState<Record<string, number>>(cachedActivityAgentCostLimits)
+  const [costBudgetEnabled, setCostBudgetEnabled] = useState(cachedActivityCostBudgetEnabledByWorkspace[workspaceCacheKey] ?? true)
+  const [costBudgetReason, setCostBudgetReason] = useState(cachedActivityCostBudgetReasonByWorkspace[workspaceCacheKey] ?? '')
+  const [budget, setBudget] = useState<{ config: { limitUsd: number; warningPct: number; enforced: boolean; paused: boolean }; currentSpendUsd: number; remainingUsd: number; usedPct: number; level: 'ok' | 'warning' | 'exceeded' } | null>(cachedActivityBudgetByWorkspace[workspaceCacheKey] ?? null)
+  const [agentCostLimits, setAgentCostLimits] = useState<Record<string, number>>(cachedActivityAgentCostLimitsByWorkspace[workspaceCacheKey] ?? {})
   const [editingBudget, setEditingBudget] = useState(false)
-  const [budgetInput, setBudgetInput] = useState(cachedActivityBudget ? String(cachedActivityBudget.config.limitUsd) : '')
+  const [budgetInput, setBudgetInput] = useState(cachedActivityBudgetByWorkspace[workspaceCacheKey] ? String(cachedActivityBudgetByWorkspace[workspaceCacheKey]!.config.limitUsd) : '')
   const lastActivationRefreshRef = useRef(0)
+
+  useEffect(() => {
+    const nextMetering = cachedActivityMeteringByWorkspace[workspaceCacheKey] ?? null
+    const nextBudget = cachedActivityBudgetByWorkspace[workspaceCacheKey] ?? null
+    const nextLimits = cachedActivityAgentCostLimitsByWorkspace[workspaceCacheKey] ?? {}
+    const nextBudgetEnabled = cachedActivityCostBudgetEnabledByWorkspace[workspaceCacheKey] ?? true
+    const nextBudgetReason = cachedActivityCostBudgetReasonByWorkspace[workspaceCacheKey] ?? ''
+
+    setMetering(nextMetering)
+    setMeteringLoading(!nextMetering)
+    setBudget(nextBudget)
+    setBudgetInput(nextBudget ? String(nextBudget.config.limitUsd) : '')
+    setAgentCostLimits(nextLimits)
+    setCostBudgetEnabled(nextBudgetEnabled)
+    setCostBudgetReason(nextBudgetReason)
+  }, [workspaceCacheKey])
 
   const isBudgetResponse = (value: any): value is {
     config: { limitUsd: number; warningPct: number; enforced: boolean; paused: boolean }
@@ -178,71 +202,71 @@ export default function Activity({ onNavigateToDoc, isActive = false }: Activity
   }, [])
 
   const fetchMetering = useCallback(() => {
-    if (!cachedActivityMetering) {
+    if (!cachedActivityMeteringByWorkspace[workspaceCacheKey]) {
       setMeteringLoading(true)
     }
-    fetch('/api/metering')
+    fetch(buildWorkspaceScopedPath('/api/metering', activeWorkspace?.id))
       .then(r => r.ok ? r.json() : null)
       .then(d => {
         if (d && d.enabled === false) {
           setCostBudgetEnabled(false)
           setCostBudgetReason(typeof d.reason === 'string' ? d.reason : 'Opik is not configured for this instance.')
           setMetering(null)
-          cachedActivityCostBudgetEnabled = false
-          cachedActivityCostBudgetReason = typeof d.reason === 'string' ? d.reason : 'Opik is not configured for this instance.'
-          cachedActivityMetering = null
+          cachedActivityCostBudgetEnabledByWorkspace[workspaceCacheKey] = false
+          cachedActivityCostBudgetReasonByWorkspace[workspaceCacheKey] = typeof d.reason === 'string' ? d.reason : 'Opik is not configured for this instance.'
+          cachedActivityMeteringByWorkspace[workspaceCacheKey] = null
           return
         }
         setCostBudgetEnabled(true)
         setCostBudgetReason('')
-        cachedActivityCostBudgetEnabled = true
-        cachedActivityCostBudgetReason = ''
+        cachedActivityCostBudgetEnabledByWorkspace[workspaceCacheKey] = true
+        cachedActivityCostBudgetReasonByWorkspace[workspaceCacheKey] = ''
         const nextMetering = isMeteringResponse(d) ? d : EMPTY_METERING
-        cachedActivityMetering = nextMetering
+        cachedActivityMeteringByWorkspace[workspaceCacheKey] = nextMetering
         setMetering(nextMetering)
       })
       .catch(() => {
-        if (!cachedActivityMetering) {
-          cachedActivityMetering = EMPTY_METERING
+        if (!cachedActivityMeteringByWorkspace[workspaceCacheKey]) {
+          cachedActivityMeteringByWorkspace[workspaceCacheKey] = EMPTY_METERING
           setMetering(EMPTY_METERING)
         }
       })
       .finally(() => setMeteringLoading(false))
-  }, [])
+  }, [activeWorkspace?.id, workspaceCacheKey])
 
   const fetchAgentCostLimits = useCallback(() => {
     fetch('/api/agents/cost-limits')
       .then(r => r.ok ? r.json() : null)
       .then(d => {
         const limits = d?.limits && typeof d.limits === 'object' ? d.limits : {}
-        cachedActivityAgentCostLimits = limits
+        cachedActivityAgentCostLimitsByWorkspace[workspaceCacheKey] = limits
         setAgentCostLimits(limits)
       })
       .catch(() => {
-        if (!Object.keys(cachedActivityAgentCostLimits).length) {
+        if (!Object.keys(cachedActivityAgentCostLimitsByWorkspace[workspaceCacheKey] || {}).length) {
           setAgentCostLimits({})
         }
       })
-  }, [])
+  }, [activeWorkspace?.id, workspaceCacheKey])
 
   const fetchBudget = useCallback(() => {
-    fetch('/api/budget')
+    fetch(buildWorkspaceScopedPath('/api/budget', activeWorkspace?.id))
       .then(r => r.ok ? r.json() : null)
       .then(d => {
         if (d && d.enabled === false) {
           setBudget(null)
-          cachedActivityBudget = null
+          cachedActivityBudgetByWorkspace[workspaceCacheKey] = null
         } else if (isBudgetResponse(d)) {
           setBudget(d)
           setBudgetInput(String(d.config.limitUsd))
-          cachedActivityBudget = d
+          cachedActivityBudgetByWorkspace[workspaceCacheKey] = d
         } else {
           setBudget(null)
-          cachedActivityBudget = null
+          cachedActivityBudgetByWorkspace[workspaceCacheKey] = null
         }
       })
       .catch(() => {})
-  }, [])
+  }, [activeWorkspace?.id, workspaceCacheKey])
 
   const refreshActivityPage = useCallback(() => {
     fetchFeed()
@@ -294,10 +318,13 @@ export default function Activity({ onNavigateToDoc, isActive = false }: Activity
       const res = await fetch('/api/budget', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates),
+        body: JSON.stringify({
+          ...updates,
+          workspaceId: activeWorkspace?.id,
+        }),
       })
       if (res.ok) {
-        const refreshed = await fetch('/api/budget')
+        const refreshed = await fetch(buildWorkspaceScopedPath('/api/budget', activeWorkspace?.id))
         const data = refreshed.ok ? await refreshed.json() : null
         if (isBudgetResponse(data)) {
           setBudget(data)

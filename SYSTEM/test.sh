@@ -361,6 +361,17 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Workspace scope helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/workspaceScope.test.ts > /tmp/clawmax-workspace-scope.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-workspace-scope.out; then
+  workspace_scope_count=$(grep -o '[0-9]\+ tests' /tmp/clawmax-workspace-scope.out | tail -1 | grep -o '[0-9]\+')
+  pass "Workspace scope helper unit tests (${workspace_scope_count:-?} tests)"
+else
+  cat /tmp/clawmax-workspace-scope.out
+  fail "Workspace scope helper unit tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Skill registry unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/skill-registry.test.ts > /tmp/clawmax-skill-registry.out 2>&1 || true
 if grep -q "tests passed" /tmp/clawmax-skill-registry.out; then
