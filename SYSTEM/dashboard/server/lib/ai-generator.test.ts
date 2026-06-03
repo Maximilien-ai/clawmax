@@ -194,6 +194,27 @@ test('createChatCompletionWithCompatibilityRetry omits temperature for GPT-5 req
   assert.strictEqual(response.choices[0].message.content, 'ok')
 })
 
+test('createChatCompletionWithCompatibilityRetry times out instead of hanging forever', async () => {
+  const client = {
+    chat: {
+      completions: {
+        create: async () => {
+          await new Promise(() => {})
+        }
+      }
+    }
+  } as any
+
+  await assert.rejects(
+    () => createChatCompletionWithCompatibilityRetry(client, {
+      model: 'gpt-4o',
+      messages: [{ role: 'user', content: 'hi' }],
+      max_tokens: 32,
+    }, 25),
+    /timed out after 25ms/i,
+  )
+})
+
 test('shouldGenerateCompanyTemplate infers company from prompt unless agent is explicit', () => {
   assert.strictEqual(
     shouldGenerateCompanyTemplate('A B2B SaaS conversion company with leadership, offer strategy, outbound, and delivery teams.', 'team'),

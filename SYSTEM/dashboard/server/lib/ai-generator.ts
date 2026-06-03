@@ -521,6 +521,28 @@ function completionTokenLimit(model: string, limit: number): { max_tokens?: numb
     : { max_tokens: limit }
 }
 
+export function buildResolvedModelRequestOptions(
+  requestedModel: string,
+  limit: number,
+): { model: string; max_tokens?: number; max_completion_tokens?: number } {
+  const model = resolveModel(requestedModel)
+  return {
+    model,
+    ...completionTokenLimit(model, limit),
+  }
+}
+
+function getResolvedModel(modelOptions: { model: string }): string {
+  return modelOptions.model
+}
+
+function getResolvedCompletionLimits(modelOptions: { max_tokens?: number; max_completion_tokens?: number }): { max_tokens?: number; max_completion_tokens?: number } {
+  return {
+    max_tokens: modelOptions.max_tokens,
+    max_completion_tokens: modelOptions.max_completion_tokens,
+  }
+}
+
 function isOpenAiMaxTokensCompatibilityError(err: unknown): boolean {
   const message = String((err as any)?.error?.message || (err as any)?.message || '').toLowerCase()
   return message.includes('unsupported parameter')
@@ -531,10 +553,19 @@ function isOpenAiMaxTokensCompatibilityError(err: unknown): boolean {
 export async function createChatCompletionWithCompatibilityRetry(
   client: OpenAI,
   request: Record<string, any>,
+  timeoutMs: number = 45000,
 ): Promise<any> {
   const preparedRequest = sanitizeCompatibilityRequest(request)
+  const runRequest = async (payload: Record<string, any>) => {
+    return await Promise.race([
+      client.chat.completions.create(payload as any),
+      new Promise((_, reject) => {
+        setTimeout(() => reject(new Error(`AI request timed out after ${timeoutMs}ms`)), timeoutMs)
+      }),
+    ])
+  }
   try {
-    return await client.chat.completions.create(preparedRequest as any)
+    return await runRequest(preparedRequest)
   } catch (err) {
     const model = String(preparedRequest?.model || '')
     if (
@@ -548,7 +579,7 @@ export async function createChatCompletionWithCompatibilityRetry(
         max_completion_tokens: preparedRequest.max_tokens,
       }
       delete retryRequest.max_tokens
-      return await client.chat.completions.create(retryRequest as any)
+      return await runRequest(retryRequest)
     }
     throw err
   }
@@ -1222,9 +1253,9 @@ export async function generateAgentMeta(description: string): Promise<{
     availableSkills = listAvailableSkills().map((s: any) => s.id || s.name)
   } catch {}
 
-  const model = resolveModel('gpt-4o')
+  const requestOptions = buildResolvedModelRequestOptions('gpt-4o', 200)
   const completion = await createChatCompletionWithCompatibilityRetry(getSystemOpenAiClient(), {
-    model,
+    model: getResolvedModel(requestOptions),
     messages: [
       {
         role: 'system',
@@ -1253,7 +1284,7 @@ Rules:
       { role: 'user', content: description }
     ],
     temperature: 0.7,
-    ...completionTokenLimit(model, 200),
+    ...getResolvedCompletionLimits(requestOptions),
   })
 
   const parsed = parseJsonResponse<{
@@ -1271,8 +1302,9 @@ Rules:
 }
 
 async function generateIdentity(input: GenerateAgentFilesInput): Promise<string> {
+  const requestOptions = buildResolvedModelRequestOptions('gpt-4', 250)
   const completion = await createChatCompletionWithCompatibilityRetry(getSystemOpenAiClient(), {
-    model: resolveModel('gpt-4'),
+    model: getResolvedModel(requestOptions),
     messages: [
       {
         role: 'system',
@@ -1291,6 +1323,7 @@ Respond in JSON format: { "role": "...", "vibe": "...", "emoji": "..." }`
       }
     ],
     temperature: 0.7,
+    ...getResolvedCompletionLimits(requestOptions),
   })
 
   const result = parseJsonResponse<{ role?: string; vibe?: string; emoji?: string }>(
@@ -1307,8 +1340,9 @@ Respond in JSON format: { "role": "...", "vibe": "...", "emoji": "..." }`
 }
 
 async function generateSoul(input: GenerateAgentFilesInput): Promise<string> {
+  const requestOptions = buildResolvedModelRequestOptions('gpt-4', 300)
   const completion = await createChatCompletionWithCompatibilityRetry(getSystemOpenAiClient(), {
-    model: resolveModel('gpt-4'),
+    model: getResolvedModel(requestOptions),
     messages: [
       {
         role: 'system',
@@ -1328,6 +1362,7 @@ Respond in JSON format: { "role_description": "...", "personality": "..." }`
       }
     ],
     temperature: 0.8,
+    ...getResolvedCompletionLimits(requestOptions),
   })
 
   const result = parseJsonResponse<{ role_description?: string; personality?: string }>(
@@ -1341,8 +1376,9 @@ Respond in JSON format: { "role_description": "...", "personality": "..." }`
 }
 
 async function generateTools(input: GenerateAgentFilesInput): Promise<string> {
+  const requestOptions = buildResolvedModelRequestOptions('gpt-4', 250)
   const completion = await createChatCompletionWithCompatibilityRetry(getSystemOpenAiClient(), {
-    model: resolveModel('gpt-4'),
+    model: getResolvedModel(requestOptions),
     messages: [
       {
         role: 'system',
@@ -1367,6 +1403,7 @@ Respond in JSON format: { "tools_section": "..." }`
       }
     ],
     temperature: 0.7,
+    ...getResolvedCompletionLimits(requestOptions),
   })
 
   const result = parseJsonResponse<{ tools_section?: string }>(

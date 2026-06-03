@@ -131,6 +131,10 @@ function summarizeAiGenerationError(error: unknown): string {
     return 'Network error: the dashboard could not reach the AI provider. Check DNS, outbound network access, or provider base URL settings and try again.'
   }
 
+  if (/timed out after/i.test(message)) {
+    return 'AI generation timed out. GPT-5 may be unreachable or too slow right now. Try again, or switch the built-in/system generation model to gpt-4o.'
+  }
+
   return message || 'AI generation failed.'
 }
 
