@@ -1,5 +1,5 @@
 import { strict as assert } from 'assert'
-import { getAgentChatCodeBlockClassName, getAgentChatInlineCodeClassName } from './agentChatMarkdown'
+import { getAgentChatCodeBlockClassName, getAgentChatInlineCodeClassName, getAgentChatLinkClassName } from './agentChatMarkdown'
 
 console.log('\n=== Agent Chat Markdown Helper Test Suite ===\n')
 
@@ -15,5 +15,11 @@ assert(assistantInline.includes('!text-gray-900'), 'Expected assistant inline co
 
 const userInline = getAgentChatInlineCodeClassName('user')
 assert(userInline.includes('text-white'), 'Expected user inline code to stay readable on blue bubbles')
+
+const assistantLink = getAgentChatLinkClassName('assistant')
+assert(assistantLink.includes('!text-sky-700'), 'Expected assistant links to force a readable light-mode color')
+
+const userLink = getAgentChatLinkClassName('user')
+assert(userLink.includes('!text-white'), 'Expected user links to stay readable on blue bubbles')
 
 console.log('✓ Agent chat markdown helper tests passed')

@@ -392,6 +392,70 @@ async function run() {
     }
   })
 
+  await test('provision keeps preferred hosted model when only local runtime models are cached', async () => {
+    const tmpCliDir = path.join(tmpHome, 'bin-hosted')
+    const fakeCli = path.join(tmpCliDir, 'openclaw')
+    fs.mkdirSync(tmpCliDir, { recursive: true })
+    fs.writeFileSync(fakeCli, '#!/bin/sh\necho test-openclaw\n', 'utf-8')
+    fs.chmodSync(fakeCli, 0o755)
+    process.env.OPENCLAW_BIN = fakeCli
+
+    const childProcess = require('child_process')
+    const modelDiscovery = require('../lib/model-discovery')
+    const originalSpawn = childProcess.spawn
+    const originalGetAvailableModelsCached = modelDiscovery.getAvailableModelsCached
+    const spawnCalls: Array<{ command: string; args: string[] }> = []
+
+    modelDiscovery.getAvailableModelsCached = () => ['ollama/qwen2.5:latest']
+    childProcess.spawn = (command: string, args: string[]) => {
+      spawnCalls.push({ command, args })
+      const listeners: Record<string, Function> = {}
+      return {
+        stdout: { on() {} },
+        stderr: { on() {} },
+        on(event: string, handler: Function) {
+          listeners[event] = handler
+          if (event === 'close') {
+            setTimeout(() => handler(0, null), 0)
+          }
+        },
+      }
+    }
+
+    try {
+      const handler = getRouteHandler('post', '/provision')
+      const writes: string[] = []
+      const res: any = {
+        writableEnded: false,
+        headers: {} as Record<string, string>,
+        setHeader(name: string, value: string) { this.headers[name] = value },
+        writeHead() { return this },
+        flushHeaders() {},
+        write(chunk: string) { writes.push(String(chunk)) },
+        end() { this.writableEnded = true },
+      }
+      const req: any = makeReq({
+        body: {
+          name: 'hosted-preferred-agent',
+          model: 'openai/gpt-5',
+          tags: ['assistant'],
+        },
+        on() {},
+      })
+      await handler(req, res)
+      await new Promise(resolve => setTimeout(resolve, 20))
+
+      const addCall = spawnCalls.find((call) => call.args.slice(0, 3).join(' ') === 'agents add hosted-preferred-agent')
+      assert(addCall, 'Expected openclaw agents add to be invoked')
+      assert(addCall!.args.includes('openai/gpt-5'), 'Expected provisioning to keep the preferred hosted model')
+      assert(!writes.some(chunk => chunk.includes('Using fallback model: "ollama/qwen2.5:latest"')), 'Expected provisioning to avoid falling back to the local Ollama model')
+    } finally {
+      childProcess.spawn = originalSpawn
+      modelDiscovery.getAvailableModelsCached = originalGetAvailableModelsCached
+      delete require.cache[require.resolve('./agents')]
+    }
+  })
+
   await test('validate-provision surfaces duplicate agent IDs from the active workspace', async () => {
     writeAgent(workspacePath, 'plain-agent', [
       '# IDENTITY.md',

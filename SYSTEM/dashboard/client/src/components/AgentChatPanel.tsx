@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { byokForRequest, hasAiGenerationAccess, readStoredByokKeys } from '../lib/byok'
 import { buildPersistentDashboardChatSessionId } from '../lib/agentChatSession'
-import { getAgentChatCodeBlockClassName, getAgentChatInlineCodeClassName, type AgentChatMarkdownRole } from '../lib/agentChatMarkdown'
+import { getAgentChatCodeBlockClassName, getAgentChatInlineCodeClassName, getAgentChatLinkClassName, type AgentChatMarkdownRole } from '../lib/agentChatMarkdown'
 import { ProductIconCell } from '../lib/productIcons'
 import { useAuth } from '../contexts/AuthContext'
 import { resolveAgentChatDocPath } from '../lib/agentChatDocs'
@@ -346,7 +346,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
               </button>
             )
           }
-          return <a href={href} target="_blank" rel="noreferrer">{children}</a>
+          return <a href={href} target="_blank" rel="noreferrer" className={getAgentChatLinkClassName(role)}>{children}</a>
         },
         code: ({ children, className }) => (
           <code className={className?.includes('language-') ? className : getAgentChatInlineCodeClassName(role)}>

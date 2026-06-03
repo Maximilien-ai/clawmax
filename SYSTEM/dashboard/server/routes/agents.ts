@@ -65,6 +65,14 @@ function getAvailableModels(): string[] {
   return getAvailableModelsCached()
 }
 
+function isLocalRuntimeModel(model: string | undefined): boolean {
+  return !!model && (model.startsWith('ollama/') || model.startsWith('openai-compatible/'))
+}
+
+function isHostedModel(model: string | undefined): boolean {
+  return !!model && !isLocalRuntimeModel(model)
+}
+
 function resolveAgentProvisionCliPath(): string | null {
   const cliPath = resolveOpenClawCliPath()
   if (!cliPath) return null
@@ -619,9 +627,14 @@ router.post('/provision', (req, res) => {
   // Validate model is available - if not, use a sensible fallback
   if (normalizedModel && availableModels.length > 0 && !availableModels.includes(normalizedModel) && !availableModels.includes(normalizedModel.replace(/^(anthropic|openai|gemini|google|ollama)\//, ''))) {
     const fallbackModel = availableModels.find(m => m.includes('/')) || availableModels[0]
-    send('log', `⚠️  Model "${normalizedModel}" is not available with system API keys\n`)
-    send('log', `Using fallback model: "${fallbackModel}"\n`)
-    normalizedModel = fallbackModel
+    const availableHostedModels = availableModels.filter((candidate) => isHostedModel(candidate))
+    if (isHostedModel(normalizedModel) && availableHostedModels.length === 0) {
+      send('log', `Using preferred hosted model: "${normalizedModel}"\n`)
+    } else {
+      send('log', `⚠️  Model "${normalizedModel}" is not available with system API keys\n`)
+      send('log', `Using fallback model: "${fallbackModel}"\n`)
+      normalizedModel = fallbackModel
+    }
   }
   // When no system keys configured (BYOK-only), trust the client's model choice
   if (availableModels.length === 0 && normalizedModel) {

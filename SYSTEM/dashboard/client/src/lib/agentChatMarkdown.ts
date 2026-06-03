@@ -13,3 +13,10 @@ export function getAgentChatCodeBlockClassName(role: AgentChatMarkdownRole): str
   }
   return '!mb-2 !overflow-x-auto !rounded-lg !bg-gray-50 !px-3 !py-2 !text-xs !text-gray-900 !ring-1 !ring-gray-200 last:!mb-0 dark:!bg-slate-950/80 dark:!text-gray-100 dark:!ring-slate-800'
 }
+
+export function getAgentChatLinkClassName(role: AgentChatMarkdownRole): string {
+  if (role === 'user') {
+    return '!text-white !underline hover:!text-white/90'
+  }
+  return '!text-sky-700 !underline hover:!text-sky-800 dark:!text-sky-300 dark:hover:!text-sky-200'
+}
