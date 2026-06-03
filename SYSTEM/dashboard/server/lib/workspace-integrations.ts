@@ -23,6 +23,11 @@ export interface WorkspaceIntegrationSecrets {
   updatedAt?: string
 }
 
+export interface WorkspaceIntegrationSecretSummary {
+  present: boolean
+  preview?: string
+}
+
 function getWorkspaceIntegrationsPath(): string {
   return path.join(getWorkspacePath(), 'SYSTEM', 'integrations.json')
 }
@@ -123,6 +128,31 @@ export function getWorkspaceIntegrationSecretPresence(): Record<string, Record<s
       slug,
       Object.fromEntries(
         Object.entries(values || {}).map(([key, value]) => [key, !!`${value || ''}`.trim()])
+      ),
+    ])
+  )
+}
+
+function maskSecretPreview(value: string): string {
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+  if (trimmed.length <= 8) return '••••'
+  return `${trimmed.slice(0, 4)}••••${trimmed.slice(-4)}`
+}
+
+export function getWorkspaceIntegrationSecretSummaries(): Record<string, Record<string, WorkspaceIntegrationSecretSummary>> {
+  const secrets = readWorkspaceIntegrationSecrets()
+  return Object.fromEntries(
+    Object.entries(secrets.partners || {}).map(([slug, values]) => [
+      slug,
+      Object.fromEntries(
+        Object.entries(values || {}).map(([key, value]) => {
+          const trimmed = `${value || ''}`.trim()
+          return [key, {
+            present: !!trimmed,
+            preview: trimmed ? maskSecretPreview(trimmed) : undefined,
+          }]
+        })
       ),
     ])
   )

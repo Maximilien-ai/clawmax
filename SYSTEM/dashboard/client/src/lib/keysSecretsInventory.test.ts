@@ -1,5 +1,5 @@
 import assert from 'assert'
-import { listServerManagedIntegrationSecretKeys } from './keysSecretsInventory'
+import { buildServerManagedWorkspaceEntries, listServerManagedIntegrationSecretKeys } from './keysSecretsInventory'
 
 function test(name: string, fn: () => void) {
   try {
@@ -35,6 +35,22 @@ test('listServerManagedIntegrationSecretKeys surfaces saved server-side partner 
   )
 
   assert.deepEqual(keys, ['RESEND_API_KEY'])
+})
+
+test('buildServerManagedWorkspaceEntries returns masked previews for saved server-side partner secrets', () => {
+  const entries = buildServerManagedWorkspaceEntries(
+    [
+      {
+        slug: 'resend',
+        fields: [{ key: 'apiKey', secret: true, storage: 'server' }],
+      },
+    ],
+    {
+      resend: { apiKey: { present: true, preview: 're_t••••_123' } },
+    }
+  )
+
+  assert.deepEqual(entries, { RESEND_API_KEY: 're_t••••_123' })
 })
 
 console.log('keysSecretsInventory.test.ts: ok')

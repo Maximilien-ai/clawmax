@@ -6,6 +6,7 @@ type PartnerDefinition = {
 }
 
 type PartnerSecretPresence = Record<string, Record<string, boolean>>
+type PartnerSecretSummary = Record<string, Record<string, { present?: boolean; preview?: string }>>
 
 export function listServerManagedIntegrationSecretKeys(
   partnerDefinitions: PartnerDefinition[],
@@ -23,4 +24,22 @@ export function listServerManagedIntegrationSecretKeys(
   }
 
   return Array.from(keys).sort((a, b) => a.localeCompare(b))
+}
+
+export function buildServerManagedWorkspaceEntries(
+  partnerDefinitions: PartnerDefinition[],
+  secretSummaries: PartnerSecretSummary
+): Record<string, string> {
+  const entries: Record<string, string> = {}
+
+  for (const partner of partnerDefinitions) {
+    for (const field of partner.fields || []) {
+      if (!field.secret || field.storage !== 'server') continue
+      const summary = secretSummaries[partner.slug]?.[field.key]
+      if (!summary?.present) continue
+      entries[getPartnerVaultKey(partner.slug, field.key)] = summary.preview || '••••'
+    }
+  }
+
+  return entries
 }

@@ -3,6 +3,7 @@ import { spawn } from 'child_process'
 import { validateIntegrations } from '../lib/integration-validation'
 import {
   getWorkspaceIntegrationSecretPresence,
+  getWorkspaceIntegrationSecretSummaries,
   readWorkspaceIntegrationConfig,
   readWorkspaceIntegrationSecrets,
   writeWorkspaceIntegrationConfig,
@@ -35,6 +36,7 @@ router.get('/config', (_req, res) => {
   res.json({
     config: readWorkspaceIntegrationConfig(),
     secretPresence: getWorkspaceIntegrationSecretPresence(),
+    secretSummaries: getWorkspaceIntegrationSecretSummaries(),
   })
 })
 
@@ -88,7 +90,12 @@ router.put('/config', (req, res) => {
     }).filter(([, values]) => Object.keys(values as Record<string, string>).length > 0)
   )
   writeWorkspaceIntegrationSecrets({ partners: serverPartnerSecrets })
-  res.json({ ok: true, config, secretPresence: getWorkspaceIntegrationSecretPresence() })
+  res.json({
+    ok: true,
+    config,
+    secretPresence: getWorkspaceIntegrationSecretPresence(),
+    secretSummaries: getWorkspaceIntegrationSecretSummaries(),
+  })
 })
 
 router.post('/validate', async (req, res) => {

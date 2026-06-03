@@ -161,6 +161,7 @@ async function run() {
     assert.deepStrictEqual(putRes.jsonBody?.config?.enabledPartners, ['github'], 'Expected enabled partners deduped')
     assert.strictEqual(putRes.jsonBody?.secretPresence?.github?.token, true, 'Expected GitHub token presence to be reported')
     assert.strictEqual(putRes.jsonBody?.secretPresence?.resend?.apiKey, true, 'Expected Resend API key presence to be reported')
+    assert.strictEqual(putRes.jsonBody?.secretSummaries?.resend?.apiKey?.preview, 're_t••••_123', 'Expected masked Resend secret preview to be reported')
 
     const getHandler = getRouteHandler('get', '/config')
     const getRes = makeRes()
@@ -171,6 +172,7 @@ async function run() {
     assert.strictEqual(getRes.jsonBody?.config?.ollamaDefaultModel, 'llama3.2', 'Expected ollama defaults persistence')
     assert.strictEqual(getRes.jsonBody?.secretPresence?.github?.token, true, 'Expected GitHub token secret presence after reload')
     assert.strictEqual(getRes.jsonBody?.secretPresence?.resend?.apiKey, true, 'Expected Resend API key presence after reload')
+    assert.strictEqual(getRes.jsonBody?.secretSummaries?.resend?.apiKey?.preview, 're_t••••_123', 'Expected masked Resend secret preview after reload')
   })
 
   await test('config update preserves existing github token when a later save sends a blank token', async () => {

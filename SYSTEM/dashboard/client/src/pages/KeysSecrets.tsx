@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { detectProviderKeyMismatch, isOllamaUiAvailable, readStoredByokKeys } from '../lib/byok'
 import { DEFAULT_VISIBLE_PARTNERS, getDefaultPartnerDefinitions } from '../lib/defaultPartners'
 import { BROWSER_VAULT_UPDATED_EVENT, findManagedSecretConflicts, getPartnerVaultKey, parseEnvLikeSecrets, readSharedSecrets, writeSharedSecrets } from '../lib/localSecrets'
-import { listServerManagedIntegrationSecretKeys } from '../lib/keysSecretsInventory'
+import { buildServerManagedWorkspaceEntries, listServerManagedIntegrationSecretKeys } from '../lib/keysSecretsInventory'
 
 type SecretDraft = { key: string; value: string }
 type PartnerDefinition = {
@@ -212,6 +212,7 @@ export default function KeysSecrets() {
   const [importText, setImportText] = useState('')
   const [partnerDefinitions, setPartnerDefinitions] = useState<PartnerDefinition[]>([])
   const [serverPartnerSecretPresence, setServerPartnerSecretPresence] = useState<Record<string, Record<string, boolean>>>({})
+  const [serverPartnerSecretSummaries, setServerPartnerSecretSummaries] = useState<Record<string, Record<string, { present?: boolean; preview?: string }>>>({})
   const [managedSecrets, setManagedSecrets] = useState<Record<string, string>>({})
   const [knownMatches, setKnownMatches] = useState<Record<string, SecretConsumerMatch[]>>({})
   const [keySearch, setKeySearch] = useState('')
@@ -255,11 +256,15 @@ export default function KeysSecrets() {
 
   useEffect(() => {
     fetch('/api/integrations/config')
-      .then((res) => res.ok ? res.json() : { secretPresence: {} })
+      .then((res) => res.ok ? res.json() : { secretPresence: {}, secretSummaries: {} })
       .then((data) => {
         setServerPartnerSecretPresence(typeof data?.secretPresence === 'object' && data.secretPresence ? data.secretPresence : {})
+        setServerPartnerSecretSummaries(typeof data?.secretSummaries === 'object' && data.secretSummaries ? data.secretSummaries : {})
       })
-      .catch(() => setServerPartnerSecretPresence({}))
+      .catch(() => {
+        setServerPartnerSecretPresence({})
+        setServerPartnerSecretSummaries({})
+      })
   }, [])
 
   useEffect(() => {
@@ -364,8 +369,15 @@ export default function KeysSecrets() {
     return matchText.includes(search)
   }, [keySearch, keyGroupFilter, partnerDefinitions, knownMatches])
   const filteredWorkspaceEntries = useMemo(
-    () => Object.entries(visibleWorkspacePreview).filter(([key, value]) => matchesKeyInventoryFilters(key, value)),
-    [visibleWorkspacePreview, matchesKeyInventoryFilters]
+    () => {
+      const managedWorkspaceEntries = buildServerManagedWorkspaceEntries(partnerDefinitions, serverPartnerSecretSummaries)
+      const combinedWorkspaceEntries = {
+        ...managedWorkspaceEntries,
+        ...visibleWorkspacePreview,
+      }
+      return Object.entries(combinedWorkspaceEntries).filter(([key, value]) => matchesKeyInventoryFilters(key, value))
+    },
+    [partnerDefinitions, serverPartnerSecretSummaries, visibleWorkspacePreview, matchesKeyInventoryFilters]
   )
   const filteredGlobalEntries = useMemo(
     () => Object.entries(visibleGlobalPreview).filter(([key, value]) => matchesKeyInventoryFilters(key, value)),
@@ -585,17 +597,22 @@ export default function KeysSecrets() {
           </div>
           <div>
             <div className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-              Workspace ({Object.keys(visibleWorkspacePreview).length})
+              Workspace ({Object.keys({ ...buildServerManagedWorkspaceEntries(partnerDefinitions, serverPartnerSecretSummaries), ...visibleWorkspacePreview }).length})
             </div>
             <div className="mt-2 max-h-[24rem] space-y-2 overflow-y-auto pr-1">
-              {Object.entries(visibleWorkspacePreview).length === 0 && <span className="text-sm text-gray-400">None yet</span>}
-              {Object.entries(visibleWorkspacePreview).length > 0 && filteredWorkspaceEntries.length === 0 && (
+              {Object.keys({ ...buildServerManagedWorkspaceEntries(partnerDefinitions, serverPartnerSecretSummaries), ...visibleWorkspacePreview }).length === 0 && <span className="text-sm text-gray-400">None yet</span>}
+              {Object.keys({ ...buildServerManagedWorkspaceEntries(partnerDefinitions, serverPartnerSecretSummaries), ...visibleWorkspacePreview }).length > 0 && filteredWorkspaceEntries.length === 0 && (
                 <span className="text-sm text-gray-400">No workspace keys match your search or group filter.</span>
               )}
               {filteredWorkspaceEntries.map(([key, value]) => (
                 <div key={`workspace-${key}`} className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-700 dark:border-sky-800 dark:bg-sky-900/20 dark:text-sky-300">
                   <div className="flex flex-wrap items-center gap-2">
                     <span>{key}</span>
+                    {key in buildServerManagedWorkspaceEntries(partnerDefinitions, serverPartnerSecretSummaries) && (
+                      <span className="inline-flex rounded-full bg-white/80 px-2 py-0.5 text-[11px] uppercase tracking-wide dark:bg-sky-950/60">
+                        managed
+                      </span>
+                    )}
                     <span className="inline-flex rounded-full bg-white/80 px-2 py-0.5 text-[11px] uppercase tracking-wide dark:bg-sky-950/60">
                       {getKeyGroup(key, partnerDefinitions)}
                     </span>
