@@ -110,6 +110,30 @@ function resetAgentRuntimeSessions(agentId: string) {
   }
 }
 
+function summarizeAiGenerationError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error || '')
+  const collectCauseMessages = (value: any, messages: string[] = []): string[] => {
+    if (!value) return messages
+    const nextMessage = value instanceof Error ? value.message : String(value || '')
+    if (nextMessage) messages.push(nextMessage)
+    if (value?.cause && value.cause !== value) {
+      return collectCauseMessages(value.cause, messages)
+    }
+    return messages
+  }
+  const combined = collectCauseMessages(error).join('\n').trim()
+
+  if (/getaddrinfo\s+ENOTFOUND\s+api\.openai\.com/i.test(combined)) {
+    return 'Network error: the dashboard could not reach OpenAI. Check DNS or outbound network access and try again.'
+  }
+
+  if (/Connection error/i.test(message) && /fetch failed/i.test(combined)) {
+    return 'Network error: the dashboard could not reach the AI provider. Check DNS, outbound network access, or provider base URL settings and try again.'
+  }
+
+  return message || 'AI generation failed.'
+}
+
 /**
  * Register a new agent via Gateway RPC
  *
@@ -331,7 +355,7 @@ router.post('/generate', async (req, res) => {
     })
   } catch (err) {
     console.error('AI generation error:', err)
-    const message = err instanceof Error ? err.message : String(err)
+    const message = summarizeAiGenerationError(err)
     if (/No API key configured/i.test(message)) {
       return res.status(400).json({
         error: 'AI generation needs a configured OpenAI, Anthropic, or OpenAI-compatible setup, or a shared preferred model. Open Workspaces Integrations or Keys & Secrets first.',

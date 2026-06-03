@@ -194,6 +194,43 @@ async function run() {
     assert(/description is required/i.test(res.jsonBody?.error || ''), 'Expected missing description guidance')
   })
 
+  await test('generate surfaces a friendly network error when OpenAI DNS resolution fails', async () => {
+    const aiGeneratorPath = require.resolve('../lib/ai-generator')
+    delete require.cache[aiGeneratorPath]
+    const aiGenerator = require('../lib/ai-generator')
+    const originalGenerateAgentMeta = aiGenerator.generateAgentMeta
+
+    aiGenerator.generateAgentMeta = async () => {
+      const err: any = new Error('Connection error.')
+      err.cause = new Error('fetch failed')
+      err.cause.cause = Object.assign(new Error('getaddrinfo ENOTFOUND api.openai.com'), {
+        code: 'ENOTFOUND',
+        hostname: 'api.openai.com',
+      })
+      throw err
+    }
+
+    try {
+      const handler = getRouteHandler('post', '/generate')
+      const res = makeRes()
+      await handler(makeReq({
+        body: {
+          description: 'create fake agent',
+          suggestMeta: true,
+        },
+      }), res)
+
+      assert.strictEqual(res.statusCode, 500, 'Expected DNS/network failure to return HTTP 500')
+      assert(
+        /Network error: the dashboard could not reach OpenAI/i.test(res.jsonBody?.error || ''),
+        `Expected friendly OpenAI network error, got: ${res.jsonBody?.error || 'missing'}`
+      )
+    } finally {
+      aiGenerator.generateAgentMeta = originalGenerateAgentMeta
+      delete require.cache[require.resolve('./agents')]
+    }
+  })
+
   await test('provision route honors OPENCLAW_BIN override when creating agents', async () => {
     const tmpCliDir = path.join(tmpHome, 'bin')
     const fakeCli = path.join(tmpCliDir, 'openclaw')
