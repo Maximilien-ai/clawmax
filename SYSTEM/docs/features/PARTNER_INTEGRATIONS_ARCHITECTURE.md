@@ -18,6 +18,7 @@ The next version should preserve current value while supporting a growing set of
 - Senso
 - Opik
 - GitHub
+- Resend
 - Blaxel
 - Redis
 
@@ -50,10 +51,11 @@ Without a contract, every new partner increases dashboard complexity and impleme
 1. Keep the current core provider setup flow intact.
 2. Make third-party integrations optional, partner-specific pages.
 3. Preserve parity for Senso, Opik, and GitHub in the new flow.
-4. Add Blaxel and Redis without hardcoding them into the product forever.
-5. Support externalized partner definitions later.
-6. Allow partner integrations to influence template apply and workflow execution.
-7. Keep partner skill installation curated and safe.
+4. Support Resend as a first-class partner-backed agent communication path.
+5. Add Blaxel and Redis without hardcoding them into the product forever.
+6. Support externalized partner definitions later.
+7. Allow partner integrations to influence template apply and workflow execution.
+8. Keep partner skill installation curated and safe.
 
 ---
 
@@ -136,6 +138,10 @@ PARTNERS/
     PARTNER.md
     logo.svg
   github/
+    partner.json
+    PARTNER.md
+    logo.svg
+  resend/
     partner.json
     PARTNER.md
     logo.svg
@@ -421,4 +427,3 @@ By end of day April 8:
 - curated partner skill installation exists
 - templates can opt into partner integrations
 - at least a small flagship template set exists
-
