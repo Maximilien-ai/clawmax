@@ -13,6 +13,7 @@ interface OpenClawAgentRecord {
   workspace?: string
   agentDir?: string
   model?: string
+  skills?: string[]
 }
 
 interface AuthProfileFile {
@@ -291,6 +292,14 @@ export function resolveAgentExecutionConfig(agentId: string): {
     agentDir: record?.agentDir,
     provider: providerFromModel(model),
   }
+}
+
+export function resolveAgentSkillIds(agentId: string): string[] {
+  const activeWorkspaceAgentDir = path.join(getWorkspacePath(), 'AGENTS', agentId)
+  const record = readOpenClawAgentRecord(agentId, activeWorkspaceAgentDir)
+  return Array.isArray(record?.skills)
+    ? record.skills.map((entry) => String(entry || '').trim()).filter(Boolean)
+    : []
 }
 
 export function deriveWorkspaceRootFromAgentWorkspace(agentWorkspace?: string): string | undefined {

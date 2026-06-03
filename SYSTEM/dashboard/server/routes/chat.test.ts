@@ -5,6 +5,7 @@
  */
 
 import { buildManagedSecretStatelessChatMessage, deriveChatError, hasByokExecutionPathForProvider, shouldUseLocalChatExecution } from './chat'
+import { buildResendChatEmailRequest, hasResendEmailCapability } from '../lib/resend-partner'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -118,6 +119,29 @@ test('buildManagedSecretStatelessChatMessage preserves recent chat context in a 
   assert(prompt.includes('User: who are you? give me a status'), 'Expected prior user turn in context')
   assert(prompt.includes("Assistant: I'm the resend-agent. Status: model openai/gpt-4o-mini."), 'Expected prior assistant turn in context')
   assert(prompt.includes('Latest user request: Send that status in an email to mmaximilien@gmail.com'), 'Expected latest request appended after context')
+})
+
+test('buildResendChatEmailRequest uses prior assistant status for send-that-status requests', () => {
+  const request = buildResendChatEmailRequest('Send that status in an email to mmaximilien@gmail.com', [
+    { role: 'user', content: 'who are you? give me a status' },
+    { role: 'assistant', content: 'Here is my status: Gateway 6s, System 35d.' },
+  ], 'resend-agent')
+
+  assert(request?.to === 'mmaximilien@gmail.com', 'Expected recipient email to be extracted')
+  assert(request?.subject === 'resend-agent status', 'Expected status subject')
+  assert(request?.text.includes('Gateway 6s') === true, 'Expected latest assistant status as email body')
+})
+
+test('buildResendChatEmailRequest ignores non-email chat requests', () => {
+  const request = buildResendChatEmailRequest('What is your status?', [
+    { role: 'assistant', content: 'Status body' },
+  ], 'resend-agent')
+  assert(request === null, 'Expected non-email request not to be intercepted')
+})
+
+test('hasResendEmailCapability only enables direct send for Resend-related skills', () => {
+  assert(hasResendEmailCapability(['github', 'resend-cli']), 'Expected resend-cli skill to enable direct Resend email')
+  assert(!hasResendEmailCapability(['github', 'slack']), 'Expected unrelated skills not to enable direct Resend email')
 })
 
 setTimeout(() => {

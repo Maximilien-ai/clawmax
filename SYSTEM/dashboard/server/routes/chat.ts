@@ -15,6 +15,7 @@ import { resolveOpenClawCliPath } from '../lib/openclaw-cli'
 import {
   deriveWorkspaceRootFromAgentWorkspace,
   readLatestAssistantUsageFromPersistedSession,
+  resolveAgentSkillIds,
   resolveAgentExecutionConfig,
   resolvePersistedAgentSessionId,
   runExclusiveAgentExecution,
@@ -22,6 +23,7 @@ import {
   withTemporaryAgentAuthProfiles,
 } from '../lib/agent-execution'
 import { getAuthenticatedSession } from '../lib/github-auth'
+import { buildResendChatEmailRequest, getWorkspaceResendApiKey, hasResendEmailCapability, sendResendTestEmail } from '../lib/resend-partner'
 
 const router = Router()
 type ChatProvider = 'openai' | 'openai-compatible' | 'anthropic' | 'gemini' | 'ollama' | null | undefined
@@ -372,6 +374,41 @@ router.post('/:id/chat', async (req, res) => {
   }, 2000)
   const chatStartedAt = Date.now()
   const dashboardSessionKey = `agent:${id}:dashboard-chat`
+  const resendCapableAgent = hasResendEmailCapability(resolveAgentSkillIds(id))
+  const directResendEmail = resendCapableAgent ? buildResendChatEmailRequest(message, (req.body as any).contextMessages, id) : null
+  if (directResendEmail) {
+    send('start', { sessionId: effectiveSessionId, mode: 'resend-direct' })
+    try {
+      const result = await sendResendTestEmail({
+        apiKey: getWorkspaceResendApiKey(),
+        to: directResendEmail.to,
+        subject: directResendEmail.subject,
+        text: directResendEmail.text,
+      })
+      const confirmation = result.id
+        ? `Email sent to ${directResendEmail.to} via Resend. Provider id: ${result.id}`
+        : `Email sent to ${directResendEmail.to} via Resend.`
+      send('delta', { text: confirmation })
+      send('complete', { text: confirmation })
+      traceAgentChat(id, message, confirmation, {
+        model: resolvedAgent.model,
+        provider: resolvedAgent.provider || undefined,
+        durationMs: Math.max(0, Date.now() - chatStartedAt),
+        sessionId: effectiveSessionId,
+        actorUserId: session?.userId,
+        actorLogin: session?.login,
+        actorEmail: session?.email,
+        dashboardInstanceId: getRequestDashboardInstanceId(req),
+      })
+    } catch (err: any) {
+      send('error', err?.message || 'Failed to send email with Resend.')
+      send('complete', { text: '' })
+    } finally {
+      clearInterval(keepalive)
+      if (!res.writableEnded) res.end()
+    }
+    return
+  }
 
   // Use plain-text mode so stdout can stream deltas to the UI in real time.
   // History/persistence is handled by the explicit session id and the CLI itself.

@@ -13,9 +13,21 @@ export type ResendTestEmailResult = {
   message: string
 }
 
+export type ResendChatContextMessage = {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+export type ResendChatEmailRequest = {
+  to: string
+  subject: string
+  text: string
+}
+
 type FetchLike = typeof fetch
 
 const RESEND_EMAILS_ENDPOINT = 'https://api.resend.com/emails'
+const EMAIL_RE = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/ig
 
 function trim(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
@@ -40,6 +52,59 @@ function summarizeResendProviderError(status: number, payload: any): string {
   const name = trim(payload?.name) || trim(payload?.error?.name)
   const prefix = name ? `${name}: ` : ''
   return `${prefix}${message || `Resend rejected the email request with HTTP ${status}`}`
+}
+
+function stripMarkdown(value: string): string {
+  return value
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/<([^>\s]+@[^>\s]+)>/g, '$1')
+    .trim()
+}
+
+function extractRecipientEmail(message: string): string | undefined {
+  const matches = message.match(EMAIL_RE) || []
+  return matches[0]?.trim()
+}
+
+export function hasResendEmailCapability(skillIds: string[]): boolean {
+  return skillIds.some((skillId) => ['resend', 'resend-cli', 'react-email'].includes(String(skillId || '').trim()))
+}
+
+function latestAssistantMessage(contextMessages: ResendChatContextMessage[]): string | undefined {
+  return [...contextMessages]
+    .reverse()
+    .find((entry) => entry?.role === 'assistant' && trim(entry.content))?.content
+}
+
+export function buildResendChatEmailRequest(
+  message: string,
+  contextMessages: ResendChatContextMessage[] = [],
+  agentId = 'agent',
+): ResendChatEmailRequest | null {
+  const normalized = trim(message)
+  if (!normalized) return null
+  if (!/\b(send|email|mail)\b/i.test(normalized)) return null
+  if (!/\b(email|mail)\b/i.test(normalized)) return null
+
+  const to = extractRecipientEmail(normalized)
+  if (!to) return null
+
+  const previousAssistant = latestAssistantMessage(contextMessages)
+  const refersToPrevious = /\b(that|this|previous|last|status)\b/i.test(normalized)
+  const text = stripMarkdown(
+    refersToPrevious && previousAssistant
+      ? previousAssistant
+      : normalized.replace(EMAIL_RE, '').replace(/\b(send|email|mail|to|that|this|please)\b/ig, ' ').replace(/\s+/g, ' ').trim()
+  )
+
+  if (!text) return null
+
+  return {
+    to,
+    subject: /\bstatus\b/i.test(normalized) ? `${agentId} status` : `Message from ${agentId}`,
+    text,
+  }
 }
 
 async function parseResendResponse(response: Response): Promise<any> {
