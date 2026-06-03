@@ -11,6 +11,9 @@ export interface SkillSetupHint {
 }
 
 export type SkillSetupSupportMode = 'guided' | 'interactive' | 'manual'
+type SkillSetupContext = {
+  availableSecretKeys?: Iterable<string>
+}
 
 const DEFAULT_SETUP_REQUIREMENTS: Record<string, SkillSetupRequirement> = {
   '1password': {
@@ -130,20 +133,36 @@ const DEFAULT_SKILL_SETUP_SUPPORT_MODES: Record<string, SkillSetupSupportMode> =
   eightctl: 'manual',
 }
 
-function buildGenericSetupRequirement(skill: Pick<OpenClawSkill, 'requires' | 'secretRequirements'>): SkillSetupRequirement | null {
+function resolveAvailableSecretKeys(context?: SkillSetupContext): Set<string> {
+  return new Set(Array.from(context?.availableSecretKeys || []).filter(Boolean))
+}
+
+function buildGenericSetupRequirement(
+  skill: Pick<OpenClawSkill, 'requires' | 'secretRequirements'>,
+  context?: SkillSetupContext
+): SkillSetupRequirement | null {
+  const availableSecretKeys = resolveAvailableSecretKeys(context)
   const secretKeys = (skill.secretRequirements || []).map((entry) => entry.key).filter(Boolean)
   if (secretKeys.length > 0) {
+    const missingSecretKeys = secretKeys.filter((key) => !availableSecretKeys.has(key))
+    if (missingSecretKeys.length === 0) {
+      return null
+    }
     return {
       label: 'Needs setup',
-      message: `This skill needs secrets or API keys configured before an agent can use it: ${secretKeys.join(', ')}.`,
+      message: `This skill needs secrets or API keys configured before an agent can use it: ${missingSecretKeys.join(', ')}.`,
     }
   }
 
   const envKeys = (skill.requires?.env || []).filter(Boolean)
   if (envKeys.length > 0) {
+    const missingEnvKeys = envKeys.filter((key) => !availableSecretKeys.has(key))
+    if (missingEnvKeys.length === 0) {
+      return null
+    }
     return {
       label: 'Needs setup',
-      message: `This skill needs environment variables or API keys configured before an agent can use it: ${envKeys.join(', ')}.`,
+      message: `This skill needs environment variables or API keys configured before an agent can use it: ${missingEnvKeys.join(', ')}.`,
     }
   }
 
@@ -158,9 +177,12 @@ function buildGenericSetupRequirement(skill: Pick<OpenClawSkill, 'requires' | 's
   return null
 }
 
-function resolveSkillSetupRequirement(skill: Pick<OpenClawSkill, 'name' | 'setupRequirements' | 'requires' | 'secretRequirements'>): SkillSetupRequirement | null {
+function resolveSkillSetupRequirement(
+  skill: Pick<OpenClawSkill, 'name' | 'setupRequirements' | 'requires' | 'secretRequirements'>,
+  context?: SkillSetupContext
+): SkillSetupRequirement | null {
   const defaults = DEFAULT_SETUP_REQUIREMENTS[skill.name]
-  const generic = buildGenericSetupRequirement(skill)
+  const generic = buildGenericSetupRequirement(skill, context)
   if (!defaults && !skill.setupRequirements && !generic) return null
   return {
     ...(generic || {}),
@@ -171,8 +193,11 @@ function resolveSkillSetupRequirement(skill: Pick<OpenClawSkill, 'name' | 'setup
   }
 }
 
-export function getSkillSetupHint(skill: Pick<OpenClawSkill, 'name' | 'setupRequirements' | 'requires' | 'secretRequirements'>): SkillSetupHint | null {
-  const requirement = resolveSkillSetupRequirement(skill)
+export function getSkillSetupHint(
+  skill: Pick<OpenClawSkill, 'name' | 'setupRequirements' | 'requires' | 'secretRequirements'>,
+  context?: SkillSetupContext
+): SkillSetupHint | null {
+  const requirement = resolveSkillSetupRequirement(skill, context)
   if (!requirement?.message) return null
   const mode = getSkillSetupSupportMode(skill)
   return {
@@ -216,11 +241,12 @@ export function skillNeedsSetup(skillName: string): boolean {
 
 export function maybeWarnSkillSetup(
   showWarning: (message: string) => void,
-  skills: Array<Pick<OpenClawSkill, 'name'> | string>
+  skills: Array<Pick<OpenClawSkill, 'name'> | string>,
+  context?: SkillSetupContext
 ) {
   const messages = Array.from(new Set(
     skills
-      .map((entry) => typeof entry === 'string' ? getSkillSetupHint({ name: entry }) : getSkillSetupHint(entry))
+      .map((entry) => typeof entry === 'string' ? getSkillSetupHint({ name: entry }, context) : getSkillSetupHint(entry, context))
       .filter((hint): hint is SkillSetupHint => !!hint)
       .map((hint) => `${hint.message} ${hint.commands?.join(' · ') || ''}`.trim())
   ))

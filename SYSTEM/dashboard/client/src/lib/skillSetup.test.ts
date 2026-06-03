@@ -92,6 +92,28 @@ async function main() {
     assert(hint?.message.includes('NOTION_TOKEN'), 'Expected secret key to appear in setup hint')
   })
 
+  await test('available secret keys suppress setup hints for satisfied requirements', () => {
+    const secretHint = getSkillSetupHint({
+      name: 'resend',
+      secretRequirements: [
+        { key: 'RESEND_API_KEY', label: 'Resend API Key', required: true },
+      ],
+    }, {
+      availableSecretKeys: ['RESEND_API_KEY'],
+    })
+    assert(secretHint === null, 'Expected satisfied secret requirements to clear setup hint')
+
+    const envHint = getSkillSetupHint({
+      name: 'resend-cli',
+      requires: {
+        env: ['RESEND_API_KEY'],
+      },
+    }, {
+      availableSecretKeys: ['RESEND_API_KEY'],
+    })
+    assert(envHint === null, 'Expected satisfied env requirements to clear setup hint')
+  })
+
   await test('generic env/config requirements automatically produce setup warnings', () => {
     const envHint = getSkillSetupHint({
       name: 'trello',

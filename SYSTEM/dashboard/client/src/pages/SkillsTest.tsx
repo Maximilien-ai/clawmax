@@ -6,7 +6,7 @@ import { SelectionActionBar } from '../components/SelectionActionBar'
 import { SkillCard } from '../components/skills/SkillCard'
 import { useToast } from '../components/Toast'
 import type { OpenClawSkill, SkillsResponse, AgentSkillsResponse } from '../types'
-import { readLocalSecrets, writeLocalSecrets, writeSharedSecrets } from '../lib/localSecrets'
+import { BROWSER_VAULT_UPDATED_EVENT, readLocalSecrets, readSharedSecrets, writeLocalSecrets, writeSharedSecrets } from '../lib/localSecrets'
 import { getAiGenerationReadiness, hasAiGenerationAccess, readStoredByokKeys } from '../lib/byok'
 import { getSkillAssignmentBuckets } from '../lib/skillAssignments'
 import { summarizeSkillDeleteImpact } from '../lib/skillsDeletion'
@@ -28,6 +28,7 @@ import {
 } from '../lib/headerControls'
 import { ProductIconCell, resolveSkillVisual, resolveCategoryVisual } from '../lib/productIcons'
 import { getPartnerLogoClass } from '../lib/partnerCatalog'
+import { listServerManagedIntegrationSecretKeys } from '../lib/keysSecretsInventory'
 
 // Use relative path so it works with ngrok and localhost
 const API_BASE = ''
@@ -444,10 +445,17 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
   const [interactiveSkillSetupInput, setInteractiveSkillSetupInput] = useState('')
   const [didHandleInitialSkillName, setDidHandleInitialSkillName] = useState(false)
   const [skillSecrets, setSkillSecrets] = useState<Record<string, string>>({})
+  const [sharedGlobalSecrets, setSharedGlobalSecrets] = useState<Record<string, string>>({})
+  const [sharedWorkspaceSecrets, setSharedWorkspaceSecrets] = useState<Record<string, string>>({})
   const [viewerAgentSearchQuery, setViewerAgentSearchQuery] = useState('')
   const [savingSkillAssignmentAgentId, setSavingSkillAssignmentAgentId] = useState<string | null>(null)
   const [removingAssignedSkillName, setRemovingAssignedSkillName] = useState<string | null>(null)
   const [runtimePlatform, setRuntimePlatform] = useState<RuntimePlatform>('unknown')
+  const [partnerDefinitions, setPartnerDefinitions] = useState<Array<{
+    slug: string
+    fields?: Array<{ key: string; secret?: boolean; storage?: 'browser' | 'server' }>
+  }>>([])
+  const [serverPartnerSecretPresence, setServerPartnerSecretPresence] = useState<Record<string, Record<string, boolean>>>({})
 
   const focusSkill = (skillName: string) => {
     const normalized = skillName.trim().toLowerCase()
@@ -492,6 +500,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         const definitions = Array.isArray(data?.partnerDefinitions) ? data.partnerDefinitions : []
+        setPartnerDefinitions(definitions)
         setPartnerInstallers(
           definitions.filter((partner: any) => {
             const mode = partner?.skills?.mode
@@ -500,6 +509,25 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
         )
       })
       .catch(() => setPartnerInstallers([]))
+  }, [])
+
+  useEffect(() => {
+    fetch('/api/integrations/config')
+      .then((res) => (res.ok ? res.json() : { secretPresence: {} }))
+      .then((data) => {
+        setServerPartnerSecretPresence(typeof data?.secretPresence === 'object' && data.secretPresence ? data.secretPresence : {})
+      })
+      .catch(() => setServerPartnerSecretPresence({}))
+  }, [])
+
+  useEffect(() => {
+    const refreshSharedSecrets = () => {
+      setSharedGlobalSecrets(readSharedSecrets('global'))
+      setSharedWorkspaceSecrets(readSharedSecrets('workspace'))
+    }
+    refreshSharedSecrets()
+    window.addEventListener(BROWSER_VAULT_UPDATED_EVENT, refreshSharedSecrets)
+    return () => window.removeEventListener(BROWSER_VAULT_UPDATED_EVENT, refreshSharedSecrets)
   }, [])
 
   useEffect(() => {
@@ -1125,7 +1153,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
   }
 
   function openSkillSetupModal(skill: OpenClawSkill) {
-    const setupHint = getSkillSetupHint(skill)
+    const setupHint = getSetupHintForSkill(skill)
     if (!setupHint) {
       setError(`Skill "${skill.name}" has no dashboard-guided setup flow yet`)
       return
@@ -1173,7 +1201,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
       nextLogs.push(`✓ Completed setup flow for ${skill.name}`)
       setSkillSetupLogs(nextLogs)
       setSkillSetupDone(true)
-      showSuccess(getSkillSetupHint(skill)?.successMessage || `Completed setup flow for ${skill.name}`)
+      showSuccess(getSetupHintForSkill(skill)?.successMessage || `Completed setup flow for ${skill.name}`)
     } catch (err: any) {
       const message = err.message || `Failed to complete setup for ${skill.name}`
       setSkillSetupError(message)
@@ -1200,7 +1228,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
       setRunningSkillSetupName(null)
       setSkillSetupDone(true)
       setInteractiveSkillSetupSessionId(null)
-      showSuccess(getSkillSetupHint(pendingSetupSkill || { name: '' })?.successMessage || 'Setup session completed')
+      showSuccess(getSetupHintForSkill(pendingSetupSkill || { name: '' })?.successMessage || 'Setup session completed')
     } else if (data.status === 'failed') {
       setRunningSkillSetupName(null)
       setInteractiveSkillSetupSessionId(null)
@@ -1307,7 +1335,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
       setInstallRequirementsLogs(nextLogs)
       setInstallRequirementsDone(true)
       showSuccess(`Installed requirements for ${skill.name}`)
-      maybeWarnSkillSetup(showWarning, [skill])
+      maybeWarnSkillSetup(showWarning, [skill], { availableSecretKeys: getAvailableSecretKeysForSkill(skill) })
       await loadSkills()
     } catch (err: any) {
       setError(err.message || `Failed to install requirements for ${skill.name}`)
@@ -1408,8 +1436,38 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
   const hiddenRegistryResultsCount = registryResults.length - visibleRegistryResults.length
   const registryCompatibilityNote = buildRegistryCompatibilityNote(runtimePlatform)
   const activeRegistryProvider = REGISTRY_PROVIDERS.find((provider) => provider.id === registryProvider) || REGISTRY_PROVIDERS[0]
-  const viewingSkillSetupHint = viewingSkill ? getSkillSetupHint(viewingSkill) : null
-  const pendingSkillSetupHint = pendingSetupSkill ? getSkillSetupHint(pendingSetupSkill) : null
+  const serverManagedIntegrationSecretKeys = useMemo(
+    () => listServerManagedIntegrationSecretKeys(partnerDefinitions, serverPartnerSecretPresence),
+    [partnerDefinitions, serverPartnerSecretPresence]
+  )
+  const sharedAvailableSecretKeys = useMemo(() => {
+    const keys = new Set<string>()
+    for (const [key, value] of Object.entries(sharedGlobalSecrets)) {
+      if (value.trim()) keys.add(key)
+    }
+    for (const [key, value] of Object.entries(sharedWorkspaceSecrets)) {
+      if (value.trim()) keys.add(key)
+    }
+    for (const key of serverManagedIntegrationSecretKeys) {
+      keys.add(key)
+    }
+    return keys
+  }, [serverManagedIntegrationSecretKeys, sharedGlobalSecrets, sharedWorkspaceSecrets])
+  function getAvailableSecretKeysForSkill(skill: Pick<OpenClawSkill, 'name'>, localSecretsOverride?: Record<string, string>) {
+    const keys = new Set(sharedAvailableSecretKeys)
+    const localSecrets = localSecretsOverride || readLocalSecrets('skill', skill.name)
+    for (const [key, value] of Object.entries(localSecrets)) {
+      if (typeof value === 'string' && value.trim()) {
+        keys.add(key)
+      }
+    }
+    return keys
+  }
+  function getSetupHintForSkill(skill: Pick<OpenClawSkill, 'name' | 'setupRequirements' | 'requires' | 'secretRequirements'>, localSecretsOverride?: Record<string, string>) {
+    return getSkillSetupHint(skill, { availableSecretKeys: getAvailableSecretKeysForSkill(skill, localSecretsOverride) })
+  }
+  const viewingSkillSetupHint = viewingSkill ? getSetupHintForSkill(viewingSkill, skillSecrets) : null
+  const pendingSkillSetupHint = pendingSetupSkill ? getSetupHintForSkill(pendingSetupSkill, skillSetupValues) : null
   const pendingSkillSupportsDashboardSetup = pendingSetupSkill ? supportsDashboardSkillSetup(pendingSetupSkill) : false
   const pendingSkillSupportsInteractiveSetup = pendingSetupSkill ? supportsDashboardInteractiveSkillSetup(pendingSetupSkill) : false
 
@@ -2393,8 +2451,8 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                           onToggleSelect={() => setSelectedSkillIds((current) => toggleItemSelection(current, skill.name))}
                           onInstallRequirements={skill.install && skill.install.length > 0 ? () => openInstallRequirementsModal(skill) : undefined}
                           installingRequirements={installingSkillRequirementsName === skill.name}
-                          setupHint={getSkillSetupHint(skill)}
-                          onOpenSetup={getSkillSetupHint(skill) ? () => openSkillSetupModal(skill) : undefined}
+                          setupHint={getSetupHintForSkill(skill)}
+                          onOpenSetup={getSetupHintForSkill(skill) ? () => openSkillSetupModal(skill) : undefined}
                           runtimePlatform={runtimePlatform}
                         />
                       )
@@ -2457,8 +2515,8 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                           onToggleSelect={() => setSelectedSkillIds((current) => toggleItemSelection(current, skill.name))}
                           onInstallRequirements={skill.install && skill.install.length > 0 ? () => openInstallRequirementsModal(skill) : undefined}
                           installingRequirements={installingSkillRequirementsName === skill.name}
-                          setupHint={getSkillSetupHint(skill)}
-                          onOpenSetup={getSkillSetupHint(skill) ? () => openSkillSetupModal(skill) : undefined}
+                          setupHint={getSetupHintForSkill(skill)}
+                          onOpenSetup={getSetupHintForSkill(skill) ? () => openSkillSetupModal(skill) : undefined}
                           runtimePlatform={runtimePlatform}
                         />
                       )
@@ -2516,8 +2574,8 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                       onToggleSelect={() => setSelectedSkillIds((current) => toggleItemSelection(current, skill.name))}
                       onInstallRequirements={skill.install && skill.install.length > 0 ? () => openInstallRequirementsModal(skill) : undefined}
                       installingRequirements={installingSkillRequirementsName === skill.name}
-                      setupHint={getSkillSetupHint(skill)}
-                      onOpenSetup={getSkillSetupHint(skill) ? () => openSkillSetupModal(skill) : undefined}
+                      setupHint={getSetupHintForSkill(skill)}
+                      onOpenSetup={getSetupHintForSkill(skill) ? () => openSkillSetupModal(skill) : undefined}
                       runtimePlatform={runtimePlatform}
                     />
                   )
