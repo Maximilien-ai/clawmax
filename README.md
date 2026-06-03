@@ -31,8 +31,11 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
   - `himalaya` now has a constrained in-dashboard setup flow instead of a dead-end warning
   - Skills search/filter flow better matches the normal agent-first workflow
 - Partner integrations and partner-backed skills are more usable:
-  - `Resend` is now a first-class partner integration with server-stored API key support
+  - `Resend` is now a first-class partner integration with server-stored API key support and a dashboard test-email path
+  - workspace-managed partner secrets are exported to agent runtimes with canonical env names such as `RESEND_API_KEY`
+  - Resend-capable agents can fulfill explicit email-send chat requests through the dashboard Resend path instead of hitting OpenClaw embedded-session conflicts
   - partner-backed skills can be separated from user and built-in skills in the catalog
+  - catalog-mode partners can expose direct import/browse flows for upstream skill repositories
   - partner selection is opt-in by default, grouped by tabs, and supports better bulk selection behavior
 - Workspace/operator follow-through is stronger:
   - workspace ordering and activity/budget scoping are better aligned with the active workspace

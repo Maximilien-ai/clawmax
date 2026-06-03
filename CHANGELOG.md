@@ -10,6 +10,7 @@ All notable changes to ClawMax are documented here.
 
 ### Partner Integrations and Skills
 - **Resend Partner Integration** — added a first-cut `Resend` partner integration with server-stored `RESEND_API_KEY` support, curated partner skills, and partner-specific import/browse flows for the official skill catalog.
+- **Resend Runtime Follow-Through** — workspace-managed Resend secrets now export to agent child processes as canonical `RESEND_API_KEY`, and Resend-capable agents can fulfill explicit chat email-send requests through the dashboard Resend path instead of tripping OpenClaw embedded session conflicts.
 - **Partner Skill Catalog Separation** — Skills now distinguishes `User Skills`, `Partner Skills`, and `Built-in Skills`, with partner-family matching for Resend and Senso-style skill catalogs.
 - **Partner Picker UX Cleanup** — partner selection is now opt-in by default, supports category tabs and bulk select/unselect actions, and keeps Opik pinned when the runtime is already configured for it.
 - **Partner Logo Normalization** — partner wordmarks such as GitHub, Resend, and Senso now render at more consistent visual sizes across the chooser and skills surfaces.

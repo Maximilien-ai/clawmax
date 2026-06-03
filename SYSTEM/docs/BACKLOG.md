@@ -6,6 +6,7 @@
 ## Top Priority
 
 - [ ] **Validate `1.7.3` built images on dev, on-prem, and cloud** — local/manual and automated release-candidate validation is green, but the next built-artifact line still needs real image validation for Builder, partner integrations, Resend/Himalaya skills, workflow execution, `/api/system`, and durable gateway startup.
+- [ ] **Resend Partner hardening / test matrix** — the first supported Resend Partner path is ready for `1.7.3`, but follow-up should expand the matrix across dev, on-prem, and cloud for partner key save/persist, skill import, install status, test email, direct agent email-send, sender/domain verification, React Email templates, attachments, and actionable failure messages.
 - [ ] **Workspace budgeting and metering must be truly workspace-scoped** — confirm budget, spend, and token/cost views are isolated by active workspace slug/id instead of drifting across all workspaces or showing mixed totals.
 - [ ] **Workspace quick-pin / move-to-top affordance** — dragging through long workspace lists is too slow; add a direct “move to top” or equivalent quick-access affordance.
 - [ ] **Skill tags metadata audit** — many bundled/imported/partner skills still have weak or missing tags. Do a focused metadata sweep starting with partner-backed skills and high-traffic built-ins.
