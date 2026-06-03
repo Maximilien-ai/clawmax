@@ -48,8 +48,13 @@ test('supports multi-category partners for tabs and filtering', () => {
 })
 
 test('resend wordmark uses a smaller compact logo class than standard square-ish logos', () => {
-  assert(getPartnerLogoClass('resend').includes('h-5'), 'Expected resend compact logo to use reduced height')
-  assert(getPartnerLogoClass('github').includes('h-6'), 'Expected default compact logo height for github')
+  assert(getPartnerLogoClass('resend').includes('h-4'), 'Expected resend compact logo to use reduced height')
+  assert(getPartnerLogoClass('github').includes('h-5'), 'Expected github compact logo to keep a taller compact height')
+})
+
+test('github compact wordmark gets a narrower class to offset asset whitespace', () => {
+  assert(getPartnerLogoClass('github').includes('max-w-[78px]'), 'Expected github compact logo width tuning')
+  assert(getPartnerLogoClass('senso').includes('max-w-[72px]'), 'Expected senso compact logo width tuning')
 })
 
 console.log('partnerCatalog.test.ts: ok')

@@ -83,13 +83,26 @@ export function formatPartnerCategoryLabel(category: string): string {
 }
 
 export function getPartnerLogoClass(slug: string, variant: 'compact' | 'hero' = 'compact'): string {
-  const isWideWordmark = slug === 'resend'
   if (variant === 'hero') {
-    return isWideWordmark
-      ? 'h-6 w-auto max-w-[112px] object-contain rounded-sm bg-white/80 px-1.5 py-1 dark:bg-gray-800/80'
-      : 'h-8 w-auto max-w-[120px] object-contain rounded-sm bg-white/80 px-1.5 py-1 dark:bg-gray-800/80'
+    if (slug === 'github') {
+      return 'h-7 w-auto max-w-[104px] object-contain rounded-sm bg-white/80 px-1 py-0.5 dark:bg-gray-800/80'
+    }
+    if (slug === 'resend') {
+      return 'h-5 w-auto max-w-[96px] object-contain rounded-sm bg-white/80 px-1 py-0.5 dark:bg-gray-800/80'
+    }
+    if (slug === 'senso') {
+      return 'h-5 w-auto max-w-[90px] object-contain rounded-sm bg-white/80 px-1 py-0.5 dark:bg-gray-800/80'
+    }
+    return 'h-8 w-auto max-w-[120px] object-contain rounded-sm bg-white/80 px-1.5 py-1 dark:bg-gray-800/80'
   }
-  return isWideWordmark
-    ? 'h-5 w-auto max-w-[88px] object-contain rounded-sm bg-white/80 px-1 py-0.5 dark:bg-gray-800/80'
-    : 'h-6 w-auto max-w-[96px] object-contain rounded-sm bg-white/80 px-1 py-0.5 dark:bg-gray-800/80'
+  if (slug === 'github') {
+    return 'h-5 w-auto max-w-[78px] object-contain rounded-sm bg-white/80 px-0.5 py-0.5 dark:bg-gray-800/80'
+  }
+  if (slug === 'resend') {
+    return 'h-4 w-auto max-w-[74px] object-contain rounded-sm bg-white/80 px-0.5 py-0.5 dark:bg-gray-800/80'
+  }
+  if (slug === 'senso') {
+    return 'h-4 w-auto max-w-[72px] object-contain rounded-sm bg-white/80 px-0.5 py-0.5 dark:bg-gray-800/80'
+  }
+  return 'h-6 w-auto max-w-[96px] object-contain rounded-sm bg-white/80 px-1 py-0.5 dark:bg-gray-800/80'
 }
