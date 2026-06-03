@@ -2318,7 +2318,7 @@ else
   fail "Import validation did not reject missing skill.md"
 fi
 
-# Test import validation - missing index.ts
+# Test import validation - markdown-only skill import (index.ts optional)
 TEST_INVALID_DIR2="/tmp/test-invalid-skill2-$RANDOM"
 mkdir -p "$TEST_INVALID_DIR2"
 echo "# Test" > "$TEST_INVALID_DIR2/skill.md"
@@ -2327,10 +2327,10 @@ response=$(apicurl -X POST "$API_BASE/api/skills/import" \
   -H 'Content-Type: application/json' \
   -d "{\"sourcePath\":\"$TEST_INVALID_DIR2\"}")
 
-if echo "$response" | jq -e '.error' > /dev/null 2>&1; then
-  pass "Import validation rejects missing index.ts"
+if echo "$response" | jq -e '.success == true' > /dev/null 2>&1; then
+  pass "Markdown-only skill import succeeds without index.ts"
 else
-  fail "Import validation did not reject missing index.ts"
+  fail "Markdown-only skill import failed without index.ts"
 fi
 
 echo ""
