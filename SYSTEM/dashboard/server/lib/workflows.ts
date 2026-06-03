@@ -18,6 +18,7 @@ import {
   withTemporaryAgentAuthProfiles,
 } from './agent-execution'
 import { readWorkspaceIntegrationConfig } from './workspace-integrations'
+import { hasWorkspaceManagedPartnerSecrets } from './workspace-integrations'
 import { resolveOpenClawCliPath } from './openclaw-cli'
 
 // Use dynamic workspace path to support multi-workspace
@@ -1736,7 +1737,7 @@ export function triggerWorkflow(workflowId: string, options?: {
             const gatewayRunning = resolvedAgent.provider === 'ollama'
               ? false
               : (await waitForGatewayResponsive()).running
-            const useLocal = resolvedAgent.provider === 'ollama' || !gatewayRunning
+            const useLocal = resolvedAgent.provider === 'ollama' || !gatewayRunning || hasWorkspaceManagedPartnerSecrets()
             const sessionId = buildWorkflowSessionId(executionId, participant.agentId)
             repairWorkflowSessionEntryForRun(participant.agentId, sessionId)
             const args = ['agent', '--agent', participant.agentId, '--session-id', sessionId, '--message', executionMessage, '--json', ...(useLocal ? ['--local'] : [])]

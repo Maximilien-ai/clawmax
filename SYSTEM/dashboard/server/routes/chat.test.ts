@@ -63,6 +63,15 @@ test('shouldUseLocalChatExecution uses gateway for hosted env-key execution when
   }), 'Expected server-key hosted chat to use gateway when available')
 })
 
+test('shouldUseLocalChatExecution forces local mode when workspace-managed partner secrets are present', () => {
+  assert(shouldUseLocalChatExecution({
+    provider: 'openai',
+    byok: {},
+    gatewayRunning: true,
+    hasWorkspaceManagedSecrets: true,
+  }), 'Expected hosted chat to use local execution when workspace-managed partner secrets must be available to tools')
+})
+
 test('shouldUseLocalChatExecution always uses direct mode for local providers', () => {
   assert(shouldUseLocalChatExecution({
     provider: 'ollama',

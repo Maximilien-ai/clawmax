@@ -158,6 +158,12 @@ export function getWorkspaceIntegrationSecretSummaries(): Record<string, Record<
   )
 }
 
+export function hasWorkspaceManagedPartnerSecrets(): boolean {
+  return Object.values(getWorkspaceIntegrationSecretSummaries()).some((partnerSecrets) => (
+    Object.values(partnerSecrets || {}).some((summary) => summary.present)
+  ))
+}
+
 export function getWorkspaceGitHubToken(): string | undefined {
   const secrets = readWorkspaceIntegrationSecrets()
   const token = secrets.partners?.github?.token?.trim()

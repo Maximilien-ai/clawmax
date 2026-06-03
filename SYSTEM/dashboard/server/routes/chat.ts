@@ -7,7 +7,7 @@ import path from 'path'
 import { getAgentGatewayConfig, getWorkspacePath, invalidateAgentStatusCache } from '../lib/workspace'
 import { waitForGatewayResponsive } from '../lib/gateway-rpc'
 import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
-import { readWorkspaceIntegrationConfig } from '../lib/workspace-integrations'
+import { hasWorkspaceManagedPartnerSecrets, readWorkspaceIntegrationConfig } from '../lib/workspace-integrations'
 import { userExecutionEnv } from '../lib/safe-env'
 import { checkBudgetBlock } from '../lib/budget'
 import { normalizeChatMessage } from '../lib/chat-normalization'
@@ -61,8 +61,10 @@ export function shouldUseLocalChatExecution(input: {
   provider: ChatProvider
   byok?: ChatByokPayload
   gatewayRunning: boolean
+  hasWorkspaceManagedSecrets?: boolean
 }): boolean {
   if (input.provider === 'ollama' || input.provider === 'openai-compatible') return true
+  if (input.hasWorkspaceManagedSecrets) return true
   if (hasByokExecutionPathForProvider(input.provider, input.byok)) return !input.gatewayRunning
   return !input.gatewayRunning
 }
@@ -348,6 +350,7 @@ router.post('/:id/chat', async (req, res) => {
     provider: resolvedAgent.provider,
     byok,
     gatewayRunning,
+    hasWorkspaceManagedSecrets: hasWorkspaceManagedPartnerSecrets(),
   })
   const args = [
     'agent',

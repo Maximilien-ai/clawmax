@@ -18,6 +18,7 @@ import {
   withTemporaryAgentAuthProfiles,
 } from '../lib/agent-execution'
 import { readWorkspaceIntegrationConfig } from '../lib/workspace-integrations'
+import { hasWorkspaceManagedPartnerSecrets } from '../lib/workspace-integrations'
 import { getAuthenticatedSession } from '../lib/github-auth'
 
 const router = Router()
@@ -350,7 +351,7 @@ async function callAgent(
   )
     ? false
     : (await waitForGatewayResponsive()).running
-  const useLocal = !gatewayRunning
+  const useLocal = !gatewayRunning || hasWorkspaceManagedPartnerSecrets()
   const hasOllamaPath = !!(executionEnv.OLLAMA_BASE_URL || integrationConfig.ollamaDefaultModel)
   const hasOpenAiCompatiblePath = !!(executionEnv.OPENAI_BASE_URL || integrationConfig.openaiCompatibleBaseUrl)
   if (resolvedAgent.provider === 'ollama' && !hasOllamaPath) {
