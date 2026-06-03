@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from './Toast'
 import { buildByokVerificationFingerprint, detectProviderKeyMismatch, getByokDismissKey, isOllamaUiAvailable, readStoredByokKeys, resolveOllamaBaseUrlForRuntime, resolveOpenAiCompatibleBaseUrlForRuntime, shouldAutoValidateByokOnSave, writeStoredByokKeys } from '../lib/byok'
+import { formatPartnerCategoryLabel, groupPartnersByCategory } from '../lib/partnerCatalog'
 import { DEFAULT_VISIBLE_PARTNERS, getDefaultPartnerDefinitions } from '../lib/defaultPartners'
 import { BROWSER_VAULT_UPDATED_EVENT, readPartnerValuesFromSharedSecrets, readSharedSecrets, writePartnerValuesToSharedSecrets, writeSharedSecrets } from '../lib/localSecrets'
 
@@ -479,17 +480,13 @@ export function ByokWizard({
     [integrationStatus]
   )
 
-  useEffect(() => {
-    if (!visiblePartnerSlugs.length) return
-    setSelectedPartners((current) => {
-      if (current.length > 0) return current
-      return visiblePartnerSlugs
-    })
-  }, [visiblePartnerSlugs])
-
   const selectedPartnerDefinitions = useMemo(
     () => sortPartnerDefinitions(visiblePartnerDefinitions.filter((partner) => selectedPartners.includes(partner.slug))),
     [selectedPartners, visiblePartnerDefinitions]
+  )
+  const groupedVisiblePartnerDefinitions = useMemo(
+    () => groupPartnersByCategory(visiblePartnerDefinitions),
+    [visiblePartnerDefinitions]
   )
 
   const stepOrder = useMemo<Step[]>(
@@ -1990,52 +1987,59 @@ export function ByokWizard({
                   </div>
                 </div>
 
-                <div className="mt-5 space-y-3">
+                <div className="mt-5 space-y-5">
                   {visiblePartnerDefinitions.length === 0 ? (
                     <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-4 text-sm text-gray-500 dark:text-gray-400">
                       No optional partner integrations are enabled for this environment.
                     </div>
-                  ) : visiblePartnerDefinitions.map((partner) => {
-                    const checked = selectedPartners.includes(partner.slug)
-                    return (
-                      <label key={partner.slug} className={`block rounded-xl border p-4 cursor-pointer transition-colors ${checked ? 'border-sky-300 bg-sky-50 dark:border-sky-700 dark:bg-sky-900/20' : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900'}`}>
-                        <div className="flex items-start gap-3">
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={(e) => {
-                              setSelectedPartners((current) => e.target.checked
-                                ? Array.from(new Set([...current, partner.slug]))
-                                : current.filter((slug) => slug !== partner.slug))
-                            }}
-                            className="mt-1"
-                          />
-                          <div className="min-w-0 flex-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              {partner.logoUrl ? (
-                                <img
-                                  src={partner.logoUrl}
-                                  alt={`${partner.name} logo`}
-                                  className="h-6 w-auto max-w-[96px] object-contain rounded-sm bg-white/80 px-1 py-0.5 dark:bg-gray-800/80"
-                                  loading="lazy"
-                                />
-                              ) : null}
-                              <div className="font-medium text-gray-900 dark:text-gray-100">{partner.name}</div>
-                              {partner.category ? <span className="rounded-full bg-gray-100 dark:bg-gray-800 px-2 py-0.5 text-[11px] text-gray-500 dark:text-gray-400">{partner.category}</span> : null}
-                            </div>
-                            <div className="mt-1 text-sm text-gray-600 dark:text-gray-300">{partner.description}</div>
-                            <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">{describePartnerStatus(partner)}</div>
-                            {(partner.website || partner.docsUrl) && (
-                              <div className="mt-2 flex flex-wrap gap-3 text-xs">
-                                {partner.website ? <a href={partner.website} target="_blank" rel="noopener noreferrer" className="text-sky-600 underline dark:text-sky-400">Website</a> : null}
-                                {partner.docsUrl ? <a href={partner.docsUrl} target="_blank" rel="noopener noreferrer" className="text-sky-600 underline dark:text-sky-400">Docs</a> : null}
+                  ) : groupedVisiblePartnerDefinitions.map((group) => (
+                    <div key={group.category} className="space-y-3">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                        {formatPartnerCategoryLabel(group.category)}
+                      </div>
+                      {group.partners.map((partner) => {
+                        const checked = selectedPartners.includes(partner.slug)
+                        return (
+                          <label key={partner.slug} className={`block rounded-xl border p-4 cursor-pointer transition-colors ${checked ? 'border-sky-300 bg-sky-50 dark:border-sky-700 dark:bg-sky-900/20' : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900'}`}>
+                            <div className="flex items-start gap-3">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={(e) => {
+                                  setSelectedPartners((current) => e.target.checked
+                                    ? Array.from(new Set([...current, partner.slug]))
+                                    : current.filter((slug) => slug !== partner.slug))
+                                }}
+                                className="mt-1"
+                              />
+                              <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  {partner.logoUrl ? (
+                                    <img
+                                      src={partner.logoUrl}
+                                      alt={`${partner.name} logo`}
+                                      className="h-6 w-auto max-w-[96px] object-contain rounded-sm bg-white/80 px-1 py-0.5 dark:bg-gray-800/80"
+                                      loading="lazy"
+                                    />
+                                  ) : null}
+                                  <div className="font-medium text-gray-900 dark:text-gray-100">{partner.name}</div>
+                                  {partner.category ? <span className="rounded-full bg-gray-100 dark:bg-gray-800 px-2 py-0.5 text-[11px] text-gray-500 dark:text-gray-400">{partner.category}</span> : null}
+                                </div>
+                                <div className="mt-1 text-sm text-gray-600 dark:text-gray-300">{partner.description}</div>
+                                <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">{describePartnerStatus(partner)}</div>
+                                {(partner.website || partner.docsUrl) && (
+                                  <div className="mt-2 flex flex-wrap gap-3 text-xs">
+                                    {partner.website ? <a href={partner.website} target="_blank" rel="noopener noreferrer" className="text-sky-600 underline dark:text-sky-400">Website</a> : null}
+                                    {partner.docsUrl ? <a href={partner.docsUrl} target="_blank" rel="noopener noreferrer" className="text-sky-600 underline dark:text-sky-400">Docs</a> : null}
+                                  </div>
+                                )}
                               </div>
-                            )}
-                          </div>
-                        </div>
-                      </label>
-                    )
-                  })}
+                            </div>
+                          </label>
+                        )
+                      })}
+                    </div>
+                  ))}
                 </div>
 
                 <div className="mt-6 flex items-center justify-between gap-3">
