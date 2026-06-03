@@ -1350,6 +1350,10 @@ export function buildAiBuilderRecommendation(prompt: string): AiBuilderRecommend
         ]
         suggestedActions = [
           recommendedPath.primaryAction,
+          ...(hasExplicitAgentCreationLanguage(normalizedPrompt) ? [{
+            ...action('ai-generate-agent-with-skill-visible', 'AI Generate Agent', 'Create a new agent for this prompt while keeping the suggested skill in mind.', 'agents', 'create-ai'),
+            prefillPrompt: normalizedPrompt,
+          }] : []),
           action('browse-agent-templates', 'Browse templates', 'Check whether a template already includes the right role and tools.', 'templates'),
           action('verify-setup', 'Verify setup requirements', 'Confirm keys, binaries, or auth are available for the target skill.', 'skills'),
           {

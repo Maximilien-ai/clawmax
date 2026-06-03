@@ -214,3 +214,12 @@ test('builder respects explicit no-existing-agent hints for new agent requests',
   assert.equal(result.recommendedPath.primaryAction.page, 'agents')
   assert.equal(result.recommendedPath.primaryAction.action, 'create-ai')
 })
+
+test('skill-first agent prompts still surface AI Generate Agent for resend agent creation', () => {
+  const result = buildAiBuilderRecommendation('create a resend agent to test sending email with resend skills')
+  assert.equal(result.intent, 'skill_or_integration')
+  assert(
+    result.suggestedActions.some((action) => action.page === 'agents' && action.action === 'create-ai' && action.label === 'AI Generate Agent'),
+    `Expected visible suggested actions to include AI Generate Agent, got ${result.suggestedActions.map((action) => action.label).join(', ')}`
+  )
+})
