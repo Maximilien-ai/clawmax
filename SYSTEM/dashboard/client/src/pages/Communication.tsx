@@ -11,6 +11,7 @@ import {
   headerSecondaryButtonIdleClass,
 } from '../lib/headerControls'
 import { ProductIconCell } from '../lib/productIcons'
+import { useWorkspace } from '../contexts/WorkspaceContext'
 
 interface GroupEntry {
   name: string
@@ -82,6 +83,7 @@ function secAgo(ts: number): string {
 
 export default function Communication({ onNavigateToAgent, onNavigateToWorkflow, onNavigateToDoc, initialGroupName, initialOpenChatName, onClearInitialGroupName, onClearInitialOpenChatName, isActive }: { onNavigateToAgent?: (agentId: string) => void; onNavigateToWorkflow?: (workflowId: string) => void; onNavigateToDoc?: (file: string) => void; initialGroupName?: string; initialOpenChatName?: string; onClearInitialGroupName?: () => void; onClearInitialOpenChatName?: () => void; isActive?: boolean } = {}) {
   const { showSuccess } = useToast()
+  const { activeWorkspace } = useWorkspace()
   const [agents, setAgents] = useState<Agent[]>([])
   const [docEntries, setDocEntries] = useState<DocEntry[]>([])
   const [workspaceCommunities, setWorkspaceCommunities] = useState<GroupEntry[]>([])
@@ -153,6 +155,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
   }, [markChannelSeen])
 
   const fetchAgents = useCallback(() => {
+    setLoading(true)
     Promise.all([
       fetch('/api/agents').then(r => r.ok ? r.json() : { agents: [] }),
       fetch('/api/communities').then(r => r.ok ? r.json() : { communities: [] }),
@@ -179,7 +182,14 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
         if (!cancelled) setDocEntries([])
       })
     return () => { cancelled = true }
-  }, [])
+  }, [activeWorkspace?.id])
+
+  useEffect(() => {
+    setChatPanelChannel(null)
+    setSelectedChannelKeys(new Set())
+    setHighlightedChannel(null)
+    setUnreadCounts({})
+  }, [activeWorkspace?.id])
 
   const handleNavigateToDoc = useCallback((target: string) => {
     setChatPanelChannel(null)

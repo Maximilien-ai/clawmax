@@ -511,13 +511,22 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
       .catch(() => setPartnerInstallers([]))
   }, [])
 
-  useEffect(() => {
+  function refreshIntegrationSecretPresence() {
     fetch('/api/integrations/config')
       .then((res) => (res.ok ? res.json() : { secretPresence: {} }))
       .then((data) => {
         setServerPartnerSecretPresence(typeof data?.secretPresence === 'object' && data.secretPresence ? data.secretPresence : {})
       })
       .catch(() => setServerPartnerSecretPresence({}))
+  }
+
+  useEffect(() => {
+    refreshIntegrationSecretPresence()
+  }, [])
+
+  useEffect(() => {
+    window.addEventListener('integrations-saved', refreshIntegrationSecretPresence)
+    return () => window.removeEventListener('integrations-saved', refreshIntegrationSecretPresence)
   }, [])
 
   useEffect(() => {
