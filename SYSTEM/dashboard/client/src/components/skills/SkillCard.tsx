@@ -205,7 +205,7 @@ export function SkillCard({ skill, assigned, onToggle, onView, onDelete, canDele
           >
             <span>{showDetails ? '▼' : '▶'}</span>
             <span>
-              {showDetails ? 'Hide' : 'Show'} details
+              {showDetails ? 'Hide' : 'Show'} requirements
             </span>
           </button>
 
