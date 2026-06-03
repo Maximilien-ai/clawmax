@@ -38,6 +38,9 @@ function assert(condition: boolean, message: string) {
 const originalEnv = {
   OPENAI_API_KEY: process.env.OPENAI_API_KEY,
   ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+  HOME: process.env.HOME,
+  OPENCLAW_WORKSPACE: process.env.OPENCLAW_WORKSPACE,
+  CLAWMAX_TEST_WORKSPACE: process.env.CLAWMAX_TEST_WORKSPACE,
 }
 
 function restoreEnv() {
@@ -155,6 +158,30 @@ test('safeEnv does not duplicate standard runtime paths', () => {
 
   assert(optHomebrewBinCount === 1, 'Expected standard runtime paths to remain deduplicated')
   })
+
+test('safeEnv forwards workspace-managed partner secrets to child processes', () => {
+  const fs = require('fs') as typeof import('fs')
+  const os = require('os') as typeof import('os')
+  const path = require('path') as typeof import('path')
+  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-safe-env-'))
+  const workspace = path.join(tmpHome, '.openclaw', 'workspace')
+  const systemDir = path.join(workspace, 'SYSTEM')
+  fs.mkdirSync(systemDir, { recursive: true })
+  fs.writeFileSync(path.join(systemDir, 'integrations.secrets.json'), JSON.stringify({
+    partners: {
+      resend: {
+        RESEND_API_KEY: 're_test_1234567890',
+      },
+    },
+  }, null, 2))
+
+  process.env.HOME = tmpHome
+  process.env.OPENCLAW_WORKSPACE = workspace
+  process.env.CLAWMAX_TEST_WORKSPACE = workspace
+
+  const env = safeEnv()
+  assert(env.RESEND_API_KEY === 're_test_1234567890', 'Expected managed partner secret to reach child env')
+})
 
 setTimeout(() => {
   restoreEnv()

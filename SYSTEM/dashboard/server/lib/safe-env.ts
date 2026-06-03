@@ -10,7 +10,7 @@ import {
   resolveUserExecutionProviderKeys,
   resolveRuntimeBaseUrl,
 } from './dashboard-env'
-import { getWorkspaceGitHubToken } from './workspace-integrations'
+import { getWorkspaceGitHubToken, readWorkspaceIntegrationSecrets } from './workspace-integrations'
 
 export interface ExecutionEnvOverrides extends ProviderKeys {
   ollamaBaseUrl?: string
@@ -47,6 +47,12 @@ function buildSafePath(basePath?: string): string {
  */
 export function safeEnv(extras?: Record<string, string | undefined>): NodeJS.ProcessEnv {
   const workspaceGitHubToken = getWorkspaceGitHubToken()
+  const partnerSecretEnv = Object.fromEntries(
+    Object.values(readWorkspaceIntegrationSecrets().partners || {})
+      .flatMap((partnerSecrets) => Object.entries(partnerSecrets || {}))
+      .map(([key, value]) => [key, String(value || '').trim()])
+      .filter(([, value]) => !!value)
+  )
   const base: Record<string, string | undefined> = {
     PATH: buildSafePath(process.env.PATH),
     HOME: process.env.HOME,
@@ -64,7 +70,7 @@ export function safeEnv(extras?: Record<string, string | undefined>): NodeJS.Pro
     XDG_CONFIG_HOME: process.env.XDG_CONFIG_HOME,
   }
 
-  return { ...base, ...extras }
+  return { ...base, ...partnerSecretEnv, ...extras }
 }
 
 function providerKeysToEnv(providerKeys: ExecutionEnvOverrides): Record<string, string> | undefined {
