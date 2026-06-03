@@ -13,6 +13,7 @@ import { getEnabledPartnerSlugs, listPartnerDefinitions } from '../lib/partners'
 import { checkGitHubPrereqs, getGitHubAuthMode } from '../lib/prereqs'
 import { safeEnv } from '../lib/safe-env'
 import { getDashboardEnvRaw, isOllamaUiEnabled } from '../lib/dashboard-env'
+import { getWorkspaceResendApiKey, sendResendTestEmail } from '../lib/resend-partner'
 
 const router = Router()
 
@@ -109,6 +110,24 @@ router.post('/validate', async (req, res) => {
     res.json(result)
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Failed to validate integrations' })
+  }
+})
+
+router.post('/resend/test-email', async (req, res) => {
+  try {
+    const body = (req.body || {}) as Record<string, unknown>
+    const result = await sendResendTestEmail({
+      apiKey: getWorkspaceResendApiKey(),
+      from: typeof body.from === 'string' ? body.from : undefined,
+      to: typeof body.to === 'string' ? body.to : undefined,
+      subject: typeof body.subject === 'string' ? body.subject : undefined,
+      text: typeof body.text === 'string' ? body.text : undefined,
+    })
+    res.json({ ok: true, ...result })
+  } catch (err: any) {
+    const message = err?.message || 'Failed to send Resend test email'
+    const status = /RESEND_API_KEY|Recipient email|Sender email/i.test(message) ? 400 : 502
+    res.status(status).json({ ok: false, error: message })
   }
 })
 

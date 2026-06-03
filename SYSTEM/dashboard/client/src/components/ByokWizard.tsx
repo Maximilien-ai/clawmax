@@ -184,6 +184,11 @@ export function ByokWizard({
   const [selectedPartners, setSelectedPartners] = useState<string[]>([])
   const [partnerCategoryTab, setPartnerCategoryTab] = useState<string>('all')
   const [validating, setValidating] = useState(false)
+  const [resendTestSending, setResendTestSending] = useState(false)
+  const [resendTestTo, setResendTestTo] = useState('')
+  const [resendTestFrom, setResendTestFrom] = useState('onboarding@resend.dev')
+  const [resendTestSubject, setResendTestSubject] = useState('ClawMax Resend test email')
+  const [resendTestBody, setResendTestBody] = useState('This is a ClawMax Resend integration test email.')
   const [validation, setValidation] = useState<ValidationState>({
     openai: { status: 'idle', message: '' },
     anthropic: { status: 'idle', message: '' },
@@ -1330,6 +1335,39 @@ export function ByokWizard({
     }
   }
 
+  const sendResendTestEmail = async () => {
+    const to = resendTestTo.trim()
+    if (!to) {
+      showWarning('Add a recipient email before sending a Resend test email.')
+      return
+    }
+    if (!hasServerPartnerSecret('resend', 'apiKey')) {
+      showWarning('Save the Resend API key for this workspace before sending a test email.')
+      return
+    }
+
+    setResendTestSending(true)
+    try {
+      const response = await fetch('/api/integrations/resend/test-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to,
+          from: resendTestFrom.trim() || undefined,
+          subject: resendTestSubject.trim() || undefined,
+          text: resendTestBody.trim() || undefined,
+        }),
+      })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(data.error || 'Failed to send Resend test email')
+      showSuccess(data.id ? `Resend accepted test email (${data.id})` : 'Resend accepted test email')
+    } catch (err: any) {
+      showWarning(err?.message || 'Failed to send Resend test email')
+    } finally {
+      setResendTestSending(false)
+    }
+  }
+
   const goToNextStep = () => {
     if (step === 'partners' && selectedPartnerDefinitions.length === 0) {
       void handleSave()
@@ -1489,6 +1527,79 @@ export function ByokWizard({
       return <div className="mt-2 text-xs opacity-80">{partner.skills.label || 'Partner skills are planned.'}</div>
     }
     return null
+  }
+
+  const renderResendTestEmailPanel = () => {
+    const hasSavedKey = hasServerPartnerSecret('resend', 'apiKey')
+    return (
+      <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <div className="font-medium text-gray-900 dark:text-gray-100">Send test email</div>
+            <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              Uses the workspace-managed <span className="font-mono">RESEND_API_KEY</span> directly from the dashboard. This validates Resend delivery without entering the agent chat session.
+            </div>
+          </div>
+          <span className={`inline-flex w-fit rounded-full px-2.5 py-1 text-[11px] font-medium ${
+            hasSavedKey
+              ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300'
+              : 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300'
+          }`}>
+            {hasSavedKey ? 'API key saved' : 'Save key first'}
+          </span>
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">To</label>
+            <input
+              type="email"
+              value={resendTestTo}
+              onChange={(e) => setResendTestTo(e.target.value)}
+              placeholder="recipient@example.com"
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">From</label>
+            <input
+              type="email"
+              value={resendTestFrom}
+              onChange={(e) => setResendTestFrom(e.target.value)}
+              placeholder="onboarding@resend.dev"
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100"
+            />
+          </div>
+        </div>
+        <div className="mt-3">
+          <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Subject</label>
+          <input
+            type="text"
+            value={resendTestSubject}
+            onChange={(e) => setResendTestSubject(e.target.value)}
+            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100"
+          />
+        </div>
+        <div className="mt-3">
+          <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Body</label>
+          <textarea
+            value={resendTestBody}
+            onChange={(e) => setResendTestBody(e.target.value)}
+            rows={3}
+            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100"
+          />
+        </div>
+        <div className="mt-4 flex justify-end">
+          <button
+            type="button"
+            onClick={() => void sendResendTestEmail()}
+            disabled={resendTestSending || !hasSavedKey}
+            className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors disabled:opacity-60"
+          >
+            {resendTestSending ? 'Sending…' : 'Send Test Email'}
+          </button>
+        </div>
+      </div>
+    )
   }
 
   const renderPartnerField = (partner: PartnerDefinition, field: PartnerFieldDefinition) => {
@@ -2290,6 +2401,7 @@ export function ByokWizard({
 
                 <div className="mt-5 space-y-4">
                   {(currentPartner.fields || []).map((field) => renderPartnerField(currentPartner, field))}
+                  {currentPartner.slug === 'resend' && renderResendTestEmailPanel()}
                   {currentPartner.validation && currentPartner.slug !== 'github' && renderPartnerValidation(currentPartner)}
                   {currentPartner.slug === 'opik' && (
                     <div className="flex justify-end">

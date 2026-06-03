@@ -41,6 +41,21 @@ function buildSafePath(basePath?: string): string {
   }).join(':')
 }
 
+function getPartnerSecretEnvKey(slug: string, fieldKey: string): string {
+  if (/^[A-Z0-9_]+$/.test(fieldKey) && fieldKey.includes('_')) return fieldKey
+  const upperSlug = slug.replace(/[^a-z0-9]+/gi, '_').toUpperCase()
+  const normalizedField = fieldKey
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .replace(/[^a-z0-9]+/gi, '_')
+    .toUpperCase()
+  if (fieldKey === 'apiKey') return `${upperSlug}_API_KEY`
+  if (fieldKey === 'defaultRepo') return `${upperSlug}_DEFAULT_REPO`
+  if (fieldKey === 'defaultSandbox') return `${upperSlug}_DEFAULT_SANDBOX`
+  if (fieldKey === 'projectId') return `${upperSlug}_PROJECT_ID`
+  if (fieldKey === 'contextLabel') return `${upperSlug}_CONTEXT_LABEL`
+  return `${upperSlug}_${normalizedField}`
+}
+
 /**
  * Returns a whitelisted subset of process.env for child processes.
  * Prevents leaking secrets to subprocesses that don't need them.
@@ -48,9 +63,13 @@ function buildSafePath(basePath?: string): string {
 export function safeEnv(extras?: Record<string, string | undefined>): NodeJS.ProcessEnv {
   const workspaceGitHubToken = getWorkspaceGitHubToken()
   const partnerSecretEnv = Object.fromEntries(
-    Object.values(readWorkspaceIntegrationSecrets().partners || {})
-      .flatMap((partnerSecrets) => Object.entries(partnerSecrets || {}))
-      .map(([key, value]) => [key, String(value || '').trim()])
+    Object.entries(readWorkspaceIntegrationSecrets().partners || {})
+      .flatMap(([slug, partnerSecrets]) => (
+        Object.entries(partnerSecrets || {}).map(([key, value]) => [
+          getPartnerSecretEnvKey(slug, key),
+          String(value || '').trim(),
+        ])
+      ))
       .filter(([, value]) => !!value)
   )
   const base: Record<string, string | undefined> = {

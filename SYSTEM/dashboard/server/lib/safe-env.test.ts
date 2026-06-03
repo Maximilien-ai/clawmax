@@ -170,7 +170,7 @@ test('safeEnv forwards workspace-managed partner secrets to child processes', ()
   fs.writeFileSync(path.join(systemDir, 'integrations.secrets.json'), JSON.stringify({
     partners: {
       resend: {
-        RESEND_API_KEY: 're_test_1234567890',
+        apiKey: 're_test_1234567890',
       },
     },
   }, null, 2))
@@ -181,6 +181,7 @@ test('safeEnv forwards workspace-managed partner secrets to child processes', ()
 
   const env = safeEnv()
   assert(env.RESEND_API_KEY === 're_test_1234567890', 'Expected managed partner secret to reach child env')
+  assert(typeof env.apiKey === 'undefined', 'Expected raw partner field key not to leak into child env')
 })
 
 setTimeout(() => {

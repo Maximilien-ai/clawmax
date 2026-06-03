@@ -138,6 +138,9 @@ export function deriveChatError(raw: string, provider?: ChatProvider): string {
     return text.match(/No API key found for provider "[^"]+"/i)?.[0]
       || 'The selected model provider is missing credentials for this agent runtime.'
   }
+  if (/EmbeddedAttemptSessionTakeoverError|session file changed while embedded prompt lock was released/i.test(text)) {
+    return 'OpenClaw reported an embedded session conflict while a tool was running. Reset the chat session and retry once; if this was a Resend email test, use the Resend partner test-email action to validate delivery without the agent chat session.'
+  }
   if (/All models failed/i.test(text) && /Unknown model:/i.test(text)) {
     return 'This agent is configured with an unsupported model, and fallback providers could not authenticate. Choose a supported model for the agent and try again.'
   }

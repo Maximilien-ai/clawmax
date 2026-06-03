@@ -100,6 +100,15 @@ test('deriveChatError returns a generic local-runtime context hint for other loc
   assert(/local model runtime rejected this prompt/i.test(message), 'Expected generic local-runtime remediation message')
 })
 
+test('deriveChatError hides embedded session takeover internals', () => {
+  const message = deriveChatError(
+    'EmbeddedAttemptSessionTakeoverError: session file changed while embedded prompt lock was released: /Users/maximilien/.openclaw/agents/resend-agent/sessions/agent-resend-agent-dashboard-chat.jsonl',
+    'openai'
+  )
+  assert(/embedded session conflict/i.test(message), 'Expected friendly embedded-session conflict summary')
+  assert(!message.includes('/Users/maximilien'), 'Expected local session path to be hidden')
+})
+
 test('buildManagedSecretStatelessChatMessage preserves recent chat context in a single-turn prompt', () => {
   const prompt = buildManagedSecretStatelessChatMessage('Send that status in an email to mmaximilien@gmail.com', [
     { role: 'user', content: 'who are you? give me a status' },

@@ -22,6 +22,8 @@ const originalWorkspace = process.env.OPENCLAW_WORKSPACE
 const originalDeploymentKind = process.env.DASHBOARD_DEPLOYMENT_KIND
 const originalEnableOllama = process.env.DASHBOARD_ENABLE_OLLAMA
 const originalVisiblePartners = process.env.WORKSPACES_INTEGRATIONS_THIRD_PARTIES
+const originalResendApiKey = process.env.RESEND_API_KEY
+const originalFetch = (globalThis as any).fetch
 
 function test(name: string, fn: () => void | Promise<void>) {
   return Promise.resolve()
@@ -61,7 +63,7 @@ function writeWorkspaceRegistry(tmpHome: string, workspacePath: string) {
   }, null, 2))
 }
 
-function getRouteHandler(method: 'get' | 'put', routePath: string) {
+function getRouteHandler(method: 'get' | 'put' | 'post', routePath: string) {
   delete require.cache[require.resolve('./integrations')]
   const router = require('./integrations').default
   const layer = router.stack.find((entry: any) => entry.route?.path === routePath && entry.route?.methods?.[method])
@@ -198,6 +200,56 @@ async function run() {
     assert.strictEqual(secrets?.partners?.resend?.apiKey, 're_test_123', 'Expected unrelated server-stored partner secret to remain persisted')
   })
 
+  await test('resend test-email uses persisted workspace API key', async () => {
+    let requestUrl = ''
+    let requestInit: any = null
+    ;(globalThis as any).fetch = async (url: string, init: any) => {
+      requestUrl = url
+      requestInit = init
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ id: 'email_test_123' }),
+      }
+    }
+
+    try {
+      const handler = getRouteHandler('post', '/resend/test-email')
+      const res = makeRes()
+      await handler(makeReq({
+        body: {
+          to: 'recipient@example.com',
+          from: 'onboarding@resend.dev',
+          subject: 'Integration test',
+          text: 'Hello from ClawMax',
+        },
+      }), res)
+
+      assert.strictEqual(res.statusCode, 200, 'Expected Resend test email route success')
+      assert.strictEqual(res.jsonBody?.id, 'email_test_123', 'Expected Resend provider id to be returned')
+      assert.strictEqual(requestUrl, 'https://api.resend.com/emails', 'Expected Resend emails endpoint')
+      assert.strictEqual(requestInit?.headers?.Authorization, 'Bearer re_test_123', 'Expected persisted workspace API key to be used')
+      const payload = JSON.parse(requestInit?.body || '{}')
+      assert.deepStrictEqual(payload.to, ['recipient@example.com'], 'Expected recipient list payload')
+      assert.strictEqual(payload.subject, 'Integration test', 'Expected subject payload')
+    } finally {
+      ;(globalThis as any).fetch = originalFetch
+    }
+  })
+
+  await test('resend test-email reports missing workspace API key cleanly', async () => {
+    delete process.env.RESEND_API_KEY
+    const secretsPath = path.join(workspacePath, 'SYSTEM', 'integrations.secrets.json')
+    fs.writeFileSync(secretsPath, JSON.stringify({ partners: {} }, null, 2), 'utf-8')
+
+    const handler = getRouteHandler('post', '/resend/test-email')
+    const res = makeRes()
+    await handler(makeReq({ body: { to: 'recipient@example.com' } }), res)
+
+    assert.strictEqual(res.statusCode, 400, 'Expected missing Resend key to be a validation error')
+    assert(/RESEND_API_KEY is not configured/i.test(res.jsonBody?.error || ''), 'Expected clear missing-key message')
+  })
+
   if (typeof originalHome === 'undefined') delete process.env.HOME
   else process.env.HOME = originalHome
   if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
@@ -208,6 +260,9 @@ async function run() {
   else process.env.DASHBOARD_ENABLE_OLLAMA = originalEnableOllama
   if (typeof originalVisiblePartners === 'undefined') delete process.env.WORKSPACES_INTEGRATIONS_THIRD_PARTIES
   else process.env.WORKSPACES_INTEGRATIONS_THIRD_PARTIES = originalVisiblePartners
+  if (typeof originalResendApiKey === 'undefined') delete process.env.RESEND_API_KEY
+  else process.env.RESEND_API_KEY = originalResendApiKey
+  ;(globalThis as any).fetch = originalFetch
 
   console.log('\n========================================')
   console.log(`Tests passed: ${testsPassed}`)
@@ -233,6 +288,9 @@ run().catch((err) => {
   else process.env.DASHBOARD_ENABLE_OLLAMA = originalEnableOllama
   if (typeof originalVisiblePartners === 'undefined') delete process.env.WORKSPACES_INTEGRATIONS_THIRD_PARTIES
   else process.env.WORKSPACES_INTEGRATIONS_THIRD_PARTIES = originalVisiblePartners
+  if (typeof originalResendApiKey === 'undefined') delete process.env.RESEND_API_KEY
+  else process.env.RESEND_API_KEY = originalResendApiKey
+  ;(globalThis as any).fetch = originalFetch
   console.error(err)
   process.exit(1)
 })
