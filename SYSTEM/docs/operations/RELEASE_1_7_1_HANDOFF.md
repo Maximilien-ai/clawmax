@@ -1,14 +1,14 @@
-# `1.7.1` Handoff
+# `1.7.2` Handoff
 
-Use this as the minimum handoff for CLI/deployment and Web/ops teams before cutting or deploying `1.7.1`.
+Use this as the minimum handoff for CLI/deployment and Web/ops teams before cutting or deploying `1.7.2`.
 
 ## Goal
 
-Keep `1.7.1` focused on:
+Keep `1.7.2` focused on:
 
 - Linux/on-prem Skills install correctness
 - local-model readiness for LM Studio and Ollama
-- the OpenClaw `2026.5.26` runtime baseline introduced in `1.7.0` and hardened in `1.7.1`
+- the OpenClaw `2026.5.26` runtime baseline introduced in `1.7.0` and hardened through `1.7.2`
 
 ## CLI / Deployment Team
 
@@ -102,11 +102,11 @@ If using OTP:
 - local-model hints match the deployment kind
 - maintenance/status links still point to the correct web destination
 
-## Notes for `1.7.1`
+## Notes for `1.7.2`
 
 - `1.7.0` introduced the upgraded OpenClaw runtime line
-- `1.7.1` carries the first operational/local-model/setup follow-through on that line
-- `1.7.1` should stay tight and operational:
+- `1.7.2` carries the next AI-builder/local-model/on-prem follow-through on that line
+- `1.7.2` should stay tight and operational:
   - fix concrete follow-ups
   - keep image/runtime validation explicit
   - avoid broad unrelated surface changes unless they are needed for deployment correctness

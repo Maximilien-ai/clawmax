@@ -6,6 +6,20 @@ All notable changes to ClawMax are documented here.
 
 - No unreleased changes yet.
 
+## [v1.7.2] - 2026-06-03
+
+### AI Builder and AI Generate
+- **GPT-5/OpenAI Generation Hardening** — AI generation now omits unsupported GPT-5 temperature fields, times out stalled generation requests instead of hanging indefinitely, and surfaces friendlier network/DNS failures when the dashboard cannot reach OpenAI.
+- **Builder New-Agent Visibility** — Builder now keeps `AI Generate Agent` visibly available for explicit new-agent prompts even when a close agent template exists, and continues honoring direct hints not to use existing templates or existing agents.
+
+### Local Models and Runtime
+- **LM Studio Follow-Through** — LM Studio / OpenAI-compatible runtime execution is more robust across provider validation, context-limit guidance, and execution-time compatibility behavior.
+- **Gateway Health Cleanup** — healthy gateway runs are reported more consistently in doctor/system surfaces instead of showing misleading warning chips.
+
+### Skills and On-Prem Follow-Through
+- **Linux/On-Prem Skill Install Corrections** — dashboard install flows now use more realistic Linux/on-prem install commands for skills like `himalaya` and `nano-pdf`.
+- **Constrained Skill Setup Sessions** — setup-heavy skills like `himalaya` can use a constrained in-dashboard interactive setup flow instead of forcing operators out to an external shell.
+
 ## [v1.7.1] - 2026-06-02
 
 ### Local Model Reliability
