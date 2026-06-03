@@ -1,5 +1,5 @@
 import assert from 'assert'
-import { getDashboardInstallRequirementCommands } from './skillInstall'
+import { formatDashboardInstallRequirementCommand, getDashboardInstallRequirementCommands } from './skillInstall'
 
 let testsPassed = 0
 
@@ -11,17 +11,19 @@ function test(name: string, fn: () => void) {
 
 test('linux skills prefer apt commands over brew alternatives', () => {
   const commands = getDashboardInstallRequirementCommands({
+    name: 'himalaya',
     install: [
       { id: 'brew', kind: 'brew', formula: 'himalaya', bins: ['himalaya'], label: 'Install Himalaya (brew)' },
       { id: 'apt', kind: 'apt', package: 'himalaya', bins: ['himalaya'], label: 'Install Himalaya (apt)' },
     ],
   } as any, 'linux')
 
-  assert.deepStrictEqual(commands, ['apt-get install -y himalaya'])
+  assert.deepStrictEqual(commands, ['curl -sSL https://raw.githubusercontent.com/pimalaya/himalaya/master/install.sh | PREFIX=/usr/local sh'])
 })
 
 test('macOS skills prefer brew commands', () => {
   const commands = getDashboardInstallRequirementCommands({
+    name: 'himalaya',
     install: [
       { id: 'brew', kind: 'brew', formula: 'himalaya', bins: ['himalaya'], label: 'Install Himalaya (brew)' },
       { id: 'apt', kind: 'apt', package: 'himalaya', bins: ['himalaya'], label: 'Install Himalaya (apt)' },
@@ -33,6 +35,7 @@ test('macOS skills prefer brew commands', () => {
 
 test('distinct linux requirements preserve multiple apt commands', () => {
   const commands = getDashboardInstallRequirementCommands({
+    name: 'github',
     install: [
       { id: 'jq', kind: 'apt', package: 'jq', bins: ['jq'], label: 'Install jq (apt)' },
       { id: 'gh', kind: 'apt', package: 'gh', bins: ['gh'], label: 'Install GitHub CLI (apt)' },
@@ -41,6 +44,16 @@ test('distinct linux requirements preserve multiple apt commands', () => {
   } as any, 'linux')
 
   assert.deepStrictEqual(commands, ['apt-get install -y jq', 'apt-get install -y gh'])
+})
+
+test('linux uv installer preview falls back to python pip for dashboard runtimes', () => {
+  const command = formatDashboardInstallRequirementCommand(
+    { name: 'nano-pdf' } as any,
+    { id: 'uv', kind: 'uv', package: 'nano-pdf', bins: ['nano-pdf'], label: 'Install nano-pdf (uv)' } as any,
+    'linux'
+  )
+
+  assert.strictEqual(command, 'python3 -m pip install --user nano-pdf')
 })
 
 console.log(`\n${testsPassed} tests passed`)

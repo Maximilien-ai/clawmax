@@ -2,6 +2,8 @@ import { useState } from 'react'
 import type { OpenClawSkill } from '../../types'
 import type { SkillSetupHint } from '../../lib/skillSetup'
 import { ProductIconCell, resolveSkillVisual } from '../../lib/productIcons'
+import { formatDashboardInstallRequirementCommand } from '../../lib/skillInstall'
+import type { RuntimePlatform } from '../../lib/skillPlatform'
 
 interface SkillCardProps {
   skill: OpenClawSkill
@@ -20,6 +22,7 @@ interface SkillCardProps {
   installingRequirements?: boolean
   setupHint?: SkillSetupHint | null
   onOpenSetup?: () => void
+  runtimePlatform?: RuntimePlatform
 }
 
 function getSourceBadgeLabel(skill: OpenClawSkill): string {
@@ -36,7 +39,7 @@ function getRegistryBadgeLabel(skill: OpenClawSkill): string | null {
   return null
 }
 
-export function SkillCard({ skill, assigned, onToggle, onView, onDelete, canDelete = false, compact = false, usageCount, usedBy, selectionMode = false, isSelected = false, onToggleSelect, onInstallRequirements, installingRequirements = false, setupHint = null, onOpenSetup }: SkillCardProps) {
+export function SkillCard({ skill, assigned, onToggle, onView, onDelete, canDelete = false, compact = false, usageCount, usedBy, selectionMode = false, isSelected = false, onToggleSelect, onInstallRequirements, installingRequirements = false, setupHint = null, onOpenSetup, runtimePlatform = 'unknown' }: SkillCardProps) {
   const [showDetails, setShowDetails] = useState(false)
   const installSatisfied = !!skill.requirementStatus?.checkable && skill.requirementStatus.installSatisfied
   const skillVisual = resolveSkillVisual(skill)
@@ -210,14 +213,7 @@ export function SkillCard({ skill, assigned, onToggle, onView, onDelete, canDele
                   </div>
                   {skill.install.map((option, i) => (
                     <div key={i} className="text-xs text-gray-600 dark:text-gray-300 font-mono">
-                      {option.kind === 'brew' && `brew install ${option.formula}`}
-                      {option.kind === 'apt' && `apt install ${option.package}`}
-                      {option.kind === 'npm' && `npm install -g ${option.package}`}
-                      {option.kind === 'node' && `npm install -g ${option.package}`}
-                      {option.kind === 'pnpm' && `pnpm add -g ${option.package}`}
-                      {option.kind === 'go' && `go install ${option.module || option.package}`}
-                      {option.kind === 'uv' && `uv tool install ${option.package}`}
-                      {!['brew', 'apt', 'npm', 'node', 'pnpm', 'go', 'uv'].includes(option.kind) && option.label}
+                      {formatDashboardInstallRequirementCommand(skill, option, runtimePlatform) || option.label}
                     </div>
                   ))}
                   {installSatisfied ? (

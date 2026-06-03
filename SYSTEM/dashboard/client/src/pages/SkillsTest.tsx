@@ -2328,6 +2328,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                           installingRequirements={installingSkillRequirementsName === skill.name}
                           setupHint={getSkillSetupHint(skill)}
                           onOpenSetup={getSkillSetupHint(skill) ? () => openSkillSetupModal(skill) : undefined}
+                          runtimePlatform={runtimePlatform}
                         />
                       )
                     })}
@@ -2386,6 +2387,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                       installingRequirements={installingSkillRequirementsName === skill.name}
                       setupHint={getSkillSetupHint(skill)}
                       onOpenSetup={getSkillSetupHint(skill) ? () => openSkillSetupModal(skill) : undefined}
+                      runtimePlatform={runtimePlatform}
                     />
                   )
                 })}

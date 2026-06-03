@@ -13,12 +13,25 @@ function supportsRuntime(option: SkillInstallOption, runtimePlatform: RuntimePla
   return option.os.includes(runtimePlatform)
 }
 
-function commandForInstallOption(option: SkillInstallOption): string | null {
+const HIMALAYA_LINUX_INSTALL_COMMAND = 'curl -sSL https://raw.githubusercontent.com/pimalaya/himalaya/master/install.sh | PREFIX=/usr/local sh'
+
+export function formatDashboardInstallRequirementCommand(
+  skill: Pick<OpenClawSkill, 'name'>,
+  option: SkillInstallOption,
+  runtimePlatform: RuntimePlatform,
+): string | null {
+  if (runtimePlatform === 'linux' && skill.name === 'himalaya' && option.kind === 'apt' && option.package === 'himalaya') {
+    return HIMALAYA_LINUX_INSTALL_COMMAND
+  }
   if (option.kind === 'brew' && option.formula) return `brew install ${option.formula.trim()}`
   if (option.kind === 'apt' && option.package) return `apt-get install -y ${option.package.trim()}`
   if (option.kind === 'npm' && option.package) return `npm install -g ${option.package.trim()}`
   if (option.kind === 'pnpm' && option.package) return `pnpm add -g ${option.package.trim()}`
-  if (option.kind === 'uv' && option.package) return `uv tool install ${option.package.trim()}`
+  if (option.kind === 'uv' && option.package) {
+    return runtimePlatform === 'linux' || runtimePlatform === 'unknown'
+      ? `python3 -m pip install --user ${option.package.trim()}`
+      : `uv tool install ${option.package.trim()}`
+  }
   if (option.kind === 'go' && (option.module || option.package)) return `go install ${String(option.module || option.package).trim()}`
   if (option.kind === 'node' && option.package) return `node ${option.package.trim()}`
   return null
@@ -31,7 +44,7 @@ function requirementSignature(option: SkillInstallOption): string {
 }
 
 export function getDashboardInstallRequirementCommands(
-  skill: Pick<OpenClawSkill, 'install'>,
+  skill: Pick<OpenClawSkill, 'install' | 'name'>,
   runtimePlatform: RuntimePlatform
 ): string[] {
   const priority = INSTALL_KIND_PRIORITY[runtimePlatform] || INSTALL_KIND_PRIORITY.unknown
@@ -39,7 +52,7 @@ export function getDashboardInstallRequirementCommands(
     .filter((option) => supportsRuntime(option, runtimePlatform))
     .map((option) => ({
       option,
-      command: commandForInstallOption(option),
+      command: formatDashboardInstallRequirementCommand(skill, option, runtimePlatform),
       priority: priority.indexOf(option.kind),
     }))
     .filter((entry) => !!entry.command)

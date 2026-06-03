@@ -910,11 +910,11 @@ test('getSkillRequirementInstallCommands() does not emit brew on linux when brew
     ],
   }, {
     platform: 'linux',
-    commandExists: (command: string) => command === 'apt-get',
+    commandExists: (command: string) => command === 'apt-get' || command === 'curl' || command === 'sh',
   })
 
   assertEqual(commands.length, 1, 'Expected linux fallback install command for himalaya')
-  assertEqual(commands[0].display, 'apt-get install -y himalaya', 'Expected apt fallback install command for himalaya')
+  assertEqual(commands[0].display, 'curl -sSL https://raw.githubusercontent.com/pimalaya/himalaya/master/install.sh | PREFIX=/usr/local sh', 'Expected official Himalaya install command on linux')
 })
 
 test('getSkillRequirementInstallCommands() supports go and node installers on linux', () => {
@@ -936,6 +936,25 @@ test('getSkillRequirementInstallCommands() supports go and node installers on li
   assertEqual(commands.length, 2, 'Expected go and node installers to both be supported')
   assertEqual(commands[0].display, 'go install github.com/example/tool/cmd/tool@latest', 'Expected go install command')
   assertEqual(commands[1].display, 'npm install -g @example/tool', 'Expected node install command')
+})
+
+test('getSkillRequirementInstallCommands() falls back to python pip for uv installs when uv is unavailable', () => {
+  const commands = getSkillRequirementInstallCommands({
+    name: 'nano-pdf',
+    description: 'test',
+    filePath: '',
+    bundled: false,
+    source: 'workspace',
+    install: [
+      { id: 'uv', kind: 'uv', package: 'nano-pdf', bins: ['nano-pdf'], label: 'Install nano-pdf (uv)' },
+    ],
+  }, {
+    platform: 'linux',
+    commandExists: (command: string) => command === 'python3',
+  })
+
+  assertEqual(commands.length, 1, 'Expected a python fallback install command when uv is unavailable')
+  assertEqual(commands[0].display, 'python3 -m pip install --user nano-pdf', 'Expected python fallback install command for uv-based skills')
 })
 
 test('validateSkillChanges() warns about preserved invalid skills without blocking valid additions', () => {

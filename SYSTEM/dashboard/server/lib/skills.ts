@@ -39,6 +39,8 @@ export interface SkillInstallOption {
   os?: string[]
 }
 
+const HIMALAYA_LINUX_INSTALL_DISPLAY = 'curl -sSL https://raw.githubusercontent.com/pimalaya/himalaya/master/install.sh | PREFIX=/usr/local sh'
+
 export interface OpenClawSkill {
   id?: string // Directory name for workspace skills, used for deletion
   name: string
@@ -510,7 +512,7 @@ function canRunInstallOption(
     case 'pnpm':
       return commandExistsFn('pnpm')
     case 'uv':
-      return commandExistsFn('uv')
+      return commandExistsFn('uv') || commandExistsFn('python3')
     case 'go':
       return commandExistsFn('go')
     default:
@@ -937,6 +939,15 @@ export function getSkillRequirementInstallCommands(
       const key = `apt:${pkg}`
       if (!pkg || seen.has(key)) continue
       seen.add(key)
+      if (platform === 'linux' && skill.name === 'himalaya' && pkg === 'himalaya' && commandExistsFn('sh') && commandExistsFn('curl')) {
+        commands.push({
+          kind: 'apt',
+          command: 'sh',
+          args: ['-lc', HIMALAYA_LINUX_INSTALL_DISPLAY],
+          display: HIMALAYA_LINUX_INSTALL_DISPLAY,
+        })
+        continue
+      }
       commands.push({
         kind: 'apt',
         command: 'apt-get',
@@ -976,6 +987,15 @@ export function getSkillRequirementInstallCommands(
       const key = `uv:${pkg}`
       if (!pkg || seen.has(key)) continue
       seen.add(key)
+      if (!commandExistsFn('uv') && commandExistsFn('python3')) {
+        commands.push({
+          kind: 'uv',
+          command: 'python3',
+          args: ['-m', 'pip', 'install', '--user', pkg],
+          display: `python3 -m pip install --user ${pkg}`,
+        })
+        continue
+      }
       commands.push({
         kind: 'uv',
         command: 'uv',
