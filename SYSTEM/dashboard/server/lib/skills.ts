@@ -583,19 +583,22 @@ function getInstallCheckBins(
   }
 
   for (const option of skill.install || []) {
-    for (const bin of option.bins || []) {
-      if (typeof bin === 'string' && bin.trim()) bins.add(bin.trim())
-    }
-
-    if ((!option.bins || option.bins.length === 0) && option.package) {
+    let resolvedBins: string[] = []
+    if (option.package) {
       if (option.kind === 'npm' || option.kind === 'pnpm' || option.kind === 'node') {
-        for (const inferred of resolveNodePackageBins(option.package.trim())) {
-          if (inferred) bins.add(inferred)
-        }
+        resolvedBins = resolveNodePackageBins(option.package.trim())
       } else if (option.kind === 'uv') {
         const inferred = option.package.trim().split('/').pop()
-        if (inferred) bins.add(inferred)
+        if (inferred) resolvedBins = [inferred]
       }
+    }
+
+    const binsForOption = resolvedBins.length > 0
+      ? resolvedBins
+      : (option.bins || [])
+
+    for (const bin of binsForOption) {
+      if (typeof bin === 'string' && bin.trim()) bins.add(bin.trim())
     }
   }
 

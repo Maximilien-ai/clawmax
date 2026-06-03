@@ -226,6 +226,21 @@ test('getSkillRequirementStatus() uses installed package metadata bins for node 
   assertEqual(status!.presentBins[0], 'email', 'Expected package metadata bin to be checked')
 })
 
+test('getSkillRequirementStatus() prefers installed package metadata over stale explicit node bins', () => {
+  const status = getSkillRequirementStatus(
+    {
+      install: [{ id: 'react-email', kind: 'node', package: 'react-email', bins: ['react-email'], label: 'Install react-email' } as SkillInstallOption],
+    },
+    (bin: string) => bin === 'email',
+    () => ['email'],
+  )
+
+  assert(status, 'Expected status for node package with stale explicit bins')
+  assertEqual(status!.installSatisfied, true, 'Expected resolved installed bin metadata to win over stale explicit bins')
+  assertEqual(status!.presentBins[0], 'email', 'Expected actual installed bin to be checked')
+  assertEqual(status!.missingBins.length, 0, 'Did not expect stale explicit bin to remain missing')
+})
+
 test('getSkillRequirementStatus() keeps uv package inference package-based', () => {
   const status = getSkillRequirementStatus(
     {
