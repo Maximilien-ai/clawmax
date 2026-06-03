@@ -57,6 +57,15 @@ type SkillSetupSession = {
 
 const interactiveSkillSetupSessions = new Map<string, SkillSetupSession>()
 
+function summarizeGitHubImportFailures(
+  failures: Array<{ skillId: string; error?: string }>
+): string {
+  const details = failures
+    .map((failure) => `${failure.skillId}: ${failure.error || 'Unknown import failure'}`)
+    .join('; ')
+  return `Failed to import skills from GitHub. ${details}`
+}
+
 function trimTrailingLines(lines: string[], maxLines = 400) {
   return lines.length > maxLines ? lines.slice(lines.length - maxLines) : lines
 }
@@ -837,6 +846,16 @@ router.post('/import-github', async (req, res) => {
 
         const imported = results.filter(r => r.ok)
         const failed = results.filter(r => !r.ok)
+
+        if (imported.length === 0) {
+          return res.status(400).json({
+            error: summarizeGitHubImportFailures(failed),
+            imported: 0,
+            failed: failed.length,
+            total: results.length,
+            skills: results,
+          })
+        }
 
         res.json({
           ok: imported.length > 0,

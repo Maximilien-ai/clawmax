@@ -22,6 +22,7 @@ type ExecFileMock = (file: string, args: string[], options: any, callback: ExecF
 
 const originalExecFile = childProcess.execFile
 const originalSpawn = childProcess.spawn
+const originalExecSync = childProcess.execSync
 let execFileMock: ExecFileMock = (_file, _args, _options, callback) => callback(null, '', '')
 let spawnMock: any = null
 
@@ -42,6 +43,7 @@ const router = require('./skills').default
 function restoreExecFile() {
   ;(childProcess as any).execFile = originalExecFile
   ;(childProcess as any).spawn = originalSpawn
+  ;(childProcess as any).execSync = originalExecSync
 }
 
 function test(name: string, fn: () => void | Promise<void>) {
@@ -218,6 +220,52 @@ async function run() {
     assert.strictEqual(closeRes.statusCode, 200, 'Expected interactive session close to return HTTP 200')
     assert.strictEqual(killed, true, 'Expected interactive session close to stop the PTY process')
     spawnMock = null
+  })
+
+  await test('import-github returns actionable per-skill errors when every repo skill fails', async () => {
+    const tempRoots: string[] = []
+    ;(childProcess as any).execSync = ((command: string) => {
+      const match = command.match(/git clone --depth 1\s+\S+\s+(.+)$/)
+      assert(match, `Expected clone command, got ${command}`)
+      const tempDir = match[1]
+      tempRoots.push(tempDir)
+      const skillsRoot = `${tempDir}/skills`
+      require('fs').mkdirSync(`${skillsRoot}/resend`, { recursive: true })
+      require('fs').mkdirSync(`${skillsRoot}/resend-cli`, { recursive: true })
+      require('fs').writeFileSync(`${skillsRoot}/resend/SKILL.md`, '# resend')
+      require('fs').writeFileSync(`${skillsRoot}/resend-cli/SKILL.md`, '# resend-cli')
+      return Buffer.from('')
+    }) as typeof childProcess.execSync
+
+    const skillsLib = require('../lib/skills')
+    const originalImportWorkspaceSkill = skillsLib.importWorkspaceSkill
+    skillsLib.importWorkspaceSkill = (skillPath: string) => ({
+      success: false,
+      skillId: require('path').basename(skillPath),
+      error: 'Missing required metadata',
+    })
+
+    try {
+      const handler = getRouteHandler('post', '/import-github')
+      const res = makeRes()
+      await handler(makeReq({
+        body: { githubUrl: 'https://github.com/resend/resend-skills' },
+      }), res)
+
+      assert.strictEqual(res.statusCode, 400, 'Expected all-failed multi-skill import to return HTTP 400')
+      assert(/Failed to import skills from GitHub/i.test(res.jsonBody?.error || ''), 'Expected summary prefix')
+      assert(/resend: Missing required metadata/i.test(res.jsonBody?.error || ''), 'Expected resend failure reason')
+      assert(/resend-cli: Missing required metadata/i.test(res.jsonBody?.error || ''), 'Expected resend-cli failure reason')
+      assert.strictEqual(res.jsonBody?.imported, 0, 'Expected zero imported skills')
+      assert.strictEqual(res.jsonBody?.total, 2, 'Expected two attempted skills')
+    } finally {
+      skillsLib.importWorkspaceSkill = originalImportWorkspaceSkill
+      ;(childProcess as any).execSync = originalExecSync
+      const fs = require('fs')
+      for (const tempDir of tempRoots) {
+        if (fs.existsSync(tempDir)) fs.rmSync(tempDir, { recursive: true, force: true })
+      }
+    }
   })
 
   await test('registry search returns actionable warning when Tessl CLI is unavailable', async () => {

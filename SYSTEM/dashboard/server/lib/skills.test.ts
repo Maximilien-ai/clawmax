@@ -1243,6 +1243,36 @@ Imported test skill.`
   fs.rmSync(tmpDir, { recursive: true, force: true })
 })
 
+test('importWorkspaceSkill() accepts markdown-only skills without index entrypoints', () => {
+  try { deleteWorkspaceSkill('test-markdown-only-skill') } catch (e) {}
+
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'test-skill-'))
+  const skillDir = path.join(tmpDir, 'test-markdown-only-skill')
+  fs.mkdirSync(skillDir)
+
+  const skillContent = `---
+name: Test Markdown Only Skill
+description: Test skill without index entrypoint
+---
+
+# Test Markdown Only Skill
+
+This skill is prompt-only and does not ship index.ts or index.js.`
+
+  fs.writeFileSync(path.join(skillDir, 'SKILL.md'), skillContent)
+
+  const result = importWorkspaceSkill(skillDir)
+  assert(result.success === true, `Expected markdown-only import to succeed. Error: ${result.error}`)
+
+  const importedSkillPath = path.join(getWorkspaceSkillsDir(), 'test-markdown-only-skill')
+  assert(fs.existsSync(path.join(importedSkillPath, 'SKILL.md')), 'Expected markdown-only skill to be copied')
+  assert(!fs.existsSync(path.join(importedSkillPath, 'index.ts')), 'Did not expect generated index.ts for markdown-only skill')
+  assert(!fs.existsSync(path.join(importedSkillPath, 'index.js')), 'Did not expect index.js for markdown-only skill')
+
+  deleteWorkspaceSkill('test-markdown-only-skill')
+  fs.rmSync(tmpDir, { recursive: true, force: true })
+})
+
 // Test 19: createCustomSkill() writes index.ts stub
 test('createCustomSkill() writes index.ts entrypoint for new managed skills', () => {
   const skillName = 'test-ai-created-skill'

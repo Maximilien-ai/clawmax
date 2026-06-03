@@ -1556,7 +1556,11 @@ let saveOpenClawConfigDeprecatedPathLogged = false
 // ============================================================================
 
 /**
- * Validate workspace skill structure (must have skill.md/SKILL.md and index.ts or index.js)
+ * Validate workspace skill structure.
+ *
+ * OpenClaw skills can be prompt-only markdown directories, so `index.ts`/`index.js`
+ * is optional here. If only `index.js` exists, ClawMax still generates the existing
+ * compatibility shim for `index.ts` after import.
  */
 export function validateWorkspaceSkill(skillPath: string): { valid: boolean; error?: string; needsIndexTsShim?: boolean } {
   try {
@@ -1568,10 +1572,6 @@ export function validateWorkspaceSkill(skillPath: string): { valid: boolean; err
     // Accept either skill.md or SKILL.md
     if (!fs.existsSync(skillMdLower) && !fs.existsSync(skillMdUpper)) {
       return { valid: false, error: 'Missing skill.md or SKILL.md file' }
-    }
-
-    if (!fs.existsSync(indexTsPath) && !fs.existsSync(indexJsPath)) {
-      return { valid: false, error: 'Missing index.ts or index.js file' }
     }
 
     return { valid: true, needsIndexTsShim: !fs.existsSync(indexTsPath) && fs.existsSync(indexJsPath) }
