@@ -137,6 +137,20 @@ function resolveAvailableSecretKeys(context?: SkillSetupContext): Set<string> {
   return new Set(Array.from(context?.availableSecretKeys || []).filter(Boolean))
 }
 
+function isGenericMirroredSetupRequirement(
+  setupRequirements: Pick<NonNullable<OpenClawSkill['setupRequirements']>, 'label' | 'message' | 'commands' | 'actionId' | 'actionLabel' | 'successMessage' | 'inputs'> | undefined,
+  genericRequirement: SkillSetupRequirement | null
+): boolean {
+  if (!setupRequirements?.message || !genericRequirement?.message) return false
+  if (setupRequirements.message !== genericRequirement.message) return false
+  if ((setupRequirements.label || 'Needs setup') !== (genericRequirement.label || 'Needs setup')) return false
+  return !setupRequirements.actionId
+    && !setupRequirements.actionLabel
+    && !setupRequirements.successMessage
+    && (!setupRequirements.commands || setupRequirements.commands.length === 0)
+    && (!setupRequirements.inputs || setupRequirements.inputs.length === 0)
+}
+
 function buildGenericSetupRequirement(
   skill: Pick<OpenClawSkill, 'requires' | 'secretRequirements'>,
   context?: SkillSetupContext
@@ -182,7 +196,11 @@ function resolveSkillSetupRequirement(
   context?: SkillSetupContext
 ): SkillSetupRequirement | null {
   const defaults = DEFAULT_SETUP_REQUIREMENTS[skill.name]
+  const unconditionalGeneric = buildGenericSetupRequirement(skill)
   const generic = buildGenericSetupRequirement(skill, context)
+  if (!defaults && !generic && isGenericMirroredSetupRequirement(skill.setupRequirements, unconditionalGeneric)) {
+    return null
+  }
   if (!defaults && !skill.setupRequirements && !generic) return null
   return {
     ...(generic || {}),

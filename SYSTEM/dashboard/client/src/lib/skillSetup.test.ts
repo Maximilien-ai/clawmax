@@ -114,6 +114,23 @@ async function main() {
     assert(envHint === null, 'Expected satisfied env requirements to clear setup hint')
   })
 
+  await test('mirrored generic setup requirements are suppressed when the key is satisfied', () => {
+    const hint = getSkillSetupHint({
+      name: 'resend-cli',
+      requires: {
+        env: ['RESEND_API_KEY'],
+      },
+      setupRequirements: {
+        label: 'Needs setup',
+        message: 'This skill needs environment variables or API keys configured before an agent can use it: RESEND_API_KEY.',
+      },
+    }, {
+      availableSecretKeys: ['RESEND_API_KEY'],
+    })
+
+    assert(hint === null, 'Expected mirrored generic server setup hint to clear once the key is satisfied')
+  })
+
   await test('generic env/config requirements automatically produce setup warnings', () => {
     const envHint = getSkillSetupHint({
       name: 'trello',
