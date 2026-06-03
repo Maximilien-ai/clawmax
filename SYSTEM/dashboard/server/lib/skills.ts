@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import os from 'os'
 import matter from 'gray-matter'
+import { execFileSync } from 'child_process'
 import { getGatewayClient } from './gateway-rpc'
 import { getWorkspacePath } from './workspace'
 import { writeDashboardManagedOpenClawConfig } from './openclaw-config'
@@ -476,6 +477,57 @@ function defaultBinaryExists(bin: string): boolean {
   return buildBinarySearchPaths().some((dir) => fs.existsSync(path.join(dir, bin)))
 }
 
+let cachedNpmGlobalRoot: string | null | undefined
+const cachedNodePackageBins = new Map<string, string[]>()
+
+function getNpmGlobalRoot(): string | null {
+  if (cachedNpmGlobalRoot !== undefined) return cachedNpmGlobalRoot
+  try {
+    const stdout = execFileSync('npm', ['root', '-g'], { encoding: 'utf-8' }).trim()
+    cachedNpmGlobalRoot = stdout || null
+  } catch {
+    cachedNpmGlobalRoot = null
+  }
+  return cachedNpmGlobalRoot
+}
+
+function getInstalledNodePackageBins(packageName: string): string[] {
+  if (!packageName) return []
+  if (cachedNodePackageBins.has(packageName)) return cachedNodePackageBins.get(packageName) || []
+
+  const packagePathSegments = packageName.split('/').filter(Boolean)
+  const fallbackBin = packagePathSegments[packagePathSegments.length - 1] || packageName
+  const candidateRoots = Array.from(new Set([
+    getNpmGlobalRoot(),
+    '/opt/homebrew/lib/node_modules',
+    '/usr/local/lib/node_modules',
+  ].filter(Boolean) as string[]))
+
+  for (const root of candidateRoots) {
+    const packageJsonPath = path.join(root, ...packagePathSegments, 'package.json')
+    if (!fs.existsSync(packageJsonPath)) continue
+    try {
+      const parsed = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'))
+      const binField = parsed?.bin
+      let bins: string[] = []
+      if (typeof binField === 'string') {
+        bins = [fallbackBin]
+      } else if (binField && typeof binField === 'object') {
+        bins = Object.keys(binField).map((bin) => String(bin).trim()).filter(Boolean)
+      }
+      if (bins.length > 0) {
+        cachedNodePackageBins.set(packageName, bins)
+        return bins
+      }
+    } catch {
+      // Ignore invalid package metadata and continue with fallback.
+    }
+  }
+
+  cachedNodePackageBins.set(packageName, [fallbackBin])
+  return [fallbackBin]
+}
+
 function commandExists(command: string): boolean {
   return defaultBinaryExists(command)
 }
@@ -520,7 +572,10 @@ function canRunInstallOption(
   }
 }
 
-function getInstallCheckBins(skill: Pick<OpenClawSkill, 'requires' | 'install'>): string[] {
+function getInstallCheckBins(
+  skill: Pick<OpenClawSkill, 'requires' | 'install'>,
+  resolveNodePackageBins: (packageName: string) => string[] = getInstalledNodePackageBins
+): string[] {
   const bins = new Set<string>()
 
   for (const bin of skill.requires?.bins || []) {
@@ -533,7 +588,11 @@ function getInstallCheckBins(skill: Pick<OpenClawSkill, 'requires' | 'install'>)
     }
 
     if ((!option.bins || option.bins.length === 0) && option.package) {
-      if (option.kind === 'npm' || option.kind === 'pnpm' || option.kind === 'uv' || option.kind === 'node') {
+      if (option.kind === 'npm' || option.kind === 'pnpm' || option.kind === 'node') {
+        for (const inferred of resolveNodePackageBins(option.package.trim())) {
+          if (inferred) bins.add(inferred)
+        }
+      } else if (option.kind === 'uv') {
         const inferred = option.package.trim().split('/').pop()
         if (inferred) bins.add(inferred)
       }
@@ -545,9 +604,10 @@ function getInstallCheckBins(skill: Pick<OpenClawSkill, 'requires' | 'install'>)
 
 export function getSkillRequirementStatus(
   skill: Pick<OpenClawSkill, 'requires' | 'install'>,
-  binaryExists: (bin: string) => boolean = defaultBinaryExists
+  binaryExists: (bin: string) => boolean = defaultBinaryExists,
+  resolveNodePackageBins: (packageName: string) => string[] = getInstalledNodePackageBins
 ): SkillRequirementStatus | undefined {
-  const bins = getInstallCheckBins(skill)
+  const bins = getInstallCheckBins(skill, resolveNodePackageBins)
   if (bins.length === 0) return undefined
 
   const presentBins: string[] = []

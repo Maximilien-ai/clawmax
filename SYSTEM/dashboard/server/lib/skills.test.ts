@@ -204,11 +204,40 @@ test('getSkillRequirementStatus() infers CLI bins for package-based node install
       install: [{ id: 'react-email', kind: 'node', package: 'react-email', label: 'Install react-email' } as SkillInstallOption],
     },
     (bin: string) => bin === 'react-email',
+    () => ['react-email'],
   )
 
   assert(status, 'Expected inferred package install requirement status')
   assertEqual(status!.installSatisfied, true, 'Expected inferred package bin to satisfy install status')
   assertEqual(status!.presentBins[0], 'react-email', 'Expected react-email CLI to be inferred as present')
+})
+
+test('getSkillRequirementStatus() uses installed package metadata bins for node installs', () => {
+  const status = getSkillRequirementStatus(
+    {
+      install: [{ id: 'react-email', kind: 'node', package: 'react-email', label: 'Install react-email' } as SkillInstallOption],
+    },
+    (bin: string) => bin === 'email',
+    () => ['email'],
+  )
+
+  assert(status, 'Expected package-metadata bin resolution for node installs')
+  assertEqual(status!.installSatisfied, true, 'Expected installed package bin metadata to satisfy install status')
+  assertEqual(status!.presentBins[0], 'email', 'Expected package metadata bin to be checked')
+})
+
+test('getSkillRequirementStatus() keeps uv package inference package-based', () => {
+  const status = getSkillRequirementStatus(
+    {
+      install: [{ id: 'nano-pdf', kind: 'uv', package: 'nano-pdf', label: 'Install nano-pdf' } as SkillInstallOption],
+    },
+    (bin: string) => bin === 'nano-pdf',
+    () => ['email'],
+  )
+
+  assert(status, 'Expected uv install requirement status')
+  assertEqual(status!.installSatisfied, true, 'Expected uv package to keep basename inference')
+  assertEqual(status!.presentBins[0], 'nano-pdf', 'Expected uv package basename to be checked, not node package metadata')
 })
 
 test('skills with required env/config automatically expose setup warnings', () => {
