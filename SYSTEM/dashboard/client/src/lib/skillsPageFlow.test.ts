@@ -28,13 +28,25 @@ test('skills page partitions partner-backed workspace skills into a dedicated se
     [
       { name: 'custom-notes', source: 'workspace' as const },
       { name: 'resend', source: 'workspace' as const },
+      { name: 'resend-cli', source: 'workspace' as const },
+      { name: 'react-email', source: 'workspace' as const },
+      { name: 'senso-search-clawmax', source: 'workspace' as const },
       { name: 'github', source: 'bundled' as const },
     ],
-    ['resend', 'resend-cli']
+    [
+      {
+        items: ['resend', 'resend-cli'],
+        matchNames: ['react-email'],
+        matchPrefixes: ['resend'],
+      },
+      {
+        matchPrefixes: ['senso'],
+      },
+    ]
   )
 
   assert.deepEqual(partitioned.userSkills.map((skill) => skill.name), ['custom-notes'])
-  assert.deepEqual(partitioned.partnerSkills.map((skill) => skill.name), ['resend'])
+  assert.deepEqual(partitioned.partnerSkills.map((skill) => skill.name), ['resend', 'resend-cli', 'react-email', 'senso-search-clawmax'])
   assert.deepEqual(partitioned.builtInSkills.map((skill) => skill.name), ['github'])
 })
 

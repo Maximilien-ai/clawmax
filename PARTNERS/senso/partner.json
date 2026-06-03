@@ -26,6 +26,14 @@
   "skills": {
     "mode": "shipables",
     "label": "Official Senso skills plus ClawMax variants",
+    "matchPrefixes": [
+      "senso"
+    ],
+    "matchNames": [
+      "brand-setup",
+      "kb-organize",
+      "review-publish"
+    ],
     "items": [
       "senso-ai/senso-ingest",
       "senso-ai/senso-search",

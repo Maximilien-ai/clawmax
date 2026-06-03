@@ -392,6 +392,8 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
       commandId?: string
       label?: string
       items?: string[]
+      matchNames?: string[]
+      matchPrefixes?: string[]
     }
   }>>([])
   const [partnerInstalling, setPartnerInstalling] = useState<string | null>(null)
@@ -1295,8 +1297,12 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
     return a.name.localeCompare(b.name)
   })
 
-  const partnerSkillNames = useMemo(
-    () => Array.from(new Set(partnerInstallers.flatMap((partner) => partner.skills.items || []))),
+  const partnerSkillMatchers = useMemo(
+    () => partnerInstallers.map((partner) => ({
+      items: partner.skills.items || [],
+      matchNames: partner.skills.matchNames || [],
+      matchPrefixes: partner.skills.matchPrefixes || [],
+    })),
     [partnerInstallers]
   )
 
@@ -1305,8 +1311,8 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
     partnerSkills: sortedPartnerSkills,
     builtInSkills: sortedBuiltInSkills,
   } = useMemo(
-    () => partitionSkillsBySection(sortedSkills, partnerSkillNames),
-    [partnerSkillNames, sortedSkills]
+    () => partitionSkillsBySection(sortedSkills, partnerSkillMatchers),
+    [partnerSkillMatchers, sortedSkills]
   )
 
   const closeMatchSkills = useMemo(() => {

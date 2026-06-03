@@ -27,6 +27,8 @@ type PartnerFieldDefinition = {
 type PartnerSkillsDefinition = {
   mode: 'shipables' | 'curated-installer' | 'planned' | 'catalog'
   items?: string[]
+  matchNames?: string[]
+  matchPrefixes?: string[]
   commandId?: string
   label?: string
 }
