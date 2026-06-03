@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
+import { useWorkspace } from '../contexts/WorkspaceContext'
 import { useToast } from './Toast'
-import { buildByokVerificationFingerprint, detectProviderKeyMismatch, getByokDismissKey, isOllamaUiAvailable, readStoredByokKeys, resolveOllamaBaseUrlForRuntime, resolveOpenAiCompatibleBaseUrlForRuntime, shouldAutoValidateByokOnSave, writeStoredByokKeys } from '../lib/byok'
+import { buildByokVerificationFingerprint, detectProviderKeyMismatch, getByokDismissKey, isOllamaUiAvailable, readStoredByokKeys, resolveOllamaBaseUrlForRuntime, resolveOpenAiCompatibleBaseUrlForRuntime, resolveSelectedPartnersForWorkspace, shouldAutoValidateByokOnSave, writeStoredByokKeys } from '../lib/byok'
 import { filterPartnersByCategory, formatPartnerCategoryLabel, getPartnerCategories, getPartnerLogoClass, listPartnerCategoryTabs } from '../lib/partnerCatalog'
 import { DEFAULT_VISIBLE_PARTNERS, getDefaultPartnerDefinitions } from '../lib/defaultPartners'
 import { BROWSER_VAULT_UPDATED_EVENT, readPartnerValuesFromSharedSecrets, readSharedSecrets, writePartnerValuesToSharedSecrets, writeSharedSecrets } from '../lib/localSecrets'
@@ -163,6 +164,7 @@ export function ByokWizard({
   suppressAutoOpen?: boolean
 } = {}) {
   const { user, config } = useAuth()
+  const { activeWorkspace } = useWorkspace()
   const { showSuccess, showInfo, showWarning } = useToast()
   const [open, setOpen] = useState(false)
   const [step, setStep] = useState<Step>('models')
@@ -420,16 +422,13 @@ export function ByokWizard({
             ...(workspaceConfig.githubDefaultRepo ? { defaultRepo: workspaceConfig.githubDefaultRepo } : {}),
           },
         }))
-        if (Array.isArray(workspaceConfig.enabledPartners)) {
-          setSelectedPartners((current) => {
-            if (current.length > 0) return current
-            const locked = config?.opikRuntimeConfigured ? ['opik'] : []
-            return Array.from(new Set([...(workspaceConfig.enabledPartners || []), ...locked]))
-          })
-        }
+        setSelectedPartners(resolveSelectedPartnersForWorkspace({
+          enabledPartners: Array.isArray(workspaceConfig.enabledPartners) ? workspaceConfig.enabledPartners : [],
+          lockedPartnerSlugs: config?.opikRuntimeConfigured ? ['opik'] : [],
+        }))
       })
       .catch(() => {})
-  }, [config?.defaultOllamaBaseUrl, config?.opikRuntimeConfigured, defaultOllamaBaseUrl, hydrated, managedRuntime])
+  }, [activeWorkspace?.id, config?.defaultOllamaBaseUrl, config?.opikRuntimeConfigured, defaultOllamaBaseUrl, hydrated, managedRuntime])
 
   const hasStoredKeys = !!(openaiKey || anthropicKey || geminiApiKey || openaiCompatibleBaseUrl || openaiCompatibleDefaultModel)
   const hasDefaultUserKeys = !!(config?.userKeyDefaults?.openai || config?.userKeyDefaults?.anthropic || config?.userKeyDefaults?.gemini || config?.userKeyDefaults?.openaiCompatible)

@@ -4,7 +4,7 @@
  * Run with: npx ts-node --transpileOnly client/src/lib/byok.test.ts
  */
 
-import { byokForRequest, detectProviderKeyMismatch, getAiGenerationReadiness, hasAiGenerationAccess, hasChatExecutionAccess, isOllamaUiAvailable, refreshModelsWithByok, resolveOllamaBaseUrlForRuntime, resolveOpenAiCompatibleBaseUrlForRuntime, shouldAutoValidateByokOnSave, writeStoredByokKeys } from './byok'
+import { byokForRequest, detectProviderKeyMismatch, getAiGenerationReadiness, hasAiGenerationAccess, hasChatExecutionAccess, isOllamaUiAvailable, refreshModelsWithByok, resolveOllamaBaseUrlForRuntime, resolveOpenAiCompatibleBaseUrlForRuntime, resolveSelectedPartnersForWorkspace, shouldAutoValidateByokOnSave, writeStoredByokKeys } from './byok'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -217,6 +217,17 @@ async function main() {
       resolved === 'http://10.0.0.5:1234/v1',
       `Expected explicit custom runtime URL to win, got ${resolved}`
     )
+  })
+
+  await test('workspace-selected partners hydrate from saved config and keep locked partners', () => {
+    const selected = resolveSelectedPartnersForWorkspace({
+      enabledPartners: ['resend', 'github'],
+      lockedPartnerSlugs: ['opik'],
+    })
+    assert(selected.includes('resend'), 'Expected saved Resend partner to persist')
+    assert(selected.includes('github'), 'Expected saved GitHub partner to persist')
+    assert(selected.includes('opik'), 'Expected locked Opik partner to stay selected')
+    assert(selected.length === 3, `Expected deduplicated partner list, got ${selected.join(', ')}`)
   })
 
   await test('request payload maps geminiApiKey to gemini', () => {

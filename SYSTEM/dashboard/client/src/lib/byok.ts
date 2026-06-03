@@ -124,6 +124,16 @@ export function resolveOpenAiCompatibleBaseUrlForRuntime(input: {
   return configuredBaseUrl
 }
 
+export function resolveSelectedPartnersForWorkspace(input: {
+  enabledPartners?: string[] | null
+  lockedPartnerSlugs?: string[] | null
+}): string[] {
+  return Array.from(new Set([
+    ...((input.enabledPartners || []).map((item) => `${item || ''}`.trim()).filter(Boolean)),
+    ...((input.lockedPartnerSlugs || []).map((item) => `${item || ''}`.trim()).filter(Boolean)),
+  ]))
+}
+
 export type ProviderKeyMismatch = {
   provider: 'openai' | 'anthropic' | 'gemini'
   expectedLabel: string
