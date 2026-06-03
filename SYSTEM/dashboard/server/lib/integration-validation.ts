@@ -18,6 +18,7 @@ type FetchLike = typeof fetch
 
 const OPENAI_VALIDATION_MODEL = 'gpt-4o-mini'
 const ANTHROPIC_VALIDATION_MODEL = 'claude-3-5-haiku-latest'
+const OPENAI_COMPATIBLE_EXCLUDE = ['embedding', 'embed', 'rerank', 'whisper', 'tts', 'speech', 'transcription', 'moderation']
 
 function detectProviderFromKeyShape(key: string): 'openai' | 'anthropic' | 'gemini' | null {
   const trimmed = key.trim()
@@ -111,6 +112,11 @@ function isModelAvailabilityWarning(message: string | null): boolean {
     )
 }
 
+function isOpenAICompatibleChatModel(id: string): boolean {
+  const normalized = id.trim().toLowerCase()
+  return !!normalized && !OPENAI_COMPATIBLE_EXCLUDE.some((token) => normalized.includes(token))
+}
+
 export async function validateOpenAIKey(apiKey: string, fetchImpl: FetchLike = fetch): Promise<IntegrationValidationResult> {
   if (!apiKey.trim()) return skipped('No OpenAI key provided')
   const mismatch = providerShapeMismatch('openai', apiKey)
@@ -178,10 +184,17 @@ export async function validateOpenAICompatibleConfig(
     if (modelIds.length === 0) {
       return invalid('Connected to OpenAI-compatible endpoint, but no models were returned')
     }
-    const validationModel = normalizedModel || modelIds[0]
+    const compatibleModelIds = modelIds.filter(isOpenAICompatibleChatModel)
     if (normalizedModel && !modelIds.includes(normalizedModel)) {
       return invalid(`OpenAI-compatible endpoint is reachable, but default model "${normalizedModel}" is not available`)
     }
+    if (normalizedModel && !isOpenAICompatibleChatModel(normalizedModel)) {
+      return invalid(`OpenAI-compatible default model "${normalizedModel}" does not look chat-capable. Choose a text/chat model or load all models explicitly.`)
+    }
+    if (compatibleModelIds.length === 0) {
+      return invalid('Connected to OpenAI-compatible endpoint, but it only returned non-chat or unsupported models. Enable "Load all discovered models" if you want to inspect everything manually.')
+    }
+    const validationModel = normalizedModel || compatibleModelIds[0]
     const completionRes = await fetchImpl(`${normalizedBaseUrl}/chat/completions`, {
       method: 'POST',
       headers: {

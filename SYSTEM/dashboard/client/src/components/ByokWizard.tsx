@@ -205,6 +205,7 @@ export function ByokWizard({
   const [ollamaModelsLoading, setOllamaModelsLoading] = useState(false)
   const [availableModelsLoading, setAvailableModelsLoading] = useState(false)
   const [modelsByProvider, setModelsByProvider] = useState<ModelsByProvider>({})
+  const [showAllDiscoveredModels, setShowAllDiscoveredModels] = useState(false)
   const [partnerInstallState, setPartnerInstallState] = useState<Record<string, 'idle' | 'installing'>>({})
   const [installedPartnerSkillSlugs, setInstalledPartnerSkillSlugs] = useState<Set<string>>(new Set())
   const preferredModelRef = useRef<HTMLSelectElement | null>(null)
@@ -789,12 +790,14 @@ export function ByokWizard({
     setAvailableModelsLoading(true)
     try {
       const res = await fetch(
-        forceRefresh ? '/api/agents/models/refresh' : '/api/agents/models',
+        forceRefresh
+          ? '/api/agents/models/refresh'
+          : `/api/agents/models${showAllDiscoveredModels ? '?showAll=true' : ''}`,
         forceRefresh
           ? {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(payload),
+              body: JSON.stringify({ ...payload, showAll: showAllDiscoveredModels }),
             }
           : undefined
       )
@@ -805,7 +808,7 @@ export function ByokWizard({
     } finally {
       setAvailableModelsLoading(false)
     }
-  }, [effectiveOllamaBaseUrl, geminiApiKey, anthropicKey, openaiCompatibleApiKey, openaiCompatibleBaseUrl, openaiCompatibleDefaultModel, openaiKey, ollamaEnabled])
+  }, [effectiveOllamaBaseUrl, geminiApiKey, anthropicKey, openaiCompatibleApiKey, openaiCompatibleBaseUrl, openaiCompatibleDefaultModel, openaiKey, ollamaEnabled, showAllDiscoveredModels])
 
   useEffect(() => {
     if (!open || step !== 'models') return
@@ -1807,6 +1810,15 @@ export function ByokWizard({
                             <button type="button" onClick={() => void loadAvailableModels(true)} className="text-[11px] text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300">Refresh</button>
                           </div>
                         </div>
+                        <label className="mt-2 flex items-center gap-2 text-[11px] text-gray-600 dark:text-gray-400">
+                          <input
+                            type="checkbox"
+                            checked={showAllDiscoveredModels}
+                            onChange={(e) => setShowAllDiscoveredModels(e.target.checked)}
+                            className="rounded border-gray-300 text-sky-600 focus:ring-sky-500"
+                          />
+                          Load all discovered models, including embeddings and other advanced endpoint-specific types
+                        </label>
                         {openAiCompatibleModels.length > 0 ? (
                           <div className="mt-2 flex flex-wrap gap-2">
                             {openAiCompatibleModels.map((model) => {
@@ -1835,7 +1847,9 @@ export function ByokWizard({
                           <div className="mt-2 text-[11px] text-gray-500 dark:text-gray-400">
                             {availableModelsLoading
                               ? 'Checking the OpenAI-compatible endpoint for available models…'
-                              : 'No models were discovered yet. Check the base URL, confirm the endpoint exposes /v1/models, then refresh.'}
+                              : showAllDiscoveredModels
+                                ? 'No models were discovered yet. Check the base URL, confirm the endpoint exposes /v1/models, then refresh.'
+                                : 'No chat-capable models were discovered yet. Check the base URL, confirm the endpoint exposes /v1/models, or enable "Load all discovered models" to inspect everything returned.'}
                           </div>
                         )}
                       </div>

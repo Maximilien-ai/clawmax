@@ -93,7 +93,10 @@ const COMPATIBLE_MODELS: Record<Exclude<ProviderId, 'ollama'>, string[]> = {
 }
 
 function filterCompatibleDiscoveredModels(provider: ProviderId, models: string[], showAll = false): string[] {
-  if (showAll || provider === 'ollama' || provider === 'openai-compatible') return models
+  if (showAll || provider === 'ollama') return models
+  if (provider === 'openai-compatible') {
+    return models.filter((model) => isOpenAICompatibleChatModel(model.replace(/^openai-compatible\//, '')))
+  }
   const compatible = new Set(COMPATIBLE_MODELS[provider as keyof typeof COMPATIBLE_MODELS] || [])
   return models.filter((model) => compatible.has(model))
 }
@@ -114,6 +117,22 @@ const ANTHROPIC_CHAT_PREFIXES = ['claude-']
 
 function isAnthropicChatModel(id: string): boolean {
   return ANTHROPIC_CHAT_PREFIXES.some(p => id.toLowerCase().startsWith(p))
+}
+
+const OPENAI_COMPATIBLE_EXCLUDE = [
+  'embedding',
+  'embed',
+  'rerank',
+  'whisper',
+  'tts',
+  'speech',
+  'transcription',
+  'moderation',
+]
+
+function isOpenAICompatibleChatModel(id: string): boolean {
+  const lower = id.toLowerCase()
+  return !OPENAI_COMPATIBLE_EXCLUDE.some((token) => lower.includes(token))
 }
 
 // ── API fetchers ───────────────────────────────────────────────────────────────
@@ -407,4 +426,5 @@ export function getAvailableModelsCached(rawEnv?: Record<string, string>): strin
 
 export const __test = {
   filterCompatibleDiscoveredModels,
+  isOpenAICompatibleChatModel,
 }

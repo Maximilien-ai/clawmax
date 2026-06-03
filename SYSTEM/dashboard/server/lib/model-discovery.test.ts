@@ -56,12 +56,21 @@ test('Ollama models are never compatibility filtered', () => {
   assert(filtered.length === 2, `Expected both Ollama models, got ${filtered.length}`)
 })
 
-test('OpenAI-compatible models are never compatibility filtered', () => {
+test('OpenAI-compatible discovery hides obvious embedding-only models by default', () => {
   const filtered = __test.filterCompatibleDiscoveredModels('openai-compatible', [
-    'openai-compatible/local-model',
-    'openai-compatible/another-model',
+    'openai-compatible/text-embedding-nomic-embed-text-v1.5',
+    'openai-compatible/qwen3-8b',
   ])
-  assert(filtered.length === 2, `Expected both OpenAI-compatible models, got ${filtered.length}`)
+  assert(filtered.length === 1, `Expected one chat-capable OpenAI-compatible model, got ${filtered.length}`)
+  assert(filtered[0] === 'openai-compatible/qwen3-8b', `Expected qwen3-8b to remain visible, got ${filtered[0]}`)
+})
+
+test('OpenAI-compatible show-all mode preserves filtered advanced models', () => {
+  const filtered = __test.filterCompatibleDiscoveredModels('openai-compatible', [
+    'openai-compatible/text-embedding-nomic-embed-text-v1.5',
+    'openai-compatible/qwen3-8b',
+  ], true)
+  assert(filtered.length === 2, `Expected both OpenAI-compatible models in show-all mode, got ${filtered.length}`)
 })
 
 test('discoverModels loads LM Studio models from an OpenAI-compatible endpoint', async () => {
@@ -71,16 +80,17 @@ test('discoverModels loads LM Studio models from an OpenAI-compatible endpoint',
     return {
       ok: true,
       status: 200,
-      json: async () => ({ data: [{ id: 'granite-3.3-8b-instruct' }, { id: 'qwen3-8b' }] }),
+      json: async () => ({ data: [{ id: 'text-embedding-nomic-embed-text-v1.5' }, { id: 'granite-3.3-8b-instruct' }, { id: 'qwen3-8b' }] }),
     } as any
   }) as any
 
   const result = await discoverModels({
     openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1',
-  }, { showAll: true })
+  })
 
   assert(result.modelsByProvider['openai-compatible']?.models.includes('openai-compatible/granite-3.3-8b-instruct'), 'Expected granite LM Studio model')
   assert(result.modelsByProvider['openai-compatible']?.models.includes('openai-compatible/qwen3-8b'), 'Expected second LM Studio model')
+  assert(!result.modelsByProvider['openai-compatible']?.models.includes('openai-compatible/text-embedding-nomic-embed-text-v1.5'), 'Did not expect embedding model in default compatible discovery')
 })
 
 test('discoverModels loads Ollama models from the local tags endpoint', async () => {

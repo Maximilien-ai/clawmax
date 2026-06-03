@@ -133,7 +133,7 @@ async function run() {
         return {
           ok: true,
           status: 200,
-          json: async () => ({ data: [{ id: 'local-model' }] }),
+          json: async () => ({ data: [{ id: 'text-embedding-nomic-embed-text-v1.5' }, { id: 'local-model' }] }),
         } as any
       }
       return {
@@ -144,6 +144,26 @@ async function run() {
     }) as any)
     assert(result.status === 'valid', 'Expected valid status')
     assert(calls === 2, `Expected 2 OpenAI-compatible calls, got ${calls}`)
+  })
+
+  await test('validateOpenAICompatibleConfig rejects embedding-only endpoints by default', async () => {
+    const result = await validateOpenAICompatibleConfig('http://127.0.0.1:1234/v1', '', '', (async (_url: string) => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ data: [{ id: 'text-embedding-nomic-embed-text-v1.5' }] }),
+    })) as any)
+    assert(result.status === 'invalid', 'Expected invalid status')
+    assert(/non-chat|Load all discovered models/i.test(result.message), 'Expected unsupported-model guidance')
+  })
+
+  await test('validateOpenAICompatibleConfig rejects configured embedding defaults explicitly', async () => {
+    const result = await validateOpenAICompatibleConfig('http://127.0.0.1:1234/v1', '', 'text-embedding-nomic-embed-text-v1.5', (async (_url: string) => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ data: [{ id: 'text-embedding-nomic-embed-text-v1.5' }, { id: 'qwen3-8b' }] }),
+    })) as any)
+    assert(result.status === 'invalid', 'Expected invalid status for embedding default')
+    assert(/does not look chat-capable/i.test(result.message), 'Expected chat-capable guidance')
   })
 
   await test('validateOpenAICompatibleConfig rejects unavailable configured default model', async () => {
