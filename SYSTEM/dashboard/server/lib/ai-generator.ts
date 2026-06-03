@@ -502,6 +502,19 @@ export function shouldUseMaxCompletionTokens(model: string): boolean {
   return provider === 'openai' && /^gpt-5(?:-|$)/i.test(stripProviderPrefix(model))
 }
 
+function shouldOmitTemperature(model: string): boolean {
+  return shouldUseMaxCompletionTokens(model)
+}
+
+function sanitizeCompatibilityRequest(request: Record<string, any>): Record<string, any> {
+  const sanitized: Record<string, any> = { ...request }
+  const model = String(request?.model || '')
+  if (shouldOmitTemperature(model)) {
+    delete sanitized.temperature
+  }
+  return sanitized
+}
+
 function completionTokenLimit(model: string, limit: number): { max_tokens?: number; max_completion_tokens?: number } {
   return shouldUseMaxCompletionTokens(model)
     ? { max_completion_tokens: limit }
@@ -519,19 +532,20 @@ export async function createChatCompletionWithCompatibilityRetry(
   client: OpenAI,
   request: Record<string, any>,
 ): Promise<any> {
+  const preparedRequest = sanitizeCompatibilityRequest(request)
   try {
-    return await client.chat.completions.create(request as any)
+    return await client.chat.completions.create(preparedRequest as any)
   } catch (err) {
-    const model = String(request?.model || '')
+    const model = String(preparedRequest?.model || '')
     if (
       isOpenAiMaxTokensCompatibilityError(err)
-      && typeof request?.max_tokens === 'number'
-      && typeof request?.max_completion_tokens === 'undefined'
+      && typeof preparedRequest?.max_tokens === 'number'
+      && typeof preparedRequest?.max_completion_tokens === 'undefined'
       && !shouldUseMaxCompletionTokens(model)
     ) {
       const retryRequest: Record<string, any> = {
-        ...request,
-        max_completion_tokens: request.max_tokens,
+        ...preparedRequest,
+        max_completion_tokens: preparedRequest.max_tokens,
       }
       delete retryRequest.max_tokens
       return await client.chat.completions.create(retryRequest as any)

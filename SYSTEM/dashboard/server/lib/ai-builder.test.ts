@@ -179,3 +179,30 @@ test('team prompts do not suggest irrelevant single-agent template confirmations
   const labels = result.confirmationOptions.map((option) => option.label)
   assert(!labels.includes('Use Student Research'), `Expected confirmation labels to exclude Student Research, got ${labels.join(', ')}`)
 })
+
+test('explicit new-agent requests still surface AI Generate even when a close template exists', () => {
+  const result = buildAiBuilderRecommendation('Create a new agent for executive background research and briefing prep')
+  const allActions = [
+    result.recommendedPath.primaryAction,
+    ...result.alternativePaths.map((path) => path.action),
+    ...result.suggestedActions,
+  ]
+  assert(
+    allActions.some((action) => action.page === 'agents' && action.action === 'create-ai'),
+    'Expected AI Generate Agent to remain visible for explicit new-agent requests'
+  )
+})
+
+test('builder respects explicit no-template hints for new agent requests', () => {
+  const result = buildAiBuilderRecommendation('Create a new agent for people research, do not use existing templates')
+  assert.equal(result.intent, 'ai_generate')
+  assert.equal(result.recommendedPath.primaryAction.page, 'agents')
+  assert.equal(result.recommendedPath.primaryAction.action, 'create-ai')
+})
+
+test('builder respects explicit no-existing-agent hints for new agent requests', () => {
+  const result = buildAiBuilderRecommendation('Create a new agent for GitHub issue triage, do not use existing agents')
+  assert.equal(result.intent, 'ai_generate')
+  assert.equal(result.recommendedPath.primaryAction.page, 'agents')
+  assert.equal(result.recommendedPath.primaryAction.action, 'create-ai')
+})

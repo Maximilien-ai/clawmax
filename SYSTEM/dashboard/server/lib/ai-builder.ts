@@ -153,6 +153,8 @@ const TEMPLATE_REFINE_KEYWORDS = ['refine template', 'edit template', 'adapt tem
 const EXISTING_TEMPLATE_KEYWORDS = ['existing template', 'current template', 'already have a template', 'local template']
 const NEW_TEMPLATE_KEYWORDS = ['new template', 'new team template', 'new company template', 'new organization template', 'create a new template', 'create a new team template', 'create a new company template', 'create a new organization template']
 const AMBIGUITY_KEYWORDS = ['maybe', 'not sure', 'whichever fits best', 'or maybe', 'either']
+const NO_EXISTING_AGENT_KEYWORDS = ['do not use existing agents', "don't use existing agents", 'do not use existing agent', "don't use existing agent", 'without using existing agents', 'without existing agents', 'skip existing agents', 'not existing agents']
+const NO_TEMPLATE_KEYWORDS = ['do not use existing template', "don't use existing template", 'do not use existing templates', "don't use existing templates", 'do not use a template', "don't use a template", 'without using a template', 'without templates', 'from scratch instead of template']
 const NON_SCORING_TOKENS = new Set(['agent', 'agents', 'team', 'teams', 'template', 'templates', 'create', 'build', 'design', 'new', 'from', 'scratch', 'use'])
 const DERIVED_SUBTOKENS = ['gallery', 'event', 'events', 'show', 'shows', 'artist', 'artists', 'art', 'conference', 'speaker', 'speakers', 'exhibit', 'exhibition']
 const EVENT_PROMPT_KEYWORDS = ['event', 'events', 'show', 'shows', 'gallery', 'artist', 'artists', 'art', 'exhibit', 'exhibition', 'opening', 'speaker', 'conference', 'attendees', 'venue', 'run-of-show', 'monthly']
@@ -256,6 +258,14 @@ function hasExplicitAgentCreationLanguage(prompt: string): boolean {
     'agent like',
     'agent, like',
   ])
+}
+
+function hasExplicitNoExistingAgentReuse(prompt: string): boolean {
+  return includesAny(prompt, NO_EXISTING_AGENT_KEYWORDS)
+}
+
+function hasExplicitNoTemplateReuse(prompt: string): boolean {
+  return includesAny(prompt, NO_TEMPLATE_KEYWORDS)
 }
 
 function hasExplicitSingleAgentConstraint(prompt: string): boolean {
@@ -820,6 +830,8 @@ function chooseIntent(args: {
   const wantsSomethingNew = includesAny(prompt, NEW_BUILD_KEYWORDS)
   const hasAmbiguityLanguage = includesAny(prompt, AMBIGUITY_KEYWORDS)
   const hasExplicitAgentCreation = hasExplicitAgentCreationLanguage(prompt)
+  const hasExplicitNoExistingAgents = hasExplicitNoExistingAgentReuse(prompt)
+  const hasExplicitNoTemplate = hasExplicitNoTemplateReuse(prompt)
   const hasSingleAgentConstraint = hasExplicitSingleAgentConstraint(prompt)
   const hasExplicitExistingAgentToolNeed = (
     includesAny(prompt, ['have an agent', 'my agent', 'current agent', 'existing agent', 'already have an agent', 'already have a'])
@@ -859,7 +871,13 @@ function chooseIntent(args: {
   const skillScore = topScore(matchedSkills)
   const strongestTemplateScore = Math.max(agentTemplateScore, orgTemplateScore)
   const topAgentTemplate = matchedAgentTemplates[0]
+  const forceFreshSingleAgent = (
+    scope === 'single_agent'
+    && hasExplicitAgentCreation
+    && (hasExplicitNoExistingAgents || hasExplicitNoTemplate)
+  )
   const existingAgentPreferred = matchedAgents.length > 0
+    && !hasExplicitNoExistingAgents
     && (operation === 'reuse_existing'
       || operation === 'improve_existing'
       || (hasReuseLanguage && !hasTemplateLanguage && !wantsSomethingNew)
@@ -870,7 +888,11 @@ function chooseIntent(args: {
     return { intent: 'existing_agent', scope: 'single_agent', operation, confidence: agentScore >= 6 ? 'high' : 'medium' }
   }
 
-  if (hasAgentTemplateLanguage && matchedAgentTemplates.length > 0) {
+  if (forceFreshSingleAgent) {
+    return { intent: 'ai_generate', scope: 'single_agent', operation: 'create_new', confidence: 'high' }
+  }
+
+  if (hasAgentTemplateLanguage && matchedAgentTemplates.length > 0 && !hasExplicitNoTemplate) {
     return { intent: 'agent_template', scope, operation, confidence: hasAmbiguityLanguage ? 'low' : (agentTemplateScore >= 7 ? 'high' : 'medium') }
   }
 
@@ -893,6 +915,7 @@ function chooseIntent(args: {
   if (
     hasExplicitCreateAgentToolNeed
     && matchedAgentTemplates.length > 0
+    && !hasExplicitNoTemplate
     && agentTemplateScore >= Math.max(6, skillScore - 2)
   ) {
     const confidence: AiBuilderConfidence = hasAmbiguityLanguage
@@ -942,6 +965,7 @@ function chooseIntent(args: {
     && operation !== 'reuse_existing'
     && operation !== 'improve_existing'
     && matchedAgentTemplates.length > 0
+    && !hasExplicitNoTemplate
     && !hasSkillLanguage
     && (
       operation !== 'create_new'
@@ -959,7 +983,7 @@ function chooseIntent(args: {
     return { intent: 'team_template', scope, operation, confidence: hasAmbiguityLanguage ? 'low' : (orgTemplateScore >= 7 ? 'high' : 'medium') }
   }
 
-  if ((hasTemplateLanguage || hasAgentTemplateLanguage) && matchedAgentTemplates.length > 0) {
+  if ((hasTemplateLanguage || hasAgentTemplateLanguage) && matchedAgentTemplates.length > 0 && !hasExplicitNoTemplate) {
     return { intent: 'agent_template', scope, operation, confidence: hasAmbiguityLanguage ? 'low' : (agentTemplateScore >= 7 ? 'high' : 'medium') }
   }
 
@@ -1154,6 +1178,14 @@ export function buildAiBuilderRecommendation(prompt: string): AiBuilderRecommend
   let alternativePaths: AiBuilderRecommendation['alternativePaths'] = []
   let suggestedActions: AiBuilderAction[] = []
   let testPlan: string[] = []
+  const shouldAlwaysOfferAiGenerateAgent = (
+    scope === 'single_agent'
+    && hasExplicitAgentCreationLanguage(normalizedPrompt)
+  )
+  const aiGenerateAction = {
+    ...action('always-offer-ai-generate-agent', 'AI Generate Agent', 'Create a new agent directly from this prompt.', 'agents', 'create-ai'),
+    prefillPrompt: normalizedPrompt,
+  }
 
   switch (intent) {
     case 'existing_agent':
@@ -1504,6 +1536,26 @@ export function buildAiBuilderRecommendation(prompt: string): AiBuilderRecommend
         'If the result requires coordination across roles, switch from single-agent generation to a team-template path.',
       ]
       break
+  }
+
+  if (
+    shouldAlwaysOfferAiGenerateAgent
+    && recommendedPath.primaryAction.page === 'agents'
+    && recommendedPath.primaryAction.action !== 'create-ai'
+  ) {
+    const alreadyListed = alternativePaths.some((path) => path.action.page === 'agents' && path.action.action === 'create-ai')
+      || suggestedActions.some((item) => item.page === 'agents' && item.action === 'create-ai')
+    if (!alreadyListed) {
+      alternativePaths = [
+        ...alternativePaths,
+        {
+          title: 'Create a brand-new agent with AI',
+          reasoning: 'Use this if you want a fresh agent draft instead of starting from the closest existing asset.',
+          action: aiGenerateAction,
+        },
+      ]
+      suggestedActions.push(aiGenerateAction)
+    }
   }
 
   return {

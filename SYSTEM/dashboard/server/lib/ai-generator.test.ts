@@ -168,6 +168,32 @@ test('createChatCompletionWithCompatibilityRetry retries unsupported max_tokens 
   assert.strictEqual(response.choices[0].message.content, 'ok')
 })
 
+test('createChatCompletionWithCompatibilityRetry omits temperature for GPT-5 requests', async () => {
+  let capturedRequest: any = null
+  const client = {
+    chat: {
+      completions: {
+        create: async (request: any) => {
+          capturedRequest = request
+          return { choices: [{ message: { content: 'ok' } }] }
+        }
+      }
+    }
+  } as any
+
+  setRequestByokKeys({ openai: 'sk-test-openai-key' } as any)
+  const response = await createChatCompletionWithCompatibilityRetry(client, {
+    model: 'gpt-5',
+    messages: [{ role: 'user', content: 'hi' }],
+    temperature: 0.7,
+    max_completion_tokens: 123,
+  })
+  setRequestByokKeys(undefined)
+
+  assert.strictEqual(capturedRequest.temperature, undefined)
+  assert.strictEqual(response.choices[0].message.content, 'ok')
+})
+
 test('shouldGenerateCompanyTemplate infers company from prompt unless agent is explicit', () => {
   assert.strictEqual(
     shouldGenerateCompanyTemplate('A B2B SaaS conversion company with leadership, offer strategy, outbound, and delivery teams.', 'team'),
