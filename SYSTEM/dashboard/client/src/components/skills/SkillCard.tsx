@@ -43,6 +43,10 @@ export function SkillCard({ skill, assigned, onToggle, onView, onDelete, canDele
   const [showDetails, setShowDetails] = useState(false)
   const installSatisfied = !!skill.requirementStatus?.checkable && skill.requirementStatus.installSatisfied
   const skillVisual = resolveSkillVisual(skill)
+  const hasVisibleRequirements = !!skill.requires?.bins?.length
+  const hasVisibleInstallOptions = !!skill.install?.length
+  const hasExpandableSetup = !!setupHint && (!!setupHint.commands?.length || !!onOpenSetup)
+  const showDetailsToggle = !compact && (hasVisibleRequirements || hasVisibleInstallOptions || hasExpandableSetup)
 
   return (
     <div
@@ -175,7 +179,7 @@ export function SkillCard({ skill, assigned, onToggle, onView, onDelete, canDele
       </div>
 
       {/* Requirements & Install (expandable) */}
-      {!compact && (skill.requires || skill.install) && (
+      {showDetailsToggle && (
         <div className="mt-3">
           <button
             onClick={() => setShowDetails(!showDetails)}
