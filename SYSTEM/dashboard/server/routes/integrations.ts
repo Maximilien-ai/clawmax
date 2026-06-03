@@ -48,6 +48,7 @@ router.get('/github-status', (_req, res) => {
 router.put('/config', (req, res) => {
   const body = (req.body || {}) as Record<string, unknown>
   const ollamaEnabled = isOllamaUiEnabled(getDashboardEnvRaw())
+  const partnerDefinitions = listPartnerDefinitions()
   const config = writeWorkspaceIntegrationConfig({
     preferredModel: typeof body.preferredModel === 'string' ? body.preferredModel : undefined,
     systemPreferredModel: typeof body.systemPreferredModel === 'string' ? body.systemPreferredModel : undefined,
@@ -67,13 +68,25 @@ router.put('/config', (req, res) => {
       ? body.partnerSecrets as Record<string, Record<string, string | undefined>>
       : undefined
   const existingSecrets = readWorkspaceIntegrationSecrets()
-  const serverPartnerSecrets = {
-    github: {
-      token: typeof partnerSecretsInput?.github?.token === 'string'
-        ? (partnerSecretsInput.github.token.trim() || existingSecrets.partners?.github?.token)
-        : existingSecrets.partners?.github?.token,
-    },
-  }
+  const serverPartnerSecrets = Object.fromEntries(
+    partnerDefinitions.map((partner) => {
+      const serverSecretKeys = (partner.fields || [])
+        .filter((field) => field.secret && field.storage === 'server')
+        .map((field) => field.key)
+      const nextValues = Object.fromEntries(
+        serverSecretKeys
+          .map((key) => {
+            const incoming = partnerSecretsInput?.[partner.slug]?.[key]
+            if (typeof incoming === 'string') {
+              return [key, incoming.trim() || existingSecrets.partners?.[partner.slug]?.[key]]
+            }
+            return [key, existingSecrets.partners?.[partner.slug]?.[key]]
+          })
+          .filter(([, value]) => typeof value === 'string' && !!value.trim())
+      )
+      return [partner.slug, nextValues]
+    }).filter(([, values]) => Object.keys(values as Record<string, string>).length > 0)
+  )
   writeWorkspaceIntegrationSecrets({ partners: serverPartnerSecrets })
   res.json({ ok: true, config, secretPresence: getWorkspaceIntegrationSecretPresence() })
 })

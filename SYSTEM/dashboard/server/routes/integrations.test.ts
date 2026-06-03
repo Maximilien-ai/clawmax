@@ -21,6 +21,7 @@ const originalHome = process.env.HOME
 const originalWorkspace = process.env.OPENCLAW_WORKSPACE
 const originalDeploymentKind = process.env.DASHBOARD_DEPLOYMENT_KIND
 const originalEnableOllama = process.env.DASHBOARD_ENABLE_OLLAMA
+const originalVisiblePartners = process.env.WORKSPACES_INTEGRATIONS_THIRD_PARTIES
 
 function test(name: string, fn: () => void | Promise<void>) {
   return Promise.resolve()
@@ -114,12 +115,14 @@ async function run() {
     delete process.env.DASHBOARD_ENABLE_OLLAMA
 
     const handler = getRouteHandler('get', '/status')
+    process.env.WORKSPACES_INTEGRATIONS_THIRD_PARTIES = 'github,senso,opik,resend'
     const res = makeRes()
     await handler(makeReq(), res)
 
     assert.strictEqual(res.statusCode, 200, 'Expected status route success')
     assert(Array.isArray(res.jsonBody?.providers), 'Expected providers array')
     assert(!res.jsonBody.providers.includes('ollama'), 'Expected ollama to be hidden for cloud runtimes')
+    assert(Array.isArray(res.jsonBody?.visiblePartners) && res.jsonBody.visiblePartners.includes('resend'), 'Expected resend partner visibility')
   })
 
   await test('config round-trip persists workspace defaults and secret presence', async () => {
@@ -127,6 +130,7 @@ async function run() {
     process.env.DASHBOARD_ENABLE_OLLAMA = 'true'
 
     const putHandler = getRouteHandler('put', '/config')
+    process.env.WORKSPACES_INTEGRATIONS_THIRD_PARTIES = 'github,senso,opik,resend'
     const putRes = makeRes()
     await putHandler(makeReq({
       body: {
@@ -145,6 +149,9 @@ async function run() {
           github: {
             token: 'ghp_test_123',
           },
+          resend: {
+            apiKey: 're_test_123',
+          },
         },
       },
     }), putRes)
@@ -153,6 +160,7 @@ async function run() {
     assert.strictEqual(putRes.jsonBody?.config?.preferredModel, 'openai/gpt-5', 'Expected preferred model persistence')
     assert.deepStrictEqual(putRes.jsonBody?.config?.enabledPartners, ['github'], 'Expected enabled partners deduped')
     assert.strictEqual(putRes.jsonBody?.secretPresence?.github?.token, true, 'Expected GitHub token presence to be reported')
+    assert.strictEqual(putRes.jsonBody?.secretPresence?.resend?.apiKey, true, 'Expected Resend API key presence to be reported')
 
     const getHandler = getRouteHandler('get', '/config')
     const getRes = makeRes()
@@ -162,10 +170,12 @@ async function run() {
     assert.strictEqual(getRes.jsonBody?.config?.githubDefaultRepo, 'owner/repo', 'Expected github repo persistence')
     assert.strictEqual(getRes.jsonBody?.config?.ollamaDefaultModel, 'llama3.2', 'Expected ollama defaults persistence')
     assert.strictEqual(getRes.jsonBody?.secretPresence?.github?.token, true, 'Expected GitHub token secret presence after reload')
+    assert.strictEqual(getRes.jsonBody?.secretPresence?.resend?.apiKey, true, 'Expected Resend API key presence after reload')
   })
 
   await test('config update preserves existing github token when a later save sends a blank token', async () => {
     const putHandler = getRouteHandler('put', '/config')
+    process.env.WORKSPACES_INTEGRATIONS_THIRD_PARTIES = 'github,senso,opik,resend'
     const putRes = makeRes()
     await putHandler(makeReq({
       body: {
@@ -183,6 +193,7 @@ async function run() {
     const secretsPath = path.join(workspacePath, 'SYSTEM', 'integrations.secrets.json')
     const secrets = JSON.parse(fs.readFileSync(secretsPath, 'utf-8'))
     assert.strictEqual(secrets?.partners?.github?.token, 'ghp_test_123', 'Expected blank token update not to erase existing token')
+    assert.strictEqual(secrets?.partners?.resend?.apiKey, 're_test_123', 'Expected unrelated server-stored partner secret to remain persisted')
   })
 
   if (typeof originalHome === 'undefined') delete process.env.HOME
@@ -193,6 +204,8 @@ async function run() {
   else process.env.DASHBOARD_DEPLOYMENT_KIND = originalDeploymentKind
   if (typeof originalEnableOllama === 'undefined') delete process.env.DASHBOARD_ENABLE_OLLAMA
   else process.env.DASHBOARD_ENABLE_OLLAMA = originalEnableOllama
+  if (typeof originalVisiblePartners === 'undefined') delete process.env.WORKSPACES_INTEGRATIONS_THIRD_PARTIES
+  else process.env.WORKSPACES_INTEGRATIONS_THIRD_PARTIES = originalVisiblePartners
 
   console.log('\n========================================')
   console.log(`Tests passed: ${testsPassed}`)
@@ -216,6 +229,8 @@ run().catch((err) => {
   else process.env.DASHBOARD_DEPLOYMENT_KIND = originalDeploymentKind
   if (typeof originalEnableOllama === 'undefined') delete process.env.DASHBOARD_ENABLE_OLLAMA
   else process.env.DASHBOARD_ENABLE_OLLAMA = originalEnableOllama
+  if (typeof originalVisiblePartners === 'undefined') delete process.env.WORKSPACES_INTEGRATIONS_THIRD_PARTIES
+  else process.env.WORKSPACES_INTEGRATIONS_THIRD_PARTIES = originalVisiblePartners
   console.error(err)
   process.exit(1)
 })

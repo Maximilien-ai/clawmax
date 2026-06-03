@@ -14,7 +14,7 @@ type Step = 'models' | 'partners' | `partner:${string}`
 type ModelTab = 'openai' | 'anthropic' | 'gemini' | 'ollama' | 'openaiCompatible'
 type ProviderKey = 'openai' | 'anthropic' | 'gemini' | 'ollama'
 type ValidationEntry = { status: 'idle' | 'valid' | 'invalid' | 'error' | 'skipped'; message: string }
-type ValidationState = Record<'openai' | 'openaiCompatible' | 'anthropic' | 'gemini' | 'ollama' | 'opik' | 'senso', ValidationEntry>
+type ValidationState = Record<string, ValidationEntry>
 type ModelsByProvider = Record<string, { name: string; models: string[] }>
 type PartnerFieldDefinition = {
   key: string
@@ -116,6 +116,7 @@ const PARTNER_PRIORITY: Record<string, number> = {
   opik: 0,
   github: 1,
   senso: 2,
+  resend: 3,
 }
 
 function sortPartnerDefinitions(partners: PartnerDefinition[]): PartnerDefinition[] {
@@ -1067,11 +1068,20 @@ export function ByokWizard({
         return [slug, Object.fromEntries(Object.entries(values).filter(([key]) => browserSecretKeys.has(key)))]
       }).filter(([, values]) => Object.keys(values).length > 0)
     )
-    const serverPartnerSecrets = {
-      github: {
-        token: persistedPartnerSecrets.github?.token || '',
-      },
-    }
+    const serverPartnerSecrets = Object.fromEntries(
+      visiblePartnerDefinitions.map((partner) => {
+        const allowedSecretKeys = new Set(
+          (partner.fields || [])
+            .filter((field) => field.secret && field.storage === 'server')
+            .map((field) => field.key)
+        )
+        const values = Object.fromEntries(
+          Object.entries(persistedPartnerSecrets[partner.slug] || {})
+            .filter(([key]) => allowedSecretKeys.has(key))
+        )
+        return [partner.slug, values]
+      }).filter(([, values]) => Object.keys(values as Record<string, string>).length > 0)
+    )
     const providerKeyValues = {
       openai: openaiKey.trim(),
       openaiCompatibleApiKey: openaiCompatibleApiKey.trim(),

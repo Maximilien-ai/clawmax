@@ -37,14 +37,23 @@ const previous = process.env.WORKSPACES_INTEGRATIONS_THIRD_PARTIES
 test('getEnabledPartnerSlugs defaults to current partner parity set', () => {
   delete process.env.WORKSPACES_INTEGRATIONS_THIRD_PARTIES
   const slugs = getEnabledPartnerSlugs()
-  assert(slugs.join(',') === 'senso,opik,github', `Unexpected default partner slugs: ${slugs.join(',')}`)
+  assert(slugs.join(',') === 'senso,opik,github,resend', `Unexpected default partner slugs: ${slugs.join(',')}`)
 })
 
 test('listPartnerDefinitions respects configured allowlist', () => {
-  process.env.WORKSPACES_INTEGRATIONS_THIRD_PARTIES = 'github,senso,opik'
+  process.env.WORKSPACES_INTEGRATIONS_THIRD_PARTIES = 'github,senso,opik,resend'
   const partners = listPartnerDefinitions()
   const slugs = partners.map((partner) => partner.slug)
-  assert(slugs.join(',') === 'github,senso,opik', `Unexpected visible partners: ${slugs.join(',')}`)
+  assert(slugs.join(',') === 'github,senso,opik,resend', `Unexpected visible partners: ${slugs.join(',')}`)
+})
+
+test('resend partner exposes server-stored API key field and skill catalog', () => {
+  process.env.WORKSPACES_INTEGRATIONS_THIRD_PARTIES = 'resend'
+  const partner = listPartnerDefinitions()[0]
+  assert(partner.slug === 'resend', 'Expected resend partner')
+  assert(partner.fields?.some((field) => field.key === 'apiKey' && field.secret === true && field.storage === 'server') === true, 'Expected resend server-stored apiKey field')
+  assert(partner.skills?.mode === 'catalog', 'Expected resend catalog-mode skills')
+  assert((partner.skills?.items || []).includes('resend-cli'), 'Expected resend-cli in partner skills')
 })
 
 if (typeof previous === 'undefined') delete process.env.WORKSPACES_INTEGRATIONS_THIRD_PARTIES

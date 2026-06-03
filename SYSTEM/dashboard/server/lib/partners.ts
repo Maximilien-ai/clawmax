@@ -7,6 +7,7 @@ export interface PartnerFieldDefinition {
   type: 'text' | 'password' | 'select'
   required?: boolean
   secret?: boolean
+  storage?: 'browser' | 'server'
 }
 
 export interface PartnerSkillsDefinition {
@@ -39,7 +40,7 @@ export interface PartnerDefinition {
   sourceRoot?: string
 }
 
-export const DEFAULT_PARTNERS = ['senso', 'opik', 'github'] as const
+export const DEFAULT_PARTNERS = ['senso', 'opik', 'github', 'resend'] as const
 
 function splitList(raw: string | undefined): string[] {
   return (raw || '')

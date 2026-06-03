@@ -19,7 +19,7 @@ export type DefaultPartnerDefinition = {
   fields?: DefaultPartnerFieldDefinition[]
 }
 
-export const DEFAULT_VISIBLE_PARTNERS = ['senso', 'opik', 'github'] as const
+export const DEFAULT_VISIBLE_PARTNERS = ['senso', 'opik', 'github', 'resend'] as const
 
 export const DEFAULT_PARTNER_DEFINITIONS: DefaultPartnerDefinition[] = [
   {
@@ -105,6 +105,26 @@ export const DEFAULT_PARTNER_DEFINITIONS: DefaultPartnerDefinition[] = [
         type: 'text',
         required: false,
         secret: false,
+      },
+    ],
+  },
+  {
+    slug: 'resend',
+    name: 'Resend',
+    logoUrl: 'https://resend.com/static/logo.svg',
+    website: 'https://resend.com',
+    docsUrl: 'https://resend.com/docs',
+    description: 'Transactional email delivery for agent notifications, outbound messages, and React Email workflows.',
+    category: 'communications',
+    enabledByDefault: true,
+    fields: [
+      {
+        key: 'apiKey',
+        label: 'API key',
+        type: 'password',
+        required: false,
+        secret: true,
+        storage: 'server',
       },
     ],
   },
