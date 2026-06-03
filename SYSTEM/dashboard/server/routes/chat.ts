@@ -34,6 +34,10 @@ type ChatByokPayload = {
   openaiCompatibleBaseUrl?: string
   openaiCompatibleDefaultModel?: string
 }
+type ChatContextMessage = {
+  role: 'user' | 'assistant'
+  content: string
+}
 
 function hasText(value?: string): boolean {
   return typeof value === 'string' && value.trim().length > 0
@@ -67,6 +71,33 @@ export function shouldUseLocalChatExecution(input: {
   if (input.hasWorkspaceManagedSecrets) return true
   if (hasByokExecutionPathForProvider(input.provider, input.byok)) return !input.gatewayRunning
   return !input.gatewayRunning
+}
+
+export function buildManagedSecretStatelessChatMessage(
+  message: string,
+  contextMessages: ChatContextMessage[] = [],
+): string {
+  const recentContext = contextMessages
+    .filter((entry) => entry && (entry.role === 'user' || entry.role === 'assistant'))
+    .map((entry) => ({
+      role: entry.role,
+      content: String(entry.content || '').trim(),
+    }))
+    .filter((entry) => entry.content)
+    .slice(-6)
+
+  if (recentContext.length === 0) return message
+
+  const transcript = recentContext
+    .map((entry) => `${entry.role === 'user' ? 'User' : 'Assistant'}: ${entry.content}`)
+    .join('\n\n')
+
+  return [
+    'Conversation context for this single-turn execution:',
+    transcript,
+    '',
+    `Latest user request: ${message}`,
+  ].join('\n')
 }
 
 /** Extract JSON object from a string that may contain non-JSON prefixed lines (e.g. stderr warnings) */
@@ -275,6 +306,7 @@ router.post('/:id/chat', async (req, res) => {
   const { message, sessionId, byok } = req.body as {
     message?: string
     sessionId?: string
+    contextMessages?: ChatContextMessage[]
     byok?: { openai?: string; anthropic?: string; gemini?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string }
   }
 
@@ -352,11 +384,17 @@ router.post('/:id/chat', async (req, res) => {
     gatewayRunning,
     hasWorkspaceManagedSecrets: hasWorkspaceManagedPartnerSecrets(),
   })
+  const useManagedSecretStatelessSession = useLocal && hasWorkspaceManagedPartnerSecrets()
+  const executionMessage = useManagedSecretStatelessSession
+    ? buildManagedSecretStatelessChatMessage(message, (req.body as any).contextMessages)
+    : message
   const args = [
     'agent',
     '--agent', id,
-    '--session-id', effectiveSessionId,
-    '--message', message,
+    '--session-id', useManagedSecretStatelessSession
+      ? scopeSessionIdToModel(`${effectiveSessionId}-${randomUUID().slice(0, 8)}`, resolvedAgent.model)
+      : effectiveSessionId,
+    '--message', executionMessage,
     ...(useLocal ? ['--local'] : []),
   ]
   const openclawCli = resolveOpenClawCliPath()
@@ -436,7 +474,9 @@ router.post('/:id/chat', async (req, res) => {
           })
         }
 
-        persistDashboardChatSession(id, effectiveSessionId)
+        if (!useManagedSecretStatelessSession) {
+          persistDashboardChatSession(id, effectiveSessionId)
+        }
 
         if (!normalizedText) {
           send('error', deriveChatError(

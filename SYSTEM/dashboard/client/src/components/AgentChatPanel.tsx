@@ -516,7 +516,12 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
       const response = await fetch(`/api/agents/${agentId}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: textToSend, sessionId, byok: byokForRequest() }),
+        body: JSON.stringify({
+          message: textToSend,
+          sessionId,
+          contextMessages: messages.slice(-6).map(({ role, content }) => ({ role, content })),
+          byok: byokForRequest(),
+        }),
         signal: abortControllerRef.current.signal
       })
 

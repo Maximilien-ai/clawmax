@@ -4,7 +4,7 @@
  * Run with: npx ts-node --transpileOnly server/routes/chat.test.ts
  */
 
-import { deriveChatError, hasByokExecutionPathForProvider, shouldUseLocalChatExecution } from './chat'
+import { buildManagedSecretStatelessChatMessage, deriveChatError, hasByokExecutionPathForProvider, shouldUseLocalChatExecution } from './chat'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -98,6 +98,17 @@ test('deriveChatError returns a generic local-runtime context hint for other loc
     'ollama'
   )
   assert(/local model runtime rejected this prompt/i.test(message), 'Expected generic local-runtime remediation message')
+})
+
+test('buildManagedSecretStatelessChatMessage preserves recent chat context in a single-turn prompt', () => {
+  const prompt = buildManagedSecretStatelessChatMessage('Send that status in an email to mmaximilien@gmail.com', [
+    { role: 'user', content: 'who are you? give me a status' },
+    { role: 'assistant', content: "I'm the resend-agent. Status: model openai/gpt-4o-mini." },
+  ])
+  assert(prompt.includes('Conversation context for this single-turn execution:'), 'Expected stateless prompt header')
+  assert(prompt.includes('User: who are you? give me a status'), 'Expected prior user turn in context')
+  assert(prompt.includes("Assistant: I'm the resend-agent. Status: model openai/gpt-4o-mini."), 'Expected prior assistant turn in context')
+  assert(prompt.includes('Latest user request: Send that status in an email to mmaximilien@gmail.com'), 'Expected latest request appended after context')
 })
 
 setTimeout(() => {
