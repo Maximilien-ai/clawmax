@@ -12,7 +12,7 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 
 ## 🔥 Latest Release: v1.7.2
 
-- `1.7.2` is the current release candidate for Mike/Manish-style dev, on-prem, and cloud validation.
+- `1.7.2` is the current release candidate for dev, on-prem, and cloud validation.
 
 ## ✨ 1.7.x Highlights
 
