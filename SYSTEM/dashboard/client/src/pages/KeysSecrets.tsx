@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { detectProviderKeyMismatch, isOllamaUiAvailable, readStoredByokKeys } from '../lib/byok'
 import { DEFAULT_VISIBLE_PARTNERS, getDefaultPartnerDefinitions } from '../lib/defaultPartners'
 import { BROWSER_VAULT_UPDATED_EVENT, findManagedSecretConflicts, getPartnerVaultKey, parseEnvLikeSecrets, readSharedSecrets, writeSharedSecrets } from '../lib/localSecrets'
+import { listServerManagedIntegrationSecretKeys } from '../lib/keysSecretsInventory'
 
 type SecretDraft = { key: string; value: string }
 type PartnerDefinition = {
@@ -14,7 +15,7 @@ type PartnerDefinition = {
   website?: string
   docsUrl?: string
   logoUrl?: string
-  fields?: Array<{ key: string; label: string; sensitive?: boolean }>
+  fields?: Array<{ key: string; label: string; sensitive?: boolean; secret?: boolean; storage?: 'browser' | 'server' }>
 }
 type SecretConsumerMatch = {
   type: 'template' | 'workflow' | 'skill' | 'partner'
@@ -210,6 +211,7 @@ export default function KeysSecrets() {
   const [importScope, setImportScope] = useState<'workspace' | 'global'>('workspace')
   const [importText, setImportText] = useState('')
   const [partnerDefinitions, setPartnerDefinitions] = useState<PartnerDefinition[]>([])
+  const [serverPartnerSecretPresence, setServerPartnerSecretPresence] = useState<Record<string, Record<string, boolean>>>({})
   const [managedSecrets, setManagedSecrets] = useState<Record<string, string>>({})
   const [knownMatches, setKnownMatches] = useState<Record<string, SecretConsumerMatch[]>>({})
   const [keySearch, setKeySearch] = useState('')
@@ -249,6 +251,15 @@ export default function KeysSecrets() {
         setPartnerDefinitions(definitions.filter((partner: PartnerDefinition) => visibleSet.has(partner.slug)))
       })
       .catch(() => setPartnerDefinitions(getDefaultPartnerDefinitions()))
+  }, [])
+
+  useEffect(() => {
+    fetch('/api/integrations/config')
+      .then((res) => res.ok ? res.json() : { secretPresence: {} })
+      .then((data) => {
+        setServerPartnerSecretPresence(typeof data?.secretPresence === 'object' && data.secretPresence ? data.secretPresence : {})
+      })
+      .catch(() => setServerPartnerSecretPresence({}))
   }, [])
 
   useEffect(() => {
@@ -361,6 +372,11 @@ export default function KeysSecrets() {
     [visibleGlobalPreview, matchesKeyInventoryFilters]
   )
   const totalVisibleKeyEntries = filteredWorkspaceEntries.length + filteredGlobalEntries.length
+  const managedIntegrationSecretKeys = useMemo(() => {
+    const browserManaged = Object.keys(managedSecrets).sort((a, b) => a.localeCompare(b))
+    const serverManaged = listServerManagedIntegrationSecretKeys(partnerDefinitions, serverPartnerSecretPresence)
+    return Array.from(new Set([...browserManaged, ...serverManaged])).sort((a, b) => a.localeCompare(b))
+  }, [managedSecrets, partnerDefinitions, serverPartnerSecretPresence])
   const keyGroupTabs: Array<{ key: KeyGroup; label: string }> = [
     { key: 'all', label: 'All' },
     { key: 'llm', label: 'LLM' },
@@ -613,9 +629,9 @@ export default function KeysSecrets() {
             </p>
           </div>
         </div>
-        {Object.keys(managedSecrets).length > 0 && (
+        {managedIntegrationSecretKeys.length > 0 && (
           <div className="mt-3 flex flex-wrap gap-2">
-            {Object.keys(managedSecrets).sort().map((key) => (
+            {managedIntegrationSecretKeys.map((key) => (
               <span key={`managed-${key}`} className="inline-flex rounded-full bg-amber-50 px-3 py-1 text-xs text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
                 Managed in Integrations: {key}
               </span>
