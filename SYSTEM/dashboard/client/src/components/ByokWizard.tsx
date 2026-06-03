@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from './Toast'
-import { buildByokVerificationFingerprint, detectProviderKeyMismatch, getByokDismissKey, isOllamaUiAvailable, readStoredByokKeys, resolveOllamaBaseUrlForRuntime, resolveOpenAiCompatibleBaseUrlForRuntime, writeStoredByokKeys } from '../lib/byok'
+import { buildByokVerificationFingerprint, detectProviderKeyMismatch, getByokDismissKey, isOllamaUiAvailable, readStoredByokKeys, resolveOllamaBaseUrlForRuntime, resolveOpenAiCompatibleBaseUrlForRuntime, shouldAutoValidateByokOnSave, writeStoredByokKeys } from '../lib/byok'
 import { DEFAULT_VISIBLE_PARTNERS, getDefaultPartnerDefinitions } from '../lib/defaultPartners'
 import { BROWSER_VAULT_UPDATED_EVENT, readPartnerValuesFromSharedSecrets, readSharedSecrets, writePartnerValuesToSharedSecrets, writeSharedSecrets } from '../lib/localSecrets'
 
@@ -1046,16 +1046,7 @@ export function ByokWizard({
       return
     }
 
-    const shouldValidate = !!(
-      openaiKey.trim()
-      || openaiCompatibleBaseUrl.trim()
-      || anthropicKey.trim()
-      || geminiApiKey.trim()
-      || opikApiKey.trim()
-      || (ollamaEnabled && ollamaConfigured)
-      || getPartnerSecret('senso', 'apiKey').trim()
-    )
-    if (shouldValidate) {
+    if (shouldAutoValidateByokOnSave()) {
       const ok = await runValidation()
       if (!ok) return
     }

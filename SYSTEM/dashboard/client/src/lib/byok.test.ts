@@ -4,7 +4,7 @@
  * Run with: npx ts-node --transpileOnly client/src/lib/byok.test.ts
  */
 
-import { byokForRequest, detectProviderKeyMismatch, getAiGenerationReadiness, hasAiGenerationAccess, hasChatExecutionAccess, isOllamaUiAvailable, refreshModelsWithByok, resolveOllamaBaseUrlForRuntime, resolveOpenAiCompatibleBaseUrlForRuntime, writeStoredByokKeys } from './byok'
+import { byokForRequest, detectProviderKeyMismatch, getAiGenerationReadiness, hasAiGenerationAccess, hasChatExecutionAccess, isOllamaUiAvailable, refreshModelsWithByok, resolveOllamaBaseUrlForRuntime, resolveOpenAiCompatibleBaseUrlForRuntime, shouldAutoValidateByokOnSave, writeStoredByokKeys } from './byok'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -282,6 +282,10 @@ async function main() {
     assert(requestBody?.openaiCompatibleApiKey === 'compat-test', 'Expected refresh request to include OpenAI-compatible key')
     assert(requestBody?.openaiCompatibleBaseUrl === 'http://127.0.0.1:1234/v1', 'Expected refresh request to include OpenAI-compatible base URL')
     assert(requestBody?.openaiCompatibleDefaultModel === 'local-model', 'Expected refresh request to include OpenAI-compatible default model')
+  })
+
+  await test('save does not auto-validate every configured provider', () => {
+    assert(shouldAutoValidateByokOnSave() === false, 'Expected BYOK save to persist settings without global provider validation')
   })
 
   console.log('\n========================================')

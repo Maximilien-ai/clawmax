@@ -371,3 +371,11 @@ export async function refreshModelsWithByok(options?: { showAll?: boolean }): Pr
   if (!res.ok) throw new Error('Failed to refresh models')
   return res.json()
 }
+
+/**
+ * Provider checks are explicit actions in the BYOK wizard.
+ * Saving one provider should not require unrelated configured providers to validate.
+ */
+export function shouldAutoValidateByokOnSave(): boolean {
+  return false
+}
