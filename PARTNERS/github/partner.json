@@ -6,6 +6,7 @@
   "docsUrl": "https://docs.github.com/",
   "description": "Repository, issues, and pull request integration for coding and delivery workflows.",
   "category": "delivery",
+  "categories": ["delivery", "context"],
   "enabledByDefault": true,
   "fields": [
     {

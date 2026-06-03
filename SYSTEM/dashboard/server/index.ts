@@ -268,6 +268,7 @@ app.get('/api/auth/config', (_req, res) => {
       openaiCompatible: !!userKeys.openaiCompatibleBaseUrl,
     },
     allowSystemKeysForUserExecution: allowSystemKeysForUserExecution(),
+    opikRuntimeConfigured: isOpikEnabled(),
     preferredModel: integrationConfig.preferredModel,
     recommendedModel: hasHostedExecutionPath ? getBestAvailableModel(rawEnv) : undefined,
     costEfficientModel: getCostEfficientModel(),

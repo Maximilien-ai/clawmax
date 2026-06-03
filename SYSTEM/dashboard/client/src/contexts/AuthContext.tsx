@@ -22,6 +22,7 @@ interface AuthConfig {
   defaultOllamaBaseUrl?: string
   defaultOpenAiCompatibleBaseUrl?: string
   allowSystemKeysForUserExecution?: boolean
+  opikRuntimeConfigured?: boolean
   systemKeyDefaults?: {
     openai: boolean
     anthropic: boolean

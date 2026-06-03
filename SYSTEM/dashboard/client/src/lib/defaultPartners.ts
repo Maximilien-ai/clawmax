@@ -15,6 +15,7 @@ export type DefaultPartnerDefinition = {
   docsUrl?: string
   description: string
   category?: string
+  categories?: string[]
   enabledByDefault?: boolean
   fields?: DefaultPartnerFieldDefinition[]
 }
@@ -30,6 +31,7 @@ export const DEFAULT_PARTNER_DEFINITIONS: DefaultPartnerDefinition[] = [
     docsUrl: 'https://docs.github.com/',
     description: 'Repository, issues, and pull request integration for coding and delivery workflows.',
     category: 'delivery',
+    categories: ['delivery', 'context'],
     enabledByDefault: true,
     fields: [
       {

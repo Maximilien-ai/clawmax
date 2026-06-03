@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from './Toast'
 import { buildByokVerificationFingerprint, detectProviderKeyMismatch, getByokDismissKey, isOllamaUiAvailable, readStoredByokKeys, resolveOllamaBaseUrlForRuntime, resolveOpenAiCompatibleBaseUrlForRuntime, shouldAutoValidateByokOnSave, writeStoredByokKeys } from '../lib/byok'
-import { formatPartnerCategoryLabel, groupPartnersByCategory } from '../lib/partnerCatalog'
+import { filterPartnersByCategory, formatPartnerCategoryLabel, getPartnerCategories, getPartnerLogoClass, listPartnerCategoryTabs } from '../lib/partnerCatalog'
 import { DEFAULT_VISIBLE_PARTNERS, getDefaultPartnerDefinitions } from '../lib/defaultPartners'
 import { BROWSER_VAULT_UPDATED_EVENT, readPartnerValuesFromSharedSecrets, readSharedSecrets, writePartnerValuesToSharedSecrets, writeSharedSecrets } from '../lib/localSecrets'
 
@@ -30,6 +30,7 @@ type PartnerSkillsDefinition = {
   items?: string[]
   matchNames?: string[]
   matchPrefixes?: string[]
+  sourceUrl?: string
   commandId?: string
   label?: string
 }
@@ -47,6 +48,7 @@ type PartnerDefinition = {
   docsUrl?: string
   description: string
   category?: string
+  categories?: string[]
   enabledByDefault?: boolean
   fields?: PartnerFieldDefinition[]
   skills?: PartnerSkillsDefinition
@@ -178,6 +180,7 @@ export function ByokWizard({
   const [serverPartnerSecretPresence, setServerPartnerSecretPresence] = useState<PartnerSecretPresence>({})
   const [partnerValues, setPartnerValues] = useState<PartnerValueMap>({})
   const [selectedPartners, setSelectedPartners] = useState<string[]>([])
+  const [partnerCategoryTab, setPartnerCategoryTab] = useState<string>('all')
   const [validating, setValidating] = useState(false)
   const [validation, setValidation] = useState<ValidationState>({
     openai: { status: 'idle', message: '' },
@@ -416,12 +419,16 @@ export function ByokWizard({
             ...(workspaceConfig.githubDefaultRepo ? { defaultRepo: workspaceConfig.githubDefaultRepo } : {}),
           },
         }))
-        if (Array.isArray(workspaceConfig.enabledPartners) && workspaceConfig.enabledPartners.length > 0) {
-          setSelectedPartners((current) => current.length > 0 ? current : workspaceConfig.enabledPartners!)
+        if (Array.isArray(workspaceConfig.enabledPartners)) {
+          setSelectedPartners((current) => {
+            if (current.length > 0) return current
+            const locked = config?.opikRuntimeConfigured ? ['opik'] : []
+            return Array.from(new Set([...(workspaceConfig.enabledPartners || []), ...locked]))
+          })
         }
       })
       .catch(() => {})
-  }, [config?.defaultOllamaBaseUrl, defaultOllamaBaseUrl, hydrated, managedRuntime])
+  }, [config?.defaultOllamaBaseUrl, config?.opikRuntimeConfigured, defaultOllamaBaseUrl, hydrated, managedRuntime])
 
   const hasStoredKeys = !!(openaiKey || anthropicKey || geminiApiKey || openaiCompatibleBaseUrl || openaiCompatibleDefaultModel)
   const hasDefaultUserKeys = !!(config?.userKeyDefaults?.openai || config?.userKeyDefaults?.anthropic || config?.userKeyDefaults?.gemini || config?.userKeyDefaults?.openaiCompatible)
@@ -484,10 +491,23 @@ export function ByokWizard({
     () => sortPartnerDefinitions(visiblePartnerDefinitions.filter((partner) => selectedPartners.includes(partner.slug))),
     [selectedPartners, visiblePartnerDefinitions]
   )
-  const groupedVisiblePartnerDefinitions = useMemo(
-    () => groupPartnersByCategory(visiblePartnerDefinitions),
+  const lockedPartnerSlugs = useMemo(
+    () => config?.opikRuntimeConfigured ? ['opik'] : [],
+    [config?.opikRuntimeConfigured]
+  )
+  const partnerCategoryTabs = useMemo(
+    () => listPartnerCategoryTabs(visiblePartnerDefinitions),
     [visiblePartnerDefinitions]
   )
+  const visiblePartnersForTab = useMemo(
+    () => filterPartnersByCategory(visiblePartnerDefinitions, partnerCategoryTab),
+    [partnerCategoryTab, visiblePartnerDefinitions]
+  )
+
+  useEffect(() => {
+    if (lockedPartnerSlugs.length === 0) return
+    setSelectedPartners((current) => Array.from(new Set([...current, ...lockedPartnerSlugs])))
+  }, [lockedPartnerSlugs])
 
   const stepOrder = useMemo<Step[]>(
     () => ['models', 'partners', ...selectedPartnerDefinitions.map((partner) => `partner:${partner.slug}` as const)],
@@ -1987,25 +2007,68 @@ export function ByokWizard({
                   </div>
                 </div>
 
-                <div className="mt-5 space-y-5">
+                <div className="mt-5 space-y-4">
                   {visiblePartnerDefinitions.length === 0 ? (
                     <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-4 text-sm text-gray-500 dark:text-gray-400">
                       No optional partner integrations are enabled for this environment.
                     </div>
-                  ) : groupedVisiblePartnerDefinitions.map((group) => (
-                    <div key={group.category} className="space-y-3">
-                      <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                        {formatPartnerCategoryLabel(group.category)}
+                  ) : (
+                    <>
+                      <div className="flex flex-wrap gap-2">
+                        {partnerCategoryTabs.map((category) => (
+                          <button
+                            key={category}
+                            type="button"
+                            onClick={() => setPartnerCategoryTab(category)}
+                            className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                              partnerCategoryTab === category
+                                ? 'border-sky-300 bg-sky-100 text-sky-800 dark:border-sky-700 dark:bg-sky-900/40 dark:text-sky-200'
+                                : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800'
+                            }`}
+                          >
+                            {formatPartnerCategoryLabel(category)}
+                          </button>
+                        ))}
                       </div>
-                      {group.partners.map((partner) => {
+                      {partnerCategoryTab === 'all' && visiblePartnerDefinitions.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-2 text-xs">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedPartners(Array.from(new Set([
+                              ...visiblePartnerDefinitions.map((partner) => partner.slug),
+                              ...lockedPartnerSlugs,
+                            ])))}
+                            className="rounded-full border border-gray-200 bg-white px-3 py-1.5 font-medium text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+                          >
+                            Select all
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedPartners(Array.from(new Set(lockedPartnerSlugs)))}
+                            className="rounded-full border border-gray-200 bg-white px-3 py-1.5 font-medium text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+                          >
+                            Unselect all
+                          </button>
+                          {lockedPartnerSlugs.length > 0 && (
+                            <span className="text-gray-500 dark:text-gray-400">
+                              Locked partners stay selected.
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      <div className="space-y-3">
+                      {visiblePartnersForTab.map((partner) => {
                         const checked = selectedPartners.includes(partner.slug)
+                        const locked = lockedPartnerSlugs.includes(partner.slug)
                         return (
                           <label key={partner.slug} className={`block rounded-xl border p-4 cursor-pointer transition-colors ${checked ? 'border-sky-300 bg-sky-50 dark:border-sky-700 dark:bg-sky-900/20' : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900'}`}>
                             <div className="flex items-start gap-3">
                               <input
                                 type="checkbox"
                                 checked={checked}
+                                disabled={locked}
                                 onChange={(e) => {
+                                  if (locked) return
                                   setSelectedPartners((current) => e.target.checked
                                     ? Array.from(new Set([...current, partner.slug]))
                                     : current.filter((slug) => slug !== partner.slug))
@@ -2018,15 +2081,24 @@ export function ByokWizard({
                                     <img
                                       src={partner.logoUrl}
                                       alt={`${partner.name} logo`}
-                                      className="h-6 w-auto max-w-[96px] object-contain rounded-sm bg-white/80 px-1 py-0.5 dark:bg-gray-800/80"
+                                      className={getPartnerLogoClass(partner.slug)}
                                       loading="lazy"
                                     />
                                   ) : null}
                                   <div className="font-medium text-gray-900 dark:text-gray-100">{partner.name}</div>
-                                  {partner.category ? <span className="rounded-full bg-gray-100 dark:bg-gray-800 px-2 py-0.5 text-[11px] text-gray-500 dark:text-gray-400">{partner.category}</span> : null}
+                                  {getPartnerCategories(partner).map((category) => (
+                                    <span key={`${partner.slug}-${category}`} className="rounded-full bg-gray-100 dark:bg-gray-800 px-2 py-0.5 text-[11px] text-gray-500 dark:text-gray-400">
+                                      {formatPartnerCategoryLabel(category)}
+                                    </span>
+                                  ))}
                                 </div>
                                 <div className="mt-1 text-sm text-gray-600 dark:text-gray-300">{partner.description}</div>
                                 <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">{describePartnerStatus(partner)}</div>
+                                {locked && (
+                                  <div className="mt-2 text-xs font-medium text-sky-700 dark:text-sky-300">
+                                    Locked on because this dashboard runtime is already configured to use Opik.
+                                  </div>
+                                )}
                                 {(partner.website || partner.docsUrl) && (
                                   <div className="mt-2 flex flex-wrap gap-3 text-xs">
                                     {partner.website ? <a href={partner.website} target="_blank" rel="noopener noreferrer" className="text-sky-600 underline dark:text-sky-400">Website</a> : null}
@@ -2038,8 +2110,9 @@ export function ByokWizard({
                           </label>
                         )
                       })}
-                    </div>
-                  ))}
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 <div className="mt-6 flex items-center justify-between gap-3">
@@ -2066,7 +2139,7 @@ export function ByokWizard({
                       <img
                         src={currentPartner.logoUrl}
                         alt={`${currentPartner.name} logo`}
-                        className="h-8 w-auto max-w-[120px] object-contain rounded-sm bg-white/80 px-1.5 py-1 dark:bg-gray-800/80"
+                        className={getPartnerLogoClass(currentPartner.slug, 'hero')}
                         loading="lazy"
                       />
                     ) : null}
