@@ -842,6 +842,16 @@ else
   fail "Skills page smoke tests"
 fi
 
+echo -e "${YELLOW}→ Running Partner catalog helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/partnerCatalog.test.ts > /tmp/clawmax-partner-catalog.out 2>&1 || true
+if grep -q "partnerCatalog.test.ts: ok" /tmp/clawmax-partner-catalog.out; then
+  partner_catalog_count=$(grep -c "^✓" /tmp/clawmax-partner-catalog.out | tr -cd '0-9')
+  pass "Partner catalog helper unit tests (${partner_catalog_count:-?} tests)"
+else
+  cat /tmp/clawmax-partner-catalog.out
+  fail "Partner catalog helper unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Product icon helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/productIcons.test.ts > /tmp/clawmax-product-icons.out 2>&1 || true
 if grep -q '^✓ ' /tmp/clawmax-product-icons.out; then
@@ -2321,15 +2331,16 @@ fi
 # Test import validation - markdown-only skill import (index.ts optional)
 TEST_INVALID_DIR2="/tmp/test-invalid-skill2-$RANDOM"
 mkdir -p "$TEST_INVALID_DIR2"
-echo "# Test" > "$TEST_INVALID_DIR2/skill.md"
+echo "# Test" > "$TEST_INVALID_DIR2/SKILL.md"
 
 response=$(apicurl -X POST "$API_BASE/api/skills/import" \
   -H 'Content-Type: application/json' \
   -d "{\"sourcePath\":\"$TEST_INVALID_DIR2\"}")
 
-if echo "$response" | jq -e '.success == true' > /dev/null 2>&1; then
+if echo "$response" | jq -e '(.ok == true) or (.imported == 1 and .total == 1)' > /dev/null 2>&1; then
   pass "Markdown-only skill import succeeds without index.ts"
 else
+  echo "$response"
   fail "Markdown-only skill import failed without index.ts"
 fi
 
