@@ -193,6 +193,14 @@ test('explicit new-agent requests still surface AI Generate even when a close te
   )
 })
 
+test('explicit new-agent research prompt keeps AI Generate in visible suggested actions', () => {
+  const result = buildAiBuilderRecommendation('Create a new agent for executive background research')
+  assert(
+    result.suggestedActions.some((action) => action.page === 'agents' && action.action === 'create-ai' && action.label === 'AI Generate Agent'),
+    `Expected visible suggested actions to include AI Generate Agent, got ${result.suggestedActions.map((action) => action.label).join(', ')}`
+  )
+})
+
 test('builder respects explicit no-template hints for new agent requests', () => {
   const result = buildAiBuilderRecommendation('Create a new agent for people research, do not use existing templates')
   assert.equal(result.intent, 'ai_generate')

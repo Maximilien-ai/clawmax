@@ -1392,6 +1392,10 @@ export function buildAiBuilderRecommendation(prompt: string): AiBuilderRecommend
       ]
       suggestedActions = [
         recommendedPath.primaryAction,
+        ...(hasExplicitAgentCreationLanguage(normalizedPrompt) ? [{
+          ...action('generate-custom-agent-visible', 'AI Generate Agent', 'Create a brand-new agent from this prompt instead of starting from a template.', 'agents', 'create-ai'),
+          prefillPrompt: normalizedPrompt,
+        }] : []),
         action('compare-existing-agents', 'Compare existing agents', 'Make sure you are not duplicating a role already present in the workspace.', 'agents'),
         ...(hasSkillLanguage ? [
           action('review-skills', 'Open Skills', 'Add the requested skill or integration after creating the agent role.', 'skills'),
