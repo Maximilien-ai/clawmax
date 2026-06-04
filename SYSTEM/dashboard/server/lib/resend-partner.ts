@@ -11,6 +11,8 @@ export type ResendTestEmailInput = {
   text?: string
   html?: string
   attachments?: ResendEmailAttachment[]
+  agentId?: string
+  workspaceLabel?: string
 }
 
 export type ResendTestEmailResult = {
@@ -46,6 +48,9 @@ const EXACT_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const ATTACHMENT_PATH_RE = /\b(?:AGENTS|WORKFLOWS|SYSTEM|ORG|DOCS|SKILLS)\/[^\s,;:()]+/ig
 const ATTACHMENT_FILE_RE = /\b([A-Z0-9][A-Z0-9._-]*\.(?:md|txt|json|csv|pdf|png|jpg|jpeg|gif|docx|xlsx|pptx|html))\b/ig
 const MAX_ATTACHMENT_BYTES = 30 * 1024 * 1024
+const RESEND_AGENT_SEND_COOLDOWN_MS = 30_000
+const RESEND_AGENT_SEND_HOURLY_LIMIT = 20
+const resendSendHistory = new Map<string, number[]>()
 
 function trim(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
@@ -74,6 +79,19 @@ function formatFromAddress(email: string, name?: string): string {
   return `${trimmedName} <${trimmedEmail}>`
 }
 
+function humanizeAgentId(agentId: string): string {
+  return agentId
+    .split(/[-_]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
+}
+
+function sanitizeSenderLocalPart(agentId: string): string {
+  const sanitized = agentId.toLowerCase().replace(/[^a-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '')
+  return sanitized || 'agent'
+}
+
 export function getWorkspaceResendSenderPolicy(): ResendSenderPolicy {
   const partnerConfig = readWorkspaceIntegrationConfig().partners?.resend || {}
   const fromEmail = trim(partnerConfig.fromEmail)
@@ -99,6 +117,40 @@ export function getWorkspaceResendSenderPolicy(): ResendSenderPolicy {
 export function getWorkspaceResendApiKey(): string | undefined {
   const apiKey = readWorkspaceIntegrationSecrets().partners?.resend?.apiKey?.trim()
   return apiKey || process.env.RESEND_API_KEY?.trim() || undefined
+}
+
+export function getAgentScopedResendSender(agentId: string): string {
+  const senderPolicy = getWorkspaceResendSenderPolicy()
+  const domain = senderPolicy.fromEmail.split('@')[1] || 'send.clawmax.ai'
+  const email = `${sanitizeSenderLocalPart(agentId)}@${domain}`
+  const name = humanizeAgentId(agentId) || senderPolicy.fromName || 'ClawMax Agent'
+  return formatFromAddress(email, name)
+}
+
+export function resetResendSendGuardrailsForTests(): void {
+  resendSendHistory.clear()
+}
+
+function enforceAgentResendGuardrails(input: { agentId?: string; workspaceLabel?: string; to: string }): void {
+  const agentId = trim(input.agentId)
+  if (!agentId) return
+
+  const workspaceLabel = trim(input.workspaceLabel) || 'workspace'
+  const recipient = trim(input.to).toLowerCase()
+  const now = Date.now()
+  const key = `${workspaceLabel}:${agentId}:${recipient}`
+  const history = (resendSendHistory.get(key) || []).filter((timestamp) => now - timestamp < 60 * 60 * 1000)
+  const lastSentAt = history[history.length - 1]
+
+  if (lastSentAt && now - lastSentAt < RESEND_AGENT_SEND_COOLDOWN_MS) {
+    throw new Error(`Email rate limit: ${agentId} already emailed ${recipient} recently. Wait before sending again.`)
+  }
+  if (history.length >= RESEND_AGENT_SEND_HOURLY_LIMIT) {
+    throw new Error(`Email rate limit: ${agentId} reached the hourly send limit for ${recipient}.`)
+  }
+
+  history.push(now)
+  resendSendHistory.set(key, history)
 }
 
 export function renderClawmaxAgentEmailHtml(input: {
@@ -365,7 +417,7 @@ export async function sendResendTestEmail(
   const apiKey = trim(input.apiKey)
   const to = trim(input.to)
   const senderPolicy = getWorkspaceResendSenderPolicy()
-  const from = trim(input.from) || senderPolicy.from
+  const from = trim(input.from) || (input.agentId ? getAgentScopedResendSender(input.agentId) : senderPolicy.from)
   const replyTo = trim(input.replyTo) || senderPolicy.replyTo
   const subject = trim(input.subject) || 'ClawMax Resend test email'
   const text = trim(input.text) || 'This is a ClawMax Resend integration test email.'
@@ -381,6 +433,12 @@ export async function sendResendTestEmail(
   if (!from) {
     throw new Error('Sender email is required.')
   }
+
+  enforceAgentResendGuardrails({
+    agentId: input.agentId,
+    workspaceLabel: input.workspaceLabel,
+    to,
+  })
 
   const response = await fetchImpl(RESEND_EMAILS_ENDPOINT, {
     method: 'POST',

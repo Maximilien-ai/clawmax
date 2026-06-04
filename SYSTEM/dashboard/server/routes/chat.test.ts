@@ -8,7 +8,15 @@ import { buildManagedSecretStatelessChatMessage, deriveChatError, hasByokExecuti
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import { buildResendChatEmailRequest, hasResendEmailCapability, renderClawmaxAgentEmailHtml, resolveWorkspaceEmailAttachments } from '../lib/resend-partner'
+import {
+  buildResendChatEmailRequest,
+  getAgentScopedResendSender,
+  hasResendEmailCapability,
+  renderClawmaxAgentEmailHtml,
+  resolveWorkspaceEmailAttachments,
+  resetResendSendGuardrailsForTests,
+  sendResendTestEmail,
+} from '../lib/resend-partner'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -196,6 +204,11 @@ test('hasResendEmailCapability only enables direct send for Resend-related skill
   assert(!hasResendEmailCapability(['github', 'slack']), 'Expected unrelated skills not to enable direct Resend email')
 })
 
+test('getAgentScopedResendSender uses the agent slug on the configured domain', () => {
+  const sender = getAgentScopedResendSender('fake-agent')
+  assert(sender === 'Fake Agent <fake-agent@send.clawmax.ai>', `Unexpected sender: ${sender}`)
+})
+
 test('renderClawmaxAgentEmailHtml produces branded HTML wrapper output', () => {
   const html = renderClawmaxAgentEmailHtml({
     subject: 'resend-agent status',
@@ -234,6 +247,44 @@ test('resolveWorkspaceEmailAttachments prefers agent workspace for bare filename
   assert(attachments.length === 1, 'Expected one preferred attachment')
   assert(attachments[0].filename === 'IDENTITY.md', 'Expected preferred filename')
   assert(Buffer.from(attachments[0].content, 'base64').toString('utf-8') === 'agent identity', 'Expected preferred attachment content')
+})
+
+test('sendResendTestEmail rate-limits repeated agent sends to the same recipient', async () => {
+  resetResendSendGuardrailsForTests()
+  let calls = 0
+  const fakeFetch: any = async () => {
+    calls += 1
+    return {
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ id: `email_${calls}` }),
+    }
+  }
+
+  await sendResendTestEmail({
+    apiKey: 're_test_123',
+    agentId: 'fake-agent',
+    workspaceLabel: 'test-1.7.x',
+    to: 'mmaximilien@gmail.com',
+    subject: 'hello',
+    text: 'one',
+  }, fakeFetch)
+
+  let threw = false
+  try {
+    await sendResendTestEmail({
+      apiKey: 're_test_123',
+      agentId: 'fake-agent',
+      workspaceLabel: 'test-1.7.x',
+      to: 'mmaximilien@gmail.com',
+      subject: 'hello again',
+      text: 'two',
+    }, fakeFetch)
+  } catch (err: any) {
+    threw = /Email rate limit/i.test(err?.message || '')
+  }
+
+  assert(threw, 'Expected repeated agent send to be rate-limited')
 })
 
 setTimeout(() => {

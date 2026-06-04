@@ -386,6 +386,8 @@ router.post('/:id/chat', async (req, res) => {
       )
       const result = await sendResendTestEmail({
         apiKey: getWorkspaceResendApiKey(),
+        agentId: id,
+        workspaceLabel: path.basename(effectiveWorkspaceRoot || 'workspace'),
         to: resendEmailRequest.to,
         subject: resendEmailRequest.subject,
         text: resendEmailRequest.text,
@@ -540,6 +542,8 @@ router.post('/:id/chat', async (req, res) => {
             )
             const result = await sendResendTestEmail({
               apiKey: getWorkspaceResendApiKey(),
+              agentId: id,
+              workspaceLabel: path.basename(effectiveWorkspaceRoot || 'workspace'),
               to: resendEmailRequest.to,
               subject: resendEmailRequest.subject,
               text: normalizedText,

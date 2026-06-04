@@ -20,8 +20,12 @@
 - [x] Make direct dashboard Resend sends use the same sender policy as the test-email path.
 - [x] Add a first-party `clawmax-resend` bridge skill.
 - [x] Add default HTML email wrapper plus plain-text fallback.
+- [x] Add agent-scoped sender addresses on the verified Resend domain.
+- [x] Add first-pass anti-spam guardrails for direct agent sends.
+- [x] Add explicit workspace-file attachment support to the Resend bridge.
+- [x] Add Web/CLI handoff docs for managed Resend setup.
 - [ ] Add sender/readiness messaging for unverified sender/domain failures.
-- [ ] Add deployment docs for managed `RESEND_API_KEY`, `RESEND_DEFAULT_FROM`, `RESEND_DEFAULT_FROM_NAME`, and `RESEND_DEFAULT_REPLY_TO`.
+- [x] Add deployment docs for managed `RESEND_API_KEY`, `RESEND_DEFAULT_FROM`, `RESEND_DEFAULT_FROM_NAME`, and `RESEND_DEFAULT_REPLY_TO`.
 - [x] Add AI Builder / agent-create inference for `clawmax-resend` as the default Resend/email skill.
 
 ## Product Outcomes
