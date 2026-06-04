@@ -5,14 +5,14 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.7.3-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
+[![Version](https://img.shields.io/badge/version-1.7.4-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
 [![Tests](https://img.shields.io/badge/tests-96%20default--safe-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 Latest Release: v1.7.3
+## 🔥 Latest Release: v1.7.4
 
-- `1.7.3` is the current release candidate for dev, on-prem, and cloud validation.
+- `1.7.4` is the current release candidate for dev, on-prem, and cloud validation.
 
 ## ✨ 1.7.x Highlights
 
@@ -33,7 +33,8 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 - Partner integrations and partner-backed skills are more usable:
   - `Resend` is now a first-class partner integration with server-stored API key support and a dashboard test-email path
   - workspace-managed partner secrets are exported to agent runtimes with canonical env names such as `RESEND_API_KEY`
-  - Resend-capable agents can fulfill explicit email-send chat requests through the dashboard Resend path instead of hitting OpenClaw embedded-session conflicts
+  - Resend-capable agents can fulfill direct, post-reply, and attachment-based email requests through the dashboard Resend bridge instead of hitting OpenClaw embedded-session conflicts
+  - agent-scoped Resend senders, first-pass anti-spam throttling, and explicit workspace-file attachments are now part of the default bridge behavior
   - partner-backed skills can be separated from user and built-in skills in the catalog
   - catalog-mode partners can expose direct import/browse flows for upstream skill repositories
   - partner selection is opt-in by default, grouped by tabs, and supports better bulk selection behavior
@@ -175,7 +176,7 @@ curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/ins
 Pinned release:
 
 ```bash
-curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.7.3
+curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.7.4
 ```
 
 What it does:
@@ -196,13 +197,13 @@ See [SYSTEM/docs/DEMO_VIDEOS.md](SYSTEM/docs/DEMO_VIDEOS.md) for the current inv
 You can also bootstrap directly with the checked-in wrapper:
 
 ```bash
-./setup.sh v1.7.3
+./setup.sh v1.7.4
 ```
 
 or choose a custom install directory:
 
 ```bash
-curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.7.3 --dir /opt/clawmax
+curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.7.4 --dir /opt/clawmax
 ```
 
 See [SYSTEM/docs/RELEASE_DISTRIBUTION.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/RELEASE_DISTRIBUTION.md) for the release distribution contract.

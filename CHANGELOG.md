@@ -6,6 +6,20 @@ All notable changes to ClawMax are documented here.
 
 - No unreleased changes yet.
 
+## [v1.7.4] - 2026-06-04
+
+### Resend Partner and Agent Email Bridge
+- **First-Class `clawmax-resend` Bridge** — added a ClawMax-owned Resend bridge skill so agent email sends no longer depend on raw upstream CLI/template flows for the default product path.
+- **Post-Reply Email Delivery** — agent chat can now complete work first and then email the completed reply through the dashboard Resend bridge in the same request, instead of only handling a narrow “send that status” shortcut.
+- **Workspace Attachment Support** — explicit workspace file attachments now work through the Resend bridge, including direct paths like `WORKFLOWS/outputs/report.md` and obvious bare filenames like `identity.md`.
+- **Agent-Scoped Sender Policy** — bridge-driven agent mail now uses agent-specific sender addresses on the verified Resend domain, making sender identity clearer and easier to trace in inboxes.
+- **Bridge Anti-Spam Guardrails** — added first-pass per-agent/per-recipient throttling to reduce accidental repeated sends while keeping the Partner test-email path usable for validation.
+- **Confirmation Guidance for Agents** — the shipped `clawmax-resend` skill now tells agents to send immediately when recipient/content/attachments are explicit and to ask one short confirmation only when email intent is ambiguous.
+
+### Deployment and Release Handoff
+- **Managed Resend Runtime Contract** — documented the Web/CLI handoff for `RESEND_API_KEY`, `RESEND_DEFAULT_FROM`, `RESEND_DEFAULT_FROM_NAME`, and `RESEND_DEFAULT_REPLY_TO`, including current sender behavior and validation expectations for managed runtimes.
+- **Mini-Sprint Cleanup** — archived the completed `1.7.4` Resend implementation line out of the active backlog and reduced the remaining follow-through to sender/domain readiness errors, deliverability guidance, audit/rate-limit UI, and managed recipient policy controls.
+
 ## [v1.7.3] - 2026-06-03
 
 ### Partner Integrations and Skills
