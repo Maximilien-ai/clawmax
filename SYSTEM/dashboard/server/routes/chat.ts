@@ -375,32 +375,25 @@ router.post('/:id/chat', async (req, res) => {
   const chatStartedAt = Date.now()
   const dashboardSessionKey = `agent:${id}:dashboard-chat`
   const resendCapableAgent = hasResendEmailCapability(resolveAgentSkillIds(id))
-  const directResendEmail = resendCapableAgent ? buildResendChatEmailRequest(message, (req.body as any).contextMessages, id) : null
-  if (directResendEmail) {
+  const resendEmailRequest = resendCapableAgent ? buildResendChatEmailRequest(message, (req.body as any).contextMessages, id) : null
+  if (resendEmailRequest?.mode === 'direct') {
     send('start', { sessionId: effectiveSessionId, mode: 'resend-direct' })
-    if (directResendEmail.guidance) {
-      send('error', directResendEmail.guidance)
-      send('complete', { text: '' })
-      clearInterval(keepalive)
-      if (!res.writableEnded) res.end()
-      return
-    }
     try {
       const result = await sendResendTestEmail({
         apiKey: getWorkspaceResendApiKey(),
-        to: directResendEmail.to,
-        subject: directResendEmail.subject,
-        text: directResendEmail.text,
+        to: resendEmailRequest.to,
+        subject: resendEmailRequest.subject,
+        text: resendEmailRequest.text,
         html: renderClawmaxAgentEmailHtml({
-          subject: directResendEmail.subject,
-          text: directResendEmail.text,
+          subject: resendEmailRequest.subject,
+          text: resendEmailRequest.text || '',
           agentId: id,
           workspaceLabel: path.basename(effectiveWorkspaceRoot || 'workspace'),
         }),
       })
       const confirmation = result.id
-        ? `Email sent to ${directResendEmail.to} via Resend. Provider id: ${result.id}`
-        : `Email sent to ${directResendEmail.to} via Resend.`
+        ? `Email sent to ${resendEmailRequest.to} via Resend. Provider id: ${result.id}`
+        : `Email sent to ${resendEmailRequest.to} via Resend.`
       send('delta', { text: confirmation })
       send('complete', { text: confirmation })
       traceAgentChat(id, message, confirmation, {
@@ -495,7 +488,7 @@ router.post('/:id/chat', async (req, res) => {
 
       spawned.on('exit', () => { procExited = true })
 
-      spawned.on('close', (code) => {
+      spawned.on('close', async (code) => {
         console.log(`[Chat Route] CLI exited for agent ${id} with code ${code}`)
         clearInterval(keepalive)
 
@@ -504,6 +497,8 @@ router.post('/:id/chat', async (req, res) => {
         }
 
         const normalizedText = normalizeChatMessage(fullOutput.trim())
+
+        let completionText = normalizedText || ''
 
         if (normalizedText) {
           const usage = readLatestAssistantUsageFromPersistedSession(
@@ -527,17 +522,42 @@ router.post('/:id/chat', async (req, res) => {
           })
         }
 
+        if (normalizedText && resendEmailRequest?.mode === 'post-chat') {
+          try {
+            const result = await sendResendTestEmail({
+              apiKey: getWorkspaceResendApiKey(),
+              to: resendEmailRequest.to,
+              subject: resendEmailRequest.subject,
+              text: normalizedText,
+              html: renderClawmaxAgentEmailHtml({
+                subject: resendEmailRequest.subject,
+                text: normalizedText,
+                agentId: id,
+                workspaceLabel: path.basename(effectiveWorkspaceRoot || 'workspace'),
+              }),
+            })
+            const confirmation = result.id
+              ? `Email sent to ${resendEmailRequest.to} via Resend. Provider id: ${result.id}`
+              : `Email sent to ${resendEmailRequest.to} via Resend.`
+            send('delta', { text: `\n\n${confirmation}` })
+            completionText = `${normalizedText}\n\n${confirmation}`
+          } catch (err: any) {
+            const failure = err?.message || 'Failed to send email with Resend.'
+            send('error', failure)
+          }
+        }
+
         if (!useManagedSecretStatelessSession) {
           persistDashboardChatSession(id, effectiveSessionId)
         }
 
-        if (!normalizedText) {
+        if (!completionText) {
           send('error', deriveChatError(
             stderrOutput.slice(0, 300) || (code !== 0 ? 'Agent failed.' : 'No reply from agent.'),
             resolvedAgent.provider
           ))
         }
-        send('complete', { text: normalizedText || '' })
+        send('complete', { text: completionText })
         if (!res.writableEnded) {
           res.end()
         }

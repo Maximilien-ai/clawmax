@@ -23,7 +23,8 @@ export type ResendChatContextMessage = {
 export type ResendChatEmailRequest = {
   to: string
   subject: string
-  text: string
+  text?: string
+  mode: 'direct' | 'post-chat'
   guidance?: string
 }
 
@@ -174,6 +175,16 @@ function latestAssistantMessage(contextMessages: ResendChatContextMessage[]): st
     .find((entry) => entry?.role === 'assistant' && trim(entry.content))?.content
 }
 
+function inferEmailSubject(message: string, agentId: string): string {
+  return /\bstatus\b/i.test(message) ? `${agentId} status` : `Message from ${agentId}`
+}
+
+function shouldSendAfterFreshAgentReply(message: string, previousAssistant?: string): boolean {
+  if (previousAssistant) return false
+  if (/\b(then|after|once|when)\b/i.test(message)) return true
+  return /\b(who are you|give me|what is|what's|write|draft|summarize|analyze|review|look up|find|create|generate|explain|tell me|prepare)\b/i.test(message)
+}
+
 export function buildResendChatEmailRequest(
   message: string,
   contextMessages: ResendChatContextMessage[] = [],
@@ -188,14 +199,12 @@ export function buildResendChatEmailRequest(
   if (!to) return null
 
   const previousAssistant = latestAssistantMessage(contextMessages)
-  const refersToPrevious = /\b(that|this|previous|last|status)\b/i.test(normalized)
-  const asksForFreshStatus = /\b(who are you|give me a status|what is your status|current status)\b/i.test(normalized)
-  if (refersToPrevious && asksForFreshStatus && !previousAssistant) {
+  const refersToPrevious = /\b(that|this|previous|last|status|result|response|summary|report|draft|findings|plan)\b/i.test(normalized)
+  if (refersToPrevious && shouldSendAfterFreshAgentReply(normalized, previousAssistant)) {
     return {
       to,
-      subject: `${agentId} status`,
-      text: '',
-      guidance: 'Ask the agent for status first, then send a second message like "send that status in an email to you@example.com". Direct Resend email uses the latest completed assistant reply as the email body.',
+      subject: inferEmailSubject(normalized, agentId),
+      mode: 'post-chat',
     }
   }
   const text = stripMarkdown(
@@ -204,12 +213,22 @@ export function buildResendChatEmailRequest(
       : normalized.replace(EMAIL_RE, '').replace(/\b(send|email|mail|to|that|this|please)\b/ig, ' ').replace(/\s+/g, ' ').trim()
   )
 
-  if (!text) return null
+  if (!text) {
+    if (shouldSendAfterFreshAgentReply(normalized, previousAssistant)) {
+      return {
+        to,
+        subject: inferEmailSubject(normalized, agentId),
+        mode: 'post-chat',
+      }
+    }
+    return null
+  }
 
   return {
     to,
-    subject: /\bstatus\b/i.test(normalized) ? `${agentId} status` : `Message from ${agentId}`,
+    subject: inferEmailSubject(normalized, agentId),
     text,
+    mode: 'direct',
   }
 }
 

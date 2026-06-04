@@ -129,10 +129,11 @@ test('buildResendChatEmailRequest uses prior assistant status for send-that-stat
 
   assert(request?.to === 'mmaximilien@gmail.com', 'Expected recipient email to be extracted')
   assert(request?.subject === 'resend-agent status', 'Expected status subject')
-  assert(request?.text.includes('Gateway 6s') === true, 'Expected latest assistant status as email body')
+  assert(request?.mode === 'direct', 'Expected previous-assistant send to use direct mode')
+  assert(request?.text?.includes('Gateway 6s') === true, 'Expected latest assistant status as email body')
 })
 
-test('buildResendChatEmailRequest returns guidance for combined status-and-email requests without prior assistant context', () => {
+test('buildResendChatEmailRequest uses post-chat mode for combined status-and-email requests without prior assistant context', () => {
   const request = buildResendChatEmailRequest(
     'who are you? give me a status, then send that status in an email to mmaximilien@gmail.com',
     [],
@@ -140,7 +141,8 @@ test('buildResendChatEmailRequest returns guidance for combined status-and-email
   )
 
   assert(request?.to === 'mmaximilien@gmail.com', 'Expected recipient email to be extracted for combined prompt')
-  assert(!!request?.guidance, 'Expected guidance for combined status/email request without prior assistant context')
+  assert(request?.mode === 'post-chat', 'Expected combined status/email request to defer sending until after agent reply')
+  assert(request?.subject === 'fake-agent status', 'Expected deferred email subject to reflect status request')
 })
 
 test('buildResendChatEmailRequest ignores non-email chat requests', () => {
@@ -148,6 +150,17 @@ test('buildResendChatEmailRequest ignores non-email chat requests', () => {
     { role: 'assistant', content: 'Status body' },
   ], 'resend-agent')
   assert(request === null, 'Expected non-email request not to be intercepted')
+})
+
+test('buildResendChatEmailRequest uses post-chat mode for generic do-work-then-email prompts', () => {
+  const request = buildResendChatEmailRequest(
+    'draft a launch update and email it to team@example.com',
+    [],
+    'release-agent'
+  )
+
+  assert(request?.to === 'team@example.com', 'Expected recipient email for generic deferred prompt')
+  assert(request?.mode === 'post-chat', 'Expected generic deferred prompt to use post-chat mode')
 })
 
 test('hasResendEmailCapability only enables direct send for Resend-related skills', () => {
