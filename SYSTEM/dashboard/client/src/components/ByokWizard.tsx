@@ -878,6 +878,7 @@ export function ByokWizard({
     () => (modelsByProvider['openai-compatible']?.models || []).map((model) => model.replace(/^openai-compatible\//, '')),
     [modelsByProvider]
   )
+  const resendTestRecipient = useMemo(() => resolveResendTestRecipientEmail(user), [user])
 
   if (!hydrated) return null
   if (!user && !config?.authDisabled) return null
@@ -1335,8 +1336,6 @@ export function ByokWizard({
       showWarning(failureMessage)
     }
   }
-
-  const resendTestRecipient = useMemo(() => resolveResendTestRecipientEmail(user), [user])
 
   const sendResendTestEmail = async () => {
     const to = resendTestRecipient
