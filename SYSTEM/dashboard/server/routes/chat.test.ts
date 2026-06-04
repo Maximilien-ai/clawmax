@@ -5,7 +5,7 @@
  */
 
 import { buildManagedSecretStatelessChatMessage, deriveChatError, hasByokExecutionPathForProvider, shouldUseLocalChatExecution } from './chat'
-import { buildResendChatEmailRequest, hasResendEmailCapability } from '../lib/resend-partner'
+import { buildResendChatEmailRequest, hasResendEmailCapability, renderClawmaxAgentEmailHtml } from '../lib/resend-partner'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -140,8 +140,24 @@ test('buildResendChatEmailRequest ignores non-email chat requests', () => {
 })
 
 test('hasResendEmailCapability only enables direct send for Resend-related skills', () => {
+  assert(hasResendEmailCapability(['clawmax-resend']), 'Expected clawmax-resend skill to enable direct Resend email')
   assert(hasResendEmailCapability(['github', 'resend-cli']), 'Expected resend-cli skill to enable direct Resend email')
   assert(!hasResendEmailCapability(['github', 'slack']), 'Expected unrelated skills not to enable direct Resend email')
+})
+
+test('renderClawmaxAgentEmailHtml produces branded HTML wrapper output', () => {
+  const html = renderClawmaxAgentEmailHtml({
+    subject: 'resend-agent status',
+    text: 'Gateway 6s\n\nSystem 35d.',
+    agentId: 'resend-agent',
+    workspaceLabel: 'test-1.7.x',
+  })
+
+  assert(html.includes('ClawMax Agent Email'), 'Expected ClawMax email header')
+  assert(html.includes('resend-agent status'), 'Expected escaped subject in HTML wrapper')
+  assert(html.includes('resend-agent'), 'Expected agent label in HTML wrapper')
+  assert(html.includes('test-1.7.x'), 'Expected workspace label in HTML wrapper')
+  assert(html.includes('<p'), 'Expected paragraph rendering in HTML wrapper')
 })
 
 setTimeout(() => {

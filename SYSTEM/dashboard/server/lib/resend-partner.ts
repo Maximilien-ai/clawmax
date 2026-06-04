@@ -7,6 +7,7 @@ export type ResendTestEmailInput = {
   to?: string
   subject?: string
   text?: string
+  html?: string
 }
 
 export type ResendTestEmailResult = {
@@ -33,6 +34,15 @@ const EXACT_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 function trim(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
 }
 
 type ResendSenderPolicy = {
@@ -76,6 +86,44 @@ export function getWorkspaceResendApiKey(): string | undefined {
   return apiKey || process.env.RESEND_API_KEY?.trim() || undefined
 }
 
+export function renderClawmaxAgentEmailHtml(input: {
+  subject: string
+  text: string
+  agentId?: string
+  workspaceLabel?: string
+}): string {
+  const subject = escapeHtml(trim(input.subject) || 'ClawMax email')
+  const agentId = escapeHtml(trim(input.agentId) || 'agent')
+  const workspaceLabel = escapeHtml(trim(input.workspaceLabel) || 'ClawMax workspace')
+  const paragraphs = (trim(input.text) || '')
+    .split(/\n{2,}/)
+    .map((chunk) => chunk.trim())
+    .filter(Boolean)
+    .map((chunk) => `<p style="margin:0 0 16px 0;line-height:1.65;color:#0f172a;font-size:15px;">${escapeHtml(chunk).replace(/\n/g, '<br/>')}</p>`)
+    .join('')
+
+  return [
+    '<!doctype html>',
+    '<html>',
+    '<body style="margin:0;padding:24px;background:#f3f4f6;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;color:#0f172a;">',
+    '<div style="max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:18px;overflow:hidden;box-shadow:0 12px 40px rgba(15,23,42,0.08);">',
+    '<div style="padding:24px 28px;background:linear-gradient(135deg,#0f172a 0%,#1d4ed8 100%);color:#ffffff;">',
+    '<div style="font-size:12px;letter-spacing:0.18em;text-transform:uppercase;opacity:0.75;margin-bottom:8px;">ClawMax Agent Email</div>',
+    `<div style="font-size:28px;font-weight:700;line-height:1.2;margin:0 0 10px 0;">${subject}</div>`,
+    `<div style="font-size:14px;opacity:0.85;">Sent by <strong>${agentId}</strong> from <strong>${workspaceLabel}</strong></div>`,
+    '</div>',
+    '<div style="padding:28px;">',
+    paragraphs || '<p style="margin:0;color:#0f172a;font-size:15px;line-height:1.65;">No message body was provided.</p>',
+    '</div>',
+    '<div style="padding:18px 28px;border-top:1px solid #e5e7eb;background:#f8fafc;color:#475569;font-size:12px;line-height:1.6;">',
+    'This email was sent by a ClawMax agent through the configured Resend bridge.',
+    '</div>',
+    '</div>',
+    '</body>',
+    '</html>',
+  ].join('')
+}
+
 export function resolveResendTestRecipient(input: {
   requestedTo?: string | null
   actorEmail?: string | null
@@ -116,7 +164,7 @@ function extractRecipientEmail(message: string): string | undefined {
 }
 
 export function hasResendEmailCapability(skillIds: string[]): boolean {
-  return skillIds.some((skillId) => ['resend', 'resend-cli', 'react-email'].includes(String(skillId || '').trim()))
+  return skillIds.some((skillId) => ['clawmax-resend', 'resend', 'resend-cli', 'react-email'].includes(String(skillId || '').trim()))
 }
 
 function latestAssistantMessage(contextMessages: ResendChatContextMessage[]): string | undefined {
@@ -176,6 +224,7 @@ export async function sendResendTestEmail(
   const replyTo = trim(input.replyTo) || senderPolicy.replyTo
   const subject = trim(input.subject) || 'ClawMax Resend test email'
   const text = trim(input.text) || 'This is a ClawMax Resend integration test email.'
+  const html = trim(input.html)
 
   if (!apiKey) {
     throw new Error('RESEND_API_KEY is not configured for this workspace.')
@@ -199,6 +248,7 @@ export async function sendResendTestEmail(
       ...(replyTo ? { reply_to: replyTo } : {}),
       subject,
       text,
+      ...(html ? { html } : {}),
     }),
   })
 

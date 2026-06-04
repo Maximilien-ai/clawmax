@@ -90,6 +90,7 @@ const managedRuntimeOpenAiCompatibleBaseUrl = 'http://host.containers.internal:1
 const CLOSE_INTEGRATIONS_WIZARDS_EVENT = 'clawmax-close-integrations-wizards'
 const DEFAULT_RESEND_TEST_FROM = 'agent@send.clawmax.ai'
 const DEFAULT_RESEND_TEST_FROM_NAME = 'ClawMax Agent'
+const DEFAULT_RESEND_TEST_SENDER = `${DEFAULT_RESEND_TEST_FROM_NAME} <${DEFAULT_RESEND_TEST_FROM}>`
 
 function mergePartnerMaps(base: PartnerValueMap, extra: PartnerValueMap): PartnerValueMap {
   const next: PartnerValueMap = { ...base }
@@ -885,12 +886,6 @@ export function ByokWizard({
   const effectiveResendTestRecipient = allowResendRecipientOverride
     ? (resendTestTo.trim() || resendTestRecipient)
     : resendTestRecipient
-  const resendConfiguredFromEmail = getPartnerValue('resend', 'fromEmail').trim() || DEFAULT_RESEND_TEST_FROM
-  const resendConfiguredFromName = getPartnerValue('resend', 'fromName').trim() || DEFAULT_RESEND_TEST_FROM_NAME
-  const resendConfiguredReplyTo = getPartnerValue('resend', 'replyTo').trim()
-  const resendConfiguredFrom = resendConfiguredFromName
-    ? `${resendConfiguredFromName} <${resendConfiguredFromEmail}>`
-    : resendConfiguredFromEmail
 
   if (!hydrated) return null
   if (!user && !config?.authDisabled) return null
@@ -1371,8 +1366,6 @@ export function ByokWizard({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           to,
-          from: resendConfiguredFrom,
-          replyTo: resendConfiguredReplyTo || undefined,
           subject: resendTestSubject.trim() || undefined,
           text: resendTestBody.trim() || undefined,
         }),
@@ -1594,18 +1587,15 @@ export function ByokWizard({
             <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">From</label>
             <input
               type="email"
-              value={resendConfiguredFrom}
+              value={DEFAULT_RESEND_TEST_SENDER}
               readOnly
               aria-readonly="true"
               className="w-full cursor-not-allowed rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-700 dark:border-gray-600 dark:bg-gray-950/70 dark:text-gray-200"
             />
             <div className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
-              Configure `From email`, `From name`, and optional `Reply-To` in the Resend partner settings above.
+              Resend test email uses the default ClawMax sender. Sender policy stays backend-managed for now.
             </div>
           </div>
-        </div>
-        <div className="mt-2 text-[11px] text-gray-500 dark:text-gray-400">
-          Reply-To: {resendConfiguredReplyTo || 'not set'}
         </div>
         <div className="mt-3">
           <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Subject</label>

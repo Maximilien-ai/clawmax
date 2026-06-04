@@ -16,13 +16,13 @@
   local/dev can override,
   hosted/on-prem/cloud lock to the signed-in user.
 - [x] Replace `onboarding@resend.dev` with branded sender defaults in the Resend send path.
-- [x] Add Resend partner settings for `From email`, `From name`, and `Reply-To`.
+- [x] Keep Resend sender policy backend-managed with the branded ClawMax default sender.
 - [x] Make direct dashboard Resend sends use the same sender policy as the test-email path.
-- [ ] Add a first-party `clawmax-resend` bridge skill.
-- [ ] Add default HTML email wrapper plus plain-text fallback.
+- [x] Add a first-party `clawmax-resend` bridge skill.
+- [x] Add default HTML email wrapper plus plain-text fallback.
 - [ ] Add sender/readiness messaging for unverified sender/domain failures.
 - [ ] Add deployment docs for managed `RESEND_API_KEY`, `RESEND_DEFAULT_FROM`, `RESEND_DEFAULT_FROM_NAME`, and `RESEND_DEFAULT_REPLY_TO`.
-- [ ] Add AI Builder / agent-create inference for `clawmax-resend` as the default Resend/email skill.
+- [x] Add AI Builder / agent-create inference for `clawmax-resend` as the default Resend/email skill.
 
 ## Product Outcomes
 
@@ -80,10 +80,7 @@ Implementation requirements:
 
 - Verify `send.clawmax.ai` in Resend before making this the production default.
 - Add a dashboard/runtime default such as `RESEND_DEFAULT_FROM=agent@send.clawmax.ai`.
-- Allow workspace override in Partner Integrations:
-  - `From email`
-  - optional `From name`
-  - optional `Reply-To`
+- Keep the default sender backend-managed for now instead of exposing sender-edit fields in the Partner UI.
 - Use `onboarding@resend.dev` only as a dev/test fallback, and show a warning when the fallback is being used.
 - If Resend rejects a sender because the domain is unverified, surface that as a sender/domain readiness error, not a generic send failure.
 
@@ -184,9 +181,8 @@ On cloud/on-prem:
 
 - Resend Partner page:
   - show active key source,
-  - add sender fields,
-  - add “Use default ClawMax sender” option,
-  - add “Use default HTML template” option,
+  - keep sender policy minimal and backend-managed,
+  - show the default ClawMax sender used for tests,
   - keep test-email action.
 - Skills page:
   - show `clawmax-resend` as the recommended/default Resend skill,

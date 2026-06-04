@@ -266,11 +266,12 @@ test('normalizeGeneratedAgentMeta replaces generic names with role-based names a
       model: 'openai/gpt-4o-mini',
       skills: [],
     },
-    ['resend', 'react-email', 'resend-cli', 'email-best-practices', 'agent-email-inbox', 'github'],
+    ['clawmax-resend', 'resend', 'react-email', 'resend-cli', 'email-best-practices', 'agent-email-inbox', 'github'],
   )
 
   assert.strictEqual(normalized.name, 'resend-agent')
   assert(normalized.tags.includes('email'))
+  assert(normalized.skills.includes('clawmax-resend'))
   assert(normalized.skills.includes('resend'))
   assert(normalized.skills.includes('react-email'))
 })

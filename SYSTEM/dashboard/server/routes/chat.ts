@@ -23,7 +23,7 @@ import {
   withTemporaryAgentAuthProfiles,
 } from '../lib/agent-execution'
 import { getAuthenticatedSession } from '../lib/github-auth'
-import { buildResendChatEmailRequest, getWorkspaceResendApiKey, hasResendEmailCapability, sendResendTestEmail } from '../lib/resend-partner'
+import { buildResendChatEmailRequest, getWorkspaceResendApiKey, hasResendEmailCapability, renderClawmaxAgentEmailHtml, sendResendTestEmail } from '../lib/resend-partner'
 
 const router = Router()
 type ChatProvider = 'openai' | 'openai-compatible' | 'anthropic' | 'gemini' | 'ollama' | null | undefined
@@ -384,6 +384,12 @@ router.post('/:id/chat', async (req, res) => {
         to: directResendEmail.to,
         subject: directResendEmail.subject,
         text: directResendEmail.text,
+        html: renderClawmaxAgentEmailHtml({
+          subject: directResendEmail.subject,
+          text: directResendEmail.text,
+          agentId: id,
+          workspaceLabel: path.basename(effectiveWorkspaceRoot || 'workspace'),
+        }),
       })
       const confirmation = result.id
         ? `Email sent to ${directResendEmail.to} via Resend. Provider id: ${result.id}`

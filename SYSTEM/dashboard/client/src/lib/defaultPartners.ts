@@ -128,27 +128,6 @@ export const DEFAULT_PARTNER_DEFINITIONS: DefaultPartnerDefinition[] = [
         secret: true,
         storage: 'server',
       },
-      {
-        key: 'fromEmail',
-        label: 'From email',
-        type: 'text',
-        required: false,
-        secret: false,
-      },
-      {
-        key: 'fromName',
-        label: 'From name',
-        type: 'text',
-        required: false,
-        secret: false,
-      },
-      {
-        key: 'replyTo',
-        label: 'Reply-To',
-        type: 'text',
-        required: false,
-        secret: false,
-      },
     ],
   },
 ]

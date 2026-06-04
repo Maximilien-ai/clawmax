@@ -1351,7 +1351,7 @@ function inferFallbackAgentSkills(description: string, availableSkills: string[]
   }
 
   if (/\bresend\b|\bemail\b/.test(lower)) {
-    ;['resend', 'react-email', 'resend-cli', 'email-best-practices', 'agent-email-inbox'].forEach(add)
+    ;['clawmax-resend', 'resend', 'react-email', 'resend-cli', 'email-best-practices', 'agent-email-inbox'].forEach(add)
   }
   if (/\bgithub\b/.test(lower)) {
     ;['github', 'gh-issues'].forEach(add)

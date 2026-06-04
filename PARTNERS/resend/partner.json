@@ -15,27 +15,6 @@
       "required": false,
       "secret": true,
       "storage": "server"
-    },
-    {
-      "key": "fromEmail",
-      "label": "From email",
-      "type": "text",
-      "required": false,
-      "secret": false
-    },
-    {
-      "key": "fromName",
-      "label": "From name",
-      "type": "text",
-      "required": false,
-      "secret": false
-    },
-    {
-      "key": "replyTo",
-      "label": "Reply-To",
-      "type": "text",
-      "required": false,
-      "secret": false
     }
   ],
   "skills": {
@@ -51,6 +30,7 @@
       "resend"
     ],
     "items": [
+      "clawmax-resend",
       "agent-email-inbox",
       "email-best-practices",
       "react-email",
