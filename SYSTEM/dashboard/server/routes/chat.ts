@@ -379,7 +379,11 @@ router.post('/:id/chat', async (req, res) => {
   if (resendEmailRequest?.mode === 'direct') {
     send('start', { sessionId: effectiveSessionId, mode: 'resend-direct' })
     try {
-      const attachments = resolveWorkspaceEmailAttachments(effectiveWorkspaceRoot, resendEmailRequest.attachmentPaths || [])
+      const attachments = resolveWorkspaceEmailAttachments(
+        effectiveWorkspaceRoot,
+        resendEmailRequest.attachmentPaths || [],
+        resolvedAgent.workspace ? [resolvedAgent.workspace] : []
+      )
       const result = await sendResendTestEmail({
         apiKey: getWorkspaceResendApiKey(),
         to: resendEmailRequest.to,
@@ -529,7 +533,11 @@ router.post('/:id/chat', async (req, res) => {
 
         if (normalizedText && resendEmailRequest?.mode === 'post-chat') {
           try {
-            const attachments = resolveWorkspaceEmailAttachments(effectiveWorkspaceRoot, resendEmailRequest.attachmentPaths || [])
+            const attachments = resolveWorkspaceEmailAttachments(
+              effectiveWorkspaceRoot,
+              resendEmailRequest.attachmentPaths || [],
+              resolvedAgent.workspace ? [resolvedAgent.workspace] : []
+            )
             const result = await sendResendTestEmail({
               apiKey: getWorkspaceResendApiKey(),
               to: resendEmailRequest.to,

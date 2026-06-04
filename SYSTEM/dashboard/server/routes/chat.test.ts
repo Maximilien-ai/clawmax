@@ -178,6 +178,18 @@ test('buildResendChatEmailRequest captures explicit attachment paths', () => {
   assert(request?.attachmentPaths?.[0] === 'WORKFLOWS/outputs/release-note.md', 'Expected explicit workspace attachment path')
 })
 
+test('buildResendChatEmailRequest treats bare filenames as attachment references for send-to-email prompts', () => {
+  const request = buildResendChatEmailRequest(
+    'Send your identity.md to mmaximilien@gmail.com.',
+    [],
+    'fake-agent'
+  )
+
+  assert(request?.to === 'mmaximilien@gmail.com', 'Expected recipient email for bare filename prompt')
+  assert(request?.mode === 'direct', 'Expected bare filename send prompt to use direct mode')
+  assert(request?.attachmentPaths?.[0] === 'identity.md', 'Expected bare filename attachment reference')
+})
+
 test('hasResendEmailCapability only enables direct send for Resend-related skills', () => {
   assert(hasResendEmailCapability(['clawmax-resend']), 'Expected clawmax-resend skill to enable direct Resend email')
   assert(hasResendEmailCapability(['github', 'resend-cli']), 'Expected resend-cli skill to enable direct Resend email')
@@ -210,6 +222,18 @@ test('resolveWorkspaceEmailAttachments loads workspace files as base64 attachmen
   assert(attachments.length === 1, 'Expected one attachment')
   assert(attachments[0].filename === 'brief.txt', 'Expected attachment filename')
   assert(Buffer.from(attachments[0].content, 'base64').toString('utf-8') === 'hello attachment', 'Expected attachment content to round-trip')
+})
+
+test('resolveWorkspaceEmailAttachments prefers agent workspace for bare filenames', () => {
+  const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-resend-attachment-pref-'))
+  const agentRoot = path.join(workspaceRoot, 'AGENTS', 'fake-agent')
+  fs.mkdirSync(agentRoot, { recursive: true })
+  fs.writeFileSync(path.join(agentRoot, 'IDENTITY.md'), 'agent identity', 'utf-8')
+
+  const attachments = resolveWorkspaceEmailAttachments(workspaceRoot, ['IDENTITY.md'], [agentRoot])
+  assert(attachments.length === 1, 'Expected one preferred attachment')
+  assert(attachments[0].filename === 'IDENTITY.md', 'Expected preferred filename')
+  assert(Buffer.from(attachments[0].content, 'base64').toString('utf-8') === 'agent identity', 'Expected preferred attachment content')
 })
 
 setTimeout(() => {

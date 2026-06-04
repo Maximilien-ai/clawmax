@@ -44,6 +44,7 @@ const RESEND_EMAILS_ENDPOINT = 'https://api.resend.com/emails'
 const EMAIL_RE = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/ig
 const EXACT_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const ATTACHMENT_PATH_RE = /\b(?:AGENTS|WORKFLOWS|SYSTEM|ORG|DOCS|SKILLS)\/[^\s,;:()]+/ig
+const ATTACHMENT_FILE_RE = /\b([A-Z0-9][A-Z0-9._-]*\.(?:md|txt|json|csv|pdf|png|jpg|jpeg|gif|docx|xlsx|pptx|html))\b/ig
 const MAX_ATTACHMENT_BYTES = 30 * 1024 * 1024
 
 function trim(value: unknown): string {
@@ -178,8 +179,11 @@ function extractRecipientEmail(message: string): string | undefined {
 }
 
 function extractAttachmentPaths(message: string): string[] {
-  const matches = message.match(ATTACHMENT_PATH_RE) || []
-  return [...new Set(matches.map((value) => value.trim().replace(/[.]+$/, '')))]
+  const explicit = message.match(ATTACHMENT_PATH_RE) || []
+  const bareFiles = [...message.matchAll(ATTACHMENT_FILE_RE)]
+    .map((match) => match[1]?.trim())
+    .filter((value): value is string => !!value && !EXACT_EMAIL_RE.test(value))
+  return [...new Set([...explicit, ...bareFiles].map((value) => value.trim().replace(/[.]+$/, '')))]
 }
 
 export function hasResendEmailCapability(skillIds: string[]): boolean {
@@ -226,12 +230,14 @@ export function buildResendChatEmailRequest(
 ): ResendChatEmailRequest | null {
   const normalized = trim(message)
   if (!normalized) return null
-  if (!/\b(send|email|mail)\b/i.test(normalized)) return null
-  if (!/\b(email|mail)\b/i.test(normalized)) return null
+  const attachmentPaths = extractAttachmentPaths(normalized)
+  const hasSendVerb = /\b(send|email|mail)\b/i.test(normalized)
+  const hasEmailVerb = /\b(email|mail)\b/i.test(normalized)
+  if (!hasSendVerb) return null
 
   const to = extractRecipientEmail(normalized)
   if (!to) return null
-  const attachmentPaths = extractAttachmentPaths(normalized)
+  if (!hasEmailVerb && attachmentPaths.length === 0) return null
 
   const previousAssistant = latestAssistantMessage(contextMessages)
   const refersToPrevious = /\b(that|this|previous|last|status|result|response|summary|report|draft|findings|plan)\b/i.test(normalized)
@@ -279,10 +285,51 @@ export function buildResendChatEmailRequest(
   }
 }
 
-export function resolveWorkspaceEmailAttachments(workspaceRoot: string, requestedPaths: string[] = []): ResendEmailAttachment[] {
+function listWorkspaceFiles(root: string): string[] {
+  const results: string[] = []
+  const stack = [root]
+  while (stack.length > 0) {
+    const current = stack.pop()!
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      if (entry.name.startsWith('.')) continue
+      const fullPath = path.join(current, entry.name)
+      if (entry.isDirectory()) {
+        stack.push(fullPath)
+      } else if (entry.isFile()) {
+        results.push(fullPath)
+      }
+    }
+  }
+  return results
+}
+
+export function resolveWorkspaceEmailAttachments(workspaceRoot: string, requestedPaths: string[] = [], preferredRoots: string[] = []): ResendEmailAttachment[] {
   return requestedPaths.map((requestedPath) => {
     const relativePath = requestedPath.trim().replace(/^\/+/, '')
-    const absolutePath = path.resolve(workspaceRoot, relativePath)
+    let absolutePath = ''
+    if (relativePath.includes('/')) {
+      absolutePath = path.resolve(workspaceRoot, relativePath)
+    } else {
+      const searchRoots = [...preferredRoots, workspaceRoot]
+      const candidatePaths = searchRoots
+        .filter(Boolean)
+        .map((root) => path.join(root, relativePath))
+        .filter((candidate) => fs.existsSync(candidate) && fs.statSync(candidate).isFile())
+      if (candidatePaths.length > 0) {
+        absolutePath = candidatePaths[0]
+      } else {
+        const workspaceFiles = listWorkspaceFiles(workspaceRoot)
+        const basenameMatches = workspaceFiles.filter((candidate) => path.basename(candidate).toLowerCase() === relativePath.toLowerCase())
+        if (basenameMatches.length === 1) {
+          absolutePath = basenameMatches[0]
+        } else if (basenameMatches.length > 1) {
+          throw new Error(`Attachment filename is ambiguous in this workspace: ${requestedPath}`)
+        }
+      }
+    }
+    if (!absolutePath) {
+      throw new Error(`Attachment file not found: ${requestedPath}`)
+    }
     const normalizedRoot = path.resolve(workspaceRoot)
     if (!absolutePath.startsWith(`${normalizedRoot}${path.sep}`) && absolutePath !== normalizedRoot) {
       throw new Error(`Attachment path must stay inside the workspace: ${requestedPath}`)
