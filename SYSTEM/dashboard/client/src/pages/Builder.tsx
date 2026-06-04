@@ -8,6 +8,7 @@ import {
   createBuilderSessionDocPath,
   createBuilderSessionMarkdown,
 } from '../lib/builderSession'
+import { shouldReserveBuilderTranscriptSpace } from '../lib/builderMobileLayout'
 import { expandPromptWithAI } from '../lib/aiPrompt'
 import { appendPromptAttachmentContext, createPromptAttachment, type PromptAttachment } from '../lib/promptAttachments'
 import { buildWorkspaceStarterPrompts, normalizeStarterPromptList, type StarterPromptAgent, type StarterPromptSkill, type StarterPromptTemplate, type StarterPromptWorkflow } from '../lib/builderStarterPrompts'
@@ -2079,6 +2080,11 @@ export default function Builder({
 
   const recommendationFeedbackKey = buildBuilderRecommendationKey(recommendation as any)
   const currentRecommendationFeedback = recommendationFeedbackKey ? feedbackByRecommendation[recommendationFeedbackKey] : undefined
+  const reserveTranscriptSpace = shouldReserveBuilderTranscriptSpace({
+    messageCount: messages.length,
+    hasRecommendation: Boolean(recommendation),
+    loading,
+  })
 
   function setRecommendationFeedback(value: 'up' | 'down') {
     if (!recommendationFeedbackKey) return
@@ -2103,13 +2109,13 @@ export default function Builder({
   }
 
   return (
-    <div className="h-full overflow-hidden bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.12),_transparent_32%),linear-gradient(180deg,_rgba(15,23,42,0.04),_rgba(15,23,42,0))] dark:bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.12),_transparent_28%),linear-gradient(180deg,_rgba(15,23,42,0.25),_rgba(15,23,42,0))]">
-      <div className={`relative grid h-full w-full grid-cols-1 gap-4 overflow-hidden px-3 py-4 lg:px-5 ${
+    <div className="min-h-full overflow-y-auto bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.12),_transparent_32%),linear-gradient(180deg,_rgba(15,23,42,0.04),_rgba(15,23,42,0))] dark:bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.12),_transparent_28%),linear-gradient(180deg,_rgba(15,23,42,0.25),_rgba(15,23,42,0))] lg:h-full lg:overflow-hidden">
+      <div className={`relative grid min-h-full w-full grid-cols-1 gap-4 px-3 py-4 lg:h-full lg:overflow-hidden lg:px-5 ${
         showRightPane ? 'lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_380px]' : ''
       }`}>
-        <section className={`flex min-h-0 flex-col overflow-hidden rounded-3xl border border-gray-200 bg-white/90 shadow-sm backdrop-blur dark:border-gray-800 dark:bg-gray-900/80 ${
+        <section className={`flex min-h-0 flex-col rounded-3xl border border-gray-200 bg-white/90 shadow-sm backdrop-blur dark:border-gray-800 dark:bg-gray-900/80 ${
           hasConversation ? 'p-3' : 'p-4'
-        }`}>
+        } ${reserveTranscriptSpace ? 'overflow-hidden' : 'overflow-visible lg:overflow-hidden'}`}>
           <div className="shrink-0">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
@@ -2191,10 +2197,10 @@ export default function Builder({
             )}
           </div>
 
-          <div className={`flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border border-gray-200 bg-gray-50/70 dark:border-gray-800 dark:bg-gray-950/50 ${
+          <div className={`flex min-h-0 flex-col rounded-3xl border border-gray-200 bg-gray-50/70 dark:border-gray-800 dark:bg-gray-950/50 ${
             hasConversation ? 'mt-3 p-2.5' : 'mt-4 p-3'
-          }`}>
-            <div ref={transcriptViewportRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+          } ${reserveTranscriptSpace ? 'flex-1 overflow-hidden' : 'flex-none overflow-visible lg:flex-1 lg:overflow-hidden'}`}>
+            <div ref={transcriptViewportRef} className={`${reserveTranscriptSpace ? 'min-h-0 flex-1 space-y-3 overflow-y-auto pr-1' : 'hidden lg:block lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1'}`}>
               {messages.map((message) => (
                 <div key={message.id} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   <div className="max-w-[88%]">
@@ -2387,7 +2393,7 @@ export default function Builder({
               <div ref={transcriptEndRef} />
             </div>
 
-            <div className="mt-2.5 shrink-0 rounded-2xl border border-sky-200/80 bg-sky-50/70 p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] dark:border-sky-900/60 dark:bg-sky-950/20">
+            <div className="mt-2.5 shrink-0 rounded-2xl border border-sky-200/80 bg-sky-50/70 p-2.5 pb-[calc(0.625rem+env(safe-area-inset-bottom))] shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] dark:border-sky-900/60 dark:bg-sky-950/20">
               <div className="mb-2 flex items-center justify-between gap-3">
                 <div>
                   <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">
@@ -2418,7 +2424,7 @@ export default function Builder({
                 onChange={(event) => setPrompt(event.target.value)}
                 onKeyDown={handlePromptKeyDown}
                 placeholder="Example: I want a small team that watches competitor launches, writes concise summaries, and posts a final brief every Friday."
-                className="min-h-[56px] max-h-[96px] w-full resize-y rounded-xl border border-sky-200 bg-white/95 px-3 py-2 text-sm text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-sky-400 dark:border-sky-900 dark:bg-gray-900 dark:text-gray-100 dark:focus:border-sky-700"
+                className="min-h-[7rem] max-h-[14rem] w-full resize-y rounded-xl border border-sky-200 bg-white/95 px-3 py-2 text-base text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-sky-400 dark:border-sky-900 dark:bg-gray-900 dark:text-gray-100 dark:focus:border-sky-700 sm:min-h-[56px] sm:max-h-[96px] sm:text-sm"
               />
 
               <div className="mt-2 flex flex-wrap items-center justify-between gap-3 border-t border-sky-200/80 pt-2.5 dark:border-sky-900/60">

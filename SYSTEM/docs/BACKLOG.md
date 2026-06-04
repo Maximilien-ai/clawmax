@@ -6,6 +6,7 @@
 ## Top Priority
 
 - [ ] **Validate `1.7.3` built images on dev, on-prem, and cloud** — local/manual and automated release-candidate validation is green, but the next built-artifact line still needs real image validation for Builder, partner integrations, Resend/Himalaya skills, workflow execution, `/api/system`, and durable gateway startup.
+- [ ] **Mobile responsive audit for `1.7.4`** — run a focused iPhone/Safari pass across Builder, DocHub, Agents/dialogs, Workflows, Skills, Partners/BYOK, and Logs. Verify primary inputs are reachable without pinch-zoom, every modal has an accessible close path, and full-height panes do not trap users behind browser chrome.
 - [ ] **Resend Partner `1.7.4` mini-sprint** — make Resend a first-class agent email capability with a bundled `clawmax-resend` bridge skill, default sender support, default HTML templates, system/runtime API-key provisioning, stronger readiness states, and a dev/on-prem/cloud test matrix. Plan: [RESEND_PARTNER_MINI_SPRINT_1_7_4.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/RESEND_PARTNER_MINI_SPRINT_1_7_4.md).
 - [ ] **Workspace budgeting and metering must be truly workspace-scoped** — confirm budget, spend, and token/cost views are isolated by active workspace slug/id instead of drifting across all workspaces or showing mixed totals.
 - [ ] **Workspace quick-pin / move-to-top affordance** — dragging through long workspace lists is too slow; add a direct “move to top” or equivalent quick-access affordance.

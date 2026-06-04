@@ -706,6 +706,16 @@ else
   fail "Builder starter prompt helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Builder mobile layout helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/builderMobileLayout.test.ts > /tmp/clawmax-builder-mobile-layout.out 2>&1 || true
+if grep -q "builderMobileLayout.test.ts: ok" /tmp/clawmax-builder-mobile-layout.out; then
+  builder_mobile_layout_count=$(grep -c "^✓" /tmp/clawmax-builder-mobile-layout.out | tr -cd '0-9')
+  pass "Builder mobile layout helper unit tests (${builder_mobile_layout_count:-?} tests)"
+else
+  cat /tmp/clawmax-builder-mobile-layout.out
+  fail "Builder mobile layout helper unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Onboarding tour helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/onboardingTour.test.ts > /tmp/clawmax-onboarding-tour.out 2>&1 || true
 if grep -q "onboardingTour.test.ts: ok" /tmp/clawmax-onboarding-tour.out; then

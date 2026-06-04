@@ -703,7 +703,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
       {/* Mobile tree toggle button */}
       <button
         onClick={() => setMobileTreeOpen(!mobileTreeOpen)}
-        className="sm:hidden fixed bottom-4 left-4 z-40 bg-sky-600 text-white rounded-full w-12 h-12 flex items-center justify-center shadow-lg hover:bg-sky-700 transition-colors"
+        className="sm:hidden fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-4 z-40 bg-sky-600 text-white rounded-full w-12 h-12 flex items-center justify-center shadow-lg hover:bg-sky-700 transition-colors"
         title="Toggle file tree"
       >
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -718,7 +718,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
 
       <aside
         className={`bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 overflow-y-auto shrink-0 transition-all duration-200 ${resizingTree ? 'select-none' : ''} ${mobileTreeOpen ? 'fixed inset-y-0 left-0 z-40 sm:relative' : 'hidden sm:block'}`}
-        style={{ width: treeCollapsed ? 32 : treeWidth }}
+        style={{ width: treeCollapsed ? 32 : (mobileTreeOpen ? 'min(22rem, calc(100vw - 2rem))' : treeWidth) }}
       >
         {treeCollapsed ? (
           <div className="flex flex-col items-center pt-3">
@@ -955,6 +955,21 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
 
       {/* Content area */}
       <div className="flex-1 overflow-hidden flex flex-col bg-white dark:bg-gray-800">
+        <div className="flex items-center justify-between gap-3 border-b border-gray-200 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-800 sm:hidden">
+          <button
+            type="button"
+            onClick={() => setMobileTreeOpen(true)}
+            className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-sm font-medium text-sky-700 dark:border-sky-800 dark:bg-sky-950/30 dark:text-sky-200"
+          >
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h8m-8 6h16" />
+            </svg>
+            Documents
+          </button>
+          <div className="min-w-0 flex-1 truncate text-right text-xs text-gray-500 dark:text-gray-400">
+            {selected || 'Choose a document'}
+          </div>
+        </div>
         {loading && (
           <div className="flex items-center justify-center h-32 text-gray-400 text-sm">Loading...</div>
         )}

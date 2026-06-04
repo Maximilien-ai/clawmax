@@ -291,9 +291,9 @@ export default function AgentDetailPanel({
   return (
     <div className="fixed inset-0 bg-black/30 z-40 md:bg-black/20" onClick={onClose}>
       {/* Panel */}
-      <aside className="fixed top-0 right-0 h-full w-full sm:w-[30rem] lg:w-[36rem] max-w-full bg-white dark:bg-gray-800 shadow-2xl z-50 flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+      <aside className="fixed top-0 right-0 h-[100dvh] max-h-[100dvh] w-full max-w-full bg-white shadow-2xl dark:bg-gray-800 sm:w-[30rem] lg:w-[36rem] z-50 flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
-        <div className="flex items-start justify-between gap-3 px-4 py-4 border-b border-gray-100 shrink-0 sm:px-5">
+        <div className="flex items-start justify-between gap-3 border-b border-gray-100 bg-white px-4 py-4 shrink-0 dark:border-gray-700 dark:bg-gray-800 sm:px-5">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 mb-1">
               <h2
@@ -640,7 +640,14 @@ export default function AgentDetailPanel({
         </div>
 
         {/* Footer path */}
-        <div className="px-4 py-3 border-t border-gray-100 shrink-0 sm:px-5">
+        <div className="space-y-3 border-t border-gray-100 bg-white px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shrink-0 dark:border-gray-700 dark:bg-gray-800 sm:px-5 sm:pb-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-semibold text-gray-700 shadow-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 sm:hidden"
+          >
+            Close details
+          </button>
           <span className="text-xs text-gray-300 font-mono break-all block">
             {agent.workspacePath.replace(/^\/Users\/[^/]+/, '~')}
           </span>
