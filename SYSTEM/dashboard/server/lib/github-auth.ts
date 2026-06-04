@@ -53,6 +53,12 @@ export interface GitHubUser {
   email: string | null
 }
 
+type GitHubEmail = {
+  email?: string
+  primary?: boolean
+  verified?: boolean
+}
+
 interface SessionPayload {
   userId: string
   login: string
@@ -143,7 +149,31 @@ async function getGitHubUser(accessToken: string): Promise<GitHubUser> {
   const result = await httpsGet('api.github.com', '/user', {
     'Authorization': `Bearer ${accessToken}`,
   })
-  return JSON.parse(result)
+  const user = JSON.parse(result) as GitHubUser
+  if (!user.email) {
+    user.email = await getGitHubPrimaryEmail(accessToken)
+  }
+  return user
+}
+
+async function getGitHubPrimaryEmail(accessToken: string): Promise<string | null> {
+  try {
+    const result = await httpsGet('api.github.com', '/user/emails', {
+      'Authorization': `Bearer ${accessToken}`,
+    })
+    return selectGitHubSessionEmail(JSON.parse(result))
+  } catch (error: any) {
+    console.warn(`[Auth] Unable to fetch GitHub primary email: ${error?.message || error}`)
+    return null
+  }
+}
+
+export function selectGitHubSessionEmail(emails: unknown): string | null {
+  if (!Array.isArray(emails)) return null
+
+  const verified = emails.filter((entry: GitHubEmail) => entry?.verified && typeof entry.email === 'string')
+  const primary = verified.find((entry: GitHubEmail) => entry.primary)
+  return (primary?.email || verified[0]?.email || null) ?? null
 }
 
 function createSessionToken(user: GitHubUser): string {

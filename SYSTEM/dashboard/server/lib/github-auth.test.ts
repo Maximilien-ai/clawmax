@@ -10,6 +10,7 @@ import {
   createAuthRouter,
   getOtpProviderDiagnosticContext,
   isOtpAuthConfigured,
+  selectGitHubSessionEmail,
   summarizeOtpProviderError,
 } from './github-auth'
 
@@ -265,6 +266,16 @@ async function run() {
       summary.message.includes('Internal server error'),
       'Expected provider message in summary',
     )
+  })
+
+  await test('GitHub session email selects the primary verified user email', () => {
+    const email = selectGitHubSessionEmail([
+      { email: 'secondary@example.com', primary: false, verified: true },
+      { email: 'owner@example.com', primary: true, verified: true },
+      { email: 'unverified@example.com', primary: true, verified: false },
+    ])
+
+    assert(email === 'owner@example.com', 'Expected primary verified GitHub email')
   })
 
   await test('OTP verify creates session cookie and authenticates user', async () => {

@@ -872,6 +872,16 @@ else
   fail "Partner catalog helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Partner logo view unit tests...${NC}"
+npx ts-node --transpileOnly client/src/components/PartnerLogo.test.ts > /tmp/clawmax-partner-logo.out 2>&1 || true
+if grep -q "PartnerLogo.test.ts: ok" /tmp/clawmax-partner-logo.out; then
+  partner_logo_count=$(grep -c "^✓" /tmp/clawmax-partner-logo.out | tr -cd '0-9')
+  pass "Partner logo view unit tests (${partner_logo_count:-?} tests)"
+else
+  cat /tmp/clawmax-partner-logo.out
+  fail "Partner logo view unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Product icon helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/productIcons.test.ts > /tmp/clawmax-product-icons.out 2>&1 || true
 if grep -q '^✓ ' /tmp/clawmax-product-icons.out; then
@@ -1268,7 +1278,8 @@ echo ""
 echo -e "${YELLOW}→ Running Auth / OTP unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/github-auth.test.ts > /tmp/clawmax-github-auth.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-github-auth.out; then
-  pass "Auth / OTP unit tests (6 tests)"
+  github_auth_count=$(grep "Tests passed:" /tmp/clawmax-github-auth.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Auth / OTP unit tests (${github_auth_count:-?} tests)"
 else
   fail "Auth / OTP unit tests"
 fi
