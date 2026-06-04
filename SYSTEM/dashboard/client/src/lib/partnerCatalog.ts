@@ -85,24 +85,24 @@ export function formatPartnerCategoryLabel(category: string): string {
 export function getPartnerLogoClass(slug: string, variant: 'compact' | 'hero' = 'compact'): string {
   if (variant === 'hero') {
     if (slug === 'github') {
-      return 'h-7 w-auto max-w-[104px] object-contain rounded-sm bg-white/80 px-1 py-0.5 dark:bg-gray-800/80'
+      return 'h-7 w-auto max-w-[104px] object-contain rounded-sm border border-gray-200 bg-white px-1 py-0.5 dark:border-gray-700 dark:bg-white'
     }
     if (slug === 'resend') {
-      return 'h-5 w-auto max-w-[96px] object-contain rounded-sm bg-white/80 px-1 py-0.5 dark:bg-gray-800/80'
+      return 'h-5 w-auto max-w-[96px] object-contain rounded-sm border border-gray-200 bg-white px-1 py-0.5 dark:border-gray-700 dark:bg-white'
     }
     if (slug === 'senso') {
-      return 'h-5 w-auto max-w-[90px] object-contain rounded-sm bg-white/80 px-1 py-0.5 dark:bg-gray-800/80'
+      return 'h-5 w-auto max-w-[90px] object-contain rounded-sm border border-gray-200 bg-white px-1 py-0.5 dark:border-gray-700 dark:bg-white'
     }
-    return 'h-8 w-auto max-w-[120px] object-contain rounded-sm bg-white/80 px-1.5 py-1 dark:bg-gray-800/80'
+    return 'h-8 w-auto max-w-[120px] object-contain rounded-sm border border-gray-200 bg-white px-1.5 py-1 dark:border-gray-700 dark:bg-white'
   }
   if (slug === 'github') {
-    return 'h-5 w-auto max-w-[78px] object-contain rounded-sm bg-white/80 px-0.5 py-0.5 dark:bg-gray-800/80'
+    return 'h-5 w-auto max-w-[78px] object-contain rounded-sm border border-gray-200 bg-white px-0.5 py-0.5 dark:border-gray-700 dark:bg-white'
   }
   if (slug === 'resend') {
-    return 'h-4 w-auto max-w-[74px] object-contain rounded-sm bg-white/80 px-0.5 py-0.5 dark:bg-gray-800/80'
+    return 'h-4 w-auto max-w-[74px] object-contain rounded-sm border border-gray-200 bg-white px-0.5 py-0.5 dark:border-gray-700 dark:bg-white'
   }
   if (slug === 'senso') {
-    return 'h-4 w-auto max-w-[72px] object-contain rounded-sm bg-white/80 px-0.5 py-0.5 dark:bg-gray-800/80'
+    return 'h-4 w-auto max-w-[72px] object-contain rounded-sm border border-gray-200 bg-white px-0.5 py-0.5 dark:border-gray-700 dark:bg-white'
   }
-  return 'h-6 w-auto max-w-[96px] object-contain rounded-sm bg-white/80 px-1 py-0.5 dark:bg-gray-800/80'
+  return 'h-6 w-auto max-w-[96px] object-contain rounded-sm border border-gray-200 bg-white px-1 py-0.5 dark:border-gray-700 dark:bg-white'
 }

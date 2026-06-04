@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { useToast } from '../components/Toast'
 import { useWorkspace } from '../contexts/WorkspaceContext'
 import { useAuth } from '../contexts/AuthContext'
+import { PartnerLogo } from '../components/PartnerLogo'
 import { detectProviderKeyMismatch, isOllamaUiAvailable, readStoredByokKeys } from '../lib/byok'
 import { DEFAULT_VISIBLE_PARTNERS, getDefaultPartnerDefinitions } from '../lib/defaultPartners'
 import { BROWSER_VAULT_UPDATED_EVENT, findManagedSecretConflicts, getPartnerVaultKey, parseEnvLikeSecrets, readSharedSecrets, writeSharedSecrets } from '../lib/localSecrets'
@@ -662,13 +663,12 @@ export default function KeysSecrets() {
           {partnerDefinitions.map((partner) => (
             <div key={partner.slug} className="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
               <div className="flex items-start gap-3">
-                {partner.logoUrl ? (
-                  <img src={partner.logoUrl} alt={`${partner.name} logo`} className="h-10 w-10 rounded-lg object-contain bg-white p-1" />
-                ) : (
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 text-xs font-semibold text-gray-500 dark:bg-gray-700 dark:text-gray-300">
-                    {partner.name.slice(0, 2).toUpperCase()}
-                  </div>
-                )}
+                <PartnerLogo
+                  slug={partner.slug}
+                  name={partner.name}
+                  logoUrl={partner.logoUrl}
+                  variant="hero"
+                />
                 <div className="min-w-0">
                   <div className="font-medium text-gray-900 dark:text-gray-100">{partner.name}</div>
                   <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{partner.description || 'Partner integration'}</div>

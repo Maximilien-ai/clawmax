@@ -566,6 +566,16 @@ else
   fail "BYOK helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Resend test email helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/resendTestEmail.test.ts > /tmp/clawmax-resend-test-email.out 2>&1 || true
+if grep -q "resendTestEmail.test.ts: ok" /tmp/clawmax-resend-test-email.out; then
+  resend_test_email_count=$(grep -c "^✓" /tmp/clawmax-resend-test-email.out | tr -cd '0-9')
+  pass "Resend test email helper unit tests (${resend_test_email_count:-?} tests)"
+else
+  cat /tmp/clawmax-resend-test-email.out
+  fail "Resend test email helper unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Workspace status unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/workspace-status.test.ts > /tmp/clawmax-workspace-status.out 2>&1 || true
 if grep -q "Tests failed: 0" /tmp/clawmax-workspace-status.out; then

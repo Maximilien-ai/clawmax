@@ -27,7 +27,7 @@ import {
   headerToggleButtonClass,
 } from '../lib/headerControls'
 import { ProductIconCell, resolveSkillVisual, resolveCategoryVisual } from '../lib/productIcons'
-import { getPartnerLogoClass } from '../lib/partnerCatalog'
+import { PartnerLogo } from '../components/PartnerLogo'
 import { buildServerManagedWorkspaceEntries } from '../lib/keysSecretsInventory'
 
 // Use relative path so it works with ngrok and localhost
@@ -2097,14 +2097,11 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
               {visiblePartnerInstallers.map((partner) => (
                 <div key={`partner-surface-${partner.slug}`} className="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
                   <div className="flex items-center gap-2">
-                    {partner.logoUrl ? (
-                      <img
-                        src={partner.logoUrl}
-                        alt={`${partner.name} logo`}
-                        className={getPartnerLogoClass(partner.slug)}
-                        loading="lazy"
-                      />
-                    ) : null}
+                    <PartnerLogo
+                      slug={partner.slug}
+                      name={partner.name}
+                      logoUrl={partner.logoUrl}
+                    />
                     <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{partner.name}</div>
                   </div>
                   <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">{partner.description}</div>
@@ -3848,14 +3845,11 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                           <div key={partner.slug} className={`flex items-start justify-between gap-4 px-4 py-4 ${idx < partnerInstallers.length - 1 ? 'border-b border-gray-100 dark:border-gray-800' : ''}`}>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
-                                {partner.logoUrl ? (
-                                  <img
-                                    src={partner.logoUrl}
-                                    alt={`${partner.name} logo`}
-                                    className={getPartnerLogoClass(partner.slug)}
-                                    loading="lazy"
-                                  />
-                                ) : null}
+                                <PartnerLogo
+                                  slug={partner.slug}
+                                  name={partner.name}
+                                  logoUrl={partner.logoUrl}
+                                />
                                 <div className="font-medium text-sm text-gray-900 dark:text-gray-100">{partner.name}</div>
                               </div>
                               <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{partner.description}</div>

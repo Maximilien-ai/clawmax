@@ -28,6 +28,7 @@ type FetchLike = typeof fetch
 
 const RESEND_EMAILS_ENDPOINT = 'https://api.resend.com/emails'
 const EMAIL_RE = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/ig
+const EXACT_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 function trim(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
@@ -45,6 +46,20 @@ function getDefaultResendFrom(): string {
 export function getWorkspaceResendApiKey(): string | undefined {
   const apiKey = readWorkspaceIntegrationSecrets().partners?.resend?.apiKey?.trim()
   return apiKey || process.env.RESEND_API_KEY?.trim() || undefined
+}
+
+export function resolveResendTestRecipient(input: {
+  requestedTo?: string | null
+  actorEmail?: string | null
+  actorLogin?: string | null
+}): string {
+  const actorEmail = trim(input.actorEmail)
+  if (EXACT_EMAIL_RE.test(actorEmail)) return actorEmail
+
+  const actorLogin = trim(input.actorLogin)
+  if (EXACT_EMAIL_RE.test(actorLogin)) return actorLogin
+
+  return trim(input.requestedTo)
 }
 
 function summarizeResendProviderError(status: number, payload: any): string {

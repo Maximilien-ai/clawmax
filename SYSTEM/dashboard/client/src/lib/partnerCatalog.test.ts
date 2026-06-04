@@ -57,4 +57,10 @@ test('github compact wordmark gets a narrower class to offset asset whitespace',
   assert(getPartnerLogoClass('senso').includes('max-w-[72px]'), 'Expected senso compact logo width tuning')
 })
 
+test('partner logo chips stay readable in dark mode for dark wordmarks', () => {
+  assert(getPartnerLogoClass('opik').includes('dark:bg-white'), 'Expected default partner logos to render on a white chip in dark mode')
+  assert(getPartnerLogoClass('resend').includes('dark:bg-white'), 'Expected Resend logo to render on a white chip in dark mode')
+  assert(getPartnerLogoClass('opik', 'hero').includes('dark:bg-white'), 'Expected hero partner logos to render on a white chip in dark mode')
+})
+
 console.log('partnerCatalog.test.ts: ok')

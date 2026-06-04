@@ -3,9 +3,11 @@ import { useAuth } from '../contexts/AuthContext'
 import { useWorkspace } from '../contexts/WorkspaceContext'
 import { useToast } from './Toast'
 import { buildByokVerificationFingerprint, detectProviderKeyMismatch, getByokDismissKey, isOllamaUiAvailable, readStoredByokKeys, resolveOllamaBaseUrlForRuntime, resolveOpenAiCompatibleBaseUrlForRuntime, resolveSelectedPartnersForWorkspace, shouldAutoValidateByokOnSave, writeStoredByokKeys } from '../lib/byok'
-import { filterPartnersByCategory, formatPartnerCategoryLabel, getPartnerCategories, getPartnerLogoClass, listPartnerCategoryTabs } from '../lib/partnerCatalog'
+import { filterPartnersByCategory, formatPartnerCategoryLabel, getPartnerCategories, listPartnerCategoryTabs } from '../lib/partnerCatalog'
 import { DEFAULT_VISIBLE_PARTNERS, getDefaultPartnerDefinitions } from '../lib/defaultPartners'
 import { BROWSER_VAULT_UPDATED_EVENT, readPartnerValuesFromSharedSecrets, readSharedSecrets, writePartnerValuesToSharedSecrets, writeSharedSecrets } from '../lib/localSecrets'
+import { resolveResendTestRecipientEmail } from '../lib/resendTestEmail'
+import { PartnerLogo } from './PartnerLogo'
 
 function maskKey(value: string) {
   if (value.length <= 8) return 'configured'
@@ -86,6 +88,7 @@ const localDevOllamaBaseUrl = 'http://localhost:11434'
 const localDevOpenAiCompatibleBaseUrl = 'http://127.0.0.1:1234/v1'
 const managedRuntimeOpenAiCompatibleBaseUrl = 'http://host.containers.internal:1234/v1'
 const CLOSE_INTEGRATIONS_WIZARDS_EVENT = 'clawmax-close-integrations-wizards'
+const DEFAULT_RESEND_TEST_FROM = 'onboarding@resend.dev'
 
 function mergePartnerMaps(base: PartnerValueMap, extra: PartnerValueMap): PartnerValueMap {
   const next: PartnerValueMap = { ...base }
@@ -185,8 +188,6 @@ export function ByokWizard({
   const [partnerCategoryTab, setPartnerCategoryTab] = useState<string>('all')
   const [validating, setValidating] = useState(false)
   const [resendTestSending, setResendTestSending] = useState(false)
-  const [resendTestTo, setResendTestTo] = useState('')
-  const [resendTestFrom, setResendTestFrom] = useState('onboarding@resend.dev')
   const [resendTestSubject, setResendTestSubject] = useState('ClawMax Resend test email')
   const [resendTestBody, setResendTestBody] = useState('This is a ClawMax Resend integration test email.')
   const [validation, setValidation] = useState<ValidationState>({
@@ -1335,10 +1336,12 @@ export function ByokWizard({
     }
   }
 
+  const resendTestRecipient = useMemo(() => resolveResendTestRecipientEmail(user), [user])
+
   const sendResendTestEmail = async () => {
-    const to = resendTestTo.trim()
+    const to = resendTestRecipient
     if (!to) {
-      showWarning('Add a recipient email before sending a Resend test email.')
+      showWarning('Your authenticated session does not include an email address for the Resend test recipient.')
       return
     }
     if (!hasServerPartnerSecret('resend', 'apiKey')) {
@@ -1353,7 +1356,7 @@ export function ByokWizard({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           to,
-          from: resendTestFrom.trim() || undefined,
+          from: DEFAULT_RESEND_TEST_FROM,
           subject: resendTestSubject.trim() || undefined,
           text: resendTestBody.trim() || undefined,
         }),
@@ -1531,6 +1534,7 @@ export function ByokWizard({
 
   const renderResendTestEmailPanel = () => {
     const hasSavedKey = hasServerPartnerSecret('resend', 'apiKey')
+    const canSendTest = hasSavedKey && Boolean(resendTestRecipient)
     return (
       <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -1553,21 +1557,28 @@ export function ByokWizard({
             <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">To</label>
             <input
               type="email"
-              value={resendTestTo}
-              onChange={(e) => setResendTestTo(e.target.value)}
-              placeholder="recipient@example.com"
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100"
+              value={resendTestRecipient}
+              readOnly
+              aria-readonly="true"
+              placeholder="Authenticated user email required"
+              className="w-full cursor-not-allowed rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-700 dark:border-gray-600 dark:bg-gray-950/70 dark:text-gray-200"
             />
+            <div className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+              Test emails are locked to the signed-in user for now.
+            </div>
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">From</label>
             <input
               type="email"
-              value={resendTestFrom}
-              onChange={(e) => setResendTestFrom(e.target.value)}
-              placeholder="onboarding@resend.dev"
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100"
+              value={DEFAULT_RESEND_TEST_FROM}
+              readOnly
+              aria-readonly="true"
+              className="w-full cursor-not-allowed rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-700 dark:border-gray-600 dark:bg-gray-950/70 dark:text-gray-200"
             />
+            <div className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+              Sender override is part of the `1.7.4` Resend sender policy work.
+            </div>
           </div>
         </div>
         <div className="mt-3">
@@ -1592,7 +1603,7 @@ export function ByokWizard({
           <button
             type="button"
             onClick={() => void sendResendTestEmail()}
-            disabled={resendTestSending || !hasSavedKey}
+            disabled={resendTestSending || !canSendTest}
             className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors disabled:opacity-60"
           >
             {resendTestSending ? 'Sending…' : 'Send Test Email'}
@@ -2201,14 +2212,11 @@ export function ByokWizard({
                               />
                               <div className="min-w-0 flex-1">
                                 <div className="flex flex-wrap items-center gap-2">
-                                  {partner.logoUrl ? (
-                                    <img
-                                      src={partner.logoUrl}
-                                      alt={`${partner.name} logo`}
-                                      className={getPartnerLogoClass(partner.slug)}
-                                      loading="lazy"
-                                    />
-                                  ) : null}
+                                  <PartnerLogo
+                                    slug={partner.slug}
+                                    name={partner.name}
+                                    logoUrl={partner.logoUrl}
+                                  />
                                   <div className="font-medium text-gray-900 dark:text-gray-100">{partner.name}</div>
                                   {getPartnerCategories(partner).map((category) => (
                                     <span key={`${partner.slug}-${category}`} className="rounded-full bg-gray-100 dark:bg-gray-800 px-2 py-0.5 text-[11px] text-gray-500 dark:text-gray-400">
@@ -2259,14 +2267,12 @@ export function ByokWizard({
               <>
                 <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 p-4 text-sm text-slate-700 dark:text-slate-200">
                   <div className="flex items-center gap-3">
-                    {currentPartner.logoUrl ? (
-                      <img
-                        src={currentPartner.logoUrl}
-                        alt={`${currentPartner.name} logo`}
-                        className={getPartnerLogoClass(currentPartner.slug, 'hero')}
-                        loading="lazy"
-                      />
-                    ) : null}
+                    <PartnerLogo
+                      slug={currentPartner.slug}
+                      name={currentPartner.name}
+                      logoUrl={currentPartner.logoUrl}
+                      variant="hero"
+                    />
                     <div className="font-medium">{currentPartner.name}</div>
                   </div>
                   <div className="mt-1">{renderPartnerHelp(currentPartner)}</div>

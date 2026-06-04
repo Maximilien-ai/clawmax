@@ -8,6 +8,7 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import assert from 'assert'
+import { resolveResendTestRecipient } from '../lib/resend-partner'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -76,6 +77,8 @@ function makeReq(overrides: Record<string, any> = {}) {
     params: {},
     query: {},
     body: {},
+    headers: {},
+    cookies: {},
     on() {},
     ...overrides,
   } as any
@@ -235,6 +238,20 @@ async function run() {
     } finally {
       ;(globalThis as any).fetch = originalFetch
     }
+  })
+
+  await test('resend test recipient prefers authenticated actor email over request body', async () => {
+    assert.strictEqual(resolveResendTestRecipient({
+      requestedTo: 'other@example.com',
+      actorEmail: ' owner@example.com ',
+      actorLogin: 'github-user',
+    }), 'owner@example.com')
+
+    assert.strictEqual(resolveResendTestRecipient({
+      requestedTo: 'other@example.com',
+      actorEmail: null,
+      actorLogin: 'otp-user@example.com',
+    }), 'otp-user@example.com')
   })
 
   await test('resend test-email reports missing workspace API key cleanly', async () => {
