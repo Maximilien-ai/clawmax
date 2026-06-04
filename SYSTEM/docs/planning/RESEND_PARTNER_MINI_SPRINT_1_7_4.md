@@ -9,6 +9,21 @@
 - Scope: dev, on-prem, and cloud
 - Non-goal: replacing all Communications-channel work with email. This sprint should create a reliable Resend-backed path that agents can use when the Resend Partner and skills are enabled.
 
+## Execution Checklist
+
+- [x] Verify `send.clawmax.ai` in Resend.
+- [x] Support runtime-scoped Resend test recipients:
+  local/dev can override,
+  hosted/on-prem/cloud lock to the signed-in user.
+- [x] Replace `onboarding@resend.dev` with branded sender defaults in the Resend send path.
+- [x] Add Resend partner settings for `From email`, `From name`, and `Reply-To`.
+- [x] Make direct dashboard Resend sends use the same sender policy as the test-email path.
+- [ ] Add a first-party `clawmax-resend` bridge skill.
+- [ ] Add default HTML email wrapper plus plain-text fallback.
+- [ ] Add sender/readiness messaging for unverified sender/domain failures.
+- [ ] Add deployment docs for managed `RESEND_API_KEY`, `RESEND_DEFAULT_FROM`, `RESEND_DEFAULT_FROM_NAME`, and `RESEND_DEFAULT_REPLY_TO`.
+- [ ] Add AI Builder / agent-create inference for `clawmax-resend` as the default Resend/email skill.
+
 ## Product Outcomes
 
 1. Agents can send email with a ClawMax sender by default.

@@ -1,8 +1,9 @@
-import { readWorkspaceIntegrationSecrets } from './workspace-integrations'
+import { readWorkspaceIntegrationConfig, readWorkspaceIntegrationSecrets } from './workspace-integrations'
 
 export type ResendTestEmailInput = {
   apiKey?: string
   from?: string
+  replyTo?: string
   to?: string
   subject?: string
   text?: string
@@ -34,13 +35,40 @@ function trim(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
 }
 
-function getDefaultResendFrom(): string {
-  return (
-    process.env.RESEND_DEFAULT_FROM ||
-    process.env.OTP_FROM_EMAIL ||
-    process.env.SIGNUP_FROM_EMAIL ||
-    'onboarding@resend.dev'
-  ).trim()
+type ResendSenderPolicy = {
+  from: string
+  fromEmail: string
+  fromName?: string
+  replyTo?: string
+}
+
+function formatFromAddress(email: string, name?: string): string {
+  const trimmedEmail = trim(email)
+  const trimmedName = trim(name)
+  if (!trimmedName) return trimmedEmail
+  return `${trimmedName} <${trimmedEmail}>`
+}
+
+export function getWorkspaceResendSenderPolicy(): ResendSenderPolicy {
+  const partnerConfig = readWorkspaceIntegrationConfig().partners?.resend || {}
+  const fromEmail = trim(partnerConfig.fromEmail)
+    || trim(process.env.RESEND_DEFAULT_FROM)
+    || trim(process.env.OTP_FROM_EMAIL)
+    || trim(process.env.SIGNUP_FROM_EMAIL)
+    || 'agent@send.clawmax.ai'
+  const fromName = trim(partnerConfig.fromName)
+    || trim(process.env.RESEND_DEFAULT_FROM_NAME)
+    || 'ClawMax Agent'
+  const replyTo = trim(partnerConfig.replyTo)
+    || trim(process.env.RESEND_DEFAULT_REPLY_TO)
+    || ''
+
+  return {
+    from: formatFromAddress(fromEmail, fromName),
+    fromEmail,
+    fromName: fromName || undefined,
+    replyTo: replyTo || undefined,
+  }
 }
 
 export function getWorkspaceResendApiKey(): string | undefined {
@@ -143,7 +171,9 @@ export async function sendResendTestEmail(
 ): Promise<ResendTestEmailResult> {
   const apiKey = trim(input.apiKey)
   const to = trim(input.to)
-  const from = trim(input.from) || getDefaultResendFrom()
+  const senderPolicy = getWorkspaceResendSenderPolicy()
+  const from = trim(input.from) || senderPolicy.from
+  const replyTo = trim(input.replyTo) || senderPolicy.replyTo
   const subject = trim(input.subject) || 'ClawMax Resend test email'
   const text = trim(input.text) || 'This is a ClawMax Resend integration test email.'
 
@@ -166,6 +196,7 @@ export async function sendResendTestEmail(
     body: JSON.stringify({
       from,
       to: [to],
+      ...(replyTo ? { reply_to: replyTo } : {}),
       subject,
       text,
     }),

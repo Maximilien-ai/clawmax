@@ -122,6 +122,7 @@ router.post('/resend/test-email', async (req, res) => {
     const result = await sendResendTestEmail({
       apiKey: getWorkspaceResendApiKey(),
       from: typeof body.from === 'string' ? body.from : undefined,
+      replyTo: typeof body.replyTo === 'string' ? body.replyTo : undefined,
       to: resolveResendTestRecipient({
         requestedTo: typeof body.to === 'string' ? body.to : undefined,
         actorEmail: session?.email,

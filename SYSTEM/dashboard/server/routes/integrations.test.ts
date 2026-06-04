@@ -219,14 +219,13 @@ async function run() {
     try {
       const handler = getRouteHandler('post', '/resend/test-email')
       const res = makeRes()
-      await handler(makeReq({
-        body: {
-          to: 'recipient@example.com',
-          from: 'onboarding@resend.dev',
-          subject: 'Integration test',
-          text: 'Hello from ClawMax',
-        },
-      }), res)
+    await handler(makeReq({
+      body: {
+        to: 'recipient@example.com',
+        subject: 'Integration test',
+        text: 'Hello from ClawMax',
+      },
+    }), res)
 
       assert.strictEqual(res.statusCode, 200, 'Expected Resend test email route success')
       assert.strictEqual(res.jsonBody?.id, 'email_test_123', 'Expected Resend provider id to be returned')
@@ -234,6 +233,7 @@ async function run() {
       assert.strictEqual(requestInit?.headers?.Authorization, 'Bearer re_test_123', 'Expected persisted workspace API key to be used')
       const payload = JSON.parse(requestInit?.body || '{}')
       assert.deepStrictEqual(payload.to, ['recipient@example.com'], 'Expected recipient list payload')
+      assert.strictEqual(payload.from, 'ClawMax Agent <agent@send.clawmax.ai>', 'Expected branded default sender payload')
       assert.strictEqual(payload.subject, 'Integration test', 'Expected subject payload')
     } finally {
       ;(globalThis as any).fetch = originalFetch
@@ -261,6 +261,48 @@ async function run() {
       actorLogin: 'owner@example.com',
       allowCustomRecipient: true,
     }), 'local-dev@example.com')
+  })
+
+  await test('resend test-email uses workspace resend sender overrides when configured', async () => {
+    const configPath = path.join(workspacePath, 'SYSTEM', 'integrations.json')
+    fs.writeFileSync(configPath, JSON.stringify({
+      partners: {
+        resend: {
+          fromEmail: 'agent@send.clawmax.ai',
+          fromName: 'Workspace Mailer',
+          replyTo: 'support@clawmax.ai',
+        },
+      },
+    }, null, 2), 'utf-8')
+
+    let requestInit: any = null
+    ;(globalThis as any).fetch = async (_url: string, init: any) => {
+      requestInit = init
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ id: 'email_test_sender_override' }),
+      }
+    }
+
+    try {
+      const handler = getRouteHandler('post', '/resend/test-email')
+      const res = makeRes()
+      await handler(makeReq({
+        body: {
+          to: 'recipient@example.com',
+          subject: 'Sender override test',
+          text: 'Hello from override policy',
+        },
+      }), res)
+
+      assert.strictEqual(res.statusCode, 200, 'Expected Resend sender override route success')
+      const payload = JSON.parse(requestInit?.body || '{}')
+      assert.strictEqual(payload.from, 'Workspace Mailer <agent@send.clawmax.ai>', 'Expected workspace sender override')
+      assert.strictEqual(payload.reply_to, 'support@clawmax.ai', 'Expected workspace reply-to override')
+    } finally {
+      ;(globalThis as any).fetch = originalFetch
+    }
   })
 
   await test('resend test-email reports missing workspace API key cleanly', async () => {
