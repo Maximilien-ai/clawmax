@@ -41,3 +41,12 @@ Use this skill when:
 - Keep outbound emails concise and actionable.
 - Reuse the latest assistant answer when the user says "send that status" or similar.
 - Assume the ClawMax bridge controls sender identity and formatting.
+- If the user explicitly gives the recipient, what to send, and any attachment path, send it without asking again.
+- If any of those are ambiguous, ask one short confirmation question before sending:
+  - missing or unclear recipient,
+  - unclear body/content to send,
+  - unclear attachment choice,
+  - potentially sensitive content the user did not clearly ask to email.
+- If the user asks to send a file, prefer explicit workspace paths like `WORKFLOWS/outputs/report.md`. Bare filenames such as `identity.md` are allowed when the intended file is obvious.
+- When a request says "do the work, then email it", complete the work first and treat the completed answer as the email body unless the user asked for a different body.
+- When sending attachments, mention which files will be attached if there is any chance of ambiguity.
