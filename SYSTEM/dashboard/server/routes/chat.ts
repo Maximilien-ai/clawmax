@@ -378,6 +378,13 @@ router.post('/:id/chat', async (req, res) => {
   const directResendEmail = resendCapableAgent ? buildResendChatEmailRequest(message, (req.body as any).contextMessages, id) : null
   if (directResendEmail) {
     send('start', { sessionId: effectiveSessionId, mode: 'resend-direct' })
+    if (directResendEmail.guidance) {
+      send('error', directResendEmail.guidance)
+      send('complete', { text: '' })
+      clearInterval(keepalive)
+      if (!res.writableEnded) res.end()
+      return
+    }
     try {
       const result = await sendResendTestEmail({
         apiKey: getWorkspaceResendApiKey(),

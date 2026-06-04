@@ -132,6 +132,17 @@ test('buildResendChatEmailRequest uses prior assistant status for send-that-stat
   assert(request?.text.includes('Gateway 6s') === true, 'Expected latest assistant status as email body')
 })
 
+test('buildResendChatEmailRequest returns guidance for combined status-and-email requests without prior assistant context', () => {
+  const request = buildResendChatEmailRequest(
+    'who are you? give me a status, then send that status in an email to mmaximilien@gmail.com',
+    [],
+    'fake-agent'
+  )
+
+  assert(request?.to === 'mmaximilien@gmail.com', 'Expected recipient email to be extracted for combined prompt')
+  assert(!!request?.guidance, 'Expected guidance for combined status/email request without prior assistant context')
+})
+
 test('buildResendChatEmailRequest ignores non-email chat requests', () => {
   const request = buildResendChatEmailRequest('What is your status?', [
     { role: 'assistant', content: 'Status body' },

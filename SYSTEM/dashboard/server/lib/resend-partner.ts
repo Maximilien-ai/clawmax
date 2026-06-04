@@ -24,6 +24,7 @@ export type ResendChatEmailRequest = {
   to: string
   subject: string
   text: string
+  guidance?: string
 }
 
 type FetchLike = typeof fetch
@@ -188,6 +189,15 @@ export function buildResendChatEmailRequest(
 
   const previousAssistant = latestAssistantMessage(contextMessages)
   const refersToPrevious = /\b(that|this|previous|last|status)\b/i.test(normalized)
+  const asksForFreshStatus = /\b(who are you|give me a status|what is your status|current status)\b/i.test(normalized)
+  if (refersToPrevious && asksForFreshStatus && !previousAssistant) {
+    return {
+      to,
+      subject: `${agentId} status`,
+      text: '',
+      guidance: 'Ask the agent for status first, then send a second message like "send that status in an email to you@example.com". Direct Resend email uses the latest completed assistant reply as the email body.',
+    }
+  }
   const text = stripMarkdown(
     refersToPrevious && previousAssistant
       ? previousAssistant
