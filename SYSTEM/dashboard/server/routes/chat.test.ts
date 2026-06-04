@@ -5,7 +5,10 @@
  */
 
 import { buildManagedSecretStatelessChatMessage, deriveChatError, hasByokExecutionPathForProvider, shouldUseLocalChatExecution } from './chat'
-import { buildResendChatEmailRequest, hasResendEmailCapability, renderClawmaxAgentEmailHtml } from '../lib/resend-partner'
+import fs from 'fs'
+import os from 'os'
+import path from 'path'
+import { buildResendChatEmailRequest, hasResendEmailCapability, renderClawmaxAgentEmailHtml, resolveWorkspaceEmailAttachments } from '../lib/resend-partner'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -143,6 +146,7 @@ test('buildResendChatEmailRequest uses post-chat mode for combined status-and-em
   assert(request?.to === 'mmaximilien@gmail.com', 'Expected recipient email to be extracted for combined prompt')
   assert(request?.mode === 'post-chat', 'Expected combined status/email request to defer sending until after agent reply')
   assert(request?.subject === 'fake-agent status', 'Expected deferred email subject to reflect status request')
+  assert(request?.agentPrompt === 'who are you? give me a status', 'Expected email-delivery clause to be removed from agent prompt')
 })
 
 test('buildResendChatEmailRequest ignores non-email chat requests', () => {
@@ -161,6 +165,17 @@ test('buildResendChatEmailRequest uses post-chat mode for generic do-work-then-e
 
   assert(request?.to === 'team@example.com', 'Expected recipient email for generic deferred prompt')
   assert(request?.mode === 'post-chat', 'Expected generic deferred prompt to use post-chat mode')
+  assert(request?.agentPrompt === 'draft a launch update', 'Expected generic deferred prompt to remove email-delivery clause')
+})
+
+test('buildResendChatEmailRequest captures explicit attachment paths', () => {
+  const request = buildResendChatEmailRequest(
+    'draft a launch update and email it to team@example.com and attach WORKFLOWS/outputs/release-note.md',
+    [],
+    'release-agent'
+  )
+
+  assert(request?.attachmentPaths?.[0] === 'WORKFLOWS/outputs/release-note.md', 'Expected explicit workspace attachment path')
 })
 
 test('hasResendEmailCapability only enables direct send for Resend-related skills', () => {
@@ -182,6 +197,19 @@ test('renderClawmaxAgentEmailHtml produces branded HTML wrapper output', () => {
   assert(html.includes('resend-agent'), 'Expected agent label in HTML wrapper')
   assert(html.includes('test-1.7.x'), 'Expected workspace label in HTML wrapper')
   assert(html.includes('<p'), 'Expected paragraph rendering in HTML wrapper')
+})
+
+test('resolveWorkspaceEmailAttachments loads workspace files as base64 attachments', () => {
+  const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-resend-attachment-'))
+  const relativePath = path.join('WORKFLOWS', 'outputs', 'brief.txt')
+  const fullPath = path.join(workspaceRoot, relativePath)
+  fs.mkdirSync(path.dirname(fullPath), { recursive: true })
+  fs.writeFileSync(fullPath, 'hello attachment', 'utf-8')
+
+  const attachments = resolveWorkspaceEmailAttachments(workspaceRoot, [relativePath])
+  assert(attachments.length === 1, 'Expected one attachment')
+  assert(attachments[0].filename === 'brief.txt', 'Expected attachment filename')
+  assert(Buffer.from(attachments[0].content, 'base64').toString('utf-8') === 'hello attachment', 'Expected attachment content to round-trip')
 })
 
 setTimeout(() => {

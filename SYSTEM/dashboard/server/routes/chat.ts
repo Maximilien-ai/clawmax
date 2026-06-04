@@ -23,7 +23,7 @@ import {
   withTemporaryAgentAuthProfiles,
 } from '../lib/agent-execution'
 import { getAuthenticatedSession } from '../lib/github-auth'
-import { buildResendChatEmailRequest, getWorkspaceResendApiKey, hasResendEmailCapability, renderClawmaxAgentEmailHtml, sendResendTestEmail } from '../lib/resend-partner'
+import { buildResendChatEmailRequest, getWorkspaceResendApiKey, hasResendEmailCapability, renderClawmaxAgentEmailHtml, resolveWorkspaceEmailAttachments, sendResendTestEmail } from '../lib/resend-partner'
 
 const router = Router()
 type ChatProvider = 'openai' | 'openai-compatible' | 'anthropic' | 'gemini' | 'ollama' | null | undefined
@@ -379,6 +379,7 @@ router.post('/:id/chat', async (req, res) => {
   if (resendEmailRequest?.mode === 'direct') {
     send('start', { sessionId: effectiveSessionId, mode: 'resend-direct' })
     try {
+      const attachments = resolveWorkspaceEmailAttachments(effectiveWorkspaceRoot, resendEmailRequest.attachmentPaths || [])
       const result = await sendResendTestEmail({
         apiKey: getWorkspaceResendApiKey(),
         to: resendEmailRequest.to,
@@ -390,6 +391,7 @@ router.post('/:id/chat', async (req, res) => {
           agentId: id,
           workspaceLabel: path.basename(effectiveWorkspaceRoot || 'workspace'),
         }),
+        attachments,
       })
       const confirmation = result.id
         ? `Email sent to ${resendEmailRequest.to} via Resend. Provider id: ${result.id}`
@@ -431,9 +433,12 @@ router.post('/:id/chat', async (req, res) => {
     hasWorkspaceManagedSecrets: hasWorkspaceManagedPartnerSecrets(),
   })
   const useManagedSecretStatelessSession = useLocal && hasWorkspaceManagedPartnerSecrets()
-  const executionMessage = useManagedSecretStatelessSession
-    ? buildManagedSecretStatelessChatMessage(message, (req.body as any).contextMessages)
+  const agentWorkMessage = resendEmailRequest?.mode === 'post-chat' && resendEmailRequest.agentPrompt
+    ? resendEmailRequest.agentPrompt
     : message
+  const executionMessage = useManagedSecretStatelessSession
+    ? buildManagedSecretStatelessChatMessage(agentWorkMessage, (req.body as any).contextMessages)
+    : agentWorkMessage
   const args = [
     'agent',
     '--agent', id,
@@ -524,6 +529,7 @@ router.post('/:id/chat', async (req, res) => {
 
         if (normalizedText && resendEmailRequest?.mode === 'post-chat') {
           try {
+            const attachments = resolveWorkspaceEmailAttachments(effectiveWorkspaceRoot, resendEmailRequest.attachmentPaths || [])
             const result = await sendResendTestEmail({
               apiKey: getWorkspaceResendApiKey(),
               to: resendEmailRequest.to,
@@ -535,6 +541,7 @@ router.post('/:id/chat', async (req, res) => {
                 agentId: id,
                 workspaceLabel: path.basename(effectiveWorkspaceRoot || 'workspace'),
               }),
+              attachments,
             })
             const confirmation = result.id
               ? `Email sent to ${resendEmailRequest.to} via Resend. Provider id: ${result.id}`

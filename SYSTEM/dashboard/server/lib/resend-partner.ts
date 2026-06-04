@@ -1,3 +1,5 @@
+import fs from 'fs'
+import path from 'path'
 import { readWorkspaceIntegrationConfig, readWorkspaceIntegrationSecrets } from './workspace-integrations'
 
 export type ResendTestEmailInput = {
@@ -8,6 +10,7 @@ export type ResendTestEmailInput = {
   subject?: string
   text?: string
   html?: string
+  attachments?: ResendEmailAttachment[]
 }
 
 export type ResendTestEmailResult = {
@@ -25,7 +28,14 @@ export type ResendChatEmailRequest = {
   subject: string
   text?: string
   mode: 'direct' | 'post-chat'
+  agentPrompt?: string
+  attachmentPaths?: string[]
   guidance?: string
+}
+
+export type ResendEmailAttachment = {
+  filename: string
+  content: string
 }
 
 type FetchLike = typeof fetch
@@ -33,6 +43,8 @@ type FetchLike = typeof fetch
 const RESEND_EMAILS_ENDPOINT = 'https://api.resend.com/emails'
 const EMAIL_RE = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/ig
 const EXACT_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const ATTACHMENT_PATH_RE = /\b(?:AGENTS|WORKFLOWS|SYSTEM|ORG|DOCS|SKILLS)\/[^\s,;:()]+/ig
+const MAX_ATTACHMENT_BYTES = 30 * 1024 * 1024
 
 function trim(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
@@ -165,6 +177,11 @@ function extractRecipientEmail(message: string): string | undefined {
   return matches[0]?.trim()
 }
 
+function extractAttachmentPaths(message: string): string[] {
+  const matches = message.match(ATTACHMENT_PATH_RE) || []
+  return [...new Set(matches.map((value) => value.trim().replace(/[.]+$/, '')))]
+}
+
 export function hasResendEmailCapability(skillIds: string[]): boolean {
   return skillIds.some((skillId) => ['clawmax-resend', 'resend', 'resend-cli', 'react-email'].includes(String(skillId || '').trim()))
 }
@@ -185,6 +202,23 @@ function shouldSendAfterFreshAgentReply(message: string, previousAssistant?: str
   return /\b(who are you|give me|what is|what's|write|draft|summarize|analyze|review|look up|find|create|generate|explain|tell me|prepare)\b/i.test(message)
 }
 
+function stripEmailDeliveryInstruction(message: string): string {
+  const withoutRecipient = message.replace(EMAIL_RE, '').trim()
+  const withoutAttachments = withoutRecipient.replace(ATTACHMENT_PATH_RE, '').trim()
+  const patterns = [
+    /\b(?:and|then|please)?\s*send(?:ing)?(?:\s+the)?(?:\s+(?:result|response|status|summary|report|draft|findings|plan))?\s+(?:(?:as|in|via)\s+)?an?\s+email\b.*$/i,
+    /\b(?:and|then|please)?\s*email(?:\s+the)?(?:\s+(?:result|response|status|summary|report|draft|findings|plan))?\b.*$/i,
+    /\b(?:and|then|please)?\s*mail(?:\s+the)?(?:\s+(?:result|response|status|summary|report|draft|findings|plan))?\b.*$/i,
+    /\b(?:and|then|please)?\s*(?:send|email|mail)\b.*$/i,
+  ]
+  const stripped = patterns.reduce((current, pattern) => current.replace(pattern, '').trim(), withoutAttachments)
+  return stripped
+    .replace(/[,\s]+$/, '')
+    .replace(/\b(?:and|then)\s*$/i, '')
+    .replace(/[,\s]+$/, '')
+    .trim()
+}
+
 export function buildResendChatEmailRequest(
   message: string,
   contextMessages: ResendChatContextMessage[] = [],
@@ -197,28 +231,40 @@ export function buildResendChatEmailRequest(
 
   const to = extractRecipientEmail(normalized)
   if (!to) return null
+  const attachmentPaths = extractAttachmentPaths(normalized)
 
   const previousAssistant = latestAssistantMessage(contextMessages)
   const refersToPrevious = /\b(that|this|previous|last|status|result|response|summary|report|draft|findings|plan)\b/i.test(normalized)
   if (refersToPrevious && shouldSendAfterFreshAgentReply(normalized, previousAssistant)) {
+    const agentPrompt = stripEmailDeliveryInstruction(normalized)
     return {
       to,
       subject: inferEmailSubject(normalized, agentId),
       mode: 'post-chat',
+      agentPrompt: agentPrompt || normalized,
+      attachmentPaths,
     }
   }
   const text = stripMarkdown(
     refersToPrevious && previousAssistant
       ? previousAssistant
-      : normalized.replace(EMAIL_RE, '').replace(/\b(send|email|mail|to|that|this|please)\b/ig, ' ').replace(/\s+/g, ' ').trim()
+      : normalized
+        .replace(EMAIL_RE, '')
+        .replace(ATTACHMENT_PATH_RE, '')
+        .replace(/\b(send|email|mail|attach|attached|attachment|to|that|this|please)\b/ig, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
   )
 
   if (!text) {
     if (shouldSendAfterFreshAgentReply(normalized, previousAssistant)) {
+      const agentPrompt = stripEmailDeliveryInstruction(normalized)
       return {
         to,
         subject: inferEmailSubject(normalized, agentId),
         mode: 'post-chat',
+        agentPrompt: agentPrompt || normalized,
+        attachmentPaths,
       }
     }
     return null
@@ -229,7 +275,30 @@ export function buildResendChatEmailRequest(
     subject: inferEmailSubject(normalized, agentId),
     text,
     mode: 'direct',
+    attachmentPaths,
   }
+}
+
+export function resolveWorkspaceEmailAttachments(workspaceRoot: string, requestedPaths: string[] = []): ResendEmailAttachment[] {
+  return requestedPaths.map((requestedPath) => {
+    const relativePath = requestedPath.trim().replace(/^\/+/, '')
+    const absolutePath = path.resolve(workspaceRoot, relativePath)
+    const normalizedRoot = path.resolve(workspaceRoot)
+    if (!absolutePath.startsWith(`${normalizedRoot}${path.sep}`) && absolutePath !== normalizedRoot) {
+      throw new Error(`Attachment path must stay inside the workspace: ${requestedPath}`)
+    }
+    if (!fs.existsSync(absolutePath) || !fs.statSync(absolutePath).isFile()) {
+      throw new Error(`Attachment file not found: ${requestedPath}`)
+    }
+    const stats = fs.statSync(absolutePath)
+    if (stats.size > MAX_ATTACHMENT_BYTES) {
+      throw new Error(`Attachment is too large to email safely: ${requestedPath}`)
+    }
+    return {
+      filename: path.basename(absolutePath),
+      content: fs.readFileSync(absolutePath).toString('base64'),
+    }
+  })
 }
 
 async function parseResendResponse(response: Response): Promise<any> {
@@ -254,6 +323,7 @@ export async function sendResendTestEmail(
   const subject = trim(input.subject) || 'ClawMax Resend test email'
   const text = trim(input.text) || 'This is a ClawMax Resend integration test email.'
   const html = trim(input.html)
+  const attachments = Array.isArray(input.attachments) ? input.attachments : []
 
   if (!apiKey) {
     throw new Error('RESEND_API_KEY is not configured for this workspace.')
@@ -278,6 +348,7 @@ export async function sendResendTestEmail(
       subject,
       text,
       ...(html ? { html } : {}),
+      ...(attachments.length > 0 ? { attachments } : {}),
     }),
   })
 
