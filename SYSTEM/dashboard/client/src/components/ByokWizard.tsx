@@ -188,6 +188,7 @@ export function ByokWizard({
   const [partnerCategoryTab, setPartnerCategoryTab] = useState<string>('all')
   const [validating, setValidating] = useState(false)
   const [resendTestSending, setResendTestSending] = useState(false)
+  const [resendTestTo, setResendTestTo] = useState('')
   const [resendTestSubject, setResendTestSubject] = useState('ClawMax Resend test email')
   const [resendTestBody, setResendTestBody] = useState('This is a ClawMax Resend integration test email.')
   const [validation, setValidation] = useState<ValidationState>({
@@ -879,6 +880,10 @@ export function ByokWizard({
     [modelsByProvider]
   )
   const resendTestRecipient = useMemo(() => resolveResendTestRecipientEmail(user), [user])
+  const allowResendRecipientOverride = deploymentKind === 'local'
+  const effectiveResendTestRecipient = allowResendRecipientOverride
+    ? (resendTestTo.trim() || resendTestRecipient)
+    : resendTestRecipient
 
   if (!hydrated) return null
   if (!user && !config?.authDisabled) return null
@@ -1338,9 +1343,13 @@ export function ByokWizard({
   }
 
   const sendResendTestEmail = async () => {
-    const to = resendTestRecipient
+    const to = effectiveResendTestRecipient
     if (!to) {
-      showWarning('Your authenticated session does not include an email address for the Resend test recipient.')
+      showWarning(
+        allowResendRecipientOverride
+          ? 'Add a recipient email before sending a Resend test email.'
+          : 'Your authenticated session does not include an email address for the Resend test recipient.',
+      )
       return
     }
     if (!hasServerPartnerSecret('resend', 'apiKey')) {
@@ -1533,7 +1542,7 @@ export function ByokWizard({
 
   const renderResendTestEmailPanel = () => {
     const hasSavedKey = hasServerPartnerSecret('resend', 'apiKey')
-    const canSendTest = hasSavedKey && Boolean(resendTestRecipient)
+    const canSendTest = hasSavedKey && Boolean(effectiveResendTestRecipient)
     return (
       <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -1556,14 +1565,21 @@ export function ByokWizard({
             <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">To</label>
             <input
               type="email"
-              value={resendTestRecipient}
-              readOnly
-              aria-readonly="true"
-              placeholder="Authenticated user email required"
-              className="w-full cursor-not-allowed rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-700 dark:border-gray-600 dark:bg-gray-950/70 dark:text-gray-200"
+              value={effectiveResendTestRecipient}
+              readOnly={!allowResendRecipientOverride}
+              aria-readonly={allowResendRecipientOverride ? undefined : 'true'}
+              onChange={(e) => setResendTestTo(e.target.value)}
+              placeholder={allowResendRecipientOverride ? 'recipient@example.com' : 'Authenticated user email required'}
+              className={`w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:text-gray-200 ${
+                allowResendRecipientOverride
+                  ? 'bg-white text-gray-900 dark:bg-gray-950 dark:text-gray-100'
+                  : 'cursor-not-allowed bg-gray-50 text-gray-700 dark:bg-gray-950/70'
+              }`}
             />
             <div className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
-              Test emails are locked to the signed-in user for now.
+              {allowResendRecipientOverride
+                ? 'Local dev mode allows overriding the recipient. If left blank, the signed-in email is used.'
+                : 'Hosted and on-prem runtimes lock test emails to the signed-in user.'}
             </div>
           </div>
           <div>

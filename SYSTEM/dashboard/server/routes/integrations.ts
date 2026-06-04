@@ -12,7 +12,7 @@ import {
 import { getEnabledPartnerSlugs, listPartnerDefinitions } from '../lib/partners'
 import { checkGitHubPrereqs, getGitHubAuthMode } from '../lib/prereqs'
 import { safeEnv } from '../lib/safe-env'
-import { getDashboardEnvRaw, isOllamaUiEnabled } from '../lib/dashboard-env'
+import { getDashboardDeploymentKind, getDashboardEnvRaw, isOllamaUiEnabled } from '../lib/dashboard-env'
 import { getAuthenticatedSession } from '../lib/github-auth'
 import { getWorkspaceResendApiKey, resolveResendTestRecipient, sendResendTestEmail } from '../lib/resend-partner'
 
@@ -118,6 +118,7 @@ router.post('/resend/test-email', async (req, res) => {
   try {
     const body = (req.body || {}) as Record<string, unknown>
     const session = getAuthenticatedSession(req)
+    const deploymentKind = getDashboardDeploymentKind(getDashboardEnvRaw())
     const result = await sendResendTestEmail({
       apiKey: getWorkspaceResendApiKey(),
       from: typeof body.from === 'string' ? body.from : undefined,
@@ -125,6 +126,7 @@ router.post('/resend/test-email', async (req, res) => {
         requestedTo: typeof body.to === 'string' ? body.to : undefined,
         actorEmail: session?.email,
         actorLogin: session?.login,
+        allowCustomRecipient: deploymentKind === 'local',
       }),
       subject: typeof body.subject === 'string' ? body.subject : undefined,
       text: typeof body.text === 'string' ? body.text : undefined,

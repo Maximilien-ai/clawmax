@@ -254,6 +254,15 @@ async function run() {
     }), 'otp-user@example.com')
   })
 
+  await test('resend test recipient allows custom recipient override on local runtimes', async () => {
+    assert.strictEqual(resolveResendTestRecipient({
+      requestedTo: ' local-dev@example.com ',
+      actorEmail: 'owner@example.com',
+      actorLogin: 'owner@example.com',
+      allowCustomRecipient: true,
+    }), 'local-dev@example.com')
+  })
+
   await test('resend test-email reports missing workspace API key cleanly', async () => {
     delete process.env.RESEND_API_KEY
     const secretsPath = path.join(workspacePath, 'SYSTEM', 'integrations.secrets.json')

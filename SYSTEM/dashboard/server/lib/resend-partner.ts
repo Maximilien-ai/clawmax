@@ -52,7 +52,12 @@ export function resolveResendTestRecipient(input: {
   requestedTo?: string | null
   actorEmail?: string | null
   actorLogin?: string | null
+  allowCustomRecipient?: boolean
 }): string {
+  if (input.allowCustomRecipient) {
+    return trim(input.requestedTo)
+  }
+
   const actorEmail = trim(input.actorEmail)
   if (EXACT_EMAIL_RE.test(actorEmail)) return actorEmail
 
