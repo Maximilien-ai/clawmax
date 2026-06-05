@@ -1598,11 +1598,12 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
         {loading ? (
           <div className="text-center text-gray-500 py-12">Loading workflows...</div>
         ) : sortedWorkflows.length === 0 ? (
-          <div className="text-center text-gray-500 py-12">
+          <div className="flex flex-col items-center justify-center py-12 text-gray-400">
             {searchQuery ? (
-              <div className="mx-auto max-w-3xl">
-                <div className="text-base font-medium text-gray-600 dark:text-gray-300">No workflows match your search</div>
-                <div className="mt-1 text-sm text-gray-400 dark:text-gray-500">
+              <div className="mx-auto max-w-3xl text-center">
+                <ProductIconCell iconName="workflow" label="Workflow" size="lg" className="mb-4" />
+                <div className="text-sm text-gray-500 dark:text-gray-400">No workflows match your search</div>
+                <div className="mt-1 text-xs text-gray-300 dark:text-gray-500">
                   Try a different workflow name, tag, target, or clear the current filters.
                 </div>
                 {workflowSuggestions.length > 0 && (
@@ -1632,9 +1633,10 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                 )}
               </div>
             ) : (
-              <div>
-                <div className="text-base font-medium text-gray-600 dark:text-gray-300">No workflows in this workspace yet</div>
-                <div className="mt-1 text-sm text-gray-400 dark:text-gray-500">
+              <div className="text-center">
+                <ProductIconCell iconName="workflow" label="Workflow" size="lg" className="mb-4" />
+                <div className="text-sm text-gray-500 dark:text-gray-400">No workflows in this workspace yet</div>
+                <div className="mt-1 text-xs text-gray-300 dark:text-gray-500">
                   Create a workflow to coordinate agents, schedules, and repeatable automations.
                 </div>
               </div>

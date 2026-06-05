@@ -1408,9 +1408,9 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
 
       {!loading && !error && agents.length === 0 && (
         <div className="flex flex-col items-center justify-center py-16 text-gray-400">
-          <ProductIconCell iconName="agent" label="Agent" size="xl" className="mb-4 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-300" />
-          <p className="text-base font-medium text-gray-500 dark:text-gray-400 mb-1">No agents in this workspace yet</p>
-          <p className="text-sm text-gray-400 dark:text-gray-500 mb-6">Get started by creating your first agent or deploying a team</p>
+          <ProductIconCell iconName="agent" label="Agent" size="lg" className="mb-4" />
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">No agents in this workspace yet</p>
+          <p className="text-xs text-gray-300 dark:text-gray-500 mb-6">Get started by creating your first agent or deploying a team</p>
           <div className="flex flex-wrap gap-3">
             <button
               onClick={() => setShowImportModal(true)}
@@ -1439,9 +1439,9 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
 
       {!loading && !error && agents.length > 0 && filteredAgents.length === 0 && (
         <div className="flex flex-col items-center justify-center h-48 text-gray-400">
-          <span className="text-4xl mb-4">🔍</span>
-          <p className="text-base font-medium text-gray-500 dark:text-gray-400">No agents match the current filters</p>
-          <p className="mt-1 text-sm text-gray-400 dark:text-gray-500">Try different tags, search terms, or clear the filters to see more agents.</p>
+          <ProductIconCell iconName="agent" label="Agent" size="lg" className="mb-4" />
+          <p className="text-sm text-gray-500 dark:text-gray-400">No agents match the current filters</p>
+          <p className="mt-1 text-xs text-gray-300 dark:text-gray-500">Try different tags, search terms, or clear the filters to see more agents.</p>
           <button
             onClick={() => setSelectedTags(new Set())}
             className="text-xs mt-2 text-sky-600 hover:text-sky-800 font-medium"
