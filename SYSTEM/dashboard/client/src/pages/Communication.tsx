@@ -172,6 +172,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
   }, [])
 
   useEffect(() => {
+    if (!isActive) return
     let cancelled = false
     fetch('/api/docs')
       .then((r) => r.ok ? r.json() : { entries: [] })
@@ -182,7 +183,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
         if (!cancelled) setDocEntries([])
       })
     return () => { cancelled = true }
-  }, [activeWorkspace?.id])
+  }, [activeWorkspace?.id, isActive])
 
   useEffect(() => {
     setChatPanelChannel(null)
@@ -195,8 +196,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
     setAgents([])
     setWorkspaceCommunities([])
     setWorkspaceGroups([])
-    fetchAgents()
-  }, [activeWorkspace?.id, fetchAgents])
+  }, [activeWorkspace?.id])
 
   const handleNavigateToDoc = useCallback((target: string) => {
     setChatPanelChannel(null)
@@ -222,6 +222,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
   }, [showSuccess])
 
   useEffect(() => {
+    if (!isActive) return
     fetchAgents()
     const t = setInterval(fetchAgents, 30000)
     const handleWorkspaceUpdate = () => fetchAgents()
@@ -254,7 +255,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
       window.removeEventListener('agents-updated', handleWorkspaceUpdate)
       window.removeEventListener('workflows-updated', handleWorkspaceUpdate)
     }
-  }, [fetchAgents])
+  }, [activeWorkspace?.id, fetchAgents, isActive])
 
   useEffect(() => {
     const ticker = setInterval(() => setRefreshedLabel(secAgo(lastRefreshed)), 5000)
