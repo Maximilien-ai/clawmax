@@ -2,8 +2,10 @@
 
 ARG CLAWMAX_VERSION=
 ARG OPENCLAW_GIT_REF=v2026.5.26
+ARG BUILDPLATFORM
+ARG TARGETPLATFORM
 
-FROM node:22.19.0-bookworm-slim AS openclaw-builder
+FROM --platform=$BUILDPLATFORM node:22.19.0-bookworm-slim AS openclaw-builder
 
 ARG OPENCLAW_GIT_REF
 
@@ -27,7 +29,7 @@ RUN if [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile --ignore-scrip
 RUN npm run build:docker
 RUN npm pack
 
-FROM node:22.19.0-bookworm-slim AS builder
+FROM --platform=$BUILDPLATFORM node:22.19.0-bookworm-slim AS builder
 
 ARG CLAWMAX_VERSION
 
@@ -39,7 +41,7 @@ RUN if [ -f package-lock.json ]; then npm ci --legacy-peer-deps; else npm instal
 COPY SYSTEM/dashboard ./
 RUN npm run build
 
-FROM node:22.19.0-bookworm-slim AS runtime
+FROM --platform=$TARGETPLATFORM node:22.19.0-bookworm-slim AS runtime
 
 WORKDIR /app/SYSTEM/dashboard
 
