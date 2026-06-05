@@ -144,23 +144,39 @@ export async function expandPromptWithAI(
   guidance: PromptExpansionGuidance = '',
 ): Promise<string> {
   const model = resolveModel('gpt-4o')
-  const completion = await createChatCompletionWithCompatibilityRetry(getSystemOpenAiClient(), {
-    model,
-    messages: [
-      {
-        role: 'system',
-        content: buildPromptExpansionSystemPrompt(target, format, guidance),
-      },
-      {
-        role: 'user',
-        content: prompt.trim(),
-      },
-    ],
-    temperature: 0.5,
-    ...completionTokenLimit(model, 500),
-  })
+  const runExpansion = async (userPrompt: string, extraGuidance: string = '') => {
+    const completion = await createChatCompletionWithCompatibilityRetry(getSystemOpenAiClient(), {
+      model,
+      messages: [
+        {
+          role: 'system',
+          content: buildPromptExpansionSystemPrompt(
+            target,
+            format,
+            [guidance, extraGuidance].filter(Boolean).join(' ').trim(),
+          ),
+        },
+        {
+          role: 'user',
+          content: userPrompt.trim(),
+        },
+      ],
+      temperature: 0.5,
+      ...completionTokenLimit(model, 500),
+    })
+    return (completion.choices[0].message.content || userPrompt).trim()
+  }
 
-  return (completion.choices[0].message.content || prompt).trim()
+  const normalizedPrompt = prompt.trim()
+  const firstPass = await runExpansion(normalizedPrompt)
+  if (firstPass && firstPass !== normalizedPrompt) {
+    return firstPass
+  }
+
+  return runExpansion(
+    `Expand and rewrite this seed prompt into a more specific version while preserving intent:\n\n${normalizedPrompt}`,
+    'Do not return the original wording unchanged. Add concrete scope, outputs, constraints, and operating details so the result is visibly more specific than the seed prompt.',
+  )
 }
 
 function buildBuilderStarterPromptSystemPrompt(): string {
