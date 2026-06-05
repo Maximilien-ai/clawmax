@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { byokForRequest, hasAiGenerationAccess, readStoredByokKeys } from '../lib/byok'
+import { byokForRequest, hasChatExecutionAccess, readStoredByokKeys } from '../lib/byok'
 import {
   buildCommunicationCacheKey,
   mergeTypingAgents,
@@ -117,7 +117,7 @@ function extractWorkspaceFileMentions(content: string): string[] {
 
 function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessageSent, onNavigateToDoc }: Props) {
   const { config } = useAuth()
-  const chatEnabled = hasAiGenerationAccess(config)
+  const chatEnabled = hasChatExecutionAccess(config)
   const cacheKey = buildCommunicationCacheKey(channel.type, channel.name)
   const [messages, setMessages] = useState<Message[]>(() => groupChatMessageCache.get(cacheKey) || [])
   const [input, setInput] = useState('')

@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { byokForRequest, hasAiGenerationAccess, readStoredByokKeys } from '../lib/byok'
+import { byokForRequest, hasChatExecutionAccess, readStoredByokKeys } from '../lib/byok'
 import { buildPersistentDashboardChatSessionId } from '../lib/agentChatSession'
 import { getAgentChatCodeBlockClassName, getAgentChatInlineCodeClassName, getAgentChatLinkClassName, type AgentChatMarkdownRole } from '../lib/agentChatMarkdown'
 import { ProductIconCell } from '../lib/productIcons'
@@ -184,7 +184,7 @@ function summarizeChatFailure(message: string): string {
 
 export default function AgentChatPanel({ agentId, agentName, agentStatus, onClose, onSuccess, onNavigateToDoc }: Props) {
   const { config } = useAuth()
-  const browserChatEnabled = hasAiGenerationAccess(config)
+  const browserChatEnabled = hasChatExecutionAccess(config)
   const [messages, setMessages] = useState<Message[]>([])
   const [loadingHistory, setLoadingHistory] = useState(true)
   const [rawViewIds, setRawViewIds] = useState<Set<string>>(new Set())

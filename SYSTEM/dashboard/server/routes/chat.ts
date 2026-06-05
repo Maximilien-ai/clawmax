@@ -63,6 +63,18 @@ export function hasByokExecutionPathForProvider(provider: ChatProvider, byok?: C
   }
 }
 
+export function resolveByokChatFallbackModel(byok?: ChatByokPayload): string | undefined {
+  if (!byok) return undefined
+  if (hasText(byok.openai)) return 'openai/gpt-5'
+  if (hasText(byok.anthropic)) return 'anthropic/claude-sonnet-4-20250514'
+  if (hasText(byok.gemini)) return 'google/gemini-2.5-flash'
+  if (hasText(byok.openaiCompatibleBaseUrl)) {
+    const configuredModel = byok.openaiCompatibleDefaultModel?.trim().replace(/^openai-compatible\//, '')
+    return configuredModel ? `openai-compatible/${configuredModel}` : undefined
+  }
+  return undefined
+}
+
 export function shouldUseLocalChatExecution(input: {
   provider: ChatProvider
   byok?: ChatByokPayload
@@ -157,7 +169,18 @@ function evaluateChatExecutionReadiness(
   byok?: { openai?: string; anthropic?: string; gemini?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string }
 ) {
   const integrationConfig = readWorkspaceIntegrationConfig()
-  const resolvedAgent = resolveAgentExecutionConfig(agentId)
+  const baseResolvedAgent = resolveAgentExecutionConfig(agentId)
+  const fallbackModel = resolveByokChatFallbackModel({
+    ...byok,
+    openaiCompatibleDefaultModel: byok?.openaiCompatibleDefaultModel || integrationConfig.openaiCompatibleDefaultModel,
+  })
+  const resolvedAgent = !baseResolvedAgent.model && fallbackModel
+    ? {
+        ...baseResolvedAgent,
+        model: fallbackModel,
+        provider: (fallbackModel.split('/')[0] as ChatProvider) || baseResolvedAgent.provider,
+      }
+    : baseResolvedAgent
   const effectiveWorkspaceRoot = deriveWorkspaceRootFromAgentWorkspace(resolvedAgent.workspace) || getWorkspacePath()
   const useOpenAiCompatible = resolvedAgent.provider === 'openai-compatible'
   const executionEnv = userExecutionEnv({
