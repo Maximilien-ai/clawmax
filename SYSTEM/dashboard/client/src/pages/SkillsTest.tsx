@@ -2017,8 +2017,9 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
         {/* Popular Skills */}
         {skillUsage.size > 0 && (
           <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border mb-6">
+            <h3 className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-300">Most Popular Skills</h3>
             <div className="flex items-center gap-3">
-              {popularSkills.length > collapsedPopularSkills.length && (
+              {popularSkills.length > collapsedPopularSkills.length ? (
                 <button
                   type="button"
                   onClick={() => setShowAllPopularSkills((current) => !current)}
@@ -2028,8 +2029,9 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                 >
                   {showAllPopularSkills ? '▼' : '▶'}
                 </button>
+              ) : (
+                <span className="w-4 shrink-0" aria-hidden="true" />
               )}
-              <h3 className="shrink-0 text-sm font-semibold text-gray-700 dark:text-gray-300">Most Popular Skills</h3>
               <div className="min-w-0 flex-1">
                 <div className={`flex min-w-0 gap-2 ${showAllPopularSkills ? 'flex-wrap' : 'flex-nowrap overflow-hidden'}`}>
                   {(showAllPopularSkills ? popularSkills : collapsedPopularSkills)
