@@ -17,6 +17,10 @@ All notable changes to ClawMax are documented here.
 - **Skills Search Emphasis** — the Skills filter bar now gives the search input the remaining horizontal space, stronger light/dark focus treatment, and clearer visual priority after the `All / Assigned / Available` filter step.
 - **Mobile Follow-Through** — the Skills search desktop autofocus no longer auto-pops the software keyboard on mobile/narrow layouts, and the agent chat toolbar compresses more cleanly on smaller widths.
 
+### Workspace Scope and Navigation
+- **Workspace-Scoped Budget/Metering Follow-Through** — remaining workflow, agent-detail, and workspace budget reads now consistently scope to the active workspace instead of falling back to unscoped budget/metering endpoints.
+- **Workspace Move-to-Top Affordance** — the workspace switcher now exposes a direct `Move to top` control instead of relying only on drag-and-drop reordering, making long workspace lists faster to manage.
+
 ### Release Readiness
 - **Manual Smoke Additions** — the reusable release smoke checklist now explicitly calls out mobile validation for Skills search behavior plus chat title/action behavior on narrow screens so the `1.7.5` line has clearer operator test expectations.
 

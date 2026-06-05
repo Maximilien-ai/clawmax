@@ -18,6 +18,8 @@ import {
 import { ProductIconCell } from '../lib/productIcons'
 import TruncatedText from '../components/TruncatedText'
 import { getWorkflowDisplayName } from '../lib/workflowDisplay'
+import { useWorkspace } from '../contexts/WorkspaceContext'
+import { buildWorkspaceScopedPath } from '../lib/workspaceScope'
 
 interface AgentTargeting {
   communities: string[]
@@ -370,6 +372,7 @@ function ImportWorkflowModal({
 
 export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavigateToCommunity, onNavigateToDoc, initialWorkflowId, isActive = true }: WorkflowsProps = {}) {
   const { showSuccess, showError } = useToast()
+  const { activeWorkspace } = useWorkspace()
   const { config } = useAuth()
   const aiEnabled = hasAiGenerationAccess(config)
   const aiReadiness = getAiGenerationReadiness(config)
@@ -498,7 +501,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
       fetchWorkflows()
     }
     if (Object.keys(agentCosts).length > 0 || !costTrackingEnabled) return
-    fetch('/api/metering').then(r => r.ok ? r.json() : null).then(d => {
+    fetch(buildWorkspaceScopedPath('/api/metering', activeWorkspace?.id)).then(r => r.ok ? r.json() : null).then(d => {
       if (d && d.enabled === false) {
         setCostTrackingEnabled(false)
         setAgentCosts({})
@@ -509,7 +512,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
       setCostTrackingEnabled(true)
       setAgentCosts(costs)
     }).catch(() => {})
-  }, [isActive, workflows.length, agentCosts, costTrackingEnabled])
+  }, [activeWorkspace?.id, isActive, workflows.length, agentCosts, costTrackingEnabled])
 
   // Use refs to access latest values without re-creating interval
   const workflowsRef = useRef(workflows)

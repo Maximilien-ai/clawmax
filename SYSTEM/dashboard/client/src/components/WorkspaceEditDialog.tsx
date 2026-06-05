@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useWorkspace, type Workspace } from '../contexts/WorkspaceContext'
+import { buildWorkspaceScopedPath } from '../lib/workspaceScope'
 
 const PRESET_COLORS = [
   { name: 'Blue', value: '#3B82F6' },
@@ -33,7 +34,7 @@ export function WorkspaceEditDialog({
 
   useEffect(() => {
     if (isOpen) {
-      fetch(`/api/budget?workspaceId=${encodeURIComponent(workspace.id)}`).then(r => r.json()).then(d => {
+      fetch(buildWorkspaceScopedPath('/api/budget', workspace.id)).then(r => r.json()).then(d => {
         if (d && d.enabled === false) {
           setBudgetEnabled(false)
           return
@@ -73,7 +74,7 @@ export function WorkspaceEditDialog({
 
       if (budgetEnabled) {
         try {
-          await fetch('/api/budget', {
+          await fetch(buildWorkspaceScopedPath('/api/budget', workspace.id), {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

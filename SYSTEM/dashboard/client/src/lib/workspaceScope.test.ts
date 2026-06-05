@@ -52,6 +52,13 @@ test('buildWorkspaceScopedPath() preserves existing query params when appending 
   )
 })
 
+test('buildWorkspaceScopedPath() scopes budget endpoints consistently', () => {
+  assertEqual(
+    buildWorkspaceScopedPath('/api/budget', 'finance'),
+    '/api/budget?workspaceId=finance'
+  )
+})
+
 console.log('')
 if (testsFailed === 0) {
   console.log(`${GREEN}All tests passed${RESET} (${testsPassed} tests)\n`)

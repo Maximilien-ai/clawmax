@@ -78,6 +78,20 @@ Notes:
 
 ---
 
+## 2a. Workspace Switching
+
+- [ ] Workspace switcher can move a non-top workspace to the top without drag-only interaction
+  - Workspace moved:
+  - Observed:
+
+- [ ] After switching workspaces, budget/metering surfaces follow the active workspace
+  - Check at least `Activity`, `Workflows`, and one agent detail panel
+  - Observed:
+
+Notes:
+
+---
+
 ## 3. Builder
 
 - [ ] Single-agent prompt routes correctly

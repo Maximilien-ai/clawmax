@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useWorkspace, WorkspaceCreateError } from '../contexts/WorkspaceContext'
+import { buildWorkspaceScopedPath } from '../lib/workspaceScope'
 
 const PRESET_COLORS = [
   { name: 'Blue', value: '#3B82F6' },
@@ -11,7 +12,7 @@ const PRESET_COLORS = [
 ]
 
 export function WorkspaceDialog({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
-  const { createWorkspace, switchWorkspace } = useWorkspace()
+  const { activeWorkspace, createWorkspace, switchWorkspace } = useWorkspace()
   const [name, setName] = useState('')
   const [path, setPath] = useState('')
   const [selectedColor, setSelectedColor] = useState(PRESET_COLORS[0].value)
@@ -24,11 +25,11 @@ export function WorkspaceDialog({ isOpen, onClose }: { isOpen: boolean; onClose:
 
   useEffect(() => {
     if (!isOpen) return
-    fetch('/api/budget')
+    fetch(buildWorkspaceScopedPath('/api/budget', activeWorkspace?.id))
       .then(r => r.json())
       .then(d => setBudgetEnabled(!(d && d.enabled === false)))
       .catch(() => {})
-  }, [isOpen])
+  }, [activeWorkspace?.id, isOpen])
 
   if (!isOpen) return null
 

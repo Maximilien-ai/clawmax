@@ -4,6 +4,7 @@ import remarkGfm from 'remark-gfm'
 import { useToast } from './Toast'
 import { getSkillSetupHint } from '../lib/skillSetup'
 import { ProductIconCell } from '../lib/productIcons'
+import { buildWorkspaceScopedPath } from '../lib/workspaceScope'
 
 interface GroupEntry {
   name: string
@@ -20,6 +21,7 @@ interface Agent {
   communities: GroupEntry[]
   groups: GroupEntry[]
   tags: string[]
+  workspaceId?: string
 }
 
 interface AgentActivity {
@@ -180,11 +182,11 @@ export default function AgentDetailPanel({
         setCostLimitInput(d.limitUsd ? String(d.limitUsd) : '')
       })
       .catch(() => {})
-    fetch('/api/budget')
+    fetch(buildWorkspaceScopedPath('/api/budget', agent.workspaceId))
       .then(r => r.json())
       .then(d => setWorkspaceBudget(d))
       .catch(() => setWorkspaceBudget(null))
-  }, [fetchActivity, agent.id, costTrackingEnabled])
+  }, [fetchActivity, agent.id, agent.workspaceId, costTrackingEnabled])
 
   useEffect(() => {
     if (!initialEditCostLimit) return
