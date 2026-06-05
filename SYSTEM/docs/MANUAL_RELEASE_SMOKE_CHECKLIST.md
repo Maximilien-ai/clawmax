@@ -214,6 +214,10 @@ Notes:
   - Skill:
   - Observed:
 
+- [ ] Imported or partner-backed skills expose useful tags for filtering
+  - Skill(s):
+  - Observed:
+
 Notes:
 
 ---

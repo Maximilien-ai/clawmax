@@ -432,6 +432,36 @@ metadata:
   deleteWorkspaceSkill('test-clawhub-skill')
 })
 
+test('registry-imported workspace skills derive useful tags when upstream tags are sparse', () => {
+  const workspaceSkillsDir = getWorkspaceSkillsDir()
+  const skillDir = path.join(workspaceSkillsDir, 'test-resend-email-skill')
+  fs.mkdirSync(skillDir, { recursive: true })
+  fs.writeFileSync(path.join(skillDir, 'SKILL.md'), `---
+name: resend-email-bridge
+description: Imported resend helper
+metadata:
+  openclaw:
+    registryProvider: clawhub
+    registryName: resend/react-email
+    registryInstallName: resend/react-email
+    registryCategories:
+      - email
+      - communications
+---
+
+# Resend Email Bridge
+`, 'utf-8')
+
+  const skill = getSkillById('test-resend-email-skill')
+  assert(skill !== null, 'Expected imported registry skill to load')
+  assert(skill!.tags?.includes('email') === true, 'Expected email tag from registry categories')
+  assert(skill!.tags?.includes('communications') === true, 'Expected communications tag from registry categories')
+  assert(skill!.tags?.includes('resend') === true, 'Expected resend tag derived from registry metadata')
+  assert(skill!.tags?.includes('react') === true, 'Expected react tag derived from registry metadata')
+
+  deleteWorkspaceSkill('test-resend-email-skill')
+})
+
 test('registry-imported workspace skills keep linux-specific install guidance after metadata stamping', () => {
   const workspaceSkillsDir = getWorkspaceSkillsDir()
   const skillDir = path.join(workspaceSkillsDir, 'test-registry-linux-install-skill')

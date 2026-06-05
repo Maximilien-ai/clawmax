@@ -21,8 +21,12 @@ All notable changes to ClawMax are documented here.
 - **Workspace-Scoped Budget/Metering Follow-Through** — remaining workflow, agent-detail, and workspace budget reads now consistently scope to the active workspace instead of falling back to unscoped budget/metering endpoints.
 - **Workspace Move-to-Top Affordance** — the workspace switcher now exposes a direct `Move to top` control instead of relying only on drag-and-drop reordering, making long workspace lists faster to manage.
 
+### Mobile and Skill Metadata Follow-Through
+- **Focused Mobile Audit Cleanup** — the current `1.7.5` pass folded the recent mobile/narrow-width fixes into the reusable manual smoke checklist so Builder, DocHub, Agents/dialogs, Workflows, Skills, Partners/BYOK, and Logs all have explicit narrow-width verification steps before release.
+- **Skill Tag Derivation for Weak Partner Metadata** — imported and partner-backed skills now derive more useful fallback tags from registry metadata and skill names when upstream tags are sparse, improving filterability without polluting skills that already have curated tags.
+
 ### Release Readiness
-- **Manual Smoke Additions** — the reusable release smoke checklist now explicitly calls out mobile validation for Skills search behavior plus chat title/action behavior on narrow screens so the `1.7.5` line has clearer operator test expectations.
+- **Manual Smoke Additions** — the reusable release smoke checklist now explicitly calls out mobile validation for Skills search behavior plus chat title/action behavior on narrow screens, workspace move-to-top behavior, workspace-scoped budget/metering behavior, and partner-skill tag visibility so the `1.7.5` line has clearer operator test expectations.
 
 ## [v1.7.4] - 2026-06-04
 

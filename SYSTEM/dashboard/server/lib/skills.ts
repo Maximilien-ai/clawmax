@@ -343,6 +343,47 @@ function normalizeSkillTags(tags: string[] | undefined): string[] {
   return normalizeStringArray(tags).slice(0, 12)
 }
 
+function tokenizeSkillTagCandidates(values: Array<string | undefined | null>): string[] {
+  const ignored = new Set(['skill', 'skills', 'tool', 'tools'])
+  const tokens: string[] = []
+  for (const value of values) {
+    const normalized = String(value || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim()
+    if (!normalized) continue
+    for (const token of normalized.split(/\s+/)) {
+      if (!token || token.length < 2 || token.length > 24) continue
+      if (ignored.has(token)) continue
+      tokens.push(token)
+    }
+  }
+  return tokens
+}
+
+function buildSkillTags(input: {
+  explicitTags?: string[]
+  name?: string
+  registryProvider?: string
+  registryName?: string
+  registryInstallName?: string
+  registryCategories?: string[]
+}): string[] {
+  const explicitTags = normalizeStringArray(input.explicitTags)
+  return normalizeSkillTags([
+    ...explicitTags,
+    ...(input.registryCategories || []),
+    ...(explicitTags.length === 0
+      ? tokenizeSkillTagCandidates([
+          input.name,
+          input.registryProvider,
+          input.registryName,
+          input.registryInstallName,
+        ])
+      : []),
+  ])
+}
+
 export function normalizeSkillInstallOptions(name: string, install: SkillInstallOption[] | undefined): SkillInstallOption[] | undefined {
   const merged = [...(DEFAULT_SKILL_INSTALL_OPTIONS[name] || []), ...(Array.isArray(install) ? install : [])]
   if (merged.length === 0) return undefined
@@ -852,7 +893,14 @@ function parseSkillFile(
       install: getVisibleSkillInstallOptions(normalizedInstall),
       requirementStatus: getSkillRequirementStatus({ requires, install: normalizedInstall }),
       homepage: openclawMeta.homepage,
-      tags: openclawMeta.tags || data.tags || [],
+      tags: buildSkillTags({
+        explicitTags: openclawMeta.tags || data.tags || [],
+        name: data.name,
+        registryProvider: openclawMeta.registryProvider,
+        registryName: openclawMeta.registryName,
+        registryInstallName: openclawMeta.registryInstallName,
+        registryCategories: normalizeStringArray(openclawMeta.registryCategories),
+      }),
       registryProvider: openclawMeta.registryProvider,
       registryName: openclawMeta.registryName,
       registryInstallName: openclawMeta.registryInstallName,
@@ -912,7 +960,14 @@ function parseWorkspaceSkillFile(filePath: string, skillId: string): OpenClawSki
       install: getVisibleSkillInstallOptions(normalizedInstall),
       requirementStatus: getSkillRequirementStatus({ requires, install: normalizedInstall }),
       homepage: data.homepage || openclawMeta.homepage,
-      tags: data.tags || openclawMeta.tags || [],
+      tags: buildSkillTags({
+        explicitTags: data.tags || openclawMeta.tags || [],
+        name,
+        registryProvider: openclawMeta.registryProvider,
+        registryName: openclawMeta.registryName,
+        registryInstallName: openclawMeta.registryInstallName,
+        registryCategories: normalizeStringArray(openclawMeta.registryCategories),
+      }),
       registryProvider: openclawMeta.registryProvider,
       registryName: openclawMeta.registryName,
       registryInstallName: openclawMeta.registryInstallName,
@@ -1260,10 +1315,14 @@ export function stampImportedRegistrySkillMetadata(
 
   const raw = fs.readFileSync(skillPath, 'utf-8')
   const parsed = matter(raw)
-  const nextTags = normalizeSkillTags([
-    ...(Array.isArray(parsed.data?.tags) ? parsed.data.tags : []),
-    ...(metadata.categories || []),
-  ])
+  const nextTags = buildSkillTags({
+    explicitTags: Array.isArray(parsed.data?.tags) ? parsed.data.tags : [],
+    name: parsed.data?.name || metadata.registryName,
+    registryProvider: metadata.provider,
+    registryName: metadata.registryName,
+    registryInstallName: metadata.installName,
+    registryCategories: metadata.categories || [],
+  })
 
   const next = {
     ...parsed.data,
