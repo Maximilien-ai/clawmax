@@ -28,7 +28,16 @@ case "$1 ${2:-} ${3:-}" in
   "config get gateway.mode")
     echo "local"
     ;;
+  "config get gateway.auth.token")
+    if [ -f "${GATEWAY_AUTH_TOKEN_FILE:-}" ]; then
+      cat "${GATEWAY_AUTH_TOKEN_FILE}"
+    fi
+    ;;
   "config set gateway.mode")
+    exit 0
+    ;;
+  "config set gateway.auth.token")
+    printf '%s' "${4:-}" > "${GATEWAY_AUTH_TOKEN_FILE:?}"
     exit 0
     ;;
   "gateway run --port")
@@ -84,8 +93,22 @@ export OPENCLAW_WORKSPACE="$TMP_DIR/workspace"
 export CLAWMAX_ENTRYPOINT_TEST_MODE=true
 export CLAWMAX_RUNTIME_PACKAGE_JSON="$TMP_DIR/package.json"
 export CLAWMAX_VERSION="v1.5.8"
+export GATEWAY_AUTH_TOKEN_FILE="$TMP_DIR/gateway.token"
 
 . "$SCRIPT"
+
+ensure_gateway_auth_token
+[ -s "$GATEWAY_AUTH_TOKEN_FILE" ] || {
+  echo "Expected missing gateway auth token to be generated" >&2
+  exit 1
+}
+generated_gateway_token="$(cat "$GATEWAY_AUTH_TOKEN_FILE")"
+
+ensure_gateway_auth_token
+[ "$(cat "$GATEWAY_AUTH_TOKEN_FILE")" = "$generated_gateway_token" ] || {
+  echo "Expected existing gateway auth token to be preserved" >&2
+  exit 1
+}
 
 : > "$LOG_FILE"
 export SS_OUTPUT=""

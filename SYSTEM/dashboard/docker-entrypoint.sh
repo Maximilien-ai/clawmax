@@ -77,6 +77,37 @@ ensure_openclaw_cli() {
   fi
 }
 
+get_gateway_auth_token() {
+  openclaw config get gateway.auth.token 2>/dev/null | tr -d '[:space:]' || true
+}
+
+generate_gateway_auth_token() {
+  if command -v openssl >/dev/null 2>&1; then
+    openssl rand -hex 32 2>/dev/null && return 0
+  fi
+  if command -v node >/dev/null 2>&1; then
+    node -e "process.stdout.write(require('crypto').randomBytes(32).toString('hex'))" 2>/dev/null && return 0
+  fi
+  return 1
+}
+
+ensure_gateway_auth_token() {
+  gateway_token="$(get_gateway_auth_token)"
+  if [ -n "$gateway_token" ] && [ "$gateway_token" != "unset" ] && [ "$gateway_token" != "undefined" ]; then
+    echo "[entrypoint] gateway auth token already configured"
+    return 0
+  fi
+
+  gateway_token="$(generate_gateway_auth_token || true)"
+  if [ -z "$gateway_token" ]; then
+    echo "[entrypoint] ERROR: unable to generate gateway auth token" >&2
+    exit 1
+  fi
+
+  echo "[entrypoint] generating gateway auth token"
+  openclaw config set gateway.auth.token "$gateway_token" >/dev/null 2>&1 || true
+}
+
 normalize_version() {
   printf '%s' "$1" | sed 's/^v//'
 }
@@ -208,6 +239,7 @@ main() {
   verify_runtime_version_matches_image
   ensure_openclaw_cli
   sync_gateway_config
+  ensure_gateway_auth_token
 
   gateway_port="$(get_gateway_port)"
 
