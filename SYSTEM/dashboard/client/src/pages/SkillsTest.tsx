@@ -2017,28 +2017,21 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
         {/* Popular Skills */}
         {skillUsage.size > 0 && (
           <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border mb-6">
-            <div className="flex items-start gap-3">
+            <div className="flex items-center gap-3">
               {popularSkills.length > collapsedPopularSkills.length && (
                 <button
                   type="button"
                   onClick={() => setShowAllPopularSkills((current) => !current)}
-                  className="mt-0.5 shrink-0 text-sm font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                  className="shrink-0 text-sm font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
                   aria-label={showAllPopularSkills ? 'Collapse popular skills' : 'Expand popular skills'}
                   title={showAllPopularSkills ? 'Show fewer popular skills' : 'Show more popular skills'}
                 >
                   {showAllPopularSkills ? '▼' : '▶'}
                 </button>
               )}
+              <h3 className="shrink-0 text-sm font-semibold text-gray-700 dark:text-gray-300">Most Popular Skills</h3>
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-3">
-                  <h3 className="shrink-0 text-sm font-semibold text-gray-700 dark:text-gray-300">Most Popular Skills</h3>
-                  {!showAllPopularSkills && popularSkills.length > collapsedPopularSkills.length && (
-                    <span className="shrink-0 text-xs text-gray-500 dark:text-gray-400">
-                      +{popularSkills.length - collapsedPopularSkills.length} more
-                    </span>
-                  )}
-                </div>
-                <div className={`mt-2 flex min-w-0 gap-2 ${showAllPopularSkills ? 'flex-wrap' : 'flex-nowrap overflow-hidden'}`}>
+                <div className={`flex min-w-0 gap-2 ${showAllPopularSkills ? 'flex-wrap' : 'flex-nowrap overflow-hidden'}`}>
                   {(showAllPopularSkills ? popularSkills : collapsedPopularSkills)
                     .map(([skillName, users]) => (
                       <button
@@ -2058,6 +2051,11 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                     ))}
                 </div>
               </div>
+              {!showAllPopularSkills && popularSkills.length > collapsedPopularSkills.length && (
+                <span className="shrink-0 text-xs text-gray-500 dark:text-gray-400">
+                  +{popularSkills.length - collapsedPopularSkills.length} more
+                </span>
+              )}
             </div>
           </div>
         )}
