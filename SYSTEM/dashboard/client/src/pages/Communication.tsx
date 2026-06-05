@@ -191,6 +191,13 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
     setUnreadCounts({})
   }, [activeWorkspace?.id])
 
+  useEffect(() => {
+    setAgents([])
+    setWorkspaceCommunities([])
+    setWorkspaceGroups([])
+    fetchAgents()
+  }, [activeWorkspace?.id, fetchAgents])
+
   const handleNavigateToDoc = useCallback((target: string) => {
     setChatPanelChannel(null)
     onNavigateToDoc?.(resolveCommunicationDocPath(target, docEntries))
