@@ -8,7 +8,7 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import assert from 'assert'
-import { resolveResendTestRecipient } from '../lib/resend-partner'
+import { getWorkspaceResendSenderPolicy, resolveResendTestRecipient } from '../lib/resend-partner'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -24,6 +24,10 @@ const originalDeploymentKind = process.env.DASHBOARD_DEPLOYMENT_KIND
 const originalEnableOllama = process.env.DASHBOARD_ENABLE_OLLAMA
 const originalVisiblePartners = process.env.WORKSPACES_INTEGRATIONS_THIRD_PARTIES
 const originalResendApiKey = process.env.RESEND_API_KEY
+const originalResendDefaultFrom = process.env.RESEND_DEFAULT_FROM
+const originalResendDefaultFromName = process.env.RESEND_DEFAULT_FROM_NAME
+const originalOtpFromEmail = process.env.OTP_FROM_EMAIL
+const originalSignupFromEmail = process.env.SIGNUP_FROM_EMAIL
 const originalFetch = (globalThis as any).fetch
 
 function test(name: string, fn: () => void | Promise<void>) {
@@ -319,6 +323,20 @@ async function run() {
     }
   })
 
+  await test('resend sender policy accepts preformatted env senders without nesting display names', async () => {
+    const configPath = path.join(workspacePath, 'SYSTEM', 'integrations.json')
+    fs.writeFileSync(configPath, JSON.stringify({ partners: {} }, null, 2), 'utf-8')
+    delete process.env.RESEND_DEFAULT_FROM
+    delete process.env.RESEND_DEFAULT_FROM_NAME
+    delete process.env.SIGNUP_FROM_EMAIL
+    process.env.OTP_FROM_EMAIL = 'ClawMax Notifications <agent@send.clawmax.ai>'
+
+    const policy = getWorkspaceResendSenderPolicy()
+    assert.strictEqual(policy.fromEmail, 'agent@send.clawmax.ai', 'Expected normalized sender email')
+    assert.strictEqual(policy.fromName, 'ClawMax Notifications', 'Expected extracted sender display name')
+    assert.strictEqual(policy.from, 'ClawMax Notifications <agent@send.clawmax.ai>', 'Expected normalized formatted sender')
+  })
+
   await test('resend test-email reports missing workspace API key cleanly', async () => {
     delete process.env.RESEND_API_KEY
     const secretsPath = path.join(workspacePath, 'SYSTEM', 'integrations.secrets.json')
@@ -344,6 +362,14 @@ async function run() {
   else process.env.WORKSPACES_INTEGRATIONS_THIRD_PARTIES = originalVisiblePartners
   if (typeof originalResendApiKey === 'undefined') delete process.env.RESEND_API_KEY
   else process.env.RESEND_API_KEY = originalResendApiKey
+  if (typeof originalResendDefaultFrom === 'undefined') delete process.env.RESEND_DEFAULT_FROM
+  else process.env.RESEND_DEFAULT_FROM = originalResendDefaultFrom
+  if (typeof originalResendDefaultFromName === 'undefined') delete process.env.RESEND_DEFAULT_FROM_NAME
+  else process.env.RESEND_DEFAULT_FROM_NAME = originalResendDefaultFromName
+  if (typeof originalOtpFromEmail === 'undefined') delete process.env.OTP_FROM_EMAIL
+  else process.env.OTP_FROM_EMAIL = originalOtpFromEmail
+  if (typeof originalSignupFromEmail === 'undefined') delete process.env.SIGNUP_FROM_EMAIL
+  else process.env.SIGNUP_FROM_EMAIL = originalSignupFromEmail
   ;(globalThis as any).fetch = originalFetch
 
   console.log('\n========================================')
@@ -372,6 +398,14 @@ run().catch((err) => {
   else process.env.WORKSPACES_INTEGRATIONS_THIRD_PARTIES = originalVisiblePartners
   if (typeof originalResendApiKey === 'undefined') delete process.env.RESEND_API_KEY
   else process.env.RESEND_API_KEY = originalResendApiKey
+  if (typeof originalResendDefaultFrom === 'undefined') delete process.env.RESEND_DEFAULT_FROM
+  else process.env.RESEND_DEFAULT_FROM = originalResendDefaultFrom
+  if (typeof originalResendDefaultFromName === 'undefined') delete process.env.RESEND_DEFAULT_FROM_NAME
+  else process.env.RESEND_DEFAULT_FROM_NAME = originalResendDefaultFromName
+  if (typeof originalOtpFromEmail === 'undefined') delete process.env.OTP_FROM_EMAIL
+  else process.env.OTP_FROM_EMAIL = originalOtpFromEmail
+  if (typeof originalSignupFromEmail === 'undefined') delete process.env.SIGNUP_FROM_EMAIL
+  else process.env.SIGNUP_FROM_EMAIL = originalSignupFromEmail
   ;(globalThis as any).fetch = originalFetch
   console.error(err)
   process.exit(1)

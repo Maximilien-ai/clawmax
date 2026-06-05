@@ -6,6 +6,12 @@ All notable changes to ClawMax are documented here.
 
 - No unreleased changes yet.
 
+## [v1.7.6] - 2026-06-05
+
+### Resend Cloud and On-Prem Sender Normalization
+- **Formatted Sender Env Support** — managed sender env values such as `OTP_FROM_EMAIL`, `SIGNUP_FROM_EMAIL`, and `RESEND_DEFAULT_FROM` can now be provided either as bare emails or already formatted `Name <email>` strings without being re-wrapped into invalid nested Resend `from` payloads.
+- **Cloud/On-Prem Test Email Fix** — the dashboard Resend partner test-email path now normalizes runtime-managed sender values before building the outbound request, fixing hosted/on-prem validation failures where the API key was configured but Resend rejected the `from` field format.
+
 ## [v1.7.5] - 2026-06-05
 
 ### Resend Runtime and Integration State

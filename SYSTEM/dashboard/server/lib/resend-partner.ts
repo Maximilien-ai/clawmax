@@ -72,6 +72,27 @@ type ResendSenderPolicy = {
   replyTo?: string
 }
 
+type ParsedSenderAddress = {
+  email: string
+  name?: string
+}
+
+function parseSenderAddress(value: string): ParsedSenderAddress {
+  const trimmed = trim(value)
+  if (!trimmed) {
+    return { email: '' }
+  }
+
+  const formattedMatch = trimmed.match(/^(.*?)<([^<>@\s]+@[^<>@\s]+)>$/)
+  if (formattedMatch) {
+    const name = trim(formattedMatch[1]).replace(/^["']|["']$/g, '')
+    const email = trim(formattedMatch[2])
+    return { email, name: name || undefined }
+  }
+
+  return { email: trimmed }
+}
+
 function formatFromAddress(email: string, name?: string): string {
   const trimmedEmail = trim(email)
   const trimmedName = trim(name)
@@ -94,13 +115,17 @@ function sanitizeSenderLocalPart(agentId: string): string {
 
 export function getWorkspaceResendSenderPolicy(): ResendSenderPolicy {
   const partnerConfig = readWorkspaceIntegrationConfig().partners?.resend || {}
-  const fromEmail = trim(partnerConfig.fromEmail)
+  const configuredSender = parseSenderAddress(
+    trim(partnerConfig.fromEmail)
     || trim(process.env.RESEND_DEFAULT_FROM)
     || trim(process.env.OTP_FROM_EMAIL)
     || trim(process.env.SIGNUP_FROM_EMAIL)
     || 'agent@send.clawmax.ai'
+  )
+  const fromEmail = configuredSender.email || 'agent@send.clawmax.ai'
   const fromName = trim(partnerConfig.fromName)
     || trim(process.env.RESEND_DEFAULT_FROM_NAME)
+    || configuredSender.name
     || 'ClawMax Agent'
   const replyTo = trim(partnerConfig.replyTo)
     || trim(process.env.RESEND_DEFAULT_REPLY_TO)
