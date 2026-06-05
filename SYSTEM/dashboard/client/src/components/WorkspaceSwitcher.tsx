@@ -525,13 +525,13 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
                           moveWorkspaceToTop(index)
                         }}
                         disabled={index === 0}
-                        className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-medium text-amber-700 transition-all hover:bg-amber-50 disabled:cursor-not-allowed disabled:text-gray-300 disabled:hover:bg-transparent dark:text-amber-300"
+                        className="inline-flex items-center justify-center rounded-md p-1 text-amber-700 transition-all hover:bg-amber-50 disabled:cursor-not-allowed disabled:text-gray-300 disabled:hover:bg-transparent dark:text-amber-300"
                         title={index === 0 ? 'Already at top' : 'Move workspace to top'}
+                        aria-label={index === 0 ? 'Already at top' : 'Move workspace to top'}
                       >
                         <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7M5 20h14" />
                         </svg>
-                        <span className="hidden sm:inline">{index === 0 ? 'On top' : 'Move to top'}</span>
                       </button>
                       <button
                         onClick={(e) => {
