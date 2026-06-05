@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
+import AIPromptEditorModal from './AIPromptEditorModal'
 import { formatAgentOptionLabel } from '../lib/agentLabels'
+import { expandPromptWithAI } from '../lib/aiPrompt'
 
 interface AgentTargeting {
   communities: string[]
@@ -152,6 +154,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
   const [communitySearch, setCommunitySearch] = useState('')
   const [agentSearch, setAgentSearch] = useState('')
   const [showCronBuilder, setShowCronBuilder] = useState(false)
+  const [showDescriptionEditor, setShowDescriptionEditor] = useState(false)
   const [recentCrons, setRecentCrons] = useState<string[]>(() => {
     const saved = localStorage.getItem('recent-cron-expressions')
     return saved ? JSON.parse(saved) : []
@@ -430,6 +433,15 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
                 rows={2}
                 placeholder="Brief description of what this workflow does"
               />
+              <div className="mt-2 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowDescriptionEditor(true)}
+                  className="px-3 py-1.5 text-xs font-medium rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  Open AI Editor
+                </button>
+              </div>
               {validationErrors.description && (
                 <p className="text-xs text-red-600 mt-1">{validationErrors.description}</p>
               )}
@@ -1235,6 +1247,22 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
           </div>
         </div>
       </div>
+      <AIPromptEditorModal
+        isOpen={showDescriptionEditor}
+        title="Workflow AI Editor"
+        initialValue={formData.description}
+        placeholder="Brief description of what this workflow does"
+        rows={8}
+        onClose={() => setShowDescriptionEditor(false)}
+        onSave={(value) => {
+          setFormData(prev => ({ ...prev, description: value }))
+          if (validationErrors.description) {
+            setValidationErrors(prev => ({ ...prev, description: undefined }))
+          }
+        }}
+        onExpandWithAi={(value, format, guidance) => expandPromptWithAI(value, 'workflow', format, guidance)}
+        saveLabel="Use Description"
+      />
     </>
   )
 }

@@ -1122,7 +1122,7 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
             }}
             className={btnSecondary}
           >
-            Open Full Editor
+            Open AI Editor
           </button>
         </div>
       </div>
@@ -2046,7 +2046,7 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
       )}
       <AIPromptEditorModal
         isOpen={editingPrompt}
-        title="Edit AI Prompt"
+        title="Template AI Editor"
         initialValue={promptDraft}
         onClose={() => setEditingPrompt(false)}
         onSave={(value) => {

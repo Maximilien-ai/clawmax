@@ -37,7 +37,7 @@ function AttachIcon() {
 
 export default function AIPromptEditorModal({
   isOpen,
-  title = 'Edit AI Prompt',
+  title = 'AI Editor',
   initialValue,
   onClose,
   onSave,
@@ -140,7 +140,7 @@ export default function AIPromptEditorModal({
           <div className="space-y-4 overflow-y-auto pr-1">
           <div className="flex items-center justify-between">
             <div className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-              Prompt Editor
+              AI Editor
             </div>
             <div className="flex items-center gap-2">
               {true ? (

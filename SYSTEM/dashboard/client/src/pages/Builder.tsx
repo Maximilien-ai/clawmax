@@ -2515,7 +2515,7 @@ export default function Builder({
 
         <AIPromptEditorModal
           isOpen={showPromptEditor}
-          title="Edit Builder Prompt"
+          title="Builder AI Editor"
           initialValue={prompt}
           placeholder="Describe what you want to build, whether this is one agent or a team, what should be reused or created, and how you want to test success."
           onClose={() => setShowPromptEditor(false)}

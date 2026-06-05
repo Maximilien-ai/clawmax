@@ -838,7 +838,7 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
                     onClick={() => setShowAiPromptEditor(true)}
                     className="px-3 py-1.5 text-xs font-medium rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
                   >
-                    Open Full Editor
+                    Open AI Editor
                   </button>
                 </div>
               </div>
@@ -1102,7 +1102,7 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
 
       <AIPromptEditorModal
         isOpen={showAiPromptEditor}
-        title="Edit AI Prompt"
+        title="Agent AI Editor"
         initialValue={form.aiDescription}
         placeholder="e.g., A friendly project manager who helps track tasks and deadlines..."
         onClose={() => setShowAiPromptEditor(false)}

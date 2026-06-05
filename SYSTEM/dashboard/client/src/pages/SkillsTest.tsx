@@ -4113,7 +4113,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                           onClick={() => setShowAiPromptEditor(true)}
                           className="px-3 py-1.5 text-xs font-medium rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
                         >
-                          Open Full Editor
+                          Open AI Editor
                         </button>
                       </div>
                     </div>
@@ -4265,7 +4265,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
         )}
         <AIPromptEditorModal
           isOpen={showAiPromptEditor}
-          title="Edit AI Prompt"
+          title="Skill AI Editor"
           initialValue={aiSkillPrompt}
           placeholder="e.g., A skill that helps an agent detect and summarize PII exposure risks in documents, with short actionable outputs and a cautious tone."
           onClose={() => setShowAiPromptEditor(false)}

@@ -2886,7 +2886,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                 onClick={() => setShowAiPromptEditor(true)}
                 className="px-3 py-1.5 text-xs font-medium rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
               >
-                Open Full Editor
+                Open AI Editor
               </button>
             </div>
             <div className="flex justify-end gap-2 mt-4">
@@ -2910,7 +2910,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
 
       <AIPromptEditorModal
         isOpen={showAiPromptEditor}
-        title="Edit AI Prompt"
+        title="Workflow AI Editor"
         initialValue={aiPromptText}
         placeholder="e.g., Every weekday at 9am, have the engineering team share status updates and the PM summarize blockers"
         onClose={() => setShowAiPromptEditor(false)}
