@@ -64,3 +64,6 @@ SYSTEM/scripts/
 
 # Local scratch files
 tmp/
+
+# Private local planning drafts
+SYSTEM/docs/planning/CLAWMAX_2_0_CLEANUP_PLAN_PRIVATE.md

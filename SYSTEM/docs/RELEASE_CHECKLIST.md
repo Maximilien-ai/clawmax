@@ -139,7 +139,13 @@ Use [MANUAL_RELEASE_SMOKE_CHECKLIST.md](MANUAL_RELEASE_SMOKE_CHECKLIST.md) as th
   - remaining Builder quality work is framed as post-release eval/export/share polish
   - test automation priority
 
-## 6. Deferred to Post-Release
+## 6. Major Release Reminder
+
+- For a major release such as `2.0`, review any local/private cleanup draft before cutting the tag.
+- If the local file `SYSTEM/docs/planning/CLAWMAX_2_0_CLEANUP_PLAN_PRIVATE.md` exists, read it and decide which disruptive cleanup items should be pulled into the `2.0` prep window.
+- If the `2.0` plan still includes Git history cleanup, run the validation and backup flow in [operations/CLAUDE_COAUTHOR_HISTORY_CLEANUP_RUNBOOK.md](operations/CLAUDE_COAUTHOR_HISTORY_CLEANUP_RUNBOOK.md) on a dedicated cleanup branch before touching `main`.
+
+## 7. Deferred to Post-Release
 
 - broader Builder eval corpus expansion
 - Builder export/share UX polish
