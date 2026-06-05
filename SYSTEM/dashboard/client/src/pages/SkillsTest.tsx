@@ -1736,7 +1736,10 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                 onClick={() => openImportDialog('ai')}
                 className={headerPrimaryButtonClass}
               >
-                Create
+                <span className="inline-flex items-center gap-1.5">
+                  <ProductIconCell iconName="ai" label="Create with AI" size="sm" className="border-white/20 bg-white/10 text-white" />
+                  Create
+                </span>
               </button>
               <div className="relative">
                 <button
@@ -1753,19 +1756,9 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                       <button
                         onClick={() => {
                           setShowSkillActionsMenu(false)
-                          openImportDialog('ai')
-                        }}
-                        className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700/50"
-                      >
-                        <ProductIconCell iconName="ai" label="Create Skill with AI" size="sm" className="border-purple-200 bg-purple-50 text-purple-600 dark:border-purple-700 dark:bg-purple-900/30 dark:text-purple-300" />
-                        <span className="font-medium text-gray-900 dark:text-gray-100">Create Skill with AI</span>
-                      </button>
-                      <button
-                        onClick={() => {
-                          setShowSkillActionsMenu(false)
                           openImportDialog('local')
                         }}
-                        className="flex w-full items-center gap-2 border-t border-gray-100 px-4 py-3 text-left text-sm hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-700/50"
+                        className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700/50"
                       >
                         <ProductIconCell iconName="directory" label="Import Local Skill" size="sm" className="border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300" />
                         <span className="font-medium text-gray-900 dark:text-gray-100">Import Local Skill</span>

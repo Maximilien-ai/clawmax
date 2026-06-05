@@ -1659,7 +1659,10 @@ export default function Templates() {
               }`}
               title={aiEnabled ? 'Create template with AI' : 'Configure browser keys or a shared execution path first'}
             >
-              Create
+              <span className="inline-flex items-center gap-1.5">
+                <ProductIconCell iconName="ai" label="Create with AI" size="sm" className={aiEnabled ? 'border-white/20 bg-white/10 text-white' : 'border-transparent bg-transparent text-current'} />
+                Create
+              </span>
             </button>
             <div className="relative">
               <button
@@ -1672,26 +1675,10 @@ export default function Templates() {
                 <div className="absolute right-0 mt-2 w-56 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-xl z-20 overflow-hidden">
                   <button
                     onClick={() => {
-                      if (!aiEnabled) return
-                      setShowWizard(true)
-                      setShowActionsMenu(false)
-                    }}
-                    disabled={!aiEnabled}
-                    className={`w-full text-left px-4 py-3 text-sm flex items-center gap-2 ${
-                      aiEnabled
-                        ? 'hover:bg-gray-50 dark:hover:bg-gray-700'
-                        : 'text-gray-400 dark:text-gray-500 cursor-not-allowed'
-                    }`}
-                    title={aiEnabled ? 'Create template with AI' : 'Configure browser keys or a shared execution path first'}
-                  >
-                    <ProductIconCell iconName="ai" label="AI Create Template" size="sm" className="border-purple-200 bg-purple-50 text-purple-600 dark:border-purple-700 dark:bg-purple-900/30 dark:text-purple-300" /> AI Create Template
-                  </button>
-                  <button
-                    onClick={() => {
                       setShowImportTemplateModal(true)
                       setShowActionsMenu(false)
                     }}
-                    className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 border-t border-gray-100 dark:border-gray-700"
+                    className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
                   >
                     <ProductIconCell iconName="import" label="Import TEMPLATE.md" size="sm" className="border-sky-200 bg-sky-50 text-sky-600 dark:border-sky-700 dark:bg-sky-900/30 dark:text-sky-300" /> Import TEMPLATE.md
                   </button>
