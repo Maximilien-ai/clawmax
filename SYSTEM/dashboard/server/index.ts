@@ -200,12 +200,19 @@ app.use(express.json())
 app.use(cookieParser())
 
 // Rate limiting — global: 1000 req/min, auth: 20 req/min
+const authBypassMode =
+  process.env.BYPASS_OAUTH === 'true'
+  || process.env.DASHBOARD_AUTH_DISABLED === 'true'
+  || process.env.DASHBOARD_AUTH_MODE === 'bypass'
+
 const globalLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 5000,
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => req.method === 'GET' && /^\/api\/workspaces\/[^/]+\/export$/.test(req.path),
+  skip: (req) =>
+    authBypassMode
+    || (req.method === 'GET' && /^\/api\/workspaces\/[^/]+\/export$/.test(req.path)),
   handler: (req, res, _next, options) => {
     console.warn(`[rate-limit] global limiter exceeded for ${req.method} ${req.originalUrl} ip=${req.ip}`)
     res.status(options.statusCode).json({ error: 'Too many requests, please try again later' })

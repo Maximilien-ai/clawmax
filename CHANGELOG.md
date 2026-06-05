@@ -12,14 +12,35 @@ All notable changes to ClawMax are documented here.
 - **Env-Backed Resend Readiness** — the dashboard integrations API now reports runtime-managed `RESEND_API_KEY` presence even when the key is injected by the deployment environment instead of being re-saved into workspace secrets, so cloud/on-prem Resend surfaces no longer show `Not configured yet` or `Save key first` incorrectly.
 - **Managed Secret State Alignment** — integration config responses now align the UI readiness path with the real runtime send path for managed partner secrets, reducing false-negative setup states during hosted/on-prem validation.
 
-### Chat and Skills Surface Follow-Through
+### AI Editor and Authoring Consistency
+- **Shared `Open AI Editor` Naming** — prompt-driven create/refine flows now use `Open AI Editor` consistently instead of mixing in `Open Full Editor` and other one-off labels for the same popup editor.
+- **Workflow Description AI Editor** — the create/edit workflow dialog description field now opens the same full AI editor used on other markdown-capable prompt surfaces, with `Expand with AI`, markdown preview, and an explicit save path back into the dialog instead of a dead-end plain textarea.
+- **Workflow Expansion Retry** — unchanged AI prompt expansions now retry server-side with stricter rewrite guidance instead of silently returning the original wording for short seed prompts.
+- **Visible No-Change Feedback** — when prompt expansion still produces no effective change, the editor now shows a direct explanation instead of failing silently.
+
+### Chat, Skills, and Template Surface Follow-Through
 - **Chat Header Layout Cleanup** — agent and group chat headers now prioritize the title row more cleanly, move secondary actions into a lower control band, and use available space more intentionally instead of clipping labels while leaving dead header space.
 - **Skills Search Emphasis** — the Skills filter bar now gives the search input the remaining horizontal space, stronger light/dark focus treatment, and clearer visual priority after the `All / Assigned / Available` filter step.
+- **Templates Search Emphasis** — Templates now matches the stronger Skills search treatment with a clearer outline, search icon, and more obvious focus state.
+- **Skill Export Actions** — Skills now support `Export .md` from the skill viewer, direct card actions, and selected-skill list actions instead of showing a placeholder “coming soon” state.
+- **Skills Tag-Filter Collapse** — the Skills tag-filter rail now defaults to a single-line collapsed presentation with an expand/collapse control, matching the lighter-touch pattern used elsewhere instead of exploding into a wall of tags.
 - **Mobile Follow-Through** — the Skills search desktop autofocus no longer auto-pops the software keyboard on mobile/narrow layouts, and the agent chat toolbar compresses more cleanly on smaller widths.
 
 ### Workspace Scope and Navigation
 - **Workspace-Scoped Budget/Metering Follow-Through** — remaining workflow, agent-detail, and workspace budget reads now consistently scope to the active workspace instead of falling back to unscoped budget/metering endpoints.
 - **Workspace Move-to-Top Affordance** — the workspace switcher now exposes a direct `Move to top` control instead of relying only on drag-and-drop reordering, making long workspace lists faster to manage.
+- **Faster Communications Workspace Refresh** — Communications now clears stale state and refetches agent/community/group data immediately on workspace change instead of waiting for the next slower refresh path.
+- **Global API Rate-Limit Relaxation** — the dashboard’s global API limiter was relaxed for operator/dev flows and now logs the exact endpoint when it trips, reducing false `Too many requests` failures during workspace switching and dense multi-surface reloads.
+
+### Empty States and Create-Action Consistency
+- **Starter Actions for Empty Surfaces** — empty Workflows and Communications states now include direct starter actions such as `Create Workflow`, `Import Workflow`, `Create Community`, and `Create Group`.
+- **Agents/Workflows Create Menu Alignment** — Agents and Workflows now use the same-height `Create` dropdown pattern with explicit `Create with AI` and `Create with Wizard` paths, matching the broader surface-action consistency work.
+- **Skills/Templates AI-First Create Cleanup** — Skills and Templates now use a simplified AI-first `Create` action with duplicate AI-create entries removed from `Actions`.
+- **Group-Style Empty State Alignment** — Agents and Workflows empty states now match the iconography and typography rhythm used by Groups instead of drifting into inconsistent empty-state treatments.
+
+### BYOK and New-Agent Reliability
+- **Chat Readiness Uses Chat Fallbacks** — agent/group chat readiness now uses the chat-execution access path instead of the AI-generation readiness path, preventing false “no model configured” blockers for new agents under BYOK.
+- **Browser-BYOK Model Fallbacks for New Agents** — new agents without an explicit saved model now resolve a chat fallback model from configured browser BYOK providers such as OpenAI, Anthropic, Gemini, or OpenAI-compatible setups.
 
 ### Mobile and Skill Metadata Follow-Through
 - **Focused Mobile Audit Cleanup** — the current `1.7.5` pass folded the recent mobile/narrow-width fixes into the reusable manual smoke checklist so Builder, DocHub, Agents/dialogs, Workflows, Skills, Partners/BYOK, and Logs all have explicit narrow-width verification steps before release.

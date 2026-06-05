@@ -30,6 +30,7 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
   - Linux/on-prem install guidance is more accurate for skills like `himalaya` and `nano-pdf`
   - `himalaya` now has a constrained in-dashboard setup flow instead of a dead-end warning
   - Skills search/filter flow better matches the normal agent-first workflow
+  - Skills now support real `SKILL.md` export from the viewer, card actions, and selected-skill actions
 - Partner integrations and partner-backed skills are more usable:
   - `Resend` is now a first-class partner integration with server-stored API key support and a dashboard test-email path
   - workspace-managed partner secrets are exported to agent runtimes with canonical env names such as `RESEND_API_KEY`
@@ -41,8 +42,17 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
   - partner selection is opt-in by default, grouped by tabs, and supports better bulk selection behavior
 - Workspace/operator follow-through is stronger:
   - workspace ordering and activity/budget scoping are better aligned with the active workspace
+  - workspace switching refreshes Communications faster and is less likely to trip the global dashboard rate limiter during dev/operator use
   - markdown-only GitHub skill imports and package-based skill install detection are more reliable
-  - chat headers and Skills search are getting another usability/mobile follow-through pass in the `1.7.5` line
+  - chat headers, empty states, and create-action menus are getting another consistency/usability pass in the `1.7.5` line
+- AI editing and authoring surfaces are more consistent:
+  - shared markdown-capable prompt surfaces now use `Open AI Editor` consistently instead of mixed naming like `Open Full Editor`
+  - workflow description authoring now has the same AI editor / preview / expand flow as other generation surfaces, while still saving back into the workflow dialog without auto-submitting it
+  - unchanged AI prompt expansions now retry server-side instead of silently echoing the same seed prompt back
+- Templates and Skills authoring flows are more complete:
+  - Templates and Skills search bars now have clearer prominence and more consistent action behavior
+  - empty Workflows and Communications states now include direct starter actions instead of dead-end copy
+  - Agents and Workflows now share a clearer `Create with AI` / `Create with Wizard` action pattern
 
 Full release details are kept in [CHANGELOG.md](CHANGELOG.md).
 
