@@ -648,7 +648,9 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
   }, [agentId])
 
   useEffect(() => {
-    if (!loading) searchInputRef.current?.focus()
+    if (loading || typeof window === 'undefined') return
+    const supportsDesktopAutofocus = window.matchMedia('(min-width: 1024px) and (pointer: fine)').matches
+    if (supportsDesktopAutofocus) searchInputRef.current?.focus()
   }, [loading, filterAssigned])
 
   async function loadAgents() {

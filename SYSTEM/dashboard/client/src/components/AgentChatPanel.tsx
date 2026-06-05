@@ -818,50 +818,50 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
           </div>
           <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2">
             <p className="min-w-0 text-xs text-gray-400">Real-time streaming from the active runtime</p>
-            <div className="flex shrink-0 items-center gap-2">
+            <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5 sm:gap-2">
               <button
                 onClick={resetAgentSession}
                 disabled={resettingSession}
-                className={`text-xs px-2 py-1 rounded transition-colors ${
+                className={`text-xs px-2 py-1 rounded transition-colors shrink-0 ${
                   resettingSession
                     ? 'text-gray-300 cursor-not-allowed'
                     : 'text-gray-600 hover:bg-gray-100'
                 }`}
                 title="Reset the agent runtime session for a completely fresh chat"
               >
-                <span className="inline-flex items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 sm:gap-2">
                   <ProductIconCell iconName="restart" label="Reset Session" size="sm" className="border-transparent bg-transparent text-current" />
-                  Reset Session
+                  <span className="hidden sm:inline">Reset Session</span>
                 </span>
               </button>
               <button
                 onClick={() => { fetchArchives(); setShowArchives(true); }}
                 disabled={archives.length === 0}
-                className={`text-xs px-2 py-1 rounded transition-colors ${
+                className={`text-xs px-2 py-1 rounded transition-colors shrink-0 ${
                   archives.length === 0
                     ? 'text-gray-300 cursor-not-allowed'
                     : 'text-gray-600 hover:bg-gray-100'
                 }`}
                 title={archives.length === 0 ? 'No chat history yet' : 'View chat history'}
               >
-                <span className="inline-flex items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 sm:gap-2">
                   <ProductIconCell iconName="history" label="History" size="sm" className="border-transparent bg-transparent text-current" />
-                  History
+                  <span className="hidden sm:inline">History</span>
                 </span>
               </button>
               <button
                 onClick={() => setShowClearConfirm(true)}
-                className="text-xs px-2 py-1 text-gray-600 hover:bg-gray-100 rounded transition-colors dark:bg-gray-800 dark:hover:bg-gray-700"
+                className="text-xs px-2 py-1 text-gray-600 hover:bg-gray-100 rounded transition-colors dark:bg-gray-800 dark:hover:bg-gray-700 shrink-0"
                 title="Clear messages"
               >
-                <span className="inline-flex items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 sm:gap-2">
                   <ProductIconCell iconName="delete" label="Clear" size="sm" className="border-transparent bg-transparent text-current" />
-                  Clear
+                  <span className="hidden sm:inline">Clear</span>
                 </span>
               </button>
               <button
                 onClick={() => setIsSlideMode(!isSlideMode)}
-                className="text-gray-400 hover:text-gray-600 text-sm px-2 py-1 hover:bg-gray-100 rounded transition-colors dark:bg-gray-800 dark:hover:bg-gray-700"
+                className="text-gray-400 hover:text-gray-600 text-sm px-2 py-1 hover:bg-gray-100 rounded transition-colors dark:bg-gray-800 dark:hover:bg-gray-700 shrink-0"
                 title={isSlideMode ? "Switch to modal" : "Switch to slide"}
               >
                 <ProductIconCell

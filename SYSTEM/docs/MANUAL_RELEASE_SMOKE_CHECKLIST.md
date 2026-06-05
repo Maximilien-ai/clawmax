@@ -160,6 +160,11 @@ Notes:
 - [ ] Skills page uses wide screens well
   - Observed:
 
+- [ ] Skills page remains usable on mobile/narrow widths
+  - Search does not auto-open the software keyboard on initial load
+  - Search remains visually prominent after tab/filter changes
+  - Observed:
+
 - [ ] On Linux/on-prem/cloud, obvious macOS-only built-ins are hidden
   - Observed:
 
@@ -308,6 +313,11 @@ Notes:
 
 - [ ] One normal agent chat succeeds
   - Agent:
+  - Observed:
+
+- [ ] Agent chat and group/community chat headers remain usable on mobile/narrow widths
+  - Title keeps first-row priority and truncates cleanly
+  - Secondary actions do not crowd or overflow the title row
   - Observed:
 
 - [ ] Chat response renders without transcript junk or raw runtime metadata
