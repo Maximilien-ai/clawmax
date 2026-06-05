@@ -882,7 +882,7 @@ export function ByokWizard({
     [modelsByProvider]
   )
   const resendTestRecipient = useMemo(() => resolveResendTestRecipientEmail(user), [user])
-  const allowResendRecipientOverride = deploymentKind === 'local'
+  const allowResendRecipientOverride = deploymentKind === 'local' || deploymentKind === 'onprem'
   const effectiveResendTestRecipient = allowResendRecipientOverride
     ? (resendTestTo.trim() || resendTestRecipient)
     : resendTestRecipient
@@ -1580,7 +1580,7 @@ export function ByokWizard({
             <div className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
               {allowResendRecipientOverride
                 ? 'Local dev mode allows overriding the recipient. If left blank, the signed-in email is used.'
-                : 'Hosted and on-prem runtimes lock test emails to the signed-in user.'}
+                : 'Cloud-hosted runtimes lock test emails to the signed-in user.'}
             </div>
           </div>
           <div>

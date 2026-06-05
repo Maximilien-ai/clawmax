@@ -81,17 +81,37 @@ export function SkillCard({ skill, assigned, onToggle, onView, onExport, onDelet
       )}
       {/* Header */}
       <div className={`space-y-3 ${selectionMode ? 'pr-10' : ''}`}>
+        <div className="flex items-start gap-2">
+          <ProductIconCell iconName={skillVisual.iconName} emoji={skillVisual.emoji} label={skill.name} size="sm" className="mt-0.5 flex-shrink-0" />
+          <h3 className="min-w-0 flex-1 text-base font-semibold leading-tight text-gray-900 break-words dark:text-gray-100">
+            {skill.name}
+          </h3>
+        </div>
+
         <div className="flex items-start justify-between gap-3">
-          <div className="flex-1 min-w-0">
-          <div className="flex items-start gap-2 mb-1">
-            <ProductIconCell iconName={skillVisual.iconName} emoji={skillVisual.emoji} label={skill.name} size="sm" className="flex-shrink-0" />
-            <h3 className="min-w-0 flex-1 text-base font-semibold leading-tight text-gray-900 break-words dark:text-gray-100">
-              {skill.name}
-            </h3>
-          </div>
+          <div className="min-w-0 flex-1">
+            <div className="mb-1.5 flex flex-wrap gap-1.5">
+              <span className="whitespace-nowrap text-[10px] px-1.5 py-0.5 rounded border border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900/30 dark:text-gray-300">
+                {getSourceBadgeLabel(skill)}
+              </span>
+              {getRegistryBadgeLabel(skill) && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded border border-purple-200 bg-purple-50 text-purple-700 dark:border-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
+                  {getRegistryBadgeLabel(skill)}
+                </span>
+              )}
+              {skill.dirty && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded border border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                  DIRTY
+                </span>
+              )}
+              {setupHint && (
+                <span className="whitespace-nowrap text-[10px] px-1.5 py-0.5 rounded border border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                  {setupHint.label}
+                </span>
+              )}
+            </div>
           </div>
 
-          {/* Actions */}
           <div className="flex flex-col items-end gap-2 flex-shrink-0">
             <div className="flex items-center gap-1">
               {onView && (
@@ -152,27 +172,6 @@ export function SkillCard({ skill, assigned, onToggle, onView, onExport, onDelet
               </button>
             )}
           </div>
-        </div>
-
-        <div className="mb-1.5 flex flex-wrap gap-1.5">
-          <span className="whitespace-nowrap text-[10px] px-1.5 py-0.5 rounded border border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900/30 dark:text-gray-300">
-            {getSourceBadgeLabel(skill)}
-          </span>
-          {getRegistryBadgeLabel(skill) && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded border border-purple-200 bg-purple-50 text-purple-700 dark:border-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
-              {getRegistryBadgeLabel(skill)}
-            </span>
-          )}
-          {skill.dirty && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded border border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
-              DIRTY
-            </span>
-          )}
-          {setupHint && (
-            <span className="whitespace-nowrap text-[10px] px-1.5 py-0.5 rounded border border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
-              {setupHint.label}
-            </span>
-          )}
         </div>
 
         <p className="text-sm text-gray-600 line-clamp-3 dark:text-gray-300">

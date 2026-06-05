@@ -267,6 +267,15 @@ async function run() {
     }), 'local-dev@example.com')
   })
 
+  await test('resend test recipient allows custom recipient override on on-prem runtimes without OTP identity', async () => {
+    assert.strictEqual(resolveResendTestRecipient({
+      requestedTo: ' onprem@example.com ',
+      actorEmail: '',
+      actorLogin: '',
+      allowCustomRecipient: true,
+    }), 'onprem@example.com')
+  })
+
   await test('config reports env-backed resend secret presence when workspace secret file is empty', async () => {
     process.env.RESEND_API_KEY = 're_env_runtime_1234'
     const secretsPath = path.join(workspacePath, 'SYSTEM', 'integrations.secrets.json')

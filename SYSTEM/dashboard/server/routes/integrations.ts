@@ -127,7 +127,7 @@ router.post('/resend/test-email', async (req, res) => {
         requestedTo: typeof body.to === 'string' ? body.to : undefined,
         actorEmail: session?.email,
         actorLogin: session?.login,
-        allowCustomRecipient: deploymentKind === 'local',
+        allowCustomRecipient: deploymentKind === 'local' || deploymentKind === 'onprem',
       }),
       subject: typeof body.subject === 'string' ? body.subject : undefined,
       text: typeof body.text === 'string' ? body.text : undefined,

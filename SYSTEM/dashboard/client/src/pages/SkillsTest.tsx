@@ -964,9 +964,39 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
     }
   }
 
+  async function ensureBundledPartnerSkillMaterialized(skillName: string, availableSkills: OpenClawSkill[]): Promise<boolean> {
+    const existingSkill = availableSkills.find((skill) => skill.name === skillName)
+    if (!existingSkill || existingSkill.source !== 'bundled' || existingSkill.variantOf) {
+      return false
+    }
+
+    const contentRes = await fetch(`${API_BASE}/api/skills/${encodeURIComponent(skillName)}/content`)
+    const contentData = await contentRes.json().catch(() => ({}))
+    if (!contentRes.ok || typeof contentData.content !== 'string') {
+      throw new Error(contentData.error || `Failed to load ${skillName}`)
+    }
+
+    const saveRes = await fetch(`${API_BASE}/api/skills/${encodeURIComponent(skillName)}/content`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        content: contentData.content,
+        name: existingSkill.name,
+        description: existingSkill.description,
+        tags: existingSkill.tags || [],
+      }),
+    })
+    const saveData = await saveRes.json().catch(() => ({}))
+    if (!saveRes.ok) {
+      throw new Error(saveData.error || `Failed to materialize ${skillName}`)
+    }
+    return true
+  }
+
   async function importPartnerCatalog(partner: {
+    slug?: string
     name: string
-    skills: { sourceUrl?: string }
+    skills: { sourceUrl?: string; items?: string[] }
   }) {
     if (!partner.skills.sourceUrl) {
       showToastError(`No import source configured for ${partner.name}`)
@@ -984,23 +1014,41 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
       if (!res.ok) {
         throw new Error(data.error || `Failed to import ${partner.name} skills`)
       }
-      await loadSkills()
+      let loadedSkills = await loadSkills()
+      const materializedBundledSkills: string[] = []
+      for (const skillName of partner.skills.items || []) {
+        try {
+          if (await ensureBundledPartnerSkillMaterialized(skillName, loadedSkills)) {
+            materializedBundledSkills.push(skillName)
+            loadedSkills = await loadSkills()
+          }
+        } catch (err: any) {
+          showWarning(err?.message || `Failed to prepare ${skillName}`)
+        }
+      }
       if (data.warning) {
         showWarning(data.warning)
       }
       if (data.total && data.total > 1) {
         const failed = data.skills?.filter((s: any) => !s.ok) || []
-        const importedSkillNames = data.skills?.filter((s: any) => s.ok).map((s: any) => s.skillId).filter(Boolean) || []
-        showSuccess(`Imported ${data.imported}/${data.total} ${partner.name} skills`)
+        const importedSkillNames = [
+          ...(data.skills?.filter((s: any) => s.ok).map((s: any) => s.skillId).filter(Boolean) || []),
+          ...materializedBundledSkills,
+        ]
+        const materializedSuffix = materializedBundledSkills.length > 0
+          ? ` (+${materializedBundledSkills.length} bundled helper${materializedBundledSkills.length !== 1 ? 's' : ''})`
+          : ''
+        showSuccess(`Imported ${data.imported}/${data.total} ${partner.name} skills${materializedSuffix}`)
         if (importedSkillNames.length > 0) {
           await warnForSkillSetupByNames(importedSkillNames)
         }
         if (failed.length > 0) {
           showToastError(`Failed: ${failed.map((f: any) => f.skillId).join(', ')}`)
         }
-      } else if (data.skillId) {
-        showSuccess(`Imported ${partner.name} skill: ${data.skillId}`)
-        await warnForSkillSetupByNames([data.skillId])
+      } else if (data.skillId || materializedBundledSkills.length > 0) {
+        const importedNames = [data.skillId, ...materializedBundledSkills].filter(Boolean)
+        showSuccess(`Imported ${partner.name} skill${importedNames.length !== 1 ? 's' : ''}: ${importedNames.join(', ')}`)
+        await warnForSkillSetupByNames(importedNames as string[])
       } else {
         showSuccess(`Imported ${partner.name} skills`)
       }
