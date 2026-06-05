@@ -5,14 +5,14 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.7.6-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
+[![Version](https://img.shields.io/badge/version-1.7.7-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
 [![Tests](https://img.shields.io/badge/tests-96%20default--safe-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 Latest Release: v1.7.6
+## 🔥 Latest Release: v1.7.7
 
-- `1.7.6` is the active release line for the Resend cloud/on-prem follow-through patch.
+- `1.7.7` is the active release line for the Resend and skills-surface follow-through patch.
 
 ## ✨ 1.7.x Highlights
 
@@ -36,6 +36,8 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
   - workspace-managed partner secrets are exported to agent runtimes with canonical env names such as `RESEND_API_KEY`
   - runtime env-backed managed secrets such as `RESEND_API_KEY` are surfaced correctly in the dashboard integration state instead of requiring an unnecessary resave
   - managed sender env values such as `OTP_FROM_EMAIL`, `SIGNUP_FROM_EMAIL`, and `RESEND_DEFAULT_FROM` now accept either bare emails or preformatted `Name <email>` strings without generating invalid nested Resend `from` payloads
+  - Resend partner imports now bring along the local `clawmax-resend` bridge helper so partner installs match the practical agent-email path
+  - on-prem Resend test email now allows an explicit recipient override when OTP-authenticated user identity is not part of the install mode
   - Resend-capable agents can fulfill direct, post-reply, and attachment-based email requests through the dashboard Resend bridge instead of hitting OpenClaw embedded-session conflicts
   - agent-scoped Resend senders, first-pass anti-spam throttling, and explicit workspace-file attachments are now part of the default bridge behavior
   - partner-backed skills can be separated from user and built-in skills in the catalog
@@ -52,6 +54,7 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
   - unchanged AI prompt expansions now retry server-side instead of silently echoing the same seed prompt back
 - Templates and Skills authoring flows are more complete:
   - Templates and Skills search bars now have clearer prominence and more consistent action behavior
+  - skill cards now reserve the top line for the skill name and align status badges/actions more consistently below it
   - empty Workflows and Communications states now include direct starter actions instead of dead-end copy
   - Agents and Workflows now share a clearer `Create with AI` / `Create with Wizard` action pattern
 
@@ -189,7 +192,7 @@ curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/ins
 Pinned release:
 
 ```bash
-curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.7.6
+curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.7.7
 ```
 
 What it does:
@@ -210,13 +213,13 @@ See [SYSTEM/docs/DEMO_VIDEOS.md](SYSTEM/docs/DEMO_VIDEOS.md) for the current inv
 You can also bootstrap directly with the checked-in wrapper:
 
 ```bash
-./setup.sh v1.7.6
+./setup.sh v1.7.7
 ```
 
 or choose a custom install directory:
 
 ```bash
-curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.7.6 --dir /opt/clawmax
+curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.7.7 --dir /opt/clawmax
 ```
 
 See [SYSTEM/docs/RELEASE_DISTRIBUTION.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/RELEASE_DISTRIBUTION.md) for the release distribution contract.

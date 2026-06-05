@@ -88,9 +88,9 @@ export function SkillCard({ skill, assigned, onToggle, onView, onExport, onDelet
           </h3>
         </div>
 
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <div className="mb-1.5 flex flex-wrap gap-1.5">
+        <div className="flex items-end justify-between gap-3">
+          <div className="min-w-0 flex-1 self-end">
+            <div className="flex flex-wrap items-end gap-1.5">
               <span className="whitespace-nowrap text-[10px] px-1.5 py-0.5 rounded border border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900/30 dark:text-gray-300">
                 {getSourceBadgeLabel(skill)}
               </span>
@@ -112,7 +112,7 @@ export function SkillCard({ skill, assigned, onToggle, onView, onExport, onDelet
             </div>
           </div>
 
-          <div className="flex flex-col items-end gap-2 flex-shrink-0">
+          <div className="flex flex-col items-end justify-end gap-2 self-end flex-shrink-0">
             <div className="flex items-center gap-1">
               {onView && (
                 <button

@@ -6,6 +6,19 @@ All notable changes to ClawMax are documented here.
 
 - No unreleased changes yet.
 
+## [v1.7.7] - 2026-06-05
+
+### Resend Partner Follow-Through
+- **Partner Import Completeness** — Resend partner imports now materialize the local `clawmax-resend` bridge helper alongside the upstream Resend skill set, so the default ClawMax email-send path is present after the curated partner import flow.
+- **On-Prem Recipient Override** — on-prem Resend test email now allows an explicit recipient override like local/dev installs when the deployment is not using OTP-authenticated user identity, instead of incorrectly locking the test recipient to a missing session email.
+
+### Skills Surface Polish
+- **Skill Card Title Priority** — skill cards now reserve the top line for the skill name and align the badge/action row more consistently underneath it, reducing header crowding and improving scanability in the grid.
+
+### Container Image Reliability
+- **Retry-Hardened npm Installs** — Docker image build stages now retry npm dependency installs instead of failing on the first transient registry/network blip during GH Actions image builds.
+- **Stage-Local Docker Shell Directives** — the container build now places shell directives inside valid build stages, fixing the follow-up Dockerfile syntax regression that blocked the first retry-hardened image rerun.
+
 ## [v1.7.6] - 2026-06-05
 
 ### Resend Cloud and On-Prem Sender Normalization
