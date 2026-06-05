@@ -1672,49 +1672,52 @@ export default function Templates() {
                 <ProductIconCell iconName="template" label="Actions" size="sm" className="border-transparent bg-transparent text-current" /> Actions <span className="text-xs">▾</span>
               </button>
               {showActionsMenu && (
-                <div className="absolute right-0 mt-2 w-56 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-xl z-20 overflow-hidden">
-                  <button
-                    onClick={() => {
-                      setShowImportTemplateModal(true)
-                      setShowActionsMenu(false)
-                    }}
-                    className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
-                  >
-                    <ProductIconCell iconName="import" label="Import TEMPLATE.md" size="sm" className="border-sky-200 bg-sky-50 text-sky-600 dark:border-sky-700 dark:bg-sky-900/30 dark:text-sky-300" /> Import TEMPLATE.md
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowRegistryModal(true)
-                      setShowActionsMenu(false)
-                    }}
-                    className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 border-t border-gray-100 dark:border-gray-700"
-                  >
-                    <ProductIconCell iconName="registry" label="ClawMax.ai Registry" size="sm" className="border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-300" /> ClawMax.ai Registry
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowActionsMenu(false)
-                      exportSelectedTemplate()
-                    }}
-                    disabled={!selectedTemplate || selectedTemplate.type === 'workflow' || !selectedTemplate.slug}
-                    className={`w-full text-left px-4 py-3 text-sm flex items-center gap-2 border-t border-gray-100 dark:border-gray-700 ${
-                      selectedTemplate && selectedTemplate.type !== 'workflow' && selectedTemplate.slug
-                        ? 'hover:bg-gray-50 dark:hover:bg-gray-700'
-                        : 'text-gray-400 dark:text-gray-500 cursor-not-allowed'
-                    }`}
-                  >
-                    <ProductIconCell iconName="export" label="Export TEMPLATE.md" size="sm" className="border-indigo-200 bg-indigo-50 text-indigo-600 dark:border-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300" /> Export TEMPLATE.md
-                  </button>
-                  <button
-                    onClick={() => {
-                      fetchTemplates()
-                      setShowActionsMenu(false)
-                    }}
-                    className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 border-t border-gray-100 dark:border-gray-700"
-                  >
-                    <ProductIconCell iconName="refresh" label="Refresh Templates" size="sm" className="border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" /> Refresh Templates
-                  </button>
-                </div>
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowActionsMenu(false)} />
+                  <div className="absolute right-0 mt-2 w-56 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-xl z-20 overflow-hidden">
+                    <button
+                      onClick={() => {
+                        setShowImportTemplateModal(true)
+                        setShowActionsMenu(false)
+                      }}
+                      className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
+                    >
+                      <ProductIconCell iconName="import" label="Import TEMPLATE.md" size="sm" className="border-sky-200 bg-sky-50 text-sky-600 dark:border-sky-700 dark:bg-sky-900/30 dark:text-sky-300" /> Import TEMPLATE.md
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowRegistryModal(true)
+                        setShowActionsMenu(false)
+                      }}
+                      className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 border-t border-gray-100 dark:border-gray-700"
+                    >
+                      <ProductIconCell iconName="registry" label="ClawMax.ai Registry" size="sm" className="border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-300" /> ClawMax.ai Registry
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowActionsMenu(false)
+                        exportSelectedTemplate()
+                      }}
+                      disabled={!selectedTemplate || selectedTemplate.type === 'workflow' || !selectedTemplate.slug}
+                      className={`w-full text-left px-4 py-3 text-sm flex items-center gap-2 border-t border-gray-100 dark:border-gray-700 ${
+                        selectedTemplate && selectedTemplate.type !== 'workflow' && selectedTemplate.slug
+                          ? 'hover:bg-gray-50 dark:hover:bg-gray-700'
+                          : 'text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                      }`}
+                    >
+                      <ProductIconCell iconName="export" label="Export TEMPLATE.md" size="sm" className="border-indigo-200 bg-indigo-50 text-indigo-600 dark:border-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300" /> Export TEMPLATE.md
+                    </button>
+                    <button
+                      onClick={() => {
+                        fetchTemplates()
+                        setShowActionsMenu(false)
+                      }}
+                      className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 border-t border-gray-100 dark:border-gray-700"
+                    >
+                      <ProductIconCell iconName="refresh" label="Refresh Templates" size="sm" className="border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" /> Refresh Templates
+                    </button>
+                  </div>
+                </>
               )}
             </div>
           </div>
