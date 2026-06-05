@@ -5,6 +5,8 @@ ARG OPENCLAW_GIT_REF=v2026.5.26
 ARG BUILDPLATFORM
 ARG TARGETPLATFORM
 
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
 FROM --platform=$BUILDPLATFORM node:22.19.0-bookworm-slim AS openclaw-builder
 
 ARG OPENCLAW_GIT_REF
@@ -25,7 +27,26 @@ RUN npm install -g pnpm
 # dependency tree plus built OpenClaw dist here, so skip dependency lifecycle
 # scripts in the builder stage and let the explicit top-level build produce the
 # artifact we package into the runtime image.
-RUN if [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile --ignore-scripts; elif [ -f package-lock.json ]; then npm ci --legacy-peer-deps --ignore-scripts; else npm install --legacy-peer-deps --ignore-scripts; fi
+RUN retry() { \
+      local attempts="$1"; shift; \
+      local delay="$1"; shift; \
+      local n=1; \
+      until "$@"; do \
+        if [ "$n" -ge "$attempts" ]; then \
+          return 1; \
+        fi; \
+        echo "Retry $n/$attempts failed for: $*"; \
+        n=$((n + 1)); \
+        sleep "$delay"; \
+      done; \
+    }; \
+    if [ -f pnpm-lock.yaml ]; then \
+      retry 3 5 pnpm install --frozen-lockfile --ignore-scripts; \
+    elif [ -f package-lock.json ]; then \
+      retry 3 5 npm ci --legacy-peer-deps --ignore-scripts; \
+    else \
+      retry 3 5 npm install --legacy-peer-deps --ignore-scripts; \
+    fi
 RUN npm run build:docker
 RUN npm pack
 
@@ -36,7 +57,24 @@ ARG CLAWMAX_VERSION
 WORKDIR /app/SYSTEM/dashboard
 
 COPY SYSTEM/dashboard/package*.json ./
-RUN if [ -f package-lock.json ]; then npm ci --legacy-peer-deps; else npm install --legacy-peer-deps; fi
+RUN retry() { \
+      local attempts="$1"; shift; \
+      local delay="$1"; shift; \
+      local n=1; \
+      until "$@"; do \
+        if [ "$n" -ge "$attempts" ]; then \
+          return 1; \
+        fi; \
+        echo "Retry $n/$attempts failed for: $*"; \
+        n=$((n + 1)); \
+        sleep "$delay"; \
+      done; \
+    }; \
+    if [ -f package-lock.json ]; then \
+      retry 3 5 npm ci --legacy-peer-deps; \
+    else \
+      retry 3 5 npm install --legacy-peer-deps; \
+    fi
 
 COPY SYSTEM/dashboard ./
 RUN npm run build
@@ -60,7 +98,24 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 COPY SYSTEM/dashboard/package*.json ./
-RUN if [ -f package-lock.json ]; then npm ci --omit=dev --legacy-peer-deps; else npm install --omit=dev --legacy-peer-deps; fi
+RUN retry() { \
+      local attempts="$1"; shift; \
+      local delay="$1"; shift; \
+      local n=1; \
+      until "$@"; do \
+        if [ "$n" -ge "$attempts" ]; then \
+          return 1; \
+        fi; \
+        echo "Retry $n/$attempts failed for: $*"; \
+        n=$((n + 1)); \
+        sleep "$delay"; \
+      done; \
+    }; \
+    if [ -f package-lock.json ]; then \
+      retry 3 5 npm ci --omit=dev --legacy-peer-deps; \
+    else \
+      retry 3 5 npm install --omit=dev --legacy-peer-deps; \
+    fi
 # Pin the tested OpenClaw runtime explicitly so downstream cloud builders do
 # not drift to fixtures or an unvalidated upstream revision. Install from a
 # packed artifact so dist output and production dependencies land exactly as
