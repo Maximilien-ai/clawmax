@@ -202,11 +202,14 @@ app.use(cookieParser())
 // Rate limiting — global: 1000 req/min, auth: 20 req/min
 const globalLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 1000,
+  max: 5000,
   standardHeaders: true,
   legacyHeaders: false,
   skip: (req) => req.method === 'GET' && /^\/api\/workspaces\/[^/]+\/export$/.test(req.path),
-  message: { error: 'Too many requests, please try again later' },
+  handler: (req, res, _next, options) => {
+    console.warn(`[rate-limit] global limiter exceeded for ${req.method} ${req.originalUrl} ip=${req.ip}`)
+    res.status(options.statusCode).json({ error: 'Too many requests, please try again later' })
+  },
 })
 const authLimiter = rateLimit({
   windowMs: 60 * 1000,
