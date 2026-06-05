@@ -403,6 +403,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
   const [partnerInstalling, setPartnerInstalling] = useState<string | null>(null)
   const [installedPartnerSlugs, setInstalledPartnerSlugs] = useState<Set<string>>(new Set())
   const [showPartnerInstallers, setShowPartnerInstallers] = useState(false)
+  const [showAllPopularSkills, setShowAllPopularSkills] = useState(false)
   const [aiSkillPrompt, setAiSkillPrompt] = useState('')
   const [showAiPromptEditor, setShowAiPromptEditor] = useState(false)
   const [aiSkillRefinementPrompt, setAiSkillRefinementPrompt] = useState('')
@@ -457,6 +458,10 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
     fields?: Array<{ key: string; secret?: boolean; storage?: 'browser' | 'server' }>
   }>>([])
   const [serverPartnerSecretSummaries, setServerPartnerSecretSummaries] = useState<Record<string, Record<string, { present?: boolean; preview?: string }>>>({})
+  const popularSkills = Array.from(skillUsage.entries())
+    .sort((a, b) => b[1].length - a[1].length)
+    .slice(0, 10)
+  const collapsedPopularSkills = popularSkills.slice(0, 4)
 
   const focusSkill = (skillName: string) => {
     const normalized = skillName.trim().toLowerCase()
@@ -2012,27 +2017,47 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
         {/* Popular Skills */}
         {skillUsage.size > 0 && (
           <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border mb-6">
-            <h3 className="text-sm font-semibold text-gray-700 mb-3 dark:text-gray-300">Most Popular Skills</h3>
-            <div className="flex flex-wrap gap-2">
-              {Array.from(skillUsage.entries())
-                .sort((a, b) => b[1].length - a[1].length)
-                .slice(0, 10)
-                .map(([skillName, users]) => (
-                  <button
-                    key={skillName}
-                    onClick={() => {
-                      setSearchQuery(skillName)
-                      setFilterAssigned('all')
-                    }}
-                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-50 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-700 hover:bg-purple-100 dark:hover:bg-purple-900/50 hover:border-purple-300 dark:hover:border-purple-600 transition-colors cursor-pointer"
-                    title={`Search for ${skillName}`}
-                  >
-                    <span className="text-sm font-medium text-purple-900 dark:text-purple-400">{skillName}</span>
-                    <span className="text-xs text-purple-600 dark:text-purple-400 bg-purple-100 dark:bg-purple-900/50 px-2 py-0.5 rounded-full">
-                      {users.length}
+            <div className="flex items-start gap-3">
+              {popularSkills.length > collapsedPopularSkills.length && (
+                <button
+                  type="button"
+                  onClick={() => setShowAllPopularSkills((current) => !current)}
+                  className="mt-0.5 shrink-0 text-sm font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                  aria-label={showAllPopularSkills ? 'Collapse popular skills' : 'Expand popular skills'}
+                  title={showAllPopularSkills ? 'Show fewer popular skills' : 'Show more popular skills'}
+                >
+                  {showAllPopularSkills ? '▼' : '▶'}
+                </button>
+              )}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-3">
+                  <h3 className="shrink-0 text-sm font-semibold text-gray-700 dark:text-gray-300">Most Popular Skills</h3>
+                  {!showAllPopularSkills && popularSkills.length > collapsedPopularSkills.length && (
+                    <span className="shrink-0 text-xs text-gray-500 dark:text-gray-400">
+                      +{popularSkills.length - collapsedPopularSkills.length} more
                     </span>
-                  </button>
-                ))}
+                  )}
+                </div>
+                <div className={`mt-2 flex min-w-0 gap-2 ${showAllPopularSkills ? 'flex-wrap' : 'flex-nowrap overflow-hidden'}`}>
+                  {(showAllPopularSkills ? popularSkills : collapsedPopularSkills)
+                    .map(([skillName, users]) => (
+                      <button
+                        key={skillName}
+                        onClick={() => {
+                          setSearchQuery(skillName)
+                          setFilterAssigned('all')
+                        }}
+                        className="inline-flex shrink-0 items-center gap-2 rounded-full border border-purple-200 bg-purple-50 px-3 py-1.5 transition-colors hover:border-purple-300 hover:bg-purple-100 dark:border-purple-700 dark:bg-purple-900/30 dark:hover:border-purple-600 dark:hover:bg-purple-900/50"
+                        title={`Search for ${skillName}`}
+                      >
+                        <span className="text-sm font-medium text-purple-900 dark:text-purple-400">{skillName}</span>
+                        <span className="rounded-full bg-purple-100 px-2 py-0.5 text-xs text-purple-600 dark:bg-purple-900/50 dark:text-purple-400">
+                          {users.length}
+                        </span>
+                      </button>
+                    ))}
+                </div>
+              </div>
             </div>
           </div>
         )}
