@@ -1440,7 +1440,8 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
       {!loading && !error && agents.length > 0 && filteredAgents.length === 0 && (
         <div className="flex flex-col items-center justify-center h-48 text-gray-400">
           <span className="text-4xl mb-4">🔍</span>
-          <p className="text-sm">No agents match the selected tags</p>
+          <p className="text-base font-medium text-gray-500 dark:text-gray-400">No agents match the current filters</p>
+          <p className="mt-1 text-sm text-gray-400 dark:text-gray-500">Try different tags, search terms, or clear the filters to see more agents.</p>
           <button
             onClick={() => setSelectedTags(new Set())}
             className="text-xs mt-2 text-sky-600 hover:text-sky-800 font-medium"

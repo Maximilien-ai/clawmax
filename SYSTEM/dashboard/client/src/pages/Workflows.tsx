@@ -1601,7 +1601,10 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
           <div className="text-center text-gray-500 py-12">
             {searchQuery ? (
               <div className="mx-auto max-w-3xl">
-                <div>No workflows match your search</div>
+                <div className="text-base font-medium text-gray-600 dark:text-gray-300">No workflows match your search</div>
+                <div className="mt-1 text-sm text-gray-400 dark:text-gray-500">
+                  Try a different workflow name, tag, target, or clear the current filters.
+                </div>
                 {workflowSuggestions.length > 0 && (
                   <div className="mt-4 rounded-xl border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-900/20 p-4 text-left">
                     <div className="text-sm font-semibold text-sky-900 dark:text-sky-100">Suggested starting points</div>
@@ -1628,7 +1631,14 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                   </div>
                 )}
               </div>
-            ) : 'No workflows yet'}
+            ) : (
+              <div>
+                <div className="text-base font-medium text-gray-600 dark:text-gray-300">No workflows in this workspace yet</div>
+                <div className="mt-1 text-sm text-gray-400 dark:text-gray-500">
+                  Create a workflow to coordinate agents, schedules, and repeatable automations.
+                </div>
+              </div>
+            )}
           </div>
         ) : viewMode === 'dag' ? (
           <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
