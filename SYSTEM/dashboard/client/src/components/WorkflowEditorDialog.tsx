@@ -1253,6 +1253,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
         initialValue={formData.description}
         placeholder="Brief description of what this workflow does"
         rows={8}
+        defaultExpandFormat="text"
         onClose={() => setShowDescriptionEditor(false)}
         onSave={(value) => {
           setFormData(prev => ({ ...prev, description: value }))
@@ -1260,7 +1261,16 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
             setValidationErrors(prev => ({ ...prev, description: undefined }))
           }
         }}
-        onExpandWithAi={(value, format, guidance) => expandPromptWithAI(value, 'workflow', format, guidance)}
+        onExpandWithAi={(value, format, guidance) => expandPromptWithAI(
+          value,
+          'workflow',
+          format,
+          [
+            'Expand this into a concise workflow description for the Description field, not a full workflow spec.',
+            'Keep it to 2-4 sentences in plain text.',
+            guidance.trim(),
+          ].filter(Boolean).join(' '),
+        )}
         saveLabel="Use Description"
       />
     </>

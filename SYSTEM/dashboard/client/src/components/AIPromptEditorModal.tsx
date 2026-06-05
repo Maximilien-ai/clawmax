@@ -23,6 +23,7 @@ interface AIPromptEditorModalProps {
   attachments?: PromptAttachment[]
   onAttachFiles?: (files: File[]) => void | Promise<void>
   onRemoveAttachment?: (id: string) => void
+  defaultExpandFormat?: PromptExpandFormat
 }
 
 const EMPTY_ATTACHMENTS: PromptAttachment[] = []
@@ -53,6 +54,7 @@ export default function AIPromptEditorModal({
   attachments,
   onAttachFiles,
   onRemoveAttachment,
+  defaultExpandFormat = 'markdown',
 }: AIPromptEditorModalProps) {
   const [draft, setDraft] = useState(initialValue)
   const [expanding, setExpanding] = useState(false)
@@ -71,7 +73,7 @@ export default function AIPromptEditorModal({
   useEffect(() => {
     if (isOpen) {
       setDraft(initialValue)
-      setExpandFormat('markdown')
+      setExpandFormat(defaultExpandFormat)
       setExpandGuidance('')
       setExpandError(null)
       setExpandedFlash(false)
@@ -85,7 +87,7 @@ export default function AIPromptEditorModal({
         setLocalAttachments([])
       }
     }
-  }, [attachments, initialValue, isOpen])
+  }, [attachments, defaultExpandFormat, initialValue, isOpen])
 
   useEffect(() => {
     return () => {
@@ -294,6 +296,10 @@ export default function AIPromptEditorModal({
                         expandFormat,
                         expandGuidance,
                       )
+                      if (expanded.trim() === draft.trim()) {
+                        setExpandError('AI expansion returned no changes. Add a bit more detail or a short improvement direction and try again.')
+                        return
+                      }
                       setDraft(expanded)
                       setExpandedFlash(true)
                       if (flashTimeoutRef.current !== null) {
