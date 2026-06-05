@@ -6,6 +6,20 @@ All notable changes to ClawMax are documented here.
 
 - No unreleased changes yet.
 
+## [v1.7.5] - 2026-06-05
+
+### Resend Runtime and Integration State
+- **Env-Backed Resend Readiness** — the dashboard integrations API now reports runtime-managed `RESEND_API_KEY` presence even when the key is injected by the deployment environment instead of being re-saved into workspace secrets, so cloud/on-prem Resend surfaces no longer show `Not configured yet` or `Save key first` incorrectly.
+- **Managed Secret State Alignment** — integration config responses now align the UI readiness path with the real runtime send path for managed partner secrets, reducing false-negative setup states during hosted/on-prem validation.
+
+### Chat and Skills Surface Follow-Through
+- **Chat Header Layout Cleanup** — agent and group chat headers now prioritize the title row more cleanly, move secondary actions into a lower control band, and use available space more intentionally instead of clipping labels while leaving dead header space.
+- **Skills Search Emphasis** — the Skills filter bar now gives the search input the remaining horizontal space, stronger light/dark focus treatment, and clearer visual priority after the `All / Assigned / Available` filter step.
+- **Mobile Follow-Through** — the Skills search desktop autofocus no longer auto-pops the software keyboard on mobile/narrow layouts, and the agent chat toolbar compresses more cleanly on smaller widths.
+
+### Release Readiness
+- **Manual Smoke Additions** — the reusable release smoke checklist now explicitly calls out mobile validation for Skills search behavior plus chat title/action behavior on narrow screens so the `1.7.5` line has clearer operator test expectations.
+
 ## [v1.7.4] - 2026-06-04
 
 ### Resend Partner and Agent Email Bridge

@@ -5,14 +5,14 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.7.4-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
+[![Version](https://img.shields.io/badge/version-1.7.5-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
 [![Tests](https://img.shields.io/badge/tests-96%20default--safe-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 Latest Release: v1.7.4
+## 🔥 Latest Release: v1.7.5
 
-- `1.7.4` is the current release candidate for dev, on-prem, and cloud validation.
+- `1.7.5` is the active release-candidate line for the next dev, on-prem, and cloud validation pass.
 
 ## ✨ 1.7.x Highlights
 
@@ -33,6 +33,7 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 - Partner integrations and partner-backed skills are more usable:
   - `Resend` is now a first-class partner integration with server-stored API key support and a dashboard test-email path
   - workspace-managed partner secrets are exported to agent runtimes with canonical env names such as `RESEND_API_KEY`
+  - runtime env-backed managed secrets such as `RESEND_API_KEY` are surfaced correctly in the dashboard integration state instead of requiring an unnecessary resave
   - Resend-capable agents can fulfill direct, post-reply, and attachment-based email requests through the dashboard Resend bridge instead of hitting OpenClaw embedded-session conflicts
   - agent-scoped Resend senders, first-pass anti-spam throttling, and explicit workspace-file attachments are now part of the default bridge behavior
   - partner-backed skills can be separated from user and built-in skills in the catalog
@@ -41,6 +42,7 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 - Workspace/operator follow-through is stronger:
   - workspace ordering and activity/budget scoping are better aligned with the active workspace
   - markdown-only GitHub skill imports and package-based skill install detection are more reliable
+  - chat headers and Skills search are getting another usability/mobile follow-through pass in the `1.7.5` line
 
 Full release details are kept in [CHANGELOG.md](CHANGELOG.md).
 
@@ -176,7 +178,7 @@ curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/ins
 Pinned release:
 
 ```bash
-curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.7.4
+curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.7.5
 ```
 
 What it does:
@@ -197,13 +199,13 @@ See [SYSTEM/docs/DEMO_VIDEOS.md](SYSTEM/docs/DEMO_VIDEOS.md) for the current inv
 You can also bootstrap directly with the checked-in wrapper:
 
 ```bash
-./setup.sh v1.7.4
+./setup.sh v1.7.5
 ```
 
 or choose a custom install directory:
 
 ```bash
-curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.7.4 --dir /opt/clawmax
+curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.7.5 --dir /opt/clawmax
 ```
 
 See [SYSTEM/docs/RELEASE_DISTRIBUTION.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/RELEASE_DISTRIBUTION.md) for the release distribution contract.

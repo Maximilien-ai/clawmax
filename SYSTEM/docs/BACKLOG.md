@@ -1,13 +1,13 @@
 # Backlog
 
-> Last updated: June 4, 2026
+> Last updated: June 5, 2026
 > Completed and verified work is archived into [CHANGELOG.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/CHANGELOG.md) and historical notes under `SYSTEM/docs/**/archive/`
 
 ## Top Priority
 
-- [ ] **Validate `1.7.4` built images on dev, on-prem, and cloud** — local/manual and automated release-candidate validation is green, but the built-artifact line still needs real image validation for Builder, partner integrations, Resend/Himalaya skills, workflow execution, `/api/system`, and durable gateway startup.
-- [ ] **Mobile responsive audit for `1.7.4`** — run a focused iPhone/Safari pass across Builder, DocHub, Agents/dialogs, Workflows, Skills, Partners/BYOK, and Logs. Verify primary inputs are reachable without pinch-zoom, every modal has an accessible close path, and full-height panes do not trap users behind browser chrome.
-- [ ] **Resend follow-through after `1.7.4`** — the bridge, attachments, agent-scoped senders, and first-pass throttling are in. Remaining work is clearer sender/domain readiness errors, attachment/deliverability guidance, richer send audit/rate-limit UI, and managed-environment recipient policy options. Handoff: [RESEND_SETUP_HANDOFF_1_7_4.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/operations/RESEND_SETUP_HANDOFF_1_7_4.md).
+- [ ] **Validate `1.7.5` candidate on dev, on-prem, and cloud** — run the next full image/manual pass against the `1.7.5` line with emphasis on Builder, partner integrations, Resend/Himalaya skills, workflow execution, `/api/system`, and durable gateway startup after the runtime-managed secret/UI alignment fixes.
+- [ ] **Mobile responsive audit for `1.7.5`** — continue the focused iPhone/Safari pass across Builder, DocHub, Agents/dialogs, Workflows, Skills, Partners/BYOK, and Logs. Verify primary inputs are reachable without pinch-zoom, every modal has an accessible close path, and full-height panes do not trap users behind browser chrome.
+- [ ] **Resend follow-through after `1.7.5`** — the bridge, attachments, agent-scoped senders, first-pass throttling, and env-backed integration-state fix are in. Remaining work is clearer sender/domain readiness errors, attachment/deliverability guidance, richer send audit/rate-limit UI, and managed-environment recipient policy options. Handoff: [RESEND_SETUP_HANDOFF_1_7_4.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/operations/RESEND_SETUP_HANDOFF_1_7_4.md).
 - [ ] **Workspace budgeting and metering must be truly workspace-scoped** — confirm budget, spend, and token/cost views are isolated by active workspace slug/id instead of drifting across all workspaces or showing mixed totals.
 - [ ] **Workspace quick-pin / move-to-top affordance** — dragging through long workspace lists is too slow; add a direct “move to top” or equivalent quick-access affordance.
 - [ ] **Skill tags metadata audit** — many bundled/imported/partner skills still have weak or missing tags. Do a focused metadata sweep starting with partner-backed skills and high-traffic built-ins.
