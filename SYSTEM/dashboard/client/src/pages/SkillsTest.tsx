@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import AIPromptEditorModal from '../components/AIPromptEditorModal'
@@ -428,6 +428,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
   const [loadingSkillContent, setLoadingSkillContent] = useState(false)
   const [savingSkillContent, setSavingSkillContent] = useState(false)
   const [installingSkillRequirementsName, setInstallingSkillRequirementsName] = useState<string | null>(null)
+  const searchInputRef = useRef<HTMLInputElement | null>(null)
   const [showInstallRequirementsModal, setShowInstallRequirementsModal] = useState(false)
   const [pendingInstallSkill, setPendingInstallSkill] = useState<OpenClawSkill | null>(null)
   const [installRequirementsCommands, setInstallRequirementsCommands] = useState<string[]>([])
@@ -645,6 +646,10 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
   useEffect(() => {
     loadSkills()
   }, [agentId])
+
+  useEffect(() => {
+    if (!loading) searchInputRef.current?.focus()
+  }, [loading, filterAssigned])
 
   async function loadAgents() {
     try {
@@ -1905,9 +1910,9 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
         {(availableAgents.length > 0 || allSkills.length > 0) && (
           <>
         {/* Filters */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border mb-6">
+        <div className="mb-6 rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
-            <div className="flex flex-wrap gap-2">
+            <div className="flex shrink-0 flex-wrap gap-2">
               <button
                 onClick={() => setFilterAssigned('all')}
                 className={`${headerSecondaryButtonClass} ${
@@ -1940,18 +1945,24 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
               </button>
             </div>
 
-            <div className="relative min-w-64 flex-1 lg:max-w-xl">
+            <div className="relative min-w-0 flex-1">
               <input
+                ref={searchInputRef}
                 type="text"
                 placeholder="Search skills..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-11 w-full px-4 py-2 pr-10 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="h-12 w-full rounded-xl border-2 border-sky-200 bg-sky-50/55 py-2 pl-10 pr-10 text-sm text-gray-900 shadow-sm outline-none transition placeholder:text-gray-500 focus:border-sky-500 focus:bg-white focus:ring-4 focus:ring-sky-100 dark:border-sky-800 dark:bg-slate-900 dark:text-gray-100 dark:placeholder:text-gray-400 dark:focus:border-sky-400 dark:focus:bg-slate-950 dark:focus:ring-sky-950/70"
               />
+              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-sky-500 dark:text-sky-400">
+                <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m14.5 14.5 4 4m-1.833-8.167a6.333 6.333 0 1 1-12.667 0 6.333 6.333 0 0 1 12.667 0Z" />
+                </svg>
+              </div>
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-gray-400 transition-colors hover:bg-white/80 hover:text-gray-600 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300"
                   title="Clear search"
                 >
                   ✕
