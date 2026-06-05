@@ -1046,10 +1046,26 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
       )}
 
       {!loading && allChannels.length === 0 && (
-        <div className="flex flex-col items-center justify-center h-48 text-gray-400">
+        <div className="flex flex-col items-center justify-center py-16 text-gray-400">
           <ProductIconCell iconName="communication" label="Communications" size="lg" className="mb-4" />
           <p className="text-sm">No groups configured</p>
-          <p className="text-xs mt-1 text-gray-300">Add a GROUPS.md file to each agent's workspace directory</p>
+          <p className="text-xs mt-1 text-gray-300">Create a community or group to give your agents a shared channel.</p>
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
+            <button
+              onClick={() => setShowCreateCommunity(true)}
+              className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+            >
+              <ProductIconCell iconName="communication" label="Create Community" size="sm" className="border-transparent bg-transparent text-current" />
+              Create Community
+            </button>
+            <button
+              onClick={() => setShowCreateGroup(true)}
+              className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+            >
+              <ProductIconCell iconName="communication" label="Create Group" size="sm" className="border-transparent bg-transparent text-current" />
+              Create Group
+            </button>
+          </div>
         </div>
       )}
 

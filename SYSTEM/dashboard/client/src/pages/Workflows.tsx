@@ -1639,6 +1639,22 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                 <div className="mt-1 text-xs text-gray-300 dark:text-gray-500">
                   Create a workflow to coordinate agents, schedules, and repeatable automations.
                 </div>
+                <div className="mt-6 flex flex-wrap justify-center gap-3">
+                  <button
+                    onClick={() => setShowEditorDialog(true)}
+                    className="inline-flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-purple-700"
+                  >
+                    <ProductIconCell iconName="workflow" label="Create Workflow" size="sm" className="border-white/20 bg-white/10 text-white" />
+                    Create Workflow
+                  </button>
+                  <button
+                    onClick={() => setShowImportWorkflowModal(true)}
+                    className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                  >
+                    <ProductIconCell iconName="import" label="Import Workflow" size="sm" className="border-transparent bg-transparent text-current" />
+                    Import Workflow
+                  </button>
+                </div>
               </div>
             )}
           </div>
