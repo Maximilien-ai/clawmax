@@ -463,12 +463,6 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
     .sort((a, b) => b[1].length - a[1].length)
     .slice(0, 10)
   const collapsedPopularSkills = popularSkills.slice(0, 4)
-  const selectedSkillTagNames = allSkillTags.filter((tag) => selectedSkillTags.has(tag))
-  const collapsedSkillTags = [
-    ...selectedSkillTagNames,
-    ...allSkillTags.filter((tag) => !selectedSkillTags.has(tag)).slice(0, Math.max(0, 12 - selectedSkillTagNames.length)),
-  ]
-  const visibleSkillTags = showAllSkillTags ? allSkillTags : collapsedSkillTags
 
   const focusSkill = (skillName: string) => {
     const normalized = skillName.trim().toLowerCase()
@@ -1509,6 +1503,12 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
     return () => window.clearInterval(timer)
   }, [interactiveSkillSetupSessionId])
   const allSkillTags = useMemo(() => collectSkillTags(allSkills), [allSkills])
+  const selectedSkillTagNames = allSkillTags.filter((tag) => selectedSkillTags.has(tag))
+  const collapsedSkillTags = [
+    ...selectedSkillTagNames,
+    ...allSkillTags.filter((tag) => !selectedSkillTags.has(tag)).slice(0, Math.max(0, 12 - selectedSkillTagNames.length)),
+  ]
+  const visibleSkillTags = showAllSkillTags ? allSkillTags : collapsedSkillTags
   const visiblePartnerInstallers = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
     return partnerInstallers.filter((partner) => {
