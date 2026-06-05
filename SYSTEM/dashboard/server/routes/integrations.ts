@@ -2,8 +2,8 @@ import { Router } from 'express'
 import { spawn } from 'child_process'
 import { validateIntegrations } from '../lib/integration-validation'
 import {
-  getWorkspaceIntegrationSecretPresence,
-  getWorkspaceIntegrationSecretSummaries,
+  getResolvedWorkspaceIntegrationSecretPresence,
+  getResolvedWorkspaceIntegrationSecretSummaries,
   readWorkspaceIntegrationConfig,
   readWorkspaceIntegrationSecrets,
   writeWorkspaceIntegrationConfig,
@@ -37,8 +37,8 @@ router.get('/status', (_req, res) => {
 router.get('/config', (_req, res) => {
   res.json({
     config: readWorkspaceIntegrationConfig(),
-    secretPresence: getWorkspaceIntegrationSecretPresence(),
-    secretSummaries: getWorkspaceIntegrationSecretSummaries(),
+    secretPresence: getResolvedWorkspaceIntegrationSecretPresence(),
+    secretSummaries: getResolvedWorkspaceIntegrationSecretSummaries(),
   })
 })
 
@@ -95,8 +95,8 @@ router.put('/config', (req, res) => {
   res.json({
     ok: true,
     config,
-    secretPresence: getWorkspaceIntegrationSecretPresence(),
-    secretSummaries: getWorkspaceIntegrationSecretSummaries(),
+    secretPresence: getResolvedWorkspaceIntegrationSecretPresence(),
+    secretSummaries: getResolvedWorkspaceIntegrationSecretSummaries(),
   })
 })
 

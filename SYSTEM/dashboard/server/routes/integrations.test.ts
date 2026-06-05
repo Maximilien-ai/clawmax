@@ -263,6 +263,20 @@ async function run() {
     }), 'local-dev@example.com')
   })
 
+  await test('config reports env-backed resend secret presence when workspace secret file is empty', async () => {
+    process.env.RESEND_API_KEY = 're_env_runtime_1234'
+    const secretsPath = path.join(workspacePath, 'SYSTEM', 'integrations.secrets.json')
+    fs.writeFileSync(secretsPath, JSON.stringify({ partners: {} }, null, 2), 'utf-8')
+
+    const handler = getRouteHandler('get', '/config')
+    const res = makeRes()
+    await handler(makeReq(), res)
+
+    assert.strictEqual(res.statusCode, 200, 'Expected config fetch success')
+    assert.strictEqual(res.jsonBody?.secretPresence?.resend?.apiKey, true, 'Expected env-backed Resend presence to be reported')
+    assert.strictEqual(res.jsonBody?.secretSummaries?.resend?.apiKey?.preview, 're_e••••1234', 'Expected masked env-backed Resend preview')
+  })
+
   await test('resend test-email uses workspace resend sender overrides when configured', async () => {
     const configPath = path.join(workspacePath, 'SYSTEM', 'integrations.json')
     fs.writeFileSync(configPath, JSON.stringify({

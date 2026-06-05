@@ -28,6 +28,16 @@ export interface WorkspaceIntegrationSecretSummary {
   preview?: string
 }
 
+function resolveRuntimeManagedSecret(slug: string, key: string): string | undefined {
+  if (slug === 'resend' && key === 'apiKey') {
+    return process.env.RESEND_API_KEY?.trim() || undefined
+  }
+  if (slug === 'github' && key === 'token') {
+    return process.env.GITHUB_TOKEN?.trim() || process.env.GH_TOKEN?.trim() || undefined
+  }
+  return undefined
+}
+
 function getWorkspaceIntegrationsPath(): string {
   return path.join(getWorkspacePath(), 'SYSTEM', 'integrations.json')
 }
@@ -133,6 +143,19 @@ export function getWorkspaceIntegrationSecretPresence(): Record<string, Record<s
   )
 }
 
+export function getResolvedWorkspaceIntegrationSecretPresence(): Record<string, Record<string, boolean>> {
+  const stored = getWorkspaceIntegrationSecretPresence()
+  const merged: Record<string, Record<string, boolean>> = { ...stored }
+
+  for (const [slug, key] of [['resend', 'apiKey'], ['github', 'token']] as const) {
+    const runtimeSecret = resolveRuntimeManagedSecret(slug, key)
+    if (!runtimeSecret) continue
+    merged[slug] = { ...(merged[slug] || {}), [key]: true }
+  }
+
+  return merged
+}
+
 function maskSecretPreview(value: string): string {
   const trimmed = value.trim()
   if (!trimmed) return ''
@@ -156,6 +179,27 @@ export function getWorkspaceIntegrationSecretSummaries(): Record<string, Record<
       ),
     ])
   )
+}
+
+export function getResolvedWorkspaceIntegrationSecretSummaries(): Record<string, Record<string, WorkspaceIntegrationSecretSummary>> {
+  const stored = getWorkspaceIntegrationSecretSummaries()
+  const merged: Record<string, Record<string, WorkspaceIntegrationSecretSummary>> = { ...stored }
+
+  for (const [slug, key] of [['resend', 'apiKey'], ['github', 'token']] as const) {
+    const runtimeSecret = resolveRuntimeManagedSecret(slug, key)
+    if (!runtimeSecret) continue
+    const existing = merged[slug]?.[key]
+    if (existing?.present) continue
+    merged[slug] = {
+      ...(merged[slug] || {}),
+      [key]: {
+        present: true,
+        preview: maskSecretPreview(runtimeSecret),
+      },
+    }
+  }
+
+  return merged
 }
 
 export function hasWorkspaceManagedPartnerSecrets(): boolean {
