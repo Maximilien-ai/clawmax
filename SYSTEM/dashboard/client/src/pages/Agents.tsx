@@ -1413,13 +1413,6 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
           <p className="text-xs text-gray-300 dark:text-gray-500 mb-6">Get started by creating your first agent or deploying a team</p>
           <div className="flex flex-wrap gap-3">
             <button
-              onClick={() => setShowImportModal(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm font-medium"
-            >
-              <ProductIconCell iconName="import" label="Import from OpenClaw" size="sm" className="border-transparent bg-transparent text-current" />
-              Import from OpenClaw
-            </button>
-            <button
               onClick={() => { setCloneFromAgent(null); setAiGenerateMode(true); setShowAddWizard(true) }}
               className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium"
             >
@@ -1432,6 +1425,13 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
             >
               <ProductIconCell iconName="template" label="Deploy a Team from Templates" size="sm" className="border-transparent bg-transparent text-current" />
               Deploy a Team from Templates
+            </button>
+            <button
+              onClick={() => setShowImportModal(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm font-medium"
+            >
+              <ProductIconCell iconName="import" label="Import from OpenClaw" size="sm" className="border-transparent bg-transparent text-current" />
+              Import from OpenClaw
             </button>
           </div>
         </div>
