@@ -5,9 +5,8 @@ ARG OPENCLAW_GIT_REF=v2026.5.26
 ARG BUILDPLATFORM
 ARG TARGETPLATFORM
 
-SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-
 FROM --platform=$BUILDPLATFORM node:22.19.0-bookworm-slim AS openclaw-builder
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 ARG OPENCLAW_GIT_REF
 
@@ -51,6 +50,7 @@ RUN npm run build:docker
 RUN npm pack
 
 FROM --platform=$BUILDPLATFORM node:22.19.0-bookworm-slim AS builder
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 ARG CLAWMAX_VERSION
 
@@ -80,6 +80,7 @@ COPY SYSTEM/dashboard ./
 RUN npm run build
 
 FROM --platform=$TARGETPLATFORM node:22.19.0-bookworm-slim AS runtime
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 WORKDIR /app/SYSTEM/dashboard
 
