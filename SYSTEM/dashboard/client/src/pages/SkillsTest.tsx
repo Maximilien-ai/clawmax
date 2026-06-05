@@ -403,6 +403,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
   const [partnerInstalling, setPartnerInstalling] = useState<string | null>(null)
   const [installedPartnerSlugs, setInstalledPartnerSlugs] = useState<Set<string>>(new Set())
   const [showPartnerInstallers, setShowPartnerInstallers] = useState(false)
+  const [showAllSkillTags, setShowAllSkillTags] = useState(false)
   const [showAllPopularSkills, setShowAllPopularSkills] = useState(false)
   const [aiSkillPrompt, setAiSkillPrompt] = useState('')
   const [showAiPromptEditor, setShowAiPromptEditor] = useState(false)
@@ -462,6 +463,12 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
     .sort((a, b) => b[1].length - a[1].length)
     .slice(0, 10)
   const collapsedPopularSkills = popularSkills.slice(0, 4)
+  const selectedSkillTagNames = allSkillTags.filter((tag) => selectedSkillTags.has(tag))
+  const collapsedSkillTags = [
+    ...selectedSkillTagNames,
+    ...allSkillTags.filter((tag) => !selectedSkillTags.has(tag)).slice(0, Math.max(0, 12 - selectedSkillTagNames.length)),
+  ]
+  const visibleSkillTags = showAllSkillTags ? allSkillTags : collapsedSkillTags
 
   const focusSkill = (skillName: string) => {
     const normalized = skillName.trim().toLowerCase()
@@ -1979,37 +1986,52 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
           </div>
 
           {allSkillTags.length > 0 && (
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Filter by tags:</span>
-              {allSkillTags.map((tag) => {
-                const selected = selectedSkillTags.has(tag)
-                return (
+            <div className="mt-3">
+              <div className="flex items-center gap-2">
+                <span className="shrink-0 text-xs font-medium text-gray-500 dark:text-gray-400">Filter by tags:</span>
+                <div className={`min-w-0 flex-1 gap-2 ${showAllSkillTags ? 'flex flex-wrap' : 'flex flex-nowrap overflow-hidden'}`}>
+                  {visibleSkillTags.map((tag) => {
+                    const selected = selectedSkillTags.has(tag)
+                    return (
+                      <button
+                        key={tag}
+                        onClick={() => setSelectedSkillTags((current) => {
+                          const next = new Set(current)
+                          if (next.has(tag)) next.delete(tag)
+                          else next.add(tag)
+                          return next
+                        })}
+                        className={`inline-flex shrink-0 items-center rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                          selected
+                            ? 'border-sky-300 bg-sky-100 text-sky-800 dark:border-sky-700 dark:bg-sky-900/40 dark:text-sky-200'
+                            : 'border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900/30 dark:text-gray-300 dark:hover:bg-gray-800'
+                        }`}
+                      >
+                        {tag}
+                      </button>
+                    )
+                  })}
+                </div>
+                {allSkillTags.length > collapsedSkillTags.length && (
                   <button
-                    key={tag}
-                    onClick={() => setSelectedSkillTags((current) => {
-                      const next = new Set(current)
-                      if (next.has(tag)) next.delete(tag)
-                      else next.add(tag)
-                      return next
-                    })}
-                    className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
-                      selected
-                        ? 'border-sky-300 bg-sky-100 text-sky-800 dark:border-sky-700 dark:bg-sky-900/40 dark:text-sky-200'
-                        : 'border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900/30 dark:text-gray-300 dark:hover:bg-gray-800'
-                    }`}
+                    type="button"
+                    onClick={() => setShowAllSkillTags((current) => !current)}
+                    className="shrink-0 text-xs font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                    aria-label={showAllSkillTags ? 'Collapse tag filters' : 'Expand tag filters'}
+                    title={showAllSkillTags ? 'Show fewer tags' : 'Show more tags'}
                   >
-                    {tag}
+                    {showAllSkillTags ? '▼' : '▶'}
                   </button>
-                )
-              })}
-              {selectedSkillTags.size > 0 && (
-                <button
-                  onClick={() => setSelectedSkillTags(new Set())}
-                  className="text-xs font-medium text-blue-600 hover:text-blue-700"
-                >
-                  Clear tags
-                </button>
-              )}
+                )}
+                {selectedSkillTags.size > 0 && (
+                  <button
+                    onClick={() => setSelectedSkillTags(new Set())}
+                    className="shrink-0 text-xs font-medium text-blue-600 hover:text-blue-700"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
             </div>
           )}
         </div>
