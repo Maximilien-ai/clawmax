@@ -210,6 +210,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set())
   const [showAddWizard, setShowAddWizard] = useState(false)
   const [showImportModal, setShowImportModal] = useState(false)
+  const [showAgentCreateMenu, setShowAgentCreateMenu] = useState(false)
   const [showAgentActionsMenu, setShowAgentActionsMenu] = useState(false)
   const [aiGenerateMode, setAiGenerateMode] = useState(false)
   const [pendingAiDescription, setPendingAiDescription] = useState<string>('')
@@ -1127,32 +1128,22 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                 {selectedAgentIds.size === filteredAgents.length ? 'Deselect All' : 'Select All'}
               </button>
             )}
-            <button
-              onClick={() => {
-                setCloneFromAgent(null)
-                setAiGenerateMode(false)
-                setShowAddWizard(true)
-              }}
-              className={headerPrimaryButtonClass}
-            >
-              Create
-            </button>
             <div className="relative">
               <button
-                onClick={() => setShowAgentActionsMenu(!showAgentActionsMenu)}
-                className={`${headerSecondaryButtonClass} ${headerSecondaryButtonIdleClass}`}
-                title="Actions"
+                onClick={() => setShowAgentCreateMenu(!showAgentCreateMenu)}
+                className={headerPrimaryButtonClass}
+                title="Create agent"
               >
-                <ProductIconCell iconName="ai" label="Actions" size="sm" className="border-transparent bg-transparent text-current" /> Actions <span className="text-xs">▾</span>
+                <span>Create</span> <span className="text-xs leading-none">▾</span>
               </button>
-              {showAgentActionsMenu && (
+              {showAgentCreateMenu && (
                 <>
-                  <div className="fixed inset-0 z-10" onClick={() => setShowAgentActionsMenu(false)} />
+                  <div className="fixed inset-0 z-10" onClick={() => setShowAgentCreateMenu(false)} />
                   <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20 py-1">
                     <button
                       onClick={() => {
                         if (!aiEnabled) return
-                        setShowAgentActionsMenu(false)
+                        setShowAgentCreateMenu(false)
                         setCloneFromAgent(null)
                         setAiGenerateMode(true)
                         setShowAddWizard(true)
@@ -1165,18 +1156,35 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                       }`}
                       title={aiEnabled ? 'Generate agent with AI' : 'Configure browser keys or a shared execution path first'}
                     >
-                      <ProductIconCell iconName="ai" label="AI Generate" size="sm" className="border-purple-200 bg-purple-50 text-purple-600 dark:border-purple-700 dark:bg-purple-900/30 dark:text-purple-300" /> AI Generate
+                      <ProductIconCell iconName="ai" label="Create with AI" size="sm" className="border-purple-200 bg-purple-50 text-purple-600 dark:border-purple-700 dark:bg-purple-900/30 dark:text-purple-300" /> Create with AI
                     </button>
                     <button
                       onClick={() => {
-                        setShowAgentActionsMenu(false)
+                        setShowAgentCreateMenu(false)
+                        setCloneFromAgent(null)
                         setAiGenerateMode(false)
                         setShowAddWizard(true)
                       }}
                       className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-sky-50 dark:hover:bg-sky-900/30 transition-colors flex items-center gap-2"
                     >
-                      <ProductIconCell iconName="create" label="Create" size="sm" className="border-sky-200 bg-sky-50 text-sky-600 dark:border-sky-700 dark:bg-sky-900/30 dark:text-sky-300" /> Create
+                      <ProductIconCell iconName="create" label="Create with Wizard" size="sm" className="border-sky-200 bg-sky-50 text-sky-600 dark:border-sky-700 dark:bg-sky-900/30 dark:text-sky-300" /> Create with Wizard
                     </button>
+                  </div>
+                </>
+              )}
+            </div>
+            <div className="relative">
+              <button
+                onClick={() => setShowAgentActionsMenu(!showAgentActionsMenu)}
+                className={`${headerSecondaryButtonClass} ${headerSecondaryButtonIdleClass}`}
+                title="Actions"
+              >
+                <ProductIconCell iconName="ai" label="Actions" size="sm" className="border-transparent bg-transparent text-current" /> Actions <span className="text-xs">▾</span>
+              </button>
+              {showAgentActionsMenu && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowAgentActionsMenu(false)} />
+                  <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20 py-1">
                     <button
                       onClick={() => {
                         setShowAgentActionsMenu(false)

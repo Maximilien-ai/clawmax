@@ -396,6 +396,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   const [showAiPrompt, setShowAiPrompt] = useState(false)
   const [showAiPromptEditor, setShowAiPromptEditor] = useState(false)
   const [showImportWorkflowModal, setShowImportWorkflowModal] = useState(false)
+  const [showWorkflowCreateMenu, setShowWorkflowCreateMenu] = useState(false)
   const [showWorkflowActionsMenu, setShowWorkflowActionsMenu] = useState(false)
   const [aiPromptText, setAiPromptText] = useState('')
   const [aiGenerating, setAiGenerating] = useState(false)
@@ -1465,16 +1466,48 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                 {allVisibleSelected ? 'Deselect All' : 'Select All'}
               </button>
             )}
-            <button
-              onClick={() => {
-                setAiInitialData(null)
-                setShowEditorDialog(true)
-              }}
-              className={headerPrimaryButtonClass}
-              title="Create workflow"
-            >
-              Create
-            </button>
+            <div className="relative">
+              <button
+                onClick={() => setShowWorkflowCreateMenu(!showWorkflowCreateMenu)}
+                className={headerPrimaryButtonClass}
+                title="Create workflow"
+              >
+                <span>Create</span> <span className="text-xs leading-none">▾</span>
+              </button>
+              {showWorkflowCreateMenu && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowWorkflowCreateMenu(false)} />
+                  <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20 py-1">
+                    <button
+                      onClick={() => {
+                        if (!aiEnabled) return
+                        setShowWorkflowCreateMenu(false)
+                        setShowAiPrompt(true)
+                      }}
+                      disabled={!aiEnabled}
+                      className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 transition-colors ${
+                        aiEnabled
+                          ? 'text-gray-700 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/30'
+                          : 'text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                      }`}
+                      title={aiEnabled ? 'Generate workflow with AI' : 'Configure browser keys or a shared execution path first'}
+                    >
+                      <ProductIconCell iconName="ai" label="Create with AI" size="sm" className="border-purple-200 bg-purple-50 text-purple-600 dark:border-purple-700 dark:bg-purple-900/30 dark:text-purple-300" /> Create with AI
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowWorkflowCreateMenu(false)
+                        setAiInitialData(null)
+                        setShowEditorDialog(true)
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-sky-50 dark:hover:bg-sky-900/30 transition-colors flex items-center gap-2"
+                    >
+                      <ProductIconCell iconName="create" label="Create with Wizard" size="sm" className="border-sky-200 bg-sky-50 text-sky-600 dark:border-sky-700 dark:bg-sky-900/30 dark:text-sky-300" /> Create with Wizard
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
             <div className="relative">
               <button
                 onClick={() => setShowWorkflowActionsMenu(!showWorkflowActionsMenu)}
@@ -1487,22 +1520,6 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setShowWorkflowActionsMenu(false)} />
                   <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20 py-1">
-                    <button
-                      onClick={() => {
-                        if (!aiEnabled) return
-                        setShowWorkflowActionsMenu(false)
-                        setShowAiPrompt(true)
-                      }}
-                      disabled={!aiEnabled}
-                      className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 transition-colors ${
-                        aiEnabled
-                          ? 'text-gray-700 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/30'
-                          : 'text-gray-400 dark:text-gray-500 cursor-not-allowed'
-                      }`}
-                      title={aiEnabled ? 'Generate workflow with AI' : 'Configure browser keys or a shared execution path first'}
-                    >
-                      <ProductIconCell iconName="ai" label="AI Generate" size="sm" className="border-purple-200 bg-purple-50 text-purple-600 dark:border-purple-700 dark:bg-purple-900/30 dark:text-purple-300" /> AI Generate
-                    </button>
                     <button
                       onClick={() => {
                         setShowWorkflowActionsMenu(false)
