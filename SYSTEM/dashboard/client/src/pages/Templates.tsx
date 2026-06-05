@@ -1872,17 +1872,22 @@ export default function Templates() {
       {/* Search bar */}
       <div className="mb-6">
         <div className="relative">
+          <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-sky-500 dark:text-sky-400">
+            <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="m14.5 14.5 4 4m-1.833-8.167a6.333 6.333 0 1 1-12.667 0 6.333 6.333 0 0 1 12.667 0Z" />
+            </svg>
+          </div>
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search templates by name, description, tags, or agents..."
-            className="w-full px-4 py-2 pr-10 border border-gray-200 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm"
+            className="h-12 w-full rounded-xl border-2 border-sky-200 bg-sky-50/55 py-2 pl-10 pr-10 text-sm text-gray-900 shadow-sm outline-none transition placeholder:text-gray-500 focus:border-sky-500 focus:bg-white focus:ring-4 focus:ring-sky-100 dark:border-sky-800 dark:bg-slate-900 dark:text-gray-100 dark:placeholder:text-gray-400 dark:focus:border-sky-400 dark:focus:bg-slate-950 dark:focus:ring-sky-950/70"
           />
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-400 transition-colors"
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-gray-400 transition-colors hover:bg-white/80 hover:text-gray-600 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300"
               title="Clear search"
             >
               ✕
