@@ -852,6 +852,16 @@ else
   fail "Skill tags helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Skill export helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/skillExport.test.ts > /tmp/clawmax-skill-export.out 2>&1 || true
+if grep -q "skillExport.test.ts: ok" /tmp/clawmax-skill-export.out; then
+  skill_export_count=$(grep -c "^✓" /tmp/clawmax-skill-export.out | tr -cd '0-9')
+  pass "Skill export helper unit tests (${skill_export_count:-?} tests)"
+else
+  cat /tmp/clawmax-skill-export.out
+  fail "Skill export helper unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Skills page smoke tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/skillsPageFlow.test.ts > /tmp/clawmax-skills-page-flow.out 2>&1 || true
 if grep -q "skillsPageFlow.test.ts: ok" /tmp/clawmax-skills-page-flow.out; then

@@ -16,6 +16,7 @@ import { collectSkillTags, matchesSelectedSkillTags } from '../lib/skillTags'
 import { buildAgentSkillsScope, buildAssignedSkillBadges } from '../lib/agentSkillsScope'
 import { getRegistrySkillCompatibility, normalizeRuntimePlatform, type RuntimePlatform } from '../lib/skillPlatform'
 import { getDashboardInstallRequirementCommands } from '../lib/skillInstall'
+import { buildSkillExportFilename, getSelectedSkillForExport } from '../lib/skillExport'
 import { buildRegistryCompatibilityNote, buildSkillsPageCountLabel, partitionSkillsBySection } from '../lib/skillsPageFlow'
 import { useAuth } from '../contexts/AuthContext'
 import { expandPromptWithAI } from '../lib/aiPrompt'
@@ -42,6 +43,7 @@ function SkillsListTable({
   selectedSkillIds,
   onToggle,
   onView,
+  onExport,
   onDelete,
   canDelete,
   onToggleSelect,
@@ -55,6 +57,7 @@ function SkillsListTable({
   selectedSkillIds: Set<string>
   onToggle: (skillName: string) => void
   onView: (skill: OpenClawSkill) => void
+  onExport: (skill: OpenClawSkill) => void
   onDelete: (skill: OpenClawSkill) => void
   canDelete: (skill: OpenClawSkill) => boolean
   onToggleSelect: (skillName: string) => void
@@ -171,6 +174,12 @@ function SkillsListTable({
                         className="rounded bg-gray-100 px-2 py-1 text-xs text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
                       >
                         View
+                      </button>
+                      <button
+                        onClick={() => onExport(skill)}
+                        className="rounded bg-indigo-50 px-2 py-1 text-xs text-indigo-600 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-300 dark:hover:bg-indigo-900/40"
+                      >
+                        Export
                       </button>
                       <button
                         onClick={() => onToggle(skill.name)}
@@ -1109,6 +1118,37 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
     }
   }
 
+  async function exportSkill(skill: OpenClawSkill) {
+    try {
+      const res = await fetch(`${API_BASE}/api/skills/${encodeURIComponent(skill.name)}/content`)
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to export skill')
+      }
+
+      const blob = new Blob([data.content || ''], { type: 'text/markdown;charset=utf-8' })
+      const url = window.URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = buildSkillExportFilename(skill.name)
+      document.body.appendChild(anchor)
+      anchor.click()
+      anchor.remove()
+      window.URL.revokeObjectURL(url)
+      showSuccess(`Exported ${skill.name}`)
+    } catch (err: any) {
+      showError(err.message || 'Failed to export skill')
+    }
+  }
+
+  async function exportSelectedSkill() {
+    if (!selectedSkillForExport) {
+      showWarning('Select exactly one skill to export.')
+      return
+    }
+    await exportSkill(selectedSkillForExport)
+  }
+
   useEffect(() => {
     if (!initialSkillName || didHandleInitialSkillName || allSkills.length === 0) return
     const matchedSkill = allSkills.find((skill) => skill.name === initialSkillName)
@@ -1541,6 +1581,10 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
     () => partitionSelectedSkills(allSkills, selectedSkillIds),
     [allSkills, selectedSkillIds]
   )
+  const selectedSkillForExport = useMemo(
+    () => getSelectedSkillForExport(allSkills, selectedSkillIds),
+    [allSkills, selectedSkillIds]
+  )
   const pendingDeletePartition = useMemo(
     () => partitionSelectedSkills(allSkills, new Set(pendingDeleteSkillNames)),
     [allSkills, pendingDeleteSkillNames]
@@ -1798,9 +1842,14 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                       <button
                         onClick={() => {
                           setShowSkillActionsMenu(false)
-                          showWarning('Skill export is coming soon.')
+                          void exportSelectedSkill()
                         }}
-                        className="flex w-full items-center gap-2 border-t border-gray-100 px-4 py-3 text-left text-sm hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-700/50"
+                        disabled={!selectedSkillForExport}
+                        className={`flex w-full items-center gap-2 border-t border-gray-100 px-4 py-3 text-left text-sm dark:border-gray-700 ${
+                          selectedSkillForExport
+                            ? 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                            : 'cursor-not-allowed text-gray-400 dark:text-gray-500'
+                        }`}
                       >
                         <ProductIconCell iconName="export" label="Export Skill" size="sm" className="border-indigo-200 bg-indigo-50 text-indigo-600 dark:border-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300" />
                         <span className="font-medium text-gray-900 dark:text-gray-100">Export Skill</span>
@@ -2480,6 +2529,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                     selectedSkillIds={selectedSkillIds}
                     onToggle={toggleSkill}
                     onView={openSkillViewer}
+                    onExport={exportSkill}
                     onDelete={(skill) => {
                       setPendingDeleteSkillNames([skill.name])
                       setShowBulkDeleteConfirm(true)
@@ -2500,6 +2550,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                           assigned={assignedSkills.has(skill.name)}
                           onToggle={() => toggleSkill(skill.name)}
                           onView={() => openSkillViewer(skill)}
+                          onExport={() => { void exportSkill(skill) }}
                           canDelete={isDeletableUserSkill(skill)}
                           onDelete={() => {
                             setPendingDeleteSkillNames([skill.name])
@@ -2544,6 +2595,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                     selectedSkillIds={selectedSkillIds}
                     onToggle={toggleSkill}
                     onView={openSkillViewer}
+                    onExport={exportSkill}
                     onDelete={(skill) => {
                       setPendingDeleteSkillNames([skill.name])
                       setShowBulkDeleteConfirm(true)
@@ -2564,6 +2616,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                           assigned={assignedSkills.has(skill.name)}
                           onToggle={() => toggleSkill(skill.name)}
                           onView={() => openSkillViewer(skill)}
+                          onExport={() => { void exportSkill(skill) }}
                           canDelete={isDeletableUserSkill(skill)}
                           onDelete={() => {
                             setPendingDeleteSkillNames([skill.name])
@@ -2610,6 +2663,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                 selectedSkillIds={selectedSkillIds}
                 onToggle={toggleSkill}
                 onView={openSkillViewer}
+                onExport={exportSkill}
                 onDelete={() => {}}
                 canDelete={() => false}
                 onToggleSelect={(skillName) => setSelectedSkillIds((current) => toggleItemSelection(current, skillName))}
@@ -2627,6 +2681,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                       assigned={assignedSkills.has(skill.name)}
                       onToggle={() => toggleSkill(skill.name)}
                       onView={() => openSkillViewer(skill)}
+                      onExport={() => { void exportSkill(skill) }}
                       canDelete={false}
                       usageCount={users.length}
                       usedBy={users}
@@ -2700,6 +2755,17 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                   View the raw `skill.md` or inspect the rendered markdown. Editing a built-in skill creates a workspace copy before saving.
                 </div>
                 <div className="flex items-center gap-2">
+                  {!editingSkill && (
+                    <button
+                      onClick={() => { void exportSkill(viewingSkill) }}
+                      className="px-3 py-1.5 rounded-md border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:border-indigo-700 dark:bg-indigo-900/20 dark:text-indigo-300 dark:hover:bg-indigo-900/30 text-sm font-medium"
+                    >
+                      <span className="inline-flex items-center gap-2">
+                        <ProductIconCell iconName="export" label="Export .md" size="sm" className="border-transparent bg-transparent text-current" />
+                        Export .md
+                      </span>
+                    </button>
+                  )}
                   {!editingSkill && viewingSkill.install && viewingSkill.install.length > 0 && (
                     viewingSkill.requirementStatus?.checkable && viewingSkill.requirementStatus.installSatisfied ? (
                       <div className="px-3 py-1.5 rounded-md border border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-300 text-sm font-medium">

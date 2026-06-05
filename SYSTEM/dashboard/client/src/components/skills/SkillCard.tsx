@@ -10,6 +10,7 @@ interface SkillCardProps {
   assigned: boolean
   onToggle?: () => void
   onView?: () => void
+  onExport?: () => void
   onDelete?: () => void
   canDelete?: boolean
   compact?: boolean
@@ -39,7 +40,7 @@ function getRegistryBadgeLabel(skill: OpenClawSkill): string | null {
   return null
 }
 
-export function SkillCard({ skill, assigned, onToggle, onView, onDelete, canDelete = false, compact = false, usageCount, usedBy, selectionMode = false, isSelected = false, onToggleSelect, onInstallRequirements, installingRequirements = false, setupHint = null, onOpenSetup, runtimePlatform = 'unknown' }: SkillCardProps) {
+export function SkillCard({ skill, assigned, onToggle, onView, onExport, onDelete, canDelete = false, compact = false, usageCount, usedBy, selectionMode = false, isSelected = false, onToggleSelect, onInstallRequirements, installingRequirements = false, setupHint = null, onOpenSetup, runtimePlatform = 'unknown' }: SkillCardProps) {
   const [showDetails, setShowDetails] = useState(false)
   const installSatisfied = !!skill.requirementStatus?.checkable && skill.requirementStatus.installSatisfied
   const skillVisual = resolveSkillVisual(skill)
@@ -104,6 +105,19 @@ export function SkillCard({ skill, assigned, onToggle, onView, onDelete, canDele
                   aria-label={`View ${skill.name} skill.md`}
                 >
                   <ProductIconCell iconName="docs" label={`View ${skill.name} skill.md`} size="sm" className="border-transparent bg-transparent text-current h-5 w-5" />
+                </button>
+              )}
+              {onExport && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onExport()
+                  }}
+                  className="h-8 w-8 inline-flex items-center justify-center rounded-md text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 dark:text-gray-500 dark:hover:text-indigo-300 dark:hover:bg-indigo-900/30 transition-colors"
+                  title={`Export ${skill.name}`}
+                  aria-label={`Export ${skill.name}`}
+                >
+                  <ProductIconCell iconName="export" label={`Export ${skill.name}`} size="sm" className="border-transparent bg-transparent text-current h-5 w-5" />
                 </button>
               )}
               {!selectionMode && canDelete && onDelete && (
