@@ -714,76 +714,82 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
     >
       <div className={`bg-white dark:bg-gray-800 h-full ${isOverlay ? 'w-full sm:w-[480px] shadow-2xl' : 'w-full'} flex flex-col`} onClick={(e) => isOverlay && e.stopPropagation()}>
         {/* Header */}
-        <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
-          <div className="flex-1 min-w-0">
-            <h2 className="text-sm sm:text-base font-semibold text-gray-800 dark:text-gray-200 truncate">
-              <span className="inline-flex items-center gap-2">
-                <ProductIconCell
-                  iconName={channel.type === 'community' ? 'community' : 'group'}
-                  label={channel.type === 'community' ? 'Community' : 'Group'}
-                  size="sm"
-                  className="border-transparent bg-transparent text-current"
-                />
-                {channel.tags?.includes('bulk-chat') && channel.description ? channel.description : channel.name}
-              </span>
-            </h2>
-            <p className="text-xs text-gray-400 mt-0.5">
-              {channel.members.length} group member{channel.members.length !== 1 ? 's' : ''}
-              {channel.tags?.includes('bulk-chat') && <span className="ml-2 text-blue-500">• Auto-mentions all members</span>}
-            </p>
-          </div>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={onClose}
-              className="text-xs px-2 py-1.5 text-gray-600 hover:bg-gray-100 rounded transition-colors dark:bg-gray-800 dark:hover:bg-gray-700 inline-flex"
-              title="Close chat"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={fetchArchives}
-              disabled={archives.length === 0}
-              className={`text-xs px-2 py-1.5 rounded transition-colors hidden sm:inline-flex ${
-                archives.length === 0
-                  ? 'text-gray-300 cursor-not-allowed'
-                  : 'text-gray-600 hover:bg-gray-100'
-              }`}
-              title={archives.length === 0 ? 'No archived chats yet' : 'View archived chats'}
-            >
-              <span className="inline-flex items-center gap-1">
-                <ProductIconCell iconName="history" label="History" size="sm" className="border-transparent bg-transparent text-current" />
-                History
-              </span>
-            </button>
-            <button
-              onClick={() => setShowClearConfirm(true)}
-              className="text-xs px-2 py-1.5 text-gray-600 hover:bg-gray-100 rounded transition-colors dark:bg-gray-800 dark:hover:bg-gray-700 hidden sm:inline-flex"
-              title="Clear chat (archives first)"
-              disabled={messages.length === 0}
-            >
-              <span className="inline-flex items-center gap-1">
-                <ProductIconCell iconName="delete" label="Clear" size="sm" className="border-transparent bg-transparent text-current" />
-                Clear
-              </span>
-            </button>
-            {mode === 'pane' && onExpand && (
-              <button
-                onClick={onExpand}
-                className="text-xs px-2 py-1.5 text-gray-600 hover:bg-gray-100 rounded transition-colors dark:bg-gray-800 dark:hover:bg-gray-700 hidden sm:inline-flex"
-                title="Expand to full view"
-              >
-                <span className="inline-flex items-center gap-1">
-                  <ProductIconCell iconName="expand" label="Expand" size="sm" className="border-transparent bg-transparent text-current" />
-                  Expand
+        <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-100 shrink-0">
+          <div className="flex items-start gap-3">
+            <div className="min-w-0 w-0 flex-1">
+              <h2 className="text-sm sm:text-base font-semibold text-gray-800 dark:text-gray-200">
+                <span className="flex min-w-0 items-center gap-2">
+                  <ProductIconCell
+                    iconName={channel.type === 'community' ? 'community' : 'group'}
+                    label={channel.type === 'community' ? 'Community' : 'Group'}
+                    size="sm"
+                    className="shrink-0 border-transparent bg-transparent text-current"
+                  />
+                  <span className="truncate">
+                    {channel.tags?.includes('bulk-chat') && channel.description ? channel.description : channel.name}
+                  </span>
                 </span>
-              </button>
-            )}
+              </h2>
+            </div>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 transition-colors text-xl leading-none p-2 -mr-1 min-w-[40px] min-h-[40px] flex items-center justify-center"
+              className="shrink-0 text-gray-400 hover:text-gray-600 transition-colors text-xl leading-none p-2 -mr-1 min-w-[40px] min-h-[40px] flex items-center justify-center"
             >
               <ProductIconCell iconName="close" label="Close" size="sm" className="border-transparent bg-transparent text-current" />
             </button>
+          </div>
+          <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2">
+            <p className="min-w-0 text-xs text-gray-400">
+              {channel.members.length} group member{channel.members.length !== 1 ? 's' : ''}
+              {channel.tags?.includes('bulk-chat') && <span className="ml-2 text-blue-500">• Auto-mentions all members</span>}
+            </p>
+            <div className="flex shrink-0 items-center gap-1">
+              <button
+                onClick={onClose}
+                className="text-xs px-2 py-1.5 text-gray-600 hover:bg-gray-100 rounded transition-colors dark:bg-gray-800 dark:hover:bg-gray-700 inline-flex"
+                title="Close chat"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={fetchArchives}
+                disabled={archives.length === 0}
+                className={`text-xs px-2 py-1.5 rounded transition-colors hidden sm:inline-flex ${
+                  archives.length === 0
+                    ? 'text-gray-300 cursor-not-allowed'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+                title={archives.length === 0 ? 'No archived chats yet' : 'View archived chats'}
+              >
+                <span className="inline-flex items-center gap-1">
+                  <ProductIconCell iconName="history" label="History" size="sm" className="border-transparent bg-transparent text-current" />
+                  History
+                </span>
+              </button>
+              <button
+                onClick={() => setShowClearConfirm(true)}
+                className="text-xs px-2 py-1.5 text-gray-600 hover:bg-gray-100 rounded transition-colors dark:bg-gray-800 dark:hover:bg-gray-700 hidden sm:inline-flex"
+                title="Clear chat (archives first)"
+                disabled={messages.length === 0}
+              >
+                <span className="inline-flex items-center gap-1">
+                  <ProductIconCell iconName="delete" label="Clear" size="sm" className="border-transparent bg-transparent text-current" />
+                  Clear
+                </span>
+              </button>
+              {mode === 'pane' && onExpand && (
+                <button
+                  onClick={onExpand}
+                  className="text-xs px-2 py-1.5 text-gray-600 hover:bg-gray-100 rounded transition-colors dark:bg-gray-800 dark:hover:bg-gray-700 hidden sm:inline-flex"
+                  title="Expand to full view"
+                >
+                  <span className="inline-flex items-center gap-1">
+                    <ProductIconCell iconName="expand" label="Expand" size="sm" className="border-transparent bg-transparent text-current" />
+                    Expand
+                  </span>
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
