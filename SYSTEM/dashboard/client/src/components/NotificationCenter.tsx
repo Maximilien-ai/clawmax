@@ -44,6 +44,7 @@ async function resolveAction(id: string, action: string, value?: string): Promis
 
 interface NotificationCenterProps {
   onNavigateToAgent?: (agentId: string) => void
+  onNavigateToAgentChat?: (agentId: string) => void
   onNavigateToWorkflow?: (workflowId: string) => void
   onNavigateToPage?: (page: string) => void
   onNavigateToDoc?: (path: string) => void
@@ -83,7 +84,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 const CATEGORY_ORDER = ['results', 'agent', 'workflow', 'communication', 'budget']
 
-export function NotificationCenter({ onNavigateToAgent, onNavigateToWorkflow, onNavigateToPage, onNavigateToDoc, onAgentRestarted }: NotificationCenterProps) {
+export function NotificationCenter({ onNavigateToAgent, onNavigateToAgentChat, onNavigateToWorkflow, onNavigateToPage, onNavigateToDoc, onAgentRestarted }: NotificationCenterProps) {
   const { showSuccess, showError, showWarning } = useToast()
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [activeCount, setActiveCount] = useState(0)
@@ -458,12 +459,16 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToWorkflow, on
                                   Submit
                                 </button>
                               </div>
-                              {n.entityId && onNavigateToAgent && (
+                              {n.entityId && (onNavigateToAgentChat || onNavigateToAgent) && (
                                 <button
-                                  onClick={() => { onNavigateToAgent(n.entityId!); setOpen(false) }}
+                                  onClick={() => {
+                                    if (onNavigateToAgentChat) onNavigateToAgentChat(n.entityId!)
+                                    else onNavigateToAgent?.(n.entityId!)
+                                    setOpen(false)
+                                  }}
                                   className="text-[11px] text-sky-600 dark:text-sky-400 hover:underline font-medium"
                                 >
-                                  Open agent details →
+                                  Open agent conversation →
                                 </button>
                               )}
                             </div>

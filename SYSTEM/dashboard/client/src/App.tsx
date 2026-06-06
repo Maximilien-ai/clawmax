@@ -1099,6 +1099,7 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
         <div data-tour="notifications">
           <NotificationCenter
             onNavigateToAgent={onNavigateToAgent}
+            onNavigateToAgentChat={(agentId) => { setInitialAgentId(agentId); setInitialAgentAction('chat'); setPage('agents') }}
             onNavigateToWorkflow={onNavigateToWorkflow}
             onNavigateToPage={onNavigateToPage}
             onNavigateToDoc={onNavigateToDoc}
