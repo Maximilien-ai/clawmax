@@ -892,6 +892,16 @@ else
   fail "Skills page smoke tests"
 fi
 
+echo -e "${YELLOW}→ Running Template search helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/templateSearch.test.ts > /tmp/clawmax-template-search.out 2>&1 || true
+if grep -q "templateSearch.test.ts: ok" /tmp/clawmax-template-search.out; then
+  template_search_count=$(grep -c "^✓" /tmp/clawmax-template-search.out | tr -cd '0-9')
+  pass "Template search helper unit tests (${template_search_count:-?} tests)"
+else
+  cat /tmp/clawmax-template-search.out
+  fail "Template search helper unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Partner catalog helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/partnerCatalog.test.ts > /tmp/clawmax-partner-catalog.out 2>&1 || true
 if grep -q "partnerCatalog.test.ts: ok" /tmp/clawmax-partner-catalog.out; then

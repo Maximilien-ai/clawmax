@@ -11,6 +11,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { hasAiGenerationAccess } from '../lib/byok'
 import { organizationTemplateCanApplyNow } from '../lib/templateApplyReadiness'
 import { ProductIconCell, resolveTemplateVisual, resolveCategoryVisual } from '../lib/productIcons'
+import { matchesAgentTemplateSearch, matchesOrganizationTemplateSearch } from '../lib/templateSearch'
 
 function markTemplateLiteracy() {
   if (typeof window === 'undefined') return
@@ -821,22 +822,7 @@ export default function Templates() {
   }, [])
 
   const matchesOrgSearch = React.useCallback((template: OrganizationTemplate, query: string) => {
-    const normalized = query.trim().toLowerCase()
-    if (!normalized) return true
-    return (
-      template.name.toLowerCase().includes(normalized) ||
-      template.description?.toLowerCase().includes(normalized) ||
-      template.author?.toLowerCase().includes(normalized) ||
-      template.tags?.some(tag => tag.toLowerCase().includes(normalized)) ||
-      template.agents.some(a => a.id.toLowerCase().includes(normalized) || a.role.toLowerCase().includes(normalized)) ||
-      template.communities?.some(c => c.name.toLowerCase().includes(normalized)) ||
-      template.groups?.some(g => g.name.toLowerCase().includes(normalized)) ||
-      template.workflows?.some(w =>
-        w.name?.toLowerCase().includes(normalized) ||
-        w.description?.toLowerCase().includes(normalized) ||
-        (w as any).content?.toLowerCase().includes(normalized)
-      )
-    )
+    return matchesOrganizationTemplateSearch(template, query)
   }, [])
 
   const fetchTemplates = () => {
@@ -1111,14 +1097,7 @@ export default function Templates() {
   const filteredAgentTemplates = React.useMemo(() => {
     const filteredAgents = agentTemplates.filter((template) => matchesRatingFilter(template) && matchesSourceFilter(template))
     if (!searchQuery.trim()) return filteredAgents
-    const query = searchQuery.trim().toLowerCase()
-    return filteredAgents.filter(t =>
-      t.name.toLowerCase().includes(query) ||
-      t.description?.toLowerCase().includes(query) ||
-      t.author?.toLowerCase().includes(query) ||
-      t.tags?.some(tag => tag.toLowerCase().includes(query)) ||
-      t.agents.some(a => a.id.toLowerCase().includes(query) || a.role.toLowerCase().includes(query))
-    )
+    return filteredAgents.filter((template) => matchesAgentTemplateSearch(template, searchQuery))
   }, [agentTemplates, searchQuery, matchesRatingFilter, matchesSourceFilter])
 
   const filteredOrgTemplates = React.useMemo(() => {
