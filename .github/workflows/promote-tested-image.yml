@@ -1,0 +1,166 @@
+name: Promote Tested Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_tag:
+        description: Test image suffix to promote, for example rc1 or qa-max
+        required: true
+        default: rc1
+      release_version:
+        description: Official release tag to publish, for example v1.7.8
+        required: true
+        default: v1.7.8
+      publish_latest:
+        description: Also publish the latest tag
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE_NAME: ghcr.io/maximilien-ai/clawmax-dashboard
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.vars.outputs.version }}
+      semver: ${{ steps.vars.outputs.semver }}
+      test_tag: ${{ steps.vars.outputs.test_tag }}
+      publish_latest: ${{ steps.vars.outputs.publish_latest }}
+    steps:
+      - name: Resolve promotion tags
+        id: vars
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          version="${{ inputs.release_version }}"
+          version="${version#refs/tags/}"
+          version="${version#refs/heads/}"
+          semver="${version#v}"
+          test_tag="$(printf '%s' '${{ inputs.test_tag }}' | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9._-]/-/g')"
+
+          {
+            echo "version=${version}"
+            echo "semver=${semver}"
+            echo "test_tag=${test_tag}"
+            echo "publish_latest=${{ inputs.publish_latest }}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Promote tested arch images and manifests
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          image="${IMAGE_NAME}"
+          version="${{ steps.vars.outputs.version }}"
+          semver="${{ steps.vars.outputs.semver }}"
+          test_tag="${{ steps.vars.outputs.test_tag }}"
+
+          docker buildx imagetools create \
+            -t "${image}:${version}-amd64" \
+            -t "${image}:${semver}-amd64" \
+            "${image}:test-${test_tag}-amd64"
+
+          docker buildx imagetools create \
+            -t "${image}:${version}-arm64" \
+            -t "${image}:${semver}-arm64" \
+            "${image}:test-${test_tag}-arm64"
+
+          docker buildx imagetools create \
+            -t "${image}:${version}" \
+            -t "${image}:${semver}" \
+            "${image}:test-${test_tag}-amd64" \
+            "${image}:test-${test_tag}-arm64"
+
+          if [ "${{ steps.vars.outputs.publish_latest }}" = "true" ]; then
+            docker buildx imagetools create \
+              -t "${image}:latest" \
+              "${image}:test-${test_tag}-amd64" \
+              "${image}:test-${test_tag}-arm64"
+          fi
+
+  registry-smoke:
+    runs-on: ubuntu-latest
+    needs: promote
+    steps:
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Smoke promoted tags from registry
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          semver="${{ needs.promote.outputs.semver }}"
+          version="${{ needs.promote.outputs.version }}"
+          image="${IMAGE_NAME}"
+
+          retry() {
+            attempts="$1"
+            shift
+            delay="$1"
+            shift
+
+            i=1
+            while true; do
+              if "$@"; then
+                return 0
+              fi
+              if [ "$i" -ge "$attempts" ]; then
+                return 1
+              fi
+              echo "Retry $i/$attempts failed for: $*"
+              i=$((i + 1))
+              sleep "$delay"
+            done
+          }
+
+          verify_image() {
+            ref="$1"
+            platform="$2"
+            expected_version="$3"
+            expected_env="$4"
+
+            docker image rm -f "$ref" >/dev/null 2>&1 || true
+            retry 6 10 docker pull --platform "$platform" "$ref"
+
+            actual_version="$(retry 3 5 docker run --rm --platform "$platform" --entrypoint /bin/sh "$ref" -lc "node -p \"require('/app/SYSTEM/dashboard/package.json').version\"")"
+            actual_env="$(retry 3 5 docker run --rm --platform "$platform" --entrypoint /bin/sh "$ref" -lc "printf '%s' \"\$CLAWMAX_VERSION\"")"
+
+            if [ "$actual_version" != "$expected_version" ]; then
+              echo "Packaged dashboard version mismatch for $ref: expected $expected_version, got $actual_version" >&2
+              return 1
+            fi
+
+            if [ "$actual_env" != "$expected_env" ]; then
+              echo "CLAWMAX_VERSION mismatch for $ref: expected $expected_env, got $actual_env" >&2
+              return 1
+            fi
+          }
+
+          verify_image "${image}:${semver}" "linux/arm64" "${semver}" "${version}"
+          verify_image "${image}:${semver}-arm64" "linux/arm64" "${semver}" "${version}"
+          verify_image "${image}:${semver}-amd64" "linux/amd64" "${semver}" "${version}"

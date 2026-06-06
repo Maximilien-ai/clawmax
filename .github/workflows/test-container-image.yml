@@ -1,21 +1,16 @@
-name: Release Container Image
+name: Test Container Image
 
 on:
   workflow_dispatch:
     inputs:
       source_ref:
-        description: Git ref to build for an official release image, usually a release tag like v1.7.8
+        description: Git ref to build for validation, usually a branch, commit SHA, or local release-prep commit
         required: true
-        default: v1.7.8
-      release_version:
-        description: Official release tag to publish, usually matching the checked-out ref
+        default: main
+      test_tag:
+        description: Test image suffix, for example rc1 or qa-max
         required: true
-        default: v1.7.8
-      publish_latest:
-        description: Also publish the latest tag
-        required: true
-        type: boolean
-        default: false
+        default: rc1
 
 permissions:
   contents: read
@@ -38,31 +33,41 @@ jobs:
     outputs:
       version: ${{ steps.vars.outputs.version }}
       semver: ${{ steps.vars.outputs.semver }}
-      publish_latest: ${{ steps.vars.outputs.publish_latest }}
+      test_tag: ${{ steps.vars.outputs.test_tag }}
     steps:
-      - name: Resolve build ref and tags
+      - name: Resolve build ref
         id: vars
         shell: bash
         run: |
           set -euo pipefail
 
-          ref_input="${{ inputs.source_ref }}"
-          version="${{ inputs.release_version }}"
-          version="${version#refs/tags/}"
-          version="${version#refs/heads/}"
-          semver="${version#v}"
+          test_tag="$(printf '%s' '${{ inputs.test_tag }}' | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9._-]/-/g')"
+          if [ -z "$test_tag" ]; then
+            echo "test_tag cannot be empty after normalization" >&2
+            exit 1
+          fi
 
           {
-            echo "ref=${ref_input}"
-            echo "version=${version}"
-            echo "semver=${semver}"
-            echo "publish_latest=${{ inputs.publish_latest }}"
+            echo "ref=${{ inputs.source_ref }}"
+            echo "test_tag=${test_tag}"
           } >> "$GITHUB_OUTPUT"
 
       - name: Checkout
         uses: actions/checkout@v4
         with:
           ref: ${{ steps.vars.outputs.ref }}
+
+      - name: Resolve packaged release version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          semver="$(node -p "require('./SYSTEM/dashboard/package.json').version")"
+          version="v${semver}"
+          {
+            echo "version=${version}"
+            echo "semver=${semver}"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -83,10 +88,9 @@ jobs:
         run: |
           set -euo pipefail
 
-          tags="$(printf '%s\n%s\n%s' \
-            "${IMAGE_NAME}:${{ steps.vars.outputs.version }}-${{ matrix.arch_tag }}" \
-            "${IMAGE_NAME}:${{ steps.vars.outputs.semver }}-${{ matrix.arch_tag }}" \
-            "${IMAGE_NAME}:sha-${GITHUB_SHA::12}-${{ matrix.arch_tag }}")"
+          tags="$(printf '%s\n%s' \
+            "${IMAGE_NAME}:test-${{ steps.vars.outputs.test_tag }}-${{ matrix.arch_tag }}" \
+            "${IMAGE_NAME}:${{ steps.version.outputs.semver }}-test-${{ steps.vars.outputs.test_tag }}-${{ matrix.arch_tag }}")"
 
           {
             echo "tags<<EOF"
@@ -103,23 +107,23 @@ jobs:
           push: true
           provenance: false
           build-args: |
-            CLAWMAX_VERSION=${{ steps.vars.outputs.version }}
+            CLAWMAX_VERSION=${{ steps.version.outputs.version }}
           tags: ${{ steps.tags.outputs.tags }}
           labels: |
             org.opencontainers.image.title=ClawMax Dashboard
             org.opencontainers.image.description=ClawMax dashboard runtime with bundled OpenClaw
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.version=${{ steps.vars.outputs.version }}
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
 
       - name: Verify packaged dashboard version in image
         shell: bash
         run: |
           set -euo pipefail
 
-          image="${IMAGE_NAME}:${{ steps.vars.outputs.version }}-${{ matrix.arch_tag }}"
-          expected="${{ steps.vars.outputs.semver }}"
-          expected_env="${{ steps.vars.outputs.version }}"
+          image="${IMAGE_NAME}:test-${{ steps.vars.outputs.test_tag }}-${{ matrix.arch_tag }}"
+          expected="${{ steps.version.outputs.semver }}"
+          expected_env="${{ steps.version.outputs.version }}"
 
           actual_version="$(docker run --rm \
             --platform "${{ matrix.platform }}" \
@@ -153,14 +157,9 @@ jobs:
         run: |
           set -euo pipefail
 
-          tags="$(printf '%s\n%s\n%s' \
-            "${IMAGE_NAME}:${{ needs.build.outputs.version }}" \
-            "${IMAGE_NAME}:${{ needs.build.outputs.semver }}" \
-            "${IMAGE_NAME}:sha-${GITHUB_SHA::12}")"
-
-          if [ "${{ needs.build.outputs.publish_latest }}" = "true" ]; then
-            tags="${tags}"$'\n'"${IMAGE_NAME}:latest"
-          fi
+          tags="$(printf '%s\n%s' \
+            "${IMAGE_NAME}:test-${{ needs.build.outputs.test_tag }}" \
+            "${IMAGE_NAME}:${{ needs.build.outputs.semver }}-test-${{ needs.build.outputs.test_tag }}")"
 
           {
             echo "tags<<EOF"
@@ -183,29 +182,20 @@ jobs:
         run: |
           set -euo pipefail
 
+          test_tag="${{ needs.build.outputs.test_tag }}"
           semver="${{ needs.build.outputs.semver }}"
-          version="${{ needs.build.outputs.version }}"
-          sha_tag="sha-${GITHUB_SHA::12}"
 
           while IFS= read -r tag; do
             [ -n "$tag" ] || continue
             suffix="${tag##*:}"
             case "$suffix" in
-              "$version")
-                source_a="${IMAGE_NAME}:${version}-amd64"
-                source_b="${IMAGE_NAME}:${version}-arm64"
+              "test-${test_tag}")
+                source_a="${IMAGE_NAME}:test-${test_tag}-amd64"
+                source_b="${IMAGE_NAME}:test-${test_tag}-arm64"
                 ;;
-              "$semver")
-                source_a="${IMAGE_NAME}:${semver}-amd64"
-                source_b="${IMAGE_NAME}:${semver}-arm64"
-                ;;
-              "$sha_tag")
-                source_a="${IMAGE_NAME}:${sha_tag}-amd64"
-                source_b="${IMAGE_NAME}:${sha_tag}-arm64"
-                ;;
-              latest)
-                source_a="${IMAGE_NAME}:${semver}-amd64"
-                source_b="${IMAGE_NAME}:${semver}-arm64"
+              "${semver}-test-${test_tag}")
+                source_a="${IMAGE_NAME}:${semver}-test-${test_tag}-amd64"
+                source_b="${IMAGE_NAME}:${semver}-test-${test_tag}-arm64"
                 ;;
               *)
                 echo "Unknown manifest target: $tag" >&2
@@ -234,6 +224,7 @@ jobs:
         run: |
           set -euo pipefail
 
+          test_tag="${{ needs.build.outputs.test_tag }}"
           semver="${{ needs.build.outputs.semver }}"
           version="${{ needs.build.outputs.version }}"
           image="${IMAGE_NAME}"
@@ -281,6 +272,6 @@ jobs:
             fi
           }
 
-          verify_image "${image}:${semver}" "linux/arm64" "${semver}" "${version}"
-          verify_image "${image}:${semver}-arm64" "linux/arm64" "${semver}" "${version}"
-          verify_image "${image}:${semver}-amd64" "linux/amd64" "${semver}" "${version}"
+          verify_image "${image}:test-${test_tag}" "linux/arm64" "${semver}" "${version}"
+          verify_image "${image}:test-${test_tag}-arm64" "linux/arm64" "${semver}" "${version}"
+          verify_image "${image}:test-${test_tag}-amd64" "linux/amd64" "${semver}" "${version}"
