@@ -66,6 +66,31 @@ function summarizeGitHubImportFailures(
   return `Failed to import skills from GitHub. ${details}`
 }
 
+function normalizeGitHubImportResults<T extends { skillId: string; ok: boolean; error?: string; warning?: string }>(
+  results: T[],
+) {
+  const normalized = results.map((result) => {
+    if (!result.ok && /already exists/i.test(result.error || '')) {
+      return {
+        ...result,
+        ok: true,
+        warning: result.warning || `Skill "${result.skillId}" is already installed`,
+        alreadyPresent: true,
+      }
+    }
+    return {
+      ...result,
+      alreadyPresent: false,
+    }
+  })
+
+  const imported = normalized.filter((result) => result.ok && !result.alreadyPresent)
+  const existing = normalized.filter((result) => result.alreadyPresent)
+  const failed = normalized.filter((result) => !result.ok)
+
+  return { normalized, imported, existing, failed }
+}
+
 function trimTrailingLines(lines: string[], maxLines = 400) {
   return lines.length > maxLines ? lines.slice(lines.length - maxLines) : lines
 }
@@ -844,25 +869,29 @@ router.post('/import-github', async (req, res) => {
         // Clean up
         fs.rmSync(tempDir, { recursive: true, force: true })
 
-        const imported = results.filter(r => r.ok)
-        const failed = results.filter(r => !r.ok)
+        const { normalized, imported, existing, failed } = normalizeGitHubImportResults(results)
 
-        if (imported.length === 0) {
+        if (imported.length === 0 && existing.length === 0) {
           return res.status(400).json({
             error: summarizeGitHubImportFailures(failed),
             imported: 0,
             failed: failed.length,
+            existing: 0,
             total: results.length,
             skills: results,
           })
         }
 
         res.json({
-          ok: imported.length > 0,
+          ok: imported.length > 0 || existing.length > 0,
           imported: imported.length,
           failed: failed.length,
+          existing: existing.length,
           total: results.length,
-          skills: results,
+          skills: normalized,
+          warning: imported.length === 0 && existing.length > 0
+            ? 'All requested skills are already installed.'
+            : undefined,
         })
       } else {
         // Single skill: import directly
@@ -871,11 +900,22 @@ router.post('/import-github', async (req, res) => {
         // Clean up
         fs.rmSync(tempDir, { recursive: true, force: true })
 
+        if (!result.success && /already exists/i.test(result.error || '')) {
+          return res.json({
+            ok: true,
+            skillId: result.skillId || repoName,
+            imported: 0,
+            existing: 1,
+            total: 1,
+            warning: `Skill "${result.skillId || repoName}" is already installed`,
+          })
+        }
+
         if (!result.success) {
           return res.status(400).json({ error: result.error })
         }
 
-        res.json({ ok: true, skillId: result.skillId, imported: 1, total: 1, warning: result.warning })
+        res.json({ ok: true, skillId: result.skillId, imported: 1, existing: 0, total: 1, warning: result.warning })
       }
     } catch (cloneErr: any) {
       // Clean up on error

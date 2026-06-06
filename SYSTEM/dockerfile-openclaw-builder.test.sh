@@ -25,5 +25,8 @@ assert_contains "FROM --platform=\$BUILDPLATFORM node:22.19.0-bookworm-slim AS b
 assert_contains "FROM --platform=\$TARGETPLATFORM node:22.19.0-bookworm-slim AS runtime"
 assert_contains "retry 3 5 npm ci --legacy-peer-deps;"
 assert_contains "retry 3 5 npm ci --omit=dev --legacy-peer-deps;"
+assert_contains "COPY SKILLS/custom/clawmax-resend ./SKILLS/custom/clawmax-resend"
+assert_contains "COPY SKILLS/custom/clawmax-workspace-ls ./SKILLS/custom/clawmax-workspace-ls"
+assert_contains "COPY SKILLS/custom/workspace-ls ./SKILLS/custom/workspace-ls"
 
 echo "dockerfile openclaw builder tests passed"

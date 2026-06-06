@@ -273,6 +273,22 @@ test('getSkillById("workspace-ls") returns packaged ClawMax repo skill', () => {
   assert(skill!.source === 'bundled' || skill!.source === 'workspace', 'workspace-ls should be discoverable in the catalog')
 })
 
+test('getSkillById("clawmax-resend") returns packaged ClawMax bridge skill', () => {
+  const skill = getSkillById('clawmax-resend')
+
+  assert(skill !== null, 'Should find clawmax-resend skill')
+  assertEqual(skill!.name, 'clawmax-resend', 'Name should be "clawmax-resend"')
+  assert(skill!.source === 'bundled' || skill!.source === 'workspace', 'clawmax-resend should be discoverable in the catalog')
+})
+
+test('getSkillById("clawmax-workspace-ls") returns packaged ClawMax helper skill', () => {
+  const skill = getSkillById('clawmax-workspace-ls')
+
+  assert(skill !== null, 'Should find clawmax-workspace-ls skill')
+  assertEqual(skill!.name, 'clawmax-workspace-ls', 'Name should be "clawmax-workspace-ls"')
+  assert(skill!.source === 'bundled' || skill!.source === 'workspace', 'clawmax-workspace-ls should be discoverable in the catalog')
+})
+
 test('updateSkillContent() creates a workspace copy when editing a bundled skill', () => {
   const bundledSkill = getSkillById('workspace-ls')
   assert(bundledSkill, 'Expected bundled workspace-ls skill')

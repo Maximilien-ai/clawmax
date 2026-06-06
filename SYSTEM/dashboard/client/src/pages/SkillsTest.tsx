@@ -940,7 +940,11 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
           const failed = data.skills?.filter((s: any) => !s.ok) || []
           const warnings = data.skills?.filter((s: any) => s.warning).map((s: any) => s.warning) || []
           const importedSkillNames = data.skills?.filter((s: any) => s.ok).map((s: any) => s.skillId).filter(Boolean) || []
-          showSuccess(`Imported ${data.imported}/${data.total} skills`)
+          if ((data.imported || 0) === 0 && (data.existing || 0) > 0) {
+            showSuccess(`${data.existing}/${data.total} skills already installed`)
+          } else {
+            showSuccess(`Imported ${data.imported}/${data.total} skills`)
+          }
           if (warnings.length > 0) {
             showWarning(warnings.join(' '))
           }
@@ -1038,7 +1042,11 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
         const materializedSuffix = materializedBundledSkills.length > 0
           ? ` (+${materializedBundledSkills.length} bundled helper${materializedBundledSkills.length !== 1 ? 's' : ''})`
           : ''
-        showSuccess(`Imported ${data.imported}/${data.total} ${partner.name} skills${materializedSuffix}`)
+        if ((data.imported || 0) === 0 && (data.existing || 0) > 0) {
+          showSuccess(`${data.existing}/${data.total} ${partner.name} skills already installed${materializedSuffix}`)
+        } else {
+          showSuccess(`Imported ${data.imported}/${data.total} ${partner.name} skills${materializedSuffix}`)
+        }
         if (importedSkillNames.length > 0) {
           await warnForSkillSetupByNames(importedSkillNames)
         }

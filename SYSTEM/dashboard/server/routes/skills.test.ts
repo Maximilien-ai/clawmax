@@ -268,6 +268,96 @@ async function run() {
     }
   })
 
+  await test('import-github treats already-installed multi-skill repos as idempotent success', async () => {
+    const tempRoots: string[] = []
+    ;(childProcess as any).execSync = ((command: string) => {
+      const match = command.match(/git clone --depth 1\s+\S+\s+(.+)$/)
+      assert(match, `Expected clone command, got ${command}`)
+      const tempDir = match[1]
+      tempRoots.push(tempDir)
+      const skillsRoot = `${tempDir}/skills`
+      require('fs').mkdirSync(`${skillsRoot}/resend`, { recursive: true })
+      require('fs').mkdirSync(`${skillsRoot}/resend-cli`, { recursive: true })
+      require('fs').writeFileSync(`${skillsRoot}/resend/SKILL.md`, '# resend')
+      require('fs').writeFileSync(`${skillsRoot}/resend-cli/SKILL.md`, '# resend-cli')
+      return Buffer.from('')
+    }) as typeof childProcess.execSync
+
+    const skillsLib = require('../lib/skills')
+    const originalImportWorkspaceSkill = skillsLib.importWorkspaceSkill
+    skillsLib.importWorkspaceSkill = (skillPath: string) => ({
+      success: false,
+      skillId: require('path').basename(skillPath),
+      error: `Skill '${require('path').basename(skillPath)}' already exists`,
+    })
+
+    try {
+      const handler = getRouteHandler('post', '/import-github')
+      const res = makeRes()
+      await handler(makeReq({
+        body: { githubUrl: 'https://github.com/resend/resend-skills' },
+      }), res)
+
+      assert.strictEqual(res.statusCode, 200, 'Expected already-installed multi-skill import to return HTTP 200')
+      assert.strictEqual(res.jsonBody?.ok, true, 'Expected idempotent import to succeed')
+      assert.strictEqual(res.jsonBody?.imported, 0, 'Expected zero new imports')
+      assert.strictEqual(res.jsonBody?.existing, 2, 'Expected existing count to be reported')
+      assert.strictEqual(res.jsonBody?.failed, 0, 'Expected no failed installs for already-present skills')
+      assert(/already installed/i.test(res.jsonBody?.warning || ''), 'Expected already-installed warning')
+      assert(Array.isArray(res.jsonBody?.skills) && res.jsonBody.skills.every((item: any) => item.ok), 'Expected normalized results to be marked ok')
+    } finally {
+      skillsLib.importWorkspaceSkill = originalImportWorkspaceSkill
+      ;(childProcess as any).execSync = originalExecSync
+      const fs = require('fs')
+      for (const tempDir of tempRoots) {
+        if (fs.existsSync(tempDir)) fs.rmSync(tempDir, { recursive: true, force: true })
+      }
+    }
+  })
+
+  await test('import-github treats already-installed single skills as idempotent success', async () => {
+    const tempRoots: string[] = []
+    ;(childProcess as any).execSync = ((command: string) => {
+      const match = command.match(/git clone --depth 1\s+\S+\s+(.+)$/)
+      assert(match, `Expected clone command, got ${command}`)
+      const tempDir = match[1]
+      tempRoots.push(tempDir)
+      require('fs').mkdirSync(tempDir, { recursive: true })
+      require('fs').writeFileSync(`${tempDir}/SKILL.md`, '# single-skill')
+      return Buffer.from('')
+    }) as typeof childProcess.execSync
+
+    const skillsLib = require('../lib/skills')
+    const originalImportWorkspaceSkill = skillsLib.importWorkspaceSkill
+    skillsLib.importWorkspaceSkill = () => ({
+      success: false,
+      skillId: 'single-skill',
+      error: `Skill 'single-skill' already exists`,
+    })
+
+    try {
+      const handler = getRouteHandler('post', '/import-github')
+      const res = makeRes()
+      await handler(makeReq({
+        body: { githubUrl: 'https://github.com/example/single-skill' },
+      }), res)
+
+      assert.strictEqual(res.statusCode, 200, 'Expected already-installed single-skill import to return HTTP 200')
+      assert.strictEqual(res.jsonBody?.ok, true, 'Expected idempotent single-skill import to succeed')
+      assert.strictEqual(res.jsonBody?.skillId, 'single-skill', 'Expected single skill id to be preserved')
+      assert.strictEqual(res.jsonBody?.imported, 0, 'Expected zero new imports')
+      assert.strictEqual(res.jsonBody?.existing, 1, 'Expected one existing skill')
+      assert(/already installed/i.test(res.jsonBody?.warning || ''), 'Expected already-installed warning')
+    } finally {
+      skillsLib.importWorkspaceSkill = originalImportWorkspaceSkill
+      ;(childProcess as any).execSync = originalExecSync
+      const fs = require('fs')
+      for (const tempDir of tempRoots) {
+        if (fs.existsSync(tempDir)) fs.rmSync(tempDir, { recursive: true, force: true })
+      }
+    }
+  })
+
   await test('registry search returns actionable warning when Tessl CLI is unavailable', async () => {
     execFileMock = (_file, _args, _options, callback) => {
       const err = new Error('tessl not found') as NodeJS.ErrnoException

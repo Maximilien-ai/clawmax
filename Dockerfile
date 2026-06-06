@@ -132,6 +132,11 @@ WORKDIR /app
 
 COPY TEMPLATES ./TEMPLATES
 COPY PARTNERS ./PARTNERS
+COPY SKILLS/README.md ./SKILLS/README.md
+COPY SKILLS/custom/clawmax-resend ./SKILLS/custom/clawmax-resend
+COPY SKILLS/custom/clawmax-workspace-ls ./SKILLS/custom/clawmax-workspace-ls
+COPY SKILLS/custom/luma-event-insights ./SKILLS/custom/luma-event-insights
+COPY SKILLS/custom/workspace-ls ./SKILLS/custom/workspace-ls
 COPY SYSTEM/schemas ./SYSTEM/schemas
 COPY SYSTEM/dashboard/.env.example ./SYSTEM/dashboard/.env.example
 COPY SYSTEM/dashboard/docker-entrypoint.sh ./SYSTEM/dashboard/docker-entrypoint.sh
