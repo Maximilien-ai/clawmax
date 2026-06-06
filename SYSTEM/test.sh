@@ -603,6 +603,16 @@ else
   fail "Gateway RPC unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Gateway probe regression tests...${NC}"
+npx ts-node --transpileOnly server/lib/gateway-probe-regressions.test.ts > /tmp/clawmax-gateway-probe-regressions.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-gateway-probe-regressions.out; then
+  gateway_probe_regression_count=$(grep "Tests passed:" /tmp/clawmax-gateway-probe-regressions.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Gateway probe regression tests (${gateway_probe_regression_count:-?} tests)"
+else
+  cat /tmp/clawmax-gateway-probe-regressions.out
+  fail "Gateway probe regression tests"
+fi
+
 echo -e "${YELLOW}→ Running Communication bulk actions unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/communicationBulkActions.test.ts > /tmp/clawmax-communication-bulk-actions.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-communication-bulk-actions.out; then
@@ -860,6 +870,16 @@ if grep -q "skillExport.test.ts: ok" /tmp/clawmax-skill-export.out; then
 else
   cat /tmp/clawmax-skill-export.out
   fail "Skill export helper unit tests"
+fi
+
+echo -e "${YELLOW}→ Running ClawMax packaged skills regression tests...${NC}"
+npx ts-node --transpileOnly server/lib/clawmax-skills-regressions.test.ts > /tmp/clawmax-packaged-skills-regressions.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-packaged-skills-regressions.out; then
+  clawmax_skills_regression_count=$(grep "Tests passed:" /tmp/clawmax-packaged-skills-regressions.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "ClawMax packaged skills regression tests (${clawmax_skills_regression_count:-?} tests)"
+else
+  cat /tmp/clawmax-packaged-skills-regressions.out
+  fail "ClawMax packaged skills regression tests"
 fi
 
 echo -e "${YELLOW}→ Running Skills page smoke tests...${NC}"
@@ -1340,6 +1360,16 @@ if grep -q "All tests passed" /tmp/clawmax-agent-execution.out; then
   pass "Agent execution runtime unit tests (${agent_execution_count:-?} tests)"
 else
   fail "Agent execution runtime unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Workflow session regression tests...${NC}"
+npx ts-node --transpileOnly server/lib/workflow-session-regressions.test.ts > /tmp/clawmax-workflow-session-regressions.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-workflow-session-regressions.out; then
+  workflow_session_regression_count=$(grep "Tests passed:" /tmp/clawmax-workflow-session-regressions.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Workflow session regression tests (${workflow_session_regression_count:-?} tests)"
+else
+  cat /tmp/clawmax-workflow-session-regressions.out
+  fail "Workflow session regression tests"
 fi
 
 echo ""
