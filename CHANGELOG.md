@@ -6,6 +6,22 @@ All notable changes to ClawMax are documented here.
 
 - No unreleased changes yet.
 
+## [v1.7.8] - 2026-06-06
+
+### Fixed
+- **Bundled ClawMax Skills** — release images now package the first-party ClawMax helper skills used by templates and partner flows, including `clawmax-resend`, `workspace-ls`, and the new `clawmax-workspace-ls`.
+- **Partner Skill Imports** — GitHub/partner-backed skill imports are now idempotent when requested skills are already present instead of failing the whole import with a `400`.
+- **Templates Search** — the Templates page search filter is active again and now indexes more nested template metadata, workflow text, and channel names.
+- **Workflow Session Stability** — workflow execution now treats `EmbeddedAttemptSessionTakeoverError` as a retriable session conflict and surfaces clearer failure handling when retries are exhausted.
+- **Gateway Probe Noise** — the background dashboard probe no longer identifies as `openclaw-control-ui`, reducing noisy `control-ui-insecure-auth` warnings in workflow-heavy logs.
+
+### Testing
+- Surfaced new release regression lanes in `SYSTEM/test.sh` for:
+  - packaged ClawMax skills
+  - workflow session stability
+  - gateway probe identity
+  - template search
+
 ## [v1.7.7] - 2026-06-05
 
 ### Resend Partner Follow-Through

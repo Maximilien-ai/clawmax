@@ -5,16 +5,24 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.7.7-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
+[![Version](https://img.shields.io/badge/version-1.7.8-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
 [![Tests](https://img.shields.io/badge/tests-96%20default--safe-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 Latest Release: v1.7.7
+## 🔥 Latest Release: v1.7.8
 
-- `1.7.7` is the active release line for the Resend and skills-surface follow-through patch.
+- `1.7.8` is the active release line for the regression sweep covering bundled ClawMax skills, template search, and workflow session stability.
 
 ## ✨ 1.7.x Highlights
+
+- `1.7.8` regression sweep:
+  - restored Templates search filtering with a dedicated surfaced regression lane
+  - packaged first-party ClawMax helper skills into release images, including `clawmax-resend`, `workspace-ls`, and `clawmax-workspace-ls`
+  - made curated/partner GitHub skill imports idempotent when skills are already installed
+  - hardened workflow execution against `EmbeddedAttemptSessionTakeoverError`
+  - switched gateway background probe identity away from `openclaw-control-ui` to reduce noisy auth warnings
+  - surfaced release-specific regression lanes in `SYSTEM/test.sh`
 
 - OpenClaw `2026.5.26` is now the stable runtime baseline across dashboard, CI, and built images.
 - AI Builder and AI Generate are more reliable:
@@ -192,7 +200,7 @@ curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/ins
 Pinned release:
 
 ```bash
-curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.7.7
+curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.7.8
 ```
 
 What it does:
@@ -213,13 +221,13 @@ See [SYSTEM/docs/DEMO_VIDEOS.md](SYSTEM/docs/DEMO_VIDEOS.md) for the current inv
 You can also bootstrap directly with the checked-in wrapper:
 
 ```bash
-./setup.sh v1.7.7
+./setup.sh v1.7.8
 ```
 
 or choose a custom install directory:
 
 ```bash
-curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.7.7 --dir /opt/clawmax
+curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.7.8 --dir /opt/clawmax
 ```
 
 See [SYSTEM/docs/RELEASE_DISTRIBUTION.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/RELEASE_DISTRIBUTION.md) for the release distribution contract.
