@@ -462,6 +462,10 @@ test('detectParticipantReportedFailure catches explicit FAIL markers', () => {
     detectParticipantReportedFailure("Runtime error detail: 400 Invalid 'prompt_cache_key': string too long.") === "Runtime error detail: 400 Invalid 'prompt_cache_key': string too long.",
     'Expected provider runtime detail to be treated as failure'
   )
+  assert(
+    detectParticipantReportedFailure('EmbeddedAttemptSessionTakeoverError: session file changed while embedded prompt lock was released: /tmp/agent.jsonl') === 'EmbeddedAttemptSessionTakeoverError: session file changed while embedded prompt lock was released: /tmp/agent.jsonl',
+    'Expected embedded session takeover errors to be treated as failure'
+  )
 })
 
 test('summarizeAgentInputRequest extracts direct user asks for notifications', () => {

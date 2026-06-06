@@ -145,6 +145,8 @@ async function normalizeLmstudioLoadedModelState(params: {
 export function isOpenClawSessionLockError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error || '')
   return /session file locked/i.test(message)
+    || /EmbeddedAttemptSessionTakeoverError/i.test(message)
+    || /session file changed while embedded prompt lock was released/i.test(message)
 }
 
 export function getAgentExecutionRetryDelay(attempt: number): number {

@@ -429,6 +429,10 @@ test('isOpenClawSessionLockError matches lock timeout errors', () => {
     'Expected lock timeout error to be recognized'
   )
   assert(
+    isOpenClawSessionLockError(new Error('EmbeddedAttemptSessionTakeoverError: session file changed while embedded prompt lock was released')),
+    'Expected embedded session takeover errors to be recognized'
+  )
+  assert(
     !isOpenClawSessionLockError(new Error('Agent timeout')),
     'Expected non-lock error to be ignored'
   )
@@ -466,6 +470,21 @@ test('runExclusiveAgentExecution serializes same-agent executions', async () => 
 
   assert(maxActive === 1, `Expected same-agent executions to serialize, saw concurrency ${maxActive}`)
   assert(order.join(',') === 'start-1,end-1,start-2,end-2', `Expected serialized order, got ${order.join(',')}`)
+})
+
+test('runExclusiveAgentExecution retries embedded session takeover errors for the same agent', async () => {
+  let attempts = 0
+
+  const result = await runExclusiveAgentExecution('retry-agent', async () => {
+    attempts++
+    if (attempts === 1) {
+      throw new Error('EmbeddedAttemptSessionTakeoverError: session file changed while embedded prompt lock was released')
+    }
+    return 'ok'
+  })
+
+  assert(result === 'ok', `Expected retry to eventually succeed, got ${result}`)
+  assert(attempts === 2, `Expected one retry after takeover error, got ${attempts} attempts`)
 })
 
 test('withTemporaryAgentAuthProfiles overrides stale auth profiles for the duration of execution', async () => {

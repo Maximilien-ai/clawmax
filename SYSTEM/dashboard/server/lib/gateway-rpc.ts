@@ -87,6 +87,17 @@ function loadGatewayConfigFromDisk(): GatewayConfig | null {
 export const __test = {
   parseGatewayConfig,
   GATEWAY_PROTOCOL_VERSION,
+  buildGatewayProbeClient,
+}
+
+function buildGatewayProbeClient() {
+  return {
+    id: 'openclaw-dashboard',
+    displayName: 'Dashboard Probe',
+    version: '1.0.0',
+    platform: process.platform,
+    mode: 'operator',
+  }
 }
 
 interface RPCRequest {
@@ -464,13 +475,7 @@ export async function probeGatewayResponsive(timeoutMs = 3000): Promise<{ runnin
             params: {
               minProtocol: GATEWAY_PROTOCOL_VERSION,
               maxProtocol: GATEWAY_PROTOCOL_VERSION,
-              client: {
-                id: 'openclaw-control-ui',
-                displayName: 'Dashboard Probe',
-                version: '1.0.0',
-                platform: process.platform,
-                mode: 'ui',
-              },
+              client: buildGatewayProbeClient(),
               caps: [],
               auth: { token: config.auth.token },
               role: 'operator',

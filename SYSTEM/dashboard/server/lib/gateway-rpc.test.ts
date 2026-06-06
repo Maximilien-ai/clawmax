@@ -68,6 +68,13 @@ test('gateway RPC negotiates protocol 4 for upgraded OpenClaw runtimes', () => {
   assert(__test.GATEWAY_PROTOCOL_VERSION === 4, `Expected gateway protocol version 4, got ${__test.GATEWAY_PROTOCOL_VERSION}`)
 })
 
+test('gateway probe uses dashboard operator client instead of control-ui mode', () => {
+  const client = __test.buildGatewayProbeClient()
+  assert(client.id === 'openclaw-dashboard', `Expected dashboard probe id, got ${client.id}`)
+  assert(client.mode === 'operator', `Expected operator mode, got ${client.mode}`)
+  assert(client.displayName === 'Dashboard Probe', `Expected display name to remain stable, got ${client.displayName}`)
+})
+
 setTimeout(() => {
   console.log(`\nPassed: ${testsPassed}`)
   console.log(`Failed: ${testsFailed}`)

@@ -442,6 +442,9 @@ export function detectParticipantReportedFailure(agentText: string): string | nu
     if (/context overflow|prompt too large|prompt_cache_key|string too long|runtime error detail/i.test(line)) {
       return line
     }
+    if (/EmbeddedAttemptSessionTakeoverError|session file changed while embedded prompt lock was released/i.test(line)) {
+      return line
+    }
     if (/^LLM request rejected:/i.test(line)) {
       return line
     }
@@ -489,6 +492,9 @@ function formatParticipantFailure(reportedFailure: string): string {
   }
   if (/context overflow|prompt too large|prompt_cache_key|string too long|runtime error detail/i.test(reportedFailure)) {
     return `Model provider rejected the request before generation. Raw error: ${reportedFailure}`
+  }
+  if (/EmbeddedAttemptSessionTakeoverError|session file changed while embedded prompt lock was released/i.test(reportedFailure)) {
+    return `Agent session execution conflicted with another embedded run. Reset the active chat/session and retry. Raw error: ${reportedFailure}`
   }
   if (/^No execution path configured\b/i.test(reportedFailure) || /^No API keys available\b/i.test(reportedFailure)) {
     return 'No model execution path is configured for this workflow run. Add hosted provider keys or configure a local runtime in BYOK / workspace integrations.'
