@@ -31,8 +31,8 @@ jobs:
           - platform: linux/arm64
             arch_tag: arm64
     outputs:
-      version: ${{ steps.vars.outputs.version }}
-      semver: ${{ steps.vars.outputs.semver }}
+      version: ${{ steps.version.outputs.version }}
+      semver: ${{ steps.version.outputs.semver }}
       test_tag: ${{ steps.vars.outputs.test_tag }}
     steps:
       - name: Resolve build ref
