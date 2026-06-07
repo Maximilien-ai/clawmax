@@ -308,9 +308,12 @@ function listWorkspaceFiles(root: string): string[] {
 
 export function resolveWorkspaceEmailAttachments(workspaceRoot: string, requestedPaths: string[] = [], preferredRoots: string[] = []): ResendEmailAttachment[] {
   return requestedPaths.map((requestedPath) => {
-    const relativePath = requestedPath.trim().replace(/^\/+/, '')
+    const trimmedPath = requestedPath.trim()
+    const relativePath = trimmedPath.replace(/^\/+/, '')
     let absolutePath = ''
-    if (relativePath.includes('/')) {
+    if (path.isAbsolute(trimmedPath)) {
+      absolutePath = path.resolve(trimmedPath)
+    } else if (relativePath.includes('/')) {
       absolutePath = path.resolve(workspaceRoot, relativePath)
     } else {
       const searchRoots = [...preferredRoots, workspaceRoot]

@@ -109,6 +109,18 @@ await test('resolveWorkspaceEmailAttachments prefers the current agent workspace
   assert(decoded === 'resend-agent tools', 'Expected protected bare filename to resolve from current agent workspace first')
 })
 
+await test('resolveWorkspaceEmailAttachments accepts absolute attachment paths inside the workspace', () => {
+  const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-resend-attach-abs-'))
+  const agentRoot = path.join(workspaceRoot, 'AGENTS', 'resend-agent')
+  fs.mkdirSync(agentRoot, { recursive: true })
+  const soulPath = path.join(agentRoot, 'SOUL.md')
+  fs.writeFileSync(soulPath, 'agent soul', 'utf-8')
+
+  const attachments = resolveWorkspaceEmailAttachments(workspaceRoot, [soulPath], [agentRoot])
+  const decoded = Buffer.from(attachments[0].content, 'base64').toString('utf-8')
+  assert(decoded === 'agent soul', 'Expected absolute in-workspace attachment path to resolve correctly')
+})
+
 console.log('\n========================================')
 console.log(`Tests passed: ${testsPassed}`)
 console.log(`Tests failed: ${testsFailed}`)
