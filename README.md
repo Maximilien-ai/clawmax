@@ -22,7 +22,10 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
   - made curated/partner GitHub skill imports idempotent when skills are already installed
   - hardened workflow execution against `EmbeddedAttemptSessionTakeoverError`
   - switched gateway background probe identity away from `openclaw-control-ui` to reduce noisy auth warnings
-  - surfaced release-specific regression lanes in `SYSTEM/test.sh`
+  - replaced the old chat-side `clawmax-resend` interception path with a real bundled runtime send command (`clawmax-resend-send`) plus agent-skill guidance
+  - tightened resend attachment resolution so protected agent files like `IDENTITY.md`, `SOUL.md`, and `TOOLS.md` resolve from the current agent workspace instead of another agent with the same basename
+  - resend email bodies now render simple markdown structure as HTML, and generated summaries default to inline email bodies instead of stray `summary.md` attachments unless a file was explicitly requested
+  - surfaced release-specific regression lanes in `SYSTEM/test.sh`, including the dedicated `ClawMax Resend Command` lane and new workspace-agent visibility coverage
 
 - OpenClaw `2026.5.26` is now the stable runtime baseline across dashboard, CI, and built images.
 - AI Builder and AI Generate are more reliable:

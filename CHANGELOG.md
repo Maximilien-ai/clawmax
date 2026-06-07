@@ -14,6 +14,11 @@ All notable changes to ClawMax are documented here.
 - **Templates Search** — the Templates page search filter is active again and now indexes more nested template metadata, workflow text, and channel names.
 - **Workflow Session Stability** — workflow execution now treats `EmbeddedAttemptSessionTakeoverError` as a retriable session conflict and surfaces clearer failure handling when retries are exhausted.
 - **Gateway Probe Noise** — the background dashboard probe no longer identifies as `openclaw-control-ui`, reducing noisy `control-ui-insecure-auth` warnings in workflow-heavy logs.
+- **Real `clawmax-resend` Runtime Tool Path** — `clawmax-resend` now uses a bundled runtime command (`clawmax-resend-send`) instead of the earlier chat-side interception bridge, keeping agent email sends on the same first-party skill/tool path used by other OpenClaw skills.
+- **Resend Attachment Resolution** — protected agent files such as `IDENTITY.md`, `SOUL.md`, `TOOLS.md`, `HEARTBEAT.md`, `USER.md`, and `AGENTS.md` now resolve from the current agent workspace first, and absolute in-workspace attachment paths are accepted correctly.
+- **Resend Summary/Attachment Guidance** — resend skill guidance now defaults generated summaries and status updates to inline email bodies, forbids subagent delegation for email sending, and keeps file-send requests attached as source files instead of rewriting or copying them.
+- **Rendered Markdown Email Bodies** — the ClawMax Resend HTML wrapper now renders simple markdown structure such as headings, bullet lists, bold text, and inline code into richer HTML for better inbox readability.
+- **Workspace Agent Visibility Regression** — agents remain visible in the roster even when extra generated artifacts sit beside `IDENTITY.md`, protecting the `resend-agent` style workspace from disappearing out of the Agents list.
 
 ### Testing
 - Surfaced new release regression lanes in `SYSTEM/test.sh` for:
@@ -21,6 +26,8 @@ All notable changes to ClawMax are documented here.
   - workflow session stability
   - gateway probe identity
   - template search
+  - ClawMax Resend command behavior
+  - workspace agent file visibility
 
 ## [v1.7.7] - 2026-06-05
 
