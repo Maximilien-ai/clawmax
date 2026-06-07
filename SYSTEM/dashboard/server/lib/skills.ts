@@ -700,9 +700,11 @@ export function getAssignedSkillPromptNotes(skillIds: string[]): string[] {
       '- Do not use generic message/email channel tools when `clawmax-resend` is assigned.',
       '- Do not create local files or tell the user to email something manually when `clawmax-resend` is assigned unless the user explicitly asked for that fallback.',
       '- For multi-turn requests like "send both responses", combine the relevant prior answers into the command body and call `clawmax-resend-send` directly.',
+      '- For summaries, status updates, or other generated writeups, send the content inline in the email body by default. Do not create `summary.md` or attach a generated file unless the user explicitly asked for a file or attachment.',
       '- For file requests like "send your identity.md", use `clawmax-resend-send --attach <path>` and attach the file instead of pasting its contents into a generic message tool.',
       '- Do not edit, patch, or rewrite the file when the user asked to send it; attach the existing file as-is.',
       '- Do not create copied workspace files such as `identity_identity.md` or `soul_copy.md` while preparing an attachment; attach the original file directly.',
+      '- Do not delegate email sending to subagents. Run `clawmax-resend-send` in the current agent session.',
       '- If the user says "same email", reuse the most recent recipient email from the current conversation.',
     )
   }
