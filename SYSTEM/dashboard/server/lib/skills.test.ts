@@ -1051,6 +1051,7 @@ test('setAgentSkills() adds clawmax-resend command guidance to TOOLS.md', () => 
   assert(tools.includes('Do not create local files or tell the user to email something manually when `clawmax-resend` is assigned unless the user explicitly asked for that fallback.'), 'Expected explicit no-manual-fallback guidance for clawmax-resend')
   assert(tools.includes('For file requests like "send your identity.md", use `clawmax-resend-send --attach <path>` and attach the file instead of pasting its contents into a generic message tool.'), 'Expected explicit attachment guidance for clawmax-resend')
   assert(tools.includes('Do not edit, patch, or rewrite the file when the user asked to send it; attach the existing file as-is.'), 'Expected explicit no-edit guidance for file attachments')
+  assert(tools.includes('Do not create copied workspace files such as `identity_identity.md` or `soul_copy.md` while preparing an attachment; attach the original file directly.'), 'Expected explicit no-copy guidance for file attachments')
   assert(tools.includes('If the user says "same email", reuse the most recent recipient email from the current conversation.'), 'Expected explicit same-email reuse guidance')
 })
 

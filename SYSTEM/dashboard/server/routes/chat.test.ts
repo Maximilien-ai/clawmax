@@ -155,6 +155,7 @@ test('buildManagedSecretStatelessChatMessage surfaces assigned skill paths for g
   assert(prompt.includes('Do not create local files or tell the user to email something manually when `clawmax-resend` is assigned unless the user explicitly asked for that fallback.'), 'Expected explicit no-manual-fallback note for clawmax-resend')
   assert(prompt.includes('For file requests like "send your identity.md", use `clawmax-resend-send --attach <path>` and attach the file instead of pasting its contents into a generic message tool.'), 'Expected explicit attachment guidance for clawmax-resend')
   assert(prompt.includes('Do not edit, patch, or rewrite the file when the user asked to send it; attach the existing file as-is.'), 'Expected explicit no-edit guidance for attachment requests')
+  assert(prompt.includes('Do not create copied workspace files such as `identity_identity.md` or `soul_copy.md` while preparing an attachment; attach the original file directly.'), 'Expected explicit no-copy guidance for attachments')
   assert(prompt.includes('If the user says "same email", reuse the most recent recipient email from the current conversation.'), 'Expected explicit same-email reuse guidance')
   assert(prompt.includes('read that SKILL.md first and follow it before using generic tools like message or exec'), 'Expected generic tool-selection guidance')
   assert(prompt.includes('Latest user request: send both responses to mmaximilien@gmail.com'), 'Expected latest request to remain present')

@@ -702,6 +702,7 @@ export function getAssignedSkillPromptNotes(skillIds: string[]): string[] {
       '- For multi-turn requests like "send both responses", combine the relevant prior answers into the command body and call `clawmax-resend-send` directly.',
       '- For file requests like "send your identity.md", use `clawmax-resend-send --attach <path>` and attach the file instead of pasting its contents into a generic message tool.',
       '- Do not edit, patch, or rewrite the file when the user asked to send it; attach the existing file as-is.',
+      '- Do not create copied workspace files such as `identity_identity.md` or `soul_copy.md` while preparing an attachment; attach the original file directly.',
       '- If the user says "same email", reuse the most recent recipient email from the current conversation.',
     )
   }
