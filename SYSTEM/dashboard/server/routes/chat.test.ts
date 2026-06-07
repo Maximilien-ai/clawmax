@@ -148,6 +148,8 @@ test('buildManagedSecretStatelessChatMessage surfaces assigned skill paths for g
 
   assert(prompt.includes('Assigned skills for this turn:'), 'Expected assigned skill block in stateless prompt')
   assert(prompt.includes('clawmax-resend (/tmp/SKILLS/custom/clawmax-resend/SKILL.md)'), 'Expected assigned skill path surfaced to the model')
+  assert(prompt.includes('These are local skills/capabilities for this agent, not agents, channels, or session targets.'), 'Expected explicit note that assigned skills are not session targets')
+  assert(prompt.includes('Do not use sessions_send, sessions_spawn, or agent-to-agent messaging with a skill name.'), 'Expected explicit anti-session guidance for skills')
   assert(prompt.includes('read that SKILL.md first and follow it before using generic tools like message or exec'), 'Expected generic tool-selection guidance')
   assert(prompt.includes('Latest user request: send both responses to mmaximilien@gmail.com'), 'Expected latest request to remain present')
 })

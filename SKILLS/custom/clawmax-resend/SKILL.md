@@ -38,6 +38,8 @@ Use this skill when:
 
 ## Guidance
 
+- This skill is a local capability, not an agent or session target.
+- Do **not** use `sessions_send`, `sessions_spawn`, or agent-to-agent messaging with the name `clawmax-resend`.
 - Keep outbound emails concise and actionable.
 - Reuse the relevant recent assistant content when the user says "send that status", "send both responses", or similar.
 - Assume the ClawMax bridge controls sender identity and formatting.

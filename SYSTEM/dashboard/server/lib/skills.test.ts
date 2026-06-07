@@ -1044,6 +1044,8 @@ test('setAgentSkills() adds clawmax-resend command guidance to TOOLS.md', () => 
   const tools = fs.readFileSync(path.join(workspaceAgent, 'TOOLS.md'), 'utf-8')
   assert(tools.includes('- clawmax-resend'), 'Expected clawmax-resend listed in TOOLS.md assigned skills')
   assert(tools.includes('### ClawMax Skill Notes'), 'Expected ClawMax skill guidance section')
+  assert(tools.includes('Assigned skill ids are local capabilities, not agents or session targets.'), 'Expected explicit note that skill ids are not agent/session targets')
+  assert(tools.includes('Never use sessions_send, sessions_spawn, or agent-to-agent messaging with an assigned skill name.'), 'Expected explicit prohibition on session messaging for skill names')
   assert(tools.includes('clawmax-resend-send'), 'Expected explicit clawmax-resend-send command guidance')
   assert(tools.includes('Do not use generic message/email channel tools'), 'Expected generic channel warning for clawmax-resend')
 })

@@ -699,6 +699,8 @@ function renderAssignedSkillsSection(skillIds: string[]): string {
     guidance.push(
       '### ClawMax Skill Notes',
       '',
+      '- Assigned skill ids are local capabilities, not agents or session targets.',
+      '- Never use sessions_send, sessions_spawn, or agent-to-agent messaging with an assigned skill name.',
       '- `clawmax-resend`: to send email, use the `clawmax-resend-send` command.',
       '- Do not use generic message/email channel tools when `clawmax-resend` is assigned.',
       '- For multi-turn requests like "send both responses", combine the relevant prior answers into the command body and call `clawmax-resend-send` directly.',
