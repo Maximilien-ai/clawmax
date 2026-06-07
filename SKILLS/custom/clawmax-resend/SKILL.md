@@ -45,6 +45,8 @@ Use this skill when:
 - Assume the ClawMax bridge controls sender identity and formatting.
 - Do **not** fall back to generic message/email channel tools, local desktop files, or “send it manually” instructions when this skill is assigned unless the user explicitly asks for that fallback.
 - If the user asks to send a file such as `identity.md`, use `clawmax-resend-send --attach <path>` and send the file as an attachment instead of pasting the file contents into a generic message.
+- Do **not** edit, patch, or rewrite the file when the user asked to send it. Attach the existing file as-is.
+- If the user says `same email`, reuse the most recent recipient email from the current conversation.
 - If the user explicitly gives the recipient, what to send, and any attachment path, send it without asking again.
 - If any of those are ambiguous, ask one short confirmation question before sending:
   - missing or unclear recipient,
