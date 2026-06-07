@@ -371,6 +371,7 @@ router.post('/:id/chat', async (req, res) => {
     openaiCompatibleDefaultModel: useOpenAiCompatible ? (byok?.openaiCompatibleDefaultModel || integrationConfig.openaiCompatibleDefaultModel) : undefined,
   })
   executionEnv.OPENCLAW_WORKSPACE = effectiveWorkspaceRoot
+  executionEnv.CLAWMAX_AGENT_ID = id
   const effectiveSessionId = scopeSessionIdToModel(
     sessionId || buildDashboardChatSeed(id, resolvedAgent.workspace),
     resolvedAgent.model

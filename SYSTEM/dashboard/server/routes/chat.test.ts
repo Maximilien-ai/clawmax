@@ -205,8 +205,8 @@ test('buildResendChatEmailRequest treats bare filenames as attachment references
   assert(request?.attachmentPaths?.[0] === 'identity.md', 'Expected bare filename attachment reference')
 })
 
-test('hasResendEmailCapability only enables direct send for Resend-related skills', () => {
-  assert(hasResendEmailCapability(['clawmax-resend']), 'Expected clawmax-resend skill to enable direct Resend email')
+test('hasResendEmailCapability only enables legacy parser send for non-clawmax Resend skills', () => {
+  assert(!hasResendEmailCapability(['clawmax-resend']), 'Expected clawmax-resend to bypass dashboard parser interception')
   assert(hasResendEmailCapability(['github', 'resend-cli']), 'Expected resend-cli skill to enable direct Resend email')
   assert(!hasResendEmailCapability(['github', 'slack']), 'Expected unrelated skills not to enable direct Resend email')
 })

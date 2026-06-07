@@ -18,7 +18,7 @@ This skill is the default ClawMax-owned path for sending email with Resend.
 
 ## What It Does
 
-- uses the ClawMax dashboard Resend bridge instead of asking you to manage API keys,
+- uses the `clawmax-resend-send` command instead of asking you to manage API keys,
 - applies the configured ClawMax sender policy,
 - sends a formatted HTML email plus plain-text fallback,
 - works best for direct "send this in an email" tasks.
@@ -39,7 +39,7 @@ Use this skill when:
 ## Guidance
 
 - Keep outbound emails concise and actionable.
-- Reuse the latest assistant answer when the user says "send that status" or similar.
+- Reuse the relevant recent assistant content when the user says "send that status", "send both responses", or similar.
 - Assume the ClawMax bridge controls sender identity and formatting.
 - If the user explicitly gives the recipient, what to send, and any attachment path, send it without asking again.
 - If any of those are ambiguous, ask one short confirmation question before sending:
@@ -50,3 +50,52 @@ Use this skill when:
 - If the user asks to send a file, prefer explicit workspace paths like `WORKFLOWS/outputs/report.md`. Bare filenames such as `identity.md` are allowed when the intended file is obvious.
 - When a request says "do the work, then email it", complete the work first and treat the completed answer as the email body unless the user asked for a different body.
 - When sending attachments, mention which files will be attached if there is any chance of ambiguity.
+
+## Command To Use
+
+Use this command to actually send the email:
+
+```bash
+clawmax-resend-send --to recipient@example.com --subject "Subject line"
+```
+
+Provide the body in one of these ways:
+
+1. Pipe body text through stdin:
+
+```bash
+cat <<'EOF' | clawmax-resend-send --to recipient@example.com --subject "Status update"
+First paragraph.
+
+Second paragraph.
+EOF
+```
+
+2. Use `--body` for short single-line content:
+
+```bash
+clawmax-resend-send --to recipient@example.com --subject "Quick update" --body "Done. The workflow completed successfully."
+```
+
+3. Use `--body-file` when you already wrote content to a file:
+
+```bash
+clawmax-resend-send --to recipient@example.com --subject "Release note" --body-file /tmp/release-note.txt
+```
+
+Attachments:
+
+```bash
+cat <<'EOF' | clawmax-resend-send \
+  --to recipient@example.com \
+  --subject "Report attached" \
+  --attach WORKFLOWS/outputs/report.md
+Please find the report attached.
+EOF
+```
+
+Notes:
+
+- `clawmax-resend-send` already knows the active agent id and workspace root in normal ClawMax runtime execution.
+- You do not need to invent sender addresses or call the Resend API directly.
+- If you need to send multiple previous responses, combine them into the body you pass to the command.

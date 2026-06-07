@@ -264,7 +264,7 @@ function extractAttachmentPaths(message: string): string[] {
 }
 
 export function hasResendEmailCapability(skillIds: string[]): boolean {
-  return skillIds.some((skillId) => ['clawmax-resend', 'resend', 'resend-cli', 'react-email'].includes(String(skillId || '').trim()))
+  return skillIds.some((skillId) => ['resend', 'resend-cli', 'react-email'].includes(String(skillId || '').trim()))
 }
 
 function latestAssistantMessage(contextMessages: ResendChatContextMessage[]): string | undefined {
