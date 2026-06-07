@@ -690,23 +690,34 @@ function resolveSkillMarkdownPath(skillDir: string): string {
   return fs.existsSync(skillMdUpper) ? skillMdUpper : skillMdLower
 }
 
-function renderAssignedSkillsSection(skillIds: string[]): string {
-  const lines = skillIds.length > 0
-    ? skillIds.map((skillId) => `- ${skillId}`)
-    : ['- No assigned skills configured yet.']
+export function getAssignedSkillPromptNotes(skillIds: string[]): string[] {
   const guidance: string[] = []
   if (skillIds.includes('clawmax-resend')) {
     guidance.push(
-      '### ClawMax Skill Notes',
-      '',
       '- Assigned skill ids are local capabilities, not agents or session targets.',
       '- Never use sessions_send, sessions_spawn, or agent-to-agent messaging with an assigned skill name.',
       '- `clawmax-resend`: to send email, use the `clawmax-resend-send` command.',
       '- Do not use generic message/email channel tools when `clawmax-resend` is assigned.',
+      '- Do not create local files or tell the user to email something manually when `clawmax-resend` is assigned unless the user explicitly asked for that fallback.',
       '- For multi-turn requests like "send both responses", combine the relevant prior answers into the command body and call `clawmax-resend-send` directly.',
-      '',
     )
   }
+  return guidance
+}
+
+function renderAssignedSkillsSection(skillIds: string[]): string {
+  const lines = skillIds.length > 0
+    ? skillIds.map((skillId) => `- ${skillId}`)
+    : ['- No assigned skills configured yet.']
+  const promptNotes = getAssignedSkillPromptNotes(skillIds)
+  const guidance: string[] = promptNotes.length > 0
+    ? [
+        '### ClawMax Skill Notes',
+        '',
+        ...promptNotes,
+        '',
+      ]
+    : []
   return `${TOOLS_SKILL_SECTION_START}
 ## Assigned Skills
 

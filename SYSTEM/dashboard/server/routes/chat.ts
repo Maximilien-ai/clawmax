@@ -12,7 +12,7 @@ import { userExecutionEnv } from '../lib/safe-env'
 import { checkBudgetBlock } from '../lib/budget'
 import { normalizeChatMessage } from '../lib/chat-normalization'
 import { resolveOpenClawCliPath } from '../lib/openclaw-cli'
-import { getAgentSkills, getSkillById } from '../lib/skills'
+import { getAgentSkills, getAssignedSkillPromptNotes, getSkillById } from '../lib/skills'
 import {
   deriveWorkspaceRootFromAgentWorkspace,
   readLatestAssistantUsageFromPersistedSession,
@@ -114,12 +114,14 @@ export function buildManagedSecretStatelessChatMessage(
   }
 
   if (assignedSkills.length > 0) {
+    const promptNotes = getAssignedSkillPromptNotes(assignedSkills.map((skill) => skill.id))
     sections.push(
       'Assigned skills for this turn:',
       ...assignedSkills.map((skill) => `- ${skill.id}${skill.filePath ? ` (${skill.filePath})` : ''}`),
       '',
       'These are local skills/capabilities for this agent, not agents, channels, or session targets.',
       'Do not use sessions_send, sessions_spawn, or agent-to-agent messaging with a skill name.',
+      ...(promptNotes.length > 0 ? ['Assigned skill usage notes:', ...promptNotes, ''] : []),
       'If the request matches one of these assigned skills, read that SKILL.md first and follow it before using generic tools like message or exec.',
       '',
     )
