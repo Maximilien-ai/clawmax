@@ -20,21 +20,6 @@ export type ResendTestEmailResult = {
   message: string
 }
 
-export type ResendChatContextMessage = {
-  role: 'user' | 'assistant'
-  content: string
-}
-
-export type ResendChatEmailRequest = {
-  to: string
-  subject: string
-  text?: string
-  mode: 'direct' | 'post-chat'
-  agentPrompt?: string
-  attachmentPaths?: string[]
-  guidance?: string
-}
-
 export type ResendEmailAttachment = {
   filename: string
   content: string
@@ -43,14 +28,12 @@ export type ResendEmailAttachment = {
 type FetchLike = typeof fetch
 
 const RESEND_EMAILS_ENDPOINT = 'https://api.resend.com/emails'
-const EMAIL_RE = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/ig
 const EXACT_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-const ATTACHMENT_PATH_RE = /\b(?:AGENTS|WORKFLOWS|SYSTEM|ORG|DOCS|SKILLS)\/[^\s,;:()]+/ig
-const ATTACHMENT_FILE_RE = /\b([A-Z0-9][A-Z0-9._-]*\.(?:md|txt|json|csv|pdf|png|jpg|jpeg|gif|docx|xlsx|pptx|html))\b/ig
 const MAX_ATTACHMENT_BYTES = 30 * 1024 * 1024
 const RESEND_AGENT_SEND_COOLDOWN_MS = 30_000
 const RESEND_AGENT_SEND_HOURLY_LIMIT = 20
 const resendSendHistory = new Map<string, number[]>()
+const AGENT_PROTECTED_ATTACHMENT_NAMES = new Set(['identity.md', 'soul.md', 'tools.md', 'heartbeat.md', 'user.md', 'agents.md'])
 
 function trim(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
@@ -63,6 +46,74 @@ function escapeHtml(value: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;')
+}
+
+function renderInlineMarkdown(value: string): string {
+  let html = escapeHtml(value)
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+  html = html.replace(/\*(.+?)\*/g, '<em>$1</em>')
+  html = html.replace(/`([^`]+)`/g, '<code style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:0.95em;background:#e2e8f0;padding:0 4px;border-radius:4px;">$1</code>')
+  return html
+}
+
+function renderMarkdownEmailBlocks(text: string): string {
+  const source = trim(text)
+  if (!source) {
+    return '<p style="margin:0;color:#0f172a;font-size:15px;line-height:1.65;">No message body was provided.</p>'
+  }
+
+  const lines = source.split('\n')
+  const parts: string[] = []
+  let paragraph: string[] = []
+  let listItems: string[] = []
+
+  const flushParagraph = () => {
+    if (paragraph.length === 0) return
+    parts.push(`<p style="margin:0 0 16px 0;line-height:1.65;color:#0f172a;font-size:15px;">${paragraph.map((line) => renderInlineMarkdown(line)).join('<br/>')}</p>`)
+    paragraph = []
+  }
+
+  const flushList = () => {
+    if (listItems.length === 0) return
+    const items = listItems
+      .map((line) => line.replace(/^-\s+/, ''))
+      .map((line) => `<li style="margin:0 0 8px 0;">${renderInlineMarkdown(line)}</li>`)
+      .join('')
+    parts.push(`<ul style="margin:0 0 16px 20px;padding:0;color:#0f172a;font-size:15px;line-height:1.65;">${items}</ul>`)
+    listItems = []
+  }
+
+  for (const rawLine of lines) {
+    const line = rawLine.trimRight()
+    const trimmed = line.trim()
+
+    if (!trimmed) {
+      flushParagraph()
+      flushList()
+      continue
+    }
+
+    const headingMatch = trimmed.match(/^#{1,6}\s+(.+)$/)
+    if (headingMatch) {
+      flushParagraph()
+      flushList()
+      parts.push(`<h3 style="margin:0 0 12px 0;color:#0f172a;font-size:18px;line-height:1.4;">${renderInlineMarkdown(headingMatch[1])}</h3>`)
+      continue
+    }
+
+    if (/^-\s+/.test(trimmed)) {
+      flushParagraph()
+      listItems.push(trimmed)
+      continue
+    }
+
+    flushList()
+    paragraph.push(trimmed)
+  }
+
+  flushParagraph()
+  flushList()
+  return parts.join('') || '<p style="margin:0;color:#0f172a;font-size:15px;line-height:1.65;">No message body was provided.</p>'
 }
 
 type ResendSenderPolicy = {
@@ -187,12 +238,7 @@ export function renderClawmaxAgentEmailHtml(input: {
   const subject = escapeHtml(trim(input.subject) || 'ClawMax email')
   const agentId = escapeHtml(trim(input.agentId) || 'agent')
   const workspaceLabel = escapeHtml(trim(input.workspaceLabel) || 'ClawMax workspace')
-  const paragraphs = (trim(input.text) || '')
-    .split(/\n{2,}/)
-    .map((chunk) => chunk.trim())
-    .filter(Boolean)
-    .map((chunk) => `<p style="margin:0 0 16px 0;line-height:1.65;color:#0f172a;font-size:15px;">${escapeHtml(chunk).replace(/\n/g, '<br/>')}</p>`)
-    .join('')
+  const bodyHtml = renderMarkdownEmailBlocks(input.text)
 
   return [
     '<!doctype html>',
@@ -205,7 +251,7 @@ export function renderClawmaxAgentEmailHtml(input: {
     `<div style="font-size:14px;opacity:0.85;">Sent by <strong>${agentId}</strong> from <strong>${workspaceLabel}</strong></div>`,
     '</div>',
     '<div style="padding:28px;">',
-    paragraphs || '<p style="margin:0;color:#0f172a;font-size:15px;line-height:1.65;">No message body was provided.</p>',
+    bodyHtml,
     '</div>',
     '<div style="padding:18px 28px;border-top:1px solid #e5e7eb;background:#f8fafc;color:#475569;font-size:12px;line-height:1.6;">',
     'This email was sent by a ClawMax agent through the configured Resend bridge.',
@@ -242,126 +288,6 @@ function summarizeResendProviderError(status: number, payload: any): string {
   return `${prefix}${message || `Resend rejected the email request with HTTP ${status}`}`
 }
 
-function stripMarkdown(value: string): string {
-  return value
-    .replace(/\*\*([^*]+)\*\*/g, '$1')
-    .replace(/`([^`]+)`/g, '$1')
-    .replace(/<([^>\s]+@[^>\s]+)>/g, '$1')
-    .trim()
-}
-
-function extractRecipientEmail(message: string): string | undefined {
-  const matches = message.match(EMAIL_RE) || []
-  return matches[0]?.trim()
-}
-
-function extractAttachmentPaths(message: string): string[] {
-  const explicit = message.match(ATTACHMENT_PATH_RE) || []
-  const bareFiles = [...message.matchAll(ATTACHMENT_FILE_RE)]
-    .map((match) => match[1]?.trim())
-    .filter((value): value is string => !!value && !EXACT_EMAIL_RE.test(value))
-  return [...new Set([...explicit, ...bareFiles].map((value) => value.trim().replace(/[.]+$/, '')))]
-}
-
-export function hasResendEmailCapability(skillIds: string[]): boolean {
-  return skillIds.some((skillId) => ['clawmax-resend', 'resend', 'resend-cli', 'react-email'].includes(String(skillId || '').trim()))
-}
-
-function latestAssistantMessage(contextMessages: ResendChatContextMessage[]): string | undefined {
-  return [...contextMessages]
-    .reverse()
-    .find((entry) => entry?.role === 'assistant' && trim(entry.content))?.content
-}
-
-function inferEmailSubject(message: string, agentId: string): string {
-  return /\bstatus\b/i.test(message) ? `${agentId} status` : `Message from ${agentId}`
-}
-
-function shouldSendAfterFreshAgentReply(message: string, previousAssistant?: string): boolean {
-  if (previousAssistant) return false
-  if (/\b(then|after|once|when)\b/i.test(message)) return true
-  return /\b(who are you|give me|what is|what's|write|draft|summarize|analyze|review|look up|find|create|generate|explain|tell me|prepare)\b/i.test(message)
-}
-
-function stripEmailDeliveryInstruction(message: string): string {
-  const withoutRecipient = message.replace(EMAIL_RE, '').trim()
-  const withoutAttachments = withoutRecipient.replace(ATTACHMENT_PATH_RE, '').trim()
-  const patterns = [
-    /\b(?:and|then|please)?\s*send(?:ing)?(?:\s+the)?(?:\s+(?:result|response|status|summary|report|draft|findings|plan))?\s+(?:(?:as|in|via)\s+)?an?\s+email\b.*$/i,
-    /\b(?:and|then|please)?\s*email(?:\s+the)?(?:\s+(?:result|response|status|summary|report|draft|findings|plan))?\b.*$/i,
-    /\b(?:and|then|please)?\s*mail(?:\s+the)?(?:\s+(?:result|response|status|summary|report|draft|findings|plan))?\b.*$/i,
-    /\b(?:and|then|please)?\s*(?:send|email|mail)\b.*$/i,
-  ]
-  const stripped = patterns.reduce((current, pattern) => current.replace(pattern, '').trim(), withoutAttachments)
-  return stripped
-    .replace(/[,\s]+$/, '')
-    .replace(/\b(?:and|then)\s*$/i, '')
-    .replace(/[,\s]+$/, '')
-    .trim()
-}
-
-export function buildResendChatEmailRequest(
-  message: string,
-  contextMessages: ResendChatContextMessage[] = [],
-  agentId = 'agent',
-): ResendChatEmailRequest | null {
-  const normalized = trim(message)
-  if (!normalized) return null
-  const attachmentPaths = extractAttachmentPaths(normalized)
-  const hasSendVerb = /\b(send|email|mail)\b/i.test(normalized)
-  const hasEmailVerb = /\b(email|mail)\b/i.test(normalized)
-  if (!hasSendVerb) return null
-
-  const to = extractRecipientEmail(normalized)
-  if (!to) return null
-  if (!hasEmailVerb && attachmentPaths.length === 0) return null
-
-  const previousAssistant = latestAssistantMessage(contextMessages)
-  const refersToPrevious = /\b(that|this|previous|last|status|result|response|summary|report|draft|findings|plan)\b/i.test(normalized)
-  if (refersToPrevious && shouldSendAfterFreshAgentReply(normalized, previousAssistant)) {
-    const agentPrompt = stripEmailDeliveryInstruction(normalized)
-    return {
-      to,
-      subject: inferEmailSubject(normalized, agentId),
-      mode: 'post-chat',
-      agentPrompt: agentPrompt || normalized,
-      attachmentPaths,
-    }
-  }
-  const text = stripMarkdown(
-    refersToPrevious && previousAssistant
-      ? previousAssistant
-      : normalized
-        .replace(EMAIL_RE, '')
-        .replace(ATTACHMENT_PATH_RE, '')
-        .replace(/\b(send|email|mail|attach|attached|attachment|to|that|this|please)\b/ig, ' ')
-        .replace(/\s+/g, ' ')
-        .trim()
-  )
-
-  if (!text) {
-    if (shouldSendAfterFreshAgentReply(normalized, previousAssistant)) {
-      const agentPrompt = stripEmailDeliveryInstruction(normalized)
-      return {
-        to,
-        subject: inferEmailSubject(normalized, agentId),
-        mode: 'post-chat',
-        agentPrompt: agentPrompt || normalized,
-        attachmentPaths,
-      }
-    }
-    return null
-  }
-
-  return {
-    to,
-    subject: inferEmailSubject(normalized, agentId),
-    text,
-    mode: 'direct',
-    attachmentPaths,
-  }
-}
-
 function listWorkspaceFiles(root: string): string[] {
   const results: string[] = []
   const stack = [root]
@@ -382,9 +308,12 @@ function listWorkspaceFiles(root: string): string[] {
 
 export function resolveWorkspaceEmailAttachments(workspaceRoot: string, requestedPaths: string[] = [], preferredRoots: string[] = []): ResendEmailAttachment[] {
   return requestedPaths.map((requestedPath) => {
-    const relativePath = requestedPath.trim().replace(/^\/+/, '')
+    const trimmedPath = requestedPath.trim()
+    const relativePath = trimmedPath.replace(/^\/+/, '')
     let absolutePath = ''
-    if (relativePath.includes('/')) {
+    if (path.isAbsolute(trimmedPath)) {
+      absolutePath = path.resolve(trimmedPath)
+    } else if (relativePath.includes('/')) {
       absolutePath = path.resolve(workspaceRoot, relativePath)
     } else {
       const searchRoots = [...preferredRoots, workspaceRoot]
@@ -394,7 +323,7 @@ export function resolveWorkspaceEmailAttachments(workspaceRoot: string, requeste
         .filter((candidate) => fs.existsSync(candidate) && fs.statSync(candidate).isFile())
       if (candidatePaths.length > 0) {
         absolutePath = candidatePaths[0]
-      } else {
+      } else if (!AGENT_PROTECTED_ATTACHMENT_NAMES.has(relativePath.toLowerCase())) {
         const workspaceFiles = listWorkspaceFiles(workspaceRoot)
         const basenameMatches = workspaceFiles.filter((candidate) => path.basename(candidate).toLowerCase() === relativePath.toLowerCase())
         if (basenameMatches.length === 1) {

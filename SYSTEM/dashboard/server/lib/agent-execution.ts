@@ -3,6 +3,8 @@ import path from 'path'
 import { createHash } from 'crypto'
 import { getWorkspacePath, parseIdentity } from './workspace'
 import type { ProviderKeys } from './dashboard-env'
+import { REPO_ROOT } from './paths'
+import { syncAssignedSkillGuidanceForAgent } from './skills'
 import { readAgentModelFromConfigFile, restoreAgentModelInConfigFile, updateAgentModelInConfigFile } from './agent-model'
 import { resetAgentSessionsForModelChange } from './agent-model'
 import { resolveDefaultAgentModel } from './agent-default-model'
@@ -573,6 +575,39 @@ function ensureWorkspaceSkillRootForExecution(
   return true
 }
 
+function ensureBundledRepoSkillRootForExecution(
+  configPath: string,
+  agentId: string,
+  execution: { workspace?: string }
+): boolean {
+  const repoCustomSkillsDir = path.join(REPO_ROOT, 'SKILLS', 'custom')
+  if (!fs.existsSync(repoCustomSkillsDir) || !fs.existsSync(configPath)) return false
+
+  const config = readOpenClawConfigFile(configPath)
+  const agentList = Array.isArray(config?.agents?.list) ? config.agents.list : []
+  const matchingAgent = agentList.find((agent: any) =>
+    agent?.id === agentId && (!execution.workspace || agent?.workspace === execution.workspace)
+  ) || agentList.find((agent: any) => agent?.id === agentId)
+  const skills = Array.isArray(matchingAgent?.skills)
+    ? matchingAgent.skills.map((entry: any) => String(entry || '').trim()).filter(Boolean)
+    : []
+  if (skills.length === 0) return false
+
+  const needsRepoSkillRoot = skills.some((skillId) => fs.existsSync(path.join(repoCustomSkillsDir, skillId)))
+  if (!needsRepoSkillRoot) return false
+
+  config.skills = config.skills || {}
+  config.skills.load = config.skills.load || {}
+  const extraDirs = Array.isArray(config.skills.load.extraDirs) ? config.skills.load.extraDirs : []
+  const normalizedRepoCustomSkillsDir = normalizePathForConfig(repoCustomSkillsDir)
+  const alreadyPresent = extraDirs.some((entry) => normalizePathForConfig(entry) === normalizedRepoCustomSkillsDir)
+  if (alreadyPresent) return false
+
+  config.skills.load.extraDirs = [...extraDirs, repoCustomSkillsDir]
+  writeOpenClawConfigFile(configPath, config)
+  return true
+}
+
 function getWorkspaceCustomSkillsDir(execution: { workspace?: string }): string | undefined {
   if (!execution.workspace) return undefined
   const workspaceRoot = deriveWorkspaceRootFromAgentWorkspace(execution.workspace)
@@ -713,10 +748,27 @@ export async function withTemporaryAgentAuthProfiles<T>(
   const execution = resolveAgentExecutionConfig(agentId)
   const configPath = path.join(process.env.HOME || '', '.openclaw', 'openclaw.json')
   const hadConfig = fs.existsSync(configPath)
+  try {
+    const toolsChanged = syncAssignedSkillGuidanceForAgent(agentId, {
+      agentWorkspaceDir: execution.workspace,
+    })
+    if (toolsChanged) {
+      const reset = resetAgentSessionsForModelChange(process.env.HOME || '', agentId)
+      if (!reset.ok) {
+        console.warn(`[Agent Execution] Failed to reset sessions after assigned skill guidance sync for ${agentId}: ${reset.error || 'unknown error'}`)
+      }
+    }
+  } catch (err: any) {
+    const message = String(err?.message || err || '')
+    if (!/EPERM|EACCES|operation not permitted/i.test(message)) {
+      console.warn(`[Agent Execution] Failed to sync assigned skill guidance for ${agentId}: ${message}`)
+    }
+  }
   if (hadConfig) {
     ensureWorkspaceAgentRecordForExecution(configPath, agentId, execution, preferredModel)
     const skillRootChanged = ensureWorkspaceSkillRootForExecution(configPath, execution)
-    if (skillRootChanged) {
+    const bundledSkillRootChanged = ensureBundledRepoSkillRootForExecution(configPath, agentId, execution)
+    if (skillRootChanged || bundledSkillRootChanged) {
       resetAgentSessionsForModelChange(process.env.HOME || '', agentId)
     }
     resetSessionsIfWorkspaceSkillsChanged(configPath, agentId, execution)

@@ -433,11 +433,14 @@ export function ByokWizard({
         }))
         setSelectedPartners(resolveSelectedPartnersForWorkspace({
           enabledPartners: Array.isArray(workspaceConfig.enabledPartners) ? workspaceConfig.enabledPartners : [],
-          lockedPartnerSlugs: config?.opikRuntimeConfigured ? ['opik'] : [],
+          lockedPartnerSlugs: [
+            ...(config?.opikRuntimeConfigured ? ['opik'] : []),
+            ...(config?.resendRuntimeConfigured ? ['resend'] : []),
+          ],
         }))
       })
       .catch(() => {})
-  }, [activeWorkspace?.id, config?.defaultOllamaBaseUrl, config?.opikRuntimeConfigured, defaultOllamaBaseUrl, hydrated, managedRuntime])
+  }, [activeWorkspace?.id, config?.defaultOllamaBaseUrl, config?.opikRuntimeConfigured, config?.resendRuntimeConfigured, defaultOllamaBaseUrl, hydrated, managedRuntime])
 
   const hasStoredKeys = !!(openaiKey || anthropicKey || geminiApiKey || openaiCompatibleBaseUrl || openaiCompatibleDefaultModel)
   const hasDefaultUserKeys = !!(config?.userKeyDefaults?.openai || config?.userKeyDefaults?.anthropic || config?.userKeyDefaults?.gemini || config?.userKeyDefaults?.openaiCompatible)
@@ -501,8 +504,11 @@ export function ByokWizard({
     [selectedPartners, visiblePartnerDefinitions]
   )
   const lockedPartnerSlugs = useMemo(
-    () => config?.opikRuntimeConfigured ? ['opik'] : [],
-    [config?.opikRuntimeConfigured]
+    () => [
+      ...(config?.opikRuntimeConfigured ? ['opik'] : []),
+      ...(config?.resendRuntimeConfigured ? ['resend'] : []),
+    ],
+    [config?.opikRuntimeConfigured, config?.resendRuntimeConfigured]
   )
   const partnerCategoryTabs = useMemo(
     () => listPartnerCategoryTabs(visiblePartnerDefinitions),
@@ -2244,7 +2250,7 @@ export function ByokWizard({
                                 <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">{describePartnerStatus(partner)}</div>
                                 {locked && (
                                   <div className="mt-2 text-xs font-medium text-sky-700 dark:text-sky-300">
-                                    Locked on because this dashboard runtime is already configured to use Opik.
+                                    Locked on because this dashboard runtime is already configured to use {partner.name}.
                                   </div>
                                 )}
                                 {(partner.website || partner.docsUrl) && (

@@ -39,6 +39,7 @@ interface AiExecutionConfig {
   allowSystemKeysForUserExecution?: boolean
   managedRuntime?: boolean
   ollamaEnabled?: boolean
+  resendRuntimeConfigured?: boolean
   defaultOllamaBaseUrl?: string
   defaultOpenAiCompatibleBaseUrl?: string
   recommendedModel?: string

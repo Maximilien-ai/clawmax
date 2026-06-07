@@ -11,6 +11,7 @@ import {
   resolveRuntimeBaseUrl,
 } from './dashboard-env'
 import { getWorkspaceGitHubToken, readWorkspaceIntegrationSecrets } from './workspace-integrations'
+import { REPO_ROOT } from './paths'
 
 export interface ExecutionEnvOverrides extends ProviderKeys {
   ollamaBaseUrl?: string
@@ -29,7 +30,9 @@ const STANDARD_RUNTIME_PATHS = [
 
 function buildSafePath(basePath?: string): string {
   const seen = new Set<string>()
+  const clawmaxHelperDir = `${REPO_ROOT}/SYSTEM/dashboard`
   const segments = [
+    clawmaxHelperDir,
     ...(String(basePath || '').split(':').map((entry) => entry.trim()).filter(Boolean)),
     ...STANDARD_RUNTIME_PATHS,
   ]

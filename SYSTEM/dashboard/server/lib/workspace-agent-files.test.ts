@@ -93,6 +93,61 @@ test('ensureManagedAgentWorkspaceFiles makes plain created agents visible and pr
   }
 })
 
+test('listAgents keeps managed agents visible even when extra generated artifacts exist beside IDENTITY.md', () => {
+  const originalWorkspace = process.env.OPENCLAW_WORKSPACE
+  const originalHome = process.env.HOME
+  const tempWorkspace = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-workspace-agent-visible-'))
+  const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-workspace-agent-visible-home-'))
+
+  try {
+    process.env.OPENCLAW_WORKSPACE = tempWorkspace
+    process.env.HOME = tempHome
+    resetWorkspaceManagerForTests()
+
+    const workspaceAgentDir = path.join(tempWorkspace, 'AGENTS', 'resend-agent')
+    fs.mkdirSync(workspaceAgentDir, { recursive: true })
+    fs.mkdirSync(path.join(tempHome, '.openclaw', 'agents', 'resend-agent', 'agent'), { recursive: true })
+    fs.mkdirSync(path.join(tempHome, '.openclaw'), { recursive: true })
+    fs.writeFileSync(path.join(tempHome, '.openclaw', 'openclaw.json'), JSON.stringify({
+      agents: {
+        list: [
+          {
+            id: 'resend-agent',
+            workspace: workspaceAgentDir,
+          },
+        ],
+      },
+    }, null, 2), 'utf-8')
+
+    fs.writeFileSync(path.join(workspaceAgentDir, 'IDENTITY.md'), [
+      '# IDENTITY.md - Who Am I?',
+      '- **Name:** resend-agent',
+      '- **Creature:** assistant',
+      '- **Vibe:** helpful',
+    ].join('\n'), 'utf-8')
+    fs.writeFileSync(path.join(workspaceAgentDir, 'TOOLS.md'), '# tools\n', 'utf-8')
+    fs.writeFileSync(path.join(workspaceAgentDir, 'identity_identity.md'), '# duplicate export\n', 'utf-8')
+    fs.writeFileSync(path.join(workspaceAgentDir, 'email_content.txt'), 'hello\n', 'utf-8')
+
+    const agents = listAgents()
+    const resendAgent = agents.find((agent) => agent.id === 'resend-agent')
+    assert(!!resendAgent, 'Expected resend-agent to remain visible in listAgents()')
+    assert(resendAgent?.name === 'resend-agent', 'Expected agent name to come from IDENTITY.md even with extra artifacts present')
+
+    const docEntries = listDocEntries()
+    assert(docEntries.some((entry) => entry.path === 'AGENTS/resend-agent/IDENTITY.md'), 'Expected IDENTITY.md to remain visible in DocHub')
+    assert(docEntries.some((entry) => entry.path === 'AGENTS/resend-agent/identity_identity.md'), 'Expected extra generated artifact to remain visible in DocHub without hiding the agent')
+  } finally {
+    if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
+    else process.env.OPENCLAW_WORKSPACE = originalWorkspace
+    if (typeof originalHome === 'undefined') delete process.env.HOME
+    else process.env.HOME = originalHome
+    resetWorkspaceManagerForTests()
+    fs.rmSync(tempWorkspace, { recursive: true, force: true })
+    fs.rmSync(tempHome, { recursive: true, force: true })
+  }
+})
+
 setTimeout(() => {
   console.log('\n========================================')
   console.log(`Tests passed: ${testsPassed}`)

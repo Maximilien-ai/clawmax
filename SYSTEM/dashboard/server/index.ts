@@ -279,6 +279,7 @@ app.get('/api/auth/config', (_req, res) => {
     },
     allowSystemKeysForUserExecution: allowSystemKeysForUserExecution(),
     opikRuntimeConfigured: isOpikEnabled(),
+    resendRuntimeConfigured: !!String(process.env.RESEND_API_KEY || '').trim(),
     preferredModel: integrationConfig.preferredModel,
     recommendedModel: hasHostedExecutionPath ? getBestAvailableModel(rawEnv) : undefined,
     costEfficientModel: getCostEfficientModel(),

@@ -9,11 +9,7 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import {
-  buildResendChatEmailRequest,
-  getAgentScopedResendSender,
-  hasResendEmailCapability,
   renderClawmaxAgentEmailHtml,
-  resolveWorkspaceEmailAttachments,
   resetResendSendGuardrailsForTests,
   sendResendTestEmail,
 } from '../lib/resend-partner'
@@ -139,121 +135,52 @@ test('buildManagedSecretStatelessChatMessage preserves recent chat context in a 
   assert(prompt.includes('Latest user request: Send that status in an email to mmaximilien@gmail.com'), 'Expected latest request appended after context')
 })
 
-test('buildResendChatEmailRequest uses prior assistant status for send-that-status requests', () => {
-  const request = buildResendChatEmailRequest('Send that status in an email to mmaximilien@gmail.com', [
-    { role: 'user', content: 'who are you? give me a status' },
-    { role: 'assistant', content: 'Here is my status: Gateway 6s, System 35d.' },
-  ], 'resend-agent')
-
-  assert(request?.to === 'mmaximilien@gmail.com', 'Expected recipient email to be extracted')
-  assert(request?.subject === 'resend-agent status', 'Expected status subject')
-  assert(request?.mode === 'direct', 'Expected previous-assistant send to use direct mode')
-  assert(request?.text?.includes('Gateway 6s') === true, 'Expected latest assistant status as email body')
-})
-
-test('buildResendChatEmailRequest uses post-chat mode for combined status-and-email requests without prior assistant context', () => {
-  const request = buildResendChatEmailRequest(
-    'who are you? give me a status, then send that status in an email to mmaximilien@gmail.com',
-    [],
-    'fake-agent'
+test('buildManagedSecretStatelessChatMessage surfaces assigned skill paths for generic tool selection', () => {
+  const prompt = buildManagedSecretStatelessChatMessage(
+    'send both responses to mmaximilien@gmail.com',
+    [
+      { role: 'assistant', content: "I'm the resend-agent." },
+      { role: 'assistant', content: 'Status: model openai/gpt-4o-mini.' },
+    ],
+    [
+      { id: 'clawmax-resend', filePath: '/tmp/SKILLS/custom/clawmax-resend/SKILL.md' },
+    ],
   )
 
-  assert(request?.to === 'mmaximilien@gmail.com', 'Expected recipient email to be extracted for combined prompt')
-  assert(request?.mode === 'post-chat', 'Expected combined status/email request to defer sending until after agent reply')
-  assert(request?.subject === 'fake-agent status', 'Expected deferred email subject to reflect status request')
-  assert(request?.agentPrompt === 'who are you? give me a status', 'Expected email-delivery clause to be removed from agent prompt')
+  assert(prompt.includes('Assigned skills for this turn:'), 'Expected assigned skill block in stateless prompt')
+  assert(prompt.includes('clawmax-resend (/tmp/SKILLS/custom/clawmax-resend/SKILL.md)'), 'Expected assigned skill path surfaced to the model')
+  assert(prompt.includes('These are local skills/capabilities for this agent, not agents, channels, or session targets.'), 'Expected explicit note that assigned skills are not session targets')
+  assert(prompt.includes('Do not use sessions_send, sessions_spawn, or agent-to-agent messaging with a skill name.'), 'Expected explicit anti-session guidance for skills')
+  assert(prompt.includes('Assigned skill usage notes:'), 'Expected assigned skill usage notes header')
+  assert(prompt.includes('`clawmax-resend`: to send email, use the `clawmax-resend-send` command.'), 'Expected explicit resend command note in stateless prompt')
+  assert(prompt.includes('Do not create local files or tell the user to email something manually when `clawmax-resend` is assigned unless the user explicitly asked for that fallback.'), 'Expected explicit no-manual-fallback note for clawmax-resend')
+  assert(prompt.includes('For summaries, status updates, or other generated writeups, send the content inline in the email body by default. Do not create `summary.md` or attach a generated file unless the user explicitly asked for a file or attachment.'), 'Expected explicit inline-summary guidance for clawmax-resend')
+  assert(prompt.includes('For file requests like "send your identity.md", use `clawmax-resend-send --attach <path>` and attach the file instead of pasting its contents into a generic message tool.'), 'Expected explicit attachment guidance for clawmax-resend')
+  assert(prompt.includes('Do not edit, patch, or rewrite the file when the user asked to send it; attach the existing file as-is.'), 'Expected explicit no-edit guidance for attachment requests')
+  assert(prompt.includes('Do not create copied workspace files such as `identity_identity.md` or `soul_copy.md` while preparing an attachment; attach the original file directly.'), 'Expected explicit no-copy guidance for attachments')
+  assert(prompt.includes('Do not delegate email sending to subagents. Run `clawmax-resend-send` in the current agent session.'), 'Expected explicit no-subagent guidance for clawmax-resend')
+  assert(prompt.includes('If the user says "same email", reuse the most recent recipient email from the current conversation.'), 'Expected explicit same-email reuse guidance')
+  assert(prompt.includes('read that SKILL.md first and follow it before using generic tools like message or exec'), 'Expected generic tool-selection guidance')
+  assert(prompt.includes('Latest user request: send both responses to mmaximilien@gmail.com'), 'Expected latest request to remain present')
 })
 
-test('buildResendChatEmailRequest ignores non-email chat requests', () => {
-  const request = buildResendChatEmailRequest('What is your status?', [
-    { role: 'assistant', content: 'Status body' },
-  ], 'resend-agent')
-  assert(request === null, 'Expected non-email request not to be intercepted')
-})
-
-test('buildResendChatEmailRequest uses post-chat mode for generic do-work-then-email prompts', () => {
-  const request = buildResendChatEmailRequest(
-    'draft a launch update and email it to team@example.com',
-    [],
-    'release-agent'
-  )
-
-  assert(request?.to === 'team@example.com', 'Expected recipient email for generic deferred prompt')
-  assert(request?.mode === 'post-chat', 'Expected generic deferred prompt to use post-chat mode')
-  assert(request?.agentPrompt === 'draft a launch update', 'Expected generic deferred prompt to remove email-delivery clause')
-})
-
-test('buildResendChatEmailRequest captures explicit attachment paths', () => {
-  const request = buildResendChatEmailRequest(
-    'draft a launch update and email it to team@example.com and attach WORKFLOWS/outputs/release-note.md',
-    [],
-    'release-agent'
-  )
-
-  assert(request?.attachmentPaths?.[0] === 'WORKFLOWS/outputs/release-note.md', 'Expected explicit workspace attachment path')
-})
-
-test('buildResendChatEmailRequest treats bare filenames as attachment references for send-to-email prompts', () => {
-  const request = buildResendChatEmailRequest(
-    'Send your identity.md to mmaximilien@gmail.com.',
-    [],
-    'fake-agent'
-  )
-
-  assert(request?.to === 'mmaximilien@gmail.com', 'Expected recipient email for bare filename prompt')
-  assert(request?.mode === 'direct', 'Expected bare filename send prompt to use direct mode')
-  assert(request?.attachmentPaths?.[0] === 'identity.md', 'Expected bare filename attachment reference')
-})
-
-test('hasResendEmailCapability only enables direct send for Resend-related skills', () => {
-  assert(hasResendEmailCapability(['clawmax-resend']), 'Expected clawmax-resend skill to enable direct Resend email')
-  assert(hasResendEmailCapability(['github', 'resend-cli']), 'Expected resend-cli skill to enable direct Resend email')
-  assert(!hasResendEmailCapability(['github', 'slack']), 'Expected unrelated skills not to enable direct Resend email')
-})
-
-test('getAgentScopedResendSender uses the agent slug on the configured domain', () => {
-  const sender = getAgentScopedResendSender('fake-agent')
-  assert(sender === 'Fake Agent <fake-agent@send.clawmax.ai>', `Unexpected sender: ${sender}`)
-})
-
-test('renderClawmaxAgentEmailHtml produces branded HTML wrapper output', () => {
+test('renderClawmaxAgentEmailHtml renders markdown headings and bullets into HTML structure', () => {
   const html = renderClawmaxAgentEmailHtml({
-    subject: 'resend-agent status',
-    text: 'Gateway 6s\n\nSystem 35d.',
+    subject: 'Status update',
+    text: [
+      'Here is the update.',
+      '',
+      '### Status',
+      '- **Model:** openai/gpt-4o-mini',
+      '- **Uptime:** Gateway 8s | System 38d',
+    ].join('\n'),
     agentId: 'resend-agent',
     workspaceLabel: 'test-1.7.x',
   })
 
-  assert(html.includes('ClawMax Agent Email'), 'Expected ClawMax email header')
-  assert(html.includes('resend-agent status'), 'Expected escaped subject in HTML wrapper')
-  assert(html.includes('resend-agent'), 'Expected agent label in HTML wrapper')
-  assert(html.includes('test-1.7.x'), 'Expected workspace label in HTML wrapper')
-  assert(html.includes('<p'), 'Expected paragraph rendering in HTML wrapper')
-})
-
-test('resolveWorkspaceEmailAttachments loads workspace files as base64 attachments', () => {
-  const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-resend-attachment-'))
-  const relativePath = path.join('WORKFLOWS', 'outputs', 'brief.txt')
-  const fullPath = path.join(workspaceRoot, relativePath)
-  fs.mkdirSync(path.dirname(fullPath), { recursive: true })
-  fs.writeFileSync(fullPath, 'hello attachment', 'utf-8')
-
-  const attachments = resolveWorkspaceEmailAttachments(workspaceRoot, [relativePath])
-  assert(attachments.length === 1, 'Expected one attachment')
-  assert(attachments[0].filename === 'brief.txt', 'Expected attachment filename')
-  assert(Buffer.from(attachments[0].content, 'base64').toString('utf-8') === 'hello attachment', 'Expected attachment content to round-trip')
-})
-
-test('resolveWorkspaceEmailAttachments prefers agent workspace for bare filenames', () => {
-  const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-resend-attachment-pref-'))
-  const agentRoot = path.join(workspaceRoot, 'AGENTS', 'fake-agent')
-  fs.mkdirSync(agentRoot, { recursive: true })
-  fs.writeFileSync(path.join(agentRoot, 'IDENTITY.md'), 'agent identity', 'utf-8')
-
-  const attachments = resolveWorkspaceEmailAttachments(workspaceRoot, ['IDENTITY.md'], [agentRoot])
-  assert(attachments.length === 1, 'Expected one preferred attachment')
-  assert(attachments[0].filename === 'IDENTITY.md', 'Expected preferred filename')
-  assert(Buffer.from(attachments[0].content, 'base64').toString('utf-8') === 'agent identity', 'Expected preferred attachment content')
+  assert(html.includes('<h3'), 'Expected markdown heading to render as HTML heading')
+  assert(html.includes('<ul'), 'Expected markdown bullets to render as HTML list')
+  assert(html.includes('<strong>Model:</strong>'), 'Expected markdown bold text to render as HTML strong tags')
 })
 
 test('sendResendTestEmail rate-limits repeated agent sends to the same recipient', async () => {

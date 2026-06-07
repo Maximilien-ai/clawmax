@@ -222,7 +222,7 @@ async function main() {
   await test('workspace-selected partners hydrate from saved config and keep locked partners', () => {
     const selected = resolveSelectedPartnersForWorkspace({
       enabledPartners: ['resend', 'github'],
-      lockedPartnerSlugs: ['opik'],
+      lockedPartnerSlugs: ['opik', 'resend'],
     })
     assert(selected.includes('resend'), 'Expected saved Resend partner to persist')
     assert(selected.includes('github'), 'Expected saved GitHub partner to persist')

@@ -28,5 +28,6 @@ assert_contains "retry 3 5 npm ci --omit=dev --legacy-peer-deps;"
 assert_contains "COPY SKILLS/custom/clawmax-resend ./SKILLS/custom/clawmax-resend"
 assert_contains "COPY SKILLS/custom/clawmax-workspace-ls ./SKILLS/custom/clawmax-workspace-ls"
 assert_contains "COPY SKILLS/custom/workspace-ls ./SKILLS/custom/workspace-ls"
+assert_contains "COPY SYSTEM/dashboard/clawmax-resend-send /usr/local/bin/clawmax-resend-send"
 
 echo "dockerfile openclaw builder tests passed"

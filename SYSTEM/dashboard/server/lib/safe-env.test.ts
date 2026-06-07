@@ -9,6 +9,7 @@ import {
   resolveSystemExecutionProviderKeys,
   resolveUserExecutionProviderKeys,
 } from './dashboard-env'
+import { REPO_ROOT } from './paths'
 import { safeEnv, systemExecutionEnv, userExecutionEnv } from './safe-env'
 
 const GREEN = '\x1b[32m'
@@ -146,6 +147,12 @@ test('safeEnv appends standard Homebrew runtime paths when missing', () => {
   assert(env.PATH?.includes('/opt/homebrew/bin') === true, 'Expected Homebrew bin path appended')
   assert(env.PATH?.includes('/usr/local/bin') === true, 'Expected usr local bin path appended')
   process.env.PATH = originalPath
+})
+
+test('safeEnv prepends the ClawMax dashboard helper directory', () => {
+  const env = safeEnv()
+  const first = String(env.PATH || '').split(':')[0]
+  assert(first === `${REPO_ROOT}/SYSTEM/dashboard`, 'Expected helper directory to lead PATH for child processes')
 })
 
 test('safeEnv does not duplicate standard runtime paths', () => {

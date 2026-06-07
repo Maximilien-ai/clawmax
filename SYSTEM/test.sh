@@ -576,6 +576,16 @@ else
   fail "Resend test email helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running ClawMax Resend command unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/clawmax-resend-command.test.ts > /tmp/clawmax-resend-command.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-resend-command.out; then
+  clawmax_resend_command_count=$(grep "Tests passed:" /tmp/clawmax-resend-command.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "ClawMax Resend command unit tests (${clawmax_resend_command_count:-?} tests)"
+else
+  cat /tmp/clawmax-resend-command.out
+  fail "ClawMax Resend command unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Workspace status unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/workspace-status.test.ts > /tmp/clawmax-workspace-status.out 2>&1 || true
 if grep -q "Tests failed: 0" /tmp/clawmax-workspace-status.out; then

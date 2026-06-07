@@ -1735,6 +1735,7 @@ export function triggerWorkflow(workflowId: string, options?: {
           // Call agent via CLI
           const agentResponse = await runExclusiveAgentExecution(participant.agentId, async () => {
             const resolvedAgent = resolveAgentExecutionConfig(participant.agentId)
+            executionEnv.CLAWMAX_AGENT_ID = participant.agentId
             const hasOllamaPath = !!(executionEnv.OLLAMA_BASE_URL || integrationDefaults.ollamaDefaultModel)
             if (resolvedAgent.provider === 'ollama' && !hasOllamaPath) {
               throw new Error(`Agent ${participant.agentId} is configured for ${resolvedAgent.model || 'ollama'}, but no Ollama runtime is configured`)

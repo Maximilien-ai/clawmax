@@ -1,9 +1,6 @@
 ---
 name: clawmax-resend
-description: |
-  Sends outbound email through the ClawMax Resend bridge. Use this when an agent
-  needs to email the workspace owner or another approved recipient without
-  manually handling API keys, sender policy, or HTML formatting.
+description: Send outbound email through the ClawMax Resend bridge.
 emoji: "✉️"
 tags:
   - email
@@ -12,41 +9,32 @@ tags:
   - clawmax
 ---
 
-# ClawMax Resend Bridge
+# SKILL.md - ClawMax Resend Skill
 
-This skill is the default ClawMax-owned path for sending email with Resend.
+## Overview
+Use this skill to send outbound email through the ClawMax Resend bridge.
 
-## What It Does
+## Rules
+- This skill is a local capability, not an agent, channel, or session target.
+- Use `clawmax-resend-send` in the current agent session.
+- Do **not** use `sessions_send`, `sessions_spawn`, or agent-to-agent messaging for this skill.
+- Do **not** delegate email sending to subagents.
+- Do **not** use generic message/email channel tools when this skill is assigned.
+- Do **not** create local files or tell the user to send the email manually unless the user explicitly asked for that fallback.
 
-- uses the ClawMax dashboard Resend bridge instead of asking you to manage API keys,
-- applies the configured ClawMax sender policy,
-- sends a formatted HTML email plus plain-text fallback,
-- works best for direct "send this in an email" tasks.
+## Content Sends
+- For requests like `send that status` or `send both responses`, combine the relevant prior assistant content into one email body and send it with `clawmax-resend-send`.
+- For summaries, status updates, and other generated writeups, put the content directly in the email body by default.
+- Do **not** create `summary.md` or attach a generated file unless the user explicitly asks for a file or attachment.
+- Reuse the most recent recipient if the user says `same email`.
 
-## When To Use
+## File Sends
+- For requests like `send your identity.md`, use `clawmax-resend-send --attach <path>`.
+- Attach the original file as-is.
+- Do **not** paste file contents into a generic message tool.
+- Do **not** edit, patch, rewrite, or create copied workspace files such as `identity_identity.md` or `soul_copy.md` while preparing an attachment.
 
-Use this skill when:
-
-- the user asks you to send a status update by email,
-- you need to deliver a concise summary to the workspace owner,
-- you want the safe/default ClawMax Resend path.
-
-## Prefer Other Resend Skills When
-
-- you need low-level Resend CLI or platform operations: use `resend-cli`
-- you need to design or preview email templates: use `react-email`
-
-## Guidance
-
-- Keep outbound emails concise and actionable.
-- Reuse the latest assistant answer when the user says "send that status" or similar.
-- Assume the ClawMax bridge controls sender identity and formatting.
-- If the user explicitly gives the recipient, what to send, and any attachment path, send it without asking again.
-- If any of those are ambiguous, ask one short confirmation question before sending:
-  - missing or unclear recipient,
-  - unclear body/content to send,
-  - unclear attachment choice,
-  - potentially sensitive content the user did not clearly ask to email.
-- If the user asks to send a file, prefer explicit workspace paths like `WORKFLOWS/outputs/report.md`. Bare filenames such as `identity.md` are allowed when the intended file is obvious.
-- When a request says "do the work, then email it", complete the work first and treat the completed answer as the email body unless the user asked for a different body.
-- When sending attachments, mention which files will be attached if there is any chance of ambiguity.
+## Example
+```bash
+clawmax-resend-send --to "recipient@example.com" --subject "Subject Here" --body "Email body"
+```

@@ -690,10 +690,40 @@ function resolveSkillMarkdownPath(skillDir: string): string {
   return fs.existsSync(skillMdUpper) ? skillMdUpper : skillMdLower
 }
 
+export function getAssignedSkillPromptNotes(skillIds: string[]): string[] {
+  const guidance: string[] = []
+  if (skillIds.includes('clawmax-resend')) {
+    guidance.push(
+      '- Assigned skill ids are local capabilities, not agents or session targets.',
+      '- Never use sessions_send, sessions_spawn, or agent-to-agent messaging with an assigned skill name.',
+      '- `clawmax-resend`: to send email, use the `clawmax-resend-send` command.',
+      '- Do not use generic message/email channel tools when `clawmax-resend` is assigned.',
+      '- Do not create local files or tell the user to email something manually when `clawmax-resend` is assigned unless the user explicitly asked for that fallback.',
+      '- For multi-turn requests like "send both responses", combine the relevant prior answers into the command body and call `clawmax-resend-send` directly.',
+      '- For summaries, status updates, or other generated writeups, send the content inline in the email body by default. Do not create `summary.md` or attach a generated file unless the user explicitly asked for a file or attachment.',
+      '- For file requests like "send your identity.md", use `clawmax-resend-send --attach <path>` and attach the file instead of pasting its contents into a generic message tool.',
+      '- Do not edit, patch, or rewrite the file when the user asked to send it; attach the existing file as-is.',
+      '- Do not create copied workspace files such as `identity_identity.md` or `soul_copy.md` while preparing an attachment; attach the original file directly.',
+      '- Do not delegate email sending to subagents. Run `clawmax-resend-send` in the current agent session.',
+      '- If the user says "same email", reuse the most recent recipient email from the current conversation.',
+    )
+  }
+  return guidance
+}
+
 function renderAssignedSkillsSection(skillIds: string[]): string {
   const lines = skillIds.length > 0
     ? skillIds.map((skillId) => `- ${skillId}`)
     : ['- No assigned skills configured yet.']
+  const promptNotes = getAssignedSkillPromptNotes(skillIds)
+  const guidance: string[] = promptNotes.length > 0
+    ? [
+        '### ClawMax Skill Notes',
+        '',
+        ...promptNotes,
+        '',
+      ]
+    : []
   return `${TOOLS_SKILL_SECTION_START}
 ## Assigned Skills
 
@@ -701,12 +731,13 @@ These skills are currently assigned to this agent in the dashboard/runtime confi
 Use them when relevant before claiming you do not have access.
 
 ${lines.join('\n')}
+${guidance.length > 0 ? `\n\n${guidance.join('\n')}` : ''}
 ${TOOLS_SKILL_SECTION_END}`
 }
 
-function syncAgentToolsAssignedSkills(agentWorkspaceDir: string, skillIds: string[]) {
+function syncAgentToolsAssignedSkills(agentWorkspaceDir: string, skillIds: string[]): boolean {
   const toolsPath = path.join(agentWorkspaceDir, 'TOOLS.md')
-  if (!fs.existsSync(toolsPath)) return
+  if (!fs.existsSync(toolsPath)) return false
 
   const current = fs.readFileSync(toolsPath, 'utf-8')
   const section = renderAssignedSkillsSection(skillIds)
@@ -719,7 +750,47 @@ function syncAgentToolsAssignedSkills(agentWorkspaceDir: string, skillIds: strin
 
   if (next !== current) {
     fs.writeFileSync(toolsPath, next, 'utf-8')
+    return true
   }
+  return false
+}
+
+function findAgentRecordIndexForSkillSync(config: any, agentId: string, activeWorkspaceAgentDir: string): number {
+  let agentIndex = config.agents.list.findIndex((a: any) => a.id === agentId && a.workspace === activeWorkspaceAgentDir)
+  if (agentIndex === -1) {
+    agentIndex = config.agents.list.findIndex((a: any) => {
+      const workspace = String(a.workspace || '')
+      return a.id === agentId && workspace && activeWorkspaceAgentDir.startsWith(workspace)
+    })
+  }
+  if (agentIndex === -1) {
+    agentIndex = config.agents.list.findIndex((a: any) => a.id === agentId)
+  }
+  return agentIndex
+}
+
+export function syncAssignedSkillGuidanceForAgent(agentId: string, options: { agentWorkspaceDir?: string } = {}): boolean {
+  const config = loadOpenClawConfig()
+  if (!config.agents || !config.agents.list) {
+    return false
+  }
+
+  const activeWorkspaceAgentDir = options.agentWorkspaceDir
+    || path.join(getWorkspacePath(), 'AGENTS', agentId)
+  const agentIndex = findAgentRecordIndexForSkillSync(config, agentId, activeWorkspaceAgentDir)
+  if (agentIndex === -1) {
+    return false
+  }
+
+  const targetAgentRecord = config.agents.list[agentIndex]
+  const targetWorkspaceDir = typeof targetAgentRecord.workspace === 'string' && targetAgentRecord.workspace.trim()
+    ? targetAgentRecord.workspace
+    : activeWorkspaceAgentDir
+  const existingSkills = targetAgentRecord.skills
+  const currentSkills: string[] = Array.isArray(existingSkills)
+    ? existingSkills.map((entry: any) => String(entry || '').trim()).filter(Boolean)
+    : []
+  return syncAgentToolsAssignedSkills(targetWorkspaceDir, currentSkills)
 }
 
 /**
@@ -1392,16 +1463,7 @@ export function setAgentSkills(agentId: string, skillIds: string[]): void {
     }
 
     const activeWorkspaceAgentDir = path.join(getWorkspacePath(), 'AGENTS', agentId)
-    let agentIndex = config.agents.list.findIndex((a: any) => a.id === agentId && a.workspace === activeWorkspaceAgentDir)
-    if (agentIndex === -1) {
-      agentIndex = config.agents.list.findIndex((a: any) => {
-        const workspace = String(a.workspace || '')
-        return a.id === agentId && workspace && activeWorkspaceAgentDir.startsWith(workspace)
-      })
-    }
-    if (agentIndex === -1) {
-      agentIndex = config.agents.list.findIndex((a: any) => a.id === agentId)
-    }
+    const agentIndex = findAgentRecordIndexForSkillSync(config, agentId, activeWorkspaceAgentDir)
     if (agentIndex === -1) {
       throw new Error(`Agent ${agentId} not found in openclaw.json`)
     }
@@ -1418,6 +1480,13 @@ export function setAgentSkills(agentId: string, skillIds: string[]): void {
     const unchanged = currentSkills.length === normalizedSkillIds.length
       && currentSkills.every((skillId: string, index: number) => skillId === normalizedSkillIds[index])
     if (unchanged) {
+      const toolsChanged = syncAgentToolsAssignedSkills(targetWorkspaceDir, normalizedSkillIds)
+      if (toolsChanged) {
+        const reset = resetAgentSessionsForModelChange(process.env.HOME || os.homedir(), agentId)
+        if (!reset.ok) {
+          console.warn(`Failed to reset sessions after TOOLS.md skill sync for ${agentId}: ${reset.error}`)
+        }
+      }
       return
     }
 
