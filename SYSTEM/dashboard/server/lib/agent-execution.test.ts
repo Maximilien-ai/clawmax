@@ -18,6 +18,7 @@ import {
   scopeSessionIdToModel,
   withTemporaryAgentAuthProfiles,
 } from './agent-execution'
+import { REPO_ROOT } from './paths'
 import { resetWorkspaceManagerForTests } from './workspace-manager'
 
 const GREEN = '\x1b[32m'
@@ -620,6 +621,43 @@ test('withTemporaryAgentAuthProfiles registers workspace custom skill root with 
   const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
   const extraDirs = config.skills?.load?.extraDirs || []
   assert(extraDirs.includes(customSkillRoot), 'Expected workspace SKILLS/custom to be registered as OpenClaw extra skill dir')
+})
+
+test('withTemporaryAgentAuthProfiles registers bundled repo custom skill root with OpenClaw', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
+  const workspace = path.join(home, '.openclaw', 'workspaces', 'robotics')
+  const agentWorkspace = path.join(workspace, 'AGENTS', 'resend-agent')
+  const agentDir = path.join(home, '.openclaw', 'agents', 'resend-agent', 'agent')
+  const repoCustomSkillRoot = path.join(REPO_ROOT, 'SKILLS', 'custom')
+  const configPath = path.join(home, '.openclaw', 'openclaw.json')
+  fs.mkdirSync(agentWorkspace, { recursive: true })
+  fs.mkdirSync(agentDir, { recursive: true })
+  fs.mkdirSync(path.join(home, '.openclaw'), { recursive: true })
+  fs.writeFileSync(path.join(agentWorkspace, 'IDENTITY.md'), '# Identity\n\n- **Model:** openai/gpt-4o-mini\n', 'utf-8')
+  fs.writeFileSync(configPath, JSON.stringify({
+    agents: {
+      list: [
+        { id: 'resend-agent', workspace: agentWorkspace, agentDir, model: 'openai/gpt-4o-mini', skills: ['clawmax-resend'] }
+      ]
+    }
+  }, null, 2))
+  fs.writeFileSync(path.join(home, '.openclaw', 'dashboard-workspaces.json'), JSON.stringify({
+    version: '1.0.0',
+    activeWorkspaceId: 'robotics',
+    workspaces: [
+      { id: 'robotics', name: 'Robotics', path: workspace, createdAt: new Date().toISOString(), lastAccessedAt: new Date().toISOString() },
+    ]
+  }, null, 2))
+
+  process.env.HOME = home
+  process.env.OPENCLAW_WORKSPACE = workspace
+  resetWorkspaceManagerForTests()
+
+  await withTemporaryAgentAuthProfiles('resend-agent', { openai: 'fresh-openai' }, 'openai/gpt-4o-mini', 'openai', async () => {})
+
+  const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  const extraDirs = config.skills?.load?.extraDirs || []
+  assert(extraDirs.includes(repoCustomSkillRoot), 'Expected bundled repo SKILLS/custom to be registered as an OpenClaw extra skill dir')
 })
 
 test('withTemporaryAgentAuthProfiles resets persisted sessions when workspace custom skill files changed', async () => {
