@@ -99,3 +99,6 @@ Notes:
 - `clawmax-resend-send` already knows the active agent id and workspace root in normal ClawMax runtime execution.
 - You do not need to invent sender addresses or call the Resend API directly.
 - If you need to send multiple previous responses, combine them into the body you pass to the command.
+- Do **not** use generic message/email channel tools for this skill.
+- Do **not** invent `channel: email` or similar tool payloads.
+- When this skill is assigned, the correct send path is the `clawmax-resend-send` command.
