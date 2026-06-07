@@ -153,6 +153,7 @@ test('buildManagedSecretStatelessChatMessage surfaces assigned skill paths for g
   assert(prompt.includes('Assigned skill usage notes:'), 'Expected assigned skill usage notes header')
   assert(prompt.includes('`clawmax-resend`: to send email, use the `clawmax-resend-send` command.'), 'Expected explicit resend command note in stateless prompt')
   assert(prompt.includes('Do not create local files or tell the user to email something manually when `clawmax-resend` is assigned unless the user explicitly asked for that fallback.'), 'Expected explicit no-manual-fallback note for clawmax-resend')
+  assert(prompt.includes('For file requests like "send your identity.md", use `clawmax-resend-send --attach <path>` and attach the file instead of pasting its contents into a generic message tool.'), 'Expected explicit attachment guidance for clawmax-resend')
   assert(prompt.includes('read that SKILL.md first and follow it before using generic tools like message or exec'), 'Expected generic tool-selection guidance')
   assert(prompt.includes('Latest user request: send both responses to mmaximilien@gmail.com'), 'Expected latest request to remain present')
 })

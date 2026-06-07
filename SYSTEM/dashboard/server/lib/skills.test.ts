@@ -1049,6 +1049,7 @@ test('setAgentSkills() adds clawmax-resend command guidance to TOOLS.md', () => 
   assert(tools.includes('clawmax-resend-send'), 'Expected explicit clawmax-resend-send command guidance')
   assert(tools.includes('Do not use generic message/email channel tools'), 'Expected generic channel warning for clawmax-resend')
   assert(tools.includes('Do not create local files or tell the user to email something manually when `clawmax-resend` is assigned unless the user explicitly asked for that fallback.'), 'Expected explicit no-manual-fallback guidance for clawmax-resend')
+  assert(tools.includes('For file requests like "send your identity.md", use `clawmax-resend-send --attach <path>` and attach the file instead of pasting its contents into a generic message tool.'), 'Expected explicit attachment guidance for clawmax-resend')
 })
 
 // Test 10: Skills are sorted alphabetically

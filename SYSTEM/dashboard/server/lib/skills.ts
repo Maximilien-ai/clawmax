@@ -700,6 +700,7 @@ export function getAssignedSkillPromptNotes(skillIds: string[]): string[] {
       '- Do not use generic message/email channel tools when `clawmax-resend` is assigned.',
       '- Do not create local files or tell the user to email something manually when `clawmax-resend` is assigned unless the user explicitly asked for that fallback.',
       '- For multi-turn requests like "send both responses", combine the relevant prior answers into the command body and call `clawmax-resend-send` directly.',
+      '- For file requests like "send your identity.md", use `clawmax-resend-send --attach <path>` and attach the file instead of pasting its contents into a generic message tool.',
     )
   }
   return guidance
