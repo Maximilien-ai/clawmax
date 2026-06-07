@@ -736,6 +736,44 @@ function syncAgentToolsAssignedSkills(agentWorkspaceDir: string, skillIds: strin
   return false
 }
 
+function findAgentRecordIndexForSkillSync(config: any, agentId: string, activeWorkspaceAgentDir: string): number {
+  let agentIndex = config.agents.list.findIndex((a: any) => a.id === agentId && a.workspace === activeWorkspaceAgentDir)
+  if (agentIndex === -1) {
+    agentIndex = config.agents.list.findIndex((a: any) => {
+      const workspace = String(a.workspace || '')
+      return a.id === agentId && workspace && activeWorkspaceAgentDir.startsWith(workspace)
+    })
+  }
+  if (agentIndex === -1) {
+    agentIndex = config.agents.list.findIndex((a: any) => a.id === agentId)
+  }
+  return agentIndex
+}
+
+export function syncAssignedSkillGuidanceForAgent(agentId: string, options: { agentWorkspaceDir?: string } = {}): boolean {
+  const config = loadOpenClawConfig()
+  if (!config.agents || !config.agents.list) {
+    return false
+  }
+
+  const activeWorkspaceAgentDir = options.agentWorkspaceDir
+    || path.join(getWorkspacePath(), 'AGENTS', agentId)
+  const agentIndex = findAgentRecordIndexForSkillSync(config, agentId, activeWorkspaceAgentDir)
+  if (agentIndex === -1) {
+    return false
+  }
+
+  const targetAgentRecord = config.agents.list[agentIndex]
+  const targetWorkspaceDir = typeof targetAgentRecord.workspace === 'string' && targetAgentRecord.workspace.trim()
+    ? targetAgentRecord.workspace
+    : activeWorkspaceAgentDir
+  const existingSkills = targetAgentRecord.skills
+  const currentSkills: string[] = Array.isArray(existingSkills)
+    ? existingSkills.map((entry: any) => String(entry || '').trim()).filter(Boolean)
+    : []
+  return syncAgentToolsAssignedSkills(targetWorkspaceDir, currentSkills)
+}
+
 /**
  * Get workspace custom skills directory
  */
@@ -1406,16 +1444,7 @@ export function setAgentSkills(agentId: string, skillIds: string[]): void {
     }
 
     const activeWorkspaceAgentDir = path.join(getWorkspacePath(), 'AGENTS', agentId)
-    let agentIndex = config.agents.list.findIndex((a: any) => a.id === agentId && a.workspace === activeWorkspaceAgentDir)
-    if (agentIndex === -1) {
-      agentIndex = config.agents.list.findIndex((a: any) => {
-        const workspace = String(a.workspace || '')
-        return a.id === agentId && workspace && activeWorkspaceAgentDir.startsWith(workspace)
-      })
-    }
-    if (agentIndex === -1) {
-      agentIndex = config.agents.list.findIndex((a: any) => a.id === agentId)
-    }
+    const agentIndex = findAgentRecordIndexForSkillSync(config, agentId, activeWorkspaceAgentDir)
     if (agentIndex === -1) {
       throw new Error(`Agent ${agentId} not found in openclaw.json`)
     }

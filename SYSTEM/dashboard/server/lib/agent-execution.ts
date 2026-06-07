@@ -4,6 +4,7 @@ import { createHash } from 'crypto'
 import { getWorkspacePath, parseIdentity } from './workspace'
 import type { ProviderKeys } from './dashboard-env'
 import { REPO_ROOT } from './paths'
+import { syncAssignedSkillGuidanceForAgent } from './skills'
 import { readAgentModelFromConfigFile, restoreAgentModelInConfigFile, updateAgentModelInConfigFile } from './agent-model'
 import { resetAgentSessionsForModelChange } from './agent-model'
 import { resolveDefaultAgentModel } from './agent-default-model'
@@ -747,6 +748,22 @@ export async function withTemporaryAgentAuthProfiles<T>(
   const execution = resolveAgentExecutionConfig(agentId)
   const configPath = path.join(process.env.HOME || '', '.openclaw', 'openclaw.json')
   const hadConfig = fs.existsSync(configPath)
+  try {
+    const toolsChanged = syncAssignedSkillGuidanceForAgent(agentId, {
+      agentWorkspaceDir: execution.workspace,
+    })
+    if (toolsChanged) {
+      const reset = resetAgentSessionsForModelChange(process.env.HOME || '', agentId)
+      if (!reset.ok) {
+        console.warn(`[Agent Execution] Failed to reset sessions after assigned skill guidance sync for ${agentId}: ${reset.error || 'unknown error'}`)
+      }
+    }
+  } catch (err: any) {
+    const message = String(err?.message || err || '')
+    if (!/EPERM|EACCES|operation not permitted/i.test(message)) {
+      console.warn(`[Agent Execution] Failed to sync assigned skill guidance for ${agentId}: ${message}`)
+    }
+  }
   if (hadConfig) {
     ensureWorkspaceAgentRecordForExecution(configPath, agentId, execution, preferredModel)
     const skillRootChanged = ensureWorkspaceSkillRootForExecution(configPath, execution)
