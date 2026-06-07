@@ -716,9 +716,9 @@ ${guidance.length > 0 ? `\n\n${guidance.join('\n')}` : ''}
 ${TOOLS_SKILL_SECTION_END}`
 }
 
-function syncAgentToolsAssignedSkills(agentWorkspaceDir: string, skillIds: string[]) {
+function syncAgentToolsAssignedSkills(agentWorkspaceDir: string, skillIds: string[]): boolean {
   const toolsPath = path.join(agentWorkspaceDir, 'TOOLS.md')
-  if (!fs.existsSync(toolsPath)) return
+  if (!fs.existsSync(toolsPath)) return false
 
   const current = fs.readFileSync(toolsPath, 'utf-8')
   const section = renderAssignedSkillsSection(skillIds)
@@ -731,7 +731,9 @@ function syncAgentToolsAssignedSkills(agentWorkspaceDir: string, skillIds: strin
 
   if (next !== current) {
     fs.writeFileSync(toolsPath, next, 'utf-8')
+    return true
   }
+  return false
 }
 
 /**
@@ -1430,6 +1432,13 @@ export function setAgentSkills(agentId: string, skillIds: string[]): void {
     const unchanged = currentSkills.length === normalizedSkillIds.length
       && currentSkills.every((skillId: string, index: number) => skillId === normalizedSkillIds[index])
     if (unchanged) {
+      const toolsChanged = syncAgentToolsAssignedSkills(targetWorkspaceDir, normalizedSkillIds)
+      if (toolsChanged) {
+        const reset = resetAgentSessionsForModelChange(process.env.HOME || os.homedir(), agentId)
+        if (!reset.ok) {
+          console.warn(`Failed to reset sessions after TOOLS.md skill sync for ${agentId}: ${reset.error}`)
+        }
+      }
       return
     }
 

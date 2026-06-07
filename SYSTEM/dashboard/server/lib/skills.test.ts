@@ -784,6 +784,80 @@ test('setAgentSkills() is a no-op when the requested skills are unchanged', () =
   assertEqual(after, before, 'Expected no config rewrite when skills are unchanged')
 })
 
+test('setAgentSkills() refreshes TOOLS.md guidance and resets sessions even when skills are unchanged', () => {
+  const configPath = path.join(testEnv.tempHome, '.openclaw', 'openclaw.json')
+  const workspacePath = path.join(testEnv.tempHome, '.openclaw', 'workspaces', 'skills-noop-tools-refresh-test')
+  const workspaceAgent = path.join(workspacePath, 'AGENTS', 'noop-refresh-agent')
+
+  fs.mkdirSync(workspaceAgent, { recursive: true })
+  fs.writeFileSync(path.join(workspaceAgent, 'TOOLS.md'), `# TOOLS.md - Local Notes
+
+Original resend notes.
+
+---
+
+<!-- CLAWMAX_ASSIGNED_SKILLS_START -->
+## Assigned Skills
+
+These skills are currently assigned to this agent in the dashboard/runtime config.
+Use them when relevant before claiming you do not have access.
+
+- clawmax-resend
+<!-- CLAWMAX_ASSIGNED_SKILLS_END -->
+`, 'utf-8')
+  fs.writeFileSync(path.join(testEnv.tempHome, '.openclaw', 'dashboard-workspaces.json'), JSON.stringify({
+    version: '1.0.0',
+    activeWorkspaceId: 'skills-noop-tools-refresh-test',
+    workspaces: [
+      {
+        id: 'default',
+        name: 'Test',
+        path: path.join(testEnv.tempHome, '.openclaw', 'workspace'),
+        createdAt: new Date().toISOString(),
+        lastAccessedAt: new Date().toISOString(),
+      },
+      {
+        id: 'skills-noop-tools-refresh-test',
+        name: 'Noop Tools Refresh Test',
+        path: workspacePath,
+        createdAt: new Date().toISOString(),
+        lastAccessedAt: new Date().toISOString(),
+      },
+    ],
+  }, null, 2))
+  fs.writeFileSync(configPath, JSON.stringify({
+    gateway: {
+      auth: { token: 'stable-token' },
+    },
+    agents: {
+      list: [
+        { id: 'noop-refresh-agent', workspace: workspaceAgent, skills: ['clawmax-resend'] },
+      ],
+    },
+  }, null, 2))
+
+  const sessionsDir = path.join(testEnv.tempHome, '.openclaw', 'agents', 'noop-refresh-agent', 'sessions')
+  fs.mkdirSync(sessionsDir, { recursive: true })
+  fs.writeFileSync(path.join(sessionsDir, 'sessions.json'), JSON.stringify({
+    'agent:noop-refresh-agent:main': { model: 'openai/gpt-4o-mini' },
+  }), 'utf-8')
+  fs.writeFileSync(path.join(sessionsDir, 'main.jsonl'), '{"type":"session"}\n', 'utf-8')
+
+  process.env.OPENCLAW_WORKSPACE = workspacePath
+  resetWorkspaceManagerForTests()
+
+  const before = fs.readFileSync(configPath, 'utf-8')
+  setAgentSkills('noop-refresh-agent', ['clawmax-resend'])
+  const after = fs.readFileSync(configPath, 'utf-8')
+
+  assertEqual(after, before, 'Expected unchanged skills to avoid config rewrite')
+  const tools = fs.readFileSync(path.join(workspaceAgent, 'TOOLS.md'), 'utf-8')
+  assert(tools.includes('clawmax-resend-send'), 'Expected refreshed clawmax-resend command guidance')
+  assert(tools.includes('Do not use generic message/email channel tools'), 'Expected refreshed generic channel warning')
+  assert(!fs.existsSync(path.join(sessionsDir, 'sessions.json')), 'Expected live sessions index removed after TOOLS.md refresh')
+  assert(fs.existsSync(path.join(sessionsDir, 'archive')), 'Expected archived sessions after TOOLS.md refresh')
+})
+
 test('setAgentSkills() tolerates minimal openclaw.json root shape', () => {
   const configPath = path.join(testEnv.tempHome, '.openclaw', 'openclaw.json')
   const workspacePath = path.join(testEnv.tempHome, '.openclaw', 'workspaces', 'skills-minimal-config-test')
