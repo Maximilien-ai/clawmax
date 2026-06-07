@@ -33,6 +33,7 @@ const MAX_ATTACHMENT_BYTES = 30 * 1024 * 1024
 const RESEND_AGENT_SEND_COOLDOWN_MS = 30_000
 const RESEND_AGENT_SEND_HOURLY_LIMIT = 20
 const resendSendHistory = new Map<string, number[]>()
+const AGENT_PROTECTED_ATTACHMENT_NAMES = new Set(['identity.md', 'soul.md', 'tools.md', 'heartbeat.md', 'user.md', 'agents.md'])
 
 function trim(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
@@ -319,7 +320,7 @@ export function resolveWorkspaceEmailAttachments(workspaceRoot: string, requeste
         .filter((candidate) => fs.existsSync(candidate) && fs.statSync(candidate).isFile())
       if (candidatePaths.length > 0) {
         absolutePath = candidatePaths[0]
-      } else {
+      } else if (!AGENT_PROTECTED_ATTACHMENT_NAMES.has(relativePath.toLowerCase())) {
         const workspaceFiles = listWorkspaceFiles(workspaceRoot)
         const basenameMatches = workspaceFiles.filter((candidate) => path.basename(candidate).toLowerCase() === relativePath.toLowerCase())
         if (basenameMatches.length === 1) {
