@@ -134,6 +134,24 @@ test('buildManagedSecretStatelessChatMessage preserves recent chat context in a 
   assert(prompt.includes('Latest user request: Send that status in an email to mmaximilien@gmail.com'), 'Expected latest request appended after context')
 })
 
+test('buildManagedSecretStatelessChatMessage surfaces assigned skill paths for generic tool selection', () => {
+  const prompt = buildManagedSecretStatelessChatMessage(
+    'send both responses to mmaximilien@gmail.com',
+    [
+      { role: 'assistant', content: "I'm the resend-agent." },
+      { role: 'assistant', content: 'Status: model openai/gpt-4o-mini.' },
+    ],
+    [
+      { id: 'clawmax-resend', filePath: '/tmp/SKILLS/custom/clawmax-resend/SKILL.md' },
+    ],
+  )
+
+  assert(prompt.includes('Assigned skills for this turn:'), 'Expected assigned skill block in stateless prompt')
+  assert(prompt.includes('clawmax-resend (/tmp/SKILLS/custom/clawmax-resend/SKILL.md)'), 'Expected assigned skill path surfaced to the model')
+  assert(prompt.includes('read that SKILL.md first and follow it before using generic tools like message or exec'), 'Expected generic tool-selection guidance')
+  assert(prompt.includes('Latest user request: send both responses to mmaximilien@gmail.com'), 'Expected latest request to remain present')
+})
+
 test('sendResendTestEmail rate-limits repeated agent sends to the same recipient', async () => {
   resetResendSendGuardrailsForTests()
   let calls = 0

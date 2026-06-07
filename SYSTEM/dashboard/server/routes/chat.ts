@@ -12,6 +12,7 @@ import { userExecutionEnv } from '../lib/safe-env'
 import { checkBudgetBlock } from '../lib/budget'
 import { normalizeChatMessage } from '../lib/chat-normalization'
 import { resolveOpenClawCliPath } from '../lib/openclaw-cli'
+import { getAgentSkills, getSkillById } from '../lib/skills'
 import {
   deriveWorkspaceRootFromAgentWorkspace,
   readLatestAssistantUsageFromPersistedSession,
@@ -37,6 +38,10 @@ type ChatByokPayload = {
 type ChatContextMessage = {
   role: 'user' | 'assistant'
   content: string
+}
+type AssignedChatSkill = {
+  id: string
+  filePath?: string
 }
 
 function hasText(value?: string): boolean {
@@ -88,6 +93,7 @@ export function shouldUseLocalChatExecution(input: {
 export function buildManagedSecretStatelessChatMessage(
   message: string,
   contextMessages: ChatContextMessage[] = [],
+  assignedSkills: AssignedChatSkill[] = [],
 ): string {
   const recentContext = contextMessages
     .filter((entry) => entry && (entry.role === 'user' || entry.role === 'assistant'))
@@ -98,18 +104,28 @@ export function buildManagedSecretStatelessChatMessage(
     .filter((entry) => entry.content)
     .slice(-6)
 
-  if (recentContext.length === 0) return message
+  const sections: string[] = []
 
-  const transcript = recentContext
-    .map((entry) => `${entry.role === 'user' ? 'User' : 'Assistant'}: ${entry.content}`)
-    .join('\n\n')
+  if (recentContext.length > 0) {
+    const transcript = recentContext
+      .map((entry) => `${entry.role === 'user' ? 'User' : 'Assistant'}: ${entry.content}`)
+      .join('\n\n')
+    sections.push('Conversation context for this single-turn execution:', transcript, '')
+  }
 
-  return [
-    'Conversation context for this single-turn execution:',
-    transcript,
-    '',
-    `Latest user request: ${message}`,
-  ].join('\n')
+  if (assignedSkills.length > 0) {
+    sections.push(
+      'Assigned skills for this turn:',
+      ...assignedSkills.map((skill) => `- ${skill.id}${skill.filePath ? ` (${skill.filePath})` : ''}`),
+      '',
+      'If the request matches one of these assigned skills, read that SKILL.md first and follow it before using generic tools like message or exec.',
+      '',
+    )
+  }
+
+  if (sections.length === 0) return message
+  sections.push(`Latest user request: ${message}`)
+  return sections.join('\n')
 }
 
 /** Extract JSON object from a string that may contain non-JSON prefixed lines (e.g. stderr warnings) */
@@ -412,8 +428,17 @@ router.post('/:id/chat', async (req, res) => {
     hasWorkspaceManagedSecrets: hasWorkspaceManagedPartnerSecrets(),
   })
   const useManagedSecretStatelessSession = useLocal && hasWorkspaceManagedPartnerSecrets()
+  const assignedSkills = useManagedSecretStatelessSession
+    ? getAgentSkills(id).map((skillId) => {
+        const skill = getSkillById(skillId)
+        return {
+          id: skillId,
+          filePath: skill?.filePath,
+        }
+      })
+    : []
   const executionMessage = useManagedSecretStatelessSession
-    ? buildManagedSecretStatelessChatMessage(message, (req.body as any).contextMessages)
+    ? buildManagedSecretStatelessChatMessage(message, (req.body as any).contextMessages, assignedSkills)
     : message
   const args = [
     'agent',
