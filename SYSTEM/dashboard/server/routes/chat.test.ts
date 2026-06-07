@@ -9,6 +9,7 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import {
+  renderClawmaxAgentEmailHtml,
   resetResendSendGuardrailsForTests,
   sendResendTestEmail,
 } from '../lib/resend-partner'
@@ -156,9 +157,29 @@ test('buildManagedSecretStatelessChatMessage surfaces assigned skill paths for g
   assert(prompt.includes('For file requests like "send your identity.md", use `clawmax-resend-send --attach <path>` and attach the file instead of pasting its contents into a generic message tool.'), 'Expected explicit attachment guidance for clawmax-resend')
   assert(prompt.includes('Do not edit, patch, or rewrite the file when the user asked to send it; attach the existing file as-is.'), 'Expected explicit no-edit guidance for attachment requests')
   assert(prompt.includes('Do not create copied workspace files such as `identity_identity.md` or `soul_copy.md` while preparing an attachment; attach the original file directly.'), 'Expected explicit no-copy guidance for attachments')
+  assert(prompt.includes('Do not delegate email sending to subagents. Run `clawmax-resend-send` in the current agent session.'), 'Expected explicit no-subagent guidance for clawmax-resend')
   assert(prompt.includes('If the user says "same email", reuse the most recent recipient email from the current conversation.'), 'Expected explicit same-email reuse guidance')
   assert(prompt.includes('read that SKILL.md first and follow it before using generic tools like message or exec'), 'Expected generic tool-selection guidance')
   assert(prompt.includes('Latest user request: send both responses to mmaximilien@gmail.com'), 'Expected latest request to remain present')
+})
+
+test('renderClawmaxAgentEmailHtml renders markdown headings and bullets into HTML structure', () => {
+  const html = renderClawmaxAgentEmailHtml({
+    subject: 'Status update',
+    text: [
+      'Here is the update.',
+      '',
+      '### Status',
+      '- **Model:** openai/gpt-4o-mini',
+      '- **Uptime:** Gateway 8s | System 38d',
+    ].join('\n'),
+    agentId: 'resend-agent',
+    workspaceLabel: 'test-1.7.x',
+  })
+
+  assert(html.includes('<h3'), 'Expected markdown heading to render as HTML heading')
+  assert(html.includes('<ul'), 'Expected markdown bullets to render as HTML list')
+  assert(html.includes('<strong>Model:</strong>'), 'Expected markdown bold text to render as HTML strong tags')
 })
 
 test('sendResendTestEmail rate-limits repeated agent sends to the same recipient', async () => {

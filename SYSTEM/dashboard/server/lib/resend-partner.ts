@@ -47,6 +47,74 @@ function escapeHtml(value: string): string {
     .replace(/'/g, '&#39;')
 }
 
+function renderInlineMarkdown(value: string): string {
+  let html = escapeHtml(value)
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+  html = html.replace(/\*(.+?)\*/g, '<em>$1</em>')
+  html = html.replace(/`([^`]+)`/g, '<code style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:0.95em;background:#e2e8f0;padding:0 4px;border-radius:4px;">$1</code>')
+  return html
+}
+
+function renderMarkdownEmailBlocks(text: string): string {
+  const source = trim(text)
+  if (!source) {
+    return '<p style="margin:0;color:#0f172a;font-size:15px;line-height:1.65;">No message body was provided.</p>'
+  }
+
+  const lines = source.split('\n')
+  const parts: string[] = []
+  let paragraph: string[] = []
+  let listItems: string[] = []
+
+  const flushParagraph = () => {
+    if (paragraph.length === 0) return
+    parts.push(`<p style="margin:0 0 16px 0;line-height:1.65;color:#0f172a;font-size:15px;">${paragraph.map((line) => renderInlineMarkdown(line)).join('<br/>')}</p>`)
+    paragraph = []
+  }
+
+  const flushList = () => {
+    if (listItems.length === 0) return
+    const items = listItems
+      .map((line) => line.replace(/^-\s+/, ''))
+      .map((line) => `<li style="margin:0 0 8px 0;">${renderInlineMarkdown(line)}</li>`)
+      .join('')
+    parts.push(`<ul style="margin:0 0 16px 20px;padding:0;color:#0f172a;font-size:15px;line-height:1.65;">${items}</ul>`)
+    listItems = []
+  }
+
+  for (const rawLine of lines) {
+    const line = rawLine.trimRight()
+    const trimmed = line.trim()
+
+    if (!trimmed) {
+      flushParagraph()
+      flushList()
+      continue
+    }
+
+    const headingMatch = trimmed.match(/^#{1,6}\s+(.+)$/)
+    if (headingMatch) {
+      flushParagraph()
+      flushList()
+      parts.push(`<h3 style="margin:0 0 12px 0;color:#0f172a;font-size:18px;line-height:1.4;">${renderInlineMarkdown(headingMatch[1])}</h3>`)
+      continue
+    }
+
+    if (/^-\s+/.test(trimmed)) {
+      flushParagraph()
+      listItems.push(trimmed)
+      continue
+    }
+
+    flushList()
+    paragraph.push(trimmed)
+  }
+
+  flushParagraph()
+  flushList()
+  return parts.join('') || '<p style="margin:0;color:#0f172a;font-size:15px;line-height:1.65;">No message body was provided.</p>'
+}
+
 type ResendSenderPolicy = {
   from: string
   fromEmail: string
@@ -169,12 +237,7 @@ export function renderClawmaxAgentEmailHtml(input: {
   const subject = escapeHtml(trim(input.subject) || 'ClawMax email')
   const agentId = escapeHtml(trim(input.agentId) || 'agent')
   const workspaceLabel = escapeHtml(trim(input.workspaceLabel) || 'ClawMax workspace')
-  const paragraphs = (trim(input.text) || '')
-    .split(/\n{2,}/)
-    .map((chunk) => chunk.trim())
-    .filter(Boolean)
-    .map((chunk) => `<p style="margin:0 0 16px 0;line-height:1.65;color:#0f172a;font-size:15px;">${escapeHtml(chunk).replace(/\n/g, '<br/>')}</p>`)
-    .join('')
+  const bodyHtml = renderMarkdownEmailBlocks(input.text)
 
   return [
     '<!doctype html>',
@@ -187,7 +250,7 @@ export function renderClawmaxAgentEmailHtml(input: {
     `<div style="font-size:14px;opacity:0.85;">Sent by <strong>${agentId}</strong> from <strong>${workspaceLabel}</strong></div>`,
     '</div>',
     '<div style="padding:28px;">',
-    paragraphs || '<p style="margin:0;color:#0f172a;font-size:15px;line-height:1.65;">No message body was provided.</p>',
+    bodyHtml,
     '</div>',
     '<div style="padding:18px 28px;border-top:1px solid #e5e7eb;background:#f8fafc;color:#475569;font-size:12px;line-height:1.6;">',
     'This email was sent by a ClawMax agent through the configured Resend bridge.',
