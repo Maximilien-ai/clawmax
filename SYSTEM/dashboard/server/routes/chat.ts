@@ -15,7 +15,6 @@ import { resolveOpenClawCliPath } from '../lib/openclaw-cli'
 import {
   deriveWorkspaceRootFromAgentWorkspace,
   readLatestAssistantUsageFromPersistedSession,
-  resolveAgentSkillIds,
   resolveAgentExecutionConfig,
   resolvePersistedAgentSessionId,
   runExclusiveAgentExecution,
@@ -23,7 +22,6 @@ import {
   withTemporaryAgentAuthProfiles,
 } from '../lib/agent-execution'
 import { getAuthenticatedSession } from '../lib/github-auth'
-import { buildResendChatEmailRequest, getWorkspaceResendApiKey, hasResendEmailCapability, renderClawmaxAgentEmailHtml, resolveWorkspaceEmailAttachments, sendResendTestEmail } from '../lib/resend-partner'
 
 const router = Router()
 type ChatProvider = 'openai' | 'openai-compatible' | 'anthropic' | 'gemini' | 'ollama' | null | undefined
@@ -398,55 +396,6 @@ router.post('/:id/chat', async (req, res) => {
   }, 2000)
   const chatStartedAt = Date.now()
   const dashboardSessionKey = `agent:${id}:dashboard-chat`
-  const resendCapableAgent = hasResendEmailCapability(resolveAgentSkillIds(id))
-  const resendEmailRequest = resendCapableAgent ? buildResendChatEmailRequest(message, (req.body as any).contextMessages, id) : null
-  if (resendEmailRequest?.mode === 'direct') {
-    send('start', { sessionId: effectiveSessionId, mode: 'resend-direct' })
-    try {
-      const attachments = resolveWorkspaceEmailAttachments(
-        effectiveWorkspaceRoot,
-        resendEmailRequest.attachmentPaths || [],
-        resolvedAgent.workspace ? [resolvedAgent.workspace] : []
-      )
-      const result = await sendResendTestEmail({
-        apiKey: getWorkspaceResendApiKey(),
-        agentId: id,
-        workspaceLabel: path.basename(effectiveWorkspaceRoot || 'workspace'),
-        to: resendEmailRequest.to,
-        subject: resendEmailRequest.subject,
-        text: resendEmailRequest.text,
-        html: renderClawmaxAgentEmailHtml({
-          subject: resendEmailRequest.subject,
-          text: resendEmailRequest.text || '',
-          agentId: id,
-          workspaceLabel: path.basename(effectiveWorkspaceRoot || 'workspace'),
-        }),
-        attachments,
-      })
-      const confirmation = result.id
-        ? `Email sent to ${resendEmailRequest.to} via Resend. Provider id: ${result.id}`
-        : `Email sent to ${resendEmailRequest.to} via Resend.`
-      send('delta', { text: confirmation })
-      send('complete', { text: confirmation })
-      traceAgentChat(id, message, confirmation, {
-        model: resolvedAgent.model,
-        provider: resolvedAgent.provider || undefined,
-        durationMs: Math.max(0, Date.now() - chatStartedAt),
-        sessionId: effectiveSessionId,
-        actorUserId: session?.userId,
-        actorLogin: session?.login,
-        actorEmail: session?.email,
-        dashboardInstanceId: getRequestDashboardInstanceId(req),
-      })
-    } catch (err: any) {
-      send('error', err?.message || 'Failed to send email with Resend.')
-      send('complete', { text: '' })
-    } finally {
-      clearInterval(keepalive)
-      if (!res.writableEnded) res.end()
-    }
-    return
-  }
 
   // Use plain-text mode so stdout can stream deltas to the UI in real time.
   // History/persistence is handled by the explicit session id and the CLI itself.
@@ -463,12 +412,9 @@ router.post('/:id/chat', async (req, res) => {
     hasWorkspaceManagedSecrets: hasWorkspaceManagedPartnerSecrets(),
   })
   const useManagedSecretStatelessSession = useLocal && hasWorkspaceManagedPartnerSecrets()
-  const agentWorkMessage = resendEmailRequest?.mode === 'post-chat' && resendEmailRequest.agentPrompt
-    ? resendEmailRequest.agentPrompt
-    : message
   const executionMessage = useManagedSecretStatelessSession
-    ? buildManagedSecretStatelessChatMessage(agentWorkMessage, (req.body as any).contextMessages)
-    : agentWorkMessage
+    ? buildManagedSecretStatelessChatMessage(message, (req.body as any).contextMessages)
+    : message
   const args = [
     'agent',
     '--agent', id,
@@ -555,39 +501,6 @@ router.post('/:id/chat', async (req, res) => {
             actorEmail: session?.email,
             dashboardInstanceId: getRequestDashboardInstanceId(req),
           })
-        }
-
-        if (normalizedText && resendEmailRequest?.mode === 'post-chat') {
-          try {
-            const attachments = resolveWorkspaceEmailAttachments(
-              effectiveWorkspaceRoot,
-              resendEmailRequest.attachmentPaths || [],
-              resolvedAgent.workspace ? [resolvedAgent.workspace] : []
-            )
-            const result = await sendResendTestEmail({
-              apiKey: getWorkspaceResendApiKey(),
-              agentId: id,
-              workspaceLabel: path.basename(effectiveWorkspaceRoot || 'workspace'),
-              to: resendEmailRequest.to,
-              subject: resendEmailRequest.subject,
-              text: normalizedText,
-              html: renderClawmaxAgentEmailHtml({
-                subject: resendEmailRequest.subject,
-                text: normalizedText,
-                agentId: id,
-                workspaceLabel: path.basename(effectiveWorkspaceRoot || 'workspace'),
-              }),
-              attachments,
-            })
-            const confirmation = result.id
-              ? `Email sent to ${resendEmailRequest.to} via Resend. Provider id: ${result.id}`
-              : `Email sent to ${resendEmailRequest.to} via Resend.`
-            send('delta', { text: `\n\n${confirmation}` })
-            completionText = `${normalizedText}\n\n${confirmation}`
-          } catch (err: any) {
-            const failure = err?.message || 'Failed to send email with Resend.'
-            send('error', failure)
-          }
         }
 
         if (!useManagedSecretStatelessSession) {

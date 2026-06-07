@@ -694,6 +694,17 @@ function renderAssignedSkillsSection(skillIds: string[]): string {
   const lines = skillIds.length > 0
     ? skillIds.map((skillId) => `- ${skillId}`)
     : ['- No assigned skills configured yet.']
+  const guidance: string[] = []
+  if (skillIds.includes('clawmax-resend')) {
+    guidance.push(
+      '### ClawMax Skill Notes',
+      '',
+      '- `clawmax-resend`: to send email, use the `clawmax-resend-send` command.',
+      '- Do not use generic message/email channel tools when `clawmax-resend` is assigned.',
+      '- For multi-turn requests like "send both responses", combine the relevant prior answers into the command body and call `clawmax-resend-send` directly.',
+      '',
+    )
+  }
   return `${TOOLS_SKILL_SECTION_START}
 ## Assigned Skills
 
@@ -701,6 +712,7 @@ These skills are currently assigned to this agent in the dashboard/runtime confi
 Use them when relevant before claiming you do not have access.
 
 ${lines.join('\n')}
+${guidance.length > 0 ? `\n\n${guidance.join('\n')}` : ''}
 ${TOOLS_SKILL_SECTION_END}`
 }
 

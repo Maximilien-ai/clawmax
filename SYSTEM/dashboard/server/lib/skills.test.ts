@@ -927,6 +927,53 @@ test('setAgentSkills() syncs TOOLS.md for agents whose record workspace differs 
   assert(tools.includes('- gog'), 'Expected TOOLS.md sync to use the matched record workspace, not the active workspace path')
 })
 
+test('setAgentSkills() adds clawmax-resend command guidance to TOOLS.md', () => {
+  const configPath = path.join(testEnv.tempHome, '.openclaw', 'openclaw.json')
+  const workspacePath = path.join(testEnv.tempHome, '.openclaw', 'workspaces', 'clawmax-resend-tools-test')
+  const workspaceAgent = path.join(workspacePath, 'AGENTS', 'resend-agent')
+
+  fs.mkdirSync(workspaceAgent, { recursive: true })
+  fs.writeFileSync(path.join(workspaceAgent, 'TOOLS.md'), '# TOOLS.md - Local Notes\n\nOriginal resend notes.\n', 'utf-8')
+  fs.writeFileSync(path.join(testEnv.tempHome, '.openclaw', 'dashboard-workspaces.json'), JSON.stringify({
+    version: '1.0.0',
+    activeWorkspaceId: 'clawmax-resend-tools-test',
+    workspaces: [
+      {
+        id: 'default',
+        name: 'Test',
+        path: path.join(testEnv.tempHome, '.openclaw', 'workspace'),
+        createdAt: new Date().toISOString(),
+        lastAccessedAt: new Date().toISOString(),
+      },
+      {
+        id: 'clawmax-resend-tools-test',
+        name: 'ClawMax Resend Tools Test',
+        path: workspacePath,
+        createdAt: new Date().toISOString(),
+        lastAccessedAt: new Date().toISOString(),
+      },
+    ],
+  }, null, 2))
+  fs.writeFileSync(configPath, JSON.stringify({
+    agents: {
+      list: [
+        { id: 'resend-agent', workspace: workspaceAgent, skills: [] },
+      ],
+    },
+  }, null, 2))
+
+  process.env.OPENCLAW_WORKSPACE = workspacePath
+  resetWorkspaceManagerForTests()
+
+  setAgentSkills('resend-agent', ['clawmax-resend'])
+
+  const tools = fs.readFileSync(path.join(workspaceAgent, 'TOOLS.md'), 'utf-8')
+  assert(tools.includes('- clawmax-resend'), 'Expected clawmax-resend listed in TOOLS.md assigned skills')
+  assert(tools.includes('### ClawMax Skill Notes'), 'Expected ClawMax skill guidance section')
+  assert(tools.includes('clawmax-resend-send'), 'Expected explicit clawmax-resend-send command guidance')
+  assert(tools.includes('Do not use generic message/email channel tools'), 'Expected generic channel warning for clawmax-resend')
+})
+
 // Test 10: Skills are sorted alphabetically
 test('listAvailableSkills() returns sorted skills', () => {
   const skills = listAvailableSkills()

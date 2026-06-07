@@ -20,21 +20,6 @@ export type ResendTestEmailResult = {
   message: string
 }
 
-export type ResendChatContextMessage = {
-  role: 'user' | 'assistant'
-  content: string
-}
-
-export type ResendChatEmailRequest = {
-  to: string
-  subject: string
-  text?: string
-  mode: 'direct' | 'post-chat'
-  agentPrompt?: string
-  attachmentPaths?: string[]
-  guidance?: string
-}
-
 export type ResendEmailAttachment = {
   filename: string
   content: string
@@ -43,10 +28,7 @@ export type ResendEmailAttachment = {
 type FetchLike = typeof fetch
 
 const RESEND_EMAILS_ENDPOINT = 'https://api.resend.com/emails'
-const EMAIL_RE = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/ig
 const EXACT_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-const ATTACHMENT_PATH_RE = /\b(?:AGENTS|WORKFLOWS|SYSTEM|ORG|DOCS|SKILLS)\/[^\s,;:()]+/ig
-const ATTACHMENT_FILE_RE = /\b([A-Z0-9][A-Z0-9._-]*\.(?:md|txt|json|csv|pdf|png|jpg|jpeg|gif|docx|xlsx|pptx|html))\b/ig
 const MAX_ATTACHMENT_BYTES = 30 * 1024 * 1024
 const RESEND_AGENT_SEND_COOLDOWN_MS = 30_000
 const RESEND_AGENT_SEND_HOURLY_LIMIT = 20
@@ -240,126 +222,6 @@ function summarizeResendProviderError(status: number, payload: any): string {
   const name = trim(payload?.name) || trim(payload?.error?.name)
   const prefix = name ? `${name}: ` : ''
   return `${prefix}${message || `Resend rejected the email request with HTTP ${status}`}`
-}
-
-function stripMarkdown(value: string): string {
-  return value
-    .replace(/\*\*([^*]+)\*\*/g, '$1')
-    .replace(/`([^`]+)`/g, '$1')
-    .replace(/<([^>\s]+@[^>\s]+)>/g, '$1')
-    .trim()
-}
-
-function extractRecipientEmail(message: string): string | undefined {
-  const matches = message.match(EMAIL_RE) || []
-  return matches[0]?.trim()
-}
-
-function extractAttachmentPaths(message: string): string[] {
-  const explicit = message.match(ATTACHMENT_PATH_RE) || []
-  const bareFiles = [...message.matchAll(ATTACHMENT_FILE_RE)]
-    .map((match) => match[1]?.trim())
-    .filter((value): value is string => !!value && !EXACT_EMAIL_RE.test(value))
-  return [...new Set([...explicit, ...bareFiles].map((value) => value.trim().replace(/[.]+$/, '')))]
-}
-
-export function hasResendEmailCapability(skillIds: string[]): boolean {
-  return skillIds.some((skillId) => ['resend', 'resend-cli', 'react-email'].includes(String(skillId || '').trim()))
-}
-
-function latestAssistantMessage(contextMessages: ResendChatContextMessage[]): string | undefined {
-  return [...contextMessages]
-    .reverse()
-    .find((entry) => entry?.role === 'assistant' && trim(entry.content))?.content
-}
-
-function inferEmailSubject(message: string, agentId: string): string {
-  return /\bstatus\b/i.test(message) ? `${agentId} status` : `Message from ${agentId}`
-}
-
-function shouldSendAfterFreshAgentReply(message: string, previousAssistant?: string): boolean {
-  if (previousAssistant) return false
-  if (/\b(then|after|once|when)\b/i.test(message)) return true
-  return /\b(who are you|give me|what is|what's|write|draft|summarize|analyze|review|look up|find|create|generate|explain|tell me|prepare)\b/i.test(message)
-}
-
-function stripEmailDeliveryInstruction(message: string): string {
-  const withoutRecipient = message.replace(EMAIL_RE, '').trim()
-  const withoutAttachments = withoutRecipient.replace(ATTACHMENT_PATH_RE, '').trim()
-  const patterns = [
-    /\b(?:and|then|please)?\s*send(?:ing)?(?:\s+the)?(?:\s+(?:result|response|status|summary|report|draft|findings|plan))?\s+(?:(?:as|in|via)\s+)?an?\s+email\b.*$/i,
-    /\b(?:and|then|please)?\s*email(?:\s+the)?(?:\s+(?:result|response|status|summary|report|draft|findings|plan))?\b.*$/i,
-    /\b(?:and|then|please)?\s*mail(?:\s+the)?(?:\s+(?:result|response|status|summary|report|draft|findings|plan))?\b.*$/i,
-    /\b(?:and|then|please)?\s*(?:send|email|mail)\b.*$/i,
-  ]
-  const stripped = patterns.reduce((current, pattern) => current.replace(pattern, '').trim(), withoutAttachments)
-  return stripped
-    .replace(/[,\s]+$/, '')
-    .replace(/\b(?:and|then)\s*$/i, '')
-    .replace(/[,\s]+$/, '')
-    .trim()
-}
-
-export function buildResendChatEmailRequest(
-  message: string,
-  contextMessages: ResendChatContextMessage[] = [],
-  agentId = 'agent',
-): ResendChatEmailRequest | null {
-  const normalized = trim(message)
-  if (!normalized) return null
-  const attachmentPaths = extractAttachmentPaths(normalized)
-  const hasSendVerb = /\b(send|email|mail)\b/i.test(normalized)
-  const hasEmailVerb = /\b(email|mail)\b/i.test(normalized)
-  if (!hasSendVerb) return null
-
-  const to = extractRecipientEmail(normalized)
-  if (!to) return null
-  if (!hasEmailVerb && attachmentPaths.length === 0) return null
-
-  const previousAssistant = latestAssistantMessage(contextMessages)
-  const refersToPrevious = /\b(that|this|previous|last|status|result|response|summary|report|draft|findings|plan)\b/i.test(normalized)
-  if (refersToPrevious && shouldSendAfterFreshAgentReply(normalized, previousAssistant)) {
-    const agentPrompt = stripEmailDeliveryInstruction(normalized)
-    return {
-      to,
-      subject: inferEmailSubject(normalized, agentId),
-      mode: 'post-chat',
-      agentPrompt: agentPrompt || normalized,
-      attachmentPaths,
-    }
-  }
-  const text = stripMarkdown(
-    refersToPrevious && previousAssistant
-      ? previousAssistant
-      : normalized
-        .replace(EMAIL_RE, '')
-        .replace(ATTACHMENT_PATH_RE, '')
-        .replace(/\b(send|email|mail|attach|attached|attachment|to|that|this|please)\b/ig, ' ')
-        .replace(/\s+/g, ' ')
-        .trim()
-  )
-
-  if (!text) {
-    if (shouldSendAfterFreshAgentReply(normalized, previousAssistant)) {
-      const agentPrompt = stripEmailDeliveryInstruction(normalized)
-      return {
-        to,
-        subject: inferEmailSubject(normalized, agentId),
-        mode: 'post-chat',
-        agentPrompt: agentPrompt || normalized,
-        attachmentPaths,
-      }
-    }
-    return null
-  }
-
-  return {
-    to,
-    subject: inferEmailSubject(normalized, agentId),
-    text,
-    mode: 'direct',
-    attachmentPaths,
-  }
 }
 
 function listWorkspaceFiles(root: string): string[] {
