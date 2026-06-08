@@ -19,11 +19,13 @@ Use this skill to send outbound email through the ClawMax Resend bridge.
 - Use `clawmax-resend-send` in the current agent session.
 - When the user gives an explicit recipient and clear email intent, run `clawmax-resend-send` immediately instead of describing what you plan to do.
 - Only say the tool is unavailable or failed if you actually ran `clawmax-resend-send` and it returned an error.
+- If `clawmax-resend-send` returns an error, stop and report that exact error. Do **not** retry with another method in the same turn.
 - Do **not** claim an email was sent unless `clawmax-resend-send` returned a success message.
 - After a successful send, confirm briefly. If the command did not confirm success, report the failure instead of implying delivery.
 - Do **not** use `sessions_send`, `sessions_spawn`, or agent-to-agent messaging for this skill.
 - Do **not** delegate email sending to subagents.
 - Do **not** use generic message/email channel tools when this skill is assigned.
+- Do **not** use `web_fetch`, Slack webhooks, Discord webhooks, or any external delivery service for this skill.
 - Do **not** create local files or tell the user to send the email manually unless the user explicitly asked for that fallback.
 
 ## Content Sends

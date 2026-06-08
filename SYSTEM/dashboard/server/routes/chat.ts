@@ -13,6 +13,7 @@ import { checkBudgetBlock } from '../lib/budget'
 import { normalizeChatMessage } from '../lib/chat-normalization'
 import { resolveOpenClawCliPath } from '../lib/openclaw-cli'
 import { getAgentSkills, getAssignedSkillPromptNotes, getSkillById } from '../lib/skills'
+import { executeClawmaxResendSend } from '../lib/clawmax-resend-command'
 import {
   deriveWorkspaceRootFromAgentWorkspace,
   readLatestAssistantUsageFromPersistedSession,
@@ -52,6 +53,118 @@ const DIRECT_AGENT_ATTACHMENT_FILES = [
   'USER.md',
   'AGENTS.md',
 ] as const
+
+type ManagedResendDispatch = {
+  to: string
+  subject: string
+  body: string
+  attachmentPaths: string[]
+}
+
+const EMAIL_RE = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i
+const PROTECTED_AGENT_FILE_BY_NAME = new Map<string, string>(
+  DIRECT_AGENT_ATTACHMENT_FILES.flatMap((fileName) => {
+    const lower = fileName.toLowerCase()
+    return [
+      [lower, fileName],
+      [lower.replace(/\.md$/, ''), fileName],
+    ]
+  })
+)
+
+function readTextFileIfPresent(filePath: string): string {
+  try {
+    return fs.existsSync(filePath) && fs.statSync(filePath).isFile()
+      ? fs.readFileSync(filePath, 'utf-8').trim()
+      : ''
+  } catch {
+    return ''
+  }
+}
+
+function buildAgentStatusEmailBody(input: {
+  agentId: string
+  agentWorkspaceDir: string
+  model?: string
+  provider?: ChatProvider
+  contextMessages?: ChatContextMessage[]
+  request: string
+}): string {
+  const recentAssistant = (input.contextMessages || [])
+    .filter((entry) => entry?.role === 'assistant' && String(entry.content || '').trim())
+    .slice(-2)
+    .map((entry) => String(entry.content).trim())
+
+  if (recentAssistant.length > 0 && /\b(that|this|both|responses?|previous|above)\b/i.test(input.request)) {
+    return recentAssistant.join('\n\n---\n\n')
+  }
+
+  const identity = readTextFileIfPresent(path.join(input.agentWorkspaceDir, 'IDENTITY.md'))
+  const lines = [
+    `Agent: ${input.agentId}`,
+    input.model ? `Model: ${input.model}` : '',
+    input.provider ? `Provider: ${input.provider}` : '',
+    '',
+    identity || `Status requested for ${input.agentId}.`,
+  ].filter((line) => line !== '')
+  return lines.join('\n')
+}
+
+export function buildManagedResendDispatch(input: {
+  message: string
+  agentId: string
+  agentWorkspaceDir: string
+  model?: string
+  provider?: ChatProvider
+  contextMessages?: ChatContextMessage[]
+  assignedSkillIds: string[]
+}): ManagedResendDispatch | null {
+  if (!input.assignedSkillIds.includes('clawmax-resend')) return null
+  const message = input.message.trim()
+  const to = message.match(EMAIL_RE)?.[0]
+  if (!to || !/\b(send|email|mail)\b/i.test(message)) return null
+
+  const attachmentPaths: string[] = []
+  for (const [token, fileName] of PROTECTED_AGENT_FILE_BY_NAME) {
+    const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    if (new RegExp(`\\b${escaped}\\b`, 'i').test(message)) {
+      const filePath = path.join(input.agentWorkspaceDir, fileName)
+      if (!fs.existsSync(filePath)) {
+        throw new Error(`Attachment file not found in current agent workspace: ${fileName}`)
+      }
+      if (!attachmentPaths.includes(filePath)) attachmentPaths.push(filePath)
+    }
+  }
+
+  const explicitFileMatches = message.match(/\b[\w.-]+\.(?:md|txt|json|csv|pdf)\b/gi) || []
+  for (const match of explicitFileMatches) {
+    const normalized = match.toLowerCase()
+    if (PROTECTED_AGENT_FILE_BY_NAME.has(normalized)) continue
+    const filePath = path.join(input.agentWorkspaceDir, match)
+    if (!fs.existsSync(filePath)) {
+      throw new Error(`Attachment file not found in current agent workspace: ${match}`)
+    }
+    if (!attachmentPaths.includes(filePath)) attachmentPaths.push(filePath)
+  }
+
+  const body = buildAgentStatusEmailBody({
+    agentId: input.agentId,
+    agentWorkspaceDir: input.agentWorkspaceDir,
+    model: input.model,
+    provider: input.provider,
+    contextMessages: input.contextMessages,
+    request: message,
+  })
+
+  return {
+    to,
+    subject: attachmentPaths.length > 0
+      ? `${input.agentId} file update`
+      : `${input.agentId} status update`,
+    body,
+    attachmentPaths,
+  }
+}
 
 function hasText(value?: string): boolean {
   return typeof value === 'string' && value.trim().length > 0
@@ -461,6 +574,54 @@ router.post('/:id/chat', async (req, res) => {
       })
     : []
   const currentAgentWorkspaceDir = path.join(effectiveWorkspaceRoot, 'AGENTS', id)
+  let managedResendDispatch: ManagedResendDispatch | null = null
+  if (useManagedSecretStatelessSession) {
+    try {
+      managedResendDispatch = buildManagedResendDispatch({
+        message,
+        agentId: id,
+        agentWorkspaceDir: currentAgentWorkspaceDir,
+        model: resolvedAgent.model,
+        provider: resolvedAgent.provider,
+        contextMessages: (req.body as any).contextMessages,
+        assignedSkillIds: assignedSkills.map((skill) => skill.id),
+      })
+    } catch (err: any) {
+      clearInterval(keepalive)
+      send('start', { sessionId: effectiveSessionId })
+      send('error', err?.message || 'Unable to prepare ClawMax Resend send.')
+      send('complete', { text: '' })
+      if (!res.writableEnded) res.end()
+      return
+    }
+  }
+
+  if (managedResendDispatch) {
+    send('start', { sessionId: effectiveSessionId })
+    invalidateAgentStatusCache(id)
+    try {
+      const result = await executeClawmaxResendSend({
+        to: managedResendDispatch.to,
+        subject: managedResendDispatch.subject,
+        body: managedResendDispatch.body,
+        attachmentPaths: managedResendDispatch.attachmentPaths,
+        agentId: id,
+        workspaceRoot: effectiveWorkspaceRoot,
+        workspaceLabel: path.basename(effectiveWorkspaceRoot) || 'workspace',
+      })
+      const completionText = result.message
+      send('delta', { text: completionText })
+      send('complete', { text: completionText })
+    } catch (err: any) {
+      send('error', err?.message || 'ClawMax Resend send failed.')
+      send('complete', { text: '' })
+    } finally {
+      clearInterval(keepalive)
+      if (!res.writableEnded) res.end()
+    }
+    return
+  }
+
   const executionMessage = useManagedSecretStatelessSession
     ? buildManagedSecretStatelessChatMessage(message, (req.body as any).contextMessages, assignedSkills, currentAgentWorkspaceDir)
     : message

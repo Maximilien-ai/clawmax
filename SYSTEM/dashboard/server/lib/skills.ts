@@ -699,6 +699,7 @@ export function getAssignedSkillPromptNotes(skillIds: string[]): string[] {
       '- `clawmax-resend`: to send email, use the `clawmax-resend-send` command.',
       '- When the user gives an explicit recipient and clear email intent, run `clawmax-resend-send` immediately instead of describing a plan.',
       '- Only report that the resend tool is unavailable or failed if you actually ran `clawmax-resend-send` and it returned an error.',
+      '- If `clawmax-resend-send` returns an error, stop and report that exact error. Do not retry with another method in the same turn.',
       '- Do not claim an email was sent unless `clawmax-resend-send` returned a success message.',
       '- After a successful send, confirm briefly. If the command did not confirm success, report the failure instead of implying delivery.',
       '- Do not use generic message/email channel tools when `clawmax-resend` is assigned.',

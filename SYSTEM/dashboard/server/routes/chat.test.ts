@@ -4,7 +4,14 @@
  * Run with: npx ts-node --transpileOnly server/routes/chat.test.ts
  */
 
-import { buildManagedSecretStatelessChatMessage, deriveChatError, hasByokExecutionPathForProvider, resolveByokChatFallbackModel, shouldUseLocalChatExecution } from './chat'
+import {
+  buildManagedResendDispatch,
+  buildManagedSecretStatelessChatMessage,
+  deriveChatError,
+  hasByokExecutionPathForProvider,
+  resolveByokChatFallbackModel,
+  shouldUseLocalChatExecution,
+} from './chat'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
@@ -159,6 +166,7 @@ test('buildManagedSecretStatelessChatMessage surfaces assigned skill paths for g
   assert(prompt.includes('`clawmax-resend`: to send email, use the `clawmax-resend-send` command.'), 'Expected explicit resend command note in stateless prompt')
   assert(prompt.includes('When the user gives an explicit recipient and clear email intent, run `clawmax-resend-send` immediately instead of describing a plan.'), 'Expected explicit direct-execution guidance for clawmax-resend')
   assert(prompt.includes('Only report that the resend tool is unavailable or failed if you actually ran `clawmax-resend-send` and it returned an error.'), 'Expected explicit no-hedging guidance for clawmax-resend')
+  assert(prompt.includes('If `clawmax-resend-send` returns an error, stop and report that exact error. Do not retry with another method in the same turn.'), 'Expected explicit terminal resend failure guidance')
   assert(prompt.includes('Do not claim an email was sent unless `clawmax-resend-send` returned a success message.'), 'Expected explicit no-false-success guidance for clawmax-resend')
   assert(prompt.includes('After a successful send, confirm briefly. If the command did not confirm success, report the failure instead of implying delivery.'), 'Expected explicit post-send confirmation rule for clawmax-resend')
   assert(prompt.includes('Do not create local files or tell the user to email something manually when `clawmax-resend` is assigned unless the user explicitly asked for that fallback.'), 'Expected explicit no-manual-fallback note for clawmax-resend')
@@ -195,6 +203,67 @@ test('renderClawmaxAgentEmailHtml renders markdown headings and bullets into HTM
   assert(html.includes('<h3'), 'Expected markdown heading to render as HTML heading')
   assert(html.includes('<ul'), 'Expected markdown bullets to render as HTML list')
   assert(html.includes('<strong>Model:</strong>'), 'Expected markdown bold text to render as HTML strong tags')
+})
+
+test('buildManagedResendDispatch handles explicit status sends without OpenClaw tool detours', () => {
+  const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-resend-dispatch-'))
+  const agentRoot = path.join(workspaceRoot, 'AGENTS', 'jarvis')
+  fs.mkdirSync(agentRoot, { recursive: true })
+  fs.writeFileSync(path.join(agentRoot, 'IDENTITY.md'), '# Identity\n\nName: jarvis\n', 'utf-8')
+
+  const dispatch = buildManagedResendDispatch({
+    message: 'Who are you? Give me a status and send it to mmaximilien@gmail.com.',
+    agentId: 'jarvis',
+    agentWorkspaceDir: agentRoot,
+    model: 'openai/gpt-4o-mini',
+    provider: 'openai',
+    assignedSkillIds: ['clawmax-resend'],
+  })
+
+  if (!dispatch) throw new Error('Expected managed resend dispatch for explicit email request')
+  assert(dispatch.to === 'mmaximilien@gmail.com', 'Expected recipient from explicit email request')
+  assert(dispatch.body.includes('Name: jarvis'), 'Expected current agent identity in managed resend body')
+  assert(dispatch.attachmentPaths.length === 0, 'Expected status send to avoid temporary attachment files')
+})
+
+test('buildManagedResendDispatch attaches current agent protected files directly', () => {
+  const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-resend-dispatch-file-'))
+  const agentRoot = path.join(workspaceRoot, 'AGENTS', 'jarvis')
+  fs.mkdirSync(agentRoot, { recursive: true })
+  const identityPath = path.join(agentRoot, 'IDENTITY.md')
+  fs.writeFileSync(identityPath, '# Identity\n\nName: jarvis\n', 'utf-8')
+
+  const dispatch = buildManagedResendDispatch({
+    message: 'Give me a status and send that to mmaximilien@gmail.com. Also include your identity.md',
+    agentId: 'jarvis',
+    agentWorkspaceDir: agentRoot,
+    model: 'openai/gpt-4o-mini',
+    provider: 'openai',
+    assignedSkillIds: ['clawmax-resend'],
+  })
+
+  if (!dispatch) throw new Error('Expected managed resend dispatch for file email request')
+  assert(dispatch.attachmentPaths.includes(identityPath), 'Expected current agent IDENTITY.md attached directly')
+})
+
+test('buildManagedResendDispatch fails fast for missing explicit files', () => {
+  const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-resend-dispatch-missing-'))
+  const agentRoot = path.join(workspaceRoot, 'AGENTS', 'jarvis')
+  fs.mkdirSync(agentRoot, { recursive: true })
+
+  let threw = false
+  try {
+    buildManagedResendDispatch({
+      message: 'send missing-report.md to mmaximilien@gmail.com',
+      agentId: 'jarvis',
+      agentWorkspaceDir: agentRoot,
+      assignedSkillIds: ['clawmax-resend'],
+    })
+  } catch (err: any) {
+    threw = /Attachment file not found/i.test(err?.message || '')
+  }
+
+  assert(threw, 'Expected missing explicit attachment to fail before OpenClaw execution')
 })
 
 test('sendResendTestEmail rate-limits repeated agent sends to the same recipient', async () => {
