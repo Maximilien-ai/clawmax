@@ -166,6 +166,10 @@ export function buildManagedResendDispatch(input: {
   }
 }
 
+export function shouldAttemptManagedResendDispatch(skillIds: string[]): boolean {
+  return skillIds.includes('clawmax-resend')
+}
+
 function hasText(value?: string): boolean {
   return typeof value === 'string' && value.trim().length > 0
 }
@@ -564,18 +568,18 @@ router.post('/:id/chat', async (req, res) => {
     hasWorkspaceManagedSecrets: hasWorkspaceManagedPartnerSecrets(),
   })
   const useManagedSecretStatelessSession = useLocal && hasWorkspaceManagedPartnerSecrets()
-  const assignedSkills = useManagedSecretStatelessSession
-    ? getAgentSkills(id).map((skillId) => {
-        const skill = getSkillById(skillId)
-        return {
-          id: skillId,
-          filePath: skill?.filePath,
-        }
-      })
-    : []
+  const agentSkillIds = getAgentSkills(id)
+  const allAssignedSkills = agentSkillIds.map((skillId) => {
+    const skill = getSkillById(skillId)
+    return {
+      id: skillId,
+      filePath: skill?.filePath,
+    }
+  })
+  const assignedSkills = useManagedSecretStatelessSession ? allAssignedSkills : []
   const currentAgentWorkspaceDir = path.join(effectiveWorkspaceRoot, 'AGENTS', id)
   let managedResendDispatch: ManagedResendDispatch | null = null
-  if (useManagedSecretStatelessSession) {
+  if (shouldAttemptManagedResendDispatch(agentSkillIds)) {
     try {
       managedResendDispatch = buildManagedResendDispatch({
         message,
@@ -584,7 +588,7 @@ router.post('/:id/chat', async (req, res) => {
         model: resolvedAgent.model,
         provider: resolvedAgent.provider,
         contextMessages: (req.body as any).contextMessages,
-        assignedSkillIds: assignedSkills.map((skill) => skill.id),
+        assignedSkillIds: agentSkillIds,
       })
     } catch (err: any) {
       clearInterval(keepalive)

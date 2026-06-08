@@ -10,6 +10,7 @@ import {
   deriveChatError,
   hasByokExecutionPathForProvider,
   resolveByokChatFallbackModel,
+  shouldAttemptManagedResendDispatch,
   shouldUseLocalChatExecution,
 } from './chat'
 import fs from 'fs'
@@ -224,6 +225,11 @@ test('buildManagedResendDispatch handles explicit status sends without OpenClaw 
   assert(dispatch.to === 'mmaximilien@gmail.com', 'Expected recipient from explicit email request')
   assert(dispatch.body.includes('Name: jarvis'), 'Expected current agent identity in managed resend body')
   assert(dispatch.attachmentPaths.length === 0, 'Expected status send to avoid temporary attachment files')
+})
+
+test('shouldAttemptManagedResendDispatch only depends on assigned clawmax-resend skill', () => {
+  assert(shouldAttemptManagedResendDispatch(['clawmax-resend']), 'Expected assigned clawmax-resend to enable managed dispatch')
+  assert(!shouldAttemptManagedResendDispatch(['gog']), 'Expected unrelated skills not to enable managed dispatch')
 })
 
 test('buildManagedResendDispatch attaches current agent protected files directly', () => {
