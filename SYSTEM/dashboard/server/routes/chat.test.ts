@@ -21,17 +21,20 @@ const RESET = '\x1b[0m'
 
 let testsPassed = 0
 let testsFailed = 0
+let testChain: Promise<void> = Promise.resolve()
 
-function test(name: string, fn: () => void) {
-  try {
-    fn()
-    console.log(`${GREEN}✓${RESET} ${name}`)
-    testsPassed++
-  } catch (err: any) {
-    console.log(`${RED}✗${RESET} ${name}`)
-    console.error(`  Error: ${err.message}`)
-    testsFailed++
-  }
+function test(name: string, fn: () => void | Promise<void>) {
+  testChain = testChain.then(async () => {
+    try {
+      await fn()
+      console.log(`${GREEN}✓${RESET} ${name}`)
+      testsPassed++
+    } catch (err: any) {
+      console.log(`${RED}✗${RESET} ${name}`)
+      console.error(`  Error: ${err.message}`)
+      testsFailed++
+    }
+  })
 }
 
 function assert(condition: boolean, message: string) {
@@ -232,7 +235,32 @@ test('sendResendTestEmail rate-limits repeated agent sends to the same recipient
   assert(threw, 'Expected repeated agent send to be rate-limited')
 })
 
-setTimeout(() => {
+test('sendResendTestEmail sends with an abort timeout signal', async () => {
+  resetResendSendGuardrailsForTests()
+  let capturedInit: RequestInit | undefined
+  const fakeFetch: any = async (_url: string, init: RequestInit) => {
+    capturedInit = init
+    return {
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ id: 'email_timeout_test' }),
+    }
+  }
+
+  await sendResendTestEmail({
+    apiKey: 're_test_123',
+    agentId: 'timeout-agent',
+    workspaceLabel: 'test-1.7.x',
+    to: 'mmaximilien@gmail.com',
+    subject: 'status',
+    text: 'ready',
+  }, fakeFetch)
+
+  assert(capturedInit?.signal instanceof AbortSignal, 'Expected Resend fetch to include an AbortSignal timeout')
+  resetResendSendGuardrailsForTests()
+})
+
+testChain.then(() => {
   console.log('\n========================================')
   console.log(`Tests passed: ${testsPassed}`)
   console.log(`Tests failed: ${testsFailed}`)
@@ -244,4 +272,7 @@ setTimeout(() => {
   } else {
     console.log(`${GREEN}All tests passed${RESET}`)
   }
-}, 0)
+}).catch((err) => {
+  console.error(err)
+  process.exit(1)
+})

@@ -30,6 +30,7 @@ type FetchLike = typeof fetch
 const RESEND_EMAILS_ENDPOINT = 'https://api.resend.com/emails'
 const EXACT_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const MAX_ATTACHMENT_BYTES = 30 * 1024 * 1024
+const RESEND_SEND_TIMEOUT_MS = 15_000
 const RESEND_AGENT_SEND_COOLDOWN_MS = 30_000
 const RESEND_AGENT_SEND_HOURLY_LIMIT = 20
 const resendSendHistory = new Map<string, number[]>()
@@ -396,6 +397,7 @@ export async function sendResendTestEmail(
 
   const response = await fetchImpl(RESEND_EMAILS_ENDPOINT, {
     method: 'POST',
+    signal: AbortSignal.timeout(RESEND_SEND_TIMEOUT_MS),
     headers: {
       Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
