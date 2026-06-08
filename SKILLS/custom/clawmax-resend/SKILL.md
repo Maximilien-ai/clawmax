@@ -17,6 +17,8 @@ Use this skill to send outbound email through the ClawMax Resend bridge.
 ## Rules
 - This skill is a local capability, not an agent, channel, or session target.
 - Use `clawmax-resend-send` in the current agent session.
+- When the user gives an explicit recipient and clear email intent, run `clawmax-resend-send` immediately instead of describing what you plan to do.
+- Only say the tool is unavailable or failed if you actually ran `clawmax-resend-send` and it returned an error.
 - Do **not** use `sessions_send`, `sessions_spawn`, or agent-to-agent messaging for this skill.
 - Do **not** delegate email sending to subagents.
 - Do **not** use generic message/email channel tools when this skill is assigned.
@@ -30,6 +32,8 @@ Use this skill to send outbound email through the ClawMax Resend bridge.
 
 ## File Sends
 - For requests like `send your identity.md`, use `clawmax-resend-send --attach <path>`.
+- For requests like `send your soul.md file to mmaximilien@gmail.com`, run:
+  `clawmax-resend-send --to "mmaximilien@gmail.com" --subject "SOUL.md from <agent>" --body "Attached is SOUL.md from <agent>." --attach "<path to SOUL.md>"`
 - Attach the original file as-is.
 - Do **not** paste file contents into a generic message tool.
 - Do **not** edit, patch, rewrite, or create copied workspace files such as `identity_identity.md` or `soul_copy.md` while preparing an attachment.
