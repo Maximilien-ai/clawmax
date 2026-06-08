@@ -7,7 +7,11 @@
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import { executeClawmaxResendSend, parseClawmaxResendSendArgs } from './clawmax-resend-command'
+import {
+  executeClawmaxResendSend,
+  parseClawmaxResendSendArgs,
+  shouldReadClawmaxResendStdin,
+} from './clawmax-resend-command'
 import { resolveWorkspaceEmailAttachments } from './resend-partner'
 
 const GREEN = '\x1b[32m'
@@ -66,6 +70,14 @@ await test('parseClawmaxResendSendArgs reads body-file content', () => {
   )
 
   assert(parsed.body === 'Body from file', 'Expected body loaded from file')
+})
+
+await test('shouldReadClawmaxResendStdin skips stdin when explicit body args are present', () => {
+  assert(shouldReadClawmaxResendStdin(['--to', 'mmaximilien@gmail.com', '--body', 'Inline'], false) === false, 'Expected --body to skip stdin read')
+  assert(shouldReadClawmaxResendStdin(['--body-file', '/tmp/body.txt'], false) === false, 'Expected --body-file to skip stdin read')
+  assert(shouldReadClawmaxResendStdin(['--help'], false) === false, 'Expected --help to skip stdin read')
+  assert(shouldReadClawmaxResendStdin(['--to', 'mmaximilien@gmail.com'], false) === true, 'Expected missing body args to allow stdin read')
+  assert(shouldReadClawmaxResendStdin(['--to', 'mmaximilien@gmail.com'], true) === false, 'Expected TTY stdin to skip stdin read')
 })
 
 await test('executeClawmaxResendSend calls the shared resend backend with resolved attachments', async () => {

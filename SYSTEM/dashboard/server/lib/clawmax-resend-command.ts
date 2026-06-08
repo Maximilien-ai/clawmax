@@ -19,6 +19,11 @@ export type ClawmaxResendSendOptions = {
 
 type SendResult = Awaited<ReturnType<typeof sendResendTestEmail>>
 
+export function shouldReadClawmaxResendStdin(argv: string[], stdinIsTty?: boolean): boolean {
+  if (stdinIsTty) return false
+  return !argv.some((arg) => arg === '--body' || arg === '--body-file' || arg === '--help' || arg === '-h')
+}
+
 export function parseClawmaxResendSendArgs(
   argv: string[],
   env: NodeJS.ProcessEnv = process.env,

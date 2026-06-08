@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 
 import fs from 'fs'
-import { executeClawmaxResendSend, parseClawmaxResendSendArgs } from '../lib/clawmax-resend-command'
+import {
+  executeClawmaxResendSend,
+  parseClawmaxResendSendArgs,
+  shouldReadClawmaxResendStdin,
+} from '../lib/clawmax-resend-command'
 
 function printHelp() {
   console.log(`Usage:
@@ -22,8 +26,9 @@ You can also pipe the body through stdin if --body/--body-file are omitted.`)
 
 async function main() {
   try {
-    const stdinBody = !process.stdin.isTTY ? fs.readFileSync(0, 'utf-8') : ''
-    const options = parseClawmaxResendSendArgs(process.argv.slice(2), process.env, stdinBody)
+    const argv = process.argv.slice(2)
+    const stdinBody = shouldReadClawmaxResendStdin(argv, process.stdin.isTTY) ? fs.readFileSync(0, 'utf-8') : ''
+    const options = parseClawmaxResendSendArgs(argv, process.env, stdinBody)
     const result = await executeClawmaxResendSend(options)
     console.log(result.message)
   } catch (err: any) {
