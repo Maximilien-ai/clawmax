@@ -28,6 +28,8 @@ Use this skill to send outbound email through the ClawMax Resend bridge.
 
 ## Content Sends
 - For requests like `send that status` or `send both responses`, combine the relevant prior assistant content into one email body and send it with `clawmax-resend-send`.
+- For inline content sends, do **not** create temporary files such as `current_status.txt` or `summary.md`. Pass the content directly with `--body`.
+- Do **not** spawn subagents or wait on other sessions for normal resend content sends.
 - For summaries, status updates, and other generated writeups, put the content directly in the email body by default.
 - Do **not** create `summary.md` or attach a generated file unless the user explicitly asks for a file or attachment.
 - Reuse the most recent recipient if the user says `same email`.
