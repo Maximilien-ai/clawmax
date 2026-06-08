@@ -587,7 +587,7 @@ else
 fi
 
 echo -e "${YELLOW}→ Running ClawMax Resend wrapper shell tests...${NC}"
-sh ./clawmax-resend-wrapper.test.sh > /tmp/clawmax-resend-wrapper.out 2>&1 || true
+sh "$SYSTEM_DIR/clawmax-resend-wrapper.test.sh" > /tmp/clawmax-resend-wrapper.out 2>&1 || true
 if grep -q "clawmax resend wrapper tests passed" /tmp/clawmax-resend-wrapper.out; then
   pass "ClawMax Resend wrapper shell tests (1 tests)"
 else
