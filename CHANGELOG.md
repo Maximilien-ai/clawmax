@@ -6,7 +6,7 @@ All notable changes to ClawMax are documented here.
 
 - No unreleased changes yet.
 
-## [v1.7.8] - 2026-06-06
+## [v1.7.8] - 2026-06-08
 
 ### Fixed
 - **Bundled ClawMax Skills** — release images now package the first-party ClawMax helper skills used by templates and partner flows, including `clawmax-resend`, `workspace-ls`, and the new `clawmax-workspace-ls`.
@@ -18,6 +18,7 @@ All notable changes to ClawMax are documented here.
 - **Resend Attachment Resolution** — protected agent files such as `IDENTITY.md`, `SOUL.md`, `TOOLS.md`, `HEARTBEAT.md`, `USER.md`, and `AGENTS.md` now resolve from the current agent workspace first, and absolute in-workspace attachment paths are accepted correctly.
 - **Resend Summary/Attachment Guidance** — resend skill guidance now defaults generated summaries and status updates to inline email bodies, forbids subagent delegation for email sending, and keeps file-send requests attached as source files instead of rewriting or copying them.
 - **Rendered Markdown Email Bodies** — the ClawMax Resend HTML wrapper now renders simple markdown structure such as headings, bullet lists, bold text, and inline code into richer HTML for better inbox readability.
+- **Runtime-Managed Resend Dispatch** — cloud and on-prem instances with runtime-injected `RESEND_API_KEY` now use the same explicit managed Resend dispatch path as workspace-managed secrets, avoiding model detours through generic message, web, Slack, or SendGrid tools.
 - **Workspace Agent Visibility Regression** — agents remain visible in the roster even when extra generated artifacts sit beside `IDENTITY.md`, protecting the `resend-agent` style workspace from disappearing out of the Agents list.
 
 ### Testing
