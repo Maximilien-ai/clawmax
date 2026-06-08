@@ -44,6 +44,15 @@ type AssignedChatSkill = {
   filePath?: string
 }
 
+const DIRECT_AGENT_ATTACHMENT_FILES = [
+  'IDENTITY.md',
+  'SOUL.md',
+  'TOOLS.md',
+  'HEARTBEAT.md',
+  'USER.md',
+  'AGENTS.md',
+] as const
+
 function hasText(value?: string): boolean {
   return typeof value === 'string' && value.trim().length > 0
 }
@@ -94,6 +103,7 @@ export function buildManagedSecretStatelessChatMessage(
   message: string,
   contextMessages: ChatContextMessage[] = [],
   assignedSkills: AssignedChatSkill[] = [],
+  agentWorkspaceDir?: string,
 ): string {
   const recentContext = contextMessages
     .filter((entry) => entry && (entry.role === 'user' || entry.role === 'assistant'))
@@ -115,6 +125,14 @@ export function buildManagedSecretStatelessChatMessage(
 
   if (assignedSkills.length > 0) {
     const promptNotes = getAssignedSkillPromptNotes(assignedSkills.map((skill) => skill.id))
+    const directAttachmentLines = agentWorkspaceDir
+      ? [
+          'Current agent file paths you may attach directly with `clawmax-resend-send --attach`:',
+          ...DIRECT_AGENT_ATTACHMENT_FILES.map((fileName) => `- ${fileName}: ${path.join(agentWorkspaceDir, fileName)}`),
+          '- For these current-agent files, do not use gateway file_fetch first. Pass the file path directly to `clawmax-resend-send --attach`.',
+          '',
+        ]
+      : []
     sections.push(
       'Assigned skills for this turn:',
       ...assignedSkills.map((skill) => `- ${skill.id}${skill.filePath ? ` (${skill.filePath})` : ''}`),
@@ -122,6 +140,7 @@ export function buildManagedSecretStatelessChatMessage(
       'These are local skills/capabilities for this agent, not agents, channels, or session targets.',
       'Do not use sessions_send, sessions_spawn, or agent-to-agent messaging with a skill name.',
       ...(promptNotes.length > 0 ? ['Assigned skill usage notes:', ...promptNotes, ''] : []),
+      ...directAttachmentLines,
       'If the request matches one of these assigned skills, read that SKILL.md first and follow it before using generic tools like message or exec.',
       '',
     )
@@ -441,8 +460,9 @@ router.post('/:id/chat', async (req, res) => {
         }
       })
     : []
+  const currentAgentWorkspaceDir = path.join(effectiveWorkspaceRoot, 'AGENTS', id)
   const executionMessage = useManagedSecretStatelessSession
-    ? buildManagedSecretStatelessChatMessage(message, (req.body as any).contextMessages, assignedSkills)
+    ? buildManagedSecretStatelessChatMessage(message, (req.body as any).contextMessages, assignedSkills, currentAgentWorkspaceDir)
     : message
   const args = [
     'agent',

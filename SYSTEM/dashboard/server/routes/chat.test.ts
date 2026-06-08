@@ -145,6 +145,7 @@ test('buildManagedSecretStatelessChatMessage surfaces assigned skill paths for g
     [
       { id: 'clawmax-resend', filePath: '/tmp/SKILLS/custom/clawmax-resend/SKILL.md' },
     ],
+    '/app/DATA/default/AGENTS/resend-agent',
   )
 
   assert(prompt.includes('Assigned skills for this turn:'), 'Expected assigned skill block in stateless prompt')
@@ -163,6 +164,9 @@ test('buildManagedSecretStatelessChatMessage surfaces assigned skill paths for g
   assert(prompt.includes('Do not create copied workspace files such as `identity_identity.md` or `soul_copy.md` while preparing an attachment; attach the original file directly.'), 'Expected explicit no-copy guidance for attachments')
   assert(prompt.includes('Do not delegate email sending to subagents. Run `clawmax-resend-send` in the current agent session.'), 'Expected explicit no-subagent guidance for clawmax-resend')
   assert(prompt.includes('If the user says "same email", reuse the most recent recipient email from the current conversation.'), 'Expected explicit same-email reuse guidance')
+  assert(prompt.includes('Current agent file paths you may attach directly with `clawmax-resend-send --attach`:'), 'Expected direct attachment path section for current agent files')
+  assert(prompt.includes('/app/DATA/default/AGENTS/resend-agent/SOUL.md'), 'Expected explicit current-agent SOUL.md path in stateless prompt')
+  assert(prompt.includes('For these current-agent files, do not use gateway file_fetch first. Pass the file path directly to `clawmax-resend-send --attach`.'), 'Expected explicit no-file-fetch guidance for protected current-agent files')
   assert(prompt.includes('read that SKILL.md first and follow it before using generic tools like message or exec'), 'Expected generic tool-selection guidance')
   assert(prompt.includes('Latest user request: send both responses to mmaximilien@gmail.com'), 'Expected latest request to remain present')
 })
