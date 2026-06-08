@@ -1,7 +1,28 @@
 #!/bin/sh
 set -eu
 
-ROOT_DIR="$(CDPATH= cd -- "$(dirname "$0")" && pwd)"
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname "$0")" && pwd)"
+
+resolve_root_dir() {
+  if [ -n "${CLAWMAX_REPO_ROOT:-}" ] && [ -d "${CLAWMAX_REPO_ROOT}/SYSTEM/dashboard" ]; then
+    printf '%s\n' "${CLAWMAX_REPO_ROOT}/SYSTEM/dashboard"
+    return 0
+  fi
+
+  if [ -d "$SCRIPT_DIR/dist/server" ] || [ -d "$SCRIPT_DIR/server/scripts" ]; then
+    printf '%s\n' "$SCRIPT_DIR"
+    return 0
+  fi
+
+  if [ -d "/app/SYSTEM/dashboard/dist/server" ] || [ -d "/app/SYSTEM/dashboard/server/scripts" ]; then
+    printf '%s\n' "/app/SYSTEM/dashboard"
+    return 0
+  fi
+
+  printf '%s\n' "$SCRIPT_DIR"
+}
+
+ROOT_DIR="$(resolve_root_dir)"
 DIST_SCRIPT="$ROOT_DIR/dist/server/scripts/clawmax-resend-send.js"
 SRC_SCRIPT="$ROOT_DIR/server/scripts/clawmax-resend-send.ts"
 

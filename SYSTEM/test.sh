@@ -586,6 +586,15 @@ else
   fail "ClawMax Resend command unit tests"
 fi
 
+echo -e "${YELLOW}→ Running ClawMax Resend wrapper shell tests...${NC}"
+sh ./clawmax-resend-wrapper.test.sh > /tmp/clawmax-resend-wrapper.out 2>&1 || true
+if grep -q "clawmax resend wrapper tests passed" /tmp/clawmax-resend-wrapper.out; then
+  pass "ClawMax Resend wrapper shell tests (1 tests)"
+else
+  cat /tmp/clawmax-resend-wrapper.out
+  fail "ClawMax Resend wrapper shell tests"
+fi
+
 echo -e "${YELLOW}→ Running Workspace status unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/workspace-status.test.ts > /tmp/clawmax-workspace-status.out 2>&1 || true
 if grep -q "Tests failed: 0" /tmp/clawmax-workspace-status.out; then
