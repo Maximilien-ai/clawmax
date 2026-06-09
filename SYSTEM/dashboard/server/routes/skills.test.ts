@@ -172,9 +172,9 @@ async function run() {
     assert.strictEqual(res.statusCode, 200, 'Expected Cognee partner uninstall to return HTTP 200')
     assert.deepStrictEqual(calls[0], {
       file: 'openclaw',
-      args: ['plugins', 'uninstall', '@cognee/cognee-openclaw'],
+      args: ['plugins', 'uninstall', 'cognee-openclaw', '--force'],
     })
-    assert.strictEqual(res.jsonBody?.command, 'openclaw plugins uninstall @cognee/cognee-openclaw', 'Expected command display in response')
+    assert.strictEqual(res.jsonBody?.command, 'openclaw plugins uninstall cognee-openclaw --force', 'Expected command display in response')
     assert.strictEqual(res.jsonBody?.stdout, 'removed cognee', 'Expected uninstaller stdout in response')
   })
 

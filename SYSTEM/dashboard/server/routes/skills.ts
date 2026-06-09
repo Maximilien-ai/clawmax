@@ -1285,6 +1285,7 @@ async function runCuratedPartnerInstaller(req: any, res: any, action: 'install' 
       timeout: 180000,
       env: safeEnv(),
       maxBuffer: 1024 * 1024 * 8,
+      input: '',
     })
     const stdout = typeof result === 'string' ? result : result?.stdout
     const stderr = typeof result === 'string' ? '' : result?.stderr

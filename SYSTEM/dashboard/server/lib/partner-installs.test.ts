@@ -41,7 +41,7 @@ test('getCuratedPartnerInstaller exposes only the allowlisted Cognee OpenClaw in
   assert(installer !== null, 'Expected Cognee OpenClaw installer')
   assert(installer?.pluginId === 'cognee-openclaw', 'Expected Cognee plugin id')
   assert(installer?.installCommand.join(' ') === 'openclaw plugins install @cognee/cognee-openclaw@latest', `Unexpected Cognee installer command: ${installer?.installCommand.join(' ')}`)
-  assert(installer?.uninstallCommand.join(' ') === 'openclaw plugins uninstall @cognee/cognee-openclaw', `Unexpected Cognee uninstall command: ${installer?.uninstallCommand.join(' ')}`)
+  assert(installer?.uninstallCommand.join(' ') === 'openclaw plugins uninstall cognee-openclaw --force', `Unexpected Cognee uninstall command: ${installer?.uninstallCommand.join(' ')}`)
   assert(installer?.source === 'openclaw', 'Expected OpenClaw installer source')
 })
 

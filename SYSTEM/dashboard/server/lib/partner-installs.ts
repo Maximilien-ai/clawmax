@@ -13,7 +13,7 @@ const CURATED_PARTNER_INSTALLERS: Record<string, CuratedPartnerInstaller> = {
     pluginId: 'cognee-openclaw',
     label: 'Install Cognee OpenClaw plugin',
     installCommand: ['openclaw', 'plugins', 'install', '@cognee/cognee-openclaw@latest'],
-    uninstallCommand: ['openclaw', 'plugins', 'uninstall', '@cognee/cognee-openclaw'],
+    uninstallCommand: ['openclaw', 'plugins', 'uninstall', 'cognee-openclaw', '--force'],
     source: 'openclaw',
   },
 }
