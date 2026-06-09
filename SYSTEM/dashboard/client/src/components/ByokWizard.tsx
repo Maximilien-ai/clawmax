@@ -83,6 +83,15 @@ type WorkspaceIntegrationConfig = {
 type PartnerValueMap = Record<string, Record<string, string>>
 type PartnerSecretPresence = Record<string, Record<string, boolean>>
 type ScopedValidationTarget = 'all' | 'current-partner' | 'openai' | 'openaiCompatible' | 'anthropic' | 'gemini' | 'ollama'
+type PartnerPluginAction = 'install' | 'uninstall'
+type PartnerPluginRun = {
+  slug: string
+  name: string
+  action: PartnerPluginAction
+  status: 'running' | 'success' | 'error'
+  logs: string[]
+  error?: string
+}
 
 const localDevOllamaBaseUrl = 'http://localhost:11434'
 const localDevOpenAiCompatibleBaseUrl = 'http://127.0.0.1:1234/v1'
@@ -219,8 +228,9 @@ export function ByokWizard({
   const [availableModelsLoading, setAvailableModelsLoading] = useState(false)
   const [modelsByProvider, setModelsByProvider] = useState<ModelsByProvider>({})
   const [showAllDiscoveredModels, setShowAllDiscoveredModels] = useState(false)
-  const [partnerInstallState, setPartnerInstallState] = useState<Record<string, 'idle' | 'installing'>>({})
+  const [partnerInstallState, setPartnerInstallState] = useState<Record<string, 'idle' | 'installing' | 'uninstalling'>>({})
   const [installedPartnerSkillSlugs, setInstalledPartnerSkillSlugs] = useState<Set<string>>(new Set())
+  const [partnerPluginRun, setPartnerPluginRun] = useState<PartnerPluginRun | null>(null)
   const preferredModelRef = useRef<HTMLSelectElement | null>(null)
   const [highlightPreferredModel, setHighlightPreferredModel] = useState(false)
   const [modelTab, setModelTab] = useState<ModelTab>('openai')
@@ -1498,6 +1508,77 @@ export function ByokWizard({
     return partner.description
   }
 
+  async function runPartnerPluginAction(partner: PartnerDefinition, action: PartnerPluginAction) {
+    if (!partner.skills?.commandId) return
+    const endpoint = action === 'install' ? '/api/skills/partner-install' : '/api/skills/partner-uninstall'
+    const actionLabel = action === 'install' ? 'Install' : 'Uninstall'
+    const presentParticiple = action === 'install' ? 'Installing' : 'Uninstalling'
+
+    setPartnerInstallState((current) => ({ ...current, [partner.slug]: action === 'install' ? 'installing' : 'uninstalling' }))
+    setPartnerPluginRun({
+      slug: partner.slug,
+      name: partner.name,
+      action,
+      status: 'running',
+      logs: [
+        `# ${actionLabel} ${partner.name} partner plugin`,
+        `${presentParticiple} via the dashboard's curated OpenClaw plugin allowlist...`,
+        'Waiting for OpenClaw command output...',
+      ],
+    })
+
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ commandId: partner.skills.commandId }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.detail || data.error || `Failed to ${action} ${partner.name} plugin`)
+      const nextLogs = [
+        `# ${actionLabel} ${partner.name} partner plugin`,
+        data.command ? `$ ${data.command}` : `${presentParticiple} partner plugin...`,
+      ]
+      if (data.stdout) nextLogs.push(data.stdout)
+      if (data.stderr) nextLogs.push(data.stderr)
+      nextLogs.push(`✓ ${actionLabel} completed for ${partner.name}`)
+      setPartnerPluginRun({
+        slug: partner.slug,
+        name: partner.name,
+        action,
+        status: 'success',
+        logs: nextLogs,
+      })
+      if (action === 'install') {
+        showSuccess(`${partner.name} plugin installed`)
+        setInstalledPartnerSkillSlugs((current) => new Set([...current, partner.slug]))
+      } else {
+        showSuccess(`${partner.name} plugin uninstalled`)
+        setInstalledPartnerSkillSlugs((current) => {
+          const next = new Set(current)
+          next.delete(partner.slug)
+          return next
+        })
+      }
+    } catch (err: any) {
+      const message = err.message || `Failed to ${action} ${partner.name} plugin`
+      setPartnerPluginRun((current) => ({
+        slug: partner.slug,
+        name: partner.name,
+        action,
+        status: 'error',
+        logs: [
+          ...(current?.logs || [`# ${actionLabel} ${partner.name} partner plugin`]),
+          `✗ ${message}`,
+        ],
+        error: message,
+      }))
+      showWarning(message)
+    } finally {
+      setPartnerInstallState((current) => ({ ...current, [partner.slug]: 'idle' }))
+    }
+  }
+
   const renderPartnerSkillsNote = (partner: PartnerDefinition) => {
     const openSkillFromPartner = (skillName: string) => {
       window.dispatchEvent(new CustomEvent('clawmax-open-skill-search', { detail: { skill: skillName } }))
@@ -1544,45 +1625,34 @@ export function ByokWizard({
       )
     }
     if (partner.skills.mode === 'curated-installer') {
-      const installing = partnerInstallState[partner.slug] === 'installing'
+      const running = partnerInstallState[partner.slug] === 'installing' || partnerInstallState[partner.slug] === 'uninstalling'
       return (
         <div className="mt-2 flex items-center gap-3">
           <div className="text-xs opacity-80">
             {partner.skills.label || 'Curated skill install available'}.
             <span className="ml-1">Usually takes 1-3 minutes.</span>
           </div>
-          {installedPartnerSkillSlugs.has(partner.slug) ? (
+          {installedPartnerSkillSlugs.has(partner.slug) && (
             <span className="px-2.5 py-1 text-[11px] rounded-md border border-gray-200 dark:border-gray-700 text-gray-400 dark:text-gray-500">
               Installed
             </span>
-          ) : (
-            <button
-              type="button"
-              disabled={installing}
-              onClick={async () => {
-                if (!partner.skills?.commandId) return
-                setPartnerInstallState((current) => ({ ...current, [partner.slug]: 'installing' }))
-                try {
-                  const res = await fetch('/api/skills/partner-install', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ commandId: partner.skills.commandId }),
-                  })
-                  const data = await res.json().catch(() => ({}))
-                  if (!res.ok) throw new Error(data.detail || data.error || 'Failed to install partner skills')
-                  showSuccess(`${partner.name} skills installed`)
-                  setInstalledPartnerSkillSlugs((current) => new Set([...current, partner.slug]))
-                } catch (err: any) {
-                  showWarning(err.message || `Failed to install ${partner.name} skills`)
-                } finally {
-                  setPartnerInstallState((current) => ({ ...current, [partner.slug]: 'idle' }))
-                }
-              }}
-              className="px-2.5 py-1 text-[11px] rounded-md border border-sky-300 dark:border-sky-700 text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors disabled:opacity-60"
-            >
-              {installing ? 'Installing…' : 'Install Skills'}
-            </button>
           )}
+          <button
+            type="button"
+            disabled={running}
+            onClick={() => void runPartnerPluginAction(partner, 'install')}
+            className="px-2.5 py-1 text-[11px] rounded-md border border-sky-300 dark:border-sky-700 text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors disabled:opacity-60"
+          >
+            {partnerInstallState[partner.slug] === 'installing' ? 'Installing…' : 'Install Plugin'}
+          </button>
+          <button
+            type="button"
+            disabled={running}
+            onClick={() => void runPartnerPluginAction(partner, 'uninstall')}
+            className="px-2.5 py-1 text-[11px] rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-60"
+          >
+            {partnerInstallState[partner.slug] === 'uninstalling' ? 'Uninstalling…' : 'Uninstall'}
+          </button>
         </div>
       )
     }
@@ -2509,6 +2579,64 @@ export function ByokWizard({
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+      {partnerPluginRun && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-3xl rounded-xl bg-white shadow-xl dark:bg-gray-800">
+            <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-700">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                  {partnerPluginRun.action === 'install' ? 'Install Partner Plugin' : 'Uninstall Partner Plugin'}
+                </h2>
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                  {partnerPluginRun.action === 'install' ? 'Installing' : 'Uninstalling'} <span className="font-medium text-gray-900 dark:text-gray-100">{partnerPluginRun.name}</span> through the curated OpenClaw plugin allowlist.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (partnerPluginRun.status === 'running') return
+                  setPartnerPluginRun(null)
+                }}
+                className="text-2xl leading-none text-gray-400 hover:text-gray-600 disabled:cursor-not-allowed dark:hover:text-gray-300"
+                disabled={partnerPluginRun.status === 'running'}
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="space-y-4 px-6 py-4">
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+                Installing or uninstalling partner plugins can modify this dashboard runtime. Review the command output below.
+              </div>
+              <div className="bg-gray-900 text-green-400 font-mono text-xs rounded-lg p-3 h-64 overflow-y-auto whitespace-pre-wrap">
+                {partnerPluginRun.logs.join('\n')}
+                {partnerPluginRun.status === 'running' && <span className="animate-pulse">▌</span>}
+              </div>
+              {partnerPluginRun.error && (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300">
+                  {partnerPluginRun.error}
+                </div>
+              )}
+              {partnerPluginRun.status === 'success' && (
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-300">
+                  {partnerPluginRun.action === 'install' ? 'Install completed.' : 'Uninstall completed.'} Restart the dashboard/runtime if OpenClaw reports that plugin discovery needs a refresh.
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-3 border-t border-gray-200 px-6 py-4 dark:border-gray-700">
+              <button
+                type="button"
+                onClick={() => setPartnerPluginRun(null)}
+                disabled={partnerPluginRun.status === 'running'}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

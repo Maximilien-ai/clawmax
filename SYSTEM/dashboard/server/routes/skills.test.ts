@@ -138,6 +138,46 @@ async function run() {
     assert.strictEqual(res.jsonBody?.commands?.length, expectedCommands.length, 'Expected displayed commands to match executed commands')
   })
 
+  await test('partner-install runs the allowlisted Cognee OpenClaw plugin installer', async () => {
+    const calls: Array<{ file: string; args: string[] }> = []
+    execFileMock = (file, args, _options, callback) => {
+      calls.push({ file, args })
+      callback(null, 'installed cognee', 'install note')
+    }
+
+    const handler = getRouteHandler('post', '/partner-install')
+    const res = makeRes()
+    await handler(makeReq({ body: { commandId: 'cognee-openclaw' } }), res)
+
+    assert.strictEqual(res.statusCode, 200, 'Expected Cognee partner install to return HTTP 200')
+    assert.deepStrictEqual(calls[0], {
+      file: 'openclaw',
+      args: ['plugins', 'install', '@cognee/cognee-openclaw@latest'],
+    })
+    assert.strictEqual(res.jsonBody?.command, 'openclaw plugins install @cognee/cognee-openclaw@latest', 'Expected command display in response')
+    assert.strictEqual(res.jsonBody?.stdout, 'installed cognee', 'Expected installer stdout in response')
+  })
+
+  await test('partner-uninstall runs the allowlisted Cognee OpenClaw plugin uninstaller', async () => {
+    const calls: Array<{ file: string; args: string[] }> = []
+    execFileMock = (file, args, _options, callback) => {
+      calls.push({ file, args })
+      callback(null, 'removed cognee', '')
+    }
+
+    const handler = getRouteHandler('post', '/partner-uninstall')
+    const res = makeRes()
+    await handler(makeReq({ body: { commandId: 'cognee-openclaw' } }), res)
+
+    assert.strictEqual(res.statusCode, 200, 'Expected Cognee partner uninstall to return HTTP 200')
+    assert.deepStrictEqual(calls[0], {
+      file: 'openclaw',
+      args: ['plugins', 'uninstall', '@cognee/cognee-openclaw'],
+    })
+    assert.strictEqual(res.jsonBody?.command, 'openclaw plugins uninstall @cognee/cognee-openclaw', 'Expected command display in response')
+    assert.strictEqual(res.jsonBody?.stdout, 'removed cognee', 'Expected uninstaller stdout in response')
+  })
+
   await test('complete-setup returns actionable input errors for gog when required fields are missing', async () => {
     const handler = getRouteHandler('post', '/:skillId/complete-setup')
     const res = makeRes()

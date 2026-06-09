@@ -36,6 +36,16 @@ import { buildServerManagedWorkspaceEntries } from '../lib/keysSecretsInventory'
 const API_BASE = ''
 const SKILLS_VIEW_MODE_STORAGE_KEY = 'clawmax-skills-view-mode'
 
+type PartnerPluginAction = 'install' | 'uninstall'
+type PartnerPluginRun = {
+  slug: string
+  name: string
+  action: PartnerPluginAction
+  status: 'running' | 'success' | 'error'
+  logs: string[]
+  error?: string
+}
+
 function SkillsListTable({
   skills,
   assignedSkills,
@@ -412,6 +422,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
   }>>([])
   const [focusedPartnerSlug, setFocusedPartnerSlug] = useState<string | null>(null)
   const [partnerInstalling, setPartnerInstalling] = useState<string | null>(null)
+  const [partnerPluginRun, setPartnerPluginRun] = useState<PartnerPluginRun | null>(null)
   const [installedPartnerSlugs, setInstalledPartnerSlugs] = useState<Set<string>>(new Set())
   const [showPartnerInstallers, setShowPartnerInstallers] = useState(false)
   const [showAllSkillTags, setShowAllSkillTags] = useState(false)
@@ -1067,6 +1078,93 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
       setError(err.message || `Failed to import ${partner.name} skills`)
     } finally {
       setImporting(false)
+    }
+  }
+
+  async function runPartnerPluginAction(partner: {
+    slug: string
+    name: string
+    skills: { commandId?: string }
+  }, action: PartnerPluginAction) {
+    if (!partner.skills.commandId) return
+    const endpoint = action === 'install' ? '/api/skills/partner-install' : '/api/skills/partner-uninstall'
+    const actionLabel = action === 'install' ? 'Install' : 'Uninstall'
+    const presentParticiple = action === 'install' ? 'Installing' : 'Uninstalling'
+    const existingSkillNames = new Set(allSkills.map((skill) => skill.name))
+
+    setPartnerInstalling(partner.slug)
+    setError(null)
+    setPartnerPluginRun({
+      slug: partner.slug,
+      name: partner.name,
+      action,
+      status: 'running',
+      logs: [
+        `# ${actionLabel} ${partner.name} partner plugin`,
+        `${presentParticiple} via the dashboard's curated OpenClaw plugin allowlist...`,
+        'Waiting for OpenClaw command output...',
+      ],
+    })
+
+    try {
+      const resp = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ commandId: partner.skills.commandId }),
+      })
+      const data = await resp.json().catch(() => ({}))
+      if (!resp.ok) {
+        throw new Error(data.detail || data.error || `${actionLabel} failed`)
+      }
+      const nextLogs = [
+        `# ${actionLabel} ${partner.name} partner plugin`,
+        data.command ? `$ ${data.command}` : `${presentParticiple} partner plugin...`,
+      ]
+      if (data.stdout) nextLogs.push(data.stdout)
+      if (data.stderr) nextLogs.push(data.stderr)
+      nextLogs.push(`✓ ${actionLabel} completed for ${partner.name}`)
+      setPartnerPluginRun({
+        slug: partner.slug,
+        name: partner.name,
+        action,
+        status: 'success',
+        logs: nextLogs,
+      })
+      if (action === 'install') {
+        showSuccess(`Installed ${partner.name} plugin`)
+        setInstalledPartnerSlugs((current) => new Set([...current, partner.slug]))
+        const loadedSkills = await loadSkills()
+        const addedSkills = loadedSkills
+          .map((skill) => skill.name)
+          .filter((skillName) => !existingSkillNames.has(skillName))
+        if (addedSkills.length > 0) {
+          await warnForSkillSetupByNames(addedSkills)
+        }
+      } else {
+        showSuccess(`Uninstalled ${partner.name} plugin`)
+        setInstalledPartnerSlugs((current) => {
+          const next = new Set(current)
+          next.delete(partner.slug)
+          return next
+        })
+        await loadSkills()
+      }
+    } catch (err: any) {
+      const message = err.message || `Failed to ${action} ${partner.name} plugin`
+      setPartnerPluginRun((current) => ({
+        slug: partner.slug,
+        name: partner.name,
+        action,
+        status: 'error',
+        logs: [
+          ...(current?.logs || [`# ${actionLabel} ${partner.name} partner plugin`]),
+          `✗ ${message}`,
+        ],
+        error: message,
+      }))
+      showToastError(message)
+    } finally {
+      setPartnerInstalling(null)
     }
   }
 
@@ -2289,45 +2387,27 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                       {partner.skills.mode === 'curated-installer' ? ' · usually 1-3 minutes' : ''}
                     </div>
                     {partner.skills.mode === 'curated-installer' ? (
-                      installedPartnerSlugs.has(partner.slug) ? (
-                        <span className="px-3 py-1.5 text-xs font-medium text-gray-400 dark:text-gray-500 border border-gray-200 dark:border-gray-700 rounded-md shrink-0">
-                          Installed
-                        </span>
-                      ) : (
+                      <div className="flex items-center gap-2 shrink-0">
+                        {installedPartnerSlugs.has(partner.slug) && (
+                          <span className="px-3 py-1.5 text-xs font-medium text-gray-400 dark:text-gray-500 border border-gray-200 dark:border-gray-700 rounded-md">
+                            Installed
+                          </span>
+                        )}
                         <button
-                          onClick={async () => {
-                            if (!partner.skills.commandId) return
-                            setPartnerInstalling(partner.slug)
-                            try {
-                              const existingSkillNames = new Set(allSkills.map((skill) => skill.name))
-                              const resp = await fetch('/api/skills/partner-install', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ commandId: partner.skills.commandId }),
-                              })
-                              const data = await resp.json().catch(() => ({}))
-                              if (!resp.ok) throw new Error(data.detail || data.error || 'Install failed')
-                              showSuccess(`Installed ${partner.name} skills`)
-                              setInstalledPartnerSlugs((current) => new Set([...current, partner.slug]))
-                              const loadedSkills = await loadSkills()
-                              const addedSkills = loadedSkills
-                                .map((skill) => skill.name)
-                                .filter((skillName) => !existingSkillNames.has(skillName))
-                              if (addedSkills.length > 0) {
-                                await warnForSkillSetupByNames(addedSkills)
-                              }
-                            } catch (err: any) {
-                              showToastError(err.message || `Failed to install ${partner.name} skills`)
-                            } finally {
-                              setPartnerInstalling(null)
-                            }
-                          }}
+                          onClick={() => void runPartnerPluginAction(partner, 'install')}
                           disabled={!!partnerInstalling}
-                          className="px-3 py-1.5 text-xs font-medium bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed shrink-0"
+                          className="px-3 py-1.5 text-xs font-medium bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed"
                         >
-                          {partnerInstalling === partner.slug ? 'Installing...' : 'Install'}
+                          {partnerInstalling === partner.slug ? 'Running...' : 'Install'}
                         </button>
-                      )
+                        <button
+                          onClick={() => void runPartnerPluginAction(partner, 'uninstall')}
+                          disabled={!!partnerInstalling}
+                          className="px-3 py-1.5 text-xs font-medium rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                        >
+                          Uninstall
+                        </button>
+                      </div>
                     ) : (
                       <button
                         onClick={() => openImportDialog('partner', partner.slug)}
@@ -3374,6 +3454,64 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
           </div>
         )}
 
+        {partnerPluginRun && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <div className="w-full max-w-3xl rounded-xl bg-white shadow-xl dark:bg-gray-800">
+              <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-700">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                    {partnerPluginRun.action === 'install' ? 'Install Partner Plugin' : 'Uninstall Partner Plugin'}
+                  </h2>
+                  <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    {partnerPluginRun.action === 'install' ? 'Installing' : 'Uninstalling'} <span className="font-medium text-gray-900 dark:text-gray-100">{partnerPluginRun.name}</span> through the curated OpenClaw plugin allowlist.
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    if (partnerPluginRun.status === 'running') return
+                    setPartnerPluginRun(null)
+                  }}
+                  className="text-2xl leading-none text-gray-400 hover:text-gray-600 disabled:cursor-not-allowed dark:hover:text-gray-300"
+                  disabled={partnerPluginRun.status === 'running'}
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="space-y-4 px-6 py-4">
+                <TermsRiskNotice
+                  title="Partner plugin command reminder"
+                  body="Installing or uninstalling partner plugins can modify this dashboard runtime. Continue only for partner plugins you trust and review the command output below."
+                />
+                <div className="bg-gray-900 text-green-400 font-mono text-xs rounded-lg p-3 h-64 overflow-y-auto whitespace-pre-wrap">
+                  {partnerPluginRun.logs.join('\n')}
+                  {partnerPluginRun.status === 'running' && <span className="animate-pulse">▌</span>}
+                </div>
+                {partnerPluginRun.error && (
+                  <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300">
+                    {partnerPluginRun.error}
+                  </div>
+                )}
+                {partnerPluginRun.status === 'success' && (
+                  <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-300">
+                    {partnerPluginRun.action === 'install' ? 'Install completed.' : 'Uninstall completed.'} Restart the dashboard/runtime if OpenClaw reports that plugin discovery needs a refresh.
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center justify-end gap-3 border-t border-gray-200 px-6 py-4 dark:border-gray-700">
+                <button
+                  onClick={() => setPartnerPluginRun(null)}
+                  disabled={partnerPluginRun.status === 'running'}
+                  className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {showSkillSetupModal && pendingSetupSkill && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
             <div className="w-full max-w-3xl rounded-xl bg-white shadow-xl dark:bg-gray-800">
@@ -4068,38 +4206,22 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                               )}
                             </div>
                             {partner.skills.mode === 'curated-installer' ? (
-                              <button
-                                onClick={async () => {
-                                  if (!partner.skills.commandId) return
-                                  setPartnerInstalling(partner.slug)
-                                  try {
-                                    const existingSkillNames = new Set(allSkills.map((skill) => skill.name))
-                                    const resp = await fetch('/api/skills/partner-install', {
-                                      method: 'POST',
-                                      headers: { 'Content-Type': 'application/json' },
-                                      body: JSON.stringify({ commandId: partner.skills.commandId }),
-                                    })
-                                    const data = await resp.json().catch(() => ({}))
-                                    if (!resp.ok) throw new Error(data.error || 'Install failed')
-                                    showSuccess(`Installed ${partner.name} skills`)
-                                    const loadedSkills = await loadSkills()
-                                    const addedSkills = loadedSkills
-                                      .map((skill) => skill.name)
-                                      .filter((skillName) => !existingSkillNames.has(skillName))
-                                    if (addedSkills.length > 0) {
-                                      await warnForSkillSetupByNames(addedSkills)
-                                    }
-                                  } catch (err: any) {
-                                    showToastError(err.message || `Failed to install ${partner.name} skills`)
-                                  } finally {
-                                    setPartnerInstalling(null)
-                                  }
-                                }}
-                                disabled={!!partnerInstalling}
-                                className="px-3 py-1.5 text-xs font-medium bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed shrink-0"
-                              >
-                                {partnerInstalling === partner.slug ? 'Installing...' : 'Install'}
-                              </button>
+                              <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+                                <button
+                                  onClick={() => void runPartnerPluginAction(partner, 'install')}
+                                  disabled={!!partnerInstalling}
+                                  className="px-3 py-1.5 text-xs font-medium bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed"
+                                >
+                                  {partnerInstalling === partner.slug ? 'Running...' : 'Install'}
+                                </button>
+                                <button
+                                  onClick={() => void runPartnerPluginAction(partner, 'uninstall')}
+                                  disabled={!!partnerInstalling}
+                                  className="px-3 py-1.5 text-xs font-medium rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                                >
+                                  Uninstall
+                                </button>
+                              </div>
                             ) : partner.skills.mode === 'catalog' && partner.skills.sourceUrl ? (
                               <button
                                 onClick={() => void importPartnerCatalog(partner)}

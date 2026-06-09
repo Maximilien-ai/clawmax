@@ -1213,8 +1213,7 @@ router.post('/registry/install', async (req, res) => {
   }
 })
 
-// POST /api/skills/partner-install - Run curated partner-owned skill installer
-router.post('/partner-install', async (req, res) => {
+async function runCuratedPartnerInstaller(req: any, res: any, action: 'install' | 'uninstall') {
   try {
     const { commandId } = req.body
     if (!commandId || typeof commandId !== 'string') {
@@ -1226,27 +1225,42 @@ router.post('/partner-install', async (req, res) => {
       return res.status(400).json({ error: 'Unknown curated partner installer' })
     }
 
-    const [command, ...args] = installer.command
-    const { stdout, stderr } = await execFileAsync(command, args, {
+    const commandParts = action === 'install' ? installer.installCommand : installer.uninstallCommand
+    const [command, ...args] = commandParts
+    const result: any = await execFileAsync(command, args, {
       timeout: 180000,
       env: safeEnv(),
       maxBuffer: 1024 * 1024 * 8,
     })
+    const stdout = typeof result === 'string' ? result : result?.stdout
+    const stderr = typeof result === 'string' ? '' : result?.stderr
     res.json({
       ok: true,
+      action,
       commandId: installer.commandId,
       label: installer.label,
+      command: commandParts.join(' '),
       stdout: `${stdout || ''}`.trim(),
       stderr: `${stderr || ''}`.trim(),
     })
   } catch (err: any) {
-    console.error('Curated partner install error:', err.message)
+    console.error(`Curated partner ${action} error:`, err.message)
     const detail = [err?.stderr, err?.stdout].filter(Boolean).join('\n').trim()
     res.status(500).json({
-      error: err.message || 'Failed to run curated partner installer',
+      error: err.message || `Failed to run curated partner ${action}`,
       detail: detail || undefined,
     })
   }
+}
+
+// POST /api/skills/partner-install - Run curated partner-owned skill installer
+router.post('/partner-install', async (req, res) => {
+  await runCuratedPartnerInstaller(req, res, 'install')
+})
+
+// POST /api/skills/partner-uninstall - Run curated partner-owned plugin uninstaller
+router.post('/partner-uninstall', async (req, res) => {
+  await runCuratedPartnerInstaller(req, res, 'uninstall')
 })
 
 export default router
