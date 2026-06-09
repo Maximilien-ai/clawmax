@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useWorkspace } from '../contexts/WorkspaceContext'
 import { useToast } from './Toast'
-import { buildByokVerificationFingerprint, detectProviderKeyMismatch, getByokDismissKey, isOllamaUiAvailable, readStoredByokKeys, resolveOllamaBaseUrlForRuntime, resolveOpenAiCompatibleBaseUrlForRuntime, resolveSelectedPartnersForWorkspace, shouldAutoValidateByokOnSave, writeStoredByokKeys } from '../lib/byok'
+import { buildByokVerificationFingerprint, detectProviderKeyMismatch, getByokDismissKey, hasCogneeConfiguration, isOllamaUiAvailable, readStoredByokKeys, resolveOllamaBaseUrlForRuntime, resolveOpenAiCompatibleBaseUrlForRuntime, resolveSelectedPartnersForWorkspace, shouldAutoValidateByokOnSave, writeStoredByokKeys } from '../lib/byok'
 import { filterPartnersByCategory, formatPartnerCategoryLabel, getPartnerCategories, listPartnerCategoryTabs } from '../lib/partnerCatalog'
 import { DEFAULT_VISIBLE_PARTNERS, getDefaultPartnerDefinitions } from '../lib/defaultPartners'
 import { BROWSER_VAULT_UPDATED_EVENT, readPartnerValuesFromSharedSecrets, readSharedSecrets, writePartnerValuesToSharedSecrets, writeSharedSecrets } from '../lib/localSecrets'
@@ -957,6 +957,20 @@ export function ByokWizard({
       }))
       showWarning(localProviderMismatches[0]!.message)
       return false
+    }
+    if (scope === 'current-partner' && currentPartnerSlug === 'cognee') {
+      if (!hasCogneeConfiguration({
+        apiKey: scopedPayload.cogneeApiKey,
+        baseUrl: scopedPayload.cogneeBaseUrl,
+        datasetName: scopedPayload.cogneeDatasetName,
+        searchType: scopedPayload.cogneeSearchType,
+        serverApiKeyPresent: hasServerPartnerSecret('cognee', 'apiKey'),
+      })) {
+        const message = 'Add a Cognee API key for Cloud, or a self-hosted Cognee Base URL, before checking Cognee.'
+        setValidation((current) => ({ ...current, cognee: { status: 'invalid', message } }))
+        showWarning(message)
+        return false
+      }
     }
 
     setValidating(true)
