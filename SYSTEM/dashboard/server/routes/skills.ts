@@ -15,7 +15,7 @@ import {
   validateSkillChanges,
   stampImportedRegistrySkillMetadata,
 } from '../lib/skills'
-import { getCuratedPartnerInstaller } from '../lib/partner-installs'
+import { getCuratedPartnerInstaller, listCuratedPartnerInstallers } from '../lib/partner-installs'
 import { generateSkillFromNL, setRequestByokKeys } from '../lib/ai-generator'
 import { safeEnv } from '../lib/safe-env'
 import {
@@ -53,6 +53,47 @@ type SkillSetupSession = {
   endedAt?: number
   exitCode?: number | null
   error?: string
+}
+
+async function getCuratedPartnerPluginStatuses() {
+  const installers = listCuratedPartnerInstallers()
+  const result: any = await execFileAsync('openclaw', ['plugins', 'list', '--json'], {
+    timeout: 30000,
+    env: safeEnv(),
+    maxBuffer: 1024 * 1024 * 8,
+  })
+  const stdout = typeof result === 'string' ? result : result?.stdout
+  const parsed = JSON.parse(String(stdout || '{}'))
+  const plugins = Array.isArray(parsed?.plugins) ? parsed.plugins : []
+  const byId = new Map(plugins.map((plugin: any) => [String(plugin?.id || ''), plugin]))
+  return Object.fromEntries(
+    installers.map((installer) => {
+      const plugin = byId.get(installer.pluginId) as any
+      return [installer.commandId, {
+        commandId: installer.commandId,
+        pluginId: installer.pluginId,
+        installed: !!plugin,
+        enabled: !!plugin?.enabled,
+        status: plugin?.status || (plugin ? 'installed' : 'not-installed'),
+        name: plugin?.name || installer.label,
+        version: plugin?.version || '',
+        origin: plugin?.origin || '',
+      }]
+    })
+  )
+}
+
+function buildUnknownCuratedPartnerPluginStatuses() {
+  return Object.fromEntries(
+    listCuratedPartnerInstallers().map((installer) => [installer.commandId, {
+      commandId: installer.commandId,
+      pluginId: installer.pluginId,
+      installed: false,
+      enabled: false,
+      status: 'unknown',
+      name: installer.label,
+    }])
+  )
 }
 
 const interactiveSkillSetupSessions = new Map<string, SkillSetupSession>()
@@ -296,6 +337,19 @@ router.get('/', (req, res) => {
   } catch (err) {
     console.error('Error listing skills:', err)
     res.status(500).json({ error: 'Failed to load skills' })
+  }
+})
+
+// GET /api/skills/partner-install/status - Report curated partner plugin install state
+router.get('/partner-install/status', async (_req, res) => {
+  try {
+    res.json({ ok: true, statuses: await getCuratedPartnerPluginStatuses() })
+  } catch (err: any) {
+    console.error('Curated partner plugin status error:', err.message)
+    res.status(500).json({
+      error: err.message || 'Failed to inspect curated partner plugin status',
+      statuses: buildUnknownCuratedPartnerPluginStatuses(),
+    })
   }
 })
 

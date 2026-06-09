@@ -45,6 +45,16 @@ type PartnerPluginRun = {
   logs: string[]
   error?: string
 }
+type PartnerPluginStatus = {
+  commandId: string
+  pluginId: string
+  installed: boolean
+  enabled: boolean
+  status: string
+  name?: string
+  version?: string
+  origin?: string
+}
 
 function SkillsListTable({
   skills,
@@ -423,7 +433,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
   const [focusedPartnerSlug, setFocusedPartnerSlug] = useState<string | null>(null)
   const [partnerInstalling, setPartnerInstalling] = useState<string | null>(null)
   const [partnerPluginRun, setPartnerPluginRun] = useState<PartnerPluginRun | null>(null)
-  const [installedPartnerSlugs, setInstalledPartnerSlugs] = useState<Set<string>>(new Set())
+  const [partnerPluginStatuses, setPartnerPluginStatuses] = useState<Record<string, PartnerPluginStatus>>({})
   const [showPartnerInstallers, setShowPartnerInstallers] = useState(false)
   const [showAllSkillTags, setShowAllSkillTags] = useState(false)
   const [showAllPopularSkills, setShowAllPopularSkills] = useState(false)
@@ -553,6 +563,21 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
 
   useEffect(() => {
     refreshIntegrationSecretPresence()
+  }, [])
+
+  async function refreshPartnerPluginStatuses() {
+    try {
+      const res = await fetch(`${API_BASE}/api/skills/partner-install/status`)
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Failed to load partner plugin status')
+      setPartnerPluginStatuses(typeof data?.statuses === 'object' && data.statuses ? data.statuses : {})
+    } catch {
+      setPartnerPluginStatuses({})
+    }
+  }
+
+  useEffect(() => {
+    void refreshPartnerPluginStatuses()
   }, [])
 
   useEffect(() => {
@@ -1132,7 +1157,6 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
       })
       if (action === 'install') {
         showSuccess(`Installed ${partner.name} plugin`)
-        setInstalledPartnerSlugs((current) => new Set([...current, partner.slug]))
         const loadedSkills = await loadSkills()
         const addedSkills = loadedSkills
           .map((skill) => skill.name)
@@ -1142,13 +1166,9 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
         }
       } else {
         showSuccess(`Uninstalled ${partner.name} plugin`)
-        setInstalledPartnerSlugs((current) => {
-          const next = new Set(current)
-          next.delete(partner.slug)
-          return next
-        })
         await loadSkills()
       }
+      await refreshPartnerPluginStatuses()
     } catch (err: any) {
       const message = err.message || `Failed to ${action} ${partner.name} plugin`
       setPartnerPluginRun((current) => ({
@@ -2387,27 +2407,36 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                       {partner.skills.mode === 'curated-installer' ? ' · usually 1-3 minutes' : ''}
                     </div>
                     {partner.skills.mode === 'curated-installer' ? (
-                      <div className="flex items-center gap-2 shrink-0">
-                        {installedPartnerSlugs.has(partner.slug) && (
-                          <span className="px-3 py-1.5 text-xs font-medium text-gray-400 dark:text-gray-500 border border-gray-200 dark:border-gray-700 rounded-md">
-                            Installed
-                          </span>
-                        )}
-                        <button
-                          onClick={() => void runPartnerPluginAction(partner, 'install')}
-                          disabled={!!partnerInstalling}
-                          className="px-3 py-1.5 text-xs font-medium bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed"
-                        >
-                          {partnerInstalling === partner.slug ? 'Running...' : 'Install'}
-                        </button>
-                        <button
-                          onClick={() => void runPartnerPluginAction(partner, 'uninstall')}
-                          disabled={!!partnerInstalling}
-                          className="px-3 py-1.5 text-xs font-medium rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-60 disabled:cursor-not-allowed"
-                        >
-                          Uninstall
-                        </button>
-                      </div>
+                      (() => {
+                        const status = partner.skills.commandId ? partnerPluginStatuses[partner.skills.commandId] : undefined
+                        const installed = !!status?.installed
+                        const running = partnerInstalling === partner.slug
+                        return (
+                          <div className="flex items-center gap-2 shrink-0">
+                            {installed && (
+                              <span className="px-3 py-1.5 text-xs font-medium text-gray-400 dark:text-gray-500 border border-gray-200 dark:border-gray-700 rounded-md">
+                                Installed
+                              </span>
+                            )}
+                            <button
+                              onClick={() => void runPartnerPluginAction(partner, 'install')}
+                              disabled={!!partnerInstalling || installed}
+                              title={installed ? `${partner.name} plugin is already installed` : undefined}
+                              className="px-3 py-1.5 text-xs font-medium bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed"
+                            >
+                              {running ? 'Running...' : 'Install'}
+                            </button>
+                            <button
+                              onClick={() => void runPartnerPluginAction(partner, 'uninstall')}
+                              disabled={!!partnerInstalling || !installed}
+                              title={!installed ? `${partner.name} plugin is not installed` : undefined}
+                              className="px-3 py-1.5 text-xs font-medium rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                            >
+                              Uninstall
+                            </button>
+                          </div>
+                        )
+                      })()
                     ) : (
                       <button
                         onClick={() => openImportDialog('partner', partner.slug)}
@@ -4206,22 +4235,36 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                               )}
                             </div>
                             {partner.skills.mode === 'curated-installer' ? (
-                              <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
-                                <button
-                                  onClick={() => void runPartnerPluginAction(partner, 'install')}
-                                  disabled={!!partnerInstalling}
-                                  className="px-3 py-1.5 text-xs font-medium bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed"
-                                >
-                                  {partnerInstalling === partner.slug ? 'Running...' : 'Install'}
-                                </button>
-                                <button
-                                  onClick={() => void runPartnerPluginAction(partner, 'uninstall')}
-                                  disabled={!!partnerInstalling}
-                                  className="px-3 py-1.5 text-xs font-medium rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-60 disabled:cursor-not-allowed"
-                                >
-                                  Uninstall
-                                </button>
-                              </div>
+                              (() => {
+                                const status = partner.skills.commandId ? partnerPluginStatuses[partner.skills.commandId] : undefined
+                                const installed = !!status?.installed
+                                const running = partnerInstalling === partner.slug
+                                return (
+                                  <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center">
+                                    {installed && (
+                                      <span className="px-3 py-1.5 text-xs font-medium text-gray-400 dark:text-gray-500 border border-gray-200 dark:border-gray-700 rounded-md">
+                                        Installed
+                                      </span>
+                                    )}
+                                    <button
+                                      onClick={() => void runPartnerPluginAction(partner, 'install')}
+                                      disabled={!!partnerInstalling || installed}
+                                      title={installed ? `${partner.name} plugin is already installed` : undefined}
+                                      className="px-3 py-1.5 text-xs font-medium bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed"
+                                    >
+                                      {running ? 'Running...' : 'Install'}
+                                    </button>
+                                    <button
+                                      onClick={() => void runPartnerPluginAction(partner, 'uninstall')}
+                                      disabled={!!partnerInstalling || !installed}
+                                      title={!installed ? `${partner.name} plugin is not installed` : undefined}
+                                      className="px-3 py-1.5 text-xs font-medium rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                                    >
+                                      Uninstall
+                                    </button>
+                                  </div>
+                                )
+                              })()
                             ) : partner.skills.mode === 'catalog' && partner.skills.sourceUrl ? (
                               <button
                                 onClick={() => void importPartnerCatalog(partner)}

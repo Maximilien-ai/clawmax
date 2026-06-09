@@ -92,6 +92,16 @@ type PartnerPluginRun = {
   logs: string[]
   error?: string
 }
+type PartnerPluginStatus = {
+  commandId: string
+  pluginId: string
+  installed: boolean
+  enabled: boolean
+  status: string
+  name?: string
+  version?: string
+  origin?: string
+}
 
 const localDevOllamaBaseUrl = 'http://localhost:11434'
 const localDevOpenAiCompatibleBaseUrl = 'http://127.0.0.1:1234/v1'
@@ -229,7 +239,7 @@ export function ByokWizard({
   const [modelsByProvider, setModelsByProvider] = useState<ModelsByProvider>({})
   const [showAllDiscoveredModels, setShowAllDiscoveredModels] = useState(false)
   const [partnerInstallState, setPartnerInstallState] = useState<Record<string, 'idle' | 'installing' | 'uninstalling'>>({})
-  const [installedPartnerSkillSlugs, setInstalledPartnerSkillSlugs] = useState<Set<string>>(new Set())
+  const [partnerPluginStatuses, setPartnerPluginStatuses] = useState<Record<string, PartnerPluginStatus>>({})
   const [partnerPluginRun, setPartnerPluginRun] = useState<PartnerPluginRun | null>(null)
   const preferredModelRef = useRef<HTMLSelectElement | null>(null)
   const [highlightPreferredModel, setHighlightPreferredModel] = useState(false)
@@ -698,8 +708,20 @@ export function ByokWizard({
     return () => window.removeEventListener('clawmax-onboarding-visibility', handleOnboardingVisibility as EventListener)
   }, [])
 
+  async function refreshPartnerPluginStatuses() {
+    try {
+      const res = await fetch('/api/skills/partner-install/status')
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Failed to load partner plugin status')
+      setPartnerPluginStatuses(typeof data?.statuses === 'object' && data.statuses ? data.statuses : {})
+    } catch {
+      setPartnerPluginStatuses({})
+    }
+  }
+
   useEffect(() => {
     if (!open) return
+    void refreshPartnerPluginStatuses()
     fetch('/api/integrations/status')
       .then(async (r) => {
         const contentType = r.headers.get('content-type') || ''
@@ -1551,15 +1573,10 @@ export function ByokWizard({
       })
       if (action === 'install') {
         showSuccess(`${partner.name} plugin installed`)
-        setInstalledPartnerSkillSlugs((current) => new Set([...current, partner.slug]))
       } else {
         showSuccess(`${partner.name} plugin uninstalled`)
-        setInstalledPartnerSkillSlugs((current) => {
-          const next = new Set(current)
-          next.delete(partner.slug)
-          return next
-        })
       }
+      await refreshPartnerPluginStatuses()
     } catch (err: any) {
       const message = err.message || `Failed to ${action} ${partner.name} plugin`
       setPartnerPluginRun((current) => ({
@@ -1626,20 +1643,23 @@ export function ByokWizard({
     }
     if (partner.skills.mode === 'curated-installer') {
       const running = partnerInstallState[partner.slug] === 'installing' || partnerInstallState[partner.slug] === 'uninstalling'
+      const status = partner.skills.commandId ? partnerPluginStatuses[partner.skills.commandId] : undefined
+      const installed = !!status?.installed
       return (
         <div className="mt-2 flex items-center gap-3">
           <div className="text-xs opacity-80">
             {partner.skills.label || 'Curated skill install available'}.
             <span className="ml-1">Usually takes 1-3 minutes.</span>
           </div>
-          {installedPartnerSkillSlugs.has(partner.slug) && (
+          {installed && (
             <span className="px-2.5 py-1 text-[11px] rounded-md border border-gray-200 dark:border-gray-700 text-gray-400 dark:text-gray-500">
               Installed
             </span>
           )}
           <button
             type="button"
-            disabled={running}
+            disabled={running || installed}
+            title={installed ? `${partner.name} plugin is already installed` : undefined}
             onClick={() => void runPartnerPluginAction(partner, 'install')}
             className="px-2.5 py-1 text-[11px] rounded-md border border-sky-300 dark:border-sky-700 text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors disabled:opacity-60"
           >
@@ -1647,7 +1667,8 @@ export function ByokWizard({
           </button>
           <button
             type="button"
-            disabled={running}
+            disabled={running || !installed}
+            title={!installed ? `${partner.name} plugin is not installed` : undefined}
             onClick={() => void runPartnerPluginAction(partner, 'uninstall')}
             className="px-2.5 py-1 text-[11px] rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-60"
           >

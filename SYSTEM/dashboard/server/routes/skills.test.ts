@@ -178,6 +178,44 @@ async function run() {
     assert.strictEqual(res.jsonBody?.stdout, 'removed cognee', 'Expected uninstaller stdout in response')
   })
 
+  await test('partner-install status reports installed Cognee plugin state', async () => {
+    execFileMock = (_file, _args, _options, callback) => {
+      callback(null, JSON.stringify({
+        plugins: [{
+          id: 'cognee-openclaw',
+          name: 'Memory (Cognee)',
+          version: '2026.5.21',
+          enabled: true,
+          status: 'loaded',
+          origin: 'global',
+        }],
+      }), '')
+    }
+
+    const handler = getRouteHandler('get', '/partner-install/status')
+    const res = makeRes()
+    await handler(makeReq(), res)
+
+    assert.strictEqual(res.statusCode, 200, 'Expected partner install status to return HTTP 200')
+    assert.strictEqual(res.jsonBody?.statuses?.['cognee-openclaw']?.installed, true, 'Expected Cognee plugin to be installed')
+    assert.strictEqual(res.jsonBody?.statuses?.['cognee-openclaw']?.enabled, true, 'Expected Cognee plugin to be enabled')
+    assert.strictEqual(res.jsonBody?.statuses?.['cognee-openclaw']?.status, 'loaded', 'Expected Cognee plugin loaded status')
+  })
+
+  await test('partner-install status reports absent Cognee plugin state', async () => {
+    execFileMock = (_file, _args, _options, callback) => {
+      callback(null, JSON.stringify({ plugins: [] }), '')
+    }
+
+    const handler = getRouteHandler('get', '/partner-install/status')
+    const res = makeRes()
+    await handler(makeReq(), res)
+
+    assert.strictEqual(res.statusCode, 200, 'Expected partner install status to return HTTP 200')
+    assert.strictEqual(res.jsonBody?.statuses?.['cognee-openclaw']?.installed, false, 'Expected Cognee plugin to be absent')
+    assert.strictEqual(res.jsonBody?.statuses?.['cognee-openclaw']?.status, 'not-installed', 'Expected not-installed status')
+  })
+
   await test('complete-setup returns actionable input errors for gog when required fields are missing', async () => {
     const handler = getRouteHandler('post', '/:skillId/complete-setup')
     const res = makeRes()
