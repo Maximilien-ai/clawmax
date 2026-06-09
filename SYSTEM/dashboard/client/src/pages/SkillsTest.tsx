@@ -2401,8 +2401,8 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                       ))}
                     </div>
                   )}
-                  <div className="mt-4 flex items-center justify-between gap-2">
-                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                  <div className="mt-4 flex flex-wrap items-end justify-between gap-3">
+                    <div className="min-w-0 flex-1 text-xs text-gray-500 dark:text-gray-400">
                       {partner.skills.label || 'Partner skill installer'}
                       {partner.skills.mode === 'curated-installer' ? ' · usually 1-3 minutes' : ''}
                     </div>
@@ -2412,7 +2412,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                         const installed = !!status?.installed
                         const running = partnerInstalling === partner.slug
                         return (
-                          <div className="flex items-center gap-2 shrink-0">
+                          <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
                             {installed && (
                               <span className="px-3 py-1.5 text-xs font-medium text-gray-400 dark:text-gray-500 border border-gray-200 dark:border-gray-700 rounded-md">
                                 Installed
