@@ -4,7 +4,7 @@
  * Run with: npx ts-node --transpileOnly client/src/lib/byok.test.ts
  */
 
-import { byokForRequest, detectProviderKeyMismatch, getAiGenerationReadiness, hasAiGenerationAccess, hasChatExecutionAccess, isOllamaUiAvailable, refreshModelsWithByok, resolveOllamaBaseUrlForRuntime, resolveOpenAiCompatibleBaseUrlForRuntime, resolveSelectedPartnersForWorkspace, shouldAutoValidateByokOnSave, writeStoredByokKeys } from './byok'
+import { byokForRequest, detectProviderKeyMismatch, getAiGenerationReadiness, hasAiGenerationAccess, hasChatExecutionAccess, hasCogneeConfiguration, isOllamaUiAvailable, refreshModelsWithByok, resolveOllamaBaseUrlForRuntime, resolveOpenAiCompatibleBaseUrlForRuntime, resolveSelectedPartnersForWorkspace, shouldAutoValidateByokOnSave, writeStoredByokKeys } from './byok'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -228,6 +228,13 @@ async function main() {
     assert(selected.includes('github'), 'Expected saved GitHub partner to persist')
     assert(selected.includes('opik'), 'Expected locked Opik partner to stay selected')
     assert(selected.length === 3, `Expected deduplicated partner list, got ${selected.join(', ')}`)
+  })
+
+  await test('Cognee explicit check requires Cloud key or self-hosted/default configuration', () => {
+    assert(hasCogneeConfiguration({}) === false, 'Expected empty Cognee config to be unavailable')
+    assert(hasCogneeConfiguration({ apiKey: ' cognee-key ' }) === true, 'Expected Cognee API key to be available')
+    assert(hasCogneeConfiguration({ baseUrl: ' http://localhost:8000 ' }) === true, 'Expected self-hosted Cognee URL to be available')
+    assert(hasCogneeConfiguration({ serverApiKeyPresent: true }) === true, 'Expected server-managed Cognee API key to be available')
   })
 
   await test('request payload maps geminiApiKey to gemini', () => {

@@ -114,10 +114,22 @@ function isToolArtifactLine(trimmed: string): boolean {
   )
 }
 
+function isBenignPluginRuntimeWarningLine(trimmed: string): boolean {
+  return trimmed === 'plugin runtime config.loadConfig() is deprecated (runtime-config-load-write); use config.current().'
+}
+
+export function stripBenignChatRuntimeWarnings(content: string): string {
+  if (!content) return content
+  return content
+    .split('\n')
+    .filter((line) => !isBenignPluginRuntimeWarningLine(line.trim()))
+    .join('\n')
+}
+
 export function normalizeChatMessage(content: string): string {
   if (!content) return content
 
-  const withoutAnsi = stripAnsi(content)
+  const withoutAnsi = stripBenignChatRuntimeWarnings(stripAnsi(content))
   const structured = extractStructuredText(withoutAnsi)
   if (structured !== null) return structured.trim()
 
@@ -154,6 +166,7 @@ export function normalizeChatMessage(content: string): string {
 
     if (
       isRuntimeStatusLine(trimmed) ||
+      isBenignPluginRuntimeWarningLine(trimmed) ||
       trimmed.startsWith('🦞 OpenClaw') ||
       /^(Usage|Options|Commands|Examples|Docs|Available fields|Unknown JSON|GraphQL|\(Command exited|Command still|Process exited|Successfully wrote|store:)/.test(trimmed) ||
       /\{"type"\s*:\s*"/.test(trimmed) ||

@@ -4,7 +4,7 @@
  * Run with: npx ts-node --transpileOnly server/lib/partner-installs.test.ts
  */
 
-import { getCuratedPartnerInstaller } from './partner-installs'
+import { getCuratedPartnerInstaller, listCuratedPartnerInstallers } from './partner-installs'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -34,6 +34,20 @@ console.log(`\n${YELLOW}=== Partner Installer Test Suite ===${RESET}\n`)
 
 test('getCuratedPartnerInstaller rejects unknown command ids', () => {
   assert(getCuratedPartnerInstaller('rm-everything') === null, 'Expected unknown installer to be rejected')
+})
+
+test('getCuratedPartnerInstaller exposes only the allowlisted Cognee OpenClaw installer', () => {
+  const installer = getCuratedPartnerInstaller('cognee-openclaw')
+  assert(installer !== null, 'Expected Cognee OpenClaw installer')
+  assert(installer?.pluginId === 'cognee-openclaw', 'Expected Cognee plugin id')
+  assert(installer?.installCommand.join(' ') === 'openclaw plugins install @cognee/cognee-openclaw@latest', `Unexpected Cognee installer command: ${installer?.installCommand.join(' ')}`)
+  assert(installer?.uninstallCommand.join(' ') === 'openclaw plugins uninstall cognee-openclaw --force', `Unexpected Cognee uninstall command: ${installer?.uninstallCommand.join(' ')}`)
+  assert(installer?.source === 'openclaw', 'Expected OpenClaw installer source')
+})
+
+test('listCuratedPartnerInstallers exposes curated partner plugins for status checks', () => {
+  const installers = listCuratedPartnerInstallers()
+  assert(installers.some((installer) => installer.commandId === 'cognee-openclaw' && installer.pluginId === 'cognee-openclaw'), 'Expected Cognee installer in status list')
 })
 
 console.log('\n========================================')

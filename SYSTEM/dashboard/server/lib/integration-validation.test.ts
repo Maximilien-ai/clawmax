@@ -4,7 +4,7 @@
  * Run with: npx ts-node --transpileOnly server/lib/integration-validation.test.ts
  */
 
-import { validateAnthropicKey, validateGeminiKey, validateIntegrations, validateOllamaConfig, validateOpenAICompatibleConfig, validateOpenAIKey, validateOpikConfig, validateSensoConfig } from './integration-validation'
+import { validateAnthropicKey, validateCogneeConfig, validateGeminiKey, validateIntegrations, validateOllamaConfig, validateOpenAICompatibleConfig, validateOpenAIKey, validateOpikConfig, validateSensoConfig } from './integration-validation'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -191,6 +191,16 @@ async function run() {
     assert(result.status === 'valid', 'Expected valid status')
   })
 
+  await test('validateCogneeConfig accepts Cloud API key and self-hosted URL defaults', async () => {
+    const result = await validateCogneeConfig('cognee-key', 'https://cognee.example.test', 'clawmax-memory', 'GRAPH_COMPLETION')
+    assert(result.status === 'valid', 'Expected valid status')
+  })
+
+  await test('validateCogneeConfig rejects invalid self-hosted base URL', async () => {
+    const result = await validateCogneeConfig('', 'not a url', '', '')
+    assert(result.status === 'invalid', 'Expected invalid status for malformed Cognee Base URL')
+  })
+
   await test('validateIntegrations aggregates provider checks', async () => {
     const result = await validateIntegrations({
       openai: 'sk-openai-test-value',
@@ -203,6 +213,10 @@ async function run() {
       opikWorkspace: 'team',
       opikProject: 'clawmax',
       sensoApiKey: 'senso-key',
+      cogneeApiKey: 'cognee-key',
+      cogneeBaseUrl: 'https://cognee.example.test',
+      cogneeDatasetName: 'clawmax-memory',
+      cogneeSearchType: 'GRAPH_COMPLETION',
     }, (async (url: string) => {
       if (url.includes('/api/tags')) {
         return {
@@ -239,6 +253,7 @@ async function run() {
     assert(result.ollama?.status === 'valid', 'Expected Ollama valid')
     assert(result.opik?.status === 'valid', 'Expected Opik valid')
     assert(result.senso?.status === 'valid', 'Expected Senso valid')
+    assert(result.cognee?.status === 'valid', 'Expected Cognee valid')
   })
 
   console.log('\n========================================')

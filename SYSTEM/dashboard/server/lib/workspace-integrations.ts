@@ -35,8 +35,32 @@ function resolveRuntimeManagedSecret(slug: string, key: string): string | undefi
   if (slug === 'github' && key === 'token') {
     return process.env.GITHUB_TOKEN?.trim() || process.env.GH_TOKEN?.trim() || undefined
   }
+  if (slug === 'cognee' && key === 'apiKey') {
+    return process.env.COGNEE_API_KEY?.trim() || undefined
+  }
   return undefined
 }
+
+function resolveRuntimeManagedValue(slug: string, key: string): string | undefined {
+  if (slug === 'cognee') {
+    if (key === 'baseUrl') return process.env.COGNEE_BASE_URL?.trim() || undefined
+    if (key === 'datasetName') return process.env.COGNEE_DATASET_NAME?.trim() || undefined
+    if (key === 'searchType') return process.env.COGNEE_SEARCH_TYPE?.trim() || undefined
+  }
+  return undefined
+}
+
+const RUNTIME_MANAGED_SECRET_KEYS = [
+  ['resend', 'apiKey'],
+  ['github', 'token'],
+  ['cognee', 'apiKey'],
+] as const
+
+const RUNTIME_MANAGED_VALUE_KEYS = [
+  ['cognee', 'baseUrl'],
+  ['cognee', 'datasetName'],
+  ['cognee', 'searchType'],
+] as const
 
 function getWorkspaceIntegrationsPath(): string {
   return path.join(getWorkspacePath(), 'SYSTEM', 'integrations.json')
@@ -54,6 +78,24 @@ export function readWorkspaceIntegrationConfig(): WorkspaceIntegrationConfig {
     return typeof parsed === 'object' && parsed ? parsed : {}
   } catch {
     return {}
+  }
+}
+
+export function getResolvedWorkspaceIntegrationConfig(): WorkspaceIntegrationConfig {
+  const config = readWorkspaceIntegrationConfig()
+  const partners: Record<string, Record<string, string | boolean | undefined>> = { ...(config.partners || {}) }
+
+  for (const [slug, key] of RUNTIME_MANAGED_VALUE_KEYS) {
+    const runtimeValue = resolveRuntimeManagedValue(slug, key)
+    if (!runtimeValue) continue
+    const existing = partners[slug]?.[key]
+    if (typeof existing === 'string' && existing.trim()) continue
+    partners[slug] = { ...(partners[slug] || {}), [key]: runtimeValue }
+  }
+
+  return {
+    ...config,
+    partners: Object.keys(partners).length > 0 ? partners : config.partners,
   }
 }
 
@@ -147,7 +189,7 @@ export function getResolvedWorkspaceIntegrationSecretPresence(): Record<string, 
   const stored = getWorkspaceIntegrationSecretPresence()
   const merged: Record<string, Record<string, boolean>> = { ...stored }
 
-  for (const [slug, key] of [['resend', 'apiKey'], ['github', 'token']] as const) {
+  for (const [slug, key] of RUNTIME_MANAGED_SECRET_KEYS) {
     const runtimeSecret = resolveRuntimeManagedSecret(slug, key)
     if (!runtimeSecret) continue
     merged[slug] = { ...(merged[slug] || {}), [key]: true }
@@ -185,7 +227,7 @@ export function getResolvedWorkspaceIntegrationSecretSummaries(): Record<string,
   const stored = getWorkspaceIntegrationSecretSummaries()
   const merged: Record<string, Record<string, WorkspaceIntegrationSecretSummary>> = { ...stored }
 
-  for (const [slug, key] of [['resend', 'apiKey'], ['github', 'token']] as const) {
+  for (const [slug, key] of RUNTIME_MANAGED_SECRET_KEYS) {
     const runtimeSecret = resolveRuntimeManagedSecret(slug, key)
     if (!runtimeSecret) continue
     const existing = merged[slug]?.[key]
@@ -203,7 +245,7 @@ export function getResolvedWorkspaceIntegrationSecretSummaries(): Record<string,
 }
 
 export function hasWorkspaceManagedPartnerSecrets(): boolean {
-  return Object.values(getWorkspaceIntegrationSecretSummaries()).some((partnerSecrets) => (
+  return Object.values(getResolvedWorkspaceIntegrationSecretSummaries()).some((partnerSecrets) => (
     Object.values(partnerSecrets || {}).some((summary) => summary.present)
   ))
 }

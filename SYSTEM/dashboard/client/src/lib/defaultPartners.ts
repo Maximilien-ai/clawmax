@@ -20,7 +20,7 @@ export type DefaultPartnerDefinition = {
   fields?: DefaultPartnerFieldDefinition[]
 }
 
-export const DEFAULT_VISIBLE_PARTNERS = ['senso', 'opik', 'github', 'resend'] as const
+export const DEFAULT_VISIBLE_PARTNERS = ['senso', 'opik', 'github', 'resend', 'cognee'] as const
 
 export const DEFAULT_PARTNER_DEFINITIONS: DefaultPartnerDefinition[] = [
   {
@@ -127,6 +127,47 @@ export const DEFAULT_PARTNER_DEFINITIONS: DefaultPartnerDefinition[] = [
         required: false,
         secret: true,
         storage: 'server',
+      },
+    ],
+  },
+  {
+    slug: 'cognee',
+    name: 'Cognee',
+    website: 'https://www.cognee.ai/',
+    docsUrl: 'https://docs.cognee.ai/',
+    description: 'Memory, recall, and semantic context layer for agents and agent teams.',
+    category: 'context',
+    categories: ['context', 'memory'],
+    enabledByDefault: true,
+    fields: [
+      {
+        key: 'apiKey',
+        label: 'API key',
+        type: 'password',
+        required: false,
+        secret: true,
+        storage: 'server',
+      },
+      {
+        key: 'baseUrl',
+        label: 'Base URL',
+        type: 'text',
+        required: false,
+        secret: false,
+      },
+      {
+        key: 'datasetName',
+        label: 'Dataset name',
+        type: 'text',
+        required: false,
+        secret: false,
+      },
+      {
+        key: 'searchType',
+        label: 'Search type',
+        type: 'text',
+        required: false,
+        secret: false,
       },
     ],
   },

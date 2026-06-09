@@ -138,6 +138,114 @@ async function run() {
     assert.strictEqual(res.jsonBody?.commands?.length, expectedCommands.length, 'Expected displayed commands to match executed commands')
   })
 
+  await test('partner-install runs the allowlisted Cognee OpenClaw plugin installer', async () => {
+    const calls: Array<{ file: string; args: string[]; stdin: string }> = []
+    spawnMock = (file: string, args: string[]) => {
+      const child = new EventEmitter() as any
+      child.stdout = new EventEmitter()
+      child.stderr = new EventEmitter()
+      child.stdin = {
+        value: '',
+        write(chunk: string) { this.value += chunk },
+        end() {
+          calls.push({ file, args, stdin: this.value })
+          child.stdout.emit('data', 'installed cognee')
+          child.stderr.emit('data', 'install note')
+          setImmediate(() => child.emit('close', 0))
+        },
+      }
+      child.kill = () => {}
+      return child
+    }
+
+    const handler = getRouteHandler('post', '/partner-install')
+    const res = makeRes()
+    await handler(makeReq({ body: { commandId: 'cognee-openclaw' } }), res)
+
+    assert.strictEqual(res.statusCode, 200, 'Expected Cognee partner install to return HTTP 200')
+    assert.deepStrictEqual(calls[0], {
+      file: 'openclaw',
+      args: ['plugins', 'install', '@cognee/cognee-openclaw@latest'],
+      stdin: '',
+    })
+    assert.strictEqual(res.jsonBody?.command, 'openclaw plugins install @cognee/cognee-openclaw@latest', 'Expected command display in response')
+    assert.strictEqual(res.jsonBody?.stdout, 'installed cognee', 'Expected installer stdout in response')
+    assert.strictEqual(res.jsonBody?.stderr, 'install note', 'Expected installer stderr in response')
+    spawnMock = null
+  })
+
+  await test('partner-uninstall runs the allowlisted Cognee OpenClaw plugin uninstaller', async () => {
+    const calls: Array<{ file: string; args: string[]; stdin: string }> = []
+    spawnMock = (file: string, args: string[]) => {
+      const child = new EventEmitter() as any
+      child.stdout = new EventEmitter()
+      child.stderr = new EventEmitter()
+      child.stdin = {
+        value: '',
+        write(chunk: string) { this.value += chunk },
+        end() {
+          calls.push({ file, args, stdin: this.value })
+          child.stdout.emit('data', 'removed cognee')
+          setImmediate(() => child.emit('close', 0))
+        },
+      }
+      child.kill = () => {}
+      return child
+    }
+
+    const handler = getRouteHandler('post', '/partner-uninstall')
+    const res = makeRes()
+    await handler(makeReq({ body: { commandId: 'cognee-openclaw' } }), res)
+
+    assert.strictEqual(res.statusCode, 200, 'Expected Cognee partner uninstall to return HTTP 200')
+    assert.deepStrictEqual(calls[0], {
+      file: 'openclaw',
+      args: ['plugins', 'uninstall', 'cognee-openclaw', '--force'],
+      stdin: 'y\n',
+    })
+    assert.strictEqual(res.jsonBody?.command, 'openclaw plugins uninstall cognee-openclaw --force', 'Expected command display in response')
+    assert.strictEqual(res.jsonBody?.stdout, 'removed cognee', 'Expected uninstaller stdout in response')
+    spawnMock = null
+  })
+
+  await test('partner-install status reports installed Cognee plugin state', async () => {
+    execFileMock = (_file, _args, _options, callback) => {
+      callback(null, JSON.stringify({
+        plugins: [{
+          id: 'cognee-openclaw',
+          name: 'Memory (Cognee)',
+          version: '2026.5.21',
+          enabled: true,
+          status: 'loaded',
+          origin: 'global',
+        }],
+      }), '')
+    }
+
+    const handler = getRouteHandler('get', '/partner-install/status')
+    const res = makeRes()
+    await handler(makeReq(), res)
+
+    assert.strictEqual(res.statusCode, 200, 'Expected partner install status to return HTTP 200')
+    assert.strictEqual(res.jsonBody?.statuses?.['cognee-openclaw']?.installed, true, 'Expected Cognee plugin to be installed')
+    assert.strictEqual(res.jsonBody?.statuses?.['cognee-openclaw']?.enabled, true, 'Expected Cognee plugin to be enabled')
+    assert.strictEqual(res.jsonBody?.statuses?.['cognee-openclaw']?.status, 'loaded', 'Expected Cognee plugin loaded status')
+  })
+
+  await test('partner-install status reports absent Cognee plugin state', async () => {
+    execFileMock = (_file, _args, _options, callback) => {
+      callback(null, JSON.stringify({ plugins: [] }), '')
+    }
+
+    const handler = getRouteHandler('get', '/partner-install/status')
+    const res = makeRes()
+    await handler(makeReq(), res)
+
+    assert.strictEqual(res.statusCode, 200, 'Expected partner install status to return HTTP 200')
+    assert.strictEqual(res.jsonBody?.statuses?.['cognee-openclaw']?.installed, false, 'Expected Cognee plugin to be absent')
+    assert.strictEqual(res.jsonBody?.statuses?.['cognee-openclaw']?.status, 'not-installed', 'Expected not-installed status')
+  })
+
   await test('complete-setup returns actionable input errors for gog when required fields are missing', async () => {
     const handler = getRouteHandler('post', '/:skillId/complete-setup')
     const res = makeRes()

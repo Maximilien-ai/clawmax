@@ -15,7 +15,7 @@ import {
   validateSkillChanges,
   stampImportedRegistrySkillMetadata,
 } from '../lib/skills'
-import { getCuratedPartnerInstaller } from '../lib/partner-installs'
+import { getCuratedPartnerInstaller, listCuratedPartnerInstallers } from '../lib/partner-installs'
 import { generateSkillFromNL, setRequestByokKeys } from '../lib/ai-generator'
 import { safeEnv } from '../lib/safe-env'
 import {
@@ -53,6 +53,47 @@ type SkillSetupSession = {
   endedAt?: number
   exitCode?: number | null
   error?: string
+}
+
+async function getCuratedPartnerPluginStatuses() {
+  const installers = listCuratedPartnerInstallers()
+  const result: any = await execFileAsync('openclaw', ['plugins', 'list', '--json'], {
+    timeout: 30000,
+    env: safeEnv(),
+    maxBuffer: 1024 * 1024 * 8,
+  })
+  const stdout = typeof result === 'string' ? result : result?.stdout
+  const parsed = JSON.parse(String(stdout || '{}'))
+  const plugins = Array.isArray(parsed?.plugins) ? parsed.plugins : []
+  const byId = new Map(plugins.map((plugin: any) => [String(plugin?.id || ''), plugin]))
+  return Object.fromEntries(
+    installers.map((installer) => {
+      const plugin = byId.get(installer.pluginId) as any
+      return [installer.commandId, {
+        commandId: installer.commandId,
+        pluginId: installer.pluginId,
+        installed: !!plugin,
+        enabled: !!plugin?.enabled,
+        status: plugin?.status || (plugin ? 'installed' : 'not-installed'),
+        name: plugin?.name || installer.label,
+        version: plugin?.version || '',
+        origin: plugin?.origin || '',
+      }]
+    })
+  )
+}
+
+function buildUnknownCuratedPartnerPluginStatuses() {
+  return Object.fromEntries(
+    listCuratedPartnerInstallers().map((installer) => [installer.commandId, {
+      commandId: installer.commandId,
+      pluginId: installer.pluginId,
+      installed: false,
+      enabled: false,
+      status: 'unknown',
+      name: installer.label,
+    }])
+  )
 }
 
 const interactiveSkillSetupSessions = new Map<string, SkillSetupSession>()
@@ -296,6 +337,19 @@ router.get('/', (req, res) => {
   } catch (err) {
     console.error('Error listing skills:', err)
     res.status(500).json({ error: 'Failed to load skills' })
+  }
+})
+
+// GET /api/skills/partner-install/status - Report curated partner plugin install state
+router.get('/partner-install/status', async (_req, res) => {
+  try {
+    res.json({ ok: true, statuses: await getCuratedPartnerPluginStatuses() })
+  } catch (err: any) {
+    console.error('Curated partner plugin status error:', err.message)
+    res.status(500).json({
+      error: err.message || 'Failed to inspect curated partner plugin status',
+      statuses: buildUnknownCuratedPartnerPluginStatuses(),
+    })
   }
 })
 
@@ -1213,8 +1267,55 @@ router.post('/registry/install', async (req, res) => {
   }
 })
 
-// POST /api/skills/partner-install - Run curated partner-owned skill installer
-router.post('/partner-install', async (req, res) => {
+function runPartnerCommand(command: string, args: string[], options: { input?: string; timeoutMs?: number } = {}): Promise<{ stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      env: safeEnv(),
+      stdio: ['pipe', 'pipe', 'pipe'],
+    })
+    let stdout = ''
+    let stderr = ''
+    let settled = false
+    const timeoutMs = options.timeoutMs || 180000
+    const timer = setTimeout(() => {
+      if (settled) return
+      settled = true
+      child.kill('SIGTERM')
+      const err: any = new Error(`${command} ${args.join(' ')} timed out after ${timeoutMs}ms`)
+      err.stdout = stdout
+      err.stderr = stderr
+      reject(err)
+    }, timeoutMs)
+
+    child.stdout.on('data', (chunk) => { stdout += chunk.toString() })
+    child.stderr.on('data', (chunk) => { stderr += chunk.toString() })
+    child.on('error', (error: any) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      error.stdout = stdout
+      error.stderr = stderr
+      reject(error)
+    })
+    child.on('close', (code) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      if (code === 0) {
+        resolve({ stdout: stdout.trim(), stderr: stderr.trim() })
+        return
+      }
+      const err: any = new Error(`${command} ${args.join(' ')} failed with code ${code}`)
+      err.stdout = stdout
+      err.stderr = stderr
+      reject(err)
+    })
+    child.stdin.write(options.input || '')
+    child.stdin.end()
+  })
+}
+
+async function runCuratedPartnerInstaller(req: any, res: any, action: 'install' | 'uninstall') {
   try {
     const { commandId } = req.body
     if (!commandId || typeof commandId !== 'string') {
@@ -1226,27 +1327,39 @@ router.post('/partner-install', async (req, res) => {
       return res.status(400).json({ error: 'Unknown curated partner installer' })
     }
 
-    const [command, ...args] = installer.command
-    const { stdout, stderr } = await execFileAsync(command, args, {
-      timeout: 180000,
-      env: safeEnv(),
-      maxBuffer: 1024 * 1024 * 8,
+    const commandParts = action === 'install' ? installer.installCommand : installer.uninstallCommand
+    const [command, ...args] = commandParts
+    const { stdout, stderr } = await runPartnerCommand(command, args, {
+      input: action === 'uninstall' ? 'y\n' : '',
+      timeoutMs: 180000,
     })
     res.json({
       ok: true,
+      action,
       commandId: installer.commandId,
       label: installer.label,
+      command: commandParts.join(' '),
       stdout: `${stdout || ''}`.trim(),
       stderr: `${stderr || ''}`.trim(),
     })
   } catch (err: any) {
-    console.error('Curated partner install error:', err.message)
+    console.error(`Curated partner ${action} error:`, err.message)
     const detail = [err?.stderr, err?.stdout].filter(Boolean).join('\n').trim()
     res.status(500).json({
-      error: err.message || 'Failed to run curated partner installer',
+      error: err.message || `Failed to run curated partner ${action}`,
       detail: detail || undefined,
     })
   }
+}
+
+// POST /api/skills/partner-install - Run curated partner-owned skill installer
+router.post('/partner-install', async (req, res) => {
+  await runCuratedPartnerInstaller(req, res, 'install')
+})
+
+// POST /api/skills/partner-uninstall - Run curated partner-owned plugin uninstaller
+router.post('/partner-uninstall', async (req, res) => {
+  await runCuratedPartnerInstaller(req, res, 'uninstall')
 })
 
 export default router

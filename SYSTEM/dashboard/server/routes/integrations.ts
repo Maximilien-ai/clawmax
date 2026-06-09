@@ -4,6 +4,7 @@ import { validateIntegrations } from '../lib/integration-validation'
 import {
   getResolvedWorkspaceIntegrationSecretPresence,
   getResolvedWorkspaceIntegrationSecretSummaries,
+  getResolvedWorkspaceIntegrationConfig,
   readWorkspaceIntegrationConfig,
   readWorkspaceIntegrationSecrets,
   writeWorkspaceIntegrationConfig,
@@ -36,7 +37,7 @@ router.get('/status', (_req, res) => {
 
 router.get('/config', (_req, res) => {
   res.json({
-    config: readWorkspaceIntegrationConfig(),
+    config: getResolvedWorkspaceIntegrationConfig(),
     secretPresence: getResolvedWorkspaceIntegrationSecretPresence(),
     secretSummaries: getResolvedWorkspaceIntegrationSecretSummaries(),
   })

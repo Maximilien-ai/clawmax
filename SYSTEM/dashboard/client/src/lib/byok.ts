@@ -135,6 +135,22 @@ export function resolveSelectedPartnersForWorkspace(input: {
   ]))
 }
 
+export function hasCogneeConfiguration(input: {
+  apiKey?: string | null
+  baseUrl?: string | null
+  datasetName?: string | null
+  searchType?: string | null
+  serverApiKeyPresent?: boolean | null
+}): boolean {
+  return !!(
+    input.serverApiKeyPresent
+    || input.apiKey?.trim()
+    || input.baseUrl?.trim()
+    || input.datasetName?.trim()
+    || input.searchType?.trim()
+  )
+}
+
 export type ProviderKeyMismatch = {
   provider: 'openai' | 'anthropic' | 'gemini'
   expectedLabel: string

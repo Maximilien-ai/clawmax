@@ -4,7 +4,7 @@
  * Run with: npx ts-node --transpileOnly server/lib/chat-normalization.test.ts
  */
 
-import { normalizeChatMessage } from './chat-normalization'
+import { normalizeChatMessage, stripBenignChatRuntimeWarnings } from './chat-normalization'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -101,6 +101,16 @@ test('extracts human-friendly text from mechdog tool json blobs', () => {
   const actionRaw = '{ "status": "ok", "action": "wave", "estimated_duration": 2.5, "state": { "rotation": 0 } }'
   assert(normalizeChatMessage(moveRaw) === 'Moving forward for 5000ms', 'Expected move tool JSON to collapse to its message')
   assert(normalizeChatMessage(actionRaw) === 'Performed action: wave', 'Expected action tool JSON to collapse to a concise summary')
+})
+
+test('strips benign Cognee plugin runtime config warning from chat output', () => {
+  const warning = 'plugin runtime config.loadConfig() is deprecated (runtime-config-load-write); use config.current().'
+  const raw = `${warning}\n\nUseful agent response.`
+  const stripped = stripBenignChatRuntimeWarnings(raw)
+  const normalized = normalizeChatMessage(raw)
+
+  assert(!stripped.includes('runtime-config-load-write'), 'Expected warning stripped from streamed chunks')
+  assert(normalized === 'Useful agent response.', `Unexpected normalized output: ${normalized}`)
 })
 
 console.log('\n========================================')
