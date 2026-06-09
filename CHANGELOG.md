@@ -6,6 +6,38 @@ All notable changes to ClawMax are documented here.
 
 - No unreleased changes yet.
 
+## [v1.7.9-rc1] - 2026-06-09
+
+### Added
+- **Cognee Partner Integration RC** — added a first-pass Cognee partner surface with Cognee Cloud and self-hosted configuration fields for API key, Base URL, dataset name, and search type, plus direct docs/signup links.
+- **Cognee Template Guidance** — template apply can optionally surface Cognee guidance for memory/context workflows without forcing automatic ingestion, plugin install, or skill assignment.
+- **Cognee OpenClaw Plugin Installer** — Cognee partner skills now expose the official `@cognee/cognee-openclaw` plugin through an allowlisted dashboard installer that runs `openclaw plugins install @cognee/cognee-openclaw@latest`.
+- **Partner Plugin Shell Output** — curated partner plugin install/uninstall actions now open the same green shell-style output modal used by skill requirement installs so operators can see command output and final status.
+- **Partner Plugin Uninstall Flow** — curated partner plugins now support uninstall from Skills and Partners/BYOK, with a dashboard confirmation step before removing plugin files/runtime records.
+
+### Fixed
+- **Cognee Validation Guard** — explicit Cognee key checks no longer pass with completely empty config; users must provide an API key and/or Base URL before validation reports success.
+- **Partner Plugin Action State** — install is disabled when the curated partner plugin is already installed, and uninstall is disabled when it is absent, avoiding avoidable OpenClaw duplicate-install/remove errors.
+- **Non-Interactive Plugin Uninstall** — Cognee uninstall now runs through a backend spawn runner that captures stdout/stderr and sends confirmation input so OpenClaw prompts cannot leave the dashboard modal hanging.
+- **Partner Plugin Card Layout** — partner plugin action buttons wrap inside narrow Skills cards instead of overflowing the card edge.
+
+### Testing
+- Added regression coverage for:
+  - Cognee partner definition and visible partner allowlist behavior
+  - Cognee config/key validation guardrails
+  - Cognee runtime env forwarding into safe child process env
+  - curated Cognee plugin install/uninstall command allowlisting
+  - partner plugin status detection from `openclaw plugins list --json`
+  - partner install/uninstall route execution and confirmation stdin behavior
+
+### Manual RC Checks
+- **Dev install lifecycle** — from Skills and Partners/BYOK, verify Cognee shows configured status, install opens the green shell output modal, install becomes disabled after success, uninstall becomes enabled, uninstall confirmation appears, uninstall completes, and reinstall works.
+- **Cloud install lifecycle** — deploy `1.7.9-test-rc1`, verify Cognee partner config can be saved/validated, install/uninstall output is visible, and button state survives page refresh.
+- **On-Prem install lifecycle** — repeat the cloud checks in the containerized on-prem image and confirm plugin commands use the bundled `openclaw` CLI inside the runtime.
+- **Single-agent Cognee smoke** — create or choose one agent, enable the Cognee plugin/partner config, run a short chat that should write/recall memory, then inspect chat behavior/logs for Cognee recall/index activity and absence of plugin/config errors.
+- **Team/template Cognee smoke** — apply a small multi-agent/team template with Cognee option enabled, run a workflow or group chat, and confirm shared/team context guidance is present while execution still completes without Cognee plugin errors.
+- **Regression safety** — confirm Resend partner, Skills search, partner skills browse/import, and normal skill assignment still work after Cognee install/uninstall.
+
 ## [v1.7.8] - 2026-06-08
 
 ### Fixed
