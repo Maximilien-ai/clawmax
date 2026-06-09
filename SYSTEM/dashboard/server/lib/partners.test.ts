@@ -65,7 +65,8 @@ test('cognee partner exposes cloud/self-hosted fields and official OpenClaw plug
   assert(partner.fields?.some((field) => field.key === 'apiKey' && field.secret === true && field.storage === 'server') === true, 'Expected Cognee server-stored apiKey field')
   assert(partner.fields?.some((field) => field.key === 'baseUrl' && field.secret !== true) === true, 'Expected Cognee Base URL field')
   assert(partner.fields?.some((field) => field.key === 'datasetName' && field.secret !== true) === true, 'Expected Cognee dataset field')
-  assert(partner.skills?.mode === 'planned', 'Expected Cognee official plugin to stay planned until installer is verified')
+  assert(partner.skills?.mode === 'curated-installer', 'Expected Cognee official plugin to use curated installer')
+  assert(partner.skills?.commandId === 'cognee-openclaw', 'Expected Cognee curated installer command id')
   assert((partner.skills?.items || []).includes('@cognee/cognee-openclaw'), 'Expected official Cognee OpenClaw plugin in partner skills')
 })
 

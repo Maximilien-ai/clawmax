@@ -36,6 +36,13 @@ test('getCuratedPartnerInstaller rejects unknown command ids', () => {
   assert(getCuratedPartnerInstaller('rm-everything') === null, 'Expected unknown installer to be rejected')
 })
 
+test('getCuratedPartnerInstaller exposes only the allowlisted Cognee OpenClaw installer', () => {
+  const installer = getCuratedPartnerInstaller('cognee-openclaw')
+  assert(installer !== null, 'Expected Cognee OpenClaw installer')
+  assert(installer?.command.join(' ') === 'npx -y @cognee/cognee-openclaw', `Unexpected Cognee installer command: ${installer?.command.join(' ')}`)
+  assert(installer?.source === 'npx', 'Expected npx installer source')
+})
+
 console.log('\n========================================')
 console.log(`Tests passed: ${testsPassed}`)
 console.log(`Tests failed: ${testsFailed}`)

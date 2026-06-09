@@ -39,8 +39,9 @@
     }
   ],
   "skills": {
-    "mode": "planned",
-    "label": "Official OpenClaw plugin: @cognee/cognee-openclaw. Install wiring is pending package/runtime verification.",
+    "mode": "curated-installer",
+    "commandId": "cognee-openclaw",
+    "label": "Official OpenClaw plugin: @cognee/cognee-openclaw",
     "items": [
       "@cognee/cognee-openclaw",
       "remember",
