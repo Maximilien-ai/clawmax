@@ -2,15 +2,15 @@ export interface CuratedPartnerInstaller {
   commandId: string
   label: string
   command: string[]
-  source: 'npx'
+  source: 'openclaw'
 }
 
 const CURATED_PARTNER_INSTALLERS: Record<string, CuratedPartnerInstaller> = {
   'cognee-openclaw': {
     commandId: 'cognee-openclaw',
     label: 'Install Cognee OpenClaw plugin',
-    command: ['npx', '-y', '@cognee/cognee-openclaw'],
-    source: 'npx',
+    command: ['openclaw', 'plugins', 'install', '@cognee/cognee-openclaw@latest'],
+    source: 'openclaw',
   },
 }
 
