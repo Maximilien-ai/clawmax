@@ -7,6 +7,7 @@ import { getAgentChatCodeBlockClassName, getAgentChatInlineCodeClassName, getAge
 import { ProductIconCell } from '../lib/productIcons'
 import { useAuth } from '../contexts/AuthContext'
 import { resolveAgentChatDocPath } from '../lib/agentChatDocs'
+import { transformWorkspaceMarkdownUrl } from '../lib/markdownLinks'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -328,6 +329,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
   const renderMarkdown = (content: string, clean = false, role: AgentChatMarkdownRole = 'assistant') => (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
+      urlTransform={transformWorkspaceMarkdownUrl}
       components={{
         a: ({ href, children }) => {
           if (href?.startsWith('workspace-file:') && onNavigateToDoc) {

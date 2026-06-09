@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import Builder from './pages/Builder'
 import Agents from './pages/Agents'
 import DocHub from './pages/DocHub'
@@ -28,6 +28,7 @@ import { TermsOfServiceModal } from './components/TermsOfServiceModal'
 import { WorkspaceFirstRunTour } from './components/WorkspaceFirstRunTour'
 import { useWorkspace } from './contexts/WorkspaceContext'
 import { CHANNEL_API_ENDPOINTS } from './lib/channelApi'
+import { addVisitedPage } from './lib/appNavigationState'
 import { getVisibleMaintenanceBanner } from './lib/maintenanceBannerView'
 import { type DashboardPage, pageToPath, pathToPage } from './lib/navigation'
 import { readGlobalWorkspaceTourDisabled, readWorkspaceTourState, resetWorkspaceTourState, shouldShowWorkspaceTour, writeWorkspaceTourState } from './lib/onboardingTour'
@@ -388,6 +389,17 @@ export default function App() {
   const [draggedNavIndex, setDraggedNavIndex] = useState<number | null>(null)
   const [runningWorkflowsCount, setRunningWorkflowsCount] = useState(0)
   const [totalUnread, setTotalUnread] = useState(0)
+
+  const markPageVisited = useCallback((nextPage: Page) => {
+    setVisitedPages((prev) => addVisitedPage(prev, nextPage))
+  }, [])
+
+  const openAgentChat = useCallback((agentId: string) => {
+    markPageVisited('agents')
+    setInitialAgentId(agentId)
+    setInitialAgentAction('chat')
+    setPage('agents')
+  }, [markPageVisited])
   const [darkMode, setDarkMode] = useState<boolean>(() => {
     // Check localStorage first
     const saved = localStorage.getItem('dark-mode')
@@ -844,7 +856,7 @@ export default function App() {
                   onOpenAgentCreateAI={(prompt?: string) => { setInitialAgentAiDescription(prompt); setInitialAgentAction('create-ai'); setPage('agents') }}
                   onOpenAgentImport={() => { setInitialAgentAction('import'); setPage('agents') }}
                   onOpenAgent={(agentId) => { setInitialAgentId(agentId); setPage('agents') }}
-                  onOpenAgentChat={(agentId) => { setInitialAgentId(agentId); setInitialAgentAction('chat'); setPage('agents') }}
+                  onOpenAgentChat={openAgentChat}
                   onOpenSkill={(skillName, agentId) => {
                     setInitialSkillsAgent(agentId)
                     setInitialSkillsSkill(skillName)
@@ -1099,7 +1111,7 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
         <div data-tour="notifications">
           <NotificationCenter
             onNavigateToAgent={onNavigateToAgent}
-            onNavigateToAgentChat={(agentId) => { setInitialAgentId(agentId); setInitialAgentAction('chat'); setPage('agents') }}
+            onNavigateToAgentChat={openAgentChat}
             onNavigateToWorkflow={onNavigateToWorkflow}
             onNavigateToPage={onNavigateToPage}
             onNavigateToDoc={onNavigateToDoc}

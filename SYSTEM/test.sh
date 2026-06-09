@@ -678,6 +678,16 @@ else
   fail "Navigation helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running App navigation state unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/appNavigationState.test.ts > /tmp/clawmax-app-navigation-state.out 2>&1 || true
+if grep -q "appNavigationState.test.ts:" /tmp/clawmax-app-navigation-state.out; then
+  app_navigation_state_count=$(grep -oE '[0-9]+ tests passed' /tmp/clawmax-app-navigation-state.out | tail -1 | awk '{print $1}')
+  pass "App navigation state unit tests (${app_navigation_state_count:-?} tests)"
+else
+  cat /tmp/clawmax-app-navigation-state.out
+  fail "App navigation state unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Agent chat session helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/agentChatSession.test.ts > /tmp/clawmax-agent-chat-session.out 2>&1 || true
 if grep -q '^✓ ' /tmp/clawmax-agent-chat-session.out; then
@@ -870,6 +880,16 @@ if grep -q "Agent chat markdown helper tests passed" /tmp/clawmax-agent-chat-mar
 else
   cat /tmp/clawmax-agent-chat-markdown.out
   fail "Agent chat markdown helper unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Markdown link helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/markdownLinks.test.ts > /tmp/clawmax-markdown-links.out 2>&1 || true
+if grep -q "markdownLinks.test.ts:" /tmp/clawmax-markdown-links.out; then
+  markdown_links_count=$(grep -oE '[0-9]+ tests passed' /tmp/clawmax-markdown-links.out | tail -1 | awk '{print $1}')
+  pass "Markdown link helper unit tests (${markdown_links_count:-?} tests)"
+else
+  cat /tmp/clawmax-markdown-links.out
+  fail "Markdown link helper unit tests"
 fi
 
 echo -e "${YELLOW}→ Running Skill tags helper unit tests...${NC}"

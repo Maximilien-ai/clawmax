@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { transformWorkspaceMarkdownUrl } from './lib/markdownLinks'
 
 interface SharedDashboardPayload {
   refreshedAt: string
@@ -364,6 +365,7 @@ function MarkdownBlock({ content, className = '', onOpenDoc }: { content: string
     <div className={className}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
+        urlTransform={transformWorkspaceMarkdownUrl}
         components={{
           p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
           strong: ({ children }) => <strong className="font-semibold text-inherit">{children}</strong>,

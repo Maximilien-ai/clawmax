@@ -10,6 +10,7 @@ import {
 } from '../lib/communicationMessages'
 import { ProductIconCell } from '../lib/productIcons'
 import { useAuth } from '../contexts/AuthContext'
+import { transformWorkspaceMarkdownUrl } from '../lib/markdownLinks'
 
 interface Message {
   id: string
@@ -685,6 +686,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
   const renderMarkdown = (content: string, clean = false) => (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
+      urlTransform={transformWorkspaceMarkdownUrl}
       components={{
         a: ({ href, children }) => {
           if (href?.startsWith('workspace-file:') && onNavigateToDoc) {
