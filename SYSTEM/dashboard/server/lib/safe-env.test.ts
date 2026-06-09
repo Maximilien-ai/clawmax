@@ -179,6 +179,18 @@ test('safeEnv forwards workspace-managed partner secrets to child processes', ()
       resend: {
         apiKey: 're_test_1234567890',
       },
+      cognee: {
+        apiKey: 'cognee_workspace_key',
+      },
+    },
+  }, null, 2))
+  fs.writeFileSync(path.join(systemDir, 'integrations.json'), JSON.stringify({
+    partners: {
+      cognee: {
+        baseUrl: 'https://cognee.example.test',
+        datasetName: 'clawmax-memory',
+        searchType: 'GRAPH_COMPLETION',
+      },
     },
   }, null, 2))
 
@@ -188,6 +200,10 @@ test('safeEnv forwards workspace-managed partner secrets to child processes', ()
 
   const env = safeEnv()
   assert(env.RESEND_API_KEY === 're_test_1234567890', 'Expected managed partner secret to reach child env')
+  assert(env.COGNEE_API_KEY === 'cognee_workspace_key', 'Expected Cognee managed partner secret to reach child env')
+  assert(env.COGNEE_BASE_URL === 'https://cognee.example.test', 'Expected Cognee base URL to reach child env')
+  assert(env.COGNEE_DATASET_NAME === 'clawmax-memory', 'Expected Cognee dataset to reach child env')
+  assert(env.COGNEE_SEARCH_TYPE === 'GRAPH_COMPLETION', 'Expected Cognee search type to reach child env')
   assert(typeof env.apiKey === 'undefined', 'Expected raw partner field key not to leak into child env')
 })
 

@@ -128,6 +128,7 @@ const PARTNER_PRIORITY: Record<string, number> = {
   github: 1,
   senso: 2,
   resend: 3,
+  cognee: 4,
 }
 
 function sortPartnerDefinitions(partners: PartnerDefinition[]): PartnerDefinition[] {
@@ -201,6 +202,7 @@ export function ByokWizard({
     openaiCompatible: { status: 'idle', message: '' },
     opik: { status: 'idle', message: '' },
     senso: { status: 'idle', message: '' },
+    cognee: { status: 'idle', message: '' },
   })
   const [dismissed, setDismissed] = useState(false)
   const [hydrated, setHydrated] = useState(false)
@@ -436,11 +438,12 @@ export function ByokWizard({
           lockedPartnerSlugs: [
             ...(config?.opikRuntimeConfigured ? ['opik'] : []),
             ...(config?.resendRuntimeConfigured ? ['resend'] : []),
+            ...(config?.cogneeRuntimeConfigured ? ['cognee'] : []),
           ],
         }))
       })
       .catch(() => {})
-  }, [activeWorkspace?.id, config?.defaultOllamaBaseUrl, config?.opikRuntimeConfigured, config?.resendRuntimeConfigured, defaultOllamaBaseUrl, hydrated, managedRuntime])
+  }, [activeWorkspace?.id, config?.cogneeRuntimeConfigured, config?.defaultOllamaBaseUrl, config?.opikRuntimeConfigured, config?.resendRuntimeConfigured, defaultOllamaBaseUrl, hydrated, managedRuntime])
 
   const hasStoredKeys = !!(openaiKey || anthropicKey || geminiApiKey || openaiCompatibleBaseUrl || openaiCompatibleDefaultModel)
   const hasDefaultUserKeys = !!(config?.userKeyDefaults?.openai || config?.userKeyDefaults?.anthropic || config?.userKeyDefaults?.gemini || config?.userKeyDefaults?.openaiCompatible)
@@ -507,8 +510,9 @@ export function ByokWizard({
     () => [
       ...(config?.opikRuntimeConfigured ? ['opik'] : []),
       ...(config?.resendRuntimeConfigured ? ['resend'] : []),
+      ...(config?.cogneeRuntimeConfigured ? ['cognee'] : []),
     ],
-    [config?.opikRuntimeConfigured, config?.resendRuntimeConfigured]
+    [config?.cogneeRuntimeConfigured, config?.opikRuntimeConfigured, config?.resendRuntimeConfigured]
   )
   const partnerCategoryTabs = useMemo(
     () => listPartnerCategoryTabs(visiblePartnerDefinitions),
@@ -912,6 +916,10 @@ export function ByokWizard({
       opikWorkspace: scope === 'all' || currentPartnerSlug === 'opik' ? opikWorkspace.trim() : '',
       opikProject: scope === 'all' || currentPartnerSlug === 'opik' ? opikProject.trim() : '',
       sensoApiKey: scope === 'all' || currentPartnerSlug === 'senso' ? getPartnerSecret('senso', 'apiKey').trim() : '',
+      cogneeApiKey: scope === 'all' || currentPartnerSlug === 'cognee' ? getPartnerSecret('cognee', 'apiKey').trim() : '',
+      cogneeBaseUrl: scope === 'all' || currentPartnerSlug === 'cognee' ? getPartnerValue('cognee', 'baseUrl').trim() : '',
+      cogneeDatasetName: scope === 'all' || currentPartnerSlug === 'cognee' ? getPartnerValue('cognee', 'datasetName').trim() : '',
+      cogneeSearchType: scope === 'all' || currentPartnerSlug === 'cognee' ? getPartnerValue('cognee', 'searchType').trim() : '',
     }
     if (providerScope === 'openai' && !scopedPayload.openai) {
       setValidation((current) => ({ ...current, openai: { status: 'invalid', message: 'No OpenAI key provided' } }))
@@ -968,6 +976,7 @@ export function ByokWizard({
           ollama: { status: 'skipped', message: 'Validation unavailable from the current server build' },
           opik: { status: 'skipped', message: 'Validation unavailable from the current server build' },
           senso: { status: 'skipped', message: 'Validation unavailable from the current server build' },
+          cognee: { status: 'skipped', message: 'Validation unavailable from the current server build' },
         })
         showInfo('Integration validation is unavailable on the current server build. Saving local settings without blocking.')
         return true
@@ -984,6 +993,7 @@ export function ByokWizard({
           : { status: 'skipped', message: 'Ollama is disabled in this runtime' },
         opik: { status: data.opik?.status || 'idle', message: data.opik?.message || '' },
         senso: { status: data.senso?.status || 'idle', message: data.senso?.message || '' },
+        cognee: { status: data.cognee?.status || 'idle', message: data.cognee?.message || '' },
       }
       setValidation(nextState)
       updateStoredVerification((current) => {
@@ -1040,6 +1050,7 @@ export function ByokWizard({
       ollama: 'Ollama',
       opik: 'Opik',
       senso: 'Senso',
+      cognee: 'Cognee',
     }
     return labels[slug] || slug
   }
@@ -1415,6 +1426,19 @@ export function ByokWizard({
       }
       return githubReady ? 'GitHub CLI-based issue workflows look ready in this runtime.' : 'GitHub delivery workflows need auth in the current runtime.'
     }
+    if (partner.slug === 'cognee') {
+      const hasSecret = getPartnerSecret('cognee', 'apiKey').trim() || hasServerPartnerSecret('cognee', 'apiKey')
+      const baseUrl = getPartnerValue('cognee', 'baseUrl').trim()
+      const dataset = getPartnerValue('cognee', 'datasetName').trim()
+      const parts = [
+        hasSecret ? 'API key configured' : '',
+        baseUrl ? `base URL: ${baseUrl}` : '',
+        dataset ? `dataset: ${dataset}` : '',
+      ].filter(Boolean)
+      return parts.length > 0
+        ? parts.join(' · ')
+        : 'Not configured — workspace files remain the default memory/context layer'
+    }
 
     const secretFields = (partner.fields || []).filter((field) =>
       field.secret && (getPartnerSecret(partner.slug, field.key).trim() || hasServerPartnerSecret(partner.slug, field.key))
@@ -1447,6 +1471,13 @@ export function ByokWizard({
       return (
         <>
           Use GitHub for issues, PRs, code review, and shared delivery workflows. Local and on-prem runtimes can use GitHub CLI auth. Hosted/cloud runtimes should prefer a runtime <span className="font-mono">GITHUB_TOKEN</span> or <span className="font-mono">GH_TOKEN</span> plus a default repository.
+        </>
+      )
+    }
+    if (partner.slug === 'cognee') {
+      return (
+        <>
+          Use Cognee for durable agent memory, semantic recall, and shared context across teams. Configure <span className="font-mono">COGNEE_API_KEY</span> for Cognee Cloud, or set a self-hosted <span className="font-mono">COGNEE_BASE_URL</span> and optional dataset defaults.
         </>
       )
     }
@@ -1645,6 +1676,9 @@ export function ByokWizard({
       : partner.slug === 'senso' && field.key === 'contextLabel' ? 'e.g. Workspace / Team / Project'
       : partner.slug === 'opik' && field.key === 'workspace' ? 'e.g. my-team'
       : partner.slug === 'opik' && field.key === 'project' ? 'e.g. clawmax-agents'
+      : partner.slug === 'cognee' && field.key === 'baseUrl' ? 'https://api.cognee.ai or http://localhost:8000'
+      : partner.slug === 'cognee' && field.key === 'datasetName' ? 'e.g. clawmax-workspace'
+      : partner.slug === 'cognee' && field.key === 'searchType' ? 'e.g. GRAPH_COMPLETION'
       : field.label
 
     return (

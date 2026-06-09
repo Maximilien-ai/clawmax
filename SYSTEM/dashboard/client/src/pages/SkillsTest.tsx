@@ -522,7 +522,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
         setPartnerInstallers(
           definitions.filter((partner: any) => {
             const mode = partner?.skills?.mode
-            return mode === 'curated-installer' || mode === 'catalog' || mode === 'shipables'
+            return mode === 'curated-installer' || mode === 'catalog' || mode === 'shipables' || mode === 'planned'
           })
         )
       })

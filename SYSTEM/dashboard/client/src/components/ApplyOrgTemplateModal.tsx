@@ -210,9 +210,12 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess, in
   const [githubRepo, setGithubRepo] = useState('')
   const [useSenso, setUseSenso] = useState(false)
   const [sensoFolder, setSensoFolder] = useState('')
+  const [useCognee, setUseCognee] = useState(false)
+  const [cogneeDataset, setCogneeDataset] = useState('')
   const [enabledPartners, setEnabledPartners] = useState<string[]>([])
   const [visiblePartners, setVisiblePartners] = useState<string[]>([])
   const [hasSensoApiKey, setHasSensoApiKey] = useState(false)
+  const [hasCogneeConfig, setHasCogneeConfig] = useState(false)
   const [hasGithubAuth, setHasGithubAuth] = useState(false)
   const [showUnavailablePartnerOptions, setShowUnavailablePartnerOptions] = useState(false)
   const [showWorkflowSection, setShowWorkflowSection] = useState(false)
@@ -396,6 +399,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess, in
         if (enabled.length > 0) {
           if (!enabled.includes('github')) setUseGithub(false)
           if (!enabled.includes('senso')) setUseSenso(false)
+          if (!enabled.includes('cognee')) setUseCognee(false)
         }
 
         if (config.githubDefaultRepo?.trim()) {
@@ -411,6 +415,15 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess, in
             setPrefilledSensoDefault(true)
             return config.sensoContextLabel.trim()
           })
+        }
+        const cogneeValues = typeof config.partners?.cognee === 'object' && config.partners.cognee ? config.partners.cognee : {}
+        const cogneeDatasetName = typeof cogneeValues.datasetName === 'string' ? cogneeValues.datasetName.trim() : ''
+        const cogneeBaseUrl = typeof cogneeValues.baseUrl === 'string' ? cogneeValues.baseUrl.trim() : ''
+        const cogneeSearchType = typeof cogneeValues.searchType === 'string' ? cogneeValues.searchType.trim() : ''
+        const cogneeKeyPresent = data?.secretPresence?.cognee?.apiKey === true
+        setHasCogneeConfig(!!(cogneeKeyPresent || cogneeBaseUrl || cogneeDatasetName || cogneeSearchType))
+        if (cogneeDatasetName) {
+          setCogneeDataset((current) => current || cogneeDatasetName)
         }
       })
       .catch(() => {})
@@ -445,13 +458,14 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess, in
   }, [])
 
   const partnerIsVisible = (slug: string) => {
-    const effectiveVisiblePartners = visiblePartners.length > 0 ? visiblePartners : ['senso', 'opik', 'github']
+    const effectiveVisiblePartners = visiblePartners.length > 0 ? visiblePartners : ['senso', 'opik', 'github', 'cognee']
     return effectiveVisiblePartners.includes(slug)
   }
   const partnerIsEnabled = (slug: string) => enabledPartners.length === 0 ? true : enabledPartners.includes(slug)
 
   const githubAvailable = partnerIsVisible('github') && partnerIsEnabled('github') && !!githubRepo.trim() && hasGithubAuth
   const sensoAvailable = partnerIsVisible('senso') && partnerIsEnabled('senso') && hasSensoApiKey
+  const cogneeAvailable = partnerIsVisible('cognee') && partnerIsEnabled('cognee') && hasCogneeConfig
 
   const unavailablePartnerOptions = [
     !githubAvailable && partnerIsVisible('github') ? {
@@ -463,6 +477,11 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess, in
       slug: 'senso',
       name: 'Senso Shared Context',
       detail: 'Requires a selected Senso integration with an API key configured in Workspaces Integrations.'
+    } : null,
+    !cogneeAvailable && partnerIsVisible('cognee') ? {
+      slug: 'cognee',
+      name: 'Cognee Memory',
+      detail: 'Requires Cognee Cloud API key or a self-hosted Cognee Base URL configured in Workspaces Integrations.'
     } : null,
   ].filter((item): item is { slug: string; name: string; detail: string } => !!item)
 
@@ -921,6 +940,15 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess, in
           const existing = finalOverrides[wf.id] ?? (wf as any).content ?? ''
           if (!existing.includes('Senso Shared Context')) {
             finalOverrides[wf.id] = existing + sensoBlock
+          }
+        }
+      }
+      if (useCognee && template.workflows) {
+        const cogneeBlock = `\n\n---\n**Cognee Semantic Memory:** Use Cognee as the optional memory and semantic recall layer for this team.\n- Remember user-approved decisions, durable facts, and completed workflow outcomes in Cognee\n- Recall relevant prior context before planning or handing work to another agent\n- Improve future responses from explicit feedback and completed run summaries\n- Do not ingest secrets, API keys, auth profiles, private logs, or unrelated workspace files\n${cogneeDataset.trim() ? `- Preferred Cognee dataset: \`${cogneeDataset.trim()}\`\n` : ''}---\n`
+        for (const wf of template.workflows) {
+          const existing = finalOverrides[wf.id] ?? (wf as any).content ?? ''
+          if (!existing.includes('Cognee Semantic Memory')) {
+            finalOverrides[wf.id] = existing + cogneeBlock
           }
         }
       }
@@ -1736,6 +1764,42 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess, in
                       placeholder="Optional label for evidence and briefs"
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
                     />
+                  </div>
+                )}
+              </div>
+              )}
+
+              {cogneeAvailable && (
+              <div>
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={useCognee}
+                    onChange={e => setUseCognee(e.target.checked)}
+                    className="mt-0.5 rounded"
+                  />
+                  <div>
+                    <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">Cognee Semantic Memory</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                      Add Cognee memory and recall guidance to workflows for this apply. V1 does not auto-ingest data or install the official plugin.
+                    </div>
+                  </div>
+                </label>
+                {useCognee && (
+                  <div className="mt-3 ml-7">
+                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Preferred Cognee Dataset
+                    </label>
+                    <input
+                      type="text"
+                      value={cogneeDataset}
+                      onChange={e => setCogneeDataset(e.target.value)}
+                      placeholder="Optional dataset or namespace label"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
+                    />
+                    <p className="text-[10px] text-gray-400 mt-1">
+                      Cognee memory writes should remain opt-in and avoid secrets or private runtime logs.
+                    </p>
                   </div>
                 )}
               </div>

@@ -8,6 +8,9 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import {
+  getResolvedWorkspaceIntegrationConfig,
+  getResolvedWorkspaceIntegrationSecretPresence,
+  getResolvedWorkspaceIntegrationSecretSummaries,
   getWorkspaceGitHubToken,
   getWorkspaceIntegrationSecretPresence,
   readWorkspaceIntegrationConfig,
@@ -63,6 +66,10 @@ console.log(`\n${YELLOW}=== Workspace Integrations Config Test Suite ===${RESET}
 
 const originalHome = process.env.HOME
 const originalWorkspace = process.env.OPENCLAW_WORKSPACE
+const originalCogneeApiKey = process.env.COGNEE_API_KEY
+const originalCogneeBaseUrl = process.env.COGNEE_BASE_URL
+const originalCogneeDatasetName = process.env.COGNEE_DATASET_NAME
+const originalCogneeSearchType = process.env.COGNEE_SEARCH_TYPE
 
 const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-workspace-integrations-test-'))
 const workspacePath = path.join(tmpHome, 'workspace')
@@ -134,11 +141,40 @@ test('writeWorkspaceIntegrationSecrets persists github runtime token without exp
   assert(!config.partners?.github?.token, 'Expected raw github token to stay out of non-secret config')
 })
 
+test('resolved workspace config includes runtime-managed Cognee Cloud and self-hosted defaults', () => {
+  process.env.COGNEE_API_KEY = ' cognee-test-key '
+  process.env.COGNEE_BASE_URL = ' https://cognee.example.test '
+  process.env.COGNEE_DATASET_NAME = ' clawmax-memory '
+  process.env.COGNEE_SEARCH_TYPE = ' GRAPH_COMPLETION '
+
+  writeWorkspaceIntegrationConfig({})
+  writeWorkspaceIntegrationSecrets({})
+
+  const config = getResolvedWorkspaceIntegrationConfig()
+  assert(config.partners?.cognee?.baseUrl === 'https://cognee.example.test', 'Expected runtime Cognee base URL in resolved config')
+  assert(config.partners?.cognee?.datasetName === 'clawmax-memory', 'Expected runtime Cognee dataset in resolved config')
+  assert(config.partners?.cognee?.searchType === 'GRAPH_COMPLETION', 'Expected runtime Cognee search type in resolved config')
+
+  const presence = getResolvedWorkspaceIntegrationSecretPresence()
+  assert(presence.cognee?.apiKey === true, 'Expected runtime Cognee API key presence')
+  const summaries = getResolvedWorkspaceIntegrationSecretSummaries()
+  assert(summaries.cognee?.apiKey?.preview === 'cogn••••-key', `Unexpected Cognee key preview: ${summaries.cognee?.apiKey?.preview}`)
+})
+
 if (typeof originalHome === 'undefined') delete process.env.HOME
 else process.env.HOME = originalHome
 
 if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
 else process.env.OPENCLAW_WORKSPACE = originalWorkspace
+
+if (typeof originalCogneeApiKey === 'undefined') delete process.env.COGNEE_API_KEY
+else process.env.COGNEE_API_KEY = originalCogneeApiKey
+if (typeof originalCogneeBaseUrl === 'undefined') delete process.env.COGNEE_BASE_URL
+else process.env.COGNEE_BASE_URL = originalCogneeBaseUrl
+if (typeof originalCogneeDatasetName === 'undefined') delete process.env.COGNEE_DATASET_NAME
+else process.env.COGNEE_DATASET_NAME = originalCogneeDatasetName
+if (typeof originalCogneeSearchType === 'undefined') delete process.env.COGNEE_SEARCH_TYPE
+else process.env.COGNEE_SEARCH_TYPE = originalCogneeSearchType
 
 resetWorkspaceManagerForTests()
 

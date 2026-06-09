@@ -12,6 +12,7 @@ export interface IntegrationValidationResponse {
   ollama?: IntegrationValidationResult
   opik?: IntegrationValidationResult
   senso?: IntegrationValidationResult
+  cognee?: IntegrationValidationResult
 }
 
 type FetchLike = typeof fetch
@@ -335,6 +336,32 @@ export async function validateSensoConfig(apiKey: string): Promise<IntegrationVa
   return valid('Senso key is present. Live API validation is not yet implemented from this form.')
 }
 
+export async function validateCogneeConfig(
+  apiKey: string,
+  baseUrl: string,
+  datasetName: string,
+  searchType: string
+): Promise<IntegrationValidationResult> {
+  const hasApiKey = !!apiKey.trim()
+  const hasBaseUrl = !!baseUrl.trim()
+  const hasDataset = !!datasetName.trim()
+  const hasSearchType = !!searchType.trim()
+
+  if (!hasApiKey && !hasBaseUrl && !hasDataset && !hasSearchType) {
+    return skipped('No Cognee configuration provided')
+  }
+  if (hasBaseUrl) {
+    try {
+      new URL(baseUrl.trim())
+    } catch {
+      return invalid('Cognee Base URL must be a valid URL for Cloud or self-hosted use')
+    }
+  }
+  return valid(hasApiKey
+    ? 'Cognee configuration is present. Live API validation is not yet implemented from this form.'
+    : 'Cognee self-hosted configuration is present. Add an API key if your Cognee deployment requires one.')
+}
+
 export async function validateIntegrations(input: {
   openai?: string
   openaiCompatibleApiKey?: string
@@ -348,8 +375,12 @@ export async function validateIntegrations(input: {
   opikWorkspace?: string
   opikProject?: string
   sensoApiKey?: string
+  cogneeApiKey?: string
+  cogneeBaseUrl?: string
+  cogneeDatasetName?: string
+  cogneeSearchType?: string
 }, fetchImpl: FetchLike = fetch): Promise<IntegrationValidationResponse> {
-  const [openai, openaiCompatible, anthropic, gemini, ollama, opik, senso] = await Promise.all([
+  const [openai, openaiCompatible, anthropic, gemini, ollama, opik, senso, cognee] = await Promise.all([
     validateOpenAIKey(input.openai || '', fetchImpl),
     validateOpenAICompatibleConfig(input.openaiCompatibleBaseUrl || '', input.openaiCompatibleApiKey || '', input.openaiCompatibleDefaultModel || '', fetchImpl),
     validateAnthropicKey(input.anthropic || '', fetchImpl),
@@ -357,8 +388,9 @@ export async function validateIntegrations(input: {
     validateOllamaConfig(input.ollamaBaseUrl || '', input.ollamaDefaultModel || '', fetchImpl),
     validateOpikConfig(input.opikApiKey || '', input.opikWorkspace || '', input.opikProject || '', fetchImpl),
     validateSensoConfig(input.sensoApiKey || ''),
+    validateCogneeConfig(input.cogneeApiKey || '', input.cogneeBaseUrl || '', input.cogneeDatasetName || '', input.cogneeSearchType || ''),
   ])
 
-  return { openai, openaiCompatible, anthropic, gemini, ollama, opik, senso }
+  return { openai, openaiCompatible, anthropic, gemini, ollama, opik, senso, cognee }
 }
 import { getDefaultOllamaBaseUrl } from './dashboard-env'

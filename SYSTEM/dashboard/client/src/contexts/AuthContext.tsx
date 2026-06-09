@@ -23,6 +23,8 @@ interface AuthConfig {
   defaultOpenAiCompatibleBaseUrl?: string
   allowSystemKeysForUserExecution?: boolean
   opikRuntimeConfigured?: boolean
+  resendRuntimeConfigured?: boolean
+  cogneeRuntimeConfigured?: boolean
   systemKeyDefaults?: {
     openai: boolean
     anthropic: boolean

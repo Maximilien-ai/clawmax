@@ -10,7 +10,7 @@ import {
   resolveUserExecutionProviderKeys,
   resolveRuntimeBaseUrl,
 } from './dashboard-env'
-import { getWorkspaceGitHubToken, readWorkspaceIntegrationSecrets } from './workspace-integrations'
+import { getResolvedWorkspaceIntegrationConfig, getWorkspaceGitHubToken, readWorkspaceIntegrationSecrets } from './workspace-integrations'
 import { REPO_ROOT } from './paths'
 
 export interface ExecutionEnvOverrides extends ProviderKeys {
@@ -75,6 +75,16 @@ export function safeEnv(extras?: Record<string, string | undefined>): NodeJS.Pro
       ))
       .filter(([, value]) => !!value)
   )
+  const partnerValueEnv = Object.fromEntries(
+    Object.entries(getResolvedWorkspaceIntegrationConfig().partners || {})
+      .flatMap(([slug, partnerValues]) => (
+        Object.entries(partnerValues || {}).map(([key, value]) => [
+          getPartnerSecretEnvKey(slug, key),
+          typeof value === 'string' ? value.trim() : '',
+        ])
+      ))
+      .filter(([, value]) => !!value)
+  )
   const base: Record<string, string | undefined> = {
     PATH: buildSafePath(process.env.PATH),
     HOME: process.env.HOME,
@@ -90,9 +100,14 @@ export function safeEnv(extras?: Record<string, string | undefined>): NodeJS.Pro
     GH_TOKEN: process.env.GH_TOKEN || workspaceGitHubToken,
     // gh CLI config directory
     XDG_CONFIG_HOME: process.env.XDG_CONFIG_HOME,
+    // Cognee OpenClaw plugin / MCP integration
+    COGNEE_API_KEY: process.env.COGNEE_API_KEY,
+    COGNEE_BASE_URL: process.env.COGNEE_BASE_URL,
+    COGNEE_DATASET_NAME: process.env.COGNEE_DATASET_NAME,
+    COGNEE_SEARCH_TYPE: process.env.COGNEE_SEARCH_TYPE,
   }
 
-  return { ...base, ...partnerSecretEnv, ...extras }
+  return { ...base, ...partnerValueEnv, ...partnerSecretEnv, ...extras }
 }
 
 function providerKeysToEnv(providerKeys: ExecutionEnvOverrides): Record<string, string> | undefined {

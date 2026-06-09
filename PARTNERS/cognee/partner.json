@@ -1,0 +1,58 @@
+{
+  "slug": "cognee",
+  "name": "Cognee",
+  "website": "https://www.cognee.ai/",
+  "docsUrl": "https://docs.cognee.ai/",
+  "description": "Memory, recall, and semantic context layer for agents and agent teams.",
+  "category": "context",
+  "categories": ["context", "memory"],
+  "enabledByDefault": true,
+  "fields": [
+    {
+      "key": "apiKey",
+      "label": "API key",
+      "type": "password",
+      "required": false,
+      "secret": true,
+      "storage": "server"
+    },
+    {
+      "key": "baseUrl",
+      "label": "Base URL",
+      "type": "text",
+      "required": false,
+      "secret": false
+    },
+    {
+      "key": "datasetName",
+      "label": "Dataset name",
+      "type": "text",
+      "required": false,
+      "secret": false
+    },
+    {
+      "key": "searchType",
+      "label": "Search type",
+      "type": "text",
+      "required": false,
+      "secret": false
+    }
+  ],
+  "skills": {
+    "mode": "planned",
+    "label": "Official OpenClaw plugin: @cognee/cognee-openclaw. Install wiring is pending package/runtime verification.",
+    "items": [
+      "@cognee/cognee-openclaw",
+      "remember",
+      "recall",
+      "improve",
+      "forget"
+    ]
+  },
+  "validation": {
+    "mode": "config",
+    "resultKey": "cognee",
+    "label": "Check keys",
+    "helperText": "Checks Cognee configuration presence for Cloud or self-hosted use. Live API validation will follow after the target endpoint/auth contract is confirmed."
+  }
+}
