@@ -810,6 +810,7 @@ export default function App() {
               onOpenAgentCreate={() => { setInitialAgentAction('create'); setPage('agents') }}
               onOpenAgentCreateAI={(prompt?: string) => { setInitialAgentAiDescription(prompt); setInitialAgentAction('create-ai'); setPage('agents') }}
               onOpenAgentImport={() => { setInitialAgentAction('import'); setPage('agents') }}
+              onOpenAgentChat={openAgentChat}
               onOpenBuilder={() => setPage('builder')}
               onOpenByok={() => window.dispatchEvent(new CustomEvent('open-byok-wizard'))}
               onOpenPartners={() => window.dispatchEvent(new CustomEvent('open-partners-wizard'))}
@@ -968,7 +969,7 @@ export default function App() {
   )
 }
 
-function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWorkflowsCount, onClickRunningWorkflows, darkMode, onToggleDarkMode, onNavigateToAgent, onNavigateToWorkflow, onNavigateToPage, onNavigateToDoc, onOpenAgentCreate, onOpenAgentCreateAI, onOpenAgentImport, onOpenBuilder, onOpenByok, onOpenPartners }: {
+function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWorkflowsCount, onClickRunningWorkflows, darkMode, onToggleDarkMode, onNavigateToAgent, onNavigateToWorkflow, onNavigateToPage, onNavigateToDoc, onOpenAgentCreate, onOpenAgentCreateAI, onOpenAgentImport, onOpenAgentChat, onOpenBuilder, onOpenByok, onOpenPartners }: {
   system: SystemInfo | null
   onMobileMenuToggle?: () => void
   onOpenWorkspaceDialog?: () => void
@@ -983,6 +984,7 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
   onOpenAgentCreate?: () => void
   onOpenAgentCreateAI?: (prompt?: string) => void
   onOpenAgentImport?: () => void
+  onOpenAgentChat?: (agentId: string) => void
   onOpenBuilder?: () => void
   onOpenByok?: () => void
   onOpenPartners?: () => void
@@ -1111,7 +1113,7 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
         <div data-tour="notifications">
           <NotificationCenter
             onNavigateToAgent={onNavigateToAgent}
-            onNavigateToAgentChat={openAgentChat}
+            onNavigateToAgentChat={onOpenAgentChat}
             onNavigateToWorkflow={onNavigateToWorkflow}
             onNavigateToPage={onNavigateToPage}
             onNavigateToDoc={onNavigateToDoc}
