@@ -5,18 +5,18 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.7.9--rc-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
+[![Version](https://img.shields.io/badge/version-1.7.9-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
 [![Tests](https://img.shields.io/badge/tests-96%20default--safe-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 Latest Release Candidate: v1.7.9
+## 🔥 Latest Release: v1.7.9
 
-- `1.7.9` is the tentative release-candidate line for the Cognee partner integration and partner-plugin install/uninstall lifecycle testing.
+- `1.7.9` adds the first Cognee partner integration, partner-plugin install/uninstall lifecycle support, and cloud/on-prem runtime-secret hardening for agent tool execution.
 
 ## ✨ 1.7.x Highlights
 
-- `1.7.9` tentative RC:
+- `1.7.9`:
   - adds a first-pass Cognee partner integration for Cognee Cloud and self-hosted Cognee runtime configuration
   - surfaces Cognee in Partners/BYOK with API key, Base URL, dataset, and search-type fields plus setup/docs links
   - adds template-apply guidance so Cognee can be optionally surfaced for memory/context workflows without forcing ingestion
@@ -24,7 +24,9 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
   - adds partner-plugin install output modals using the same green shell-style pattern as skill requirement installs
   - adds state-aware partner-plugin install/uninstall controls so users cannot install an already-installed plugin or uninstall an absent plugin
   - adds uninstall confirmation and non-interactive backend handling so OpenClaw confirmation prompts cannot hang the dashboard modal
-  - extends regression coverage for Cognee partner config, runtime env forwarding, curated installer commands, plugin status detection, install/uninstall routes, and package/list state
+  - ensures runtime-injected partner secrets such as `RESEND_API_KEY` route chat/tool execution through the local process where the secrets are available
+  - filters benign Cognee/OpenClaw plugin runtime deprecation warnings from chat output so user-visible responses stay clean
+  - extends regression coverage for Cognee partner config, runtime env forwarding, curated installer commands, plugin status detection, install/uninstall routes, chat warning filtering, and runtime-secret chat routing
 
 - `1.7.8` regression sweep:
   - restored Templates search filtering with a dedicated surfaced regression lane
