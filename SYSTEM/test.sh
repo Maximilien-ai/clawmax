@@ -688,6 +688,16 @@ else
   fail "App navigation state unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Dropdown position helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/dropdownPosition.test.ts > /tmp/clawmax-dropdown-position.out 2>&1 || true
+if grep -q "dropdownPosition.test.ts:" /tmp/clawmax-dropdown-position.out; then
+  dropdown_position_count=$(grep -oE '[0-9]+ tests passed' /tmp/clawmax-dropdown-position.out | tail -1 | awk '{print $1}')
+  pass "Dropdown position helper unit tests (${dropdown_position_count:-?} tests)"
+else
+  cat /tmp/clawmax-dropdown-position.out
+  fail "Dropdown position helper unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Agent chat session helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/agentChatSession.test.ts > /tmp/clawmax-agent-chat-session.out 2>&1 || true
 if grep -q '^✓ ' /tmp/clawmax-agent-chat-session.out; then

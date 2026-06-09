@@ -20,6 +20,7 @@ import TruncatedText from '../components/TruncatedText'
 import { getWorkflowDisplayName } from '../lib/workflowDisplay'
 import { useWorkspace } from '../contexts/WorkspaceContext'
 import { buildWorkspaceScopedPath } from '../lib/workspaceScope'
+import { getViewportSafeDropdownStyle } from '../lib/dropdownPosition'
 
 interface AgentTargeting {
   communities: string[]
@@ -398,6 +399,8 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   const [showImportWorkflowModal, setShowImportWorkflowModal] = useState(false)
   const [showWorkflowCreateMenu, setShowWorkflowCreateMenu] = useState(false)
   const [showWorkflowActionsMenu, setShowWorkflowActionsMenu] = useState(false)
+  const workflowCreateMenuButtonRef = useRef<HTMLButtonElement>(null)
+  const workflowActionsMenuButtonRef = useRef<HTMLButtonElement>(null)
   const [aiPromptText, setAiPromptText] = useState('')
   const [aiGenerating, setAiGenerating] = useState(false)
   const [aiInitialData, setAiInitialData] = useState<any>(null)
@@ -1468,6 +1471,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
             )}
             <div className="relative">
               <button
+                ref={workflowCreateMenuButtonRef}
                 onClick={() => setShowWorkflowCreateMenu(!showWorkflowCreateMenu)}
                 className={headerPrimaryButtonClass}
                 title="Create workflow"
@@ -1477,7 +1481,10 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
               {showWorkflowCreateMenu && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setShowWorkflowCreateMenu(false)} />
-                  <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20 py-1">
+                  <div
+                    className="z-20 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1"
+                    style={workflowCreateMenuButtonRef.current ? getViewportSafeDropdownStyle(workflowCreateMenuButtonRef.current.getBoundingClientRect(), 288) : undefined}
+                  >
                     <button
                       onClick={() => {
                         if (!aiEnabled) return
@@ -1510,6 +1517,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
             </div>
             <div className="relative">
               <button
+                ref={workflowActionsMenuButtonRef}
                 onClick={() => setShowWorkflowActionsMenu(!showWorkflowActionsMenu)}
                 className={`${headerSecondaryButtonClass} ${headerSecondaryButtonIdleClass}`}
                 title="Workflow actions"
@@ -1519,7 +1527,10 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
               {showWorkflowActionsMenu && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setShowWorkflowActionsMenu(false)} />
-                  <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20 py-1">
+                  <div
+                    className="z-20 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1"
+                    style={workflowActionsMenuButtonRef.current ? getViewportSafeDropdownStyle(workflowActionsMenuButtonRef.current.getBoundingClientRect(), 256) : undefined}
+                  >
                     <button
                       onClick={() => {
                         setShowWorkflowActionsMenu(false)

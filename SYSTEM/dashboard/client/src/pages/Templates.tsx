@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useToast } from '../components/Toast'
 import ApplyOrgTemplateModal from '../components/ApplyOrgTemplateModal'
 import ApplyAgentTemplateModal from '../components/ApplyAgentTemplateModal'
@@ -12,6 +12,7 @@ import { hasAiGenerationAccess } from '../lib/byok'
 import { organizationTemplateCanApplyNow } from '../lib/templateApplyReadiness'
 import { ProductIconCell, resolveTemplateVisual, resolveCategoryVisual } from '../lib/productIcons'
 import { matchesAgentTemplateSearch, matchesOrganizationTemplateSearch } from '../lib/templateSearch'
+import { getViewportSafeDropdownStyle } from '../lib/dropdownPosition'
 
 function markTemplateLiteracy() {
   if (typeof window === 'undefined') return
@@ -699,6 +700,7 @@ export default function Templates() {
   const [showAgentWizard, setShowAgentWizard] = useState(false)
   const [editingAgentTemplate, setEditingAgentTemplate] = useState<AgentTemplate | null>(null)
   const [showActionsMenu, setShowActionsMenu] = useState(false)
+  const actionsMenuButtonRef = useRef<HTMLButtonElement>(null)
   const [showImportTemplateModal, setShowImportTemplateModal] = useState(false)
   const [showRegistryModal, setShowRegistryModal] = useState(false)
   const [registryInfo, setRegistryInfo] = useState<RegistryInfo | null>(null)
@@ -1645,6 +1647,7 @@ export default function Templates() {
             </button>
             <div className="relative">
               <button
+                ref={actionsMenuButtonRef}
                 onClick={() => setShowActionsMenu((v) => !v)}
                 className="px-3 py-1.5 text-sm font-medium rounded-md bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors flex items-center gap-1.5"
               >
@@ -1653,7 +1656,10 @@ export default function Templates() {
               {showActionsMenu && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setShowActionsMenu(false)} />
-                  <div className="absolute right-0 mt-2 w-56 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-xl z-20 overflow-hidden">
+                  <div
+                    className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-xl z-20 overflow-hidden"
+                    style={actionsMenuButtonRef.current ? getViewportSafeDropdownStyle(actionsMenuButtonRef.current.getBoundingClientRect(), 224) : undefined}
+                  >
                     <button
                       onClick={() => {
                         setShowImportTemplateModal(true)

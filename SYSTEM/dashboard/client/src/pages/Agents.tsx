@@ -29,42 +29,7 @@ import { ProductIconCell } from '../lib/productIcons'
 import { mergeAgentToFront } from '../lib/agentList'
 import { useWorkspace } from '../contexts/WorkspaceContext'
 import { buildWorkspaceScopedPath } from '../lib/workspaceScope'
-
-type MenuPlacement = 'top' | 'bottom'
-
-function getSmartMenuPlacement(triggerRect: DOMRect, estimatedMenuHeight: number = 320): MenuPlacement {
-  const spaceBelow = window.innerHeight - triggerRect.bottom
-  const spaceAbove = triggerRect.top
-  if (spaceBelow >= estimatedMenuHeight || spaceBelow >= spaceAbove) {
-    return 'bottom'
-  }
-  return 'top'
-}
-
-function getFixedMenuStyle(triggerRect: DOMRect, menuWidth: number, placement: MenuPlacement): React.CSSProperties {
-  const viewportPadding = 12
-  const verticalGap = 6
-  const left = Math.min(
-    Math.max(viewportPadding, triggerRect.right - menuWidth),
-    window.innerWidth - menuWidth - viewportPadding
-  )
-
-  if (placement === 'bottom') {
-    return {
-      position: 'fixed',
-      top: Math.min(triggerRect.bottom + verticalGap, window.innerHeight - viewportPadding),
-      left,
-      width: menuWidth,
-    }
-  }
-
-  return {
-    position: 'fixed',
-    bottom: Math.max(viewportPadding, window.innerHeight - triggerRect.top + verticalGap),
-    left,
-    width: menuWidth,
-  }
-}
+import { getSmartDropdownPlacement, getViewportSafeDropdownStyle, type DropdownPlacement } from '../lib/dropdownPosition'
 
 function secAgo(ts: number): string {
   const s = Math.floor((Date.now() - ts) / 1000)
@@ -212,6 +177,8 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
   const [showImportModal, setShowImportModal] = useState(false)
   const [showAgentCreateMenu, setShowAgentCreateMenu] = useState(false)
   const [showAgentActionsMenu, setShowAgentActionsMenu] = useState(false)
+  const agentCreateMenuButtonRef = React.useRef<HTMLButtonElement>(null)
+  const agentActionsMenuButtonRef = React.useRef<HTMLButtonElement>(null)
   const [aiGenerateMode, setAiGenerateMode] = useState(false)
   const [pendingAiDescription, setPendingAiDescription] = useState<string>('')
   const [cloneFromAgent, setCloneFromAgent] = useState<string | null>(null)
@@ -1130,6 +1097,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
             )}
             <div className="relative">
               <button
+                ref={agentCreateMenuButtonRef}
                 onClick={() => setShowAgentCreateMenu(!showAgentCreateMenu)}
                 className={headerPrimaryButtonClass}
                 title="Create agent"
@@ -1139,7 +1107,10 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
               {showAgentCreateMenu && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setShowAgentCreateMenu(false)} />
-                  <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20 py-1">
+                  <div
+                    className="z-20 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1"
+                    style={agentCreateMenuButtonRef.current ? getViewportSafeDropdownStyle(agentCreateMenuButtonRef.current.getBoundingClientRect(), 288) : undefined}
+                  >
                     <button
                       onClick={() => {
                         if (!aiEnabled) return
@@ -1175,6 +1146,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
             </div>
             <div className="relative">
               <button
+                ref={agentActionsMenuButtonRef}
                 onClick={() => setShowAgentActionsMenu(!showAgentActionsMenu)}
                 className={`${headerSecondaryButtonClass} ${headerSecondaryButtonIdleClass}`}
                 title="Actions"
@@ -1184,7 +1156,10 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
               {showAgentActionsMenu && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setShowAgentActionsMenu(false)} />
-                  <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20 py-1">
+                  <div
+                    className="z-20 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1"
+                    style={agentActionsMenuButtonRef.current ? getViewportSafeDropdownStyle(agentActionsMenuButtonRef.current.getBoundingClientRect(), 288) : undefined}
+                  >
                     <button
                       onClick={() => {
                         setShowAgentActionsMenu(false)
@@ -3210,7 +3185,7 @@ const AgentCard = React.memo(function AgentCard({
 }) {
   const [confirmUnlink, setConfirmUnlink] = React.useState(false)
   const [showActionsMenu, setShowActionsMenu] = React.useState(false)
-  const [menuPlacement, setMenuPlacement] = React.useState<MenuPlacement>('top')
+  const [menuPlacement, setMenuPlacement] = React.useState<DropdownPlacement>('top')
   const actionsButtonRef = React.useRef<HTMLButtonElement | null>(null)
   const menuWidth = 176
   const budgetUsedPct = costLimit && costLimit > 0 && metering ? (metering.cost / costLimit) * 100 : null
@@ -3227,7 +3202,7 @@ const AgentCard = React.memo(function AgentCard({
 
     const updatePlacement = () => {
       if (!actionsButtonRef.current) return
-      setMenuPlacement(getSmartMenuPlacement(actionsButtonRef.current.getBoundingClientRect()))
+      setMenuPlacement(getSmartDropdownPlacement(actionsButtonRef.current.getBoundingClientRect()))
     }
 
     updatePlacement()
@@ -3333,7 +3308,7 @@ const AgentCard = React.memo(function AgentCard({
                 <div className="fixed inset-0 z-10" onClick={e => { e.stopPropagation(); setShowActionsMenu(false) }} />
                 <div
                   className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20 py-1 dark:border-gray-700 max-h-[70vh] overflow-y-auto"
-                  style={actionsButtonRef.current ? getFixedMenuStyle(actionsButtonRef.current.getBoundingClientRect(), menuWidth, menuPlacement) : undefined}
+                  style={actionsButtonRef.current ? getViewportSafeDropdownStyle(actionsButtonRef.current.getBoundingClientRect(), menuWidth, menuPlacement) : undefined}
                 >
                   <div className="px-3 py-2 space-y-3">
                     <div>
@@ -3800,7 +3775,7 @@ const AgentCard = React.memo(function AgentCard({
 
 const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onClick, onChat, onStatus, onDelete, onClone, onEdit, onLinkWa, onSyncGroups, onSaveAsTemplate, onExport, onViewDocs, onManageTags, onRestart, onArchive, onUnarchive, onRename, onSetBudget, isSelected, onToggleSelect, usage, metering, costLimit, costTrackingEnabled = true }: { agent: Agent; selected: boolean; onClick: () => void; onChat: () => void; onStatus: () => void; onDelete: () => void; onClone: () => void; onEdit?: () => void; onLinkWa: () => void; onSyncGroups: () => void; onSaveAsTemplate: () => void; onExport: () => void; onViewDocs?: () => void; onManageTags: () => void; onRestart: () => void; onArchive: () => void; onUnarchive: () => void; onRename: () => void; onSetBudget: () => void; isSelected?: boolean; onToggleSelect?: () => void; usage?: { totalTokens: number; inputTokens: number; outputTokens: number; totalCost: number }; metering?: { calls: number; tokens: number; cost: number }; costLimit?: number | null; costTrackingEnabled?: boolean }) {
   const [showActionsMenu, setShowActionsMenu] = React.useState(false)
-  const [menuPlacement, setMenuPlacement] = React.useState<MenuPlacement>('top')
+  const [menuPlacement, setMenuPlacement] = React.useState<DropdownPlacement>('top')
   const actionsButtonRef = React.useRef<HTMLButtonElement | null>(null)
   const menuWidth = 176
   const totalGroups = (agent.communities || []).length + (agent.groups || []).length
@@ -3818,7 +3793,7 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
 
     const updatePlacement = () => {
       if (!actionsButtonRef.current) return
-      setMenuPlacement(getSmartMenuPlacement(actionsButtonRef.current.getBoundingClientRect()))
+      setMenuPlacement(getSmartDropdownPlacement(actionsButtonRef.current.getBoundingClientRect()))
     }
 
     updatePlacement()
@@ -3978,7 +3953,7 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
               <div className="fixed inset-0 z-10" onClick={(e) => { e.stopPropagation(); setShowActionsMenu(false); }} />
               <div
                 className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20 py-1 dark:border-gray-700 max-h-[70vh] overflow-y-auto"
-                style={actionsButtonRef.current ? getFixedMenuStyle(actionsButtonRef.current.getBoundingClientRect(), menuWidth, menuPlacement) : undefined}
+                style={actionsButtonRef.current ? getViewportSafeDropdownStyle(actionsButtonRef.current.getBoundingClientRect(), menuWidth, menuPlacement) : undefined}
               >
                 <div className="px-3 py-2 space-y-3">
                   <div>
@@ -4209,7 +4184,7 @@ const AgentTableView = React.memo(function AgentTableView({
   costTrackingEnabled?: boolean
 }) {
   const [openDropdown, setOpenDropdown] = React.useState<string | null>(null)
-  const [menuPlacement, setMenuPlacement] = React.useState<MenuPlacement>('bottom')
+  const [menuPlacement, setMenuPlacement] = React.useState<DropdownPlacement>('bottom')
   const actionsButtonRefs = React.useRef<Record<string, HTMLButtonElement | null>>({})
   const menuWidth = 176
 
@@ -4226,7 +4201,7 @@ const AgentTableView = React.memo(function AgentTableView({
     const updatePlacement = () => {
       const button = actionsButtonRefs.current[openDropdown]
       if (!button) return
-      setMenuPlacement(getSmartMenuPlacement(button.getBoundingClientRect()))
+      setMenuPlacement(getSmartDropdownPlacement(button.getBoundingClientRect()))
     }
 
     updatePlacement()
@@ -4481,7 +4456,7 @@ const AgentTableView = React.memo(function AgentTableView({
                   {openDropdown === agent.id && (
                     <div
                       className="bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-20 max-h-[70vh] overflow-y-auto"
-                      style={actionsButtonRefs.current[agent.id] ? getFixedMenuStyle(actionsButtonRefs.current[agent.id]!.getBoundingClientRect(), menuWidth, menuPlacement) : undefined}
+                      style={actionsButtonRefs.current[agent.id] ? getViewportSafeDropdownStyle(actionsButtonRefs.current[agent.id]!.getBoundingClientRect(), menuWidth, menuPlacement) : undefined}
                     >
                       <button
                         onClick={(e) => {

@@ -18,6 +18,7 @@ import { getRegistrySkillCompatibility, normalizeRuntimePlatform, type RuntimePl
 import { getDashboardInstallRequirementCommands } from '../lib/skillInstall'
 import { buildSkillExportFilename, getSelectedSkillForExport } from '../lib/skillExport'
 import { buildRegistryCompatibilityNote, buildSkillsPageCountLabel, partitionSkillsBySection } from '../lib/skillsPageFlow'
+import { getViewportSafeDropdownStyle } from '../lib/dropdownPosition'
 import { useAuth } from '../contexts/AuthContext'
 import { expandPromptWithAI } from '../lib/aiPrompt'
 import {
@@ -374,6 +375,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
   const [deletingSkills, setDeletingSkills] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showSkillActionsMenu, setShowSkillActionsMenu] = useState(false)
+  const skillActionsMenuButtonRef = useRef<HTMLButtonElement>(null)
   const [showImportDialog, setShowImportDialog] = useState(false)
   const [importPath, setImportPath] = useState('')
   const [importing, setImporting] = useState(false)
@@ -1843,6 +1845,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
               </button>
               <div className="relative">
                 <button
+                  ref={skillActionsMenuButtonRef}
                   onClick={() => setShowSkillActionsMenu(!showSkillActionsMenu)}
                   className={`${headerSecondaryButtonClass} ${headerSecondaryButtonIdleClass}`}
                   title="Actions"
@@ -1852,7 +1855,10 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                 {showSkillActionsMenu && (
                   <>
                     <div className="fixed inset-0 z-10" onClick={() => setShowSkillActionsMenu(false)} />
-                    <div className="absolute right-0 top-full z-20 mt-2 w-56 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800">
+                    <div
+                      className="z-20 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800"
+                      style={skillActionsMenuButtonRef.current ? getViewportSafeDropdownStyle(skillActionsMenuButtonRef.current.getBoundingClientRect(), 224) : undefined}
+                    >
                       <button
                         onClick={() => {
                           setShowSkillActionsMenu(false)

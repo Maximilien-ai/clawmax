@@ -6,6 +6,7 @@ import { useWorkspace } from '../contexts/WorkspaceContext'
 import { headerSecondaryButtonClass, headerSecondaryButtonIdleClass } from '../lib/headerControls'
 import { buildOrganizationDeletePlan, buildOrganizationDisplayTeams } from '../lib/organizationTeams'
 import { ProductIconCell } from '../lib/productIcons'
+import { getViewportSafeDropdownStyle } from '../lib/dropdownPosition'
 
 interface GroupEntry {
   name: string
@@ -566,6 +567,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
   })
   const [showSaveModal, setShowSaveModal] = useState(false)
   const [showOrganizationActionsMenu, setShowOrganizationActionsMenu] = useState(false)
+  const organizationActionsMenuButtonRef = useRef<HTMLButtonElement>(null)
   const [orgName, setOrgName] = useState('Workspace Org')
   const [orgDescription, setOrgDescription] = useState('Describe this workspace organization')
   const [editingOrg, setEditingOrg] = useState(false)
@@ -1587,6 +1589,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
           </div>
           <div className="relative">
             <button
+              ref={organizationActionsMenuButtonRef}
               onClick={() => setShowOrganizationActionsMenu(!showOrganizationActionsMenu)}
               className={`${headerSecondaryButtonClass} ${headerSecondaryButtonIdleClass}`}
               title="Organization actions"
@@ -1596,7 +1599,10 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
             {showOrganizationActionsMenu && (
               <>
                 <div className="fixed inset-0 z-10" onClick={() => setShowOrganizationActionsMenu(false)} />
-                <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20 py-1">
+                <div
+                  className="z-20 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1"
+                  style={organizationActionsMenuButtonRef.current ? getViewportSafeDropdownStyle(organizationActionsMenuButtonRef.current.getBoundingClientRect(), 256) : undefined}
+                >
                   <button
                     onClick={() => {
                       setShowOrganizationActionsMenu(false)

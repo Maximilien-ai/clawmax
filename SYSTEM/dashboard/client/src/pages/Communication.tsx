@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react'
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import GroupChatPanel from '../components/GroupChatPanel'
 import { useToast } from '../components/Toast'
 import { ConfirmDeleteDialog } from '../components/ConfirmDeleteDialog'
@@ -12,6 +12,7 @@ import {
 } from '../lib/headerControls'
 import { ProductIconCell } from '../lib/productIcons'
 import { useWorkspace } from '../contexts/WorkspaceContext'
+import { getViewportSafeDropdownStyle } from '../lib/dropdownPosition'
 
 interface GroupEntry {
   name: string
@@ -106,6 +107,8 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
   const [selectedChannelKeys, setSelectedChannelKeys] = useState<Set<string>>(new Set())
   const [showChannelActionsMenu, setShowChannelActionsMenu] = useState(false)
   const [showCreateMenu, setShowCreateMenu] = useState(false)
+  const createMenuButtonRef = useRef<HTMLButtonElement>(null)
+  const channelActionsMenuButtonRef = useRef<HTMLButtonElement>(null)
   const [showCreateCommunity, setShowCreateCommunity] = useState(false)
   const [showCreateGroup, setShowCreateGroup] = useState(false)
   const [newCommunityName, setNewCommunityName] = useState('')
@@ -805,6 +808,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
             )}
             <div className="relative">
               <button
+                ref={createMenuButtonRef}
                 onClick={() => setShowCreateMenu(!showCreateMenu)}
                 className={headerPrimaryButtonClass}
                 title="Create communication channel"
@@ -814,7 +818,10 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
               {showCreateMenu && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setShowCreateMenu(false)} />
-                  <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20 py-1">
+                  <div
+                    className="z-20 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1"
+                    style={createMenuButtonRef.current ? getViewportSafeDropdownStyle(createMenuButtonRef.current.getBoundingClientRect(), 224) : undefined}
+                  >
                     <button
                       onClick={() => {
                         setShowCreateMenu(false)
@@ -839,6 +846,7 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
             </div>
             <div className="relative">
               <button
+                ref={channelActionsMenuButtonRef}
                 onClick={() => setShowChannelActionsMenu(!showChannelActionsMenu)}
                 className={`${headerSecondaryButtonClass} ${headerSecondaryButtonIdleClass}`}
                 title="Communication actions"
@@ -848,7 +856,10 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
               {showChannelActionsMenu && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setShowChannelActionsMenu(false)} />
-                  <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20 py-1">
+                  <div
+                    className="z-20 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1"
+                    style={channelActionsMenuButtonRef.current ? getViewportSafeDropdownStyle(channelActionsMenuButtonRef.current.getBoundingClientRect(), 256) : undefined}
+                  >
                     <button
                       onClick={() => {
                         if (cooling) return
