@@ -245,7 +245,7 @@ export function getResolvedWorkspaceIntegrationSecretSummaries(): Record<string,
 }
 
 export function hasWorkspaceManagedPartnerSecrets(): boolean {
-  return Object.values(getWorkspaceIntegrationSecretSummaries()).some((partnerSecrets) => (
+  return Object.values(getResolvedWorkspaceIntegrationSecretSummaries()).some((partnerSecrets) => (
     Object.values(partnerSecrets || {}).some((summary) => summary.present)
   ))
 }

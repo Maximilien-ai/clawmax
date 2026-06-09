@@ -10,7 +10,7 @@ import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
 import { hasWorkspaceManagedPartnerSecrets, readWorkspaceIntegrationConfig } from '../lib/workspace-integrations'
 import { userExecutionEnv } from '../lib/safe-env'
 import { checkBudgetBlock } from '../lib/budget'
-import { normalizeChatMessage } from '../lib/chat-normalization'
+import { normalizeChatMessage, stripBenignChatRuntimeWarnings } from '../lib/chat-normalization'
 import { resolveOpenClawCliPath } from '../lib/openclaw-cli'
 import { getAgentSkills, getAssignedSkillPromptNotes, getSkillById } from '../lib/skills'
 import { executeClawmaxResendSend } from '../lib/clawmax-resend-command'
@@ -672,7 +672,8 @@ router.post('/:id/chat', async (req, res) => {
       invalidateAgentStatusCache(id)
 
       spawned.stdout.on('data', (chunk: Buffer) => {
-        const text = chunk.toString()
+        const text = stripBenignChatRuntimeWarnings(chunk.toString())
+        if (!text) return
         fullOutput += text
         send('delta', { text })
       })

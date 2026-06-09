@@ -100,6 +100,8 @@ export function safeEnv(extras?: Record<string, string | undefined>): NodeJS.Pro
     GH_TOKEN: process.env.GH_TOKEN || workspaceGitHubToken,
     // gh CLI config directory
     XDG_CONFIG_HOME: process.env.XDG_CONFIG_HOME,
+    // Runtime-managed partner integrations that agent tools may call directly.
+    RESEND_API_KEY: process.env.RESEND_API_KEY,
     // Cognee OpenClaw plugin / MCP integration
     COGNEE_API_KEY: process.env.COGNEE_API_KEY,
     COGNEE_BASE_URL: process.env.COGNEE_BASE_URL,

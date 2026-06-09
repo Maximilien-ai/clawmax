@@ -13,6 +13,7 @@ import {
   getResolvedWorkspaceIntegrationSecretSummaries,
   getWorkspaceGitHubToken,
   getWorkspaceIntegrationSecretPresence,
+  hasWorkspaceManagedPartnerSecrets,
   readWorkspaceIntegrationConfig,
   readWorkspaceIntegrationSecrets,
   writeWorkspaceIntegrationConfig,
@@ -66,6 +67,7 @@ console.log(`\n${YELLOW}=== Workspace Integrations Config Test Suite ===${RESET}
 
 const originalHome = process.env.HOME
 const originalWorkspace = process.env.OPENCLAW_WORKSPACE
+const originalResendApiKey = process.env.RESEND_API_KEY
 const originalCogneeApiKey = process.env.COGNEE_API_KEY
 const originalCogneeBaseUrl = process.env.COGNEE_BASE_URL
 const originalCogneeDatasetName = process.env.COGNEE_DATASET_NAME
@@ -142,6 +144,7 @@ test('writeWorkspaceIntegrationSecrets persists github runtime token without exp
 })
 
 test('resolved workspace config includes runtime-managed Cognee Cloud and self-hosted defaults', () => {
+  delete process.env.RESEND_API_KEY
   process.env.COGNEE_API_KEY = ' cognee-test-key '
   process.env.COGNEE_BASE_URL = ' https://cognee.example.test '
   process.env.COGNEE_DATASET_NAME = ' clawmax-memory '
@@ -159,6 +162,22 @@ test('resolved workspace config includes runtime-managed Cognee Cloud and self-h
   assert(presence.cognee?.apiKey === true, 'Expected runtime Cognee API key presence')
   const summaries = getResolvedWorkspaceIntegrationSecretSummaries()
   assert(summaries.cognee?.apiKey?.preview === 'cogn••••-key', `Unexpected Cognee key preview: ${summaries.cognee?.apiKey?.preview}`)
+  assert(hasWorkspaceManagedPartnerSecrets(), 'Expected runtime-managed Cognee key to count as a managed partner secret')
+})
+
+test('runtime-managed Resend key counts as a managed partner secret for local tool execution', () => {
+  delete process.env.COGNEE_API_KEY
+  delete process.env.COGNEE_BASE_URL
+  delete process.env.COGNEE_DATASET_NAME
+  delete process.env.COGNEE_SEARCH_TYPE
+  process.env.RESEND_API_KEY = ' re_runtime_1234567890 '
+
+  writeWorkspaceIntegrationConfig({})
+  writeWorkspaceIntegrationSecrets({})
+
+  const presence = getResolvedWorkspaceIntegrationSecretPresence()
+  assert(presence.resend?.apiKey === true, 'Expected runtime Resend key presence')
+  assert(hasWorkspaceManagedPartnerSecrets(), 'Expected runtime Resend key to force local partner-tool execution')
 })
 
 if (typeof originalHome === 'undefined') delete process.env.HOME
@@ -167,6 +186,8 @@ else process.env.HOME = originalHome
 if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
 else process.env.OPENCLAW_WORKSPACE = originalWorkspace
 
+if (typeof originalResendApiKey === 'undefined') delete process.env.RESEND_API_KEY
+else process.env.RESEND_API_KEY = originalResendApiKey
 if (typeof originalCogneeApiKey === 'undefined') delete process.env.COGNEE_API_KEY
 else process.env.COGNEE_API_KEY = originalCogneeApiKey
 if (typeof originalCogneeBaseUrl === 'undefined') delete process.env.COGNEE_BASE_URL
