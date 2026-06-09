@@ -139,10 +139,23 @@ async function run() {
   })
 
   await test('partner-install runs the allowlisted Cognee OpenClaw plugin installer', async () => {
-    const calls: Array<{ file: string; args: string[] }> = []
-    execFileMock = (file, args, _options, callback) => {
-      calls.push({ file, args })
-      callback(null, 'installed cognee', 'install note')
+    const calls: Array<{ file: string; args: string[]; stdin: string }> = []
+    spawnMock = (file: string, args: string[]) => {
+      const child = new EventEmitter() as any
+      child.stdout = new EventEmitter()
+      child.stderr = new EventEmitter()
+      child.stdin = {
+        value: '',
+        write(chunk: string) { this.value += chunk },
+        end() {
+          calls.push({ file, args, stdin: this.value })
+          child.stdout.emit('data', 'installed cognee')
+          child.stderr.emit('data', 'install note')
+          setImmediate(() => child.emit('close', 0))
+        },
+      }
+      child.kill = () => {}
+      return child
     }
 
     const handler = getRouteHandler('post', '/partner-install')
@@ -153,16 +166,31 @@ async function run() {
     assert.deepStrictEqual(calls[0], {
       file: 'openclaw',
       args: ['plugins', 'install', '@cognee/cognee-openclaw@latest'],
+      stdin: '',
     })
     assert.strictEqual(res.jsonBody?.command, 'openclaw plugins install @cognee/cognee-openclaw@latest', 'Expected command display in response')
     assert.strictEqual(res.jsonBody?.stdout, 'installed cognee', 'Expected installer stdout in response')
+    assert.strictEqual(res.jsonBody?.stderr, 'install note', 'Expected installer stderr in response')
+    spawnMock = null
   })
 
   await test('partner-uninstall runs the allowlisted Cognee OpenClaw plugin uninstaller', async () => {
-    const calls: Array<{ file: string; args: string[] }> = []
-    execFileMock = (file, args, _options, callback) => {
-      calls.push({ file, args })
-      callback(null, 'removed cognee', '')
+    const calls: Array<{ file: string; args: string[]; stdin: string }> = []
+    spawnMock = (file: string, args: string[]) => {
+      const child = new EventEmitter() as any
+      child.stdout = new EventEmitter()
+      child.stderr = new EventEmitter()
+      child.stdin = {
+        value: '',
+        write(chunk: string) { this.value += chunk },
+        end() {
+          calls.push({ file, args, stdin: this.value })
+          child.stdout.emit('data', 'removed cognee')
+          setImmediate(() => child.emit('close', 0))
+        },
+      }
+      child.kill = () => {}
+      return child
     }
 
     const handler = getRouteHandler('post', '/partner-uninstall')
@@ -173,9 +201,11 @@ async function run() {
     assert.deepStrictEqual(calls[0], {
       file: 'openclaw',
       args: ['plugins', 'uninstall', 'cognee-openclaw', '--force'],
+      stdin: 'y\n',
     })
     assert.strictEqual(res.jsonBody?.command, 'openclaw plugins uninstall cognee-openclaw --force', 'Expected command display in response')
     assert.strictEqual(res.jsonBody?.stdout, 'removed cognee', 'Expected uninstaller stdout in response')
+    spawnMock = null
   })
 
   await test('partner-install status reports installed Cognee plugin state', async () => {

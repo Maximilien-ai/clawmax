@@ -41,7 +41,7 @@ type PartnerPluginRun = {
   slug: string
   name: string
   action: PartnerPluginAction
-  status: 'running' | 'success' | 'error'
+  status: 'confirming' | 'running' | 'success' | 'error'
   logs: string[]
   error?: string
 }
@@ -1188,6 +1188,25 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
     }
   }
 
+  function confirmPartnerPluginUninstall(partner: {
+    slug: string
+    name: string
+    skills: { commandId?: string }
+  }) {
+    if (!partner.skills.commandId) return
+    setPartnerPluginRun({
+      slug: partner.slug,
+      name: partner.name,
+      action: 'uninstall',
+      status: 'confirming',
+      logs: [
+        `# Uninstall ${partner.name} partner plugin`,
+        'This will remove the OpenClaw plugin install record and plugin files for this runtime.',
+        'Choose Uninstall to continue, or Cancel to leave it installed.',
+      ],
+    })
+  }
+
   async function handleGenerateSkill(refine = false, promptOverride?: string) {
     const activePrompt = refine
       ? aiSkillRefinementPrompt.trim()
@@ -1737,6 +1756,9 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
       ].join(' ').toLowerCase().includes(query)
     })
   }, [partnerInstallers, searchQuery])
+  const partnerInstallerBySlug = useMemo(() => (
+    Object.fromEntries(partnerInstallers.map((partner) => [partner.slug, partner]))
+  ), [partnerInstallers])
   const missingGeneratedSkillSections = generatedSkillDraft
     ? SKILL_SPEC_SECTIONS.filter((section) => !generatedSkillDraft.content.includes(section))
     : []
@@ -2427,7 +2449,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                               {running ? 'Running...' : 'Install'}
                             </button>
                             <button
-                              onClick={() => void runPartnerPluginAction(partner, 'uninstall')}
+                              onClick={() => confirmPartnerPluginUninstall(partner)}
                               disabled={!!partnerInstalling || !installed}
                               title={!installed ? `${partner.name} plugin is not installed` : undefined}
                               className="px-3 py-1.5 text-xs font-medium rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-60 disabled:cursor-not-allowed"
@@ -3492,7 +3514,9 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                     {partnerPluginRun.action === 'install' ? 'Install Partner Plugin' : 'Uninstall Partner Plugin'}
                   </h2>
                   <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                    {partnerPluginRun.action === 'install' ? 'Installing' : 'Uninstalling'} <span className="font-medium text-gray-900 dark:text-gray-100">{partnerPluginRun.name}</span> through the curated OpenClaw plugin allowlist.
+                    {partnerPluginRun.status === 'confirming'
+                      ? <>Confirm removal of <span className="font-medium text-gray-900 dark:text-gray-100">{partnerPluginRun.name}</span> from this dashboard runtime.</>
+                      : <>{partnerPluginRun.action === 'install' ? 'Installing' : 'Uninstalling'} <span className="font-medium text-gray-900 dark:text-gray-100">{partnerPluginRun.name}</span> through the curated OpenClaw plugin allowlist.</>}
                   </p>
                 </div>
                 <button
@@ -3534,8 +3558,19 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                   disabled={partnerPluginRun.status === 'running'}
                   className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
                 >
-                  Close
+                  {partnerPluginRun.status === 'confirming' ? 'Cancel' : 'Close'}
                 </button>
+                {partnerPluginRun.status === 'confirming' && (
+                  <button
+                    onClick={() => {
+                      const partner = partnerInstallerBySlug[partnerPluginRun.slug]
+                      if (partner) void runPartnerPluginAction(partner, 'uninstall')
+                    }}
+                    className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+                  >
+                    Uninstall
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -4255,7 +4290,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                                       {running ? 'Running...' : 'Install'}
                                     </button>
                                     <button
-                                      onClick={() => void runPartnerPluginAction(partner, 'uninstall')}
+                                      onClick={() => confirmPartnerPluginUninstall(partner)}
                                       disabled={!!partnerInstalling || !installed}
                                       title={!installed ? `${partner.name} plugin is not installed` : undefined}
                                       className="px-3 py-1.5 text-xs font-medium rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-60 disabled:cursor-not-allowed"

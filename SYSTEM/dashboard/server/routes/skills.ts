@@ -1267,6 +1267,54 @@ router.post('/registry/install', async (req, res) => {
   }
 })
 
+function runPartnerCommand(command: string, args: string[], options: { input?: string; timeoutMs?: number } = {}): Promise<{ stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      env: safeEnv(),
+      stdio: ['pipe', 'pipe', 'pipe'],
+    })
+    let stdout = ''
+    let stderr = ''
+    let settled = false
+    const timeoutMs = options.timeoutMs || 180000
+    const timer = setTimeout(() => {
+      if (settled) return
+      settled = true
+      child.kill('SIGTERM')
+      const err: any = new Error(`${command} ${args.join(' ')} timed out after ${timeoutMs}ms`)
+      err.stdout = stdout
+      err.stderr = stderr
+      reject(err)
+    }, timeoutMs)
+
+    child.stdout.on('data', (chunk) => { stdout += chunk.toString() })
+    child.stderr.on('data', (chunk) => { stderr += chunk.toString() })
+    child.on('error', (error: any) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      error.stdout = stdout
+      error.stderr = stderr
+      reject(error)
+    })
+    child.on('close', (code) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      if (code === 0) {
+        resolve({ stdout: stdout.trim(), stderr: stderr.trim() })
+        return
+      }
+      const err: any = new Error(`${command} ${args.join(' ')} failed with code ${code}`)
+      err.stdout = stdout
+      err.stderr = stderr
+      reject(err)
+    })
+    child.stdin.write(options.input || '')
+    child.stdin.end()
+  })
+}
+
 async function runCuratedPartnerInstaller(req: any, res: any, action: 'install' | 'uninstall') {
   try {
     const { commandId } = req.body
@@ -1281,14 +1329,10 @@ async function runCuratedPartnerInstaller(req: any, res: any, action: 'install' 
 
     const commandParts = action === 'install' ? installer.installCommand : installer.uninstallCommand
     const [command, ...args] = commandParts
-    const result: any = await execFileAsync(command, args, {
-      timeout: 180000,
-      env: safeEnv(),
-      maxBuffer: 1024 * 1024 * 8,
-      input: '',
+    const { stdout, stderr } = await runPartnerCommand(command, args, {
+      input: action === 'uninstall' ? 'y\n' : '',
+      timeoutMs: 180000,
     })
-    const stdout = typeof result === 'string' ? result : result?.stdout
-    const stderr = typeof result === 'string' ? '' : result?.stderr
     res.json({
       ok: true,
       action,
