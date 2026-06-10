@@ -639,6 +639,16 @@ else
   fail "ClawMax Resend wrapper shell tests"
 fi
 
+echo -e "${YELLOW}→ Running Partner runtime regression tests...${NC}"
+npx ts-node --transpileOnly server/lib/partner-runtime-regressions.test.ts > /tmp/clawmax-partner-runtime-regressions.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-partner-runtime-regressions.out; then
+  partner_runtime_regression_count=$(grep "Tests passed:" /tmp/clawmax-partner-runtime-regressions.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Partner runtime regression tests (${partner_runtime_regression_count:-?} tests)"
+else
+  cat /tmp/clawmax-partner-runtime-regressions.out
+  fail "Partner runtime regression tests"
+fi
+
 echo -e "${YELLOW}→ Running Workspace status unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/workspace-status.test.ts > /tmp/clawmax-workspace-status.out 2>&1 || true
 if grep -q "Tests failed: 0" /tmp/clawmax-workspace-status.out; then

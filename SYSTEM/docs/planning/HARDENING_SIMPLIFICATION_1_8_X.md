@@ -159,9 +159,9 @@ Intent: protect the two newest partner paths before doing larger simplification 
 
 Items I think we can address in `1.8.0`:
 
-- [ ] Add a visible test/manual checklist lane for Resend partner test email vs agent chat email parity.
-- [ ] Add/extend tests that runtime-injected `RESEND_API_KEY` reaches agent tools and workflow execution.
-- [ ] Add/extend tests that benign Cognee plugin warnings are filtered but real plugin errors are preserved.
+- [x] Add a visible test/manual checklist lane for Resend partner test email vs agent chat email parity.
+- [x] Add/extend tests that runtime-injected `RESEND_API_KEY` reaches agent tools and workflow execution.
+- [x] Add/extend tests that benign Cognee plugin warnings are filtered but real plugin errors are preserved.
 - [ ] Confirm Cognee install/uninstall/reinstall status detection remains state-aware.
 
 Items likely for `1.8.1`:
@@ -181,6 +181,11 @@ Manual checks before stop:
 Automation target:
 
 - Keep live email delivery manual, but automate secret propagation, dispatch selection, attachment resolution, Cognee plugin status parsing, and warning filtering.
+
+Progress note:
+
+- Added `server/lib/partner-runtime-regressions.test.ts` as a visible full-suite lane. It covers runtime-managed Resend/Cognee env propagation, workspace-managed partner env propagation, local chat execution when managed secrets are present, managed Resend inline status dispatch, current-agent file attachments, and Cognee benign warning stripping.
+- Expected full-suite visible total after this slice: `311`.
 
 Stop point:
 
