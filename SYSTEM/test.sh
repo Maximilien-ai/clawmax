@@ -394,6 +394,17 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Workflow loading helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/workflowLoading.test.ts > /tmp/clawmax-workflow-loading.out 2>&1 || true
+if grep -q "workflowLoading.test.ts:" /tmp/clawmax-workflow-loading.out; then
+  workflow_loading_count=$(grep -o '[0-9]\+ tests passed' /tmp/clawmax-workflow-loading.out | head -1 | grep -o '[0-9]\+')
+  pass "Workflow loading helper unit tests (${workflow_loading_count:-?} tests)"
+else
+  cat /tmp/clawmax-workflow-loading.out
+  fail "Workflow loading helper unit tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Workspace scope helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/workspaceScope.test.ts > /tmp/clawmax-workspace-scope.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-workspace-scope.out; then
