@@ -1,11 +1,13 @@
 import { Router } from 'express'
 import {
+  applyPluginTemplate,
   deletePluginRecord,
   generatePluginRecordDocument,
   getPluginBySlug,
   getPluginWorkspaceContext,
   listConfiguredPlugins,
   listPluginRecords,
+  listPluginTemplates,
   emitPluginRecordNotification,
   runPluginEval,
   upsertPluginRecord,
@@ -34,6 +36,15 @@ router.get('/:pluginId/items', (req, res) => {
   res.json({
     plugin,
     items: listPluginRecords(plugin),
+  })
+})
+
+router.get('/:pluginId/templates', (req, res) => {
+  const plugin = getPluginBySlug(req.params.pluginId)
+  if (!plugin) return res.status(404).json({ error: 'Plugin not found' })
+  res.json({
+    plugin,
+    templates: listPluginTemplates(plugin),
   })
 })
 
@@ -84,6 +95,14 @@ router.post('/:pluginId/items/:itemId/run', (req, res) => {
   const item = runPluginEval(plugin, req.params.itemId)
   if (!item) return res.status(404).json({ error: 'Plugin eval not found or plugin does not support runs' })
   res.json({ ok: true, item })
+})
+
+router.post('/:pluginId/templates/:templateId/apply', (req, res) => {
+  const plugin = getPluginBySlug(req.params.pluginId)
+  if (!plugin) return res.status(404).json({ error: 'Plugin not found' })
+  const item = applyPluginTemplate(plugin, req.params.templateId)
+  if (!item) return res.status(404).json({ error: 'Plugin template not found' })
+  res.status(201).json({ ok: true, item })
 })
 
 export default router

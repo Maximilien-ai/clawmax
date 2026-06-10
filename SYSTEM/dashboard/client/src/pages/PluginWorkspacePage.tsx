@@ -1,6 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { ProductIconCell } from '../lib/productIcons'
-import type { EvalRecord, GuardrailRecord, PluginManifest, PluginRecord, PluginWorkspaceContext } from '../lib/plugins'
+import {
+  headerPrimaryButtonClass,
+  headerSecondaryButtonActiveClass,
+  headerSecondaryButtonClass,
+  headerSecondaryButtonIdleClass,
+} from '../lib/headerControls'
+import type { PluginManifest, PluginRecord, PluginRecordTemplate, PluginWorkspaceContext } from '../lib/plugins'
 import { collectPluginTags, matchesPluginSearch } from '../lib/plugins'
 
 type Props = {
@@ -440,13 +446,50 @@ function ItemCard({
   )
 }
 
+function TemplateCard({
+  plugin,
+  template,
+  onApply,
+}: {
+  plugin: PluginManifest
+  template: PluginRecordTemplate
+  onApply: () => void
+}) {
+  return (
+    <div className="rounded-2xl border border-sky-200 bg-sky-50/70 p-4 dark:border-sky-900/40 dark:bg-sky-950/20">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="rounded-full bg-white/80 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-sky-700 dark:bg-sky-900/50 dark:text-sky-300">
+              Recommended
+            </span>
+            <span className="text-xs text-sky-700/80 dark:text-sky-300/80">{plugin.labels?.singular || plugin.name} template</span>
+          </div>
+          <h3 className="mt-2 text-base font-semibold text-gray-900 dark:text-gray-100">{template.name}</h3>
+          <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">{template.description}</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {template.tags.map((tag) => (
+              <span key={tag} className="rounded-full bg-white px-2 py-0.5 text-xs text-sky-700 dark:bg-sky-900/50 dark:text-sky-300">
+                {tag}
+              </span>
+            ))}
+          </div>
+        </div>
+        <button onClick={onApply} className={headerPrimaryButtonClass}>Use Template</button>
+      </div>
+    </div>
+  )
+}
+
 export default function PluginWorkspacePage({ plugin, isActive = false, onNavigateToDoc }: Props) {
   const [context, setContext] = useState<PluginWorkspaceContext>({ agents: [], workflows: [], groups: [], communities: [] })
   const [items, setItems] = useState<PluginRecord[]>([])
+  const [templates, setTemplates] = useState<PluginRecordTemplate[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [selectedTag, setSelectedTag] = useState<string>('all')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'enabled' | 'disabled'>('all')
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<PluginRecord | null>(null)
 
@@ -457,11 +500,14 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
         fetch(`/api/plugins/${encodeURIComponent(plugin.slug)}/context`),
         fetch(`/api/plugins/${encodeURIComponent(plugin.slug)}/items`),
       ])
-      if (!contextRes.ok || !itemsRes.ok) throw new Error('Failed to load plugin data')
+      const templatesRes = await fetch(`/api/plugins/${encodeURIComponent(plugin.slug)}/templates`)
+      if (!contextRes.ok || !itemsRes.ok || !templatesRes.ok) throw new Error('Failed to load plugin data')
       const contextJson = await contextRes.json()
       const itemsJson = await itemsRes.json()
+      const templatesJson = await templatesRes.json()
       setContext(contextJson.context || { agents: [], workflows: [], groups: [], communities: [] })
       setItems(Array.isArray(itemsJson.items) ? itemsJson.items : [])
+      setTemplates(Array.isArray(templatesJson.templates) ? templatesJson.templates : [])
       setError(null)
     } catch (err: any) {
       setError(err.message || 'Failed to load plugin data')
@@ -477,9 +523,15 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
 
   const tags = useMemo(() => collectPluginTags(items), [items])
   const filtered = useMemo(
-    () => items.filter((item) => (selectedTag === 'all' || item.tags.includes(selectedTag)) && matchesPluginSearch(item, search)),
-    [items, search, selectedTag]
+    () => items.filter((item) => {
+      if (selectedTag !== 'all' && !item.tags.includes(selectedTag)) return false
+      if (statusFilter === 'enabled' && !item.enabled) return false
+      if (statusFilter === 'disabled' && item.enabled) return false
+      return matchesPluginSearch(item, search)
+    }),
+    [items, search, selectedTag, statusFilter]
   )
+  const recommendedTemplates = useMemo(() => templates.filter((entry) => entry.recommended !== false), [templates])
 
   const saveItem = async (draft: Partial<PluginRecord>) => {
     const isEdit = Boolean(draft.id)
@@ -524,6 +576,15 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
     ? { kind: 'guardrail', enabled: true, tags: [], appliesTo: { agents: [], workflows: [], groups: [], communities: [] }, controls: { blockEmail: false, blockWeb: false, blockExternalDocs: false, allowedSkills: [] } }
     : { kind: 'eval', enabled: true, tags: [], target: { type: 'agent', ids: [] }, experiment: { input: '', candidateOutput: '', expectedOutput: '', judge: 'fixed' }, runs: [] }
 
+  const applyTemplate = async (templateId: string) => {
+    const res = await fetch(`/api/plugins/${encodeURIComponent(plugin.slug)}/templates/${encodeURIComponent(templateId)}/apply`, { method: 'POST' })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      throw new Error(data.error || 'Failed to apply template')
+    }
+    await load()
+  }
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
       <div className="flex flex-col gap-4 rounded-3xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-900/50">
@@ -539,24 +600,21 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-              <span className="rounded-full bg-gray-100 px-2 py-1 dark:bg-gray-800">{plugin.visibility}</span>
               <span className="rounded-full bg-gray-100 px-2 py-1 dark:bg-gray-800">v{plugin.version}</span>
-              <a href={plugin.source.url} target="_blank" rel="noreferrer" className="rounded-full bg-gray-100 px-2 py-1 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700">
-                {plugin.source.owner}/{plugin.source.repo}
-              </a>
+              <span className="rounded-full bg-gray-100 px-2 py-1 dark:bg-gray-800">workspace-scoped</span>
             </div>
           </div>
           <div className="grid gap-2 sm:grid-cols-2 lg:min-w-[360px]">
             <button
               onClick={() => { setEditing(null); setShowModal(true) }}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-sky-700"
+              className={headerPrimaryButtonClass}
             >
               <ProductIconCell iconName="create" label="Create" size="sm" className="border-white/20 bg-white/10 text-white" />
               Create {plugin.labels?.singular || plugin.name}
             </button>
             <button
               onClick={() => void load()}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+              className={`${headerSecondaryButtonClass} ${headerSecondaryButtonIdleClass}`}
             >
               <ProductIconCell iconName="refresh" label="Refresh" size="sm" className="border-transparent bg-transparent text-current" />
               Refresh
@@ -573,16 +631,34 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
           />
           <div className="flex flex-wrap items-center gap-2">
             <button
-              onClick={() => setSelectedTag('all')}
-              className={`rounded-full px-3 py-1.5 text-xs font-medium ${selectedTag === 'all' ? 'bg-sky-600 text-white' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'}`}
+              onClick={() => setStatusFilter('all')}
+              className={`${headerSecondaryButtonClass} ${statusFilter === 'all' ? headerSecondaryButtonActiveClass : headerSecondaryButtonIdleClass}`}
             >
               All
+            </button>
+            <button
+              onClick={() => setStatusFilter('enabled')}
+              className={`${headerSecondaryButtonClass} ${statusFilter === 'enabled' ? headerSecondaryButtonActiveClass : headerSecondaryButtonIdleClass}`}
+            >
+              Enabled
+            </button>
+            <button
+              onClick={() => setStatusFilter('disabled')}
+              className={`${headerSecondaryButtonClass} ${statusFilter === 'disabled' ? headerSecondaryButtonActiveClass : headerSecondaryButtonIdleClass}`}
+            >
+              Disabled
+            </button>
+            <button
+              onClick={() => setSelectedTag('all')}
+              className={`${headerSecondaryButtonClass} ${selectedTag === 'all' ? headerSecondaryButtonActiveClass : headerSecondaryButtonIdleClass}`}
+            >
+              All tags
             </button>
             {tags.map((tag) => (
               <button
                 key={tag}
                 onClick={() => setSelectedTag(tag)}
-                className={`rounded-full px-3 py-1.5 text-xs font-medium ${selectedTag === tag ? 'bg-sky-600 text-white' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'}`}
+                className={`${headerSecondaryButtonClass} ${selectedTag === tag ? headerSecondaryButtonActiveClass : headerSecondaryButtonIdleClass}`}
               >
                 {tag}
               </button>
@@ -601,12 +677,33 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
           <div className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">{items.filter((item) => item.enabled).length}</div>
         </div>
         <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900/40">
-          <div className="text-xs uppercase tracking-wide text-gray-400">Workspace links</div>
+          <div className="text-xs uppercase tracking-wide text-gray-400">Templates</div>
           <div className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-            {context.agents.length} agents · {context.workflows.length} workflows · {context.groups.length + context.communities.length} channels
+            {recommendedTemplates.length} recommended · {context.agents.length} agents · {context.workflows.length} workflows
           </div>
         </div>
       </div>
+
+      {!loading && !error && recommendedTemplates.length > 0 && (
+        <div className="mt-6">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Recommended</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Starter templates to help users and plugin authors validate the plugin flow quickly.</p>
+            </div>
+          </div>
+          <div className="grid gap-4 xl:grid-cols-2">
+            {recommendedTemplates.map((template) => (
+              <TemplateCard
+                key={template.id}
+                plugin={plugin}
+                template={template}
+                onApply={() => void applyTemplate(template.id)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div className="mt-6 rounded-2xl border border-gray-200 bg-white p-8 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900/40 dark:text-gray-400">Loading plugin workspace...</div>

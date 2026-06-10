@@ -33,6 +33,17 @@ export interface PluginManifest {
   }
 }
 
+export interface PluginRecordTemplate {
+  id: string
+  pluginId: string
+  name: string
+  description: string
+  objectKind: PluginObjectKind
+  recommended?: boolean
+  tags: string[]
+  payload: Partial<PluginRecord>
+}
+
 export interface PluginDocument {
   path: string
   title: string

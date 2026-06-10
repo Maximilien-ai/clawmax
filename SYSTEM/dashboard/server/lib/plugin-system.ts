@@ -42,6 +42,17 @@ export interface PluginManifest {
   }
 }
 
+export interface PluginRecordTemplate {
+  id: string
+  pluginId: string
+  name: string
+  description: string
+  objectKind: PluginObjectKind
+  recommended?: boolean
+  tags: string[]
+  payload: Partial<PluginRecord>
+}
+
 type PluginDocument = {
   path: string
   title: string
@@ -110,6 +121,7 @@ export interface PluginWorkspaceContext {
 
 const DEFAULT_PLUGIN_ROOT = path.join(REPO_ROOT, 'SYSTEM', 'dashboard', 'plugins')
 const PLUGIN_MANIFEST_FILE = 'clawmax-plugin.json'
+const PLUGIN_TEMPLATE_DIR = 'templates'
 
 function uniq(values: string[]): string[] {
   return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)))
@@ -179,6 +191,26 @@ export function listConfiguredPlugins(): PluginManifest[] {
 
 export function getPluginBySlug(slug: string): PluginManifest | null {
   return listConfiguredPlugins().find((plugin) => plugin.slug === slug || plugin.id === slug) || null
+}
+
+function findPluginDirectory(plugin: PluginManifest): string | null {
+  for (const root of getPluginRoots()) {
+    const candidate = path.join(root, plugin.slug)
+    if (fs.existsSync(path.join(candidate, PLUGIN_MANIFEST_FILE))) return candidate
+  }
+  for (const root of getPluginRoots()) {
+    if (!fs.existsSync(root)) continue
+    const entries = fs.readdirSync(root, { withFileTypes: true })
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue
+      const manifestPath = path.join(root, entry.name, PLUGIN_MANIFEST_FILE)
+      const manifest = readJsonFile<PluginManifest>(manifestPath)
+      if (manifest?.slug === plugin.slug || manifest?.id === plugin.id) {
+        return path.join(root, entry.name)
+      }
+    }
+  }
+  return null
 }
 
 function getPluginStorageDir(plugin: PluginManifest): string {
@@ -268,6 +300,39 @@ export function listPluginRecords(plugin: PluginManifest): PluginRecord[] {
   const raw = readJsonFile<any[]>(getPluginItemsPath(plugin))
   if (!Array.isArray(raw)) return []
   return raw.map((entry) => normalizeRecord(plugin, entry)).filter((entry): entry is PluginRecord => Boolean(entry))
+}
+
+function normalizeTemplate(plugin: PluginManifest, value: any): PluginRecordTemplate | null {
+  if (!value || typeof value !== 'object') return null
+  const payload = value.payload && typeof value.payload === 'object' ? value.payload : value.record
+  if (!payload || typeof payload !== 'object') return null
+  return {
+    id: String(value.id || '').trim(),
+    pluginId: plugin.slug,
+    name: String(value.name || '').trim(),
+    description: String(value.description || '').trim(),
+    objectKind: plugin.objectKind,
+    recommended: value.recommended !== false,
+    tags: uniq(Array.isArray(value.tags) ? value.tags.map(String) : []),
+    payload,
+  }
+}
+
+export function listPluginTemplates(plugin: PluginManifest): PluginRecordTemplate[] {
+  const pluginDir = findPluginDirectory(plugin)
+  if (!pluginDir) return []
+  const templateDir = path.join(pluginDir, PLUGIN_TEMPLATE_DIR)
+  if (!fs.existsSync(templateDir)) return []
+
+  return fs.readdirSync(templateDir, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name.endsWith('.json'))
+    .map((entry) => readJsonFile<any>(path.join(templateDir, entry.name)))
+    .map((value) => normalizeTemplate(plugin, value))
+    .filter((value): value is PluginRecordTemplate => {
+      if (!value) return false
+      return Boolean(value.id) && Boolean(value.name)
+    })
+    .sort((a, b) => a.name.localeCompare(b.name))
 }
 
 function writePluginRecords(plugin: PluginManifest, records: PluginRecord[]): void {
@@ -444,6 +509,19 @@ export function upsertPluginRecord(plugin: PluginManifest, input: Partial<Plugin
   else records.unshift(nextRecord)
   writePluginRecords(plugin, records)
   return nextRecord
+}
+
+export function applyPluginTemplate(plugin: PluginManifest, templateId: string): PluginRecord | null {
+  const template = listPluginTemplates(plugin).find((entry) => entry.id === templateId)
+  if (!template) return null
+  const payload = {
+    ...template.payload,
+    name: template.payload.name || template.name,
+    description: template.payload.description || template.description,
+    tags: uniq([...(Array.isArray(template.payload.tags) ? template.payload.tags.map(String) : []), ...template.tags]),
+    enabled: template.payload.enabled !== false,
+  } as Partial<PluginRecord>
+  return upsertPluginRecord(plugin, payload)
 }
 
 export function deletePluginRecord(plugin: PluginManifest, recordId: string): boolean {
