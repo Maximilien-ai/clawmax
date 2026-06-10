@@ -29,78 +29,239 @@ This is likely more than one release:
 - Separate stale backlog cleanup from product behavior changes so release risk stays low.
 - Validate against dev, cloud image, and on-prem image paths before promoting.
 
-## 1.8.0 Proposed Scope
+## Execution Rules
 
-### P0: Release-State And Backlog Hygiene
+- Start from the current visible full-suite count of `294` tests.
+- Any bug fix or hardening change should either add a new visible regression lane or extend an existing visible lane so the count increases when meaningful.
+- After each sprint section:
+  - run focused tests for changed code
+  - run `npm run build` for dashboard/client/server changes
+  - run the full integration command before a release candidate
+  - stop for manual checks and review before starting the next section
+- Automate first. Manual checks are allowed only for visual review, live provider delivery, image deployment, or runtime behavior that is not yet practical to automate.
+- Every manual check should either reference an existing automated test or create a follow-up item to automate it.
+- Prefer helper/unit tests for deterministic logic, route-contract tests for API behavior, and integration/system tests for cross-surface regressions.
+- Keep commits small and section-scoped so rollback is possible without losing unrelated work.
+- Prefer `1.8.0` for low-risk hardening and simplification; move anything structural or ambiguous to `1.8.1+`.
 
-- [ ] Update `SYSTEM/docs/STATUS.md` from `v1.7.3` to `v1.7.9`/`1.8.x`.
-- [ ] Refresh `SYSTEM/docs/KNOWN_ISSUES.md`, which still references `v1.5.5` and older resolved limitations.
-- [ ] Clean `SYSTEM/docs/BACKLOG.md` top priorities that are obsolete after `1.7.9`.
-- [ ] Move completed `1.7.4` through `1.7.9` follow-through items out of active backlog into changelog/archive references.
-- [ ] Reconcile GitHub issue references in backlog; current open repo issue list only shows `#111` at the time of this sprint start.
-- [ ] Keep a short active 1.8.x checklist at the top of backlog so future release work is not buried under stale historical items.
+## Sectioned Sprint Board
 
-### P0: Test And Runtime Determinism
+### Section 1: Release-State + Backlog Hygiene
 
-- [ ] Make system-test workspace setup/teardown deterministic across repeated `SYSTEM/test.sh integration` runs.
-- [ ] Verify no system-test organizations, groups, communities, workflows, or agents bleed into the personal/default workspace after integration tests.
-- [ ] Add or surface explicit test coverage for workspace isolation cleanup.
-- [ ] Re-check `test-with-server.sh integration` count and make new 1.8.x regression lanes visible in the aggregate summary.
-- [ ] Audit CI and local test scripts for stale references to removed/archived release paths.
-- [ ] Keep the test image path (`test-rcN` then promote) as the default release validation flow.
+Intent: make the docs/backlog truthful before changing behavior.
 
-### P0: Runtime And Gateway Hardening
+Items I think we can address now:
 
-- [ ] Add an in-product Doctor action for `openclaw gateway restart` when gateway is configured but unhealthy.
-- [ ] Reduce noisy gateway probe warnings and invalid-handshake logs in normal dashboard operation.
-- [ ] Validate gateway durability in built cloud and on-prem images after restart, workspace switch, and agent chat.
-- [ ] Improve cloud/on-prem logs pane reconnect behavior so diagnostics do not churn or obscure real errors.
-- [ ] Keep runtime-injected partner secrets covered in chat/workflow tool execution tests.
-- [ ] Audit built-in skill runtime packaging needs (`bash`, `zip`, `unzip`, `tar`, `gzip`, `file`, `less`) and decide what belongs in base images.
+- [ ] Update `STATUS.md` to `v1.7.9` baseline and active `1.8.x` branch posture.
+- [ ] Rewrite `KNOWN_ISSUES.md` so it only lists current known issues, not resolved `1.4.x`/`1.5.x` era items.
+- [ ] Prune obsolete active backlog entries that were completed by `1.7.5` through `1.7.9`.
+- [ ] Move stale release-candidate validation items out of active priority.
+- [ ] Reconcile GitHub issue references and keep only currently open issue `#111` as active external tracking unless a closed issue still needs explicit follow-through.
 
-### P0: Resend/Cognee Regression Safety
+Regression tests expected:
 
-- [ ] Confirm `clawmax-resend` still works in dev, cloud, and on-prem with runtime-injected `RESEND_API_KEY`.
-- [ ] Confirm Resend partner test email and agent chat email use equivalent secret availability rules.
-- [ ] Add a manual check for inline status email and attached `IDENTITY.md`/`SOUL.md` sends before every `1.8.x` release candidate.
-- [ ] Confirm Cognee partner config, plugin install, uninstall, and reinstall work in dev, cloud, and on-prem images.
-- [ ] Ensure benign plugin runtime warnings stay filtered from chat without hiding real plugin/tool failures.
+- None for docs-only cleanup.
+- If we touch release scripts or test summaries during this section, add/update a visible docs/release helper test.
 
-### P1: Client Simplification Carry-Forward
+Automated checks before stop:
 
-These are the remaining items from the old simplification branch that are still relevant after `1.7.9`.
+- Search docs for stale release references like `v1.7.3`, `v1.7.5 candidate`, and obsolete active issue references.
 
-- [ ] Builder: reduce remaining routing/action ambiguity for workspace actions and generated-agent handoff.
-- [ ] Agents: improve density/scannability without regressing card actions, chat entry, or skill management.
-- [ ] Template apply: simplify defaults, readiness warnings, and customization follow-through based on customer testing.
-- [ ] Activity/Budget: simplify first-screen information and make token/cost gaps obvious instead of silently showing zeros.
-- [ ] DocHub: simplify generated artifact browsing, file links, and Builder session discovery.
-- [ ] Logs/System: make diagnostics more action-oriented, with fewer raw streams by default.
-- [ ] Notifications: group repeated bursts and keep primary actions inline only when they reliably work.
-- [ ] Mobile: audit dropdowns/popovers/sheets across top bar, notifications, Skills, Templates, Agents, Workflows, Communications, and Partners.
+Minimal manual checks before stop:
 
-### P1: Workflow And Communications Correctness
+- Read `README.md`, `CHANGELOG.md`, `STATUS.md`, `KNOWN_ISSUES.md`, and top of `BACKLOG.md` together for consistency.
+- Confirm no active top-priority item references an already shipped release candidate.
 
-- [ ] Audit workflow/channel target resolution so templates use real channel/community/group ids, not display labels.
-- [ ] Make workflow success criteria account for participant communication failures when the workflow intent includes posting to a group/channel.
-- [ ] Improve group chat live-thread visibility during workflow runs, or clearly label current runtime limitations.
-- [ ] Surface upstream model/quota/auth failures before downstream workflow step failures.
-- [ ] Continue template lane/subdirectory audit for hidden helper dirs, ambiguous ownership, and false success reporting.
+Stop point:
 
-### P1: Security And Skill Guardrails
+- Commit docs cleanup and review before changing product code.
 
-- [ ] Add dangerous-skill review guidance for imported and AI-created skills.
-- [ ] Improve warning UX when a skill can add binaries, network access, machine-level commands, or secrets handling.
-- [ ] Keep partner plugin install/uninstall allowlisted and visible with command output.
-- [ ] Add stronger readiness states for required secrets before template apply or workflow run.
-- [ ] Add visible warning when `OTP_DEV_MODE=log` is enabled in non-dev contexts.
+### Section 2: Test And Workspace Isolation Hardening
 
-### P2: Product Polish
+Intent: make repeated test runs safe and keep the test count moving upward.
 
-- [ ] Refresh demo videos and docs for current `1.7.9+` surfaces. GitHub: `#111`.
-- [ ] Improve first-run onboarding with BYOK readiness, import-vs-create path, and template suggestions.
-- [ ] Evaluate AG-UI for richer chat/notification/template-run interactions, but keep it out of `1.8.0` unless a narrow use case is obvious.
-- [ ] Continue AI Builder evaluation corpus and taxonomy cleanup.
+Items I think we can address in `1.8.0`:
+
+- [ ] Audit system-test workspace create/activate/reset flow.
+- [ ] Add a regression test for scoped cleanup of system-test org/channel artifacts.
+- [ ] Add a visible test lane for workspace isolation cleanup so the aggregate count increases beyond `294`.
+- [ ] Make cleanup idempotent when the test workspace already exists or was partially deleted.
+- [ ] Add clearer failure output when workspace setup fails but later activation appears to succeed.
+
+Items likely for `1.8.1`:
+
+- [ ] Broader isolation audit across every workspace-scoped API.
+- [ ] Dedicated clean-room test profile that never touches the personal/default workspace.
+
+Manual checks before stop:
+
+- Run the full integration command once.
+- After it exits, open the personal/default workspace and confirm no system-test organizations, groups, communities, workflows, or agents are visible.
+- Rerun setup/cleanup path once to verify idempotency.
+
+Automation target:
+
+- Replace the personal/default workspace inspection with an API-level post-integration isolation assertion.
+
+Stop point:
+
+- Commit only after focused tests and full integration are green.
+
+### Section 3: Runtime + Gateway Recovery Hardening
+
+Intent: make common runtime failures recoverable and less noisy.
+
+Items I think we can address in `1.8.0`:
+
+- [ ] Add Doctor action for `openclaw gateway restart` when gateway is configured but unhealthy.
+- [ ] Add route/helper tests for restart action permissions, success output, and failure output.
+- [ ] Reduce dashboard-originated invalid-handshake/probe warnings where the probe is only checking status.
+- [ ] Add a visible regression test for probe identity/handshake behavior if the code path changes.
+
+Items likely for `1.8.1`:
+
+- [ ] Logs pane reconnect behavior in cloud/on-prem.
+- [ ] Durable gateway service/supervision changes that require CLI/runtime coordination.
+
+Manual checks before stop:
+
+- In dev, stop or break gateway, open Doctor, run restart, confirm gateway returns healthy.
+- Confirm agent chat works after restart.
+- Confirm logs do not fill with repeated dashboard probe warnings during normal page load.
+
+Automation target:
+
+- Mock gateway-down state in route/helper tests and assert restart action command, status transition, and sanitized output.
+- Add log-filter/probe helper tests for benign warnings where possible.
+
+Stop point:
+
+- Commit after Doctor restart path and focused tests pass.
+
+### Section 4: Resend + Cognee Regression Safety
+
+Intent: protect the two newest partner paths before doing larger simplification work.
+
+Items I think we can address in `1.8.0`:
+
+- [ ] Add a visible test/manual checklist lane for Resend partner test email vs agent chat email parity.
+- [ ] Add/extend tests that runtime-injected `RESEND_API_KEY` reaches agent tools and workflow execution.
+- [ ] Add/extend tests that benign Cognee plugin warnings are filtered but real plugin errors are preserved.
+- [ ] Confirm Cognee install/uninstall/reinstall status detection remains state-aware.
+
+Items likely for `1.8.1`:
+
+- [ ] Deeper Cognee memory behavior tests once the plugin contract is clearer.
+- [ ] Email delivery audit/rate-limit UI beyond current backend guardrails.
+
+Manual checks before stop:
+
+- Dev: Resend partner test email.
+- Dev: agent with `clawmax-resend` sends inline status email.
+- Dev: same agent sends `IDENTITY.md` or `SOUL.md` attachment.
+- Cloud image: repeat partner test email and one agent email.
+- On-prem image: repeat partner test email and one agent email.
+- Cognee: install, uninstall, reinstall, refresh page, verify button state.
+
+Automation target:
+
+- Keep live email delivery manual, but automate secret propagation, dispatch selection, attachment resolution, Cognee plugin status parsing, and warning filtering.
+
+Stop point:
+
+- Commit after focused partner tests and manual checks are recorded.
+
+### Section 5: Focused Client Simplification
+
+Intent: improve high-friction UI without changing core behavior.
+
+Items I think we can address in `1.8.0`:
+
+- [ ] Agents: improve density/scannability while preserving chat, detail, skill, create, import, and actions flows.
+- [ ] Notifications: group repeated bursts or at least reduce repeated near-identical file/action noise.
+- [ ] Mobile dropdown/popover audit: top bar, notifications, Skills, Templates, Agents, Workflows, Communications, Partners.
+- [ ] Add helper tests for dropdown positioning/grouping if behavior changes.
+
+Items likely for `1.8.1`:
+
+- [ ] Builder remaining routing/action simplification.
+- [ ] Activity/Budget first-screen simplification and token/cost gap messaging.
+- [ ] DocHub generated artifact browsing simplification.
+- [ ] Logs/System action-oriented diagnostic surface.
+
+Manual checks before stop:
+
+- Desktop: Agents grid/list/table, card actions, chat open, skill manage.
+- Desktop: notification open/dismiss/open-chat/open-file actions.
+- Mobile/narrow: every dropdown/popover stays inside viewport.
+- Light and dark mode for changed surfaces.
+
+Automation target:
+
+- Add pure helper tests for dropdown positioning, grouping logic, and action availability.
+- Use browser/manual review only for final visual fit until we add browser automation.
+
+Stop point:
+
+- Commit after focused visual/manual review and relevant helper tests pass.
+
+### Section 6: Workflow + Communications Correctness
+
+Intent: make workflow status match real coordination outcomes.
+
+Items I think we can start in `1.8.0` if earlier sections finish cleanly:
+
+- [ ] Audit channel target resolution for display-name vs id mistakes.
+- [ ] Add a regression test for workflow/group channel target lookup.
+- [ ] Improve error wording when a workflow tries to post to a missing channel/group.
+
+Items likely for `1.8.1`:
+
+- [ ] Make workflow success criteria account for participant communication failures.
+- [ ] Improve live thread visibility or clearly label current runtime limitations.
+- [ ] De-emphasize downstream failures when upstream model/quota/auth failure is the real blocker.
+
+Manual checks before stop:
+
+- Apply a team template with groups.
+- Trigger a workflow that posts to a group.
+- Confirm group chat contains expected workflow messages.
+- Confirm workflow execution status reflects any communication failure.
+
+Automation target:
+
+- Add route/lib tests for channel target resolution and communication-failure status handling before manual template runs.
+
+Stop point:
+
+- Treat this as optional for `1.8.0`; move to `1.8.1` if it expands.
+
+### Section 7: Security + Skill Guardrails
+
+Intent: make risk visible before users install or generate powerful skills.
+
+Items I think we can address in `1.8.1`:
+
+- [ ] Dangerous-skill review copy and warning taxonomy.
+- [ ] Stronger warnings for skills/plugins that add binaries, network access, secrets, or machine commands.
+- [ ] Readiness states for missing/present/degraded secrets before template apply or workflow run.
+- [ ] Visible `OTP_DEV_MODE=log` warning outside dev/test.
+
+Manual checks before stop:
+
+- Import safe skill.
+- Import or preview risky skill fixture.
+- Install partner plugin.
+- Apply template with missing secret.
+- Login/auth screen in dev log-mode.
+
+Automation target:
+
+- Add helper tests for risk classification, readiness-state calculation, and `OTP_DEV_MODE=log` warning visibility.
+
+Stop point:
+
+- Do not start until 1.8.0 stabilization is complete unless a security bug appears.
 
 ## Proposed Release Slicing
 
@@ -132,6 +293,8 @@ These are the remaining items from the old simplification branch that are still 
 - `npm run build` for dashboard changes.
 - `DASHBOARD_CLIENT_PORT=5174 DASHBOARD_APP_URL=http://localhost:5174 ./SYSTEM/test-with-server.sh integration` before RC.
 - Build `1.8.0-test-rc1` image and validate cloud + on-prem before promotion.
+- Minimize manual validation by adding API/helper assertions for anything repeatable.
+- Keep a short manual checklist only for deployed image behavior, live third-party delivery, and visual/mobile layout.
 
 ## Manual Checks For `1.8.0`
 
@@ -143,4 +306,3 @@ These are the remaining items from the old simplification branch that are still 
 - System-test integration run followed by personal workspace inspection for leaked artifacts.
 - Mobile top bar, notifications, Skills, Templates, Agents, Workflows, Communications, Partners.
 - Workflow run that posts to a group/channel and verifies participant communication status.
-
