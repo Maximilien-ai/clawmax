@@ -425,6 +425,17 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Partner plugin status regression tests...${NC}"
+npx ts-node --transpileOnly server/routes/partner-plugin-status-regression.test.ts > /tmp/clawmax-partner-plugin-status.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-partner-plugin-status.out; then
+  partner_plugin_status_count=$(grep "Tests passed:" /tmp/clawmax-partner-plugin-status.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Partner plugin status regression tests (${partner_plugin_status_count:-?} tests)"
+else
+  cat /tmp/clawmax-partner-plugin-status.out
+  fail "Partner plugin status regression tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Agent doctor route unit tests...${NC}"
 npx ts-node --transpileOnly server/routes/agents.test.ts > /tmp/clawmax-agent-routes.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-agent-routes.out; then
