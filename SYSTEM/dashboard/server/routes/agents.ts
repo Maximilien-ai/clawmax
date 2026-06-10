@@ -777,6 +777,11 @@ router.post('/doctor', async (req, res) => {
   const openclawCliPath = resolveOpenClawCliPath()
   let platformMessage: string | undefined
   let gatewayFixOutput: string | undefined
+  let gatewayRecovery: {
+    attempted: boolean
+    status: 'not-needed' | 'not-attempted' | 'restarted' | 'unavailable' | 'failed'
+    message: string
+  } | undefined
   const isManagedRuntime = Object.keys(getDashboardEnvRaw()).length === 0
   const summarizeDoctorGatewayMessage = (text: string | undefined): string | undefined => {
     const raw = String(text || '').trim()
@@ -834,17 +839,21 @@ router.post('/doctor', async (req, res) => {
   let effectiveGatewayRunning = gatewayProbe.running
 
   if (gatewayProbe.running) {
-    platformChecks.push({ check: 'gateway', status: 'pass', message: `Gateway authenticated on port ${gatewayPort ?? 'unknown'}` })
+    const message = `Gateway authenticated on port ${gatewayPort ?? 'unknown'}`
+    gatewayRecovery = { attempted: false, status: 'not-needed', message }
+    platformChecks.push({ check: 'gateway', status: 'pass', message })
   } else if (gatewayRunning) {
     effectiveGatewayRunning = true
     const probeError = String(gatewayProbe.error || '').trim()
     const authMismatch = /token mismatch|unauthorized/i.test(probeError)
+    const message = authMismatch
+      ? `Gateway is reachable on port ${gatewayPort ?? 'unknown'}, but the dashboard's admin probe is using a different token than the runtime gateway token`
+      : `Gateway is reachable on port ${gatewayPort ?? 'unknown'}, but the dashboard's admin probe could not complete${probeError ? `: ${probeError}` : ''}`
+    gatewayRecovery = { attempted: false, status: 'not-needed', message }
     platformChecks.push({
       check: 'gateway',
       status: 'pass',
-      message: authMismatch
-        ? `Gateway is reachable on port ${gatewayPort ?? 'unknown'}, but the dashboard's admin probe is using a different token than the runtime gateway token`
-        : `Gateway is reachable on port ${gatewayPort ?? 'unknown'}, but the dashboard's admin probe could not complete${probeError ? `: ${probeError}` : ''}`,
+      message,
     })
   } else if (fix && hasOpenclawCli) {
     try {
@@ -854,44 +863,52 @@ router.post('/doctor', async (req, res) => {
       const restartedProbe = await probeGatewayResponsive()
       effectiveGatewayRunning = restartedProbe.running
       if (effectiveGatewayRunning) {
-        platformChecks.push({ check: 'gateway', status: 'fixed', message: `Gateway restarted and authenticated on port ${restartedProbe.port ?? restartedStatus.port ?? getConfiguredGatewayPort() ?? 'unknown'}` })
+        const message = `Gateway restarted and authenticated on port ${restartedProbe.port ?? restartedStatus.port ?? getConfiguredGatewayPort() ?? 'unknown'}`
+        gatewayRecovery = { attempted: true, status: 'restarted', message }
+        platformChecks.push({ check: 'gateway', status: 'fixed', message })
       } else {
         const disabledMessage = summarizeGatewayDisabledRuntime(restartOutput)
         const restartedPort = restartedProbe.port ?? restartedStatus.port ?? getConfiguredGatewayPort() ?? 'unknown'
         const restartedAuthMismatch = /token mismatch|unauthorized/i.test(String(restartedProbe.error || ''))
+        const message = disabledMessage || (isManagedRuntime
+          ? 'Gateway restart was attempted, but the gateway is still unavailable in this runtime.'
+          : restartedStatus.running
+            ? (restartedAuthMismatch
+              ? `Gateway is reachable on port ${restartedPort} after restart, but the dashboard admin probe is using a different token than the runtime gateway token`
+              : `Gateway is reachable on port ${restartedPort} after restart, but the dashboard admin probe is still unavailable${restartedProbe.error ? `: ${restartedProbe.error}` : ''}`)
+            : `Gateway restart command ran but gateway is still not running on port ${restartedPort}`)
+        gatewayRecovery = { attempted: true, status: disabledMessage || isManagedRuntime ? 'unavailable' : (restartedStatus.running ? 'restarted' : 'failed'), message }
         platformChecks.push({
           check: 'gateway',
           status: restartedStatus.running ? 'fixed' : 'warn',
-          message: disabledMessage || (isManagedRuntime
-            ? 'Gateway restart was attempted, but the gateway is still unavailable in this runtime.'
-            : restartedStatus.running
-              ? (restartedAuthMismatch
-                ? `Gateway is reachable on port ${restartedPort} after restart, but the dashboard admin probe is using a different token than the runtime gateway token`
-                : `Gateway is reachable on port ${restartedPort} after restart, but the dashboard admin probe is still unavailable${restartedProbe.error ? `: ${restartedProbe.error}` : ''}`)
-              : `Gateway restart command ran but gateway is still not running on port ${restartedPort}`)
+          message,
         })
       }
     } catch (err: any) {
       const reason = String(err?.stderr || err?.stdout || err?.message || '').trim().split('\n')[0] || 'gateway restart failed'
       gatewayFixOutput = String(err?.stderr || err?.stdout || err?.message || '').trim()
       const disabledMessage = summarizeGatewayDisabledRuntime(gatewayFixOutput)
+      const message = disabledMessage || (isManagedRuntime
+        ? `Gateway restart failed in this runtime: ${reason}`
+        : `Gateway restart failed: ${reason}`)
+      gatewayRecovery = { attempted: true, status: disabledMessage ? 'unavailable' : 'failed', message }
       platformChecks.push({
         check: 'gateway',
         status: 'warn',
-        message: disabledMessage || (isManagedRuntime
-          ? `Gateway restart failed in this runtime: ${reason}`
-          : `Gateway restart failed: ${reason}`)
+        message
       })
     }
   } else {
+    const message = hasOpenclawCli
+      ? (isManagedRuntime
+        ? 'Gateway is not running in this instance runtime.'
+        : `Gateway not running on port ${gatewayPort ?? 'unknown'}`)
+      : 'Gateway not running and openclaw CLI is unavailable for auto-fix'
+    gatewayRecovery = { attempted: false, status: 'not-attempted', message }
     platformChecks.push({
       check: 'gateway',
       status: hasOpenclawCli ? 'warn' : 'fail',
-      message: hasOpenclawCli
-        ? (isManagedRuntime
-          ? 'Gateway is not running in this instance runtime.'
-          : `Gateway not running on port ${gatewayPort ?? 'unknown'}`)
-        : 'Gateway not running and openclaw CLI is unavailable for auto-fix',
+      message,
     })
   }
 
@@ -918,7 +935,7 @@ router.post('/doctor', async (req, res) => {
   } catch {
     res.json({
       results,
-      platform: { cli: hasOpenclawCli, gateway: effectiveGatewayRunning, gatewayPort },
+      platform: { cli: hasOpenclawCli, gateway: effectiveGatewayRunning, gatewayPort, gatewayRecovery },
       summary: {
         total: platformChecks.length,
         pass: platformChecks.filter(c => c.status === 'pass').length,
@@ -1042,6 +1059,7 @@ router.post('/doctor', async (req, res) => {
       cli: hasOpenclawCli,
       gateway: effectiveGatewayRunning,
       gatewayPort,
+      gatewayRecovery,
     },
     summary: { total: allChecks.length, pass, fail, warn, fixed },
     healthy: fail === 0,

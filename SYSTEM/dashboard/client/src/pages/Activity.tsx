@@ -913,6 +913,13 @@ function DoctorModal({ onClose }: { onClose: () => void }) {
                 <span className={`px-3 py-1.5 rounded-lg ${isGatewayDoctorBadgeHealthy(results) ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300' : 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300'}`}>{isGatewayDoctorBadgeHealthy(results) ? '✓' : '⚠'} Gateway{results.platform?.gatewayPort ? `:${results.platform.gatewayPort}` : ''}</span>
                 <span className={`px-3 py-1.5 rounded-lg ${results.healthy && results.summary.warn === 0 ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300' : 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300'}`}>{results.summary.pass} pass, {results.summary.fail} fail, {results.summary.warn} warn, {results.summary.fixed} fixed</span>
               </div>
+              {results.platform?.gatewayRecovery?.message && (
+                <div className="text-xs rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2 text-cyan-800 dark:border-cyan-800 dark:bg-cyan-900/20 dark:text-cyan-200">
+                  <span className="font-semibold">Gateway recovery:</span>{' '}
+                  <span className="font-mono">{results.platform.gatewayRecovery.status || 'unknown'}</span>
+                  {' '}· {results.platform.gatewayRecovery.message}
+                </div>
+              )}
               {visibleDoctorResults.map((agent: any) => (
                 <div key={agent.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-3">
                   <div className="font-medium text-sm text-gray-900 dark:text-gray-100 mb-2 font-mono">{agent.id}</div>

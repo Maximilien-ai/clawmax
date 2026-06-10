@@ -93,6 +93,7 @@ Progress note:
 - Fixed integration active-workspace restoration to read `/api/workspaces/active` as `.workspace.id`.
 - Added API-level post-cleanup assertions that the active workspace has no system-test agents, workflows, communities, or groups.
 - Added one workspace-manager unit regression, increasing that visible lane from `6` to `7` tests.
+- Full integration with validation passed at `308/308` after this checkpoint.
 
 Items likely for `1.8.1`:
 
@@ -111,7 +112,7 @@ Automation target:
 
 Stop point:
 
-- Commit only after focused tests and full integration are green.
+- Completed for this pass after focused tests and full integration passed.
 
 ### Section 3: Runtime + Gateway Recovery Hardening
 
@@ -119,10 +120,16 @@ Intent: make common runtime failures recoverable and less noisy.
 
 Items I think we can address in `1.8.0`:
 
-- [ ] Add Doctor action for `openclaw gateway restart` when gateway is configured but unhealthy.
-- [ ] Add route/helper tests for restart action permissions, success output, and failure output.
+- [x] Add Doctor action for `openclaw gateway restart` when gateway is configured but unhealthy.
+- [x] Add route/helper tests for restart action permissions, success output, and failure output.
 - [ ] Reduce dashboard-originated invalid-handshake/probe warnings where the probe is only checking status.
 - [ ] Add a visible regression test for probe identity/handshake behavior if the code path changes.
+
+Progress note:
+
+- Doctor already had an auto-fix restart path; added structured `platform.gatewayRecovery` states so UI/tests do not infer recovery from summary counts.
+- Added route regressions for gateway restart success, restart failure, and not-attempted no-fix state, increasing the agents route lane by `3` tests.
+- Surfaced the gateway recovery status/message in Logs and Activity Doctor modals.
 
 Items likely for `1.8.1`:
 

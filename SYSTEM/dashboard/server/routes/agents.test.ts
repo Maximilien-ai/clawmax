@@ -79,17 +79,37 @@ function getRouteHandler(method: 'get' | 'post', routePath: string) {
   return layer.route.stack[0].handle as Function
 }
 
-function withGatewayRpcStubs<T>(overrides: Record<string, any>, fn: () => Promise<T> | T): Promise<T> | T {
+async function withGatewayRpcStubs<T>(overrides: Record<string, any>, fn: () => Promise<T> | T): Promise<T> {
   delete require.cache[gatewayRpcModulePath]
   const gatewayRpc = require('../lib/gateway-rpc')
   const originals = Object.fromEntries(Object.keys(overrides).map((key) => [key, gatewayRpc[key]]))
   Object.assign(gatewayRpc, overrides)
   try {
-    return fn()
+    return await fn()
   } finally {
     Object.assign(gatewayRpc, originals)
     delete require.cache[require.resolve('./agents')]
   }
+}
+
+async function withChildProcessStubs<T>(overrides: Record<string, any>, fn: () => Promise<T> | T): Promise<T> {
+  const childProcess = require('child_process')
+  const originals = Object.fromEntries(Object.keys(overrides).map((key) => [key, childProcess[key]]))
+  Object.assign(childProcess, overrides)
+  delete require.cache[require.resolve('./agents')]
+  try {
+    return await fn()
+  } finally {
+    Object.assign(childProcess, originals)
+    delete require.cache[require.resolve('./agents')]
+  }
+}
+
+function writeFakeOpenClawCli(tmpHome: string): string {
+  const cliPath = path.join(tmpHome, 'openclaw')
+  fs.writeFileSync(cliPath, '#!/bin/sh\necho "openclaw 2026.5.26"\n', 'utf-8')
+  fs.chmodSync(cliPath, 0o755)
+  return cliPath
 }
 
 function makeReq(overrides: Record<string, any> = {}) {
@@ -183,6 +203,104 @@ async function run() {
         .find((check: any) => check.check === 'gateway')
       assert.strictEqual(gatewayCheck, undefined, 'Expected gateway health to be represented only in platform checks, not as an agent warning')
     })
+  })
+
+  await test('doctor auto-fix reports structured gateway restart success', async () => {
+    const previousOpenClawBin = process.env.OPENCLAW_BIN
+    process.env.OPENCLAW_BIN = writeFakeOpenClawCli(tmpHome)
+
+    let probeCalls = 0
+    let runningCalls = 0
+    try {
+      await withGatewayRpcStubs({
+        probeGatewayResponsive: async () => {
+          probeCalls += 1
+          return probeCalls === 1
+            ? { running: false, port: 18789, error: 'connection refused' }
+            : { running: true, port: 18789 }
+        },
+        isGatewayRunning: () => {
+          runningCalls += 1
+          return { running: runningCalls > 1, port: 18789 }
+        },
+        getConfiguredGatewayPort: () => 18789,
+      }, async () => {
+        await withChildProcessStubs({
+          execSync: () => 'Gateway restarted',
+        }, async () => {
+          const handler = getRouteHandler('post', '/doctor')
+          const res = makeRes()
+          await handler(makeReq({ body: { fix: true } }), res)
+
+          assert.strictEqual(res.statusCode, 200, 'Expected doctor route success')
+          assert.strictEqual(res.jsonBody?.platform?.gateway, true, 'Expected gateway to be healthy after restart')
+          assert.strictEqual(res.jsonBody?.platform?.gatewayRecovery?.attempted, true, 'Expected restart attempt to be recorded')
+          assert.strictEqual(res.jsonBody?.platform?.gatewayRecovery?.status, 'restarted', 'Expected structured restart success')
+          assert((res.jsonBody?.summary?.fixed || 0) >= 1, 'Expected fixed count to include gateway restart')
+        })
+      })
+    } finally {
+      if (typeof previousOpenClawBin === 'undefined') delete process.env.OPENCLAW_BIN
+      else process.env.OPENCLAW_BIN = previousOpenClawBin
+    }
+  })
+
+  await test('doctor reports structured gateway recovery when auto-fix is not requested', async () => {
+    const previousOpenClawBin = process.env.OPENCLAW_BIN
+    process.env.OPENCLAW_BIN = writeFakeOpenClawCli(tmpHome)
+
+    try {
+      await withGatewayRpcStubs({
+        probeGatewayResponsive: async () => ({ running: false, port: 18789, error: 'connection refused' }),
+        isGatewayRunning: () => ({ running: false, port: 18789 }),
+        getConfiguredGatewayPort: () => 18789,
+      }, async () => {
+        const handler = getRouteHandler('post', '/doctor')
+        const res = makeRes()
+        await handler(makeReq({ body: { fix: false } }), res)
+
+        assert.strictEqual(res.statusCode, 200, 'Expected doctor route success')
+        assert.strictEqual(res.jsonBody?.platform?.gatewayRecovery?.attempted, false, 'Expected no restart attempt without fix=true')
+        assert.strictEqual(res.jsonBody?.platform?.gatewayRecovery?.status, 'not-attempted', 'Expected structured no-fix state')
+        assert(/not running/i.test(res.jsonBody?.platform?.gatewayRecovery?.message || ''), 'Expected actionable not-running message')
+      })
+    } finally {
+      if (typeof previousOpenClawBin === 'undefined') delete process.env.OPENCLAW_BIN
+      else process.env.OPENCLAW_BIN = previousOpenClawBin
+    }
+  })
+
+  await test('doctor auto-fix reports structured gateway restart failure', async () => {
+    const previousOpenClawBin = process.env.OPENCLAW_BIN
+    process.env.OPENCLAW_BIN = writeFakeOpenClawCli(tmpHome)
+
+    try {
+      await withGatewayRpcStubs({
+        probeGatewayResponsive: async () => ({ running: false, port: 18789, error: 'connection refused' }),
+        isGatewayRunning: () => ({ running: false, port: 18789 }),
+        getConfiguredGatewayPort: () => 18789,
+      }, async () => {
+        await withChildProcessStubs({
+          execSync: () => {
+            const err: any = new Error('restart exploded')
+            err.stderr = 'gateway restart failed hard'
+            throw err
+          },
+        }, async () => {
+          const handler = getRouteHandler('post', '/doctor')
+          const res = makeRes()
+          await handler(makeReq({ body: { fix: true } }), res)
+
+          assert.strictEqual(res.statusCode, 200, 'Expected doctor route success')
+          assert.strictEqual(res.jsonBody?.platform?.gatewayRecovery?.attempted, true, 'Expected restart attempt to be recorded')
+          assert.strictEqual(res.jsonBody?.platform?.gatewayRecovery?.status, 'failed', 'Expected structured restart failure')
+          assert(/gateway restart failed/i.test(res.jsonBody?.platform?.gatewayRecovery?.message || ''), 'Expected restart failure message')
+        })
+      })
+    } finally {
+      if (typeof previousOpenClawBin === 'undefined') delete process.env.OPENCLAW_BIN
+      else process.env.OPENCLAW_BIN = previousOpenClawBin
+    }
   })
 
   await test('generate rejects missing descriptions before invoking AI generation', async () => {
