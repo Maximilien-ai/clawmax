@@ -14,6 +14,7 @@
 | [SECURITY.md](SECURITY.md) | Security architecture and policies |
 | [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) | Pre-release verification steps |
 | [DEMO_VIDEOS.md](DEMO_VIDEOS.md) | Local demo video inventory and when to use it |
+| [planning/HARDENING_SIMPLIFICATION_1_8_X.md](planning/HARDENING_SIMPLIFICATION_1_8_X.md) | Active `1.8.x` hardening, simplification, and backlog cleanup sprint plan |
 | [planning/CLIENT_SIMPLIFICATION_SPRINT_2026-05-27_28.md](planning/CLIENT_SIMPLIFICATION_SPRINT_2026-05-27_28.md) | Two-day simplification plan for the main client console surfaces |
 | [architecture/DASHBOARD_RUNTIME_SPLIT.md](architecture/DASHBOARD_RUNTIME_SPLIT.md) | Investigation note for the 2-container vs 3-container dashboard runtime split |
 | [operations/TEMPLATE_CATALOG_AUDIT_2026-05-24.md](operations/TEMPLATE_CATALOG_AUDIT_2026-05-24.md) | First catalog audit pass for template lane/filesystem assumptions |

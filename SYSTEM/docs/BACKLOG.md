@@ -1,10 +1,11 @@
 # Backlog
 
-> Last updated: June 5, 2026
+> Last updated: June 10, 2026
 > Completed and verified work is archived into [CHANGELOG.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/CHANGELOG.md) and historical notes under `SYSTEM/docs/**/archive/`
 
 ## Top Priority
 
+- [ ] **1.8.x hardening + simplification sprint** — active planning now lives in [HARDENING_SIMPLIFICATION_1_8_X.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/HARDENING_SIMPLIFICATION_1_8_X.md). Start by cleaning stale release-state docs/backlog items, then harden system-test workspace isolation, gateway recovery, runtime partner-secret execution, and the highest-friction client surfaces.
 - [ ] **Validate `1.7.5` candidate on dev, on-prem, and cloud** — run the next full image/manual pass against the `1.7.5` line with emphasis on Builder, partner integrations, Resend/Himalaya skills, workflow execution, `/api/system`, and durable gateway startup after the runtime-managed secret/UI alignment fixes.
 - [ ] **Resend follow-through after archived `1.7.4` sprint** — the Resend implementation mini-sprint is complete and archived at [RESEND_PARTNER_MINI_SPRINT_1_7_4.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/archive/RESEND_PARTNER_MINI_SPRINT_1_7_4.md). Remaining work is attachment/deliverability guidance, richer send audit/rate-limit UI, and managed-environment recipient policy options. Handoff: [RESEND_SETUP_HANDOFF_1_7_4.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/operations/RESEND_SETUP_HANDOFF_1_7_4.md).
 - [ ] **Template audit for lane/subdirectory assumptions** — audit organization and workflow templates for the same class of bug seen in CW reruns: hidden/helper dirs being treated as work items, ambiguous lane ownership, weak filesystem verification, or success reporting that does not re-check on-disk outputs. Prioritize templates that scan subdirectories, split work across multiple agents, or rely on reruns/idempotent regeneration. GitHub: `#132`
