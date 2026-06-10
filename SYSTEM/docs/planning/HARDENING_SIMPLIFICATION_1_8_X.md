@@ -46,6 +46,8 @@ This is likely more than one release:
 
 ## Sectioned Sprint Board
 
+Archived completed checkpoints: `SYSTEM/docs/planning/archive/HARDENING_SIMPLIFICATION_1_8_0_COMPLETED_CHECKPOINTS_2026-06-10.md`.
+
 ### Section 1: Release-State + Backlog Hygiene
 
 Intent: make the docs/backlog truthful before changing behavior.
@@ -80,13 +82,13 @@ Stop point:
 
 Intent: make repeated test runs safe and keep the test count moving upward.
 
+Status: completed for `1.8.0`; remaining follow-through moved to `1.8.1`.
+
 Items I think we can address in `1.8.0`:
 
 - [x] Audit system-test workspace create/activate/reset flow.
 - [x] Add a regression test for scoped cleanup of system-test org/channel artifacts.
 - [x] Add a visible test lane for workspace isolation cleanup so the aggregate count increases beyond `304`.
-- [ ] Make cleanup idempotent when the test workspace already exists or was partially deleted.
-- [ ] Add clearer failure output when workspace setup fails but later activation appears to succeed.
 
 Progress note:
 
@@ -97,6 +99,8 @@ Progress note:
 
 Items likely for `1.8.1`:
 
+- [ ] Make cleanup idempotent when the test workspace already exists or was partially deleted.
+- [ ] Add clearer failure output when workspace setup fails but later activation appears to succeed.
 - [ ] Broader isolation audit across every workspace-scoped API.
 - [ ] Dedicated clean-room test profile that never touches the personal/default workspace.
 
@@ -117,6 +121,8 @@ Stop point:
 ### Section 3: Runtime + Gateway Recovery Hardening
 
 Intent: make common runtime failures recoverable and less noisy.
+
+Status: completed for `1.8.0`; deeper supervision follow-through moved to `1.8.1`.
 
 Items I think we can address in `1.8.0`:
 
@@ -157,6 +163,8 @@ Stop point:
 
 Intent: protect the two newest partner paths before doing larger simplification work.
 
+Status: completed for `1.8.0`; live delivery remains manual by design.
+
 Items I think we can address in `1.8.0`:
 
 - [x] Add a visible test/manual checklist lane for Resend partner test email vs agent chat email parity.
@@ -186,7 +194,7 @@ Progress note:
 
 - Added `server/lib/partner-runtime-regressions.test.ts` as a visible full-suite lane. It covers runtime-managed Resend/Cognee env propagation, workspace-managed partner env propagation, local chat execution when managed secrets are present, managed Resend inline status dispatch, current-agent file attachments, and Cognee benign warning stripping.
 - Added `server/routes/partner-plugin-status-regression.test.ts` as a visible full-suite lane. It locks Cognee plugin installed -> absent -> reinstalled status transitions and unknown fallback behavior.
-- Expected full-suite visible total after this section: `312`.
+- Latest archived full-suite visible total after Section 5 helper lanes: `315/315`.
 
 Stop point:
 
@@ -196,12 +204,14 @@ Stop point:
 
 Intent: improve high-friction UI without changing core behavior.
 
+Status: mostly completed for `1.8.0`; broader Agents visual density remains open.
+
 Items I think we can address in `1.8.0`:
 
 - [ ] Agents: improve density/scannability while preserving chat, detail, skill, create, import, and actions flows.
-- [ ] Notifications: group repeated bursts or at least reduce repeated near-identical file/action noise.
-- [ ] Mobile dropdown/popover audit: top bar, notifications, Skills, Templates, Agents, Workflows, Communications, Partners.
-- [ ] Add helper tests for dropdown positioning/grouping if behavior changes.
+- [x] Notifications: group repeated bursts or at least reduce repeated near-identical file/action noise.
+- [x] Mobile dropdown/popover audit: top bar, notifications, Skills, Templates, Agents, Workflows, Communications, Partners.
+- [x] Add helper tests for dropdown positioning/grouping if behavior changes.
 
 Items likely for `1.8.1`:
 
@@ -222,6 +232,14 @@ Automation target:
 - Add pure helper tests for dropdown positioning, grouping logic, and action availability.
 - Use browser/manual review only for final visual fit until we add browser automation.
 
+Progress note:
+
+- Audited header/action popdowns across the current client surfaces. Most page-level action menus already use `getViewportSafeDropdownStyle`; the top-bar workspace switcher still used absolute positioning and was updated to use the shared viewport-safe fixed placement.
+- Tightened partner plugin controls in BYOK so install/uninstall/status controls wrap on narrow mobile widths in both light and dark mode.
+- Extended `dropdownPosition.test.ts` to cover near-left, near-right, oversized, and top-placement clamping. The dropdown helper lane now reports `9` tests.
+- Extracted notification category/search/open-action/footer-label rules into `notificationPresentation.ts` and added a visible `Notification presentation helper tests` suite with `6` regression cases. `NotificationCenter` now uses the tested helper instead of duplicating these decisions inline.
+- Consolidated Agent card tag previews, group-count labels, and budget-bar thresholds into `agentList.ts`; added a visible `Agent card presentation helper tests` suite with `7` regression cases. The broader Agents density/scannability item remains open for a visual pass.
+
 Stop point:
 
 - Commit after focused visual/manual review and relevant helper tests pass.
@@ -232,9 +250,9 @@ Intent: make workflow status match real coordination outcomes.
 
 Items I think we can start in `1.8.0` if earlier sections finish cleanly:
 
-- [ ] Audit channel target resolution for display-name vs id mistakes.
-- [ ] Add a regression test for workflow/group channel target lookup.
-- [ ] Improve error wording when a workflow tries to post to a missing channel/group.
+- [x] Audit channel target resolution for display-name vs id mistakes.
+- [x] Add a regression test for workflow/group channel target lookup.
+- [x] Improve error wording when a workflow tries to post to a missing channel/group.
 
 Items likely for `1.8.1`:
 
@@ -252,6 +270,12 @@ Manual checks before stop:
 Automation target:
 
 - Add route/lib tests for channel target resolution and communication-failure status handling before manual template runs.
+
+Progress note:
+
+- Added workflow communication target resolution that canonicalizes group/community names against `ORG/GROUPS.md` and `ORG/COMMUNITIES.md` before posting workflow participant output.
+- Missing workflow communication targets now surface as actionable `COMMS FAIL` errors with the missing group/community names and remediation guidance instead of silently creating fallback message files.
+- Added a visible `Workflow communication target tests` lane with `4` regression cases for canonicalization, missing target detection, and error formatting.
 
 Stop point:
 

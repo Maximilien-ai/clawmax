@@ -5,7 +5,7 @@ import cronstrue from 'cronstrue'
 import { spawn } from 'child_process'
 import { safeEnv, userExecutionEnv } from './safe-env'
 import { createHash, randomUUID } from 'crypto'
-import { getWorkspacePath } from './workspace'
+import { getWorkspacePath, parseGroups } from './workspace'
 import { listTeams, type Team } from './teams'
 import { addMessage } from './messages'
 import { getConfiguredDashboardInstanceId, traceAgentChat, traceWorkflowExecution } from './opik'
@@ -94,6 +94,13 @@ export interface WorkflowParticipant {
   reason: string
 }
 
+export interface WorkflowCommunicationTargetResolution {
+  groups: string[]
+  communities: string[]
+  missingGroups: string[]
+  missingCommunities: string[]
+}
+
 export function resolveTargetTeamAgentIds(
   teamIds: string[] = [],
   teams: Team[] = listTeams()
@@ -119,6 +126,76 @@ export function resolveTargetTeamAgentIds(
   }
 
   return agentReasons
+}
+
+function readWorkflowChannelNames(workspaceRoot: string, kind: 'group' | 'community'): string[] {
+  const names = new Set<string>()
+  const files = [
+    path.join(workspaceRoot, 'ORG', 'GROUPS.md'),
+    path.join(workspaceRoot, 'ORG', 'COMMUNITIES.md'),
+  ]
+
+  for (const file of files) {
+    try {
+      if (!fs.existsSync(file)) continue
+      const parsed = parseGroups(fs.readFileSync(file, 'utf-8'))
+      const entries = kind === 'group' ? parsed.groups : parsed.communities
+      for (const entry of entries) {
+        if (entry.name?.trim()) names.add(entry.name.trim())
+      }
+    } catch {}
+  }
+
+  return Array.from(names)
+}
+
+function resolveTargetNames(requested: string[] = [], available: string[]): { resolved: string[]; missing: string[] } {
+  const byLower = new Map(available.map((name) => [name.toLowerCase(), name]))
+  const resolved: string[] = []
+  const missing: string[] = []
+  const seen = new Set<string>()
+
+  for (const rawTarget of requested) {
+    const target = `${rawTarget || ''}`.trim()
+    if (!target) continue
+    const canonical = byLower.get(target.toLowerCase())
+    if (!canonical) {
+      missing.push(target)
+      continue
+    }
+    if (!seen.has(canonical.toLowerCase())) {
+      resolved.push(canonical)
+      seen.add(canonical.toLowerCase())
+    }
+  }
+
+  return { resolved, missing }
+}
+
+export function resolveWorkflowCommunicationTargets(
+  targeting: Partial<AgentTargeting> = {},
+  workspaceRoot: string = getWorkspacePath()
+): WorkflowCommunicationTargetResolution {
+  const groups = resolveTargetNames(targeting.groups || [], readWorkflowChannelNames(workspaceRoot, 'group'))
+  const communities = resolveTargetNames(targeting.communities || [], readWorkflowChannelNames(workspaceRoot, 'community'))
+  return {
+    groups: groups.resolved,
+    communities: communities.resolved,
+    missingGroups: groups.missing,
+    missingCommunities: communities.missing,
+  }
+}
+
+export function formatWorkflowCommunicationTargetError(resolution: Pick<WorkflowCommunicationTargetResolution, 'missingGroups' | 'missingCommunities'>): string | null {
+  const parts: string[] = []
+  if (resolution.missingGroups.length > 0) {
+    parts.push(`missing group${resolution.missingGroups.length === 1 ? '' : 's'}: ${resolution.missingGroups.map((name) => `"${name}"`).join(', ')}`)
+  }
+  if (resolution.missingCommunities.length > 0) {
+    parts.push(`missing communit${resolution.missingCommunities.length === 1 ? 'y' : 'ies'}: ${resolution.missingCommunities.map((name) => `"${name}"`).join(', ')}`)
+  }
+  if (parts.length === 0) return null
+  return `COMMS FAIL: Workflow communication delivery target ${parts.join('; ')}. Add the target in Communications or update the workflow targeting.`
 }
 
 export function summarizeAgentInputRequest(agentText: string): string {
@@ -500,7 +577,7 @@ function formatParticipantFailure(reportedFailure: string): string {
     return 'No model execution path is configured for this workflow run. Add hosted provider keys or configure a local runtime in BYOK / workspace integrations.'
   }
   if (/^COMMS FAIL/i.test(reportedFailure)) {
-    return 'Communication delivery failed. The workflow tried to post to a group or community that is missing or misconfigured.'
+    return `Communication delivery failed. ${reportedFailure.replace(/^COMMS FAIL:\s*/i, '')}`
   }
   return `Agent reported failure: ${reportedFailure}`
 }
@@ -1904,15 +1981,19 @@ export function triggerWorkflow(workflowId: string, options?: {
 
           // Post response to targeted groups/communities
           if (agentText && agentText.trim()) {
-            const targeting = workflow.targeting || {}
-            for (const group of (targeting.groups || [])) {
+            const communicationTargets = resolveWorkflowCommunicationTargets(workflow.targeting || {})
+            const communicationTargetError = formatWorkflowCommunicationTargetError(communicationTargets)
+            if (communicationTargetError) {
+              throw new Error(communicationTargetError)
+            }
+            for (const group of communicationTargets.groups) {
               addMessage('group', group, {
                 from: participant.agentId,
                 content: agentText,
                 mentions: []
               })
             }
-            for (const community of (targeting.communities || [])) {
+            for (const community of communicationTargets.communities) {
               addMessage('community', community, {
                 from: participant.agentId,
                 content: agentText,

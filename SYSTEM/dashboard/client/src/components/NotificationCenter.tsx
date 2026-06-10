@@ -1,34 +1,15 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useToast } from './Toast'
-
-interface NotificationAction {
-  type: string
-  label: string
-  value?: string
-}
-
-interface Notification {
-  id: string
-  type: string
-  severity: 'critical' | 'warning' | 'info'
-  title: string
-  message: string
-  entityId?: string
-  entityType?: 'agent' | 'workflow' | 'budget' | 'channel'
-  createdAt: string
-  actions?: NotificationAction[]
-  blockerType?: 'choice' | 'approval' | 'input' | 'delegation' | 'waiting'
-  blockerOptions?: string[]
-  workflowId?: string
-  progress?: number
-  artifactPath?: string
-  artifactUrl?: string
-  grouped?: boolean
-  groupedCount?: number
-  groupedIds?: string[]
-  groupedChildren?: Notification[]
-  groupedEntityIds?: string[]
-}
+import {
+  DashboardNotification as Notification,
+  NotificationAction,
+  NOTIFICATION_CATEGORY_LABELS,
+  filterNotifications,
+  getArtifactDisplayName,
+  getNotificationFooterActionLabel,
+  groupNotificationsByCategory,
+  notificationHasPrimaryOpenAction,
+} from '../lib/notificationPresentation'
 
 // Helper: resolve a notification action
 async function resolveAction(id: string, action: string, value?: string): Promise<boolean> {
@@ -62,27 +43,11 @@ function timeAgo(iso: string): string {
   return `${days}d ago`
 }
 
-function getArtifactDisplayName(target?: string): string {
-  if (!target) return 'Open file'
-  const parts = target.split(/[\\/]/).filter(Boolean)
-  return parts[parts.length - 1] || target
-}
-
 const SEVERITY_DOT: Record<string, string> = {
   critical: 'bg-red-500',
   warning: 'bg-amber-500',
   info: 'bg-blue-400',
 }
-
-const CATEGORY_LABELS: Record<string, string> = {
-  agent: 'Agents',
-  workflow: 'Workflows',
-  results: 'Results',
-  budget: 'Budget',
-  communication: 'Communication',
-}
-
-const CATEGORY_ORDER = ['results', 'agent', 'workflow', 'communication', 'budget']
 
 export function NotificationCenter({ onNavigateToAgent, onNavigateToAgentChat, onNavigateToWorkflow, onNavigateToPage, onNavigateToDoc, onAgentRestarted }: NotificationCenterProps) {
   const { showSuccess, showError, showWarning } = useToast()
@@ -214,34 +179,8 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToAgentChat, o
     setOpen(false)
   }
 
-  const notificationHasViewAction = (n: Notification) =>
-    !n.grouped && (
-    (n.type === 'artifact-update' && (Boolean(n.artifactPath) || Boolean(n.artifactUrl))) ||
-    (n.entityType === 'agent' && n.blockerType === 'input') ||
-    Boolean(n.entityId && !n.blockerType && n.entityType !== 'agent') ||
-    n.entityType === 'budget'
-    )
-
-  // Group notifications by category (derived from type)
-  const getCategory = (n: Notification): string => {
-    if (n.type === 'artifact-update') return 'results'
-    if (n.type.startsWith('agent-') || n.type === 'agent-error' || n.type === 'agent-offline' || n.type === 'agent-needs-feedback') return 'agent'
-    if (n.type.startsWith('workflow-')) return 'workflow'
-    if (n.type.startsWith('cost-')) return 'budget'
-    if (n.type === 'channel-activity') return 'communication'
-    return n.entityType || 'agent'
-  }
-  const filtered = searchQuery.trim()
-    ? notifications.filter(n => {
-        const q = searchQuery.toLowerCase()
-        return n.title.toLowerCase().includes(q) || n.message.toLowerCase().includes(q) || (n.entityId || '').toLowerCase().includes(q) || n.type.toLowerCase().includes(q)
-      })
-    : notifications
-  const grouped = CATEGORY_ORDER.reduce<Record<string, Notification[]>>((acc, cat) => {
-    const items = filtered.filter(n => getCategory(n) === cat)
-    if (items.length > 0) acc[cat] = items
-    return acc
-  }, {})
+  const filtered = filterNotifications(notifications, searchQuery)
+  const grouped = groupNotificationsByCategory(filtered)
 
   // Badge color
   const badgeColor = criticalCount > 0
@@ -320,9 +259,11 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToAgentChat, o
               {Object.entries(grouped).map(([category, items]) => (
                 <div key={category}>
                   <div className="px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-900/40">
-                    {CATEGORY_LABELS[category] || category}
+                    {NOTIFICATION_CATEGORY_LABELS[category] || category}
                   </div>
-                  {items.map(n => (
+                  {items.map(n => {
+                    const footerActionLabel = getNotificationFooterActionLabel(n)
+                    return (
                     <div
                       key={n.id}
                       className="px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
@@ -333,13 +274,13 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToAgentChat, o
                           <div className="flex items-center justify-between gap-2">
                             <button
                               type="button"
-                              onClick={() => notificationHasViewAction(n) && handleAction(n)}
+                              onClick={() => notificationHasPrimaryOpenAction(n) && handleAction(n)}
                               className={`text-sm font-medium text-left truncate ${
-                                notificationHasViewAction(n)
+                                notificationHasPrimaryOpenAction(n)
                                   ? 'text-sky-700 hover:text-sky-800 dark:text-sky-400 dark:hover:text-sky-300'
                                   : 'text-gray-900 dark:text-gray-100'
                               }`}
-                              title={notificationHasViewAction(n) ? 'Open result' : undefined}
+                              title={notificationHasPrimaryOpenAction(n) ? 'Open result' : undefined}
                             >
                               {n.title}
                             </button>
@@ -586,28 +527,12 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToAgentChat, o
 
                           {/* Standard footer actions */}
                           <div className="flex items-center gap-2 mt-1.5">
-                            {n.type === 'artifact-update' && (n.artifactPath || n.artifactUrl) && (
+                            {footerActionLabel && (
                               <button
                                 onClick={() => handleAction(n)}
                                 className="text-[11px] text-sky-600 dark:text-sky-400 hover:underline font-medium"
                               >
-                                Open file →
-                              </button>
-                            )}
-                            {n.entityId && !n.blockerType && n.entityType !== 'agent' && n.type !== 'artifact-update' && (
-                              <button
-                                onClick={() => handleAction(n)}
-                                className="text-[11px] text-sky-600 dark:text-sky-400 hover:underline font-medium"
-                              >
-                                View →
-                              </button>
-                            )}
-                            {n.entityType === 'budget' && (
-                              <button
-                                onClick={() => handleAction(n)}
-                                className="text-[11px] text-sky-600 dark:text-sky-400 hover:underline font-medium"
-                              >
-                                View budget →
+                                {footerActionLabel} →
                               </button>
                             )}
                             <button
@@ -620,7 +545,8 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToAgentChat, o
                         </div>
                       </div>
                     </div>
-                  ))}
+                    )
+                  })}
                 </div>
               ))}
             </div>
