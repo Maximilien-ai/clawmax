@@ -23,13 +23,15 @@ The dashboard host loads plugin manifests from:
 
 Optional filtering:
 
-- `CLAWMAX_ENABLED_PLUGINS=clawmax-guardrails,clawmax-evals`
+- Set `CLAWMAX_ENABLED_PLUGINS=plugin-lab-guardrails,plugin-lab-evals` in local `SYSTEM/dashboard/.env`
+- Set `CLAWMAX_DISABLE_DEFAULT_PLUGINS=true` in local `SYSTEM/dashboard/.env` to force a zero-plugin runtime for regression checks
 
 Default behavior:
 
 - Plugins with `enabledByDefault: true` load automatically.
-- Planned and reference plugins should set `enabledByDefault: false` until they are ready to surface.
-- The host can ship plugin architecture with zero visible plugins in standard runtimes.
+- Test fixtures may be enabled by default on a spike branch for faster iteration.
+- Release branches can suppress default plugins with `CLAWMAX_DISABLE_DEFAULT_PLUGINS=true` or by shipping only dormant manifests.
+- The host must still support zero visible plugins in standard runtimes.
 
 ## Navigation Contract
 
@@ -57,9 +59,11 @@ Required fields:
 Important MVP0 rules:
 
 - `visibility` can be `private` or `public`, but MVP0 assumes host-managed plugin enablement.
-- `enabledByDefault` should be `false` for planned and reference plugins.
+- `enabledByDefault` should reflect branch intent:
+  - `true` for branch-local test fixtures during active plugin development
+  - `false` for dormant examples and release-ready defaults
 - `nav.section` must be `plugins`.
-- `source` should point to the canonical plugin repo, which may be private.
+- `source` should point to the canonical plugin repo or internal source of truth.
 
 ## Workspace Storage Contract
 
@@ -141,7 +145,7 @@ Each plugin repo should converge on the same layout:
     └── validate-plugin.sh
 ```
 
-For MVP0, the host can ship local manifests for planned plugins while keeping them dormant by default. The long-term goal is for the repo manifest to become the canonical source.
+For MVP0, the host can ship local manifests for test plugins. On active plugin branches they may be enabled by default for faster testing, while release branches should keep them dormant or explicitly disabled. The long-term goal is for a plugin repo manifest to become the canonical source when a real plugin is ready.
 
 ## Test Requirements
 
@@ -171,13 +175,15 @@ Every plugin integration should keep three classes of tests:
 - Real model-backed eval judges
 - Real runtime enforcement of guardrail policies against agent execution
 
-Those belong in MVP1+ after the contract holds up under dormant reference plugins and real implementations.
+Those belong in MVP1+ after the contract holds up under test plugins and real implementations.
 
-## Private Plugin Next Steps
+## Local Testing
 
-For private plugins such as `clawmax-guardrails` and `clawmax-evals`, the immediate follow-through is:
+Use local `SYSTEM/dashboard/.env` to force-enable or force-disable test plugins during development:
 
-1. AI create
-2. stronger tests
-3. one-agent MVP1 validation
-4. packaging for consistent private distribution
+```bash
+CLAWMAX_ENABLED_PLUGINS=plugin-lab-guardrails,plugin-lab-evals
+# CLAWMAX_DISABLE_DEFAULT_PLUGINS=true
+```
+
+Do not commit production plugin enablement into the repo. Standard runtimes should still be testable with zero plugins loaded.

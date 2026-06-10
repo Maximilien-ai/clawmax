@@ -1,18 +1,18 @@
 {
-  "id": "clawmax-guardrails",
-  "slug": "clawmax-guardrails",
-  "name": "Guardrails",
+  "id": "plugin-lab-guardrails",
+  "slug": "plugin-lab-guardrails",
+  "name": "Guardrails Test Plugin",
   "description": "A dormant reference plugin for workspace-scoped guardrail objects.",
   "version": "0.1.0-mvp0",
   "icon": "shield",
   "objectKind": "guardrail",
   "visibility": "private",
-  "enabledByDefault": false,
+  "enabledByDefault": true,
   "source": {
     "type": "github",
     "owner": "example",
-    "repo": "clawmax-guardrails-plugin",
-    "url": "https://github.com/Maximilien-ai/clawmax-guardrails-plugin",
+    "repo": "plugin-lab-guardrails",
+    "url": "https://example.invalid/plugin-lab-guardrails",
     "branch": "main"
   },
   "nav": {

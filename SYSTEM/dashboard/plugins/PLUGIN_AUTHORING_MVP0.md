@@ -16,6 +16,14 @@ If the plugin should remain dormant until explicitly enabled, keep `enabledByDef
 CLAWMAX_ENABLED_PLUGINS=plugin-slug
 ```
 
+For local development, prefer setting that in `SYSTEM/dashboard/.env` instead of shell startup files or committed repo config.
+
+If you need to regression-test the host with zero plugins loaded, set:
+
+```bash
+CLAWMAX_DISABLE_DEFAULT_PLUGINS=true
+```
+
 ## Minimal Manifest
 
 ```json
@@ -105,7 +113,7 @@ CLAWMAX_ENABLED_PLUGINS=plugin-slug
 
 ## Test Plugin
 
-Use these dormant reference plugins in this repo as examples:
+Use these dormant test plugins in this repo as examples:
 
-- `clawmax-guardrails`
-- `clawmax-evals`
+- `plugin-lab-guardrails`
+- `plugin-lab-evals`

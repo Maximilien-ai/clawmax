@@ -1,18 +1,18 @@
 {
-  "id": "clawmax-evals",
-  "slug": "clawmax-evals",
-  "name": "Evals",
+  "id": "plugin-lab-evals",
+  "slug": "plugin-lab-evals",
+  "name": "Evals Test Plugin",
   "description": "A dormant reference plugin for workspace-scoped eval experiments.",
   "version": "0.1.0-mvp0",
   "icon": "beaker",
   "objectKind": "eval",
   "visibility": "private",
-  "enabledByDefault": false,
+  "enabledByDefault": true,
   "source": {
     "type": "github",
     "owner": "example",
-    "repo": "clawmax-evals-plugin",
-    "url": "https://github.com/Maximilien-ai/clawmax-evals-plugin",
+    "repo": "plugin-lab-evals",
+    "url": "https://example.invalid/plugin-lab-evals",
     "branch": "main"
   },
   "nav": {

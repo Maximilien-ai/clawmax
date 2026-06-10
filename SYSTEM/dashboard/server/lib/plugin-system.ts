@@ -169,6 +169,7 @@ function isPluginManifest(value: any): value is PluginManifest {
 }
 
 export function listConfiguredPlugins(): PluginManifest[] {
+  const disableDefaults = String(process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS || '').trim().toLowerCase() === 'true'
   const enabledFilter = new Set(
     uniq(String(process.env.CLAWMAX_ENABLED_PLUGINS || '').split(','))
   )
@@ -184,6 +185,8 @@ export function listConfiguredPlugins(): PluginManifest[] {
       if (!isPluginManifest(manifest)) continue
       if (enabledFilter.size > 0) {
         if (!enabledFilter.has(manifest.slug) && !enabledFilter.has(manifest.id)) continue
+      } else if (disableDefaults) {
+        continue
       } else if (manifest.enabledByDefault !== true) {
         continue
       }

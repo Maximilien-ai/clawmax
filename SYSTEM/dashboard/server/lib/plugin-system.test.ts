@@ -35,6 +35,7 @@ const originalWorkspace = process.env.OPENCLAW_WORKSPACE
 const originalHome = process.env.HOME
 const originalTestWorkspace = process.env.CLAWMAX_TEST_WORKSPACE
 const originalEnabledPlugins = process.env.CLAWMAX_ENABLED_PLUGINS
+const originalDisableDefaultPlugins = process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS
 
 function test(name: string, fn: () => void | Promise<void>) {
   return Promise.resolve()
@@ -110,31 +111,37 @@ async function run() {
   process.env.OPENCLAW_WORKSPACE = tempWorkspace
   process.env.CLAWMAX_TEST_WORKSPACE = tempWorkspace
   process.env.HOME = tempHome
-  process.env.CLAWMAX_ENABLED_PLUGINS = 'clawmax-guardrails,clawmax-evals'
+  process.env.CLAWMAX_ENABLED_PLUGINS = 'plugin-lab-guardrails,plugin-lab-evals'
+  delete process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS
   resetWorkspaceManagerForTests()
   seedWorkspaceFiles(tempWorkspace, tempHome)
 
-  await test('plugins stay disabled by default until explicitly enabled', () => {
-    const previous = process.env.CLAWMAX_ENABLED_PLUGINS
+  await test('host supports zero-plugin mode when default plugins are disabled', () => {
+    const previousEnabled = process.env.CLAWMAX_ENABLED_PLUGINS
+    const previousDisableDefaults = process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS
     delete process.env.CLAWMAX_ENABLED_PLUGINS
+    process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS = 'true'
     const plugins = listConfiguredPlugins()
     assert.strictEqual(plugins.length, 0, 'Expected no plugins to load by default')
-    process.env.CLAWMAX_ENABLED_PLUGINS = previous
+    if (typeof previousEnabled === 'undefined') delete process.env.CLAWMAX_ENABLED_PLUGINS
+    else process.env.CLAWMAX_ENABLED_PLUGINS = previousEnabled
+    if (typeof previousDisableDefaults === 'undefined') delete process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS
+    else process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS = previousDisableDefaults
   })
 
   await test('configured plugins expose manifests in sidebar order', () => {
     const plugins = listConfiguredPlugins()
-    assert(plugins.length >= 2, 'Expected at least the guardrails and evals plugins to be configured')
-    assert.strictEqual(plugins[0]?.slug, 'clawmax-guardrails', 'Expected guardrails plugin to sort before evals')
-    assert.strictEqual(plugins[1]?.slug, 'clawmax-evals', 'Expected evals plugin to appear second')
+    assert(plugins.length >= 2, 'Expected at least the test guardrails and evals plugins to be configured')
+    assert.strictEqual(plugins[0]?.slug, 'plugin-lab-guardrails', 'Expected guardrails test plugin to sort before evals')
+    assert.strictEqual(plugins[1]?.slug, 'plugin-lab-evals', 'Expected evals test plugin to appear second')
     assert(plugins.every((plugin) => plugin.visibility === 'private'), 'Expected MVP0 plugins to be private')
     assert(plugins.every((plugin) => plugin.nav?.section === 'plugins'), 'Expected plugins to target the plugin nav section')
     assert(plugins.every((plugin) => plugin.capabilities?.notifications && plugin.capabilities?.docs), 'Expected plugins to declare core host capabilities')
   })
 
   await test('guardrail plugin records persist, generate docs, and emit notifications', () => {
-    const plugin = getPluginBySlug('clawmax-guardrails')
-    assert(plugin, 'Expected guardrails plugin manifest to load')
+    const plugin = getPluginBySlug('plugin-lab-guardrails')
+    assert(plugin, 'Expected guardrails test plugin manifest to load')
 
     const created = upsertPluginRecord(plugin!, {
       name: 'No outbound send',
@@ -172,8 +179,8 @@ async function run() {
   })
 
   await test('eval plugin runs score experiments and surfaces workspace context', () => {
-    const plugin = getPluginBySlug('clawmax-evals')
-    assert(plugin, 'Expected evals plugin manifest to load')
+    const plugin = getPluginBySlug('plugin-lab-evals')
+    assert(plugin, 'Expected evals test plugin manifest to load')
 
     const created = upsertPluginRecord(plugin!, {
       name: 'Analyst summary accuracy',
@@ -212,6 +219,8 @@ async function run() {
   else process.env.CLAWMAX_TEST_WORKSPACE = originalTestWorkspace
   if (typeof originalEnabledPlugins === 'undefined') delete process.env.CLAWMAX_ENABLED_PLUGINS
   else process.env.CLAWMAX_ENABLED_PLUGINS = originalEnabledPlugins
+  if (typeof originalDisableDefaultPlugins === 'undefined') delete process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS
+  else process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS = originalDisableDefaultPlugins
   resetWorkspaceManagerForTests()
   fs.rmSync(tempWorkspace, { recursive: true, force: true })
   fs.rmSync(tempHome, { recursive: true, force: true })
@@ -238,6 +247,8 @@ run().catch((err) => {
   else process.env.CLAWMAX_TEST_WORKSPACE = originalTestWorkspace
   if (typeof originalEnabledPlugins === 'undefined') delete process.env.CLAWMAX_ENABLED_PLUGINS
   else process.env.CLAWMAX_ENABLED_PLUGINS = originalEnabledPlugins
+  if (typeof originalDisableDefaultPlugins === 'undefined') delete process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS
+  else process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS = originalDisableDefaultPlugins
   resetWorkspaceManagerForTests()
   console.error(err)
   process.exit(1)
