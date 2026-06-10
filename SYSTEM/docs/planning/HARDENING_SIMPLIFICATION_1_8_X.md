@@ -46,6 +46,8 @@ This is likely more than one release:
 
 ## Sectioned Sprint Board
 
+Archived completed checkpoints: `SYSTEM/docs/planning/archive/HARDENING_SIMPLIFICATION_1_8_0_COMPLETED_CHECKPOINTS_2026-06-10.md`.
+
 ### Section 1: Release-State + Backlog Hygiene
 
 Intent: make the docs/backlog truthful before changing behavior.
@@ -80,13 +82,13 @@ Stop point:
 
 Intent: make repeated test runs safe and keep the test count moving upward.
 
+Status: completed for `1.8.0`; remaining follow-through moved to `1.8.1`.
+
 Items I think we can address in `1.8.0`:
 
 - [x] Audit system-test workspace create/activate/reset flow.
 - [x] Add a regression test for scoped cleanup of system-test org/channel artifacts.
 - [x] Add a visible test lane for workspace isolation cleanup so the aggregate count increases beyond `304`.
-- [ ] Make cleanup idempotent when the test workspace already exists or was partially deleted.
-- [ ] Add clearer failure output when workspace setup fails but later activation appears to succeed.
 
 Progress note:
 
@@ -97,6 +99,8 @@ Progress note:
 
 Items likely for `1.8.1`:
 
+- [ ] Make cleanup idempotent when the test workspace already exists or was partially deleted.
+- [ ] Add clearer failure output when workspace setup fails but later activation appears to succeed.
 - [ ] Broader isolation audit across every workspace-scoped API.
 - [ ] Dedicated clean-room test profile that never touches the personal/default workspace.
 
@@ -117,6 +121,8 @@ Stop point:
 ### Section 3: Runtime + Gateway Recovery Hardening
 
 Intent: make common runtime failures recoverable and less noisy.
+
+Status: completed for `1.8.0`; deeper supervision follow-through moved to `1.8.1`.
 
 Items I think we can address in `1.8.0`:
 
@@ -157,6 +163,8 @@ Stop point:
 
 Intent: protect the two newest partner paths before doing larger simplification work.
 
+Status: completed for `1.8.0`; live delivery remains manual by design.
+
 Items I think we can address in `1.8.0`:
 
 - [x] Add a visible test/manual checklist lane for Resend partner test email vs agent chat email parity.
@@ -186,7 +194,7 @@ Progress note:
 
 - Added `server/lib/partner-runtime-regressions.test.ts` as a visible full-suite lane. It covers runtime-managed Resend/Cognee env propagation, workspace-managed partner env propagation, local chat execution when managed secrets are present, managed Resend inline status dispatch, current-agent file attachments, and Cognee benign warning stripping.
 - Added `server/routes/partner-plugin-status-regression.test.ts` as a visible full-suite lane. It locks Cognee plugin installed -> absent -> reinstalled status transitions and unknown fallback behavior.
-- Expected full-suite visible total after this section: `312`.
+- Latest archived full-suite visible total after Section 5 helper lanes: `315/315`.
 
 Stop point:
 
@@ -195,6 +203,8 @@ Stop point:
 ### Section 5: Focused Client Simplification
 
 Intent: improve high-friction UI without changing core behavior.
+
+Status: mostly completed for `1.8.0`; broader Agents visual density remains open.
 
 Items I think we can address in `1.8.0`:
 
