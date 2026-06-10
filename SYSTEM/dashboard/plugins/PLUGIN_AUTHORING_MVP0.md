@@ -10,6 +10,12 @@ This guide is for users or AI coding assistants creating a new ClawMax plugin.
 4. Restart the dashboard or refresh the app
 5. Confirm the plugin appears in the `Plugins` section
 
+If the plugin should remain dormant until explicitly enabled, keep `enabledByDefault: false` and start the dashboard with:
+
+```bash
+CLAWMAX_ENABLED_PLUGINS=plugin-lab-example
+```
+
 ## Minimal Manifest
 
 ```json
@@ -22,6 +28,7 @@ This guide is for users or AI coding assistants creating a new ClawMax plugin.
   "icon": "shield",
   "objectKind": "guardrail",
   "visibility": "private",
+  "enabledByDefault": false,
   "source": {
     "type": "github",
     "owner": "example",

@@ -21,6 +21,7 @@ let testsFailed = 0
 const originalWorkspace = process.env.OPENCLAW_WORKSPACE
 const originalHome = process.env.HOME
 const originalTestWorkspace = process.env.CLAWMAX_TEST_WORKSPACE
+const originalEnabledPlugins = process.env.CLAWMAX_ENABLED_PLUGINS
 
 function test(name: string, fn: () => void | Promise<void>) {
   return Promise.resolve()
@@ -84,6 +85,7 @@ async function run() {
   process.env.OPENCLAW_WORKSPACE = tempWorkspace
   process.env.CLAWMAX_TEST_WORKSPACE = tempWorkspace
   process.env.HOME = tempHome
+  process.env.CLAWMAX_ENABLED_PLUGINS = 'plugin-lab-guardrails,plugin-lab-evals'
   resetWorkspaceManagerForTests()
 
   await test('plugin index lists configured plugins', async () => {
@@ -180,6 +182,8 @@ async function run() {
   else process.env.HOME = originalHome
   if (typeof originalTestWorkspace === 'undefined') delete process.env.CLAWMAX_TEST_WORKSPACE
   else process.env.CLAWMAX_TEST_WORKSPACE = originalTestWorkspace
+  if (typeof originalEnabledPlugins === 'undefined') delete process.env.CLAWMAX_ENABLED_PLUGINS
+  else process.env.CLAWMAX_ENABLED_PLUGINS = originalEnabledPlugins
   resetWorkspaceManagerForTests()
   fs.rmSync(tempWorkspace, { recursive: true, force: true })
   fs.rmSync(tempHome, { recursive: true, force: true })
@@ -204,6 +208,8 @@ run().catch((err) => {
   else process.env.HOME = originalHome
   if (typeof originalTestWorkspace === 'undefined') delete process.env.CLAWMAX_TEST_WORKSPACE
   else process.env.CLAWMAX_TEST_WORKSPACE = originalTestWorkspace
+  if (typeof originalEnabledPlugins === 'undefined') delete process.env.CLAWMAX_ENABLED_PLUGINS
+  else process.env.CLAWMAX_ENABLED_PLUGINS = originalEnabledPlugins
   resetWorkspaceManagerForTests()
   console.error(err)
   process.exit(1)

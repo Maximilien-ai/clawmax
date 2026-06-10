@@ -9,6 +9,7 @@ export interface PluginManifest {
   icon: string
   objectKind: PluginObjectKind
   visibility: 'private' | 'public'
+  enabledByDefault?: boolean
   source: {
     type: 'github'
     owner: string

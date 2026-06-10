@@ -18,6 +18,7 @@ export interface PluginManifest {
   icon: string
   objectKind: PluginObjectKind
   visibility: PluginVisibility
+  enabledByDefault?: boolean
   source: {
     type: 'github'
     owner: string
@@ -181,7 +182,11 @@ export function listConfiguredPlugins(): PluginManifest[] {
       const manifestPath = path.join(root, entry.name, PLUGIN_MANIFEST_FILE)
       const manifest = readJsonFile<PluginManifest>(manifestPath)
       if (!isPluginManifest(manifest)) continue
-      if (enabledFilter.size > 0 && !enabledFilter.has(manifest.slug) && !enabledFilter.has(manifest.id)) continue
+      if (enabledFilter.size > 0) {
+        if (!enabledFilter.has(manifest.slug) && !enabledFilter.has(manifest.id)) continue
+      } else if (manifest.enabledByDefault !== true) {
+        continue
+      }
       manifests.push(manifest)
     }
   }

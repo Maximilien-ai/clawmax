@@ -25,6 +25,12 @@ Optional filtering:
 
 - `CLAWMAX_ENABLED_PLUGINS=plugin-lab-guardrails,plugin-lab-evals`
 
+Default behavior:
+
+- Plugins with `enabledByDefault: true` load automatically.
+- Test and reference plugins should set `enabledByDefault: false`.
+- The host can ship plugin architecture with zero visible plugins in standard runtimes.
+
 ## Navigation Contract
 
 - Plugin tabs render in a dedicated `Plugins` section.
@@ -51,6 +57,7 @@ Required fields:
 Important MVP0 rules:
 
 - `visibility` can be `private` or `public`, but MVP0 assumes host-managed plugin enablement.
+- `enabledByDefault` should be `false` for test and reference plugins.
 - `nav.section` must be `plugins`.
 - `source` should point to the canonical plugin repo, which may be private.
 

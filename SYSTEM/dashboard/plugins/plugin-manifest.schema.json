@@ -48,6 +48,9 @@
       "type": "string",
       "enum": ["private", "public"]
     },
+    "enabledByDefault": {
+      "type": "boolean"
+    },
     "source": {
       "type": "object",
       "additionalProperties": false,
