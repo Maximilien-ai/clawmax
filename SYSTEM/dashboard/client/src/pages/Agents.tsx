@@ -26,7 +26,7 @@ import {
   headerSecondaryButtonIdleClass,
 } from '../lib/headerControls'
 import { ProductIconCell } from '../lib/productIcons'
-import { mergeAgentToFront } from '../lib/agentList'
+import { formatAgentGroupCount, getAgentBudgetPresentation, getVisibleAgentTags, mergeAgentToFront } from '../lib/agentList'
 import { useWorkspace } from '../contexts/WorkspaceContext'
 import { buildWorkspaceScopedPath } from '../lib/workspaceScope'
 import { getSmartDropdownPlacement, getViewportSafeDropdownStyle, type DropdownPlacement } from '../lib/dropdownPosition'
@@ -3188,14 +3188,11 @@ const AgentCard = React.memo(function AgentCard({
   const [menuPlacement, setMenuPlacement] = React.useState<DropdownPlacement>('top')
   const actionsButtonRef = React.useRef<HTMLButtonElement | null>(null)
   const menuWidth = 176
-  const budgetUsedPct = costLimit && costLimit > 0 && metering ? (metering.cost / costLimit) * 100 : null
-  const budgetBarColor = budgetUsedPct === null
-    ? 'bg-gray-300 dark:bg-gray-700'
-    : budgetUsedPct >= 95
-      ? 'bg-red-500'
-      : budgetUsedPct >= 80
-        ? 'bg-yellow-500'
-        : 'bg-green-500'
+  const { usedPct: budgetUsedPct, barColor: budgetBarColor } = getAgentBudgetPresentation({
+    costTrackingEnabled,
+    costLimit,
+    meteringCost: metering?.cost,
+  })
 
   React.useEffect(() => {
     if (!showActionsMenu || !actionsButtonRef.current) return
@@ -3779,14 +3776,13 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
   const actionsButtonRef = React.useRef<HTMLButtonElement | null>(null)
   const menuWidth = 176
   const totalGroups = (agent.communities || []).length + (agent.groups || []).length
-  const budgetUsedPct = costLimit && costLimit > 0 && metering ? (metering.cost / costLimit) * 100 : null
-  const budgetBarColor = budgetUsedPct === null
-    ? 'bg-gray-300 dark:bg-gray-700'
-    : budgetUsedPct >= 95
-      ? 'bg-red-500'
-      : budgetUsedPct >= 80
-        ? 'bg-yellow-500'
-        : 'bg-green-500'
+  const groupCountLabel = formatAgentGroupCount(totalGroups)
+  const tagPreview = getVisibleAgentTags(agent.tags, 3)
+  const { usedPct: budgetUsedPct, barColor: budgetBarColor } = getAgentBudgetPresentation({
+    costTrackingEnabled,
+    costLimit,
+    meteringCost: metering?.cost,
+  })
 
   React.useEffect(() => {
     if (!showActionsMenu || !actionsButtonRef.current) return
@@ -3915,23 +3911,23 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
       )}
       <div className="mt-1.5 flex items-center justify-between gap-1">
         <div className="flex flex-wrap gap-0.5 flex-1 min-w-0" onClick={(e) => { e.stopPropagation(); onManageTags(); }}>
-          {agent.tags.length > 0 ? (
+          {tagPreview.visible.length > 0 ? (
             <>
-              {agent.tags.slice(0, 3).map(tag => (
+              {tagPreview.visible.map(tag => (
                 <span key={tag} className="text-xs px-1.5 py-0.5 rounded bg-sky-50 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400 border border-sky-200 dark:border-sky-700 cursor-pointer hover:bg-sky-100 transition-colors">
                   {tag}
                 </span>
               ))}
-              {agent.tags.length > 3 && (
-                <span className="text-xs px-1.5 py-0.5 text-gray-300 cursor-pointer">+{agent.tags.length - 3}</span>
+              {tagPreview.hiddenCount > 0 && (
+                <span className="text-xs px-1.5 py-0.5 text-gray-300 cursor-pointer">+{tagPreview.hiddenCount}</span>
               )}
             </>
           ) : (
             <span className="text-xs px-1.5 py-0.5 text-gray-300 cursor-pointer hover:text-sky-500 transition-colors">+ add tags</span>
           )}
         </div>
-        {totalGroups > 0 && (
-          <div className="text-xs text-gray-400 shrink-0">{totalGroups} group{totalGroups !== 1 ? 's' : ''}</div>
+        {groupCountLabel && (
+          <div className="text-xs text-gray-400 shrink-0">{groupCountLabel}</div>
         )}
         {usage && usage.totalTokens > 0 && (
           <div className="text-xs text-indigo-600 shrink-0 font-medium" title={`${(usage.totalTokens || 0).toLocaleString()} tokens (${(usage.inputTokens || 0).toLocaleString()} in / ${(usage.outputTokens || 0).toLocaleString()} out)${usage.totalCost > 0 ? ` • $${(usage.totalCost || 0).toFixed(2)}` : ''}`}>

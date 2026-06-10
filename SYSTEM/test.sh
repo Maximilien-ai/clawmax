@@ -832,6 +832,16 @@ else
   fail "Agent list helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Agent card presentation helper tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/agentCardPresentation.test.ts > /tmp/clawmax-agent-card-presentation.out 2>&1 || true
+if grep -q "tests passed" /tmp/clawmax-agent-card-presentation.out; then
+  agent_card_presentation_count=$(grep "agentCardPresentation.test.ts:" /tmp/clawmax-agent-card-presentation.out | sed 's/.*agentCardPresentation.test.ts: //' | tr -cd '0-9')
+  pass "Agent card presentation helper tests (${agent_card_presentation_count:-?} tests)"
+else
+  cat /tmp/clawmax-agent-card-presentation.out
+  fail "Agent card presentation helper tests"
+fi
+
 echo -e "${YELLOW}→ Running Workspace agent file seeding unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/workspace-agent-files.test.ts > /tmp/clawmax-workspace-agent-files.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-workspace-agent-files.out; then

@@ -228,6 +228,7 @@ Progress note:
 - Tightened partner plugin controls in BYOK so install/uninstall/status controls wrap on narrow mobile widths in both light and dark mode.
 - Extended `dropdownPosition.test.ts` to cover near-left, near-right, oversized, and top-placement clamping. The dropdown helper lane now reports `9` tests.
 - Extracted notification category/search/open-action/footer-label rules into `notificationPresentation.ts` and added a visible `Notification presentation helper tests` suite with `6` regression cases. `NotificationCenter` now uses the tested helper instead of duplicating these decisions inline.
+- Consolidated Agent card tag previews, group-count labels, and budget-bar thresholds into `agentList.ts`; added a visible `Agent card presentation helper tests` suite with `7` regression cases. The broader Agents density/scannability item remains open for a visual pass.
 
 Stop point:
 
