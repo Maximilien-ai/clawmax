@@ -8,6 +8,7 @@ import {
   isManagedRuntime,
   resolveSystemExecutionProviderKeys,
   resolveUserExecutionProviderKeys,
+  resolveWorkflowExecutionProviderKeys,
   resolveRuntimeBaseUrl,
 } from './dashboard-env'
 import { getResolvedWorkspaceIntegrationConfig, getWorkspaceGitHubToken, readWorkspaceIntegrationSecrets } from './workspace-integrations'
@@ -147,6 +148,17 @@ export function userExecutionEnv(byokOverrides?: ExecutionEnvOverrides): NodeJS.
     openaiCompatibleApiKey: byokOverrides?.openaiCompatibleApiKey?.trim() || undefined,
     openaiCompatibleBaseUrl: byokOverrides?.openaiCompatibleBaseUrl?.trim() || undefined,
     openaiCompatibleDefaultModel: byokOverrides?.openaiCompatibleDefaultModel?.trim() || undefined,
+  }))
+}
+
+export function workflowExecutionEnv(byokOverrides?: ExecutionEnvOverrides): NodeJS.ProcessEnv {
+  const resolvedProviderKeys = resolveWorkflowExecutionProviderKeys(undefined, byokOverrides)
+  return safeEnv(providerKeysToEnv({
+    ...resolvedProviderKeys,
+    ollamaBaseUrl: byokOverrides?.ollamaBaseUrl?.trim() || undefined,
+    openaiCompatibleApiKey: byokOverrides?.openaiCompatibleApiKey?.trim() || resolvedProviderKeys.openaiCompatibleApiKey,
+    openaiCompatibleBaseUrl: byokOverrides?.openaiCompatibleBaseUrl?.trim() || resolvedProviderKeys.openaiCompatibleBaseUrl,
+    openaiCompatibleDefaultModel: byokOverrides?.openaiCompatibleDefaultModel?.trim() || resolvedProviderKeys.openaiCompatibleDefaultModel,
   }))
 }
 

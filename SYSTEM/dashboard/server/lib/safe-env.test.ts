@@ -8,6 +8,7 @@ import {
   allowSystemKeysForUserExecution,
   resolveSystemExecutionProviderKeys,
   resolveUserExecutionProviderKeys,
+  resolveWorkflowExecutionProviderKeys,
 } from './dashboard-env'
 import { REPO_ROOT } from './paths'
 import { safeEnv, systemExecutionEnv, userExecutionEnv } from './safe-env'
@@ -111,6 +112,21 @@ test('system execution uses system keys and falls back to user defaults only whe
 
   assert(systemFirst.openai === 'env-system-openai', 'Expected system key to power system execution')
   assert(fallback.openai === 'env-user-openai', 'Expected user key fallback when no system key exists')
+})
+
+test('workflow execution falls back to system keys when user execution has no key', () => {
+  const workflowKeys = resolveWorkflowExecutionProviderKeys({
+    SYSTEM_OPENAI_API_KEY: 'env-system-openai',
+  })
+  const byokKeys = resolveWorkflowExecutionProviderKeys({
+    SYSTEM_OPENAI_API_KEY: 'env-system-openai',
+  }, {
+    anthropic: 'request-anthropic',
+  })
+
+  assert(workflowKeys.openai === 'env-system-openai', 'Expected workflows to use runtime system OpenAI key when no BYOK/user key exists')
+  assert(byokKeys.anthropic === 'request-anthropic', 'Expected explicit BYOK key to win for workflow execution')
+  assert(typeof byokKeys.openai === 'undefined', 'Expected BYOK provider selection to avoid leaking system OpenAI into the same run')
 })
 
 test('resolution helpers ignore ambient shell provider exports when raw dashboard env is empty', () => {

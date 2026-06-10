@@ -10,7 +10,7 @@ import {
 } from '../lib/communicationMessages'
 import { ProductIconCell } from '../lib/productIcons'
 import { useAuth } from '../contexts/AuthContext'
-import { transformWorkspaceMarkdownUrl } from '../lib/markdownLinks'
+import { isOpenableWorkspaceFileMention, transformWorkspaceMarkdownUrl } from '../lib/markdownLinks'
 
 interface Message {
   id: string
@@ -99,6 +99,9 @@ function cleanContent(content: string): string {
 function linkifyWorkspaceFiles(content: string): string {
   return content
     .replace(/(^|[\s(])([A-Za-z0-9_./-]+\.(?:md|txt|json|csv|pdf|html|yml|yaml))(?!\])/gm, (_m, prefix, target) => {
+      if (!isOpenableWorkspaceFileMention(target)) {
+        return `${prefix}${target}`
+      }
       if (!target.includes('/')) {
         return `${prefix}[${target}](workspace-file:${target})`
       }
@@ -113,7 +116,7 @@ function extractWorkspaceFileMentions(content: string): string[] {
   const matches = Array.from(
     content.matchAll(/\b(?:AGENTS|GROUPS|COMMUNITIES|WORKFLOWS|SYSTEM|ORG)\/[A-Za-z0-9_./-]+\.(?:md|txt|json|csv|pdf|html|yml|yaml)\b|\b[A-Za-z0-9][A-Za-z0-9._-]*\.(?:md|txt|json|csv|pdf|html|yml|yaml)\b/g)
   ).map((m) => m[0])
-  return Array.from(new Set(matches))
+  return Array.from(new Set(matches.filter(isOpenableWorkspaceFileMention)))
 }
 
 function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessageSent, onNavigateToDoc }: Props) {

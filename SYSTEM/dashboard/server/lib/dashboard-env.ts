@@ -144,7 +144,7 @@ function firstNonEmpty(rawEnv: Record<string, string>, ...keys: string[]): strin
 // In container mode (no .env file), fall back to process.env for provider keys
 const isContainerMode = Object.keys(dashboardEnv).length === 0
 
-function hasAnyProviderKey(keys: ProviderKeys): boolean {
+export function hasAnyProviderKey(keys: ProviderKeys): boolean {
   return !!(keys.openai || keys.anthropic || keys.gemini || keys.openaiCompatibleBaseUrl)
 }
 
@@ -404,6 +404,15 @@ export function resolveUserExecutionProviderKeys(
   }
 
   return allowSystemKeysForUserExecution(rawEnv) ? getSystemProviderKeys(rawEnv) : {}
+}
+
+export function resolveWorkflowExecutionProviderKeys(
+  rawEnv: Record<string, string> = dashboardEnv,
+  byokOverrides?: ProviderKeys
+): ProviderKeys {
+  const userKeys = resolveUserExecutionProviderKeys(rawEnv, byokOverrides)
+  if (hasAnyProviderKey(userKeys)) return userKeys
+  return resolveSystemExecutionProviderKeys(rawEnv)
 }
 
 /**

@@ -3,7 +3,7 @@ import path from 'path'
 import matter from 'gray-matter'
 import cronstrue from 'cronstrue'
 import { spawn } from 'child_process'
-import { safeEnv, userExecutionEnv } from './safe-env'
+import { safeEnv, workflowExecutionEnv } from './safe-env'
 import { createHash, randomUUID } from 'crypto'
 import { getWorkspacePath, parseGroups } from './workspace'
 import { listTeams, type Team } from './teams'
@@ -1795,7 +1795,7 @@ export function triggerWorkflow(workflowId: string, options?: {
         return
       }
 
-      const executionEnv = userExecutionEnv({
+      const executionEnv = workflowExecutionEnv({
         openai: options?.byok?.openai,
         anthropic: options?.byok?.anthropic,
         gemini: options?.byok?.gemini,

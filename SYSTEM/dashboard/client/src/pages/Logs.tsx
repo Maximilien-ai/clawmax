@@ -259,8 +259,8 @@ export default function Logs() {
             {error && <span className="ml-2 text-red-600">● {error}</span>}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-2">
+        <div className="w-full sm:w-auto">
+          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
             <button
               onClick={async () => {
                 setDoctorResults(null)
@@ -277,20 +277,20 @@ export default function Logs() {
                   setDoctorResults(normalizeDoctorResults(null))
                 }
               }}
-              className="px-3 py-1.5 text-sm bg-cyan-50 hover:bg-cyan-100 text-cyan-700 rounded transition-colors dark:bg-cyan-900/20 dark:text-cyan-300 dark:hover:bg-cyan-900/40 border border-cyan-200 dark:border-cyan-800"
+              className="inline-flex w-full items-center justify-center rounded border border-cyan-200 bg-cyan-50 px-3 py-1.5 text-sm text-cyan-700 transition-colors hover:bg-cyan-100 dark:border-cyan-800 dark:bg-cyan-900/20 dark:text-cyan-300 dark:hover:bg-cyan-900/40 sm:w-auto"
             >
               🩺 Doctor
             </button>
             <button
               onClick={() => setLogs([])}
-              className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded transition-colors dark:bg-gray-800 dark:text-gray-300"
+              className="inline-flex w-full items-center justify-center rounded bg-gray-100 px-3 py-1.5 text-sm text-gray-700 transition-colors hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 sm:w-auto"
             >
               Clear
             </button>
             <button
               onClick={downloadLogs}
               disabled={filteredLogs.length === 0}
-              className={`px-3 py-1.5 text-sm rounded transition-colors ${
+              className={`inline-flex w-full items-center justify-center rounded px-3 py-1.5 text-sm transition-colors sm:w-auto ${
                 filteredLogs.length === 0
                   ? 'bg-gray-100 text-gray-400 cursor-not-allowed dark:bg-gray-800 dark:text-gray-500'
                   : 'bg-violet-50 hover:bg-violet-100 text-violet-700 dark:bg-violet-900/20 dark:text-violet-300 dark:hover:bg-violet-900/40 border border-violet-200 dark:border-violet-800'
@@ -300,13 +300,13 @@ export default function Logs() {
             </button>
             <button
               onClick={refreshLogs}
-              className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded transition-colors dark:bg-gray-800 dark:text-gray-300"
+              className="inline-flex w-full items-center justify-center rounded bg-gray-100 px-3 py-1.5 text-sm text-gray-700 transition-colors hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 sm:w-auto"
             >
               Refresh
             </button>
             <button
               onClick={() => setAutoScroll(!autoScroll)}
-              className={`px-3 py-1.5 text-sm rounded transition-colors ${
+              className={`inline-flex w-full items-center justify-center rounded px-3 py-1.5 text-sm transition-colors sm:w-auto ${
                 autoScroll
                   ? 'bg-sky-500 text-white hover:bg-sky-600'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -317,14 +317,14 @@ export default function Logs() {
             {paused ? (
               <button
                 onClick={handleResume}
-                className="px-3 py-1.5 text-sm bg-green-500 hover:bg-green-600 text-white rounded transition-colors"
+                className="inline-flex w-full items-center justify-center rounded bg-green-500 px-3 py-1.5 text-sm text-white transition-colors hover:bg-green-600 sm:w-auto"
               >
                 Resume {pausedLogsBufferRef.current.length > 0 && `(+${pausedLogsBufferRef.current.length})`}
               </button>
             ) : (
               <button
                 onClick={() => setPaused(true)}
-                className="px-3 py-1.5 text-sm bg-amber-500 hover:bg-amber-600 text-white rounded transition-colors"
+                className="inline-flex w-full items-center justify-center rounded bg-amber-500 px-3 py-1.5 text-sm text-white transition-colors hover:bg-amber-600 sm:w-auto"
               >
                 Pause
               </button>
@@ -415,18 +415,18 @@ export default function Logs() {
       )}
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-2 sm:gap-3 mb-6">
+      <div className="grid grid-cols-1 gap-2 mb-6 sm:grid-cols-3 sm:gap-3">
         <input
           type="text"
           placeholder="Search logs..."
           value={searchFilter}
           onChange={(e) => setSearchFilter(e.target.value)}
-          className="flex-1 min-w-0 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 dark:border-gray-600"
+          className="min-w-0 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 dark:border-gray-600"
         />
         <select
           value={agentFilter}
           onChange={(e) => setAgentFilter(e.target.value)}
-          className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 dark:border-gray-600"
+          className="min-w-0 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 dark:border-gray-600"
         >
           <option value="">All Agents</option>
           {uniqueAgents.map(agent => (
@@ -436,7 +436,7 @@ export default function Logs() {
         <select
           value={levelFilter}
           onChange={(e) => setLevelFilter(e.target.value)}
-          className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 dark:border-gray-600"
+          className="min-w-0 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 dark:border-gray-600"
         >
           <option value="">All Levels</option>
           <option value="ERROR">ERROR</option>

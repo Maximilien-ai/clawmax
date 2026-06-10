@@ -1,4 +1,4 @@
-import { transformWorkspaceMarkdownUrl } from './markdownLinks'
+import { isOpenableWorkspaceFileMention, transformWorkspaceMarkdownUrl } from './markdownLinks'
 
 function assert(condition: boolean, message: string) {
   if (!condition) throw new Error(message)
@@ -19,4 +19,14 @@ assert(
   'Expected unsafe script links to stay blocked'
 )
 
-console.log('markdownLinks.test.ts: 3 tests passed')
+assert(
+  isOpenableWorkspaceFileMention('AGENTS/jarvis/SOUL.md') === true,
+  'Expected workspace agent markdown files to be openable'
+)
+
+assert(
+  isOpenableWorkspaceFileMention('auth-profiles.json') === false,
+  'Expected runtime auth profile files to stay out of DocHub links'
+)
+
+console.log('markdownLinks.test.ts: 5 tests passed')

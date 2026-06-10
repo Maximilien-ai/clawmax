@@ -1464,9 +1464,19 @@ echo ""
 echo -e "${YELLOW}→ Running Safe env / BYOK unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/safe-env.test.ts > /tmp/clawmax-safe-env.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-safe-env.out; then
-  pass "Safe env / BYOK unit tests (8 tests)"
+  safe_env_count=$(grep "Tests passed:" /tmp/clawmax-safe-env.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Safe env / BYOK unit tests (${safe_env_count:-?} tests)"
 else
   fail "Safe env / BYOK unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Workflow execution env regression tests...${NC}"
+npx ts-node --transpileOnly server/lib/workflow-execution-env.test.ts > /tmp/clawmax-workflow-execution-env.out 2>&1 || true
+if grep -q "workflow-execution-env.test.ts:" /tmp/clawmax-workflow-execution-env.out; then
+  workflow_execution_env_count=$(grep "workflow-execution-env.test.ts:" /tmp/clawmax-workflow-execution-env.out | tr -cd '0-9')
+  pass "Workflow execution env regression tests (${workflow_execution_env_count:-?} tests)"
+else
+  fail "Workflow execution env regression tests"
 fi
 
 echo ""

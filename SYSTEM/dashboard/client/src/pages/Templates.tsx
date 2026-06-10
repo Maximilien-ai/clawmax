@@ -1580,20 +1580,20 @@ export default function Templates() {
               : `${totalTemplates} template${totalTemplates !== 1 ? 's' : ''}`}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-          <div className="flex gap-2">
-            <div className="flex items-center border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden dark:border-gray-700 bg-white dark:bg-gray-800">
+        <div className="w-full sm:w-auto">
+          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
+            <div className="flex w-full items-center border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden dark:border-gray-700 bg-white dark:bg-gray-800 sm:w-auto">
               <button
                 onClick={() => setViewMode('grid')}
                 title="Grid view"
-                className={`px-2.5 py-1.5 text-xs transition-colors ${viewMode === 'grid' ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+                className={`flex-1 px-2.5 py-1.5 text-xs transition-colors sm:flex-none ${viewMode === 'grid' ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
               >
                 <ProductIconCell iconName="grid" label="Grid view" size="sm" className="border-transparent bg-transparent text-current" />
               </button>
               <button
                 onClick={() => setViewMode('list')}
                 title="List view"
-                className={`px-2.5 py-1.5 text-xs transition-colors border-l border-gray-200 dark:border-gray-700 ${viewMode === 'list' ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+                className={`flex-1 px-2.5 py-1.5 text-xs transition-colors border-l border-gray-200 dark:border-gray-700 sm:flex-none ${viewMode === 'list' ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
               >
                 <ProductIconCell iconName="list" label="List view" size="sm" className="border-transparent bg-transparent text-current" />
               </button>
@@ -1605,7 +1605,7 @@ export default function Templates() {
                   setSelectedTemplateKeys(new Set())
                 }
               }}
-              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center gap-1.5 ${
+              className={`inline-flex w-full items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors sm:w-auto ${
                 selectionMode
                   ? 'bg-blue-600 text-white hover:bg-blue-700'
                   : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
@@ -1622,7 +1622,7 @@ export default function Templates() {
                     setSelectedTemplateKeys(new Set(sortedTemplateRows.map(row => row.key)))
                   }
                 }}
-                className="px-3 py-1.5 text-sm font-medium rounded-md bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                className="inline-flex w-full items-center justify-center rounded-md bg-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 sm:w-auto"
               >
                 {selectedTemplateKeys.size === sortedTemplateRows.length ? 'Deselect All' : 'Select All'}
               </button>
@@ -1633,23 +1633,23 @@ export default function Templates() {
                 setShowWizard(true)
               }}
               disabled={!aiEnabled}
-              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+              className={`w-full rounded-md px-3 py-1.5 text-sm font-medium transition-colors sm:w-auto ${
                 aiEnabled
                   ? 'bg-sky-600 text-white hover:bg-sky-700'
                   : 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
               }`}
               title={aiEnabled ? 'Create template with AI' : 'Configure browser keys or a shared execution path first'}
             >
-              <span className="inline-flex items-center gap-1.5">
+              <span className="inline-flex w-full items-center justify-center gap-1.5 sm:w-auto">
                 <ProductIconCell iconName="ai" label="Create with AI" size="sm" className={aiEnabled ? 'border-white/20 bg-white/10 text-white' : 'border-transparent bg-transparent text-current'} />
                 Create
               </span>
             </button>
-            <div className="relative">
+            <div className="relative w-full sm:w-auto">
               <button
                 ref={actionsMenuButtonRef}
                 onClick={() => setShowActionsMenu((v) => !v)}
-                className="px-3 py-1.5 text-sm font-medium rounded-md bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors flex items-center gap-1.5"
+                className="flex w-full items-center justify-center gap-1.5 rounded-md bg-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 sm:w-auto"
               >
                 <ProductIconCell iconName="template" label="Actions" size="sm" className="border-transparent bg-transparent text-current" /> Actions <span className="text-xs">▾</span>
               </button>
@@ -2850,7 +2850,7 @@ function TemplateCard({ template, onDelete, onApply, onClick, selected, ratingSu
   return (
     <div
       onClick={onClick}
-      className={`relative bg-white dark:bg-gray-800 rounded-lg border p-4 shadow-sm hover:shadow-md transition-all cursor-pointer ${
+      className={`relative bg-white dark:bg-gray-800 rounded-lg border p-3 shadow-sm hover:shadow-md transition-all cursor-pointer sm:p-4 ${
         selected ? 'border-sky-400 ring-2 ring-sky-100' : 'border-gray-200 dark:border-gray-700'
       }`}
     >
@@ -2867,14 +2867,14 @@ function TemplateCard({ template, onDelete, onApply, onClick, selected, ratingSu
           {isSelected ? '✓' : '□'}
         </button>
       )}
-      <div className="flex items-start justify-between mb-2">
+      <div className="mb-2 flex items-start justify-between gap-2">
         <div className="flex items-start gap-2 flex-1 min-w-0">
           <ProductIconCell iconName={templateVisual.iconName} emoji={templateVisual.emoji} label={template.name} size="sm" className="mt-0.5 flex-shrink-0" />
-          <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-sm leading-tight flex-1 dark:text-gray-100">
+          <h3 className="min-w-0 flex-1 break-words text-sm font-semibold leading-tight text-gray-900 line-clamp-2 dark:text-gray-100">
             {template.name}
           </h3>
         </div>
-        <div className="flex items-center gap-1 pr-7">
+        <div className="flex flex-shrink-0 items-center gap-1 pr-6">
           <button
             onClick={(e) => { e.stopPropagation(); onApply(); }}
             className="text-gray-300 hover:text-emerald-500 transition-colors text-xs p-1"
@@ -2933,8 +2933,8 @@ function TemplateCard({ template, onDelete, onApply, onClick, selected, ratingSu
         </div>
       )}
 
-      <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between text-xs text-gray-400">
-        <div className="flex flex-col items-start gap-1">
+      <div className="mt-3 flex flex-wrap items-end justify-between gap-2 border-t border-gray-100 pt-3 text-xs text-gray-400 dark:border-gray-700">
+        <div className="min-w-0 flex flex-col items-start gap-1">
           <span>v{template.version}</span>
           {ratingSummary && ratingSummary.count > 0 && (
             <span className="text-amber-500 dark:text-amber-400">
@@ -2945,10 +2945,10 @@ function TemplateCard({ template, onDelete, onApply, onClick, selected, ratingSu
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="min-w-0 max-w-full flex flex-wrap items-center justify-end gap-x-2 gap-y-1 text-right">
           {template.source === 'system' && <span className="text-amber-500">System</span>}
           {template.source === 'enterprise' && <span className="text-fuchsia-500">Enterprise</span>}
-          {template.author && <span>by {template.author}</span>}
+          {template.author && <span className="max-w-full truncate">by {template.author}</span>}
         </div>
       </div>
     </div>
