@@ -180,7 +180,7 @@ echo ""
 # the active workspace. Plain ./test.sh stays read-only against the live server.
 ORIGINAL_WORKSPACE_ID=""
 if [ "$RUN_INTEGRATION" = true ]; then
-  ORIGINAL_WORKSPACE_ID=$(apicurl "$API_BASE/api/workspaces/active" 2>/dev/null | jq -r '.id // empty' 2>/dev/null || echo "")
+  ORIGINAL_WORKSPACE_ID=$(apicurl "$API_BASE/api/workspaces/active" 2>/dev/null | jq -r '.workspace.id // .id // empty' 2>/dev/null || echo "")
   apicurl -X PUT "${API_BASE}/api/workspaces/default/activate" > /dev/null 2>&1
 fi
 
@@ -197,6 +197,39 @@ fail() {
 
 warn() {
   echo -e "${YELLOW}⚠${NC} $1"
+}
+
+assert_no_system_test_artifacts_in_active_workspace() {
+  local label="$1"
+  local agents workflows communities groups
+
+  agents=$(apicurl "$API_BASE/api/agents" | jq -r '.agents[]?.id' 2>/dev/null)
+  if echo "$agents" | grep -Eq '^(test-agent1|test-agent2|test-lead)$'; then
+    fail "$label has leaked system-test agents"
+  else
+    pass "$label has no system-test agents"
+  fi
+
+  workflows=$(apicurl "$API_BASE/api/workflows" | jq -r '.workflows[]?.id' 2>/dev/null)
+  if echo "$workflows" | grep -Eq '^(test-kickoff|test-filesystem|test-communications|test-github|test-dag-parallel-a|test-dag-parallel-b|test-report)$'; then
+    fail "$label has leaked system-test workflows"
+  else
+    pass "$label has no system-test workflows"
+  fi
+
+  communities=$(apicurl "$API_BASE/api/communities" | jq -r '.communities[]? | .name // .id // empty' 2>/dev/null)
+  if echo "$communities" | grep -Eq '^(Test Team)$'; then
+    fail "$label has leaked system-test communities"
+  else
+    pass "$label has no system-test communities"
+  fi
+
+  groups=$(apicurl "$API_BASE/api/groups" | jq -r '.groups[]? | .name // .id // empty' 2>/dev/null)
+  if echo "$groups" | grep -Eq '^(Test Status|Test Chat|Test Work)$'; then
+    fail "$label has leaked system-test groups"
+  else
+    pass "$label has no system-test groups"
+  fi
 }
 
 test_api() {
@@ -3393,6 +3426,7 @@ if [ -n "$SYSTEM_TEST_WS" ] && [ "$SYSTEM_TEST_WS" != "$ORIGINAL_WORKSPACE_ID" ]
       -d "{\"name\":\"$SYSTEM_TEST_WS_NAME\",\"path\":\"$SYSTEM_TEST_WS_PATH\"}")
     if echo "$recreate_ws_result" | jq -e '.workspace.id' > /dev/null 2>&1; then
       pass "System-test workspace cleaned up and recreated fresh"
+      assert_no_system_test_artifacts_in_active_workspace "Default workspace after system-test cleanup"
     else
       warn "System-test workspace deleted but could not be recreated automatically"
     fi
@@ -3420,6 +3454,7 @@ fi # End live dashboard mutation sections
 if [ "$RUN_INTEGRATION" = true ] && [ -n "$ORIGINAL_WORKSPACE_ID" ] && [ "$ORIGINAL_WORKSPACE_ID" != "default" ]; then
   apicurl -X PUT "${API_BASE}/api/workspaces/${ORIGINAL_WORKSPACE_ID}/activate" > /dev/null 2>&1
   echo -e "${GREEN}✓${NC} Restored active workspace: $ORIGINAL_WORKSPACE_ID"
+  assert_no_system_test_artifacts_in_active_workspace "Restored workspace after system-test cleanup"
 fi
 
 # =========================================

@@ -126,6 +126,21 @@ test('withWorkspace uses request-local workspace context without changing active
   assert(manager.getActiveWorkspace().id === 'alpha-workspace', 'Expected active workspace to remain alpha after withWorkspace')
 })
 
+test('deleteWorkspace removes a non-active test workspace without changing the active workspace', () => {
+  const manager = createManager()
+  const originalPath = path.join(tmpRoot, 'original-cleanup-workspace')
+  const systemTestPath = path.join(tmpRoot, 'clawmax-system-test')
+
+  manager.createWorkspace('Original Cleanup Workspace', originalPath)
+  const systemTestWorkspace = manager.createWorkspace('ClawMax System Test', systemTestPath)
+  manager.setActiveWorkspace('original-cleanup-workspace')
+
+  manager.deleteWorkspace(systemTestWorkspace.id)
+
+  assert(manager.getActiveWorkspace().id === 'original-cleanup-workspace', 'Expected original workspace to remain active')
+  assert(manager.getWorkspace(systemTestWorkspace.id) === null, 'Expected system-test workspace registry entry to be removed')
+})
+
 console.log('\n========================================')
 console.log(`Tests passed: ${testsPassed}`)
 console.log(`Tests failed: ${testsFailed}`)

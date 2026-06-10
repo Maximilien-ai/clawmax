@@ -82,11 +82,17 @@ Intent: make repeated test runs safe and keep the test count moving upward.
 
 Items I think we can address in `1.8.0`:
 
-- [ ] Audit system-test workspace create/activate/reset flow.
-- [ ] Add a regression test for scoped cleanup of system-test org/channel artifacts.
-- [ ] Add a visible test lane for workspace isolation cleanup so the aggregate count increases beyond `294`.
+- [x] Audit system-test workspace create/activate/reset flow.
+- [x] Add a regression test for scoped cleanup of system-test org/channel artifacts.
+- [x] Add a visible test lane for workspace isolation cleanup so the aggregate count increases beyond `304`.
 - [ ] Make cleanup idempotent when the test workspace already exists or was partially deleted.
 - [ ] Add clearer failure output when workspace setup fails but later activation appears to succeed.
+
+Progress note:
+
+- Fixed integration active-workspace restoration to read `/api/workspaces/active` as `.workspace.id`.
+- Added API-level post-cleanup assertions that the active workspace has no system-test agents, workflows, communities, or groups.
+- Added one workspace-manager unit regression, increasing that visible lane from `6` to `7` tests.
 
 Items likely for `1.8.1`:
 
