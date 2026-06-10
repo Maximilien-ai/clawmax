@@ -122,8 +122,8 @@ Items I think we can address in `1.8.0`:
 
 - [x] Add Doctor action for `openclaw gateway restart` when gateway is configured but unhealthy.
 - [x] Add route/helper tests for restart action permissions, success output, and failure output.
-- [ ] Reduce dashboard-originated invalid-handshake/probe warnings where the probe is only checking status.
-- [ ] Add a visible regression test for probe identity/handshake behavior if the code path changes.
+- [x] Reduce dashboard-originated invalid-handshake/probe warnings where the probe is only checking status.
+- [x] Add a visible regression test for probe identity/handshake behavior if the code path changes.
 
 Progress note:
 
@@ -131,6 +131,7 @@ Progress note:
 - Added route regressions for gateway restart success, restart failure, and not-attempted no-fix state.
 - Surfaced those regressions as a dedicated `Doctor gateway recovery route tests` lane so the aggregate test total increases.
 - Surfaced the gateway recovery status/message in Logs and Activity Doctor modals.
+- Centralized the dashboard probe connect payload and added a dedicated `Gateway probe handshake tests` lane to lock read-only operator identity and prevent control-ui/admin handshake regressions.
 
 Items likely for `1.8.1`:
 

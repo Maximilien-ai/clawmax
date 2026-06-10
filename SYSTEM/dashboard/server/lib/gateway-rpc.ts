@@ -88,6 +88,7 @@ export const __test = {
   parseGatewayConfig,
   GATEWAY_PROTOCOL_VERSION,
   buildGatewayProbeClient,
+  buildGatewayProbeConnectParams,
 }
 
 function buildGatewayProbeClient() {
@@ -97,6 +98,18 @@ function buildGatewayProbeClient() {
     version: '1.0.0',
     platform: process.platform,
     mode: 'operator',
+  }
+}
+
+function buildGatewayProbeConnectParams(token: string) {
+  return {
+    minProtocol: GATEWAY_PROTOCOL_VERSION,
+    maxProtocol: GATEWAY_PROTOCOL_VERSION,
+    client: buildGatewayProbeClient(),
+    caps: [],
+    auth: { token },
+    role: 'operator',
+    scopes: ['operator.read'],
   }
 }
 
@@ -472,15 +485,7 @@ export async function probeGatewayResponsive(timeoutMs = 3000): Promise<{ runnin
             type: 'req',
             id: randomUUID(),
             method: 'connect',
-            params: {
-              minProtocol: GATEWAY_PROTOCOL_VERSION,
-              maxProtocol: GATEWAY_PROTOCOL_VERSION,
-              client: buildGatewayProbeClient(),
-              caps: [],
-              auth: { token: config.auth.token },
-              role: 'operator',
-              scopes: ['operator.read'],
-            },
+            params: buildGatewayProbeConnectParams(config.auth.token),
           }))
           return
         }

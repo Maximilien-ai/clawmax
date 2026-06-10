@@ -676,6 +676,16 @@ else
   fail "Gateway probe regression tests"
 fi
 
+echo -e "${YELLOW}→ Running Gateway probe handshake tests...${NC}"
+npx ts-node --transpileOnly server/lib/gateway-probe-handshake.test.ts > /tmp/clawmax-gateway-probe-handshake.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-gateway-probe-handshake.out; then
+  gateway_probe_handshake_count=$(grep "Tests passed:" /tmp/clawmax-gateway-probe-handshake.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Gateway probe handshake tests (${gateway_probe_handshake_count:-?} tests)"
+else
+  cat /tmp/clawmax-gateway-probe-handshake.out
+  fail "Gateway probe handshake tests"
+fi
+
 echo -e "${YELLOW}→ Running Communication bulk actions unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/communicationBulkActions.test.ts > /tmp/clawmax-communication-bulk-actions.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-communication-bulk-actions.out; then
