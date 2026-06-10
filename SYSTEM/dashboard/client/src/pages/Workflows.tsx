@@ -21,6 +21,7 @@ import { getWorkflowDisplayName } from '../lib/workflowDisplay'
 import { useWorkspace } from '../contexts/WorkspaceContext'
 import { buildWorkspaceScopedPath } from '../lib/workspaceScope'
 import { getViewportSafeDropdownStyle } from '../lib/dropdownPosition'
+import { getWorkflowWorkspaceLoadKey, shouldFetchWorkflowsForWorkspace } from '../lib/workflowLoading'
 
 interface AgentTargeting {
   communities: string[]
@@ -439,6 +440,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
     onConfirm: () => Promise<void>
   } | null>(null)
   const handledInitialWorkflowIdRef = useRef<string | null>(null)
+  const loadedWorkflowWorkspaceRef = useRef<string | null>(null)
 
   useEffect(() => {
     const handleBuilderGenerateWorkflow = (event: Event) => {
@@ -501,7 +503,15 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
 
   useEffect(() => {
     if (!isActive) return
-    if (workflows.length === 0) {
+    const workspaceKey = getWorkflowWorkspaceLoadKey(activeWorkspace?.id)
+    if (shouldFetchWorkflowsForWorkspace({
+      isActive,
+      workspaceKey,
+      lastLoadedWorkspaceKey: loadedWorkflowWorkspaceRef.current,
+      rateLimitedUntilMs: rateLimitedUntil,
+      nowMs: Date.now(),
+    })) {
+      loadedWorkflowWorkspaceRef.current = workspaceKey
       fetchWorkflows()
     }
     if (Object.keys(agentCosts).length > 0 || !costTrackingEnabled) return
@@ -516,7 +526,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
       setCostTrackingEnabled(true)
       setAgentCosts(costs)
     }).catch(() => {})
-  }, [activeWorkspace?.id, isActive, workflows.length, agentCosts, costTrackingEnabled])
+  }, [activeWorkspace?.id, isActive, rateLimitedUntil, agentCosts, costTrackingEnabled])
 
   // Use refs to access latest values without re-creating interval
   const workflowsRef = useRef(workflows)
