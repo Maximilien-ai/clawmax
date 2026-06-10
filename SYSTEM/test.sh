@@ -596,6 +596,16 @@ else
   fail "Notifications route contract tests"
 fi
 
+echo -e "${YELLOW}→ Running Notification presentation helper tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/notificationPresentation.test.ts > /tmp/clawmax-notification-presentation.out 2>&1 || true
+if grep -q "tests passed" /tmp/clawmax-notification-presentation.out; then
+  notification_presentation_count=$(grep "notificationPresentation.test.ts:" /tmp/clawmax-notification-presentation.out | sed 's/.*notificationPresentation.test.ts: //' | tr -cd '0-9')
+  pass "Notification presentation helper tests (${notification_presentation_count:-?} tests)"
+else
+  cat /tmp/clawmax-notification-presentation.out
+  fail "Notification presentation helper tests"
+fi
+
 echo -e "${YELLOW}→ Running Workspace artifact notification unit tests...${NC}"
 OPENCLAW_WORKSPACE=/tmp/clawmax-workspace-artifact-notifications npx ts-node --transpileOnly server/lib/workspace-artifact-notifications.test.ts > /tmp/clawmax-workspace-artifact-notifications.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-workspace-artifact-notifications.out; then
