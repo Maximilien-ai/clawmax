@@ -1,0 +1,32 @@
+{
+  "id": "clawmax-evals",
+  "slug": "clawmax-evals",
+  "name": "Evals",
+  "description": "Workspace-scoped experiments and score tracking for agents and workflows.",
+  "version": "0.1.0-mvp0",
+  "icon": "beaker",
+  "objectKind": "eval",
+  "visibility": "private",
+  "source": {
+    "type": "github",
+    "owner": "Maximilien-ai",
+    "repo": "clawmax-evals-plugin",
+    "url": "https://github.com/Maximilien-ai/clawmax-evals-plugin",
+    "branch": "main"
+  },
+  "nav": {
+    "section": "plugins",
+    "order": 20
+  },
+  "capabilities": {
+    "notifications": true,
+    "docs": true,
+    "agents": true,
+    "workflows": true,
+    "communications": true
+  },
+  "labels": {
+    "singular": "Eval",
+    "plural": "Evals"
+  }
+}

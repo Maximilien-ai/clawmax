@@ -447,6 +447,28 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Plugin system contract unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/plugin-system.test.ts > /tmp/clawmax-plugin-system.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-plugin-system.out; then
+  plugin_system_count=$(grep "Tests passed:" /tmp/clawmax-plugin-system.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Plugin system contract unit tests (${plugin_system_count:-?} tests)"
+else
+  cat /tmp/clawmax-plugin-system.out
+  fail "Plugin system contract unit tests"
+fi
+
+echo ""
+echo -e "${YELLOW}→ Running Plugin routes contract unit tests...${NC}"
+npx ts-node --transpileOnly server/routes/plugins.test.ts > /tmp/clawmax-plugin-routes.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-plugin-routes.out; then
+  plugin_routes_count=$(grep "Tests passed:" /tmp/clawmax-plugin-routes.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Plugin routes contract unit tests (${plugin_routes_count:-?} tests)"
+else
+  cat /tmp/clawmax-plugin-routes.out
+  fail "Plugin routes contract unit tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Agent doctor route unit tests...${NC}"
 npx ts-node --transpileOnly server/routes/agents.test.ts > /tmp/clawmax-agent-routes.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-agent-routes.out; then
@@ -1055,6 +1077,16 @@ if grep -q "templateSearch.test.ts: ok" /tmp/clawmax-template-search.out; then
 else
   cat /tmp/clawmax-template-search.out
   fail "Template search helper unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Plugin helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/plugins.test.ts > /tmp/clawmax-plugin-helpers.out 2>&1 || true
+if grep -q "plugins.test.ts: ok" /tmp/clawmax-plugin-helpers.out; then
+  plugin_helper_count=$(grep -c "^✓" /tmp/clawmax-plugin-helpers.out | tr -cd '0-9')
+  pass "Plugin helper unit tests (${plugin_helper_count:-?} tests)"
+else
+  cat /tmp/clawmax-plugin-helpers.out
+  fail "Plugin helper unit tests"
 fi
 
 echo -e "${YELLOW}→ Running Partner catalog helper unit tests...${NC}"

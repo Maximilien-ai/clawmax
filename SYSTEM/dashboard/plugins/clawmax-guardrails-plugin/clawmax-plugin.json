@@ -1,0 +1,32 @@
+{
+  "id": "clawmax-guardrails",
+  "slug": "clawmax-guardrails",
+  "name": "Guardrails",
+  "description": "Workspace-scoped guardrails for constraining agents and workflows.",
+  "version": "0.1.0-mvp0",
+  "icon": "shield",
+  "objectKind": "guardrail",
+  "visibility": "private",
+  "source": {
+    "type": "github",
+    "owner": "Maximilien-ai",
+    "repo": "clawmax-guardrails-plugin",
+    "url": "https://github.com/Maximilien-ai/clawmax-guardrails-plugin",
+    "branch": "main"
+  },
+  "nav": {
+    "section": "plugins",
+    "order": 10
+  },
+  "capabilities": {
+    "notifications": true,
+    "docs": true,
+    "agents": true,
+    "workflows": true,
+    "communications": true
+  },
+  "labels": {
+    "singular": "Guardrail",
+    "plural": "Guardrails"
+  }
+}
