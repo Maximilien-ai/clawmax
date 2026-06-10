@@ -180,7 +180,7 @@ echo ""
 # the active workspace. Plain ./test.sh stays read-only against the live server.
 ORIGINAL_WORKSPACE_ID=""
 if [ "$RUN_INTEGRATION" = true ]; then
-  ORIGINAL_WORKSPACE_ID=$(apicurl "$API_BASE/api/workspaces/active" 2>/dev/null | jq -r '.id // empty' 2>/dev/null || echo "")
+  ORIGINAL_WORKSPACE_ID=$(apicurl "$API_BASE/api/workspaces/active" 2>/dev/null | jq -r '.workspace.id // .id // empty' 2>/dev/null || echo "")
   apicurl -X PUT "${API_BASE}/api/workspaces/default/activate" > /dev/null 2>&1
 fi
 
@@ -197,6 +197,39 @@ fail() {
 
 warn() {
   echo -e "${YELLOW}⚠${NC} $1"
+}
+
+assert_no_system_test_artifacts_in_active_workspace() {
+  local label="$1"
+  local agents workflows communities groups
+
+  agents=$(apicurl "$API_BASE/api/agents" | jq -r '.agents[]?.id' 2>/dev/null)
+  if echo "$agents" | grep -Eq '^(test-agent1|test-agent2|test-lead)$'; then
+    fail "$label has leaked system-test agents"
+  else
+    pass "$label has no system-test agents"
+  fi
+
+  workflows=$(apicurl "$API_BASE/api/workflows" | jq -r '.workflows[]?.id' 2>/dev/null)
+  if echo "$workflows" | grep -Eq '^(test-kickoff|test-filesystem|test-communications|test-github|test-dag-parallel-a|test-dag-parallel-b|test-report)$'; then
+    fail "$label has leaked system-test workflows"
+  else
+    pass "$label has no system-test workflows"
+  fi
+
+  communities=$(apicurl "$API_BASE/api/communities" | jq -r '.communities[]? | .name // .id // empty' 2>/dev/null)
+  if echo "$communities" | grep -Eq '^(Test Team)$'; then
+    fail "$label has leaked system-test communities"
+  else
+    pass "$label has no system-test communities"
+  fi
+
+  groups=$(apicurl "$API_BASE/api/groups" | jq -r '.groups[]? | .name // .id // empty' 2>/dev/null)
+  if echo "$groups" | grep -Eq '^(Test Status|Test Chat|Test Work)$'; then
+    fail "$label has leaked system-test groups"
+  else
+    pass "$label has no system-test groups"
+  fi
 }
 
 test_api() {
@@ -392,6 +425,17 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Partner plugin status regression tests...${NC}"
+npx ts-node --transpileOnly server/routes/partner-plugin-status-regression.test.ts > /tmp/clawmax-partner-plugin-status.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-partner-plugin-status.out; then
+  partner_plugin_status_count=$(grep "Tests passed:" /tmp/clawmax-partner-plugin-status.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Partner plugin status regression tests (${partner_plugin_status_count:-?} tests)"
+else
+  cat /tmp/clawmax-partner-plugin-status.out
+  fail "Partner plugin status regression tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Agent doctor route unit tests...${NC}"
 npx ts-node --transpileOnly server/routes/agents.test.ts > /tmp/clawmax-agent-routes.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-agent-routes.out; then
@@ -399,6 +443,17 @@ if grep -q "All tests passed" /tmp/clawmax-agent-routes.out; then
   pass "Agent doctor route unit tests (${agent_route_count:-?} tests)"
 else
   fail "Agent doctor route unit tests"
+fi
+
+echo ""
+echo -e "${YELLOW}→ Running Doctor gateway recovery route tests...${NC}"
+npx ts-node --transpileOnly server/routes/doctor-gateway-recovery.test.ts > /tmp/clawmax-doctor-gateway-recovery.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-doctor-gateway-recovery.out; then
+  doctor_gateway_count=$(grep "Tests passed:" /tmp/clawmax-doctor-gateway-recovery.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Doctor gateway recovery route tests (${doctor_gateway_count:-?} tests)"
+else
+  cat /tmp/clawmax-doctor-gateway-recovery.out
+  fail "Doctor gateway recovery route tests"
 fi
 
 echo ""
@@ -595,6 +650,16 @@ else
   fail "ClawMax Resend wrapper shell tests"
 fi
 
+echo -e "${YELLOW}→ Running Partner runtime regression tests...${NC}"
+npx ts-node --transpileOnly server/lib/partner-runtime-regressions.test.ts > /tmp/clawmax-partner-runtime-regressions.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-partner-runtime-regressions.out; then
+  partner_runtime_regression_count=$(grep "Tests passed:" /tmp/clawmax-partner-runtime-regressions.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Partner runtime regression tests (${partner_runtime_regression_count:-?} tests)"
+else
+  cat /tmp/clawmax-partner-runtime-regressions.out
+  fail "Partner runtime regression tests"
+fi
+
 echo -e "${YELLOW}→ Running Workspace status unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/workspace-status.test.ts > /tmp/clawmax-workspace-status.out 2>&1 || true
 if grep -q "Tests failed: 0" /tmp/clawmax-workspace-status.out; then
@@ -630,6 +695,16 @@ if grep -q "All tests passed" /tmp/clawmax-gateway-probe-regressions.out; then
 else
   cat /tmp/clawmax-gateway-probe-regressions.out
   fail "Gateway probe regression tests"
+fi
+
+echo -e "${YELLOW}→ Running Gateway probe handshake tests...${NC}"
+npx ts-node --transpileOnly server/lib/gateway-probe-handshake.test.ts > /tmp/clawmax-gateway-probe-handshake.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-gateway-probe-handshake.out; then
+  gateway_probe_handshake_count=$(grep "Tests passed:" /tmp/clawmax-gateway-probe-handshake.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Gateway probe handshake tests (${gateway_probe_handshake_count:-?} tests)"
+else
+  cat /tmp/clawmax-gateway-probe-handshake.out
+  fail "Gateway probe handshake tests"
 fi
 
 echo -e "${YELLOW}→ Running Communication bulk actions unit tests...${NC}"
@@ -3393,6 +3468,7 @@ if [ -n "$SYSTEM_TEST_WS" ] && [ "$SYSTEM_TEST_WS" != "$ORIGINAL_WORKSPACE_ID" ]
       -d "{\"name\":\"$SYSTEM_TEST_WS_NAME\",\"path\":\"$SYSTEM_TEST_WS_PATH\"}")
     if echo "$recreate_ws_result" | jq -e '.workspace.id' > /dev/null 2>&1; then
       pass "System-test workspace cleaned up and recreated fresh"
+      assert_no_system_test_artifacts_in_active_workspace "Default workspace after system-test cleanup"
     else
       warn "System-test workspace deleted but could not be recreated automatically"
     fi
@@ -3420,6 +3496,7 @@ fi # End live dashboard mutation sections
 if [ "$RUN_INTEGRATION" = true ] && [ -n "$ORIGINAL_WORKSPACE_ID" ] && [ "$ORIGINAL_WORKSPACE_ID" != "default" ]; then
   apicurl -X PUT "${API_BASE}/api/workspaces/${ORIGINAL_WORKSPACE_ID}/activate" > /dev/null 2>&1
   echo -e "${GREEN}✓${NC} Restored active workspace: $ORIGINAL_WORKSPACE_ID"
+  assert_no_system_test_artifacts_in_active_workspace "Restored workspace after system-test cleanup"
 fi
 
 # =========================================

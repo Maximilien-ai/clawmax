@@ -6,6 +6,32 @@ All notable changes to ClawMax are documented here.
 
 - No unreleased changes yet.
 
+## [v1.8.0] - 2026-06-10
+
+### Added
+- **Hardening + Simplification Sprint Baseline** — started the `1.8.x` line with a focused stability pass after the fast `1.7.x` partner/runtime release train.
+- **Visible Partner Runtime Regression Lane** — added a dedicated full-suite lane covering runtime-managed and workspace-managed Resend/Cognee env propagation, local chat execution when managed partner secrets are present, managed Resend inline dispatch, current-agent file attachments, and benign Cognee warning filtering.
+- **Visible Partner Plugin Status Regression Lane** — added a dedicated full-suite lane proving Cognee plugin status transitions from installed to absent to reinstalled, plus safe `unknown` fallback behavior when plugin inspection fails.
+- **Doctor Gateway Recovery Surfacing** — agent Doctor responses now include structured gateway recovery status so Logs and Activity modals can show whether a gateway restart/recovery path is available.
+
+### Fixed
+- **System Test Workspace Isolation** — integration cleanup now verifies system-test agents, workflows, communities, and groups do not leak into the restored active workspace.
+- **Workspace Restore Detection** — system tests now read the active workspace response shape correctly when restoring the original workspace.
+- **Gateway Probe Identity** — the dashboard probe now uses an allowed backend/operator identity shape, preventing regressions back to noisy invalid/control-ui gateway handshakes.
+- **Partner Runtime Safety** — Resend and Cognee runtime/managed secret paths are now protected by explicit regression coverage before further simplification work.
+
+### Testing
+- Full integration suite baseline: `312/312` passing with `--with-validation`.
+- New visible lanes:
+  - Doctor gateway recovery route tests
+  - Gateway probe handshake tests
+  - Partner runtime regression tests
+  - Partner plugin status regression tests
+
+### Release Validation
+- Build and validate `1.8.0-test-rc1` images before promotion.
+- Manual smoke should focus on the recently hardened paths: workspace-switch/test cleanup safety, Doctor gateway recovery display, Resend agent email from runtime-managed secrets, Cognee plugin install/uninstall/reinstall status, and basic cloud/on-prem dashboard boot.
+
 ## [v1.7.9] - 2026-06-09
 
 ### Added

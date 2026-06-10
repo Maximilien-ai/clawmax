@@ -5,14 +5,23 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.7.9-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
+[![Version](https://img.shields.io/badge/version-1.8.0-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
 [![Tests](https://img.shields.io/badge/tests-96%20default--safe-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 Latest Release: v1.7.9
+## 🔥 Latest Release: v1.8.0
 
-- `1.7.9` adds the first Cognee partner integration, partner-plugin install/uninstall lifecycle support, and cloud/on-prem runtime-secret hardening for agent tool execution.
+- `1.8.0` starts the hardening and simplification line with stronger regression coverage for workspace cleanup, gateway recovery/probes, Resend/Cognee runtime-secret execution, and Cognee plugin lifecycle state.
+
+## ✨ 1.8.x Highlights
+
+- `1.8.0`:
+  - adds visible full-suite regression lanes for partner runtime env propagation and Cognee plugin installed/uninstalled/reinstalled status transitions
+  - verifies system-test workspace cleanup does not leak agents, workflows, communities, or groups into the restored active workspace
+  - surfaces structured Doctor gateway recovery state in Logs and Activity modals
+  - locks dashboard gateway probe handshake identity to an allowed backend/operator shape
+  - preserves the 1.7.9 Cognee and Resend partner behavior while adding stronger release-safety coverage before larger UI simplification work
 
 ## ✨ 1.7.x Highlights
 
@@ -216,7 +225,7 @@ curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/ins
 Pinned release:
 
 ```bash
-curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.7.9
+curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.8.0
 ```
 
 What it does:
@@ -237,13 +246,13 @@ See [SYSTEM/docs/DEMO_VIDEOS.md](SYSTEM/docs/DEMO_VIDEOS.md) for the current inv
 You can also bootstrap directly with the checked-in wrapper:
 
 ```bash
-./setup.sh v1.7.9
+./setup.sh v1.8.0
 ```
 
 or choose a custom install directory:
 
 ```bash
-curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.7.9 --dir /opt/clawmax
+curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.8.0 --dir /opt/clawmax
 ```
 
 See [SYSTEM/docs/RELEASE_DISTRIBUTION.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/RELEASE_DISTRIBUTION.md) for the release distribution contract.

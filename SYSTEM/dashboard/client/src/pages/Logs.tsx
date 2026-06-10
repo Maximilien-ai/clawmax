@@ -12,7 +12,12 @@ type DoctorResults = {
   healthy: boolean
   summary: { pass: number; fail: number; warn: number; fixed: number }
   results: Array<{ id: string; checks: Array<{ check: string; status: string; message: string }> }>
-  platform: { cli?: boolean; gateway?: boolean; gatewayPort?: number | string | null }
+  platform: {
+    cli?: boolean
+    gateway?: boolean
+    gatewayPort?: number | string | null
+    gatewayRecovery?: { attempted?: boolean; status?: string; message?: string }
+  }
   message?: string
 }
 
@@ -375,6 +380,13 @@ export default function Logs() {
                 <span className={`px-2 py-1 rounded ${isGatewayBadgeHealthy(doctorResults) ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'}`}>{isGatewayBadgeHealthy(doctorResults) ? '✓' : '⚠'} Gateway{doctorResults.platform?.gatewayPort ? `:${doctorResults.platform.gatewayPort}` : ''}</span>
                 <span className={`px-2 py-1 rounded ${doctorResults.healthy && doctorResults.summary.warn === 0 ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'}`}>{doctorResults.summary.pass} pass, {doctorResults.summary.fail} fail, {doctorResults.summary.warn} warn, {doctorResults.summary.fixed} fixed</span>
               </div>
+              {doctorResults.platform?.gatewayRecovery?.message && (
+                <div className="text-xs rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2 text-cyan-800 dark:border-cyan-800 dark:bg-cyan-900/20 dark:text-cyan-200">
+                  <span className="font-semibold">Gateway recovery:</span>{' '}
+                  <span className="font-mono">{doctorResults.platform.gatewayRecovery.status || 'unknown'}</span>
+                  {' '}· {doctorResults.platform.gatewayRecovery.message}
+                </div>
+              )}
               {visibleDoctorResults.map((r: any) => (
                 <div key={r.id} className="text-xs text-gray-600 dark:text-gray-400">
                   <span className="font-mono font-medium">{r.id}:</span> {r.visibleChecks.map((c: any) => `${c.status === 'pass' ? '✓' : c.status === 'fixed' ? '⟳' : c.status === 'fail' ? '✗' : '⚠'} ${c.message}`).join(' | ')}
