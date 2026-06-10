@@ -1,7 +1,7 @@
 # Hardening + Simplification Sprint: 1.8.x
 
 > Started: June 10, 2026
-> Branch: `hardening-simplification`
+> Branch: `hardening-simplification` (merged; remaining follow-through now tracked from `main`)
 > Baseline: `v1.7.9`
 
 ## Goal
@@ -13,6 +13,12 @@ This is likely more than one release:
 - `1.8.0`: cleanup, deterministic test/runtime hardening, highest-friction UX simplification
 - `1.8.1`: follow-through from manual testing and customer-reported regressions
 - `1.8.2+`: deeper structural cleanup that is too risky for the first hardening cut
+
+## Current State
+
+- The first `1.8.0` hardening pass has been merged to `main`.
+- Remaining validation for this pass is release-candidate image verification, starting from `1.8.0-test-rc4`.
+- Any unfinished items below should now be treated as `main` backlog follow-through, not reasons to keep the branch alive after release prep.
 
 ## Branch Notes
 
@@ -51,6 +57,8 @@ Archived completed checkpoints: `SYSTEM/docs/planning/archive/HARDENING_SIMPLIFI
 ### Section 1: Release-State + Backlog Hygiene
 
 Intent: make the docs/backlog truthful before changing behavior.
+
+Status: completed for `1.8.0`.
 
 Items I think we can address now:
 
@@ -218,6 +226,7 @@ Items likely for `1.8.1`:
 - [ ] Builder remaining routing/action simplification.
 - [ ] Activity/Budget first-screen simplification and token/cost gap messaging.
 - [ ] DocHub generated artifact browsing simplification.
+- [ ] Additional mobile template/system-logs polish beyond the `1.8.0` overflow fixes if customer testing finds more clipped cards, action rows, or drawers.
 - [ ] Logs/System action-oriented diagnostic surface.
 
 Manual checks before stop:
@@ -337,7 +346,7 @@ Stop point:
 - Focused unit/helper tests for every code change.
 - `npm run build` for dashboard changes.
 - `DASHBOARD_CLIENT_PORT=5174 DASHBOARD_APP_URL=http://localhost:5174 ./SYSTEM/test-with-server.sh integration` before RC.
-- Build `1.8.0-test-rc1` image and validate cloud + on-prem before promotion.
+- Build `1.8.0-test-rc4` image and validate cloud + on-prem before promotion.
 - Minimize manual validation by adding API/helper assertions for anything repeatable.
 - Keep a short manual checklist only for deployed image behavior, live third-party delivery, and visual/mobile layout.
 

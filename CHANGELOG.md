@@ -19,18 +19,23 @@ All notable changes to ClawMax are documented here.
 - **Workspace Restore Detection** — system tests now read the active workspace response shape correctly when restoring the original workspace.
 - **Gateway Probe Identity** — the dashboard probe now uses an allowed backend/operator identity shape, preventing regressions back to noisy invalid/control-ui gateway handshakes.
 - **Partner Runtime Safety** — Resend and Cognee runtime/managed secret paths are now protected by explicit regression coverage before further simplification work.
+- **Workflow Runtime Auth Fallback** — workflow execution now falls back to runtime/system provider keys when no user/BYOK key is present, fixing cloud image runs where template/workflow participants failed despite the runtime having valid managed provider auth.
+- **Notification/Chat Runtime File Links** — runtime-only references such as `auth-profiles.json` are no longer surfaced as broken DocHub links from notifications or chat messages.
+- **Mobile Templates and System & Logs Layouts** — narrow/mobile layouts now wrap action rows, filters, and card metadata instead of clipping controls off-screen on Templates and System & Logs.
 
 ### Testing
-- Full integration suite baseline: `312/312` passing with `--with-validation`.
+- Full integration suite baseline: `317/317` passing with `--with-validation`.
 - New visible lanes:
   - Doctor gateway recovery route tests
   - Gateway probe handshake tests
   - Partner runtime regression tests
   - Partner plugin status regression tests
+  - Workflow execution env regression tests
+  - Markdown link helper unit tests
 
 ### Release Validation
-- Build and validate `1.8.0-test-rc1` images before promotion.
-- Manual smoke should focus on the recently hardened paths: workspace-switch/test cleanup safety, Doctor gateway recovery display, Resend agent email from runtime-managed secrets, Cognee plugin install/uninstall/reinstall status, and basic cloud/on-prem dashboard boot.
+- Build and validate `1.8.0-test-rc4` images before promotion.
+- Manual smoke should focus on the recently hardened paths: workspace-switch/test cleanup safety, Doctor gateway recovery display, workflow/template execution with runtime-managed provider auth, Resend agent email from runtime-managed secrets, Cognee plugin install/uninstall/reinstall status, notification/chat file-link behavior, and mobile Templates/System & Logs layouts on cloud/on-prem images.
 
 ## [v1.7.9] - 2026-06-09
 
