@@ -13,15 +13,15 @@ This guide is for users or AI coding assistants creating a new ClawMax plugin.
 If the plugin should remain dormant until explicitly enabled, keep `enabledByDefault: false` and start the dashboard with:
 
 ```bash
-CLAWMAX_ENABLED_PLUGINS=plugin-lab-example
+CLAWMAX_ENABLED_PLUGINS=plugin-slug
 ```
 
 ## Minimal Manifest
 
 ```json
 {
-  "id": "plugin-lab-example",
-  "slug": "plugin-lab-example",
+  "id": "plugin-slug",
+  "slug": "plugin-slug",
   "name": "Example Plugin",
   "description": "A starter plugin for ClawMax MVP0.",
   "version": "0.1.0-mvp0",
@@ -32,8 +32,8 @@ CLAWMAX_ENABLED_PLUGINS=plugin-lab-example
   "source": {
     "type": "github",
     "owner": "example",
-    "repo": "plugin-lab-example",
-    "url": "https://example.invalid/plugin-lab-example",
+    "repo": "plugin-repo",
+    "url": "https://example.invalid/plugin-repo",
     "branch": "main"
   },
   "nav": {
@@ -105,7 +105,7 @@ CLAWMAX_ENABLED_PLUGINS=plugin-lab-example
 
 ## Test Plugin
 
-Use these neutral reference plugins in this repo as examples:
+Use these dormant reference plugins in this repo as examples:
 
-- `plugin-lab-guardrails`
-- `plugin-lab-evals`
+- `clawmax-guardrails`
+- `clawmax-evals`

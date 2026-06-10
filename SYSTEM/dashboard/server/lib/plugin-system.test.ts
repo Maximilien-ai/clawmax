@@ -110,7 +110,7 @@ async function run() {
   process.env.OPENCLAW_WORKSPACE = tempWorkspace
   process.env.CLAWMAX_TEST_WORKSPACE = tempWorkspace
   process.env.HOME = tempHome
-  process.env.CLAWMAX_ENABLED_PLUGINS = 'plugin-lab-guardrails,plugin-lab-evals'
+  process.env.CLAWMAX_ENABLED_PLUGINS = 'clawmax-guardrails,clawmax-evals'
   resetWorkspaceManagerForTests()
   seedWorkspaceFiles(tempWorkspace, tempHome)
 
@@ -125,15 +125,15 @@ async function run() {
   await test('configured plugins expose manifests in sidebar order', () => {
     const plugins = listConfiguredPlugins()
     assert(plugins.length >= 2, 'Expected at least the guardrails and evals plugins to be configured')
-    assert.strictEqual(plugins[0]?.slug, 'plugin-lab-guardrails', 'Expected guardrails plugin to sort before evals')
-    assert.strictEqual(plugins[1]?.slug, 'plugin-lab-evals', 'Expected evals plugin to appear second')
+    assert.strictEqual(plugins[0]?.slug, 'clawmax-guardrails', 'Expected guardrails plugin to sort before evals')
+    assert.strictEqual(plugins[1]?.slug, 'clawmax-evals', 'Expected evals plugin to appear second')
     assert(plugins.every((plugin) => plugin.visibility === 'private'), 'Expected MVP0 plugins to be private')
     assert(plugins.every((plugin) => plugin.nav?.section === 'plugins'), 'Expected plugins to target the plugin nav section')
     assert(plugins.every((plugin) => plugin.capabilities?.notifications && plugin.capabilities?.docs), 'Expected plugins to declare core host capabilities')
   })
 
   await test('guardrail plugin records persist, generate docs, and emit notifications', () => {
-    const plugin = getPluginBySlug('plugin-lab-guardrails')
+    const plugin = getPluginBySlug('clawmax-guardrails')
     assert(plugin, 'Expected guardrails plugin manifest to load')
 
     const created = upsertPluginRecord(plugin!, {
@@ -172,7 +172,7 @@ async function run() {
   })
 
   await test('eval plugin runs score experiments and surfaces workspace context', () => {
-    const plugin = getPluginBySlug('plugin-lab-evals')
+    const plugin = getPluginBySlug('clawmax-evals')
     assert(plugin, 'Expected evals plugin manifest to load')
 
     const created = upsertPluginRecord(plugin!, {

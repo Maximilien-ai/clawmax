@@ -23,12 +23,12 @@ The dashboard host loads plugin manifests from:
 
 Optional filtering:
 
-- `CLAWMAX_ENABLED_PLUGINS=plugin-lab-guardrails,plugin-lab-evals`
+- `CLAWMAX_ENABLED_PLUGINS=clawmax-guardrails,clawmax-evals`
 
 Default behavior:
 
 - Plugins with `enabledByDefault: true` load automatically.
-- Test and reference plugins should set `enabledByDefault: false`.
+- Planned and reference plugins should set `enabledByDefault: false` until they are ready to surface.
 - The host can ship plugin architecture with zero visible plugins in standard runtimes.
 
 ## Navigation Contract
@@ -57,7 +57,7 @@ Required fields:
 Important MVP0 rules:
 
 - `visibility` can be `private` or `public`, but MVP0 assumes host-managed plugin enablement.
-- `enabledByDefault` should be `false` for test and reference plugins.
+- `enabledByDefault` should be `false` for planned and reference plugins.
 - `nav.section` must be `plugins`.
 - `source` should point to the canonical plugin repo, which may be private.
 
@@ -141,7 +141,7 @@ Each plugin repo should converge on the same layout:
     └── validate-plugin.sh
 ```
 
-For MVP0, the host can ship local manifests and neutral test plugins while external repos catch up. The long-term goal is for the repo manifest to become the canonical source.
+For MVP0, the host can ship local manifests for planned plugins while keeping them dormant by default. The long-term goal is for the repo manifest to become the canonical source.
 
 ## Test Requirements
 
@@ -171,4 +171,13 @@ Every plugin integration should keep three classes of tests:
 - Real model-backed eval judges
 - Real runtime enforcement of guardrail policies against agent execution
 
-Those belong in MVP1+ after the contract holds up under neutral test plugins and real implementations.
+Those belong in MVP1+ after the contract holds up under dormant reference plugins and real implementations.
+
+## Private Plugin Next Steps
+
+For private plugins such as `clawmax-guardrails` and `clawmax-evals`, the immediate follow-through is:
+
+1. AI create
+2. stronger tests
+3. one-agent MVP1 validation
+4. packaging for consistent private distribution
