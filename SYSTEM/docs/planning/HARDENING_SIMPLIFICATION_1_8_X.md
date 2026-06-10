@@ -128,7 +128,8 @@ Items I think we can address in `1.8.0`:
 Progress note:
 
 - Doctor already had an auto-fix restart path; added structured `platform.gatewayRecovery` states so UI/tests do not infer recovery from summary counts.
-- Added route regressions for gateway restart success, restart failure, and not-attempted no-fix state, increasing the agents route lane by `3` tests.
+- Added route regressions for gateway restart success, restart failure, and not-attempted no-fix state.
+- Surfaced those regressions as a dedicated `Doctor gateway recovery route tests` lane so the aggregate test total increases.
 - Surfaced the gateway recovery status/message in Logs and Activity Doctor modals.
 
 Items likely for `1.8.1`:

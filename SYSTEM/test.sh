@@ -435,6 +435,17 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Doctor gateway recovery route tests...${NC}"
+npx ts-node --transpileOnly server/routes/doctor-gateway-recovery.test.ts > /tmp/clawmax-doctor-gateway-recovery.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-doctor-gateway-recovery.out; then
+  doctor_gateway_count=$(grep "Tests passed:" /tmp/clawmax-doctor-gateway-recovery.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Doctor gateway recovery route tests (${doctor_gateway_count:-?} tests)"
+else
+  cat /tmp/clawmax-doctor-gateway-recovery.out
+  fail "Doctor gateway recovery route tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Model discovery unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/model-discovery.test.ts > /tmp/clawmax-model-discovery.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-model-discovery.out; then
