@@ -31,7 +31,7 @@ This is likely more than one release:
 
 ## Execution Rules
 
-- Start from the current visible full-suite count of `294` tests.
+- Start from the current visible full-suite count of `304` tests.
 - Any bug fix or hardening change should either add a new visible regression lane or extend an existing visible lane so the count increases when meaningful.
 - After each sprint section:
   - run focused tests for changed code
@@ -65,7 +65,7 @@ Regression tests expected:
 
 Automated checks before stop:
 
-- Search docs for stale release references like `v1.7.3`, `v1.7.5 candidate`, and obsolete active issue references.
+- Search docs for stale release references like older release candidates and obsolete active issue references.
 
 Minimal manual checks before stop:
 

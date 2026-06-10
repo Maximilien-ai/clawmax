@@ -1,178 +1,121 @@
 # ClawMax Known Issues & Limitations
 
-**Last Updated**: 2026-05-20
-**Current Version**: v1.5.5
+**Last Updated**: June 10, 2026
+**Current Version**: v1.7.9
 
 ---
 
-## Active Issues
+## Active Issues For 1.8.x
 
-### 1. Gateway process management
+### 1. System-test workspace isolation needs hardening
+
 **Severity**: High
-**Status**: Documented, needs CLI team fix
+**Status**: Active `1.8.0` hardening item
 
-`SYSTEM/stop.sh` kills the shared gateway (port 18789), leaving agents unable to communicate. Agents show offline even though config is fine. Workaround: `openclaw gateway restart` after stop/start.
+Repeated integration runs should be deterministic and should not leak `clawmax-system-test` organizations, groups, communities, workflows, or agents into the personal/default workspace.
 
-**Fix needed**: Process supervisor (pm2/systemd), stop.sh should not kill gateway, start.sh should verify gateway.
+Current target:
 
----
-
-### 2. Agent chat requires ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION
-**Severity**: Low
-**Status**: By design
-
-Agent execution (chat, workflows) requires either BYOK keys, `USER_*` defaults, or `ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION=true` in `.env`. Without this, agents fail with "No execution API keys configured".
+- make system-test setup and teardown idempotent
+- add visible regression coverage for cleanup/isolation
+- replace manual post-run inspection with API-level assertions where practical
 
 ---
 
-### 3. Local-provider runtime env still needs explicit operator defaults in managed installs
-**Severity**: Medium
-**Status**: Known limitation / operator gotcha
+### 2. Gateway recovery is still too operator-driven
 
-The dashboard now understands explicit deployment kinds and has better local-provider follow-through, but managed installs still need stable runtime env defaults. `DASHBOARD_ENABLE_OLLAMA` only controls whether Ollama appears in the UI. Actual execution paths read `OLLAMA_BASE_URL` and `OPENAI_COMPATIBLE_BASE_URL`. Browser-local BYOK / Workspaces Integrations settings can make local providers appear configured in the UI, but operator-managed runtimes should still set those runtime env vars in `SYSTEM/dashboard/.env` for stable server/runtime behavior after restart. `DASHBOARD_OLLAMA_BASE_URL` is not a recognized runtime env var.
-
----
-
-### 4. DAG connector lines overlap nodes on complex layouts
-**Severity**: Low (cosmetic)
-**Status**: Known limitation
-
-SVG bezier curves can pass through nodes when the layout has many parallel workflows at different vertical positions. Planned fix: route lines around node bounding boxes.
-
----
-
-### 5. `SYSTEM/test.sh integration --with-validation` can fail creating the system-test workspace
-**Severity**: Medium
-**Status**: Known issue, defer to Friday hardening
-
-The integration suite can still report:
-
-- `Failed to create system test workspace`
-
-while continuing to activate/apply into `clawmax-system-test`. The rest of the suite may pass, but the run still ends `149/150` because setup is not deterministic enough.
-
-Observed path:
-
-- `DASHBOARD_PORT=3002 DASHBOARD_CLIENT_PORT=5174 DASHBOARD_APP_URL=http://localhost:5174 ./SYSTEM/test.sh integration --with-validation`
-
-Likely cause:
-
-- stale on-disk `clawmax-system-test` workspace residue
-- incomplete cleanup/reset between repeated integration runs
-
-Workaround:
-
-- use the current run as informational if this is the only failure
-- clean the system-test workspace directory/state before rerunning when strict green is required
-
-Planned fix:
-
-- tighten system-test workspace setup/cleanup during Friday hardening so repeated runs are deterministic
-
----
-
-### 6. Integration system-test artifacts can bleed into the personal workspace
 **Severity**: High
-**Status**: Known issue, needs workspace-isolation + cleanup hardening
+**Status**: Active `1.8.0` hardening item
 
-After running:
+When gateway is configured but unhealthy, users still need to know how to recover with `openclaw gateway restart`. The dashboard should make this recoverable from Doctor/System UI and avoid noisy probe logs during normal operation.
 
-- `DASHBOARD_PORT=3002 DASHBOARD_CLIENT_PORT=5174 DASHBOARD_APP_URL=http://localhost:5174 ./SYSTEM/test.sh integration --with-validation`
+Current target:
 
-the `clawmax-system-test` organization/community/group artifacts can appear in the personal workspace UI, even though the test suite is supposed to isolate and clean up its own workspace.
-
-Observed symptoms:
-
-- system-test organization/groups/communities show up while viewing the personal workspace
-- the test workspace does not fully clean up its org/community artifacts after the run
-- manual deletion is sometimes required before real user testing can continue cleanly
-
-Likely cause:
-
-- workspace isolation is incomplete for ORG/COMMUNITIES/GROUPS reads
-- and/or the integration suite does not fully remove system-test channel/org artifacts on teardown
-
-Workaround:
-
-- manually delete the leaked system-test communities/groups before continuing personal-workspace testing
-- prefer a clean manual workspace baseline after the integration suite if template/apply testing is next
-
-Planned fix:
-
-- harden system-test teardown so communities/groups/org artifacts are removed deterministically
-- verify all organization/channel reads are scoped strictly to the active workspace
+- add an in-product Doctor restart action
+- add route/helper tests for command execution and sanitized output
+- reduce benign dashboard probe warnings
 
 ---
 
-### 7. OTP email delivery can fail transiently at the provider layer
+### 3. Runtime partner secret paths need continued regression coverage
+
+**Severity**: High
+**Status**: Active regression-safety item
+
+`v1.7.9` fixed the most recent cloud/on-prem Resend chat/tool mismatch by forwarding runtime-managed `RESEND_API_KEY` into child tool execution and routing partner-secret chat through local execution. This path should stay explicitly covered because it is easy to regress when changing chat, workflow, or safe-env code.
+
+Current target:
+
+- keep Resend dashboard test-email and agent-chat email behavior aligned
+- keep runtime-injected partner secrets covered for chat and workflow execution
+- keep Cognee plugin runtime warnings filtered without hiding real errors
+
+---
+
+### 4. Cloud/on-prem logs and probe noise can still obscure diagnosis
+
 **Severity**: Medium
-**Status**: Known operational limitation
+**Status**: Active `1.8.x` follow-through
 
-In `email_otp` mode, the login request can reach the dashboard successfully but the provider can still reject the outbound email send with a transient server-side error.
+Logs are useful only if normal dashboard probes do not dominate them. Cloud/on-prem logs pane reconnect behavior and benign gateway/probe warnings still need review after the `1.7.x` runtime work.
 
-Observed symptom:
+Current target:
 
-- dashboard logs `Resend rejected OTP email`
-- login returns a server-side OTP send failure even though OTP env looks correct
-
-What this usually means:
-
-- provider-side transient failure
-- sender/domain state problem
-- or instance-specific secret/account mismatch
-
-Workaround:
-
-- retry once to rule out a transient provider incident
-- compare the logged OTP provider key fingerprint between working and failing instances
-- verify `OTP_FROM_EMAIL` / `SIGNUP_FROM_EMAIL` sender-domain state for the account behind the current API key
-- use `OTP_DEV_MODE=log` for local/dev validation when you need to separate UI flow testing from live email delivery
+- reduce repeated benign warnings
+- improve logs pane reconnect behavior
+- keep real runtime/tool failures visible
 
 ---
 
-### 8. Tessl registry support is exploratory and some tiles still require manual security review
+### 5. Workflow and communication success can be misleading
+
 **Severity**: Medium
-**Status**: Experimental feature, improving
+**Status**: Planned `1.8.0`/`1.8.1` follow-through
 
-The Skills page now supports searching and importing Tessl registry tiles for OpenClaw workspaces, but this path is still exploratory. Some Tessl tiles:
+Some workflow runs can appear green even when a participant failed to post to the intended group/channel, or when a template references a display label rather than a real communication id.
 
-- require Tessl-side security approval before install
-- produce tile layouts we have not fully validated yet
-- may need reinstall/override cleanup if an earlier exploratory import left stale workspace state behind
+Current target:
 
-Observed symptom:
-
-- install reports a Tessl security-review blocker
-- or the imported tile requires another pass before it appears cleanly under `User Skills`
-
-Current behavior:
-
-- qualified tile resolution is handled automatically where possible
-- duplicate Tessl result shapes are deduped
-- security-review blockers now surface more clearly instead of failing with a generic import error
-
-Workaround:
-
-- prefer known-safe tested Tessl tiles first
-- if Tessl blocks install for security review, complete that review in Tessl before retrying
-- if a previous exploratory import left stale workspace state, delete the user skill and reinstall
+- audit channel target resolution
+- add regression coverage for display-name vs id lookup
+- make workflow success criteria account for required communication failures
+- surface upstream model/quota/auth failures before downstream noise
 
 ---
 
-## Resolved Recently (v1.4.0 line)
+### 6. Client surfaces need simplification without feature loss
 
-- **Compact dashboard upward reorder** — compact layout editor now supports reliable same-column upward reordering without falling through to the column-level append target
-- **.toFixed() crashes** — guarded all undefined access across Activity, Agents, Workflows pages
-- **OAuth button when not configured** — shows setup instructions instead of broken button
-- **System.* null access in TopBar** — all system fields use optional chaining
-- **Agent import without files** — generates IDENTITY.md from template data
-- **Workflow creation for managed mode** — auto-assigns owner
-- **Dismissed notifications reappearing** — dedup now includes dismissed
-- **Agent status offline for shared gateway** — probes port 18789 as fallback
-- **AI generator with Anthropic-only keys** — auto-detects provider, maps models
+**Severity**: Medium
+**Status**: Active simplification item
 
-## Source of Truth
+The old simplification branch shipped useful improvements, but real use after `1.7.x` exposed remaining density and discoverability issues in Agents, Notifications, mobile dropdowns, Activity/Budget, DocHub, Logs/System, Builder, and template apply.
 
-- Active backlog: [BACKLOG.md](./BACKLOG.md)
-- Current state: [STATUS.md](./STATUS.md)
-- Testing: [TESTING_GUIDE.md](./TESTING_GUIDE.md)
+Current target:
+
+- prioritize Agents, Notifications, and mobile dropdowns for `1.8.0`
+- add helper tests for deterministic UI logic where possible
+- keep manual visual checks minimal and focused on layout fit
+
+---
+
+### 7. Skill/plugin safety needs stronger user-facing guardrails
+
+**Severity**: Medium
+**Status**: Planned `1.8.1` follow-through
+
+Partner plugins and imported/AI-created skills can add binaries, network access, secrets handling, and machine-level commands. Current warnings are better than before but need a clearer risk taxonomy and stronger readiness states.
+
+Current target:
+
+- classify risky skills/plugins before install/import
+- make command output visible for allowlisted partner plugin actions
+- improve secret readiness before template apply or workflow run
+- warn clearly when `OTP_DEV_MODE=log` is enabled outside dev/test
+
+---
+
+## Operational Notes
+
+- Current open GitHub issue at sprint start: `#111` for demo video/docs refresh.
+- Active sprint source of truth: [HARDENING_SIMPLIFICATION_1_8_X.md](planning/HARDENING_SIMPLIFICATION_1_8_X.md)
+- Completed release work should move to [CHANGELOG.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/CHANGELOG.md), not remain active here.
