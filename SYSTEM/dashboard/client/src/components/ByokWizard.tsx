@@ -1664,8 +1664,8 @@ export function ByokWizard({
       const status = partner.skills.commandId ? partnerPluginStatuses[partner.skills.commandId] : undefined
       const installed = !!status?.installed
       return (
-        <div className="mt-2 flex items-center gap-3">
-          <div className="text-xs opacity-80">
+        <div className="mt-2 flex flex-wrap items-center gap-2 sm:gap-3">
+          <div className="min-w-[12rem] flex-1 text-xs opacity-80">
             {partner.skills.label || 'Curated skill install available'}.
             <span className="ml-1">Usually takes 1-3 minutes.</span>
           </div>

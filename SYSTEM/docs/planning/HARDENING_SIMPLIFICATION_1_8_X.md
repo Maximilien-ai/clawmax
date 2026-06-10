@@ -200,8 +200,8 @@ Items I think we can address in `1.8.0`:
 
 - [ ] Agents: improve density/scannability while preserving chat, detail, skill, create, import, and actions flows.
 - [ ] Notifications: group repeated bursts or at least reduce repeated near-identical file/action noise.
-- [ ] Mobile dropdown/popover audit: top bar, notifications, Skills, Templates, Agents, Workflows, Communications, Partners.
-- [ ] Add helper tests for dropdown positioning/grouping if behavior changes.
+- [x] Mobile dropdown/popover audit: top bar, notifications, Skills, Templates, Agents, Workflows, Communications, Partners.
+- [x] Add helper tests for dropdown positioning/grouping if behavior changes.
 
 Items likely for `1.8.1`:
 
@@ -221,6 +221,12 @@ Automation target:
 
 - Add pure helper tests for dropdown positioning, grouping logic, and action availability.
 - Use browser/manual review only for final visual fit until we add browser automation.
+
+Progress note:
+
+- Audited header/action popdowns across the current client surfaces. Most page-level action menus already use `getViewportSafeDropdownStyle`; the top-bar workspace switcher still used absolute positioning and was updated to use the shared viewport-safe fixed placement.
+- Tightened partner plugin controls in BYOK so install/uninstall/status controls wrap on narrow mobile widths in both light and dark mode.
+- Extended `dropdownPosition.test.ts` to cover near-left, near-right, oversized, and top-placement clamping. The dropdown helper lane now reports `9` tests.
 
 Stop point:
 

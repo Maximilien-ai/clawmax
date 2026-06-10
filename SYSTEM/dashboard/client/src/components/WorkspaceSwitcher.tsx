@@ -3,6 +3,7 @@ import { useWorkspace, type Workspace } from '../contexts/WorkspaceContext'
 import { ConfirmDeleteDialog } from './ConfirmDeleteDialog'
 import { WorkspaceEditDialog } from './WorkspaceEditDialog'
 import { useToast } from './Toast'
+import { getViewportSafeDropdownStyle } from '../lib/dropdownPosition'
 
 interface WorkspaceDashboard {
   id: string
@@ -102,6 +103,7 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
   const [dashboardCompactColumns, setDashboardCompactColumns] = useState({ ...DEFAULT_COMPACT_COLUMNS })
   const [draggedSection, setDraggedSection] = useState<null | 'overview' | 'costs' | 'agents' | 'notifications' | 'workflows' | 'kickoff' | 'results' | 'groupChats'>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const workspaceButtonRef = useRef<HTMLButtonElement>(null)
   const importInputRef = useRef<HTMLInputElement>(null)
 
   const loadDashboards = async (workspaceId: string) => {
@@ -414,6 +416,7 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
     <div className="relative" ref={dropdownRef}>
       {/* Current workspace button */}
       <button
+        ref={workspaceButtonRef}
         onClick={() => setIsOpen(!isOpen)}
         className="flex min-w-0 max-w-[18rem] items-center gap-2 rounded-md bg-gray-100 px-3 py-1.5 text-sm font-medium transition-colors hover:bg-gray-200 dark:bg-gray-800"
         title={activeWorkspace.name || 'Switch workspace'}
@@ -437,7 +440,10 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
 
       {/* Dropdown menu */}
       {isOpen && (
-        <div className="absolute top-full left-0 mt-1 w-[22rem] max-w-[calc(100vw-2rem)] bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 py-1 z-50 dark:border-gray-700">
+        <div
+          className="bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 py-1 z-50 dark:border-gray-700"
+          style={workspaceButtonRef.current ? getViewportSafeDropdownStyle(workspaceButtonRef.current.getBoundingClientRect(), 352) : undefined}
+        >
           <div className="px-4 pt-2 pb-1 text-[11px] uppercase tracking-wide text-gray-400 dark:text-gray-500">
             Drag to reorder
           </div>
