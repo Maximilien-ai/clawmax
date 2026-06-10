@@ -250,9 +250,9 @@ Intent: make workflow status match real coordination outcomes.
 
 Items I think we can start in `1.8.0` if earlier sections finish cleanly:
 
-- [ ] Audit channel target resolution for display-name vs id mistakes.
-- [ ] Add a regression test for workflow/group channel target lookup.
-- [ ] Improve error wording when a workflow tries to post to a missing channel/group.
+- [x] Audit channel target resolution for display-name vs id mistakes.
+- [x] Add a regression test for workflow/group channel target lookup.
+- [x] Improve error wording when a workflow tries to post to a missing channel/group.
 
 Items likely for `1.8.1`:
 
@@ -270,6 +270,12 @@ Manual checks before stop:
 Automation target:
 
 - Add route/lib tests for channel target resolution and communication-failure status handling before manual template runs.
+
+Progress note:
+
+- Added workflow communication target resolution that canonicalizes group/community names against `ORG/GROUPS.md` and `ORG/COMMUNITIES.md` before posting workflow participant output.
+- Missing workflow communication targets now surface as actionable `COMMS FAIL` errors with the missing group/community names and remediation guidance instead of silently creating fallback message files.
+- Added a visible `Workflow communication target tests` lane with `4` regression cases for canonicalization, missing target detection, and error formatting.
 
 Stop point:
 

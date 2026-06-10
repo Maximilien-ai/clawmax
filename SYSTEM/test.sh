@@ -1537,6 +1537,16 @@ else
   fail "Workflow session regression tests"
 fi
 
+echo -e "${YELLOW}→ Running Workflow communication target tests...${NC}"
+npx ts-node --transpileOnly server/lib/workflow-communication-targets.test.ts > /tmp/clawmax-workflow-communication-targets.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-workflow-communication-targets.out; then
+  workflow_communication_target_count=$(grep "Tests passed:" /tmp/clawmax-workflow-communication-targets.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Workflow communication target tests (${workflow_communication_target_count:-?} tests)"
+else
+  cat /tmp/clawmax-workflow-communication-targets.out
+  fail "Workflow communication target tests"
+fi
+
 echo ""
 echo -e "${YELLOW}→ Running Workflow routes unit tests...${NC}"
 npx ts-node --transpileOnly server/routes/workflows.test.ts > /tmp/clawmax-workflow-routes.out 2>&1 || true
