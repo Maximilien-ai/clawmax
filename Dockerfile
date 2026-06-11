@@ -129,6 +129,7 @@ COPY --from=builder /app/SYSTEM/dashboard/server/schemas ./server/schemas
 WORKDIR /app
 
 COPY TEMPLATES ./TEMPLATES
+COPY PLUGINS ./PLUGINS
 COPY PARTNERS ./PARTNERS
 COPY SKILLS/README.md ./SKILLS/README.md
 COPY SKILLS/custom/clawmax-resend ./SKILLS/custom/clawmax-resend

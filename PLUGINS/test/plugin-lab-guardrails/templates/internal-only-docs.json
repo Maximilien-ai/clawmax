@@ -1,0 +1,26 @@
+{
+  "id": "internal-only-docs",
+  "name": "Internal-only docs",
+  "description": "Prevent external document sharing while keeping internal workflow execution available.",
+  "recommended": true,
+  "tags": ["starter", "docs", "internal"],
+  "payload": {
+    "kind": "guardrail",
+    "name": "Internal-only docs",
+    "description": "Keep generated docs internal to the workspace until a user approves external sharing.",
+    "enabled": true,
+    "tags": ["starter", "docs", "internal"],
+    "appliesTo": {
+      "agents": [],
+      "workflows": [],
+      "groups": [],
+      "communities": []
+    },
+    "controls": {
+      "blockEmail": false,
+      "blockWeb": false,
+      "blockExternalDocs": true,
+      "allowedSkills": []
+    }
+  }
+}

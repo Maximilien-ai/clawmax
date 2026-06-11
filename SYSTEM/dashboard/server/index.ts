@@ -20,6 +20,7 @@ import logsRouter from './routes/logs'
 import workflowsRouter from './routes/workflows'
 import integrationsRouter from './routes/integrations'
 import teamsRouter from './routes/teams'
+import pluginsRouter from './routes/plugins'
 import aiRouter from './routes/ai'
 import aiBuilderRouter from './routes/ai-builder'
 import templateRegistryRouter from './routes/template-registry'
@@ -677,6 +678,7 @@ app.use('/api/ai-builder', protect, aiBuilderRouter)
 app.use('/api/workspaces', protect, workspacesRouter)
 app.use('/api/notifications', protect, notificationsRouter)
 app.use('/api/integrations', protect, integrationsRouter)
+app.use('/api/plugins', protect, pluginsRouter)
 app.use('/api/teams', protect, teamsRouter)
 app.use('/api', protect, channelsRouter)
 

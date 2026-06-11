@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import Builder from './pages/Builder'
 import Agents from './pages/Agents'
 import DocHub from './pages/DocHub'
 import { subscribeSystemRefresh } from './lib/systemRefresh'
 import Activity from './pages/Activity'
 import Communication from './pages/Communication'
+import PluginWorkspacePage from './pages/PluginWorkspacePage'
 import Templates from './pages/Templates'
 import Organizations from './pages/Organizations'
 import Workflows from './pages/Workflows'
@@ -30,7 +31,8 @@ import { useWorkspace } from './contexts/WorkspaceContext'
 import { CHANNEL_API_ENDPOINTS } from './lib/channelApi'
 import { addVisitedPage } from './lib/appNavigationState'
 import { getVisibleMaintenanceBanner } from './lib/maintenanceBannerView'
-import { type DashboardPage, pageToPath, pathToPage } from './lib/navigation'
+import { buildPluginPage, isPluginPage, pageToPath, pathToPage, pluginSlugFromPage, type CoreDashboardPage, type DashboardPage } from './lib/navigation'
+import type { PluginManifest } from './lib/plugins'
 import { readGlobalWorkspaceTourDisabled, readWorkspaceTourState, resetWorkspaceTourState, shouldShowWorkspaceTour, writeWorkspaceTourState } from './lib/onboardingTour'
 
 type Page = DashboardPage
@@ -65,7 +67,7 @@ interface SystemInfo {
 }
 
 interface NavItem {
-  id: Page
+  id: CoreDashboardPage
   label: string
   icon: React.ComponentType<{ className?: string }>
 }
@@ -167,6 +169,26 @@ function TemplateIcon({ className }: { className?: string }) {
   )
 }
 
+function ShieldIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={iconClassName(className)}>
+      <path d="M12 3 5 6v6c0 4.5 2.9 7.9 7 9 4.1-1.1 7-4.5 7-9V6Z" />
+      <path d="m9 12 2 2 4-4" />
+    </svg>
+  )
+}
+
+function BeakerIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={iconClassName(className)}>
+      <path d="M10 2v7.3L4.6 18a2 2 0 0 0 1.7 3h11.4a2 2 0 0 0 1.7-3L14 9.3V2" />
+      <path d="M8 2h8" />
+      <path d="M9 13h6" />
+      <path d="M8 17h8" />
+    </svg>
+  )
+}
+
 function KeyIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={iconClassName(className)}>
@@ -232,7 +254,7 @@ const DEFAULT_NAV_ORDER: NavItem[] = [
 ]
 
 const USER_TABS_COUNT = 7
-const PRIMARY_CLIENT_GROUPS: Page[][] = [
+const PRIMARY_CLIENT_GROUPS: CoreDashboardPage[][] = [
   ['builder', 'organizations'],
   ['agents', 'workflows', 'communication'],
   ['skills', 'templates'],
@@ -243,7 +265,7 @@ const OPERATIONS_TABS_ORDER: Page[] = ['keys', 'activity', 'logs']
 const SYSTEM_TABS_ORDER: Page[] = [...DOCUMENTS_TABS_ORDER, ...CREATION_TABS_ORDER, ...OPERATIONS_TABS_ORDER]
 const SYSTEM_NAV_EXPANDED_STORAGE_KEY = 'clawmax-system-nav-expanded'
 
-function getPrimaryClientGroupIndex(page: Page | undefined): number {
+function getPrimaryClientGroupIndex(page: CoreDashboardPage | undefined): number {
   if (!page) return -1
   return PRIMARY_CLIENT_GROUPS.findIndex((group) => group.includes(page))
 }
@@ -254,8 +276,8 @@ function normalizeNavOrder(saved: NavItem[] | null | undefined): NavItem[] {
   const byId = new Map(DEFAULT_NAV_ORDER.map(item => [item.id, item]))
   const defaultUserIds = DEFAULT_NAV_ORDER.slice(0, USER_TABS_COUNT).map(item => item.id)
   const defaultSystemIds = DEFAULT_NAV_ORDER.slice(USER_TABS_COUNT).map(item => item.id)
-  const uniqueSavedIds: Page[] = []
-  const seen = new Set<Page>()
+  const uniqueSavedIds: CoreDashboardPage[] = []
+  const seen = new Set<CoreDashboardPage>()
 
   for (const item of saved) {
     if (!item?.id || !byId.has(item.id) || seen.has(item.id)) continue
@@ -265,7 +287,7 @@ function normalizeNavOrder(saved: NavItem[] | null | undefined): NavItem[] {
 
   const savedUserIds = uniqueSavedIds.filter(id => defaultUserIds.includes(id))
   const savedSystemIds = uniqueSavedIds.filter(id => defaultSystemIds.includes(id))
-  const normalizedUserIds: Page[] = []
+  const normalizedUserIds: CoreDashboardPage[] = []
   for (const group of PRIMARY_CLIENT_GROUPS) {
     const savedGroupIds = savedUserIds.filter((id) => group.includes(id))
     const nextGroupIds = savedGroupIds.length > 0
@@ -355,6 +377,7 @@ function WorkspaceScoped({ pageKey, children }: { pageKey: string; children: Rea
 export default function App() {
   const [page, setPage] = useState<Page>(() => pathToPage(window.location.pathname))
   const [visitedPages, setVisitedPages] = useState<Set<Page>>(() => new Set<Page>([pathToPage(window.location.pathname)]))
+  const [plugins, setPlugins] = useState<PluginManifest[]>([])
   const [system, setSystem] = useState<SystemInfo | null>(null)
   const [navCollapsed, setNavCollapsed] = useState(false)
   const [systemNavExpanded, setSystemNavExpanded] = useState<boolean>(() => {
@@ -411,6 +434,13 @@ export default function App() {
   })
   const [dismissedMaintenanceKey, setDismissedMaintenanceKey] = useState<string | null>(null)
   const [showTermsOfService, setShowTermsOfService] = useState(false)
+
+  const coreUserNav = navOrder.slice(0, USER_TABS_COUNT)
+  const pluginAnchorIndex = coreUserNav.findIndex((item) => item.id === 'communication')
+  const navBeforePlugins = pluginAnchorIndex >= 0 ? coreUserNav.slice(0, pluginAnchorIndex + 1) : coreUserNav
+  const navAfterPlugins = pluginAnchorIndex >= 0 ? coreUserNav.slice(pluginAnchorIndex + 1) : []
+  const navIndexById = new Map(navOrder.map((item, index) => [item.id, index]))
+  const pluginPageBySlug = useMemo(() => new Map(plugins.map((plugin) => [plugin.slug, buildPluginPage(plugin.slug)])), [plugins])
 
   // Apply dark mode class to document
   useEffect(() => {
@@ -477,6 +507,22 @@ export default function App() {
       unsubscribe()
     }
   }, [])
+
+  useEffect(() => {
+    fetch('/api/plugins')
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Failed to load plugins')))
+      .then((data) => setPlugins(Array.isArray(data.plugins) ? data.plugins : []))
+      .catch(() => setPlugins([]))
+  }, [])
+
+  useEffect(() => {
+    if (!isPluginPage(page)) return
+    const slug = pluginSlugFromPage(page)
+    if (!slug) return
+    if (plugins.length > 0 && !plugins.some((plugin) => plugin.slug === slug)) {
+      setPage('builder')
+    }
+  }, [page, plugins])
 
   useEffect(() => {
     const rawLabel = typeof system?.instanceLabel === 'string' ? system.instanceLabel.trim() : ''
@@ -685,7 +731,7 @@ export default function App() {
 
             {/* Nav */}
             <nav className="flex-1 px-2 py-4 space-y-1">
-              {navOrder.slice(0, USER_TABS_COUNT).map((item, index) => (
+              {navBeforePlugins.map((item, index) => (
                 <React.Fragment key={item.id}>
                   <NavItemDraggable
                     label={item.label}
@@ -698,15 +744,63 @@ export default function App() {
                       setMobileNavOpen(false)
                     }}
                     collapsed={navCollapsed}
-                    onDragStart={() => handleNavDragStart(index)}
-                    onDragOver={(e) => handleNavDragOver(e, index)}
+                    onDragStart={() => handleNavDragStart(navIndexById.get(item.id) ?? index)}
+                    onDragOver={(e) => handleNavDragOver(e, navIndexById.get(item.id) ?? index)}
                     onDragEnd={handleNavDragEnd}
                   />
-                  {index < USER_TABS_COUNT - 1 && getPrimaryClientGroupIndex(item.id) !== getPrimaryClientGroupIndex(navOrder[index + 1]?.id as Page) && (
+                  {index < navBeforePlugins.length - 1 && getPrimaryClientGroupIndex(item.id) !== getPrimaryClientGroupIndex(navBeforePlugins[index + 1]?.id) && (
                     <div className="my-2 mx-3 border-t border-gray-700"></div>
                   )}
                 </React.Fragment>
               ))}
+              {plugins.length > 0 && (
+                <>
+                  <div className="my-2 mx-3 border-t border-gray-700"></div>
+                  {!navCollapsed && (
+                    <div className="px-3 pb-1 pt-1 text-[11px] uppercase tracking-[0.18em] text-gray-400">Plugins</div>
+                  )}
+                  {plugins.map((plugin) => {
+                    const pluginPage = pluginPageBySlug.get(plugin.slug) || buildPluginPage(plugin.slug)
+                    const PluginIconComponent = plugin.objectKind === 'guardrail' ? ShieldIcon : BeakerIcon
+                    return (
+                      <NavItemDraggable
+                        key={plugin.slug}
+                        label={plugin.name}
+                        icon={PluginIconComponent}
+                        active={page === pluginPage}
+                        onClick={() => {
+                          setPage(pluginPage)
+                          setMobileNavOpen(false)
+                        }}
+                        collapsed={navCollapsed}
+                        draggable={false}
+                      />
+                    )
+                  })}
+                </>
+              )}
+              {navAfterPlugins.length > 0 && (
+                <>
+                  <div className="my-2 mx-3 border-t border-gray-700"></div>
+                  {navAfterPlugins.map((item) => (
+                    <NavItemDraggable
+                      key={item.id}
+                      label={item.label}
+                      icon={item.icon}
+                      dataTourId={`nav-${item.id}`}
+                      active={page === item.id}
+                      onClick={() => {
+                        setPage(item.id)
+                        setMobileNavOpen(false)
+                      }}
+                      collapsed={navCollapsed}
+                      onDragStart={() => handleNavDragStart(navIndexById.get(item.id) ?? 0)}
+                      onDragOver={(e) => handleNavDragOver(e, navIndexById.get(item.id) ?? 0)}
+                      onDragEnd={handleNavDragEnd}
+                    />
+                  ))}
+                </>
+              )}
               <div className="my-2 mx-3 border-t border-gray-700"></div>
               <button
                 type="button"
@@ -938,6 +1032,22 @@ export default function App() {
               </WorkspaceScoped>
             </div>
             )}
+            {plugins
+              .filter((plugin) => visitedPages.has(buildPluginPage(plugin.slug)))
+              .map((plugin) => {
+                const pluginPage = buildPluginPage(plugin.slug)
+                return (
+                  <div key={plugin.slug} className={`flex-1 overflow-auto ${page === pluginPage ? '' : 'hidden'}`}>
+                    <WorkspaceScoped pageKey={`plugin:${plugin.slug}`}>
+                      <PluginWorkspacePage
+                        plugin={plugin}
+                        isActive={page === pluginPage}
+                        onNavigateToDoc={(file) => { setDocFile(file); setPage('docs') }}
+                      />
+                    </WorkspaceScoped>
+                  </div>
+                )
+              })}
             {page === 'activity' && (
             <div className="flex-1 overflow-auto">
               <WorkspaceScoped pageKey="activity">
@@ -1204,7 +1314,7 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
   )
 }
 
-function NavItemDraggable({ label, icon: Icon, dataTourId, active, badge, onClick, collapsed, onDragStart, onDragOver, onDragEnd }: {
+function NavItemDraggable({ label, icon: Icon, dataTourId, active, badge, onClick, collapsed, draggable = true, onDragStart, onDragOver, onDragEnd }: {
   label: string
   icon: React.ComponentType<{ className?: string }>
   dataTourId?: string
@@ -1212,20 +1322,23 @@ function NavItemDraggable({ label, icon: Icon, dataTourId, active, badge, onClic
   badge?: number
   onClick: () => void
   collapsed: boolean
-  onDragStart: () => void
-  onDragOver: (e: React.DragEvent) => void
-  onDragEnd: () => void
+  draggable?: boolean
+  onDragStart?: () => void
+  onDragOver?: (e: React.DragEvent) => void
+  onDragEnd?: () => void
 }) {
   return (
     <button
       data-tour={dataTourId}
-      draggable
+      draggable={draggable}
       onDragStart={onDragStart}
       onDragOver={onDragOver}
       onDragEnd={onDragEnd}
       onClick={onClick}
       title={collapsed ? label : undefined}
-      className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors cursor-move ${
+      className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+        draggable ? 'cursor-move' : 'cursor-pointer'
+      } ${
         collapsed ? 'justify-center' : ''
       } ${
         active
