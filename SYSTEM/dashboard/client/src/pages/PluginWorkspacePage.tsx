@@ -37,6 +37,14 @@ function PluginIcon({ plugin }: { plugin: PluginManifest }) {
   )
 }
 
+function PluginActionGlyph({ plugin }: { plugin: PluginManifest }) {
+  return (
+    <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-transparent bg-transparent text-current">
+      <PluginIcon plugin={plugin} />
+    </span>
+  )
+}
+
 function EmptyState({ plugin, onCreate }: { plugin: PluginManifest; onCreate: () => void }) {
   return (
     <div className="rounded-2xl border border-dashed border-gray-300 bg-white px-6 py-12 text-center dark:border-gray-700 dark:bg-gray-900/40">
@@ -439,7 +447,7 @@ function ItemCard({
             className={`${headerSecondaryButtonClass} ${headerSecondaryButtonIdleClass} h-9 px-2.5`}
             aria-label="Open plugin item actions"
           >
-            <ProductIconCell iconName="ai" label="Actions" size="sm" className="border-transparent bg-transparent text-current" />
+            <PluginActionGlyph plugin={plugin} />
             Actions
             <span className="text-xs">▾</span>
           </button>
@@ -646,8 +654,9 @@ function PluginDetailsPanel({
       ]
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
-      <div className="flex items-start justify-between gap-3 border-b border-gray-200 px-5 py-4 dark:border-gray-700">
+    <div className="fixed inset-0 bg-black/30 z-40 md:bg-black/20" onClick={onClose}>
+      <aside className="fixed top-0 right-0 h-[100dvh] max-h-[100dvh] w-full max-w-full bg-white shadow-2xl dark:bg-gray-800 sm:w-[30rem] lg:w-[36rem] z-50 flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+      <div className="flex items-start justify-between gap-3 border-b border-gray-100 bg-white px-4 py-4 shrink-0 dark:border-gray-700 dark:bg-gray-800 sm:px-5">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-sky-200 bg-sky-50 text-sky-600 dark:border-sky-900/40 dark:bg-sky-900/20 dark:text-sky-300">
@@ -669,14 +678,14 @@ function PluginDetailsPanel({
         </div>
         <button
           onClick={onClose}
-          className="rounded-md px-2 py-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+          className="h-9 w-9 inline-flex items-center justify-center rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-lg leading-none"
           title="Close details"
         >
-          ×
+          <ProductIconCell iconName="close" label="Close" size="sm" className="border-transparent bg-transparent text-current" />
         </button>
       </div>
 
-      <div className="space-y-5 p-5">
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5 sm:px-5">
         <div>
           <div className="text-xs uppercase tracking-wide text-gray-400">Description</div>
           <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{item.description || 'No description yet.'}</p>
@@ -776,6 +785,7 @@ function PluginDetailsPanel({
           </button>
         </div>
       </div>
+      </aside>
     </div>
   )
 }
@@ -989,7 +999,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
               onClick={() => setShowPageActions((current) => !current)}
               className={`${headerSecondaryButtonClass} ${headerSecondaryButtonIdleClass}`}
             >
-              <ProductIconCell iconName="ai" label="Actions" size="sm" className="border-transparent bg-transparent text-current" />
+              <PluginActionGlyph plugin={plugin} />
               Actions <span className="text-xs">▾</span>
             </button>
             {showPageActions && (
