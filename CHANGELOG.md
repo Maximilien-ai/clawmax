@@ -4,7 +4,8 @@ All notable changes to ClawMax are documented here.
 
 ## [Unreleased]
 
-- No unreleased changes yet.
+### Added
+- **Dormant Plugin Architecture MVP0** — added a host-side plugin contract with runtime discovery, sidebar plugin sections, workspace-scoped plugin storage, shared plugin surfaces, markdown-backed plugin item files, template apply support, and dedicated plugin regression lanes. The shipped host repo includes only dormant test fixtures under `PLUGINS/test`; no customer-facing private plugins are enabled by default.
 
 ## [v1.8.0] - 2026-06-10
 
