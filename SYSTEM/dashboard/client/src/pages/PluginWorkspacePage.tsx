@@ -1,13 +1,20 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import AIPromptEditorModal from '../components/AIPromptEditorModal'
 import { ProductIconCell } from '../lib/productIcons'
-import {
-  headerPrimaryButtonClass,
-  headerSecondaryButtonActiveClass,
-  headerSecondaryButtonClass,
-  headerSecondaryButtonIdleClass,
-} from '../lib/headerControls'
+import { headerPrimaryButtonClass } from '../lib/headerControls'
+import { expandPromptWithAI } from '../lib/aiPrompt'
+import { getAiGenerationReadiness, hasAiGenerationAccess } from '../lib/byok'
+import { getViewportSafeDropdownStyle } from '../lib/dropdownPosition'
 import type { PluginManifest, PluginRecord, PluginRecordTemplate, PluginWorkspaceContext } from '../lib/plugins'
-import { collectPluginTags, formatPluginScopeSummary, formatPluginUpdatedAt, matchesPluginSearch } from '../lib/plugins'
+import {
+  buildPluginDraftFromPrompt,
+  collectPluginTags,
+  formatPluginScopeSummary,
+  formatPluginUpdatedAt,
+  formatPluginUsageSummary,
+  getPluginUsageTotals,
+  matchesPluginSearch,
+} from '../lib/plugins'
 
 type Props = {
   plugin: PluginManifest
@@ -34,14 +41,6 @@ function PluginIcon({ plugin }: { plugin: PluginManifest }) {
       <path d="M9 13h6" />
       <path d="M8 17h8" />
     </svg>
-  )
-}
-
-function PluginActionGlyph({ plugin }: { plugin: PluginManifest }) {
-  return (
-    <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-transparent bg-transparent text-current">
-      <PluginIcon plugin={plugin} />
-    </span>
   )
 }
 
@@ -404,6 +403,7 @@ function ItemCard({
 }) {
   const commonSummary = formatPluginScopeSummary(item)
   const archived = item.archived === true
+  const usageSummary = formatPluginUsageSummary(item)
   const [showActions, setShowActions] = useState(false)
   const detailLines = item.kind === 'guardrail'
     ? [
@@ -444,12 +444,11 @@ function ItemCard({
         <div className="relative">
           <button
             onClick={() => setShowActions((current) => !current)}
-            className={`${headerSecondaryButtonClass} ${headerSecondaryButtonIdleClass} h-9 px-2.5`}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 hover:text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-gray-600 dark:hover:bg-gray-700 dark:hover:text-white"
             aria-label="Open plugin item actions"
+            title="More actions"
           >
-            <PluginActionGlyph plugin={plugin} />
-            Actions
-            <span className="text-xs">▾</span>
+            <ProductIconCell iconName="more" label="More actions" size="sm" className="border-transparent bg-transparent text-current" />
           </button>
           {showActions && (
             <>
@@ -501,26 +500,41 @@ function ItemCard({
           )}
         </div>
       </div>
-      <div className="mt-4 flex flex-wrap gap-2">
+      {item.kind === 'eval' && (
+        <div className="mt-4 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-300">
+          {usageSummary}
+        </div>
+      )}
+      <div className="mt-4 flex flex-wrap items-center gap-2">
         <button
           onClick={onOpenDoc || undefined}
           disabled={!onOpenDoc}
-          className={`${headerSecondaryButtonClass} h-10 ${onOpenDoc ? headerSecondaryButtonIdleClass : 'cursor-not-allowed border border-gray-200 bg-gray-100 text-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-600'}`}
+          className={`inline-flex h-9 w-9 items-center justify-center rounded-full transition-colors ${
+            onOpenDoc
+              ? 'text-sky-500 hover:bg-sky-50 hover:text-sky-700 dark:hover:bg-sky-900/30'
+              : 'cursor-not-allowed text-gray-300 dark:text-gray-600'
+          }`}
+          title="Open doc"
+          aria-label="Open doc"
         >
           <ProductIconCell iconName="docs" label="Open Doc" size="sm" className="border-transparent bg-transparent text-current" />
-          Open Doc
         </button>
         <button
           onClick={onGenerateDoc}
-          className={`${headerSecondaryButtonClass} ${headerSecondaryButtonIdleClass} h-10`}
+          className="inline-flex h-9 w-9 items-center justify-center rounded-full text-purple-500 transition-colors hover:bg-purple-50 hover:text-purple-700 dark:hover:bg-purple-900/30"
+          title="Generate doc"
+          aria-label="Generate doc"
         >
           <ProductIconCell iconName="docs" label="Generate Doc" size="sm" className="border-transparent bg-transparent text-current" />
-          Generate Doc
         </button>
         {onRun && (
-          <button onClick={onRun} className={`${headerPrimaryButtonClass} h-10`}>
-            <ProductIconCell iconName="play" label="Run Eval" size="sm" className="border-white/20 bg-white/10 text-white" />
-            Run Eval
+          <button
+            onClick={onRun}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-emerald-500 transition-colors hover:bg-emerald-50 hover:text-emerald-700 dark:hover:bg-emerald-900/30"
+            title="Run eval"
+            aria-label="Run eval"
+          >
+            <ProductIconCell iconName="play" label="Run Eval" size="sm" className="border-transparent bg-transparent text-current" />
           </button>
         )}
       </div>
@@ -549,6 +563,7 @@ function CompactItemCard({
   onToggleActions: () => void
 }) {
   const archived = item.archived === true
+  const usageSummary = formatPluginUsageSummary(item)
   return (
     <div
       className={`rounded-xl border bg-white p-4 shadow-sm transition-all hover:shadow-md dark:bg-gray-800 ${
@@ -586,6 +601,11 @@ function CompactItemCard({
       <div className="mt-3 flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
         <span>{formatPluginScopeSummary(item)}</span>
       </div>
+      {item.kind === 'eval' && (
+        <div className="mt-3 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-300">
+          {usageSummary}
+        </div>
+      )}
       <div className="mt-3 flex items-center gap-4 text-gray-300 dark:text-gray-500">
         <ProductIconCell iconName={item.kind === 'eval' ? 'play' : 'status'} label="Type" size="sm" className="border-transparent bg-transparent text-current" />
         <ProductIconCell iconName="docs" label="Docs" size="sm" className="border-transparent bg-transparent text-current" />
@@ -632,6 +652,7 @@ function PluginDetailsPanel({
 }) {
   const archived = item.archived === true
   const files = item.document?.path ? [item.document.path] : []
+  const usageTotals = getPluginUsageTotals(item)
   const detailLines = item.kind === 'guardrail'
     ? [
         `Agents: ${item.appliesTo.agents.length > 0 ? item.appliesTo.agents.join(', ') : 'none'}`,
@@ -676,16 +697,100 @@ function PluginDetailsPanel({
             </span>
           </div>
         </div>
-        <button
-          onClick={onClose}
-          className="h-9 w-9 inline-flex items-center justify-center rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-lg leading-none"
-          title="Close details"
-        >
-          <ProductIconCell iconName="close" label="Close" size="sm" className="border-transparent bg-transparent text-current" />
-        </button>
+        <div className="flex items-center gap-1.5 mt-0.5 shrink-0">
+          <button
+            onClick={onNotify}
+            className="h-9 w-9 inline-flex items-center justify-center rounded-full text-sky-500 hover:text-sky-700 hover:bg-sky-50 dark:hover:bg-sky-900/30 transition-colors"
+            aria-label="Notify"
+            title="Notify"
+          >
+            <ProductIconCell iconName="communication" label="Notify" size="sm" className="border-transparent bg-transparent text-current" />
+          </button>
+          <button
+            onClick={onEdit}
+            className="h-9 w-9 inline-flex items-center justify-center rounded-full text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors"
+            aria-label="Edit"
+            title="Edit"
+          >
+            <ProductIconCell iconName="edit" label="Edit" size="sm" className="border-transparent bg-transparent text-current" />
+          </button>
+          <button
+            onClick={onGenerateDoc}
+            className="h-9 w-9 inline-flex items-center justify-center rounded-full text-purple-500 hover:text-purple-700 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors"
+            aria-label="Generate document"
+            title="Generate document"
+          >
+            <ProductIconCell iconName="docs" label="Generate document" size="sm" className="border-transparent bg-transparent text-current" />
+          </button>
+          {onRun && (
+            <button
+              onClick={onRun}
+              className="h-9 w-9 inline-flex items-center justify-center rounded-full text-sky-500 hover:text-sky-700 hover:bg-sky-50 dark:hover:bg-sky-900/30 transition-colors"
+              aria-label="Run eval"
+              title="Run eval"
+            >
+              <ProductIconCell iconName="play" label="Run eval" size="sm" className="border-transparent bg-transparent text-current" />
+            </button>
+          )}
+          <button
+            onClick={onToggle}
+            className="h-9 w-9 inline-flex items-center justify-center rounded-full text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-colors"
+            aria-label={item.enabled ? 'Disable' : 'Enable'}
+            title={item.enabled ? 'Disable' : 'Enable'}
+          >
+            <ProductIconCell iconName="status" label={item.enabled ? 'Disable' : 'Enable'} size="sm" className="border-transparent bg-transparent text-current" />
+          </button>
+          <button
+            onClick={onArchiveToggle}
+            className="h-9 w-9 inline-flex items-center justify-center rounded-full text-amber-500 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors"
+            aria-label={archived ? 'Restore' : 'Archive'}
+            title={archived ? 'Restore' : 'Archive'}
+          >
+            <ProductIconCell iconName={archived ? 'restore' : 'archive'} label={archived ? 'Restore' : 'Archive'} size="sm" className="border-transparent bg-transparent text-current" />
+          </button>
+          <button
+            onClick={onDelete}
+            className="h-9 w-9 inline-flex items-center justify-center rounded-full text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
+            aria-label="Delete"
+            title="Delete"
+          >
+            <ProductIconCell iconName="delete" label="Delete" size="sm" className="border-transparent bg-transparent text-current" />
+          </button>
+          <button
+            onClick={onClose}
+            className="h-9 w-9 inline-flex items-center justify-center rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-lg leading-none"
+            aria-label="Close"
+            title="Close details"
+          >
+            <ProductIconCell iconName="close" label="Close" size="sm" className="border-transparent bg-transparent text-current" />
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5 sm:px-5">
+        {item.kind === 'eval' && (
+          <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-3 dark:border-emerald-900/40 dark:bg-emerald-950/20">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
+                  Eval cost
+                </div>
+                <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  Total spend: ${usageTotals.costUsd.toFixed(4)}
+                </div>
+              </div>
+              <div className="rounded-lg border border-emerald-200 bg-white/70 px-3 py-2 text-xs text-emerald-700 dark:border-emerald-800 dark:bg-gray-900/40 dark:text-emerald-300">
+                <div>{usageTotals.tokens.toLocaleString()} tokens across {usageTotals.runs} run{usageTotals.runs !== 1 ? 's' : ''}</div>
+                {item.lastRun && (
+                  <div className="mt-1">
+                    Last run: ${(item.lastRun.costUsd || 0).toFixed(4)} · {(item.lastRun.tokensIn || 0) + (item.lastRun.tokensOut || 0)} tokens
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         <div>
           <div className="text-xs uppercase tracking-wide text-gray-400">Description</div>
           <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{item.description || 'No description yet.'}</p>
@@ -751,39 +856,6 @@ function PluginDetailsPanel({
             <p className="mt-1 text-sm text-violet-700/80 dark:text-violet-300/80">{item.lastRun.summary}</p>
           </div>
         )}
-
-        <div className="flex flex-wrap gap-2 border-t border-gray-200 pt-4 dark:border-gray-700">
-          <button onClick={onEdit} className={`${headerSecondaryButtonClass} ${headerSecondaryButtonIdleClass}`}>
-            <ProductIconCell iconName="edit" label="Edit" size="sm" className="border-transparent bg-transparent text-current" />
-            Edit
-          </button>
-          <button onClick={onToggle} className={`${headerSecondaryButtonClass} ${headerSecondaryButtonIdleClass}`}>
-            <ProductIconCell iconName="status" label="Toggle" size="sm" className="border-transparent bg-transparent text-current" />
-            {item.enabled ? 'Disable' : 'Enable'}
-          </button>
-          <button onClick={onArchiveToggle} className={`${headerSecondaryButtonClass} ${headerSecondaryButtonIdleClass}`}>
-            <ProductIconCell iconName={archived ? 'restore' : 'archive'} label={archived ? 'Restore' : 'Archive'} size="sm" className="border-transparent bg-transparent text-current" />
-            {archived ? 'Restore' : 'Archive'}
-          </button>
-          <button onClick={onGenerateDoc} className={`${headerSecondaryButtonClass} ${headerSecondaryButtonIdleClass}`}>
-            <ProductIconCell iconName="docs" label="Generate Doc" size="sm" className="border-transparent bg-transparent text-current" />
-            Generate Doc
-          </button>
-          <button onClick={onNotify} className={`${headerSecondaryButtonClass} ${headerSecondaryButtonIdleClass}`}>
-            <ProductIconCell iconName="communication" label="Notify" size="sm" className="border-transparent bg-transparent text-current" />
-            Notify
-          </button>
-          {onRun && (
-            <button onClick={onRun} className={headerPrimaryButtonClass}>
-              <ProductIconCell iconName="play" label="Run Eval" size="sm" className="border-white/20 bg-white/10 text-white" />
-              Run Eval
-            </button>
-          )}
-          <button onClick={onDelete} className="inline-flex items-center justify-center gap-1.5 rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-100 dark:border-red-900/40 dark:bg-red-900/10 dark:text-red-300 dark:hover:bg-red-900/20">
-            <ProductIconCell iconName="delete" label="Delete" size="sm" className="border-transparent bg-transparent text-current" />
-            Delete
-          </button>
-        </div>
       </div>
       </aside>
     </div>
@@ -826,6 +898,7 @@ function TemplateCard({
 }
 
 export default function PluginWorkspacePage({ plugin, isActive = false, onNavigateToDoc }: Props) {
+  const workflowCreateMenuButtonRef = useRef<HTMLButtonElement | null>(null)
   const [context, setContext] = useState<PluginWorkspaceContext>({ agents: [], workflows: [], groups: [], communities: [] })
   const [items, setItems] = useState<PluginRecord[]>([])
   const [templates, setTemplates] = useState<PluginRecordTemplate[]>([])
@@ -839,8 +912,14 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<PluginRecord | null>(null)
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null)
-  const [showPageActions, setShowPageActions] = useState(false)
+  const [showCreateMenu, setShowCreateMenu] = useState(false)
+  const [showAiPrompt, setShowAiPrompt] = useState(false)
+  const [showAiPromptEditor, setShowAiPromptEditor] = useState(false)
+  const [aiPromptText, setAiPromptText] = useState('')
+  const [aiGenerating, setAiGenerating] = useState(false)
   const [activeCompactActions, setActiveCompactActions] = useState<string | null>(null)
+  const aiReadiness = getAiGenerationReadiness()
+  const aiEnabled = hasAiGenerationAccess()
 
   const load = async () => {
     try {
@@ -909,6 +988,21 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
     setShowModal(false)
     setEditing(null)
     await load()
+  }
+
+  const handleAiGenerate = async (promptOverride?: string) => {
+    const promptText = typeof promptOverride === 'string' ? promptOverride.trim() : aiPromptText.trim()
+    if (!promptText) return
+    setAiGenerating(true)
+    try {
+      const draft = buildPluginDraftFromPrompt(plugin, promptText)
+      setEditing(draft as PluginRecord)
+      setShowAiPrompt(false)
+      setShowModal(true)
+      setAiPromptText('')
+    } finally {
+      setAiGenerating(false)
+    }
   }
 
   const callItemAction = async (itemId: string, action: 'delete' | 'document' | 'notify' | 'run' | 'toggle') => {
@@ -987,36 +1081,58 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
               <ProductIconCell iconName="list" label="List view" size="sm" className="border-transparent bg-transparent text-current" />
             </button>
           </div>
-          <button
-            onClick={() => { setEditing(null); setShowModal(true) }}
-            className={headerPrimaryButtonClass}
-          >
-            <ProductIconCell iconName="create" label="Create" size="sm" className="border-white/20 bg-white/10 text-white" />
-            Create
-          </button>
           <div className="relative">
             <button
-              onClick={() => setShowPageActions((current) => !current)}
-              className={`${headerSecondaryButtonClass} ${headerSecondaryButtonIdleClass}`}
+              ref={workflowCreateMenuButtonRef}
+              onClick={() => setShowCreateMenu(!showCreateMenu)}
+              className={headerPrimaryButtonClass}
+              title={`Create ${plugin.labels?.singular || plugin.name.toLowerCase()}`}
             >
-              <PluginActionGlyph plugin={plugin} />
-              Actions <span className="text-xs">▾</span>
+              <span>Create</span> <span className="text-xs leading-none">▾</span>
             </button>
-            {showPageActions && (
+            {showCreateMenu && (
               <>
-                <div className="fixed inset-0 z-10" onClick={() => setShowPageActions(false)} />
-                <div className="absolute right-0 z-20 mt-2 w-56 rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800">
+                <div className="fixed inset-0 z-10" onClick={() => setShowCreateMenu(false)} />
+                <div
+                  className="z-20 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1"
+                  style={workflowCreateMenuButtonRef.current ? getViewportSafeDropdownStyle(workflowCreateMenuButtonRef.current.getBoundingClientRect(), 288) : undefined}
+                >
                   <button
-                    onClick={() => { setShowPageActions(false); void load() }}
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center gap-2"
+                    onClick={() => {
+                      setShowCreateMenu(false)
+                      setShowAiPrompt(true)
+                    }}
+                    className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 transition-colors ${
+                      aiEnabled
+                        ? 'text-gray-700 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/30'
+                        : 'text-gray-700 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/30'
+                    }`}
+                    title={aiEnabled ? 'Generate plugin draft with AI' : 'Open AI-assisted draft flow'}
                   >
-                    <ProductIconCell iconName="refresh" label="Refresh" size="sm" className="border-transparent bg-transparent text-current" />
-                    Refresh
+                    <ProductIconCell iconName="ai" label="Create with AI" size="sm" className="border-purple-200 bg-purple-50 text-purple-600 dark:border-purple-700 dark:bg-purple-900/30 dark:text-purple-300" /> Create with AI
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowCreateMenu(false)
+                      setEditing(null)
+                      setShowModal(true)
+                    }}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-sky-50 dark:hover:bg-sky-900/30 transition-colors flex items-center gap-2"
+                  >
+                    <ProductIconCell iconName="create" label="Create" size="sm" className="border-sky-200 bg-sky-50 text-sky-600 dark:border-sky-700 dark:bg-sky-900/30 dark:text-sky-300" /> Create
                   </button>
                 </div>
               </>
             )}
           </div>
+          <button
+            onClick={() => void load()}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 hover:text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-gray-600 dark:hover:bg-gray-700 dark:hover:text-white"
+            title="Refresh plugin workspace"
+            aria-label="Refresh plugin workspace"
+          >
+            <ProductIconCell iconName="refresh" label="Refresh" size="sm" className="border-transparent bg-transparent text-current" />
+          </button>
         </div>
       </div>
 
@@ -1230,10 +1346,11 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
               </div>
             ) : (
               <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
-                <div className="grid grid-cols-[minmax(0,2fr)_120px_minmax(0,2fr)_140px_120px] gap-3 border-b border-gray-200 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                <div className="grid grid-cols-[minmax(0,2fr)_120px_minmax(0,2fr)_minmax(0,1.5fr)_140px_120px] gap-3 border-b border-gray-200 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:border-gray-700 dark:text-gray-400">
                   <div>Name</div>
                   <div>Status</div>
                   <div>Scope</div>
+                  <div>Usage</div>
                   <div>Updated</div>
                   <div>Actions</div>
                 </div>
@@ -1241,7 +1358,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                   <div
                     key={item.id}
                     onClick={() => setSelectedItemId(item.id)}
-                    className={`grid cursor-pointer grid-cols-[minmax(0,2fr)_120px_minmax(0,2fr)_140px_120px] gap-3 border-b border-gray-100 px-4 py-3 text-sm last:border-b-0 dark:border-gray-700/60 ${
+                    className={`grid cursor-pointer grid-cols-[minmax(0,2fr)_120px_minmax(0,2fr)_minmax(0,1.5fr)_140px_120px] gap-3 border-b border-gray-100 px-4 py-3 text-sm last:border-b-0 dark:border-gray-700/60 ${
                       selectedItemId === item.id ? 'bg-sky-50 dark:bg-sky-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-700/40'
                     }`}
                   >
@@ -1255,6 +1372,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                       </span>
                     </div>
                     <div className="truncate text-gray-600 dark:text-gray-300">{formatPluginScopeSummary(item)}</div>
+                    <div className="truncate text-gray-500 dark:text-gray-400">{formatPluginUsageSummary(item)}</div>
                     <div className="text-gray-500 dark:text-gray-400">{formatPluginUpdatedAt(item)}</div>
                     <div className="flex items-center gap-2">
                       <button
@@ -1314,6 +1432,87 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
           onSave={(draft) => { void saveItem(draft) }}
         />
       )}
+
+      {showAiPrompt && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">AI Create {plugin.labels?.singular || plugin.name}</h2>
+              <button onClick={() => setShowAiPrompt(false)} className="text-gray-400 hover:text-gray-600 dark:text-gray-400 text-xl">✕</button>
+            </div>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+              Describe what you want this {plugin.labels?.singular?.toLowerCase() || plugin.name.toLowerCase()} to do in natural language. ClawMax will draft a starter you can review and edit before saving.
+            </p>
+            {!aiEnabled && (
+              <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-100">
+                <div className="font-medium">AI expansion is disabled because no AI execution path is configured</div>
+                <div className="mt-1 text-xs opacity-90">
+                  You can still create a local draft from this prompt, or configure BYOK to use the AI Editor expansion flow.
+                </div>
+              </div>
+            )}
+            {aiReadiness.warning && (
+              <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-100">
+                <div className="font-medium">AI-assisted create may be limited</div>
+                <div className="mt-1 text-xs opacity-90">{aiReadiness.warning}</div>
+              </div>
+            )}
+            <textarea
+              value={aiPromptText}
+              onChange={(e) => setAiPromptText(e.target.value)}
+              placeholder={plugin.objectKind === 'guardrail'
+                ? 'e.g., Create a guardrail for research agents that blocks outbound email and external document sharing'
+                : 'e.g., Create an eval for a research workflow that judges output quality and compares summaries against expected findings'}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[100px] resize-y"
+              autoFocus
+              onKeyDown={(e) => { if (e.key === 'Enter' && e.metaKey) void handleAiGenerate() }}
+            />
+            <div className="mt-2 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowAiPromptEditor(true)}
+                className="px-3 py-1.5 text-xs font-medium rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
+                Open AI Editor
+              </button>
+            </div>
+            <div className="flex justify-end gap-2 mt-4">
+              <button
+                onClick={() => setShowAiPrompt(false)}
+                className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => void handleAiGenerate()}
+                disabled={aiGenerating || !aiPromptText.trim()}
+                className="px-4 py-2 text-sm bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {aiGenerating ? 'Generating...' : `Generate ${plugin.labels?.singular || plugin.name}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <AIPromptEditorModal
+        isOpen={showAiPromptEditor}
+        title={`AI Editor · ${plugin.labels?.singular || plugin.name}`}
+        initialValue={aiPromptText}
+        onClose={() => setShowAiPromptEditor(false)}
+        onSave={(value) => setAiPromptText(value)}
+        onSaveAndGenerate={(value) => {
+          setAiPromptText(value)
+          setShowAiPromptEditor(false)
+          void handleAiGenerate(value)
+        }}
+        onExpandWithAi={(value, format, guidance) => expandPromptWithAI(value, 'workflow', format, guidance)}
+        saveLabel="Save Prompt"
+        saveAndGenerateLabel={`Save & Generate ${plugin.labels?.singular || plugin.name}`}
+        placeholder={`Describe the ${plugin.labels?.singular?.toLowerCase() || plugin.name.toLowerCase()} you want to create...`}
+        savingAndGenerating={aiGenerating}
+        generateDisabled={!aiPromptText.trim()}
+      />
     </div>
   )
 }

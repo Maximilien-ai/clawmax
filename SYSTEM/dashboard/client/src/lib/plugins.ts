@@ -34,6 +34,59 @@ export interface PluginManifest {
   }
 }
 
+export function titleCaseWords(value: string): string {
+  return value
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
+}
+
+export function buildPluginDraftFromPrompt(plugin: PluginManifest, prompt: string): Partial<PluginRecord> {
+  const trimmed = prompt.trim()
+  const firstSentence = trimmed.split(/[.!?\n]/)[0]?.trim() || trimmed
+  const normalizedName = titleCaseWords(firstSentence.split(/\s+/).slice(0, 5).join(' ')) || `New ${plugin.labels?.singular || plugin.name}`
+  const tags = Array.from(new Set(trimmed.toLowerCase().match(/[a-z0-9-]{4,}/g)?.slice(0, 5) || []))
+
+  if (plugin.objectKind === 'guardrail') {
+    const text = trimmed.toLowerCase()
+    return {
+      kind: 'guardrail',
+      name: normalizedName,
+      description: trimmed,
+      enabled: true,
+      tags,
+      appliesTo: { agents: [], workflows: [], groups: [], communities: [] },
+      controls: {
+        blockEmail: /email|mail/.test(text),
+        blockWeb: /web|browser|internet|site/.test(text),
+        blockExternalDocs: /document|docs|external|share/.test(text),
+        allowedSkills: [],
+      },
+    }
+  }
+
+  const text = trimmed.toLowerCase()
+  return {
+    kind: 'eval',
+    name: normalizedName,
+    description: trimmed,
+    enabled: true,
+    tags,
+    target: {
+      type: /workflow/.test(text) ? 'workflow' : /group|team/.test(text) ? 'group' : 'agent',
+      ids: [],
+    },
+    experiment: {
+      input: trimmed,
+      candidateOutput: '',
+      expectedOutput: `Success criteria for: ${firstSentence}`,
+      judge: /ai judge|model judge|semantic/.test(text) ? 'ai' : 'fixed',
+    },
+    runs: [],
+  }
+}
+
 export interface PluginRecordTemplate {
   id: string
   pluginId: string
@@ -81,6 +134,9 @@ export interface EvalRunRecord {
   score: number
   summary: string
   judgeMode: 'fixed' | 'ai-placeholder'
+  tokensIn: number
+  tokensOut: number
+  costUsd: number
   createdAt: string
 }
 
@@ -116,6 +172,29 @@ export interface PluginWorkspaceContext {
   workflows: Array<{ id: string; name: string }>
   groups: string[]
   communities: string[]
+}
+
+export function getPluginUsageTotals(item: PluginRecord): { runs: number; tokens: number; costUsd: number } {
+  if (item.kind !== 'eval') {
+    return { runs: 0, tokens: 0, costUsd: 0 }
+  }
+
+  return item.runs.reduce(
+    (acc, run) => {
+      acc.runs += 1
+      acc.tokens += (run.tokensIn || 0) + (run.tokensOut || 0)
+      acc.costUsd += run.costUsd || 0
+      return acc
+    },
+    { runs: 0, tokens: 0, costUsd: 0 }
+  )
+}
+
+export function formatPluginUsageSummary(item: PluginRecord): string {
+  if (item.kind !== 'eval') return 'No usage'
+  const totals = getPluginUsageTotals(item)
+  if (totals.runs === 0) return '0 runs'
+  return `${totals.runs} runs · ${totals.tokens.toLocaleString()} tokens · $${totals.costUsd.toFixed(4)}`
 }
 
 export function collectPluginTags(items: PluginRecord[]): string[] {

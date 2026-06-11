@@ -263,6 +263,9 @@ async function run() {
     const evaluated = runPluginEval(plugin!, created.id)
     assert(evaluated?.lastRun, 'Expected eval run to create a lastRun record')
     assert((evaluated?.lastRun?.score || 0) > 0, 'Expected heuristic score to be non-zero for overlapping tokens')
+    assert((evaluated?.lastRun?.tokensIn || 0) > 0, 'Expected eval run tokensIn to be populated')
+    assert((evaluated?.lastRun?.tokensOut || 0) > 0, 'Expected eval run tokensOut to be populated')
+    assert((evaluated?.lastRun?.costUsd || 0) > 0, 'Expected eval run costUsd to be populated')
     assert(evaluated?.document?.path?.includes(`SYSTEM/plugins/${plugin!.slug}/docs/${created.id}.md`), 'Expected eval run to generate a plugin doc')
 
     const context = getPluginWorkspaceContext()

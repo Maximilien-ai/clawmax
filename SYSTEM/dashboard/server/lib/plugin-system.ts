@@ -93,6 +93,9 @@ export interface EvalRunRecord {
   score: number
   summary: string
   judgeMode: 'fixed' | 'ai-placeholder'
+  tokensIn: number
+  tokensOut: number
+  costUsd: number
   createdAt: string
 }
 
@@ -312,6 +315,9 @@ function normalizeRecord(plugin: PluginManifest, value: any): PluginRecord | nul
         score: Number.isFinite(run.score) ? Number(run.score) : 0,
         summary: String(run.summary || '').trim(),
         judgeMode: run.judgeMode === 'fixed' ? 'fixed' : 'ai-placeholder',
+        tokensIn: Number.isFinite(run.tokensIn) ? Number(run.tokensIn) : 0,
+        tokensOut: Number.isFinite(run.tokensOut) ? Number(run.tokensOut) : 0,
+        costUsd: Number.isFinite(run.costUsd) ? Number(run.costUsd) : 0,
         createdAt: String(run.createdAt || '').trim(),
       }))
       .filter((run: EvalRunRecord) => run.id && run.createdAt)
@@ -609,6 +615,9 @@ function scoreEval(experiment: EvalRecord['experiment']): EvalRunRecord {
   const matched = expected.filter((token) => actual.has(token)).length
   const baseScore = expected.length > 0 ? Math.round((matched / expected.length) * 100) : 0
   const judgeMode = experiment.judge === 'ai' ? 'ai-placeholder' : 'fixed'
+  const tokensIn = Math.max(1, Math.ceil((experiment.input.length + experiment.expectedOutput.length) / 4))
+  const tokensOut = Math.max(1, Math.ceil(experiment.candidateOutput.length / 4))
+  const costUsd = Number(((tokensIn * 0.0000025) + (tokensOut * 0.00001)).toFixed(6))
   const summary = experiment.judge === 'ai'
     ? `Placeholder AI judge scored semantic overlap at ${baseScore}/100. Replace with a real model-backed judge in a later pass.`
     : `Fixed heuristic judge scored token overlap at ${baseScore}/100 against the expected output.`
@@ -617,6 +626,9 @@ function scoreEval(experiment: EvalRecord['experiment']): EvalRunRecord {
     score: Math.max(0, Math.min(100, baseScore)),
     summary,
     judgeMode,
+    tokensIn,
+    tokensOut,
+    costUsd,
     createdAt: now,
   }
 }
