@@ -16,6 +16,7 @@ type Props = {
 }
 
 type ArchiveTab = 'active' | 'archived'
+type PluginViewMode = 'grid' | 'detail' | 'table'
 
 function PluginIcon({ plugin }: { plugin: PluginManifest }) {
   if (plugin.objectKind === 'guardrail') {
@@ -528,6 +529,70 @@ function ItemCard({
   )
 }
 
+function CompactItemCard({
+  item,
+  onOpen,
+  onToggleActions,
+}: {
+  item: PluginRecord
+  onOpen: () => void
+  onToggleActions: () => void
+}) {
+  const archived = item.archived === true
+  return (
+    <div
+      className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-all hover:shadow-md dark:border-gray-700 dark:bg-gray-800"
+      onClick={onOpen}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          onOpen()
+        }
+      }}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className={`h-2.5 w-2.5 rounded-full ${archived ? 'bg-amber-500' : item.enabled ? 'bg-emerald-500' : 'bg-gray-400'}`} />
+            <span className="truncate text-lg font-semibold text-gray-900 dark:text-gray-100">{item.name}</span>
+          </div>
+          <div className="mt-1 truncate font-mono text-sm text-gray-400 dark:text-gray-500">{item.id}</div>
+        </div>
+        <button
+          onClick={(event) => {
+            event.stopPropagation()
+            onToggleActions()
+          }}
+          className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 bg-gray-50 text-[18px] font-black leading-none text-gray-500 shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-sky-200 dark:border-gray-600 dark:bg-gray-700/80 dark:text-gray-200 dark:hover:border-gray-500 dark:hover:bg-gray-600 dark:hover:text-white dark:focus:ring-sky-800"
+          aria-label="More plugin item actions"
+        >
+          ⋮
+        </button>
+      </div>
+      <div className="mt-3 flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
+        <span>{formatPluginScopeSummary(item)}</span>
+      </div>
+      <div className="mt-3 flex items-center gap-4 text-gray-300 dark:text-gray-500">
+        <ProductIconCell iconName={item.kind === 'eval' ? 'play' : 'status'} label="Type" size="sm" className="border-transparent bg-transparent text-current" />
+        <ProductIconCell iconName="docs" label="Docs" size="sm" className="border-transparent bg-transparent text-current" />
+        <ProductIconCell iconName="communication" label="Notifications" size="sm" className="border-transparent bg-transparent text-current" />
+      </div>
+      <div className="mt-3 text-sm text-gray-500 dark:text-gray-400">{formatPluginUpdatedAt(item)}</div>
+      <div className="mt-3 flex flex-wrap gap-1.5">
+        {item.tags.length > 0 ? item.tags.map((tag) => (
+          <span key={tag} className="rounded-md border border-sky-200 bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-700 dark:border-sky-800 dark:bg-sky-900/20 dark:text-sky-300">
+            {tag}
+          </span>
+        )) : (
+          <span className="text-xs text-gray-400 dark:text-gray-500">No tags</span>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function TemplateCard({
   plugin,
   template,
@@ -573,8 +638,11 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
   const [selectedTag, setSelectedTag] = useState<string>('all')
   const [statusFilter, setStatusFilter] = useState<'all' | 'enabled' | 'disabled'>('all')
   const [archiveTab, setArchiveTab] = useState<ArchiveTab>('active')
+  const [viewMode, setViewMode] = useState<PluginViewMode>('grid')
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<PluginRecord | null>(null)
+  const [showPageActions, setShowPageActions] = useState(false)
+  const [activeCompactActions, setActiveCompactActions] = useState<string | null>(null)
 
   const load = async () => {
     try {
@@ -675,114 +743,181 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
-      <div className="flex flex-col gap-4 rounded-3xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-900/50">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="min-w-0">
-            <div className="mb-2 flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-sky-200 bg-sky-50 text-sky-600 dark:border-sky-900/40 dark:bg-sky-900/20 dark:text-sky-300">
-                <PluginIcon plugin={plugin} />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{plugin.name}</h1>
-                <p className="text-sm text-gray-500 dark:text-gray-400">{plugin.description}</p>
-              </div>
-            </div>
-            <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-              <span className="rounded-full bg-gray-100 px-2 py-1 dark:bg-gray-800">v{plugin.version}</span>
-              <span className="rounded-full bg-gray-100 px-2 py-1 dark:bg-gray-800">workspace-scoped</span>
-              <span className="rounded-full bg-gray-100 px-2 py-1 dark:bg-gray-800">{filtered.length} shown</span>
-            </div>
-          </div>
-          <div className="grid gap-2 sm:grid-cols-2 lg:min-w-[360px]">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">{plugin.name}</h1>
+          <p className="text-sm text-gray-500 mt-0.5 flex items-center gap-1.5">
+            {filtered.length} shown
+            <span className="text-gray-300">·</span>
+            <span>workspace-scoped</span>
+            <span className="text-gray-300">·</span>
+            <span>v{plugin.version}</span>
+          </p>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{plugin.description}</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <div className="flex items-center border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden bg-white dark:bg-gray-800">
             <button
-              onClick={() => { setEditing(null); setShowModal(true) }}
-              className={headerPrimaryButtonClass}
+              onClick={() => setViewMode('grid')}
+              title="Grid view (compact)"
+              className={`px-2.5 py-1.5 text-xs transition-colors ${viewMode === 'grid' ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
             >
-              <ProductIconCell iconName="create" label="Create" size="sm" className="border-white/20 bg-white/10 text-white" />
-              Create {plugin.labels?.singular || plugin.name}
+              <ProductIconCell iconName="grid" label="Grid view" size="sm" className="border-transparent bg-transparent text-current" />
             </button>
             <button
-              onClick={() => void load()}
+              onClick={() => setViewMode('detail')}
+              title="Detail view"
+              className={`px-2.5 py-1.5 text-xs transition-colors border-l border-gray-200 dark:border-gray-700 ${viewMode === 'detail' ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+            >
+              <ProductIconCell iconName="docs" label="Detail view" size="sm" className="border-transparent bg-transparent text-current" />
+            </button>
+            <button
+              onClick={() => setViewMode('table')}
+              title="List view"
+              className={`px-2.5 py-1.5 text-xs transition-colors border-l border-gray-200 dark:border-gray-700 ${viewMode === 'table' ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+            >
+              <ProductIconCell iconName="list" label="List view" size="sm" className="border-transparent bg-transparent text-current" />
+            </button>
+          </div>
+          <button
+            onClick={() => { setEditing(null); setShowModal(true) }}
+            className={headerPrimaryButtonClass}
+          >
+            <ProductIconCell iconName="create" label="Create" size="sm" className="border-white/20 bg-white/10 text-white" />
+            Create {plugin.labels?.singular || plugin.name}
+          </button>
+          <div className="relative">
+            <button
+              onClick={() => setShowPageActions((current) => !current)}
               className={`${headerSecondaryButtonClass} ${headerSecondaryButtonIdleClass}`}
             >
-              <ProductIconCell iconName="refresh" label="Refresh" size="sm" className="border-transparent bg-transparent text-current" />
-              Refresh
+              <ProductIconCell iconName="ai" label="Actions" size="sm" className="border-transparent bg-transparent text-current" />
+              Actions <span className="text-xs">▾</span>
             </button>
-          </div>
-        </div>
-
-        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={`Search ${plugin.labels?.plural || plugin.name.toLowerCase()} by name, description, tags, or targets`}
-            className="w-full rounded-xl border border-sky-300 bg-white px-4 py-3 text-sm text-gray-900 shadow-sm outline-none ring-0 focus:border-sky-500 dark:border-sky-800 dark:bg-gray-950 dark:text-gray-100"
-          />
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={() => setArchiveTab('active')}
-              className={`${headerSecondaryButtonClass} ${archiveTab === 'active' ? headerSecondaryButtonActiveClass : headerSecondaryButtonIdleClass}`}
-            >
-              Active
-            </button>
-            <button
-              onClick={() => setArchiveTab('archived')}
-              className={`${headerSecondaryButtonClass} ${archiveTab === 'archived' ? headerSecondaryButtonActiveClass : headerSecondaryButtonIdleClass}`}
-            >
-              Archived
-            </button>
-            <button
-              onClick={() => setStatusFilter('all')}
-              className={`${headerSecondaryButtonClass} ${statusFilter === 'all' ? headerSecondaryButtonActiveClass : headerSecondaryButtonIdleClass}`}
-            >
-              All
-            </button>
-            <button
-              onClick={() => setStatusFilter('enabled')}
-              className={`${headerSecondaryButtonClass} ${statusFilter === 'enabled' ? headerSecondaryButtonActiveClass : headerSecondaryButtonIdleClass}`}
-            >
-              Enabled
-            </button>
-            <button
-              onClick={() => setStatusFilter('disabled')}
-              className={`${headerSecondaryButtonClass} ${statusFilter === 'disabled' ? headerSecondaryButtonActiveClass : headerSecondaryButtonIdleClass}`}
-            >
-              Disabled
-            </button>
-            <button
-              onClick={() => setSelectedTag('all')}
-              className={`${headerSecondaryButtonClass} ${selectedTag === 'all' ? headerSecondaryButtonActiveClass : headerSecondaryButtonIdleClass}`}
-            >
-              All tags
-            </button>
-            {tags.map((tag) => (
-              <button
-                key={tag}
-                onClick={() => setSelectedTag(tag)}
-                className={`${headerSecondaryButtonClass} ${selectedTag === tag ? headerSecondaryButtonActiveClass : headerSecondaryButtonIdleClass}`}
-              >
-                {tag}
-              </button>
-            ))}
+            {showPageActions && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setShowPageActions(false)} />
+                <div className="absolute right-0 z-20 mt-2 w-56 rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800">
+                  <button
+                    onClick={() => { setShowPageActions(false); void load() }}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center gap-2"
+                  >
+                    <ProductIconCell iconName="refresh" label="Refresh" size="sm" className="border-transparent bg-transparent text-current" />
+                    Refresh
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-3">
-        <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900/40">
-          <div className="text-xs uppercase tracking-wide text-gray-400">Objects</div>
-          <div className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">{activeCount}</div>
-          <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{archivedCount} archived</div>
+      <div className="mb-4">
+        <div className="inline-flex border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+          <button
+            onClick={() => setArchiveTab('active')}
+            className={`px-4 py-2 text-sm font-medium transition-colors ${
+              archiveTab === 'active'
+                ? 'bg-sky-600 text-white'
+                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+            }`}
+          >
+            Active ({activeCount})
+          </button>
+          <button
+            onClick={() => setArchiveTab('archived')}
+            className={`px-4 py-2 text-sm font-medium transition-colors ${
+              archiveTab === 'archived'
+                ? 'bg-sky-600 text-white'
+                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+            }`}
+          >
+            Archived ({archivedCount})
+          </button>
         </div>
-        <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900/40">
-          <div className="text-xs uppercase tracking-wide text-gray-400">Enabled</div>
-          <div className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">{items.filter((item) => item.enabled && item.archived !== true).length}</div>
+      </div>
+
+      <div className="mb-4">
+        <div className="relative">
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={`Search ${plugin.labels?.plural || plugin.name.toLowerCase()} by name, description, tags, or targets`}
+            className="w-full px-4 py-2 pr-10 border border-gray-200 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm"
+          />
+          {search && (
+            <button
+              onClick={() => setSearch('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-400 transition-colors"
+              title="Clear search"
+            >
+              ✕
+            </button>
+          )}
         </div>
-        <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900/40">
-          <div className="text-xs uppercase tracking-wide text-gray-400">Templates</div>
-          <div className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-            {recommendedTemplates.length} recommended · {context.agents.length} agents · {context.workflows.length} workflows
+        {search && (
+          <div className="mt-2 text-xs text-gray-500">
+            Found {filtered.length} {plugin.labels?.plural?.toLowerCase() || 'items'}
           </div>
+        )}
+      </div>
+
+      <div className="mb-6">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-gray-400 font-medium">Filter by tags:</span>
+          <button
+            onClick={() => setSelectedTag('all')}
+            className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
+              selectedTag === 'all'
+                ? 'bg-sky-600 text-white border border-sky-600'
+                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:border-sky-300 hover:text-sky-600'
+            }`}
+          >
+            All
+          </button>
+          <button
+            onClick={() => setStatusFilter('all')}
+            className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
+              statusFilter === 'all'
+                ? 'bg-sky-600 text-white border border-sky-600'
+                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:border-sky-300 hover:text-sky-600'
+            }`}
+          >
+            All states
+          </button>
+          <button
+            onClick={() => setStatusFilter('enabled')}
+            className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
+              statusFilter === 'enabled'
+                ? 'bg-sky-600 text-white border border-sky-600'
+                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:border-sky-300 hover:text-sky-600'
+            }`}
+          >
+            Enabled
+          </button>
+          <button
+            onClick={() => setStatusFilter('disabled')}
+            className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
+              statusFilter === 'disabled'
+                ? 'bg-sky-600 text-white border border-sky-600'
+                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:border-sky-300 hover:text-sky-600'
+            }`}
+          >
+            Disabled
+          </button>
+          {tags.map((tag) => (
+            <button
+              key={tag}
+              onClick={() => setSelectedTag(tag)}
+              className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
+                selectedTag === tag
+                  ? 'bg-sky-600 text-white border border-sky-600'
+                  : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:border-sky-300 hover:text-sky-600'
+              }`}
+            >
+              {tag}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -816,23 +951,121 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
           <EmptyState plugin={plugin} onCreate={() => { setEditing(null); setShowModal(true) }} />
         </div>
       ) : (
-        <div className="mt-6 grid gap-4 xl:grid-cols-2">
-          {filtered.map((item) => (
-            <ItemCard
-              key={item.id}
-              plugin={plugin}
-              item={item}
-              onEdit={() => { setEditing(item); setShowModal(true) }}
-              onDelete={() => void callItemAction(item.id, 'delete')}
-              onToggle={() => void callItemAction(item.id, 'toggle')}
-              onGenerateDoc={() => void callItemAction(item.id, 'document')}
-              onNotify={() => void callItemAction(item.id, 'notify')}
-              onRun={item.kind === 'eval' ? (() => void callItemAction(item.id, 'run')) : null}
-              onOpenDoc={item.document?.path && onNavigateToDoc ? (() => onNavigateToDoc(item.document!.path)) : null}
-              onArchiveToggle={() => void saveItem({ ...item, archived: item.archived !== true } as Partial<PluginRecord>)}
-            />
-          ))}
-        </div>
+        <>
+          {viewMode === 'grid' ? (
+            <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              {filtered.map((item) => (
+                <div key={item.id} className="relative">
+                  <CompactItemCard
+                    item={item}
+                    onOpen={() => { setEditing(item); setShowModal(true) }}
+                    onToggleActions={() => setActiveCompactActions((current) => current === item.id ? null : item.id)}
+                  />
+                  {activeCompactActions === item.id && (
+                    <>
+                      <div className="fixed inset-0 z-10" onClick={() => setActiveCompactActions(null)} />
+                      <div className="absolute right-3 top-14 z-20 w-48 rounded-xl border border-gray-200 bg-white p-1 shadow-lg dark:border-gray-700 dark:bg-gray-900">
+                        <button onClick={() => { setActiveCompactActions(null); setEditing(item); setShowModal(true) }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800">
+                          <ProductIconCell iconName="edit" label="Edit" size="sm" className="border-transparent bg-transparent text-current" />
+                          Edit
+                        </button>
+                        <button onClick={() => { setActiveCompactActions(null); void callItemAction(item.id, 'toggle') }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800">
+                          <ProductIconCell iconName="status" label="Toggle" size="sm" className="border-transparent bg-transparent text-current" />
+                          {item.enabled ? 'Disable' : 'Enable'}
+                        </button>
+                        <button onClick={() => { setActiveCompactActions(null); void saveItem({ ...item, archived: item.archived !== true } as Partial<PluginRecord>) }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800">
+                          <ProductIconCell iconName={item.archived ? 'restore' : 'archive'} label={item.archived ? 'Restore' : 'Archive'} size="sm" className="border-transparent bg-transparent text-current" />
+                          {item.archived ? 'Restore' : 'Archive'}
+                        </button>
+                        <button onClick={() => { setActiveCompactActions(null); void callItemAction(item.id, 'document') }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800">
+                          <ProductIconCell iconName="docs" label="Generate Doc" size="sm" className="border-transparent bg-transparent text-current" />
+                          Generate Doc
+                        </button>
+                        <button onClick={() => { setActiveCompactActions(null); void callItemAction(item.id, 'notify') }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800">
+                          <ProductIconCell iconName="communication" label="Notify" size="sm" className="border-transparent bg-transparent text-current" />
+                          Notify
+                        </button>
+                        <button onClick={() => { setActiveCompactActions(null); void callItemAction(item.id, 'delete') }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/20">
+                          <ProductIconCell iconName="delete" label="Delete" size="sm" className="border-transparent bg-transparent text-current" />
+                          Delete
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : viewMode === 'detail' ? (
+            <div className="mt-6 grid gap-4 xl:grid-cols-2">
+              {filtered.map((item) => (
+                <ItemCard
+                  key={item.id}
+                  plugin={plugin}
+                  item={item}
+                  onEdit={() => { setEditing(item); setShowModal(true) }}
+                  onDelete={() => void callItemAction(item.id, 'delete')}
+                  onToggle={() => void callItemAction(item.id, 'toggle')}
+                  onGenerateDoc={() => void callItemAction(item.id, 'document')}
+                  onNotify={() => void callItemAction(item.id, 'notify')}
+                  onRun={item.kind === 'eval' ? (() => void callItemAction(item.id, 'run')) : null}
+                  onOpenDoc={item.document?.path && onNavigateToDoc ? (() => onNavigateToDoc(item.document!.path)) : null}
+                  onArchiveToggle={() => void saveItem({ ...item, archived: item.archived !== true } as Partial<PluginRecord>)}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="mt-6 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
+              <div className="grid grid-cols-[minmax(0,2fr)_120px_minmax(0,2fr)_140px_120px] gap-3 border-b border-gray-200 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                <div>Name</div>
+                <div>Status</div>
+                <div>Scope</div>
+                <div>Updated</div>
+                <div>Actions</div>
+              </div>
+              {filtered.map((item) => (
+                <div
+                  key={item.id}
+                  className="grid grid-cols-[minmax(0,2fr)_120px_minmax(0,2fr)_140px_120px] gap-3 border-b border-gray-100 px-4 py-3 text-sm last:border-b-0 dark:border-gray-700/60"
+                >
+                  <div className="min-w-0">
+                    <div className="truncate font-medium text-gray-900 dark:text-gray-100">{item.name}</div>
+                    <div className="truncate text-xs text-gray-500 dark:text-gray-400">{item.description || item.id}</div>
+                  </div>
+                  <div>
+                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${item.archived ? 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' : item.enabled ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}>
+                      {item.archived ? 'Archived' : item.enabled ? 'Enabled' : 'Disabled'}
+                    </span>
+                  </div>
+                  <div className="truncate text-gray-600 dark:text-gray-300">{formatPluginScopeSummary(item)}</div>
+                  <div className="text-gray-500 dark:text-gray-400">{formatPluginUpdatedAt(item)}</div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => { setEditing(item); setShowModal(true) }}
+                      className="text-gray-300 hover:text-sky-500 transition-colors text-xs p-1 rounded hover:bg-sky-50 dark:hover:bg-sky-900/30"
+                      title="Open details"
+                    >
+                      <ProductIconCell iconName="details" label="Open details" size="sm" className="border-transparent bg-transparent text-current" />
+                    </button>
+                    <button
+                      onClick={() => void callItemAction(item.id, 'document')}
+                      className="text-gray-300 hover:text-purple-500 transition-colors text-xs p-1 rounded hover:bg-purple-50 dark:hover:bg-purple-900/30"
+                      title="Generate document"
+                    >
+                      <ProductIconCell iconName="docs" label="Generate document" size="sm" className="border-transparent bg-transparent text-current" />
+                    </button>
+                    <button
+                      onClick={() => void callItemAction(item.id, 'notify')}
+                      className="text-gray-300 hover:text-emerald-500 transition-colors text-xs p-1 rounded hover:bg-emerald-50 dark:hover:bg-emerald-900/30"
+                      title="Notify"
+                    >
+                      <ProductIconCell iconName="communication" label="Notify" size="sm" className="border-transparent bg-transparent text-current" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       {showModal && (
