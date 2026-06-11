@@ -54,7 +54,7 @@ function EmptyState({ plugin, onCreate }: { plugin: PluginManifest; onCreate: ()
         className="mt-5 inline-flex items-center gap-2 rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-sky-700"
       >
         <ProductIconCell iconName="create" label="Create" size="sm" className="border-white/20 bg-white/10 text-white" />
-        Create {plugin.labels?.singular || plugin.name}
+        Create
       </button>
     </div>
   )
@@ -531,17 +531,21 @@ function ItemCard({
 
 function CompactItemCard({
   item,
+  selected,
   onOpen,
   onToggleActions,
 }: {
   item: PluginRecord
+  selected: boolean
   onOpen: () => void
   onToggleActions: () => void
 }) {
   const archived = item.archived === true
   return (
     <div
-      className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-all hover:shadow-md dark:border-gray-700 dark:bg-gray-800"
+      className={`rounded-xl border bg-white p-4 shadow-sm transition-all hover:shadow-md dark:bg-gray-800 ${
+        selected ? 'border-sky-400 ring-2 ring-sky-100 dark:border-sky-500 dark:ring-sky-900/30' : 'border-gray-200 dark:border-gray-700'
+      }`}
       onClick={onOpen}
       role="button"
       tabIndex={0}
@@ -588,6 +592,189 @@ function CompactItemCard({
         )) : (
           <span className="text-xs text-gray-400 dark:text-gray-500">No tags</span>
         )}
+      </div>
+    </div>
+  )
+}
+
+function PluginDetailsPanel({
+  plugin,
+  item,
+  onClose,
+  onEdit,
+  onGenerateDoc,
+  onOpenDoc,
+  onNotify,
+  onToggle,
+  onArchiveToggle,
+  onDelete,
+  onRun,
+}: {
+  plugin: PluginManifest
+  item: PluginRecord
+  onClose: () => void
+  onEdit: () => void
+  onGenerateDoc: () => void
+  onOpenDoc: (() => void) | null
+  onNotify: () => void
+  onToggle: () => void
+  onArchiveToggle: () => void
+  onDelete: () => void
+  onRun: (() => void) | null
+}) {
+  const archived = item.archived === true
+  const files = item.document?.path ? [item.document.path] : []
+  const detailLines = item.kind === 'guardrail'
+    ? [
+        `Agents: ${item.appliesTo.agents.length > 0 ? item.appliesTo.agents.join(', ') : 'none'}`,
+        `Workflows: ${item.appliesTo.workflows.length > 0 ? item.appliesTo.workflows.join(', ') : 'none'}`,
+        `Groups: ${item.appliesTo.groups.length > 0 ? item.appliesTo.groups.join(', ') : 'none'}`,
+        `Communities: ${item.appliesTo.communities.length > 0 ? item.appliesTo.communities.join(', ') : 'none'}`,
+        `Allowed skills: ${item.controls.allowedSkills.length > 0 ? item.controls.allowedSkills.join(', ') : 'none'}`,
+        `Block email: ${item.controls.blockEmail ? 'yes' : 'no'}`,
+        `Block web: ${item.controls.blockWeb ? 'yes' : 'no'}`,
+        `Block external docs: ${item.controls.blockExternalDocs ? 'yes' : 'no'}`,
+      ]
+    : [
+        `Target type: ${item.target.type}`,
+        `Targets: ${item.target.ids.length > 0 ? item.target.ids.join(', ') : 'none'}`,
+        `Judge: ${item.experiment.judge === 'ai' ? 'AI placeholder' : 'Fixed heuristic'}`,
+        `Input: ${item.experiment.input || 'none'}`,
+        `Candidate output: ${item.experiment.candidateOutput || 'none'}`,
+        `Expected output: ${item.experiment.expectedOutput || 'none'}`,
+        `Runs: ${item.runs.length}`,
+      ]
+
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
+      <div className="flex items-start justify-between gap-3 border-b border-gray-200 px-5 py-4 dark:border-gray-700">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-sky-200 bg-sky-50 text-sky-600 dark:border-sky-900/40 dark:bg-sky-900/20 dark:text-sky-300">
+              <PluginIcon plugin={plugin} />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{item.name}</h2>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{item.id}</p>
+            </div>
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <span className="rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-700 dark:bg-sky-900/30 dark:text-sky-300">
+              {item.kind === 'guardrail' ? 'Guardrail' : 'Eval'}
+            </span>
+            <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${archived ? 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' : item.enabled ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}>
+              {archived ? 'Archived' : item.enabled ? 'Enabled' : 'Disabled'}
+            </span>
+          </div>
+        </div>
+        <button
+          onClick={onClose}
+          className="rounded-md px-2 py-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+          title="Close details"
+        >
+          ×
+        </button>
+      </div>
+
+      <div className="space-y-5 p-5">
+        <div>
+          <div className="text-xs uppercase tracking-wide text-gray-400">Description</div>
+          <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{item.description || 'No description yet.'}</p>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="rounded-lg border border-gray-200 px-3 py-3 dark:border-gray-700">
+            <div className="text-xs uppercase tracking-wide text-gray-400">Updated</div>
+            <div className="mt-1 text-sm font-medium text-gray-900 dark:text-gray-100">{formatPluginUpdatedAt(item)}</div>
+          </div>
+          <div className="rounded-lg border border-gray-200 px-3 py-3 dark:border-gray-700">
+            <div className="text-xs uppercase tracking-wide text-gray-400">Scope</div>
+            <div className="mt-1 text-sm font-medium text-gray-900 dark:text-gray-100">{formatPluginScopeSummary(item)}</div>
+          </div>
+        </div>
+
+        <div>
+          <div className="text-xs uppercase tracking-wide text-gray-400">Tags</div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {item.tags.length > 0 ? item.tags.map((tag) => (
+              <span key={tag} className="rounded-md border border-sky-200 bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-700 dark:border-sky-800 dark:bg-sky-900/20 dark:text-sky-300">
+                {tag}
+              </span>
+            )) : (
+              <span className="text-sm text-gray-400 dark:text-gray-500">No tags</span>
+            )}
+          </div>
+        </div>
+
+        <div>
+          <div className="text-xs uppercase tracking-wide text-gray-400">More</div>
+          <div className="mt-2 space-y-1.5 text-sm text-gray-600 dark:text-gray-300">
+            {detailLines.map((line) => (
+              <p key={line} className="break-words">{line}</p>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <div className="text-xs uppercase tracking-wide text-gray-400">Files</div>
+          <div className="mt-2 space-y-2">
+            {files.length > 0 ? files.map((file) => (
+              <button
+                key={file}
+                onClick={() => onOpenDoc?.()}
+                className="flex w-full items-center justify-between rounded-lg border border-gray-200 px-3 py-2 text-left hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-700/60"
+              >
+                <span className="truncate text-sm text-gray-700 dark:text-gray-300">{file}</span>
+                <ProductIconCell iconName="docs" label="Open doc" size="sm" className="border-transparent bg-transparent text-current" />
+              </button>
+            )) : (
+              <p className="text-sm text-gray-400 dark:text-gray-500">No generated files yet.</p>
+            )}
+          </div>
+        </div>
+
+        {item.kind === 'eval' && item.lastRun && (
+          <div className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-3 dark:border-violet-900/40 dark:bg-violet-900/10">
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-sm font-medium text-violet-800 dark:text-violet-300">Latest score</div>
+              <div className="text-lg font-semibold text-violet-700 dark:text-violet-200">{item.lastRun.score}/100</div>
+            </div>
+            <p className="mt-1 text-sm text-violet-700/80 dark:text-violet-300/80">{item.lastRun.summary}</p>
+          </div>
+        )}
+
+        <div className="flex flex-wrap gap-2 border-t border-gray-200 pt-4 dark:border-gray-700">
+          <button onClick={onEdit} className={`${headerSecondaryButtonClass} ${headerSecondaryButtonIdleClass}`}>
+            <ProductIconCell iconName="edit" label="Edit" size="sm" className="border-transparent bg-transparent text-current" />
+            Edit
+          </button>
+          <button onClick={onToggle} className={`${headerSecondaryButtonClass} ${headerSecondaryButtonIdleClass}`}>
+            <ProductIconCell iconName="status" label="Toggle" size="sm" className="border-transparent bg-transparent text-current" />
+            {item.enabled ? 'Disable' : 'Enable'}
+          </button>
+          <button onClick={onArchiveToggle} className={`${headerSecondaryButtonClass} ${headerSecondaryButtonIdleClass}`}>
+            <ProductIconCell iconName={archived ? 'restore' : 'archive'} label={archived ? 'Restore' : 'Archive'} size="sm" className="border-transparent bg-transparent text-current" />
+            {archived ? 'Restore' : 'Archive'}
+          </button>
+          <button onClick={onGenerateDoc} className={`${headerSecondaryButtonClass} ${headerSecondaryButtonIdleClass}`}>
+            <ProductIconCell iconName="docs" label="Generate Doc" size="sm" className="border-transparent bg-transparent text-current" />
+            Generate Doc
+          </button>
+          <button onClick={onNotify} className={`${headerSecondaryButtonClass} ${headerSecondaryButtonIdleClass}`}>
+            <ProductIconCell iconName="communication" label="Notify" size="sm" className="border-transparent bg-transparent text-current" />
+            Notify
+          </button>
+          {onRun && (
+            <button onClick={onRun} className={headerPrimaryButtonClass}>
+              <ProductIconCell iconName="play" label="Run Eval" size="sm" className="border-white/20 bg-white/10 text-white" />
+              Run Eval
+            </button>
+          )}
+          <button onClick={onDelete} className="inline-flex items-center justify-center gap-1.5 rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-100 dark:border-red-900/40 dark:bg-red-900/10 dark:text-red-300 dark:hover:bg-red-900/20">
+            <ProductIconCell iconName="delete" label="Delete" size="sm" className="border-transparent bg-transparent text-current" />
+            Delete
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -641,6 +828,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
   const [viewMode, setViewMode] = useState<PluginViewMode>('grid')
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<PluginRecord | null>(null)
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null)
   const [showPageActions, setShowPageActions] = useState(false)
   const [activeCompactActions, setActiveCompactActions] = useState<string | null>(null)
 
@@ -688,6 +876,10 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
   const recommendedTemplates = useMemo(() => templates.filter((entry) => entry.recommended !== false), [templates])
   const activeCount = useMemo(() => items.filter((item) => item.archived !== true).length, [items])
   const archivedCount = useMemo(() => items.filter((item) => item.archived === true).length, [items])
+  const selectedItem = useMemo(
+    () => items.find((item) => item.id === selectedItemId) || null,
+    [items, selectedItemId]
+  )
 
   const saveItem = async (draft: Partial<PluginRecord>) => {
     const isEdit = Boolean(draft.id)
@@ -727,6 +919,12 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
     }
     await load()
   }
+
+  useEffect(() => {
+    if (selectedItemId && !items.some((item) => item.id === selectedItemId)) {
+      setSelectedItemId(null)
+    }
+  }, [items, selectedItemId])
 
   const createDraft: Partial<PluginRecord> = plugin.objectKind === 'guardrail'
     ? { kind: 'guardrail', enabled: true, tags: [], appliesTo: { agents: [], workflows: [], groups: [], communities: [] }, controls: { blockEmail: false, blockWeb: false, blockExternalDocs: false, allowedSkills: [] } }
@@ -784,7 +982,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
             className={headerPrimaryButtonClass}
           >
             <ProductIconCell iconName="create" label="Create" size="sm" className="border-white/20 bg-white/10 text-white" />
-            Create {plugin.labels?.singular || plugin.name}
+            Create
           </button>
           <div className="relative">
             <button
@@ -951,121 +1149,150 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
           <EmptyState plugin={plugin} onCreate={() => { setEditing(null); setShowModal(true) }} />
         </div>
       ) : (
-        <>
-          {viewMode === 'grid' ? (
-            <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              {filtered.map((item) => (
-                <div key={item.id} className="relative">
-                  <CompactItemCard
-                    item={item}
-                    onOpen={() => { setEditing(item); setShowModal(true) }}
-                    onToggleActions={() => setActiveCompactActions((current) => current === item.id ? null : item.id)}
-                  />
-                  {activeCompactActions === item.id && (
-                    <>
-                      <div className="fixed inset-0 z-10" onClick={() => setActiveCompactActions(null)} />
-                      <div className="absolute right-3 top-14 z-20 w-48 rounded-xl border border-gray-200 bg-white p-1 shadow-lg dark:border-gray-700 dark:bg-gray-900">
-                        <button onClick={() => { setActiveCompactActions(null); setEditing(item); setShowModal(true) }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800">
-                          <ProductIconCell iconName="edit" label="Edit" size="sm" className="border-transparent bg-transparent text-current" />
-                          Edit
-                        </button>
-                        <button onClick={() => { setActiveCompactActions(null); void callItemAction(item.id, 'toggle') }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800">
-                          <ProductIconCell iconName="status" label="Toggle" size="sm" className="border-transparent bg-transparent text-current" />
-                          {item.enabled ? 'Disable' : 'Enable'}
-                        </button>
-                        <button onClick={() => { setActiveCompactActions(null); void saveItem({ ...item, archived: item.archived !== true } as Partial<PluginRecord>) }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800">
-                          <ProductIconCell iconName={item.archived ? 'restore' : 'archive'} label={item.archived ? 'Restore' : 'Archive'} size="sm" className="border-transparent bg-transparent text-current" />
-                          {item.archived ? 'Restore' : 'Archive'}
-                        </button>
-                        <button onClick={() => { setActiveCompactActions(null); void callItemAction(item.id, 'document') }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800">
-                          <ProductIconCell iconName="docs" label="Generate Doc" size="sm" className="border-transparent bg-transparent text-current" />
-                          Generate Doc
-                        </button>
-                        <button onClick={() => { setActiveCompactActions(null); void callItemAction(item.id, 'notify') }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800">
-                          <ProductIconCell iconName="communication" label="Notify" size="sm" className="border-transparent bg-transparent text-current" />
-                          Notify
-                        </button>
-                        <button onClick={() => { setActiveCompactActions(null); void callItemAction(item.id, 'delete') }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/20">
-                          <ProductIconCell iconName="delete" label="Delete" size="sm" className="border-transparent bg-transparent text-current" />
-                          Delete
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              ))}
-            </div>
-          ) : viewMode === 'detail' ? (
-            <div className="mt-6 grid gap-4 xl:grid-cols-2">
-              {filtered.map((item) => (
-                <ItemCard
-                  key={item.id}
-                  plugin={plugin}
-                  item={item}
-                  onEdit={() => { setEditing(item); setShowModal(true) }}
-                  onDelete={() => void callItemAction(item.id, 'delete')}
-                  onToggle={() => void callItemAction(item.id, 'toggle')}
-                  onGenerateDoc={() => void callItemAction(item.id, 'document')}
-                  onNotify={() => void callItemAction(item.id, 'notify')}
-                  onRun={item.kind === 'eval' ? (() => void callItemAction(item.id, 'run')) : null}
-                  onOpenDoc={item.document?.path && onNavigateToDoc ? (() => onNavigateToDoc(item.document!.path)) : null}
-                  onArchiveToggle={() => void saveItem({ ...item, archived: item.archived !== true } as Partial<PluginRecord>)}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="mt-6 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
-              <div className="grid grid-cols-[minmax(0,2fr)_120px_minmax(0,2fr)_140px_120px] gap-3 border-b border-gray-200 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:border-gray-700 dark:text-gray-400">
-                <div>Name</div>
-                <div>Status</div>
-                <div>Scope</div>
-                <div>Updated</div>
-                <div>Actions</div>
+        <div className={`mt-6 ${selectedItem ? 'xl:grid xl:grid-cols-[minmax(0,1fr)_360px] xl:gap-6' : ''}`}>
+          <div>
+            {viewMode === 'grid' ? (
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                {filtered.map((item) => (
+                  <div key={item.id} className="relative">
+                    <CompactItemCard
+                      item={item}
+                      selected={selectedItemId === item.id}
+                      onOpen={() => setSelectedItemId(item.id)}
+                      onToggleActions={() => setActiveCompactActions((current) => current === item.id ? null : item.id)}
+                    />
+                    {activeCompactActions === item.id && (
+                      <>
+                        <div className="fixed inset-0 z-10" onClick={() => setActiveCompactActions(null)} />
+                        <div className="absolute right-3 top-14 z-20 w-48 rounded-xl border border-gray-200 bg-white p-1 shadow-lg dark:border-gray-700 dark:bg-gray-900">
+                          <button onClick={() => { setActiveCompactActions(null); setEditing(item); setShowModal(true) }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800">
+                            <ProductIconCell iconName="edit" label="Edit" size="sm" className="border-transparent bg-transparent text-current" />
+                            Edit
+                          </button>
+                          <button onClick={() => { setActiveCompactActions(null); void callItemAction(item.id, 'toggle') }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800">
+                            <ProductIconCell iconName="status" label="Toggle" size="sm" className="border-transparent bg-transparent text-current" />
+                            {item.enabled ? 'Disable' : 'Enable'}
+                          </button>
+                          <button onClick={() => { setActiveCompactActions(null); void saveItem({ ...item, archived: item.archived !== true } as Partial<PluginRecord>) }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800">
+                            <ProductIconCell iconName={item.archived ? 'restore' : 'archive'} label={item.archived ? 'Restore' : 'Archive'} size="sm" className="border-transparent bg-transparent text-current" />
+                            {item.archived ? 'Restore' : 'Archive'}
+                          </button>
+                          <button onClick={() => { setActiveCompactActions(null); void callItemAction(item.id, 'document') }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800">
+                            <ProductIconCell iconName="docs" label="Generate Doc" size="sm" className="border-transparent bg-transparent text-current" />
+                            Generate Doc
+                          </button>
+                          <button onClick={() => { setActiveCompactActions(null); void callItemAction(item.id, 'notify') }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800">
+                            <ProductIconCell iconName="communication" label="Notify" size="sm" className="border-transparent bg-transparent text-current" />
+                            Notify
+                          </button>
+                          <button onClick={() => { setActiveCompactActions(null); void callItemAction(item.id, 'delete') }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/20">
+                            <ProductIconCell iconName="delete" label="Delete" size="sm" className="border-transparent bg-transparent text-current" />
+                            Delete
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ))}
               </div>
-              {filtered.map((item) => (
-                <div
-                  key={item.id}
-                  className="grid grid-cols-[minmax(0,2fr)_120px_minmax(0,2fr)_140px_120px] gap-3 border-b border-gray-100 px-4 py-3 text-sm last:border-b-0 dark:border-gray-700/60"
-                >
-                  <div className="min-w-0">
-                    <div className="truncate font-medium text-gray-900 dark:text-gray-100">{item.name}</div>
-                    <div className="truncate text-xs text-gray-500 dark:text-gray-400">{item.description || item.id}</div>
+            ) : viewMode === 'detail' ? (
+              <div className="grid gap-4 xl:grid-cols-2">
+                {filtered.map((item) => (
+                  <div
+                    key={item.id}
+                    className={`rounded-2xl ${selectedItemId === item.id ? 'ring-2 ring-sky-100 dark:ring-sky-900/30' : ''}`}
+                    onClick={() => setSelectedItemId(item.id)}
+                  >
+                    <ItemCard
+                      plugin={plugin}
+                      item={item}
+                      onEdit={() => { setEditing(item); setShowModal(true) }}
+                      onDelete={() => void callItemAction(item.id, 'delete')}
+                      onToggle={() => void callItemAction(item.id, 'toggle')}
+                      onGenerateDoc={() => void callItemAction(item.id, 'document')}
+                      onNotify={() => void callItemAction(item.id, 'notify')}
+                      onRun={item.kind === 'eval' ? (() => void callItemAction(item.id, 'run')) : null}
+                      onOpenDoc={item.document?.path && onNavigateToDoc ? (() => onNavigateToDoc(item.document!.path)) : null}
+                      onArchiveToggle={() => void saveItem({ ...item, archived: item.archived !== true } as Partial<PluginRecord>)}
+                    />
                   </div>
-                  <div>
-                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${item.archived ? 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' : item.enabled ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}>
-                      {item.archived ? 'Archived' : item.enabled ? 'Enabled' : 'Disabled'}
-                    </span>
-                  </div>
-                  <div className="truncate text-gray-600 dark:text-gray-300">{formatPluginScopeSummary(item)}</div>
-                  <div className="text-gray-500 dark:text-gray-400">{formatPluginUpdatedAt(item)}</div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => { setEditing(item); setShowModal(true) }}
-                      className="text-gray-300 hover:text-sky-500 transition-colors text-xs p-1 rounded hover:bg-sky-50 dark:hover:bg-sky-900/30"
-                      title="Open details"
-                    >
-                      <ProductIconCell iconName="details" label="Open details" size="sm" className="border-transparent bg-transparent text-current" />
-                    </button>
-                    <button
-                      onClick={() => void callItemAction(item.id, 'document')}
-                      className="text-gray-300 hover:text-purple-500 transition-colors text-xs p-1 rounded hover:bg-purple-50 dark:hover:bg-purple-900/30"
-                      title="Generate document"
-                    >
-                      <ProductIconCell iconName="docs" label="Generate document" size="sm" className="border-transparent bg-transparent text-current" />
-                    </button>
-                    <button
-                      onClick={() => void callItemAction(item.id, 'notify')}
-                      className="text-gray-300 hover:text-emerald-500 transition-colors text-xs p-1 rounded hover:bg-emerald-50 dark:hover:bg-emerald-900/30"
-                      title="Notify"
-                    >
-                      <ProductIconCell iconName="communication" label="Notify" size="sm" className="border-transparent bg-transparent text-current" />
-                    </button>
-                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                <div className="grid grid-cols-[minmax(0,2fr)_120px_minmax(0,2fr)_140px_120px] gap-3 border-b border-gray-200 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                  <div>Name</div>
+                  <div>Status</div>
+                  <div>Scope</div>
+                  <div>Updated</div>
+                  <div>Actions</div>
                 </div>
-              ))}
+                {filtered.map((item) => (
+                  <div
+                    key={item.id}
+                    onClick={() => setSelectedItemId(item.id)}
+                    className={`grid cursor-pointer grid-cols-[minmax(0,2fr)_120px_minmax(0,2fr)_140px_120px] gap-3 border-b border-gray-100 px-4 py-3 text-sm last:border-b-0 dark:border-gray-700/60 ${
+                      selectedItemId === item.id ? 'bg-sky-50 dark:bg-sky-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-700/40'
+                    }`}
+                  >
+                    <div className="min-w-0">
+                      <div className="truncate font-medium text-gray-900 dark:text-gray-100">{item.name}</div>
+                      <div className="truncate text-xs text-gray-500 dark:text-gray-400">{item.description || item.id}</div>
+                    </div>
+                    <div>
+                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${item.archived ? 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' : item.enabled ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}>
+                        {item.archived ? 'Archived' : item.enabled ? 'Enabled' : 'Disabled'}
+                      </span>
+                    </div>
+                    <div className="truncate text-gray-600 dark:text-gray-300">{formatPluginScopeSummary(item)}</div>
+                    <div className="text-gray-500 dark:text-gray-400">{formatPluginUpdatedAt(item)}</div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={(event) => { event.stopPropagation(); setSelectedItemId(item.id) }}
+                        className="text-gray-300 hover:text-sky-500 transition-colors text-xs p-1 rounded hover:bg-sky-50 dark:hover:bg-sky-900/30"
+                        title="Open details"
+                      >
+                        <ProductIconCell iconName="details" label="Open details" size="sm" className="border-transparent bg-transparent text-current" />
+                      </button>
+                      <button
+                        onClick={(event) => { event.stopPropagation(); void callItemAction(item.id, 'document') }}
+                        className="text-gray-300 hover:text-purple-500 transition-colors text-xs p-1 rounded hover:bg-purple-50 dark:hover:bg-purple-900/30"
+                        title="Generate document"
+                      >
+                        <ProductIconCell iconName="docs" label="Generate document" size="sm" className="border-transparent bg-transparent text-current" />
+                      </button>
+                      <button
+                        onClick={(event) => { event.stopPropagation(); void callItemAction(item.id, 'notify') }}
+                        className="text-gray-300 hover:text-emerald-500 transition-colors text-xs p-1 rounded hover:bg-emerald-50 dark:hover:bg-emerald-900/30"
+                        title="Notify"
+                      >
+                        <ProductIconCell iconName="communication" label="Notify" size="sm" className="border-transparent bg-transparent text-current" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {selectedItem && (
+            <div className="mt-6 xl:mt-0">
+              <PluginDetailsPanel
+                plugin={plugin}
+                item={selectedItem}
+                onClose={() => setSelectedItemId(null)}
+                onEdit={() => { setEditing(selectedItem); setShowModal(true) }}
+                onGenerateDoc={() => void callItemAction(selectedItem.id, 'document')}
+                onOpenDoc={selectedItem.document?.path && onNavigateToDoc ? (() => onNavigateToDoc(selectedItem.document!.path)) : null}
+                onNotify={() => void callItemAction(selectedItem.id, 'notify')}
+                onToggle={() => void callItemAction(selectedItem.id, 'toggle')}
+                onArchiveToggle={() => void saveItem({ ...selectedItem, archived: selectedItem.archived !== true } as Partial<PluginRecord>)}
+                onDelete={() => void callItemAction(selectedItem.id, 'delete')}
+                onRun={selectedItem.kind === 'eval' ? (() => void callItemAction(selectedItem.id, 'run')) : null}
+              />
             </div>
           )}
-        </>
+        </div>
       )}
 
       {showModal && (
