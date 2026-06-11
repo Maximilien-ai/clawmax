@@ -58,6 +58,7 @@ export interface GuardrailRecord {
   description: string
   tags: string[]
   enabled: boolean
+  archived?: boolean
   createdAt: string
   updatedAt: string
   document?: PluginDocument | null
@@ -90,6 +91,7 @@ export interface EvalRecord {
   description: string
   tags: string[]
   enabled: boolean
+  archived?: boolean
   createdAt: string
   updatedAt: string
   document?: PluginDocument | null
@@ -132,4 +134,24 @@ export function matchesPluginSearch(item: PluginRecord, query: string): boolean 
       : [...item.target.ids, item.experiment.input, item.experiment.candidateOutput, item.experiment.expectedOutput, item.experiment.judge],
   ].join(' ').toLowerCase()
   return haystack.includes(normalized)
+}
+
+export function formatPluginScopeSummary(item: PluginRecord): string {
+  if (item.kind === 'guardrail') {
+    return `${item.appliesTo.agents.length} agents · ${item.appliesTo.workflows.length} workflows · ${item.appliesTo.groups.length} groups · ${item.appliesTo.communities.length} communities`
+  }
+  return `${item.target.type} · ${item.target.ids.length} targets · ${item.runs.length} runs`
+}
+
+export function formatPluginUpdatedAt(item: PluginRecord): string {
+  const value = item.updatedAt || item.createdAt
+  if (!value) return 'unknown'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'unknown'
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'UTC',
+  })
 }

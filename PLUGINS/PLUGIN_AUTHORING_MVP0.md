@@ -4,7 +4,7 @@ This guide is for users or AI coding assistants creating a new ClawMax plugin.
 
 ## Minimum Steps
 
-1. Create a plugin directory under `SYSTEM/dashboard/plugins/<plugin-slug>/`
+1. Create a plugin directory under `PLUGINS/<collection>/<plugin-slug>/` or use a standalone plugin repo root
 2. Add `clawmax-plugin.json`
 3. Add optional `templates/*.json`
 4. Restart the dashboard or refresh the app
@@ -17,6 +17,13 @@ CLAWMAX_ENABLED_PLUGINS=plugin-slug
 ```
 
 For local development, prefer setting that in `SYSTEM/dashboard/.env` instead of shell startup files or committed repo config.
+
+If you are iterating on a standalone private plugin repo, add its absolute repo path to:
+
+```bash
+CLAWMAX_PLUGIN_PATHS=/absolute/path/to/private-plugin-repo
+CLAWMAX_ENABLED_PLUGINS=plugin-slug
+```
 
 If you need to regression-test the host with zero plugins loaded, set:
 

@@ -23,6 +23,7 @@ const originalHome = process.env.HOME
 const originalTestWorkspace = process.env.CLAWMAX_TEST_WORKSPACE
 const originalEnabledPlugins = process.env.CLAWMAX_ENABLED_PLUGINS
 const originalDisableDefaultPlugins = process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS
+const originalPluginPaths = process.env.CLAWMAX_PLUGIN_PATHS
 
 function test(name: string, fn: () => void | Promise<void>) {
   return Promise.resolve()
@@ -87,15 +88,18 @@ async function run() {
   process.env.CLAWMAX_TEST_WORKSPACE = tempWorkspace
   process.env.HOME = tempHome
   process.env.CLAWMAX_ENABLED_PLUGINS = 'plugin-lab-guardrails,plugin-lab-evals'
+  process.env.CLAWMAX_PLUGIN_PATHS = ''
   delete process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS
   resetWorkspaceManagerForTests()
 
   await test('plugin index returns empty when default plugins are disabled', async () => {
     const previousEnabled = process.env.CLAWMAX_ENABLED_PLUGINS
     const previousDisableDefaults = process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS
-    delete process.env.CLAWMAX_ENABLED_PLUGINS
-    process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS = 'true'
+    const previousPluginPaths = process.env.CLAWMAX_PLUGIN_PATHS
     const handler = getRouteHandler('get', '/')
+    process.env.CLAWMAX_ENABLED_PLUGINS = ''
+    process.env.CLAWMAX_PLUGIN_PATHS = ''
+    process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS = 'true'
     const res = makeRes()
     await handler(makeReq(), res)
     assert.strictEqual(res.statusCode, 200, 'Expected plugin index route success without enabled plugins')
@@ -104,10 +108,15 @@ async function run() {
     else process.env.CLAWMAX_ENABLED_PLUGINS = previousEnabled
     if (typeof previousDisableDefaults === 'undefined') delete process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS
     else process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS = previousDisableDefaults
+    if (typeof previousPluginPaths === 'undefined') delete process.env.CLAWMAX_PLUGIN_PATHS
+    else process.env.CLAWMAX_PLUGIN_PATHS = previousPluginPaths
   })
 
   await test('plugin index lists configured plugins', async () => {
     const handler = getRouteHandler('get', '/')
+    process.env.CLAWMAX_ENABLED_PLUGINS = 'plugin-lab-guardrails,plugin-lab-evals'
+    process.env.CLAWMAX_PLUGIN_PATHS = ''
+    delete process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS
     const res = makeRes()
     await handler(makeReq(), res)
 
@@ -119,6 +128,9 @@ async function run() {
 
   await test('plugin CRUD and document routes work for guardrails', async () => {
     const createHandler = getRouteHandler('post', '/:pluginId/items')
+    process.env.CLAWMAX_ENABLED_PLUGINS = 'plugin-lab-guardrails,plugin-lab-evals'
+    process.env.CLAWMAX_PLUGIN_PATHS = ''
+    delete process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS
     const createRes = makeRes()
     await createHandler(makeReq({
       params: { pluginId: 'plugin-lab-guardrails' },
@@ -135,6 +147,17 @@ async function run() {
     const itemId = createRes.jsonBody?.item?.id
     assert(itemId, 'Expected created plugin item id')
 
+    const updateHandler = getRouteHandler('put', '/:pluginId/items/:itemId', false)
+    const updateRes = makeRes()
+    await updateHandler(makeReq({
+      params: { pluginId: 'plugin-lab-guardrails', itemId },
+      body: {
+        archived: true,
+      },
+    }), updateRes)
+    assert.strictEqual(updateRes.statusCode, 200, 'Expected plugin item update success')
+    assert.strictEqual(updateRes.jsonBody?.item?.archived, true, 'Expected archive flag to persist through update')
+
     const listHandler = getRouteHandler('get', '/:pluginId/items', false)
     const listRes = makeRes()
     await listHandler(makeReq({ params: { pluginId: 'plugin-lab-guardrails' } }), listRes)
@@ -150,6 +173,9 @@ async function run() {
 
   await test('plugin run route executes eval items and rejects unknown plugins', async () => {
     const createHandler = getRouteHandler('post', '/:pluginId/items')
+    process.env.CLAWMAX_ENABLED_PLUGINS = 'plugin-lab-guardrails,plugin-lab-evals'
+    process.env.CLAWMAX_PLUGIN_PATHS = ''
+    delete process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS
     const createRes = makeRes()
     await createHandler(makeReq({
       params: { pluginId: 'plugin-lab-evals' },
@@ -182,6 +208,9 @@ async function run() {
 
   await test('plugin templates list and apply routes work', async () => {
     const listTemplates = getRouteHandler('get', '/:pluginId/templates', false)
+    process.env.CLAWMAX_ENABLED_PLUGINS = 'plugin-lab-guardrails,plugin-lab-evals'
+    process.env.CLAWMAX_PLUGIN_PATHS = ''
+    delete process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS
     const templatesRes = makeRes()
     await listTemplates(makeReq({ params: { pluginId: 'plugin-lab-guardrails' } }), templatesRes)
     assert.strictEqual(templatesRes.statusCode, 200, 'Expected template list success')
@@ -204,6 +233,8 @@ async function run() {
   else process.env.CLAWMAX_ENABLED_PLUGINS = originalEnabledPlugins
   if (typeof originalDisableDefaultPlugins === 'undefined') delete process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS
   else process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS = originalDisableDefaultPlugins
+  if (typeof originalPluginPaths === 'undefined') delete process.env.CLAWMAX_PLUGIN_PATHS
+  else process.env.CLAWMAX_PLUGIN_PATHS = originalPluginPaths
   resetWorkspaceManagerForTests()
   fs.rmSync(tempWorkspace, { recursive: true, force: true })
   fs.rmSync(tempHome, { recursive: true, force: true })
@@ -232,6 +263,8 @@ run().catch((err) => {
   else process.env.CLAWMAX_ENABLED_PLUGINS = originalEnabledPlugins
   if (typeof originalDisableDefaultPlugins === 'undefined') delete process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS
   else process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS = originalDisableDefaultPlugins
+  if (typeof originalPluginPaths === 'undefined') delete process.env.CLAWMAX_PLUGIN_PATHS
+  else process.env.CLAWMAX_PLUGIN_PATHS = originalPluginPaths
   resetWorkspaceManagerForTests()
   console.error(err)
   process.exit(1)

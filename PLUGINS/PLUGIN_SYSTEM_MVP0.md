@@ -18,13 +18,14 @@ This document defines the first plugin contract for ClawMax Dashboard.
 
 The dashboard host loads plugin manifests from:
 
-- `SYSTEM/dashboard/plugins/*/clawmax-plugin.json`
+- `PLUGINS/**/clawmax-plugin.json`
 - Any extra local directories listed in `CLAWMAX_PLUGIN_PATHS`
 
 Optional filtering:
 
 - Set `CLAWMAX_ENABLED_PLUGINS=plugin-lab-guardrails,plugin-lab-evals` in local `SYSTEM/dashboard/.env`
 - Set `CLAWMAX_DISABLE_DEFAULT_PLUGINS=true` in local `SYSTEM/dashboard/.env` to force a zero-plugin runtime for regression checks
+- Set `CLAWMAX_PLUGIN_PATHS=/absolute/path/to/plugin-repo-a:/absolute/path/to/plugin-repo-b` to load private plugins directly from local repo roots during development
 
 Default behavior:
 
@@ -145,7 +146,7 @@ Each plugin repo should converge on the same layout:
     └── validate-plugin.sh
 ```
 
-For MVP0, the host can ship local manifests for test plugins. On active plugin branches they may be enabled by default for faster testing, while release branches should keep them dormant or explicitly disabled. The long-term goal is for a plugin repo manifest to become the canonical source when a real plugin is ready.
+For MVP0, the host can ship local manifests for test plugins under `PLUGINS/test`. Private or product-specific plugins can be loaded from local repo roots via `CLAWMAX_PLUGIN_PATHS`. The long-term goal is for each plugin repo manifest to be the canonical source when a real plugin is ready.
 
 ## Test Requirements
 
@@ -183,6 +184,7 @@ Use local `SYSTEM/dashboard/.env` to force-enable or force-disable test plugins 
 
 ```bash
 CLAWMAX_ENABLED_PLUGINS=plugin-lab-guardrails,plugin-lab-evals
+# CLAWMAX_PLUGIN_PATHS=/absolute/path/to/plugin-repo-a:/absolute/path/to/plugin-repo-b
 # CLAWMAX_DISABLE_DEFAULT_PLUGINS=true
 ```
 

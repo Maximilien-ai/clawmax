@@ -7,13 +7,15 @@ import {
   headerSecondaryButtonIdleClass,
 } from '../lib/headerControls'
 import type { PluginManifest, PluginRecord, PluginRecordTemplate, PluginWorkspaceContext } from '../lib/plugins'
-import { collectPluginTags, matchesPluginSearch } from '../lib/plugins'
+import { collectPluginTags, formatPluginScopeSummary, formatPluginUpdatedAt, matchesPluginSearch } from '../lib/plugins'
 
 type Props = {
   plugin: PluginManifest
   isActive?: boolean
   onNavigateToDoc?: (path: string) => void
 }
+
+type ArchiveTab = 'active' | 'archived'
 
 function PluginIcon({ plugin }: { plugin: PluginManifest }) {
   if (plugin.objectKind === 'guardrail') {
@@ -378,6 +380,7 @@ function ItemCard({
   onNotify,
   onRun,
   onOpenDoc,
+  onArchiveToggle,
 }: {
   plugin: PluginManifest
   item: PluginRecord
@@ -388,29 +391,87 @@ function ItemCard({
   onNotify: () => void
   onRun: (() => void) | null
   onOpenDoc: (() => void) | null
+  onArchiveToggle: () => void
 }) {
-  const commonSummary = item.kind === 'guardrail'
-    ? `${item.appliesTo.agents.length} agents · ${item.appliesTo.workflows.length} workflows`
-    : `${item.target.type} · ${item.target.ids.length} targets`
+  const commonSummary = formatPluginScopeSummary(item)
+  const archived = item.archived === true
+  const [showActions, setShowActions] = useState(false)
+  const detailLines = item.kind === 'guardrail'
+    ? [
+        item.appliesTo.agents.length > 0 ? `Agents: ${item.appliesTo.agents.join(', ')}` : '',
+        item.appliesTo.workflows.length > 0 ? `Workflows: ${item.appliesTo.workflows.join(', ')}` : '',
+        item.appliesTo.groups.length > 0 ? `Groups: ${item.appliesTo.groups.join(', ')}` : '',
+        item.appliesTo.communities.length > 0 ? `Communities: ${item.appliesTo.communities.join(', ')}` : '',
+        item.controls.allowedSkills.length > 0 ? `Allowed skills: ${item.controls.allowedSkills.join(', ')}` : '',
+      ].filter(Boolean)
+    : [
+        `Target type: ${item.target.type}`,
+        item.target.ids.length > 0 ? `Targets: ${item.target.ids.join(', ')}` : '',
+        `Judge: ${item.experiment.judge === 'ai' ? 'AI placeholder' : 'Fixed heuristic'}`,
+        item.experiment.input ? `Input: ${item.experiment.input}` : '',
+        item.experiment.expectedOutput ? `Expected: ${item.experiment.expectedOutput}` : '',
+      ].filter(Boolean)
 
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md dark:border-gray-700 dark:bg-gray-900/60">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <div className={`rounded-full px-2 py-0.5 text-xs font-medium ${item.enabled ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}>
-              {item.enabled ? 'Enabled' : 'Disabled'}
+            <div className="rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-700 dark:bg-sky-900/30 dark:text-sky-300">
+              {item.kind === 'guardrail' ? 'Guardrail' : 'Eval'}
             </div>
-            <div className="text-xs text-gray-400">{commonSummary}</div>
+            <div className={`rounded-full px-2 py-0.5 text-xs font-medium ${archived ? 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' : item.enabled ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}>
+              {archived ? 'Archived' : item.enabled ? 'Enabled' : 'Disabled'}
+            </div>
           </div>
+          <div className="mt-2 text-xs text-gray-400">{commonSummary}</div>
           <h3 className="mt-2 truncate text-base font-semibold text-gray-900 dark:text-gray-100">{item.name}</h3>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{item.description || 'No description yet.'}</p>
+          <div className="mt-2 text-xs text-gray-400">
+            Updated {formatPluginUpdatedAt(item)}
+            {item.document?.path ? ' · doc ready' : ''}
+          </div>
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <button onClick={onEdit} className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 dark:border-gray-600 dark:text-gray-300">Edit</button>
-          <button onClick={onToggle} className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 dark:border-gray-600 dark:text-gray-300">{item.enabled ? 'Disable' : 'Enable'}</button>
-          {onRun && (
-            <button onClick={onRun} className="rounded-lg bg-sky-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-sky-700">Run</button>
+        <div className="relative">
+          <button
+            onClick={() => setShowActions((current) => !current)}
+            className={`${headerSecondaryButtonClass} ${headerSecondaryButtonIdleClass} h-9 px-2.5`}
+            aria-label="Open plugin item actions"
+          >
+            <ProductIconCell iconName="ai" label="Actions" size="sm" className="border-transparent bg-transparent text-current" />
+            Actions
+            <span className="text-xs">▾</span>
+          </button>
+          {showActions && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setShowActions(false)} />
+              <div className="absolute right-0 z-20 mt-2 w-48 rounded-xl border border-gray-200 bg-white p-1 shadow-lg dark:border-gray-700 dark:bg-gray-900">
+                <button onClick={() => { setShowActions(false); onEdit() }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800">
+                  <ProductIconCell iconName="edit" label="Edit" size="sm" className="border-transparent bg-transparent text-current" />
+                  Edit
+                </button>
+                <button onClick={() => { setShowActions(false); onToggle() }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800">
+                  <ProductIconCell iconName="status" label="Toggle" size="sm" className="border-transparent bg-transparent text-current" />
+                  {item.enabled ? 'Disable' : 'Enable'}
+                </button>
+                <button onClick={() => { setShowActions(false); onArchiveToggle() }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800">
+                  <ProductIconCell iconName={archived ? 'restore' : 'archive'} label={archived ? 'Restore' : 'Archive'} size="sm" className="border-transparent bg-transparent text-current" />
+                  {archived ? 'Restore' : 'Archive'}
+                </button>
+                <button onClick={() => { setShowActions(false); onGenerateDoc() }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800">
+                  <ProductIconCell iconName="docs" label="Generate Doc" size="sm" className="border-transparent bg-transparent text-current" />
+                  Generate Doc
+                </button>
+                <button onClick={() => { setShowActions(false); onNotify() }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800">
+                  <ProductIconCell iconName="communication" label="Notify" size="sm" className="border-transparent bg-transparent text-current" />
+                  Notify
+                </button>
+                <button onClick={() => { setShowActions(false); onDelete() }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/20">
+                  <ProductIconCell iconName="delete" label="Delete" size="sm" className="border-transparent bg-transparent text-current" />
+                  Delete
+                </button>
+              </div>
+            </>
           )}
         </div>
       </div>
@@ -421,17 +482,38 @@ function ItemCard({
           <span className="text-xs text-gray-400">No tags</span>
         )}
       </div>
-      <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-        <button onClick={onGenerateDoc} className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 dark:border-gray-600 dark:text-gray-300">Generate Doc</button>
-        <button onClick={onNotify} className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 dark:border-gray-600 dark:text-gray-300">Notify</button>
-        <button onClick={onDelete} className="rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-600 dark:border-red-900/40 dark:text-red-300">Delete</button>
+      <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50/80 px-3 py-3 dark:border-gray-800 dark:bg-gray-950/40">
+        <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">More</div>
+        <div className="mt-2 space-y-1.5 text-sm text-gray-600 dark:text-gray-300">
+          {detailLines.length > 0 ? detailLines.map((line) => (
+            <p key={line} className="break-words">{line}</p>
+          )) : (
+            <p className="text-gray-400 dark:text-gray-500">No additional details yet.</p>
+          )}
+        </div>
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">
         <button
           onClick={onOpenDoc || undefined}
           disabled={!onOpenDoc}
-          className={`rounded-lg px-3 py-2 text-sm font-medium ${onOpenDoc ? 'border border-gray-300 text-gray-700 dark:border-gray-600 dark:text-gray-300' : 'cursor-not-allowed border border-gray-200 text-gray-400 dark:border-gray-800 dark:text-gray-600'}`}
+          className={`${headerSecondaryButtonClass} h-10 ${onOpenDoc ? headerSecondaryButtonIdleClass : 'cursor-not-allowed border border-gray-200 bg-gray-100 text-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-600'}`}
         >
+          <ProductIconCell iconName="docs" label="Open Doc" size="sm" className="border-transparent bg-transparent text-current" />
           Open Doc
         </button>
+        <button
+          onClick={onGenerateDoc}
+          className={`${headerSecondaryButtonClass} ${headerSecondaryButtonIdleClass} h-10`}
+        >
+          <ProductIconCell iconName="docs" label="Generate Doc" size="sm" className="border-transparent bg-transparent text-current" />
+          Generate Doc
+        </button>
+        {onRun && (
+          <button onClick={onRun} className={`${headerPrimaryButtonClass} h-10`}>
+            <ProductIconCell iconName="play" label="Run Eval" size="sm" className="border-white/20 bg-white/10 text-white" />
+            Run Eval
+          </button>
+        )}
       </div>
       {item.kind === 'eval' && item.lastRun && (
         <div className="mt-4 rounded-xl border border-violet-200 bg-violet-50 px-3 py-3 dark:border-violet-900/40 dark:bg-violet-900/10">
@@ -490,6 +572,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
   const [search, setSearch] = useState('')
   const [selectedTag, setSelectedTag] = useState<string>('all')
   const [statusFilter, setStatusFilter] = useState<'all' | 'enabled' | 'disabled'>('all')
+  const [archiveTab, setArchiveTab] = useState<ArchiveTab>('active')
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<PluginRecord | null>(null)
 
@@ -524,14 +607,19 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
   const tags = useMemo(() => collectPluginTags(items), [items])
   const filtered = useMemo(
     () => items.filter((item) => {
+      const archived = item.archived === true
+      if (archiveTab === 'active' && archived) return false
+      if (archiveTab === 'archived' && !archived) return false
       if (selectedTag !== 'all' && !item.tags.includes(selectedTag)) return false
       if (statusFilter === 'enabled' && !item.enabled) return false
       if (statusFilter === 'disabled' && item.enabled) return false
       return matchesPluginSearch(item, search)
     }),
-    [items, search, selectedTag, statusFilter]
+    [items, search, selectedTag, statusFilter, archiveTab]
   )
   const recommendedTemplates = useMemo(() => templates.filter((entry) => entry.recommended !== false), [templates])
+  const activeCount = useMemo(() => items.filter((item) => item.archived !== true).length, [items])
+  const archivedCount = useMemo(() => items.filter((item) => item.archived === true).length, [items])
 
   const saveItem = async (draft: Partial<PluginRecord>) => {
     const isEdit = Boolean(draft.id)
@@ -602,6 +690,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
             <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
               <span className="rounded-full bg-gray-100 px-2 py-1 dark:bg-gray-800">v{plugin.version}</span>
               <span className="rounded-full bg-gray-100 px-2 py-1 dark:bg-gray-800">workspace-scoped</span>
+              <span className="rounded-full bg-gray-100 px-2 py-1 dark:bg-gray-800">{filtered.length} shown</span>
             </div>
           </div>
           <div className="grid gap-2 sm:grid-cols-2 lg:min-w-[360px]">
@@ -630,6 +719,18 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
             className="w-full rounded-xl border border-sky-300 bg-white px-4 py-3 text-sm text-gray-900 shadow-sm outline-none ring-0 focus:border-sky-500 dark:border-sky-800 dark:bg-gray-950 dark:text-gray-100"
           />
           <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setArchiveTab('active')}
+              className={`${headerSecondaryButtonClass} ${archiveTab === 'active' ? headerSecondaryButtonActiveClass : headerSecondaryButtonIdleClass}`}
+            >
+              Active
+            </button>
+            <button
+              onClick={() => setArchiveTab('archived')}
+              className={`${headerSecondaryButtonClass} ${archiveTab === 'archived' ? headerSecondaryButtonActiveClass : headerSecondaryButtonIdleClass}`}
+            >
+              Archived
+            </button>
             <button
               onClick={() => setStatusFilter('all')}
               className={`${headerSecondaryButtonClass} ${statusFilter === 'all' ? headerSecondaryButtonActiveClass : headerSecondaryButtonIdleClass}`}
@@ -670,11 +771,12 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
       <div className="mt-6 grid gap-4 sm:grid-cols-3">
         <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900/40">
           <div className="text-xs uppercase tracking-wide text-gray-400">Objects</div>
-          <div className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">{items.length}</div>
+          <div className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">{activeCount}</div>
+          <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{archivedCount} archived</div>
         </div>
         <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900/40">
           <div className="text-xs uppercase tracking-wide text-gray-400">Enabled</div>
-          <div className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">{items.filter((item) => item.enabled).length}</div>
+          <div className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">{items.filter((item) => item.enabled && item.archived !== true).length}</div>
         </div>
         <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900/40">
           <div className="text-xs uppercase tracking-wide text-gray-400">Templates</div>
@@ -727,6 +829,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
               onNotify={() => void callItemAction(item.id, 'notify')}
               onRun={item.kind === 'eval' ? (() => void callItemAction(item.id, 'run')) : null}
               onOpenDoc={item.document?.path && onNavigateToDoc ? (() => onNavigateToDoc(item.document!.path)) : null}
+              onArchiveToggle={() => void saveItem({ ...item, archived: item.archived !== true } as Partial<PluginRecord>)}
             />
           ))}
         </div>

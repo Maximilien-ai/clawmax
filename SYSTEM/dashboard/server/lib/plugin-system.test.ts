@@ -36,6 +36,7 @@ const originalHome = process.env.HOME
 const originalTestWorkspace = process.env.CLAWMAX_TEST_WORKSPACE
 const originalEnabledPlugins = process.env.CLAWMAX_ENABLED_PLUGINS
 const originalDisableDefaultPlugins = process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS
+const originalPluginPaths = process.env.CLAWMAX_PLUGIN_PATHS
 
 function test(name: string, fn: () => void | Promise<void>) {
   return Promise.resolve()
@@ -112,6 +113,7 @@ async function run() {
   process.env.CLAWMAX_TEST_WORKSPACE = tempWorkspace
   process.env.HOME = tempHome
   process.env.CLAWMAX_ENABLED_PLUGINS = 'plugin-lab-guardrails,plugin-lab-evals'
+  process.env.CLAWMAX_PLUGIN_PATHS = ''
   delete process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS
   resetWorkspaceManagerForTests()
   seedWorkspaceFiles(tempWorkspace, tempHome)
@@ -139,6 +141,62 @@ async function run() {
     assert(plugins.every((plugin) => plugin.capabilities?.notifications && plugin.capabilities?.docs), 'Expected plugins to declare core host capabilities')
   })
 
+  await test('plugin paths can point directly at a standalone plugin repo root', () => {
+    const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-direct-plugin-root-'))
+    const previousEnabled = process.env.CLAWMAX_ENABLED_PLUGINS
+    const previousPluginPaths = process.env.CLAWMAX_PLUGIN_PATHS
+    const previousDisableDefaults = process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS
+
+    fs.writeFileSync(path.join(repoRoot, 'clawmax-plugin.json'), JSON.stringify({
+      id: 'standalone-memory-plugin',
+      slug: 'standalone-memory-plugin',
+      name: 'Standalone Memory Plugin',
+      description: 'Loads from a direct repo root path.',
+      version: '0.1.0-mvp0',
+      icon: 'database',
+      objectKind: 'guardrail',
+      visibility: 'private',
+      enabledByDefault: false,
+      source: {
+        type: 'github',
+        owner: 'example',
+        repo: 'standalone-memory-plugin',
+        url: 'https://example.invalid/standalone-memory-plugin',
+        branch: 'main',
+      },
+      nav: {
+        section: 'plugins',
+        order: 30,
+      },
+      capabilities: {
+        notifications: true,
+        docs: true,
+        agents: true,
+        workflows: true,
+        communications: true,
+      },
+      labels: {
+        singular: 'Memory Rule',
+        plural: 'Memory Rules',
+      },
+    }, null, 2), 'utf-8')
+
+    process.env.CLAWMAX_PLUGIN_PATHS = repoRoot
+    process.env.CLAWMAX_ENABLED_PLUGINS = 'standalone-memory-plugin'
+    delete process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS
+
+    const plugins = listConfiguredPlugins()
+    assert(plugins.some((plugin) => plugin.slug === 'standalone-memory-plugin'), 'Expected standalone repo root plugin to load')
+
+    fs.rmSync(repoRoot, { recursive: true, force: true })
+    if (typeof previousEnabled === 'undefined') delete process.env.CLAWMAX_ENABLED_PLUGINS
+    else process.env.CLAWMAX_ENABLED_PLUGINS = previousEnabled
+    if (typeof previousPluginPaths === 'undefined') delete process.env.CLAWMAX_PLUGIN_PATHS
+    else process.env.CLAWMAX_PLUGIN_PATHS = previousPluginPaths
+    if (typeof previousDisableDefaults === 'undefined') delete process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS
+    else process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS = previousDisableDefaults
+  })
+
   await test('guardrail plugin records persist, generate docs, and emit notifications', () => {
     const plugin = getPluginBySlug('plugin-lab-guardrails')
     assert(plugin, 'Expected guardrails test plugin manifest to load')
@@ -164,6 +222,9 @@ async function run() {
 
     assert.strictEqual(created.kind, 'guardrail', 'Expected guardrail record kind')
     assert.strictEqual(listPluginRecords(plugin!).length, 1, 'Expected created guardrail to persist')
+
+    const archived = upsertPluginRecord(plugin!, { ...created, archived: true } as any)
+    assert.strictEqual(archived.archived, true, 'Expected archive flag to persist on plugin records')
 
     const withDoc = generatePluginRecordDocument(plugin!, created.id)
     assert(withDoc?.document?.path === `SYSTEM/plugins/${plugin!.slug}/docs/${created.id}.md`, 'Expected generated guardrail doc path')
@@ -221,6 +282,8 @@ async function run() {
   else process.env.CLAWMAX_ENABLED_PLUGINS = originalEnabledPlugins
   if (typeof originalDisableDefaultPlugins === 'undefined') delete process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS
   else process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS = originalDisableDefaultPlugins
+  if (typeof originalPluginPaths === 'undefined') delete process.env.CLAWMAX_PLUGIN_PATHS
+  else process.env.CLAWMAX_PLUGIN_PATHS = originalPluginPaths
   resetWorkspaceManagerForTests()
   fs.rmSync(tempWorkspace, { recursive: true, force: true })
   fs.rmSync(tempHome, { recursive: true, force: true })
@@ -249,6 +312,8 @@ run().catch((err) => {
   else process.env.CLAWMAX_ENABLED_PLUGINS = originalEnabledPlugins
   if (typeof originalDisableDefaultPlugins === 'undefined') delete process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS
   else process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS = originalDisableDefaultPlugins
+  if (typeof originalPluginPaths === 'undefined') delete process.env.CLAWMAX_PLUGIN_PATHS
+  else process.env.CLAWMAX_PLUGIN_PATHS = originalPluginPaths
   resetWorkspaceManagerForTests()
   console.error(err)
   process.exit(1)

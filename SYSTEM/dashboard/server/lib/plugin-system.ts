@@ -66,6 +66,7 @@ type PluginRecordBase = {
   description: string
   tags: string[]
   enabled: boolean
+  archived?: boolean
   createdAt: string
   updatedAt: string
   document?: PluginDocument | null
@@ -120,7 +121,7 @@ export interface PluginWorkspaceContext {
   communities: string[]
 }
 
-const DEFAULT_PLUGIN_ROOT = path.join(REPO_ROOT, 'SYSTEM', 'dashboard', 'plugins')
+const DEFAULT_PLUGIN_ROOT = path.join(REPO_ROOT, 'PLUGINS')
 const PLUGIN_MANIFEST_FILE = 'clawmax-plugin.json'
 const PLUGIN_TEMPLATE_DIR = 'templates'
 
@@ -151,6 +152,11 @@ function readJsonFile<T>(filePath: string): T | null {
   }
 }
 
+type PluginManifestEntry = {
+  directory: string
+  manifest: PluginManifest
+}
+
 function isPluginManifest(value: any): value is PluginManifest {
   return !!value
     && typeof value.id === 'string'
@@ -168,6 +174,56 @@ function isPluginManifest(value: any): value is PluginManifest {
     && typeof value.source.url === 'string'
 }
 
+function discoverPluginManifestEntries(root: string): PluginManifestEntry[] {
+  if (!fs.existsSync(root)) return []
+
+  const seen = new Set<string>()
+  const entries: PluginManifestEntry[] = []
+
+  const visitDirectory = (directory: string, depth: number) => {
+    if (depth > 2 || seen.has(directory)) return
+    seen.add(directory)
+
+    const manifestPath = path.join(directory, PLUGIN_MANIFEST_FILE)
+    const manifest = readJsonFile<PluginManifest>(manifestPath)
+    if (isPluginManifest(manifest)) {
+      entries.push({ directory, manifest })
+      return
+    }
+
+    let children: fs.Dirent[] = []
+    try {
+      children = fs.readdirSync(directory, { withFileTypes: true })
+    } catch {
+      return
+    }
+
+    for (const child of children) {
+      if (!child.isDirectory()) continue
+      if (child.name.startsWith('.')) continue
+      visitDirectory(path.join(directory, child.name), depth + 1)
+    }
+  }
+
+  visitDirectory(root, 0)
+  return entries
+}
+
+function listDiscoveredPluginEntries(): PluginManifestEntry[] {
+  const seenDirectories = new Set<string>()
+  const discovered: PluginManifestEntry[] = []
+
+  for (const root of getPluginRoots()) {
+    for (const entry of discoverPluginManifestEntries(root)) {
+      if (seenDirectories.has(entry.directory)) continue
+      seenDirectories.add(entry.directory)
+      discovered.push(entry)
+    }
+  }
+
+  return discovered
+}
+
 export function listConfiguredPlugins(): PluginManifest[] {
   const disableDefaults = String(process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS || '').trim().toLowerCase() === 'true'
   const enabledFilter = new Set(
@@ -175,23 +231,16 @@ export function listConfiguredPlugins(): PluginManifest[] {
   )
   const manifests: PluginManifest[] = []
 
-  for (const root of getPluginRoots()) {
-    if (!fs.existsSync(root)) continue
-    const entries = fs.readdirSync(root, { withFileTypes: true })
-    for (const entry of entries) {
-      if (!entry.isDirectory()) continue
-      const manifestPath = path.join(root, entry.name, PLUGIN_MANIFEST_FILE)
-      const manifest = readJsonFile<PluginManifest>(manifestPath)
-      if (!isPluginManifest(manifest)) continue
-      if (enabledFilter.size > 0) {
-        if (!enabledFilter.has(manifest.slug) && !enabledFilter.has(manifest.id)) continue
-      } else if (disableDefaults) {
-        continue
-      } else if (manifest.enabledByDefault !== true) {
-        continue
-      }
-      manifests.push(manifest)
+  for (const entry of listDiscoveredPluginEntries()) {
+    const manifest = entry.manifest
+    if (enabledFilter.size > 0) {
+      if (!enabledFilter.has(manifest.slug) && !enabledFilter.has(manifest.id)) continue
+    } else if (disableDefaults) {
+      continue
+    } else if (manifest.enabledByDefault !== true) {
+      continue
     }
+    manifests.push(manifest)
   }
 
   return manifests.sort(sortPlugins)
@@ -202,20 +251,9 @@ export function getPluginBySlug(slug: string): PluginManifest | null {
 }
 
 function findPluginDirectory(plugin: PluginManifest): string | null {
-  for (const root of getPluginRoots()) {
-    const candidate = path.join(root, plugin.slug)
-    if (fs.existsSync(path.join(candidate, PLUGIN_MANIFEST_FILE))) return candidate
-  }
-  for (const root of getPluginRoots()) {
-    if (!fs.existsSync(root)) continue
-    const entries = fs.readdirSync(root, { withFileTypes: true })
-    for (const entry of entries) {
-      if (!entry.isDirectory()) continue
-      const manifestPath = path.join(root, entry.name, PLUGIN_MANIFEST_FILE)
-      const manifest = readJsonFile<PluginManifest>(manifestPath)
-      if (manifest?.slug === plugin.slug || manifest?.id === plugin.id) {
-        return path.join(root, entry.name)
-      }
+  for (const entry of listDiscoveredPluginEntries()) {
+    if (entry.manifest.slug === plugin.slug || entry.manifest.id === plugin.id) {
+      return entry.directory
     }
   }
   return null
@@ -248,6 +286,7 @@ function normalizeRecord(plugin: PluginManifest, value: any): PluginRecord | nul
       description: String(value.description || '').trim(),
       tags: uniq(Array.isArray(value.tags) ? value.tags.map(String) : []),
       enabled: value.enabled !== false,
+      archived: value.archived === true,
       createdAt: String(value.createdAt || '').trim(),
       updatedAt: String(value.updatedAt || '').trim(),
       document: value.document || null,
@@ -283,10 +322,11 @@ function normalizeRecord(plugin: PluginManifest, value: any): PluginRecord | nul
     kind: 'eval',
     name: String(value.name || '').trim(),
     description: String(value.description || '').trim(),
-    tags: uniq(Array.isArray(value.tags) ? value.tags.map(String) : []),
-    enabled: value.enabled !== false,
-    createdAt: String(value.createdAt || '').trim(),
-    updatedAt: String(value.updatedAt || '').trim(),
+      tags: uniq(Array.isArray(value.tags) ? value.tags.map(String) : []),
+      enabled: value.enabled !== false,
+      archived: value.archived === true,
+      createdAt: String(value.createdAt || '').trim(),
+      updatedAt: String(value.updatedAt || '').trim(),
     document: value.document || null,
     target: {
       type: value.target?.type === 'workflow' || value.target?.type === 'group' ? value.target.type : 'agent',
@@ -461,6 +501,7 @@ function createGuardrailRecord(input: Partial<GuardrailRecord>): GuardrailRecord
     description: String(input.description || '').trim(),
     tags: uniq(Array.isArray(input.tags) ? input.tags.map(String) : []),
     enabled: input.enabled !== false,
+    archived: input.archived === true,
     createdAt: input.createdAt || now,
     updatedAt: now,
     document: input.document || null,
@@ -488,6 +529,7 @@ function createEvalRecord(input: Partial<EvalRecord>): EvalRecord {
     description: String(input.description || '').trim(),
     tags: uniq(Array.isArray(input.tags) ? input.tags.map(String) : []),
     enabled: input.enabled !== false,
+    archived: input.archived === true,
     createdAt: input.createdAt || now,
     updatedAt: now,
     document: input.document || null,

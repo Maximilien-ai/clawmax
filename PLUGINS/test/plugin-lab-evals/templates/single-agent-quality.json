@@ -1,0 +1,24 @@
+{
+  "id": "single-agent-quality",
+  "name": "Single-agent response quality",
+  "description": "A starter eval to score one agent's response against an expected answer.",
+  "recommended": true,
+  "tags": ["starter", "agent", "quality"],
+  "payload": {
+    "kind": "eval",
+    "name": "Single-agent response quality",
+    "description": "Compare one agent response against expected output using a starter heuristic judge.",
+    "enabled": true,
+    "tags": ["starter", "agent", "quality"],
+    "target": {
+      "type": "agent",
+      "ids": []
+    },
+    "experiment": {
+      "input": "Summarize the latest workspace status.",
+      "candidateOutput": "",
+      "expectedOutput": "status summary with clear actions and current state",
+      "judge": "fixed"
+    }
+  }
+}

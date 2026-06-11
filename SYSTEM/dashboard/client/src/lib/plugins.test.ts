@@ -1,4 +1,4 @@
-import { collectPluginTags, matchesPluginSearch, type PluginRecord } from './plugins'
+import { collectPluginTags, formatPluginScopeSummary, formatPluginUpdatedAt, matchesPluginSearch, type PluginRecord } from './plugins'
 
 function assert(condition: boolean, message: string) {
   if (!condition) throw new Error(message)
@@ -76,6 +76,16 @@ test('matchesPluginSearch finds eval experiment fields and rejects nonsense', ()
   assert(matchesPluginSearch(evalRecord, 'agent notes'), 'Expected search to match eval experiment text')
   assert(matchesPluginSearch(evalRecord, 'fixed'), 'Expected search to match judge mode')
   assert(!matchesPluginSearch(evalRecord, 'zzznotfound'), 'Expected nonsense query to miss eval record')
+})
+
+test('formatPluginScopeSummary summarizes guardrails and evals consistently', () => {
+  assert(formatPluginScopeSummary(guardrail) === '1 agents · 1 workflows · 1 groups · 1 communities', 'Expected guardrail scope summary')
+  assert(formatPluginScopeSummary(evalRecord) === 'agent · 1 targets · 0 runs', 'Expected eval scope summary')
+})
+
+test('formatPluginUpdatedAt formats stable dates and guards invalid values', () => {
+  assert(formatPluginUpdatedAt(guardrail) === 'Jun 10, 2026', 'Expected formatted updated date')
+  assert(formatPluginUpdatedAt({ ...guardrail, updatedAt: 'not-a-date' }) === 'unknown', 'Expected invalid dates to be guarded')
 })
 
 if (process.exitCode && process.exitCode !== 0) {

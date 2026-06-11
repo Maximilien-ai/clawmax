@@ -1,0 +1,24 @@
+{
+  "id": "workflow-regression",
+  "name": "Workflow regression check",
+  "description": "A starter eval to compare workflow output against a known expected result.",
+  "recommended": true,
+  "tags": ["starter", "workflow", "regression"],
+  "payload": {
+    "kind": "eval",
+    "name": "Workflow regression check",
+    "description": "Use a repeatable expected output to compare workflow results over time.",
+    "enabled": true,
+    "tags": ["starter", "workflow", "regression"],
+    "target": {
+      "type": "workflow",
+      "ids": []
+    },
+    "experiment": {
+      "input": "Run the workflow and inspect the final output.",
+      "candidateOutput": "",
+      "expectedOutput": "expected workflow output with required handoff and completion markers",
+      "judge": "fixed"
+    }
+  }
+}

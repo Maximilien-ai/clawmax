@@ -7,12 +7,12 @@
   "icon": "shield",
   "objectKind": "guardrail",
   "visibility": "private",
-  "enabledByDefault": true,
+  "enabledByDefault": false,
   "source": {
     "type": "github",
-    "owner": "example",
-    "repo": "plugin-lab-guardrails",
-    "url": "https://example.invalid/plugin-lab-guardrails",
+    "owner": "Maximilien-ai",
+    "repo": "clawmax",
+    "url": "https://github.com/Maximilien-ai/clawmax/tree/main/PLUGINS/test/plugin-lab-guardrails",
     "branch": "main"
   },
   "nav": {

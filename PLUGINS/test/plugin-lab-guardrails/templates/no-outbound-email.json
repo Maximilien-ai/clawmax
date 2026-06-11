@@ -1,0 +1,26 @@
+{
+  "id": "no-outbound-email",
+  "name": "No outbound email",
+  "description": "Block outbound email for targeted agents and workflows by default.",
+  "recommended": true,
+  "tags": ["starter", "email", "safety"],
+  "payload": {
+    "kind": "guardrail",
+    "name": "No outbound email",
+    "description": "Prevent outbound email until the workspace explicitly allows it.",
+    "enabled": true,
+    "tags": ["starter", "email", "safety"],
+    "appliesTo": {
+      "agents": [],
+      "workflows": [],
+      "groups": [],
+      "communities": []
+    },
+    "controls": {
+      "blockEmail": true,
+      "blockWeb": false,
+      "blockExternalDocs": false,
+      "allowedSkills": []
+    }
+  }
+}
