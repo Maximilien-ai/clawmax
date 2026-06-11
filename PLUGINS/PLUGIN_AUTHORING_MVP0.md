@@ -110,6 +110,27 @@ CLAWMAX_DISABLE_DEFAULT_PLUGINS=true
 - Context access to agents, workflows, groups, and communities
 - Recommended templates
 
+## Markdown Item File Contract
+
+Each plugin object should materialize as markdown so it behaves like the rest of ClawMax in DocHub.
+
+MVP0 expectation:
+
+- Store canonical state in `items.json`
+- Also write `items/<item-id>.md`
+- Use YAML front matter for stable metadata
+- Keep the body human-readable for manual review and AI tooling
+
+Recommended front matter fields:
+
+- `plugin`
+- `kind`
+- `id`
+- `name`
+- `status`
+- `updated_at`
+- `tags`
+
 ## Current Limitations
 
 - Shared host UI only

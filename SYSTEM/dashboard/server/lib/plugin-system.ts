@@ -398,6 +398,10 @@ function buildPluginDocPath(plugin: PluginManifest, record: PluginRecord): strin
   return `SYSTEM/plugins/${plugin.slug}/docs/${record.id}.md`
 }
 
+function buildPluginItemPath(plugin: PluginManifest, record: PluginRecord): string {
+  return `SYSTEM/plugins/${plugin.slug}/items/${record.id}.md`
+}
+
 function writePluginDocument(plugin: PluginManifest, record: PluginRecord): PluginDocument {
   ensurePluginStorage(plugin)
   const generatedAt = new Date().toISOString()
@@ -469,6 +473,86 @@ function writePluginDocument(plugin: PluginManifest, record: PluginRecord): Plug
   return {
     path: buildPluginDocPath(plugin, record),
     title: `${record.name} ${plugin.objectKind === 'guardrail' ? 'guardrail' : 'eval'} summary`,
+    generatedAt,
+  }
+}
+
+function writePluginItemFile(plugin: PluginManifest, record: PluginRecord): PluginDocument {
+  ensurePluginStorage(plugin)
+  const generatedAt = new Date().toISOString()
+  const absolutePath = path.join(getWorkspacePath(), buildPluginItemPath(plugin, record))
+  fs.mkdirSync(path.dirname(absolutePath), { recursive: true })
+  const frontmatter = record.kind === 'guardrail'
+    ? [
+        '---',
+        `plugin: ${plugin.slug}`,
+        'kind: guardrail',
+        `id: ${record.id}`,
+        `name: "${String(record.name).replace(/"/g, '\\"')}"`,
+        `status: ${record.archived ? 'archived' : record.enabled ? 'enabled' : 'disabled'}`,
+        `updated_at: ${generatedAt}`,
+        `tags: [${record.tags.map((tag) => `"${String(tag).replace(/"/g, '\\"')}"`).join(', ')}]`,
+        `agents: [${record.appliesTo.agents.map((id) => `"${String(id).replace(/"/g, '\\"')}"`).join(', ')}]`,
+        `workflows: [${record.appliesTo.workflows.map((id) => `"${String(id).replace(/"/g, '\\"')}"`).join(', ')}]`,
+        `groups: [${record.appliesTo.groups.map((id) => `"${String(id).replace(/"/g, '\\"')}"`).join(', ')}]`,
+        `communities: [${record.appliesTo.communities.map((id) => `"${String(id).replace(/"/g, '\\"')}"`).join(', ')}]`,
+        '---',
+      ]
+    : [
+        '---',
+        `plugin: ${plugin.slug}`,
+        'kind: eval',
+        `id: ${record.id}`,
+        `name: "${String(record.name).replace(/"/g, '\\"')}"`,
+        `status: ${record.archived ? 'archived' : record.enabled ? 'enabled' : 'disabled'}`,
+        `updated_at: ${generatedAt}`,
+        `tags: [${record.tags.map((tag) => `"${String(tag).replace(/"/g, '\\"')}"`).join(', ')}]`,
+        `target_type: ${record.target.type}`,
+        `target_ids: [${record.target.ids.map((id) => `"${String(id).replace(/"/g, '\\"')}"`).join(', ')}]`,
+        `judge: ${record.experiment.judge}`,
+        `run_count: ${record.runs.length}`,
+        `last_score: ${record.lastRun ? record.lastRun.score : 'null'}`,
+        '---',
+      ]
+
+  const lines = record.kind === 'guardrail'
+    ? [
+        ...frontmatter,
+        '',
+        `# ${record.name}`,
+        '',
+        record.description || 'No description provided.',
+        '',
+        '## Controls',
+        '',
+        `- Block email: ${record.controls.blockEmail ? 'yes' : 'no'}`,
+        `- Block web: ${record.controls.blockWeb ? 'yes' : 'no'}`,
+        `- Block external docs: ${record.controls.blockExternalDocs ? 'yes' : 'no'}`,
+        `- Allowed skills: ${record.controls.allowedSkills.join(', ') || 'none'}`,
+      ]
+    : [
+        ...frontmatter,
+        '',
+        `# ${record.name}`,
+        '',
+        record.description || 'No description provided.',
+        '',
+        '## Experiment',
+        '',
+        `- Input: ${record.experiment.input || 'none'}`,
+        `- Candidate output: ${record.experiment.candidateOutput || 'none'}`,
+        `- Expected output: ${record.experiment.expectedOutput || 'none'}`,
+        '',
+        '## Usage',
+        '',
+        `- Runs: ${record.runs.length}`,
+        `- Latest score: ${record.lastRun ? `${record.lastRun.score}/100` : 'none'}`,
+      ]
+
+  fs.writeFileSync(absolutePath, `${lines.join('\n').trim()}\n`, 'utf-8')
+  return {
+    path: buildPluginItemPath(plugin, record),
+    title: `${record.name} ${plugin.objectKind === 'guardrail' ? 'guardrail' : 'eval'} record`,
     generatedAt,
   }
 }
@@ -564,6 +648,7 @@ export function upsertPluginRecord(plugin: PluginManifest, input: Partial<Plugin
   if (existingIndex >= 0) records.splice(existingIndex, 1, nextRecord)
   else records.unshift(nextRecord)
   writePluginRecords(plugin, records)
+  writePluginItemFile(plugin, nextRecord)
   return nextRecord
 }
 
@@ -582,9 +667,18 @@ export function applyPluginTemplate(plugin: PluginManifest, templateId: string):
 
 export function deletePluginRecord(plugin: PluginManifest, recordId: string): boolean {
   const records = listPluginRecords(plugin)
+  const current = records.find((record) => record.id === recordId) || null
   const next = records.filter((record) => record.id !== recordId)
   if (next.length === records.length) return false
   writePluginRecords(plugin, next)
+  if (current) {
+    const itemPath = path.join(getWorkspacePath(), buildPluginItemPath(plugin, current))
+    if (fs.existsSync(itemPath)) fs.rmSync(itemPath, { force: true })
+    if (current.document?.path) {
+      const docPath = path.join(getWorkspacePath(), current.document.path)
+      if (fs.existsSync(docPath)) fs.rmSync(docPath, { force: true })
+    }
+  }
   return true
 }
 
@@ -596,6 +690,7 @@ export function generatePluginRecordDocument(plugin: PluginManifest, recordId: s
   const updated = { ...records[index], document, updatedAt: new Date().toISOString() }
   records.splice(index, 1, updated)
   writePluginRecords(plugin, records)
+  writePluginItemFile(plugin, updated)
   emitPluginArtifactNotification(plugin, updated, document)
   return updated
 }
@@ -649,10 +744,12 @@ export function runPluginEval(plugin: PluginManifest, recordId: string): EvalRec
   }
   records.splice(index, 1, updated)
   writePluginRecords(plugin, records)
+  writePluginItemFile(plugin, updated)
   const document = writePluginDocument(plugin, updated)
   updated.document = document
   records.splice(index, 1, updated)
   writePluginRecords(plugin, records)
+  writePluginItemFile(plugin, updated)
   emitPluginArtifactNotification(plugin, updated, document)
   return updated
 }

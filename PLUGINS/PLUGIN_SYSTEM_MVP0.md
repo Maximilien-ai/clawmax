@@ -75,7 +75,15 @@ Per-workspace plugin state lives under:
 Current files:
 
 - `items.json`
+- `items/<item-id>.md`
 - `docs/<item-id>.md`
+
+Plugin item files are part of the contract:
+
+- Every plugin object must have a canonical markdown file at `items/<item-id>.md`
+- The file should be DocHub-openable
+- The file should use YAML front matter for stable machine-readable metadata
+- Generated richer writeups can additionally live under `docs/<item-id>.md`
 
 ## Host Interfaces
 
@@ -127,6 +135,25 @@ Eval records support:
   - `judge`
 - run history
 - latest score summary
+
+## Markdown File Contract
+
+Plugin objects should behave like other first-class ClawMax resources and surface markdown files, not only JSON storage.
+
+Required MVP0 behavior:
+
+- Persist structured data in `items.json`
+- Also materialize a markdown companion file at `items/<item-id>.md`
+- Use YAML front matter for core metadata such as:
+  - `plugin`
+  - `kind`
+  - `id`
+  - `name`
+  - `status`
+  - `updated_at`
+  - `tags`
+- Keep the markdown body human-readable and suitable for DocHub
+- Allow generated summary/docs to remain separate under `docs/<item-id>.md`
 
 ## Repo Structure
 

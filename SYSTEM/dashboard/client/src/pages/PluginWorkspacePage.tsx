@@ -398,7 +398,7 @@ function ItemCard({
   onGenerateDoc: () => void
   onNotify: () => void
   onRun: (() => void) | null
-  onOpenDoc: (() => void) | null
+  onOpenDoc: ((path: string) => void) | null
   onArchiveToggle: () => void
 }) {
   const commonSummary = formatPluginScopeSummary(item)
@@ -459,13 +459,15 @@ function ItemCard({
                   Edit
                 </button>
                 <button onClick={() => { setShowActions(false); onToggle() }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800">
-                  <ProductIconCell iconName="status" label="Toggle" size="sm" className="border-transparent bg-transparent text-current" />
+                  <ProductIconCell iconName="pause" label={item.enabled ? 'Disable' : 'Enable'} size="sm" className="border-transparent bg-transparent text-current" />
                   {item.enabled ? 'Disable' : 'Enable'}
                 </button>
+                <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
                 <button onClick={() => { setShowActions(false); onArchiveToggle() }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800">
                   <ProductIconCell iconName={archived ? 'restore' : 'archive'} label={archived ? 'Restore' : 'Archive'} size="sm" className="border-transparent bg-transparent text-current" />
                   {archived ? 'Restore' : 'Archive'}
                 </button>
+                <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
                 <button onClick={() => { setShowActions(false); onGenerateDoc() }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800">
                   <ProductIconCell iconName="docs" label="Generate Doc" size="sm" className="border-transparent bg-transparent text-current" />
                   Generate Doc
@@ -474,6 +476,13 @@ function ItemCard({
                   <ProductIconCell iconName="communication" label="Notify" size="sm" className="border-transparent bg-transparent text-current" />
                   Notify
                 </button>
+                {onRun && (
+                  <button onClick={() => { setShowActions(false); onRun() }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800">
+                    <ProductIconCell iconName="play" label="Run Eval" size="sm" className="border-transparent bg-transparent text-current" />
+                    Run Eval
+                  </button>
+                )}
+                <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
                 <button onClick={() => { setShowActions(false); onDelete() }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/20">
                   <ProductIconCell iconName="delete" label="Delete" size="sm" className="border-transparent bg-transparent text-current" />
                   Delete
@@ -507,7 +516,7 @@ function ItemCard({
       )}
       <div className="mt-4 flex flex-wrap items-center gap-2">
         <button
-          onClick={onOpenDoc || undefined}
+          onClick={onOpenDoc ? (() => onOpenDoc(`SYSTEM/plugins/${plugin.slug}/items/${item.id}.md`)) : undefined}
           disabled={!onOpenDoc}
           className={`inline-flex h-9 w-9 items-center justify-center rounded-full transition-colors ${
             onOpenDoc
@@ -643,7 +652,7 @@ function PluginDetailsPanel({
   onClose: () => void
   onEdit: () => void
   onGenerateDoc: () => void
-  onOpenDoc: (() => void) | null
+  onOpenDoc: ((path: string) => void) | null
   onNotify: () => void
   onToggle: () => void
   onArchiveToggle: () => void
@@ -651,7 +660,10 @@ function PluginDetailsPanel({
   onRun: (() => void) | null
 }) {
   const archived = item.archived === true
-  const files = item.document?.path ? [item.document.path] : []
+  const files = Array.from(new Set([
+    `SYSTEM/plugins/${plugin.slug}/items/${item.id}.md`,
+    ...(item.document?.path ? [item.document.path] : []),
+  ]))
   const usageTotals = getPluginUsageTotals(item)
   const detailLines = item.kind === 'guardrail'
     ? [
@@ -732,14 +744,6 @@ function PluginDetailsPanel({
               <ProductIconCell iconName="play" label="Run eval" size="sm" className="border-transparent bg-transparent text-current" />
             </button>
           )}
-          <button
-            onClick={onToggle}
-            className="h-9 w-9 inline-flex items-center justify-center rounded-full text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-colors"
-            aria-label={item.enabled ? 'Disable' : 'Enable'}
-            title={item.enabled ? 'Disable' : 'Enable'}
-          >
-            <ProductIconCell iconName="status" label={item.enabled ? 'Disable' : 'Enable'} size="sm" className="border-transparent bg-transparent text-current" />
-          </button>
           <button
             onClick={onArchiveToggle}
             className="h-9 w-9 inline-flex items-center justify-center rounded-full text-amber-500 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors"
@@ -835,7 +839,7 @@ function PluginDetailsPanel({
             {files.length > 0 ? files.map((file) => (
               <button
                 key={file}
-                onClick={() => onOpenDoc?.()}
+                onClick={() => onOpenDoc?.(file)}
                 className="flex w-full items-center justify-between rounded-lg border border-gray-200 px-3 py-2 text-left hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-700/60"
               >
                 <span className="truncate text-sm text-gray-700 dark:text-gray-300">{file}</span>
@@ -1296,13 +1300,15 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                             Edit
                           </button>
                           <button onClick={() => { setActiveCompactActions(null); void callItemAction(item.id, 'toggle') }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800">
-                            <ProductIconCell iconName="status" label="Toggle" size="sm" className="border-transparent bg-transparent text-current" />
+                            <ProductIconCell iconName="pause" label={item.enabled ? 'Disable' : 'Enable'} size="sm" className="border-transparent bg-transparent text-current" />
                             {item.enabled ? 'Disable' : 'Enable'}
                           </button>
+                          <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
                           <button onClick={() => { setActiveCompactActions(null); void saveItem({ ...item, archived: item.archived !== true } as Partial<PluginRecord>) }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800">
                             <ProductIconCell iconName={item.archived ? 'restore' : 'archive'} label={item.archived ? 'Restore' : 'Archive'} size="sm" className="border-transparent bg-transparent text-current" />
                             {item.archived ? 'Restore' : 'Archive'}
                           </button>
+                          <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
                           <button onClick={() => { setActiveCompactActions(null); void callItemAction(item.id, 'document') }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800">
                             <ProductIconCell iconName="docs" label="Generate Doc" size="sm" className="border-transparent bg-transparent text-current" />
                             Generate Doc
@@ -1311,6 +1317,13 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                             <ProductIconCell iconName="communication" label="Notify" size="sm" className="border-transparent bg-transparent text-current" />
                             Notify
                           </button>
+                          {item.kind === 'eval' && (
+                            <button onClick={() => { setActiveCompactActions(null); void callItemAction(item.id, 'run') }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800">
+                              <ProductIconCell iconName="play" label="Run Eval" size="sm" className="border-transparent bg-transparent text-current" />
+                              Run Eval
+                            </button>
+                          )}
+                          <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
                           <button onClick={() => { setActiveCompactActions(null); void callItemAction(item.id, 'delete') }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/20">
                             <ProductIconCell iconName="delete" label="Delete" size="sm" className="border-transparent bg-transparent text-current" />
                             Delete
@@ -1338,7 +1351,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                       onGenerateDoc={() => void callItemAction(item.id, 'document')}
                       onNotify={() => void callItemAction(item.id, 'notify')}
                       onRun={item.kind === 'eval' ? (() => void callItemAction(item.id, 'run')) : null}
-                      onOpenDoc={item.document?.path && onNavigateToDoc ? (() => onNavigateToDoc(item.document!.path)) : null}
+                      onOpenDoc={onNavigateToDoc || null}
                       onArchiveToggle={() => void saveItem({ ...item, archived: item.archived !== true } as Partial<PluginRecord>)}
                     />
                   </div>
@@ -1411,7 +1424,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                 onClose={() => setSelectedItemId(null)}
                 onEdit={() => { setEditing(selectedItem); setShowModal(true) }}
                 onGenerateDoc={() => void callItemAction(selectedItem.id, 'document')}
-                onOpenDoc={selectedItem.document?.path && onNavigateToDoc ? (() => onNavigateToDoc(selectedItem.document!.path)) : null}
+                onOpenDoc={onNavigateToDoc || null}
                 onNotify={() => void callItemAction(selectedItem.id, 'notify')}
                 onToggle={() => void callItemAction(selectedItem.id, 'toggle')}
                 onArchiveToggle={() => void saveItem({ ...selectedItem, archived: selectedItem.archived !== true } as Partial<PluginRecord>)}

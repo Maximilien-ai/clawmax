@@ -222,6 +222,7 @@ async function run() {
 
     assert.strictEqual(created.kind, 'guardrail', 'Expected guardrail record kind')
     assert.strictEqual(listPluginRecords(plugin!).length, 1, 'Expected created guardrail to persist')
+    assert(fs.existsSync(path.join(tempWorkspace, `SYSTEM/plugins/${plugin!.slug}/items/${created.id}.md`)), 'Expected canonical guardrail item file on disk')
 
     const archived = upsertPluginRecord(plugin!, { ...created, archived: true } as any)
     assert.strictEqual(archived.archived, true, 'Expected archive flag to persist on plugin records')
@@ -267,6 +268,7 @@ async function run() {
     assert((evaluated?.lastRun?.tokensOut || 0) > 0, 'Expected eval run tokensOut to be populated')
     assert((evaluated?.lastRun?.costUsd || 0) > 0, 'Expected eval run costUsd to be populated')
     assert(evaluated?.document?.path?.includes(`SYSTEM/plugins/${plugin!.slug}/docs/${created.id}.md`), 'Expected eval run to generate a plugin doc')
+    assert(fs.existsSync(path.join(tempWorkspace, `SYSTEM/plugins/${plugin!.slug}/items/${created.id}.md`)), 'Expected canonical eval item file on disk')
 
     const context = getPluginWorkspaceContext()
     assert(context.agents.some((agent) => agent.id === 'analyst'), 'Expected plugin context to expose workspace agents')
