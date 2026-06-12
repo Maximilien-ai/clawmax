@@ -21,7 +21,11 @@ import { getWorkflowDisplayName } from '../lib/workflowDisplay'
 import { useWorkspace } from '../contexts/WorkspaceContext'
 import { buildWorkspaceScopedPath } from '../lib/workspaceScope'
 import { getViewportSafeDropdownStyle } from '../lib/dropdownPosition'
-import { getWorkflowWorkspaceLoadKey, shouldFetchWorkflowsForWorkspace } from '../lib/workflowLoading'
+import {
+  getWorkflowWorkspaceLoadKey,
+  shouldFetchWorkflowsForWorkspace,
+  shouldRunInitialWorkflowPoll,
+} from '../lib/workflowLoading'
 
 interface AgentTargeting {
   communities: string[]
@@ -441,6 +445,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   } | null>(null)
   const handledInitialWorkflowIdRef = useRef<string | null>(null)
   const loadedWorkflowWorkspaceRef = useRef<string | null>(null)
+  const lastWorkflowFetchStartedAtRef = useRef(0)
 
   useEffect(() => {
     const handleBuilderGenerateWorkflow = (event: Event) => {
@@ -471,6 +476,8 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
 
   const fetchWorkflows = (silent = false) => {
     if (Date.now() < rateLimitedUntil) return
+    lastWorkflowFetchStartedAtRef.current = Date.now()
+    loadedWorkflowWorkspaceRef.current = getWorkflowWorkspaceLoadKey(activeWorkspace?.id)
     if (!silent) setLoading(true)
     fetch('/api/workflows')
       .then(async r => {
@@ -767,14 +774,24 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
       }
     }
 
-    pollWorkflows()
+    const workspaceKey = getWorkflowWorkspaceLoadKey(activeWorkspace?.id)
+    if (shouldRunInitialWorkflowPoll({
+      isActive,
+      workspaceKey,
+      lastLoadedWorkspaceKey: loadedWorkflowWorkspaceRef.current,
+      lastFetchStartedAtMs: lastWorkflowFetchStartedAtRef.current,
+      rateLimitedUntilMs: rateLimitedUntil,
+      nowMs: Date.now(),
+    })) {
+      pollWorkflows()
+    }
     const intervalMs = (viewMode === 'dag' || runningWorkflows.size > 0)
       ? WORKFLOW_ACTIVE_POLL_INTERVAL_MS
       : WORKFLOW_POLL_INTERVAL_MS
     const interval = setInterval(pollWorkflows, intervalMs)
     return () => clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isActive, rateLimitedUntil, markRateLimited, viewMode, runningWorkflows.size])
+  }, [activeWorkspace?.id, isActive, rateLimitedUntil, markRateLimited, viewMode, runningWorkflows.size])
 
   // Handle initialWorkflowId
   useEffect(() => {

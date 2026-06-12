@@ -7,6 +7,17 @@ All notable changes to ClawMax are documented here.
 ### Added
 - **Dormant Plugin Architecture MVP0** — added a host-side plugin contract with runtime discovery, sidebar plugin sections, workspace-scoped plugin storage, shared plugin surfaces, markdown-backed plugin item files, template apply support, and dedicated plugin regression lanes. The shipped host repo includes only dormant test fixtures under `PLUGINS/test`; no customer-facing private plugins are enabled by default.
 
+### Fixed
+- **Agents / Workflows Initial Load Dedupe** — reduced redundant initial fetches on Agents and Workflows so workspace activation no longer immediately double-loads the same surface before normal polling takes over.
+- **Managed Agent Runtime Assets In DocHub** — non-markdown runtime artifacts created inside managed agent workspaces now appear in DocHub and can be opened from notifications instead of failing with false “file not found” errors.
+- **Channel Activity Deep Links** — communication notifications now navigate directly into the target channel chat instead of only switching to the Communications page without opening the referenced conversation.
+
+### Testing
+- Added visible regression coverage for:
+  - `Agent loading helper unit tests`
+  - managed-agent runtime asset visibility in `Workspace DocHub entry filtering`
+  - notification presentation channel-target extraction / footer labeling
+
 ## [v1.8.0] - 2026-06-10
 
 ### Added

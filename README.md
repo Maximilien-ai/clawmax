@@ -23,6 +23,12 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
   - locks dashboard gateway probe handshake identity to an allowed backend/operator shape
   - preserves the 1.7.9 Cognee and Resend partner behavior while adding stronger release-safety coverage before larger UI simplification work
 
+- current `1.8.2` candidate on `main`:
+  - reduces duplicate initial page loads on Agents and Workflows
+  - keeps managed-agent runtime artifacts visible/openable in DocHub
+  - makes communication notifications jump directly into the referenced channel chat
+  - continues the `1.8.x` simplify/optimize theme without widening the public plugin surface
+
 ## ✨ 1.7.x Highlights
 
 - `1.7.9`:

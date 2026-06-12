@@ -48,6 +48,10 @@ fs.writeFileSync(path.join(workspacePath, 'AGENTS', 'cw-items', '.openclaw', 'st
 fs.writeFileSync(path.join(workspacePath, 'WORKFLOWS', 'outputs', 'demo-workflow', 'brief.txt'), 'brief', 'utf-8')
 fs.writeFileSync(path.join(workspacePath, 'WORKFLOWS', 'outputs', 'demo-workflow', 'nested', 'chart.png'), 'png', 'utf-8')
 fs.writeFileSync(path.join(workspacePath, 'WORKFLOWS', 'outputs', 'demo-workflow', '.git', 'config'), '[core]\n', 'utf-8')
+fs.mkdirSync(path.join(workspacePath, 'AGENTS', 'test-agent2'), { recursive: true })
+fs.writeFileSync(path.join(workspacePath, 'AGENTS', 'test-agent2', 'IDENTITY.md'), '# test-agent2', 'utf-8')
+fs.writeFileSync(path.join(workspacePath, 'AGENTS', 'test-agent2', 'test-parallel-b.txt'), 'parallel artifact', 'utf-8')
+fs.mkdirSync(path.join(tmpRoot, '.openclaw', 'agents', 'test-agent2'), { recursive: true })
 
 const previousWorkspace = process.env.OPENCLAW_WORKSPACE
 const previousHome = process.env.HOME
@@ -73,6 +77,16 @@ test('listDocEntries surfaces workflow output assets and nested files', () => {
   assert(brief?.kind === 'asset', `Expected workflow output kind=asset, got ${brief?.kind}`)
   assert(brief?.assetSource === 'generated', `Expected workflow output assetSource=generated, got ${brief?.assetSource}`)
   assert(!paths.some((entry) => entry.includes('WORKFLOWS/outputs/demo-workflow/.git/')), 'Expected hidden workflow output helper dirs to remain hidden')
+})
+
+test('listDocEntries includes non-markdown assets inside managed agent workspaces', () => {
+  const entries = listDocEntries()
+  const runtimeAsset = entries.find((entry) => entry.path === 'AGENTS/test-agent2/test-parallel-b.txt')
+
+  assert(!!runtimeAsset, 'Expected managed agent runtime asset to be listed in DocHub')
+  assert(runtimeAsset?.section === 'AGENTS', `Expected managed agent asset section AGENTS, got ${runtimeAsset?.section}`)
+  assert(runtimeAsset?.kind === 'asset', `Expected managed agent runtime asset kind=asset, got ${runtimeAsset?.kind}`)
+  assert(runtimeAsset?.canDelete === true, 'Expected managed agent runtime asset to remain deletable')
 })
 
 if (previousWorkspace === undefined) {

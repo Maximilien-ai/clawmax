@@ -8,6 +8,7 @@ import {
   DashboardNotification,
   filterNotifications,
   getArtifactDisplayName,
+  getNotificationChannelTargetName,
   getNotificationFooterActionLabel,
   getNotificationCategory,
   groupNotificationsByCategory,
@@ -93,6 +94,12 @@ test('derives footer labels without duplicating non-open actions', () => {
   })) === 'Open file', 'Expected artifact footer label')
 
   assert(getNotificationFooterActionLabel(notification({
+    type: 'channel-activity',
+    entityType: 'channel',
+    entityId: 'Test Status',
+  })) === 'View', 'Expected channel activity footer label')
+
+  assert(getNotificationFooterActionLabel(notification({
     type: 'cost-warning',
     entityType: 'budget',
   })) === 'View budget', 'Expected budget footer label')
@@ -108,6 +115,19 @@ test('formats artifact display names from paths and urls', () => {
   assert(getArtifactDisplayName('AGENTS/a/REPORT.md') === 'REPORT.md', 'Expected workspace filename')
   assert(getArtifactDisplayName('https://example.com/files/report.pdf') === 'report.pdf', 'Expected URL filename')
   assert(getArtifactDisplayName(undefined) === 'Open file', 'Expected fallback label')
+})
+
+test('extracts direct channel navigation targets for channel activity notifications', () => {
+  assert(getNotificationChannelTargetName(notification({
+    type: 'channel-activity',
+    entityType: 'channel',
+    entityId: 'Test Status',
+  })) === 'Test Status', 'Expected channel target to come from entityId')
+  assert(getNotificationChannelTargetName(notification({
+    type: 'workflow-failed',
+    entityType: 'workflow',
+    entityId: 'wf-1',
+  })) === null, 'Expected non-channel notifications not to produce a channel target')
 })
 
 let passed = 0

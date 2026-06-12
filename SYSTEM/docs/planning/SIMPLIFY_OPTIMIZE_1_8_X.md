@@ -30,15 +30,15 @@ Use the remaining `1.8.x` line to:
 
 ### 1. Workspace / Page Responsiveness
 
-- [ ] Audit repeated page-load fetches on Agents, Templates, Workflows, Communications, and Skills.
-- [ ] Reduce avoidable duplicate fetches during workspace switches and top-level navigation.
+- [x] Audit repeated page-load fetches on Agents, Templates, Workflows, Communications, and Skills.
+- [x] Reduce avoidable duplicate fetches during workspace switches and top-level navigation.
 - [ ] Add lightweight memoized or request-local caching where repeated reads are deterministic within one page load.
 - [ ] Remove remaining jitter/spinner loops on empty or low-data pages.
 
 ### 2. Notifications / Results Polish
 
 - [ ] Continue notification grouping/deduplication.
-- [ ] Reduce noisy repeated artifact/result notifications.
+- [x] Reduce noisy repeated artifact/result notifications.
 - [ ] Add missing bulk or inline affordances only when they reduce user effort without adding clutter.
 
 ### 3. Mobile + Narrow Layout Follow-Through
@@ -67,10 +67,17 @@ If time is short, start here:
 3. narrow/mobile overflow audit
 4. notification/result dedupe follow-through
 
+## Completed In First 1.8.2 Slice
+
+- deduped initial same-workspace fetches on Agents
+- skipped the redundant immediate initial workflow poll after a same-workspace load
+- added surfaced `Agent loading helper` regression coverage
+- fixed managed-agent runtime asset visibility in DocHub
+- fixed channel-activity notifications so they can navigate directly into the referenced chat
+
 ## Explicitly Out Of Scope
 
 - private plugin features
 - guardrail/eval runtime behavior
 - major redesigns
 - risky runtime packaging changes
-

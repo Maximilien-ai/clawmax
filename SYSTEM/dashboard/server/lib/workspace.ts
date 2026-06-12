@@ -457,9 +457,7 @@ export function listDocEntries(): DocEntry[] {
       if (shouldSkipDocHubEntryName(entry.name)) continue
       const full = path.join(agentsDir, entry.name)
       if (entry.isDirectory()) {
-        if (!registeredAgentDirs.has(entry.name)) {
-          walkAssetDir(full, 'AGENTS', 'uploaded', true)
-        }
+        walkAssetDir(full, 'AGENTS', registeredAgentDirs.has(entry.name) ? 'generated' : 'uploaded', true)
         continue
       }
       if (!entry.isFile()) continue

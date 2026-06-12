@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react'
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import AgentDetailPanel from '../components/AgentDetailPanel'
 import AddAgentWizard from '../components/AddAgentWizard'
 import { fetchModelsWithByok, refreshModelsWithByok, hasAiGenerationAccess } from '../lib/byok'
@@ -27,6 +27,7 @@ import {
 } from '../lib/headerControls'
 import { ProductIconCell } from '../lib/productIcons'
 import { formatAgentGroupCount, getAgentBudgetPresentation, getVisibleAgentTags, mergeAgentToFront } from '../lib/agentList'
+import { getAgentWorkspaceLoadKey, shouldFetchAgentsForWorkspace } from '../lib/agentLoading'
 import { useWorkspace } from '../contexts/WorkspaceContext'
 import { buildWorkspaceScopedPath } from '../lib/workspaceScope'
 import { getSmartDropdownPlacement, getViewportSafeDropdownStyle, type DropdownPlacement } from '../lib/dropdownPosition'
@@ -210,6 +211,8 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
   const [agentWorkflows, setAgentWorkflows] = useState<Map<string, Workflow[]>>(new Map())
   const [renameTarget, setRenameTarget] = useState<Agent | null>(null)
   const [agentUsage, setAgentUsage] = useState<Record<string, { totalTokens: number; inputTokens: number; outputTokens: number; totalCost: number }>>({})
+  const loadedAgentWorkspaceRef = useRef<string | null>(null)
+  const lastAgentFetchStartedAtRef = useRef(0)
 
   const highlightCreatedAgent = useCallback(async (agentId: string) => {
     if (!agentId) return
@@ -243,6 +246,8 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
   }, [])
 
   const fetchAgents = useCallback((resetPagination = true, silent = false) => {
+    lastAgentFetchStartedAtRef.current = Date.now()
+    loadedAgentWorkspaceRef.current = getAgentWorkspaceLoadKey(activeWorkspace?.id)
     const url = resetPagination
       ? `/api/agents?limit=${PAGE_SIZE}`
       : `/api/agents?limit=${PAGE_SIZE}${nextCursor ? `&cursor=${nextCursor}` : ''}`
@@ -278,7 +283,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
         setLoading(false)
         setLoadingMore(false)
       })
-  }, [nextCursor, PAGE_SIZE])
+  }, [activeWorkspace?.id, nextCursor, PAGE_SIZE])
 
   // Fetch metering data
   useEffect(() => {
@@ -334,10 +339,17 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
 
   // Refetch when page becomes active (e.g., navigating back from Skills page)
   useEffect(() => {
-    if (isActive) {
+    const workspaceKey = getAgentWorkspaceLoadKey(activeWorkspace?.id)
+    if (shouldFetchAgentsForWorkspace({
+      isActive: isActive !== false,
+      workspaceKey,
+      lastLoadedWorkspaceKey: loadedAgentWorkspaceRef.current,
+      lastFetchStartedAtMs: lastAgentFetchStartedAtRef.current,
+      nowMs: Date.now(),
+    })) {
       fetchAgents(true, true) // silent refresh when page becomes active
     }
-  }, [isActive, fetchAgents])
+  }, [activeWorkspace?.id, isActive, fetchAgents])
 
   // Native gateway usage polling is intentionally disabled for now.
   // Opik-backed metering is the current source of truth, and the gateway
