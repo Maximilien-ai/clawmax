@@ -27,6 +27,12 @@ export interface DashboardNotification {
   groupedEntityIds?: string[]
 }
 
+export function getNotificationChannelTargetName(notification: DashboardNotification): string | null {
+  if (notification.type !== 'channel-activity') return null
+  const target = notification.entityId?.trim()
+  return target || null
+}
+
 export const NOTIFICATION_CATEGORY_LABELS: Record<string, string> = {
   agent: 'Agents',
   workflow: 'Workflows',
@@ -90,6 +96,7 @@ export function notificationHasPrimaryOpenAction(notification: DashboardNotifica
 
 export function getNotificationFooterActionLabel(notification: DashboardNotification): string | null {
   if (notification.type === 'artifact-update' && (notification.artifactPath || notification.artifactUrl)) return 'Open file'
+  if (notification.type === 'channel-activity' && getNotificationChannelTargetName(notification)) return 'View'
   if (notification.entityType === 'budget') return 'View budget'
   if (notification.entityId && !notification.blockerType && notification.entityType !== 'agent') return 'View'
   return null

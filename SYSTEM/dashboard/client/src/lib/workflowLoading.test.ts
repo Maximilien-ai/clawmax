@@ -4,7 +4,11 @@
  * Run with: npx ts-node --transpileOnly client/src/lib/workflowLoading.test.ts
  */
 
-import { getWorkflowWorkspaceLoadKey, shouldFetchWorkflowsForWorkspace } from './workflowLoading'
+import {
+  getWorkflowWorkspaceLoadKey,
+  shouldFetchWorkflowsForWorkspace,
+  shouldRunInitialWorkflowPoll,
+} from './workflowLoading'
 
 function assert(condition: boolean, message: string) {
   if (!condition) throw new Error(message)
@@ -57,6 +61,27 @@ test('defers workflow fetch while inactive or rate limited', () => {
     rateLimitedUntilMs: 200,
     nowMs: 100,
   }), 'Expected rate-limited workflow page not to fetch')
+})
+
+test('skips the immediate workflow poll after the workspace just loaded', () => {
+  assert(!shouldRunInitialWorkflowPoll({
+    isActive: true,
+    workspaceKey: 'workspace-a',
+    lastLoadedWorkspaceKey: 'workspace-a',
+    lastFetchStartedAtMs: 100,
+    rateLimitedUntilMs: 0,
+    nowMs: 1200,
+    cooldownMs: 5000,
+  }), 'Expected immediate workflow poll to be skipped during cooldown')
+  assert(shouldRunInitialWorkflowPoll({
+    isActive: true,
+    workspaceKey: 'workspace-a',
+    lastLoadedWorkspaceKey: 'workspace-a',
+    lastFetchStartedAtMs: 100,
+    rateLimitedUntilMs: 0,
+    nowMs: 6200,
+    cooldownMs: 5000,
+  }), 'Expected workflow poll to resume after cooldown')
 })
 
 let passed = 0

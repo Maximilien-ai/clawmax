@@ -6,6 +6,7 @@ import {
   NOTIFICATION_CATEGORY_LABELS,
   filterNotifications,
   getArtifactDisplayName,
+  getNotificationChannelTargetName,
   getNotificationFooterActionLabel,
   groupNotificationsByCategory,
   notificationHasPrimaryOpenAction,
@@ -27,6 +28,7 @@ interface NotificationCenterProps {
   onNavigateToAgent?: (agentId: string) => void
   onNavigateToAgentChat?: (agentId: string) => void
   onNavigateToWorkflow?: (workflowId: string) => void
+  onNavigateToChannel?: (channelName: string, openChat?: boolean) => void
   onNavigateToPage?: (page: string) => void
   onNavigateToDoc?: (path: string) => void
   onAgentRestarted?: (agentId: string) => void
@@ -49,7 +51,7 @@ const SEVERITY_DOT: Record<string, string> = {
   info: 'bg-blue-400',
 }
 
-export function NotificationCenter({ onNavigateToAgent, onNavigateToAgentChat, onNavigateToWorkflow, onNavigateToPage, onNavigateToDoc, onAgentRestarted }: NotificationCenterProps) {
+export function NotificationCenter({ onNavigateToAgent, onNavigateToAgentChat, onNavigateToWorkflow, onNavigateToChannel, onNavigateToPage, onNavigateToDoc, onAgentRestarted }: NotificationCenterProps) {
   const { showSuccess, showError, showWarning } = useToast()
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [activeCount, setActiveCount] = useState(0)
@@ -167,8 +169,13 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToAgentChat, o
       onNavigateToDoc(n.artifactPath)
     } else if (n.type === 'artifact-update' && n.artifactUrl) {
       window.open(n.artifactUrl, '_blank', 'noopener,noreferrer')
-    } else if (n.type === 'channel-activity' && onNavigateToPage) {
-      onNavigateToPage('communication')
+    } else if (n.type === 'channel-activity') {
+      const channelTarget = getNotificationChannelTargetName(n)
+      if (channelTarget && onNavigateToChannel) {
+        onNavigateToChannel(channelTarget, true)
+      } else if (onNavigateToPage) {
+        onNavigateToPage('communication')
+      }
     } else if (n.entityType === 'agent' && n.entityId && onNavigateToAgent) {
       onNavigateToAgent(n.entityId)
     } else if (n.entityType === 'workflow' && n.entityId && onNavigateToWorkflow) {

@@ -900,6 +900,11 @@ export default function App() {
               onNavigateToAgent={(agentId) => { setInitialAgentId(agentId); setPage('agents') }}
               onNavigateToWorkflow={(workflowId) => { setInitialWorkflowId(workflowId); setPage('workflows') }}
               onNavigateToPage={(p) => setPage(p as any)}
+              onNavigateToChannel={(channelName, openChat) => {
+                setInitialGroupName(channelName)
+                setInitialOpenChatName(openChat ? channelName : undefined)
+                setPage('communication')
+              }}
               onNavigateToDoc={(file) => { setDocFile(file); setPage('docs') }}
               onOpenAgentCreate={() => { setInitialAgentAction('create'); setPage('agents') }}
               onOpenAgentCreateAI={(prompt?: string) => { setInitialAgentAiDescription(prompt); setInitialAgentAction('create-ai'); setPage('agents') }}
@@ -1079,7 +1084,7 @@ export default function App() {
   )
 }
 
-function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWorkflowsCount, onClickRunningWorkflows, darkMode, onToggleDarkMode, onNavigateToAgent, onNavigateToWorkflow, onNavigateToPage, onNavigateToDoc, onOpenAgentCreate, onOpenAgentCreateAI, onOpenAgentImport, onOpenAgentChat, onOpenBuilder, onOpenByok, onOpenPartners }: {
+function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWorkflowsCount, onClickRunningWorkflows, darkMode, onToggleDarkMode, onNavigateToAgent, onNavigateToWorkflow, onNavigateToPage, onNavigateToChannel, onNavigateToDoc, onOpenAgentCreate, onOpenAgentCreateAI, onOpenAgentImport, onOpenAgentChat, onOpenBuilder, onOpenByok, onOpenPartners }: {
   system: SystemInfo | null
   onMobileMenuToggle?: () => void
   onOpenWorkspaceDialog?: () => void
@@ -1090,6 +1095,7 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
   onNavigateToAgent?: (agentId: string) => void
   onNavigateToWorkflow?: (workflowId: string) => void
   onNavigateToPage?: (page: string) => void
+  onNavigateToChannel?: (channelName: string, openChat?: boolean) => void
   onNavigateToDoc?: (path: string) => void
   onOpenAgentCreate?: () => void
   onOpenAgentCreateAI?: (prompt?: string) => void
@@ -1225,6 +1231,7 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
             onNavigateToAgent={onNavigateToAgent}
             onNavigateToAgentChat={onOpenAgentChat}
             onNavigateToWorkflow={onNavigateToWorkflow}
+            onNavigateToChannel={onNavigateToChannel}
             onNavigateToPage={onNavigateToPage}
             onNavigateToDoc={onNavigateToDoc}
             onAgentRestarted={() => window.dispatchEvent(new CustomEvent('agents-updated'))}
