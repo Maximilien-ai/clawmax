@@ -5,14 +5,14 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.8.0-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
+[![Version](https://img.shields.io/badge/version-1.8.2-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
 [![Tests](https://img.shields.io/badge/tests-96%20default--safe-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 Latest Release: v1.8.0
+## 🔥 Latest Release: v1.8.2
 
-- `1.8.0` starts the hardening and simplification line with stronger regression coverage for workspace cleanup, gateway recovery/probes, Resend/Cognee runtime-secret execution, and Cognee plugin lifecycle state.
+- `1.8.2` continues the `1.8.x` hardening/simplify line with lower-risk responsiveness fixes, managed-agent runtime artifact visibility in DocHub, and stronger workflow/communication notification routing.
 
 ## ✨ 1.8.x Highlights
 
@@ -23,11 +23,11 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
   - locks dashboard gateway probe handshake identity to an allowed backend/operator shape
   - preserves the 1.7.9 Cognee and Resend partner behavior while adding stronger release-safety coverage before larger UI simplification work
 
-- current `1.8.2` candidate on `main`:
+- `1.8.2`:
   - reduces duplicate initial page loads on Agents and Workflows
   - keeps managed-agent runtime artifacts visible/openable in DocHub
   - makes communication notifications jump directly into the referenced channel chat
-  - continues the `1.8.x` simplify/optimize theme without widening the public plugin surface
+  - ships the dormant plugin architecture MVP0 with test fixtures only, without widening the active public plugin surface
 
 ## ✨ 1.7.x Highlights
 

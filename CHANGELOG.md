@@ -4,6 +4,12 @@ All notable changes to ClawMax are documented here.
 
 ## [Unreleased]
 
+### Planned Follow-Through
+- **Provider Cooldown/Auth Surfacing** — improve how workflow and agent surfaces explain transient provider cooldown windows versus hard auth failures so operators do not have to infer the difference from raw fallback summaries.
+- **Bare Filename Chat/Status File Resolution** — improve message/file-link resolution so chat/status panels can map bare filenames like `show.pdf` or `answers.pdf` to real DocHub workspace paths when the target is unique.
+
+## [v1.8.2] - 2026-06-12
+
 ### Added
 - **Dormant Plugin Architecture MVP0** — added a host-side plugin contract with runtime discovery, sidebar plugin sections, workspace-scoped plugin storage, shared plugin surfaces, markdown-backed plugin item files, template apply support, and dedicated plugin regression lanes. The shipped host repo includes only dormant test fixtures under `PLUGINS/test`; no customer-facing private plugins are enabled by default.
 
@@ -17,6 +23,10 @@ All notable changes to ClawMax are documented here.
   - `Agent loading helper unit tests`
   - managed-agent runtime asset visibility in `Workspace DocHub entry filtering`
   - notification presentation channel-target extraction / footer labeling
+
+### Release Validation
+- Validate `1.8.2-test-rc1` on cloud and on-prem before promotion.
+- Manual smoke should focus on first-open/workspace-switch responsiveness, managed-agent runtime artifact DocHub opens, communication notification deep links, and previously hardened workflow/runtime/partner paths.
 
 ## [v1.8.0] - 2026-06-10
 
