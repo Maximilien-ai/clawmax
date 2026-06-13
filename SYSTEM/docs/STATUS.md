@@ -2,7 +2,7 @@
 
 **Current Version**: v1.8.4
 **Last Updated**: June 13, 2026
-**Status**: `main` is preparing `1.8.4-test-rc1` after the agent delete regression sweep covering detail-pane deletion and bulk delete confirmation visibility.
+**Status**: `v1.8.4` is promoted from `main` after the agent delete regression sweep covering detail-pane deletion and bulk delete confirmation visibility.
 
 ---
 
@@ -23,7 +23,7 @@
 - Plans:
   - [planning/HARDENING_SIMPLIFICATION_1_8_X.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/HARDENING_SIMPLIFICATION_1_8_X.md)
   - [planning/SIMPLIFY_OPTIMIZE_1_8_X.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_OPTIMIZE_1_8_X.md)
-- Near-term target: validate and promote `1.8.4`, then continue the `1.8.x` optimize/harden pass and `plugins-mvp1` follow-through.
+- Near-term target: continue the `1.8.x` optimize/harden pass and `plugins-mvp1` follow-through on top of the promoted `1.8.4` baseline.
 
 ## Release References
 
