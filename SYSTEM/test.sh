@@ -427,6 +427,17 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Agent delete UI regression tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/agentDeleteUi.test.ts > /tmp/clawmax-agent-delete-ui.out 2>&1 || true
+if grep -q "✓ " /tmp/clawmax-agent-delete-ui.out; then
+  agent_delete_ui_count=$(grep -c '^✓ ' /tmp/clawmax-agent-delete-ui.out)
+  pass "Agent delete UI regression tests (${agent_delete_ui_count:-?} tests)"
+else
+  cat /tmp/clawmax-agent-delete-ui.out
+  fail "Agent delete UI regression tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Workspace scope helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/workspaceScope.test.ts > /tmp/clawmax-workspace-scope.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-workspace-scope.out; then

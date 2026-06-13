@@ -5,6 +5,7 @@ import { useToast } from './Toast'
 import { getSkillSetupHint } from '../lib/skillSetup'
 import { ProductIconCell } from '../lib/productIcons'
 import { buildWorkspaceScopedPath } from '../lib/workspaceScope'
+import { shouldShowAgentDetailDeleteAction } from '../lib/agentDeleteUi'
 
 interface GroupEntry {
   name: string
@@ -113,6 +114,7 @@ export default function AgentDetailPanel({
   onClose,
   onChat,
   onClone,
+  onDelete,
   onNavigateToSkills,
   onNavigateToDoc,
   initialEditCostLimit = false,
@@ -122,6 +124,7 @@ export default function AgentDetailPanel({
   onClose: () => void
   onChat: () => void
   onClone?: () => void
+  onDelete?: (agentId: string) => void
   onNavigateToSkills?: (agentId: string, skillName?: string) => void
   onNavigateToDoc?: (file: string) => void
   initialEditCostLimit?: boolean
@@ -643,6 +646,18 @@ export default function AgentDetailPanel({
 
         {/* Footer path */}
         <div className="space-y-3 border-t border-gray-100 bg-white px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shrink-0 dark:border-gray-700 dark:bg-gray-800 sm:px-5 sm:pb-3">
+          <div className="flex flex-wrap items-center gap-2">
+            {shouldShowAgentDetailDeleteAction(onDelete) && (
+              <button
+                type="button"
+                onClick={() => onDelete(agent.id)}
+                className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 transition-colors hover:bg-red-100 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300 dark:hover:bg-red-900/30"
+              >
+                <ProductIconCell iconName="delete" label="Delete agent" size="sm" className="border-transparent bg-transparent text-current" />
+                Delete agent
+              </button>
+            )}
+          </div>
           <button
             type="button"
             onClick={onClose}

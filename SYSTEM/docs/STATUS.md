@@ -1,21 +1,21 @@
 # ClawMax Status
 
-**Current Version**: v1.8.3
+**Current Version**: v1.8.4
 **Last Updated**: June 13, 2026
-**Status**: `main` is preparing `1.8.3-test-rc1` after the Add Agent regression sweep covering model selection, AI-create overrides, and false duplicate provisioning failures.
+**Status**: `main` is preparing `1.8.4-test-rc1` after the agent delete regression sweep covering detail-pane deletion and bulk delete confirmation visibility.
 
 ---
 
 ## Current State
 
-- `main` now contains the first `1.8.x` hardening pass, the `1.8.2` simplify/optimize slice, and the `1.8.3` Add Agent regression fixes.
+- `main` now contains the first `1.8.x` hardening pass, the `1.8.2` simplify/optimize slice, the `1.8.3` Add Agent regression fixes, and the `1.8.4` agent delete UI cleanup.
 - The `1.8.x` work is intentionally focused on hardening, simplification, regression safety, lightweight responsiveness wins, and backlog hygiene rather than major new feature scope.
 - Dashboard, CI, container images, cloud, and on-prem paths use the same tested OpenClaw `2026.5.26` baseline.
 - The release workflow now supports test images (`test-rcN`) and explicit promotion of validated images into official version tags.
 - Partner integrations are active product surfaces, including Resend, Cognee, Opik, GitHub, Senso, and partner plugin install/uninstall handling.
 - Resend has both dashboard test-email validation and first-party `clawmax-resend` agent-tool execution with runtime-secret support.
 - Cognee has a first-pass partner surface for cloud/self-hosted configuration and official OpenClaw plugin lifecycle management.
-- The latest reported full local integration run is green with `--with-validation`, with additional focused regressions added for Add Agent model/default and provisioning validation behavior.
+- The latest reported full local integration run is green with `--with-validation`, with additional focused regressions added for Add Agent model/default behavior and agent delete UI availability.
 
 ## Active Release Track
 
@@ -23,7 +23,7 @@
 - Plans:
   - [planning/HARDENING_SIMPLIFICATION_1_8_X.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/HARDENING_SIMPLIFICATION_1_8_X.md)
   - [planning/SIMPLIFY_OPTIMIZE_1_8_X.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_OPTIMIZE_1_8_X.md)
-- Near-term target: validate and promote `1.8.3`, then continue the `1.8.x` optimize/harden pass and `plugins-mvp1` follow-through.
+- Near-term target: validate and promote `1.8.4`, then continue the `1.8.x` optimize/harden pass and `plugins-mvp1` follow-through.
 
 ## Release References
 

@@ -2024,6 +2024,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
             setSelectedAgent(null)
             setBudgetEditorAgentId(null)
           }}
+          onDelete={(id) => setDeleteTarget(id)}
           onNavigateToSkills={onNavigateToSkills}
           onNavigateToDoc={onNavigateToDoc}
         />

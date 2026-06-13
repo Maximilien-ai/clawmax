@@ -8,6 +8,20 @@ All notable changes to ClawMax are documented here.
 - **Provider Cooldown/Auth Surfacing** — improve how workflow and agent surfaces explain transient provider cooldown windows versus hard auth failures so operators do not have to infer the difference from raw fallback summaries.
 - **Bare Filename Chat/Status File Resolution** — improve message/file-link resolution so chat/status panels can map bare filenames like `show.pdf` or `answers.pdf` to real DocHub workspace paths when the target is unique.
 
+## [v1.8.4] - 2026-06-13
+
+### Fixed
+- **Agent Delete Detail Action Regression** — the agent detail pane once again exposes a working delete action and opens the deletion flow above the detail inspector instead of hiding it behind equal-layer overlays.
+- **Bulk Delete Confirmation Visibility** — bulk agent operations now keep the delete confirmation/footer visible inside a stable flex modal layout so destructive confirmation actions do not disappear off-screen on smaller viewports.
+
+### Testing
+- Added visible regression coverage for:
+  - `Agent delete UI regression tests`
+
+### Release Validation
+- Validate `1.8.4-test-rc1` on cloud and on-prem before promotion.
+- Manual smoke should focus on single-agent delete from cards, table rows, and the detail pane plus bulk delete confirmation visibility and execution from the floating multi-select toolbar.
+
 ## [v1.8.3] - 2026-06-13
 
 ### Fixed
