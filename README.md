@@ -5,14 +5,14 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.8.2-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
+[![Version](https://img.shields.io/badge/version-1.8.3-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
 [![Tests](https://img.shields.io/badge/tests-96%20default--safe-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 Latest Release: v1.8.2
+## 🔥 Latest Release: v1.8.3
 
-- `1.8.2` continues the `1.8.x` hardening/simplify line with lower-risk responsiveness fixes, managed-agent runtime artifact visibility in DocHub, and stronger workflow/communication notification routing.
+- `1.8.3` continues the `1.8.x` hardening/simplify line with a focused Add Agent regression pass: correct default-model resolution, cleaner AI-create model handling, BYOK-aware validation, and removal of false duplicate provisioning failures.
 
 ## ✨ 1.8.x Highlights
 
@@ -28,6 +28,13 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
   - keeps managed-agent runtime artifacts visible/openable in DocHub
   - makes communication notifications jump directly into the referenced channel chat
   - ships the dormant plugin architecture MVP0 with test fixtures only, without widening the active public plugin surface
+
+- `1.8.3`:
+  - fixes Add Agent default-model selection so local and OpenAI-compatible runtime preferences are preserved
+  - prevents AI create from overwriting a valid selected model with an unavailable hosted suggestion
+  - removes the false `Agent already exists` provisioning regression caused by prewritten files
+  - makes add-agent validation use the same BYOK/local-runtime model discovery context as the wizard, suppressing misleading provisioning warnings
+  - clarifies which integrations setting affects newly created agents versus built-in/system agents
 
 ## ✨ 1.7.x Highlights
 

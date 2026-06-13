@@ -2223,7 +2223,7 @@ export function ByokWizard({
 
                   {(hasOpenAiAvailable || hasAnthropicAvailable || hasGeminiAvailable || ollamaConfigured) && (
                     <div className={`pt-4 border-t border-gray-200 dark:border-gray-700 ${highlightPreferredModel ? 'rounded-lg border border-purple-300 bg-purple-50/70 px-3 pb-3 dark:border-purple-700 dark:bg-purple-900/20' : ''}`}>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Preferred default model for new agents</label>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Default model for newly created agents</label>
                       <select ref={preferredModelRef} value={preferredModel} onChange={(e) => setPreferredModel(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm">
                         <option value="">Auto (best for configured keys)</option>
                         {uniquePreferredOptions.length > 0 ? uniquePreferredOptions.map((option) => (
@@ -2254,7 +2254,7 @@ export function ByokWizard({
                           </>
                         )}
                       </select>
-                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Used when creating agents and applying templates. Discovered provider models appear here automatically when available.</p>
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">This controls the Add Agent wizard and agent template apply flows. Discovered provider models appear here automatically when available.</p>
                       {highlightPreferredModel && (
                         <div className="mt-2 text-xs font-medium text-purple-700 dark:text-purple-300">
                           Set this once for shared background execution in this workspace.
@@ -2264,7 +2264,7 @@ export function ByokWizard({
                   )}
                   {(hasOpenAiAvailable || hasAnthropicAvailable || hasGeminiAvailable || ollamaConfigured) && (
                     <div className="pt-3">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Preferred model for built-in/system agents</label>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Default model for built-in/system agents only</label>
                       <select value={systemPreferredModel} onChange={(e) => setSystemPreferredModel(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm">
                         <option value="">Auto (follow the best available configured model)</option>
                         {uniquePreferredOptions.length > 0 ? uniquePreferredOptions.map((option) => (
@@ -2295,7 +2295,7 @@ export function ByokWizard({
                           </>
                         )}
                       </select>
-                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Used for built-in/system agents when they do not already have an explicit model.</p>
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">This does not affect Add Agent. It is only used for built-in/system agents when they do not already have an explicit model.</p>
                     </div>
                   )}
                 </div>

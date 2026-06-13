@@ -1,12 +1,12 @@
 # Backlog
 
-> Last updated: June 12, 2026
+> Last updated: June 13, 2026
 > Completed and verified work is archived into [CHANGELOG.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/CHANGELOG.md) and historical notes under `SYSTEM/docs/**/archive/`
 
 ## Top Priority
 
-- [ ] **1.8.x hardening + simplification follow-through** — the first `1.8.0` pass is merged to `main`; continue from [HARDENING_SIMPLIFICATION_1_8_X.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/HARDENING_SIMPLIFICATION_1_8_X.md) and [SIMPLIFY_OPTIMIZE_1_8_X.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_OPTIMIZE_1_8_X.md), treating the current optimization slice as the opening `1.8.2` candidate.
-- [ ] **Cloud/on-prem `1.8.2` release validation** — validate `1.8.2-test-rc1` on real cloud and on-prem deployments, focusing on page-load snappiness, workflow communication deep links, DocHub opening of managed-agent runtime assets, and the previously hardened runtime/partner paths.
+- [ ] **1.8.x hardening + simplification follow-through** — the first `1.8.0` pass is merged to `main`; continue from [HARDENING_SIMPLIFICATION_1_8_X.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/HARDENING_SIMPLIFICATION_1_8_X.md) and [SIMPLIFY_OPTIMIZE_1_8_X.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_OPTIMIZE_1_8_X.md), with `1.8.2` and `1.8.3` landing the first responsiveness and Add Agent regression slices.
+- [ ] **Cloud/on-prem `1.8.3` release validation** — validate `1.8.3-test-rc1` on real cloud and on-prem deployments, focusing on Add Agent model/default behavior, AI-create preservation of runtime models, clean provisioning, and the previous `1.8.2` runtime/notification fixes.
 - [ ] **Plugin architecture MVP1 follow-through** — MVP0 host architecture is merged with dormant test fixtures only. Continue with generic follow-through only: plugin page/data loading speed, DocHub/file-open polish, stronger shared UI parity with Agents/Workflows, and eventually richer runtime/plugin contracts before any private plugin surfaces are considered for broader release.
 - [ ] **Provider cooldown/auth surfacing for `1.8.3`** — improve workflow/agent UX around OpenClaw provider failover so transient timeout cooldowns and hard auth/key failures are explained clearly instead of only surfacing raw fallback chains.
 - [ ] **Bare filename chat/status DocHub resolution for `1.8.3`** — resolve bare file mentions like `show.pdf` or `answers.pdf` to unique workspace-relative DocHub paths when possible, and suppress misleading open links when the target is ambiguous.

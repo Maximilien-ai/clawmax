@@ -157,7 +157,7 @@ test('validateProvisionInput rejects invalid provisioning payload', () => {
 test('validateProvisionInput warns for unavailable model but stays valid', () => {
   const result = validateProvisionInput({
     name: 'engineer2',
-    model: 'openai/gpt-5',
+    model: 'openai/gpt-unknown',
     tags: ['engineer'],
   }, {
     existingAgentIds: ['engineer1'],
@@ -166,6 +166,20 @@ test('validateProvisionInput warns for unavailable model but stays valid', () =>
 
   assert(result.valid, 'Expected provisioning to remain valid')
   assertIncludes(result.warnings, 'may fall back during provisioning')
+})
+
+test('validateProvisionInput does not warn for standard OpenAI models when OpenAI execution is advertised', () => {
+  const result = validateProvisionInput({
+    name: 'engineer3',
+    model: 'openai/gpt-4o-mini',
+    tags: ['engineer'],
+  }, {
+    existingAgentIds: ['engineer1'],
+    availableModels: ['openai/gpt-4o'],
+  })
+
+  assert(result.valid, 'Expected provisioning to remain valid')
+  assert(!result.warnings.some((warning) => warning.includes('may fall back during provisioning')), 'Expected no noisy fallback warning for standard OpenAI model')
 })
 
 test('validateProvisionInput accepts a real workspace agent template slug', () => {

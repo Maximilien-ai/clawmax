@@ -416,6 +416,17 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Add agent default-model helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/addAgentDefaultModel.test.ts > /tmp/clawmax-add-agent-default-model.out 2>&1 || true
+if grep -q "addAgentDefaultModel.test.ts:" /tmp/clawmax-add-agent-default-model.out; then
+  add_agent_default_model_count=$(grep -o '[0-9]\+ tests passed' /tmp/clawmax-add-agent-default-model.out | head -1 | grep -o '[0-9]\+')
+  pass "Add agent default-model helper unit tests (${add_agent_default_model_count:-?} tests)"
+else
+  cat /tmp/clawmax-add-agent-default-model.out
+  fail "Add agent default-model helper unit tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Workspace scope helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/workspaceScope.test.ts > /tmp/clawmax-workspace-scope.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-workspace-scope.out; then

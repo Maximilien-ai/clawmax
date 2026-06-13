@@ -574,6 +574,69 @@ async function run() {
     }
   })
 
+  await test('provision writes AI-generated files after agent registration succeeds', async () => {
+    const tmpCliDir = path.join(tmpHome, 'bin-generated')
+    const fakeCli = path.join(tmpCliDir, 'openclaw')
+    fs.mkdirSync(tmpCliDir, { recursive: true })
+    fs.writeFileSync(fakeCli, '#!/bin/sh\necho test-openclaw\n', 'utf-8')
+    fs.chmodSync(fakeCli, 0o755)
+    process.env.OPENCLAW_BIN = fakeCli
+
+    const childProcess = require('child_process')
+    const originalSpawn = childProcess.spawn
+
+    childProcess.spawn = () => {
+      const listeners: Record<string, Function> = {}
+      return {
+        stdout: { on() {} },
+        stderr: { on() {} },
+        on(event: string, handler: Function) {
+          listeners[event] = handler
+          if (event === 'close') {
+            setTimeout(() => handler(0, null), 0)
+          }
+        },
+      }
+    }
+
+    try {
+      const handler = getRouteHandler('post', '/provision')
+      const writes: string[] = []
+      const res: any = {
+        writableEnded: false,
+        headers: {} as Record<string, string>,
+        setHeader(name: string, value: string) { this.headers[name] = value },
+        writeHead() { return this },
+        flushHeaders() {},
+        write(chunk: string) { writes.push(String(chunk)) },
+        end() { this.writableEnded = true },
+      }
+      const req: any = makeReq({
+        body: {
+          name: 'proto-bot',
+          model: 'openai/gpt-4o-mini',
+          tags: [],
+          generatedFiles: {
+            identity: '# IDENTITY\n\n**Name:** proto-bot\n**Creature:** assistant\n**Vibe:** helpful\n**Emoji:** 🤖\n',
+            soul: '# SOUL\n\nThis is a generated soul file with enough content to pass validation.\n',
+            tools: '# TOOLS\n\nThis is a generated tools file with enough content to pass validation.\n',
+          },
+        },
+        on() {},
+      })
+      await handler(req, res)
+      await new Promise(resolve => setTimeout(resolve, 20))
+
+      const generatedIdentityPath = path.join(workspacePath, 'AGENTS', 'proto-bot', 'IDENTITY.md')
+      assert(fs.existsSync(generatedIdentityPath), 'Expected generated IDENTITY.md to be written after successful registration')
+      assert(writes.some(chunk => chunk.includes('Wrote AI-generated files')), 'Expected streamed logs to mention generated files')
+      assert(writes.some(chunk => chunk.includes('"type":"done"') && chunk.includes('"data":"ok"')), 'Expected successful create completion event')
+    } finally {
+      childProcess.spawn = originalSpawn
+      delete require.cache[require.resolve('./agents')]
+    }
+  })
+
   await test('validate-provision surfaces duplicate agent IDs from the active workspace', async () => {
     writeAgent(workspacePath, 'plain-agent', [
       '# IDENTITY.md',
@@ -594,6 +657,40 @@ async function run() {
     assert.strictEqual(res.statusCode, 200, 'Expected validate-provision route success')
     assert.strictEqual(res.jsonBody?.valid, false, 'Expected duplicate agent id to invalidate provisioning')
     assert((res.jsonBody?.errors || []).some((error: string) => /already exists/i.test(error)), 'Expected duplicate id error guidance')
+  })
+
+  await test('validate-provision honors BYOK model discovery context for local runtimes', async () => {
+    const discoveryModule = require('../lib/model-discovery')
+    const originalDiscoverModels = discoveryModule.discoverModels
+
+    try {
+      discoveryModule.discoverModels = async (byokKeys: any) => {
+        assert.strictEqual(byokKeys?.openaiCompatibleBaseUrl, 'http://127.0.0.1:1234/v1', 'Expected BYOK-compatible base URL to be forwarded to validation')
+        return {
+          models: ['openai-compatible/meta-llama-3.1-8b-instruct'],
+          modelsByProvider: {
+            'openai-compatible': { name: 'OpenAI-Compatible', models: ['openai-compatible/meta-llama-3.1-8b-instruct'] },
+          },
+        }
+      }
+
+      const handler = getRouteHandler('post', '/validate-provision')
+      const res = makeRes()
+      await handler(makeReq({
+        body: {
+          name: 'korean-agent',
+          model: 'openai-compatible/meta-llama-3.1-8b-instruct',
+          openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1',
+        },
+      }), res)
+
+      assert.strictEqual(res.statusCode, 200, 'Expected validate-provision route success')
+      assert.strictEqual(res.jsonBody?.valid, true, 'Expected BYOK-compatible validation to remain valid')
+      assert(!(res.jsonBody?.warnings || []).some((warning: string) => /may fall back during provisioning/i.test(warning)), 'Expected no fallback warning when BYOK discovery advertises the model')
+    } finally {
+      discoveryModule.discoverModels = originalDiscoverModels
+      delete require.cache[require.resolve('./agents')]
+    }
   })
 
   await test('models route forwards LM Studio and Ollama local model settings into discovery', async () => {

@@ -8,6 +8,26 @@ All notable changes to ClawMax are documented here.
 - **Provider Cooldown/Auth Surfacing** — improve how workflow and agent surfaces explain transient provider cooldown windows versus hard auth failures so operators do not have to infer the difference from raw fallback summaries.
 - **Bare Filename Chat/Status File Resolution** — improve message/file-link resolution so chat/status panels can map bare filenames like `show.pdf` or `answers.pdf` to real DocHub workspace paths when the target is unique.
 
+## [v1.8.3] - 2026-06-13
+
+### Fixed
+- **Add Agent Default Model Resolution** — the Add Agent wizard now respects the actual configured runtime/default model path instead of biasing toward `openai/gpt-5`, so local runtimes and OpenAI-compatible setups remain selected when they are the real preferred path.
+- **AI Create Model Override Guard** — AI-generated model suggestions now only replace the current selection when that suggested model is actually advertised by the discovered runtime/provider model list.
+- **Provision False Duplicate Regression** — agent provisioning no longer writes generated/template/cloned files into the destination workspace before registration, fixing the false `Agent already exists` error on first-create flows.
+- **Cleaner Add-Agent Warning Behavior** — provisioning validation now uses the same BYOK/local-runtime discovery context as the wizard and suppresses noisy fallback warnings for standard OpenAI models when the provider path is clearly available.
+- **Model Preference Copy Clarity** — Integrations/BYOK now labels the “new agents” default model separately from the “built-in/system agents” default model so users can tell which setting drives the Add Agent flow.
+
+### Testing
+- Added visible regression coverage for:
+  - `Add agent default-model helper unit tests`
+  - post-registration AI-generated file writes in `Agent doctor route unit tests`
+  - BYOK-aware add-agent validation in `Agent doctor route unit tests`
+  - provider-aware add-agent warning suppression in `Agent config validation unit tests`
+
+### Release Validation
+- Validate `1.8.3-test-rc1` on cloud and on-prem before promotion.
+- Manual smoke should focus on Add Agent with hosted, local, and OpenAI-compatible runtime selections; AI create preserving the expected model; clean provisioning without false duplicate errors; and absence of misleading provisioning warnings when the runtime path is valid.
+
 ## [v1.8.2] - 2026-06-12
 
 ### Added

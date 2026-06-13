@@ -2047,6 +2047,7 @@ export function importAgentFromTemplate(
     model?: string
     port?: number
     whatsapp?: string
+    allowExistingTargetDir?: boolean
   }
 ): { ok: boolean; agentId?: string; error?: string } {
   try {
@@ -2126,7 +2127,7 @@ export function importAgentFromTemplate(
     }
 
     const targetAgentDir = path.join(getAgentsDir(), targetAgentId)
-    if (fs.existsSync(targetAgentDir)) {
+    if (fs.existsSync(targetAgentDir) && !options.allowExistingTargetDir) {
       return { ok: false, error: `Agent already exists: ${targetAgentId}` }
     }
 

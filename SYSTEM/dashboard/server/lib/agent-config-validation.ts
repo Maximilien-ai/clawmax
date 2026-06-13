@@ -6,6 +6,19 @@ import { getAgentTemplatesDir, getGlobalAgentTemplatesDir, resolveAgentTemplateS
 const AGENT_ID_REGEX = /^[a-z][a-z0-9_-]*$/
 const TAG_REGEX = /^[a-z][a-z0-9_-]*$/
 const PHONE_REGEX = /^\+?[1-9]\d{1,14}$/
+const STANDARD_OPENAI_MODELS = new Set([
+  'openai/gpt-5',
+  'openai/gpt-4o',
+  'openai/gpt-4o-mini',
+  'openai/gpt-4.1',
+  'openai/gpt-4.1-mini',
+  'openai/gpt-4.1-nano',
+  'openai/o1',
+  'openai/o1-mini',
+  'openai/o3',
+  'openai/o3-mini',
+  'openai/o4-mini',
+])
 
 export interface AgentConfigValidationResult {
   valid: boolean
@@ -166,6 +179,21 @@ function templateExists(templateSlug: string): boolean {
   })
 }
 
+function shouldWarnForUnadvertisedModel(model: string, availableModels: string[]): boolean {
+  const trimmedModel = model.trim()
+  if (!trimmedModel || availableModels.length === 0) return false
+  if (availableModels.includes(trimmedModel)) return false
+
+  const [provider] = trimmedModel.split('/', 1)
+  const providerModels = availableModels.filter((candidate) => candidate.startsWith(`${provider}/`))
+
+  if (provider === 'openai' && providerModels.length > 0 && STANDARD_OPENAI_MODELS.has(trimmedModel)) {
+    return false
+  }
+
+  return true
+}
+
 export function validateProvisionInput(
   input: ProvisionValidationInput,
   context: {
@@ -184,7 +212,7 @@ export function validateProvisionInput(
 
   if (!input.model || !input.model.trim()) {
     errors.push('Model is required')
-  } else if (context.availableModels.length > 0 && !context.availableModels.includes(input.model)) {
+  } else if (shouldWarnForUnadvertisedModel(input.model, context.availableModels)) {
     warnings.push(`Model "${input.model}" is not currently advertised by /api/agents/models and may fall back during provisioning`)
   }
 

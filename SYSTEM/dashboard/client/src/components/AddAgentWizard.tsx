@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { readStoredByokKeys, fetchModelsWithByok, getAiGenerationReadiness, hasAiGenerationAccess, isOllamaUiAvailable } from '../lib/byok'
+import { byokForRequest, readStoredByokKeys, fetchModelsWithByok, getAiGenerationReadiness, hasAiGenerationAccess, isOllamaUiAvailable } from '../lib/byok'
 import { expandPromptWithAI } from '../lib/aiPrompt'
 import { normalizeAgentTemplateOption } from '../lib/agentTemplateOptions'
 import { normalizePromptInput, resolveAddAgentWizardLaunchState } from '../lib/addAgentWizardFlow'
+import { resolveAddAgentWizardDefaultModel, resolveAddAgentWizardSuggestedModel } from '../lib/addAgentDefaultModel'
 import { useAuth } from '../contexts/AuthContext'
 import AIPromptEditorModal from './AIPromptEditorModal'
 
@@ -148,54 +149,21 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
         setModelsByProvider(filteredModelsByProvider)
 
         fetch('/api/auth/config').then(r => r.json()).then(cfg => {
-          const preferred = cfg.preferredModel
-          const recommended = cfg.recommendedModel
-          const resolvedDefault = (preferred && (models.includes(preferred) || models.length === 0) && preferred)
-            || (recommended && (models.includes(recommended) || models.length === 0) && recommended)
-            || models[0]
+          const defaultModel = resolveAddAgentWizardDefaultModel({
+            models,
+            config: {
+              preferredModel: cfg.preferredModel,
+              recommendedModel: cfg.recommendedModel,
+              ollamaEnabled,
+              defaultOllamaBaseUrl: cfg.defaultOllamaBaseUrl,
+              defaultOpenAiCompatibleBaseUrl: cfg.defaultOpenAiCompatibleBaseUrl,
+            },
+            byok: readStoredByokKeys(),
+          })
 
-          if (resolvedDefault) {
+          if (defaultModel) {
             if (models.length === 0) {
-              setAvailableModels([resolvedDefault])
-            }
-            setForm(f => ({ ...f, model: resolvedDefault }))
-            return
-          }
-
-          if (models.length > 0) {
-            // Fallback: check BYOK keys
-            const byok = readStoredByokKeys()
-            const hasAnthropicKey = !!(byok.anthropic || cfg.systemKeyDefaults?.anthropic)
-            const hasOpenAiKey = !!(byok.openai || cfg.systemKeyDefaults?.openai)
-            const hasGeminiKey = !!(byok.geminiApiKey || cfg.systemKeyDefaults?.gemini)
-            const hasOpenAiCompatible = !!(byok.openaiCompatibleBaseUrl || cfg.systemKeyDefaults?.openaiCompatible)
-            const hasOllama = ollamaEnabled && !!(byok.ollamaBaseUrl || byok.ollamaDefaultModel)
-
-            let defaultModel: string
-            if (hasOllama) {
-              const preferredOllama = byok.ollamaDefaultModel ? `ollama/${byok.ollamaDefaultModel}` : ''
-              defaultModel = (preferredOllama && models.find((m: string) => m === preferredOllama))
-                || models.find((m: string) => m.startsWith('ollama/'))
-                || models[0]
-            } else if (hasOpenAiCompatible) {
-              const preferredCompatible = byok.openaiCompatibleDefaultModel ? `openai-compatible/${byok.openaiCompatibleDefaultModel}` : ''
-              defaultModel = (preferredCompatible && models.find((m: string) => m === preferredCompatible))
-                || models.find((m: string) => m.startsWith('openai-compatible/'))
-                || models[0]
-            } else if (hasOpenAiKey) {
-              defaultModel = models.find((m: string) => m === 'openai/gpt-5' || m === 'openai/gpt-4o')
-                || models.find((m: string) => m.startsWith('openai/'))
-                || models[0]
-            } else if (hasGeminiKey) {
-              defaultModel = models.find((m: string) => m === 'google/gemini-2.5-flash' || m === 'google/gemini-3.1-pro-preview')
-                || models.find((m: string) => m.startsWith('google/'))
-                || models[0]
-            } else if (hasAnthropicKey) {
-              defaultModel = models.find((m: string) => m.includes('claude-opus') || m.includes('claude-sonnet'))
-                || models.find((m: string) => m.startsWith('anthropic/'))
-                || models[0]
-            } else {
-              defaultModel = models[0]
+              setAvailableModels([defaultModel])
             }
             setForm(f => ({ ...f, model: defaultModel }))
           }
@@ -345,6 +313,7 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          ...byokForRequest(),
           name: form.name,
           model: form.model,
           cloneFrom: form.cloneFrom || undefined,
@@ -421,7 +390,13 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
       const aiName = data.suggestedName ? sanitizeName(data.suggestedName) : form.name
       if (data.suggestedName) set('name', aiName)
       if (data.suggestedTags?.length > 0) set('tags', [...new Set(data.suggestedTags)])
-      if (data.suggestedModel) set('model', data.suggestedModel)
+      if (data.suggestedModel) {
+        set('model', resolveAddAgentWizardSuggestedModel({
+          models: availableModels,
+          currentModel: form.model,
+          suggestedModel: data.suggestedModel,
+        }))
+      }
       if (data.suggestedSkills?.length > 0) set('skills', [...new Set(data.suggestedSkills)])
 
       // Update IDENTITY.md with the AI-suggested name (replace placeholder)

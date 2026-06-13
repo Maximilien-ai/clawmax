@@ -385,10 +385,30 @@ router.post('/generate', async (req, res) => {
 })
 
 // POST /api/agents/validate-provision — validate add-agent inputs before provisioning
-router.post('/validate-provision', (req, res) => {
-  const result = validateProvisionInput(req.body || {}, {
+router.post('/validate-provision', async (req, res) => {
+  const body = (req.body || {}) as Record<string, unknown>
+  const byokKeys = {
+    openai: typeof body.openai === 'string' ? body.openai : undefined,
+    anthropic: typeof body.anthropic === 'string' ? body.anthropic : undefined,
+    gemini: typeof body.gemini === 'string' ? body.gemini : undefined,
+    ollamaBaseUrl: typeof body.ollamaBaseUrl === 'string' ? body.ollamaBaseUrl : undefined,
+    openaiCompatibleApiKey: typeof body.openaiCompatibleApiKey === 'string' ? body.openaiCompatibleApiKey : undefined,
+    openaiCompatibleBaseUrl: typeof body.openaiCompatibleBaseUrl === 'string' ? body.openaiCompatibleBaseUrl : undefined,
+    openaiCompatibleDefaultModel: typeof body.openaiCompatibleDefaultModel === 'string' ? body.openaiCompatibleDefaultModel : undefined,
+  }
+
+  let availableModels = getAvailableModels()
+  if (byokKeys.openai || byokKeys.anthropic || byokKeys.gemini || byokKeys.ollamaBaseUrl || byokKeys.openaiCompatibleBaseUrl) {
+    try {
+      availableModels = (await discoverModels(byokKeys)).models || availableModels
+    } catch {
+      // Fall back to cached/system-visible models if BYOK discovery is unavailable.
+    }
+  }
+
+  const result = validateProvisionInput(body || {}, {
     existingAgentIds: listAgents().map(agent => agent.id),
-    availableModels: getAvailableModels(),
+    availableModels,
   })
   res.json(result)
 })
@@ -510,42 +530,55 @@ router.post('/provision', (req, res) => {
     send('log', `Assigned inferred skills: ${requestedSkills.join(', ')}\n`)
   }
 
-  // Write AI-generated files before provisioning
-  if (generatedFiles) {
+  const writeGeneratedFilesToWorkspace = () => {
+    if (!generatedFiles) return
     const dstPath = path.join(getAgentsDir(), validatedName)
     fs.mkdirSync(dstPath, { recursive: true })
-
     fs.writeFileSync(path.join(dstPath, 'IDENTITY.md'), generatedFiles.identity)
     fs.writeFileSync(path.join(dstPath, 'SOUL.md'), generatedFiles.soul)
     fs.writeFileSync(path.join(dstPath, 'TOOLS.md'), generatedFiles.tools)
-
     send('log', `Wrote AI-generated files: IDENTITY.md, SOUL.md, TOOLS.md\n`)
   }
 
-  // Import from template if specified
-  if (templateSlug) {
-    const result = importAgentFromTemplate(templateSlug, {
-      newAgentId: validatedName,
-      model: validatedModel,
-      port,
-      whatsapp
-    })
-
-    if (!result.ok) {
-      send('error', result.error || 'Failed to import from template')
-      res.end()
+  const applyWorkspaceFiles = () => {
+    if (templateSlug) {
+      const result = importAgentFromTemplate(templateSlug, {
+        newAgentId: validatedName,
+        model: validatedModel,
+        port,
+        whatsapp,
+        allowExistingTargetDir: true,
+      })
+      if (!result.ok) {
+        throw new Error(result.error || 'Failed to import from template')
+      }
+      send('log', `Imported files from template: ${templateSlug}\n`)
       return
     }
 
-    send('log', `Imported files from template: ${templateSlug}\n`)
-  }
-  // Clone source agent files before provisioning
-  else if (cloneFrom && /^[a-z][a-z0-9_-]*$/.test(cloneFrom)) {
-    const srcPath = path.join(getAgentsDir(), cloneFrom)
-    const dstPath = path.join(getAgentsDir(), validatedName)
-    const copied = cloneAgentFiles(srcPath, dstPath, cloneFrom, validatedName)
-    if (copied.length > 0) {
-      send('log', `Cloned ${copied.length} file(s) from ${cloneFrom}: ${copied.join(', ')}\n`)
+    if (cloneFrom && /^[a-z][a-z0-9_-]*$/.test(cloneFrom)) {
+      const srcPath = path.join(getAgentsDir(), cloneFrom)
+      const dstPath = path.join(getAgentsDir(), validatedName)
+      const copied = cloneAgentFiles(srcPath, dstPath, cloneFrom, validatedName)
+      if (copied.length > 0) {
+        send('log', `Cloned ${copied.length} file(s) from ${cloneFrom}: ${copied.join(', ')}\n`)
+      }
+      return
+    }
+
+    if (generatedFiles) {
+      writeGeneratedFilesToWorkspace()
+      return
+    }
+
+    const seeded = ensureManagedAgentWorkspaceFiles({
+      agentId: validatedName,
+      model: validatedModel,
+      tags,
+      workspacePath: getWorkspacePath(),
+    })
+    if (seeded.created.length > 0) {
+      send('log', `Seeded default agent files: ${seeded.created.join(', ')}\n`)
     }
   }
 
@@ -562,6 +595,13 @@ router.post('/provision', (req, res) => {
   if (isRegistered) {
     // Agent already registered - skip openclaw agents add
     send('log', `Agent "${validatedName}" is already registered\n`)
+    try {
+      applyWorkspaceFiles()
+    } catch (err: any) {
+      send('error', err.message || 'Failed to prepare agent workspace files')
+      res.end()
+      return
+    }
     applyAssignedSkills()
     send('done', 'ok')
     res.end()
@@ -580,24 +620,6 @@ router.post('/provision', (req, res) => {
     send('error', `Failed to create workspace directory: ${err.message}`)
     res.end()
     return
-  }
-
-  if (!generatedFiles && !templateSlug && !cloneFrom) {
-    try {
-      const seeded = ensureManagedAgentWorkspaceFiles({
-        agentId: validatedName,
-        model: validatedModel,
-        tags,
-        workspacePath: getWorkspacePath(),
-      })
-      if (seeded.created.length > 0) {
-        send('log', `Seeded default agent files: ${seeded.created.join(', ')}\n`)
-      }
-    } catch (err: any) {
-      send('error', `Failed to seed agent workspace files: ${err.message}`)
-      res.end()
-      return
-    }
   }
 
   // Get available models based on API keys
@@ -716,6 +738,14 @@ router.post('/provision', (req, res) => {
       return
     }
 
+    try {
+      applyWorkspaceFiles()
+    } catch (err: any) {
+      send('error', `Failed to prepare agent workspace files: ${err.message}`)
+      res.end()
+      return
+    }
+
     send('log', `Agent ${validatedName} created successfully\n`)
     applyAssignedSkills()
     saveCreationMetadata()
@@ -746,6 +776,14 @@ router.post('/provision', (req, res) => {
   child.on('close', (code, signal) => {
     cleanup()
     if (code === 0) {
+      try {
+        applyWorkspaceFiles()
+      } catch (err: any) {
+        send('error', `Failed to prepare agent workspace files: ${err.message}`)
+        send('done', 'post-provision file setup failed')
+        res.end()
+        return
+      }
       send('log', `Agent ${validatedName} created successfully\n`)
       applyAssignedSkills()
       saveCreationMetadata()
