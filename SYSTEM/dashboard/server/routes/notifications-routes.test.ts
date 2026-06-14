@@ -275,6 +275,28 @@ async function run() {
     assert.strictEqual(matches[0]?.message, '3 agent messages in group "Test Status".', 'Expected active channel notification message to refresh')
   })
 
+  await test('notifications list resolves stale artifact notifications whose file no longer exists', async () => {
+    const { createNotification, getActiveNotifications } = require('../lib/notifications')
+
+    createNotification({
+      type: 'artifact-update',
+      title: 'agent-a updated missing-report.pdf',
+      message: 'Updated workspace artifact from agent-a: AGENTS/agent-a/missing-report.pdf',
+      entityId: 'agent-a',
+      entityType: 'agent',
+      fingerprint: 'artifact-missing:1',
+      artifactPath: 'AGENTS/agent-a/missing-report.pdf',
+    })
+
+    const handler = getRouteHandler('get', '/')
+    const res = makeRes()
+    await handler(makeReq(), res)
+
+    const staleMatches = getActiveNotifications().filter((notification: any) => notification.artifactPath === 'AGENTS/agent-a/missing-report.pdf')
+    assert.strictEqual(staleMatches.length, 0, 'Expected stale artifact notification to be auto-resolved')
+    assert(!(res.jsonBody?.notifications || []).some((notification: any) => notification.artifactPath === 'AGENTS/agent-a/missing-report.pdf'), 'Expected stale artifact notification to be absent from route payload')
+  })
+
   if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
   else process.env.OPENCLAW_WORKSPACE = originalWorkspace
   if (typeof originalHome === 'undefined') delete process.env.HOME

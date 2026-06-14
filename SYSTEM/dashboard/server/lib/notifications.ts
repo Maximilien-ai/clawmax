@@ -583,9 +583,32 @@ function resolveIgnoredArtifactNotifications(): void {
   }
 }
 
+export function resolveMissingArtifactNotifications(): void {
+  const notifications = loadNotifications()
+  const workspaceRoot = getWorkspacePath()
+  let changed = false
+
+  for (const notification of notifications) {
+    if (notification.type !== 'artifact-update') continue
+    if (notification.dismissedAt || notification.resolvedAt) continue
+    if (!notification.artifactPath) continue
+
+    const absolutePath = path.join(workspaceRoot, notification.artifactPath)
+    if (fs.existsSync(absolutePath)) continue
+
+    notification.resolvedAt = new Date().toISOString()
+    changed = true
+  }
+
+  if (changed) {
+    saveNotifications(notifications)
+  }
+}
+
 async function runMonitorScan(): Promise<void> {
   try {
     resolveIgnoredArtifactNotifications()
+    resolveMissingArtifactNotifications()
 
     // 1. Check agent health
     const agents = listAgents()

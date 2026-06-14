@@ -5,12 +5,14 @@ import {
   dismissAllNotifications,
   resolveNotificationAction,
   getWorkflowBlockers,
+  resolveMissingArtifactNotifications,
 } from '../lib/notifications'
 
 const router = Router()
 
 // GET /api/notifications — list active notifications
 router.get('/', (_req, res) => {
+  resolveMissingArtifactNotifications()
   const notifications = getGroupedActiveNotifications()
   const criticalCount = notifications.filter(n => n.severity === 'critical').length
   const warningCount = notifications.filter(n => n.severity === 'warning').length
