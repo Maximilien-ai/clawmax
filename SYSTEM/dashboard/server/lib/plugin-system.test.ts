@@ -230,11 +230,23 @@ async function run() {
     const withDoc = generatePluginRecordDocument(plugin!, created.id)
     assert(withDoc?.document?.path === `SYSTEM/plugins/${plugin!.slug}/docs/${created.id}.md`, 'Expected generated guardrail doc path')
     assert(fs.existsSync(path.join(tempWorkspace, withDoc!.document!.path)), 'Expected generated guardrail doc on disk')
+    const generatedDocNotifications = getActiveNotifications().filter((notification) =>
+      notification.type === 'artifact-update'
+      && notification.entityId === created.id
+      && notification.artifactPath === withDoc!.document!.path
+    )
+    assert.strictEqual(generatedDocNotifications.length, 1, 'Expected generated guardrail doc notification to be recorded once')
 
     const beforeNotifications = getActiveNotifications().length
     const notified = emitPluginRecordNotification(plugin!, created.id)
     assert.strictEqual(notified?.id, created.id, 'Expected plugin notification to target the guardrail record')
-    assert.strictEqual(getActiveNotifications().length, beforeNotifications + 1, 'Expected plugin notification to be recorded')
+    const matchingNotifications = getActiveNotifications().filter((notification) =>
+      notification.type === 'artifact-update'
+      && notification.entityId === created.id
+      && notification.artifactPath === withDoc!.document!.path
+    )
+    assert.strictEqual(getActiveNotifications().length, beforeNotifications, 'Expected plugin notifications for the same artifact path to dedupe')
+    assert.strictEqual(matchingNotifications.length, 1, 'Expected plugin notification to remain deduped to a single active artifact notification')
 
     assert(deletePluginRecord(plugin!, created.id), 'Expected delete to remove guardrail record')
     assert.strictEqual(listPluginRecords(plugin!).length, 0, 'Expected no guardrail records after delete')
