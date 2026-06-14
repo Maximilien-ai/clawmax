@@ -1,21 +1,21 @@
 # ClawMax Status
 
-**Current Version**: v1.8.4
-**Last Updated**: June 13, 2026
-**Status**: `v1.8.4` is promoted from `main` after the agent delete regression sweep covering detail-pane deletion and bulk delete confirmation visibility.
+**Current Version**: v1.8.5
+**Last Updated**: June 14, 2026
+**Status**: `v1.8.5-test-rc1` is being prepared from `main` after the latest harden/simplify slice covering DocHub preview/file-open behavior, clearer provider failure messaging, and notification/background-fetch churn reduction.
 
 ---
 
 ## Current State
 
-- `main` now contains the first `1.8.x` hardening pass, the `1.8.2` simplify/optimize slice, the `1.8.3` Add Agent regression fixes, and the `1.8.4` agent delete UI cleanup.
+- `main` now contains the first `1.8.x` hardening pass, the `1.8.2` simplify/optimize slice, the `1.8.3` Add Agent regression fixes, the `1.8.4` agent delete UI cleanup, and the `1.8.5` DocHub/notification polish pass.
 - The `1.8.x` work is intentionally focused on hardening, simplification, regression safety, lightweight responsiveness wins, and backlog hygiene rather than major new feature scope.
 - Dashboard, CI, container images, cloud, and on-prem paths use the same tested OpenClaw `2026.5.26` baseline.
 - The release workflow now supports test images (`test-rcN`) and explicit promotion of validated images into official version tags.
 - Partner integrations are active product surfaces, including Resend, Cognee, Opik, GitHub, Senso, and partner plugin install/uninstall handling.
 - Resend has both dashboard test-email validation and first-party `clawmax-resend` agent-tool execution with runtime-secret support.
 - Cognee has a first-pass partner surface for cloud/self-hosted configuration and official OpenClaw plugin lifecycle management.
-- The latest reported full local integration run is green with `--with-validation`, with additional focused regressions added for Add Agent model/default behavior and agent delete UI availability.
+- The latest reported full local integration run is green with `--with-validation`, including the latest helper/contract coverage for workspace file mentions, DocHub preview behavior, notification presentation/routes, and plugin notification dedupe.
 
 ## Active Release Track
 
@@ -23,7 +23,7 @@
 - Plans:
   - [planning/HARDENING_SIMPLIFICATION_1_8_X.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/HARDENING_SIMPLIFICATION_1_8_X.md)
   - [planning/SIMPLIFY_OPTIMIZE_1_8_X.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_OPTIMIZE_1_8_X.md)
-- Near-term target: continue the `1.8.x` optimize/harden pass and `plugins-mvp1` follow-through on top of the promoted `1.8.4` baseline.
+- Near-term target: validate `1.8.5-test-rc1`, then continue the `1.8.x` optimize/harden pass and `plugins-mvp1` follow-through on top of the `1.8.5` baseline.
 
 ## Release References
 

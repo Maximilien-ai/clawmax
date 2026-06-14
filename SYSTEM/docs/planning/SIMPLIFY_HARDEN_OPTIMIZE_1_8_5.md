@@ -3,6 +3,7 @@
 > Started: June 14, 2026
 > Branch: `simplify-harden-optimize`
 > Baseline: `main` after `v1.8.4`
+> Status: completed and merged for `1.8.5`; remaining follow-through moved back to [BACKLOG.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/BACKLOG.md)
 
 ## Goal
 
@@ -38,9 +39,9 @@ These are the highest-value `1.8.5` candidates given current backlog and recent 
 
 ### Section 1: Error Explanation Hardening
 
-- [ ] Improve provider timeout/cooldown messaging in chat/workflow-facing UI.
-- [ ] Improve provider auth/key failure messaging so users see “invalid/missing credentials” instead of raw fallback chains.
-- [ ] Keep these explanations generic and operator-safe; do not hide real root cause.
+- [x] Improve provider timeout/cooldown messaging in chat/workflow-facing UI.
+- [x] Improve provider auth/key failure messaging so users see “invalid/missing credentials” instead of raw fallback chains.
+- [x] Keep these explanations generic and operator-safe; do not hide real root cause.
 
 Regression target:
 
@@ -48,9 +49,9 @@ Regression target:
 
 ### Section 2: DocHub File Resolution Hardening
 
-- [ ] Resolve bare filenames to unique workspace-relative DocHub paths when there is one clear match.
-- [ ] Keep exact `AGENTS/...`, `GROUPS/...`, `WORKFLOWS/...`, `SYSTEM/...` paths authoritative.
-- [ ] If multiple matches exist, do not create a misleading link.
+- [x] Resolve bare filenames to unique workspace-relative DocHub paths when there is one clear match.
+- [x] Keep exact `AGENTS/...`, `GROUPS/...`, `WORKFLOWS/...`, `SYSTEM/...` paths authoritative.
+- [x] If multiple matches exist, do not create a misleading link.
 
 Regression target:
 
@@ -58,9 +59,9 @@ Regression target:
 
 ### Section 3: Notification / Result Cleanup
 
-- [ ] Continue reducing repeated low-signal notifications where the same event is emitted multiple times.
-- [ ] Tighten file/channel/result links if enough context already exists.
-- [ ] Keep the notification center behavior aligned with existing successful fixes from `1.8.2`.
+- [x] Continue reducing repeated low-signal notifications where the same event is emitted multiple times.
+- [x] Tighten file/channel/result links if enough context already exists.
+- [x] Keep the notification center behavior aligned with existing successful fixes from `1.8.2`.
 
 Regression target:
 
@@ -68,9 +69,9 @@ Regression target:
 
 ### Section 4: Low-Risk Responsiveness
 
-- [ ] Audit one more top-level page or panel for obvious duplicate fetches or jitter.
-- [ ] Prefer request-local dedupe or short cooldown guards over architectural rewrites.
-- [ ] Only include if clearly low risk after Sections 1-3.
+- [x] Audit one more top-level page or panel for obvious duplicate fetches or jitter.
+- [x] Prefer request-local dedupe or short cooldown guards over architectural rewrites.
+- [x] Only include if clearly low risk after Sections 1-3.
 
 Regression target:
 
@@ -95,9 +96,8 @@ If time stays short, do the work in this order:
 
 ## Release Rule
 
-Do not cut `1.8.5-test-rc1` unless:
+`1.8.5-test-rc1` was cut after:
 
 - focused tests pass
 - full `SYSTEM/test-with-server.sh integration --with-validation` passes
 - visible test count increases if behavior materially changed
-

@@ -5,14 +5,14 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.8.4-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
+[![Version](https://img.shields.io/badge/version-1.8.5-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
 [![Tests](https://img.shields.io/badge/tests-96%20default--safe-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 Latest Release: v1.8.4
+## 🔥 Latest Release: v1.8.5
 
-- `1.8.4` continues the `1.8.x` hardening/simplify line with a focused agent-delete regression pass: restored delete from the detail pane, corrected delete overlay stacking, and made bulk delete confirmations reliably visible.
+- `1.8.5` continues the `1.8.x` hardening/simplify line with a DocHub and notification polish pass: unique bare-file resolution, inline PDF/image previews, code/JSON/YAML viewers with line numbers and lightweight highlighting, cleaner provider cooldown/auth messaging, and less notification/background polling churn.
 
 ## ✨ 1.8.x Highlights
 
@@ -41,6 +41,13 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
   - fixes delete modal stacking so confirmation dialogs appear above the detail inspector
   - keeps bulk delete confirmation/footer actions visible on smaller viewports
   - adds a visible `Agent delete UI regression tests` lane in `SYSTEM/test.sh`
+
+- `1.8.5`:
+  - resolves bare chat/status filenames to unique DocHub targets when safe and avoids misleading opens when ambiguous
+  - previews PDFs and images inline in DocHub and upgrades code/JSON/YAML viewing with line numbers plus lightweight syntax highlighting
+  - makes provider cooldown vs auth/key failures read as clearer operator-facing messages instead of raw fallback noise
+  - deduplicates repeated artifact/channel notifications and reduces background polling/fetch churn on hidden or inactive surfaces
+  - keeps plugin contract tests aligned with artifact notification dedupe so the full suite stays stable as notification behavior evolves
 
 ## ✨ 1.7.x Highlights
 

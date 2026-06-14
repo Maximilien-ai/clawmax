@@ -5,8 +5,31 @@ All notable changes to ClawMax are documented here.
 ## [Unreleased]
 
 ### Planned Follow-Through
-- **Provider Cooldown/Auth Surfacing** — improve how workflow and agent surfaces explain transient provider cooldown windows versus hard auth failures so operators do not have to infer the difference from raw fallback summaries.
-- **Bare Filename Chat/Status File Resolution** — improve message/file-link resolution so chat/status panels can map bare filenames like `show.pdf` or `answers.pdf` to real DocHub workspace paths when the target is unique.
+- **DocHub File-Open Polish** — keep tightening file-open behavior from chat/status/notification surfaces, especially for ambiguous bare filenames and any remaining places where a visible file chip does not open the intended DocHub entry.
+- **Plugin MVP1 Follow-Through** — continue generic plugin infrastructure work only: loading/performance, stronger shared UI parity, richer contracts, and public test-plugin polish before any private plugin surfaces are considered for broader release.
+
+## [v1.8.5] - 2026-06-14
+
+### Fixed
+- **Unique Bare Filename Resolution** — chat, status, and communication surfaces now resolve bare filenames like `show.pdf` only when the workspace target is unique, preventing misleading DocHub opens when multiple files share the same basename.
+- **DocHub Artifact Preview Upgrade** — DocHub now previews PDFs and images inline and shows code-oriented assets, including `json`, `jsonl`, `yaml`, and `yml`, with line numbers, language badges, and lightweight syntax highlighting.
+- **Cleaner Provider Cooldown/Auth Messaging** — workflow and chat surfaces now explain transient provider cooldowns and hard auth/key failures in clearer operator-facing language instead of surfacing only raw fallback-chain noise.
+- **Notification Churn Reduction** — active artifact notifications dedupe by artifact path, channel-activity notifications refresh in place by channel, grouped notification search matches child entity/file text, and hidden tabs stop unnecessary notification polling.
+- **Background Fetch Cleanup** — agent metering/cost-limit fetches now stay scoped to the active Agents surface, reducing avoidable background churn while preserving visible data refresh.
+- **Plugin Notification Contract Alignment** — plugin contract coverage now explicitly validates artifact-notification dedupe for generated plugin documents so test behavior matches the live notification center contract.
+
+### Testing
+- Added or expanded visible regression coverage for:
+  - `Workspace file mention helper unit tests`
+  - `Communication message helper unit tests`
+  - `Docs route unit tests`
+  - `Notification presentation helper tests`
+  - `Notifications route contract tests`
+  - `Plugin system contract unit tests`
+
+### Release Validation
+- Validate `1.8.5-test-rc1` on cloud and on-prem before promotion.
+- Manual smoke should focus on chat/status file links, PDF/image/code preview in DocHub, notification grouping/dedupe behavior, and clearer provider cooldown/auth messaging.
 
 ## [v1.8.4] - 2026-06-13
 
