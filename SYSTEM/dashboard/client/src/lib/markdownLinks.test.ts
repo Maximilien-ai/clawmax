@@ -25,8 +25,13 @@ assert(
 )
 
 assert(
+  isOpenableWorkspaceFileMention('AGENTS/jarvis/preview.png') === true,
+  'Expected workspace image files to be openable'
+)
+
+assert(
   isOpenableWorkspaceFileMention('auth-profiles.json') === false,
   'Expected runtime auth profile files to stay out of DocHub links'
 )
 
-console.log('markdownLinks.test.ts: 5 tests passed')
+console.log('markdownLinks.test.ts: 6 tests passed')

@@ -801,6 +801,16 @@ else
   fail "Communication message helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Workspace file mention helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/workspaceFiles.test.ts > /tmp/clawmax-workspace-files.out 2>&1 || true
+if grep -q "workspaceFiles.test.ts:" /tmp/clawmax-workspace-files.out; then
+  workspace_files_count=$(grep -o '[0-9]\+ tests passed' /tmp/clawmax-workspace-files.out | head -1 | grep -o '[0-9]\+')
+  pass "Workspace file mention helper unit tests (${workspace_files_count:-?} tests)"
+else
+  cat /tmp/clawmax-workspace-files.out
+  fail "Workspace file mention helper unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Channel API helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/channelApi.test.ts > /tmp/clawmax-channel-api.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-channel-api.out; then

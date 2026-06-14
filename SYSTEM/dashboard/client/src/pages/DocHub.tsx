@@ -21,7 +21,8 @@ interface AgentSummary {
   name?: string
 }
 
-type SelectedPreviewKind = 'markdown' | 'text' | 'image' | 'asset'
+type SelectedPreviewKind = 'markdown' | 'text' | 'code' | 'image' | 'pdf' | 'asset'
+type CodeLanguageLabel = string | null
 
 interface DeleteConfirmationState {
   path: string
@@ -98,12 +99,90 @@ function getAssetRecencyLabel(entry?: DocEntry | null): 'new' | 'updated' | null
   return 'updated'
 }
 
+function getCodeLanguageMode(language: CodeLanguageLabel): 'json' | 'yaml' | 'generic' {
+  const normalized = String(language || '').toLowerCase()
+  if (normalized === 'json' || normalized === 'jsonl') return 'json'
+  if (normalized === 'yaml') return 'yaml'
+  return 'generic'
+}
+
+function renderCodeToken(text: string, kind: 'plain' | 'comment' | 'string' | 'key' | 'number' | 'keyword' | 'punctuation') {
+  const className = kind === 'comment'
+    ? 'text-slate-500 italic'
+    : kind === 'string'
+      ? 'text-emerald-600 dark:text-emerald-400'
+      : kind === 'key'
+        ? 'text-amber-700 dark:text-amber-400'
+        : kind === 'number'
+          ? 'text-violet-700 dark:text-violet-400'
+          : kind === 'keyword'
+            ? 'text-sky-700 dark:text-sky-400'
+            : kind === 'punctuation'
+              ? 'text-slate-500 dark:text-slate-400'
+              : ''
+
+  return className ? <span className={className}>{text}</span> : <span>{text}</span>
+}
+
+function renderHighlightedCodeLine(line: string, language: CodeLanguageLabel, lineKey: string): React.ReactNode {
+  const mode = getCodeLanguageMode(language)
+  const regex = mode === 'json'
+    ? /("(?:\\.|[^"\\])*")(\s*:)?|(:|[{}\[\],])|\b(true|false|null)\b|-?\b\d+(?:\.\d+)?\b/g
+    : mode === 'yaml'
+      ? /(#[^\n]*)|(^\s*-\s+)|(^\s*[^:#\n][^:\n]*:)|("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')|\b(true|false|null)\b|-?\b\d+(?:\.\d+)?\b/gm
+      : /(\/\/[^\n]*|#[^\n]*|\/\*[\s\S]*?\*\/)|("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`)|\b(function|const|let|var|return|if|else|for|while|class|import|export|from|async|await|def|raise|try|except|finally|public|private|protected|static|new|package|interface|type|enum|extends|implements|switch|case|break|continue|true|false|null)\b|-?\b\d+(?:\.\d+)?\b/g
+
+  const parts: React.ReactNode[] = []
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+  let index = 0
+
+  while ((match = regex.exec(line)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(<span key={`${lineKey}-plain-${index}`}>{line.slice(lastIndex, match.index)}</span>)
+      index += 1
+    }
+
+    const token = match[0]
+    let kind: 'plain' | 'comment' | 'string' | 'key' | 'number' | 'keyword' | 'punctuation' = 'plain'
+    if (mode === 'json') {
+      if (match[1]) kind = match[2] ? 'key' : 'string'
+      else if (match[3]) kind = 'punctuation'
+      else if (match[4]) kind = 'keyword'
+      else kind = 'number'
+    } else if (mode === 'yaml') {
+      if (match[1]) kind = 'comment'
+      else if (match[2] || match[3]) kind = 'key'
+      else if (match[4]) kind = 'string'
+      else if (match[5]) kind = 'keyword'
+      else kind = 'number'
+    } else {
+      if (match[1]) kind = 'comment'
+      else if (match[2]) kind = 'string'
+      else if (match[3]) kind = 'keyword'
+      else kind = 'number'
+    }
+
+    parts.push(<React.Fragment key={`${lineKey}-token-${index}`}>{renderCodeToken(token, kind)}</React.Fragment>)
+    index += 1
+    lastIndex = match.index + token.length
+  }
+
+  if (lastIndex < line.length) {
+    parts.push(<span key={`${lineKey}-tail`}>{line.slice(lastIndex)}</span>)
+  }
+
+  return parts.length > 0 ? parts : <span>{line}</span>
+}
+
 export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
   const [entries, setEntries] = useState<DocEntry[]>([])
   const [selected, setSelected] = useState<string | null>(null)
   const [content, setContent] = useState<string>('')
   const [previewKind, setPreviewKind] = useState<SelectedPreviewKind>('markdown')
   const [imageDataUrl, setImageDataUrl] = useState<string | null>(null)
+  const [pdfDataUrl, setPdfDataUrl] = useState<string | null>(null)
+  const [codeLanguage, setCodeLanguage] = useState<CodeLanguageLabel>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [collapsed, setCollapsed] = useState<Record<DocSection, boolean>>({ ORG: false, AGENTS: false, WORKFLOWS: false, SYSTEM: true })
@@ -124,7 +203,9 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
   const selectedAgentAssetSource = selectedIsAgentAsset ? (selectedEntry?.assetSource || 'uploaded') : null
   const selectedIsMarkdown = !!selected && selected.endsWith('.md')
   const selectedIsTextPreview = previewKind === 'text'
+  const selectedIsCodePreview = previewKind === 'code'
   const selectedIsImagePreview = previewKind === 'image'
+  const selectedIsPdfPreview = previewKind === 'pdf'
   const selectedCreatedLabel = formatDocTimestamp(selectedEntry?.createdAt)
   const selectedUpdatedLabel = formatDocTimestamp(selectedEntry?.updatedAt)
 
@@ -236,6 +317,8 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
     setSaveSuccess(false)
     setPreviewKind('markdown')
     setImageDataUrl(null)
+    setPdfDataUrl(null)
+    setCodeLanguage(null)
 
     // Auto-expand section and directory if needed
     const section = path.split('/')[0] as DocSection
@@ -259,9 +342,23 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
         setPreviewKind(d.kind || 'markdown')
         if (d.kind === 'image') {
           setImageDataUrl(d.dataUrl || null)
+          setPdfDataUrl(null)
+          setCodeLanguage(null)
           setContent('')
+        } else if (d.kind === 'pdf') {
+          setPdfDataUrl(d.dataUrl || null)
+          setImageDataUrl(null)
+          setCodeLanguage(null)
+          setContent('')
+        } else if (d.kind === 'code') {
+          setCodeLanguage(typeof d.language === 'string' ? d.language : null)
+          setImageDataUrl(null)
+          setPdfDataUrl(null)
+          setContent(d.content || '')
         } else {
           setImageDataUrl(null)
+          setPdfDataUrl(null)
+          setCodeLanguage(null)
           setContent(d.content || '')
         }
         setLoading(false)
@@ -322,6 +419,15 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
     if (selectedIsImagePreview && imageDataUrl) {
       const a = document.createElement('a')
       a.href = imageDataUrl
+      a.download = fileName
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      return
+    }
+    if (selectedIsPdfPreview && pdfDataUrl) {
+      const a = document.createElement('a')
+      a.href = pdfDataUrl
       a.download = fileName
       document.body.appendChild(a)
       a.click()
@@ -982,6 +1088,11 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
             <div className="flex items-center justify-between px-8 py-3 border-b border-gray-100 shrink-0">
               <span className="text-xs text-gray-400 font-mono">{selected}</span>
               <div className="flex items-center gap-2">
+                {selectedIsCodePreview && codeLanguage && (
+                  <span className="rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-[11px] font-medium text-indigo-700 dark:border-indigo-900 dark:bg-indigo-950/30 dark:text-indigo-300">
+                    {codeLanguage}
+                  </span>
+                )}
                 {(previewKind !== 'asset') && (
                   <button
                     onClick={downloadSelectedFile}
@@ -1139,6 +1250,37 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
                     <div className="space-y-4">
                       <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900">
                         <img src={imageDataUrl} alt={selected || 'Uploaded image'} className="max-w-full h-auto rounded mx-auto" />
+                      </div>
+                    </div>
+                  ) : selectedIsPdfPreview && pdfDataUrl ? (
+                    <div className="space-y-4">
+                      <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900">
+                        <iframe
+                          src={pdfDataUrl}
+                          title={selected || 'PDF preview'}
+                          className="h-[75vh] w-full rounded bg-white"
+                        />
+                      </div>
+                    </div>
+                  ) : selectedIsCodePreview ? (
+                    <div className="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
+                      <div className="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-4 py-2 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
+                        <span>{codeLanguage || 'Code'}</span>
+                        <span>{content.split('\n').length} lines</span>
+                      </div>
+                      <div className="overflow-x-auto bg-gray-50 dark:bg-gray-900">
+                        <div className="flex min-w-full font-mono text-sm text-gray-800 dark:text-gray-200">
+                          <div className="select-none border-r border-gray-200 bg-gray-100 px-3 py-4 text-right text-xs leading-6 text-gray-400 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-500">
+                            {content.split('\n').map((_line, index) => (
+                              <div key={`line-${index + 1}`}>{index + 1}</div>
+                            ))}
+                          </div>
+                          <pre className="min-w-0 flex-1 overflow-x-auto whitespace-pre px-4 py-4 leading-6">
+                            {content.split('\n').map((line, index) => (
+                              <div key={`code-line-${index + 1}`}>{renderHighlightedCodeLine(line, codeLanguage, `code-line-${index + 1}`)}</div>
+                            ))}
+                          </pre>
+                        </div>
                       </div>
                     </div>
                   ) : selectedIsTextPreview ? (

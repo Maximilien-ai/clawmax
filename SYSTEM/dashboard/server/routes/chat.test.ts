@@ -135,6 +135,24 @@ test('deriveChatError hides embedded session takeover internals', () => {
   assert(!message.includes('/Users/maximilien'), 'Expected local session path to be hidden')
 })
 
+test('deriveChatError surfaces provider cooldowns as transient retryable failures', () => {
+  const message = deriveChatError(
+    'FallbackSummaryError: All models failed (1): openai/gpt-5: Provider openai is in cooldown (suspending lanes) (timeout)',
+    'openai'
+  )
+  assert(/temporarily cooling down/i.test(message), 'Expected cooldown explanation')
+  assert(/retry|faster fallback model/i.test(message), 'Expected retry guidance')
+})
+
+test('deriveChatError surfaces invalid credentials as configuration failures', () => {
+  const message = deriveChatError(
+    'FailoverError: 401 Incorrect API key provided: openai-cible. You can find your API key at https://platform.openai.com/account/api-keys.',
+    'openai'
+  )
+  assert(/credentials were rejected/i.test(message), 'Expected invalid-credential explanation')
+  assert(/api key|auth profile/i.test(message), 'Expected config remediation guidance')
+})
+
 test('buildManagedSecretStatelessChatMessage preserves recent chat context in a single-turn prompt', () => {
   const prompt = buildManagedSecretStatelessChatMessage('Send that status in an email to mmaximilien@gmail.com', [
     { role: 'user', content: 'who are you? give me a status' },

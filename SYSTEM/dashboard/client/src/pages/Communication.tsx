@@ -202,8 +202,10 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
   }, [activeWorkspace?.id])
 
   const handleNavigateToDoc = useCallback((target: string) => {
+    const resolvedPath = resolveCommunicationDocPath(target, docEntries)
+    if (!resolvedPath) return
     setChatPanelChannel(null)
-    onNavigateToDoc?.(resolveCommunicationDocPath(target, docEntries))
+    onNavigateToDoc?.(resolvedPath)
   }, [docEntries, onNavigateToDoc])
 
   const closeChatPanel = useCallback(() => {

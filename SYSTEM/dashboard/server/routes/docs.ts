@@ -16,7 +16,28 @@ router.get('/content', (req, res) => {
   if (!relPath) return res.status(400).json({ error: 'path query param required' })
 
   const normalized = relPath.trim().toLowerCase()
-  const textExtensions = new Set(['.txt', '.text', '.log', '.json', '.yaml', '.yml', '.csv', '.tsv', '.xml', '.html', '.css', '.js', '.ts', '.py', '.sh'])
+  const codeExtensions = new Map<string, string>([
+    ['.json', 'JSON'],
+    ['.jsonl', 'JSONL'],
+    ['.yaml', 'YAML'],
+    ['.yml', 'YAML'],
+    ['.js', 'JavaScript'],
+    ['.ts', 'TypeScript'],
+    ['.jsx', 'JSX'],
+    ['.tsx', 'TSX'],
+    ['.py', 'Python'],
+    ['.sh', 'Shell'],
+    ['.java', 'Java'],
+    ['.go', 'Go'],
+    ['.rs', 'Rust'],
+    ['.rb', 'Ruby'],
+    ['.php', 'PHP'],
+    ['.html', 'HTML'],
+    ['.css', 'CSS'],
+    ['.sql', 'SQL'],
+    ['.xml', 'XML'],
+  ])
+  const textExtensions = new Set(['.txt', '.text', '.log', '.csv', '.tsv'])
   const imageExtensions = new Map<string, string>([
     ['.png', 'image/png'],
     ['.jpg', 'image/jpeg'],
@@ -24,6 +45,9 @@ router.get('/content', (req, res) => {
     ['.gif', 'image/gif'],
     ['.webp', 'image/webp'],
     ['.svg', 'image/svg+xml'],
+  ])
+  const pdfExtensions = new Map<string, string>([
+    ['.pdf', 'application/pdf'],
   ])
   const ext = path.extname(normalized)
 
@@ -39,6 +63,17 @@ router.get('/content', (req, res) => {
     return res.json({ path: relPath, kind: 'text', content: content.toString('utf-8') })
   }
 
+  if (codeExtensions.has(ext)) {
+    const content = readWorkspaceBinaryFile(relPath)
+    if (content === null) return res.status(404).json({ error: 'Not found or outside workspace' })
+    return res.json({
+      path: relPath,
+      kind: 'code',
+      language: codeExtensions.get(ext),
+      content: content.toString('utf-8'),
+    })
+  }
+
   if (imageExtensions.has(ext)) {
     const content = readWorkspaceBinaryFile(relPath)
     if (content === null) return res.status(404).json({ error: 'Not found or outside workspace' })
@@ -47,6 +82,17 @@ router.get('/content', (req, res) => {
       kind: 'image',
       mimeType: imageExtensions.get(ext),
       dataUrl: `data:${imageExtensions.get(ext)};base64,${content.toString('base64')}`,
+    })
+  }
+
+  if (pdfExtensions.has(ext)) {
+    const content = readWorkspaceBinaryFile(relPath)
+    if (content === null) return res.status(404).json({ error: 'Not found or outside workspace' })
+    return res.json({
+      path: relPath,
+      kind: 'pdf',
+      mimeType: pdfExtensions.get(ext),
+      dataUrl: `data:${pdfExtensions.get(ext)};base64,${content.toString('base64')}`,
     })
   }
 

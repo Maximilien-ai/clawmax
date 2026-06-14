@@ -7,7 +7,8 @@ import { getAgentChatCodeBlockClassName, getAgentChatInlineCodeClassName, getAge
 import { ProductIconCell } from '../lib/productIcons'
 import { useAuth } from '../contexts/AuthContext'
 import { resolveAgentChatDocPath } from '../lib/agentChatDocs'
-import { isOpenableWorkspaceFileMention, transformWorkspaceMarkdownUrl } from '../lib/markdownLinks'
+import { transformWorkspaceMarkdownUrl } from '../lib/markdownLinks'
+import { extractWorkspaceFileMentions, linkifyWorkspaceFiles } from '../lib/workspaceFiles'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -152,36 +153,15 @@ function cleanMessageContent(content: string): string {
   return cleaned || '(processing...)'
 }
 
-function linkifyWorkspaceFiles(content: string): string {
-  return content
-    .replace(/(^|[\s(])([A-Za-z0-9_./-]+\.(?:md|txt|json|csv|pdf|html|yml|yaml))(?!\])/gm, (_m, prefix, target) => {
-      if (!isOpenableWorkspaceFileMention(target)) {
-        return `${prefix}${target}`
-      }
-      if (!target.includes('/')) {
-        return `${prefix}[${target}](workspace-file:${target})`
-      }
-      if (/^(AGENTS|GROUPS|COMMUNITIES|WORKFLOWS|SYSTEM|ORG)\//.test(target)) {
-        return `${prefix}[${target}](workspace-file:${target})`
-      }
-      return `${prefix}${target}`
-    })
-}
-
-function extractWorkspaceFileMentions(content: string): string[] {
-  const matches = Array.from(
-    content.matchAll(/\b(?:AGENTS|GROUPS|COMMUNITIES|WORKFLOWS|SYSTEM|ORG)\/[A-Za-z0-9_./-]+\.(?:md|txt|json|csv|pdf|html|yml|yaml)\b|\b[A-Za-z0-9][A-Za-z0-9._-]*\.(?:md|txt|json|csv|pdf|html|yml|yaml)\b/g)
-  ).map((m) => m[0])
-  return Array.from(new Set(matches.filter(isOpenableWorkspaceFileMention)))
-}
-
 function summarizeChatFailure(message: string): string {
   const text = String(message || '').trim()
   if (!text) return 'No reply from agent.'
   if (/unsupported model|Unknown model:/i.test(text)) return 'This agent is configured with a model that the current runtime does not support. Choose a different model for the agent and try again.'
   if (/No API key found for provider/i.test(text)) return text.match(/No API key found for provider "[^"]+"/i)?.[0] || 'The selected model provider is missing credentials for this agent runtime.'
+  if (/Incorrect API key provided/i.test(text) || /has auth issue \(skipping all models\)/i.test(text)) return 'The configured model provider credentials were rejected. Check the API key or auth profile for this runtime and try again.'
+  if (/is in cooldown \(suspending lanes\)/i.test(text)) return 'The model provider is temporarily cooling down after a timeout. Wait a moment and retry, or switch this agent to a faster fallback model.'
   if (/gateway/i.test(text)) return 'Agent could not reach the gateway runtime.'
-  if (/timeout/i.test(text)) return 'Agent timed out before producing a reply.'
+  if (/timeout/i.test(text)) return 'Agent timed out before producing a reply. Retry once, or switch this agent to a faster model if the issue persists.'
   if (/No API keys available|No execution path configured/i.test(text)) return 'No model execution path is configured for this chat.'
   return text
 }
