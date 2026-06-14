@@ -287,6 +287,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
 
   // Fetch metering data
   useEffect(() => {
+    if (!isActive) return
     fetch(buildWorkspaceScopedPath('/api/metering', activeWorkspace?.id)).then(r => r.json()).then(d => {
       if (d && d.enabled === false) {
         setCostTrackingEnabled(false)
@@ -302,9 +303,10 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
       setAgentMetering(map)
       setMeteringLoaded(true)
     }).catch(() => { setMeteringLoaded(true) })
-  }, [activeWorkspace?.id])
+  }, [activeWorkspace?.id, isActive])
 
   useEffect(() => {
+    if (!isActive) return
     if (!costTrackingEnabled) {
       setAgentCostLimits({})
       return
@@ -313,7 +315,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
       .then(r => r.ok ? r.json() : null)
       .then(d => setAgentCostLimits(d?.limits && typeof d.limits === 'object' ? d.limits : {}))
       .catch(() => setAgentCostLimits({}))
-  }, [activeWorkspace?.id, costTrackingEnabled])
+  }, [activeWorkspace?.id, costTrackingEnabled, isActive])
 
   useEffect(() => {
     fetchAgents()

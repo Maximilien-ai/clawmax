@@ -57,6 +57,31 @@ test('filters by title, message, entity, type, and artifact path', () => {
   assert(filterNotifications(notifications, 'researcher').map(n => n.id).join(',') === 'b,c', 'Expected artifact path and entity search to match')
 })
 
+test('filters grouped notifications by grouped child entity and artifact text', () => {
+  const notifications = [
+    notification({
+      id: 'grouped',
+      type: 'artifact-update',
+      title: '2 agents updated REPORT.md',
+      message: 'grouped artifact update',
+      grouped: true,
+      groupedChildren: [
+        notification({
+          id: 'child-a',
+          type: 'artifact-update',
+          title: 'agent-a updated REPORT.md',
+          message: 'Updated workspace artifact from agent-a',
+          entityId: 'agent-a',
+          artifactPath: 'AGENTS/agent-a/REPORT.md',
+        }),
+      ],
+    }),
+  ]
+
+  assert(filterNotifications(notifications, 'agent-a').map(n => n.id).join(',') === 'grouped', 'Expected grouped child entity search to match parent notification')
+  assert(filterNotifications(notifications, 'report.md').map(n => n.id).join(',') === 'grouped', 'Expected grouped child artifact search to match parent notification')
+})
+
 test('groups notifications by ordered categories', () => {
   const grouped = groupNotificationsByCategory([
     notification({ id: 'agent', type: 'agent-offline' }),

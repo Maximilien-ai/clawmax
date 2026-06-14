@@ -68,12 +68,19 @@ export function filterNotifications(notifications: DashboardNotification[], quer
   if (!normalizedQuery) return notifications
 
   return notifications.filter((notification) => {
+    const groupedChildrenText = (notification.groupedChildren || []).flatMap((child) => [
+      child.title,
+      child.message,
+      child.entityId || '',
+      child.artifactPath || '',
+    ])
     return [
       notification.title,
       notification.message,
       notification.entityId || '',
       notification.type,
       notification.artifactPath || '',
+      ...groupedChildrenText,
     ].some(value => value.toLowerCase().includes(normalizedQuery))
   })
 }

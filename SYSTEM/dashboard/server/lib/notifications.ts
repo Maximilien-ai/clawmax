@@ -400,6 +400,35 @@ export function createNotification(params: {
     return null
   }
 
+  if (params.type === 'artifact-update' && params.artifactPath) {
+    const activeArtifactNotification = notifications.find((notification) => (
+      notification.type === 'artifact-update'
+      && notification.artifactPath === params.artifactPath
+      && !notification.dismissedAt
+      && !notification.resolvedAt
+    ))
+    if (activeArtifactNotification) {
+      return null
+    }
+  }
+
+  if (params.type === 'channel-activity' && params.entityType === 'channel' && params.entityId) {
+    const activeChannelNotification = notifications.find((notification) => (
+      notification.type === 'channel-activity'
+      && notification.entityType === 'channel'
+      && notification.entityId === params.entityId
+      && !notification.dismissedAt
+      && !notification.resolvedAt
+    ))
+    if (activeChannelNotification) {
+      activeChannelNotification.title = params.title
+      activeChannelNotification.message = params.message
+      activeChannelNotification.createdAt = new Date().toISOString()
+      saveNotifications(notifications)
+      return null
+    }
+  }
+
   const notification: Notification = {
     id: crypto.randomUUID(),
     type: params.type,
