@@ -95,6 +95,9 @@ async function run() {
 
   fs.writeFileSync(path.join(workspacePath, 'SYSTEM', 'notes.md'), '# Notes\n\nAlpha project status\n', 'utf-8')
   fs.writeFileSync(path.join(workspacePath, 'SYSTEM', 'runtime.log'), 'gateway ready\nline two\n', 'utf-8')
+  fs.writeFileSync(path.join(workspacePath, 'SYSTEM', 'sample.py'), 'def hello():\n    return "world"\n', 'utf-8')
+  fs.writeFileSync(path.join(workspacePath, 'SYSTEM', 'sample.json'), '{\n  "ok": true,\n  "count": 2\n}\n', 'utf-8')
+  fs.writeFileSync(path.join(workspacePath, 'SYSTEM', 'report.pdf'), Buffer.from('%PDF-1.4\n%mock pdf\n', 'utf-8'))
 
   await test('content route rejects missing path', async () => {
     const handler = getRouteHandler('get', '/content')
@@ -105,7 +108,7 @@ async function run() {
     assert(/path query param required/i.test(res.jsonBody?.error || ''), 'Expected missing path guidance')
   })
 
-  await test('content route returns markdown and text previews by file type', async () => {
+  await test('content route returns markdown, text, code, and pdf previews by file type', async () => {
     const handler = getRouteHandler('get', '/content')
 
     const mdRes = makeRes()
@@ -119,6 +122,26 @@ async function run() {
     assert.strictEqual(textRes.statusCode, 200, 'Expected text fetch success')
     assert.strictEqual(textRes.jsonBody?.kind, 'text', 'Expected text kind')
     assert(/gateway ready/.test(textRes.jsonBody?.content || ''), 'Expected text file content')
+
+    const codeRes = makeRes()
+    await handler(makeReq({ query: { path: 'SYSTEM/sample.py' } }), codeRes)
+    assert.strictEqual(codeRes.statusCode, 200, 'Expected code fetch success')
+    assert.strictEqual(codeRes.jsonBody?.kind, 'code', 'Expected code kind')
+    assert.strictEqual(codeRes.jsonBody?.language, 'Python', 'Expected detected code language')
+    assert(/def hello/.test(codeRes.jsonBody?.content || ''), 'Expected code file content')
+
+    const jsonRes = makeRes()
+    await handler(makeReq({ query: { path: 'SYSTEM/sample.json' } }), jsonRes)
+    assert.strictEqual(jsonRes.statusCode, 200, 'Expected JSON fetch success')
+    assert.strictEqual(jsonRes.jsonBody?.kind, 'code', 'Expected JSON to use code preview kind')
+    assert.strictEqual(jsonRes.jsonBody?.language, 'JSON', 'Expected JSON language label')
+    assert(/"ok": true/.test(jsonRes.jsonBody?.content || ''), 'Expected JSON file content')
+
+    const pdfRes = makeRes()
+    await handler(makeReq({ query: { path: 'SYSTEM/report.pdf' } }), pdfRes)
+    assert.strictEqual(pdfRes.statusCode, 200, 'Expected PDF fetch success')
+    assert.strictEqual(pdfRes.jsonBody?.kind, 'pdf', 'Expected PDF kind')
+    assert(/^data:application\/pdf;base64,/.test(pdfRes.jsonBody?.dataUrl || ''), 'Expected PDF data URL payload')
   })
 
   await test('post content writes files inside the workspace and search finds them', async () => {

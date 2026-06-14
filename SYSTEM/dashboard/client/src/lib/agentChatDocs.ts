@@ -1,4 +1,5 @@
 import { resolveCommunicationDocPath } from './communicationMessages'
+import { normalizeWorkspaceFileTarget } from './workspaceFiles'
 
 export interface AgentChatDocEntryRef {
   path: string
@@ -18,22 +19,23 @@ export function resolveAgentChatDocPath(
   docEntries: AgentChatDocEntryRef[]
 ): string | null {
   if (!target) return null
-  if (target.includes('/')) {
-    return docEntries.some((entry) => entry.path === target) ? target : null
+  const normalized = normalizeWorkspaceFileTarget(target)
+  if (normalized.includes('/')) {
+    return docEntries.some((entry) => entry.path === normalized) ? normalized : null
   }
 
-  const directAgentPath = `AGENTS/${agentId}/${target}`
+  const directAgentPath = `AGENTS/${agentId}/${normalized}`
   const directAgentMatch = docEntries.find((entry) => entry.path === directAgentPath)
   if (directAgentMatch) return directAgentMatch.path
-  const scopedAgentMatch = findScopedDocMatch(`AGENTS/${agentId}/`, target, docEntries)
+  const scopedAgentMatch = findScopedDocMatch(`AGENTS/${agentId}/`, normalized, docEntries)
   if (scopedAgentMatch) return scopedAgentMatch
 
-  const archivedAgentPath = `AGENTS/archive/${agentId}/${target}`
+  const archivedAgentPath = `AGENTS/archive/${agentId}/${normalized}`
   const archivedAgentMatch = docEntries.find((entry) => entry.path === archivedAgentPath)
   if (archivedAgentMatch) return archivedAgentMatch.path
-  const scopedArchivedMatch = findScopedDocMatch(`AGENTS/archive/${agentId}/`, target, docEntries)
+  const scopedArchivedMatch = findScopedDocMatch(`AGENTS/archive/${agentId}/`, normalized, docEntries)
   if (scopedArchivedMatch) return scopedArchivedMatch
 
-  const fallback = resolveCommunicationDocPath(target, docEntries)
+  const fallback = resolveCommunicationDocPath(normalized, docEntries)
   return docEntries.some((entry) => entry.path === fallback) ? fallback : null
 }

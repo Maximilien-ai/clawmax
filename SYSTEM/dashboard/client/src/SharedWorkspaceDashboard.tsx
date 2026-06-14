@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { transformWorkspaceMarkdownUrl } from './lib/markdownLinks'
+import { extractWorkspaceFileMentions, linkifyWorkspaceFiles, normalizeWorkspaceFileTarget, resolveWorkspaceDocPath } from './lib/workspaceFiles'
 
 interface SharedDashboardPayload {
   refreshedAt: string
@@ -164,15 +165,7 @@ interface SharedDashboardPayload {
   }>
 }
 
-const WORKSPACE_FILE_REGEX = /\b(?:AGENTS|GROUPS|COMMUNITIES|WORKFLOWS|SYSTEM|ORG)\/[A-Za-z0-9_./-]+\.(?:md|txt|json|csv|pdf|html|yml|yaml)\b|\b[A-Za-z0-9][A-Za-z0-9._-]*\.(?:md|txt|json|csv|pdf|html|yml|yaml)\b/g
-const ABSOLUTE_WORKSPACE_FILE_REGEX = /\/(?:Users|workspace|app)\/[^\s"'<>]+?\/((?:AGENTS|GROUPS|COMMUNITIES|WORKFLOWS|SYSTEM|ORG)\/[A-Za-z0-9_./-]+\.(?:md|txt|json|csv|pdf|html|yml|yaml))/g
 const NOISE_FILE_NAMES = new Set(['IDENTITY.md', 'SOUL.md', 'TOOLS.md', 'GROUPS.md', 'COMMUNITIES.md', 'HEARTBEAT.md', 'USER.md', 'AGENTS.md'])
-
-function normalizeWorkspaceFileTarget(target: string): string {
-  const absoluteMatch = target.match(/((?:AGENTS|GROUPS|COMMUNITIES|WORKFLOWS|SYSTEM|ORG)\/[A-Za-z0-9_./-]+\.(?:md|txt|json|csv|pdf|html|yml|yaml))/)
-  if (absoluteMatch) return absoluteMatch[1]
-  return target
-}
 
 function isNoiseWorkspaceFile(target: string): boolean {
   const normalized = normalizeWorkspaceFileTarget(target)
@@ -184,40 +177,12 @@ function isNoiseWorkspaceFile(target: string): boolean {
   return false
 }
 
-function extractWorkspaceFileMentions(content: string): string[] {
-  const matches: string[] = []
-
-  for (const match of content.matchAll(ABSOLUTE_WORKSPACE_FILE_REGEX)) {
-    matches.push(match[1])
-  }
-
-  for (const match of content.matchAll(WORKSPACE_FILE_REGEX)) {
-    matches.push(match[0])
-  }
-
-  return Array.from(
-    new Set(
-      matches
-        .map((target) => normalizeWorkspaceFileTarget(target))
-        .filter((target) => !isNoiseWorkspaceFile(target))
-    )
-  )
-}
-
-function linkifyWorkspaceFiles(content: string): string {
-  return content.replace(/(^|[\s(])((?:AGENTS|GROUPS|COMMUNITIES|WORKFLOWS|SYSTEM|ORG)\/[A-Za-z0-9_./-]+\.(?:md|txt|json|csv|pdf|html|yml|yaml)|[A-Za-z0-9][A-Za-z0-9._-]*\.(?:md|txt|json|csv|pdf|html|yml|yaml))(?!\])/gm, (_match, prefix, target) => {
-    const normalized = normalizeWorkspaceFileTarget(target)
-    if (isNoiseWorkspaceFile(normalized)) return `${prefix}${target}`
-    return `${prefix}[${normalized}](workspace-file:${normalized})`
-  })
-}
-
 function extractMostRecentWorkspaceFiles(messages: Array<{ content: string }>, limit = 1): string[] {
   const seen = new Set<string>()
   const results: string[] = []
 
   for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const files = extractWorkspaceFileMentions(messages[index]?.content || '')
+    const files = extractWorkspaceFileMentions(messages[index]?.content || '').filter((file) => !isNoiseWorkspaceFile(file))
     for (const file of files) {
       if (seen.has(file)) continue
       seen.add(file)
@@ -492,25 +457,9 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
     return workflowsWithArtifacts[0] || null
   }, [payload])
 
-  function resolveDocPath(path: string): string {
-    if (path.includes('/')) return path
-
-    const exact = docEntries.find((entry) => entry.path === path)
-    if (exact) return exact.path
-
-    const matches = docEntries.filter((entry) => entry.path.endsWith(`/${path}`) || entry.path === path)
-    if (matches.length === 1) return matches[0].path
-
-    const preferred = matches.find((entry) => entry.path.startsWith('AGENTS/'))
-      || matches.find((entry) => entry.path.startsWith('WORKFLOWS/'))
-      || matches.find((entry) => entry.path.startsWith('ORG/'))
-      || matches[0]
-
-    return preferred?.path || path
-  }
-
   async function openDoc(path: string) {
-    const resolvedPath = resolveDocPath(path)
+    const resolvedPath = resolveWorkspaceDocPath(path, docEntries)
+    if (!resolvedPath) return
     setDocPath(resolvedPath)
     setDocLoading(true)
     setDocError(null)
@@ -528,7 +477,7 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
   }
 
   function renderFileChips(files: string[], options: { compact?: boolean; latestOnly?: boolean } = {}) {
-    const uniqueFiles = Array.from(new Set(files))
+    const uniqueFiles = Array.from(new Set(files)).filter((file) => resolveWorkspaceDocPath(file, docEntries))
     const visibleFiles = options.latestOnly ? uniqueFiles.slice(0, 1) : uniqueFiles.slice(0, options.compact ? 2 : 5)
     if (visibleFiles.length === 0) return null
     return (
@@ -1171,7 +1120,7 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
                         className="mt-1 text-sm text-gray-500 dark:text-slate-400"
                         onOpenDoc={openDoc}
                       />
-                      {renderFileChips(extractWorkspaceFileMentions(notification.message), { compact: true, latestOnly: true })}
+                      {renderFileChips(extractWorkspaceFileMentions(notification.message).filter((file) => !isNoiseWorkspaceFile(file)), { compact: true, latestOnly: true })}
                     </>
                   )}
                 </div>
@@ -1310,7 +1259,7 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
                                   <span>{timeAgo(new Date(message.timestamp).toISOString())}</span>
                                 </div>
                                 <MarkdownBlock content={message.content} onOpenDoc={openDoc} />
-                                {renderFileChips(extractWorkspaceFileMentions(message.content))}
+                                {renderFileChips(extractWorkspaceFileMentions(message.content).filter((file) => !isNoiseWorkspaceFile(file)))}
                               </div>
                             ))}
                           </div>

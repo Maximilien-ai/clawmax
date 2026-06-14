@@ -7,6 +7,7 @@ function run() {
     { path: 'AGENTS/newsletter-summarizer/briefs/ScopedBrief.md' },
     { path: 'WORKFLOWS/outputs/final-review/AIPositioningBrief.md' },
     { path: 'AGENTS/archive/newsletter-summarizer/OldBrief.md' },
+    { path: 'AGENTS/newsletter-summarizer/charts/preview.png' },
   ]
 
   assert.strictEqual(
@@ -33,8 +34,12 @@ function run() {
     resolveAgentChatDocPath('MissingBrief.md', 'newsletter-summarizer', docEntries),
     null
   )
+  assert.strictEqual(
+    resolveAgentChatDocPath('preview.png', 'newsletter-summarizer', docEntries),
+    'AGENTS/newsletter-summarizer/charts/preview.png'
+  )
 
-  console.log('agentChatDocs.test.ts: 5 tests passed')
+  console.log('agentChatDocs.test.ts: 6 tests passed')
 }
 
 run()

@@ -68,6 +68,7 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToAgentChat, o
   const [desktopAnchor, setDesktopAnchor] = useState<{ top: number; right: number } | null>(null)
 
   const fetchNotifications = useCallback(async () => {
+    if (document.hidden) return
     try {
       const resp = await fetch('/api/notifications')
       if (!resp.ok) return
@@ -99,8 +100,19 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToAgentChat, o
     return () => clearInterval(interval)
   }, [fetchNotifications])
 
+  useEffect(() => {
+    function handleVisibilityChange() {
+      if (!document.hidden) {
+        fetchNotifications()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [fetchNotifications])
+
   // Load agents for delegation blockers
   useEffect(() => {
+    if (!open) return
     if (open && notifications.some(n => n.blockerType === 'delegation') && availableAgents.length === 0) {
       fetch('/api/agents').then(r => r.json()).then(d => {
         setAvailableAgents((d.agents || []).map((a: any) => a.id))

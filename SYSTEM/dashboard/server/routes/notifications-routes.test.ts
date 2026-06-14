@@ -224,6 +224,57 @@ async function run() {
     assert.strictEqual((res.jsonBody?.blockers || [])[0]?.workflowId, 'wf-blocked', 'Expected blocker to match workflow')
   })
 
+  await test('artifact updates dedupe active notifications for the same file path', async () => {
+    const { createNotification, getActiveNotifications } = require('../lib/notifications')
+
+    createNotification({
+      type: 'artifact-update',
+      title: 'agent-a updated REPORT.md',
+      message: 'Updated workspace artifact from agent-a: REPORT.md',
+      entityId: 'agent-a',
+      entityType: 'agent',
+      fingerprint: 'artifact-dedupe:1',
+      artifactPath: 'AGENTS/agent-a/REPORT.md',
+    })
+    createNotification({
+      type: 'artifact-update',
+      title: 'agent-a updated REPORT.md again',
+      message: 'Updated workspace artifact from agent-a: REPORT.md',
+      entityId: 'agent-a',
+      entityType: 'agent',
+      fingerprint: 'artifact-dedupe:2',
+      artifactPath: 'AGENTS/agent-a/REPORT.md',
+    })
+
+    const matches = getActiveNotifications().filter((notification: any) => notification.artifactPath === 'AGENTS/agent-a/REPORT.md')
+    assert.strictEqual(matches.length, 1, `Expected one active artifact notification, got ${matches.length}`)
+  })
+
+  await test('channel activity dedupes active notifications by channel and refreshes the message', async () => {
+    const { createNotification, getActiveNotifications } = require('../lib/notifications')
+
+    createNotification({
+      type: 'channel-activity',
+      title: 'New messages in Test Status',
+      message: '1 agent message in group "Test Status".',
+      entityId: 'Test Status',
+      entityType: 'channel',
+      fingerprint: 'channel-dedupe:1',
+    })
+    createNotification({
+      type: 'channel-activity',
+      title: 'New messages in Test Status',
+      message: '3 agent messages in group "Test Status".',
+      entityId: 'Test Status',
+      entityType: 'channel',
+      fingerprint: 'channel-dedupe:2',
+    })
+
+    const matches = getActiveNotifications().filter((notification: any) => notification.type === 'channel-activity' && notification.entityId === 'Test Status')
+    assert.strictEqual(matches.length, 1, `Expected one active channel notification, got ${matches.length}`)
+    assert.strictEqual(matches[0]?.message, '3 agent messages in group "Test Status".', 'Expected active channel notification message to refresh')
+  })
+
   if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
   else process.env.OPENCLAW_WORKSPACE = originalWorkspace
   if (typeof originalHome === 'undefined') delete process.env.HOME

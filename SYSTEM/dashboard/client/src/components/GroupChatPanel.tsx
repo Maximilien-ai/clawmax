@@ -6,11 +6,13 @@ import {
   buildCommunicationCacheKey,
   mergeTypingAgents,
   removeRespondedAgentsFromPending,
+  resolveCommunicationDocPath,
   shouldUpdateChannelMessages,
 } from '../lib/communicationMessages'
 import { ProductIconCell } from '../lib/productIcons'
 import { useAuth } from '../contexts/AuthContext'
-import { isOpenableWorkspaceFileMention, transformWorkspaceMarkdownUrl } from '../lib/markdownLinks'
+import { transformWorkspaceMarkdownUrl } from '../lib/markdownLinks'
+import { extractWorkspaceFileMentions, linkifyWorkspaceFiles } from '../lib/workspaceFiles'
 
 interface Message {
   id: string
@@ -43,6 +45,10 @@ interface Props {
   onExpand?: () => void
   onMessageSent?: (mentionedAgentIds: string[], hasAll: boolean) => void
   onNavigateToDoc?: (path: string) => void
+}
+
+interface DocEntryRef {
+  path: string
 }
 
 const groupChatMessageCache = new Map<string, Message[]>()
@@ -96,29 +102,6 @@ function cleanContent(content: string): string {
   return cleanedLines.join('\n').replace(/\n{3,}/g, '\n\n').trim() || content
 }
 
-function linkifyWorkspaceFiles(content: string): string {
-  return content
-    .replace(/(^|[\s(])([A-Za-z0-9_./-]+\.(?:md|txt|json|csv|pdf|html|yml|yaml))(?!\])/gm, (_m, prefix, target) => {
-      if (!isOpenableWorkspaceFileMention(target)) {
-        return `${prefix}${target}`
-      }
-      if (!target.includes('/')) {
-        return `${prefix}[${target}](workspace-file:${target})`
-      }
-      if (/^(AGENTS|GROUPS|COMMUNITIES|WORKFLOWS|SYSTEM|ORG)\//.test(target)) {
-        return `${prefix}[${target}](workspace-file:${target})`
-      }
-      return `${prefix}${target}`
-    })
-}
-
-function extractWorkspaceFileMentions(content: string): string[] {
-  const matches = Array.from(
-    content.matchAll(/\b(?:AGENTS|GROUPS|COMMUNITIES|WORKFLOWS|SYSTEM|ORG)\/[A-Za-z0-9_./-]+\.(?:md|txt|json|csv|pdf|html|yml|yaml)\b|\b[A-Za-z0-9][A-Za-z0-9._-]*\.(?:md|txt|json|csv|pdf|html|yml|yaml)\b/g)
-  ).map((m) => m[0])
-  return Array.from(new Set(matches.filter(isOpenableWorkspaceFileMention)))
-}
-
 function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessageSent, onNavigateToDoc }: Props) {
   const { config } = useAuth()
   const chatEnabled = hasChatExecutionAccess(config)
@@ -145,6 +128,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
   const [isListening, setIsListening] = useState(false)
   const [inputHistory, setInputHistory] = useState<string[]>([])
   const [historyIndex, setHistoryIndex] = useState(-1)
+  const [docEntries, setDocEntries] = useState<DocEntryRef[]>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -160,6 +144,12 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
   function syncTypingAgents() {
     setTypingAgents(mergeTypingAgents(pendingReplyAgentsRef.current, activeWorkflowAgentsRef.current))
   }
+
+  const getResolvedFileMentions = React.useCallback((content: string) => (
+    extractWorkspaceFileMentions(content)
+      .map((file) => ({ file, path: resolveCommunicationDocPath(file, docEntries) }))
+      .filter((entry): entry is { file: string; path: string } => !!entry.path)
+  ), [docEntries])
 
   useEffect(() => {
     fetchMessages()
@@ -207,6 +197,19 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
       }
     }
   }, [channel.name])
+
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/docs')
+      .then((r) => r.ok ? r.json() : { entries: [] })
+      .then((data) => {
+        if (!cancelled) setDocEntries(Array.isArray(data.entries) ? data.entries : [])
+      })
+      .catch(() => {
+        if (!cancelled) setDocEntries([])
+      })
+    return () => { cancelled = true }
+  }, [])
 
   useEffect(() => {
     // Only auto-scroll if user is near bottom or just sent a message
@@ -694,10 +697,12 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
         a: ({ href, children }) => {
           if (href?.startsWith('workspace-file:') && onNavigateToDoc) {
             const file = href.replace('workspace-file:', '')
+            const resolvedPath = resolveCommunicationDocPath(file, docEntries)
+            if (!resolvedPath) return <span>{children}</span>
             return (
               <button
                 type="button"
-                onClick={() => onNavigateToDoc(file)}
+                onClick={() => onNavigateToDoc(resolvedPath)}
                 className="text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300 underline"
               >
                 {children}
@@ -845,14 +850,14 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
                   {renderMarkdown(msg.content)}
                 </div>
               )}
-              {onNavigateToDoc && extractWorkspaceFileMentions(msg.content).length > 0 && (
+              {onNavigateToDoc && getResolvedFileMentions(msg.content).length > 0 && (
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <span className="text-[11px] font-medium text-gray-500 dark:text-gray-400">Files:</span>
-                  {extractWorkspaceFileMentions(msg.content).map((file) => (
+                  {getResolvedFileMentions(msg.content).map(({ file, path }) => (
                     <button
-                      key={file}
+                      key={`${msg.id}-${path}`}
                       type="button"
-                      onClick={() => onNavigateToDoc(file)}
+                      onClick={() => onNavigateToDoc(path)}
                       className="cursor-pointer text-[11px] px-2 py-1 rounded-full bg-sky-100 text-sky-700 underline decoration-sky-300 underline-offset-2 hover:bg-sky-200 hover:text-sky-900 dark:bg-sky-900/30 dark:text-sky-300 dark:decoration-sky-500 dark:hover:bg-sky-900/50"
                       title="Open in Documents"
                     >

@@ -306,6 +306,12 @@ export function deriveChatError(raw: string, provider?: ChatProvider): string {
     return text.match(/No API key found for provider "[^"]+"/i)?.[0]
       || 'The selected model provider is missing credentials for this agent runtime.'
   }
+  if (/Incorrect API key provided/i.test(text) || /has auth issue \(skipping all models\)/i.test(text)) {
+    return 'The configured model provider credentials were rejected. Check the API key or auth profile for this runtime and try again.'
+  }
+  if (/is in cooldown \(suspending lanes\)/i.test(text)) {
+    return 'The model provider is temporarily cooling down after a timeout. Wait a moment and retry, or switch to a faster fallback model.'
+  }
   if (/EmbeddedAttemptSessionTakeoverError|session file changed while embedded prompt lock was released/i.test(text)) {
     return 'OpenClaw reported an embedded session conflict while a tool was running. Reset the chat session and retry once; if this was a Resend email test, use the Resend partner test-email action to validate delivery without the agent chat session.'
   }
@@ -313,7 +319,7 @@ export function deriveChatError(raw: string, provider?: ChatProvider): string {
     return 'This agent is configured with an unsupported model, and fallback providers could not authenticate. Choose a supported model for the agent and try again.'
   }
   if (/gateway/i.test(text)) return 'Agent chat could not reach the gateway runtime.'
-  if (/timeout/i.test(text)) return 'Agent chat timed out before a reply was produced.'
+  if (/timeout/i.test(text)) return 'Agent chat timed out before a reply was produced. Retry once, or switch this agent to a faster model if the issue persists.'
   if (/api key|execution path configured|ollama runtime/i.test(text)) return text
   return text
 }

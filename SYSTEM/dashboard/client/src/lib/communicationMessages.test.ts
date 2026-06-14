@@ -59,6 +59,7 @@ function run() {
     { path: 'WORKFLOWS/outputs/final-review/peptide-optimization-final-report.md' },
     { path: 'AGENTS/researcher/IDENTITY.md' },
     { path: 'ORG/MASTER_PLAN.md' },
+    { path: 'AGENTS/researcher/preview.png' },
   ]
   assert.strictEqual(
     resolveCommunicationDocPath('peptide-optimization-final-report.md', docEntries),
@@ -68,8 +69,19 @@ function run() {
     resolveCommunicationDocPath('WORKFLOWS/outputs/final-review/peptide-optimization-final-report.md', docEntries),
     'WORKFLOWS/outputs/final-review/peptide-optimization-final-report.md'
   )
+  assert.strictEqual(
+    resolveCommunicationDocPath('preview.png', docEntries),
+    'AGENTS/researcher/preview.png'
+  )
+  assert.strictEqual(
+    resolveCommunicationDocPath('show.pdf', [
+      { path: 'AGENTS/researcher/show.pdf' },
+      { path: 'WORKFLOWS/outputs/demo/show.pdf' },
+    ]),
+    null
+  )
 
-  console.log('communicationMessages.test.ts: 9 tests passed')
+  console.log('communicationMessages.test.ts: 11 tests passed')
 }
 
 run()

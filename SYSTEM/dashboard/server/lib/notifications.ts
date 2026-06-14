@@ -115,8 +115,8 @@ export function getActiveNotifications(): Notification[] {
 
 const GROUP_WINDOW_MS = 90_000
 const WRITER_ATTRIBUTION_SUPPRESSION_MS = 10 * 60 * 1000
-const WORKSPACE_FILE_REGEX = /\b(?:AGENTS|GROUPS|COMMUNITIES|WORKFLOWS|SYSTEM|ORG)\/[A-Za-z0-9_./-]+\.(?:md|txt|json|csv|pdf|html|yml|yaml)\b|\b[A-Za-z0-9][A-Za-z0-9._/-]*\.(?:md|txt|json|csv|pdf|html|yml|yaml)\b/g
-const ABSOLUTE_WORKSPACE_FILE_REGEX = /\/(?:Users|workspace|app)\/[^\s"'<>]+?\/((?:AGENTS|GROUPS|COMMUNITIES|WORKFLOWS|SYSTEM|ORG)\/[A-Za-z0-9_./-]+\.(?:md|txt|json|csv|pdf|html|yml|yaml))/g
+const WORKSPACE_FILE_REGEX = /\b(?:AGENTS|GROUPS|COMMUNITIES|WORKFLOWS|SYSTEM|ORG)\/[A-Za-z0-9_./-]+\.(?:md|txt|json|csv|pdf|html|yml|yaml|png|jpe?g|gif|webp|svg)\b|\b[A-Za-z0-9][A-Za-z0-9._/-]*\.(?:md|txt|json|csv|pdf|html|yml|yaml|png|jpe?g|gif|webp|svg)\b/g
+const ABSOLUTE_WORKSPACE_FILE_REGEX = /\/(?:Users|workspace|app)\/[^\s"'<>]+?\/((?:AGENTS|GROUPS|COMMUNITIES|WORKFLOWS|SYSTEM|ORG)\/[A-Za-z0-9_./-]+\.(?:md|txt|json|csv|pdf|html|yml|yaml|png|jpe?g|gif|webp|svg))/g
 const NOISE_FILE_NAMES = new Set(['IDENTITY.md', 'SOUL.md', 'TOOLS.md', 'GROUPS.md', 'COMMUNITIES.md', 'HEARTBEAT.md', 'USER.md', 'AGENTS.md'])
 const recentlyAttributedArtifacts = new Map<string, number>()
 
@@ -129,7 +129,7 @@ function pruneRecentlyAttributedArtifacts(now = Date.now()): void {
 }
 
 function normalizeWorkspaceFileTarget(target: string): string {
-  const absoluteMatch = target.match(/((?:AGENTS|GROUPS|COMMUNITIES|WORKFLOWS|SYSTEM|ORG)\/[A-Za-z0-9_./-]+\.(?:md|txt|json|csv|pdf|html|yml|yaml))/)
+  const absoluteMatch = target.match(/((?:AGENTS|GROUPS|COMMUNITIES|WORKFLOWS|SYSTEM|ORG)\/[A-Za-z0-9_./-]+\.(?:md|txt|json|csv|pdf|html|yml|yaml|png|jpe?g|gif|webp|svg))/)
   if (absoluteMatch) return absoluteMatch[1]
   return target
 }
@@ -398,6 +398,35 @@ export function createNotification(params: {
       saveNotifications(notifications)
     }
     return null
+  }
+
+  if (params.type === 'artifact-update' && params.artifactPath) {
+    const activeArtifactNotification = notifications.find((notification) => (
+      notification.type === 'artifact-update'
+      && notification.artifactPath === params.artifactPath
+      && !notification.dismissedAt
+      && !notification.resolvedAt
+    ))
+    if (activeArtifactNotification) {
+      return null
+    }
+  }
+
+  if (params.type === 'channel-activity' && params.entityType === 'channel' && params.entityId) {
+    const activeChannelNotification = notifications.find((notification) => (
+      notification.type === 'channel-activity'
+      && notification.entityType === 'channel'
+      && notification.entityId === params.entityId
+      && !notification.dismissedAt
+      && !notification.resolvedAt
+    ))
+    if (activeChannelNotification) {
+      activeChannelNotification.title = params.title
+      activeChannelNotification.message = params.message
+      activeChannelNotification.createdAt = new Date().toISOString()
+      saveNotifications(notifications)
+      return null
+    }
   }
 
   const notification: Notification = {
