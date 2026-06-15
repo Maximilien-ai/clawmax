@@ -563,9 +563,15 @@ export function stripBenignOpenClawRuntimeWarnings(text: string): string {
     .trim()
 }
 
-function formatParticipantFailure(reportedFailure: string): string {
+export function formatParticipantFailure(reportedFailure: string): string {
   if (/^LLM request rejected:/i.test(reportedFailure) || /usage limits|quota|insufficient_quota/i.test(reportedFailure)) {
     return `Model provider rejected the request. Check the active model account, quota, or billing state. Raw error: ${reportedFailure}`
+  }
+  if (/Incorrect API key provided/i.test(reportedFailure) || /has auth issue \(skipping all models\)/i.test(reportedFailure) || /No API key found for provider/i.test(reportedFailure)) {
+    return 'Model provider authentication failed. Check the configured API key, auth profile, or BYOK/runtime provider settings for this workflow run.'
+  }
+  if (/is in cooldown \(suspending lanes\)/i.test(reportedFailure) || /timed out/i.test(reportedFailure)) {
+    return 'Model provider is temporarily cooling down after a timeout or transient failure. Wait a moment and retry, or switch this workflow to a faster fallback model.'
   }
   if (/context overflow|prompt too large|prompt_cache_key|string too long|runtime error detail/i.test(reportedFailure)) {
     return `Model provider rejected the request before generation. Raw error: ${reportedFailure}`

@@ -193,6 +193,34 @@ test('getGroupedActiveNotifications keeps unrelated agent notifications separate
   assert(grouped.length === 2, `Expected 2 notifications, got ${grouped.length}`)
 })
 
+test('getGroupedActiveNotifications groups same-file artifact updates despite wording differences', () => {
+  fs.writeFileSync(notifPath, '[]', 'utf-8')
+  createNotification({
+    type: 'artifact-update',
+    title: 'content-writer1 created REPORT.md',
+    message: 'New workspace artifact from content-writer1: REPORT.md',
+    entityId: 'content-writer1',
+    entityType: 'agent',
+    fingerprint: 'test-group-wording-1',
+    artifactPath: 'AGENTS/content-writer1/REPORT.md',
+    workflowId: 'wf-1',
+  })
+  createNotification({
+    type: 'artifact-update',
+    title: 'content-writer2 updated REPORT.md',
+    message: 'Updated workspace artifact from content-writer2: REPORT.md',
+    entityId: 'content-writer2',
+    entityType: 'agent',
+    fingerprint: 'test-group-wording-2',
+    artifactPath: 'AGENTS/content-writer2/REPORT.md',
+    workflowId: 'wf-1',
+  })
+  const grouped = getGroupedActiveNotifications()
+  assert(grouped.length === 1, `Expected 1 grouped notification, got ${grouped.length}`)
+  assert(grouped[0].grouped === true, 'Expected grouped notification')
+  assert(grouped[0].groupedCount === 2, `Expected groupedCount 2, got ${grouped[0].groupedCount}`)
+})
+
 test('artifact notifications for uploaded AGENTS asset dirs do not pretend the dir is an agent', () => {
   const { createNotification } = require('./notifications')
   const assetNotification = createNotification({

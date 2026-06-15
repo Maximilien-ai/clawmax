@@ -232,7 +232,7 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToAgentChat, o
         <>
         <div className="fixed inset-0 z-[70] bg-black/20 backdrop-blur-[1px] md:hidden" onClick={() => setOpen(false)} />
         <div
-          className="fixed inset-x-2 top-14 z-[90] flex max-h-[calc(100dvh-4rem)] w-auto flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-800 md:inset-x-auto md:left-auto md:top-16 md:w-96 md:max-h-none md:translate-x-0"
+          className="fixed inset-x-2 bottom-2 top-14 z-[90] flex w-auto flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-800 md:inset-x-auto md:bottom-auto md:left-auto md:top-16 md:w-96 md:max-h-none md:translate-x-0"
           style={desktopAnchor ? { top: desktopAnchor.top, right: desktopAnchor.right } : undefined}
         >
           {/* Header */}
