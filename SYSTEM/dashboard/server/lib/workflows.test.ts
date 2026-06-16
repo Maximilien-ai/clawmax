@@ -485,6 +485,14 @@ test('formatParticipantFailure explains provider cooldowns clearly', () => {
   )
 })
 
+test('formatParticipantFailure explains provider quota limits clearly', () => {
+  const message = formatParticipantFailure('Error: 429 insufficient_quota: You exceeded your current quota. Too many requests.')
+  assert(
+    /usage limits blocked/i.test(message) && /billing|rate-limit/i.test(message),
+    `Expected quota guidance, got: ${message}`
+  )
+})
+
 test('summarizeAgentInputRequest extracts direct user asks for notifications', () => {
   const summary = summarizeAgentInputRequest('I can continue, but I need your decision. Please confirm whether we should target founders or growth leads for the first outbound campaign. Once you confirm, I will finish the draft.')
   assert(

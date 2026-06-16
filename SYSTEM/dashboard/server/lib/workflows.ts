@@ -565,7 +565,7 @@ export function stripBenignOpenClawRuntimeWarnings(text: string): string {
 
 export function formatParticipantFailure(reportedFailure: string): string {
   if (/^LLM request rejected:/i.test(reportedFailure) || /usage limits|quota|insufficient_quota/i.test(reportedFailure)) {
-    return `Model provider rejected the request. Check the active model account, quota, or billing state. Raw error: ${reportedFailure}`
+    return 'Model provider usage limits blocked this workflow participant. Wait a moment and retry, or update the provider billing and rate-limit configuration for the selected model.'
   }
   if (/Incorrect API key provided/i.test(reportedFailure) || /has auth issue \(skipping all models\)/i.test(reportedFailure) || /No API key found for provider/i.test(reportedFailure)) {
     return 'Model provider authentication failed. Check the configured API key, auth profile, or BYOK/runtime provider settings for this workflow run.'

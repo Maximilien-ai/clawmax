@@ -309,6 +309,9 @@ export function deriveChatError(raw: string, provider?: ChatProvider): string {
   if (/Incorrect API key provided/i.test(text) || /has auth issue \(skipping all models\)/i.test(text)) {
     return 'The configured model provider credentials were rejected. Check the API key or auth profile for this runtime and try again.'
   }
+  if (/insufficient_quota|quota exceeded|rate limit|too many requests|429\b/i.test(text)) {
+    return 'The model provider rejected this request because the account hit a quota or rate limit. Wait a moment and retry, or update the provider billing/usage limits for this runtime.'
+  }
   if (/is in cooldown \(suspending lanes\)/i.test(text)) {
     return 'The model provider is temporarily cooling down after a timeout. Wait a moment and retry, or switch to a faster fallback model.'
   }

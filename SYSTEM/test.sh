@@ -811,6 +811,16 @@ else
   fail "Workspace file mention helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Workspace doc navigation helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/workspaceDocNavigation.test.ts > /tmp/clawmax-workspace-doc-navigation.out 2>&1 || true
+if grep -q "workspaceDocNavigation.test.ts:" /tmp/clawmax-workspace-doc-navigation.out; then
+  workspace_doc_navigation_count=$(grep -o '[0-9]\+ tests passed' /tmp/clawmax-workspace-doc-navigation.out | head -1 | grep -o '[0-9]\+')
+  pass "Workspace doc navigation helper unit tests (${workspace_doc_navigation_count:-?} tests)"
+else
+  cat /tmp/clawmax-workspace-doc-navigation.out
+  fail "Workspace doc navigation helper unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Channel API helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/channelApi.test.ts > /tmp/clawmax-channel-api.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-channel-api.out; then

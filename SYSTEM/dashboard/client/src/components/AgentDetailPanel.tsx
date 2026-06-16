@@ -6,6 +6,8 @@ import { getSkillSetupHint } from '../lib/skillSetup'
 import { ProductIconCell } from '../lib/productIcons'
 import { buildWorkspaceScopedPath } from '../lib/workspaceScope'
 import { shouldShowAgentDetailDeleteAction } from '../lib/agentDeleteUi'
+import { WorkspaceDocEntryRef } from '../lib/workspaceFiles'
+import { resolveNavigableWorkspaceDocPath } from '../lib/workspaceDocNavigation'
 
 interface GroupEntry {
   name: string
@@ -132,6 +134,7 @@ export default function AgentDetailPanel({
 }) {
   const { showError, showSuccess } = useToast()
   const [activity, setActivity] = useState<AgentActivity | null>(null)
+  const [docEntries, setDocEntries] = useState<WorkspaceDocEntryRef[]>([])
   const [loading, setLoading] = useState(true)
   const [lastRefreshed, setLastRefreshed] = useState<number>(Date.now())
   const [refreshedLabel, setRefreshedLabel] = useState<string>('just now')
@@ -171,6 +174,14 @@ export default function AgentDetailPanel({
     setLoading(true)
     setActivity(null)
     fetchActivity()
+    if (onNavigateToDoc) {
+      fetch(buildWorkspaceScopedPath('/api/docs', agent.workspaceId))
+        .then((r) => r.ok ? r.json() : null)
+        .then((data) => setDocEntries(Array.isArray(data?.docs) ? data.docs : []))
+        .catch(() => setDocEntries([]))
+    } else {
+      setDocEntries([])
+    }
     if (!costTrackingEnabled) {
       setCostLimit(null)
       setCostLimitInput('')
@@ -189,7 +200,7 @@ export default function AgentDetailPanel({
       .then(r => r.json())
       .then(d => setWorkspaceBudget(d))
       .catch(() => setWorkspaceBudget(null))
-  }, [fetchActivity, agent.id, agent.workspaceId, costTrackingEnabled])
+  }, [fetchActivity, agent.id, agent.workspaceId, costTrackingEnabled, onNavigateToDoc])
 
   useEffect(() => {
     if (!initialEditCostLimit) return
@@ -289,9 +300,11 @@ export default function AgentDetailPanel({
       : 'text-emerald-700 bg-emerald-50 border-emerald-200 dark:text-emerald-300 dark:bg-emerald-900/20 dark:border-emerald-800'
   const openWorkspaceFile = useCallback((fileName: string) => {
     if (!onNavigateToDoc) return
-    onNavigateToDoc(`${relDir}/${fileName}`)
+    const resolvedPath = resolveNavigableWorkspaceDocPath(`${relDir}/${fileName}`, docEntries)
+    if (!resolvedPath) return
+    onNavigateToDoc(resolvedPath)
     onClose()
-  }, [onClose, onNavigateToDoc, relDir])
+  }, [docEntries, onClose, onNavigateToDoc, relDir])
 
   return (
     <div className="fixed inset-0 bg-black/30 z-40 md:bg-black/20" onClick={onClose}>
