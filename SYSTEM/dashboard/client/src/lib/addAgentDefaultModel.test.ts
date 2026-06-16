@@ -81,4 +81,13 @@ test('swaps deprecated preferred OpenAI snapshots for replacement models when av
   assert.equal(resolved, 'openai/gpt-5')
 })
 
-console.log('addAgentDefaultModel.test.ts: 8 tests passed')
+test('swaps deprecated Anthropic snapshots for replacement models when available', () => {
+  const resolved = resolveAddAgentWizardDefaultModel({
+    models: ['anthropic/claude-sonnet-4-6', 'anthropic/claude-3-7-sonnet-20250219'],
+    byok: { preferredModel: 'anthropic/claude-3-7-sonnet-20250219' },
+    config: {},
+  })
+  assert.equal(resolved, 'anthropic/claude-sonnet-4-6')
+})
+
+console.log('addAgentDefaultModel.test.ts: 9 tests passed')

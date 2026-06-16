@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { validateSoul, validateTools } from './validator'
 import { getAgentTemplatesDir, getGlobalAgentTemplatesDir, resolveAgentTemplateSlug, slugify } from './templates'
-import { getOpenAiModelDeprecation } from './openAiModelLifecycle'
+import { getModelLifecycleEntry } from './openAiModelLifecycle'
 
 const AGENT_ID_REGEX = /^[a-z][a-z0-9_-]*$/
 const TAG_REGEX = /^[a-z][a-z0-9_-]*$/
@@ -216,9 +216,11 @@ export function validateProvisionInput(
   } else if (shouldWarnForUnadvertisedModel(input.model, context.availableModels)) {
     warnings.push(`Model "${input.model}" is not currently advertised by /api/agents/models and may fall back during provisioning`)
   }
-  const deprecation = getOpenAiModelDeprecation(input.model)
+  const deprecation = getModelLifecycleEntry(input.model)
   if (deprecation) {
-    warnings.push(`Model "${input.model}" is deprecated by OpenAI and shuts off on ${deprecation.shutdownDate}. Prefer "${deprecation.replacementModel}".`)
+    const shutdownDate = deprecation.shutdownDate ? ` and shuts off on ${deprecation.shutdownDate}` : ''
+    const replacement = deprecation.replacementModel ? ` Prefer "${deprecation.replacementModel}".` : ''
+    warnings.push(`Model "${input.model}" is ${deprecation.status} by ${deprecation.providerLabel}${shutdownDate}.${replacement}`)
   }
 
   if (input.whatsapp && !PHONE_REGEX.test(input.whatsapp)) {

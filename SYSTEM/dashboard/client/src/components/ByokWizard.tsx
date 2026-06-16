@@ -7,7 +7,7 @@ import { filterPartnersByCategory, formatPartnerCategoryLabel, getPartnerCategor
 import { DEFAULT_VISIBLE_PARTNERS, getDefaultPartnerDefinitions } from '../lib/defaultPartners'
 import { BROWSER_VAULT_UPDATED_EVENT, readPartnerValuesFromSharedSecrets, readSharedSecrets, writePartnerValuesToSharedSecrets, writeSharedSecrets } from '../lib/localSecrets'
 import { resolveResendTestRecipientEmail } from '../lib/resendTestEmail'
-import { formatOpenAiDeprecationNotice, formatOpenAiModelLabel } from '../lib/openAiModelLifecycle'
+import { formatOpenAiDeprecationNotice, formatOpenAiModelLabel, isSelectableLifecycleModel } from '../lib/openAiModelLifecycle'
 import { PartnerLogo } from './PartnerLogo'
 
 function maskKey(value: string) {
@@ -1381,14 +1381,28 @@ export function ByokWizard({
     return renderValidation(resultKey)
   }
 
-  const discoveredPreferredOptions = [
-    ...((modelsByProvider.openai?.models || []).map((model) => ({ value: model, label: `${formatOpenAiModelLabel(model).replace(/^openai\//, '')} (OpenAI)` }))),
-    ...((modelsByProvider.anthropic?.models || []).map((model) => ({ value: model, label: `${model.replace(/^anthropic\//, '')} (Anthropic)` }))),
-    ...((modelsByProvider.gemini?.models || []).map((model) => ({ value: model, label: `${model.replace(/^google\//, '').replace(/^gemini\//, '')} (Gemini)` }))),
-    ...((modelsByProvider.ollama?.models || []).map((model) => ({ value: model, label: `${model.replace(/^ollama\//, '')} (Ollama)` }))),
-    ...((modelsByProvider['openai-compatible']?.models || []).map((model) => ({ value: model, label: `${formatOpenAiModelLabel(model).replace(/^openai-compatible\//, '')} (OpenAI-Compatible)` }))),
-  ]
-  const uniquePreferredOptions = discoveredPreferredOptions.filter((option, index, arr) =>
+  const buildPreferredOptions = (currentValue: string) => {
+    const discoveredPreferredOptions = [
+      ...((modelsByProvider.openai?.models || [])
+        .filter((model) => isSelectableLifecycleModel(model, currentValue))
+        .map((model) => ({ value: model, label: `${formatOpenAiModelLabel(model).replace(/^openai\//, '')} (OpenAI)` }))),
+      ...((modelsByProvider.anthropic?.models || [])
+        .filter((model) => isSelectableLifecycleModel(model, currentValue))
+        .map((model) => ({ value: model, label: `${formatOpenAiModelLabel(model).replace(/^anthropic\//, '')} (Anthropic)` }))),
+      ...((modelsByProvider.gemini?.models || [])
+        .filter((model) => isSelectableLifecycleModel(model, currentValue))
+        .map((model) => ({ value: model, label: `${formatOpenAiModelLabel(model).replace(/^google\//, '').replace(/^gemini\//, '')} (Gemini)` }))),
+      ...((modelsByProvider.ollama?.models || []).map((model) => ({ value: model, label: `${model.replace(/^ollama\//, '')} (Ollama)` }))),
+      ...((modelsByProvider['openai-compatible']?.models || [])
+        .filter((model) => isSelectableLifecycleModel(model, currentValue))
+        .map((model) => ({ value: model, label: `${formatOpenAiModelLabel(model).replace(/^openai-compatible\//, '')} (OpenAI-Compatible)` }))),
+    ]
+    return discoveredPreferredOptions.filter((option, index, arr) =>
+      arr.findIndex((candidate) => candidate.value === option.value) === index
+    )
+  }
+  const uniquePreferredOptions = buildPreferredOptions(preferredModel)
+  const uniqueSystemPreferredOptions = buildPreferredOptions(systemPreferredModel).filter((option, index, arr) =>
     arr.findIndex((candidate) => candidate.value === option.value) === index
   )
 
@@ -2273,7 +2287,7 @@ export function ByokWizard({
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Default model for built-in/system agents only</label>
                       <select value={systemPreferredModel} onChange={(e) => setSystemPreferredModel(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm">
                         <option value="">Auto (follow the best available configured model)</option>
-                        {uniquePreferredOptions.length > 0 ? uniquePreferredOptions.map((option) => (
+                        {uniqueSystemPreferredOptions.length > 0 ? uniqueSystemPreferredOptions.map((option) => (
                           <option key={`system-${option.value}`} value={option.value}>{option.label}</option>
                         )) : (
                           <>

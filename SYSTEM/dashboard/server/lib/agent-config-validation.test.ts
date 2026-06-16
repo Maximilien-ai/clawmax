@@ -197,6 +197,28 @@ test('validateProvisionInput warns for deprecated OpenAI snapshots with replacem
   assertIncludes(result.warnings, 'Prefer "gpt-5"')
 })
 
+test('validateProvisionInput warns for deprecated Anthropic and Gemini models', () => {
+  const anthropicResult = validateProvisionInput({
+    name: 'engineer5',
+    model: 'anthropic/claude-3-7-sonnet-20250219',
+  }, {
+    existingAgentIds: [],
+    availableModels: ['anthropic/claude-sonnet-4-6'],
+  })
+  const geminiResult = validateProvisionInput({
+    name: 'engineer6',
+    model: 'google/gemini-2.5-flash',
+  }, {
+    existingAgentIds: [],
+    availableModels: ['google/gemini-3.5-flash'],
+  })
+
+  assertIncludes(anthropicResult.warnings, 'retired by Anthropic')
+  assertIncludes(anthropicResult.warnings, 'claude-sonnet-4-6')
+  assertIncludes(geminiResult.warnings, 'deprecated by Gemini')
+  assertIncludes(geminiResult.warnings, 'gemini-3.5-flash')
+})
+
 test('validateProvisionInput accepts a real workspace agent template slug', () => {
   const originalWorkspace = process.env.OPENCLAW_WORKSPACE
   const originalHome = process.env.HOME
