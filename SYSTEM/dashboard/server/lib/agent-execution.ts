@@ -51,6 +51,10 @@ let openClawConfigMutationLock: Promise<void> = Promise.resolve()
 const agentExecutionLocks = new Map<string, Promise<void>>()
 const AGENT_EXECUTION_SESSION_LOCK_RETRIES = 2
 
+interface ExclusiveAgentExecutionOptions {
+  onSessionLockRetry?: (attempt: number, error: unknown) => void | Promise<void>
+}
+
 function resolveLmstudioServerBase(baseUrl?: string): string | undefined {
   const trimmed = baseUrl?.trim()
   if (!trimmed) return undefined
@@ -159,7 +163,11 @@ function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-export async function runExclusiveAgentExecution<T>(agentId: string, fn: () => Promise<T>): Promise<T> {
+export async function runExclusiveAgentExecution<T>(
+  agentId: string,
+  fn: () => Promise<T>,
+  options: ExclusiveAgentExecutionOptions = {}
+): Promise<T> {
   const previous = agentExecutionLocks.get(agentId) || Promise.resolve()
   let release!: () => void
   const current = new Promise<void>((resolve) => {
@@ -177,6 +185,7 @@ export async function runExclusiveAgentExecution<T>(agentId: string, fn: () => P
         if (!isOpenClawSessionLockError(error) || attempt >= AGENT_EXECUTION_SESSION_LOCK_RETRIES) {
           throw error
         }
+        await options.onSessionLockRetry?.(attempt, error)
         await wait(getAgentExecutionRetryDelay(attempt))
         attempt++
       }

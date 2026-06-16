@@ -1884,6 +1884,11 @@ export function triggerWorkflow(workflowId: string, options?: {
                 })
               }, { persistAuthProfiles: true }).catch(reject)
             })
+          }, {
+            onSessionLockRetry: () => {
+              const sessionId = buildWorkflowSessionId(executionId, participant.agentId)
+              repairWorkflowSessionEntryForRun(participant.agentId, sessionId)
+            },
           })
 
           const agentResult = agentResponse as any
