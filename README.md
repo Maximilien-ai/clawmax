@@ -12,57 +12,24 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 
 ## 🔥 Latest Stable Release: v1.8.5
 
-- `1.8.5` continues the `1.8.x` hardening/simplify line with a DocHub and notification polish pass: unique bare-file resolution, inline PDF/image previews, code/JSON/YAML viewers with line numbers and lightweight highlighting, cleaner provider cooldown/auth messaging, and less notification/background polling churn.
+- `1.8.5` polished DocHub and notifications: safer bare-file opens, inline PDF/image preview, better code/JSON/YAML viewing, cleaner provider error messaging, and less notification/background churn.
+  More: [CHANGELOG v1.8.5](CHANGELOG.md#v185---2026-06-14)
 
 ## 🚧 Active Release Candidate: v1.8.7-test-rc6
 
-- `1.8.7` extends the hardening pass with safer DocHub navigation from activity/notifications/agent detail, clearer quota/rate-limit and workflow failure messaging, agent action-menu simplification with direct `Skills` access, workflow-session takeover retry repair, and verified first-party model lifecycle handling for OpenAI, Anthropic, and Gemini without disrupting existing configured agents.
+- `1.8.7` continues the hardening track with safer DocHub navigation, clearer workflow/provider failures, simpler agent action menus, workflow-session retry repair, and audited deprecated-model handling for OpenAI, Anthropic, and Gemini.
+  More: [CHANGELOG Unreleased / 1.8.7 validation](CHANGELOG.md#unreleased)
 
-## ✨ 1.8.x Highlights
+## ✨ Recent Releases
 
-- `1.8.0`:
-  - adds visible full-suite regression lanes for partner runtime env propagation and Cognee plugin installed/uninstalled/reinstalled status transitions
-  - verifies system-test workspace cleanup does not leak agents, workflows, communities, or groups into the restored active workspace
-  - surfaces structured Doctor gateway recovery state in Logs and Activity modals
-  - locks dashboard gateway probe handshake identity to an allowed backend/operator shape
-  - preserves the 1.7.9 Cognee and Resend partner behavior while adding stronger release-safety coverage before larger UI simplification work
+- `1.8.5`: DocHub preview/file-open upgrades, cleaner provider messaging, notification dedupe, lower background churn.
+  Details: [CHANGELOG v1.8.5](CHANGELOG.md#v185---2026-06-14)
+- `1.8.4`: agent delete flow fixes in detail and bulk-delete surfaces plus regression coverage.
+  Details: [CHANGELOG v1.8.4](CHANGELOG.md#v184---2026-06-13)
+- `1.8.3`: Add Agent default-model, AI-create model preservation, and provisioning-warning cleanup.
+  Details: [CHANGELOG v1.8.3](CHANGELOG.md#v183---2026-06-13)
 
-- `1.8.2`:
-  - reduces duplicate initial page loads on Agents and Workflows
-  - keeps managed-agent runtime artifacts visible/openable in DocHub
-  - makes communication notifications jump directly into the referenced channel chat
-  - ships the dormant plugin architecture MVP0 with test fixtures only, without widening the active public plugin surface
-
-- `1.8.3`:
-  - fixes Add Agent default-model selection so local and OpenAI-compatible runtime preferences are preserved
-  - prevents AI create from overwriting a valid selected model with an unavailable hosted suggestion
-  - removes the false `Agent already exists` provisioning regression caused by prewritten files
-  - makes add-agent validation use the same BYOK/local-runtime model discovery context as the wizard, suppressing misleading provisioning warnings
-  - clarifies which integrations setting affects newly created agents versus built-in/system agents
-
-- `1.8.4`:
-  - restores a working delete action in the agent detail pane
-  - fixes delete modal stacking so confirmation dialogs appear above the detail inspector
-  - keeps bulk delete confirmation/footer actions visible on smaller viewports
-  - adds a visible `Agent delete UI regression tests` lane in `SYSTEM/test.sh`
-
-- `1.8.5`:
-  - resolves bare chat/status filenames to unique DocHub targets when safe and avoids misleading opens when ambiguous
-  - previews PDFs and images inline in DocHub and upgrades code/JSON/YAML viewing with line numbers plus lightweight syntax highlighting
-  - makes provider cooldown vs auth/key failures read as clearer operator-facing messages instead of raw fallback noise
-  - deduplicates repeated artifact/channel notifications and reduces background polling/fetch churn on hidden or inactive surfaces
-  - keeps plugin contract tests aligned with artifact notification dedupe so the full suite stays stable as notification behavior evolves
-
-- `1.8.6`:
-  - resolves workflow and organization output-file opens through the DocHub index instead of raw artifact paths
-  - improves workflow failure summaries for auth/config issues and transient provider cooldowns
-  - groups same-file artifact notifications more reliably and reduces mobile notification panel clipping
-
-- `1.8.7`:
-  - hardens remaining DocHub opens from notifications, activity, agent detail, and template/apply flows
-  - adds direct `Skills` access in agent action menus and moves lower-frequency maintain actions behind a secondary view to reduce popup height
-  - repairs workflow session state before takeover retries to reduce `EmbeddedAttemptSessionTakeoverError` restart failures
-  - warns on verified deprecated/retired first-party OpenAI, Anthropic, and Gemini models, filters them from new selector choices when replacements exist, and preserves older saved selections for safe migration
+For full release details and RC history, see [CHANGELOG.md](CHANGELOG.md).
 
 ## ✨ 1.7.x Highlights
 
