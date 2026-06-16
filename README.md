@@ -13,23 +13,18 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 ## 🔥 Latest Stable Release: v1.8.5
 
 - `1.8.5` polished DocHub and notifications: safer bare-file opens, inline PDF/image preview, better code/JSON/YAML viewing, cleaner provider error messaging, and less notification/background churn.
-  More: [CHANGELOG v1.8.5](CHANGELOG.md#v185---2026-06-14)
 
 ## 🚧 Active Release Candidate: v1.8.7-test-rc6
 
 - `1.8.7` continues the hardening track with safer DocHub navigation, clearer workflow/provider failures, simpler agent action menus, workflow-session retry repair, and audited deprecated-model handling for OpenAI, Anthropic, and Gemini.
-  More: [CHANGELOG Unreleased / 1.8.7 validation](CHANGELOG.md#unreleased)
 
-## ✨ Recent Releases
+## ✨ 1.8.x Highlights
 
-- `1.8.5`: DocHub preview/file-open upgrades, cleaner provider messaging, notification dedupe, lower background churn.
-  Details: [CHANGELOG v1.8.5](CHANGELOG.md#v185---2026-06-14)
-- `1.8.4`: agent delete flow fixes in detail and bulk-delete surfaces plus regression coverage.
-  Details: [CHANGELOG v1.8.4](CHANGELOG.md#v184---2026-06-13)
-- `1.8.3`: Add Agent default-model, AI-create model preservation, and provisioning-warning cleanup.
-  Details: [CHANGELOG v1.8.3](CHANGELOG.md#v183---2026-06-13)
+- `1.8.7`: remaining DocHub/file-open hardening, clearer workflow/provider failures, simpler agent actions, workflow-session retry repair, and audited deprecated-model handling across OpenAI, Anthropic, and Gemini.
+- `1.8.5` / `1.8.6`: DocHub preview and file-resolution upgrades, cleaner provider messaging, notification dedupe/grouping, and lower background churn.
+- `1.8.4` / `1.8.3`: agent delete-flow fixes plus Add Agent default-model, AI-create model preservation, and provisioning-warning cleanup.
 
-For full release details and RC history, see [CHANGELOG.md](CHANGELOG.md).
+For full `1.8.x` details and RC history, see [CHANGELOG.md](CHANGELOG.md).
 
 ## ✨ 1.7.x Highlights
 
