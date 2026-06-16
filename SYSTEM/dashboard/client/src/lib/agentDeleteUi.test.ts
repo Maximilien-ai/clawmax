@@ -19,8 +19,8 @@ function assert(condition: unknown, message: string) {
   if (!condition) throw new Error(message)
 }
 
-test('detail delete action is shown when delete handler is provided', () => {
-  assert(shouldShowAgentDetailDeleteAction(() => {}) === true, 'expected detail delete action to be enabled')
+test('detail delete action stays hidden even when delete handler is provided', () => {
+  assert(shouldShowAgentDetailDeleteAction(() => {}) === false, 'expected detail delete action to stay hidden')
 })
 
 test('detail delete action is hidden when delete handler is missing', () => {
