@@ -10,11 +10,7 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 
 ---
 
-## 🔥 Latest Stable Release: v1.8.5
-
-- `1.8.5` polished DocHub and notifications: safer bare-file opens, inline PDF/image preview, better code/JSON/YAML viewing, cleaner provider error messaging, and less notification/background churn.
-
-## 🚧 Active Release Candidate: v1.8.7-test-rc6
+## 🔥 Latest Stable Release: v1.8.7
 
 - `1.8.7` continues the hardening track with safer DocHub navigation, clearer workflow/provider failures, simpler agent action menus, workflow-session retry repair, and audited deprecated-model handling for OpenAI, Anthropic, and Gemini.
 

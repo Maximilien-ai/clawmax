@@ -2,13 +2,13 @@
 
 **Current Version**: v1.8.7
 **Last Updated**: June 16, 2026
-**Status**: `v1.8.7-test-rc6` is being validated from `main`. `v1.8.5` remains the last promoted stable release while `1.8.6`/`1.8.7` hardening slices are under cloud/on-prem verification.
+**Status**: `v1.8.7` is the current promoted stable release from `main`. The `1.8.0` through `1.8.7` hardening/simplify line is now the stable baseline while the next follow-through starts on `1.8.8`.
 
 ---
 
 ## Current State
 
-- `main` now contains the first `1.8.x` hardening pass, the `1.8.2` simplify/optimize slice, the `1.8.3` Add Agent regression fixes, the `1.8.4` agent delete UI cleanup, the `1.8.5` DocHub/notification polish pass, plus the `1.8.6` and `1.8.7` follow-through slices in validation.
+- `main` now contains the first `1.8.x` hardening pass, the `1.8.2` simplify/optimize slice, the `1.8.3` Add Agent regression fixes, the `1.8.4` agent delete UI cleanup, the `1.8.5` DocHub/notification polish pass, plus the `1.8.6` and `1.8.7` follow-through slices as the current stable baseline.
 - The `1.8.x` work is intentionally focused on hardening, simplification, regression safety, lightweight responsiveness wins, and backlog hygiene rather than major new feature scope.
 - Dashboard, CI, container images, cloud, and on-prem paths use the same tested OpenClaw `2026.5.26` baseline.
 - The release workflow now supports test images (`test-rcN`) and explicit promotion of validated images into official version tags.
@@ -23,7 +23,7 @@
 - Plans:
   - [planning/HARDENING_SIMPLIFICATION_1_8_X.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/HARDENING_SIMPLIFICATION_1_8_X.md)
   - [planning/SIMPLIFY_OPTIMIZE_1_8_X.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_OPTIMIZE_1_8_X.md)
-- Near-term target: validate `1.8.7-test-rc6`, then promote `1.8.7` if cloud/on-prem checks remain green and continue the next `1.8.x` harden/simplify pass plus `plugins-mvp1` follow-through on top of the `1.8.7` baseline.
+- Near-term target: start the next `1.8.x` harden/simplify pass on `1.8.8` plus continue `plugins-mvp1` follow-through on top of the `1.8.7` baseline.
 
 ## Release References
 
