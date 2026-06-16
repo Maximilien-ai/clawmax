@@ -23,6 +23,7 @@
 - Plans:
   - [planning/HARDENING_SIMPLIFICATION_1_8_X.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/HARDENING_SIMPLIFICATION_1_8_X.md)
   - [planning/SIMPLIFY_OPTIMIZE_1_8_X.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_OPTIMIZE_1_8_X.md)
+  - [planning/SIMPLIFY_HARDEN_OPTIMIZE_1_8_8.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_HARDEN_OPTIMIZE_1_8_8.md)
 - Near-term target: start the next `1.8.x` harden/simplify pass on `1.8.8` plus continue `plugins-mvp1` follow-through on top of the `1.8.7` baseline.
 
 ## Release References
