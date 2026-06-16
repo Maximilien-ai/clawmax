@@ -182,6 +182,21 @@ test('validateProvisionInput does not warn for standard OpenAI models when OpenA
   assert(!result.warnings.some((warning) => warning.includes('may fall back during provisioning')), 'Expected no noisy fallback warning for standard OpenAI model')
 })
 
+test('validateProvisionInput warns for deprecated OpenAI snapshots with replacement guidance', () => {
+  const result = validateProvisionInput({
+    name: 'engineer4',
+    model: 'openai/gpt-5-2025-08-07',
+    tags: ['engineer'],
+  }, {
+    existingAgentIds: ['engineer1'],
+    availableModels: ['openai/gpt-5', 'openai/gpt-5-2025-08-07'],
+  })
+
+  assert(result.valid, 'Expected provisioning to remain valid')
+  assertIncludes(result.warnings, 'deprecated by OpenAI')
+  assertIncludes(result.warnings, 'Prefer "gpt-5"')
+})
+
 test('validateProvisionInput accepts a real workspace agent template slug', () => {
   const originalWorkspace = process.env.OPENCLAW_WORKSPACE
   const originalHome = process.env.HOME

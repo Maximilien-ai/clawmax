@@ -7,6 +7,7 @@ import { filterPartnersByCategory, formatPartnerCategoryLabel, getPartnerCategor
 import { DEFAULT_VISIBLE_PARTNERS, getDefaultPartnerDefinitions } from '../lib/defaultPartners'
 import { BROWSER_VAULT_UPDATED_EVENT, readPartnerValuesFromSharedSecrets, readSharedSecrets, writePartnerValuesToSharedSecrets, writeSharedSecrets } from '../lib/localSecrets'
 import { resolveResendTestRecipientEmail } from '../lib/resendTestEmail'
+import { formatOpenAiDeprecationNotice, formatOpenAiModelLabel } from '../lib/openAiModelLifecycle'
 import { PartnerLogo } from './PartnerLogo'
 
 function maskKey(value: string) {
@@ -1381,17 +1382,19 @@ export function ByokWizard({
   }
 
   const discoveredPreferredOptions = [
-    ...((modelsByProvider.openai?.models || []).map((model) => ({ value: model, label: `${model.replace(/^openai\//, '')} (OpenAI)` }))),
+    ...((modelsByProvider.openai?.models || []).map((model) => ({ value: model, label: `${formatOpenAiModelLabel(model).replace(/^openai\//, '')} (OpenAI)` }))),
     ...((modelsByProvider.anthropic?.models || []).map((model) => ({ value: model, label: `${model.replace(/^anthropic\//, '')} (Anthropic)` }))),
     ...((modelsByProvider.gemini?.models || []).map((model) => ({ value: model, label: `${model.replace(/^google\//, '').replace(/^gemini\//, '')} (Gemini)` }))),
     ...((modelsByProvider.ollama?.models || []).map((model) => ({ value: model, label: `${model.replace(/^ollama\//, '')} (Ollama)` }))),
-    ...((modelsByProvider['openai-compatible']?.models || []).map((model) => ({ value: model, label: `${model.replace(/^openai-compatible\//, '')} (OpenAI-Compatible)` }))),
+    ...((modelsByProvider['openai-compatible']?.models || []).map((model) => ({ value: model, label: `${formatOpenAiModelLabel(model).replace(/^openai-compatible\//, '')} (OpenAI-Compatible)` }))),
   ]
   const uniquePreferredOptions = discoveredPreferredOptions.filter((option, index, arr) =>
     arr.findIndex((candidate) => candidate.value === option.value) === index
   )
 
   const currentStepIndex = stepOrder.indexOf(step)
+  const preferredModelDeprecation = formatOpenAiDeprecationNotice(preferredModel)
+  const systemPreferredModelDeprecation = formatOpenAiDeprecationNotice(systemPreferredModel)
   const currentPartner = step.startsWith('partner:')
     ? visiblePartnerDefinitions.find((partner) => partner.slug === step.replace(/^partner:/, ''))
     : null
@@ -2255,6 +2258,9 @@ export function ByokWizard({
                         )}
                       </select>
                       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">This controls the Add Agent wizard and agent template apply flows. Discovered provider models appear here automatically when available.</p>
+                      {preferredModelDeprecation && (
+                        <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">{preferredModelDeprecation}</p>
+                      )}
                       {highlightPreferredModel && (
                         <div className="mt-2 text-xs font-medium text-purple-700 dark:text-purple-300">
                           Set this once for shared background execution in this workspace.
@@ -2296,6 +2302,9 @@ export function ByokWizard({
                         )}
                       </select>
                       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">This does not affect Add Agent. It is only used for built-in/system agents when they do not already have an explicit model.</p>
+                      {systemPreferredModelDeprecation && (
+                        <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">{systemPreferredModelDeprecation}</p>
+                      )}
                     </div>
                   )}
                 </div>

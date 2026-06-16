@@ -72,4 +72,13 @@ test('accepts AI suggested model when it is available', () => {
   assert.equal(resolved, 'openai/gpt-4o-mini')
 })
 
-console.log('addAgentDefaultModel.test.ts: 7 tests passed')
+test('swaps deprecated preferred OpenAI snapshots for replacement models when available', () => {
+  const resolved = resolveAddAgentWizardDefaultModel({
+    models: ['openai/gpt-5', 'openai/gpt-5-2025-08-07'],
+    byok: { preferredModel: 'openai/gpt-5-2025-08-07' },
+    config: {},
+  })
+  assert.equal(resolved, 'openai/gpt-5')
+})
+
+console.log('addAgentDefaultModel.test.ts: 8 tests passed')
