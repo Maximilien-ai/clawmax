@@ -33,73 +33,12 @@ For full release details and RC history, see [CHANGELOG.md](CHANGELOG.md).
 
 ## ✨ 1.7.x Highlights
 
-- `1.7.9`:
-  - adds a first-pass Cognee partner integration for Cognee Cloud and self-hosted Cognee runtime configuration
-  - surfaces Cognee in Partners/BYOK with API key, Base URL, dataset, and search-type fields plus setup/docs links
-  - adds template-apply guidance so Cognee can be optionally surfaced for memory/context workflows without forcing ingestion
-  - enables the official Cognee OpenClaw plugin through a curated allowlisted installer: `openclaw plugins install @cognee/cognee-openclaw@latest`
-  - adds partner-plugin install output modals using the same green shell-style pattern as skill requirement installs
-  - adds state-aware partner-plugin install/uninstall controls so users cannot install an already-installed plugin or uninstall an absent plugin
-  - adds uninstall confirmation and non-interactive backend handling so OpenClaw confirmation prompts cannot hang the dashboard modal
-  - ensures runtime-injected partner secrets such as `RESEND_API_KEY` route chat/tool execution through the local process where the secrets are available
-  - filters benign Cognee/OpenClaw plugin runtime deprecation warnings from chat output so user-visible responses stay clean
-  - extends regression coverage for Cognee partner config, runtime env forwarding, curated installer commands, plugin status detection, install/uninstall routes, chat warning filtering, and runtime-secret chat routing
+- `1.7.9`: first-pass Cognee partner integration, curated plugin install/uninstall flows, runtime-secret chat routing, and stronger partner/plugin regression coverage.
+- `1.7.8`: regression sweep for templates search, bundled helper skills, resend/email flows, workflow session hardening, and notification/chat link correctness.
+- `1.7.7` / `1.7.6`: cloud/on-prem email and status-delivery fixes plus image/release pipeline stabilization.
+- `1.7.5`: broader UI/UX cleanup across agent surfaces, notifications, file-open behavior, mobile/dark-light consistency, and AI authoring flows.
 
-- `1.7.8` regression sweep:
-  - restored Templates search filtering with a dedicated surfaced regression lane
-  - packaged first-party ClawMax helper skills into release images, including `clawmax-resend`, `workspace-ls`, and `clawmax-workspace-ls`
-  - made curated/partner GitHub skill imports idempotent when skills are already installed
-  - hardened workflow execution against `EmbeddedAttemptSessionTakeoverError`
-  - switched gateway background probe identity away from `openclaw-control-ui` to reduce noisy auth warnings
-  - replaced the old chat-side `clawmax-resend` interception path with a real bundled runtime send command (`clawmax-resend-send`) plus agent-skill guidance
-  - tightened resend attachment resolution so protected agent files like `IDENTITY.md`, `SOUL.md`, and `TOOLS.md` resolve from the current agent workspace instead of another agent with the same basename
-  - routed explicit `clawmax-resend` email requests through the managed Resend dispatch path for both workspace-managed and runtime-injected `RESEND_API_KEY` deployments
-  - resend email bodies now render simple markdown structure as HTML, and generated summaries default to inline email bodies instead of stray `summary.md` attachments unless a file was explicitly requested
-  - surfaced release-specific regression lanes in `SYSTEM/test.sh`, including the dedicated `ClawMax Resend Command` lane and new workspace-agent visibility coverage
-
-- OpenClaw `2026.5.26` is now the stable runtime baseline across dashboard, CI, and built images.
-- AI Builder and AI Generate are more reliable:
-  - GPT-5/OpenAI generation avoids unsupported `temperature` settings
-  - stalled generation now times out cleanly instead of hanging forever
-  - explicit new-agent prompts keep `AI Generate Agent` visible even when a close template exists
-  - hints like `do not use existing templates` and `do not use existing agents` are respected more consistently
-- Local/self-hosted model support is stronger:
-  - LM Studio / OpenAI-compatible execution is more compatible with real runtime/provider behavior
-  - Ollama stayed green through the local-model follow-through work
-  - gateway health/reporting is less noisy during healthy runs
-- Skills and on-prem setup flows are more usable:
-  - Linux/on-prem install guidance is more accurate for skills like `himalaya` and `nano-pdf`
-  - `himalaya` now has a constrained in-dashboard setup flow instead of a dead-end warning
-  - Skills search/filter flow better matches the normal agent-first workflow
-  - Skills now support real `SKILL.md` export from the viewer, card actions, and selected-skill actions
-- Partner integrations and partner-backed skills are more usable:
-  - `Resend` is now a first-class partner integration with server-stored API key support and a dashboard test-email path
-  - workspace-managed partner secrets are exported to agent runtimes with canonical env names such as `RESEND_API_KEY`
-  - runtime env-backed managed secrets such as `RESEND_API_KEY` are surfaced correctly in the dashboard integration state instead of requiring an unnecessary resave
-  - managed sender env values such as `OTP_FROM_EMAIL`, `SIGNUP_FROM_EMAIL`, and `RESEND_DEFAULT_FROM` now accept either bare emails or preformatted `Name <email>` strings without generating invalid nested Resend `from` payloads
-  - Resend partner imports now bring along the local `clawmax-resend` bridge helper so partner installs match the practical agent-email path
-  - on-prem Resend test email now allows an explicit recipient override when OTP-authenticated user identity is not part of the install mode
-  - Resend-capable agents can fulfill direct, post-reply, and attachment-based email requests through the dashboard Resend bridge instead of hitting OpenClaw embedded-session conflicts
-  - agent-scoped Resend senders, first-pass anti-spam throttling, and explicit workspace-file attachments are now part of the default bridge behavior
-  - partner-backed skills can be separated from user and built-in skills in the catalog
-  - catalog-mode partners can expose direct import/browse flows for upstream skill repositories
-  - partner selection is opt-in by default, grouped by tabs, and supports better bulk selection behavior
-- Workspace/operator follow-through is stronger:
-  - workspace ordering and activity/budget scoping are better aligned with the active workspace
-  - workspace switching refreshes Communications faster and is less likely to trip the global dashboard rate limiter during dev/operator use
-  - markdown-only GitHub skill imports and package-based skill install detection are more reliable
-  - chat headers, empty states, and create-action menus are getting another consistency/usability pass in the `1.7.5` line
-- AI editing and authoring surfaces are more consistent:
-  - shared markdown-capable prompt surfaces now use `Open AI Editor` consistently instead of mixed naming like `Open Full Editor`
-  - workflow description authoring now has the same AI editor / preview / expand flow as other generation surfaces, while still saving back into the workflow dialog without auto-submitting it
-  - unchanged AI prompt expansions now retry server-side instead of silently echoing the same seed prompt back
-- Templates and Skills authoring flows are more complete:
-  - Templates and Skills search bars now have clearer prominence and more consistent action behavior
-  - skill cards now reserve the top line for the skill name and align status badges/actions more consistently below it
-  - empty Workflows and Communications states now include direct starter actions instead of dead-end copy
-  - Agents and Workflows now share a clearer `Create with AI` / `Create with Wizard` action pattern
-
-Full release details are kept in [CHANGELOG.md](CHANGELOG.md).
+For full `1.7.x` details, see [CHANGELOG.md](CHANGELOG.md).
 
 ---
 
