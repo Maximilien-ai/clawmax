@@ -24,9 +24,11 @@ function run() {
   const docEntries = [
     { path: 'AGENTS/jarvis/show.pdf' },
     { path: 'WORKFLOWS/outputs/demo/preview.png' },
+    { path: 'WORKFLOWS/outputs/demo/final-report.json' },
   ]
   assert.strictEqual(resolveWorkspaceDocPath('show.pdf', docEntries), 'AGENTS/jarvis/show.pdf')
   assert.strictEqual(resolveWorkspaceDocPath('preview.png', docEntries), 'WORKFLOWS/outputs/demo/preview.png')
+  assert.strictEqual(resolveWorkspaceDocPath('WORKFLOWS/outputs/demo/final-report.json', docEntries), 'WORKFLOWS/outputs/demo/final-report.json')
 
   const ambiguousEntries = [
     { path: 'AGENTS/a/show.pdf' },
@@ -34,7 +36,7 @@ function run() {
   ]
   assert.strictEqual(resolveWorkspaceDocPath('show.pdf', ambiguousEntries), null)
 
-  console.log('workspaceFiles.test.ts: 6 tests passed')
+  console.log('workspaceFiles.test.ts: 7 tests passed')
 }
 
 run()

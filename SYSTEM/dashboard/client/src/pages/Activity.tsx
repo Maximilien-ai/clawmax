@@ -4,6 +4,8 @@ import { ProductIconCell } from '../lib/productIcons'
 import { formatMeteringCost, formatMeteringTokens, summarizeMeteringByAgentType } from '../lib/meteringPresentation'
 import { useWorkspace } from '../contexts/WorkspaceContext'
 import { buildWorkspaceScopedPath } from '../lib/workspaceScope'
+import { WorkspaceDocEntryRef } from '../lib/workspaceFiles'
+import { resolveNavigableWorkspaceDocPath } from '../lib/workspaceDocNavigation'
 
 interface MeteringData {
   enabled?: boolean
@@ -133,6 +135,7 @@ export default function Activity({ onNavigateToDoc, isActive = false }: Activity
   const { activeWorkspace } = useWorkspace()
   const workspaceCacheKey = getWorkspaceCacheKey(activeWorkspace?.id)
   const [feed, setFeed] = useState<ActivityEntry[]>([])
+  const [docEntries, setDocEntries] = useState<WorkspaceDocEntryRef[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [lastRefreshed, setLastRefreshed] = useState<number>(Date.now())
@@ -290,6 +293,14 @@ export default function Activity({ onNavigateToDoc, isActive = false }: Activity
   }, [isActive, refreshActivityPage])
 
   useEffect(() => {
+    if (!isActive || !onNavigateToDoc) return
+    fetch(buildWorkspaceScopedPath('/api/docs', activeWorkspace?.id))
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => setDocEntries(Array.isArray(data?.docs) ? data.docs : []))
+      .catch(() => setDocEntries([]))
+  }, [activeWorkspace?.id, isActive, onNavigateToDoc])
+
+  useEffect(() => {
     const ticker = setInterval(() => {
       setRefreshedLabel(secAgo(lastRefreshed))
     }, 5000)
@@ -303,6 +314,13 @@ export default function Activity({ onNavigateToDoc, isActive = false }: Activity
     refreshActivityPage()
     setTimeout(() => setCooling(false), 3000)
   }
+
+  const openActivityDoc = useCallback((target: string) => {
+    if (!onNavigateToDoc) return
+    const resolvedPath = resolveNavigableWorkspaceDocPath(target, docEntries)
+    if (!resolvedPath) return
+    onNavigateToDoc(resolvedPath)
+  }, [docEntries, onNavigateToDoc])
 
   const handleSort = (col: SortCol) => {
     if (sortCol === col) {
@@ -631,7 +649,7 @@ export default function Activity({ onNavigateToDoc, isActive = false }: Activity
                     <td className="px-4 py-2 text-xs font-mono">
                       {onNavigateToDoc ? (
                         <button
-                          onClick={() => onNavigateToDoc(`AGENTS/${entry.agentId}/${entry.file}`)}
+                          onClick={() => openActivityDoc(`AGENTS/${entry.agentId}/${entry.file}`)}
                           className="text-sky-600 hover:text-sky-800 hover:underline transition-colors text-left"
                           title="Open in Documents tab"
                         >

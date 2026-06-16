@@ -31,6 +31,9 @@ import { getAgentWorkspaceLoadKey, shouldFetchAgentsForWorkspace } from '../lib/
 import { useWorkspace } from '../contexts/WorkspaceContext'
 import { buildWorkspaceScopedPath } from '../lib/workspaceScope'
 import { getSmartDropdownPlacement, getViewportSafeDropdownStyle, type DropdownPlacement } from '../lib/dropdownPosition'
+import { formatOpenAiDeprecationNotice, formatOpenAiModelLabel, isSelectableLifecycleModel } from '../lib/openAiModelLifecycle'
+
+type AgentActionsMenuView = 'main' | 'maintain'
 
 function secAgo(ts: number): string {
   const s = Math.floor((Date.now() - ts) / 1000)
@@ -1677,6 +1680,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                       onExport={() => handleExportAgent(agent.id)}
                         onViewDocs={onNavigateToDoc ? () => onNavigateToDoc(`AGENTS/${agent.archived ? 'archive/' : ''}${agent.id}/IDENTITY.md`) : undefined}
                         onManageTags={() => setTagManageTarget(agent)}
+                        onNavigateToSkills={onNavigateToSkills}
                         onRestart={() => handleRestart(agent.id)}
                         onArchive={() => setArchiveTarget(agent)}
                         onUnarchive={() => setUnarchiveTarget(agent)}
@@ -1727,6 +1731,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                               onExport={() => handleExportAgent(agent.id)}
                               onViewDocs={onNavigateToDoc ? () => onNavigateToDoc(`AGENTS/${agent.archived ? 'archive/' : ''}${agent.id}/IDENTITY.md`) : undefined}
                               onManageTags={() => setTagManageTarget(agent)}
+                              onNavigateToSkills={onNavigateToSkills}
                               onRestart={() => handleRestart(agent.id)}
                               onArchive={() => setArchiveTarget(agent)}
                               onUnarchive={() => setUnarchiveTarget(agent)}
@@ -1829,6 +1834,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
               onExport={() => handleExportAgent(agent.id)}
               onViewDocs={onNavigateToDoc ? () => onNavigateToDoc(`AGENTS/${agent.archived ? 'archive/' : ''}${agent.id}/IDENTITY.md`) : undefined}
               onManageTags={() => setTagManageTarget(agent)}
+              onNavigateToSkills={onNavigateToSkills}
               onRestart={() => handleRestart(agent.id)}
               onArchive={() => setArchiveTarget(agent)}
               onUnarchive={() => setUnarchiveTarget(agent)}
@@ -1881,6 +1887,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                           onExport={() => handleExportAgent(agent.id)}
                           onViewDocs={onNavigateToDoc ? () => onNavigateToDoc(`AGENTS/${agent.archived ? 'archive/' : ''}${agent.id}/IDENTITY.md`) : undefined}
                           onManageTags={() => setTagManageTarget(agent)}
+                          onNavigateToSkills={onNavigateToSkills}
                           onRestart={() => handleRestart(agent.id)}
                           onArchive={() => setArchiveTarget(agent)}
                           onUnarchive={() => setUnarchiveTarget(agent)}
@@ -1926,6 +1933,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
           onStatus={setStatusTarget}
           onDelete={(id) => setDeleteTarget(id)}
           onEdit={setEditTarget}
+          onNavigateToSkills={onNavigateToSkills}
           onLinkWa={setLinkWaTarget}
           onSyncGroups={setSyncGroupsTarget}
           onArchive={setArchiveTarget}
@@ -2677,6 +2685,7 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
   const [validationErrors, setValidationErrors] = React.useState<string[]>([])
   const [validating, setValidating] = React.useState(false)
   const [validationRequestError, setValidationRequestError] = React.useState<string | null>(null)
+  const selectedModelDeprecation = formatOpenAiDeprecationNotice(model)
 
   const syncIdentityModel = React.useCallback((content: string, nextModel: string) => {
     if (!nextModel.trim()) return content
@@ -2910,18 +2919,21 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
                   {Object.keys(modelsByProvider).length > 0 ? (
                     Object.entries(modelsByProvider).map(([providerId, provider]) => (
                       <optgroup key={providerId} label={provider.name || providerId}>
-                        {provider.models.map(option => (
-                          <option key={option} value={option}>{option}</option>
+                        {provider.models.filter((option) => isSelectableLifecycleModel(option, model)).map(option => (
+                          <option key={option} value={option}>{formatOpenAiModelLabel(option)}</option>
                         ))}
                       </optgroup>
                     ))
                   ) : (
-                    availableModels.map(option => (
-                      <option key={option} value={option}>{option}</option>
+                    availableModels.filter((option) => isSelectableLifecycleModel(option, model)).map(option => (
+                      <option key={option} value={option}>{formatOpenAiModelLabel(option)}</option>
                     ))
                   )}
                 </select>
                 <p className="mt-1 text-xs text-gray-400">Live models from provider APIs (cached 1hr). Click "Refresh" to update.</p>
+                {selectedModelDeprecation && (
+                  <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">{selectedModelDeprecation}</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">IDENTITY.md</label>
@@ -3200,6 +3212,7 @@ const AgentCard = React.memo(function AgentCard({
 }) {
   const [confirmUnlink, setConfirmUnlink] = React.useState(false)
   const [showActionsMenu, setShowActionsMenu] = React.useState(false)
+  const [actionsMenuView, setActionsMenuView] = React.useState<AgentActionsMenuView>('main')
   const [menuPlacement, setMenuPlacement] = React.useState<DropdownPlacement>('top')
   const actionsButtonRef = React.useRef<HTMLButtonElement | null>(null)
   const menuWidth = 176
@@ -3309,7 +3322,7 @@ const AgentCard = React.memo(function AgentCard({
           <div className="relative">
             <button
               ref={actionsButtonRef}
-              onClick={e => { e.stopPropagation(); setShowActionsMenu(!showActionsMenu) }}
+              onClick={e => { e.stopPropagation(); setShowActionsMenu(!showActionsMenu); if (showActionsMenu) setActionsMenuView('main') }}
               className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-gray-200 bg-gray-50 text-[18px] font-black leading-none text-gray-500 shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-sky-200 dark:border-gray-600 dark:bg-gray-700/80 dark:text-gray-200 dark:hover:border-gray-500 dark:hover:bg-gray-600 dark:hover:text-white dark:focus:ring-sky-800"
               title="More actions"
             >
@@ -3317,7 +3330,7 @@ const AgentCard = React.memo(function AgentCard({
             </button>
             {showActionsMenu && (
               <>
-                <div className="fixed inset-0 z-10" onClick={e => { e.stopPropagation(); setShowActionsMenu(false) }} />
+                <div className="fixed inset-0 z-10" onClick={e => { e.stopPropagation(); setShowActionsMenu(false); setActionsMenuView('main') }} />
                 <div
                   className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20 py-1 dark:border-gray-700 max-h-[70vh] overflow-y-auto"
                   style={actionsButtonRef.current ? getViewportSafeDropdownStyle(actionsButtonRef.current.getBoundingClientRect(), menuWidth, menuPlacement) : undefined}
@@ -3372,6 +3385,15 @@ const AgentCard = React.memo(function AgentCard({
                             Edit
                           </button>
                         )}
+                        {onNavigateToSkills && (
+                          <button
+                            onClick={e => { e.stopPropagation(); onNavigateToSkills(agent.id); setShowActionsMenu(false); setActionsMenuView('main') }}
+                            className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors"
+                          >
+                            <ProductIconCell iconName="skill" label="Skills" size="sm" className="border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" />
+                            Skills
+                          </button>
+                        )}
                         <button
                           onClick={e => { e.stopPropagation(); onClone(); setShowActionsMenu(false) }}
                           className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors dark:text-gray-300"
@@ -3395,57 +3417,81 @@ const AgentCard = React.memo(function AgentCard({
                         </button>
                       </div>
                     </div>
-                    <div>
-                      <div className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">Maintain</div>
-                      <div className="grid grid-cols-2 gap-1.5">
+                    {actionsMenuView === 'main' ? (
+                      <div>
+                        <div className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">More</div>
                         <button
-                          onClick={e => { e.stopPropagation(); onRestart(); setShowActionsMenu(false) }}
-                          className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors dark:text-gray-300"
+                          onClick={e => { e.stopPropagation(); setActionsMenuView('maintain') }}
+                          className="inline-flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                         >
-                          <ProductIconCell iconName="restart" label="Restart" size="sm" className="border-amber-200 bg-amber-50 text-amber-600 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-300" />
-                          Restart
+                          <span className="inline-flex items-center gap-2">
+                            <ProductIconCell iconName="details" label="Maintain" size="sm" className="border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300" />
+                            Maintain actions
+                          </span>
+                          <span className="text-gray-400">›</span>
                         </button>
-                        <button
-                          onClick={async e => {
-                            e.stopPropagation()
-                            setShowActionsMenu(false)
-                            try {
-                              const resp = await fetch('/api/agents/doctor', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ fix: true }),
-                              })
-                              const data = await resp.json()
-                              const agentResult = data.results?.find((r: any) => r.id === agent.id)
-                              if (agentResult) {
-                                const fails = agentResult.checks.filter((c: any) => c.status === 'fail')
-                                const fixed = agentResult.checks.filter((c: any) => c.status === 'fixed')
-                                const pass = agentResult.checks.filter((c: any) => c.status === 'pass')
-                                const statusEl = document.getElementById(`doctor-status-${agent.id}`)
-                                if (statusEl) {
-                                  statusEl.textContent = fails.length ? `✗ ${fails.map((f: any) => f.message).join('; ')}` : `✓ ${pass.length} passed${fixed.length ? `, ${fixed.length} fixed` : ''}`
-                                  statusEl.className = `text-xs mt-1 ${fails.length ? 'text-red-500' : 'text-green-500'}`
-                                  setTimeout(() => { statusEl.textContent = ''; statusEl.className = '' }, 5000)
+                      </div>
+                    ) : (
+                      <div>
+                        <div className="mb-2 flex items-center justify-between px-1">
+                          <button
+                            onClick={e => { e.stopPropagation(); setActionsMenuView('main') }}
+                            className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500"
+                          >
+                            ‹ Back
+                          </button>
+                          <div className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">Maintain</div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <button
+                            onClick={e => { e.stopPropagation(); onRestart(); setShowActionsMenu(false); setActionsMenuView('main') }}
+                            className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors"
+                          >
+                            <ProductIconCell iconName="restart" label="Restart" size="sm" className="border-amber-200 bg-amber-50 text-amber-600 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-300" />
+                            Restart
+                          </button>
+                          <button
+                            onClick={async e => {
+                              e.stopPropagation()
+                              setShowActionsMenu(false)
+                              setActionsMenuView('main')
+                              try {
+                                const resp = await fetch('/api/agents/doctor', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ fix: true }),
+                                })
+                                const data = await resp.json()
+                                const agentResult = data.results?.find((r: any) => r.id === agent.id)
+                                if (agentResult) {
+                                  const fails = agentResult.checks.filter((c: any) => c.status === 'fail')
+                                  const fixed = agentResult.checks.filter((c: any) => c.status === 'fixed')
+                                  const pass = agentResult.checks.filter((c: any) => c.status === 'pass')
+                                  const statusEl = document.getElementById(`doctor-status-${agent.id}`)
+                                  if (statusEl) {
+                                    statusEl.textContent = fails.length ? `✗ ${fails.map((f: any) => f.message).join('; ')}` : `✓ ${pass.length} passed${fixed.length ? `, ${fixed.length} fixed` : ''}`
+                                    statusEl.className = `text-xs mt-1 ${fails.length ? 'text-red-500' : 'text-green-500'}`
+                                    setTimeout(() => { statusEl.textContent = ''; statusEl.className = '' }, 5000)
+                                  }
                                 }
-                              }
-                            } catch {}
-                          }}
-                          className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-cyan-50 dark:hover:bg-cyan-900/30 transition-colors dark:text-gray-300"
-                        >
-                          <ProductIconCell iconName="doctor" label="Doctor" size="sm" className="border-cyan-200 bg-cyan-50 text-cyan-600 dark:border-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300" />
-                          Doctor
-                        </button>
-                        <button
-                          onClick={e => { e.stopPropagation(); onRename(); setShowActionsMenu(false) }}
-                          className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors dark:text-gray-300"
-                        >
-                          <ProductIconCell iconName="rename" label="Rename" size="sm" className="border-purple-200 bg-purple-50 text-purple-600 dark:border-purple-700 dark:bg-purple-900/30 dark:text-purple-300" />
-                          Rename
-                        </button>
+                              } catch {}
+                            }}
+                            className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-cyan-50 dark:hover:bg-cyan-900/30 transition-colors"
+                          >
+                            <ProductIconCell iconName="doctor" label="Doctor" size="sm" className="border-cyan-200 bg-cyan-50 text-cyan-600 dark:border-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300" />
+                            Doctor
+                          </button>
+                          <button
+                            onClick={e => { e.stopPropagation(); onRename(); setShowActionsMenu(false); setActionsMenuView('main') }}
+                            className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors"
+                          >
+                            <ProductIconCell iconName="rename" label="Rename" size="sm" className="border-purple-200 bg-purple-50 text-purple-600 dark:border-purple-700 dark:bg-purple-900/30 dark:text-purple-300" />
+                            Rename
+                          </button>
                       {costTrackingEnabled && (
                         <button
-                          onClick={e => { e.stopPropagation(); onSetBudget(); setShowActionsMenu(false) }}
-                          className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors dark:text-gray-300"
+                          onClick={e => { e.stopPropagation(); onSetBudget(); setShowActionsMenu(false); setActionsMenuView('main') }}
+                          className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors"
                         >
                           <ProductIconCell iconName="budget" label="Budget" size="sm" className="border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" />
                           Budget
@@ -3453,8 +3499,8 @@ const AgentCard = React.memo(function AgentCard({
                       )}
                       {!agent.archived && (
                         <button
-                          onClick={e => { e.stopPropagation(); onLinkWa(); setShowActionsMenu(false) }}
-                          className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors dark:text-gray-300"
+                          onClick={e => { e.stopPropagation(); onLinkWa(); setShowActionsMenu(false); setActionsMenuView('main') }}
+                          className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors"
                         >
                           <ProductIconCell iconName="whatsapp" label={agent.whatsapp ? 'Reconnect WA' : 'Connect WA'} size="sm" className="border-green-200 bg-green-50 text-green-600 dark:border-green-700 dark:bg-green-900/30 dark:text-green-300" />
                           {agent.whatsapp ? 'Reconnect WA' : 'Connect WA'}
@@ -3462,8 +3508,8 @@ const AgentCard = React.memo(function AgentCard({
                       )}
                       {!agent.archived && agent.whatsapp && (
                         <button
-                          onClick={e => { e.stopPropagation(); onSyncGroups(); setShowActionsMenu(false) }}
-                          className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-lime-50 dark:hover:bg-lime-900/30 transition-colors dark:text-gray-300"
+                          onClick={e => { e.stopPropagation(); onSyncGroups(); setShowActionsMenu(false); setActionsMenuView('main') }}
+                          className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-lime-50 dark:hover:bg-lime-900/30 transition-colors"
                         >
                           <ProductIconCell iconName="refresh" label="Sync WA" size="sm" className="border-lime-200 bg-lime-50 text-lime-600 dark:border-lime-700 dark:bg-lime-900/30 dark:text-lime-300" />
                           Sync WA
@@ -3471,26 +3517,27 @@ const AgentCard = React.memo(function AgentCard({
                       )}
                       {agent.archived ? (
                         <button
-                          onClick={e => { e.stopPropagation(); onUnarchive(); setShowActionsMenu(false) }}
-                            className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors dark:text-gray-300"
+                          onClick={e => { e.stopPropagation(); onUnarchive(); setShowActionsMenu(false); setActionsMenuView('main') }}
+                            className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors"
                           >
                             <ProductIconCell iconName="restore" label="Restore" size="sm" className="border-green-200 bg-green-50 text-green-600 dark:border-green-700 dark:bg-green-900/30 dark:text-green-300" />
                             Restore
                           </button>
                         ) : (
                           <button
-                            onClick={e => { e.stopPropagation(); onArchive(); setShowActionsMenu(false) }}
-                            className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-orange-50 dark:hover:bg-orange-900/30 transition-colors dark:text-gray-300"
+                            onClick={e => { e.stopPropagation(); onArchive(); setShowActionsMenu(false); setActionsMenuView('main') }}
+                            className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-orange-50 dark:hover:bg-orange-900/30 transition-colors"
                           >
                             <ProductIconCell iconName="archive" label="Archive" size="sm" className="border-orange-200 bg-orange-50 text-orange-600 dark:border-orange-700 dark:bg-orange-900/30 dark:text-orange-300" />
                             Archive
                           </button>
                         )}
+                        </div>
                       </div>
-                    </div>
+                    )}
                     <div className="border-t border-gray-200 dark:border-gray-700 pt-2 dark:border-gray-700">
                       <button
-                        onClick={e => { e.stopPropagation(); onDelete(); setShowActionsMenu(false) }}
+                        onClick={e => { e.stopPropagation(); onDelete(); setShowActionsMenu(false); setActionsMenuView('main') }}
                         className="inline-flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
                       >
                         <ProductIconCell iconName="delete" label="Delete agent" size="sm" className="border-red-200 bg-red-50 text-red-600 dark:border-red-700 dark:bg-red-900/30 dark:text-red-300" />
@@ -3785,8 +3832,9 @@ const AgentCard = React.memo(function AgentCard({
   )
 })
 
-const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onClick, onChat, onStatus, onDelete, onClone, onEdit, onLinkWa, onSyncGroups, onSaveAsTemplate, onExport, onViewDocs, onManageTags, onRestart, onArchive, onUnarchive, onRename, onSetBudget, isSelected, onToggleSelect, usage, metering, costLimit, costTrackingEnabled = true }: { agent: Agent; selected: boolean; onClick: () => void; onChat: () => void; onStatus: () => void; onDelete: () => void; onClone: () => void; onEdit?: () => void; onLinkWa: () => void; onSyncGroups: () => void; onSaveAsTemplate: () => void; onExport: () => void; onViewDocs?: () => void; onManageTags: () => void; onRestart: () => void; onArchive: () => void; onUnarchive: () => void; onRename: () => void; onSetBudget: () => void; isSelected?: boolean; onToggleSelect?: () => void; usage?: { totalTokens: number; inputTokens: number; outputTokens: number; totalCost: number }; metering?: { calls: number; tokens: number; cost: number }; costLimit?: number | null; costTrackingEnabled?: boolean }) {
+const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onClick, onChat, onStatus, onDelete, onClone, onEdit, onLinkWa, onSyncGroups, onSaveAsTemplate, onExport, onViewDocs, onManageTags, onNavigateToSkills, onRestart, onArchive, onUnarchive, onRename, onSetBudget, isSelected, onToggleSelect, usage, metering, costLimit, costTrackingEnabled = true }: { agent: Agent; selected: boolean; onClick: () => void; onChat: () => void; onStatus: () => void; onDelete: () => void; onClone: () => void; onEdit?: () => void; onLinkWa: () => void; onSyncGroups: () => void; onSaveAsTemplate: () => void; onExport: () => void; onViewDocs?: () => void; onManageTags: () => void; onNavigateToSkills?: (agentId: string) => void; onRestart: () => void; onArchive: () => void; onUnarchive: () => void; onRename: () => void; onSetBudget: () => void; isSelected?: boolean; onToggleSelect?: () => void; usage?: { totalTokens: number; inputTokens: number; outputTokens: number; totalCost: number }; metering?: { calls: number; tokens: number; cost: number }; costLimit?: number | null; costTrackingEnabled?: boolean }) {
   const [showActionsMenu, setShowActionsMenu] = React.useState(false)
+  const [actionsMenuView, setActionsMenuView] = React.useState<AgentActionsMenuView>('main')
   const [menuPlacement, setMenuPlacement] = React.useState<DropdownPlacement>('top')
   const actionsButtonRef = React.useRef<HTMLButtonElement | null>(null)
   const menuWidth = 176
@@ -3952,7 +4000,7 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
         <div className="shrink-0">
           <button
             ref={actionsButtonRef}
-            onClick={(e) => { e.stopPropagation(); setShowActionsMenu(!showActionsMenu); }}
+            onClick={(e) => { e.stopPropagation(); setShowActionsMenu(!showActionsMenu); if (showActionsMenu) setActionsMenuView('main') }}
             className="inline-flex h-6.5 w-6.5 items-center justify-center rounded-md border border-gray-200 bg-gray-50 text-[17px] font-black leading-none text-gray-500 shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-sky-200 dark:border-gray-600 dark:bg-gray-700/80 dark:text-gray-200 dark:hover:border-gray-500 dark:hover:bg-gray-600 dark:hover:text-white dark:focus:ring-sky-800"
             aria-label="More actions"
             title="More actions"
@@ -3961,7 +4009,7 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
           </button>
           {showActionsMenu && (
             <>
-              <div className="fixed inset-0 z-10" onClick={(e) => { e.stopPropagation(); setShowActionsMenu(false); }} />
+              <div className="fixed inset-0 z-10" onClick={(e) => { e.stopPropagation(); setShowActionsMenu(false); setActionsMenuView('main'); }} />
               <div
                 className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20 py-1 dark:border-gray-700 max-h-[70vh] overflow-y-auto"
                 style={actionsButtonRef.current ? getViewportSafeDropdownStyle(actionsButtonRef.current.getBoundingClientRect(), menuWidth, menuPlacement) : undefined}
@@ -4014,6 +4062,15 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
                           Edit
                         </button>
                       )}
+                      {onNavigateToSkills && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); onNavigateToSkills(agent.id); setShowActionsMenu(false); setActionsMenuView('main'); }}
+                          className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors"
+                        >
+                          <ProductIconCell iconName="skill" label="Skills" size="sm" className="border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" />
+                          Skills
+                        </button>
+                      )}
                       <button
                         onClick={(e) => { e.stopPropagation(); onClone(); setShowActionsMenu(false); }}
                         className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors dark:text-gray-300"
@@ -4037,12 +4094,35 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
                       </button>
                     </div>
                   </div>
-                  <div>
-                    <div className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">Maintain</div>
-                    <div className="grid grid-cols-2 gap-1.5">
+                  {actionsMenuView === 'main' ? (
+                    <div>
+                      <div className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">More</div>
                       <button
-                        onClick={(e) => { e.stopPropagation(); onRestart(); setShowActionsMenu(false); }}
-                        className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors dark:text-gray-300"
+                        onClick={(e) => { e.stopPropagation(); setActionsMenuView('maintain'); }}
+                        className="inline-flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                      >
+                        <span className="inline-flex items-center gap-2">
+                          <ProductIconCell iconName="details" label="Maintain" size="sm" className="border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300" />
+                          Maintain actions
+                        </span>
+                        <span className="text-gray-400">›</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <div>
+                      <div className="mb-2 flex items-center justify-between px-1">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setActionsMenuView('main'); }}
+                          className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500"
+                        >
+                          ‹ Back
+                        </button>
+                        <div className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">Maintain</div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1.5">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onRestart(); setShowActionsMenu(false); setActionsMenuView('main'); }}
+                        className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors"
                       >
                         <ProductIconCell iconName="restart" label="Restart" size="sm" className="border-amber-200 bg-amber-50 text-amber-600 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-300" />
                         Restart
@@ -4051,6 +4131,7 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
                         onClick={async (e) => {
                           e.stopPropagation()
                           setShowActionsMenu(false)
+                          setActionsMenuView('main')
                           try {
                             const resp = await fetch('/api/agents/doctor', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fix: true }) })
                             const data = await resp.json()
@@ -4079,16 +4160,16 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
                         Doctor
                       </button>
                       <button
-                        onClick={(e) => { e.stopPropagation(); onRename(); setShowActionsMenu(false); }}
-                        className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors dark:text-gray-300"
+                        onClick={(e) => { e.stopPropagation(); onRename(); setShowActionsMenu(false); setActionsMenuView('main'); }}
+                        className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors"
                       >
                         <ProductIconCell iconName="rename" label="Rename" size="sm" className="border-purple-200 bg-purple-50 text-purple-600 dark:border-purple-700 dark:bg-purple-900/30 dark:text-purple-300" />
                         Rename
                       </button>
                       {costTrackingEnabled && (
                         <button
-                          onClick={(e) => { e.stopPropagation(); onSetBudget(); setShowActionsMenu(false); }}
-                          className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors dark:text-gray-300"
+                          onClick={(e) => { e.stopPropagation(); onSetBudget(); setShowActionsMenu(false); setActionsMenuView('main'); }}
+                          className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors"
                         >
                           <ProductIconCell iconName="budget" label="Budget" size="sm" className="border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" />
                           Budget
@@ -4096,8 +4177,8 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
                       )}
                       {!agent.archived && (
                         <button
-                          onClick={(e) => { e.stopPropagation(); onLinkWa(); setShowActionsMenu(false); }}
-                          className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors dark:text-gray-300"
+                          onClick={(e) => { e.stopPropagation(); onLinkWa(); setShowActionsMenu(false); setActionsMenuView('main'); }}
+                          className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors"
                         >
                           <ProductIconCell iconName="whatsapp" label={agent.whatsapp ? 'Reconnect WA' : 'Connect WA'} size="sm" className="border-green-200 bg-green-50 text-green-600 dark:border-green-700 dark:bg-green-900/30 dark:text-green-300" />
                           {agent.whatsapp ? 'Reconnect WA' : 'Connect WA'}
@@ -4105,8 +4186,8 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
                       )}
                       {!agent.archived && agent.whatsapp && (
                         <button
-                          onClick={(e) => { e.stopPropagation(); onSyncGroups(); setShowActionsMenu(false); }}
-                          className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-lime-50 dark:hover:bg-lime-900/30 transition-colors dark:text-gray-300"
+                          onClick={(e) => { e.stopPropagation(); onSyncGroups(); setShowActionsMenu(false); setActionsMenuView('main'); }}
+                          className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-lime-50 dark:hover:bg-lime-900/30 transition-colors"
                         >
                           <ProductIconCell iconName="refresh" label="Sync WA" size="sm" className="border-lime-200 bg-lime-50 text-lime-600 dark:border-lime-700 dark:bg-lime-900/30 dark:text-lime-300" />
                           Sync WA
@@ -4114,26 +4195,27 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
                       )}
                       {agent.archived ? (
                         <button
-                          onClick={(e) => { e.stopPropagation(); onUnarchive(); setShowActionsMenu(false); }}
-                          className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors dark:text-gray-300"
+                          onClick={(e) => { e.stopPropagation(); onUnarchive(); setShowActionsMenu(false); setActionsMenuView('main'); }}
+                          className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors"
                         >
                           <ProductIconCell iconName="restore" label="Restore" size="sm" className="border-green-200 bg-green-50 text-green-600 dark:border-green-700 dark:bg-green-900/30 dark:text-green-300" />
                           Restore
                         </button>
                       ) : (
                         <button
-                          onClick={(e) => { e.stopPropagation(); onArchive(); setShowActionsMenu(false); }}
-                          className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-orange-50 dark:hover:bg-orange-900/30 transition-colors dark:text-gray-300"
+                          onClick={(e) => { e.stopPropagation(); onArchive(); setShowActionsMenu(false); setActionsMenuView('main'); }}
+                          className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-orange-50 dark:hover:bg-orange-900/30 transition-colors"
                         >
                           <ProductIconCell iconName="archive" label="Archive" size="sm" className="border-orange-200 bg-orange-50 text-orange-600 dark:border-orange-700 dark:bg-orange-900/30 dark:text-orange-300" />
                           Archive
                         </button>
                       )}
                     </div>
-                  </div>
+                    </div>
+                  )}
                   <div className="border-t border-gray-200 dark:border-gray-700 pt-2 dark:border-gray-700">
                     <button
-                      onClick={(e) => { e.stopPropagation(); onDelete(); setShowActionsMenu(false); }}
+                      onClick={(e) => { e.stopPropagation(); onDelete(); setShowActionsMenu(false); setActionsMenuView('main'); }}
                       className="inline-flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
                     >
                       <ProductIconCell iconName="delete" label="Delete agent" size="sm" className="border-red-200 bg-red-50 text-red-600 dark:border-red-700 dark:bg-red-900/30 dark:text-red-300" />
@@ -4165,6 +4247,7 @@ const AgentTableView = React.memo(function AgentTableView({
   onStatus,
   onDelete,
   onEdit,
+  onNavigateToSkills,
   onLinkWa,
   onSyncGroups,
   onArchive,
@@ -4186,6 +4269,7 @@ const AgentTableView = React.memo(function AgentTableView({
   onStatus: (agent: Agent) => void
   onDelete: (id: string) => void
   onEdit?: (agent: Agent) => void
+  onNavigateToSkills?: (agentId: string) => void
   onLinkWa: (agent: Agent) => void
   onSyncGroups: (agent: Agent) => void
   onArchive: (agent: Agent) => void
@@ -4513,6 +4597,19 @@ const AgentTableView = React.memo(function AgentTableView({
                         >
                           <ProductIconCell iconName="edit" label="Edit Config" size="sm" className="border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" />
                           Edit Config
+                        </button>
+                      )}
+                      {onNavigateToSkills && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setOpenDropdown(null)
+                            onNavigateToSkills(agent.id)
+                          }}
+                          className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors flex items-center gap-2"
+                        >
+                          <ProductIconCell iconName="skill" label="Skills" size="sm" className="border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" />
+                          Skills
                         </button>
                       )}
                       {!agent.archived && (

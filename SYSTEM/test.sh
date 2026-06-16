@@ -427,6 +427,17 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running OpenAI model lifecycle helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/openAiModelLifecycle.test.ts > /tmp/clawmax-openai-model-lifecycle.out 2>&1 || true
+if grep -q "openAiModelLifecycle.test.ts:" /tmp/clawmax-openai-model-lifecycle.out; then
+  openai_model_lifecycle_count=$(grep -o '[0-9]\+ tests passed' /tmp/clawmax-openai-model-lifecycle.out | head -1 | grep -o '[0-9]\+')
+  pass "OpenAI model lifecycle helper unit tests (${openai_model_lifecycle_count:-?} tests)"
+else
+  cat /tmp/clawmax-openai-model-lifecycle.out
+  fail "OpenAI model lifecycle helper unit tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Agent delete UI regression tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/agentDeleteUi.test.ts > /tmp/clawmax-agent-delete-ui.out 2>&1 || true
 if grep -q "✓ " /tmp/clawmax-agent-delete-ui.out; then
@@ -809,6 +820,16 @@ if grep -q "workspaceFiles.test.ts:" /tmp/clawmax-workspace-files.out; then
 else
   cat /tmp/clawmax-workspace-files.out
   fail "Workspace file mention helper unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Workspace doc navigation helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/workspaceDocNavigation.test.ts > /tmp/clawmax-workspace-doc-navigation.out 2>&1 || true
+if grep -q "workspaceDocNavigation.test.ts:" /tmp/clawmax-workspace-doc-navigation.out; then
+  workspace_doc_navigation_count=$(grep -o '[0-9]\+ tests passed' /tmp/clawmax-workspace-doc-navigation.out | head -1 | grep -o '[0-9]\+')
+  pass "Workspace doc navigation helper unit tests (${workspace_doc_navigation_count:-?} tests)"
+else
+  cat /tmp/clawmax-workspace-doc-navigation.out
+  fail "Workspace doc navigation helper unit tests"
 fi
 
 echo -e "${YELLOW}→ Running Channel API helper unit tests...${NC}"
@@ -1480,8 +1501,10 @@ echo ""
 echo -e "${YELLOW}→ Running Agent config validation unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/agent-config-validation.test.ts > /tmp/clawmax-agent-config-validation.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-agent-config-validation.out; then
-  pass "Agent config validation unit tests (6 tests)"
+  agent_config_validation_count=$(grep -c $'✓' /tmp/clawmax-agent-config-validation.out)
+  pass "Agent config validation unit tests (${agent_config_validation_count:-?} tests)"
 else
+  cat /tmp/clawmax-agent-config-validation.out
   fail "Agent config validation unit tests"
 fi
 

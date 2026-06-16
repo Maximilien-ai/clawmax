@@ -4,6 +4,7 @@ import { expandPromptWithAI } from '../lib/aiPrompt'
 import { normalizeAgentTemplateOption } from '../lib/agentTemplateOptions'
 import { normalizePromptInput, resolveAddAgentWizardLaunchState } from '../lib/addAgentWizardFlow'
 import { resolveAddAgentWizardDefaultModel, resolveAddAgentWizardSuggestedModel } from '../lib/addAgentDefaultModel'
+import { formatOpenAiDeprecationNotice, formatOpenAiModelLabel, isSelectableLifecycleModel } from '../lib/openAiModelLifecycle'
 import { useAuth } from '../contexts/AuthContext'
 import AIPromptEditorModal from './AIPromptEditorModal'
 
@@ -297,6 +298,7 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
     3: true, // whatsapp is optional
     4: false, // provision button handles this
   }
+  const selectedModelDeprecation = formatOpenAiDeprecationNotice(form.model)
 
   function clearProvisionValidation() {
     setValidationErrors([])
@@ -595,11 +597,15 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
                   {Object.keys(modelsByProvider).length > 0 ? (
                     Object.entries(modelsByProvider).map(([providerId, provider]) => (
                       <optgroup key={providerId} label={provider.name || providerId}>
-                        {provider.models.map(m => <option key={m} value={m}>{m}</option>)}
+                        {provider.models
+                          .filter(m => isSelectableLifecycleModel(m, form.model))
+                          .map(m => <option key={m} value={m}>{formatOpenAiModelLabel(m)}</option>)}
                       </optgroup>
                     ))
                   ) : (
-                    availableModels.map(m => <option key={m} value={m}>{m}</option>)
+                    availableModels
+                      .filter(m => isSelectableLifecycleModel(m, form.model))
+                      .map(m => <option key={m} value={m}>{formatOpenAiModelLabel(m)}</option>)
                   )}
                 </select>
                 {modelsLoaded && availableModels.length === 0 && (
@@ -613,6 +619,9 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
                   <p className="mt-1 text-xs text-gray-400">
                     Showing the conservative compatibility list. Enable <span className="font-medium">Show all models</span> only if you know your runtime supports a newer model.
                   </p>
+                )}
+                {selectedModelDeprecation && (
+                  <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">{selectedModelDeprecation}</p>
                 )}
               </div>
               {agentTemplates.length > 0 && (

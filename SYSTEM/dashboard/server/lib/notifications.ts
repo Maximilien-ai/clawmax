@@ -256,6 +256,14 @@ function canGroupNotification(notification: Notification): boolean {
 
 function buildGroupSignature(notification: Notification): string {
   const file = extractArtifactFileName(notification) || ''
+  if (notification.type === 'artifact-update' && file) {
+    return [
+      notification.type,
+      notification.severity,
+      notification.workflowId || '',
+      file.toLowerCase(),
+    ].join('|')
+  }
   return [
     notification.type,
     notification.severity,

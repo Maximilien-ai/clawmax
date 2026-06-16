@@ -5,7 +5,8 @@ import { useToast } from './Toast'
 import { getSkillSetupHint } from '../lib/skillSetup'
 import { ProductIconCell } from '../lib/productIcons'
 import { buildWorkspaceScopedPath } from '../lib/workspaceScope'
-import { shouldShowAgentDetailDeleteAction } from '../lib/agentDeleteUi'
+import { WorkspaceDocEntryRef } from '../lib/workspaceFiles'
+import { resolveNavigableWorkspaceDocPath } from '../lib/workspaceDocNavigation'
 
 interface GroupEntry {
   name: string
@@ -132,6 +133,7 @@ export default function AgentDetailPanel({
 }) {
   const { showError, showSuccess } = useToast()
   const [activity, setActivity] = useState<AgentActivity | null>(null)
+  const [docEntries, setDocEntries] = useState<WorkspaceDocEntryRef[]>([])
   const [loading, setLoading] = useState(true)
   const [lastRefreshed, setLastRefreshed] = useState<number>(Date.now())
   const [refreshedLabel, setRefreshedLabel] = useState<string>('just now')
@@ -171,6 +173,14 @@ export default function AgentDetailPanel({
     setLoading(true)
     setActivity(null)
     fetchActivity()
+    if (onNavigateToDoc) {
+      fetch(buildWorkspaceScopedPath('/api/docs', agent.workspaceId))
+        .then((r) => r.ok ? r.json() : null)
+        .then((data) => setDocEntries(Array.isArray(data?.docs) ? data.docs : []))
+        .catch(() => setDocEntries([]))
+    } else {
+      setDocEntries([])
+    }
     if (!costTrackingEnabled) {
       setCostLimit(null)
       setCostLimitInput('')
@@ -189,7 +199,7 @@ export default function AgentDetailPanel({
       .then(r => r.json())
       .then(d => setWorkspaceBudget(d))
       .catch(() => setWorkspaceBudget(null))
-  }, [fetchActivity, agent.id, agent.workspaceId, costTrackingEnabled])
+  }, [fetchActivity, agent.id, agent.workspaceId, costTrackingEnabled, onNavigateToDoc])
 
   useEffect(() => {
     if (!initialEditCostLimit) return
@@ -289,9 +299,11 @@ export default function AgentDetailPanel({
       : 'text-emerald-700 bg-emerald-50 border-emerald-200 dark:text-emerald-300 dark:bg-emerald-900/20 dark:border-emerald-800'
   const openWorkspaceFile = useCallback((fileName: string) => {
     if (!onNavigateToDoc) return
-    onNavigateToDoc(`${relDir}/${fileName}`)
+    const resolvedPath = resolveNavigableWorkspaceDocPath(`${relDir}/${fileName}`, docEntries)
+    if (!resolvedPath) return
+    onNavigateToDoc(resolvedPath)
     onClose()
-  }, [onClose, onNavigateToDoc, relDir])
+  }, [docEntries, onClose, onNavigateToDoc, relDir])
 
   return (
     <div className="fixed inset-0 bg-black/30 z-40 md:bg-black/20" onClick={onClose}>
@@ -370,8 +382,9 @@ export default function AgentDetailPanel({
               onClick={onClose}
               className="h-9 w-9 inline-flex items-center justify-center rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-lg leading-none"
               aria-label="Close"
+              title="Close"
             >
-              <ProductIconCell iconName="delete" label="Close" size="sm" className="border-transparent bg-transparent text-current" />
+              <span aria-hidden="true">×</span>
             </button>
           </div>
         </div>
@@ -646,18 +659,6 @@ export default function AgentDetailPanel({
 
         {/* Footer path */}
         <div className="space-y-3 border-t border-gray-100 bg-white px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shrink-0 dark:border-gray-700 dark:bg-gray-800 sm:px-5 sm:pb-3">
-          <div className="flex flex-wrap items-center gap-2">
-            {shouldShowAgentDetailDeleteAction(onDelete) && (
-              <button
-                type="button"
-                onClick={() => onDelete(agent.id)}
-                className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 transition-colors hover:bg-red-100 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300 dark:hover:bg-red-900/30"
-              >
-                <ProductIconCell iconName="delete" label="Delete agent" size="sm" className="border-transparent bg-transparent text-current" />
-                Delete agent
-              </button>
-            )}
-          </div>
           <button
             type="button"
             onClick={onClose}

@@ -3,7 +3,10 @@ import {
   isOpenClawSessionLockError,
   getAgentExecutionRetryDelay,
 } from './agent-execution'
-import { detectParticipantReportedFailure } from './workflows'
+import { detectParticipantReportedFailure, repairWorkflowSessionEntryForRun } from './workflows'
+import fs from 'fs'
+import os from 'os'
+import path from 'path'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -57,6 +60,43 @@ async function run() {
     })
     assert(result === 'ok', `Expected retry to succeed, got ${result}`)
     assert(attempts === 2, `Expected exactly one retry, got ${attempts} attempts`)
+  })
+
+  await test('workflow retry hook repairs stale session pointers before retry', async () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'workflow-retry-repair-home-'))
+    const sessionsDir = path.join(home, '.openclaw', 'agents', 'agent-a', 'sessions')
+    fs.mkdirSync(sessionsDir, { recursive: true })
+    const staleSessionFile = path.join(sessionsDir, 'legacy.jsonl')
+    fs.writeFileSync(staleSessionFile, [
+      JSON.stringify({ type: 'session', id: 'workflow-legacy-execution-agent-a' }),
+      JSON.stringify({ type: 'message', message: { role: 'user', content: [] } }),
+    ].join('\n'), 'utf-8')
+    const sessionsPath = path.join(sessionsDir, 'sessions.json')
+    fs.writeFileSync(sessionsPath, JSON.stringify({
+      'agent:agent-a:main': {
+        sessionId: 'wf-previous-agent-a',
+        sessionFile: staleSessionFile,
+        updatedAt: Date.now(),
+      },
+    }, null, 2), 'utf-8')
+
+    let attempts = 0
+    const result = await runExclusiveAgentExecution('agent-a', async () => {
+      attempts++
+      if (attempts === 1) {
+        throw new Error('EmbeddedAttemptSessionTakeoverError: session file changed while embedded prompt lock was released')
+      }
+      return 'ok'
+    }, {
+      onSessionLockRetry: () => {
+        const changed = repairWorkflowSessionEntryForRun('agent-a', 'wf-current-agent-a', home)
+        assert(changed, 'Expected retry hook to repair stale workflow session pointer')
+      },
+    })
+
+    const repaired = JSON.parse(fs.readFileSync(sessionsPath, 'utf-8'))
+    assert(result === 'ok', `Expected retry-hook repair to succeed, got ${result}`)
+    assert(!repaired['agent:agent-a:main'].sessionFile, 'Expected retry repair to remove stale sessionFile pointer')
   })
 
   await test('workflow retry delay remains bounded for repeated session conflicts', async () => {

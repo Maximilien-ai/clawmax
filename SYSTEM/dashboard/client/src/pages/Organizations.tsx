@@ -7,6 +7,7 @@ import { headerSecondaryButtonClass, headerSecondaryButtonIdleClass } from '../l
 import { buildOrganizationDeletePlan, buildOrganizationDisplayTeams } from '../lib/organizationTeams'
 import { ProductIconCell } from '../lib/productIcons'
 import { getViewportSafeDropdownStyle } from '../lib/dropdownPosition'
+import { resolveWorkspaceDocPath, WorkspaceDocEntryRef } from '../lib/workspaceFiles'
 
 interface GroupEntry {
   name: string
@@ -355,7 +356,7 @@ function TeamTreeNode({
                       <div className="mt-2 flex flex-wrap gap-2">
                         {latestOutput.artifactPath && onNavigateToDoc && (
                           <button
-                            onClick={() => onNavigateToDoc(latestOutput.artifactPath!)}
+                            onClick={() => openOrganizationDoc(latestOutput.artifactPath!)}
                             className="rounded border border-sky-300 dark:border-sky-700 px-2 py-1 text-[11px] font-medium text-sky-700 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-900/30"
                           >
                             Open Output File
@@ -390,7 +391,7 @@ function TeamTreeNode({
               agentNameById={agentNameById}
               onNavigateToAgent={onNavigateToAgent}
               onNavigateToWorkflow={onNavigateToWorkflow}
-              onNavigateToDoc={onNavigateToDoc}
+              onNavigateToDoc={openOrganizationDoc}
               onDeleteTeam={onDeleteTeam}
               onDeleteCompany={onDeleteCompany}
               collapsedCompanyIds={collapsedCompanyIds}
@@ -549,6 +550,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
   const [communityWorkflows, setCommunityWorkflows] = useState<Map<string, Workflow[]>>(new Map())
   const [groupWorkflows, setGroupWorkflows] = useState<Map<string, Workflow[]>>(new Map())
   const [latestWorkflowOutputs, setLatestWorkflowOutputs] = useState<Map<string, WorkflowExecutionOutputSummary>>(new Map())
+  const [docEntries, setDocEntries] = useState<WorkspaceDocEntryRef[]>([])
   const [communitiesSectionCollapsed, setCommunitiesSectionCollapsed] = useState(false)
   const [groupsSectionCollapsed, setGroupsSectionCollapsed] = useState(false)
   const [agentsSectionCollapsed, setAgentsSectionCollapsed] = useState(false)
@@ -596,6 +598,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
   const [renameCommunityTarget, setRenameCommunityTarget] = useState<Community | null>(null)
   const [renameGroupTarget, setRenameGroupTarget] = useState<Group | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const activeWorkspaceId = activeWorkspace?.id || 'default'
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -643,6 +646,35 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
   useEffect(() => {
     loadOrgMeta()
   }, [loadOrgMeta])
+
+  useEffect(() => {
+    if (!isActive || !onNavigateToDoc) return
+    let cancelled = false
+    fetch('/api/docs')
+      .then((resp) => resp.ok ? resp.json() : Promise.reject(new Error('Failed to load docs')))
+      .then((data) => {
+        if (cancelled) return
+        setDocEntries(
+          Array.isArray(data?.files)
+            ? data.files
+                .map((file: any) => ({ path: String(file.path || '') }))
+                .filter((entry: WorkspaceDocEntryRef) => entry.path)
+            : []
+        )
+      })
+      .catch(() => {
+        if (cancelled) return
+        setDocEntries([])
+      })
+    return () => { cancelled = true }
+  }, [activeWorkspaceId, isActive, onNavigateToDoc])
+
+  const openOrganizationDoc = useCallback((target: string) => {
+    if (!onNavigateToDoc) return
+    const resolvedPath = resolveWorkspaceDocPath(target, docEntries)
+    if (!resolvedPath) return
+    onNavigateToDoc(resolvedPath)
+  }, [docEntries, onNavigateToDoc])
 
   useEffect(() => {
     const handleOrgMetaUpdate = () => loadOrgMeta()
@@ -1793,7 +1825,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
                           agentNameById={agentNameById}
                           onNavigateToAgent={onNavigateToAgent}
                           onNavigateToWorkflow={onNavigateToWorkflow}
-                          onNavigateToDoc={onNavigateToDoc}
+                          onNavigateToDoc={openOrganizationDoc}
                           onDeleteTeam={teams.length > 0 ? handleDeleteTeam : undefined}
                           onDeleteCompany={displayTeams.length > 0 ? handleDeleteCompany : undefined}
                           collapsedCompanyIds={collapsedCompanyIds}
@@ -2062,7 +2094,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
                                 <div className="mt-2 flex flex-wrap gap-2">
                                   {latestWorkflowOutputs.get(workflow.id)?.artifactPath && onNavigateToDoc && (
                                     <button
-                                      onClick={() => onNavigateToDoc(latestWorkflowOutputs.get(workflow.id)!.artifactPath!)}
+                                      onClick={() => openOrganizationDoc(latestWorkflowOutputs.get(workflow.id)!.artifactPath!)}
                                       className="rounded border border-purple-300 px-2 py-1 text-[11px] font-medium text-purple-700 hover:bg-purple-100 dark:border-purple-700 dark:text-purple-300 dark:hover:bg-purple-900/30"
                                     >
                                       Open Output File
@@ -2272,7 +2304,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
                                 <div className="mt-2 flex flex-wrap gap-2">
                                   {latestWorkflowOutputs.get(workflow.id)?.artifactPath && onNavigateToDoc && (
                                     <button
-                                      onClick={() => onNavigateToDoc(latestWorkflowOutputs.get(workflow.id)!.artifactPath!)}
+                                      onClick={() => openOrganizationDoc(latestWorkflowOutputs.get(workflow.id)!.artifactPath!)}
                                       className="rounded border border-indigo-300 px-2 py-1 text-[11px] font-medium text-indigo-700 hover:bg-indigo-100 dark:border-indigo-700 dark:text-indigo-300 dark:hover:bg-indigo-900/30"
                                     >
                                       Open Output File

@@ -159,6 +159,7 @@ function summarizeChatFailure(message: string): string {
   if (/unsupported model|Unknown model:/i.test(text)) return 'This agent is configured with a model that the current runtime does not support. Choose a different model for the agent and try again.'
   if (/No API key found for provider/i.test(text)) return text.match(/No API key found for provider "[^"]+"/i)?.[0] || 'The selected model provider is missing credentials for this agent runtime.'
   if (/Incorrect API key provided/i.test(text) || /has auth issue \(skipping all models\)/i.test(text)) return 'The configured model provider credentials were rejected. Check the API key or auth profile for this runtime and try again.'
+  if (/insufficient_quota|quota exceeded|rate limit|too many requests|429\b/i.test(text)) return 'The model provider rejected this request because the account hit a quota or rate limit. Wait a moment and retry, or update the provider billing/usage limits for this runtime.'
   if (/is in cooldown \(suspending lanes\)/i.test(text)) return 'The model provider is temporarily cooling down after a timeout. Wait a moment and retry, or switch this agent to a faster fallback model.'
   if (/gateway/i.test(text)) return 'Agent could not reach the gateway runtime.'
   if (/timeout/i.test(text)) return 'Agent timed out before producing a reply. Retry once, or switch this agent to a faster model if the issue persists.'

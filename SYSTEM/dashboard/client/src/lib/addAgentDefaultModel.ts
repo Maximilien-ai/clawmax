@@ -1,4 +1,5 @@
 import type { StoredByokKeys } from './byok'
+import { resolveNonDeprecatedOpenAiModel } from './openAiModelLifecycle'
 
 type WizardAuthConfig = {
   preferredModel?: string
@@ -39,7 +40,7 @@ export function resolveAddAgentWizardDefaultModel(args: {
   const configRecommended = normalize(config.recommendedModel)
 
   const explicitPreferred = matches(models, browserPreferred) || matches(models, configPreferred)
-  if (explicitPreferred) return explicitPreferred
+  if (explicitPreferred) return resolveNonDeprecatedOpenAiModel(models, explicitPreferred)
   if (models.length === 0) return browserPreferred || configPreferred || configRecommended
 
   const localCandidates = [
@@ -64,9 +65,9 @@ export function resolveAddAgentWizardDefaultModel(args: {
   }
 
   const recommendedMatch = matches(models, configRecommended)
-  if (recommendedMatch) return recommendedMatch
+  if (recommendedMatch) return resolveNonDeprecatedOpenAiModel(models, recommendedMatch)
 
-  return models[0] || configRecommended
+  return resolveNonDeprecatedOpenAiModel(models, models[0] || configRecommended)
 }
 
 export function resolveAddAgentWizardSuggestedModel(args: {

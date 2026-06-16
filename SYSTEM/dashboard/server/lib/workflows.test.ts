@@ -45,6 +45,7 @@ import {
   isBenignOpenClawRuntimeWarning,
   stripBenignOpenClawRuntimeWarnings,
   summarizeAgentInputRequest,
+  formatParticipantFailure,
 } from './workflows'
 
 const GREEN = '\x1b[32m'
@@ -465,6 +466,30 @@ test('detectParticipantReportedFailure catches explicit FAIL markers', () => {
   assert(
     detectParticipantReportedFailure('EmbeddedAttemptSessionTakeoverError: session file changed while embedded prompt lock was released: /tmp/agent.jsonl') === 'EmbeddedAttemptSessionTakeoverError: session file changed while embedded prompt lock was released: /tmp/agent.jsonl',
     'Expected embedded session takeover errors to be treated as failure'
+  )
+})
+
+test('formatParticipantFailure explains provider auth failures clearly', () => {
+  const message = formatParticipantFailure('FailoverError: 401 Incorrect API key provided: openai-cible.')
+  assert(
+    /authentication failed/i.test(message) && /api key|auth profile|byok/i.test(message),
+    `Expected auth guidance, got: ${message}`
+  )
+})
+
+test('formatParticipantFailure explains provider cooldowns clearly', () => {
+  const message = formatParticipantFailure('FallbackSummaryError: All models failed (1): openai/gpt-5: Provider openai is in cooldown (suspending lanes) (timeout)')
+  assert(
+    /temporarily cooling down/i.test(message) && /retry|fallback/i.test(message),
+    `Expected cooldown guidance, got: ${message}`
+  )
+})
+
+test('formatParticipantFailure explains provider quota limits clearly', () => {
+  const message = formatParticipantFailure('Error: 429 insufficient_quota: You exceeded your current quota. Too many requests.')
+  assert(
+    /usage limits blocked/i.test(message) && /billing|rate-limit/i.test(message),
+    `Expected quota guidance, got: ${message}`
   )
 })
 

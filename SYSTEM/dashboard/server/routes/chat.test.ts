@@ -153,6 +153,15 @@ test('deriveChatError surfaces invalid credentials as configuration failures', (
   assert(/api key|auth profile/i.test(message), 'Expected config remediation guidance')
 })
 
+test('deriveChatError surfaces provider quota and rate limits clearly', () => {
+  const message = deriveChatError(
+    'Error: 429 insufficient_quota: You exceeded your current quota. Too many requests.',
+    'openai'
+  )
+  assert(/quota or rate limit/i.test(message), 'Expected quota explanation')
+  assert(/billing\/usage limits|retry/i.test(message), 'Expected remediation guidance')
+})
+
 test('buildManagedSecretStatelessChatMessage preserves recent chat context in a single-turn prompt', () => {
   const prompt = buildManagedSecretStatelessChatMessage('Send that status in an email to mmaximilien@gmail.com', [
     { role: 'user', content: 'who are you? give me a status' },

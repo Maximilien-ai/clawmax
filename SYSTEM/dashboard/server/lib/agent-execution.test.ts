@@ -488,6 +488,28 @@ test('runExclusiveAgentExecution retries embedded session takeover errors for th
   assert(attempts === 2, `Expected one retry after takeover error, got ${attempts} attempts`)
 })
 
+test('runExclusiveAgentExecution invokes retry hook for embedded session takeover errors', async () => {
+  let attempts = 0
+  let retryHookCalls = 0
+
+  const result = await runExclusiveAgentExecution('retry-hook-agent', async () => {
+    attempts++
+    if (attempts === 1) {
+      throw new Error('EmbeddedAttemptSessionTakeoverError: session file changed while embedded prompt lock was released')
+    }
+    return 'ok'
+  }, {
+    onSessionLockRetry: async (attempt, error) => {
+      retryHookCalls++
+      assert(attempt === 0, `Expected first retry attempt index 0, got ${attempt}`)
+      assert(isOpenClawSessionLockError(error), 'Expected retry hook to receive session lock error')
+    },
+  })
+
+  assert(result === 'ok', `Expected retry-hook execution to succeed, got ${result}`)
+  assert(retryHookCalls === 1, `Expected retry hook to run once, got ${retryHookCalls}`)
+})
+
 test('withTemporaryAgentAuthProfiles overrides stale auth profiles for the duration of execution', async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
   const agentDir = path.join(home, '.openclaw', 'agents', 'test1', 'agent')

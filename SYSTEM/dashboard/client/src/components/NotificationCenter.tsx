@@ -11,6 +11,8 @@ import {
   groupNotificationsByCategory,
   notificationHasPrimaryOpenAction,
 } from '../lib/notificationPresentation'
+import { WorkspaceDocEntryRef } from '../lib/workspaceFiles'
+import { resolveNavigableWorkspaceDocPath } from '../lib/workspaceDocNavigation'
 
 // Helper: resolve a notification action
 async function resolveAction(id: string, action: string, value?: string): Promise<boolean> {
@@ -61,6 +63,7 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToAgentChat, o
   const [processingId, setProcessingId] = useState<string | null>(null)
   const [inputValues, setInputValues] = useState<Record<string, string>>({})
   const [availableAgents, setAvailableAgents] = useState<string[]>([])
+  const [docEntries, setDocEntries] = useState<WorkspaceDocEntryRef[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const dropdownRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
@@ -120,6 +123,14 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToAgentChat, o
     }
   }, [open, notifications])
 
+  useEffect(() => {
+    if (!open || !onNavigateToDoc) return
+    fetch('/api/docs')
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => setDocEntries(Array.isArray(data?.docs) ? data.docs : []))
+      .catch(() => setDocEntries([]))
+  }, [onNavigateToDoc, open])
+
   // Helper: execute action with loading state
   const executeAction = async (id: string, action: string, value?: string) => {
     setProcessingId(id)
@@ -178,7 +189,8 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToAgentChat, o
 
   const handleAction = (n: Notification) => {
     if (n.type === 'artifact-update' && n.artifactPath && onNavigateToDoc) {
-      onNavigateToDoc(n.artifactPath)
+      const resolvedPath = resolveNavigableWorkspaceDocPath(n.artifactPath, docEntries)
+      if (resolvedPath) onNavigateToDoc(resolvedPath)
     } else if (n.type === 'artifact-update' && n.artifactUrl) {
       window.open(n.artifactUrl, '_blank', 'noopener,noreferrer')
     } else if (n.type === 'channel-activity') {
@@ -232,7 +244,7 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToAgentChat, o
         <>
         <div className="fixed inset-0 z-[70] bg-black/20 backdrop-blur-[1px] md:hidden" onClick={() => setOpen(false)} />
         <div
-          className="fixed inset-x-2 top-14 z-[90] flex max-h-[calc(100dvh-4rem)] w-auto flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-800 md:inset-x-auto md:left-auto md:top-16 md:w-96 md:max-h-none md:translate-x-0"
+          className="fixed inset-x-2 bottom-2 top-14 z-[90] flex w-auto flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-800 md:inset-x-auto md:bottom-auto md:left-auto md:top-16 md:w-96 md:max-h-none md:translate-x-0"
           style={desktopAnchor ? { top: desktopAnchor.top, right: desktopAnchor.right } : undefined}
         >
           {/* Header */}

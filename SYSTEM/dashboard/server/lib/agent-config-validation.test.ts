@@ -182,6 +182,56 @@ test('validateProvisionInput does not warn for standard OpenAI models when OpenA
   assert(!result.warnings.some((warning) => warning.includes('may fall back during provisioning')), 'Expected no noisy fallback warning for standard OpenAI model')
 })
 
+test('validateProvisionInput warns for deprecated OpenAI snapshots with replacement guidance', () => {
+  const result = validateProvisionInput({
+    name: 'engineer4',
+    model: 'openai/gpt-5-2025-08-07',
+    tags: ['engineer'],
+  }, {
+    existingAgentIds: ['engineer1'],
+    availableModels: ['openai/gpt-5', 'openai/gpt-5-2025-08-07'],
+  })
+
+  assert(result.valid, 'Expected provisioning to remain valid')
+  assertIncludes(result.warnings, 'deprecated by OpenAI')
+  assertIncludes(result.warnings, 'Prefer "gpt-5"')
+})
+
+test('validateProvisionInput warns for deprecated Anthropic and Gemini models', () => {
+  const anthropicResult = validateProvisionInput({
+    name: 'engineer5',
+    model: 'anthropic/claude-3-7-sonnet-20250219',
+  }, {
+    existingAgentIds: [],
+    availableModels: ['anthropic/claude-sonnet-4-6'],
+  })
+  const geminiResult = validateProvisionInput({
+    name: 'engineer6',
+    model: 'google/gemini-2.5-flash',
+  }, {
+    existingAgentIds: [],
+    availableModels: ['google/gemini-3.5-flash'],
+  })
+
+  assertIncludes(anthropicResult.warnings, 'retired by Anthropic')
+  assertIncludes(anthropicResult.warnings, 'claude-sonnet-4-6')
+  assertIncludes(geminiResult.warnings, 'deprecated by Gemini')
+  assertIncludes(geminiResult.warnings, 'gemini-3.5-flash')
+})
+
+test('validateProvisionInput does not warn for openai-compatible models that resemble deprecated OpenAI snapshots', () => {
+  const result = validateProvisionInput({
+    name: 'engineer7',
+    model: 'openai-compatible/gpt-5-2025-08-07',
+  }, {
+    existingAgentIds: [],
+    availableModels: ['openai-compatible/gpt-5-2025-08-07'],
+  })
+
+  assert(result.valid, 'Expected provisioning to remain valid')
+  assert(!result.warnings.some((warning) => warning.includes('deprecated')), 'Expected no lifecycle warning for openai-compatible model names')
+})
+
 test('validateProvisionInput accepts a real workspace agent template slug', () => {
   const originalWorkspace = process.env.OPENCLAW_WORKSPACE
   const originalHome = process.env.HOME

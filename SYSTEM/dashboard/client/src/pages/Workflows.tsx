@@ -26,6 +26,7 @@ import {
   shouldFetchWorkflowsForWorkspace,
   shouldRunInitialWorkflowPoll,
 } from '../lib/workflowLoading'
+import { resolveWorkspaceDocPath, WorkspaceDocEntryRef } from '../lib/workspaceFiles'
 
 interface AgentTargeting {
   communities: string[]
@@ -423,6 +424,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   const [executionWorkflow, setExecutionWorkflow] = useState<WorkflowDetails | null>(null)
   const [executionsList, setExecutionsList] = useState<WorkflowExecution[]>([])
   const [latestExecutionDetails, setLatestExecutionDetails] = useState<WorkflowExecutionDetails | null>(null)
+  const [docEntries, setDocEntries] = useState<WorkspaceDocEntryRef[]>([])
   const [viewMode, setViewMode] = useState<'grid' | 'list' | 'dag'>(() => {
     const saved = localStorage.getItem('workflows-view-mode')
     return saved === 'list' ? 'list' : saved === 'grid' ? 'grid' : 'dag'
@@ -446,6 +448,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   const handledInitialWorkflowIdRef = useRef<string | null>(null)
   const loadedWorkflowWorkspaceRef = useRef<string | null>(null)
   const lastWorkflowFetchStartedAtRef = useRef(0)
+  const activeWorkspaceId = activeWorkspace?.id || 'default'
 
   useEffect(() => {
     const handleBuilderGenerateWorkflow = (event: Event) => {
@@ -473,6 +476,35 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
     markRateLimited(Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0 ? retryAfterSeconds * 1000 : 15000)
     return true
   }, [markRateLimited])
+
+  useEffect(() => {
+    if (!isActive || !onNavigateToDoc) return
+    let cancelled = false
+    fetch('/api/docs')
+      .then((resp) => resp.ok ? resp.json() : Promise.reject(new Error('Failed to load docs')))
+      .then((data) => {
+        if (cancelled) return
+        setDocEntries(
+          Array.isArray(data?.files)
+            ? data.files
+                .map((file: any) => ({ path: String(file.path || '') }))
+                .filter((entry: WorkspaceDocEntryRef) => entry.path)
+            : []
+        )
+      })
+      .catch(() => {
+        if (cancelled) return
+        setDocEntries([])
+      })
+    return () => { cancelled = true }
+  }, [activeWorkspaceId, isActive, onNavigateToDoc])
+
+  const openWorkflowDoc = useCallback((target: string) => {
+    if (!onNavigateToDoc) return
+    const resolvedPath = resolveWorkspaceDocPath(target, docEntries)
+    if (!resolvedPath) return
+    onNavigateToDoc(resolvedPath)
+  }, [docEntries, onNavigateToDoc])
 
   const fetchWorkflows = (silent = false) => {
     if (Date.now() < rateLimitedUntil) return
@@ -2080,7 +2112,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                                     <div className="mt-2 flex flex-wrap gap-2">
                                       {outputArtifactPath && onNavigateToDoc && (
                                         <button
-                                          onClick={() => onNavigateToDoc(outputArtifactPath)}
+                                          onClick={() => openWorkflowDoc(outputArtifactPath)}
                                           className="rounded border border-sky-300 dark:border-sky-700 px-2 py-1 text-[11px] font-medium text-sky-700 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-900/30"
                                         >
                                           Open Output File
