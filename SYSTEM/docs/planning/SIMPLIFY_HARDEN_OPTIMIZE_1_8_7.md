@@ -13,6 +13,17 @@ Use `1.8.7` for the next narrow quality pass after `1.8.6`:
 - add regression coverage where resolution logic is easy to break silently
 - leave room to absorb any late `1.8.6` RC feedback if needed
 
+## Status
+
+- [x] Merged into `main`
+- [x] RC validation active on `1.8.7-test-rc6`
+- [x] Primary scope landed:
+  - safer DocHub/file opens
+  - clearer provider quota/auth/rate-limit messaging
+  - workflow session takeover retry repair
+  - simplified agent action menus with direct `Skills`
+  - audited first-party model lifecycle handling for OpenAI, Anthropic, and Gemini
+
 ## Scope
 
 ### Section 1: Remaining File-Open Polish

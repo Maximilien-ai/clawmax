@@ -5,14 +5,18 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.8.5-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
+[![Version](https://img.shields.io/badge/version-1.8.7-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
 [![Tests](https://img.shields.io/badge/tests-96%20default--safe-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 Latest Release: v1.8.5
+## 🔥 Latest Stable Release: v1.8.5
 
 - `1.8.5` continues the `1.8.x` hardening/simplify line with a DocHub and notification polish pass: unique bare-file resolution, inline PDF/image previews, code/JSON/YAML viewers with line numbers and lightweight highlighting, cleaner provider cooldown/auth messaging, and less notification/background polling churn.
+
+## 🚧 Active Release Candidate: v1.8.7-test-rc6
+
+- `1.8.7` extends the hardening pass with safer DocHub navigation from activity/notifications/agent detail, clearer quota/rate-limit and workflow failure messaging, agent action-menu simplification with direct `Skills` access, workflow-session takeover retry repair, and verified first-party model lifecycle handling for OpenAI, Anthropic, and Gemini without disrupting existing configured agents.
 
 ## ✨ 1.8.x Highlights
 
@@ -48,6 +52,17 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
   - makes provider cooldown vs auth/key failures read as clearer operator-facing messages instead of raw fallback noise
   - deduplicates repeated artifact/channel notifications and reduces background polling/fetch churn on hidden or inactive surfaces
   - keeps plugin contract tests aligned with artifact notification dedupe so the full suite stays stable as notification behavior evolves
+
+- `1.8.6`:
+  - resolves workflow and organization output-file opens through the DocHub index instead of raw artifact paths
+  - improves workflow failure summaries for auth/config issues and transient provider cooldowns
+  - groups same-file artifact notifications more reliably and reduces mobile notification panel clipping
+
+- `1.8.7`:
+  - hardens remaining DocHub opens from notifications, activity, agent detail, and template/apply flows
+  - adds direct `Skills` access in agent action menus and moves lower-frequency maintain actions behind a secondary view to reduce popup height
+  - repairs workflow session state before takeover retries to reduce `EmbeddedAttemptSessionTakeoverError` restart failures
+  - warns on verified deprecated/retired first-party OpenAI, Anthropic, and Gemini models, filters them from new selector choices when replacements exist, and preserves older saved selections for safe migration
 
 ## ✨ 1.7.x Highlights
 

@@ -8,6 +8,13 @@ All notable changes to ClawMax are documented here.
 - **DocHub File-Open Polish** — keep tightening file-open behavior from chat/status/notification surfaces, especially for ambiguous bare filenames and any remaining places where a visible file chip does not open the intended DocHub entry.
 - **Plugin MVP1 Follow-Through** — continue generic plugin infrastructure work only: loading/performance, stronger shared UI parity, richer contracts, and public test-plugin polish before any private plugin surfaces are considered for broader release.
 
+### In Validation (`1.8.7-test-rc6`)
+- **DocHub / Surface Navigation Hardening** — activity rows, notification artifact links, agent detail files, workflow outputs, organization outputs, and template-apply flows now resolve through the shared DocHub path logic instead of opening raw or ambiguous paths.
+- **Workflow Restart Hardening** — workflow-exclusive agent execution now repairs session pointers before retrying takeover conflicts, reducing `EmbeddedAttemptSessionTakeoverError` failures on restart/rerun.
+- **Agent Actions Simplification** — agent `...` menus now expose `Skills` directly and move lower-frequency maintain actions into a secondary submenu to keep the primary popup shorter on smaller screens.
+- **Provider Lifecycle Guardrails** — verified deprecated/retired first-party OpenAI, Anthropic, and Gemini models now warn clearly, are filtered out of fresh selector choices when replacements exist, and remain visible when already selected so existing agents/configs are not disrupted.
+- **Expanded Regression Coverage** — added visible helper/validation coverage for workspace DocHub navigation, provider lifecycle handling, non-aggressive `openai-compatible` behavior, and workflow session retry repair.
+
 ## [v1.8.5] - 2026-06-14
 
 ### Fixed
