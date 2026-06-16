@@ -24,8 +24,6 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 - `1.8.5` / `1.8.6`: DocHub preview and file-resolution upgrades, cleaner provider messaging, notification dedupe/grouping, and lower background churn.
 - `1.8.4` / `1.8.3`: agent delete-flow fixes plus Add Agent default-model, AI-create model preservation, and provisioning-warning cleanup.
 
-For full `1.8.x` details and RC history, see [CHANGELOG.md](CHANGELOG.md).
-
 ## ✨ 1.7.x Highlights
 
 - `1.7.9`: first-pass Cognee partner integration, curated plugin install/uninstall flows, runtime-secret chat routing, and stronger partner/plugin regression coverage.
@@ -33,7 +31,7 @@ For full `1.8.x` details and RC history, see [CHANGELOG.md](CHANGELOG.md).
 - `1.7.7` / `1.7.6`: cloud/on-prem email and status-delivery fixes plus image/release pipeline stabilization.
 - `1.7.5`: broader UI/UX cleanup across agent surfaces, notifications, file-open behavior, mobile/dark-light consistency, and AI authoring flows.
 
-For full `1.7.x` details, see [CHANGELOG.md](CHANGELOG.md).
+For full `1.8.x` / `1.7.x` details and RC history, see [CHANGELOG.md](CHANGELOG.md).
 
 ---
 
