@@ -90,4 +90,13 @@ test('swaps deprecated Anthropic snapshots for replacement models when available
   assert.equal(resolved, 'anthropic/claude-sonnet-4-6')
 })
 
-console.log('addAgentDefaultModel.test.ts: 9 tests passed')
+test('does not rewrite openai-compatible models that only look like OpenAI snapshots', () => {
+  const resolved = resolveAddAgentWizardDefaultModel({
+    models: ['openai-compatible/gpt-5-2025-08-07'],
+    byok: { preferredModel: 'openai-compatible/gpt-5-2025-08-07' },
+    config: {},
+  })
+  assert.equal(resolved, 'openai-compatible/gpt-5-2025-08-07')
+})
+
+console.log('addAgentDefaultModel.test.ts: 10 tests passed')

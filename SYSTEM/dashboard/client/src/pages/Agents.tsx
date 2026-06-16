@@ -31,6 +31,7 @@ import { getAgentWorkspaceLoadKey, shouldFetchAgentsForWorkspace } from '../lib/
 import { useWorkspace } from '../contexts/WorkspaceContext'
 import { buildWorkspaceScopedPath } from '../lib/workspaceScope'
 import { getSmartDropdownPlacement, getViewportSafeDropdownStyle, type DropdownPlacement } from '../lib/dropdownPosition'
+import { formatOpenAiDeprecationNotice, formatOpenAiModelLabel, isSelectableLifecycleModel } from '../lib/openAiModelLifecycle'
 
 type AgentActionsMenuView = 'main' | 'maintain'
 
@@ -2684,6 +2685,7 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
   const [validationErrors, setValidationErrors] = React.useState<string[]>([])
   const [validating, setValidating] = React.useState(false)
   const [validationRequestError, setValidationRequestError] = React.useState<string | null>(null)
+  const selectedModelDeprecation = formatOpenAiDeprecationNotice(model)
 
   const syncIdentityModel = React.useCallback((content: string, nextModel: string) => {
     if (!nextModel.trim()) return content
@@ -2917,18 +2919,21 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
                   {Object.keys(modelsByProvider).length > 0 ? (
                     Object.entries(modelsByProvider).map(([providerId, provider]) => (
                       <optgroup key={providerId} label={provider.name || providerId}>
-                        {provider.models.map(option => (
-                          <option key={option} value={option}>{option}</option>
+                        {provider.models.filter((option) => isSelectableLifecycleModel(option, model)).map(option => (
+                          <option key={option} value={option}>{formatOpenAiModelLabel(option)}</option>
                         ))}
                       </optgroup>
                     ))
                   ) : (
-                    availableModels.map(option => (
-                      <option key={option} value={option}>{option}</option>
+                    availableModels.filter((option) => isSelectableLifecycleModel(option, model)).map(option => (
+                      <option key={option} value={option}>{formatOpenAiModelLabel(option)}</option>
                     ))
                   )}
                 </select>
                 <p className="mt-1 text-xs text-gray-400">Live models from provider APIs (cached 1hr). Click "Refresh" to update.</p>
+                {selectedModelDeprecation && (
+                  <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">{selectedModelDeprecation}</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">IDENTITY.md</label>

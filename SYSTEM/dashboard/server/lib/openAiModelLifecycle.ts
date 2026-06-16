@@ -73,7 +73,7 @@ function normalize(model?: string | null): string {
 
 function parseProviderModel(model: string): { providerKey: string; baseModel: string } {
   if (model.startsWith('openai/')) return { providerKey: 'openai', baseModel: model.slice('openai/'.length) }
-  if (model.startsWith('openai-compatible/')) return { providerKey: 'openai', baseModel: model.slice('openai-compatible/'.length) }
+  if (model.startsWith('openai-compatible/')) return { providerKey: 'openai-compatible', baseModel: model.slice('openai-compatible/'.length) }
   if (model.startsWith('anthropic/')) return { providerKey: 'anthropic', baseModel: model.slice('anthropic/'.length) }
   if (model.startsWith('google/')) return { providerKey: 'google', baseModel: model.slice('google/'.length) }
   if (model.startsWith('gemini/')) return { providerKey: 'google', baseModel: model.slice('gemini/'.length) }

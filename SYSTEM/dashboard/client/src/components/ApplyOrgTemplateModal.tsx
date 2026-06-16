@@ -1,6 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react'
 import { useToast } from './Toast'
 import { fetchModelsWithByok, hasChatExecutionAccess, readStoredByokKeys } from '../lib/byok'
+import { formatOpenAiDeprecationNotice, formatOpenAiModelLabel, isSelectableLifecycleModel, resolveNonDeprecatedOpenAiModel } from '../lib/openAiModelLifecycle'
 import { CHANNEL_API_ENDPOINTS } from '../lib/channelApi'
 import { readLocalSecrets, replaceWorkflowFieldValue, SecretRequirement, summarizeSecretReadiness, writeLocalSecrets, writeSharedSecrets } from '../lib/localSecrets'
 import { ProductIconCell } from '../lib/productIcons'
@@ -623,8 +624,12 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess, in
   const hasExecutionPath = hasChatExecutionAccess(executionConfig)
   const templateHasDefaultModel = agentsToCreate.some((agent) => !!agent.model?.trim())
   const browserPreferredModel = readStoredByokKeys().preferredModel?.trim() || ''
-  const resolvedDefaultModel = modelOverride || agentsToCreate.find((agent) => agent.model?.trim())?.model || executionConfig?.preferredModel || browserPreferredModel || executionConfig?.recommendedModel || ''
+  const resolvedDefaultModel = resolveNonDeprecatedOpenAiModel(
+    availableModels,
+    modelOverride || agentsToCreate.find((agent) => agent.model?.trim())?.model || executionConfig?.preferredModel || browserPreferredModel || executionConfig?.recommendedModel || ''
+  )
   const hasResolvedDefaultModel = !!resolvedDefaultModel
+  const selectedModelDeprecation = formatOpenAiDeprecationNotice(modelOverride || resolvedDefaultModel)
   const applyBlockReason = !hasExecutionPath
     ? 'No chat execution path is configured for this dashboard. Add provider keys or enable the on-prem Ollama runtime before applying this template.'
     : !hasResolvedDefaultModel
@@ -2332,11 +2337,15 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess, in
                     {modelsLoaded && Object.keys(modelsByProvider).length > 0 ? (
                       Object.entries(modelsByProvider).map(([providerId, provider]) => (
                         <optgroup key={providerId} label={provider.name || providerId}>
-                          {provider.models.map(m => <option key={m} value={m}>{m}</option>)}
+                          {provider.models
+                            .filter((m) => isSelectableLifecycleModel(m, modelOverride))
+                            .map(m => <option key={m} value={m}>{formatOpenAiModelLabel(m)}</option>)}
                         </optgroup>
                       ))
                     ) : modelsLoaded ? (
-                      availableModels.map(m => <option key={m} value={m}>{m}</option>)
+                      availableModels
+                        .filter((m) => isSelectableLifecycleModel(m, modelOverride))
+                        .map(m => <option key={m} value={m}>{formatOpenAiModelLabel(m)}</option>)
                     ) : null}
                     {modelsLoaded && Object.keys(modelsByProvider).length === 0 && availableModels.length === 0 && (
                       <option value="" disabled>No models available</option>
@@ -2360,6 +2369,11 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess, in
                   {hasResolvedDefaultModel && (
                     <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-2">
                       Default model that will be used: <span className="font-medium">{resolvedDefaultModel}</span>
+                    </p>
+                  )}
+                  {selectedModelDeprecation && (
+                    <p className="text-xs text-amber-700 dark:text-amber-300 mt-2">
+                      {selectedModelDeprecation}
                     </p>
                   )}
                   {applyBlockReason && (

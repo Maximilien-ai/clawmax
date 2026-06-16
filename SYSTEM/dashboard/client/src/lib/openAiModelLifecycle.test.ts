@@ -26,7 +26,7 @@ test('detects known deprecated OpenAI snapshot models', () => {
 
 test('builds provider-aware replacement models', () => {
   assert.equal(getOpenAiModelReplacement('openai/gpt-5-mini-2025-08-07'), 'openai/gpt-5-mini')
-  assert.equal(getOpenAiModelReplacement('openai-compatible/gpt-5-mini-2025-08-07'), 'openai-compatible/gpt-5-mini')
+  assert.equal(getOpenAiModelReplacement('openai-compatible/gpt-5-mini-2025-08-07'), null)
 })
 
 test('resolves deprecated snapshots to replacements when available', () => {
@@ -61,4 +61,13 @@ test('filters deprecated models with replacements from selection lists', () => {
   assert.equal(isSelectableLifecycleModel('google/gemini-2.5-flash-preview-tts'), true)
 })
 
-console.log('openAiModelLifecycle.test.ts: 7 tests passed')
+test('does not apply first-party lifecycle filtering to openai-compatible models', () => {
+  assert.equal(isSelectableLifecycleModel('openai-compatible/gpt-5-2025-08-07'), true)
+  assert.equal(resolveNonDeprecatedOpenAiModel(['openai-compatible/gpt-5-2025-08-07'], 'openai-compatible/gpt-5-2025-08-07'), 'openai-compatible/gpt-5-2025-08-07')
+})
+
+test('keeps current deprecated selections visible in pickers', () => {
+  assert.equal(isSelectableLifecycleModel('anthropic/claude-3-7-sonnet-20250219', 'anthropic/claude-3-7-sonnet-20250219'), true)
+})
+
+console.log('openAiModelLifecycle.test.ts: 9 tests passed')

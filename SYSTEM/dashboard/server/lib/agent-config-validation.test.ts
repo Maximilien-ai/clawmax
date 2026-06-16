@@ -219,6 +219,19 @@ test('validateProvisionInput warns for deprecated Anthropic and Gemini models', 
   assertIncludes(geminiResult.warnings, 'gemini-3.5-flash')
 })
 
+test('validateProvisionInput does not warn for openai-compatible models that resemble deprecated OpenAI snapshots', () => {
+  const result = validateProvisionInput({
+    name: 'engineer7',
+    model: 'openai-compatible/gpt-5-2025-08-07',
+  }, {
+    existingAgentIds: [],
+    availableModels: ['openai-compatible/gpt-5-2025-08-07'],
+  })
+
+  assert(result.valid, 'Expected provisioning to remain valid')
+  assert(!result.warnings.some((warning) => warning.includes('deprecated')), 'Expected no lifecycle warning for openai-compatible model names')
+})
+
 test('validateProvisionInput accepts a real workspace agent template slug', () => {
   const originalWorkspace = process.env.OPENCLAW_WORKSPACE
   const originalHome = process.env.HOME

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useToast } from './Toast'
 import { fetchModelsWithByok, hasChatExecutionAccess, readStoredByokKeys } from '../lib/byok'
+import { formatOpenAiDeprecationNotice, formatOpenAiModelLabel, isSelectableLifecycleModel, resolveNonDeprecatedOpenAiModel } from '../lib/openAiModelLifecycle'
 
 interface AgentTemplate {
   name: string
@@ -61,9 +62,13 @@ export default function ApplyAgentTemplateModal({
 
   const templateDefaultModel = template.agents[0]?.model?.trim() || ''
   const browserPreferredModel = readStoredByokKeys().preferredModel?.trim() || ''
-  const resolvedDefaultModel = model || templateDefaultModel || executionConfig?.preferredModel || browserPreferredModel || executionConfig?.recommendedModel || ''
+  const resolvedDefaultModel = resolveNonDeprecatedOpenAiModel(
+    availableModels,
+    model || templateDefaultModel || executionConfig?.preferredModel || browserPreferredModel || executionConfig?.recommendedModel || ''
+  )
   const hasExecutionPath = hasChatExecutionAccess(executionConfig)
   const hasResolvedDefaultModel = !!resolvedDefaultModel
+  const selectedModelDeprecation = formatOpenAiDeprecationNotice(model || resolvedDefaultModel)
   const applyBlockReason = !hasExecutionPath
     ? 'No chat execution path is configured for this dashboard. Add provider keys or enable the on-prem Ollama runtime before applying this agent.'
     : !hasResolvedDefaultModel
@@ -163,8 +168,8 @@ export default function ApplyAgentTemplateModal({
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
             >
               <option value="">Use template/default model</option>
-              {availableModels.map(availableModel => (
-                <option key={availableModel} value={availableModel}>{availableModel}</option>
+              {availableModels.filter((availableModel) => isSelectableLifecycleModel(availableModel, model)).map(availableModel => (
+                <option key={availableModel} value={availableModel}>{formatOpenAiModelLabel(availableModel)}</option>
               ))}
             </select>
             {!showAllModels && (
@@ -176,6 +181,9 @@ export default function ApplyAgentTemplateModal({
               <p className="mt-2 text-xs text-emerald-700 dark:text-emerald-300">
                 Default model that will be used: <span className="font-medium">{resolvedDefaultModel}</span>
               </p>
+            )}
+            {selectedModelDeprecation && (
+              <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">{selectedModelDeprecation}</p>
             )}
           </div>
 
