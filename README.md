@@ -14,8 +14,13 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 
 - `1.8.7` continues the hardening track with safer DocHub navigation, clearer workflow/provider failures, simpler agent action menus, workflow-session retry repair, and audited deprecated-model handling for OpenAI, Anthropic, and Gemini.
 
+## 🧪 Active Validation Track: 1.8.8-test-rc1
+
+- `1.8.8-test-rc1` focuses on template/workflow hardening: lighter first-apply defaults, stronger workflow communication-surface inference and validation, safer opt-in recurring automation for personal assistant templates, and one conservative parallelism fix in `clawmax-dev-team`.
+
 ## ✨ 1.8.x Highlights
 
+- `1.8.8` (in validation): template/workflow hardening around first-apply defaults, shared communication targeting, opt-in recurring assistant automations, and conservative workflow parallelism cleanup.
 - `1.8.7`: remaining DocHub/file-open hardening, clearer workflow/provider failures, simpler agent actions, workflow-session retry repair, and audited deprecated-model handling across OpenAI, Anthropic, and Gemini.
 - `1.8.5` / `1.8.6`: DocHub preview and file-resolution upgrades, cleaner provider messaging, notification dedupe/grouping, and lower background churn.
 - `1.8.4` / `1.8.3`: agent delete-flow fixes plus Add Agent default-model, AI-create model preservation, and provisioning-warning cleanup.

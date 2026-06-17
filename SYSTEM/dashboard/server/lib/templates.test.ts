@@ -1231,6 +1231,28 @@ test('validateTemplateReferences passes for valid template', () => {
   assert(result.valid, `Should be valid, got warnings: ${result.warnings.join(', ')}`)
 })
 
+test('validateTemplateReferences catches workflow targets that exclude the targeted agent from the communication surface', () => {
+  const { validateTemplateReferences } = require('./templates')
+  const result = validateTemplateReferences({
+    name: 'Target mismatch',
+    type: 'organization',
+    version: '1.0.0',
+    agents: [{ id: 'lead', role: 'Lead', communities: ['Team'], groups: ['Build'] }],
+    communities: [{ name: 'Team' }],
+    groups: [
+      { name: 'Build', community: 'Team' },
+      { name: 'Status', community: 'Team' },
+    ],
+    workflows: [{
+      id: 'review',
+      name: 'Review',
+      targeting: { agents: ['lead'], groups: ['Status'], tags: [], communities: [] },
+    }],
+  })
+  assert(!result.valid, 'Should have warnings')
+  assert(result.warnings.some((w: string) => w.includes('without a matching targeted group/community')), 'Should warn about targeted-agent communication mismatch')
+})
+
 test('System templates pass cross-validation (excluding test fixtures)', () => {
   const { validateTemplateReferences } = require('./templates')
   const templates = listTemplates('organization')
@@ -1243,6 +1265,92 @@ test('System templates pass cross-validation (excluding test fixtures)', () => {
     }
   }
   assert(failures.length === 0, `Templates with warnings:\n${failures.join('\n')}`)
+})
+
+test('System templates keep interchangeable worker-role defaults lightweight', () => {
+  const templates = listTemplates('organization')
+  const failures: string[] = []
+
+  for (const template of templates as any[]) {
+    if ((template.tags || []).includes('test') || (template.tags || []).includes('fixture') || `${template.name || ''}`.toLowerCase().includes('test')) continue
+
+    for (const parameter of template.parameters || []) {
+      const defaultCount = Number(parameter.default)
+      if (!Number.isFinite(defaultCount)) continue
+      if (defaultCount > 2) {
+        failures.push(`${template.name} / ${parameter.label}: default count ${defaultCount} is too heavy for first apply`)
+      }
+    }
+  }
+
+  assert(failures.length === 0, `Templates with heavy default counts:\n${failures.join('\n')}`)
+})
+
+test('ClawMax Dev Team keeps PR review parallel to issue triage after kickoff', () => {
+  const template = getTemplate('organization', 'clawmax-dev-team') as OrganizationTemplate | null
+  assert(template !== null, 'ClawMax Dev Team template should exist')
+
+  const prReview = template!.workflows?.find((workflow) => workflow.id === 'pr-review')
+  const issueTriage = template!.workflows?.find((workflow) => workflow.id === 'issue-triage')
+  const testRun = template!.workflows?.find((workflow) => workflow.id === 'test-run')
+
+  assert(prReview !== undefined, 'pr-review workflow should exist')
+  assert(issueTriage !== undefined, 'issue-triage workflow should exist')
+  assert(testRun !== undefined, 'test-run workflow should exist')
+
+  assertEqual(JSON.stringify(prReview!.dependsOn || []), JSON.stringify(['dev-team-kickoff']), 'PR review should start after kickoff, not wait for issue triage')
+  assertEqual(JSON.stringify(issueTriage!.dependsOn || []), JSON.stringify(['dev-team-kickoff']), 'Issue triage should start after kickoff')
+  assertEqual(JSON.stringify(testRun!.dependsOn || []), JSON.stringify(['dev-team-kickoff']), 'Test runs should start after kickoff')
+})
+
+test('Personal assistant templates keep recurring day-two automation opt-in by default', () => {
+  const emailTemplate = getTemplate('organization', 'email-calendar-manager') as OrganizationTemplate | null
+  const meetingTemplate = getTemplate('organization', 'meeting-prep-desk') as OrganizationTemplate | null
+  assert(emailTemplate !== null, 'Email & Calendar Manager should exist')
+  assert(meetingTemplate !== null, 'Meeting Prep Desk should exist')
+
+  const inboxCycle = emailTemplate!.workflows?.find((workflow) => workflow.id === 'inbox-triage-cycle')
+  const meetingResearch = meetingTemplate!.workflows?.find((workflow) => workflow.id === 'people-and-topic-research')
+
+  assert(inboxCycle !== undefined, 'inbox-triage-cycle should exist')
+  assert(meetingResearch !== undefined, 'people-and-topic-research should exist')
+  assertEqual(inboxCycle!.enabled, false, 'Inbox triage should be opt-in after kickoff setup')
+  assertEqual(meetingResearch!.enabled, false, 'Meeting prep research should be opt-in after kickoff setup')
+})
+
+test('System templates with multi-agent workflows and no explicit channels still have an inferable shared communication surface', () => {
+  const templates = listTemplates('organization')
+  const failures: string[] = []
+  type AgentMembership = { groups: Set<string>; communities: Set<string> }
+
+  for (const t of templates as any[]) {
+    if ((t.tags || []).includes('test') || (t.tags || []).includes('fixture') || `${t.name || ''}`.toLowerCase().includes('test')) continue
+    const agentMap = new Map<string, AgentMembership>((t.agents || []).map((agent: any) => [
+      agent.id,
+      {
+        groups: new Set((agent.groups || []).filter(Boolean)),
+        communities: new Set((agent.communities || []).filter(Boolean)),
+      },
+    ]))
+
+    for (const wf of t.workflows || []) {
+      const targetedAgents = ((wf.targeting?.agents || []) as string[]).filter((agentId) => agentMap.has(agentId))
+      const explicitGroups = (wf.targeting?.groups || []).filter(Boolean)
+      const explicitCommunities = (wf.targeting?.communities || []).filter(Boolean)
+      if (targetedAgents.length < 2 || explicitGroups.length > 0 || explicitCommunities.length > 0) continue
+
+      const first = agentMap.get(targetedAgents[0])
+      if (!first) continue
+      const sharedGroups = Array.from(first.groups).filter((groupName) => targetedAgents.every((agentId) => agentMap.get(agentId)?.groups.has(groupName)))
+      const sharedCommunities = Array.from(first.communities).filter((communityName) => targetedAgents.every((agentId) => agentMap.get(agentId)?.communities.has(communityName)))
+
+      if (sharedGroups.length === 0 && sharedCommunities.length === 0) {
+        failures.push(`${t.name} / ${wf.name}: multi-agent workflow has no explicit channels and no shared inferable group/community`)
+      }
+    }
+  }
+
+  assert(failures.length === 0, `Templates lacking inferable communication surfaces:\n${failures.join('\n')}`)
 })
 
 // WORKFLOW.md Format Tests
@@ -1824,6 +1932,77 @@ test('importOrganizationTemplate infers workflow output channels from targeted t
     assert(workflow !== null, 'Expected inferred-channel workflow to exist after import')
     assertEqual(JSON.stringify(workflow?.targeting.groups || []), JSON.stringify(['Research Team']), 'Expected workflow to infer the matching group target from teamIds')
     assertEqual(JSON.stringify(workflow?.targeting.communities || []), JSON.stringify(['Ops Hub']), 'Expected workflow to infer the matching community target from group membership')
+  } finally {
+    if (typeof originalOpenAi === 'undefined') delete process.env.SYSTEM_OPENAI_API_KEY
+    else process.env.SYSTEM_OPENAI_API_KEY = originalOpenAi
+    if (typeof originalHome === 'undefined') delete process.env.HOME
+    else process.env.HOME = originalHome
+    if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
+    else process.env.OPENCLAW_WORKSPACE = originalWorkspace
+    resetWorkspaceManagerForTests()
+    fs.rmSync(tempHome, { recursive: true, force: true })
+  }
+})
+
+test('importOrganizationTemplate infers workflow output channels from shared targeted-agent memberships when groups are omitted', () => {
+  const originalWorkspace = process.env.OPENCLAW_WORKSPACE
+  const originalHome = process.env.HOME
+  const originalOpenAi = process.env.SYSTEM_OPENAI_API_KEY
+  const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-company-import-agent-channels-home-'))
+  const tempWorkspace = path.join(tempHome, 'workspace')
+
+  process.env.HOME = tempHome
+  process.env.OPENCLAW_WORKSPACE = tempWorkspace
+  process.env.SYSTEM_OPENAI_API_KEY = 'test-openai-key'
+  resetWorkspaceManagerForTests()
+  seedOpenClawConfig(tempHome)
+
+  try {
+    const templateDir = path.join(tempWorkspace, 'TEMPLATES', 'organizations', 'agent-channel-inference')
+    fs.mkdirSync(templateDir, { recursive: true })
+    fs.writeFileSync(path.join(templateDir, 'template.json'), JSON.stringify({
+      name: 'Agent Channel Inference',
+      type: 'organization',
+      kind: 'team',
+      version: '1.0.0',
+      agents: [
+        { id: 'lead', role: 'Lead', communities: ['Ops Hub'], groups: ['Status', 'Research Team'] },
+        { id: 'researcher', role: 'Researcher', communities: ['Ops Hub'], groups: ['Status', 'Research Team'] },
+      ],
+      communities: [
+        { name: 'Ops Hub', description: 'Ops community' },
+      ],
+      groups: [
+        { name: 'Status', description: 'Shared status', community: 'Ops Hub' },
+        { name: 'Research Team', description: 'Research group', community: 'Ops Hub' },
+      ],
+      workflows: [
+        {
+          id: 'research-kickoff',
+          name: 'Research Kickoff',
+          description: 'Kick off research',
+          schedule: 'manual',
+          enabled: true,
+          executionMode: 'managed',
+          owner: 'lead',
+          targeting: {
+            communities: [],
+            groups: [],
+            tags: [],
+            agents: ['lead', 'researcher'],
+          },
+          content: '# Research Kickoff',
+        },
+      ],
+    }, null, 2), 'utf-8')
+
+    const imported = importOrganizationTemplate('agent-channel-inference', {})
+    assert(imported.ok === true, `Expected agent-channel import to succeed, got ${imported.error || 'unknown error'}`)
+
+    const workflow = getWorkflow('research-kickoff')
+    assert(workflow !== null, 'Expected inferred-agent-channel workflow to exist after import')
+    assertEqual(JSON.stringify(workflow?.targeting.groups || []), JSON.stringify(['Status', 'Research Team']), 'Expected workflow to infer shared targeted-agent groups')
+    assertEqual(JSON.stringify(workflow?.targeting.communities || []), JSON.stringify(['Ops Hub']), 'Expected workflow to infer shared targeted-agent community')
   } finally {
     if (typeof originalOpenAi === 'undefined') delete process.env.SYSTEM_OPENAI_API_KEY
     else process.env.SYSTEM_OPENAI_API_KEY = originalOpenAi

@@ -263,7 +263,7 @@
       "owner": "dev-lead",
       "type": "recurring",
       "dependsOn": [
-        "issue-triage"
+        "dev-team-kickoff"
       ],
       "targeting": {
         "communities": [],

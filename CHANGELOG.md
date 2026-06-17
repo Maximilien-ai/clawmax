@@ -4,6 +4,12 @@ All notable changes to ClawMax are documented here.
 
 ## [Unreleased]
 
+### Current RC
+- **`1.8.8-test-rc1` Template / Workflow Hardening** — lighter interchangeable worker defaults in `dev-team`, `support-team`, and `conference-ops-hub`; stronger workflow communication-surface inference and validation when workflows target agents without explicit groups/communities; opt-in recurring automation defaults for `email-calendar-manager` and `meeting-prep-desk`; and a conservative parallelism fix so `clawmax-dev-team` can start PR review after kickoff without waiting on issue triage.
+
+### Testing
+- **Expanded Template Audit Coverage** — added visible regression/audit coverage for shared targeted-agent communication-surface inference, lightweight interchangeable worker defaults, safer recurring automation defaults in personal assistant templates, and `clawmax-dev-team` PR-review parallelism after kickoff.
+
 ### Planned Follow-Through
 - **DocHub File-Open Polish** — keep tightening file-open behavior from chat/status/notification surfaces, especially for ambiguous bare filenames and any remaining places where a visible file chip does not open the intended DocHub entry.
 - **Plugin MVP1 Follow-Through** — continue generic plugin infrastructure work only: loading/performance, stronger shared UI parity, richer contracts, and public test-plugin polish before any private plugin surfaces are considered for broader release.

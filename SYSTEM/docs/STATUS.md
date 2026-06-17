@@ -1,8 +1,8 @@
 # ClawMax Status
 
 **Current Version**: v1.8.7
-**Last Updated**: June 16, 2026
-**Status**: `v1.8.7` is the current promoted stable release from `main`. The `1.8.0` through `1.8.7` hardening/simplify line is now the stable baseline while the next follow-through starts on `1.8.8`.
+**Last Updated**: June 17, 2026
+**Status**: `v1.8.7` is the current promoted stable release from `main`. `1.8.8-test-rc1` is the active validation track for the next template/workflow hardening slice.
 
 ---
 
@@ -15,7 +15,7 @@
 - Partner integrations are active product surfaces, including Resend, Cognee, Opik, GitHub, Senso, and partner plugin install/uninstall handling.
 - Resend has both dashboard test-email validation and first-party `clawmax-resend` agent-tool execution with runtime-secret support.
 - Cognee has a first-pass partner surface for cloud/self-hosted configuration and official OpenClaw plugin lifecycle management.
-- The latest reported full local integration run is green with `--with-validation`, including the latest helper/contract coverage for workspace file mentions, DocHub preview behavior, workflow session repair, notification presentation/routes, plugin notification dedupe, and provider model lifecycle handling.
+- The latest reported full local integration run is green with `--with-validation`, including the latest helper/contract coverage for workflow communication-target inference, lighter template defaults, safer recurring automation defaults, DocHub preview behavior, workflow session repair, notification presentation/routes, plugin notification dedupe, and provider model lifecycle handling.
 
 ## Active Release Track
 
@@ -24,7 +24,7 @@
   - [planning/HARDENING_SIMPLIFICATION_1_8_X.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/HARDENING_SIMPLIFICATION_1_8_X.md)
   - [planning/SIMPLIFY_OPTIMIZE_1_8_X.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_OPTIMIZE_1_8_X.md)
   - [planning/SIMPLIFY_HARDEN_OPTIMIZE_1_8_8.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_HARDEN_OPTIMIZE_1_8_8.md)
-- Near-term target: start the next `1.8.x` harden/simplify pass on `1.8.8` plus continue `plugins-mvp1` follow-through on top of the `1.8.7` baseline.
+- Near-term target: validate `1.8.8-test-rc1`, then continue `plugins-mvp1` follow-through on top of the `1.8.7` stable baseline and `1.8.8` template/workflow hardening pass.
 
 ## Release References
 

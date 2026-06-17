@@ -185,7 +185,7 @@
       "name": "People And Topic Research",
       "description": "Gather the most relevant people and topic context for the selected meeting.",
       "schedule": "0 9 * * *",
-      "enabled": true,
+      "enabled": false,
       "executionMode": "managed",
       "targeting": {
         "communities": [],
