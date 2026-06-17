@@ -5,8 +5,23 @@ All notable changes to ClawMax are documented here.
 ## [Unreleased]
 
 ### Planned Follow-Through
+- **Model Authentication Hardening** — clarify invalid-key vs missing-key vs stale-auth-profile vs provider-cooldown/runtime-mismatch failures so operators can diagnose model auth issues without reading raw fallback chains.
+- **Waiting-For-Input Context Routing** — `Open conversation` from waiting-for-input surfaces should land in the real conversation context where input is needed, not only the generic agent chat.
 - **DocHub File-Open Polish** — keep tightening file-open behavior from chat/status/notification surfaces, especially for ambiguous bare filenames and any remaining places where a visible file chip does not open the intended DocHub entry.
 - **Plugin MVP1 Follow-Through** — continue generic plugin infrastructure work only: loading/performance, stronger shared UI parity, richer contracts, and public test-plugin polish before any private plugin surfaces are considered for broader release.
+
+## [v1.8.8] - 2026-06-17
+
+### Fixed
+- **Template / Workflow Communication Hardening** — workflow import now infers shared groups/communities from targeted-agent memberships when explicit channels are omitted, and template validation now warns when workflows target agents outside the intended communication surface.
+- **Shipped Template Participation Fixes** — `physics-research-group` and `statistics-research-lab` now include the relevant agents in `Status` so workflow participants are present in the group surfaces they are expected to use.
+- **Lighter First-Apply Defaults** — `dev-team`, `support-team`, and `conference-ops-hub` now start with `2` interchangeable worker agents instead of `3`, reducing first-apply cost and noise without changing the underlying workflow structure.
+- **Safer Recurring Assistant Automations** — `email-calendar-manager` and `meeting-prep-desk` now keep their first recurring triage/research cycles disabled by default so users opt in after kickoff and context setup.
+- **Conservative Parallelism Cleanup** — `clawmax-dev-team` no longer makes PR review wait on issue triage; both can start after kickoff.
+- **Dashboard Header Link** — the upper-left `ClawMax.ai` branding now links out to `https://clawmax.ai` so users can reach their account/site context directly.
+
+### Testing
+- **Expanded Template Audit Coverage** — added visible regression/audit coverage for targeted-agent communication-surface inference, lightweight interchangeable worker defaults, safer recurring automation defaults in personal assistant templates, and `clawmax-dev-team` PR-review parallelism after kickoff.
 
 ## [v1.8.7] - 2026-06-16
 

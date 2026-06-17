@@ -1,11 +1,11 @@
 # Backlog
 
-> Last updated: June 16, 2026
+> Last updated: June 17, 2026
 > Completed and verified work is archived into [CHANGELOG.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/CHANGELOG.md) and historical notes under `SYSTEM/docs/**/archive/`
 
 ## Top Priority
 
-- [ ] **1.8.x hardening + simplification follow-through** — `1.8.0` through `1.8.7` now cover the first stability, responsiveness, Add Agent, delete-flow, DocHub, notification, workflow session, and model lifecycle cleanup slices. Continue from [HARDENING_SIMPLIFICATION_1_8_X.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/HARDENING_SIMPLIFICATION_1_8_X.md), [SIMPLIFY_OPTIMIZE_1_8_X.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_OPTIMIZE_1_8_X.md), and the active [SIMPLIFY_HARDEN_OPTIMIZE_1_8_8.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_HARDEN_OPTIMIZE_1_8_8.md) closure sprint.
+- [ ] **1.8.x hardening + simplification follow-through** — `1.8.0` through `1.8.8` now cover the first stability, responsiveness, Add Agent, delete-flow, DocHub, notification, workflow session, model lifecycle, and template/workflow audit cleanup slices. Continue from [HARDENING_SIMPLIFICATION_1_8_X.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/HARDENING_SIMPLIFICATION_1_8_X.md), [SIMPLIFY_OPTIMIZE_1_8_X.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_OPTIMIZE_1_8_X.md), and the next `1.8.9` sprint for model-auth hardening, waiting-for-input context routing, and remaining closure work.
 - [ ] **Plugin architecture MVP1 follow-through** — MVP0 host architecture is merged with dormant test fixtures only. Continue with generic follow-through only: plugin page/data loading speed, DocHub/file-open polish, stronger shared UI parity with Agents/Workflows, and eventually richer runtime/plugin contracts before any private plugin surfaces are considered for broader release.
 - [ ] **DocHub remaining file-open polish** — continue tightening chat/status/notification file opens where visible file chips still fail to land in the correct DocHub entry, especially if a basename appears in more than one workspace location or if the source surface still lacks enough context to navigate safely.
 - [ ] **Provider cooldown/auth surfacing follow-through** — the first operator-facing message cleanup shipped in `1.8.5`, with more workflow/result wording in `1.8.6` and `1.8.7`; keep refining workflow/result/log UX so users can tell transient timeout/cooldown windows from hard auth, quota, or config failures without reading raw fallback chains.
