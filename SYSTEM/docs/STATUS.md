@@ -24,7 +24,7 @@
   - [planning/HARDENING_SIMPLIFICATION_1_8_X.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/HARDENING_SIMPLIFICATION_1_8_X.md)
   - [planning/SIMPLIFY_OPTIMIZE_1_8_X.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_OPTIMIZE_1_8_X.md)
   - [planning/SIMPLIFY_HARDEN_OPTIMIZE_1_8_8.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_HARDEN_OPTIMIZE_1_8_8.md)
-- Near-term target: validate `1.8.8-test-rc1`, then continue `plugins-mvp1` follow-through on top of the `1.8.7` stable baseline and `1.8.8` template/workflow hardening pass.
+- Near-term target: promote and merge the `1.8.8` template/workflow hardening pass, then start `1.8.9` on model-auth hardening, waiting-for-input context routing, and the remaining `1.8.x` closure items captured in [SIMPLIFY_HARDEN_OPTIMIZE_1_8_9.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_HARDEN_OPTIMIZE_1_8_9.md).
 
 ## Release References
 
