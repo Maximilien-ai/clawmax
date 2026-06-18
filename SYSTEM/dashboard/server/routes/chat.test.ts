@@ -149,7 +149,7 @@ test('deriveChatError surfaces invalid credentials as configuration failures', (
     'FailoverError: 401 Incorrect API key provided: openai-cible. You can find your API key at https://platform.openai.com/account/api-keys.',
     'openai'
   )
-  assert(/credentials were rejected/i.test(message), 'Expected invalid-credential explanation')
+  assert(/api key was rejected/i.test(message), 'Expected invalid-credential explanation')
   assert(/api key|auth profile/i.test(message), 'Expected config remediation guidance')
 })
 

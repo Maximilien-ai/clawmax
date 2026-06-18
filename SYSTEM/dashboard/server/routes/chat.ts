@@ -306,8 +306,11 @@ export function deriveChatError(raw: string, provider?: ChatProvider): string {
     return text.match(/No API key found for provider "[^"]+"/i)?.[0]
       || 'The selected model provider is missing credentials for this agent runtime.'
   }
-  if (/Incorrect API key provided/i.test(text) || /has auth issue \(skipping all models\)/i.test(text)) {
-    return 'The configured model provider credentials were rejected. Check the API key or auth profile for this runtime and try again.'
+  if (/Incorrect API key provided/i.test(text)) {
+    return 'The configured model provider API key was rejected. Update the API key or runtime auth profile for this agent and try again.'
+  }
+  if (/has auth issue \(skipping all models\)/i.test(text)) {
+    return 'This runtime is currently marked with a provider auth issue, usually because a prior request failed authentication. Refresh the API key or auth profile for this runtime and retry after the auth state clears.'
   }
   if (/insufficient_quota|quota exceeded|rate limit|too many requests|429\b/i.test(text)) {
     return 'The model provider rejected this request because the account hit a quota or rate limit. Wait a moment and retry, or update the provider billing/usage limits for this runtime.'

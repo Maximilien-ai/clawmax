@@ -224,6 +224,31 @@ async function run() {
     assert.strictEqual((res.jsonBody?.blockers || [])[0]?.workflowId, 'wf-blocked', 'Expected blocker to match workflow')
   })
 
+  await test('notifications list preserves waiting-for-input conversation targets', async () => {
+    const { createNotification } = require('../lib/notifications')
+
+    createNotification({
+      type: 'agent-needs-decision',
+      title: 'dev-lead needs input',
+      message: 'Need a release decision.',
+      entityId: 'dev-lead',
+      entityType: 'agent',
+      fingerprint: 'input-target:dev-lead',
+      blockerType: 'input',
+      workflowId: 'wf-input',
+      conversationTarget: 'Dev Status',
+      conversationTargetType: 'group',
+    })
+
+    const handler = getRouteHandler('get', '/')
+    const res = makeRes()
+    await handler(makeReq(), res)
+    const notification = (res.jsonBody?.notifications || []).find((item: any) => item.fingerprint === 'input-target:dev-lead')
+    assert(notification, 'Expected waiting-for-input notification in payload')
+    assert.strictEqual(notification.conversationTarget, 'Dev Status', 'Expected conversation target to persist')
+    assert.strictEqual(notification.conversationTargetType, 'group', 'Expected conversation target type to persist')
+  })
+
   await test('artifact updates dedupe active notifications for the same file path', async () => {
     const { createNotification, getActiveNotifications } = require('../lib/notifications')
 

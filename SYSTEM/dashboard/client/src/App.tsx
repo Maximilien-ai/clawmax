@@ -716,16 +716,34 @@ export default function App() {
             {/* Logo */}
             {!navCollapsed && (
               <div className="px-4 py-5 border-b border-gray-700">
-                <span className="text-lg font-bold tracking-tight text-white">ClawMax</span>
-                <span className="text-sky-400 font-bold text-lg">.ai</span>
-                <p className="text-xs text-gray-400 mt-0.5">
-                  {system?.instanceLabel ? `Owner Dashboard · ${system.instanceLabel}` : 'Owner Dashboard'}
-                </p>
+                <a
+                  href="https://clawmax.ai"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex flex-col rounded-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900"
+                  aria-label="Open ClawMax.ai"
+                >
+                  <div>
+                    <span className="text-lg font-bold tracking-tight text-white">ClawMax</span>
+                    <span className="text-sky-400 font-bold text-lg">.ai</span>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {system?.instanceLabel ? `Owner Dashboard · ${system.instanceLabel}` : 'Owner Dashboard'}
+                  </p>
+                </a>
               </div>
             )}
             {navCollapsed && (
               <div className="py-5 border-b border-gray-700 flex justify-center">
-                <span className="text-white font-bold text-xs tracking-tight">C<span className="text-sky-400">M</span></span>
+                <a
+                  href="https://clawmax.ai"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900"
+                  aria-label="Open ClawMax.ai"
+                >
+                  <span className="text-white font-bold text-xs tracking-tight">C<span className="text-sky-400">M</span></span>
+                </a>
               </div>
             )}
 

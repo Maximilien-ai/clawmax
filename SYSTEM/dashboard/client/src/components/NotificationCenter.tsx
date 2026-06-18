@@ -191,6 +191,8 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToAgentChat, o
     if (n.type === 'artifact-update' && n.artifactPath && onNavigateToDoc) {
       const resolvedPath = resolveNavigableWorkspaceDocPath(n.artifactPath, docEntries)
       if (resolvedPath) onNavigateToDoc(resolvedPath)
+    } else if (n.blockerType === 'input' && n.conversationTarget && onNavigateToChannel) {
+      onNavigateToChannel(n.conversationTarget, true)
     } else if (n.type === 'artifact-update' && n.artifactUrl) {
       window.open(n.artifactUrl, '_blank', 'noopener,noreferrer')
     } else if (n.type === 'channel-activity') {
@@ -434,13 +436,14 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToAgentChat, o
                               {n.entityId && (onNavigateToAgentChat || onNavigateToAgent) && (
                                 <button
                                   onClick={() => {
-                                    if (onNavigateToAgentChat) onNavigateToAgentChat(n.entityId!)
+                                    if (n.conversationTarget && onNavigateToChannel) onNavigateToChannel(n.conversationTarget, true)
+                                    else if (onNavigateToAgentChat) onNavigateToAgentChat(n.entityId!)
                                     else onNavigateToAgent?.(n.entityId!)
                                     setOpen(false)
                                   }}
                                   className="text-[11px] text-sky-600 dark:text-sky-400 hover:underline font-medium"
                                 >
-                                  Open agent conversation →
+                                  Open conversation →
                                 </button>
                               )}
                             </div>

@@ -52,12 +52,13 @@ function normalizeTemplateChannelKey(value: string): string {
     .replace(/^-+|-+$/g, '')
 }
 
-function inferWorkflowChannelTargetsFromTeams(args: {
+function inferWorkflowChannelTargets(args: {
   workspacePath: string
   targeting: {
     communities?: string[]
     groups?: string[]
     teamIds?: string[]
+    agents?: string[]
   }
 }): { communities: string[]; groups: string[] } {
   const existingGroups = Array.isArray(args.targeting.groups) ? args.targeting.groups.filter(Boolean) : []
@@ -70,9 +71,7 @@ function inferWorkflowChannelTargetsFromTeams(args: {
   }
 
   const teamIds = Array.isArray(args.targeting.teamIds) ? args.targeting.teamIds.map((value) => `${value || ''}`.trim()).filter(Boolean) : []
-  if (teamIds.length === 0) {
-    return { communities: existingCommunities, groups: existingGroups }
-  }
+  const targetedAgents = Array.isArray(args.targeting.agents) ? args.targeting.agents.map((value) => `${value || ''}`.trim()).filter(Boolean) : []
 
   const groupsPath = path.join(args.workspacePath, 'ORG', 'GROUPS.md')
   const communitiesPath = path.join(args.workspacePath, 'ORG', 'COMMUNITIES.md')
@@ -96,19 +95,48 @@ function inferWorkflowChannelTargetsFromTeams(args: {
   const inferredGroups = new Set<string>(existingGroups)
   const inferredCommunities = new Set<string>(existingCommunities)
 
-  for (const teamId of teamIds) {
-    const team = getTeam(teamId, args.workspacePath)
-    const candidateKeys = new Set<string>([
-      normalizeTemplateChannelKey(teamId),
-      normalizeTemplateChannelKey(team?.name || ''),
-    ].filter(Boolean))
+  if (teamIds.length > 0) {
+    for (const teamId of teamIds) {
+      const team = getTeam(teamId, args.workspacePath)
+      const candidateKeys = new Set<string>([
+        normalizeTemplateChannelKey(teamId),
+        normalizeTemplateChannelKey(team?.name || ''),
+      ].filter(Boolean))
 
-    for (const candidateKey of candidateKeys) {
-      const matchingGroup = groupsByKey.get(candidateKey)
-      if (!matchingGroup) continue
-      inferredGroups.add(matchingGroup.name)
-      if (matchingGroup.community) inferredCommunities.add(matchingGroup.community)
+      for (const candidateKey of candidateKeys) {
+        const matchingGroup = groupsByKey.get(candidateKey)
+        if (!matchingGroup) continue
+        inferredGroups.add(matchingGroup.name)
+        if (matchingGroup.community) inferredCommunities.add(matchingGroup.community)
+      }
     }
+  }
+
+  if (targetedAgents.length > 0) {
+    const membership = targetedAgents.map((agentId) => {
+      const groupsFile = path.join(args.workspacePath, 'AGENTS', agentId, 'GROUPS.md')
+      const communitiesFile = path.join(args.workspacePath, 'AGENTS', agentId, 'COMMUNITIES.md')
+      const groups = fs.existsSync(groupsFile)
+        ? parseGroups(fs.readFileSync(groupsFile, 'utf-8')).groups.map((group) => group.name).filter(Boolean)
+        : []
+      const communities = fs.existsSync(communitiesFile)
+        ? parseGroups(fs.readFileSync(communitiesFile, 'utf-8')).communities.map((community) => community.name).filter(Boolean)
+        : []
+      return {
+        groups: new Set(groups),
+        communities: new Set(communities),
+      }
+    })
+
+    const sharedGroups = membership.length > 0
+      ? Array.from(membership[0].groups).filter((groupName) => membership.every((entry) => entry.groups.has(groupName)))
+      : []
+    const sharedCommunities = membership.length > 0
+      ? Array.from(membership[0].communities).filter((communityName) => membership.every((entry) => entry.communities.has(communityName)))
+      : []
+
+    for (const groupName of sharedGroups) inferredGroups.add(groupName)
+    for (const communityName of sharedCommunities) inferredCommunities.add(communityName)
   }
 
   return {
@@ -1025,7 +1053,7 @@ export function validateTemplateReferences(template: Template): { valid: boolean
   }
 
   // Check workflow targeting references
-    for (const wf of t.workflows || []) {
+  for (const wf of t.workflows || []) {
     for (const agentId of wf.targeting?.agents || []) {
       if (!agentIds.has(agentId)) {
         warnings.push(`Workflow "${wf.name}" targets unknown agent "${agentId}"`)
@@ -1039,6 +1067,22 @@ export function validateTemplateReferences(template: Template): { valid: boolean
     for (const teamId of wf.targeting?.teamIds || []) {
       if (!(t.teams || []).some((team: any) => team.id === teamId)) {
         warnings.push(`Workflow "${wf.name}" targets unknown team "${teamId}"`)
+      }
+    }
+
+    const targetedGroups = new Set((wf.targeting?.groups || []).filter(Boolean))
+    const targetedCommunities = new Set((wf.targeting?.communities || []).filter(Boolean))
+    if (targetedGroups.size > 0 || targetedCommunities.size > 0) {
+      for (const agentId of wf.targeting?.agents || []) {
+        const agent = (t.agents || []).find((entry: any) => entry.id === agentId)
+        if (!agent) continue
+        const agentGroups = new Set((agent.groups || []).filter(Boolean))
+        const agentCommunities = new Set((agent.communities || []).filter(Boolean))
+        const matchesGroup = Array.from(targetedGroups).some((groupName) => agentGroups.has(groupName))
+        const matchesCommunity = Array.from(targetedCommunities).some((communityName) => agentCommunities.has(communityName))
+        if (!matchesGroup && !matchesCommunity) {
+          warnings.push(`Workflow "${wf.name}" targets agent "${agentId}" without a matching targeted group/community`)
+        }
       }
     }
   }
@@ -3271,12 +3315,13 @@ ${template.author ? `- **Template Author:** ${template.author}` : ''}
           }))
           const importedWorkflowName = getImportedWorkflowName(wf)
 
-          const inferredChannels = inferWorkflowChannelTargetsFromTeams({
+          const inferredChannels = inferWorkflowChannelTargets({
             workspacePath: getWorkspacePath(),
             targeting: {
               communities: wf.targeting.communities || [],
               groups: wf.targeting.groups || [],
               teamIds: newTeamIds,
+              agents: newAgents,
             },
           })
 

@@ -66,6 +66,8 @@ export interface Notification {
   groupedIds?: string[]
   groupedChildren?: Notification[]
   groupedEntityIds?: string[]
+  conversationTarget?: string
+  conversationTargetType?: 'group' | 'community'
 }
 
 const SEVERITY_MAP: Record<NotificationType, NotificationSeverity> = {
@@ -394,6 +396,8 @@ export function createNotification(params: {
   progress?: number
   artifactPath?: string
   artifactUrl?: string
+  conversationTarget?: string
+  conversationTargetType?: 'group' | 'community'
 }): Notification | null {
   const notifications = loadNotifications()
 
@@ -454,6 +458,8 @@ export function createNotification(params: {
     progress: params.progress,
     artifactPath: params.artifactPath,
     artifactUrl: params.artifactUrl,
+    conversationTarget: params.conversationTarget,
+    conversationTargetType: params.conversationTargetType,
   }
 
   notifications.push(notification)

@@ -283,6 +283,9 @@ router.post('/:id/trigger', (req, res) => {
         gemini?: string
         ollamaBaseUrl?: string
         ollamaDefaultModel?: string
+        openaiCompatibleApiKey?: string
+        openaiCompatibleBaseUrl?: string
+        openaiCompatibleDefaultModel?: string
         preferredModel?: string
       }
       secrets?: Record<string, string>

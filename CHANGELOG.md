@@ -4,6 +4,12 @@ All notable changes to ClawMax are documented here.
 
 ## [Unreleased]
 
+### Current RC
+- **`1.8.9-test-rc1` Auth / Runtime Hardening** — waiting-for-input notifications now open the actual workflow group/community conversation context; workflow runs preserve full OpenAI-compatible runtime settings instead of collapsing into hosted OpenAI auth paths; and stale auth/session state is reset more aggressively after credential changes so refreshed keys take effect cleanly.
+
+### Testing
+- **Expanded Auth / Workflow Coverage** — added visible regression coverage for waiting-input conversation-target preservation, workflow OpenAI-compatible runtime isolation, workflow execution env shaping, and auth-profile-driven session reset even when the selected model stays the same.
+
 ### Planned Follow-Through
 - **Model Authentication Hardening** — clarify invalid-key vs missing-key vs stale-auth-profile vs provider-cooldown/runtime-mismatch failures so operators can diagnose model auth issues without reading raw fallback chains.
 - **Waiting-For-Input Context Routing** — `Open conversation` from waiting-for-input surfaces should land in the real conversation context where input is needed, not only the generic agent chat.

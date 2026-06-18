@@ -46,6 +46,7 @@ import {
   stripBenignOpenClawRuntimeWarnings,
   summarizeAgentInputRequest,
   formatParticipantFailure,
+  resolveWorkflowConversationTarget,
 } from './workflows'
 
 const GREEN = '\x1b[32m'
@@ -491,6 +492,20 @@ test('formatParticipantFailure explains provider quota limits clearly', () => {
     /usage limits blocked/i.test(message) && /billing|rate-limit/i.test(message),
     `Expected quota guidance, got: ${message}`
   )
+})
+
+test('formatParticipantFailure distinguishes incorrect api keys from sticky auth state', () => {
+  const invalidKey = formatParticipantFailure('FailoverError: 401 Incorrect API key provided: openai-cible.')
+  const stickyAuth = formatParticipantFailure('FallbackSummaryError: All models failed (1): openai/gpt-4o-mini: Provider openai has auth issue (skipping all models) (auth)')
+  assert(/api key was rejected/i.test(invalidKey), `Expected invalid-key guidance, got: ${invalidKey}`)
+  assert(/marked unhealthy|auth issue/i.test(stickyAuth), `Expected sticky-auth guidance, got: ${stickyAuth}`)
+})
+
+test('resolveWorkflowConversationTarget prefers workflow groups before communities', () => {
+  const groupTarget = resolveWorkflowConversationTarget({ groups: ['Status'], communities: ['Dev Team'] })
+  assert(groupTarget?.type === 'group' && groupTarget?.name === 'Status', `Expected group target, got: ${JSON.stringify(groupTarget)}`)
+  const communityTarget = resolveWorkflowConversationTarget({ groups: [], communities: ['Research Lab'] })
+  assert(communityTarget?.type === 'community' && communityTarget?.name === 'Research Lab', `Expected community target, got: ${JSON.stringify(communityTarget)}`)
 })
 
 test('summarizeAgentInputRequest extracts direct user asks for notifications', () => {

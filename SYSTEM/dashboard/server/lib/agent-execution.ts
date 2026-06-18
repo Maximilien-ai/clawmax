@@ -746,6 +746,20 @@ function buildAuthProfiles(providerKeys: ProviderKeys, preferredProvider?: Execu
   }
 }
 
+function authProfileStateFingerprint(raw: string | null): string | null {
+  if (!raw) return null
+  try {
+    const parsed = JSON.parse(raw) as AuthProfileFile
+    return JSON.stringify({
+      version: parsed.version || 1,
+      profiles: parsed.profiles || {},
+      lastGood: parsed.lastGood || {},
+    })
+  } catch {
+    return raw
+  }
+}
+
 export async function withTemporaryAgentAuthProfiles<T>(
   agentId: string,
   providerKeys: ProviderKeys,
@@ -1099,8 +1113,13 @@ export async function withTemporaryAgentAuthProfiles<T>(
 
   const nextAuthProfiles = buildAuthProfiles(providerKeys, effectiveProvider)
   effectiveModel = toExecutionModelOverride(effectiveModel, effectiveProvider)
+  const nextAuthProfilesSerialized = JSON.stringify(nextAuthProfiles, null, 2)
+  const authProfilesChanged = authProfileStateFingerprint(previous) !== authProfileStateFingerprint(nextAuthProfilesSerialized)
 
-  fs.writeFileSync(authProfilePath, JSON.stringify(nextAuthProfiles, null, 2), 'utf-8')
+  fs.writeFileSync(authProfilePath, nextAuthProfilesSerialized, 'utf-8')
+  if (authProfilesChanged) {
+    resetAgentSessionsForModelChange(process.env.HOME || '', agentId)
+  }
   const currentConfigModel = readCurrentModel()
   const previousModel = currentConfigModel.ok ? currentConfigModel.model : undefined
   const shouldOverrideModel = Boolean(

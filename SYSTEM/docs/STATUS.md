@@ -1,8 +1,8 @@
 # ClawMax Status
 
 **Current Version**: v1.8.8
-**Last Updated**: June 17, 2026
-**Status**: `v1.8.8` is the current promoted stable release from `main`. The next follow-through starts on `1.8.9`.
+**Last Updated**: June 18, 2026
+**Status**: `v1.8.8` is the current promoted stable release from `main`. `1.8.9-test-rc1` is the active validation track for the next auth/runtime hardening slice.
 
 ---
 
@@ -23,7 +23,8 @@
 - Plans:
   - [planning/HARDENING_SIMPLIFICATION_1_8_X.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/HARDENING_SIMPLIFICATION_1_8_X.md)
   - [planning/SIMPLIFY_OPTIMIZE_1_8_X.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_OPTIMIZE_1_8_X.md)
-- Near-term target: start `1.8.9` on model-auth hardening, waiting-for-input context routing, and the remaining `1.8.x` closure items.
+  - [planning/SIMPLIFY_HARDEN_OPTIMIZE_1_8_9.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_HARDEN_OPTIMIZE_1_8_9.md)
+- Near-term target: validate and promote `1.8.9` with model-auth hardening, waiting-for-input context routing, and the remaining `1.8.x` closure items.
 
 ## Release References
 
