@@ -567,8 +567,14 @@ export function formatParticipantFailure(reportedFailure: string): string {
   if (/^LLM request rejected:/i.test(reportedFailure) || /usage limits|quota|insufficient_quota/i.test(reportedFailure)) {
     return 'Model provider usage limits blocked this workflow participant. Wait a moment and retry, or update the provider billing and rate-limit configuration for the selected model.'
   }
-  if (/Incorrect API key provided/i.test(reportedFailure) || /has auth issue \(skipping all models\)/i.test(reportedFailure) || /No API key found for provider/i.test(reportedFailure)) {
-    return 'Model provider authentication failed. Check the configured API key, auth profile, or BYOK/runtime provider settings for this workflow run.'
+  if (/Incorrect API key provided/i.test(reportedFailure)) {
+    return 'Model provider authentication failed because the configured API key was rejected. Update the API key or runtime auth profile used for this workflow run and retry.'
+  }
+  if (/has auth issue \(skipping all models\)/i.test(reportedFailure)) {
+    return 'Model provider authentication is currently marked unhealthy for this runtime, usually because a prior request failed auth. Refresh the API key or auth profile for this runtime and retry after the auth state is cleared.'
+  }
+  if (/No API key found for provider/i.test(reportedFailure)) {
+    return 'No model provider credentials are configured for this workflow run. Add the missing API key or auth profile in BYOK, runtime settings, or the agent auth store and retry.'
   }
   if (/is in cooldown \(suspending lanes\)/i.test(reportedFailure) || /timed out/i.test(reportedFailure)) {
     return 'Model provider is temporarily cooling down after a timeout or transient failure. Wait a moment and retry, or switch this workflow to a faster fallback model.'
@@ -586,6 +592,18 @@ export function formatParticipantFailure(reportedFailure: string): string {
     return `Communication delivery failed. ${reportedFailure.replace(/^COMMS FAIL:\s*/i, '')}`
   }
   return `Agent reported failure: ${reportedFailure}`
+}
+
+export function resolveWorkflowConversationTarget(targeting: Pick<AgentTargeting, 'groups' | 'communities'> | null | undefined): { type: 'group' | 'community'; name: string } | null {
+  const groups = (targeting?.groups || []).map((value: string) => `${value}`.trim()).filter(Boolean)
+  if (groups.length > 0) {
+    return { type: 'group', name: groups[0] }
+  }
+  const communities = (targeting?.communities || []).map((value: string) => `${value}`.trim()).filter(Boolean)
+  if (communities.length > 0) {
+    return { type: 'community', name: communities[0] }
+  }
+  return null
 }
 
 const GITHUB_RESULT_URL_REGEX = /https:\/\/github\.com\/[^\s)>\]]+\/(issues|pull)\/\d+[^\s)>\]]*/gi
@@ -1916,6 +1934,7 @@ export function triggerWorkflow(workflowId: string, options?: {
           const isError = /error|failed|cannot|unable to|permission denied|access denied|rate limit/i.test(textLower) && agentText.length < 500
 
           if (isQuestion) {
+            const conversationTarget = resolveWorkflowConversationTarget(workflow.targeting || {})
             createNotification({
               type: 'agent-needs-decision',
               title: `${participant.agentId} needs input`,
@@ -1925,6 +1944,8 @@ export function triggerWorkflow(workflowId: string, options?: {
               fingerprint: `agent-question:${workflowId}:${participant.agentId}:${execution.id}`,
               blockerType: 'input',
               workflowId,
+              conversationTarget: conversationTarget?.name,
+              conversationTargetType: conversationTarget?.type,
             })
             console.log(`[DAG] Agent ${participant.agentId} asked a question — notification created`)
           } else if (isError) {

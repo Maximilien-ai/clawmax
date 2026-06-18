@@ -155,6 +155,19 @@ test('extracts direct channel navigation targets for channel activity notificati
   })) === null, 'Expected non-channel notifications not to produce a channel target')
 })
 
+test('preserves waiting-for-input conversation target metadata', () => {
+  const blocker = notification({
+    type: 'agent-needs-decision',
+    blockerType: 'input',
+    entityType: 'agent',
+    entityId: 'agent-a',
+    conversationTarget: 'Test Status',
+    conversationTargetType: 'group',
+  })
+  assert(blocker.conversationTarget === 'Test Status', 'Expected conversation target to be preserved')
+  assert(blocker.conversationTargetType === 'group', 'Expected conversation target type to be preserved')
+})
+
 let passed = 0
 for (const entry of tests) {
   entry.run()

@@ -25,6 +25,8 @@ export interface DashboardNotification {
   groupedIds?: string[]
   groupedChildren?: DashboardNotification[]
   groupedEntityIds?: string[]
+  conversationTarget?: string
+  conversationTargetType?: 'group' | 'community'
 }
 
 export function getNotificationChannelTargetName(notification: DashboardNotification): string | null {
