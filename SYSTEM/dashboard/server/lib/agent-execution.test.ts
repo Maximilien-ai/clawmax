@@ -1178,6 +1178,54 @@ test('withTemporaryAgentAuthProfiles resets stale dashboard-chat sessions when t
   })
 })
 
+test('withTemporaryAgentAuthProfiles resets stale sessions when auth profiles change even if the model stays the same', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
+  const sessionsDir = path.join(home, '.openclaw', 'agents', 'test-openai', 'sessions')
+  const agentDir = path.join(home, '.openclaw', 'agents', 'test-openai', 'agent')
+  const authProfilePath = path.join(agentDir, 'auth-profiles.json')
+  const configPath = path.join(home, '.openclaw', 'openclaw.json')
+  fs.mkdirSync(sessionsDir, { recursive: true })
+  fs.mkdirSync(agentDir, { recursive: true })
+  fs.writeFileSync(path.join(sessionsDir, 'sessions.json'), JSON.stringify({
+    'agent:test-openai:dashboard-chat': {
+      sessionId: 'agent-test-openai-dashboard-chat-same-model',
+      model: 'openai/gpt-4o-mini',
+      modelProvider: 'openai',
+      sessionFile: path.join(sessionsDir, 'prior.jsonl'),
+      systemPromptReport: {
+        provider: 'openai',
+        model: 'openai/gpt-4o-mini',
+      }
+    }
+  }, null, 2), 'utf-8')
+  fs.writeFileSync(path.join(sessionsDir, 'prior.jsonl'), '{"type":"message"}\n', 'utf-8')
+  fs.writeFileSync(authProfilePath, JSON.stringify({
+    version: 1,
+    profiles: {
+      'openai-key': { type: 'api_key', provider: 'openai', key: 'stale-openai' }
+    },
+    lastGood: { openai: 'openai-key' },
+    usageStats: {},
+  }, null, 2), 'utf-8')
+  fs.writeFileSync(configPath, JSON.stringify({
+    agents: {
+      list: [
+        { id: 'test-openai', workspace: path.join(home, 'workspace', 'AGENTS', 'test-openai'), agentDir, model: 'openai/gpt-4o-mini' }
+      ]
+    }
+  }, null, 2))
+
+  process.env.HOME = home
+  resetWorkspaceManagerForTests()
+
+  await withTemporaryAgentAuthProfiles('test-openai', { openai: 'fresh-openai' }, 'openai/gpt-4o-mini', 'openai', async () => {
+    assert(!fs.existsSync(path.join(sessionsDir, 'sessions.json')), 'Expected sessions index archived when auth profiles change')
+    assert(!fs.existsSync(path.join(sessionsDir, 'prior.jsonl')), 'Expected stale transcript archived when auth profiles change')
+    const currentProfiles = JSON.parse(fs.readFileSync(authProfilePath, 'utf-8'))
+    assert(currentProfiles.profiles['openai-key']?.key === 'fresh-openai', 'Expected fresh OpenAI key during execution')
+  })
+})
+
 setTimeout(async () => {
   await testQueue
   if (typeof originalHome === 'undefined') delete process.env.HOME

@@ -48,6 +48,21 @@ test('workflow execution keeps explicit BYOK provider isolated from system keys'
   assert(typeof keys.openai === 'undefined', 'Expected system OpenAI key to stay out of BYOK Anthropic execution')
 })
 
+test('workflow execution keeps explicit OpenAI-compatible BYOK isolated from hosted OpenAI system keys', () => {
+  const keys = resolveWorkflowExecutionProviderKeys({
+    SYSTEM_OPENAI_API_KEY: 'runtime-openai',
+  }, {
+    openaiCompatibleApiKey: 'lmstudio-key',
+    openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1',
+    openaiCompatibleDefaultModel: 'qwen3.6-27b',
+  })
+
+  assert(keys.openaiCompatibleApiKey === 'lmstudio-key', 'Expected OpenAI-compatible API key to win')
+  assert(keys.openaiCompatibleBaseUrl === 'http://127.0.0.1:1234/v1', 'Expected OpenAI-compatible base URL to win')
+  assert(keys.openaiCompatibleDefaultModel === 'qwen3.6-27b', 'Expected OpenAI-compatible default model to win')
+  assert(typeof keys.openai === 'undefined', 'Expected hosted system OpenAI key to stay out of OpenAI-compatible workflow execution')
+})
+
 console.log(`workflow-execution-env.test.ts: ${passed} tests passed`)
 
 if (failed > 0) {

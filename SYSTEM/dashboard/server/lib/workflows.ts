@@ -453,6 +453,9 @@ interface WorkflowRuntimeOverrides {
   anthropic?: string
   gemini?: string
   ollamaBaseUrl?: string
+  openaiCompatibleApiKey?: string
+  openaiCompatibleBaseUrl?: string
+  openaiCompatibleDefaultModel?: string
 }
 
 function buildMockWorkflowResponse(
@@ -1824,6 +1827,9 @@ export function triggerWorkflow(workflowId: string, options?: {
         anthropic: options?.byok?.anthropic,
         gemini: options?.byok?.gemini,
         ollamaBaseUrl: options?.byok?.ollamaBaseUrl || integrationDefaults.ollamaBaseUrl,
+        openaiCompatibleApiKey: options?.byok?.openaiCompatibleApiKey,
+        openaiCompatibleBaseUrl: options?.byok?.openaiCompatibleBaseUrl || integrationDefaults.openaiCompatibleBaseUrl,
+        openaiCompatibleDefaultModel: options?.byok?.openaiCompatibleDefaultModel || integrationDefaults.openaiCompatibleDefaultModel,
       })
 
       const runParticipant = async (participant: WorkflowExecutionParticipant) => {
@@ -1851,9 +1857,14 @@ export function triggerWorkflow(workflowId: string, options?: {
             const args = ['agent', '--agent', participant.agentId, '--session-id', sessionId, '--message', executionMessage, '--json', ...(useLocal ? ['--local'] : [])]
             return await new Promise<string>((resolve, reject) => {
               withTemporaryAgentAuthProfiles(participant.agentId, {
-              openai: executionEnv.OPENAI_API_KEY,
+              openai: resolvedAgent.provider === 'openai-compatible' ? undefined : executionEnv.OPENAI_API_KEY,
               anthropic: executionEnv.ANTHROPIC_API_KEY,
               gemini: executionEnv.GEMINI_API_KEY,
+              openaiCompatibleApiKey: resolvedAgent.provider === 'openai-compatible' ? executionEnv.OPENAI_API_KEY : undefined,
+              openaiCompatibleBaseUrl: resolvedAgent.provider === 'openai-compatible' ? executionEnv.OPENAI_BASE_URL : undefined,
+              openaiCompatibleDefaultModel: resolvedAgent.provider === 'openai-compatible'
+                ? (options?.byok?.openaiCompatibleDefaultModel || integrationDefaults.openaiCompatibleDefaultModel || resolvedAgent.model)
+                : undefined,
               }, resolvedAgent.model, resolvedAgent.provider, async () => {
                 await new Promise<void>((innerResolve) => {
                   const proc = spawn(openclawCliPath, args, { env: executionEnv })

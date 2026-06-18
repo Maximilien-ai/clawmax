@@ -11,7 +11,7 @@ import {
   resolveWorkflowExecutionProviderKeys,
 } from './dashboard-env'
 import { REPO_ROOT } from './paths'
-import { safeEnv, systemExecutionEnv, userExecutionEnv } from './safe-env'
+import { safeEnv, systemExecutionEnv, userExecutionEnv, workflowExecutionEnv } from './safe-env'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -148,6 +148,19 @@ test('userExecutionEnv forwards Ollama base URL for local-model execution', () =
   assert(env.OLLAMA_BASE_URL === 'http://127.0.0.1:11434', 'Expected Ollama base URL in child env')
   assert(env.OPENAI_API_KEY === '', 'Expected hosted OpenAI key slot blanked for Ollama execution')
   assert(env.ANTHROPIC_API_KEY === '', 'Expected hosted Anthropic key slot blanked for Ollama execution')
+})
+
+test('workflowExecutionEnv preserves OpenAI-compatible runtime settings without leaking hosted OpenAI system keys', () => {
+  const env = workflowExecutionEnv({
+    openaiCompatibleApiKey: 'lmstudio-key',
+    openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1',
+    openaiCompatibleDefaultModel: 'qwen3.6-27b',
+  })
+
+  assert(env.OPENAI_API_KEY === 'lmstudio-key', 'Expected OpenAI-compatible API key to populate the execution env')
+  assert(env.OPENAI_BASE_URL === 'http://127.0.0.1:1234/v1', 'Expected OpenAI-compatible base URL to populate the execution env')
+  assert(env.ANTHROPIC_API_KEY === '', 'Expected Anthropic key slot blanked during OpenAI-compatible workflow execution')
+  assert(env.GEMINI_API_KEY === '', 'Expected Gemini key slot blanked during OpenAI-compatible workflow execution')
 })
 
 test('systemExecutionEnv uses resolved system execution keys, not shell exports', () => {
