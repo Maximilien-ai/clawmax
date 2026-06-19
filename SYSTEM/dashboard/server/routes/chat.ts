@@ -1,6 +1,5 @@
 import { Router } from 'express'
 import WebSocket from 'ws'
-import { randomUUID } from 'crypto'
 import { spawn } from 'child_process'
 import fs from 'fs'
 import path from 'path'
@@ -673,9 +672,7 @@ router.post('/:id/chat', async (req, res) => {
   const executionMessage = useManagedSecretStatelessSession
     ? buildManagedSecretStatelessChatMessage(message, (req.body as any).contextMessages, assignedSkills, currentAgentWorkspaceDir)
     : message
-  const executionSessionId = useManagedSecretStatelessSession
-    ? scopeSessionIdToModel(`${effectiveSessionId}-${randomUUID().slice(0, 8)}`, resolvedAgent.model)
-    : effectiveSessionId
+  const executionSessionId = effectiveSessionId
   const args = [
     'agent',
     '--agent', id,
@@ -770,9 +767,7 @@ router.post('/:id/chat', async (req, res) => {
           })
         }
 
-        if (!useManagedSecretStatelessSession) {
-          persistDashboardChatSession(id, effectiveSessionId)
-        }
+        persistDashboardChatSession(id, executionSessionId)
 
         if (!completionText) {
           send('error', deriveChatError(
