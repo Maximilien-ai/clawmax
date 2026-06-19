@@ -427,6 +427,17 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Agent chat timeline helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/agentChatTimeline.test.ts > /tmp/clawmax-agent-chat-timeline.out 2>&1 || true
+if grep -q '^✓ ' /tmp/clawmax-agent-chat-timeline.out; then
+  agent_chat_timeline_count=$(grep -c '^✓ ' /tmp/clawmax-agent-chat-timeline.out)
+  pass "Agent chat timeline helper unit tests (${agent_chat_timeline_count:-?} tests)"
+else
+  cat /tmp/clawmax-agent-chat-timeline.out
+  fail "Agent chat timeline helper unit tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running OpenAI model lifecycle helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/openAiModelLifecycle.test.ts > /tmp/clawmax-openai-model-lifecycle.out 2>&1 || true
 if grep -q "openAiModelLifecycle.test.ts:" /tmp/clawmax-openai-model-lifecycle.out; then

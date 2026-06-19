@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { byokForRequest, hasChatExecutionAccess, readStoredByokKeys } from '../lib/byok'
 import { buildPersistentDashboardChatSessionId } from '../lib/agentChatSession'
+import { buildAgentChatTimelineRows, shouldShowCalendarDate } from '../lib/agentChatTimeline'
 import { getAgentChatCodeBlockClassName, getAgentChatInlineCodeClassName, getAgentChatLinkClassName, type AgentChatMarkdownRole } from '../lib/agentChatMarkdown'
 import { ProductIconCell } from '../lib/productIcons'
 import { useAuth } from '../contexts/AuthContext'
@@ -33,6 +34,14 @@ interface Props {
 
 interface DocEntryRef {
   path: string
+}
+
+function formatChatTime(timestamp: number | undefined, includeDate: boolean): string {
+  if (!timestamp) return ''
+  const date = new Date(timestamp)
+  const timeLabel = date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+  if (!includeDate) return timeLabel
+  return `${date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })} ${timeLabel}`
 }
 
 // Strip ANSI escape codes from text
@@ -215,6 +224,9 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
       .map((file) => ({ file, path: resolveDocPath(file) }))
       .filter((entry): entry is { file: string; path: string } => !!entry.path)
   ), [resolveDocPath])
+
+  const timelineRows = buildAgentChatTimelineRows(messages)
+  const timelineMessageMap = new Map(messages.map((message) => [message.id, message]))
 
   // Poll for new messages (agent-initiated updates)
   useEffect(() => {
@@ -903,7 +915,21 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
             </div>
           )}
 
-          {messages.map((msg, idx) => {
+          {timelineRows.map((row) => {
+            if (row.type === 'separator') {
+              return (
+                <div key={row.key} className="flex items-center gap-3 py-2">
+                  <div className="h-px flex-1 bg-gray-200 dark:bg-gray-700" />
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-400 dark:text-gray-500">
+                    {row.label}
+                  </div>
+                  <div className="h-px flex-1 bg-gray-200 dark:bg-gray-700" />
+                </div>
+              )
+            }
+
+            const msg = timelineMessageMap.get(row.key)
+            if (!msg) return null
             const msgIsError = msg.role === 'assistant' && isErrorContent(msg.content)
             return (
             <div
@@ -946,7 +972,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
                       </div>
                     )}
                     <div className="flex items-center justify-between mt-1">
-                      <span className="text-xs opacity-60">{new Date(msg.timestamp).toLocaleTimeString()}</span>
+                      <span className="text-xs opacity-60">{formatChatTime(msg.timestamp, row.showDate)}</span>
                       <button
                         onClick={(e) => { e.stopPropagation(); setRawViewIds(prev => { const next = new Set(prev); next.has(msg.id) ? next.delete(msg.id) : next.add(msg.id); return next }) }}
                         className="text-xs opacity-40 hover:opacity-80 transition-opacity"
@@ -979,7 +1005,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
                       </div>
                     )}
                     <div className="text-xs opacity-60 mt-1">
-                      {new Date(msg.timestamp).toLocaleTimeString()}
+                      {formatChatTime(msg.timestamp, row.showDate)}
                     </div>
                   </>
                 )}
@@ -1260,25 +1286,51 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
                     No messages in this archive
                   </div>
                 ) : (
-                  viewingArchive.messages.map((msg, idx) => (
-                    <div
-                      key={idx}
-                      className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                    >
-                      <div
-                        className={`max-w-[75%] rounded-lg px-4 py-2.5 ${
-                          msg.role === 'user'
-                            ? 'bg-sky-600 text-white'
-                            : 'bg-gray-100 text-gray-800'
-                        }`}
-                      >
-                        <p className="text-xs text-gray-500 mb-1">
-                          {msg.timestamp ? new Date(msg.timestamp).toLocaleString() : ''}
-                        </p>
-                        <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>
-                      </div>
-                    </div>
-                  ))
+                  (() => {
+                    const archiveRows = buildAgentChatTimelineRows(
+                      viewingArchive.messages.map((message, index) => ({
+                        id: `${index}`,
+                        timestamp: message.timestamp,
+                      }))
+                    )
+                    return archiveRows.map((row) => {
+                      if (row.type === 'separator') {
+                        return (
+                          <div key={row.key} className="flex items-center gap-3 py-1">
+                            <div className="h-px flex-1 bg-gray-200 dark:bg-gray-700" />
+                            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-400 dark:text-gray-500">
+                              {row.label}
+                            </div>
+                            <div className="h-px flex-1 bg-gray-200 dark:bg-gray-700" />
+                          </div>
+                        )
+                      }
+
+                      const idx = Number.parseInt(row.key, 10)
+                      const msg = viewingArchive.messages[idx]
+                      if (!msg) return null
+
+                      return (
+                        <div
+                          key={row.key}
+                          className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                        >
+                          <div
+                            className={`max-w-[75%] rounded-lg px-4 py-2.5 ${
+                              msg.role === 'user'
+                                ? 'bg-sky-600 text-white'
+                                : 'bg-gray-100 text-gray-800'
+                            }`}
+                          >
+                            <p className="text-xs text-gray-500 mb-1">
+                              {formatChatTime(msg.timestamp, shouldShowCalendarDate(msg.timestamp))}
+                            </p>
+                            <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>
+                          </div>
+                        </div>
+                      )
+                    })
+                  })()
                 )}
               </div>
             </div>
