@@ -13,6 +13,7 @@ import {
 } from '../lib/notificationPresentation'
 import { WorkspaceDocEntryRef } from '../lib/workspaceFiles'
 import { resolveNavigableWorkspaceDocPath } from '../lib/workspaceDocNavigation'
+import { useWorkspace } from '../contexts/WorkspaceContext'
 
 // Helper: resolve a notification action
 async function resolveAction(id: string, action: string, value?: string): Promise<boolean> {
@@ -55,6 +56,7 @@ const SEVERITY_DOT: Record<string, string> = {
 
 export function NotificationCenter({ onNavigateToAgent, onNavigateToAgentChat, onNavigateToWorkflow, onNavigateToChannel, onNavigateToPage, onNavigateToDoc, onAgentRestarted }: NotificationCenterProps) {
   const { showSuccess, showError, showWarning } = useToast()
+  const { activeWorkspace } = useWorkspace()
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [activeCount, setActiveCount] = useState(0)
   const [criticalCount, setCriticalCount] = useState(0)
@@ -69,6 +71,7 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToAgentChat, o
   const buttonRef = useRef<HTMLButtonElement>(null)
   const seenNotificationIds = useRef<Set<string>>(new Set())
   const [desktopAnchor, setDesktopAnchor] = useState<{ top: number; right: number } | null>(null)
+  const activeWorkspaceId = activeWorkspace?.id || 'default'
 
   const fetchNotifications = useCallback(async () => {
     if (document.hidden) return
@@ -112,6 +115,17 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToAgentChat, o
     document.addEventListener('visibilitychange', handleVisibilityChange)
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
   }, [fetchNotifications])
+
+  useEffect(() => {
+    seenNotificationIds.current = new Set()
+    setNotifications([])
+    setActiveCount(0)
+    setCriticalCount(0)
+    setWarningCount(0)
+    setOpen(false)
+    setDocEntries([])
+    fetchNotifications()
+  }, [activeWorkspaceId, fetchNotifications])
 
   // Load agents for delegation blockers
   useEffect(() => {
