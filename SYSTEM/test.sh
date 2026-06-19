@@ -236,18 +236,29 @@ test_api() {
   local name="$1"
   local endpoint="$2"
   local expected_code="${3:-200}"
+  local attempts=0
+  local response code body
 
-  response=$(apicurl -w "\n%{http_code}" "$API_BASE$endpoint")
-  code=$(echo "$response" | tail -n 1)
-  body=$(echo "$response" | sed '$d')
+  while [ "$attempts" -lt 3 ]; do
+    response=$(apicurl -w "\n%{http_code}" "$API_BASE$endpoint")
+    code=$(echo "$response" | tail -n 1)
+    body=$(echo "$response" | sed '$d')
 
-  if [ "$code" -eq "$expected_code" ]; then
-    pass "$name (HTTP $code)"
-    return 0
-  else
-    fail "$name (expected $expected_code, got $code)"
-    return 1
-  fi
+    if [ "$code" = "$expected_code" ]; then
+      pass "$name (HTTP $code)"
+      return 0
+    fi
+
+    if [ "$code" != "000" ]; then
+      break
+    fi
+
+    attempts=$((attempts + 1))
+    sleep 1
+  done
+
+  fail "$name (expected $expected_code, got $code)"
+  return 1
 }
 
 test_json_field() {
@@ -3437,23 +3448,29 @@ fi
 # Step 6: Test 1-1 agent chat
 echo ""
 echo -e "${YELLOW}→ Testing agent chat...${NC}"
-chat_result=$(apicurl -X POST "$API_BASE/api/agents/test-lead/chat" \
-  -H 'Content-Type: application/json' \
-  -d '{"message":"Say HELLO in exactly one word.","sessionId":"integration-test"}' 2>/dev/null)
-
-if echo "$chat_result" | jq -e '.text' > /dev/null 2>&1; then
-  response_text=$(echo "$chat_result" | jq -r '.text' | head -1)
-  pass "Agent chat works (response: ${response_text:0:50})"
-elif echo "$chat_result" | grep -q '"type":"complete"'; then
-  response_text=$(echo "$chat_result" | sed -n 's/^data: //p' | jq -r 'select(.type == "complete") | .data.text // empty' | tail -1)
-  pass "Agent chat works (response: ${response_text:0:50})"
+integration_openai_key=$(grep SYSTEM_OPENAI_API_KEY "dashboard/.env" 2>/dev/null | cut -d= -f2)
+integration_anthropic_key=$(grep SYSTEM_ANTHROPIC_API_KEY "dashboard/.env" 2>/dev/null | cut -d= -f2)
+if [ -z "${integration_openai_key:-}" ] && [ -z "${integration_anthropic_key:-}" ]; then
+  warn "Agent chat skipped (no SYSTEM_OPENAI_API_KEY or SYSTEM_ANTHROPIC_API_KEY configured)"
 else
-  # Chat might use streaming — check for error
-  if echo "$chat_result" | jq -e '.error' > /dev/null 2>&1; then
-    error_msg=$(echo "$chat_result" | jq -r '.error')
-    warn "Agent chat: $error_msg (may need gateway)"
+  chat_result=$(apicurl -X POST "$API_BASE/api/agents/test-lead/chat" \
+    -H 'Content-Type: application/json' \
+    -d '{"message":"Say HELLO in exactly one word.","sessionId":"integration-test"}' 2>/dev/null)
+
+  if echo "$chat_result" | jq -e '.text' > /dev/null 2>&1; then
+    response_text=$(echo "$chat_result" | jq -r '.text' | head -1)
+    pass "Agent chat works (response: ${response_text:0:50})"
+  elif echo "$chat_result" | grep -q '"type":"complete"'; then
+    response_text=$(echo "$chat_result" | sed -n 's/^data: //p' | jq -r 'select(.type == "complete") | .data.text // empty' | tail -1)
+    pass "Agent chat works (response: ${response_text:0:50})"
   else
-    warn "Agent chat returned unexpected format"
+    # Chat might use streaming — check for error
+    if echo "$chat_result" | jq -e '.error' > /dev/null 2>&1; then
+      error_msg=$(echo "$chat_result" | jq -r '.error')
+      warn "Agent chat: $error_msg (may need gateway)"
+    else
+      warn "Agent chat returned unexpected format"
+    fi
   fi
 fi
 
