@@ -5,7 +5,7 @@ All notable changes to ClawMax are documented here.
 ## [Unreleased]
 
 ### Current RC
-- **`1.8.9-test-rc1` Auth / Runtime Hardening** — waiting-for-input notifications now open the actual workflow group/community conversation context; workflow runs preserve full OpenAI-compatible runtime settings instead of collapsing into hosted OpenAI auth paths; and stale auth/session state is reset more aggressively after credential changes so refreshed keys take effect cleanly.
+- **`1.8.9-test-rc7` Auth / Runtime Hardening** — waiting-for-input notifications now open the actual workflow group/community conversation context; workflow runs preserve full OpenAI-compatible runtime settings instead of collapsing into hosted OpenAI auth paths; stale auth/session state is reset more aggressively after credential changes; Builder no longer stores a raw prompt turn as `AI Description`; agent chat history/current-session recovery is fixed for explicit sessions and local replies; normal dashboard chat stays on stable local sessions; the agent chat panel no longer crashes on streamed replies; workflow-failed notifications open the failed execution run; WhatsApp linking is hardened against the `linked` / `done` race; chat history shows day separators for older failures; and notifications now reset/refetch on workspace switch.
 
 ### Testing
 - **Expanded Auth / Workflow Coverage** — added visible regression coverage for waiting-input conversation-target preservation, workflow OpenAI-compatible runtime isolation, workflow execution env shaping, and auth-profile-driven session reset even when the selected model stays the same.
