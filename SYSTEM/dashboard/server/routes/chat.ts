@@ -17,6 +17,7 @@ import { executeClawmaxResendSend } from '../lib/clawmax-resend-command'
 import {
   deriveWorkspaceRootFromAgentWorkspace,
   readLatestAssistantUsageFromPersistedSession,
+  readLatestAssistantTextFromPersistedSession,
   resolveAgentExecutionConfig,
   resolvePersistedAgentSessionId,
   runExclusiveAgentExecution,
@@ -641,12 +642,13 @@ router.post('/:id/chat', async (req, res) => {
   const executionMessage = useManagedSecretStatelessSession
     ? buildManagedSecretStatelessChatMessage(message, (req.body as any).contextMessages, assignedSkills, currentAgentWorkspaceDir)
     : message
+  const executionSessionId = useManagedSecretStatelessSession
+    ? scopeSessionIdToModel(`${effectiveSessionId}-${randomUUID().slice(0, 8)}`, resolvedAgent.model)
+    : effectiveSessionId
   const args = [
     'agent',
     '--agent', id,
-    '--session-id', useManagedSecretStatelessSession
-      ? scopeSessionIdToModel(`${effectiveSessionId}-${randomUUID().slice(0, 8)}`, resolvedAgent.model)
-      : effectiveSessionId,
+    '--session-id', executionSessionId,
     '--message', executionMessage,
     ...(useLocal ? ['--local'] : []),
   ]
@@ -705,16 +707,23 @@ router.post('/:id/chat', async (req, res) => {
         }
 
         const normalizedText = normalizeChatMessage(fullOutput.trim())
+        const persistedAssistant = !normalizedText
+          ? readLatestAssistantTextFromPersistedSession(
+              id,
+              dashboardSessionKey,
+              executionSessionId
+            )
+          : null
 
-        let completionText = normalizedText || ''
+        let completionText = normalizedText || normalizeChatMessage(persistedAssistant?.content || '') || ''
 
-        if (normalizedText) {
+        if (completionText) {
           const usage = readLatestAssistantUsageFromPersistedSession(
             id,
             dashboardSessionKey,
-            effectiveSessionId
+            executionSessionId
           )
-          traceAgentChat(id, message, normalizedText, {
+          traceAgentChat(id, message, completionText, {
             model: usage?.model || resolvedAgent.model,
             provider: usage?.provider || resolvedAgent.provider || undefined,
             inputTokens: usage?.inputTokens,
@@ -722,7 +731,7 @@ router.post('/:id/chat', async (req, res) => {
             cacheReadTokens: usage?.cacheReadTokens,
             durationMs: Math.max(0, Date.now() - chatStartedAt),
             estimatedCostUsd: usage?.estimatedCostUsd,
-            sessionId: usage?.sessionId || effectiveSessionId,
+            sessionId: usage?.sessionId || persistedAssistant?.sessionId || executionSessionId,
             actorUserId: session?.userId,
             actorLogin: session?.login,
             actorEmail: session?.email,

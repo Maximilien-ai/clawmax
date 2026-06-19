@@ -11,6 +11,7 @@ import {
   deriveWorkspaceRootFromAgentWorkspace,
   getAgentExecutionRetryDelay,
   isOpenClawSessionLockError,
+  readLatestAssistantTextFromPersistedSession,
   readLatestAssistantUsageFromPersistedSession,
   resolvePersistedAgentSessionId,
   resolveAgentExecutionConfig,
@@ -422,6 +423,26 @@ test('readLatestAssistantUsageFromPersistedSession returns session id even when 
   assert(usage?.sessionId === 'latest-session', `Expected newest session fallback, got ${usage?.sessionId}`)
   assert((usage?.inputTokens || 0) === 0, `Expected zero input tokens when usage missing, got ${usage?.inputTokens}`)
   assert((usage?.outputTokens || 0) === 0, `Expected zero output tokens when usage missing, got ${usage?.outputTokens}`)
+})
+
+test('readLatestAssistantTextFromPersistedSession extracts assistant text from resolved session file', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-session-home-'))
+  const sessionsDir = path.join(home, '.openclaw', 'agents', 'ceo', 'sessions')
+  fs.mkdirSync(sessionsDir, { recursive: true })
+  fs.writeFileSync(path.join(sessionsDir, 'sessions.json'), JSON.stringify({
+    'agent:ceo:dashboard-chat': {
+      sessionId: 'current-session',
+      updatedAt: Date.now(),
+    }
+  }, null, 2), 'utf-8')
+  fs.writeFileSync(path.join(sessionsDir, 'current-session.jsonl'), [
+    JSON.stringify({ type: 'message', message: { role: 'user', content: [{ type: 'text', text: 'who are you?' }] } }),
+    JSON.stringify({ type: 'message', message: { role: 'assistant', content: [{ type: 'text', text: "I'm the CEO agent." }] } }),
+  ].join('\n'), 'utf-8')
+
+  const latest = readLatestAssistantTextFromPersistedSession('ceo', 'agent:ceo:dashboard-chat', undefined, home)
+  assert(latest?.sessionId === 'current-session', `Expected resolved session id, got ${latest?.sessionId}`)
+  assert(latest?.content === "I'm the CEO agent.", `Expected assistant text from persisted session, got ${latest?.content}`)
 })
 
 test('isOpenClawSessionLockError matches lock timeout errors', () => {

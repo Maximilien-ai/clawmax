@@ -444,6 +444,57 @@ export function readLatestAssistantUsageFromPersistedSession(
   return sessionId ? { sessionId } : null
 }
 
+export function readLatestAssistantTextFromPersistedSession(
+  agentId: string,
+  sessionKey: string,
+  preferredSessionId?: string,
+  homeDir: string = process.env.HOME || ''
+): {
+  sessionId?: string
+  content?: string
+} | null {
+  const sessionId = resolvePersistedAgentSessionId(agentId, sessionKey, preferredSessionId, homeDir)
+  if (!sessionId || !homeDir) return null
+
+  const sessionFile = path.join(homeDir, '.openclaw', 'agents', agentId, 'sessions', `${sessionId}.jsonl`)
+  if (!fs.existsSync(sessionFile)) return null
+
+  try {
+    const lines = fs.readFileSync(sessionFile, 'utf-8')
+      .split('\n')
+      .filter((line) => line.trim())
+
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const entry = JSON.parse(lines[i])
+      const message = entry?.message
+      if (entry?.type !== 'message' || message?.role !== 'assistant') continue
+
+      const contentArray = Array.isArray(message?.content) ? message.content : [message?.content]
+      const content = contentArray
+        .map((part: any) => {
+          if (typeof part === 'string') return part
+          if (!part || typeof part !== 'object') return ''
+          if (part.type === 'text' && typeof part.text === 'string') return part.text
+          if (typeof part.text === 'string') return part.text
+          if (typeof part.content === 'string') return part.content
+          return ''
+        })
+        .filter(Boolean)
+        .join('\n')
+        .trim()
+
+      if (content) {
+        return {
+          sessionId,
+          content,
+        }
+      }
+    }
+  } catch {}
+
+  return sessionId ? { sessionId } : null
+}
+
 function normalizeSessionModel(model?: string): string | undefined {
   if (!model) return undefined
   const trimmed = model.trim()
