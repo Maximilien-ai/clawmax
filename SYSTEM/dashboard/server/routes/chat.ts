@@ -291,6 +291,37 @@ function buildDashboardChatSeed(agentId: string, agentWorkspaceDir?: string): st
   return `dashboard-${agentId}-${stamp}-chat`
 }
 
+export async function retryAssistantTextLookup(
+  reader: () => { sessionId?: string; content?: string } | null,
+  attempts = 4,
+  delayMs = 250
+): Promise<{ sessionId?: string; content?: string } | null> {
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    const latest = reader()
+    if (latest?.content) {
+      return latest
+    }
+    if (attempt < attempts - 1) {
+      await new Promise((resolve) => setTimeout(resolve, delayMs))
+    }
+  }
+  return reader()
+}
+
+async function readLatestAssistantTextWithRetry(
+  agentId: string,
+  sessionKey: string,
+  preferredSessionId: string,
+  attempts = 4,
+  delayMs = 250
+): Promise<{ sessionId?: string; content?: string } | null> {
+  return retryAssistantTextLookup(
+    () => readLatestAssistantTextFromPersistedSession(agentId, sessionKey, preferredSessionId),
+    attempts,
+    delayMs
+  )
+}
+
 export function deriveChatError(raw: string, provider?: ChatProvider): string {
   const text = raw.trim()
   if (!text) return 'No reply from agent.'
@@ -708,7 +739,7 @@ router.post('/:id/chat', async (req, res) => {
 
         const normalizedText = normalizeChatMessage(fullOutput.trim())
         const persistedAssistant = !normalizedText
-          ? readLatestAssistantTextFromPersistedSession(
+          ? await readLatestAssistantTextWithRetry(
               id,
               dashboardSessionKey,
               executionSessionId

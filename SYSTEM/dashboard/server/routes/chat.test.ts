@@ -9,6 +9,7 @@ import {
   buildManagedSecretStatelessChatMessage,
   deriveChatError,
   hasByokExecutionPathForProvider,
+  retryAssistantTextLookup,
   resolveByokChatFallbackModel,
   shouldAttemptManagedResendDispatch,
   shouldUseLocalChatExecution,
@@ -360,6 +361,18 @@ test('sendResendTestEmail sends with an abort timeout signal', async () => {
 
   assert(capturedInit?.signal instanceof AbortSignal, 'Expected Resend fetch to include an AbortSignal timeout')
   resetResendSendGuardrailsForTests()
+})
+
+test('retryAssistantTextLookup waits briefly for persisted assistant text to appear', async () => {
+  let reads = 0
+  const result = await retryAssistantTextLookup(() => {
+    reads += 1
+    if (reads < 3) return { sessionId: 'chat-session' }
+    return { sessionId: 'chat-session', content: 'Hello from the persisted session.' }
+  }, 3, 1)
+
+  assert(result?.content === 'Hello from the persisted session.', 'Expected retry helper to return the first non-empty assistant text')
+  assert(reads === 3, `Expected retry helper to poll until content appeared, got ${reads} reads`)
 })
 
 testChain.then(() => {
