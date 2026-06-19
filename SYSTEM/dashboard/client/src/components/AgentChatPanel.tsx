@@ -931,6 +931,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
             const msg = timelineMessageMap.get(row.key)
             if (!msg) return null
             const msgIsError = msg.role === 'assistant' && isErrorContent(msg.content)
+            const isStreamingPlaceholder = streaming && msg.role === 'assistant' && msg.id === messages[messages.length - 1]?.id
             return (
             <div
               key={msg.id}
@@ -951,7 +952,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
                       <pre className="text-xs whitespace-pre-wrap break-words font-mono overflow-auto max-h-60">{cleanMessageContent(msg.content)}</pre>
                     ) : (
                       <div className="text-sm prose prose-sm dark:prose-invert max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
-                        {renderMarkdown(msg.content || (streaming && idx === messages.length - 1 ? '▌' : ''), true, 'assistant')}
+                        {renderMarkdown(msg.content || (isStreamingPlaceholder ? '▌' : ''), true, 'assistant')}
                       </div>
                     )}
                     {onNavigateToDoc && getResolvedFileMentions(msg.content || '').length > 0 && (
