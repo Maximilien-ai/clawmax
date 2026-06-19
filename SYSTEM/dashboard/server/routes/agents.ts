@@ -218,6 +218,140 @@ async function registerAgentInConfig(agentId: string, profile: boolean): Promise
 
 const router = Router()
 
+type ProvisionGeneratedFiles = {
+  identity: string
+  soul: string
+  tools: string
+}
+
+function collapseInlineWhitespace(value: string): string {
+  return value.replace(/\s+/g, ' ').trim()
+}
+
+function extractIdentityField(identityContent: string, label: string): string | null {
+  const match = identityContent.match(new RegExp(`\\*\\*${label}:\\*\\*\\s*(.+)`, 'i'))
+  return match?.[1] ? collapseInlineWhitespace(match[1]) : null
+}
+
+function extractFirstMeaningfulParagraph(markdown: string): string | null {
+  const paragraphs = markdown
+    .split(/\n\s*\n/)
+    .map((block) => block.trim())
+    .filter(Boolean)
+    .filter((block) => !/^#/.test(block))
+    .filter((block) => !/^\*\*[^*]+:\*\*/.test(block))
+
+  for (const paragraph of paragraphs) {
+    const collapsed = collapseInlineWhitespace(
+      paragraph
+        .replace(/^[-*]\s+/gm, '')
+        .replace(/`+/g, '')
+    )
+    if (collapsed.length >= 24) {
+      return collapsed
+    }
+  }
+
+  return null
+}
+
+export function synthesizeAgentAiDescription(
+  aiDescription?: string,
+  generatedFiles?: ProvisionGeneratedFiles
+): string | null {
+  if (generatedFiles?.identity) {
+    const identity = generatedFiles.identity
+    const name = extractIdentityField(identity, 'Name')
+    const role = extractIdentityField(identity, 'Role')
+      || extractIdentityField(identity, 'Creature')
+    const mission = extractIdentityField(identity, 'Mission')
+      || extractIdentityField(identity, 'Purpose')
+      || extractFirstMeaningfulParagraph(identity)
+      || extractFirstMeaningfulParagraph(generatedFiles.soul || '')
+
+    const summaryParts = [name, role, mission].filter(Boolean) as string[]
+    if (summaryParts.length > 0) {
+      const summary = collapseInlineWhitespace(summaryParts.join(' — '))
+      if (summary) return summary.slice(0, 240)
+    }
+  }
+
+  const normalizedPrompt = collapseInlineWhitespace(String(aiDescription || ''))
+  if (!normalizedPrompt) return null
+
+  const synthesized = normalizedPrompt
+    .replace(/\b(user|assistant|system)\s*:/gi, '')
+    .replace(/\b(can you|please|build|create|make)\b/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  return synthesized ? synthesized.slice(0, 240) : null
+}
+
+function getAgentSessionsDir(agentId: string, homeDir: string = process.env.HOME || ''): string {
+  return path.join(homeDir, '.openclaw', 'agents', agentId, 'sessions')
+}
+
+function getAgentDashboardSessionKey(agentId: string): string {
+  return `agent:${agentId}:dashboard-chat`
+}
+
+function resolveAgentChatSessionId(agentId: string, homeDir: string = process.env.HOME || ''): string | null {
+  const resolvedAgent = resolveAgentExecutionConfig(agentId)
+  const sessionKey = getAgentDashboardSessionKey(agentId)
+  const preferredSessionId = scopeSessionIdToModel(sessionKey, resolvedAgent.model)
+  return resolvePersistedAgentSessionId(agentId, sessionKey, preferredSessionId, homeDir) || null
+}
+
+function extractVisibleChatText(content: unknown): string {
+  const contentArray = Array.isArray(content) ? content : [content]
+  return contentArray
+    .map((entry: any) => {
+      if (typeof entry === 'string') return entry
+      if (!entry || typeof entry !== 'object') return ''
+      if (entry.type === 'text' && typeof entry.text === 'string') return entry.text
+      if (typeof entry.text === 'string') return entry.text
+      if (typeof entry.content === 'string') return entry.content
+      if (Array.isArray(entry.content)) return extractVisibleChatText(entry.content)
+      return ''
+    })
+    .filter(Boolean)
+    .join('\n')
+}
+
+function parseVisibleChatMessages(jsonlContent: string): Array<{ role: 'user' | 'assistant'; content: string; timestamp: number }> {
+  const lines = jsonlContent.trim().split('\n').filter((line) => line.trim())
+  const messages: Array<{ role: 'user' | 'assistant'; content: string; timestamp: number }> = []
+
+  for (const line of lines) {
+    try {
+      const entry = JSON.parse(line)
+      if (entry.type !== 'message' || !entry.message) continue
+      const msg = entry.message
+      if (!isVisibleChatRole(msg.role)) continue
+      const content = normalizeChatMessage(extractVisibleChatText(msg.content))
+      if (!content) continue
+      messages.push({
+        role: msg.role,
+        content,
+        timestamp: msg.timestamp || entry.timestamp || Date.now(),
+      })
+    } catch {
+      continue
+    }
+  }
+
+  return messages
+}
+
+function readChatSessionMessages(agentId: string, sessionId: string, homeDir: string = process.env.HOME || '') {
+  const jsonlPath = path.join(getAgentSessionsDir(agentId, homeDir), `${sessionId}.jsonl`)
+  if (!fs.existsSync(jsonlPath)) {
+    return []
+  }
+  return parseVisibleChatMessages(fs.readFileSync(jsonlPath, 'utf-8'))
+}
+
 // GET /api/agents — list all agents with optional pagination
 // Query params: ?limit=20&cursor=agent-id
 router.get('/', (req, res) => {
@@ -478,6 +612,7 @@ router.post('/provision', (req, res) => {
     aiDescription?: string
     skills?: string[]
   }
+  const synthesizedAiDescription = synthesizeAgentAiDescription(aiDescription, generatedFiles)
 
   const resolvedModel = resolveDefaultAgentModel({
     explicitModel: model,
@@ -694,7 +829,7 @@ router.post('/provision', (req, res) => {
 - **Model:** ${normalizedModel || model || 'default'}
 - **Tags:** ${tags && tags.length > 0 ? tags.join(', ') : 'N/A'}
 - **Cloned From:** ${cloneFrom || 'N/A'}
-- **AI Description:** ${aiDescription || 'N/A'}
+- **AI Description:** ${synthesizedAiDescription || 'N/A'}
 `
         identityContent += metadata
         fs.writeFileSync(identityPath, identityContent)
@@ -2160,69 +2295,23 @@ router.get('/:id/chat/messages', async (req, res) => {
     return res.status(400).json({ error: 'Invalid agent id' })
   }
 
-  const sessionKey = `agent:${id}:dashboard-chat`
   try {
     const HOME = process.env.HOME || ''
-    const sessionsIndexPath = path.join(HOME, '.openclaw', 'agents', id, 'sessions', 'sessions.json')
+    const sessionsDir = getAgentSessionsDir(id, HOME)
+    const sessionsIndexPath = path.join(sessionsDir, 'sessions.json')
 
     // Check if sessions index exists
-    if (!fs.existsSync(sessionsIndexPath)) {
+    if (!fs.existsSync(sessionsIndexPath) && !fs.existsSync(sessionsDir)) {
       return res.json({ messages: [] })
     }
 
-    // Read sessions index
-    const sessionsIndex = JSON.parse(fs.readFileSync(sessionsIndexPath, 'utf-8'))
-
-    const actualSessionId = resolvePersistedAgentSessionId(id, sessionKey, undefined, HOME) || null
+    const actualSessionId = resolveAgentChatSessionId(id, HOME)
 
     if (!actualSessionId) {
       return res.json({ messages: [] })
     }
 
-    // Read the JSONL file for this session
-    const jsonlPath = path.join(HOME, '.openclaw', 'agents', id, 'sessions', `${actualSessionId}.jsonl`)
-
-    if (!fs.existsSync(jsonlPath)) {
-      return res.json({ messages: [] })
-    }
-
-    // Parse JSONL and extract message entries
-    const jsonlContent = fs.readFileSync(jsonlPath, 'utf-8')
-    const lines = jsonlContent.trim().split('\n').filter(l => l.trim())
-    const messages: any[] = []
-
-    for (const line of lines) {
-      try {
-        const entry = JSON.parse(line)
-        if (entry.type === 'message' && entry.message) {
-          const msg = entry.message
-          if (!isVisibleChatRole(msg.role)) continue
-          const contentArray = Array.isArray(msg.content) ? msg.content : [msg.content]
-          const textContent = contentArray
-            .map((c: any) => {
-              if (typeof c === 'string') return c
-              if (!c || typeof c !== 'object') return ''
-              if (c.type === 'text' && typeof c.text === 'string') return c.text
-              if (typeof c.text === 'string') return c.text
-              if (typeof c.content === 'string') return c.content
-              return ''
-            })
-            .filter(Boolean)
-            .join('\n')
-
-          messages.push({
-            role: msg.role,
-            content: normalizeChatMessage(textContent),
-            timestamp: msg.timestamp || entry.timestamp || Date.now()
-          })
-        }
-      } catch (e) {
-        // Skip malformed lines
-        continue
-      }
-    }
-
-    res.json({ messages })
+    res.json({ messages: readChatSessionMessages(id, actualSessionId, HOME) })
   } catch (err) {
     res.status(500).json({ error: String(err) })
   }
@@ -2235,18 +2324,19 @@ router.delete('/:id/chat/messages', async (req, res) => {
     return res.status(400).json({ error: 'Invalid agent id' })
   }
 
-  const sessionKey = `agent:${id}:dashboard-chat`
   try {
     const HOME = process.env.HOME || ''
-    const sessionsDir = path.join(HOME, '.openclaw', 'agents', id, 'sessions')
+    const sessionsDir = getAgentSessionsDir(id, HOME)
     const sessionsIndexPath = path.join(sessionsDir, 'sessions.json')
 
-    if (!fs.existsSync(sessionsIndexPath)) {
+    if (!fs.existsSync(sessionsIndexPath) && !fs.existsSync(sessionsDir)) {
       return res.json({ ok: true, archived: false })
     }
 
-    const sessionsIndex = JSON.parse(fs.readFileSync(sessionsIndexPath, 'utf-8'))
-    const actualSessionId = resolvePersistedAgentSessionId(id, sessionKey, undefined, HOME) || null
+    const sessionsIndex = fs.existsSync(sessionsIndexPath)
+      ? JSON.parse(fs.readFileSync(sessionsIndexPath, 'utf-8'))
+      : {}
+    const actualSessionId = resolveAgentChatSessionId(id, HOME)
 
     if (!actualSessionId) {
       return res.json({ ok: true, archived: false })
@@ -2269,7 +2359,10 @@ router.delete('/:id/chat/messages', async (req, res) => {
       fs.unlinkSync(jsonlPath)
 
       // Remove session from index
-      delete sessionsIndex[sessionKey]
+      const sessionKey = getAgentDashboardSessionKey(id)
+      if (sessionsIndex[sessionKey]?.sessionId === actualSessionId) {
+        delete sessionsIndex[sessionKey]
+      }
       fs.writeFileSync(sessionsIndexPath, JSON.stringify(sessionsIndex, null, 2))
 
       return res.json({ ok: true, archived: true })
@@ -2290,13 +2383,24 @@ router.get('/:id/chat/archives', async (req, res) => {
 
   try {
     const HOME = process.env.HOME || ''
-    const archiveDir = path.join(HOME, '.openclaw', 'agents', id, 'sessions', 'archive')
+    const sessionsDir = getAgentSessionsDir(id, HOME)
+    const archiveDir = path.join(sessionsDir, 'archive')
 
-    if (!fs.existsSync(archiveDir)) {
-      return res.json({ archives: [] })
-    }
+    const activeSessionId = resolveAgentChatSessionId(id, HOME)
+    const activeSessionMessages = activeSessionId ? readChatSessionMessages(id, activeSessionId, HOME) : []
+    const activeSessionPath = activeSessionId ? path.join(sessionsDir, `${activeSessionId}.jsonl`) : null
+    const activeEntry = activeSessionId && activeSessionMessages.length > 0 && activeSessionPath && fs.existsSync(activeSessionPath)
+      ? [{
+          filename: `current:${activeSessionId}`,
+          timestamp: fs.statSync(activeSessionPath).mtimeMs,
+          messageCount: activeSessionMessages.length,
+          messages: activeSessionMessages.map((message) => ({ role: message.role, content: message.content })),
+          active: true,
+        }]
+      : []
 
-    const fileInfos = fs.readdirSync(archiveDir)
+    const archivedEntries = fs.existsSync(archiveDir)
+      ? fs.readdirSync(archiveDir)
       .filter(f => f.endsWith('.jsonl'))
       .map(filename => {
         const fullPath = path.join(archiveDir, filename)
@@ -2342,9 +2446,12 @@ router.get('/:id/chat/archives', async (req, res) => {
           // ignore
         }
 
-        return { filename, timestamp, messageCount, messages }
+        return { filename, timestamp, messageCount, messages, active: false }
       })
       .sort((a, b) => b.timestamp - a.timestamp)
+      : []
+
+    const fileInfos = [...activeEntry, ...archivedEntries]
 
     // Check for cached titles
     const titlesPath = path.join(archiveDir, '.titles.json')
@@ -2360,7 +2467,7 @@ router.get('/:id/chat/archives', async (req, res) => {
     // Generate titles (using cache when available)
     const archives = await Promise.all(
       fileInfos.map(async info => {
-        let title = cachedTitles[info.filename]
+        let title = info.active ? 'Current conversation' : cachedTitles[info.filename]
 
         if (!title) {
           // Generate new title
@@ -2372,16 +2479,19 @@ router.get('/:id/chat/archives', async (req, res) => {
           filename: info.filename,
           timestamp: info.timestamp,
           messageCount: info.messageCount,
-          title
+          title,
+          active: info.active,
         }
       })
     )
 
     // Save updated cache
-    try {
-      fs.writeFileSync(titlesPath, JSON.stringify(cachedTitles, null, 2))
-    } catch (err) {
-      console.error('Failed to save title cache:', err)
+    if (fs.existsSync(archiveDir) || archivedEntries.length > 0) {
+      try {
+        fs.writeFileSync(titlesPath, JSON.stringify(cachedTitles, null, 2))
+      } catch (err) {
+        console.error('Failed to save title cache:', err)
+      }
     }
 
     res.json({ archives })
@@ -2399,50 +2509,24 @@ router.get('/:id/chat/archives/:filename', async (req, res) => {
 
   try {
     const HOME = process.env.HOME || ''
-    const archiveDir = path.join(HOME, '.openclaw', 'agents', id, 'sessions', 'archive')
+    const sessionsDir = getAgentSessionsDir(id, HOME)
+    const archiveDir = path.join(sessionsDir, 'archive')
+
+    if (filename.startsWith('current:')) {
+      const sessionId = filename.slice('current:'.length)
+      if (!sessionId) {
+        return res.status(400).json({ error: 'Invalid current conversation id' })
+      }
+      return res.json({ messages: readChatSessionMessages(id, sessionId, HOME) })
+    }
+
     const filePath = path.join(archiveDir, filename)
 
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({ error: 'Archive not found' })
     }
 
-    const jsonlContent = fs.readFileSync(filePath, 'utf-8')
-    const lines = jsonlContent.trim().split('\n').filter(l => l.trim())
-
-    const messages: { role: 'user' | 'assistant'; content: string; timestamp?: number }[] = []
-
-    for (const line of lines) {
-      try {
-        const obj = JSON.parse(line)
-        if (obj.type === 'message' && obj.message) {
-          const msg = obj.message
-          if (!isVisibleChatRole(msg.role)) continue
-          let content = ''
-
-          // Handle content array format
-          if (Array.isArray(msg.content)) {
-            content = msg.content
-              .filter((c: any) => c?.type === 'text' && typeof c.text === 'string')
-              .map((c: any) => c.text)
-              .join('\n')
-          } else if (typeof msg.content === 'string') {
-            content = msg.content
-          }
-
-          if (content) {
-            messages.push({
-              role: msg.role || 'user',
-              content: normalizeChatMessage(content),
-              timestamp: obj.timestamp || msg.timestamp || Date.now()
-            })
-          }
-        }
-      } catch {
-        continue
-      }
-    }
-
-    res.json({ messages })
+    res.json({ messages: parseVisibleChatMessages(fs.readFileSync(filePath, 'utf-8')) })
   } catch (err) {
     res.status(500).json({ error: String(err) })
   }
@@ -2456,6 +2540,9 @@ router.delete('/:id/chat/archives/:filename', async (req, res) => {
   }
 
   try {
+    if (filename.startsWith('current:')) {
+      return res.status(400).json({ error: 'Current conversation cannot be deleted from history. Clear the active chat instead.' })
+    }
     const HOME = process.env.HOME || ''
     const archiveDir = path.join(HOME, '.openclaw', 'agents', id, 'sessions', 'archive')
     const filePath = path.join(archiveDir, filename)

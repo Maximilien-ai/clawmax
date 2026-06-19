@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { buildWhatsAppPairingDoneError } from '../lib/whatsAppPairing'
 
 interface Props {
   agentId: string
@@ -28,6 +29,8 @@ export default function LinkWhatsAppPanel({ agentId, agentName, isProfile, onClo
     setError(null)
     setLogs([])
     setPairingCode(null)
+    setLinked(false)
+    let didLink = false
 
     try {
       const resp = await fetch(`/api/agents/${agentId}/whatsapp/pair`, {
@@ -62,10 +65,12 @@ export default function LinkWhatsAppPanel({ agentId, agentName, isProfile, onClo
             } else if (msg.type === 'code') {
               setPairingCode(msg.data)
             } else if (msg.type === 'linked') {
+              didLink = true
               setLinked(true)
             } else if (msg.type === 'done') {
-              if (msg.data !== 'ok' && !linked) {
-                setError(`Pairing ended: ${msg.data}`)
+              const doneError = buildWhatsAppPairingDoneError(msg.data, didLink)
+              if (doneError) {
+                setError(doneError)
               }
               setPairing(false)
             } else if (msg.type === 'error') {

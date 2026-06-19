@@ -438,6 +438,17 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running WhatsApp pairing helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/whatsAppPairing.test.ts > /tmp/clawmax-whatsapp-pairing.out 2>&1 || true
+if grep -q '^✓ ' /tmp/clawmax-whatsapp-pairing.out; then
+  whatsapp_pairing_count=$(grep -c '^✓ ' /tmp/clawmax-whatsapp-pairing.out)
+  pass "WhatsApp pairing helper unit tests (${whatsapp_pairing_count:-?} tests)"
+else
+  cat /tmp/clawmax-whatsapp-pairing.out
+  fail "WhatsApp pairing helper unit tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Agent delete UI regression tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/agentDeleteUi.test.ts > /tmp/clawmax-agent-delete-ui.out 2>&1 || true
 if grep -q "✓ " /tmp/clawmax-agent-delete-ui.out; then

@@ -637,6 +637,68 @@ async function run() {
     }
   })
 
+  await test('provision stores a synthesized AI Description instead of the raw builder conversation prompt', async () => {
+    const tmpCliDir = path.join(tmpHome, 'bin-ai-description')
+    const fakeCli = path.join(tmpCliDir, 'openclaw')
+    fs.mkdirSync(tmpCliDir, { recursive: true })
+    fs.writeFileSync(fakeCli, '#!/bin/sh\necho test-openclaw\n', 'utf-8')
+    fs.chmodSync(fakeCli, 0o755)
+    process.env.OPENCLAW_BIN = fakeCli
+
+    const childProcess = require('child_process')
+    const originalSpawn = childProcess.spawn
+
+    childProcess.spawn = () => {
+      const listeners: Record<string, Function> = {}
+      return {
+        stdout: { on() {} },
+        stderr: { on() {} },
+        on(event: string, handler: Function) {
+          listeners[event] = handler
+          if (event === 'close') {
+            setTimeout(() => handler(0, null), 0)
+          }
+        },
+      }
+    }
+
+    try {
+      const handler = getRouteHandler('post', '/provision')
+      const res: any = {
+        writableEnded: false,
+        headers: {} as Record<string, string>,
+        setHeader(name: string, value: string) { this.headers[name] = value },
+        writeHead() { return this },
+        flushHeaders() {},
+        write() {},
+        end() { this.writableEnded = true },
+      }
+      const req: any = makeReq({
+        body: {
+          name: 'summary-bot',
+          model: 'openai/gpt-4o-mini',
+          aiDescription: 'User: make me a Korean language study agent.\nAssistant: I can help.\nUser: focus on travel, pronunciation, and beginner drills.',
+          generatedFiles: {
+            identity: '# IDENTITY\n\n**Name:** summary-bot\n**Role:** Korean language tutor\n**Mission:** Help beginners practice travel conversations, pronunciation, and daily drills.\n',
+            soul: '# SOUL\n\nPatient, encouraging, and concise.\n',
+            tools: '# TOOLS\n\n- flashcards\n',
+          },
+        },
+        on() {},
+      })
+      await handler(req, res)
+      await new Promise(resolve => setTimeout(resolve, 20))
+
+      const identityPath = path.join(workspacePath, 'AGENTS', 'summary-bot', 'IDENTITY.md')
+      const identity = fs.readFileSync(identityPath, 'utf-8')
+      assert(identity.includes('**AI Description:** summary-bot — Korean language tutor — Help beginners practice travel conversations, pronunciation, and daily drills.'), 'Expected synthesized AI Description from generated agent content')
+      assert(!identity.includes('User: make me a Korean language study agent'), 'Expected raw builder conversation not to be persisted verbatim')
+    } finally {
+      childProcess.spawn = originalSpawn
+      delete require.cache[require.resolve('./agents')]
+    }
+  })
+
   await test('validate-provision surfaces duplicate agent IDs from the active workspace', async () => {
     writeAgent(workspacePath, 'plain-agent', [
       '# IDENTITY.md',
@@ -691,6 +753,114 @@ async function run() {
       discoveryModule.discoverModels = originalDiscoverModels
       delete require.cache[require.resolve('./agents')]
     }
+  })
+
+  await test('chat messages route falls back to the newest explicit session file when the legacy dashboard mapping is missing', async () => {
+    writeAgent(workspacePath, 'history-agent', [
+      '# IDENTITY.md',
+      '**Name:** history-agent',
+      '**Model:** openai/gpt-4o-mini',
+      '**Role:** Test assistant',
+    ].join('\n'))
+
+    const configPath = path.join(tmpHome, '.openclaw', 'openclaw.json')
+    fs.writeFileSync(configPath, JSON.stringify({
+      agents: {
+        list: [{
+          id: 'history-agent',
+          workspace: path.join(workspacePath, 'AGENTS', 'history-agent'),
+          model: 'openai/gpt-4o-mini',
+        }],
+      },
+    }, null, 2))
+
+    const sessionsDir = path.join(tmpHome, '.openclaw', 'agents', 'history-agent', 'sessions')
+    fs.mkdirSync(sessionsDir, { recursive: true })
+    fs.writeFileSync(path.join(sessionsDir, 'agent-history-agent-explicit-gpt-4o-mini.jsonl'), [
+      JSON.stringify({
+        type: 'message',
+        timestamp: 1,
+        message: {
+          role: 'user',
+          content: [{ type: 'text', text: 'Hello there' }],
+          timestamp: 1,
+        },
+      }),
+      JSON.stringify({
+        type: 'message',
+        timestamp: 2,
+        message: {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'Hi from explicit session history' }],
+          timestamp: 2,
+        },
+      }),
+    ].join('\n'), 'utf-8')
+
+    const handler = getRouteHandler('get', '/:id/chat/messages')
+    const res = makeRes()
+    await handler(makeReq({ params: { id: 'history-agent' } }), res)
+
+    assert.strictEqual(res.statusCode, 200, 'Expected chat history route success')
+    assert.deepStrictEqual(
+      res.jsonBody?.messages?.map((message: any) => message.content),
+      ['Hello there', 'Hi from explicit session history'],
+      'Expected chat history to load from explicit session files even without a dashboard mapping'
+    )
+  })
+
+  await test('chat archives route includes the current explicit conversation when no archived sessions exist yet', async () => {
+    writeAgent(workspacePath, 'current-history-agent', [
+      '# IDENTITY.md',
+      '**Name:** current-history-agent',
+      '**Model:** openai/gpt-4o-mini',
+      '**Role:** Test assistant',
+    ].join('\n'))
+
+    const configPath = path.join(tmpHome, '.openclaw', 'openclaw.json')
+    fs.writeFileSync(configPath, JSON.stringify({
+      agents: {
+        list: [{
+          id: 'current-history-agent',
+          workspace: path.join(workspacePath, 'AGENTS', 'current-history-agent'),
+          model: 'openai/gpt-4o-mini',
+        }],
+      },
+    }, null, 2))
+
+    const sessionsDir = path.join(tmpHome, '.openclaw', 'agents', 'current-history-agent', 'sessions')
+    fs.mkdirSync(sessionsDir, { recursive: true })
+    fs.writeFileSync(path.join(sessionsDir, 'agent-current-history-explicit-gpt-4o-mini.jsonl'), [
+      JSON.stringify({
+        type: 'message',
+        timestamp: 1,
+        message: {
+          role: 'user',
+          content: [{ type: 'text', text: 'Need help with the current thread' }],
+          timestamp: 1,
+        },
+      }),
+    ].join('\n'), 'utf-8')
+
+    const listHandler = getRouteHandler('get', '/:id/chat/archives')
+    const listRes = makeRes()
+    await listHandler(makeReq({ params: { id: 'current-history-agent' } }), listRes)
+
+    assert.strictEqual(listRes.statusCode, 200, 'Expected chat archives route success')
+    assert.strictEqual(listRes.jsonBody?.archives?.[0]?.active, true, 'Expected current conversation to appear as a history entry')
+    assert.strictEqual(listRes.jsonBody?.archives?.[0]?.title, 'Current conversation', 'Expected current conversation title')
+
+    const detailHandler = getRouteHandler('get', '/:id/chat/archives/:filename')
+    const detailRes = makeRes()
+    await detailHandler(makeReq({
+      params: {
+        id: 'current-history-agent',
+        filename: listRes.jsonBody.archives[0].filename,
+      },
+    }), detailRes)
+
+    assert.strictEqual(detailRes.statusCode, 200, 'Expected current conversation history detail route success')
+    assert.strictEqual(detailRes.jsonBody?.messages?.[0]?.content, 'Need help with the current thread')
   })
 
   await test('models route forwards LM Studio and Ollama local model settings into discovery', async () => {

@@ -193,7 +193,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
   const [isListening, setIsListening] = useState(false)
   const [showClearConfirm, setShowClearConfirm] = useState(false)
   const [showArchives, setShowArchives] = useState(false)
-  const [archives, setArchives] = useState<Array<{ filename: string; timestamp: number; messageCount: number; title: string }>>([])
+  const [archives, setArchives] = useState<Array<{ filename: string; timestamp: number; messageCount: number; title: string; active?: boolean }>>([])
   const [viewingArchive, setViewingArchive] = useState<{ filename: string; messages: any[] } | null>(null)
   const [copyFeedback, setCopyFeedback] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
@@ -1181,7 +1181,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
               </div>
               <div className="overflow-y-auto flex-1">
                 {archives.length === 0 ? (
-                  <p className="text-sm text-gray-400 text-center py-8">No archives yet</p>
+                  <p className="text-sm text-gray-400 text-center py-8">No conversations yet</p>
                 ) : (
                   <div className="space-y-2">
                     {archives.map(archive => (
@@ -1197,16 +1197,18 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
                             {archive.title || 'Untitled conversation'}
                           </div>
                           <div className="text-xs text-gray-500 mt-1">
-                            {new Date(archive.timestamp).toLocaleDateString()} • {archive.messageCount} messages
+                            {archive.active ? 'Current conversation' : new Date(archive.timestamp).toLocaleDateString()} • {archive.messageCount} messages
                           </div>
                         </button>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setDeleteConfirm(archive.filename); }}
-                          className="p-3 text-red-400 hover:text-red-600 transition-colors"
-                          title="Delete archive"
-                        >
-                          🗑
-                        </button>
+                        {!archive.active && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setDeleteConfirm(archive.filename); }}
+                            className="p-3 text-red-400 hover:text-red-600 transition-colors"
+                            title="Delete archive"
+                          >
+                            🗑
+                          </button>
+                        )}
                       </div>
                     ))}
                   </div>
