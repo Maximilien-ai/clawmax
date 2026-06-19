@@ -92,6 +92,8 @@ async function run() {
       entityId: 'wf-1',
       entityType: 'workflow',
       fingerprint: 'workflow-failed:wf-1',
+      workflowId: 'wf-1',
+      executionId: 'exec-123',
     })
     createNotification({
       type: 'cost-warning',
@@ -110,6 +112,8 @@ async function run() {
     assert.strictEqual(res.jsonBody?.activeCount, 2, 'Expected two active notifications')
     assert.strictEqual(res.jsonBody?.criticalCount, 1, 'Expected one critical notification')
     assert.strictEqual(res.jsonBody?.warningCount, 1, 'Expected one warning notification')
+    const workflowFailed = (res.jsonBody?.notifications || []).find((item: any) => item.type === 'workflow-failed' && item.entityId === 'wf-1')
+    assert.strictEqual(workflowFailed?.executionId, 'exec-123', 'Expected workflow failure notification to preserve execution id for deep links')
   })
 
   await test('dismiss route validates required id and can dismiss grouped notifications', async () => {

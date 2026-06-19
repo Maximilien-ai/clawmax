@@ -142,6 +142,7 @@ interface WorkflowsProps {
   onNavigateToCommunity?: (communityName: string) => void
   onNavigateToDoc?: (file: string) => void
   initialWorkflowId?: string
+  initialWorkflowExecutionId?: string
   isActive?: boolean
 }
 
@@ -377,7 +378,7 @@ function ImportWorkflowModal({
   )
 }
 
-export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavigateToCommunity, onNavigateToDoc, initialWorkflowId, isActive = true }: WorkflowsProps = {}) {
+export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavigateToCommunity, onNavigateToDoc, initialWorkflowId, initialWorkflowExecutionId, isActive = true }: WorkflowsProps = {}) {
   const { showSuccess, showError } = useToast()
   const { activeWorkspace } = useWorkspace()
   const { config } = useAuth()
@@ -446,6 +447,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
     onConfirm: () => Promise<void>
   } | null>(null)
   const handledInitialWorkflowIdRef = useRef<string | null>(null)
+  const handledInitialWorkflowExecutionRef = useRef<string | null>(null)
   const loadedWorkflowWorkspaceRef = useRef<string | null>(null)
   const lastWorkflowFetchStartedAtRef = useRef(0)
   const activeWorkspaceId = activeWorkspace?.id || 'default'
@@ -825,16 +827,22 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeWorkspace?.id, isActive, rateLimitedUntil, markRateLimited, viewMode, runningWorkflows.size])
 
-  // Handle initialWorkflowId
+  // Handle initial workflow / execution deep links
   useEffect(() => {
     if (!isActive) return
     if (!initialWorkflowId || workflows.length === 0) return
-    if (handledInitialWorkflowIdRef.current === initialWorkflowId) return
+    const navigationKey = `${initialWorkflowId}:${initialWorkflowExecutionId || ''}`
+    if (handledInitialWorkflowExecutionRef.current === navigationKey) return
     const workflow = workflows.find(w => w.id === initialWorkflowId)
     if (!workflow) return
     handledInitialWorkflowIdRef.current = initialWorkflowId
+    handledInitialWorkflowExecutionRef.current = navigationKey
+    if (initialWorkflowExecutionId) {
+      fetchExecutionDetails(initialWorkflowId, initialWorkflowExecutionId)
+      return
+    }
     fetchWorkflowDetails(initialWorkflowId)
-  }, [isActive, initialWorkflowId, workflows])
+  }, [isActive, initialWorkflowId, initialWorkflowExecutionId, workflows])
 
   const fetchWorkflowDetails = async (id: string) => {
     if (Date.now() < rateLimitedUntil) return

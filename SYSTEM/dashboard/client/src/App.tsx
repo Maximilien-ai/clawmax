@@ -395,6 +395,7 @@ export default function App() {
   const [initialSkillsAgent, setInitialSkillsAgent] = useState<string | undefined>(undefined)
   const [initialSkillsSkill, setInitialSkillsSkill] = useState<string | undefined>(undefined)
   const [initialWorkflowId, setInitialWorkflowId] = useState<string | undefined>(undefined)
+  const [initialWorkflowExecutionId, setInitialWorkflowExecutionId] = useState<string | undefined>(undefined)
   const [initialCommunityName, setInitialCommunityName] = useState<string | undefined>(undefined)
   const [initialOrgGroupName, setInitialOrgGroupName] = useState<string | undefined>(undefined)
   const [showWorkspaceDialog, setShowWorkspaceDialog] = useState(false)
@@ -916,7 +917,7 @@ export default function App() {
               darkMode={darkMode}
               onToggleDarkMode={() => setDarkMode(d => !d)}
               onNavigateToAgent={(agentId) => { setInitialAgentId(agentId); setPage('agents') }}
-              onNavigateToWorkflow={(workflowId) => { setInitialWorkflowId(workflowId); setPage('workflows') }}
+              onNavigateToWorkflow={(workflowId, executionId) => { setInitialWorkflowId(workflowId); setInitialWorkflowExecutionId(executionId); setPage('workflows') }}
               onNavigateToPage={(p) => setPage(p as any)}
               onNavigateToChannel={(channelName, openChat) => {
                 setInitialGroupName(channelName)
@@ -980,7 +981,7 @@ export default function App() {
                     setInitialSkillsSkill(skillName)
                     setPage('skills')
                   }}
-                  onOpenWorkflow={(workflowId) => { setInitialWorkflowId(workflowId); setPage('workflows') }}
+                  onOpenWorkflow={(workflowId) => { setInitialWorkflowId(workflowId); setInitialWorkflowExecutionId(undefined); setPage('workflows') }}
                 />
               </WorkspaceScoped>
             </div>
@@ -997,7 +998,7 @@ export default function App() {
               <WorkspaceScoped pageKey="organizations">
                 <Organizations
                   onNavigateToAgent={(agentId) => { setInitialAgentId(agentId); setPage('agents'); }}
-                  onNavigateToWorkflow={(workflowId) => { setInitialWorkflowId(workflowId); setPage('workflows'); }}
+                  onNavigateToWorkflow={(workflowId) => { setInitialWorkflowId(workflowId); setInitialWorkflowExecutionId(undefined); setPage('workflows'); }}
                   onNavigateToGroup={(groupName) => { setInitialGroupName(groupName); setPage('communication'); }}
                   onNavigateToDoc={(file) => { setDocFile(file); setPage('docs'); }}
                   initialCommunityName={initialCommunityName}
@@ -1020,6 +1021,7 @@ export default function App() {
                   onNavigateToCommunity={(communityName) => { setInitialCommunityName(communityName); setPage('organizations'); }}
                   onNavigateToDoc={(file) => { setDocFile(file); setPage('docs'); }}
                   initialWorkflowId={initialWorkflowId}
+                  initialWorkflowExecutionId={initialWorkflowExecutionId}
                   isActive={page === 'workflows'}
                 />
               </WorkspaceScoped>
@@ -1044,7 +1046,7 @@ export default function App() {
               <WorkspaceScoped pageKey="communication">
                 <Communication
                   onNavigateToAgent={(agentId) => { setInitialAgentId(agentId); setPage('agents'); }}
-                  onNavigateToWorkflow={(workflowId) => { setInitialWorkflowId(workflowId); setPage('workflows'); }}
+                  onNavigateToWorkflow={(workflowId) => { setInitialWorkflowId(workflowId); setInitialWorkflowExecutionId(undefined); setPage('workflows'); }}
                   onNavigateToDoc={(file) => { setDocFile(file); setPage('docs'); }}
                   initialGroupName={initialGroupName}
                   onClearInitialGroupName={() => setInitialGroupName(undefined)}
@@ -1111,7 +1113,7 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
   darkMode?: boolean
   onToggleDarkMode?: () => void
   onNavigateToAgent?: (agentId: string) => void
-  onNavigateToWorkflow?: (workflowId: string) => void
+  onNavigateToWorkflow?: (workflowId: string, executionId?: string) => void
   onNavigateToPage?: (page: string) => void
   onNavigateToChannel?: (channelName: string, openChat?: boolean) => void
   onNavigateToDoc?: (path: string) => void

@@ -2113,6 +2113,7 @@ export function triggerWorkflow(workflowId: string, options?: {
           entityType: 'workflow',
           fingerprint: `wf-failed:${workflowId}:${execution.id}`,
           workflowId,
+          executionId: execution.id,
         })
       }
 

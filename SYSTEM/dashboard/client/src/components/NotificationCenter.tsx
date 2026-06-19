@@ -29,7 +29,7 @@ async function resolveAction(id: string, action: string, value?: string): Promis
 interface NotificationCenterProps {
   onNavigateToAgent?: (agentId: string) => void
   onNavigateToAgentChat?: (agentId: string) => void
-  onNavigateToWorkflow?: (workflowId: string) => void
+  onNavigateToWorkflow?: (workflowId: string, executionId?: string) => void
   onNavigateToChannel?: (channelName: string, openChat?: boolean) => void
   onNavigateToPage?: (page: string) => void
   onNavigateToDoc?: (path: string) => void
@@ -205,7 +205,7 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToAgentChat, o
     } else if (n.entityType === 'agent' && n.entityId && onNavigateToAgent) {
       onNavigateToAgent(n.entityId)
     } else if (n.entityType === 'workflow' && n.entityId && onNavigateToWorkflow) {
-      onNavigateToWorkflow(n.entityId)
+      onNavigateToWorkflow(n.entityId, n.executionId)
     } else if (n.entityType === 'budget' && onNavigateToPage) {
       onNavigateToPage('activity')
     }
@@ -552,7 +552,7 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToAgentChat, o
                           {/* Workflow link for blocked notifications */}
                           {n.workflowId && n.type === 'workflow-blocked' && (
                             <button
-                              onClick={() => { onNavigateToWorkflow?.(n.workflowId!); setOpen(false) }}
+                              onClick={() => { onNavigateToWorkflow?.(n.workflowId!, n.executionId); setOpen(false) }}
                               className="text-[11px] text-amber-600 dark:text-amber-400 hover:underline font-medium mt-1.5 block"
                             >
                               Go to workflow →

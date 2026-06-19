@@ -58,6 +58,7 @@ export interface Notification {
   blockerOptions?: string[]
   blockerResolution?: { action: string; value?: string; resolvedBy?: string; resolvedAt?: string }
   workflowId?: string
+  executionId?: string
   progress?: number // 0-100 for workflow-progress type
   artifactPath?: string
   artifactUrl?: string
@@ -393,6 +394,7 @@ export function createNotification(params: {
   blockerType?: Notification['blockerType']
   blockerOptions?: string[]
   workflowId?: string
+  executionId?: string
   progress?: number
   artifactPath?: string
   artifactUrl?: string
@@ -455,6 +457,7 @@ export function createNotification(params: {
     blockerType: params.blockerType,
     blockerOptions: params.blockerOptions,
     workflowId: params.workflowId,
+    executionId: params.executionId,
     progress: params.progress,
     artifactPath: params.artifactPath,
     artifactUrl: params.artifactUrl,
@@ -666,6 +669,8 @@ async function runMonitorScan(): Promise<void> {
           entityId: wf.id,
           entityType: 'workflow',
           fingerprint: failFp,
+          workflowId: wf.id,
+          executionId: latest.id,
         })
 
         // Also create agent-error for each failed participant

@@ -17,6 +17,7 @@ export interface DashboardNotification {
   blockerType?: 'choice' | 'approval' | 'input' | 'delegation' | 'waiting'
   blockerOptions?: string[]
   workflowId?: string
+  executionId?: string
   progress?: number
   artifactPath?: string
   artifactUrl?: string
