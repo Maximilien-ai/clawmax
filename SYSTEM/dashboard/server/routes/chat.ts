@@ -216,6 +216,15 @@ export function shouldUseLocalChatExecution(input: {
   return !input.gatewayRunning
 }
 
+export function shouldUseManagedSecretStatelessChatSession(_input: {
+  useLocal: boolean
+  hasWorkspaceManagedSecrets: boolean
+}): boolean {
+  // Normal dashboard chat must preserve a stable session so replies and history
+  // can be recovered consistently from the same explicit/local session path.
+  return false
+}
+
 export function buildManagedSecretStatelessChatMessage(
   message: string,
   contextMessages: ChatContextMessage[] = [],
@@ -610,7 +619,10 @@ router.post('/:id/chat', async (req, res) => {
     gatewayRunning,
     hasWorkspaceManagedSecrets: hasWorkspaceManagedPartnerSecrets(),
   })
-  const useManagedSecretStatelessSession = useLocal && hasWorkspaceManagedPartnerSecrets()
+  const useManagedSecretStatelessSession = shouldUseManagedSecretStatelessChatSession({
+    useLocal,
+    hasWorkspaceManagedSecrets: hasWorkspaceManagedPartnerSecrets(),
+  })
   const agentSkillIds = getAgentSkills(id)
   const allAssignedSkills = agentSkillIds.map((skillId) => {
     const skill = getSkillById(skillId)

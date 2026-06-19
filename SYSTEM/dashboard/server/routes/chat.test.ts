@@ -11,6 +11,7 @@ import {
   hasByokExecutionPathForProvider,
   retryAssistantTextLookup,
   resolveByokChatFallbackModel,
+  shouldUseManagedSecretStatelessChatSession,
   shouldAttemptManagedResendDispatch,
   shouldUseLocalChatExecution,
 } from './chat'
@@ -97,6 +98,17 @@ test('shouldUseLocalChatExecution forces local mode when workspace-managed partn
     gatewayRunning: true,
     hasWorkspaceManagedSecrets: true,
   }), 'Expected hosted chat to use local execution when workspace-managed partner secrets must be available to tools')
+})
+
+test('shouldUseManagedSecretStatelessChatSession stays disabled for normal dashboard chat', () => {
+  assert(!shouldUseManagedSecretStatelessChatSession({
+    useLocal: true,
+    hasWorkspaceManagedSecrets: true,
+  }), 'Expected stable local dashboard chat sessions even when workspace-managed secrets exist')
+  assert(!shouldUseManagedSecretStatelessChatSession({
+    useLocal: false,
+    hasWorkspaceManagedSecrets: false,
+  }), 'Expected hosted dashboard chat not to switch to stateless prompt mode')
 })
 
 test('shouldUseLocalChatExecution always uses direct mode for local providers', () => {
