@@ -57,7 +57,11 @@ Use `1.9.0` to finish the highest-signal remaining hardening work after the `1.8
   - weak lane ownership assumptions
   - workflow success criteria that do not re-check on-disk outputs
   - templates that assume a result exists without verifying the file/artifact was actually written
+- [ ] build an explicit public sync candidate list after the audit:
+  - `Maximilien-ai/templates`
+  - `Maximilien-ai/workflows`
 - [ ] sync only the clean public-facing template/workflow fixes we actually want exported
+- [ ] avoid bulk copy-over into dirty or experimental public repo content; prefer selective, reviewed syncs backed by audit regressions
 
 ### Section 5: Metering / Diagnostics / Operator Recovery
 
