@@ -5,23 +5,23 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.8.8-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
+[![Version](https://img.shields.io/badge/version-1.8.9-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
 [![Tests](https://img.shields.io/badge/tests-96%20default--safe-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 Latest Stable Release: v1.8.8
+## 🔥 Latest Stable Release: v1.8.9
 
-- `1.8.8` continues the hardening track with template/workflow cleanup: lighter first-apply defaults, stronger workflow communication-surface inference and validation, safer opt-in recurring assistant automations, and conservative parallelism cleanup in shipped templates.
+- `1.8.9` closes the auth/runtime hardening pass: waiting-for-input notifications open the real workflow conversation context, local dashboard chat and history recovery are stable again, workflow-failed notifications deep-link to failed runs, WhatsApp linking is more resilient, and notifications reset correctly on workspace switch.
 
-## 🧪 Active Validation Track: 1.8.9-test-rc7
+## 🛠 Next Sprint: 1.9.0
 
-- `1.8.9-test-rc7` packages the current auth/runtime and UX hardening pass: waiting-for-input notifications open the actual workflow conversation context, local dashboard chat stays on stable sessions, chat history/current-session recovery is fixed, workflow failure notifications deep-link to failed runs, WhatsApp linking is more resilient, and notifications reset cleanly on workspace switch.
+- `1.9.0` is scoped around the remaining hardening follow-through: provider/runtime error normalization, workflow/channel delivery correctness, lingering DocHub/file-open edge cases, template lane/subdirectory audit closure, and operator-facing diagnostics/metering cleanup.
 
 ## ✨ 1.8.x Highlights
 
+- `1.8.9`: stronger chat/runtime stability, waiting-for-input context routing, better workflow failure deep links, Builder/chat-history/WhatsApp fixes, and notification/workspace-switch cleanup.
 - `1.8.8`: template/workflow hardening around first-apply defaults, shared communication targeting, opt-in recurring assistant automations, and conservative workflow parallelism cleanup.
-- `1.8.9` (in validation): stronger chat/runtime stability, waiting-for-input context routing, better workflow failure deep links, and notification/workspace-switch cleanup.
 - `1.8.7`: remaining DocHub/file-open hardening, clearer workflow/provider failures, simpler agent actions, workflow-session retry repair, and audited deprecated-model handling across OpenAI, Anthropic, and Gemini.
 - `1.8.5` / `1.8.6`: DocHub preview and file-resolution upgrades, cleaner provider messaging, notification dedupe/grouping, and lower background churn.
 - `1.8.4` / `1.8.3`: agent delete-flow fixes plus Add Agent default-model, AI-create model preservation, and provisioning-warning cleanup.

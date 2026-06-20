@@ -4,17 +4,20 @@ All notable changes to ClawMax are documented here.
 
 ## [Unreleased]
 
-### Current RC
-- **`1.8.9-test-rc7` Auth / Runtime Hardening** — waiting-for-input notifications now open the actual workflow group/community conversation context; workflow runs preserve full OpenAI-compatible runtime settings instead of collapsing into hosted OpenAI auth paths; stale auth/session state is reset more aggressively after credential changes; Builder no longer stores a raw prompt turn as `AI Description`; agent chat history/current-session recovery is fixed for explicit sessions and local replies; normal dashboard chat stays on stable local sessions; the agent chat panel no longer crashes on streamed replies; workflow-failed notifications open the failed execution run; WhatsApp linking is hardened against the `linked` / `done` race; chat history shows day separators for older failures; and notifications now reset/refetch on workspace switch.
+## [v1.8.9] - 2026-06-20
+
+### Fixed
+- **Auth / Runtime Hardening** — waiting-for-input notifications now open the actual workflow group/community conversation context; workflow runs preserve full OpenAI-compatible runtime settings instead of collapsing into hosted OpenAI auth paths; stale auth/session state is reset more aggressively after credential changes; and user-facing auth failures more clearly distinguish invalid keys, missing credentials, sticky auth state, and transient provider cooldowns.
+- **Builder Metadata Cleanup** — Builder/Add Agent no longer stores a raw single chat turn verbatim as the generated agent `AI Description`; provisioning now synthesizes a cleaner description from generated agent content first.
+- **Agent Chat History Recovery** — agent chat history now resolves explicit/current sessions correctly instead of depending only on legacy `:dashboard-chat` mapping/archive assumptions, and the current conversation is visible from History even before an archive exists.
+- **Local Dashboard Chat Stability** — normal dashboard chat stays on stable local sessions, local replies are recovered from persisted sessions when stdout comes back empty, and the agent chat panel no longer crashes on streamed replies.
+- **Workflow Failure Deep Links** — `workflow-failed` notifications now open the failed execution run directly instead of only landing on the workflow definition shell.
+- **WhatsApp Pairing Hardening** — linked WhatsApp flows are more resilient against the `linked` / `done` event race at the end of pairing.
+- **Notification / Workspace Switch Cleanup** — notifications now reset and refetch on workspace switch instead of hanging onto stale state from the previously active workspace.
+- **Chat Timeline Readability** — agent chat history now shows day separators and date-aware timestamps so old auth/network failures are visibly separated from current-day messages.
 
 ### Testing
-- **Expanded Auth / Workflow Coverage** — added visible regression coverage for waiting-input conversation-target preservation, workflow OpenAI-compatible runtime isolation, workflow execution env shaping, and auth-profile-driven session reset even when the selected model stays the same.
-
-### Planned Follow-Through
-- **Model Authentication Hardening** — clarify invalid-key vs missing-key vs stale-auth-profile vs provider-cooldown/runtime-mismatch failures so operators can diagnose model auth issues without reading raw fallback chains.
-- **Waiting-For-Input Context Routing** — `Open conversation` from waiting-for-input surfaces should land in the real conversation context where input is needed, not only the generic agent chat.
-- **DocHub File-Open Polish** — keep tightening file-open behavior from chat/status/notification surfaces, especially for ambiguous bare filenames and any remaining places where a visible file chip does not open the intended DocHub entry.
-- **Plugin MVP1 Follow-Through** — continue generic plugin infrastructure work only: loading/performance, stronger shared UI parity, richer contracts, and public test-plugin polish before any private plugin surfaces are considered for broader release.
+- **Expanded Auth / Workflow Coverage** — added visible regression coverage for waiting-input conversation-target preservation, workflow OpenAI-compatible runtime isolation, workflow execution env shaping, auth-profile-driven session reset even when the selected model stays the same, current-session history recovery, local reply fallback, WhatsApp pairing, chat timeline rendering, and workflow-failure notification deep links.
 
 ## [v1.8.8] - 2026-06-17
 
