@@ -45,6 +45,9 @@ Use `1.9.0` to finish the highest-signal remaining hardening work after the `1.8
   - execution success/failure criteria
   - retry/session-conflict handling
   - notification resolution rules when a later step or final workflow outcome succeeds
+- [ ] treat the stale auth/runtime message leakage as a generic workflow-thread hygiene bug, not a single-template special case:
+  - old auth/runtime failures should not keep polluting multiple workflow group threads after the run moved on
+  - successful/final workflow state should resolve or de-emphasize superseded failure/input noise from that same run
 - [ ] keep validation conservative:
   - catch wrong communication targets before apply/run when possible
   - surface delivery failures as real workflow failures or blockers when they are execution-critical
@@ -58,6 +61,9 @@ Use `1.9.0` to finish the highest-signal remaining hardening work after the `1.8
   - selected detail panels
   - docs index caches
   - any remaining duplicate fetch / stale visible entity issues
+- [ ] bring the date-separator/timestamp clarity from agent chat into group/community chat too:
+  - non-today messages should show either a day separator or explicit date
+  - users should not have to infer that `10:00 AM` means “yesterday” in group history
 - [ ] audit stale/noisy notifications from prior runs so on-prem users do not keep seeing raw auth failures or resolved workflow blockers long after the relevant runtime/config issue was fixed
 
 ### Section 4: Agent Chat Archive / Resume Hardening
