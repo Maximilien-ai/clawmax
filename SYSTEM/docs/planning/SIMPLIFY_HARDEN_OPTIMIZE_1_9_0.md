@@ -10,6 +10,7 @@ Use `1.9.0` to finish the highest-signal remaining hardening work after the `1.8
 
 - close the remaining provider/runtime error-normalization gaps so operators can tell auth, quota, cooldown, timeout, and runtime/config mismatches apart without reading raw fallback chains
 - harden workflow/channel delivery correctness where a DAG can still look green while a participant fails to post back into the intended group/community
+- fix the remaining agent-chat archive/resume usability bugs so history is dated/labeled correctly and past conversations can actually be continued
 - finish the lingering low-context DocHub/file-open and notification/workspace-state edge cases
 - continue the template/workflow audit for hidden lane/subdirectory assumptions and weak on-disk output verification
 - tighten metering/diagnostic/operator recovery paths that still make local or on-prem troubleshooting noisy
@@ -36,6 +37,14 @@ Use `1.9.0` to finish the highest-signal remaining hardening work after the `1.8
 
 - [ ] audit workflows/templates where one or more participants can still hit communication failures like `COMMS FAIL` or `Unknown channel`
 - [ ] ensure workflow success criteria do not report a clean DAG result while participant delivery back into the intended group/community actually failed
+- [ ] specifically audit the on-prem `dev-team · dev-team-Status / Daily Standup` class of failure where:
+  - the workflow/DAG ends green
+  - a participant like `dev-team-tech-lead` still reports an embedded-run/session conflict
+  - workflow-failed / agent-error / needs-input notifications remain visible from the same run
+- [ ] determine whether the fix belongs in:
+  - execution success/failure criteria
+  - retry/session-conflict handling
+  - notification resolution rules when a later step or final workflow outcome succeeds
 - [ ] keep validation conservative:
   - catch wrong communication targets before apply/run when possible
   - surface delivery failures as real workflow failures or blockers when they are execution-critical
@@ -49,8 +58,24 @@ Use `1.9.0` to finish the highest-signal remaining hardening work after the `1.8
   - selected detail panels
   - docs index caches
   - any remaining duplicate fetch / stale visible entity issues
+- [ ] audit stale/noisy notifications from prior runs so on-prem users do not keep seeing raw auth failures or resolved workflow blockers long after the relevant runtime/config issue was fixed
 
-### Section 4: Template / Workflow Audit Follow-Through
+### Section 4: Agent Chat Archive / Resume Hardening
+
+- [ ] fix archive list metadata correctness:
+  - correct timestamps instead of `12/31/1969`
+  - exclude `.trajectory.jsonl` / phantom empty rows
+  - generate titles from real user/assistant turns rather than injected runtime context
+- [ ] add a real restore/continue path for archived chats:
+  - server restore endpoint
+  - client `Continue this conversation` affordance
+  - active-session handoff back into live chat
+- [ ] ensure the current explicit session and archived sessions behave consistently after restore/resume
+- [ ] use open bugs as acceptance criteria:
+  - `#158` Chat Archives list broken
+  - `#159` cannot continue/resume a past conversation
+
+### Section 5: Template / Workflow Audit Follow-Through
 
 - [ ] continue the audit for:
   - hidden/helper subdirectory assumptions
@@ -63,10 +88,11 @@ Use `1.9.0` to finish the highest-signal remaining hardening work after the `1.8
 - [ ] sync only the clean public-facing template/workflow fixes we actually want exported
 - [ ] avoid bulk copy-over into dirty or experimental public repo content; prefer selective, reviewed syncs backed by audit regressions
 
-### Section 5: Metering / Diagnostics / Operator Recovery
+### Section 6: Metering / Diagnostics / Operator Recovery
 
 - [ ] investigate local/on-prem paths where Activity/Budget can still under-report token or cost totals after real runs
 - [ ] improve system-test / workflow diagnostics so upstream model/provider failures are more obvious than downstream noise
+- [ ] audit recurring raw auth/runtime failures still visible inside workflow communication threads across groups, where old `401 Incorrect API key provided` or similar runtime noise remains visible even after the workflow moved on or later completed successfully
 - [ ] add or tighten operator recovery actions where they reduce support load:
   - gateway restart / recovery affordances
   - clearer “what to do next” actions from Doctor/runtime warnings
