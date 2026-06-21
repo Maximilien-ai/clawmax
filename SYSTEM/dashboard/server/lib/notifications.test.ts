@@ -12,6 +12,7 @@ import {
   dismissNotification,
   dismissAllNotifications,
   resolveByFingerprint,
+  resolveWorkflowExecutionNotifications,
   resolveNotificationAction,
   getWorkflowBlockers,
   getActiveNotifications,
@@ -321,6 +322,49 @@ test('resolveNotificationAction resolves with action data', () => {
 test('resolveNotificationAction returns false for invalid ID', () => {
   const ok = resolveNotificationAction('nonexistent', 'approve')
   assert(ok === false, 'Should return false')
+})
+
+test('resolveWorkflowExecutionNotifications clears stale workflow-scoped errors for a completed run', () => {
+  fs.writeFileSync(notifPath, '[]', 'utf-8')
+  createNotification({
+    type: 'workflow-failed',
+    title: 'Workflow failed',
+    message: 'Execution failed.',
+    fingerprint: 'wf-failed:wf-clean:exec-old',
+    workflowId: 'wf-clean',
+    executionId: 'exec-old',
+  })
+  createNotification({
+    type: 'agent-needs-decision',
+    title: 'Agent needs input',
+    message: 'Please decide.',
+    fingerprint: 'agent-question:wf-clean:agent-a:exec-old',
+    workflowId: 'wf-clean',
+    executionId: 'exec-old',
+    blockerType: 'input',
+  })
+  createNotification({
+    type: 'agent-error',
+    title: 'Agent error',
+    message: 'Provider auth failed.',
+    fingerprint: 'agent-error:wf-clean:agent-a:exec-old',
+    workflowId: 'wf-clean',
+    executionId: 'exec-old',
+  })
+  createNotification({
+    type: 'agent-error',
+    title: 'Other workflow error',
+    message: 'Should stay active.',
+    fingerprint: 'agent-error:wf-other:agent-z:exec-z',
+    workflowId: 'wf-other',
+    executionId: 'exec-z',
+  })
+
+  const resolved = resolveWorkflowExecutionNotifications('wf-clean', 'exec-new', { includeOlderExecutions: true })
+  assert(resolved === 3, `Expected 3 workflow notifications to resolve, got ${resolved}`)
+  const active = getActiveNotifications()
+  assert(!active.some((notification) => notification.workflowId === 'wf-clean'), 'Expected wf-clean notifications to be resolved')
+  assert(active.some((notification) => notification.workflowId === 'wf-other'), 'Expected unrelated workflow notifications to remain active')
 })
 
 // ============================================================================

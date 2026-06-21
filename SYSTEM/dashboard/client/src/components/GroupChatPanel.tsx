@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { buildAgentChatTimelineRows, shouldShowCalendarDate } from '../lib/agentChatTimeline'
 import { byokForRequest, hasChatExecutionAccess, readStoredByokKeys } from '../lib/byok'
 import {
   buildCommunicationCacheKey,
@@ -99,7 +100,30 @@ function cleanContent(content: string): string {
     cleanedLines.push(line)
   }
 
-  return cleanedLines.join('\n').replace(/\n{3,}/g, '\n\n').trim() || content
+  const cleaned = cleanedLines.join('\n').replace(/\n{3,}/g, '\n\n').trim() || content
+
+  if (
+    /model fallback decision|FailoverError|FallbackSummaryError|Incorrect API key provided|Provider .* auth issue|network connection error|Connection error/i.test(cleaned)
+    && !/\n\n/.test(cleaned)
+  ) {
+    if (/Incorrect API key provided|auth issue|missing credentials|missing api key/i.test(cleaned)) {
+      return 'Runtime auth error while contacting the configured model provider. Check the provider key/configuration and retry.'
+    }
+    if (/network connection error|Connection error|timeout|timed out|cooldown/i.test(cleaned)) {
+      return 'Runtime connection error while contacting the configured model provider. Check provider/network availability and retry.'
+    }
+    return 'Runtime model execution error. Review workflow details or retry the run.'
+  }
+
+  return cleaned
+}
+
+function formatChatTime(timestamp: number | undefined, includeDate: boolean): string {
+  if (!timestamp) return ''
+  const date = new Date(timestamp)
+  const timeLabel = date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+  if (!includeDate) return timeLabel
+  return `${date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })} ${timeLabel}`
 }
 
 function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessageSent, onNavigateToDoc }: Props) {
@@ -689,6 +713,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
 
   const isOverlay = mode === 'overlay'
   const isBulkChat = channel.tags?.includes('bulk-chat')
+  const timelineRows = buildAgentChatTimelineRows(messages)
   const renderMarkdown = (content: string, clean = false) => (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
@@ -833,42 +858,59 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
             </p>
           )}
 
-          {messages.map((msg) => (
-            <div key={msg.id} className="bg-gray-100 rounded-lg px-4 py-2.5 dark:bg-gray-800">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{msg.from}</span>
-                <span className="text-xs text-gray-400">
-                  {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </span>
+          {timelineRows.map((row) => {
+            if (row.type === 'separator') {
+              return (
+                <div key={row.key} className="flex items-center gap-3 py-1">
+                  <div className="h-px flex-1 bg-gray-200 dark:bg-gray-700" />
+                  <span className="text-[11px] font-medium uppercase tracking-[0.18em] text-gray-400 dark:text-gray-500">
+                    {row.label}
+                  </span>
+                  <div className="h-px flex-1 bg-gray-200 dark:bg-gray-700" />
+                </div>
+              )
+            }
+
+            const msg = messages.find((message) => message.id === row.key)
+            if (!msg) return null
+
+            return (
+              <div key={msg.id} className="bg-gray-100 rounded-lg px-4 py-2.5 dark:bg-gray-800">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{msg.from}</span>
+                  <span className="text-xs text-gray-400">
+                    {formatChatTime(msg.timestamp, row.showDate)}
+                  </span>
+                </div>
+                {msg.from !== 'User' ? (
+                  <div className="text-sm prose prose-sm dark:prose-invert max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+                    {renderMarkdown(msg.content, true)}
+                  </div>
+                ) : (
+                  <div className="text-sm prose prose-sm dark:prose-invert max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+                    {renderMarkdown(msg.content)}
+                  </div>
+                )}
+                {onNavigateToDoc && getResolvedFileMentions(msg.content).length > 0 && (
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <span className="text-[11px] font-medium text-gray-500 dark:text-gray-400">Files:</span>
+                    {getResolvedFileMentions(msg.content).map(({ file, path }) => (
+                      <button
+                        key={`${msg.id}-${path}`}
+                        type="button"
+                        onClick={() => onNavigateToDoc(path)}
+                        className="cursor-pointer text-[11px] px-2 py-1 rounded-full bg-sky-100 text-sky-700 underline decoration-sky-300 underline-offset-2 hover:bg-sky-200 hover:text-sky-900 dark:bg-sky-900/30 dark:text-sky-300 dark:decoration-sky-500 dark:hover:bg-sky-900/50"
+                        title="Open in Documents"
+                      >
+                        {file}
+                        <span className="ml-1 font-semibold">Open</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
-              {msg.from !== 'User' ? (
-                <div className="text-sm prose prose-sm dark:prose-invert max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
-                  {renderMarkdown(msg.content, true)}
-                </div>
-              ) : (
-                <div className="text-sm prose prose-sm dark:prose-invert max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
-                  {renderMarkdown(msg.content)}
-                </div>
-              )}
-              {onNavigateToDoc && getResolvedFileMentions(msg.content).length > 0 && (
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <span className="text-[11px] font-medium text-gray-500 dark:text-gray-400">Files:</span>
-                  {getResolvedFileMentions(msg.content).map(({ file, path }) => (
-                    <button
-                      key={`${msg.id}-${path}`}
-                      type="button"
-                      onClick={() => onNavigateToDoc(path)}
-                      className="cursor-pointer text-[11px] px-2 py-1 rounded-full bg-sky-100 text-sky-700 underline decoration-sky-300 underline-offset-2 hover:bg-sky-200 hover:text-sky-900 dark:bg-sky-900/30 dark:text-sky-300 dark:decoration-sky-500 dark:hover:bg-sky-900/50"
-                      title="Open in Documents"
-                    >
-                      {file}
-                      <span className="ml-1 font-semibold">Open</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
+            )
+          })}
 
           {/* Typing indicators */}
           {Array.from(typingAgents).map((agentId) => {
@@ -1157,17 +1199,34 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
               </div>
             </div>
             <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
-              {viewingArchive.messages.map((msg) => (
-                <div key={msg.id} className="bg-gray-100 rounded-lg px-4 py-2.5 dark:bg-gray-800">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{msg.from}</span>
-                    <span className="text-xs text-gray-400">
-                      {new Date(msg.timestamp).toLocaleString()}
-                    </span>
+              {buildAgentChatTimelineRows(viewingArchive.messages).map((row) => {
+                if (row.type === 'separator') {
+                  return (
+                    <div key={row.key} className="flex items-center gap-3 py-1">
+                      <div className="h-px flex-1 bg-gray-200 dark:bg-gray-700" />
+                      <span className="text-[11px] font-medium uppercase tracking-[0.18em] text-gray-400 dark:text-gray-500">
+                        {row.label}
+                      </span>
+                      <div className="h-px flex-1 bg-gray-200 dark:bg-gray-700" />
+                    </div>
+                  )
+                }
+
+                const msg = viewingArchive.messages.find((message) => message.id === row.key)
+                if (!msg) return null
+
+                return (
+                  <div key={msg.id} className="bg-gray-100 rounded-lg px-4 py-2.5 dark:bg-gray-800">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{msg.from}</span>
+                      <span className="text-xs text-gray-400">
+                        {formatChatTime(msg.timestamp, shouldShowCalendarDate(msg.timestamp))}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-800 whitespace-pre-wrap break-words dark:text-gray-200">{msg.content}</p>
                   </div>
-                  <p className="text-sm text-gray-800 whitespace-pre-wrap break-words dark:text-gray-200">{msg.content}</p>
-                </div>
-              ))}
+                )
+              })}
             </div>
             <div className="px-6 py-4 border-t border-gray-100">
               <button

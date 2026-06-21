@@ -534,6 +534,45 @@ export function resolveByFingerprint(fingerprint: string): boolean {
   return resolved
 }
 
+export function resolveWorkflowExecutionNotifications(
+  workflowId: string,
+  executionId: string,
+  options: { includeOlderExecutions?: boolean } = {}
+): number {
+  const notifications = loadNotifications()
+  let resolved = 0
+  const resolvedAt = new Date().toISOString()
+  const resolvableTypes = new Set<NotificationType>([
+    'workflow-failed',
+    'workflow-blocked',
+    'workflow-stuck',
+    'agent-error',
+    'agent-needs-decision',
+    'agent-needs-feedback',
+  ])
+
+  for (const notification of notifications) {
+    if (notification.dismissedAt || notification.resolvedAt) continue
+    if (!resolvableTypes.has(notification.type)) continue
+    if (notification.workflowId !== workflowId) continue
+    if (
+      !options.includeOlderExecutions &&
+      notification.executionId &&
+      notification.executionId !== executionId
+    ) {
+      continue
+    }
+    notification.resolvedAt = resolvedAt
+    resolved++
+  }
+
+  if (resolved > 0) {
+    saveNotifications(notifications)
+  }
+
+  return resolved
+}
+
 function pruneOldNotifications(): void {
   const notifications = loadNotifications()
   const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000 // 7 days
@@ -658,7 +697,7 @@ async function runMonitorScan(): Promise<void> {
       const latest = executions[0]
       if (!latest) continue
 
-      const failFp = `workflow-failed:${wf.id}:${latest.id}`
+      const failFp = `wf-failed:${wf.id}:${latest.id}`
       const stuckFp = `workflow-stuck:${wf.id}:${latest.id}`
 
       if (latest.status === 'failed') {
@@ -676,7 +715,7 @@ async function runMonitorScan(): Promise<void> {
         // Also create agent-error for each failed participant
         for (const p of latest.participants) {
           if (p.status === 'failed' && p.error) {
-            const agentFp = `agent-error:${p.agentId}:${latest.id}`
+            const agentFp = `agent-error:${wf.id}:${p.agentId}:${latest.id}`
             // Truncate error message for readability
             const shortError = p.error.length > 150 ? p.error.slice(0, 150) + '...' : p.error
             createNotification({
@@ -686,6 +725,8 @@ async function runMonitorScan(): Promise<void> {
               entityId: p.agentId,
               entityType: 'agent',
               fingerprint: agentFp,
+              workflowId: wf.id,
+              executionId: latest.id,
             })
           }
         }

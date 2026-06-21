@@ -46,6 +46,7 @@ import {
   stripBenignOpenClawRuntimeWarnings,
   summarizeAgentInputRequest,
   formatParticipantFailure,
+  normalizeWorkflowThreadDiagnostic,
   resolveWorkflowConversationTarget,
 } from './workflows'
 
@@ -499,6 +500,16 @@ test('formatParticipantFailure distinguishes incorrect api keys from sticky auth
   const stickyAuth = formatParticipantFailure('FallbackSummaryError: All models failed (1): openai/gpt-4o-mini: Provider openai has auth issue (skipping all models) (auth)')
   assert(/api key was rejected/i.test(invalidKey), `Expected invalid-key guidance, got: ${invalidKey}`)
   assert(/marked unhealthy|auth issue/i.test(stickyAuth), `Expected sticky-auth guidance, got: ${stickyAuth}`)
+})
+
+test('normalizeWorkflowThreadDiagnostic compresses raw auth fallback noise for workflow threads', () => {
+  const normalized = normalizeWorkflowThreadDiagnostic('model fallback decision: decision=candidate_failed detail=401 Incorrect API key provided: openai-cible. FailoverError: 401 Incorrect API key provided: openai-cible.')
+  assert(/Runtime auth error/i.test(normalized || ''), `Expected auth normalization, got: ${normalized}`)
+})
+
+test('normalizeWorkflowThreadDiagnostic compresses raw network fallback noise for workflow threads', () => {
+  const normalized = normalizeWorkflowThreadDiagnostic('model fallback decision: decision=candidate_failed detail=Connection error. FailoverError: LLM request failed: network connection error.')
+  assert(/Runtime connection error/i.test(normalized || ''), `Expected network normalization, got: ${normalized}`)
 })
 
 test('resolveWorkflowConversationTarget prefers workflow groups before communities', () => {

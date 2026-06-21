@@ -597,6 +597,27 @@ export function formatParticipantFailure(reportedFailure: string): string {
   return `Agent reported failure: ${reportedFailure}`
 }
 
+export function normalizeWorkflowThreadDiagnostic(content: string): string | null {
+  const trimmed = content.trim()
+  if (!trimmed) return null
+
+  const looksLikeRawRuntimeNoise =
+    /model fallback decision|FailoverError|FallbackSummaryError|incorrect api key provided|Provider .* auth issue|network connection error|Connection error/i.test(trimmed)
+    && !/\n\n/.test(trimmed)
+
+  if (!looksLikeRawRuntimeNoise) return null
+
+  if (/incorrect api key provided|auth issue|missing credentials|missing api key/i.test(trimmed)) {
+    return 'Runtime auth error while contacting the configured model provider. Check the provider key/configuration and retry.'
+  }
+
+  if (/network connection error|Connection error|timeout|timed out|cooldown/i.test(trimmed)) {
+    return 'Runtime connection error while contacting the configured model provider. Check provider/network availability and retry.'
+  }
+
+  return 'Runtime model execution error. Review the workflow details or retry the run.'
+}
+
 export function resolveWorkflowConversationTarget(targeting: Pick<AgentTargeting, 'groups' | 'communities'> | null | undefined): { type: 'group' | 'community'; name: string } | null {
   const groups = (targeting?.groups || []).map((value: string) => `${value}`.trim()).filter(Boolean)
   if (groups.length > 0) {
@@ -1923,6 +1944,8 @@ export function triggerWorkflow(workflowId: string, options?: {
           const agentResult = agentResponse as any
           const rawAgentText = stripBenignOpenClawRuntimeWarnings(agentResult.text || '')
           const agentText = enrichAgentContextOverflow(participant.agentId, rawAgentText)
+          const normalizedThreadDiagnostic = normalizeWorkflowThreadDiagnostic(agentText)
+          const surfacedAgentText = normalizedThreadDiagnostic || agentText
           const agentMeta = agentResult.meta || {}
           const reportedFailure = detectParticipantReportedFailure(agentText)
 
@@ -1955,6 +1978,7 @@ export function triggerWorkflow(workflowId: string, options?: {
               fingerprint: `agent-question:${workflowId}:${participant.agentId}:${execution.id}`,
               blockerType: 'input',
               workflowId,
+              executionId: execution.id,
               conversationTarget: conversationTarget?.name,
               conversationTargetType: conversationTarget?.type,
             })
@@ -1963,11 +1987,12 @@ export function triggerWorkflow(workflowId: string, options?: {
             createNotification({
               type: 'agent-error',
               title: `${participant.agentId} reported an error`,
-              message: agentText.slice(0, 300),
+              message: surfacedAgentText.slice(0, 300),
               entityId: participant.agentId,
               entityType: 'agent',
               fingerprint: `agent-error:${workflowId}:${participant.agentId}:${execution.id}`,
               workflowId,
+              executionId: execution.id,
             })
           } else if (reportedFailure) {
             createNotification({
@@ -1978,6 +2003,7 @@ export function triggerWorkflow(workflowId: string, options?: {
               entityType: 'agent',
               fingerprint: `agent-fail:${workflowId}:${participant.agentId}:${execution.id}`,
               workflowId,
+              executionId: execution.id,
             })
           }
 
@@ -2023,7 +2049,7 @@ export function triggerWorkflow(workflowId: string, options?: {
           })
 
           // Post response to targeted groups/communities
-          if (agentText && agentText.trim()) {
+          if (surfacedAgentText && surfacedAgentText.trim()) {
             const communicationTargets = resolveWorkflowCommunicationTargets(workflow.targeting || {})
             const communicationTargetError = formatWorkflowCommunicationTargetError(communicationTargets)
             if (communicationTargetError) {
@@ -2032,14 +2058,14 @@ export function triggerWorkflow(workflowId: string, options?: {
             for (const group of communicationTargets.groups) {
               addMessage('group', group, {
                 from: participant.agentId,
-                content: agentText,
+                content: surfacedAgentText,
                 mentions: []
               })
             }
             for (const community of communicationTargets.communities) {
               addMessage('community', community, {
                 from: participant.agentId,
-                content: agentText,
+                content: surfacedAgentText,
                 mentions: []
               })
             }
@@ -2085,6 +2111,8 @@ export function triggerWorkflow(workflowId: string, options?: {
 
       // Auto-advance DAG: mark workflow completed and trigger ready dependents
       if (execution.status === 'completed') {
+        const { resolveWorkflowExecutionNotifications } = require('./notifications')
+        resolveWorkflowExecutionNotifications(workflowId, execution.id, { includeOlderExecutions: true })
         const { readyToRun } = completeWorkflow(workflowId)
         if (readyToRun.length > 0) {
           execution.logs.push(`DAG: unlocked ${readyToRun.join(', ')}`)
