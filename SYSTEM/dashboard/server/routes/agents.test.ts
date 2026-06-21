@@ -863,6 +863,132 @@ async function run() {
     assert.strictEqual(detailRes.jsonBody?.messages?.[0]?.content, 'Need help with the current thread')
   })
 
+  await test('chat archives route ignores trajectory rows, parses prefixed timestamps, and avoids noisy titles', async () => {
+    writeAgent(workspacePath, 'archive-agent', [
+      '# IDENTITY.md',
+      '**Name:** archive-agent',
+      '**Model:** openai/gpt-4o-mini',
+      '**Role:** Test assistant',
+    ].join('\n'))
+
+    const configPath = path.join(tmpHome, '.openclaw', 'openclaw.json')
+    fs.writeFileSync(configPath, JSON.stringify({
+      agents: {
+        list: [{
+          id: 'archive-agent',
+          workspace: path.join(workspacePath, 'AGENTS', 'archive-agent'),
+          model: 'openai/gpt-4o-mini',
+        }],
+      },
+    }, null, 2))
+
+    const archiveDir = path.join(tmpHome, '.openclaw', 'agents', 'archive-agent', 'sessions', 'archive')
+    fs.mkdirSync(archiveDir, { recursive: true })
+
+    fs.writeFileSync(path.join(archiveDir, '1781888896343-agent-archive-agent-dashboard-chat--abcd1234.jsonl'), [
+      JSON.stringify({
+        type: 'message',
+        timestamp: 1,
+        message: {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'Conversation context for this single-turn execution:' }],
+          timestamp: 1,
+        },
+      }),
+      JSON.stringify({
+        type: 'message',
+        timestamp: 2,
+        message: {
+          role: 'user',
+          content: [{ type: 'text', text: 'Please summarize the repo history' }],
+          timestamp: 2,
+        },
+      }),
+    ].join('\n'), 'utf-8')
+
+    fs.writeFileSync(path.join(archiveDir, '1781888896343-agent-archive-agent-dashboard-chat--abcd1234.trajectory.jsonl'), [
+      JSON.stringify({ type: 'step', value: 'ignored' }),
+    ].join('\n'), 'utf-8')
+
+    const listHandler = getRouteHandler('get', '/:id/chat/archives')
+    const listRes = makeRes()
+    await listHandler(makeReq({ params: { id: 'archive-agent' } }), listRes)
+
+    assert.strictEqual(listRes.statusCode, 200, 'Expected archive list success')
+    assert.strictEqual(listRes.jsonBody?.archives?.length, 1, 'Expected trajectory artifacts to be excluded from archive list')
+    assert.strictEqual(listRes.jsonBody?.archives?.[0]?.timestamp, 1781888896343, 'Expected prefixed archive timestamps to be parsed correctly')
+    assert(!String(listRes.jsonBody?.archives?.[0]?.title || '').includes('Conversation context for this single-turn execution'), 'Expected noisy injected context not to become the archive title')
+  })
+
+  await test('chat archive restore route reactivates an archived conversation as the current chat', async () => {
+    writeAgent(workspacePath, 'restore-agent', [
+      '# IDENTITY.md',
+      '**Name:** restore-agent',
+      '**Model:** openai/gpt-4o-mini',
+      '**Role:** Test assistant',
+    ].join('\n'))
+
+    const configPath = path.join(tmpHome, '.openclaw', 'openclaw.json')
+    fs.writeFileSync(configPath, JSON.stringify({
+      agents: {
+        list: [{
+          id: 'restore-agent',
+          workspace: path.join(workspacePath, 'AGENTS', 'restore-agent'),
+          model: 'openai/gpt-4o-mini',
+        }],
+      },
+    }, null, 2))
+
+    const sessionsDir = path.join(tmpHome, '.openclaw', 'agents', 'restore-agent', 'sessions')
+    const archiveDir = path.join(sessionsDir, 'archive')
+    fs.mkdirSync(archiveDir, { recursive: true })
+
+    const archiveFilename = '1781888896343-agent-restore-agent-dashboard-chat--abcd1234.jsonl'
+    fs.writeFileSync(path.join(archiveDir, archiveFilename), [
+      JSON.stringify({
+        type: 'message',
+        timestamp: 1,
+        message: {
+          role: 'user',
+          content: [{ type: 'text', text: 'Continue my previous work' }],
+          timestamp: 1,
+        },
+      }),
+      JSON.stringify({
+        type: 'message',
+        timestamp: 2,
+        message: {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'Restored conversation reply' }],
+          timestamp: 2,
+        },
+      }),
+    ].join('\n'), 'utf-8')
+
+    const restoreHandler = getRouteHandler('post', '/:id/chat/archives/:filename/restore')
+    const restoreRes = makeRes()
+    await restoreHandler(makeReq({
+      params: {
+        id: 'restore-agent',
+        filename: archiveFilename,
+      },
+    }), restoreRes)
+
+    assert.strictEqual(restoreRes.statusCode, 200, 'Expected archive restore success')
+    assert.strictEqual(restoreRes.jsonBody?.messages?.[0]?.content, 'Continue my previous work', 'Expected restored messages to be returned')
+
+    const historyHandler = getRouteHandler('get', '/:id/chat/messages')
+    const historyRes = makeRes()
+    await historyHandler(makeReq({ params: { id: 'restore-agent' } }), historyRes)
+
+    assert.strictEqual(historyRes.statusCode, 200, 'Expected chat history route success after restore')
+    assert.deepStrictEqual(
+      historyRes.jsonBody?.messages?.map((message: any) => message.content),
+      ['Continue my previous work', 'Restored conversation reply'],
+      'Expected restored archive to become the current active conversation'
+    )
+  })
+
   await test('models route forwards LM Studio and Ollama local model settings into discovery', async () => {
     const discoveryModule = require('../lib/model-discovery')
     const originalDiscoverModels = discoveryModule.discoverModels

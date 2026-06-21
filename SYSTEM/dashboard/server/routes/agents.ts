@@ -352,6 +352,62 @@ function readChatSessionMessages(agentId: string, sessionId: string, homeDir: st
   return parseVisibleChatMessages(fs.readFileSync(jsonlPath, 'utf-8'))
 }
 
+function isArchiveSessionFile(filename: string): boolean {
+  return filename.endsWith('.jsonl') && !filename.endsWith('.trajectory.jsonl') && filename !== 'sessions.json'
+}
+
+function parseArchiveTimestamp(filename: string, fullPath: string): number {
+  const suffixMatch = filename.match(/_(\d+)\.jsonl$/)
+  if (suffixMatch) return Number.parseInt(suffixMatch[1], 10)
+
+  const prefixMatch = filename.match(/^(\d+)-.+\.jsonl$/)
+  if (prefixMatch) return Number.parseInt(prefixMatch[1], 10)
+
+  try {
+    return fs.statSync(fullPath).mtimeMs
+  } catch {
+    return Date.now()
+  }
+}
+
+function stripArchiveTitleNoise(text: string): string {
+  return text
+    .replace(/^Conversation context for this single-turn execution:\s*/i, '')
+    .replace(/^Assigned skills for this turn:\s*/i, '')
+    .replace(/^Latest user request:\s*/i, '')
+    .replace(/^User:\s*/i, '')
+    .replace(/^Assistant:\s*/i, '')
+    .trim()
+}
+
+function isMeaningfulArchiveTitleTurn(message: { role: 'user' | 'assistant'; content: string }): boolean {
+  const content = message.content.trim()
+  if (!content) return false
+  if (/^Conversation context for this single-turn execution:/i.test(content)) return false
+  if (/^Assigned skills for this turn:/i.test(content)) return false
+  if (/^Latest user request:/i.test(content)) return false
+  return true
+}
+
+function getArchiveTitleMessages(messages: Array<{ role: 'user' | 'assistant'; content: string }>): Array<{ role: 'user' | 'assistant'; content: string }> {
+  const meaningful = messages
+    .filter(isMeaningfulArchiveTitleTurn)
+    .map((message) => ({
+      role: message.role,
+      content: stripArchiveTitleNoise(message.content),
+    }))
+    .filter((message) => message.content)
+
+  return meaningful.length > 0 ? meaningful : messages
+}
+
+function getArchiveRestoreSessionId(agentId: string, homeDir: string = process.env.HOME || ''): string {
+  const resolvedAgent = resolveAgentExecutionConfig(agentId)
+  const sessionKey = getAgentDashboardSessionKey(agentId)
+  const preferredSessionId = scopeSessionIdToModel(sessionKey, resolvedAgent.model)
+  return resolvePersistedAgentSessionId(agentId, sessionKey, preferredSessionId, homeDir) || preferredSessionId
+}
+
 // GET /api/agents — list all agents with optional pagination
 // Query params: ?limit=20&cursor=agent-id
 router.get('/', (req, res) => {
@@ -2401,11 +2457,10 @@ router.get('/:id/chat/archives', async (req, res) => {
 
     const archivedEntries = fs.existsSync(archiveDir)
       ? fs.readdirSync(archiveDir)
-      .filter(f => f.endsWith('.jsonl'))
+      .filter(isArchiveSessionFile)
       .map(filename => {
         const fullPath = path.join(archiveDir, filename)
-        const timestampMatch = filename.match(/_(\d+)\.jsonl$/)
-        const timestamp = timestampMatch ? parseInt(timestampMatch[1]) : 0
+        const timestamp = parseArchiveTimestamp(filename, fullPath)
 
         // Count messages and parse for LLM title generation
         let messageCount = 0
@@ -2448,6 +2503,7 @@ router.get('/:id/chat/archives', async (req, res) => {
 
         return { filename, timestamp, messageCount, messages, active: false }
       })
+      .filter((entry) => entry.messageCount > 0)
       .sort((a, b) => b.timestamp - a.timestamp)
       : []
 
@@ -2471,7 +2527,7 @@ router.get('/:id/chat/archives', async (req, res) => {
 
         if (!title) {
           // Generate new title
-          title = await generateArchiveTitle(info.messages)
+          title = await generateArchiveTitle(getArchiveTitleMessages(info.messages))
           cachedTitles[info.filename] = title
         }
 
@@ -2527,6 +2583,58 @@ router.get('/:id/chat/archives/:filename', async (req, res) => {
     }
 
     res.json({ messages: parseVisibleChatMessages(fs.readFileSync(filePath, 'utf-8')) })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// Restore archived chat as the active dashboard conversation
+router.post('/:id/chat/archives/:filename/restore', async (req, res) => {
+  const { id, filename } = req.params
+  if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
+    return res.status(400).json({ error: 'Invalid agent id' })
+  }
+
+  if (filename.startsWith('current:')) {
+    return res.status(400).json({ error: 'Current conversation is already active' })
+  }
+
+  if (filename.includes('..') || filename.includes('/')) {
+    return res.status(400).json({ error: 'Invalid filename' })
+  }
+
+  try {
+    const HOME = process.env.HOME || ''
+    const sessionsDir = getAgentSessionsDir(id, HOME)
+    const archiveDir = path.join(sessionsDir, 'archive')
+    const filePath = path.join(archiveDir, filename)
+
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'Archive not found' })
+    }
+
+    const restoredMessages = parseVisibleChatMessages(fs.readFileSync(filePath, 'utf-8'))
+    if (restoredMessages.length === 0) {
+      return res.status(400).json({ error: 'Archive has no visible chat messages to restore' })
+    }
+
+    fs.mkdirSync(sessionsDir, { recursive: true })
+    const sessionId = getArchiveRestoreSessionId(id, HOME)
+    const sessionPath = path.join(sessionsDir, `${sessionId}.jsonl`)
+    fs.copyFileSync(filePath, sessionPath)
+
+    const sessionsIndexPath = path.join(sessionsDir, 'sessions.json')
+    const sessionKey = getAgentDashboardSessionKey(id)
+    const sessionsIndex = fs.existsSync(sessionsIndexPath)
+      ? JSON.parse(fs.readFileSync(sessionsIndexPath, 'utf-8'))
+      : {}
+    sessionsIndex[sessionKey] = {
+      sessionId,
+      updatedAt: Date.now(),
+    }
+    fs.writeFileSync(sessionsIndexPath, JSON.stringify(sessionsIndex, null, 2))
+
+    res.json({ ok: true, sessionId, messages: restoredMessages })
   } catch (err) {
     res.status(500).json({ error: String(err) })
   }

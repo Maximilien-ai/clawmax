@@ -203,7 +203,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
   const [showClearConfirm, setShowClearConfirm] = useState(false)
   const [showArchives, setShowArchives] = useState(false)
   const [archives, setArchives] = useState<Array<{ filename: string; timestamp: number; messageCount: number; title: string; active?: boolean }>>([])
-  const [viewingArchive, setViewingArchive] = useState<{ filename: string; messages: any[] } | null>(null)
+  const [viewingArchive, setViewingArchive] = useState<{ filename: string; messages: any[]; active?: boolean } | null>(null)
   const [copyFeedback, setCopyFeedback] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [inputHistory, setInputHistory] = useState<string[]>([])
@@ -693,10 +693,27 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
     try {
       const r = await fetch(`/api/agents/${agentId}/chat/archives/${filename}`)
       const data = await r.json()
-      setViewingArchive({ filename, messages: data.messages || [] })
+      const archiveMeta = archives.find((archive) => archive.filename === filename)
+      setViewingArchive({ filename, messages: data.messages || [], active: archiveMeta?.active })
       setShowArchives(false)
     } catch (e) {
       console.error('Failed to load archive:', e)
+    }
+  }
+
+  async function restoreArchive(filename: string) {
+    try {
+      const r = await fetch(`/api/agents/${agentId}/chat/archives/${filename}/restore`, { method: 'POST' })
+      const data = await r.json()
+      if (!r.ok) throw new Error(data?.error || `HTTP ${r.status}`)
+      setMessages(data.messages || [])
+      setViewingArchive(null)
+      setShowArchives(false)
+      setError(null)
+      fetchArchives()
+      setTimeout(() => inputRef.current?.focus(), 0)
+    } catch (e: any) {
+      setError(e?.message || 'Failed to restore archived chat')
     }
   }
 
@@ -1266,6 +1283,15 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
                   >
                     💾 Download
                   </button>
+                  {!viewingArchive.active && (
+                    <button
+                      onClick={() => restoreArchive(viewingArchive.filename)}
+                      className="text-xs px-2 py-1 text-sky-600 hover:bg-sky-50 rounded transition-colors"
+                      title="Continue this conversation"
+                    >
+                      ↺ Continue
+                    </button>
+                  )}
                   <button
                     onClick={() => setDeleteConfirm(viewingArchive.filename)}
                     className="text-xs px-2 py-1 text-red-600 hover:bg-red-50 rounded transition-colors"
