@@ -2,7 +2,7 @@
 
 **Current Version**: v1.8.9
 **Last Updated**: June 22, 2026
-**Status**: `v1.8.9` is the current promoted stable release from `main`. `main` is validating `1.9.0-test-rc3` as the final `1.9.0` release candidate before promotion.
+**Status**: `v1.8.9` is the current promoted stable release from `main`. `main` is validating `1.9.0-test-rc4` as the properly versioned `1.9.0` release candidate before promotion.
 
 ---
 
@@ -24,7 +24,7 @@
   - [planning/HARDENING_SIMPLIFICATION_1_8_X.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/HARDENING_SIMPLIFICATION_1_8_X.md)
   - [planning/SIMPLIFY_OPTIMIZE_1_8_X.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_OPTIMIZE_1_8_X.md)
   - [planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_0.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_0.md)
-- Near-term target: validate `1.9.0-test-rc3` on cloud and on-prem; if green, promote `1.9.0` as the next stable release.
+- Near-term target: validate `1.9.0-test-rc4` on cloud and on-prem; if green, promote `1.9.0` as the next stable release.
 
 ## Release References
 
