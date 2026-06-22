@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { transformWorkspaceMarkdownUrl } from './lib/markdownLinks'
 import { extractWorkspaceFileMentions, linkifyWorkspaceFiles, normalizeWorkspaceFileTarget, resolveWorkspaceDocPath } from './lib/workspaceFiles'
+import { resolveNavigableWorkspaceDocPath } from './lib/workspaceDocNavigation'
 
 interface SharedDashboardPayload {
   refreshedAt: string
@@ -458,7 +459,7 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
   }, [payload])
 
   async function openDoc(path: string) {
-    const resolvedPath = resolveWorkspaceDocPath(path, docEntries)
+    const resolvedPath = resolveNavigableWorkspaceDocPath(path, docEntries)
     if (!resolvedPath) return
     setDocPath(resolvedPath)
     setDocLoading(true)

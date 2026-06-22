@@ -1,4 +1,4 @@
-import { resolveWorkspaceDocPath } from './workspaceFiles'
+import { resolveNavigableWorkspaceDocPath } from './workspaceDocNavigation'
 
 type ComparableMessage = {
   id: string
@@ -56,7 +56,7 @@ export function resolveCommunicationDocPath(
   target: string,
   docEntries: Array<{ path: string }>
 ): string | null {
-  return resolveWorkspaceDocPath(target, docEntries)
+  return resolveNavigableWorkspaceDocPath(target, docEntries)
 }
 
 export function shouldUpdateChannelMessages(

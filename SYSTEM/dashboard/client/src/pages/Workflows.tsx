@@ -26,7 +26,8 @@ import {
   shouldFetchWorkflowsForWorkspace,
   shouldRunInitialWorkflowPoll,
 } from '../lib/workflowLoading'
-import { resolveWorkspaceDocPath, WorkspaceDocEntryRef } from '../lib/workspaceFiles'
+import { WorkspaceDocEntryRef } from '../lib/workspaceFiles'
+import { resolveNavigableWorkspaceDocPath } from '../lib/workspaceDocNavigation'
 
 interface AgentTargeting {
   communities: string[]
@@ -503,7 +504,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
 
   const openWorkflowDoc = useCallback((target: string) => {
     if (!onNavigateToDoc) return
-    const resolvedPath = resolveWorkspaceDocPath(target, docEntries)
+    const resolvedPath = resolveNavigableWorkspaceDocPath(target, docEntries)
     if (!resolvedPath) return
     onNavigateToDoc(resolvedPath)
   }, [docEntries, onNavigateToDoc])

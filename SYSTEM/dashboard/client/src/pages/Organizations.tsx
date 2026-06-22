@@ -7,7 +7,8 @@ import { headerSecondaryButtonClass, headerSecondaryButtonIdleClass } from '../l
 import { buildOrganizationDeletePlan, buildOrganizationDisplayTeams } from '../lib/organizationTeams'
 import { ProductIconCell } from '../lib/productIcons'
 import { getViewportSafeDropdownStyle } from '../lib/dropdownPosition'
-import { resolveWorkspaceDocPath, WorkspaceDocEntryRef } from '../lib/workspaceFiles'
+import { WorkspaceDocEntryRef } from '../lib/workspaceFiles'
+import { resolveNavigableWorkspaceDocPath } from '../lib/workspaceDocNavigation'
 
 interface GroupEntry {
   name: string
@@ -671,7 +672,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
 
   const openOrganizationDoc = useCallback((target: string) => {
     if (!onNavigateToDoc) return
-    const resolvedPath = resolveWorkspaceDocPath(target, docEntries)
+    const resolvedPath = resolveNavigableWorkspaceDocPath(target, docEntries)
     if (!resolvedPath) return
     onNavigateToDoc(resolvedPath)
   }, [docEntries, onNavigateToDoc])

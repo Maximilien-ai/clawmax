@@ -70,6 +70,10 @@ function run() {
     'WORKFLOWS/outputs/final-review/peptide-optimization-final-report.md'
   )
   assert.strictEqual(
+    resolveCommunicationDocPath('WORKFLOWS/outputs/final-review/peptide-optimization-final-report.md', []),
+    'WORKFLOWS/outputs/final-review/peptide-optimization-final-report.md'
+  )
+  assert.strictEqual(
     resolveCommunicationDocPath('preview.png', docEntries),
     'AGENTS/researcher/preview.png'
   )
@@ -81,7 +85,7 @@ function run() {
     null
   )
 
-  console.log('communicationMessages.test.ts: 11 tests passed')
+  console.log('communicationMessages.test.ts: 12 tests passed')
 }
 
 run()
