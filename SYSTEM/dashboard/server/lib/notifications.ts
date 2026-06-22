@@ -8,7 +8,7 @@ import fs from 'fs'
 import path from 'path'
 import crypto from 'crypto'
 import { getAgentsDir, getWorkspacePath, getWorkspaceActivity, listAgents, parseGroups, isManagedAgentWorkspaceDir } from './workspace'
-import { listWorkflows, listExecutions, WorkflowExecution } from './workflows'
+import { formatParticipantFailure, listWorkflows, listExecutions, WorkflowExecution } from './workflows'
 import { getBudgetStatus } from './budget'
 import { getMessages } from './messages'
 import { getAllAgentCostLimits, pauseAgents } from './agent-state'
@@ -621,6 +621,19 @@ function extractArtifactFileName(notification: Notification): string | null {
   return match?.[1] || null
 }
 
+export function normalizeWorkflowNotificationErrorDetail(error: string): string {
+  const trimmed = `${error || ''}`.trim()
+  if (!trimmed) return 'Workflow participant failed.'
+
+  if (
+    /Incorrect API key provided|has auth issue \(skipping all models\)|No API key found for provider|is in cooldown \(suspending lanes\)|insufficient_quota|No execution path configured|No API keys available|EmbeddedAttemptSessionTakeoverError|session file changed while embedded prompt lock was released/i.test(trimmed)
+  ) {
+    return formatParticipantFailure(trimmed)
+  }
+
+  return trimmed
+}
+
 function resolveIgnoredArtifactNotifications(): void {
   const notifications = loadNotifications()
   let changed = false
@@ -717,7 +730,8 @@ async function runMonitorScan(): Promise<void> {
           if (p.status === 'failed' && p.error) {
             const agentFp = `agent-error:${wf.id}:${p.agentId}:${latest.id}`
             // Truncate error message for readability
-            const shortError = p.error.length > 150 ? p.error.slice(0, 150) + '...' : p.error
+            const normalizedError = normalizeWorkflowNotificationErrorDetail(p.error)
+            const shortError = normalizedError.length > 220 ? normalizedError.slice(0, 220) + '...' : normalizedError
             createNotification({
               type: 'agent-error',
               title: `${p.agentName || p.agentId} failed`,

@@ -36,6 +36,27 @@ Use `1.9.1` for the next cleanup slice after `1.9.0` stabilization, while keepin
 - [ ] sync only reviewed public-facing fixes
 - [ ] avoid bulk copy-over into dirty or experimental public repo state
 
+Current audit snapshot:
+
+- `Maximilien-ai/templates` is currently dirty locally, so no bulk sync should be attempted.
+- Public template candidates that already match local audited content:
+  - `dev-team`
+  - `support-team`
+  - `physics-research-group`
+  - `statistics-research-lab`
+- Public template candidates that differ and should be considered for selective sync:
+  - `conference-ops-hub`
+    - local change: reduce default interchangeable coordinator count from `3` to `2`
+  - `clawmax-dev-team`
+    - local change: `pr-review` should depend on `dev-team-kickoff`, not `issue-triage`
+  - `email-calendar-manager`
+    - local change: `inbox-triage-cycle` disabled by default
+  - `meeting-prep-desk`
+    - local change: `people-and-topic-research` disabled by default
+- `Maximilien-ai/workflows` needs semantic review, not blind sync:
+  - this repo does not maintain a matching public `WORKFLOW.md` tree alongside those shipped template/workflow definitions
+  - any workflow sync should be intentional and content-reviewed rather than diff-copied
+
 ### Section 3: Remaining DocHub / File-Open Edge Cases
 
 - [ ] capture any remaining ambiguous or inert file-open surfaces found during `1.9.0` validation

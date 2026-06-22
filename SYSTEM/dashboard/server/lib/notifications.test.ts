@@ -17,6 +17,7 @@ import {
   getWorkflowBlockers,
   getActiveNotifications,
   getGroupedActiveNotifications,
+  normalizeWorkflowNotificationErrorDetail,
 } from './notifications'
 import { getWorkspacePath } from './workspace'
 
@@ -365,6 +366,12 @@ test('resolveWorkflowExecutionNotifications clears stale workflow-scoped errors 
   const active = getActiveNotifications()
   assert(!active.some((notification) => notification.workflowId === 'wf-clean'), 'Expected wf-clean notifications to be resolved')
   assert(active.some((notification) => notification.workflowId === 'wf-other'), 'Expected unrelated workflow notifications to remain active')
+})
+
+test('normalizeWorkflowNotificationErrorDetail rewrites raw provider auth failures for notification readability', () => {
+  const normalized = normalizeWorkflowNotificationErrorDetail('FailoverError: 401 Incorrect API key provided: openai-cible.')
+  assert(/authentication failed/i.test(normalized), `Expected auth guidance, got ${normalized}`)
+  assert(/api key|auth profile|byok/i.test(normalized), `Expected actionable auth wording, got ${normalized}`)
 })
 
 // ============================================================================
