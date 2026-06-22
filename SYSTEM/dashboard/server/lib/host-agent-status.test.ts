@@ -43,7 +43,7 @@ async function run() {
       last_seen_at: new Date().toISOString(),
     }, null, 2))
 
-    const status = getHostAgentStatus()
+    const status = getHostAgentStatus('127.0.0.1:3201')
     assert(status?.state === 'unauthorized', 'Expected unauthorized state')
     assert(Boolean(status?.hint.includes('Reconnect this Mac')), 'Expected reconnect hint')
   })
@@ -56,7 +56,7 @@ async function run() {
       last_seen_at: '2026-01-01T00:00:00.000Z',
     }, null, 2))
 
-    const status = getHostAgentStatus()
+    const status = getHostAgentStatus('127.0.0.1:3201')
     assert(Boolean(status?.state === 'unreachable'), 'Expected unreachable state')
   })
 
@@ -68,7 +68,7 @@ async function run() {
       last_seen_at: new Date().toISOString(),
     }, null, 2))
 
-    const status = getHostAgentStatus()
+    const status = getHostAgentStatus('127.0.0.1:3201')
     assert(status?.state === 'warning', 'Expected degraded warning state')
   })
 
@@ -80,8 +80,21 @@ async function run() {
       last_seen_at: new Date().toISOString(),
     }, null, 2))
 
-    const status = getHostAgentStatus()
+    const status = getHostAgentStatus('127.0.0.1:3201')
     assert(status === null, 'Expected null when no host-agent warning exists')
+  })
+
+  await test('host agent status stays hidden when the current dashboard host does not match the stored dashboard url', () => {
+    fs.writeFileSync(statePath, JSON.stringify({
+      desired_state: 'running',
+      last_error: 'action polling unauthorized; reconnect this Mac from Web to refresh local agent credentials',
+      last_status_summary: 'worker unauthorized',
+      last_seen_at: new Date().toISOString(),
+      last_dashboard_url: 'http://127.0.0.1:3201',
+    }, null, 2))
+
+    const status = getHostAgentStatus('localhost:3001')
+    assert(status === null, 'Expected reconnect banner suppressed for a different dashboard host')
   })
 
   if (originalPath === undefined) delete process.env.OPENCLAW_HOST_AGENT_STATE_PATH

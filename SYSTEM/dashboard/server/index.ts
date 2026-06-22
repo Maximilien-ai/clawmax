@@ -311,7 +311,7 @@ app.get('/api/system', protect, async (req, res) => {
   const activeAgents = agents.filter(a => !a.paused)
   const requestHost = req.get('x-forwarded-host') || req.get('host') || ''
   const maintenanceBanner = await getResolvedMaintenanceBanner(rawEnv, requestHost)
-  const hostAgentStatus = getHostAgentStatus()
+  const hostAgentStatus = getHostAgentStatus(requestHost)
   const runtimeIdentity = getRuntimeInstanceIdentity()
   res.json(buildSystemInfoPayload({
     workspace: workspacePath,

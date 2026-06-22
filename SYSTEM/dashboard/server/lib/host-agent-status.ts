@@ -33,6 +33,24 @@ type HostAgentStateFile = {
 
 const STALE_MS = 5 * 60 * 1000
 
+function normalizeHost(host: string): string {
+  const trimmed = host.trim().toLowerCase()
+  if (!trimmed) return ''
+  if (trimmed.startsWith('localhost:')) return `127.0.0.1:${trimmed.slice('localhost:'.length)}`
+  if (trimmed === 'localhost') return '127.0.0.1'
+  return trimmed
+}
+
+function resolveStateDashboardHost(lastDashboardUrl?: string): string {
+  const raw = normalize(lastDashboardUrl)
+  if (!raw) return ''
+  try {
+    return normalizeHost(new URL(raw).host)
+  } catch {
+    return normalizeHost(raw)
+  }
+}
+
 function candidatePaths(): string[] {
   const home = process.env.HOME || os.homedir() || ''
   const explicitPath = (process.env.OPENCLAW_HOST_AGENT_STATE_PATH || '').trim()
@@ -70,6 +88,14 @@ function toMs(value?: string): number | null {
 
 function isUnauthorizedError(lastError: string): boolean {
   return /status writeback unauthorized|action polling unauthorized|refresh local agent credentials|reconnect this mac/i.test(lastError)
+}
+
+function shouldSurfaceForDashboard(state: HostAgentStateFile, currentDashboardHost: string): boolean {
+  const currentHost = normalizeHost(currentDashboardHost)
+  if (!currentHost) return true
+  const stateHost = resolveStateDashboardHost(state.last_dashboard_url)
+  if (!stateHost) return true
+  return currentHost === stateHost
 }
 
 function isStale(desiredState: string, lastSeenAt: string, nowMs: number = Date.now()): boolean {
@@ -125,10 +151,11 @@ function buildStatus(state: HostAgentStateFile, sourcePath: string): HostAgentSt
   return null
 }
 
-export function getHostAgentStatus(): HostAgentStatus | null {
+export function getHostAgentStatus(currentDashboardHost: string = ''): HostAgentStatus | null {
   for (const candidatePath of candidatePaths()) {
     const state = readStateFile(candidatePath)
     if (!state) continue
+    if (!shouldSurfaceForDashboard(state, currentDashboardHost)) continue
     const status = buildStatus(state, candidatePath)
     if (status) return status
   }
