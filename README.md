@@ -14,9 +14,13 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 
 - `1.8.9` closes the auth/runtime hardening pass: waiting-for-input notifications open the real workflow conversation context, local dashboard chat and history recovery are stable again, workflow-failed notifications deep-link to failed runs, WhatsApp linking is more resilient, and notifications reset correctly on workspace switch.
 
-## 🛠 Next Sprint: 1.9.0
+## 🧪 Active Validation: 1.9.0-test-rc3
 
-- `1.9.0` is scoped around the remaining hardening follow-through: provider/runtime error normalization, workflow/channel delivery correctness, lingering DocHub/file-open edge cases, template lane/subdirectory audit closure, and operator-facing diagnostics/metering cleanup.
+- `1.9.0-test-rc3` is the current validation image for the `1.9.0` release line. It adds archived-chat restore/continue, workflow stale-notification cleanup, group chat date separators, workflow-thread auth/runtime noise cleanup, runtime workflow channel inference, waiting-input conversation target inference, DocHub/file-open warmup fixes, and aligned chat/runtime diagnostic wording.
+
+## 🛠 Next Release: 1.9.0
+
+- `1.9.0` packages the remaining hardening follow-through: workflow/channel delivery correctness, clearer operator-facing runtime/auth diagnostics, archived chat recovery, group chat timeline clarity, and lingering DocHub/file-open edge-case closure.
 
 ## ✨ 1.8.x Highlights
 

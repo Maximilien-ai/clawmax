@@ -1,8 +1,8 @@
 # ClawMax Status
 
 **Current Version**: v1.8.9
-**Last Updated**: June 20, 2026
-**Status**: `v1.8.9` is the current promoted stable release from `main`. `1.9.0` is the next hardening sprint for the remaining `1.8.x` closure work and the first `1.9.x` operator-quality follow-through.
+**Last Updated**: June 22, 2026
+**Status**: `v1.8.9` is the current promoted stable release from `main`. `main` is validating `1.9.0-test-rc3` as the final `1.9.0` release candidate before promotion.
 
 ---
 
@@ -15,7 +15,7 @@
 - Partner integrations are active product surfaces, including Resend, Cognee, Opik, GitHub, Senso, and partner plugin install/uninstall handling.
 - Resend has both dashboard test-email validation and first-party `clawmax-resend` agent-tool execution with runtime-secret support.
 - Cognee has a first-pass partner surface for cloud/self-hosted configuration and official OpenClaw plugin lifecycle management.
-- The latest reported full local integration run is green with `--with-validation`, including the latest helper/contract coverage for workflow communication-target inference, lighter template defaults, safer recurring automation defaults, DocHub preview behavior, workflow session repair, notification presentation/routes, plugin notification dedupe, provider model lifecycle handling, chat timeline/history recovery, and waiting-input/workflow notification deep links.
+- The latest reported full local integration run is green with `--with-validation`, including the latest helper/contract coverage for workflow communication-target inference, archived chat restore/continue, workflow notification cleanup, group chat timeline rendering, DocHub preview/navigation behavior, host-agent state override honoring, and aligned chat/runtime diagnostic wording.
 
 ## Active Release Track
 
@@ -24,7 +24,7 @@
   - [planning/HARDENING_SIMPLIFICATION_1_8_X.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/HARDENING_SIMPLIFICATION_1_8_X.md)
   - [planning/SIMPLIFY_OPTIMIZE_1_8_X.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_OPTIMIZE_1_8_X.md)
   - [planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_0.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_0.md)
-- Near-term target: start `1.9.0` on the remaining hardening follow-through: provider/runtime error normalization, workflow/channel delivery correctness, lingering DocHub/file-open edge cases, template lane/subdirectory audit closure, metering/diagnostic cleanup, and operator recovery actions.
+- Near-term target: validate `1.9.0-test-rc3` on cloud and on-prem; if green, promote `1.9.0` as the next stable release.
 
 ## Release References
 

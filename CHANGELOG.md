@@ -4,6 +4,22 @@ All notable changes to ClawMax are documented here.
 
 ## [Unreleased]
 
+## [v1.9.0] - Pending Validation
+
+### Fixed
+- **Archived Chat Recovery** — archived agent conversations now render cleaner archive rows, avoid phantom/zero-message entries, parse archive timestamps more reliably, and support `Continue`/restore back into the active live conversation.
+- **Workflow Notification Resolution** — successful workflow runs now resolve stale workflow-scoped `workflow-failed`, `agent-error`, and `needs input` notifications more aggressively instead of leaving superseded failure noise active after a green run.
+- **Workflow Thread Cleanup** — workflow/group/community conversations now normalize raw provider auth/network fallback spam into shorter operator-facing runtime messages instead of dumping raw fallback internals into the thread.
+- **Group Chat Timeline Readability** — group/community chats now show `Today`, `Yesterday`, and dated separators, and older messages include `date + time` instead of only a same-day-looking clock label.
+- **Workflow Channel Target Inference** — runtime workflow delivery now infers group/community targets from `teamIds` and shared targeted-agent memberships, reducing the need for duplicated explicit `groups` / `communities` wiring just to land workflow output in the correct thread.
+- **Waiting-Input Conversation Routing** — waiting-for-input notifications now use the same inferred workflow channel targets, so `Open conversation` lands in the real workflow discussion context even for team-targeted workflows without duplicated channel wiring.
+- **DocHub Warmup Navigation** — workflow results, shared dashboard artifacts, and organization/workflow document links stay navigable through direct workspace-path fallbacks even before the doc index finishes warming up.
+- **Chat / Runtime Diagnostic Consistency** — chat surfaces now align on the same clearer wording for missing credentials, rejected keys, sticky auth state, quota/rate-limit failures, cooldowns, and missing execution paths.
+- **Host Agent Status Override Honoring** — host-agent status now respects `OPENCLAW_HOST_AGENT_STATE_PATH` as authoritative instead of falling through to unrelated machine-local state files during validation.
+
+### Testing
+- **Expanded 1.9.0 Coverage** — added visible regression coverage for archived-chat restore, workflow stale-notification resolution, workflow thread normalization, inferred workflow communication targets, inferred waiting-input conversation targets, DocHub warmup navigation, host-agent state override honoring, and aligned chat runtime error messaging.
+
 ## [v1.8.9] - 2026-06-20
 
 ### Fixed
