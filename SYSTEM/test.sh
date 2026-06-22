@@ -451,8 +451,8 @@ fi
 echo ""
 echo -e "${YELLOW}→ Running Chat runtime errors helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/chatRuntimeErrors.test.ts > /tmp/clawmax-chat-runtime-errors.out 2>&1 || true
-if grep -q '^✓ ' /tmp/clawmax-chat-runtime-errors.out; then
-  chat_runtime_errors_count=$(grep -c '^✓ ' /tmp/clawmax-chat-runtime-errors.out)
+if grep -q "All tests passed" /tmp/clawmax-chat-runtime-errors.out; then
+  chat_runtime_errors_count=$(grep "Tests passed:" /tmp/clawmax-chat-runtime-errors.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
   pass "Chat runtime errors helper unit tests (${chat_runtime_errors_count:-?} tests)"
 else
   cat /tmp/clawmax-chat-runtime-errors.out
