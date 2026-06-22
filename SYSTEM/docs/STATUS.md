@@ -1,8 +1,8 @@
 # ClawMax Status
 
 **Current Version**: v1.8.9
-**Last Updated**: June 22, 2026
-**Status**: `v1.8.9` is the current promoted stable release. `main` is validating `1.9.0`, while this branch stages `1.9.1` follow-through work so any `1.9.0-rc3` blocker fix can still land cleanly on `main`.
+**Last Updated**: June 20, 2026
+**Status**: `v1.8.9` is the current promoted stable release from `main`. `1.9.0` is the next hardening sprint for the remaining `1.8.x` closure work and the first `1.9.x` operator-quality follow-through.
 
 ---
 
@@ -19,13 +19,12 @@
 
 ## Active Release Track
 
-- Branch: `simplify-harden-optimize-1-9-1`
+- Branch: `main`
 - Plans:
   - [planning/HARDENING_SIMPLIFICATION_1_8_X.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/HARDENING_SIMPLIFICATION_1_8_X.md)
   - [planning/SIMPLIFY_OPTIMIZE_1_8_X.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_OPTIMIZE_1_8_X.md)
   - [planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_0.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_0.md)
-  - [planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_1.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_1.md)
-- Near-term target: keep `main` focused on `1.9.0` validation/promotion and use this branch for the next `1.9.1` cleanup slice: operator diagnostics follow-through, public template/workflow sync prep, remaining DocHub/file-open edge cases, and any non-blocking workflow/thread polish that should not churn the `1.9.0` release line.
+- Near-term target: start `1.9.0` on the remaining hardening follow-through: provider/runtime error normalization, workflow/channel delivery correctness, lingering DocHub/file-open edge cases, template lane/subdirectory audit closure, metering/diagnostic cleanup, and operator recovery actions.
 
 ## Release References
 
