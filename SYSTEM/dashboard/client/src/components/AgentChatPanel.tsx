@@ -10,6 +10,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { resolveAgentChatDocPath } from '../lib/agentChatDocs'
 import { transformWorkspaceMarkdownUrl } from '../lib/markdownLinks'
 import { extractWorkspaceFileMentions, linkifyWorkspaceFiles } from '../lib/workspaceFiles'
+import { summarizeAgentChatFailure } from '../lib/chatRuntimeErrors'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -160,21 +161,6 @@ function cleanMessageContent(content: string): string {
 
   const cleaned = cleanedLines.join('\n').replace(/\n{3,}/g, '\n\n').trim()
   return cleaned || '(processing...)'
-}
-
-function summarizeChatFailure(message: string): string {
-  const text = String(message || '').trim()
-  if (!text) return 'No reply from agent.'
-  if (/unsupported model|Unknown model:/i.test(text)) return 'This agent is configured with a model that the current runtime does not support. Choose a different model for the agent and try again.'
-  if (/No API key found for provider/i.test(text)) return text.match(/No API key found for provider "[^"]+"/i)?.[0] || 'The selected model provider is missing credentials for this agent runtime.'
-  if (/Incorrect API key provided/i.test(text)) return 'The configured model provider API key was rejected. Update the API key or runtime auth profile for this agent and try again.'
-  if (/has auth issue \(skipping all models\)/i.test(text)) return 'This runtime is currently marked with a provider auth issue, usually because a prior request failed authentication. Refresh the API key or auth profile for this runtime and retry after the auth state clears.'
-  if (/insufficient_quota|quota exceeded|rate limit|too many requests|429\b/i.test(text)) return 'The model provider rejected this request because the account hit a quota or rate limit. Wait a moment and retry, or update the provider billing/usage limits for this runtime.'
-  if (/is in cooldown \(suspending lanes\)/i.test(text)) return 'The model provider is temporarily cooling down after a timeout. Wait a moment and retry, or switch this agent to a faster fallback model.'
-  if (/gateway/i.test(text)) return 'Agent could not reach the gateway runtime.'
-  if (/timeout/i.test(text)) return 'Agent timed out before producing a reply. Retry once, or switch this agent to a faster model if the issue persists.'
-  if (/No API keys available|No execution path configured/i.test(text)) return 'No model execution path is configured for this chat.'
-  return text
 }
 
 export default function AgentChatPanel({ agentId, agentName, agentStatus, onClose, onSuccess, onNavigateToDoc }: Props) {
@@ -562,7 +548,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
               // Notify parent of successful completion
               onSuccess?.()
             } else if (data.type === 'error') {
-              const friendly = summarizeChatFailure(data.data || 'Chat error')
+              const friendly = summarizeAgentChatFailure(data.data || 'Chat error')
               setError(friendly)
               setMessages(prev => prev.map(m =>
                 m.id === assistantId
@@ -580,11 +566,11 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
       if (e.name === 'AbortError') {
         setError('Request cancelled')
       } else {
-        setError(summarizeChatFailure(String(e)))
+        setError(summarizeAgentChatFailure(String(e)))
       }
       setMessages(prev => prev.map(m =>
         m.id === assistantId
-          ? { ...m, content: summarizeChatFailure(String(e)) }
+          ? { ...m, content: summarizeAgentChatFailure(String(e)) }
           : m
       ))
     } finally {
