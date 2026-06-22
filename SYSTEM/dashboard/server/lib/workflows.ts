@@ -5,7 +5,7 @@ import cronstrue from 'cronstrue'
 import { spawn } from 'child_process'
 import { safeEnv, workflowExecutionEnv } from './safe-env'
 import { createHash, randomUUID } from 'crypto'
-import { getWorkspacePath, parseGroups } from './workspace'
+import { getWorkspacePath, listAgents, parseGroups } from './workspace'
 import { listTeams, type Team } from './teams'
 import { addMessage } from './messages'
 import { getConfiguredDashboardInstanceId, traceAgentChat, traceWorkflowExecution } from './opik'
@@ -172,12 +172,113 @@ function resolveTargetNames(requested: string[] = [], available: string[]): { re
   return { resolved, missing }
 }
 
+function normalizeWorkflowChannelKey(value: string): string {
+  return `${value || ''}`
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
+function inferWorkflowCommunicationTargets(
+  targeting: Partial<AgentTargeting> = {},
+  workspaceRoot: string = getWorkspacePath()
+): { groups: string[]; communities: string[] } {
+  const existingGroups = Array.isArray(targeting.groups) ? targeting.groups.filter(Boolean) : []
+  const existingCommunities = Array.isArray(targeting.communities) ? targeting.communities.filter(Boolean) : []
+  if (existingGroups.length > 0 || existingCommunities.length > 0) {
+    return {
+      groups: Array.from(new Set(existingGroups)),
+      communities: Array.from(new Set(existingCommunities)),
+    }
+  }
+
+  const teamIds = Array.isArray(targeting.teamIds) ? targeting.teamIds.map((value) => `${value || ''}`.trim()).filter(Boolean) : []
+  const targetedAgents = Array.isArray(targeting.agents) ? targeting.agents.map((value) => `${value || ''}`.trim()).filter(Boolean) : []
+  const groupsPath = path.join(workspaceRoot, 'ORG', 'GROUPS.md')
+  const communitiesPath = path.join(workspaceRoot, 'ORG', 'COMMUNITIES.md')
+  const parsedGroups = fs.existsSync(groupsPath) ? parseGroups(fs.readFileSync(groupsPath, 'utf-8')).groups : []
+  const parsedCommunities = fs.existsSync(communitiesPath) ? parseGroups(fs.readFileSync(communitiesPath, 'utf-8')).communities : []
+
+  const groupsByKey = new Map<string, { name: string; community?: string | null }>()
+  for (const group of parsedGroups) {
+    const key = normalizeWorkflowChannelKey(group.name || '')
+    if (!key || groupsByKey.has(key)) continue
+    groupsByKey.set(key, { name: group.name, community: group.community })
+  }
+
+  const communitiesByKey = new Map<string, string>()
+  for (const community of parsedCommunities) {
+    const key = normalizeWorkflowChannelKey(community.name || '')
+    if (!key || communitiesByKey.has(key)) continue
+    communitiesByKey.set(key, community.name)
+  }
+
+  const inferredGroups = new Set<string>()
+  const inferredCommunities = new Set<string>()
+
+  if (teamIds.length > 0) {
+    for (const team of listTeams(workspaceRoot).filter((candidate) => teamIds.includes(candidate.id))) {
+      const candidateKeys = new Set<string>([
+        normalizeWorkflowChannelKey(team.id),
+        normalizeWorkflowChannelKey(team.name || ''),
+      ].filter(Boolean))
+      for (const candidateKey of candidateKeys) {
+        const matchingGroup = groupsByKey.get(candidateKey)
+        if (!matchingGroup) continue
+        inferredGroups.add(matchingGroup.name)
+        if (matchingGroup.community) inferredCommunities.add(matchingGroup.community)
+      }
+    }
+  }
+
+  if (targetedAgents.length > 0) {
+    const uniqueAgentIds = Array.from(new Set(targetedAgents))
+    const agents = listAgents()
+    const agentMemberships = uniqueAgentIds
+      .map((agentId) => agents.find((agent) => agent.id === agentId))
+      .filter(Boolean)
+      .map((agent) => ({
+        groups: new Set((agent!.groups || []).map((group) => group.name)),
+        communities: new Set((agent!.communities || []).map((community) => community.name)),
+      }))
+
+    if (agentMemberships.length > 0) {
+      const sharedGroups = new Set<string>(agentMemberships[0].groups)
+      const sharedCommunities = new Set<string>(agentMemberships[0].communities)
+
+      for (const membership of agentMemberships.slice(1)) {
+        for (const groupName of Array.from(sharedGroups)) {
+          if (!membership.groups.has(groupName)) sharedGroups.delete(groupName)
+        }
+        for (const communityName of Array.from(sharedCommunities)) {
+          if (!membership.communities.has(communityName)) sharedCommunities.delete(communityName)
+        }
+      }
+
+      for (const groupName of sharedGroups) inferredGroups.add(groupName)
+      for (const communityName of sharedCommunities) inferredCommunities.add(communityName)
+    }
+  }
+
+  for (const groupName of Array.from(inferredGroups)) {
+    const matchingGroup = groupsByKey.get(normalizeWorkflowChannelKey(groupName))
+    if (matchingGroup?.community) inferredCommunities.add(matchingGroup.community)
+  }
+
+  return {
+    groups: Array.from(inferredGroups),
+    communities: Array.from(inferredCommunities).map((communityName) => communitiesByKey.get(normalizeWorkflowChannelKey(communityName)) || communityName),
+  }
+}
+
 export function resolveWorkflowCommunicationTargets(
   targeting: Partial<AgentTargeting> = {},
   workspaceRoot: string = getWorkspacePath()
 ): WorkflowCommunicationTargetResolution {
-  const groups = resolveTargetNames(targeting.groups || [], readWorkflowChannelNames(workspaceRoot, 'group'))
-  const communities = resolveTargetNames(targeting.communities || [], readWorkflowChannelNames(workspaceRoot, 'community'))
+  const inferredTargets = inferWorkflowCommunicationTargets(targeting, workspaceRoot)
+  const groups = resolveTargetNames(inferredTargets.groups, readWorkflowChannelNames(workspaceRoot, 'group'))
+  const communities = resolveTargetNames(inferredTargets.communities, readWorkflowChannelNames(workspaceRoot, 'community'))
   return {
     groups: groups.resolved,
     communities: communities.resolved,

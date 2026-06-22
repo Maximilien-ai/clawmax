@@ -35,21 +35,75 @@ function test(name: string, fn: () => void) {
 
 const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-workflow-communication-targets-'))
 fs.mkdirSync(path.join(workspace, 'ORG'), { recursive: true })
+fs.mkdirSync(path.join(workspace, 'SYSTEM'), { recursive: true })
+fs.mkdirSync(path.join(workspace, 'AGENTS', 'lead'), { recursive: true })
+fs.mkdirSync(path.join(workspace, 'AGENTS', 'researcher'), { recursive: true })
 fs.writeFileSync(path.join(workspace, 'ORG', 'GROUPS.md'), [
   '# Groups',
   '',
   '### Engineering',
   '- **Description:** Engineering group',
   '- **Community:** Product',
+  '- **Members:** lead',
+  '',
+  '### Research Team',
+  '- **Description:** Research group',
+  '- **Community:** Ops Hub',
+  '- **Members:** lead, researcher',
   '',
   '### QA Review',
   '- **Description:** QA group',
+  '- **Members:** lead',
+].join('\n'), 'utf-8')
+fs.writeFileSync(path.join(workspace, 'SYSTEM', 'teams.json'), JSON.stringify({
+  version: '1.0.0',
+  teams: [
+    {
+      id: 'research-team',
+      name: 'Research Team',
+      memberAgentIds: ['researcher'],
+      leaderAgentId: 'lead',
+      tags: [],
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    },
+  ],
+}, null, 2), 'utf-8')
+fs.mkdirSync(path.join(workspace, '.home', '.openclaw'), { recursive: true })
+fs.writeFileSync(path.join(workspace, '.home', '.openclaw', 'openclaw.json'), JSON.stringify({
+  agents: {
+    list: [
+      { id: 'lead', workspace: path.join(workspace, 'AGENTS', 'lead') },
+      { id: 'researcher', workspace: path.join(workspace, 'AGENTS', 'researcher') },
+    ],
+  },
+}, null, 2), 'utf-8')
+fs.writeFileSync(path.join(workspace, 'AGENTS', 'lead', 'IDENTITY.md'), [
+  '# Identity',
+  '',
+  '- **Name:** Lead',
+  '- **Role:** Lead',
+  '- **Communities:** Ops Hub',
+  '- **Groups:** Research Team, QA Review',
+].join('\n'), 'utf-8')
+fs.writeFileSync(path.join(workspace, 'AGENTS', 'researcher', 'IDENTITY.md'), [
+  '# Identity',
+  '',
+  '- **Name:** Researcher',
+  '- **Role:** Researcher',
+  '- **Communities:** Ops Hub',
+  '- **Groups:** Research Team',
 ].join('\n'), 'utf-8')
 fs.writeFileSync(path.join(workspace, 'ORG', 'COMMUNITIES.md'), [
   '# Communities',
   '',
   '### Product',
   '- **Description:** Product community',
+  '- **Members:** lead',
+  '',
+  '### Ops Hub',
+  '- **Description:** Operations community',
+  '- **Members:** lead, researcher',
 ].join('\n'), 'utf-8')
 
 console.log(`\n${YELLOW}=== Workflow Communication Target Tests ===${RESET}\n`)
@@ -76,6 +130,54 @@ test('reports missing workflow communication targets without creating fallback n
   assert.deepEqual(resolved.communities, [])
   assert.deepEqual(resolved.missingGroups, ['Missing Group'])
   assert.deepEqual(resolved.missingCommunities, ['Missing Community'])
+})
+
+test('infers workflow communication targets from team ids when explicit channels are omitted', () => {
+  const previousHome = process.env.HOME
+  const previousWorkspace = process.env.OPENCLAW_WORKSPACE
+  process.env.HOME = path.join(workspace, '.home')
+  process.env.OPENCLAW_WORKSPACE = workspace
+  try {
+    const resolved = resolveWorkflowCommunicationTargets({
+      groups: [],
+      communities: [],
+      teamIds: ['research-team'],
+    }, workspace)
+
+    assert.deepEqual(resolved.groups, ['Research Team'])
+    assert.deepEqual(resolved.communities, ['Ops Hub'])
+    assert.deepEqual(resolved.missingGroups, [])
+    assert.deepEqual(resolved.missingCommunities, [])
+  } finally {
+    if (typeof previousHome === 'undefined') delete process.env.HOME
+    else process.env.HOME = previousHome
+    if (typeof previousWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
+    else process.env.OPENCLAW_WORKSPACE = previousWorkspace
+  }
+})
+
+test('infers shared workflow communication targets from targeted agent memberships', () => {
+  const previousHome = process.env.HOME
+  const previousWorkspace = process.env.OPENCLAW_WORKSPACE
+  process.env.HOME = path.join(workspace, '.home')
+  process.env.OPENCLAW_WORKSPACE = workspace
+  try {
+    const resolved = resolveWorkflowCommunicationTargets({
+      groups: [],
+      communities: [],
+      agents: ['lead', 'researcher'],
+    }, workspace)
+
+    assert.deepEqual(resolved.groups, ['Research Team'])
+    assert.deepEqual(resolved.communities, ['Ops Hub'])
+    assert.deepEqual(resolved.missingGroups, [])
+    assert.deepEqual(resolved.missingCommunities, [])
+  } finally {
+    if (typeof previousHome === 'undefined') delete process.env.HOME
+    else process.env.HOME = previousHome
+    if (typeof previousWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
+    else process.env.OPENCLAW_WORKSPACE = previousWorkspace
+  }
 })
 
 test('formats actionable missing target errors', () => {
