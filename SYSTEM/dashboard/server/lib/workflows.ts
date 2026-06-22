@@ -719,14 +719,16 @@ export function normalizeWorkflowThreadDiagnostic(content: string): string | nul
   return 'Runtime model execution error. Review the workflow details or retry the run.'
 }
 
-export function resolveWorkflowConversationTarget(targeting: Pick<AgentTargeting, 'groups' | 'communities'> | null | undefined): { type: 'group' | 'community'; name: string } | null {
-  const groups = (targeting?.groups || []).map((value: string) => `${value}`.trim()).filter(Boolean)
-  if (groups.length > 0) {
-    return { type: 'group', name: groups[0] }
+export function resolveWorkflowConversationTarget(
+  targeting: Partial<AgentTargeting> | null | undefined,
+  workspaceRoot: string = getWorkspacePath()
+): { type: 'group' | 'community'; name: string } | null {
+  const inferredTargets = inferWorkflowCommunicationTargets(targeting || {}, workspaceRoot)
+  if (inferredTargets.groups.length > 0) {
+    return { type: 'group', name: inferredTargets.groups[0] }
   }
-  const communities = (targeting?.communities || []).map((value: string) => `${value}`.trim()).filter(Boolean)
-  if (communities.length > 0) {
-    return { type: 'community', name: communities[0] }
+  if (inferredTargets.communities.length > 0) {
+    return { type: 'community', name: inferredTargets.communities[0] }
   }
   return null
 }

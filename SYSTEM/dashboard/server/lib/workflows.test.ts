@@ -519,6 +519,82 @@ test('resolveWorkflowConversationTarget prefers workflow groups before communiti
   assert(communityTarget?.type === 'community' && communityTarget?.name === 'Research Lab', `Expected community target, got: ${JSON.stringify(communityTarget)}`)
 })
 
+test('resolveWorkflowConversationTarget infers team workflow channels when explicit channels are omitted', () => {
+  const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-workflow-conversation-target-'))
+  const previousWorkspace = process.env.OPENCLAW_WORKSPACE
+  const previousHome = process.env.HOME
+  const home = path.join(workspaceRoot, '.home')
+
+  try {
+    process.env.OPENCLAW_WORKSPACE = workspaceRoot
+    process.env.HOME = home
+    fs.mkdirSync(path.join(workspaceRoot, 'ORG'), { recursive: true })
+    fs.mkdirSync(path.join(workspaceRoot, 'SYSTEM'), { recursive: true })
+    fs.mkdirSync(path.join(workspaceRoot, 'AGENTS', 'lead'), { recursive: true })
+    fs.mkdirSync(path.join(workspaceRoot, 'AGENTS', 'researcher'), { recursive: true })
+    fs.mkdirSync(path.join(home, '.openclaw'), { recursive: true })
+
+    fs.writeFileSync(path.join(workspaceRoot, 'ORG', 'GROUPS.md'), [
+      '# Groups',
+      '',
+      '### Research Team',
+      '- **Description:** Research group',
+      '- **Community:** Ops Hub',
+      '- **Members:** lead, researcher',
+    ].join('\n'), 'utf-8')
+    fs.writeFileSync(path.join(workspaceRoot, 'ORG', 'COMMUNITIES.md'), [
+      '# Communities',
+      '',
+      '### Ops Hub',
+      '- **Description:** Operations community',
+      '- **Members:** lead, researcher',
+    ].join('\n'), 'utf-8')
+    fs.writeFileSync(path.join(workspaceRoot, 'SYSTEM', 'teams.json'), JSON.stringify({
+      version: '1.0.0',
+      teams: [
+        {
+          id: 'research-team',
+          name: 'Research Team',
+          leaderAgentId: 'lead',
+          memberAgentIds: ['researcher'],
+          tags: [],
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+        },
+      ],
+    }, null, 2), 'utf-8')
+    fs.writeFileSync(path.join(home, '.openclaw', 'openclaw.json'), JSON.stringify({
+      agents: {
+        list: [
+          { id: 'lead', workspace: path.join(workspaceRoot, 'AGENTS', 'lead') },
+          { id: 'researcher', workspace: path.join(workspaceRoot, 'AGENTS', 'researcher') },
+        ],
+      },
+    }, null, 2), 'utf-8')
+    fs.writeFileSync(path.join(workspaceRoot, 'AGENTS', 'lead', 'IDENTITY.md'), [
+      '# Identity',
+      '',
+      '- **Name:** Lead',
+      '- **Role:** Lead',
+    ].join('\n'), 'utf-8')
+    fs.writeFileSync(path.join(workspaceRoot, 'AGENTS', 'researcher', 'IDENTITY.md'), [
+      '# Identity',
+      '',
+      '- **Name:** Researcher',
+      '- **Role:** Researcher',
+    ].join('\n'), 'utf-8')
+
+    const teamTarget = resolveWorkflowConversationTarget({ groups: [], communities: [], teamIds: ['research-team'] }, workspaceRoot)
+    assert(teamTarget?.type === 'group' && teamTarget?.name === 'Research Team', `Expected inferred team group target, got: ${JSON.stringify(teamTarget)}`)
+  } finally {
+    if (typeof previousWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
+    else process.env.OPENCLAW_WORKSPACE = previousWorkspace
+    if (typeof previousHome === 'undefined') delete process.env.HOME
+    else process.env.HOME = previousHome
+    fs.rmSync(workspaceRoot, { recursive: true, force: true })
+  }
+})
+
 test('summarizeAgentInputRequest extracts direct user asks for notifications', () => {
   const summary = summarizeAgentInputRequest('I can continue, but I need your decision. Please confirm whether we should target founders or growth leads for the first outbound campaign. Once you confirm, I will finish the draft.')
   assert(
