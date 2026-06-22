@@ -35,11 +35,17 @@ const STALE_MS = 5 * 60 * 1000
 
 function candidatePaths(): string[] {
   const home = process.env.HOME || os.homedir() || ''
-  return [
-    (process.env.OPENCLAW_HOST_AGENT_STATE_PATH || '').trim(),
+  const explicitPath = (process.env.OPENCLAW_HOST_AGENT_STATE_PATH || '').trim()
+  const fallbackPaths = [
     home ? path.join(home, '.clawmax', 'agent', 'state.json') : '',
     home ? path.join(home, '.openclaw', 'host-agent-state.json') : '',
   ].filter(Boolean)
+
+  if (explicitPath) {
+    return [explicitPath]
+  }
+
+  return fallbackPaths
 }
 
 function readStateFile(candidatePath: string): HostAgentStateFile | null {
