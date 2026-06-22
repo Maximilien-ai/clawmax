@@ -449,6 +449,17 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Chat runtime errors helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/chatRuntimeErrors.test.ts > /tmp/clawmax-chat-runtime-errors.out 2>&1 || true
+if grep -q '^✓ ' /tmp/clawmax-chat-runtime-errors.out; then
+  chat_runtime_errors_count=$(grep -c '^✓ ' /tmp/clawmax-chat-runtime-errors.out)
+  pass "Chat runtime errors helper unit tests (${chat_runtime_errors_count:-?} tests)"
+else
+  cat /tmp/clawmax-chat-runtime-errors.out
+  fail "Chat runtime errors helper unit tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running OpenAI model lifecycle helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/openAiModelLifecycle.test.ts > /tmp/clawmax-openai-model-lifecycle.out 2>&1 || true
 if grep -q "openAiModelLifecycle.test.ts:" /tmp/clawmax-openai-model-lifecycle.out; then

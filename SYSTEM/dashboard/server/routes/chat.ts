@@ -343,8 +343,7 @@ export function deriveChatError(raw: string, provider?: ChatProvider): string {
     return 'This agent is configured with a model that the current runtime does not support. Choose a different model for the agent and try again.'
   }
   if (/No API key found for provider/i.test(text)) {
-    return text.match(/No API key found for provider "[^"]+"/i)?.[0]
-      || 'The selected model provider is missing credentials for this agent runtime.'
+    return 'No model provider credentials are configured for this chat. Add the missing API key or auth profile in BYOK, runtime settings, or the agent auth store and retry.'
   }
   if (/Incorrect API key provided/i.test(text)) {
     return 'The configured model provider API key was rejected. Update the API key or runtime auth profile for this agent and try again.'
@@ -366,7 +365,10 @@ export function deriveChatError(raw: string, provider?: ChatProvider): string {
   }
   if (/gateway/i.test(text)) return 'Agent chat could not reach the gateway runtime.'
   if (/timeout/i.test(text)) return 'Agent chat timed out before a reply was produced. Retry once, or switch this agent to a faster model if the issue persists.'
-  if (/api key|execution path configured|ollama runtime/i.test(text)) return text
+  if (/No API keys available|No execution path configured/i.test(text)) {
+    return 'No model execution path is configured for this chat. Add hosted provider keys or configure a local runtime in BYOK / workspace integrations.'
+  }
+  if (/api key|ollama runtime/i.test(text)) return text
   return text
 }
 

@@ -166,6 +166,15 @@ test('deriveChatError surfaces invalid credentials as configuration failures', (
   assert(/api key|auth profile/i.test(message), 'Expected config remediation guidance')
 })
 
+test('deriveChatError hides raw missing-provider credential strings', () => {
+  const message = deriveChatError(
+    'No API key found for provider "openai"',
+    'openai'
+  )
+  assert(/No model provider credentials are configured for this chat/i.test(message), `Unexpected message: ${message}`)
+  assert(!/provider "openai"/i.test(message), 'Expected raw provider string to be hidden')
+})
+
 test('deriveChatError surfaces provider quota and rate limits clearly', () => {
   const message = deriveChatError(
     'Error: 429 insufficient_quota: You exceeded your current quota. Too many requests.',
@@ -173,6 +182,15 @@ test('deriveChatError surfaces provider quota and rate limits clearly', () => {
   )
   assert(/quota or rate limit/i.test(message), 'Expected quota explanation')
   assert(/billing\/usage limits|retry/i.test(message), 'Expected remediation guidance')
+})
+
+test('deriveChatError normalizes missing execution path guidance', () => {
+  const message = deriveChatError(
+    'No execution path configured. Add hosted provider keys, configure Ollama, or add an OpenAI-compatible endpoint in BYOK / workspace integrations.',
+    'openai'
+  )
+  assert(/No model execution path is configured for this chat/i.test(message), `Unexpected message: ${message}`)
+  assert(/BYOK \/ workspace integrations/i.test(message), `Unexpected remediation guidance: ${message}`)
 })
 
 test('buildManagedSecretStatelessChatMessage preserves recent chat context in a single-turn prompt', () => {
