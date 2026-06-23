@@ -699,6 +699,21 @@ async function run() {
     }
   })
 
+  await test('synthesizeAgentAiDescription uses only user intent from builder transcripts', async () => {
+    delete require.cache[require.resolve('./agents')]
+    const { synthesizeAgentAiDescription } = require('./agents')
+    const synthesized = synthesizeAgentAiDescription(
+      'User: make me a Korean language study agent.\nAssistant: I can help.\nUser: focus on travel, pronunciation, and beginner drills.',
+      undefined
+    )
+
+    assert(Boolean(synthesized), 'Expected synthesized description')
+    assert(!String(synthesized).includes('Assistant: I can help'), 'Expected assistant transcript text to be excluded')
+    assert(!String(synthesized).includes('User:'), 'Expected role prefixes to be removed')
+    assert(/Korean language study agent/i.test(String(synthesized)), `Unexpected synthesized description: ${synthesized}`)
+    assert(/travel, pronunciation, and beginner drills/i.test(String(synthesized)), `Unexpected synthesized description: ${synthesized}`)
+  })
+
   await test('validate-provision surfaces duplicate agent IDs from the active workspace', async () => {
     writeAgent(workspacePath, 'plain-agent', [
       '# IDENTITY.md',

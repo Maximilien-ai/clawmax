@@ -228,6 +228,56 @@ function collapseInlineWhitespace(value: string): string {
   return value.replace(/\s+/g, ' ').trim()
 }
 
+function extractRoleTurns(transcript: string, role: 'user' | 'assistant' | 'system'): string[] {
+  const lines = String(transcript || '').split('\n')
+  const roleRe = /^(user|assistant|system)\s*:\s*(.*)$/i
+  const collected: string[] = []
+  let activeRole: string | null = null
+  let buffer: string[] = []
+
+  const flush = () => {
+    if (activeRole?.toLowerCase() === role && buffer.length > 0) {
+      const joined = collapseInlineWhitespace(buffer.join(' '))
+      if (joined) collected.push(joined)
+    }
+    buffer = []
+  }
+
+  for (const line of lines) {
+    const match = line.match(roleRe)
+    if (match) {
+      flush()
+      activeRole = match[1]
+      buffer.push(match[2] || '')
+      continue
+    }
+    if (activeRole) {
+      buffer.push(line)
+    }
+  }
+
+  flush()
+  return collected
+}
+
+function synthesizePromptOnlyDescription(aiDescription?: string): string | null {
+  const raw = String(aiDescription || '')
+  if (!raw.trim()) return null
+
+  const userTurns = extractRoleTurns(raw, 'user')
+  const userIntent = userTurns.length > 0 ? userTurns.join(' ') : raw
+  const normalizedPrompt = collapseInlineWhitespace(userIntent)
+  if (!normalizedPrompt) return null
+
+  const synthesized = normalizedPrompt
+    .replace(/\b(user|assistant|system)\s*:/gi, '')
+    .replace(/\b(can you|please|build|create|make)\b/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  return synthesized ? synthesized.slice(0, 240) : null
+}
+
 function extractIdentityField(identityContent: string, label: string): string | null {
   const match = identityContent.match(new RegExp(`\\*\\*${label}:\\*\\*\\s*(.+)`, 'i'))
   return match?.[1] ? collapseInlineWhitespace(match[1]) : null
@@ -276,16 +326,7 @@ export function synthesizeAgentAiDescription(
     }
   }
 
-  const normalizedPrompt = collapseInlineWhitespace(String(aiDescription || ''))
-  if (!normalizedPrompt) return null
-
-  const synthesized = normalizedPrompt
-    .replace(/\b(user|assistant|system)\s*:/gi, '')
-    .replace(/\b(can you|please|build|create|make)\b/gi, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-
-  return synthesized ? synthesized.slice(0, 240) : null
+  return synthesizePromptOnlyDescription(aiDescription)
 }
 
 function getAgentSessionsDir(agentId: string, homeDir: string = process.env.HOME || ''): string {
