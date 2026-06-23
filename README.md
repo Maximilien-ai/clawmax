@@ -5,22 +5,18 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.8.9-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
+[![Version](https://img.shields.io/badge/version-1.9.0-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
 [![Tests](https://img.shields.io/badge/tests-96%20default--safe-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 Latest Stable Release: v1.8.9
+## 🔥 Latest Stable Release: v1.9.0
 
-- `1.8.9` closes the auth/runtime hardening pass: waiting-for-input notifications open the real workflow conversation context, local dashboard chat and history recovery are stable again, workflow-failed notifications deep-link to failed runs, WhatsApp linking is more resilient, and notifications reset correctly on workspace switch.
+- `1.9.0` packages the remaining hardening follow-through: archived-chat restore/continue, workflow stale-notification cleanup, group chat date separators, workflow-thread auth/runtime noise cleanup, runtime workflow channel inference, waiting-input conversation target inference, DocHub/file-open warmup fixes, host-agent warning scoping, and aligned chat/runtime diagnostic wording.
 
-## 🧪 Active Validation: 1.9.0-test-rc4
+## 🛠 Next Sprint: 1.9.1
 
-- `1.9.0-test-rc4` is the current validation image for the `1.9.0` release line. It carries the same `1.9.0` hardening set as `rc3`, plus the corrected packaged dashboard version metadata so the promoted release image will actually identify itself as `1.9.0`.
-
-## 🛠 Next Release: 1.9.0
-
-- `1.9.0` packages the remaining hardening follow-through: workflow/channel delivery correctness, clearer operator-facing runtime/auth diagnostics, archived chat recovery, group chat timeline clarity, and lingering DocHub/file-open edge-case closure.
+- `1.9.1` is the next cleanup slice: operator-facing diagnostics follow-through, selective public template/workflow sync, lingering DocHub/file-open edge cases, and any non-blocking workflow/thread polish that should stay out of the `1.9.0` release line.
 
 ## ✨ 1.8.x Highlights
 

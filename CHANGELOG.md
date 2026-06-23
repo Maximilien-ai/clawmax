@@ -4,7 +4,7 @@ All notable changes to ClawMax are documented here.
 
 ## [Unreleased]
 
-## [v1.9.0] - Pending Validation
+## [v1.9.0] - 2026-06-23
 
 ### Fixed
 - **Archived Chat Recovery** — archived agent conversations now render cleaner archive rows, avoid phantom/zero-message entries, parse archive timestamps more reliably, and support `Continue`/restore back into the active live conversation.
@@ -16,6 +16,7 @@ All notable changes to ClawMax are documented here.
 - **DocHub Warmup Navigation** — workflow results, shared dashboard artifacts, and organization/workflow document links stay navigable through direct workspace-path fallbacks even before the doc index finishes warming up.
 - **Chat / Runtime Diagnostic Consistency** — chat surfaces now align on the same clearer wording for missing credentials, rejected keys, sticky auth state, quota/rate-limit failures, cooldowns, and missing execution paths.
 - **Host Agent Status Override Honoring** — host-agent status now respects `OPENCLAW_HOST_AGENT_STATE_PATH` as authoritative instead of falling through to unrelated machine-local state files during validation.
+- **Builder AI Description Synthesis Follow-Through** — the Builder fallback path now synthesizes `AI Description` from user intent only, excluding assistant/system turns and avoiding raw multi-turn chat leakage into saved agent metadata.
 
 ### Testing
 - **Expanded 1.9.0 Coverage** — added visible regression coverage for archived-chat restore, workflow stale-notification resolution, workflow thread normalization, inferred workflow communication targets, inferred waiting-input conversation targets, DocHub warmup navigation, host-agent state override honoring, and aligned chat runtime error messaging.
