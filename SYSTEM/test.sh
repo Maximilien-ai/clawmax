@@ -1200,6 +1200,15 @@ else
   fail "Prompt attachment edge-case unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Keys/secrets inventory edge-case unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/keysSecretsInventoryEdges.test.ts > /tmp/clawmax-keys-secrets-inventory-edges.out 2>&1 || true
+if grep -q "keysSecretsInventoryEdges.test.ts: ok" /tmp/clawmax-keys-secrets-inventory-edges.out; then
+  pass "Keys/secrets inventory edge-case unit tests (4 tests)"
+else
+  cat /tmp/clawmax-keys-secrets-inventory-edges.out
+  fail "Keys/secrets inventory edge-case unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Single flight helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/singleFlight.test.ts > /tmp/clawmax-single-flight.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-single-flight.out; then

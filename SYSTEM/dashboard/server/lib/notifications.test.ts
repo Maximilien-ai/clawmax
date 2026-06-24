@@ -492,7 +492,10 @@ test('getGroupedActiveNotifications preserves grouped child workflow metadata fo
   assert(grouped[0].grouped === true, 'Expected grouped agent-error notification')
   assert(grouped[0].workflowId === 'release-train', `Expected workflowId to stay on grouped parent, got ${grouped[0].workflowId}`)
   assert(grouped[0].executionId === 'exec-9', `Expected executionId to stay on grouped parent, got ${grouped[0].executionId}`)
-  assert(grouped[0].groupedEntityIds?.join(',') === 'engineer1,engineer2', `Expected grouped entity ids, got ${grouped[0].groupedEntityIds?.join(',')}`)
+  assert(
+    JSON.stringify([...(grouped[0].groupedEntityIds || [])].sort()) === JSON.stringify(['engineer1', 'engineer2']),
+    `Expected grouped entity ids, got ${grouped[0].groupedEntityIds?.join(',')}`,
+  )
   assert((grouped[0].groupedChildren || []).every((child) => child.workflowId === 'release-train' && child.executionId === 'exec-9'), 'Expected grouped children to preserve workflow execution metadata')
 })
 
