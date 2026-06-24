@@ -2480,7 +2480,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 # Verify mandate schema exists
 # Schema is in repo root SYSTEM/schemas, not workspace
 WORKSPACE=$(apicurl "$API_BASE/api/health" | jq -r '.workspace')
-REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+REPO_ROOT="$(cd "$SYSTEM_DIR/.." && pwd)"
 if [ -f "$REPO_ROOT/SYSTEM/schemas/mandate.schema.json" ]; then
   pass "MANDATE.md schema file exists"
 
