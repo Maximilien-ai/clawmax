@@ -954,6 +954,26 @@ else
   fail "App navigation state unit tests"
 fi
 
+echo -e "${YELLOW}→ Running System refresh helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/systemRefresh.test.ts > /tmp/clawmax-system-refresh.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-system-refresh.out; then
+  system_refresh_count=$(grep "Passed:" /tmp/clawmax-system-refresh.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Passed: //' | tr -cd '0-9')
+  pass "System refresh helper unit tests (${system_refresh_count:-?} tests)"
+else
+  cat /tmp/clawmax-system-refresh.out
+  fail "System refresh helper unit tests"
+fi
+
+echo -e "${YELLOW}→ Running System refresh edge-case unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/systemRefreshEdges.test.ts > /tmp/clawmax-system-refresh-edges.out 2>&1 || true
+if grep -q "systemRefreshEdges.test.ts:" /tmp/clawmax-system-refresh-edges.out; then
+  system_refresh_edges_count=$(grep -oE '[0-9]+ tests passed' /tmp/clawmax-system-refresh-edges.out | tail -1 | awk '{print $1}')
+  pass "System refresh edge-case unit tests (${system_refresh_edges_count:-?} tests)"
+else
+  cat /tmp/clawmax-system-refresh-edges.out
+  fail "System refresh edge-case unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Dropdown position helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/dropdownPosition.test.ts > /tmp/clawmax-dropdown-position.out 2>&1 || true
 if grep -q "dropdownPosition.test.ts:" /tmp/clawmax-dropdown-position.out; then
