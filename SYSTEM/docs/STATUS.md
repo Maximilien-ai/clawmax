@@ -1,8 +1,8 @@
 # ClawMax Status
 
 **Current Version**: v1.9.0
-**Last Updated**: June 22, 2026
-**Status**: `v1.9.0` is the current promoted stable release from `main`. `1.9.1` is the next cleanup sprint for operator diagnostics, public template/workflow sync, and remaining DocHub/workflow follow-through.
+**Last Updated**: June 24, 2026
+**Status**: `v1.9.0` is the current promoted stable release from `main`. `1.9.1-test-rc1` is the active validation target for the next cleanup sprint: test backfill, operator diagnostics follow-through, public template/workflow sync, and remaining DocHub/workflow follow-through.
 
 ---
 
@@ -24,7 +24,7 @@
   - [planning/HARDENING_SIMPLIFICATION_1_8_X.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/HARDENING_SIMPLIFICATION_1_8_X.md)
   - [planning/SIMPLIFY_OPTIMIZE_1_8_X.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_OPTIMIZE_1_8_X.md)
   - [planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_1.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_1.md)
-- Near-term target: start `1.9.1` on the remaining operator-facing diagnostics cleanup, selective public template/workflow sync, lingering DocHub/file-open edge cases, and non-blocking workflow/thread follow-through.
+- Near-term target: validate `1.9.1-test-rc1`, using the expanded `350`-count wrapper baseline plus cloud/on-prem image checks before deciding whether `1.9.1` needs more stabilization or is ready to promote.
 
 ## Release References
 

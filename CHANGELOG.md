@@ -4,6 +4,15 @@ All notable changes to ClawMax are documented here.
 
 ## [Unreleased]
 
+## [v1.9.1] - pending validation
+
+### Changed
+- **Test Backfill Push** — the standard wrapper suite now surfaces substantially more low-risk helper/edge-case lanes across workspace scope/navigation, file mention parsing, navigation/plugin routing, notifications, markdown/file links, dropdown placement, prompt attachments, builder sessions, metering presentation, keys/secrets inventory, product icons, maintenance banners, skill tags, template search, and related client-side helpers.
+- **Notification Test Stability** — grouped notification assertions now compare grouped entity IDs order-independently so CI does not fail on harmless ordering variation.
+
+### Testing
+- **Visible Wrapper Count Increase** — the default-safe wrapper count has been driven up to the `350` target through new standalone helper lanes, while keeping `npm run typecheck` and the local `integration --with-validation` wrapper path green on the current branch head.
+
 ## [v1.9.0] - 2026-06-23
 
 ### Fixed
