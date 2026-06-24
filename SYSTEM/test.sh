@@ -503,6 +503,16 @@ else
   fail "Workspace scope helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Workspace scope edge-case unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/workspaceScopeEdges.test.ts > /tmp/clawmax-workspace-scope-edges.out 2>&1 || true
+if grep -q "workspaceScopeEdges.test.ts:" /tmp/clawmax-workspace-scope-edges.out; then
+  workspace_scope_edges_count=$(grep -o '[0-9]\+ tests passed' /tmp/clawmax-workspace-scope-edges.out | head -1 | grep -o '[0-9]\+')
+  pass "Workspace scope edge-case unit tests (${workspace_scope_edges_count:-?} tests)"
+else
+  cat /tmp/clawmax-workspace-scope-edges.out
+  fail "Workspace scope edge-case unit tests"
+fi
+
 echo ""
 echo -e "${YELLOW}→ Running Skill registry unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/skill-registry.test.ts > /tmp/clawmax-skill-registry.out 2>&1 || true
