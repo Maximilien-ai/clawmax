@@ -876,6 +876,16 @@ else
   fail "Workspace doc navigation helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Workspace doc navigation edge-case unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/workspaceDocNavigationEdges.test.ts > /tmp/clawmax-workspace-doc-navigation-edges.out 2>&1 || true
+if grep -q "workspaceDocNavigationEdges.test.ts:" /tmp/clawmax-workspace-doc-navigation-edges.out; then
+  workspace_doc_navigation_edges_count=$(grep -o '[0-9]\+ tests passed' /tmp/clawmax-workspace-doc-navigation-edges.out | head -1 | grep -o '[0-9]\+')
+  pass "Workspace doc navigation edge-case unit tests (${workspace_doc_navigation_edges_count:-?} tests)"
+else
+  cat /tmp/clawmax-workspace-doc-navigation-edges.out
+  fail "Workspace doc navigation edge-case unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Channel API helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/channelApi.test.ts > /tmp/clawmax-channel-api.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-channel-api.out; then
