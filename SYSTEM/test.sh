@@ -963,6 +963,15 @@ else
   fail "App navigation state unit tests"
 fi
 
+echo -e "${YELLOW}→ Running App navigation state edge-case unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/appNavigationStateEdges.test.ts > /tmp/clawmax-app-navigation-state-edges.out 2>&1 || true
+if grep -q "appNavigationStateEdges.test.ts: ok" /tmp/clawmax-app-navigation-state-edges.out; then
+  pass "App navigation state edge-case unit tests (4 tests)"
+else
+  cat /tmp/clawmax-app-navigation-state-edges.out
+  fail "App navigation state edge-case unit tests"
+fi
+
 echo -e "${YELLOW}→ Running System refresh helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/systemRefresh.test.ts > /tmp/clawmax-system-refresh.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-system-refresh.out; then
@@ -1305,6 +1314,15 @@ else
   fail "Skill tags helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Skill tags edge-case unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/skillTagsEdges.test.ts > /tmp/clawmax-skill-tags-edges.out 2>&1 || true
+if grep -q "skillTagsEdges.test.ts: ok" /tmp/clawmax-skill-tags-edges.out; then
+  pass "Skill tags edge-case unit tests (4 tests)"
+else
+  cat /tmp/clawmax-skill-tags-edges.out
+  fail "Skill tags edge-case unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Skill export helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/skillExport.test.ts > /tmp/clawmax-skill-export.out 2>&1 || true
 if grep -q "skillExport.test.ts: ok" /tmp/clawmax-skill-export.out; then
@@ -1345,6 +1363,15 @@ else
   fail "Template search helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Template search edge-case unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/templateSearchEdges.test.ts > /tmp/clawmax-template-search-edges.out 2>&1 || true
+if grep -q "templateSearchEdges.test.ts: ok" /tmp/clawmax-template-search-edges.out; then
+  pass "Template search edge-case unit tests (4 tests)"
+else
+  cat /tmp/clawmax-template-search-edges.out
+  fail "Template search edge-case unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Plugin helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/plugins.test.ts > /tmp/clawmax-plugin-helpers.out 2>&1 || true
 if grep -q "plugins.test.ts: ok" /tmp/clawmax-plugin-helpers.out; then
@@ -1383,6 +1410,15 @@ if grep -q '^✓ ' /tmp/clawmax-product-icons.out; then
 else
   cat /tmp/clawmax-product-icons.out
   fail "Product icon helper unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Product icon edge-case unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/productIconsEdges.test.ts > /tmp/clawmax-product-icons-edges.out 2>&1 || true
+if grep -q "productIconsEdges.test.ts: ok" /tmp/clawmax-product-icons-edges.out; then
+  pass "Product icon edge-case unit tests (4 tests)"
+else
+  cat /tmp/clawmax-product-icons-edges.out
+  fail "Product icon edge-case unit tests"
 fi
 
 echo -e "${YELLOW}→ Running Terms of Service content unit tests...${NC}"
@@ -1447,6 +1483,15 @@ if grep -q "All tests passed" /tmp/clawmax-maintenance-banner-view.out; then
   pass "Maintenance banner view unit tests (${maintenance_banner_view_count:-?} tests)"
 else
   fail "Maintenance banner view unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Maintenance banner view edge-case unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/maintenanceBannerViewEdges.test.ts > /tmp/clawmax-maintenance-banner-view-edges.out 2>&1 || true
+if grep -q "maintenanceBannerViewEdges.test.ts: ok" /tmp/clawmax-maintenance-banner-view-edges.out; then
+  pass "Maintenance banner view edge-case unit tests (5 tests)"
+else
+  cat /tmp/clawmax-maintenance-banner-view-edges.out
+  fail "Maintenance banner view edge-case unit tests"
 fi
 
 echo -e "${YELLOW}→ Running Dashboard env unit tests...${NC}"
