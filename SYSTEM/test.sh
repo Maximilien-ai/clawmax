@@ -1190,6 +1190,16 @@ else
   fail "Prompt attachment helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Prompt attachment edge-case unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/promptAttachmentsEdges.test.ts > /tmp/clawmax-prompt-attachments-edges.out 2>&1 || true
+if grep -q "promptAttachmentsEdges.test.ts:" /tmp/clawmax-prompt-attachments-edges.out; then
+  prompt_attachments_edges_count=$(grep -oE '[0-9]+ tests passed' /tmp/clawmax-prompt-attachments-edges.out | tail -1 | awk '{print $1}')
+  pass "Prompt attachment edge-case unit tests (${prompt_attachments_edges_count:-?} tests)"
+else
+  cat /tmp/clawmax-prompt-attachments-edges.out
+  fail "Prompt attachment edge-case unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Single flight helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/singleFlight.test.ts > /tmp/clawmax-single-flight.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-single-flight.out; then
