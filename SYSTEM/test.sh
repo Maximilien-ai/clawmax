@@ -984,6 +984,16 @@ else
   fail "Dropdown position helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Dropdown position edge-case unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/dropdownPositionEdges.test.ts > /tmp/clawmax-dropdown-position-edges.out 2>&1 || true
+if grep -q "dropdownPositionEdges.test.ts:" /tmp/clawmax-dropdown-position-edges.out; then
+  dropdown_position_edges_count=$(grep -oE '[0-9]+ tests passed' /tmp/clawmax-dropdown-position-edges.out | tail -1 | awk '{print $1}')
+  pass "Dropdown position edge-case unit tests (${dropdown_position_edges_count:-?} tests)"
+else
+  cat /tmp/clawmax-dropdown-position-edges.out
+  fail "Dropdown position edge-case unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Agent chat session helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/agentChatSession.test.ts > /tmp/clawmax-agent-chat-session.out 2>&1 || true
 if grep -q '^✓ ' /tmp/clawmax-agent-chat-session.out; then
