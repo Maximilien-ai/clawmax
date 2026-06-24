@@ -1160,6 +1160,16 @@ else
   fail "Single flight helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Single flight edge-case unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/singleFlightEdges.test.ts > /tmp/clawmax-single-flight-edges.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-single-flight-edges.out; then
+  single_flight_edges_count=$(grep "Tests passed:" /tmp/clawmax-single-flight-edges.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Single flight edge-case unit tests (${single_flight_edges_count:-?} tests)"
+else
+  cat /tmp/clawmax-single-flight-edges.out
+  fail "Single flight edge-case unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Metering presentation helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/meteringPresentation.test.ts > /tmp/clawmax-metering-presentation.out 2>&1 || true
 if grep -q "^✓" /tmp/clawmax-metering-presentation.out; then
