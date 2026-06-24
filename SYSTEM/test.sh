@@ -726,6 +726,16 @@ else
   fail "Notification presentation helper tests"
 fi
 
+echo -e "${YELLOW}→ Running Notification presentation edge-case tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/notificationPresentationEdges.test.ts > /tmp/clawmax-notification-presentation-edges.out 2>&1 || true
+if grep -q "tests passed" /tmp/clawmax-notification-presentation-edges.out; then
+  notification_presentation_edges_count=$(grep "notificationPresentationEdges.test.ts:" /tmp/clawmax-notification-presentation-edges.out | sed 's/.*notificationPresentationEdges.test.ts: //' | tr -cd '0-9')
+  pass "Notification presentation edge-case tests (${notification_presentation_edges_count:-?} tests)"
+else
+  cat /tmp/clawmax-notification-presentation-edges.out
+  fail "Notification presentation edge-case tests"
+fi
+
 echo -e "${YELLOW}→ Running Workspace artifact notification unit tests...${NC}"
 OPENCLAW_WORKSPACE=/tmp/clawmax-workspace-artifact-notifications npx ts-node --transpileOnly server/lib/workspace-artifact-notifications.test.ts > /tmp/clawmax-workspace-artifact-notifications.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-workspace-artifact-notifications.out; then
