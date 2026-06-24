@@ -1178,6 +1178,16 @@ else
   fail "Markdown link helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Markdown link edge-case unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/markdownLinksEdges.test.ts > /tmp/clawmax-markdown-links-edges.out 2>&1 || true
+if grep -q "markdownLinksEdges.test.ts:" /tmp/clawmax-markdown-links-edges.out; then
+  markdown_links_edges_count=$(grep -oE '[0-9]+ tests passed' /tmp/clawmax-markdown-links-edges.out | tail -1 | awk '{print $1}')
+  pass "Markdown link edge-case unit tests (${markdown_links_edges_count:-?} tests)"
+else
+  cat /tmp/clawmax-markdown-links-edges.out
+  fail "Markdown link edge-case unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Skill tags helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/skillTags.test.ts > /tmp/clawmax-skill-tags.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-skill-tags.out; then
