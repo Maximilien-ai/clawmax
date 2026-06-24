@@ -1439,6 +1439,15 @@ else
   fail "Agent label helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Agent label edge-case unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/agentLabelsEdges.test.ts > /tmp/clawmax-agent-labels-edges.out 2>&1 || true
+if grep -q "agentLabelsEdges.test.ts: ok" /tmp/clawmax-agent-labels-edges.out; then
+  pass "Agent label edge-case unit tests (4 tests)"
+else
+  cat /tmp/clawmax-agent-labels-edges.out
+  fail "Agent label edge-case unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Skill assignment helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/skillAssignments.test.ts > /tmp/clawmax-skill-assignments.out 2>&1 || true
 if grep -q "tests passed" /tmp/clawmax-skill-assignments.out; then
@@ -1446,6 +1455,15 @@ if grep -q "tests passed" /tmp/clawmax-skill-assignments.out; then
   pass "Skill assignment helper unit tests (${skill_assignments_count:-?} tests)"
 else
   fail "Skill assignment helper unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Skill assignment edge-case unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/skillAssignmentsEdges.test.ts > /tmp/clawmax-skill-assignments-edges.out 2>&1 || true
+if grep -q "skillAssignmentsEdges.test.ts: ok" /tmp/clawmax-skill-assignments-edges.out; then
+  pass "Skill assignment edge-case unit tests (3 tests)"
+else
+  cat /tmp/clawmax-skill-assignments-edges.out
+  fail "Skill assignment edge-case unit tests"
 fi
 
 echo -e "${YELLOW}→ Running Skill selection helper unit tests...${NC}"
@@ -1457,6 +1475,15 @@ else
   fail "Skill selection helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Skill selection edge-case unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/skillsSelectionEdges.test.ts > /tmp/clawmax-skill-selection-edges.out 2>&1 || true
+if grep -q "skillsSelectionEdges.test.ts: ok" /tmp/clawmax-skill-selection-edges.out; then
+  pass "Skill selection edge-case unit tests (4 tests)"
+else
+  cat /tmp/clawmax-skill-selection-edges.out
+  fail "Skill selection edge-case unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Skill deletion helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/skillsDeletion.test.ts > /tmp/clawmax-skill-deletion.out 2>&1 || true
 if grep -q "tests passed" /tmp/clawmax-skill-deletion.out; then
@@ -1464,6 +1491,15 @@ if grep -q "tests passed" /tmp/clawmax-skill-deletion.out; then
   pass "Skill deletion helper unit tests (${skill_deletion_count:-?} tests)"
 else
   fail "Skill deletion helper unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Skill deletion edge-case unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/skillsDeletionEdges.test.ts > /tmp/clawmax-skill-deletion-edges.out 2>&1 || true
+if grep -q "skillsDeletionEdges.test.ts: ok" /tmp/clawmax-skill-deletion-edges.out; then
+  pass "Skill deletion edge-case unit tests (3 tests)"
+else
+  cat /tmp/clawmax-skill-deletion-edges.out
+  fail "Skill deletion edge-case unit tests"
 fi
 
 echo -e "${YELLOW}→ Running Agent skills scope helper unit tests...${NC}"
@@ -1474,6 +1510,15 @@ if grep -q "tests passed" /tmp/clawmax-agent-skills-scope.out; then
 else
   cat /tmp/clawmax-agent-skills-scope.out
   fail "Agent skills scope helper unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Agent skills scope edge-case unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/agentSkillsScopeEdges.test.ts > /tmp/clawmax-agent-skills-scope-edges.out 2>&1 || true
+if grep -q "agentSkillsScopeEdges.test.ts: ok" /tmp/clawmax-agent-skills-scope-edges.out; then
+  pass "Agent skills scope edge-case unit tests (3 tests)"
+else
+  cat /tmp/clawmax-agent-skills-scope-edges.out
+  fail "Agent skills scope edge-case unit tests"
 fi
 
 echo -e "${YELLOW}→ Running Maintenance banner view unit tests...${NC}"
