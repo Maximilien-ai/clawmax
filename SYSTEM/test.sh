@@ -1141,6 +1141,16 @@ else
   fail "Builder session helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Builder session edge-case unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/builderSessionEdges.test.ts > /tmp/clawmax-builder-session-edges.out 2>&1 || true
+if grep -q "builderSessionEdges.test.ts:" /tmp/clawmax-builder-session-edges.out; then
+  builder_session_edges_count=$(grep -oE '[0-9]+ tests passed' /tmp/clawmax-builder-session-edges.out | tail -1 | awk '{print $1}')
+  pass "Builder session edge-case unit tests (${builder_session_edges_count:-?} tests)"
+else
+  cat /tmp/clawmax-builder-session-edges.out
+  fail "Builder session edge-case unit tests"
+fi
+
 echo -e "${YELLOW}→ Running AI Builder routing unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/ai-builder.test.ts > /tmp/clawmax-ai-builder-routing.out 2>&1 || true
 if grep -q "^✓" /tmp/clawmax-ai-builder-routing.out; then
