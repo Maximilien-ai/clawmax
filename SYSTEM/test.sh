@@ -1210,6 +1210,16 @@ else
   fail "Metering presentation helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Metering presentation edge-case unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/meteringPresentationEdges.test.ts > /tmp/clawmax-metering-presentation-edges.out 2>&1 || true
+if grep -q "meteringPresentationEdges.test.ts:" /tmp/clawmax-metering-presentation-edges.out; then
+  metering_presentation_edges_count=$(grep -oE '[0-9]+ tests passed' /tmp/clawmax-metering-presentation-edges.out | tail -1 | awk '{print $1}')
+  pass "Metering presentation edge-case unit tests (${metering_presentation_edges_count:-?} tests)"
+else
+  cat /tmp/clawmax-metering-presentation-edges.out
+  fail "Metering presentation edge-case unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Skill setup helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/skillSetup.test.ts > /tmp/clawmax-skill-setup.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-skill-setup.out; then
