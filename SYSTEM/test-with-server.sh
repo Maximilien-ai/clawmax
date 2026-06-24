@@ -3,7 +3,7 @@
 # this wrapper started on the selected ports.
 #
 # Usage:
-#   ./SYSTEM/test-with-server.sh [--with-validation] [integration]
+#   ./SYSTEM/test-with-server.sh [--with-validation] [integration] [--coverage]
 #
 # Env overrides match SYSTEM/start.sh and SYSTEM/test.sh:
 #   DASHBOARD_PORT=3002
@@ -22,11 +22,17 @@ FRONTEND_PORT="${DASHBOARD_CLIENT_PORT:-5173}"
 FRONTEND_URL="${DASHBOARD_APP_URL:-http://localhost:${FRONTEND_PORT}}"
 API_BASE="http://localhost:${BACKEND_PORT}"
 RUN_INTEGRATION=false
+RUN_COVERAGE=false
+FORWARDED_ARGS=()
 
 for arg in "$@"; do
   if [ "$arg" = "integration" ]; then
     RUN_INTEGRATION=true
-    break
+    FORWARDED_ARGS+=("$arg")
+  elif [ "$arg" = "--coverage" ]; then
+    RUN_COVERAGE=true
+  else
+    FORWARDED_ARGS+=("$arg")
   fi
 done
 
@@ -109,6 +115,37 @@ cleanup_started_processes() {
   fi
 }
 
+print_coverage_summary() {
+  local summary_file="$ROOT_DIR/SYSTEM/dashboard/coverage/coverage-summary.json"
+
+  if [ ! -f "$summary_file" ]; then
+    echo "Coverage requested, but no summary was generated at $summary_file"
+    return 1
+  fi
+
+  echo ""
+  echo "Coverage summary"
+  node -e '
+    const fs = require("fs");
+    const path = process.argv[1];
+    const summary = JSON.parse(fs.readFileSync(path, "utf8")).total || {};
+    const format = (label, key) => {
+      const item = summary[key] || {};
+      const pct = typeof item.pct === "number" ? item.pct.toFixed(2) : "0.00";
+      const covered = item.covered ?? 0;
+      const total = item.total ?? 0;
+      console.log(`  ${label}: ${pct}% (${covered}/${total})`);
+    };
+    format("Statements", "statements");
+    format("Branches", "branches");
+    format("Functions", "functions");
+    format("Lines", "lines");
+  ' "$summary_file"
+  echo "Coverage artifacts:"
+  echo "  $ROOT_DIR/SYSTEM/dashboard/coverage/coverage-summary.json"
+  echo "  $ROOT_DIR/SYSTEM/dashboard/coverage/"
+}
+
 INITIAL_BACKEND_PIDS="$(port_pids "$BACKEND_PORT")"
 INITIAL_FRONTEND_PIDS="$(port_pids "$FRONTEND_PORT")"
 STARTED_SERVER=false
@@ -153,7 +190,38 @@ else
 fi
 
 TEST_STATUS=0
-"$SCRIPT_DIR/test.sh" "$@" || TEST_STATUS=$?
+if [ "$RUN_COVERAGE" = true ]; then
+  if [ "${#FORWARDED_ARGS[@]}" -gt 0 ]; then
+    (
+      cd "$ROOT_DIR/SYSTEM/dashboard" || exit 1
+      rm -rf coverage
+      npx c8 \
+        --reporter=text-summary \
+        --reporter=json-summary \
+        --reporter=html \
+        --report-dir coverage \
+        bash ../test.sh "${FORWARDED_ARGS[@]}"
+    ) || TEST_STATUS=$?
+  else
+    (
+      cd "$ROOT_DIR/SYSTEM/dashboard" || exit 1
+      rm -rf coverage
+      npx c8 \
+        --reporter=text-summary \
+        --reporter=json-summary \
+        --reporter=html \
+        --report-dir coverage \
+        bash ../test.sh
+    ) || TEST_STATUS=$?
+  fi
+  print_coverage_summary || true
+else
+  if [ "${#FORWARDED_ARGS[@]}" -gt 0 ]; then
+    "$SCRIPT_DIR/test.sh" "${FORWARDED_ARGS[@]}" || TEST_STATUS=$?
+  else
+    "$SCRIPT_DIR/test.sh" || TEST_STATUS=$?
+  fi
+fi
 
 if [ "$STARTED_SERVER" = true ]; then
   cleanup_started_processes

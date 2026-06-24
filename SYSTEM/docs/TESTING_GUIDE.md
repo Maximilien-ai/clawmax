@@ -1,6 +1,6 @@
 # ClawMax Testing Guide
 
-> Last updated: April 2, 2026 (v1.2.1)
+> Last updated: June 24, 2026 (v1.9.1)
 
 ## Quick Start
 
@@ -20,9 +20,11 @@ openclaw gateway restart
 # 4. Run tests
 ./SYSTEM/test.sh                # Unit + API tests (fast, no LLM cost)
 ./SYSTEM/test.sh integration    # + live agent tests (~$0.03, requires keys)
+./SYSTEM/test-with-server.sh integration --with-validation --coverage  # wrapper + startup + c8 summary
 
 # Optional: custom ports
 DASHBOARD_PORT=3002 DASHBOARD_CLIENT_PORT=5174 DASHBOARD_APP_URL=http://localhost:5174 ./SYSTEM/test.sh integration --with-validation
+DASHBOARD_CLIENT_PORT=5174 DASHBOARD_APP_URL=http://localhost:5174 ./SYSTEM/test-with-server.sh integration --with-validation --coverage
 ```
 
 ## Test Types
@@ -31,7 +33,28 @@ DASHBOARD_PORT=3002 DASHBOARD_CLIENT_PORT=5174 DASHBOARD_APP_URL=http://localhos
 |------|---------|-------|----------|----------|
 | **Unit** | `./SYSTEM/test.sh` | 150+ | ~30-60s | $0 |
 | **Integration** | `./SYSTEM/test.sh integration` | 170+ | ~2-4 min | ~$0.01-0.05 |
+| **Coverage** | `./SYSTEM/test-with-server.sh integration --with-validation --coverage` | full wrapper | slower | ~$0.01-0.05 |
 | **Manual** | Dashboard UI | varies | varies | varies |
+
+## Coverage Mode
+
+Use the wrapper coverage mode when you want the normal server-booting test path plus a printed `c8` summary at the end:
+
+```bash
+DASHBOARD_CLIENT_PORT=5174 DASHBOARD_APP_URL=http://localhost:5174 ./SYSTEM/test-with-server.sh integration --with-validation --coverage
+```
+
+Coverage artifacts are written to:
+
+- `SYSTEM/dashboard/coverage/coverage-summary.json`
+- `SYSTEM/dashboard/coverage/`
+
+Current measured full-wrapper baseline:
+
+- Statements: `74.74%`
+- Branches: `68.60%`
+- Functions: `86.61%`
+- Lines: `74.74%`
 
 ## Unit Tests (Section 0)
 
