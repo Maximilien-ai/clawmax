@@ -944,6 +944,15 @@ else
   fail "Navigation helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Navigation edge-case unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/navigationEdges.test.ts > /tmp/clawmax-navigation-edges.out 2>&1 || true
+if grep -q "navigationEdges.test.ts: ok" /tmp/clawmax-navigation-edges.out; then
+  pass "Navigation edge-case unit tests (5 tests)"
+else
+  cat /tmp/clawmax-navigation-edges.out
+  fail "Navigation edge-case unit tests"
+fi
+
 echo -e "${YELLOW}→ Running App navigation state unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/appNavigationState.test.ts > /tmp/clawmax-app-navigation-state.out 2>&1 || true
 if grep -q "appNavigationState.test.ts:" /tmp/clawmax-app-navigation-state.out; then
