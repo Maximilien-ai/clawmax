@@ -23,6 +23,11 @@ export function normalizeWorkspaceFileTarget(target: string): string {
   return target.trim()
 }
 
+function isHiddenHelperPathContext(content: string, matchIndex: number): boolean {
+  const prefix = content.slice(Math.max(0, matchIndex - 64), matchIndex)
+  return /(?:^|[\\/\s(])\.[^/\\\s"'<>]+[\\/]$/.test(prefix)
+}
+
 export function extractWorkspaceFileMentions(content: string): string[] {
   const matches: string[] = []
 
@@ -31,6 +36,9 @@ export function extractWorkspaceFileMentions(content: string): string[] {
   }
 
   for (const match of content.matchAll(WORKSPACE_FILE_REGEX)) {
+    if (typeof match.index === 'number' && isHiddenHelperPathContext(content, match.index)) {
+      continue
+    }
     matches.push(match[0])
   }
 

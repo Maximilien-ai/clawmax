@@ -876,6 +876,16 @@ else
   fail "Workspace file mention helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Workspace file mention edge-case unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/workspaceFilesEdges.test.ts > /tmp/clawmax-workspace-files-edges.out 2>&1 || true
+if grep -q "workspaceFilesEdges.test.ts:" /tmp/clawmax-workspace-files-edges.out; then
+  workspace_files_edges_count=$(grep -o '[0-9]\+ tests passed' /tmp/clawmax-workspace-files-edges.out | head -1 | grep -o '[0-9]\+')
+  pass "Workspace file mention edge-case unit tests (${workspace_files_edges_count:-?} tests)"
+else
+  cat /tmp/clawmax-workspace-files-edges.out
+  fail "Workspace file mention edge-case unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Workspace doc navigation helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/workspaceDocNavigation.test.ts > /tmp/clawmax-workspace-doc-navigation.out 2>&1 || true
 if grep -q "workspaceDocNavigation.test.ts:" /tmp/clawmax-workspace-doc-navigation.out; then
