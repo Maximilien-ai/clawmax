@@ -253,6 +253,42 @@ async function run() {
     assert.strictEqual(notification.conversationTargetType, 'group', 'Expected conversation target type to persist')
   })
 
+  await test('notifications list preserves grouped workflow execution metadata for grouped agent failures', async () => {
+    const { createNotification } = require('../lib/notifications')
+
+    createNotification({
+      type: 'agent-error',
+      title: 'engineer-a failed',
+      message: 'Error in workflow "Launch Plan": Authentication failed.',
+      entityId: 'engineer-a',
+      entityType: 'agent',
+      fingerprint: 'grouped-agent-error:a',
+      workflowId: 'wf-launch-plan',
+      executionId: 'exec-grouped',
+    })
+    createNotification({
+      type: 'agent-error',
+      title: 'engineer-b failed',
+      message: 'Error in workflow "Launch Plan": Authentication failed.',
+      entityId: 'engineer-b',
+      entityType: 'agent',
+      fingerprint: 'grouped-agent-error:b',
+      workflowId: 'wf-launch-plan',
+      executionId: 'exec-grouped',
+    })
+
+    const handler = getRouteHandler('get', '/')
+    const res = makeRes()
+    await handler(makeReq(), res)
+
+    const grouped = (res.jsonBody?.notifications || []).find((item: any) => item.grouped && item.type === 'agent-error' && item.workflowId === 'wf-launch-plan')
+    assert(grouped, 'Expected grouped agent failure notification in payload')
+    assert.strictEqual(grouped.groupedCount, 2, 'Expected grouped agent failure count')
+    assert.deepStrictEqual(grouped.groupedEntityIds, ['engineer-a', 'engineer-b'], 'Expected grouped entity ids to survive route serialization')
+    assert.strictEqual(grouped.executionId, 'exec-grouped', 'Expected grouped parent to preserve execution id')
+    assert((grouped.groupedChildren || []).every((child: any) => child.executionId === 'exec-grouped'), 'Expected grouped children to preserve execution id')
+  })
+
   await test('artifact updates dedupe active notifications for the same file path', async () => {
     const { createNotification, getActiveNotifications } = require('../lib/notifications')
 

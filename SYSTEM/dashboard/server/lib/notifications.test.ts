@@ -368,10 +368,61 @@ test('resolveWorkflowExecutionNotifications clears stale workflow-scoped errors 
   assert(active.some((notification) => notification.workflowId === 'wf-other'), 'Expected unrelated workflow notifications to remain active')
 })
 
+test('resolveWorkflowExecutionNotifications keeps older execution notifications active by default', () => {
+  fs.writeFileSync(notifPath, '[]', 'utf-8')
+  createNotification({
+    type: 'workflow-failed',
+    title: 'Current execution failed',
+    message: 'Execution failed now.',
+    fingerprint: 'wf-failed:wf-boundary:exec-current',
+    workflowId: 'wf-boundary',
+    executionId: 'exec-current',
+  })
+  createNotification({
+    type: 'agent-error',
+    title: 'Older execution error',
+    message: 'Previous execution failed.',
+    fingerprint: 'agent-error:wf-boundary:agent-a:exec-old',
+    workflowId: 'wf-boundary',
+    executionId: 'exec-old',
+  })
+
+  const resolved = resolveWorkflowExecutionNotifications('wf-boundary', 'exec-current')
+  assert(resolved === 1, `Expected only the current execution notification to resolve, got ${resolved}`)
+
+  const active = getActiveNotifications()
+  assert(!active.some((notification) => notification.executionId === 'exec-current'), 'Expected current execution notification to resolve')
+  assert(active.some((notification) => notification.executionId === 'exec-old'), 'Expected older execution notification to remain active')
+})
+
 test('normalizeWorkflowNotificationErrorDetail rewrites raw provider auth failures for notification readability', () => {
   const normalized = normalizeWorkflowNotificationErrorDetail('FailoverError: 401 Incorrect API key provided: openai-cible.')
   assert(/authentication failed/i.test(normalized), `Expected auth guidance, got ${normalized}`)
   assert(/api key|auth profile|byok/i.test(normalized), `Expected actionable auth wording, got ${normalized}`)
+})
+
+test('normalizeWorkflowNotificationErrorDetail rewrites missing credential failures', () => {
+  const normalized = normalizeWorkflowNotificationErrorDetail('No API key found for provider "openai"')
+  assert(/no model provider credentials/i.test(normalized), `Expected missing credential guidance, got ${normalized}`)
+  assert(/byok|auth store|runtime settings/i.test(normalized), `Expected actionable credential wording, got ${normalized}`)
+})
+
+test('normalizeWorkflowNotificationErrorDetail rewrites quota and rate-limit failures', () => {
+  const normalized = normalizeWorkflowNotificationErrorDetail('LLM request rejected: insufficient_quota for openai/gpt-4o-mini')
+  assert(/usage limits blocked/i.test(normalized), `Expected quota guidance, got ${normalized}`)
+  assert(/billing|rate-limit/i.test(normalized), `Expected billing guidance, got ${normalized}`)
+})
+
+test('normalizeWorkflowNotificationErrorDetail rewrites cooldown and timeout failures', () => {
+  const normalized = normalizeWorkflowNotificationErrorDetail('provider openai/gpt-4o-mini is in cooldown (suspending lanes)')
+  assert(/temporarily cooling down/i.test(normalized), `Expected cooldown guidance, got ${normalized}`)
+  assert(/retry|fallback model/i.test(normalized), `Expected retry guidance, got ${normalized}`)
+})
+
+test('normalizeWorkflowNotificationErrorDetail rewrites embedded session conflict failures', () => {
+  const normalized = normalizeWorkflowNotificationErrorDetail('EmbeddedAttemptSessionTakeoverError: session file changed while embedded prompt lock was released')
+  assert(/session execution conflicted/i.test(normalized), `Expected embedded session conflict guidance, got ${normalized}`)
+  assert(/reset the active chat\/session/i.test(normalized), `Expected reset guidance, got ${normalized}`)
 })
 
 // ============================================================================
@@ -411,6 +462,38 @@ test('getWorkflowBlockers returns blockers for workflow', () => {
 test('getWorkflowBlockers returns empty for unknown workflow', () => {
   const blockers = getWorkflowBlockers('nonexistent')
   assert(blockers.length === 0, 'Should be empty')
+})
+
+test('getGroupedActiveNotifications preserves grouped child workflow metadata for agent errors', () => {
+  fs.writeFileSync(notifPath, '[]', 'utf-8')
+  createNotification({
+    type: 'agent-error',
+    title: 'engineer1 failed',
+    message: 'Error in workflow "Release Train": Authentication failed.',
+    entityId: 'engineer1',
+    entityType: 'agent',
+    fingerprint: 'agent-error:release-train:engineer1:exec-9',
+    workflowId: 'release-train',
+    executionId: 'exec-9',
+  })
+  createNotification({
+    type: 'agent-error',
+    title: 'engineer2 failed',
+    message: 'Error in workflow "Release Train": Authentication failed.',
+    entityId: 'engineer2',
+    entityType: 'agent',
+    fingerprint: 'agent-error:release-train:engineer2:exec-9',
+    workflowId: 'release-train',
+    executionId: 'exec-9',
+  })
+
+  const grouped = getGroupedActiveNotifications()
+  assert(grouped.length === 1, `Expected 1 grouped notification, got ${grouped.length}`)
+  assert(grouped[0].grouped === true, 'Expected grouped agent-error notification')
+  assert(grouped[0].workflowId === 'release-train', `Expected workflowId to stay on grouped parent, got ${grouped[0].workflowId}`)
+  assert(grouped[0].executionId === 'exec-9', `Expected executionId to stay on grouped parent, got ${grouped[0].executionId}`)
+  assert(grouped[0].groupedEntityIds?.join(',') === 'engineer1,engineer2', `Expected grouped entity ids, got ${grouped[0].groupedEntityIds?.join(',')}`)
+  assert((grouped[0].groupedChildren || []).every((child) => child.workflowId === 'release-train' && child.executionId === 'exec-9'), 'Expected grouped children to preserve workflow execution metadata')
 })
 
 // ============================================================================
