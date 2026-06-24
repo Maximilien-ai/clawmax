@@ -994,6 +994,16 @@ else
   fail "Agent chat session helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Agent chat session edge-case unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/agentChatSessionEdges.test.ts > /tmp/clawmax-agent-chat-session-edges.out 2>&1 || true
+if grep -q "agentChatSessionEdges.test.ts:" /tmp/clawmax-agent-chat-session-edges.out; then
+  agent_chat_session_edges_count=$(grep -oE '[0-9]+ tests passed' /tmp/clawmax-agent-chat-session-edges.out | tail -1 | awk '{print $1}')
+  pass "Agent chat session edge-case unit tests (${agent_chat_session_edges_count:-?} tests)"
+else
+  cat /tmp/clawmax-agent-chat-session-edges.out
+  fail "Agent chat session edge-case unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Agent template option helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/agentTemplateOptions.test.ts > /tmp/clawmax-agent-template-options.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-agent-template-options.out; then
