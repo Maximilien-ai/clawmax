@@ -19,6 +19,7 @@ Use `1.9.1` for the next cleanup slice after the `1.9.0` stabilization release.
 ### Section 0: Test Backfill and Coverage Measurement
 
 - [ ] measure which areas are already well covered vs. thinly covered
+- [ ] maintain a lightweight inventory snapshot at [TEST_INVENTORY_1_9_1.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/testing/TEST_INVENTORY_1_9_1.md)
 - [ ] identify the weakest-tested high-risk surfaces first:
   - workflow execution and workflow result handling
   - notification resolution and presentation

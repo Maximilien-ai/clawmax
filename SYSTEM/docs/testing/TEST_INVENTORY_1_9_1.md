@@ -1,0 +1,195 @@
+# 1.9.1 Test Inventory Snapshot
+
+- Generated: 2026-06-24T12:36:52.714Z
+- Total test files inventoried: 159
+
+## By Domain
+
+- `client`: 63
+- `other`: 7
+- `server`: 87
+- `system`: 2
+
+## By Area
+
+- `agents-provisioning`: 18
+- `chat-communication`: 12
+- `docs-navigation`: 10
+- `notifications`: 4
+- `other`: 27
+- `release-infra`: 4
+- `runtime-integrations`: 27
+- `skills-plugins`: 16
+- `templates-builder`: 18
+- `workflows`: 10
+- `workspace-state`: 13
+
+## Potentially Thin / High-Risk Areas To Review First
+
+- `docs-navigation`: many navigation helpers are covered, but low-context file-open behavior still tends to regress across multiple surfaces.
+- `workspace-state`: stale cross-workspace state is historically risky and still has relatively few targeted tests compared with the number of surfaces it affects.
+- `notifications`: route/helper coverage exists, but end-to-end resolution, lifecycle cleanup, and grouped presentation are still easy to regress.
+- `workflows`: strong helper coverage exists, but workflow success-vs-thread-delivery and upstream-failure surfacing still deserve more scenario coverage.
+- `agents-provisioning`: agent routes are fairly well tested, but Builder/Add Agent metadata persistence and template/apply edge cases remain high-signal regression targets.
+
+## Inventory
+
+- [other] [other] `SYSTEM/clawmax-resend-wrapper.test.sh`
+- [runtime-integrations] [client] `SYSTEM/dashboard/client/src/components/PartnerLogo.test.ts`
+- [agents-provisioning] [client] `SYSTEM/dashboard/client/src/lib/addAgentDefaultModel.test.ts`
+- [agents-provisioning] [client] `SYSTEM/dashboard/client/src/lib/addAgentWizardFlow.test.ts`
+- [agents-provisioning] [client] `SYSTEM/dashboard/client/src/lib/agentCardPresentation.test.ts`
+- [chat-communication] [client] `SYSTEM/dashboard/client/src/lib/agentChatDocs.test.ts`
+- [chat-communication] [client] `SYSTEM/dashboard/client/src/lib/agentChatMarkdown.test.ts`
+- [chat-communication] [client] `SYSTEM/dashboard/client/src/lib/agentChatSession.test.ts`
+- [chat-communication] [client] `SYSTEM/dashboard/client/src/lib/agentChatTimeline.test.ts`
+- [agents-provisioning] [client] `SYSTEM/dashboard/client/src/lib/agentDeleteUi.test.ts`
+- [agents-provisioning] [client] `SYSTEM/dashboard/client/src/lib/agentLabels.test.ts`
+- [agents-provisioning] [client] `SYSTEM/dashboard/client/src/lib/agentList.test.ts`
+- [agents-provisioning] [client] `SYSTEM/dashboard/client/src/lib/agentLoading.test.ts`
+- [agents-provisioning] [client] `SYSTEM/dashboard/client/src/lib/agentSkillsScope.test.ts`
+- [templates-builder] [client] `SYSTEM/dashboard/client/src/lib/agentTemplateOptions.test.ts`
+- [templates-builder] [client] `SYSTEM/dashboard/client/src/lib/applyOrgTemplateFlow.test.ts`
+- [workspace-state] [client] `SYSTEM/dashboard/client/src/lib/appNavigationState.test.ts`
+- [templates-builder] [client] `SYSTEM/dashboard/client/src/lib/builderMobileLayout.test.ts`
+- [templates-builder] [client] `SYSTEM/dashboard/client/src/lib/builderSession.test.ts`
+- [templates-builder] [client] `SYSTEM/dashboard/client/src/lib/builderStarterPrompts.test.ts`
+- [runtime-integrations] [client] `SYSTEM/dashboard/client/src/lib/byok.test.ts`
+- [chat-communication] [client] `SYSTEM/dashboard/client/src/lib/channelApi.test.ts`
+- [chat-communication] [client] `SYSTEM/dashboard/client/src/lib/chatRuntimeErrors.test.ts`
+- [chat-communication] [client] `SYSTEM/dashboard/client/src/lib/communicationBulkActions.test.ts`
+- [chat-communication] [client] `SYSTEM/dashboard/client/src/lib/communicationMessages.test.ts`
+- [templates-builder] [client] `SYSTEM/dashboard/client/src/lib/discoverySuggestions.test.ts`
+- [docs-navigation] [client] `SYSTEM/dashboard/client/src/lib/docHubTree.test.ts`
+- [other] [client] `SYSTEM/dashboard/client/src/lib/dropdownPosition.test.ts`
+- [runtime-integrations] [client] `SYSTEM/dashboard/client/src/lib/gatewayDiagnostics.test.ts`
+- [other] [client] `SYSTEM/dashboard/client/src/lib/keysSecretsInventory.test.ts`
+- [other] [client] `SYSTEM/dashboard/client/src/lib/localSecrets.test.ts`
+- [other] [client] `SYSTEM/dashboard/client/src/lib/maintenanceBannerView.test.ts`
+- [docs-navigation] [client] `SYSTEM/dashboard/client/src/lib/markdownLinks.test.ts`
+- [runtime-integrations] [client] `SYSTEM/dashboard/client/src/lib/meteringPresentation.test.ts`
+- [other] [client] `SYSTEM/dashboard/client/src/lib/navigation.test.ts`
+- [notifications] [client] `SYSTEM/dashboard/client/src/lib/notificationPresentation.test.ts`
+- [templates-builder] [client] `SYSTEM/dashboard/client/src/lib/onboardingTour.test.ts`
+- [other] [client] `SYSTEM/dashboard/client/src/lib/openAiModelLifecycle.test.ts`
+- [other] [client] `SYSTEM/dashboard/client/src/lib/organizationTeams.test.ts`
+- [runtime-integrations] [client] `SYSTEM/dashboard/client/src/lib/partnerCatalog.test.ts`
+- [skills-plugins] [client] `SYSTEM/dashboard/client/src/lib/plugins.test.ts`
+- [other] [client] `SYSTEM/dashboard/client/src/lib/productIcons.test.ts`
+- [docs-navigation] [client] `SYSTEM/dashboard/client/src/lib/promptAttachments.test.ts`
+- [other] [client] `SYSTEM/dashboard/client/src/lib/resendTestEmail.test.ts`
+- [other] [client] `SYSTEM/dashboard/client/src/lib/singleFlight.test.ts`
+- [skills-plugins] [client] `SYSTEM/dashboard/client/src/lib/skillAssignments.test.ts`
+- [skills-plugins] [client] `SYSTEM/dashboard/client/src/lib/skillExport.test.ts`
+- [skills-plugins] [client] `SYSTEM/dashboard/client/src/lib/skillInstall.test.ts`
+- [skills-plugins] [client] `SYSTEM/dashboard/client/src/lib/skillPlatform.test.ts`
+- [skills-plugins] [client] `SYSTEM/dashboard/client/src/lib/skillsDeletion.test.ts`
+- [skills-plugins] [client] `SYSTEM/dashboard/client/src/lib/skillSetup.test.ts`
+- [skills-plugins] [client] `SYSTEM/dashboard/client/src/lib/skillsPageFlow.test.ts`
+- [skills-plugins] [client] `SYSTEM/dashboard/client/src/lib/skillsSelection.test.ts`
+- [skills-plugins] [client] `SYSTEM/dashboard/client/src/lib/skillTags.test.ts`
+- [workspace-state] [client] `SYSTEM/dashboard/client/src/lib/systemRefresh.test.ts`
+- [templates-builder] [client] `SYSTEM/dashboard/client/src/lib/templateApplyReadiness.test.ts`
+- [templates-builder] [client] `SYSTEM/dashboard/client/src/lib/templateSearch.test.ts`
+- [other] [client] `SYSTEM/dashboard/client/src/lib/termsOfService.test.ts`
+- [other] [client] `SYSTEM/dashboard/client/src/lib/whatsAppPairing.test.ts`
+- [workflows] [client] `SYSTEM/dashboard/client/src/lib/workflowDagZoom.test.ts`
+- [workflows] [client] `SYSTEM/dashboard/client/src/lib/workflowLoading.test.ts`
+- [docs-navigation] [client] `SYSTEM/dashboard/client/src/lib/workspaceDocNavigation.test.ts`
+- [docs-navigation] [client] `SYSTEM/dashboard/client/src/lib/workspaceFiles.test.ts`
+- [workspace-state] [client] `SYSTEM/dashboard/client/src/lib/workspaceScope.test.ts`
+- [docs-navigation] [system] `SYSTEM/dashboard/docker-entrypoint.test.sh`
+- [agents-provisioning] [server] `SYSTEM/dashboard/server/lib/agent-config-validation.test.ts`
+- [agents-provisioning] [server] `SYSTEM/dashboard/server/lib/agent-default-model.test.ts`
+- [agents-provisioning] [server] `SYSTEM/dashboard/server/lib/agent-execution.test.ts`
+- [agents-provisioning] [server] `SYSTEM/dashboard/server/lib/agent-model.test.ts`
+- [agents-provisioning] [server] `SYSTEM/dashboard/server/lib/agent-state.test.ts`
+- [templates-builder] [server] `SYSTEM/dashboard/server/lib/ai-builder-share.test.ts`
+- [templates-builder] [server] `SYSTEM/dashboard/server/lib/ai-builder.test.ts`
+- [other] [server] `SYSTEM/dashboard/server/lib/ai-generator-live.test.ts`
+- [other] [server] `SYSTEM/dashboard/server/lib/ai-generator.test.ts`
+- [runtime-integrations] [server] `SYSTEM/dashboard/server/lib/auth.test.ts`
+- [other] [server] `SYSTEM/dashboard/server/lib/budget.test.ts`
+- [other] [server] `SYSTEM/dashboard/server/lib/build-company-demo-smoke.test.ts`
+- [chat-communication] [server] `SYSTEM/dashboard/server/lib/chat-normalization.test.ts`
+- [other] [server] `SYSTEM/dashboard/server/lib/clawmax-resend-command.test.ts`
+- [skills-plugins] [server] `SYSTEM/dashboard/server/lib/clawmax-skills-regressions.test.ts`
+- [runtime-integrations] [server] `SYSTEM/dashboard/server/lib/cloud-maintenance-status.test.ts`
+- [workflows] [server] `SYSTEM/dashboard/server/lib/cron-next-run.test.ts`
+- [runtime-integrations] [server] `SYSTEM/dashboard/server/lib/dashboard-env.test.ts`
+- [runtime-integrations] [server] `SYSTEM/dashboard/server/lib/gateway-probe-handshake.test.ts`
+- [runtime-integrations] [server] `SYSTEM/dashboard/server/lib/gateway-probe-regressions.test.ts`
+- [runtime-integrations] [server] `SYSTEM/dashboard/server/lib/gateway-rpc.test.ts`
+- [runtime-integrations] [server] `SYSTEM/dashboard/server/lib/github-auth.test.ts`
+- [agents-provisioning] [server] `SYSTEM/dashboard/server/lib/host-agent-status.test.ts`
+- [runtime-integrations] [server] `SYSTEM/dashboard/server/lib/integration-validation.test.ts`
+- [runtime-integrations] [server] `SYSTEM/dashboard/server/lib/metering.test.ts`
+- [runtime-integrations] [server] `SYSTEM/dashboard/server/lib/model-discovery.test.ts`
+- [notifications] [server] `SYSTEM/dashboard/server/lib/notifications.test.ts`
+- [agents-provisioning] [server] `SYSTEM/dashboard/server/lib/openclaw-agent-transfer.test.ts`
+- [runtime-integrations] [server] `SYSTEM/dashboard/server/lib/openclaw-cli.test.ts`
+- [runtime-integrations] [server] `SYSTEM/dashboard/server/lib/openclaw-config.test.ts`
+- [runtime-integrations] [server] `SYSTEM/dashboard/server/lib/openclaw-contract.test.ts`
+- [runtime-integrations] [server] `SYSTEM/dashboard/server/lib/opik.test.ts`
+- [other] [server] `SYSTEM/dashboard/server/lib/organization-delete.test.ts`
+- [runtime-integrations] [server] `SYSTEM/dashboard/server/lib/partner-installs.test.ts`
+- [runtime-integrations] [server] `SYSTEM/dashboard/server/lib/partner-runtime-regressions.test.ts`
+- [runtime-integrations] [server] `SYSTEM/dashboard/server/lib/partners.test.ts`
+- [skills-plugins] [server] `SYSTEM/dashboard/server/lib/plugin-system.test.ts`
+- [other] [server] `SYSTEM/dashboard/server/lib/prereqs.test.ts`
+- [runtime-integrations] [server] `SYSTEM/dashboard/server/lib/safe-env.test.ts`
+- [workflows] [server] `SYSTEM/dashboard/server/lib/scheduler.test.ts`
+- [skills-plugins] [server] `SYSTEM/dashboard/server/lib/skill-registry.test.ts`
+- [skills-plugins] [server] `SYSTEM/dashboard/server/lib/skills.test.ts`
+- [other] [server] `SYSTEM/dashboard/server/lib/system-info.test.ts`
+- [other] [server] `SYSTEM/dashboard/server/lib/teams.test.ts`
+- [templates-builder] [server] `SYSTEM/dashboard/server/lib/template-feedback.test.ts`
+- [templates-builder] [server] `SYSTEM/dashboard/server/lib/template-registry.test.ts`
+- [templates-builder] [server] `SYSTEM/dashboard/server/lib/templates.test.ts`
+- [other] [server] `SYSTEM/dashboard/server/lib/validator.test.ts`
+- [release-infra] [server] `SYSTEM/dashboard/server/lib/version.test.ts`
+- [workflows] [server] `SYSTEM/dashboard/server/lib/workflow-communication-targets.test.ts`
+- [workflows] [server] `SYSTEM/dashboard/server/lib/workflow-execution-env.test.ts`
+- [workflows] [server] `SYSTEM/dashboard/server/lib/workflow-integration-defaults.test.ts`
+- [workflows] [server] `SYSTEM/dashboard/server/lib/workflow-session-regressions.test.ts`
+- [workflows] [server] `SYSTEM/dashboard/server/lib/workflows.test.ts`
+- [agents-provisioning] [server] `SYSTEM/dashboard/server/lib/workspace-agent-files.test.ts`
+- [notifications] [server] `SYSTEM/dashboard/server/lib/workspace-artifact-notifications.test.ts`
+- [workspace-state] [server] `SYSTEM/dashboard/server/lib/workspace-dashboards.test.ts`
+- [agents-provisioning] [server] `SYSTEM/dashboard/server/lib/workspace-delete-agent.test.ts`
+- [docs-navigation] [server] `SYSTEM/dashboard/server/lib/workspace-doc-entries.test.ts`
+- [workspace-state] [server] `SYSTEM/dashboard/server/lib/workspace-export.test.ts`
+- [workspace-state] [server] `SYSTEM/dashboard/server/lib/workspace-import.test.ts`
+- [runtime-integrations] [server] `SYSTEM/dashboard/server/lib/workspace-integrations.test.ts`
+- [workspace-state] [server] `SYSTEM/dashboard/server/lib/workspace-manager.test.ts`
+- [workspace-state] [server] `SYSTEM/dashboard/server/lib/workspace-status.test.ts`
+- [workspace-state] [server] `SYSTEM/dashboard/server/lib/workspace-upload.test.ts`
+- [agents-provisioning] [server] `SYSTEM/dashboard/server/routes/agents.test.ts`
+- [templates-builder] [server] `SYSTEM/dashboard/server/routes/ai-builder.test.ts`
+- [other] [server] `SYSTEM/dashboard/server/routes/ai.test.ts`
+- [chat-communication] [server] `SYSTEM/dashboard/server/routes/channels.test.ts`
+- [chat-communication] [server] `SYSTEM/dashboard/server/routes/chat-routes.test.ts`
+- [chat-communication] [server] `SYSTEM/dashboard/server/routes/chat.test.ts`
+- [docs-navigation] [server] `SYSTEM/dashboard/server/routes/docs.test.ts`
+- [docs-navigation] [server] `SYSTEM/dashboard/server/routes/doctor-gateway-recovery.test.ts`
+- [runtime-integrations] [server] `SYSTEM/dashboard/server/routes/integrations.test.ts`
+- [other] [server] `SYSTEM/dashboard/server/routes/logs-routes.test.ts`
+- [notifications] [server] `SYSTEM/dashboard/server/routes/notifications-routes.test.ts`
+- [runtime-integrations] [server] `SYSTEM/dashboard/server/routes/partner-plugin-status-regression.test.ts`
+- [skills-plugins] [server] `SYSTEM/dashboard/server/routes/plugins.test.ts`
+- [skills-plugins] [server] `SYSTEM/dashboard/server/routes/skills.test.ts`
+- [other] [server] `SYSTEM/dashboard/server/routes/teams-routes.test.ts`
+- [templates-builder] [server] `SYSTEM/dashboard/server/routes/template-registry.test.ts`
+- [templates-builder] [server] `SYSTEM/dashboard/server/routes/templates-customization.test.ts`
+- [templates-builder] [server] `SYSTEM/dashboard/server/routes/templates-routes.test.ts`
+- [workflows] [server] `SYSTEM/dashboard/server/routes/workflows.test.ts`
+- [workspace-state] [server] `SYSTEM/dashboard/server/routes/workspace-dashboards-routes.test.ts`
+- [workspace-state] [server] `SYSTEM/dashboard/server/routes/workspace-dashboards.test.ts`
+- [workspace-state] [server] `SYSTEM/dashboard/server/routes/workspaces.test.ts`
+- [workspace-state] [system] `SYSTEM/dashboard/test/workspace-order.test.ts`
+- [docs-navigation] [other] `SYSTEM/dockerfile-openclaw-builder.test.sh`
+- [other] [other] `SYSTEM/install.test.sh`
+- [runtime-integrations] [other] `SYSTEM/prepare-openclaw-target.test.sh`
+- [release-infra] [other] `SYSTEM/setup.test.sh`
+- [release-infra] [other] `SYSTEM/uninstall.test.sh`
+- [release-infra] [other] `SYSTEM/update.test.sh`
