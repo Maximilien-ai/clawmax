@@ -1013,6 +1013,16 @@ else
   fail "Agent template option helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Agent template option edge-case unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/agentTemplateOptionsEdges.test.ts > /tmp/clawmax-agent-template-options-edges.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-agent-template-options-edges.out; then
+  agent_template_option_edges_count=$(grep "Tests passed:" /tmp/clawmax-agent-template-options-edges.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Agent template option edge-case unit tests (${agent_template_option_edges_count:-?} tests)"
+else
+  cat /tmp/clawmax-agent-template-options-edges.out
+  fail "Agent template option edge-case unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Add agent wizard flow smoke tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/addAgentWizardFlow.test.ts > /tmp/clawmax-add-agent-wizard-flow.out 2>&1 || true
 if grep -q "addAgentWizardFlow.test.ts: ok" /tmp/clawmax-add-agent-wizard-flow.out; then
