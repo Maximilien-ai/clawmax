@@ -284,7 +284,7 @@ async function run() {
     const grouped = (res.jsonBody?.notifications || []).find((item: any) => item.grouped && item.type === 'agent-error' && item.workflowId === 'wf-launch-plan')
     assert(grouped, 'Expected grouped agent failure notification in payload')
     assert.strictEqual(grouped.groupedCount, 2, 'Expected grouped agent failure count')
-    assert.deepStrictEqual(grouped.groupedEntityIds, ['engineer-a', 'engineer-b'], 'Expected grouped entity ids to survive route serialization')
+    assert.deepStrictEqual([...(grouped.groupedEntityIds || [])].sort(), ['engineer-a', 'engineer-b'], 'Expected grouped entity ids to survive route serialization')
     assert.strictEqual(grouped.executionId, 'exec-grouped', 'Expected grouped parent to preserve execution id')
     assert((grouped.groupedChildren || []).every((child: any) => child.executionId === 'exec-grouped'), 'Expected grouped children to preserve execution id')
   })
