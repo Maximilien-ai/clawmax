@@ -433,6 +433,128 @@ async function run() {
     assert.deepStrictEqual(engineeringCommunity?.members || [], ['lead1', 'eng2'], 'Expected parent community to absorb group members')
   })
 
+  await test('rename and patch routes return expected errors for missing channels and invalid payloads', async () => {
+    const renameCommunity = getRouteHandler('patch', '/communities/:name/rename')
+    const renameGroup = getRouteHandler('patch', '/groups/:name/rename')
+    const patchCommunityTags = getRouteHandler('patch', '/communities/:name/tags')
+    const patchGroupMembers = getRouteHandler('patch', '/groups/:name/members')
+
+    let res = makeRes()
+    await renameCommunity(makeReq({
+      params: { name: encodeURIComponent('Missing Community') },
+      body: { newName: '' },
+    }), res)
+    assert.strictEqual(res.statusCode, 400, 'Expected missing community newName to return HTTP 400')
+
+    res = makeRes()
+    await renameCommunity(makeReq({
+      params: { name: encodeURIComponent('Missing Community') },
+      body: { newName: 'Renamed Community' },
+    }), res)
+    assert.strictEqual(res.statusCode, 404, 'Expected missing community rename to return HTTP 404')
+
+    res = makeRes()
+    await renameGroup(makeReq({
+      params: { name: encodeURIComponent('Missing Group') },
+      body: { newName: 'Renamed Group' },
+    }), res)
+    assert.strictEqual(res.statusCode, 404, 'Expected missing group rename to return HTTP 404')
+
+    res = makeRes()
+    await patchCommunityTags(makeReq({
+      params: { name: encodeURIComponent('Missing Community') },
+      body: { tags: [] },
+    }), res)
+    assert.strictEqual(res.statusCode, 404, 'Expected missing community tag update to return HTTP 404')
+
+    res = makeRes()
+    await patchGroupMembers(makeReq({
+      params: { name: encodeURIComponent('Missing Group') },
+      body: { members: [] },
+    }), res)
+    assert.strictEqual(res.statusCode, 404, 'Expected missing group member update to return HTTP 404')
+  })
+
+  await test('group and community message routes validate missing content and expose empty reads', async () => {
+    const sendCommunityMessage = getRouteHandler('post', '/communities/:name/messages')
+    const sendGroupMessage = getRouteHandler('post', '/groups/:name/messages')
+    const getCommunityMessages = getRouteHandler('get', '/communities/:name/messages')
+    const getGroupMessages = getRouteHandler('get', '/groups/:name/messages')
+
+    let res = makeRes()
+    await sendCommunityMessage(makeReq({
+      params: { name: encodeURIComponent('No Community') },
+      body: {},
+    }), res)
+    assert.strictEqual(res.statusCode, 400, 'Expected missing community content to return HTTP 400')
+
+    res = makeRes()
+    await sendGroupMessage(makeReq({
+      params: { name: encodeURIComponent('No Group') },
+      body: {},
+    }), res)
+    assert.strictEqual(res.statusCode, 400, 'Expected missing group content to return HTTP 400')
+
+    res = makeRes()
+    await getCommunityMessages(makeReq({ params: { name: encodeURIComponent('No Community') } }), res)
+    assert.strictEqual(res.statusCode, 200, 'Expected empty community read success')
+    assert.deepStrictEqual(res.jsonBody?.messages || [], [], 'Expected empty community messages')
+
+    res = makeRes()
+    await getGroupMessages(makeReq({ params: { name: encodeURIComponent('No Group') } }), res)
+    assert.strictEqual(res.statusCode, 200, 'Expected empty group read success')
+    assert.deepStrictEqual(res.jsonBody?.messages || [], [], 'Expected empty group messages')
+  })
+
+  await test('archive delete routes and channel workflow routes return consistent payloads', async () => {
+    const deleteCommunityArchive = getRouteHandler('delete', '/communities/:name/archives/:filename')
+    const deleteGroupArchive = getRouteHandler('delete', '/groups/:name/archives/:filename')
+    const communityWorkflows = getRouteHandler('get', '/communities/:name/workflows')
+    const groupWorkflows = getRouteHandler('get', '/groups/:name/workflows')
+
+    let res = makeRes()
+    await deleteCommunityArchive(makeReq({
+      params: { name: encodeURIComponent('No Community'), filename: 'missing.json' },
+    }), res)
+    assert.strictEqual(res.statusCode, 200, 'Expected community archive delete success')
+    assert.strictEqual(typeof res.jsonBody?.ok, 'boolean', 'Expected boolean community archive delete result')
+
+    res = makeRes()
+    await deleteGroupArchive(makeReq({
+      params: { name: encodeURIComponent('No Group'), filename: 'missing.json' },
+    }), res)
+    assert.strictEqual(res.statusCode, 200, 'Expected group archive delete success')
+    assert.strictEqual(typeof res.jsonBody?.ok, 'boolean', 'Expected boolean group archive delete result')
+
+    res = makeRes()
+    await communityWorkflows(makeReq({ params: { name: encodeURIComponent('No Community') } }), res)
+    assert.strictEqual(res.statusCode, 200, 'Expected empty community workflow list success')
+    assert.deepStrictEqual(res.jsonBody?.workflows || [], [], 'Expected no workflows for unmatched community')
+
+    res = makeRes()
+    await groupWorkflows(makeReq({ params: { name: encodeURIComponent('No Group') } }), res)
+    assert.strictEqual(res.statusCode, 200, 'Expected empty group workflow list success')
+    assert.deepStrictEqual(res.jsonBody?.workflows || [], [], 'Expected no workflows for unmatched group')
+  })
+
+  await test('direct messages reject missing content and still expose an empty conversation list', async () => {
+    const sendDirectMessage = getRouteHandler('post', '/direct-messages/:from/:to')
+    const listDirectConversations = getRouteHandler('get', '/direct-messages')
+
+    const sendRes = makeRes()
+    await sendDirectMessage(makeReq({
+      params: { from: 'agent-x', to: 'agent-y' },
+      body: {},
+    }), sendRes)
+    assert.strictEqual(sendRes.statusCode, 400, 'Expected missing direct message content to return HTTP 400')
+    assert.strictEqual(sendRes.jsonBody?.error, 'content is required', 'Expected direct message validation guidance')
+
+    const listRes = makeRes()
+    await listDirectConversations(makeReq(), listRes)
+    assert.strictEqual(listRes.statusCode, 200, 'Expected direct conversation list success')
+    assert(Array.isArray(listRes.jsonBody?.conversations || []), 'Expected conversation list array')
+  })
+
   if (typeof originalHome === 'undefined') delete process.env.HOME
   else process.env.HOME = originalHome
   if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
