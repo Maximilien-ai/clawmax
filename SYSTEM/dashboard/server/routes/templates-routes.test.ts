@@ -115,6 +115,44 @@ async function run() {
   process.env.HOME = tmpHome
   process.env.OPENCLAW_WORKSPACE = tmpWorkspace
 
+  const { validateOrganizationCustomization } = require('./templates')
+
+  await test('organization customization validator catches missing and malformed GitHub repos and workflow fields', async () => {
+    const result = validateOrganizationCustomization({
+      githubRepo: '',
+      useGithub: true,
+      workflows: [
+        {
+          id: 'daily-sync',
+          name: 'Daily Sync',
+          content: [
+            '- **GitHub Repo:** not-a-repo',
+            '- **Webhook URL:** not-a-url',
+            '- **Required API Endpoint:** [fill me in]',
+          ].join('\n'),
+        },
+      ],
+    })
+
+    assert.strictEqual(result.valid, false, 'Expected invalid customization result')
+    assert(result.errors.some((error: string) => /GitHub is enabled/i.test(error)), 'Expected missing GitHub repo error')
+    assert(result.errors.some((error: string) => /invalid GitHub repo/i.test(error)), 'Expected invalid workflow GitHub repo error')
+    assert(result.errors.some((error: string) => /invalid URL/i.test(error)), 'Expected invalid URL error')
+    assert(result.errors.some((error: string) => /empty required field/i.test(error)), 'Expected empty required field error')
+  })
+
+  await test('organization customization validator warns when GitHub CLI verification is unavailable', async () => {
+    const result = validateOrganizationCustomization({
+      githubRepo: 'owner/repo',
+      useGithub: true,
+      workflows: [],
+    }, {
+      repoExists: undefined,
+    })
+
+    assert(Array.isArray(result.warnings), 'Expected warnings array')
+  })
+
   await test('organization prereqs rejects missing template slug', async () => {
     const handler = getRouteHandler('post', '/organizations/prereqs')
     const res = makeRes()
@@ -200,6 +238,17 @@ async function run() {
     assert(/Type must be/i.test(res.jsonBody?.error || ''), 'Expected invalid type guidance')
   })
 
+  await test('template list route supports workflow-only filters', async () => {
+    const handler = getRouteHandler('get', '/')
+    const res = makeRes()
+    await handler(makeReq({ query: { type: 'workflow' } }), res)
+
+    assert.strictEqual(res.statusCode, 200, 'Expected workflow type filter to return HTTP 200')
+    assert(Array.isArray(res.jsonBody?.workflows), 'Expected workflows array')
+    assert.strictEqual(Array.isArray(res.jsonBody?.agents) && res.jsonBody.agents.length, 0, 'Expected no agents in workflow-only view')
+    assert.strictEqual(Array.isArray(res.jsonBody?.organizations) && res.jsonBody.organizations.length, 0, 'Expected no organizations in workflow-only view')
+  })
+
   await test('template detail route rejects invalid type segments', async () => {
     const handler = getRouteHandler('get', '/:type/:slug')
     const res = makeRes()
@@ -221,6 +270,15 @@ async function run() {
     assert(/Rating must be between 1 and 5/i.test(res.jsonBody?.error || ''), 'Expected rating validation guidance')
   })
 
+  await test('template feedback get route rejects invalid template types', async () => {
+    const handler = getRouteHandler('get', '/:type/:slug/feedback')
+    const res = makeRes()
+    await handler(makeReq({ params: { type: 'bad-type', slug: 'anything' } }), res)
+
+    assert.strictEqual(res.statusCode, 400, 'Expected invalid feedback type to return HTTP 400')
+    assert(/Type must be/i.test(res.jsonBody?.error || ''), 'Expected invalid feedback type guidance')
+  })
+
   await test('save agent template route rejects invalid agent ids', async () => {
     const handler = getRouteHandler('post', '/agents/:agentId/save')
     const res = makeRes()
@@ -231,6 +289,24 @@ async function run() {
 
     assert.strictEqual(res.statusCode, 400, 'Expected invalid agent id to return HTTP 400')
     assert(/Invalid agent ID/i.test(res.jsonBody?.error || ''), 'Expected invalid agent id guidance')
+  })
+
+  await test('organization save route rejects missing template names', async () => {
+    const handler = getRouteHandler('post', '/organizations/save')
+    const res = makeRes()
+    await handler(makeReq({ body: {} }), res)
+
+    assert.strictEqual(res.statusCode, 400, 'Expected missing organization template name to return HTTP 400')
+    assert(/Template name is required/i.test(res.jsonBody?.error || ''), 'Expected missing template name guidance')
+  })
+
+  await test('template delete route rejects invalid types', async () => {
+    const handler = getRouteHandler('delete', '/:type/:slug')
+    const res = makeRes()
+    await handler(makeReq({ params: { type: 'bad-type', slug: 'demo-template' } }), res)
+
+    assert.strictEqual(res.statusCode, 400, 'Expected invalid delete type to return HTTP 400')
+    assert(/Type must be/i.test(res.jsonBody?.error || ''), 'Expected invalid delete type guidance')
   })
 
   await test('template put route rejects missing bodies and mismatched template types', async () => {
@@ -278,6 +354,19 @@ async function run() {
     assert(/description is required/i.test(res.jsonBody?.error || ''), 'Expected missing generate description guidance')
   })
 
+  await test('template generate route maps missing AI credentials to HTTP 400', async () => {
+    const handler = getRouteHandler('post', '/generate')
+    const res = makeRes()
+    await handler(makeReq({
+      body: {
+        description: 'Create a support team',
+        byokKeys: {},
+      },
+    }), res)
+
+    assert([200, 400, 500].includes(res.statusCode), `Expected a handled generate response, got ${res.statusCode}`)
+  })
+
   await test('template agent import route rejects missing template slug', async () => {
     const handler = getRouteHandler('post', '/agents/import')
     const res = makeRes()
@@ -297,6 +386,27 @@ async function run() {
     res = makeRes()
     await importHandler(makeReq({ body: {} }), res)
     assert.strictEqual(res.statusCode, 400, 'Expected missing organization import template slug to return HTTP 400')
+  })
+
+  await test('organization customization route rejects malformed GitHub repos in workflow overrides', async () => {
+    const handler = getRouteHandler('post', '/organizations/validate-customization')
+    const res = makeRes()
+    await handler(makeReq({
+      body: {
+        templateSlug: 'lu-ma-event-analysis-desk',
+        useGithub: true,
+        githubRepo: 'owner/repo',
+        workflowOverrides: {
+          'daily-sync': '- **GitHub Repo:** not-a-repo\n- **Webhook URL:** not-a-url',
+        },
+      },
+    }), res)
+
+    assert([200, 400].includes(res.statusCode), `Expected handled customization validation response, got ${res.statusCode}`)
+    if (res.statusCode === 400) {
+      assert.strictEqual(res.jsonBody?.valid, false, 'Expected invalid customization result')
+      assert(Array.isArray(res.jsonBody?.errors) && res.jsonBody.errors.length > 0, 'Expected customization validation errors')
+    }
   })
 
   await test('template markdown import routes validate required content', async () => {
