@@ -6,6 +6,7 @@ import {
   applyCompanyWorkflowExecutionDefaults,
   applyGeneratedWorkflowHandoffs,
   buildPromptExpansionSystemPrompt,
+  buildResolvedModelRequestOptions,
   createChatCompletionWithCompatibilityRetry,
   ensureGeneratedCompanyRoot,
   enforceVisibleCompanyWorkflowChain,
@@ -17,6 +18,7 @@ import {
   normalizeGeneratedWorkflowReferences,
   normalizePromptExpansionFormat,
   normalizePromptExpansionTarget,
+  normalizeTemplateGenerationTarget,
   parseJsonResponse,
   resolveSystemGenerationModelForProvider,
   resolveOpenAiCompatibleGenerationDefaults,
@@ -70,6 +72,22 @@ test('isOneTimeScheduleRequest detects one-time cron requests', () => {
 test('explainOneTimeCronLimitation returns actionable guidance', () => {
   assert.match(explainOneTimeCronLimitation(), /Cron expressions always repeat/i)
   assert.match(explainOneTimeCronLimitation(), /manually/i)
+})
+
+test('normalize template and prompt expansion helpers coerce unsupported values to safe defaults', () => {
+  assert.strictEqual(normalizeTemplateGenerationTarget('company'), 'company')
+  assert.strictEqual(normalizeTemplateGenerationTarget('weird'), 'team')
+  assert.strictEqual(normalizePromptExpansionTarget('agent'), 'agent')
+  assert.strictEqual(normalizePromptExpansionTarget('nonsense'), 'template')
+  assert.strictEqual(normalizePromptExpansionFormat('text'), 'text')
+  assert.strictEqual(normalizePromptExpansionFormat('html'), 'markdown')
+})
+
+test('buildPromptExpansionSystemPrompt includes target, format, and optional guidance', () => {
+  const prompt = buildPromptExpansionSystemPrompt('workflow', 'text', 'Prefer step-by-step output')
+  assert.match(prompt, /workflow generation wizard/i)
+  assert.match(prompt, /plain text paragraphs/i)
+  assert.match(prompt, /Prefer step-by-step output/i)
 })
 
 test('validateAiGenerationProviderKeys rejects OpenAI subscription or session-style credentials', () => {
@@ -132,11 +150,36 @@ test('resolveSystemGenerationModelForProvider applies system preferred model whe
   )
 })
 
+test('resolveSystemGenerationModelForProvider ignores unsupported or mismatched models', () => {
+  assert.strictEqual(
+    resolveSystemGenerationModelForProvider('openai', 'anthropic/claude-sonnet-4-20250514', 'claude-sonnet-4-20250514'),
+    undefined,
+  )
+  assert.strictEqual(
+    resolveSystemGenerationModelForProvider('anthropic', 'custom/model', 'claude-sonnet-4-20250514'),
+    undefined,
+  )
+})
+
 test('shouldUseMaxCompletionTokens enables GPT-5 token compatibility', () => {
   setRequestByokKeys({ openai: 'sk-test-openai-key' } as any)
   assert.strictEqual(shouldUseMaxCompletionTokens('gpt-5'), true)
   assert.strictEqual(shouldUseMaxCompletionTokens('openai/gpt-5'), true)
   assert.strictEqual(shouldUseMaxCompletionTokens('gpt-4o'), false)
+  setRequestByokKeys(undefined)
+})
+
+test('buildResolvedModelRequestOptions uses max_completion_tokens for GPT-5 and max_tokens otherwise', () => {
+  setRequestByokKeys({ openai: 'sk-test-openai-key' } as any)
+  const gpt5 = buildResolvedModelRequestOptions('gpt-5', 321)
+  assert.strictEqual(gpt5.model, 'gpt-5')
+  assert.strictEqual(gpt5.max_completion_tokens, 321)
+  assert.strictEqual(gpt5.max_tokens, undefined)
+
+  const gpt4o = buildResolvedModelRequestOptions('gpt-4o', 222)
+  assert.strictEqual(gpt4o.model, 'gpt-4o')
+  assert.strictEqual(gpt4o.max_tokens, 222)
+  assert.strictEqual(gpt4o.max_completion_tokens, undefined)
   setRequestByokKeys(undefined)
 })
 
@@ -235,6 +278,43 @@ test('shouldGenerateCompanyTemplate infers company from prompt unless agent is e
   )
 })
 
+test('ensureGeneratedCompanyRoot inserts a root team and parents leadership when missing', () => {
+  const teams = ensureGeneratedCompanyRoot([
+    {
+      id: 'leadership',
+      name: 'Leadership',
+      leaderAgentId: 'ceo',
+      memberAgentIds: ['ceo'],
+      tags: ['leadership'],
+    },
+    {
+      id: 'ops',
+      name: 'Ops',
+      leaderAgentId: 'ops-lead',
+      memberAgentIds: ['ops-lead'],
+      tags: ['ops'],
+    },
+  ], 'Revenue Studio', true)
+
+  assert.strictEqual(teams[0].id, 'revenue-studio', 'Expected synthesized root team id')
+  assert(teams[0].tags.includes('org-root'), 'Expected org-root tag on synthesized root team')
+  assert.strictEqual(teams[1].parentTeamId, 'revenue-studio', 'Expected leadership team to be parented to root')
+})
+
+test('ensureGeneratedCompanyRoot preserves an existing root-like team', () => {
+  const teams = ensureGeneratedCompanyRoot([
+    {
+      id: 'company-root',
+      name: 'Company',
+      leaderAgentId: 'ceo',
+      memberAgentIds: [],
+      tags: ['company', 'org-root'],
+    },
+  ], 'Revenue Studio')
+
+  assert.strictEqual(teams.length, 1, 'Expected existing root team to be preserved without duplication')
+})
+
 test('normalizeGeneratedSkillScaffold sanitizes skill ids and fills defaults', () => {
   const normalized = normalizeGeneratedSkillScaffold({
     name: 'My Fancy Skill!!!',
@@ -318,6 +398,77 @@ test('applyGeneratedWorkflowHandoffs infers markdown outputs and dependency inpu
       required: true,
     },
   ])
+})
+
+test('enforceVisibleCompanyWorkflowChain creates a visible linear dependency chain', () => {
+  const workflows = enforceVisibleCompanyWorkflowChain([
+    { id: 'kickoff', dependsOn: ['ignored'] },
+    { id: 'plan', dependsOn: [] },
+    { id: 'review', dependsOn: ['other'] },
+  ])
+
+  assert.deepStrictEqual(workflows[0].dependsOn, [])
+  assert.deepStrictEqual(workflows[1].dependsOn, ['kickoff'])
+  assert.deepStrictEqual(workflows[2].dependsOn, ['plan', 'other'])
+})
+
+test('normalizeGeneratedWorkflowReferences resolves aliases and strips self-dependencies', () => {
+  const workflows = normalizeGeneratedWorkflowReferences([
+    {
+      id: 'leadership-kickoff',
+      _sourceId: 'kickoff',
+      _sourceName: 'Leadership Kickoff',
+      dependsOn: [],
+      inputRefs: [],
+    },
+    {
+      id: 'execution-brief',
+      _sourceId: 'brief',
+      _sourceName: 'Execution Brief',
+      dependsOn: ['kickoff', 'execution-brief'],
+      inputRefs: [{ workflowId: 'Leadership Kickoff', outputKey: 'brief' }],
+    },
+  ])
+
+  assert.deepStrictEqual(workflows[1].dependsOn, ['leadership-kickoff'], 'Expected alias dependency to normalize to workflow id')
+  assert.deepStrictEqual(workflows[1].inputRefs, [{ workflowId: 'leadership-kickoff', outputKey: 'brief' }], 'Expected input refs to normalize aliases')
+  assert.strictEqual('_sourceId' in workflows[1], false, 'Expected helper source fields to be stripped')
+})
+
+test('applyCompanyWorkflowExecutionDefaults rewrites company workflows to single-owner routed handoffs', () => {
+  const workflows = applyCompanyWorkflowExecutionDefaults([
+    {
+      id: 'leadership-kickoff',
+      name: 'Leadership Kickoff',
+      description: 'Kickoff workflow',
+      owner: '',
+      targeting: { agents: [], groups: ['Leadership'], tags: ['leadership'], teamIds: [] },
+      content: '# kickoff\n\nDescribe the work',
+    },
+    {
+      id: 'ops-plan',
+      name: 'Ops Plan',
+      description: 'Plan workflow',
+      owner: '',
+      targeting: { agents: [], groups: ['Operations'], tags: ['ops'], teamIds: [] },
+      content: '# ops\n\nPlan the work',
+    },
+  ], [
+    { id: 'leadership', name: 'Leadership', leaderAgentId: 'ceo', memberAgentIds: ['ceo'] },
+    { id: 'operations', name: 'Operations', leaderAgentId: 'ops-lead', memberAgentIds: ['ops-lead'] },
+  ], [
+    { name: 'Leadership' },
+    { name: 'Operations' },
+  ])
+
+  assert.deepStrictEqual(workflows[0].targeting.agents, ['ceo'])
+  assert.deepStrictEqual(workflows[0].targeting.groups, [])
+  assert.deepStrictEqual(workflows[0].targeting.teamIds, ['leadership'])
+  assert.match(workflows[0].content, /only required starting context/i)
+
+  assert.deepStrictEqual(workflows[1].targeting.agents, ['ops-lead'])
+  assert.match(workflows[1].content, /latest approved markdown handoff/i)
+  assert.match(workflows[1].content, /Operations team/i)
 })
 
 test('applyGeneratedWorkflowHandoffs preserves explicit workflow contracts', () => {
