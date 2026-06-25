@@ -60,7 +60,7 @@ function test(name: string, fn: () => void | Promise<void>) {
     })
 }
 
-function getRouteHandler(method: 'get' | 'post', routePath: string) {
+function getRouteHandler(method: 'get' | 'post' | 'put' | 'delete', routePath: string) {
   const layer = (router as any).stack.find((entry: any) => entry.route?.path === routePath && entry.route?.methods?.[method])
   if (!layer) throw new Error(`Route ${method.toUpperCase()} ${routePath} not found`)
   return layer.route.stack[0].handle as Function
@@ -100,6 +100,50 @@ async function run() {
 
     assert.strictEqual(res.statusCode, 404, 'Expected unknown skill to return HTTP 404')
     assert(/not found/i.test(res.jsonBody?.error || ''), 'Expected missing skill guidance')
+  })
+
+  await test('create skill rejects missing required fields', async () => {
+    const handler = getRouteHandler('post', '/')
+    const res = makeRes()
+    await handler(makeReq({ body: { name: 'Test Skill' } }), res)
+
+    assert.strictEqual(res.statusCode, 400, 'Expected missing required fields to return HTTP 400')
+    assert(/missing required fields/i.test(res.jsonBody?.error || ''), 'Expected required-field guidance')
+  })
+
+  await test('create skill surfaces custom-skill validation errors', async () => {
+    const createHandler = getRouteHandler('post', '/')
+    const res = makeRes()
+    await createHandler(makeReq({
+      body: {
+        name: 'bad skill name!',
+        description: 'Coverage-only custom skill',
+        content: '# Coverage Skill\n\nTest content',
+        tags: ['coverage'],
+      },
+    }), res)
+
+    assert.strictEqual(res.statusCode, 400, 'Expected invalid custom skill create to return HTTP 400')
+    assert(/must contain only/i.test(res.jsonBody?.error || ''), 'Expected custom skill validation guidance')
+  })
+
+  await test('generate skill rejects blank descriptions', async () => {
+    const handler = getRouteHandler('post', '/generate')
+    const res = makeRes()
+    await handler(makeReq({ body: { description: '   ' } }), res)
+
+    assert.strictEqual(res.statusCode, 400, 'Expected blank description to return HTTP 400')
+    assert(/description is required/i.test(res.jsonBody?.error || ''), 'Expected description guidance')
+  })
+
+  await test('list skills returns available skills', async () => {
+    const handler = getRouteHandler('get', '/')
+    const res = makeRes()
+    await handler(makeReq(), res)
+
+    assert.strictEqual(res.statusCode, 200, 'Expected listing skills to return HTTP 200')
+    assert(Array.isArray(res.jsonBody?.skills), 'Expected skills array in response')
+    assert(res.jsonBody.skills.length > 0, 'Expected at least one available skill')
   })
 
   await test('install-requirements returns 400 when a skill has no dashboard-installable requirements', async () => {
@@ -246,6 +290,59 @@ async function run() {
     assert.strictEqual(res.jsonBody?.statuses?.['cognee-openclaw']?.status, 'not-installed', 'Expected not-installed status')
   })
 
+  await test('partner-install status falls back to unknown statuses on inspection failure', async () => {
+    execFileMock = (_file, _args, _options, callback) => {
+      callback(new Error('plugins list failed') as NodeJS.ErrnoException, '', '')
+    }
+
+    const handler = getRouteHandler('get', '/partner-install/status')
+    const res = makeRes()
+    await handler(makeReq(), res)
+
+    assert.strictEqual(res.statusCode, 500, 'Expected plugin status failure to return HTTP 500')
+    assert.strictEqual(res.jsonBody?.statuses?.['cognee-openclaw']?.status, 'unknown', 'Expected unknown fallback status')
+  })
+
+  await test('get skill content returns 404 for unknown skills', async () => {
+    const handler = getRouteHandler('get', '/:skillId/content')
+    const res = makeRes()
+    await handler(makeReq({ params: { skillId: 'missing-skill' } }), res)
+
+    assert.strictEqual(res.statusCode, 404, 'Expected unknown skill content lookup to return HTTP 404')
+  })
+
+  await test('get skill content returns SKILL.md content for existing skills', async () => {
+    const knownSkill = listAvailableSkills().find((skill) => !!skill.id)
+    assert(knownSkill?.id, 'Expected at least one existing skill')
+
+    const handler = getRouteHandler('get', '/:skillId/content')
+    const res = makeRes()
+    await handler(makeReq({ params: { skillId: knownSkill.id } }), res)
+
+    assert.strictEqual(res.statusCode, 200, 'Expected skill content lookup to return HTTP 200')
+    assert.strictEqual(typeof res.jsonBody?.content, 'string', 'Expected SKILL.md content')
+  })
+
+  await test('update skill content validates request body types before writing', async () => {
+    const handler = getRouteHandler('put', '/:skillId/content')
+    const res = makeRes()
+    await handler(makeReq({
+      params: { skillId: 'missing-skill' },
+      body: { content: 123, name: [], description: {}, tags: 'coverage' },
+    }), res)
+
+    assert.strictEqual(res.statusCode, 400, 'Expected invalid content type to return HTTP 400')
+    assert(/content must be a string/i.test(res.jsonBody?.error || ''), 'Expected content type guidance')
+  })
+
+  await test('get skill details returns 404 for unknown skills', async () => {
+    const handler = getRouteHandler('get', '/:skillId')
+    const res = makeRes()
+    await handler(makeReq({ params: { skillId: 'missing-skill' } }), res)
+
+    assert.strictEqual(res.statusCode, 404, 'Expected missing skill detail to return HTTP 404')
+  })
+
   await test('complete-setup returns actionable input errors for gog when required fields are missing', async () => {
     const handler = getRouteHandler('post', '/:skillId/complete-setup')
     const res = makeRes()
@@ -328,6 +425,112 @@ async function run() {
     assert.strictEqual(closeRes.statusCode, 200, 'Expected interactive session close to return HTTP 200')
     assert.strictEqual(killed, true, 'Expected interactive session close to stop the PTY process')
     spawnMock = null
+  })
+
+  await test('interactive setup session polling returns 404 for unknown sessions', async () => {
+    const handler = getRouteHandler('get', '/setup-session/:sessionId')
+    const res = makeRes()
+    await handler(makeReq({ params: { sessionId: 'missing-session' } }), res)
+
+    assert.strictEqual(res.statusCode, 404, 'Expected missing setup session poll to return HTTP 404')
+  })
+
+  await test('interactive setup session input validates missing and completed sessions', async () => {
+    const writes: string[] = []
+    spawnMock = () => {
+      const proc = new EventEmitter() as any
+      proc.stdout = new EventEmitter()
+      proc.stderr = new EventEmitter()
+      proc.stdin = { write: (input: string) => { writes.push(input) } }
+      proc.kill = () => {}
+      return proc
+    }
+
+    const startHandler = getRouteHandler('post', '/:skillId/setup-session/start')
+    const startRes = makeRes()
+    await startHandler(makeReq({
+      params: { skillId: 'himalaya' },
+      body: { inputs: { accountName: 'coverage' } },
+    }), startRes)
+    assert.strictEqual(startRes.statusCode, 200, 'Expected setup session start to succeed')
+
+    const inputHandler = getRouteHandler('post', '/setup-session/:sessionId/input')
+    const blankRes = makeRes()
+    await inputHandler(makeReq({
+      params: { sessionId: startRes.jsonBody.sessionId },
+      body: { input: '   ' },
+    }), blankRes)
+    assert.strictEqual(blankRes.statusCode, 400, 'Expected blank interactive input to return HTTP 400')
+
+    const closeHandler = getRouteHandler('post', '/setup-session/:sessionId/close')
+    const closeRes = makeRes()
+    await closeHandler(makeReq({ params: { sessionId: startRes.jsonBody.sessionId } }), closeRes)
+    assert.strictEqual(closeRes.statusCode, 200, 'Expected setup session close to succeed')
+
+    const doneRes = makeRes()
+    await inputHandler(makeReq({
+      params: { sessionId: startRes.jsonBody.sessionId },
+      body: { input: 'retry' },
+    }), doneRes)
+    assert.strictEqual(doneRes.statusCode, 400, 'Expected completed session input to return HTTP 400')
+    assert.strictEqual(writes.length, 0, 'Expected no writes for invalid/closed inputs')
+    spawnMock = null
+  })
+
+  await test('agent skill update rejects non-array skills payloads', async () => {
+    const handler = getRouteHandler('put', '/agent/:agentId')
+    const res = makeRes()
+    await handler(makeReq({ params: { agentId: 'briefing-writer' }, body: { skills: 'github' } }), res)
+
+    assert.strictEqual(res.statusCode, 400, 'Expected non-array skill update to return HTTP 400')
+    assert(/skills must be an array/i.test(res.jsonBody?.error || ''), 'Expected array validation guidance')
+  })
+
+  await test('bulk assign validates required agent and skill inputs', async () => {
+    const handler = getRouteHandler('post', '/bulk-assign')
+
+    const missingAgentsRes = makeRes()
+    await handler(makeReq({ body: { addSkills: ['github'] } }), missingAgentsRes)
+    assert.strictEqual(missingAgentsRes.statusCode, 400, 'Expected missing agent ids to return HTTP 400')
+
+    const noOpsRes = makeRes()
+    await handler(makeReq({ body: { agentIds: ['briefing-writer'] } }), noOpsRes)
+    assert.strictEqual(noOpsRes.statusCode, 400, 'Expected empty add/remove request to return HTTP 400')
+
+    const invalidSkillRes = makeRes()
+    await handler(makeReq({ body: { agentIds: ['briefing-writer'], addSkills: ['not-a-real-skill'] } }), invalidSkillRes)
+    assert.strictEqual(invalidSkillRes.statusCode, 400, 'Expected invalid add skill to return HTTP 400')
+  })
+
+  await test('validate rejects non-array skill payloads', async () => {
+    const handler = getRouteHandler('post', '/validate')
+    const res = makeRes()
+    await handler(makeReq({ body: { skills: 'github' } }), res)
+
+    assert.strictEqual(res.statusCode, 400, 'Expected non-array validate payload to return HTTP 400')
+  })
+
+  await test('import rejects missing sourcePath and empty multi-skill directories', async () => {
+    const handler = getRouteHandler('post', '/import')
+
+    const missingPathRes = makeRes()
+    await handler(makeReq({ body: {} }), missingPathRes)
+    assert.strictEqual(missingPathRes.statusCode, 400, 'Expected missing sourcePath to return HTTP 400')
+
+    const fs = require('fs')
+    const os = require('os')
+    const path = require('path')
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'skills-import-empty-'))
+    fs.mkdirSync(path.join(root, 'skills'))
+
+    try {
+      const emptyRes = makeRes()
+      await handler(makeReq({ body: { sourcePath: root } }), emptyRes)
+      assert.strictEqual(emptyRes.statusCode, 400, 'Expected empty skills directory to return HTTP 400')
+      assert(/no skills found/i.test(emptyRes.jsonBody?.error || ''), 'Expected empty-directory guidance')
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
   })
 
   await test('import-github returns actionable per-skill errors when every repo skill fails', async () => {
@@ -543,6 +746,32 @@ async function run() {
     assert.strictEqual(res.statusCode, 400, 'Expected invalid skill name to return HTTP 400')
     assert(/invalid skill name format/i.test(res.jsonBody?.error || ''), 'Expected invalid format guidance')
     assert.strictEqual(called, false, 'Expected installer command not to run for invalid names')
+  })
+
+  await test('registry info validates skill names and provider support', async () => {
+    const handler = getRouteHandler('get', '/registry/info/:name')
+
+    const invalidNameRes = makeRes()
+    await handler(makeReq({ params: { name: 'bad skill name!' }, query: { provider: 'shipables' } }), invalidNameRes)
+    assert.strictEqual(invalidNameRes.statusCode, 400, 'Expected invalid skill name to return HTTP 400')
+
+    const unsupportedProviderRes = makeRes()
+    await handler(makeReq({ params: { name: 'gog' }, query: { provider: 'clawhub' } }), unsupportedProviderRes)
+    assert.strictEqual(unsupportedProviderRes.statusCode, 400, 'Expected unsupported provider to return HTTP 400')
+    assert(/not yet available/i.test(unsupportedProviderRes.jsonBody?.error || ''), 'Expected unsupported-provider guidance')
+  })
+
+  await test('partner installer routes validate unknown command ids', async () => {
+    const installHandler = getRouteHandler('post', '/partner-install')
+    const uninstallHandler = getRouteHandler('post', '/partner-uninstall')
+
+    const installRes = makeRes()
+    await installHandler(makeReq({ body: { commandId: 'missing-partner' } }), installRes)
+    assert.strictEqual(installRes.statusCode, 400, 'Expected unknown partner install command to return HTTP 400')
+
+    const uninstallRes = makeRes()
+    await uninstallHandler(makeReq({ body: { commandId: 'missing-partner' } }), uninstallRes)
+    assert.strictEqual(uninstallRes.statusCode, 400, 'Expected unknown partner uninstall command to return HTTP 400')
   })
 
   restoreExecFile()
