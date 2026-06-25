@@ -1004,6 +1004,46 @@ async function run() {
     )
   })
 
+  await test('chat archive restore and delete routes reject current-session and path-traversal filenames', async () => {
+    const restoreHandler = getRouteHandler('post', '/:id/chat/archives/:filename/restore')
+    let res = makeRes()
+    await restoreHandler(makeReq({
+      params: {
+        id: 'restore-agent',
+        filename: 'current:session-1',
+      },
+    }), res)
+    assert.strictEqual(res.statusCode, 400, 'Expected current conversation restore to return HTTP 400')
+
+    res = makeRes()
+    await restoreHandler(makeReq({
+      params: {
+        id: 'restore-agent',
+        filename: '../escape.jsonl',
+      },
+    }), res)
+    assert.strictEqual(res.statusCode, 400, 'Expected archive path traversal restore to return HTTP 400')
+
+    const deleteHandler = getRouteHandler('delete', '/:id/chat/archives/:filename')
+    res = makeRes()
+    await deleteHandler(makeReq({
+      params: {
+        id: 'restore-agent',
+        filename: 'current:session-1',
+      },
+    }), res)
+    assert.strictEqual(res.statusCode, 400, 'Expected current conversation delete to return HTTP 400')
+
+    res = makeRes()
+    await deleteHandler(makeReq({
+      params: {
+        id: 'restore-agent',
+        filename: '../escape.jsonl',
+      },
+    }), res)
+    assert.strictEqual(res.statusCode, 400, 'Expected archive path traversal delete to return HTTP 400')
+  })
+
   await test('models route forwards LM Studio and Ollama local model settings into discovery', async () => {
     const discoveryModule = require('../lib/model-discovery')
     const originalDiscoverModels = discoveryModule.discoverModels
@@ -1176,6 +1216,26 @@ async function run() {
     res = makeRes()
     await patchModelHandler(makeReq({ params: { id: 'plain-agent' }, body: {} }), res)
     assert.strictEqual(res.statusCode, 400, 'Expected missing model to return HTTP 400')
+  })
+
+  await test('agent archive and unarchive routes reject invalid ids and missing agents', async () => {
+    const archiveHandler = getRouteHandler('post', '/:id/archive')
+    let res = makeRes()
+    await archiveHandler(makeReq({ params: { id: 'BAD ID' }, body: {} }), res)
+    assert.strictEqual(res.statusCode, 400, 'Expected invalid archive agent id to return HTTP 400')
+
+    res = makeRes()
+    await archiveHandler(makeReq({ params: { id: 'missing-agent' }, body: {} }), res)
+    assert.strictEqual(res.statusCode, 404, 'Expected missing agent archive to return HTTP 404')
+
+    const unarchiveHandler = getRouteHandler('post', '/:id/unarchive')
+    res = makeRes()
+    await unarchiveHandler(makeReq({ params: { id: 'BAD ID' } }), res)
+    assert.strictEqual(res.statusCode, 400, 'Expected invalid unarchive agent id to return HTTP 400')
+
+    res = makeRes()
+    await unarchiveHandler(makeReq({ params: { id: 'missing-agent' } }), res)
+    assert.strictEqual(res.statusCode, 404, 'Expected missing agent unarchive to return HTTP 404')
   })
 
   await test('agent import routes reject missing source paths, empty zip bodies, and invalid ids', async () => {
