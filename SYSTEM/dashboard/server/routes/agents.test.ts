@@ -70,13 +70,13 @@ function writeAgent(workspacePath: string, agentId: string, identityContent?: st
   }
 }
 
-function getRouteHandler(method: 'get' | 'post', routePath: string) {
+function getRouteHandler(method: 'get' | 'post' | 'put' | 'patch' | 'delete', routePath: string) {
   // Load after env is set so helper modules resolve the temp workspace/home.
   delete require.cache[require.resolve('./agents')]
   const router = require('./agents').default
   const layer = router.stack.find((entry: any) => entry.route?.path === routePath && entry.route?.methods?.[method])
   if (!layer) throw new Error(`Route ${method.toUpperCase()} ${routePath} not found`)
-  return layer.route.stack[0].handle as Function
+  return layer.route.stack[layer.route.stack.length - 1].handle as Function
 }
 
 async function withGatewayRpcStubs<T>(overrides: Record<string, any>, fn: () => Promise<T> | T): Promise<T> {
@@ -1103,6 +1103,108 @@ async function run() {
 
     assert.strictEqual(res.statusCode, 404, 'Expected missing agent health to return HTTP 404')
     assert(/Agent not found/i.test(res.jsonBody?.error || ''), 'Expected missing agent health guidance')
+  })
+
+  await test('status and usage routes return structured fallback data when gateway is unavailable', async () => {
+    const statusHandler = getRouteHandler('get', '/status')
+    let res = makeRes()
+    await statusHandler(makeReq(), res)
+    assert.strictEqual(res.statusCode, 200, 'Expected status route success')
+    assert(typeof res.jsonBody?.total === 'number', 'Expected total agent count in status response')
+    assert(typeof res.jsonBody?.gatewayAvailable === 'boolean', 'Expected gateway availability flag')
+    assert(typeof res.jsonBody?.timestamp === 'string', 'Expected status timestamp')
+
+    const usageHandler = getRouteHandler('get', '/usage')
+    res = makeRes()
+    await usageHandler(makeReq({ query: { days: '7' } }), res)
+    assert.strictEqual(res.statusCode, 200, 'Expected usage route success')
+    assert.deepStrictEqual(res.jsonBody?.agentUsage, {}, 'Expected empty usage payload when gateway is unavailable')
+    assert.strictEqual(res.jsonBody?.days, 7, 'Expected requested days to be preserved')
+    assert(/Gateway unavailable|no usage data/i.test(res.jsonBody?.error || ''), 'Expected gateway-unavailable usage guidance')
+  })
+
+  await test('cost limit route validates invalid values and returns stored values', async () => {
+    const getHandler = getRouteHandler('get', '/:id/cost-limit')
+    let res = makeRes()
+    await getHandler(makeReq({ params: { id: 'plain-agent' } }), res)
+    assert.strictEqual(res.statusCode, 200, 'Expected cost limit read success')
+    assert.strictEqual(res.jsonBody?.agentId, 'plain-agent', 'Expected cost limit payload agent id')
+
+    const putHandler = getRouteHandler('put', '/:id/cost-limit')
+    res = makeRes()
+    await putHandler(makeReq({ params: { id: 'plain-agent' }, body: { limitUsd: -1 } }), res)
+    assert.strictEqual(res.statusCode, 400, 'Expected negative cost limit to return HTTP 400')
+    assert(/limitUsd/i.test(res.jsonBody?.error || ''), 'Expected invalid limit guidance')
+  })
+
+  await test('agent config routes reject invalid ids, missing agents, and invalid expected ids', async () => {
+    const getConfigHandler = getRouteHandler('get', '/:id/config')
+    let res = makeRes()
+    await getConfigHandler(makeReq({ params: { id: 'BAD ID' } }), res)
+    assert.strictEqual(res.statusCode, 400, 'Expected invalid config id to return HTTP 400')
+
+    res = makeRes()
+    await getConfigHandler(makeReq({ params: { id: 'missing-agent' } }), res)
+    assert.strictEqual(res.statusCode, 404, 'Expected missing config agent to return HTTP 404')
+
+    const validateConfigHandler = getRouteHandler('post', '/validate-config')
+    res = makeRes()
+    await validateConfigHandler(makeReq({ body: { expectedId: 'BAD ID' } }), res)
+    assert.strictEqual(res.statusCode, 400, 'Expected invalid expected agent id to return HTTP 400')
+
+    const putConfigHandler = getRouteHandler('put', '/:id/config')
+    res = makeRes()
+    await putConfigHandler(makeReq({ params: { id: 'BAD ID' }, body: {} }), res)
+    assert.strictEqual(res.statusCode, 400, 'Expected invalid config update id to return HTTP 400')
+  })
+
+  await test('agent model and tags routes reject invalid requests', async () => {
+    const patchTagsHandler = getRouteHandler('patch', '/:id/tags')
+    let res = makeRes()
+    await patchTagsHandler(makeReq({ params: { id: 'BAD ID' }, body: { tags: [] } }), res)
+    assert.strictEqual(res.statusCode, 400, 'Expected invalid tags agent id to return HTTP 400')
+
+    res = makeRes()
+    await patchTagsHandler(makeReq({ params: { id: 'plain-agent' }, body: { tags: 'bad' } }), res)
+    assert.strictEqual(res.statusCode, 400, 'Expected non-array tags to return HTTP 400')
+
+    const patchModelHandler = getRouteHandler('patch', '/:id/model')
+    res = makeRes()
+    await patchModelHandler(makeReq({ params: { id: 'BAD ID' }, body: { model: 'openai/gpt-4o-mini' } }), res)
+    assert.strictEqual(res.statusCode, 400, 'Expected invalid model agent id to return HTTP 400')
+
+    res = makeRes()
+    await patchModelHandler(makeReq({ params: { id: 'plain-agent' }, body: {} }), res)
+    assert.strictEqual(res.statusCode, 400, 'Expected missing model to return HTTP 400')
+  })
+
+  await test('agent import routes reject missing source paths, empty zip bodies, and invalid ids', async () => {
+    const importDirectoryHandler = getRouteHandler('post', '/import-directory')
+    let res = makeRes()
+    await importDirectoryHandler(makeReq({ body: {} }), res)
+    assert.strictEqual(res.statusCode, 400, 'Expected missing import directory sourcePath to return HTTP 400')
+
+    res = makeRes()
+    await importDirectoryHandler(makeReq({ body: { sourcePath: '/tmp/agent', targetId: 'bad id' } }), res)
+    assert.strictEqual(res.statusCode, 400, 'Expected invalid import directory targetId to return HTTP 400')
+
+    const importZipHandler = getRouteHandler('post', '/import-zip')
+    res = makeRes()
+    await importZipHandler(makeReq({ query: { targetId: 'bad id' }, body: Buffer.from('zip') }), res)
+    assert.strictEqual(res.statusCode, 400, 'Expected invalid import-zip targetId to return HTTP 400')
+
+    res = makeRes()
+    await importZipHandler(makeReq({ body: Buffer.alloc(0) }), res)
+    assert.strictEqual(res.statusCode, 400, 'Expected empty import-zip body to return HTTP 400')
+
+    const openClawImportHandler = getRouteHandler('post', '/openclaw/import')
+    res = makeRes()
+    await openClawImportHandler(makeReq({ body: {} }), res)
+    assert.strictEqual(res.statusCode, 400, 'Expected missing OpenClaw sourceId to return HTTP 400')
+
+    res = makeRes()
+    await openClawImportHandler(makeReq({ body: { sourceId: 'valid-source', targetId: 'bad id' } }), res)
+    assert.strictEqual(res.statusCode, 400, 'Expected invalid OpenClaw targetId to return HTTP 400')
   })
 
   if (typeof originalHome === 'undefined') delete process.env.HOME
