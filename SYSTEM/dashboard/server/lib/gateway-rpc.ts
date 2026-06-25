@@ -88,6 +88,7 @@ export const __test = {
   parseGatewayConfig,
   normalizeGatewayHttpUrl,
   getGatewayOrigin,
+  loadGatewayConfigFromDisk,
   GATEWAY_PROTOCOL_VERSION,
   buildGatewayProbeClient,
   buildGatewayProbeConnectParams,

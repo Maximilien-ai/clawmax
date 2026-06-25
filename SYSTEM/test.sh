@@ -847,6 +847,16 @@ else
   fail "Gateway RPC edge-case unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Gateway RPC config edge-case unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/gateway-rpc-config-edges.test.ts > /tmp/clawmax-gateway-rpc-config-edges.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-gateway-rpc-config-edges.out; then
+  gateway_rpc_config_edges_count=$(grep "Passed:" /tmp/clawmax-gateway-rpc-config-edges.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Passed: //' | tr -cd '0-9')
+  pass "Gateway RPC config edge-case unit tests (${gateway_rpc_config_edges_count:-?} tests)"
+else
+  cat /tmp/clawmax-gateway-rpc-config-edges.out
+  fail "Gateway RPC config edge-case unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Gateway probe regression tests...${NC}"
 npx ts-node --transpileOnly server/lib/gateway-probe-regressions.test.ts > /tmp/clawmax-gateway-probe-regressions.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-gateway-probe-regressions.out; then
