@@ -35,19 +35,42 @@ function test(name: string, fn: () => void | Promise<void>) {
     })
 }
 
-function getRouter(reset = true) {
+function getRouter(
+  reset = true,
+  overrides: {
+    workspaceDashboards?: Partial<typeof import('../lib/workspace-dashboards')>
+    workspaceImport?: Partial<typeof import('../lib/workspace-import')>
+  } = {},
+) {
   if (reset) {
+    const moduleOverrides: Array<[string, Record<string, any> | undefined]> = [
+      ['../lib/workspace-dashboards', overrides.workspaceDashboards as any],
+      ['../lib/workspace-import', overrides.workspaceImport as any],
+    ]
+    for (const [modulePath, patch] of moduleOverrides) {
+      const resolved = require.resolve(modulePath)
+      delete require.cache[resolved]
+      if (patch) Object.assign(require(resolved), patch)
+    }
     resetWorkspaceManagerForTests()
     delete require.cache[require.resolve('./workspaces')]
   }
   return require('./workspaces').default
 }
 
-function getRouteHandler(method: 'get' | 'post' | 'put', routePath: string, reset = true) {
-  const router = getRouter(reset)
+function getRouteHandler(
+  method: 'get' | 'post' | 'put' | 'patch' | 'delete',
+  routePath: string,
+  reset = true,
+  overrides: {
+    workspaceDashboards?: Partial<typeof import('../lib/workspace-dashboards')>
+    workspaceImport?: Partial<typeof import('../lib/workspace-import')>
+  } = {},
+) {
+  const router = getRouter(reset, overrides)
   const layer = router.stack.find((entry: any) => entry.route?.path === routePath && entry.route?.methods?.[method])
   if (!layer) throw new Error(`Route ${method.toUpperCase()} ${routePath} not found`)
-  return layer.route.stack[0].handle as Function
+  return layer.route.stack[layer.route.stack.length - 1].handle as Function
 }
 
 function makeReq(overrides: Record<string, any> = {}) {
@@ -157,6 +180,152 @@ async function run() {
     const afterRes = makeRes()
     await activeHandler(makeReq(), afterRes)
     assert.strictEqual(afterRes.jsonBody?.workspace?.id, betaRes.jsonBody?.workspace?.id, 'Expected active workspace to switch to beta')
+  })
+
+  await test('workspace detail and export routes return 404 for unknown workspace ids', async () => {
+    const detailHandler = getRouteHandler('get', '/:id')
+    const detailRes = makeRes()
+    await detailHandler(makeReq({ params: { id: 'missing-workspace' } }), detailRes)
+    assert.strictEqual(detailRes.statusCode, 404, 'Expected missing workspace detail to return HTTP 404')
+    assert(/not found/i.test(detailRes.jsonBody?.error || ''), 'Expected missing workspace detail guidance')
+
+    const exportHandler = getRouteHandler('get', '/:id/export')
+    const exportRes = makeRes()
+    await exportHandler(makeReq({ params: { id: 'missing-workspace' } }), exportRes)
+    assert.strictEqual(exportRes.statusCode, 404, 'Expected missing workspace export to return HTTP 404')
+    assert(/not found/i.test(exportRes.jsonBody?.error || ''), 'Expected missing workspace export guidance')
+  })
+
+  await test('workspace patch route updates persisted metadata', async () => {
+    const createHandler = getRouteHandler('post', '/')
+    const createRes = makeRes()
+    await createHandler(makeReq({
+      body: {
+        name: 'Gamma Workspace',
+        path: path.join(tmpHome, 'gamma-workspace'),
+        color: '#111111',
+        tags: ['old'],
+      },
+    }), createRes)
+    const workspaceId = createRes.jsonBody?.workspace?.id
+    assert(workspaceId, 'Expected workspace id from create response')
+
+    const patchHandler = getRouteHandler('patch', '/:id', false)
+    const patchRes = makeRes()
+    await patchHandler(makeReq({
+      params: { id: workspaceId },
+      body: {
+        name: 'Gamma Workspace Updated',
+        color: '#123456',
+        tags: ['customer', 'priority'],
+      },
+    }), patchRes)
+    assert.strictEqual(patchRes.statusCode, 200, 'Expected workspace patch success')
+    assert.strictEqual(patchRes.jsonBody?.ok, true, 'Expected ok patch response')
+
+    const detailHandler = getRouteHandler('get', '/:id', false)
+    const detailRes = makeRes()
+    await detailHandler(makeReq({ params: { id: workspaceId } }), detailRes)
+    assert.strictEqual(detailRes.jsonBody?.workspace?.name, 'Gamma Workspace Updated', 'Expected updated name to persist')
+    assert.strictEqual(detailRes.jsonBody?.workspace?.color, '#123456', 'Expected updated color to persist')
+    assert.deepStrictEqual(detailRes.jsonBody?.workspace?.tags, ['customer', 'priority'], 'Expected updated tags to persist')
+  })
+
+  await test('workspace import route rejects empty ZIP payloads', async () => {
+    const handler = getRouteHandler('post', '/import-zip')
+    const res = makeRes()
+    await handler(makeReq({ body: Buffer.alloc(0) }), res)
+    assert.strictEqual(res.statusCode, 400, 'Expected empty ZIP payload to return HTTP 400')
+    assert(/ZIP body is required/i.test(res.jsonBody?.error || ''), 'Expected empty ZIP guidance')
+  })
+
+  await test('workspace dashboard create route validates title and normalizes defaults', async () => {
+    const createWorkspaceHandler = getRouteHandler('post', '/')
+    const createWorkspaceRes = makeRes()
+    await createWorkspaceHandler(makeReq({
+      body: {
+        name: 'Dash Workspace',
+        path: path.join(tmpHome, 'dash-workspace'),
+      },
+    }), createWorkspaceRes)
+    const workspaceId = createWorkspaceRes.jsonBody?.workspace?.id
+    assert(workspaceId, 'Expected dashboard workspace id')
+
+    const missingTitleHandler = getRouteHandler('post', '/:id/dashboards', false)
+    const missingTitleRes = makeRes()
+    await missingTitleHandler(makeReq({ params: { id: workspaceId }, body: {} }), missingTitleRes)
+    assert.strictEqual(missingTitleRes.statusCode, 400, 'Expected missing dashboard title to return HTTP 400')
+
+    let capturedInput: any = null
+    const handler = getRouteHandler('post', '/:id/dashboards', true, {
+      workspaceDashboards: {
+        createWorkspaceDashboard: (_workspaceId: string, input: any) => {
+          capturedInput = input
+          return { id: 'dash-1', ...input }
+        },
+      } as any,
+    })
+    const res = makeRes()
+    await handler(makeReq({
+      params: { id: workspaceId },
+      body: {
+        title: 'Ops Board',
+        displayMode: 'unsupported-mode',
+        companyFocusKind: 'bad-kind',
+        companyFocusValue: 123,
+        sections: 'invalid-sections',
+        sectionOrder: 'invalid-order',
+        compactColumns: 'invalid-columns',
+      },
+    }), res)
+    assert.strictEqual(res.statusCode, 200, 'Expected dashboard create success')
+    assert.strictEqual(res.jsonBody?.dashboard?.id, 'dash-1', 'Expected dashboard payload')
+    assert.strictEqual(capturedInput?.displayMode, 'standard', 'Expected display mode normalization')
+    assert.strictEqual(capturedInput?.companyFocusKind, 'workspace', 'Expected focus kind normalization')
+    assert.strictEqual(capturedInput?.companyFocusValue, null, 'Expected invalid focus value to normalize to null')
+    assert.strictEqual(capturedInput?.sections, undefined, 'Expected invalid sections to be omitted')
+    assert.strictEqual(capturedInput?.sectionOrder, undefined, 'Expected invalid section order to be omitted')
+    assert.strictEqual(capturedInput?.compactColumns, undefined, 'Expected invalid compact columns to be omitted')
+  })
+
+  await test('workspace dashboard update, token regeneration, and delete return 404 when dashboard is missing', async () => {
+    const createWorkspaceHandler = getRouteHandler('post', '/')
+    const createWorkspaceRes = makeRes()
+    await createWorkspaceHandler(makeReq({
+      body: {
+        name: 'Dash Missing Workspace',
+        path: path.join(tmpHome, 'dash-missing-workspace'),
+      },
+    }), createWorkspaceRes)
+    const workspaceId = createWorkspaceRes.jsonBody?.workspace?.id
+    assert(workspaceId, 'Expected workspace id for dashboard 404 routes')
+
+    const updateHandler = getRouteHandler('patch', '/:id/dashboards/:dashboardId', true, {
+      workspaceDashboards: {
+        updateWorkspaceDashboard: () => null,
+      } as any,
+    })
+    const updateRes = makeRes()
+    await updateHandler(makeReq({ params: { id: workspaceId, dashboardId: 'missing-dashboard' }, body: {} }), updateRes)
+    assert.strictEqual(updateRes.statusCode, 404, 'Expected missing dashboard update to return HTTP 404')
+
+    const tokenHandler = getRouteHandler('post', '/:id/dashboards/:dashboardId/regenerate-token', true, {
+      workspaceDashboards: {
+        regenerateWorkspaceDashboardToken: () => null,
+      } as any,
+    })
+    const tokenRes = makeRes()
+    await tokenHandler(makeReq({ params: { id: workspaceId, dashboardId: 'missing-dashboard' } }), tokenRes)
+    assert.strictEqual(tokenRes.statusCode, 404, 'Expected missing dashboard token regeneration to return HTTP 404')
+
+    const deleteHandler = getRouteHandler('delete', '/:id/dashboards/:dashboardId', true, {
+      workspaceDashboards: {
+        deleteWorkspaceDashboard: () => false,
+      } as any,
+    })
+    const deleteRes = makeRes()
+    await deleteHandler(makeReq({ params: { id: workspaceId, dashboardId: 'missing-dashboard' } }), deleteRes)
+    assert.strictEqual(deleteRes.statusCode, 404, 'Expected missing dashboard delete to return HTTP 404')
   })
 
   if (typeof originalHome === 'undefined') delete process.env.HOME

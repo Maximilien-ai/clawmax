@@ -61,12 +61,12 @@ function writeWorkspaceRegistry(tmpHome: string, workspacePath: string) {
   }, null, 2))
 }
 
-function getRouteHandler(method: 'post', routePath: string) {
+function getRouteHandler(method: 'get' | 'post' | 'put', routePath: string) {
   delete require.cache[require.resolve('./templates')]
   const router = require('./templates').default
   const layer = router.stack.find((entry: any) => entry.route?.path === routePath && entry.route?.methods?.[method])
   if (!layer) throw new Error(`Route ${method.toUpperCase()} ${routePath} not found`)
-  return layer.route.stack[0].handle as Function
+  return layer.route.stack[layer.route.stack.length - 1].handle as Function
 }
 
 function makeReq(overrides: Record<string, any> = {}) {
@@ -180,6 +180,65 @@ async function run() {
 
     assert.strictEqual(res.statusCode, 200, 'Expected conflicts route success')
     assert.strictEqual(res.jsonBody?.agentConflicts?.includes('demo-event-analyst1'), false, 'Expected prefix to avoid the existing agent conflict')
+  })
+
+  await test('template list route rejects invalid type filters', async () => {
+    const handler = getRouteHandler('get', '/')
+    const res = makeRes()
+    await handler(makeReq({ query: { type: 'bad-type' } }), res)
+
+    assert.strictEqual(res.statusCode, 400, 'Expected invalid type filter to return HTTP 400')
+    assert(/Type must be/i.test(res.jsonBody?.error || ''), 'Expected invalid type guidance')
+  })
+
+  await test('template detail route rejects invalid type segments', async () => {
+    const handler = getRouteHandler('get', '/:type/:slug')
+    const res = makeRes()
+    await handler(makeReq({ params: { type: 'bad-type', slug: 'anything' } }), res)
+
+    assert.strictEqual(res.statusCode, 400, 'Expected invalid type segment to return HTTP 400')
+    assert(/Type must be/i.test(res.jsonBody?.error || ''), 'Expected invalid type segment guidance')
+  })
+
+  await test('template feedback route rejects invalid ratings before saving', async () => {
+    const handler = getRouteHandler('post', '/:type/:slug/feedback')
+    const res = makeRes()
+    await handler(makeReq({
+      params: { type: 'organizations', slug: 'lu-ma-event-analysis-desk' },
+      body: { rating: 9 },
+    }), res)
+
+    assert.strictEqual(res.statusCode, 400, 'Expected invalid rating to return HTTP 400')
+    assert(/Rating must be between 1 and 5/i.test(res.jsonBody?.error || ''), 'Expected rating validation guidance')
+  })
+
+  await test('save agent template route rejects invalid agent ids', async () => {
+    const handler = getRouteHandler('post', '/agents/:agentId/save')
+    const res = makeRes()
+    await handler(makeReq({
+      params: { agentId: 'BAD ID' },
+      body: { name: 'Agent Template' },
+    }), res)
+
+    assert.strictEqual(res.statusCode, 400, 'Expected invalid agent id to return HTTP 400')
+    assert(/Invalid agent ID/i.test(res.jsonBody?.error || ''), 'Expected invalid agent id guidance')
+  })
+
+  await test('template put route rejects missing bodies and mismatched template types', async () => {
+    const handler = getRouteHandler('put', '/:type/:slug')
+
+    const missingBodyRes = makeRes()
+    await handler(makeReq({ params: { type: 'agents', slug: 'demo-template' }, body: null }), missingBodyRes)
+    assert.strictEqual(missingBodyRes.statusCode, 400, 'Expected missing template body to return HTTP 400')
+    assert(/Template body is required/i.test(missingBodyRes.jsonBody?.error || ''), 'Expected missing body guidance')
+
+    const typeMismatchRes = makeRes()
+    await handler(makeReq({
+      params: { type: 'agents', slug: 'demo-template' },
+      body: { type: 'organization', name: 'Demo Template' },
+    }), typeMismatchRes)
+    assert.strictEqual(typeMismatchRes.statusCode, 400, 'Expected template type mismatch to return HTTP 400')
+    assert(/Template body type must be "agent"/i.test(typeMismatchRes.jsonBody?.error || ''), 'Expected type mismatch guidance')
   })
 
   if (typeof originalHome === 'undefined') delete process.env.HOME
