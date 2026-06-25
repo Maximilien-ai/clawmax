@@ -7,7 +7,6 @@
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import router from './workflows'
 import { createWorkflow } from '../lib/workflows'
 import { resetWorkspaceManagerForTests } from '../lib/workspace-manager'
 
@@ -65,10 +64,40 @@ function ensureWorkspaceScaffold(workspacePath: string) {
   fs.writeFileSync(path.join(workspacePath, 'ORG', 'GROUPS.md'), '# Groups\n\n## Groups\n\n', 'utf-8')
 }
 
-function getRouteHandler(method: 'get' | 'post' | 'delete' | 'put', routePath: string) {
-  const layer = (router as any).stack.find((entry: any) => entry.route?.path === routePath && entry.route?.methods?.[method])
+function getRouter(overrides: {
+  aiGenerator?: Partial<typeof import('../lib/ai-generator')>
+  workflows?: Partial<typeof import('../lib/workflows')>
+  notifications?: Partial<typeof import('../lib/notifications')>
+} = {}) {
+  const moduleOverrides: Array<[string, Record<string, any> | undefined]> = [
+    ['../lib/ai-generator', overrides.aiGenerator as any],
+    ['../lib/workflows', overrides.workflows as any],
+    ['../lib/notifications', overrides.notifications as any],
+  ]
+  for (const [modulePath, patch] of moduleOverrides) {
+    const resolved = require.resolve(modulePath)
+    delete require.cache[resolved]
+    if (patch) Object.assign(require(resolved), patch)
+  }
+
+  const routerPath = require.resolve('./workflows')
+  delete require.cache[routerPath]
+  return require('./workflows').default
+}
+
+function getRouteHandler(
+  method: 'get' | 'post' | 'delete' | 'put',
+  routePath: string,
+  overrides: {
+    aiGenerator?: Partial<typeof import('../lib/ai-generator')>
+    workflows?: Partial<typeof import('../lib/workflows')>
+    notifications?: Partial<typeof import('../lib/notifications')>
+  } = {},
+) {
+  const router = getRouter(overrides)
+  const layer = router.stack.find((entry: any) => entry.route?.path === routePath && entry.route?.methods?.[method])
   if (!layer) throw new Error(`Route ${method.toUpperCase()} ${routePath} not found`)
-  return layer.route.stack[0].handle as Function
+  return layer.route.stack[layer.route.stack.length - 1].handle as Function
 }
 
 function makeReq(params: Record<string, string>, overrides: Record<string, any> = {}) {
@@ -218,6 +247,175 @@ async function run() {
     }), res)
     assert(res.statusCode === 400, `Expected invalid workflow payload to return 400, got ${res.statusCode}`)
     assert(res.jsonBody?.error === 'Invalid workflow data', 'Expected invalid workflow data response')
+  })
+
+  await test('workflow import and generation routes validate required input', async () => {
+    let res = makeRes()
+    const importHandler = getRouteHandler('post', '/import-md')
+    await importHandler(makeReq({}, { body: {} }), res)
+    assert(res.statusCode === 400, `Expected missing markdown content to return 400, got ${res.statusCode}`)
+
+    res = makeRes()
+    await importHandler(makeReq({}, { body: { content: '# No frontmatter' } }), res)
+    assert(res.statusCode === 400, `Expected invalid markdown import to return 400, got ${res.statusCode}`)
+
+    const generateCronHandler = getRouteHandler('post', '/generate-cron')
+    res = makeRes()
+    await generateCronHandler(makeReq({}, { body: {} }), res)
+    assert(res.statusCode === 400, `Expected missing cron text to return 400, got ${res.statusCode}`)
+
+    const generateHandler = getRouteHandler('post', '/generate')
+    res = makeRes()
+    await generateHandler(makeReq({}, { body: {} }), res)
+    assert(res.statusCode === 400, `Expected missing workflow description to return 400, got ${res.statusCode}`)
+  })
+
+  await test('generate-cron handles one-time schedule requests without returning a cron', async () => {
+    const handler = getRouteHandler('post', '/generate-cron', {
+      aiGenerator: {
+        generateCronFromText: async () => ({ cron: '0 9 * * *', explanation: 'One-time event' }),
+        isOneTimeScheduleRequest: () => true,
+        explainOneTimeCronLimitation: () => 'One-time schedules are not supported by cron',
+      } as any,
+    })
+    const res = makeRes()
+    await handler(makeReq({}, { body: { text: 'Run this once tomorrow at 9am' } }), res)
+
+    assert(res.statusCode === 200, `Expected one-time schedule request success response, got ${res.statusCode}`)
+    assert(res.jsonBody?.valid === false, 'Expected one-time schedule response to be invalid for cron')
+    assert(res.jsonBody?.cron === '', 'Expected one-time schedule response to omit cron')
+  })
+
+  await test('workflow list and detail routes expose generated metadata for valid workflows', async () => {
+    const created = createWorkflow({
+      name: 'Detail Route Test',
+      description: 'Validate list and detail metadata',
+      schedule: '0 9 * * *',
+      content: '# Test\nDetails.',
+      executionMode: 'managed',
+      owner: 'test-owner',
+      targeting: { agents: [], groups: [], tags: [], communities: [] },
+      enabled: true,
+      status: 'running',
+      progress: 42,
+      inputRefs: [{ workflowId: 'upstream', outputKey: 'brief' }],
+    } as any)
+    assert(!!(created.success && created.id), `Workflow should be created: ${created.error}`)
+
+    const listHandler = getRouteHandler('get', '/')
+    let res = makeRes()
+    await listHandler(makeReq({}), res)
+    assert(res.statusCode === 200, `Expected workflow list success, got ${res.statusCode}`)
+    const listed = (res.jsonBody?.workflows || []).find((workflow: any) => workflow.id === created.id)
+    assert(!!listed, 'Expected created workflow in list response')
+    assert(typeof listed.scheduleHuman === 'string', 'Expected scheduleHuman in list response')
+    assert('nextRunAt' in listed, 'Expected nextRunAt in list response')
+
+    const detailHandler = getRouteHandler('get', '/:id')
+    res = makeRes()
+    await detailHandler(makeReq({ id: created.id! }), res)
+    assert(res.statusCode === 200, `Expected workflow detail success, got ${res.statusCode}`)
+    assert(res.jsonBody?.participantCount >= 0, 'Expected participant count in detail response')
+    assert(Array.isArray(res.jsonBody?.resolvedParticipants), 'Expected resolved participants array')
+  })
+
+  await test('workflow detail and execution routes reject invalid or missing resources', async () => {
+    const detailHandler = getRouteHandler('get', '/:id')
+    let res = makeRes()
+    await detailHandler(makeReq({ id: 'BAD ID' }), res)
+    assert(res.statusCode === 400, `Expected invalid workflow id for detail, got ${res.statusCode}`)
+
+    res = makeRes()
+    await detailHandler(makeReq({ id: 'missing-workflow' }), res)
+    assert(res.statusCode === 404, `Expected missing workflow detail to return 404, got ${res.statusCode}`)
+
+    const executionsHandler = getRouteHandler('get', '/:id/executions')
+    res = makeRes()
+    await executionsHandler(makeReq({ id: 'missing-workflow' }), res)
+    assert(res.statusCode === 404, `Expected missing workflow executions to return 404, got ${res.statusCode}`)
+
+    const executionDetailHandler = getRouteHandler('get', '/:id/executions/:executionId')
+    res = makeRes()
+    await executionDetailHandler(makeReq({ id: 'missing-workflow', executionId: 'exec-1' }), res)
+    assert(res.statusCode === 404, `Expected missing workflow execution detail to return 404, got ${res.statusCode}`)
+  })
+
+  await test('workflow archived executions route returns an empty list when nothing has been archived', async () => {
+    const created = createWorkflow({
+      name: 'Archived List Empty Test',
+      description: 'Validate archived list empty state',
+      schedule: 'manual',
+      content: '# Test\nArchive list.',
+      executionMode: 'managed',
+      owner: 'test-owner',
+      targeting: { agents: [], groups: [], tags: [], communities: [] },
+    } as any)
+    assert(!!(created.success && created.id), `Workflow should be created: ${created.error}`)
+
+    const handler = getRouteHandler('get', '/:id/executions/archived')
+    const res = makeRes()
+    await handler(makeReq({ id: created.id! }), res)
+    assert(res.statusCode === 200, `Expected archived executions list success, got ${res.statusCode}`)
+    assert(Array.isArray(res.jsonBody?.executions) && res.jsonBody.executions.length === 0, 'Expected empty archived execution list')
+  })
+
+  await test('workflow dependencies route reports unmet and met dependencies', async () => {
+    const workflowOverrides = {
+      getWorkflow: (id: string) => {
+        if (id === 'child') return { id: 'child', dependsOn: ['dep-done', 'dep-pending'] }
+        if (id === 'dep-done') return { id: 'dep-done', name: 'Done Dependency', status: 'completed', progress: 100 }
+        if (id === 'dep-pending') return { id: 'dep-pending', name: 'Pending Dependency', status: 'running', progress: 40 }
+        return null
+      },
+    }
+    const handler = getRouteHandler('get', '/:id/dependencies', { workflows: workflowOverrides as any })
+    const res = makeRes()
+    await handler(makeReq({ id: 'child' }), res)
+
+    assert(res.statusCode === 200, `Expected dependencies route success, got ${res.statusCode}`)
+    assert(res.jsonBody?.met === false, 'Expected dependencies to be unmet when one dependency is incomplete')
+    assert(Array.isArray(res.jsonBody?.dependencies) && res.jsonBody.dependencies.length === 2, 'Expected dependency details for each dependency')
+    assert(res.jsonBody.dependencies.some((entry: any) => entry.id === 'dep-done' && entry.met === true), 'Expected completed dependency to be marked met')
+    assert(res.jsonBody.dependencies.some((entry: any) => entry.id === 'dep-pending' && entry.met === false), 'Expected incomplete dependency to be marked unmet')
+  })
+
+  await test('workflow blocker route validates required fields and emits structured choice actions', async () => {
+    let createdNotification: any = null
+    const handler = getRouteHandler('post', '/:id/blocker', {
+      workflows: {
+        getWorkflow: (id: string) => id === 'wf-blocked' ? { id, name: 'Blocked Workflow' } : null,
+        updateWorkflow: () => ({ success: true }),
+      } as any,
+      notifications: {
+        createNotification: (payload: any) => { createdNotification = payload },
+      } as any,
+    })
+
+    let res = makeRes()
+    await handler(makeReq({ id: 'wf-blocked' }, { body: { agentId: '', blockerType: '', title: '' } }), res)
+    assert(res.statusCode === 400, `Expected missing blocker fields to return 400, got ${res.statusCode}`)
+
+    res = makeRes()
+    await handler(makeReq({ id: 'wf-blocked' }, {
+      body: {
+        agentId: 'agent-1',
+        blockerType: 'choice',
+        title: 'Pick a rollout plan',
+        message: 'Choose one',
+        options: ['Option A', 'Option B'],
+      },
+    }), res)
+    assert(res.statusCode === 200, `Expected blocker route success, got ${res.statusCode}`)
+    assert(res.jsonBody?.ok === true, 'Expected blocker response ok')
+    assert(createdNotification, 'Expected blocker notification to be created')
+    assert(createdNotification.type === 'workflow-blocked', 'Expected workflow-blocked notification type')
+    assert(
+      JSON.stringify(createdNotification.actions) === JSON.stringify([
+        { type: 'choose', label: 'Option A', value: 'Option A' },
+        { type: 'choose', label: 'Option B', value: 'Option B' },
+      ]),
+      'Expected choice blocker actions to be created'
+    )
   })
 
   if (typeof originalHome === 'undefined') delete process.env.HOME
