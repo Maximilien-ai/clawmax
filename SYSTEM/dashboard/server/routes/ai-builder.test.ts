@@ -118,6 +118,91 @@ async function run() {
     assert.strictEqual(res.jsonBody?.recommendation?.scope, 'team', 'Expected returned recommendation')
   })
 
+  await test('recommend route applies AI fallback when grouping rationale is available', async () => {
+    let fallbackCalled = false
+    let applyCalled = false
+    const router = loadRouterWithOverrides({
+      aiBuilder: {
+        buildAiBuilderRecommendation: () => ({
+          summary: 'Base summary',
+          intent: 'create',
+          scope: 'team',
+          operation: 'create',
+          confidence: 'medium',
+          matchedAssets: { organizationTemplates: [], agentTemplates: [] },
+          usedLlmFallback: false,
+        }),
+        shouldUseAiBuilderLlmFallback: () => true,
+        applyAiBuilderLlmFallback: (recommendation: any, prompt: string, fallback: any) => {
+          applyCalled = true
+          assert.strictEqual(prompt, 'Create a research team', 'Expected original prompt for fallback apply')
+          assert.strictEqual(fallback.grouping, 'organization', 'Expected fallback grouping')
+          return { ...recommendation, usedLlmFallback: true, scope: 'organization', summary: 'Fallback summary' }
+        },
+      },
+      aiGenerator: {
+        inferBuilderGroupingWithAI: async () => {
+          fallbackCalled = true
+          return { grouping: 'organization', rationale: 'Cross-cutting org workflow' }
+        },
+      },
+    })
+    const handler = getRouteHandler(router, 'post', '/recommend')
+    const res = makeRes()
+    await handler(makeReq({ body: { prompt: 'Create a research team' } }), res)
+
+    assert.strictEqual(res.statusCode, 200, 'Expected recommend success with fallback')
+    assert.strictEqual(fallbackCalled, true, 'Expected fallback inference to run')
+    assert.strictEqual(applyCalled, true, 'Expected fallback application to run')
+    assert.strictEqual(res.jsonBody?.recommendation?.usedLlmFallback, true, 'Expected fallback result to be applied')
+    assert.strictEqual(res.jsonBody?.recommendation?.scope, 'organization', 'Expected fallback scope override')
+  })
+
+  await test('recommend route keeps deterministic recommendation when fallback inference fails', async () => {
+    const router = loadRouterWithOverrides({
+      aiBuilder: {
+        buildAiBuilderRecommendation: () => ({
+          summary: 'Base summary',
+          intent: 'create',
+          scope: 'team',
+          operation: 'create',
+          confidence: 'medium',
+          matchedAssets: { organizationTemplates: [], agentTemplates: [] },
+          usedLlmFallback: false,
+        }),
+        shouldUseAiBuilderLlmFallback: () => true,
+      },
+      aiGenerator: {
+        inferBuilderGroupingWithAI: async () => {
+          throw new Error('fallback unavailable')
+        },
+      },
+    })
+    const handler = getRouteHandler(router, 'post', '/recommend')
+    const res = makeRes()
+    await handler(makeReq({ body: { prompt: 'Create a research team' } }), res)
+
+    assert.strictEqual(res.statusCode, 200, 'Expected recommend success when fallback fails')
+    assert.strictEqual(res.jsonBody?.recommendation?.usedLlmFallback, false, 'Expected deterministic recommendation to remain')
+    assert.strictEqual(res.jsonBody?.recommendation?.scope, 'team', 'Expected original scope to remain')
+  })
+
+  await test('recommend route maps builder errors to HTTP 500', async () => {
+    const router = loadRouterWithOverrides({
+      aiBuilder: {
+        buildAiBuilderRecommendation: () => {
+          throw new Error('builder exploded')
+        },
+      },
+    })
+    const handler = getRouteHandler(router, 'post', '/recommend')
+    const res = makeRes()
+    await handler(makeReq({ body: { prompt: 'Create a research team' } }), res)
+
+    assert.strictEqual(res.statusCode, 500, 'Expected builder error to return HTTP 500')
+    assert.strictEqual(res.jsonBody?.error, 'builder exploded', 'Expected builder error message')
+  })
+
   await test('starter-prompts maps missing AI credentials to HTTP 400', async () => {
     const router = loadRouterWithOverrides({
       aiGenerator: {
@@ -132,6 +217,38 @@ async function run() {
 
     assert.strictEqual(res.statusCode, 400, 'Expected missing AI credentials to return HTTP 400')
     assert(/AI starter prompts need/i.test(res.jsonBody?.error || ''), 'Expected starter prompt credential guidance')
+  })
+
+  await test('starter-prompts maps invalid credential format errors to HTTP 400', async () => {
+    const router = loadRouterWithOverrides({
+      aiGenerator: {
+        generateBuilderStarterPromptsWithAI: async () => {
+          throw new Error('developer API key does not look like a valid token')
+        },
+      },
+    })
+    const handler = getRouteHandler(router, 'post', '/starter-prompts')
+    const res = makeRes()
+    await handler(makeReq({ body: {} }), res)
+
+    assert.strictEqual(res.statusCode, 400, 'Expected invalid credential format to return HTTP 400')
+    assert(/does not look like/i.test(res.jsonBody?.error || ''), 'Expected invalid credential guidance')
+  })
+
+  await test('starter-prompts maps unexpected AI failures to HTTP 500', async () => {
+    const router = loadRouterWithOverrides({
+      aiGenerator: {
+        generateBuilderStarterPromptsWithAI: async () => {
+          throw new Error('provider outage')
+        },
+      },
+    })
+    const handler = getRouteHandler(router, 'post', '/starter-prompts')
+    const res = makeRes()
+    await handler(makeReq({ body: {} }), res)
+
+    assert.strictEqual(res.statusCode, 500, 'Expected unexpected AI failure to return HTTP 500')
+    assert.strictEqual(res.jsonBody?.error, 'provider outage', 'Expected provider error message')
   })
 
   await test('share-status exposes whether Builder sharing is enabled', async () => {
@@ -158,6 +275,78 @@ async function run() {
     assert(/sessionId and messages are required/i.test(res.jsonBody?.error || ''), 'Expected share-session validation guidance')
   })
 
+  await test('share-session normalizes payloads before delegating', async () => {
+    let payload: any = null
+    const router = loadRouterWithOverrides({
+      aiBuilderShare: {
+        shareAiBuilderSession: async (value: any) => {
+          payload = value
+          return { ok: true, shared: true }
+        },
+      },
+    })
+    const handler = getRouteHandler(router, 'post', '/share-session')
+    const res = makeRes()
+    await handler(makeReq({
+      body: {
+        sessionId: ' session-1 ',
+        workspaceName: 'Coverage Workspace',
+        workspaceId: 'workspace-1',
+        messages: [
+          { role: 'user', content: 'hello' },
+          { role: 'assistant', content: 'world' },
+          { role: 'system', content: 'ignore me' },
+          { role: 'user', content: 42 },
+        ],
+        recommendation: {
+          intent: 'create',
+          scope: 'team',
+          operation: 'create',
+          confidence: 'high',
+          ignored: 'value',
+        },
+        matchedAssets: ['alpha', 42, 'beta'],
+        feedback: 'up',
+      },
+    }), res)
+
+    assert.strictEqual(res.statusCode, 200, 'Expected share session success')
+    assert.deepStrictEqual(payload, {
+      workspaceName: 'Coverage Workspace',
+      workspaceId: 'workspace-1',
+      sessionId: 'session-1',
+      source: 'dashboard_builder',
+      messages: [
+        { role: 'user', content: 'hello' },
+        { role: 'assistant', content: 'world' },
+      ],
+      recommendation: {
+        intent: 'create',
+        scope: 'team',
+        operation: 'create',
+        confidence: 'high',
+      },
+      matchedAssets: ['alpha', 'beta'],
+      feedback: 'up',
+    }, 'Expected normalized share-session payload')
+  })
+
+  await test('share-session maps share failures to HTTP 500', async () => {
+    const router = loadRouterWithOverrides({
+      aiBuilderShare: {
+        shareAiBuilderSession: async () => {
+          throw new Error('share failed')
+        },
+      },
+    })
+    const handler = getRouteHandler(router, 'post', '/share-session')
+    const res = makeRes()
+    await handler(makeReq({ body: { sessionId: 'abc', messages: [{ role: 'user', content: 'hello' }] } }), res)
+
+    assert.strictEqual(res.statusCode, 500, 'Expected share-session failure to return HTTP 500')
+    assert.strictEqual(res.jsonBody?.error, 'share failed', 'Expected share-session error')
+  })
+
   await test('share-feedback requires sessionId, recommendationKey, and feedback', async () => {
     const router = loadRouterWithOverrides()
     const handler = getRouteHandler(router, 'post', '/share-feedback')
@@ -166,6 +355,22 @@ async function run() {
 
     assert.strictEqual(res.statusCode, 400, 'Expected missing share-feedback payload to return HTTP 400')
     assert(/sessionId, recommendationKey, and feedback are required/i.test(res.jsonBody?.error || ''), 'Expected share-feedback validation guidance')
+  })
+
+  await test('share-feedback maps share failures to HTTP 500', async () => {
+    const router = loadRouterWithOverrides({
+      aiBuilderShare: {
+        shareAiBuilderFeedback: async () => {
+          throw new Error('feedback failed')
+        },
+      },
+    })
+    const handler = getRouteHandler(router, 'post', '/share-feedback')
+    const res = makeRes()
+    await handler(makeReq({ body: { sessionId: 'abc', recommendationKey: 'rec-1', feedback: 'up' } }), res)
+
+    assert.strictEqual(res.statusCode, 500, 'Expected share-feedback failure to return HTTP 500')
+    assert.strictEqual(res.jsonBody?.error, 'feedback failed', 'Expected share-feedback error')
   })
 
   console.log('\n========================================')
