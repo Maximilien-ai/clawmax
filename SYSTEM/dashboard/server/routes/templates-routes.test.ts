@@ -61,7 +61,7 @@ function writeWorkspaceRegistry(tmpHome: string, workspacePath: string) {
   }, null, 2))
 }
 
-function getRouteHandler(method: 'get' | 'post' | 'put', routePath: string) {
+function getRouteHandler(method: 'get' | 'post' | 'put' | 'delete', routePath: string) {
   delete require.cache[require.resolve('./templates')]
   const router = require('./templates').default
   const layer = router.stack.find((entry: any) => entry.route?.path === routePath && entry.route?.methods?.[method])
@@ -82,11 +82,20 @@ function makeRes() {
   return {
     statusCode: 200,
     jsonBody: undefined as any,
+    headers: {} as Record<string, string>,
     status(code: number) {
       this.statusCode = code
       return this
     },
+    setHeader(name: string, value: string) {
+      this.headers[name] = value
+      return this
+    },
     json(body: any) {
+      this.jsonBody = body
+      return this
+    },
+    send(body: any) {
       this.jsonBody = body
       return this
     },
@@ -239,6 +248,79 @@ async function run() {
     }), typeMismatchRes)
     assert.strictEqual(typeMismatchRes.statusCode, 400, 'Expected template type mismatch to return HTTP 400')
     assert(/Template body type must be "agent"/i.test(typeMismatchRes.jsonBody?.error || ''), 'Expected type mismatch guidance')
+  })
+
+  await test('agent template files route returns 404 for unknown templates', async () => {
+    const handler = getRouteHandler('get', '/agents/:slug/files')
+    const res = makeRes()
+    await handler(makeReq({ params: { slug: 'missing-template' } }), res)
+
+    assert.strictEqual(res.statusCode, 404, 'Expected unknown agent template files request to return HTTP 404')
+    assert(/Template not found/i.test(res.jsonBody?.error || ''), 'Expected missing template files guidance')
+  })
+
+  await test('template validate route rejects invalid template bodies', async () => {
+    const handler = getRouteHandler('post', '/validate')
+    const res = makeRes()
+    await handler(makeReq({ body: { type: 'organization', name: '' } }), res)
+
+    assert.strictEqual(res.statusCode, 400, 'Expected invalid template validation to return HTTP 400')
+    assert.strictEqual(res.jsonBody?.valid, false, 'Expected invalid validation payload')
+    assert(Array.isArray(res.jsonBody?.errors) && res.jsonBody.errors.length > 0, 'Expected validation errors')
+  })
+
+  await test('template generate route rejects missing descriptions', async () => {
+    const handler = getRouteHandler('post', '/generate')
+    const res = makeRes()
+    await handler(makeReq({ body: {} }), res)
+
+    assert.strictEqual(res.statusCode, 400, 'Expected missing generate description to return HTTP 400')
+    assert(/description is required/i.test(res.jsonBody?.error || ''), 'Expected missing generate description guidance')
+  })
+
+  await test('template agent import route rejects missing template slug', async () => {
+    const handler = getRouteHandler('post', '/agents/import')
+    const res = makeRes()
+    await handler(makeReq({ body: {} }), res)
+
+    assert.strictEqual(res.statusCode, 400, 'Expected missing agent import template slug to return HTTP 400')
+    assert(/Template slug is required/i.test(res.jsonBody?.error || ''), 'Expected missing agent import slug guidance')
+  })
+
+  await test('organization customization and import routes reject missing template slugs', async () => {
+    const customizeHandler = getRouteHandler('post', '/organizations/validate-customization')
+    let res = makeRes()
+    await customizeHandler(makeReq({ body: {} }), res)
+    assert.strictEqual(res.statusCode, 400, 'Expected missing template slug for customization validation to return HTTP 400')
+
+    const importHandler = getRouteHandler('post', '/organizations/import')
+    res = makeRes()
+    await importHandler(makeReq({ body: {} }), res)
+    assert.strictEqual(res.statusCode, 400, 'Expected missing organization import template slug to return HTTP 400')
+  })
+
+  await test('template markdown import routes validate required content', async () => {
+    const templateImportHandler = getRouteHandler('post', '/import-md')
+    let res = makeRes()
+    await templateImportHandler(makeReq({ body: {} }), res)
+    assert.strictEqual(res.statusCode, 400, 'Expected missing template markdown content to return HTTP 400')
+
+    const workflowImportHandler = getRouteHandler('post', '/workflows/import-md')
+    res = makeRes()
+    await workflowImportHandler(makeReq({ body: {} }), res)
+    assert.strictEqual(res.statusCode, 400, 'Expected missing workflow markdown content to return HTTP 400')
+  })
+
+  await test('template export routes reject invalid template types and missing workflows', async () => {
+    const templateExportHandler = getRouteHandler('get', '/:type/:slug/export-md')
+    let res = makeRes()
+    await templateExportHandler(makeReq({ params: { type: 'bad-type', slug: 'anything' } }), res)
+    assert.strictEqual(res.statusCode, 400, 'Expected invalid template export type to return HTTP 400')
+
+    const workflowExportHandler = getRouteHandler('get', '/workflows/:id/export-md')
+    res = makeRes()
+    await workflowExportHandler(makeReq({ params: { id: 'missing-workflow' } }), res)
+    assert.strictEqual(res.statusCode, 404, 'Expected missing workflow export to return HTTP 404')
   })
 
   if (typeof originalHome === 'undefined') delete process.env.HOME
