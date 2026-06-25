@@ -86,6 +86,8 @@ function loadGatewayConfigFromDisk(): GatewayConfig | null {
 
 export const __test = {
   parseGatewayConfig,
+  normalizeGatewayHttpUrl,
+  getGatewayOrigin,
   GATEWAY_PROTOCOL_VERSION,
   buildGatewayProbeClient,
   buildGatewayProbeConnectParams,
