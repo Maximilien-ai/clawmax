@@ -249,6 +249,79 @@ async function run() {
     assert(res.jsonBody?.error === 'Invalid workflow data', 'Expected invalid workflow data response')
   })
 
+  await test('workflow create, update, and delete routes handle scheduling and missing resources', async () => {
+    const createdWorkflow = {
+      id: 'route-test-workflow',
+      enabled: true,
+      schedule: '0 9 * * *',
+      cronJobId: 'cron-123',
+      targeting: { agents: [], groups: [], tags: [], communities: [] },
+    }
+    let deletedCronJobId: string | null = null
+    let syncCalls = 0
+
+    const createHandler = getRouteHandler('post', '/', {
+      workflows: {
+        createWorkflow: () => ({ success: true, id: 'route-test-workflow' }),
+        getWorkflow: (id: string) => id === 'route-test-workflow' ? createdWorkflow : null,
+        resolveParticipants: () => [],
+        syncWorkflowToCron: () => ({ ok: false, error: 'cron sync failed', cronJobId: null }),
+        updateWorkflow: () => ({ success: true }),
+        removeCronJob: (cronJobId: string) => { deletedCronJobId = cronJobId; return true },
+        deleteWorkflow: (id: string) => ({ success: id === 'route-test-workflow' }),
+      } as any,
+    })
+    const res = makeRes()
+    await createHandler(makeReq({}, {
+      body: {
+        name: 'Route Test Workflow',
+        description: 'Workflow route coverage',
+        schedule: '0 9 * * *',
+        content: '# test',
+        targeting: { agents: [], groups: [], tags: [], communities: [] },
+      },
+    }), res)
+    assert(res.statusCode === 201, `Expected workflow create success, got ${res.statusCode}`)
+    assert(Array.isArray(res.jsonBody?.warnings) && res.jsonBody.warnings[0] === 'cron sync failed', 'Expected cron sync warning on create')
+
+    const updateHandler = getRouteHandler('put', '/:id', {
+      workflows: {
+        updateWorkflow: (id: string) => id === 'route-test-workflow'
+          ? { success: true }
+          : { success: false, error: 'Workflow not found' },
+        getWorkflow: (id: string) => id === 'route-test-workflow' ? createdWorkflow : null,
+        resolveParticipants: () => [],
+        syncWorkflowToCron: () => ({ ok: false, error: 'cron sync failed', cronJobId: null }),
+      } as any,
+    })
+    let updateRes = makeRes()
+    await updateHandler(makeReq({ id: 'route-test-workflow' }, { body: { enabled: false } }), updateRes)
+    assert(updateRes.statusCode === 200, `Expected workflow update success, got ${updateRes.statusCode}`)
+    assert(Array.isArray(updateRes.jsonBody?.warnings), 'Expected workflow update warnings array')
+
+    updateRes = makeRes()
+    await updateHandler(makeReq({ id: 'missing-workflow' }, { body: { enabled: false } }), updateRes)
+    assert(updateRes.statusCode === 404, `Expected missing workflow update to return 404, got ${updateRes.statusCode}`)
+
+    const deleteHandler = getRouteHandler('delete', '/:id', {
+      workflows: {
+        getWorkflow: (id: string) => id === 'route-test-workflow' ? createdWorkflow : null,
+        deleteWorkflow: (id: string) => id === 'route-test-workflow'
+          ? { success: true }
+          : { success: false, error: 'Workflow not found' },
+        removeCronJob: (cronJobId: string) => { deletedCronJobId = cronJobId; return true },
+      } as any,
+    })
+    let deleteRes = makeRes()
+    await deleteHandler(makeReq({ id: 'route-test-workflow' }), deleteRes)
+    assert(deleteRes.statusCode === 200, `Expected workflow delete success, got ${deleteRes.statusCode}`)
+    assert(deletedCronJobId === 'cron-123', 'Expected cron job removal for deleted workflow')
+
+    deleteRes = makeRes()
+    await deleteHandler(makeReq({ id: 'missing-workflow' }), deleteRes)
+    assert(deleteRes.statusCode === 404, `Expected missing workflow delete to return 404, got ${deleteRes.statusCode}`)
+  })
+
   await test('workflow import and generation routes validate required input', async () => {
     let res = makeRes()
     const importHandler = getRouteHandler('post', '/import-md')
@@ -340,6 +413,43 @@ async function run() {
     assert(res.statusCode === 404, `Expected missing workflow execution detail to return 404, got ${res.statusCode}`)
   })
 
+  await test('workflow execution archive routes validate invalid ids and missing executions', async () => {
+    const archiveHandler = getRouteHandler('post', '/:id/executions/:executionId/archive')
+    let res = makeRes()
+    await archiveHandler(makeReq({ id: 'BAD ID', executionId: 'exec-1' }), res)
+    assert(res.statusCode === 400, `Expected invalid workflow id for archive, got ${res.statusCode}`)
+
+    res = makeRes()
+    await archiveHandler(makeReq({ id: 'missing-workflow', executionId: 'exec-1' }), res)
+    assert(res.statusCode === 404, `Expected missing workflow archive to return 404, got ${res.statusCode}`)
+
+    const created = createWorkflow({
+      name: 'Execution Missing Test',
+      description: 'Validate missing execution archive paths',
+      schedule: 'manual',
+      content: '# Test\nMissing execution.',
+      executionMode: 'managed',
+      owner: 'test-owner',
+      targeting: { agents: [], groups: [], tags: [], communities: [] },
+    } as any)
+    assert(!!(created.success && created.id), `Workflow should be created: ${created.error}`)
+
+    const workflowId = created.id!
+    res = makeRes()
+    await archiveHandler(makeReq({ id: workflowId, executionId: 'missing-exec' }), res)
+    assert(res.statusCode === 404, `Expected missing execution archive to return 404, got ${res.statusCode}`)
+
+    const unarchiveHandler = getRouteHandler('post', '/:id/executions/:executionId/unarchive')
+    res = makeRes()
+    await unarchiveHandler(makeReq({ id: workflowId, executionId: 'missing-exec' }), res)
+    assert(res.statusCode === 404, `Expected missing execution unarchive to return 404, got ${res.statusCode}`)
+
+    const deleteHandler = getRouteHandler('delete', '/:id/executions/:executionId')
+    res = makeRes()
+    await deleteHandler(makeReq({ id: workflowId, executionId: 'missing-exec' }), res)
+    assert(res.statusCode === 404, `Expected missing execution delete to return 404, got ${res.statusCode}`)
+  })
+
   await test('workflow archived executions route returns an empty list when nothing has been archived', async () => {
     const created = createWorkflow({
       name: 'Archived List Empty Test',
@@ -377,6 +487,70 @@ async function run() {
     assert(Array.isArray(res.jsonBody?.dependencies) && res.jsonBody.dependencies.length === 2, 'Expected dependency details for each dependency')
     assert(res.jsonBody.dependencies.some((entry: any) => entry.id === 'dep-done' && entry.met === true), 'Expected completed dependency to be marked met')
     assert(res.jsonBody.dependencies.some((entry: any) => entry.id === 'dep-pending' && entry.met === false), 'Expected incomplete dependency to be marked unmet')
+  })
+
+  await test('workflow dependencies and complete routes handle empty dependencies and approval blockers', async () => {
+    const depsHandler = getRouteHandler('get', '/:id/dependencies', {
+      workflows: {
+        getWorkflow: (id: string) => id === 'solo' ? { id: 'solo', dependsOn: [] } : null,
+      } as any,
+    })
+    let res = makeRes()
+    await depsHandler(makeReq({ id: 'solo' }), res)
+    assert(res.statusCode === 200, `Expected dependency route success, got ${res.statusCode}`)
+    assert(res.jsonBody?.met === true, 'Expected no-dependency workflow to be met')
+    assert(Array.isArray(res.jsonBody?.dependencies) && res.jsonBody.dependencies.length === 0, 'Expected empty dependencies list')
+
+    const completeHandler = getRouteHandler('post', '/:id/complete', {
+      workflows: {
+        getWorkflow: (id: string) => {
+          if (id === 'done') return { id: 'done', name: 'Done Workflow', enabled: true }
+          if (id === 'ready-enabled') return { id: 'ready-enabled', name: 'Ready Enabled', enabled: true }
+          if (id === 'ready-disabled') return { id: 'ready-disabled', name: 'Ready Disabled', enabled: false }
+          return null
+        },
+        completeWorkflow: () => ({ readyToRun: ['ready-enabled', 'ready-disabled'] }),
+        triggerWorkflow: (id: string) => ({ success: id === 'ready-enabled' }),
+        updateWorkflow: () => ({ success: true }),
+      } as any,
+    })
+    res = makeRes()
+    await completeHandler(makeReq({ id: 'done' }), res)
+    assert(res.statusCode === 200, `Expected complete route success, got ${res.statusCode}`)
+    assert(Array.isArray(res.jsonBody?.readyToRun) && res.jsonBody.readyToRun.length === 2, 'Expected ready workflows in response')
+    assert(Array.isArray(res.jsonBody?.triggered) && res.jsonBody.triggered.length === 1 && res.jsonBody.triggered[0] === 'ready-enabled', 'Expected only enabled workflow to be triggered')
+
+    const missingCompleteRes = makeRes()
+    await completeHandler(makeReq({ id: 'missing-workflow' }), missingCompleteRes)
+    assert(missingCompleteRes.statusCode === 404, `Expected missing workflow complete to return 404, got ${missingCompleteRes.statusCode}`)
+
+    let approvalNotification: any = null
+    const blockerHandler = getRouteHandler('post', '/:id/blocker', {
+      workflows: {
+        getWorkflow: (id: string) => id === 'wf-approval' ? { id, name: 'Approval Workflow' } : null,
+        updateWorkflow: () => ({ success: true }),
+      } as any,
+      notifications: {
+        createNotification: (payload: any) => { approvalNotification = payload },
+      } as any,
+    })
+    const blockerRes = makeRes()
+    await blockerHandler(makeReq({ id: 'wf-approval' }, {
+      body: {
+        agentId: 'agent-1',
+        blockerType: 'approval',
+        title: 'Approve rollout',
+        message: 'Need approval',
+      },
+    }), blockerRes)
+    assert(blockerRes.statusCode === 200, `Expected approval blocker success, got ${blockerRes.statusCode}`)
+    assert(
+      JSON.stringify(approvalNotification?.actions) === JSON.stringify([
+        { type: 'approve', label: 'Approve' },
+        { type: 'reject', label: 'Reject' },
+      ]),
+      'Expected approval blocker actions to be created'
+    )
   })
 
   await test('workflow blocker route validates required fields and emits structured choice actions', async () => {
