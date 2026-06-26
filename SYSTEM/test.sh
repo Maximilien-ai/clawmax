@@ -721,6 +721,17 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Template route edge-case unit tests...${NC}"
+npx ts-node --transpileOnly server/routes/templates-route-edges.test.ts > /tmp/clawmax-template-route-edges.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-template-route-edges.out; then
+  template_route_edges_count=$(grep "Tests passed:" /tmp/clawmax-template-route-edges.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Template route edge-case unit tests (${template_route_edges_count:-?} tests)"
+else
+  cat /tmp/clawmax-template-route-edges.out
+  fail "Template route edge-case unit tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Organization structure client unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/organizationTeams.test.ts > /tmp/clawmax-organization-teams.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-organization-teams.out; then
