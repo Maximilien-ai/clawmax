@@ -534,6 +534,17 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Skills route edge-case unit tests...${NC}"
+npx ts-node --transpileOnly server/routes/skills-route-edges.test.ts > /tmp/clawmax-skills-route-edges.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-skills-route-edges.out; then
+  skills_route_edges_count=$(grep "Tests passed:" /tmp/clawmax-skills-route-edges.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Skills route edge-case unit tests (${skills_route_edges_count:-?} tests)"
+else
+  cat /tmp/clawmax-skills-route-edges.out
+  fail "Skills route edge-case unit tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Partner plugin status regression tests...${NC}"
 npx ts-node --transpileOnly server/routes/partner-plugin-status-regression.test.ts > /tmp/clawmax-partner-plugin-status.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-partner-plugin-status.out; then
