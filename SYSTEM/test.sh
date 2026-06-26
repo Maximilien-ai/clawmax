@@ -1941,6 +1941,16 @@ else
   fail "Auth / OTP unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Auth / OTP edge-case unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/github-auth-edges.test.ts > /tmp/clawmax-github-auth-edges.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-github-auth-edges.out; then
+  github_auth_edges_count=$(grep "Tests passed:" /tmp/clawmax-github-auth-edges.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Auth / OTP edge-case unit tests (${github_auth_edges_count:-?} tests)"
+else
+  cat /tmp/clawmax-github-auth-edges.out
+  fail "Auth / OTP edge-case unit tests"
+fi
+
 echo ""
 echo -e "${YELLOW}→ Running Dashboard auth helper unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/auth.test.ts > /tmp/clawmax-auth-helper.out 2>&1 || true
