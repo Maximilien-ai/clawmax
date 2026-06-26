@@ -577,6 +577,17 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Agent runtime edge-case route tests...${NC}"
+npx ts-node --transpileOnly server/routes/agents-runtime-edges.test.ts > /tmp/clawmax-agent-runtime-edges.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-agent-runtime-edges.out; then
+  agents_runtime_edges_count=$(grep "Tests passed:" /tmp/clawmax-agent-runtime-edges.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Agent runtime edge-case route tests (${agents_runtime_edges_count:-?} tests)"
+else
+  cat /tmp/clawmax-agent-runtime-edges.out
+  fail "Agent runtime edge-case route tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Doctor gateway recovery route tests...${NC}"
 npx ts-node --transpileOnly server/routes/doctor-gateway-recovery.test.ts > /tmp/clawmax-doctor-gateway-recovery.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-doctor-gateway-recovery.out; then
