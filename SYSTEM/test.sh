@@ -1785,6 +1785,16 @@ else
   fail "Workspaces route unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Workspaces route edge-case unit tests...${NC}"
+npx ts-node --transpileOnly server/routes/workspaces-edges.test.ts > /tmp/clawmax-workspaces-edges.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-workspaces-edges.out; then
+  workspaces_edges_count=$(grep "Tests passed:" /tmp/clawmax-workspaces-edges.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Workspaces route edge-case unit tests (${workspaces_edges_count:-?} tests)"
+else
+  cat /tmp/clawmax-workspaces-edges.out
+  fail "Workspaces route edge-case unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Integration validation unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/integration-validation.test.ts > /tmp/clawmax-integration-validation.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-integration-validation.out; then
