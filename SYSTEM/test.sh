@@ -2127,6 +2127,17 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Chat route gateway/readiness edge-case tests...${NC}"
+npx ts-node --transpileOnly server/routes/chat-route-edges.test.ts > /tmp/clawmax-chat-route-edges.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-chat-route-edges.out; then
+  chat_route_edges_count=$(grep "Tests passed:" /tmp/clawmax-chat-route-edges.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Chat route gateway/readiness edge-case tests (${chat_route_edges_count:-?} tests)"
+else
+  cat /tmp/clawmax-chat-route-edges.out
+  fail "Chat route gateway/readiness edge-case tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Logs route contract tests...${NC}"
 npx ts-node --transpileOnly server/routes/logs-routes.test.ts > /tmp/clawmax-logs-routes-contract.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-logs-routes-contract.out; then
