@@ -60,6 +60,8 @@ test('style guidance infers formatting, concision, evidence, and human review cu
 test('company naming and scalable parameter helpers infer sober defaults', () => {
   assert.strictEqual(__test.buildSoberCompanyName('We need a B2B SaaS conversion homepage system'), 'Homepage Conversion Studio')
   assert.strictEqual(__test.buildSoberCompanyName('Run outbound lead generation for our team'), 'Outbound Growth Studio')
+  assert.strictEqual(__test.buildSoberCompanyName('Launch an ecommerce operations business'), 'Ecommerce Operating Studio')
+  assert.strictEqual(__test.buildSoberCompanyName('Need a generic internal planning company'), 'Operating Company')
 
   const parameters = __test.buildScalableTeamParameters([
     { id: 'post-writer', role: 'Post Writer' },
@@ -69,6 +71,9 @@ test('company naming and scalable parameter helpers infer sober defaults', () =>
   assert.strictEqual(parameters.length, 2, 'Expected only scalable specialist lanes')
   assert(parameters[0].label.includes('Post Writer'), 'Expected role-based parameter label')
   assert(parameters.every((entry: any) => entry.default === 2), 'Expected scaling defaults')
+  assert.deepStrictEqual(__test.buildScalableTeamParameters([{ id: 'solo-writer', role: 'Writer' }], true), [], 'Expected no scaling params for fewer than two agents')
+  assert.strictEqual(__test.roleImpliesScalableLane('Post Writer', 'post-writer'), true)
+  assert.strictEqual(__test.roleImpliesScalableLane('Operations Lead', 'ops-lead'), false)
 })
 
 test('example-aware prompt context and workflow reference blocks reflect prompt cues', () => {
@@ -90,6 +95,47 @@ test('example-aware prompt context and workflow reference blocks reflect prompt 
   assert(/## References/.test(references), 'Expected reference block header')
   assert(/https:\/\/example.com\/reference/.test(references), 'Expected URL in reference block')
   assert(/Sample product in good working order/.test(references), 'Expected example cue in reference block')
+})
+
+test('prompt implication helpers detect scaling, company, revenue, and multi-community cues', () => {
+  assert.strictEqual(__test.promptImpliesScaling('We have multiple products and many images to process.'), true)
+  assert.strictEqual(__test.promptImpliesScaling('Handle one executive briefing.'), false)
+  assert.strictEqual(__test.promptImpliesCompany('Build a startup sales pipeline company.'), true)
+  assert.strictEqual(__test.promptImpliesCompany('Create a single research assistant.'), false)
+  assert.strictEqual(__test.promptImpliesRevenue('Increase revenue with better outbound pricing and pipeline review.'), true)
+  assert.strictEqual(__test.promptImpliesRevenue('Organize my reading list and project notes.'), false)
+  assert.strictEqual(__test.promptExplicitlyRequestsMultipleCommunities('Use two communities with separate umbrellas for delivery and growth.'), true)
+  assert.strictEqual(__test.promptExplicitlyRequestsMultipleCommunities('Use one shared company community.'), false)
+})
+
+test('workflow team inference maps groups, alias matches, leadership fallback, and default fallback', () => {
+  const teams = [
+    { id: 'leadership', name: 'Leadership' },
+    { id: 'client-delivery', name: 'Client Delivery' },
+    { id: 'research-ops', name: 'Research Ops' },
+  ]
+  const groups = [
+    { name: 'Client Delivery' },
+    { name: 'Research Ops' },
+  ]
+
+  assert.strictEqual(
+    __test.inferCompanyWorkflowTeamId({ id: 'wf-1', targeting: { groups: ['Client Delivery'] } }, teams, groups),
+    'client-delivery',
+  )
+  assert.strictEqual(
+    __test.inferCompanyWorkflowTeamId({ id: 'research-summary', name: 'Research Summary', description: 'Research ops weekly brief' }, teams, groups),
+    'research-ops',
+  )
+  assert.strictEqual(
+    __test.inferCompanyWorkflowTeamId({ id: 'kickoff', name: 'Executive Kickoff Brief' }, teams, []),
+    'leadership',
+  )
+  assert.strictEqual(
+    __test.inferCompanyWorkflowTeamId({ id: 'misc-flow', name: 'Misc Flow' }, teams, []),
+    'leadership',
+  )
+  assert.strictEqual(__test.normalizeGenerationName(' Client-Delivery / Weekly Brief '), 'client delivery weekly brief')
 })
 
 console.log('\n========================================')

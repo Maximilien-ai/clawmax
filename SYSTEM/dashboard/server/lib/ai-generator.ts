@@ -830,10 +830,17 @@ export const __test = {
   extractPromptUrls,
   summarizePromptExamples,
   inferStyleGuidanceFromPrompt,
+  promptImpliesScaling,
+  promptImpliesCompany,
+  promptImpliesRevenue,
+  promptExplicitlyRequestsMultipleCommunities,
   buildSoberCompanyName,
+  roleImpliesScalableLane,
   buildScalableTeamParameters,
   buildExampleAwarePromptContext,
   buildWorkflowReferenceBlock,
+  normalizeGenerationName,
+  inferCompanyWorkflowTeamId,
 }
 
 function normalizeGenerationName(value: string): string {
