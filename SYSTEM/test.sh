@@ -1777,6 +1777,16 @@ else
   fail "Workspace export unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Workspace upload edge-case unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/workspace-upload-edges.test.ts > /tmp/clawmax-workspace-upload-edges.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-workspace-upload-edges.out; then
+  workspace_upload_edges_count=$(grep "Tests passed:" /tmp/clawmax-workspace-upload-edges.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Workspace upload edge-case unit tests (${workspace_upload_edges_count:-?} tests)"
+else
+  cat /tmp/clawmax-workspace-upload-edges.out
+  fail "Workspace upload edge-case unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Workspace manager unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/workspace-manager.test.ts > /tmp/clawmax-workspace-manager.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-workspace-manager.out; then
