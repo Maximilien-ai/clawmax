@@ -7,11 +7,14 @@ All notable changes to ClawMax are documented here.
 ## [v1.9.1] - pending validation
 
 ### Changed
-- **Test Backfill Push** — the standard wrapper suite now surfaces substantially more low-risk helper/edge-case lanes across workspace scope/navigation, file mention parsing, navigation/plugin routing, notifications, markdown/file links, dropdown placement, prompt attachments, builder sessions, metering presentation, keys/secrets inventory, product icons, maintenance banners, skill tags, template search, and related client-side helpers.
+- **Test Backfill Push** — the standard wrapper suite now surfaces substantially more helper/edge-case lanes across workspace scope/navigation, file mention parsing, navigation/plugin routing, notifications, markdown/file links, dropdown placement, prompt attachments, builder sessions, metering presentation, keys/secrets inventory, product icons, maintenance banners, skill tags, template search, auth, workspace upload, agent/workspace/template route edges, chat/workflow/gateway readiness, and related client/server helpers.
+- **Coverage Measurement In Wrapper** — the normal `integration --with-validation` harness now supports opt-in `--coverage`, emits a computed `c8` summary at the end of the run, and writes coverage artifacts under `SYSTEM/dashboard/coverage/`.
+- **Deeper Server Route / Lib Coverage** — `1.9.1` backfill now includes broader regression coverage across `agents`, `workflows`, `templates`, `skills`, `channels`, `logs`, `ai-builder`, `github-auth`, `gateway-rpc`, `workspace-upload`, and internal `ai-generator` logic instead of only adding client helper lanes.
 - **Notification Test Stability** — grouped notification assertions now compare grouped entity IDs order-independently so CI does not fail on harmless ordering variation.
 
 ### Testing
-- **Visible Wrapper Count Increase** — the default-safe wrapper count has been driven up to the `350` target through new standalone helper lanes, while keeping `npm run typecheck` and the local `integration --with-validation` wrapper path green on the current branch head.
+- **Visible Wrapper Count Increase** — the default-safe wrapper count is now at `369` passing lanes on the current branch head.
+- **Measured Coverage Baseline** — the latest full wrapper run under `c8` is `77.25%` statements/lines, `67.18%` branches, and `88.27%` functions.
 
 ## [v1.9.0] - 2026-06-23
 

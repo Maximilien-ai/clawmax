@@ -16,9 +16,10 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 
 ## 🛠 Next Sprint: 1.9.1
 
-- Active validation image: `1.9.1-test-rc1`
-- `1.9.1` focuses on test-backfill/stability work: broader helper-lane coverage, operator-facing diagnostics follow-through, selective public template/workflow sync, lingering DocHub/file-open edge cases, and any non-blocking workflow/thread polish that should stay out of the `1.9.0` release line.
-- Measured wrapper coverage baseline: `74.74%` statements/lines, `68.60%` branches, `86.61%` functions on the full `integration --with-validation` path under `c8`.
+- Active validation image: `1.9.1-test-rc2`
+- `1.9.1` is currently centered on test-backfill/stability work: broader helper-lane coverage, deeper server route/lib regression coverage, opt-in `--coverage` support in the normal wrapper flow, operator-facing diagnostics follow-through, selective public template/workflow sync, lingering DocHub/file-open edge cases, and any non-blocking workflow/thread polish that should stay out of the `1.9.0` release line.
+- Current measured wrapper baseline: `369` passing lanes on the full `integration --with-validation` path.
+- Current measured `c8` baseline on that same wrapper path: `77.25%` statements/lines, `67.18%` branches, and `88.27%` functions.
 
 ## ✨ 1.8.x Highlights
 

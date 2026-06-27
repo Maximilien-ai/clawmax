@@ -2,7 +2,7 @@
 
 **Current Version**: v1.9.0
 **Last Updated**: June 24, 2026
-**Status**: `v1.9.0` is the current promoted stable release from `main`. `1.9.1-test-rc1` is the active validation target for the next cleanup sprint: test backfill, operator diagnostics follow-through, public template/workflow sync, and remaining DocHub/workflow follow-through.
+**Status**: `v1.9.0` is the current promoted stable release from `main`. `1.9.1-test-rc2` is the active validation target for the next cleanup sprint: test backfill, operator diagnostics follow-through, public template/workflow sync, and remaining DocHub/workflow follow-through.
 
 ---
 
@@ -15,7 +15,7 @@
 - Partner integrations are active product surfaces, including Resend, Cognee, Opik, GitHub, Senso, and partner plugin install/uninstall handling.
 - Resend has both dashboard test-email validation and first-party `clawmax-resend` agent-tool execution with runtime-secret support.
 - Cognee has a first-pass partner surface for cloud/self-hosted configuration and official OpenClaw plugin lifecycle management.
-- The latest reported full local integration run is green with `--with-validation`, including the latest helper/contract coverage for workflow communication-target inference, archived chat restore/continue, workflow notification cleanup, group chat timeline rendering, DocHub preview/navigation behavior, host-agent state override honoring, and aligned chat/runtime diagnostic wording.
+- The latest reported full local integration run is green with `--with-validation --coverage`, including the expanded `369`-lane wrapper baseline and measured `c8` coverage of `77.25%` statements/lines, `67.18%` branches, and `88.27%` functions.
 
 ## Active Release Track
 
@@ -24,7 +24,7 @@
   - [planning/HARDENING_SIMPLIFICATION_1_8_X.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/HARDENING_SIMPLIFICATION_1_8_X.md)
   - [planning/SIMPLIFY_OPTIMIZE_1_8_X.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_OPTIMIZE_1_8_X.md)
   - [planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_1.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_1.md)
-- Near-term target: validate `1.9.1-test-rc1`, using the expanded `350`-count wrapper baseline plus cloud/on-prem image checks before deciding whether `1.9.1` needs more stabilization or is ready to promote.
+- Near-term target: validate `1.9.1-test-rc2`, using the expanded `369`-count wrapper baseline plus cloud/on-prem image checks before deciding whether `1.9.1` needs more stabilization or is ready to promote.
 
 ## Release References
 
