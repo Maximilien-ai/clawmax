@@ -19,6 +19,7 @@ const otpStorePath = path.join(__dirname, '..', 'data', 'auth', 'otp-store.json'
 const originalStore = fs.existsSync(otpStorePath) ? fs.readFileSync(otpStorePath, 'utf-8') : null
 const envKeys = [
   'DASHBOARD_AUTH_MODE',
+  'AUTH_MODE',
   'OTP_ALLOWED_EMAILS',
   'OTP_DEV_MODE',
   'OTP_EXPIRY_MINUTES',
@@ -69,20 +70,24 @@ function resetEnv() {
 
 function configureOtpEnv() {
   process.env.DASHBOARD_AUTH_MODE = 'email_otp'
+  delete process.env.AUTH_MODE
   process.env.OTP_ALLOWED_EMAILS = 'owner@example.com'
   process.env.OTP_DEV_MODE = 'log'
   process.env.OTP_EXPIRY_MINUTES = '15'
   delete process.env.RESEND_API_KEY
   process.env.NODE_ENV = 'development'
   delete process.env.BYPASS_OAUTH
+  delete process.env.DASHBOARD_AUTH_DISABLED
 }
 
 function configureGitHubEnv() {
   process.env.DASHBOARD_AUTH_MODE = 'github_oauth'
+  delete process.env.AUTH_MODE
   process.env.GITHUB_CLIENT_ID = 'gh-client-id'
   process.env.GITHUB_CLIENT_SECRET = 'gh-client-secret'
   process.env.DASHBOARD_APP_URL = 'http://localhost:5174'
   delete process.env.BYPASS_OAUTH
+  delete process.env.DASHBOARD_AUTH_DISABLED
 }
 
 function getRouteHandler(method: 'post' | 'get', routePath: string) {
