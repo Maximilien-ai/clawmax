@@ -2125,6 +2125,16 @@ else
   fail "AI generator edge-case unit tests"
 fi
 
+echo -e "${YELLOW}→ Running AI generator internal edge-case unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/ai-generator-internal-edges.test.ts > /tmp/clawmax-ai-generator-internal-edges.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-ai-generator-internal-edges.out; then
+  ai_generator_internal_edges_count=$(grep "Tests passed:" /tmp/clawmax-ai-generator-internal-edges.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "AI generator internal edge-case unit tests (${ai_generator_internal_edges_count:-?} tests)"
+else
+  cat /tmp/clawmax-ai-generator-internal-edges.out
+  fail "AI generator internal edge-case unit tests"
+fi
+
 echo -e "${YELLOW}→ Running AI route unit tests...${NC}"
 npx ts-node --transpileOnly server/routes/ai.test.ts > /tmp/clawmax-ai-route.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-ai-route.out; then

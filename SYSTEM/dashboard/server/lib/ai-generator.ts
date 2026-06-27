@@ -824,6 +824,18 @@ function buildWorkflowReferenceBlock(description: string, options?: { finalOnly?
   return lines.join('\n')
 }
 
+export const __test = {
+  slugifyGeneratedTemplateValue,
+  humanizeGeneratedChannelName,
+  extractPromptUrls,
+  summarizePromptExamples,
+  inferStyleGuidanceFromPrompt,
+  buildSoberCompanyName,
+  buildScalableTeamParameters,
+  buildExampleAwarePromptContext,
+  buildWorkflowReferenceBlock,
+}
+
 function normalizeGenerationName(value: string): string {
   return String(value || '')
     .trim()
