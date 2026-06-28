@@ -43,6 +43,27 @@ const execAsync = promisify(exec)
 const execFileAsync = promisify(require('child_process').execFile)
 const router = express.Router()
 
+function getNativeDirectoryPickerSupportForRuntime(
+  platform = process.platform,
+  hasOsaScript = fs.existsSync('/usr/bin/osascript'),
+) {
+  if (platform !== 'darwin') {
+    return {
+      available: false,
+      status: 501,
+      error: 'Browse is only available when the dashboard runs directly on macOS. Paste a full path that this dashboard runtime can access instead.',
+    }
+  }
+  if (!hasOsaScript) {
+    return {
+      available: false,
+      status: 501,
+      error: 'Browse is unavailable in this dashboard runtime because macOS osascript support is missing. Paste a full path that this runtime can access instead.',
+    }
+  }
+  return { available: true, status: 200 }
+}
+
 type SkillSetupSession = {
   id: string
   skillId: string
@@ -230,8 +251,17 @@ function getRegistryUnsupportedFormatMessage(provider: 'clawhub' | 'shipables' |
 // GET /api/skills/browse-directory - Show native directory picker (macOS)
 router.get('/browse-directory', async (req, res) => {
   try {
+    const support = getNativeDirectoryPickerSupportForRuntime()
+    if (!support.available) {
+      return res.status(support.status).json({
+        error: support.error,
+        supported: false,
+        canPastePath: true,
+      })
+    }
+
     // Use macOS osascript to show native directory picker
-    const script = `osascript -e 'POSIX path of (choose folder with prompt "Select skill directory")'`
+    const script = `/usr/bin/osascript -e 'POSIX path of (choose folder with prompt "Select skill directory")'`
 
     const { stdout, stderr } = await execAsync(script)
 
@@ -249,13 +279,25 @@ router.get('/browse-directory', async (req, res) => {
     res.json({ path: selectedPath })
   } catch (err: any) {
     // User cancelled the dialog
-    if (err.message?.includes('User canceled')) {
+    if (err.message?.includes('User canceled') || err.message?.includes('-128')) {
       return res.json({ path: null, cancelled: true })
+    }
+    if (err.code === 'ENOENT' || /osascript: not found/i.test(String(err.message || ''))) {
+      const support = getNativeDirectoryPickerSupportForRuntime(process.platform, false)
+      return res.status(support.status).json({
+        error: support.error,
+        supported: false,
+        canPastePath: true,
+      })
     }
     console.error('Error showing directory picker:', err)
     res.status(500).json({ error: err.message || 'Failed to show directory picker' })
   }
 })
+
+export const __test = {
+  getNativeDirectoryPickerSupportForRuntime,
+}
 
 // POST /api/skills - Create a new custom skill
 router.post('/', (req, res) => {

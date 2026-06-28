@@ -3982,6 +3982,11 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                                 return
                               }
 
+                              if (!res.ok) {
+                                setError(data.error || 'Browse is unavailable in this dashboard runtime. Paste a path manually instead.')
+                                return
+                              }
+
                               if (data.path) {
                                 setImportPath(data.path)
                                 setError(null)
@@ -4002,6 +4007,9 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                       </div>
                       <p className="text-xs text-gray-500 mt-1">
                         Click Browse to select a directory, or paste the full path manually
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        In cloud, containerized, or remote dashboard runtimes, Browse may be unavailable. Paste a path that the dashboard runtime itself can access.
                       </p>
                       <p className="text-xs text-gray-500">
                         Example: /Users/you/projects/mechdog-skill

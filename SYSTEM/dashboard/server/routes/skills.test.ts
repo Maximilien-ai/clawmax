@@ -38,7 +38,9 @@ let spawnMock: any = null
   return (originalSpawn as any)(...args)
 }) as typeof childProcess.spawn
 
-const router = require('./skills').default
+const skillsModule = require('./skills')
+const router = skillsModule.default
+const skillsRouteTestHooks = skillsModule.__test
 
 function restoreExecFile() {
   ;(childProcess as any).execFile = originalExecFile
@@ -144,6 +146,20 @@ async function run() {
     assert.strictEqual(res.statusCode, 200, 'Expected listing skills to return HTTP 200')
     assert(Array.isArray(res.jsonBody?.skills), 'Expected skills array in response')
     assert(res.jsonBody.skills.length > 0, 'Expected at least one available skill')
+  })
+
+  await test('native directory picker support reports unsupported runtimes cleanly', async () => {
+    const linuxSupport = skillsRouteTestHooks.getNativeDirectoryPickerSupportForRuntime('linux', false)
+    assert.strictEqual(linuxSupport.available, false, 'Expected non-macOS runtimes to disable browse')
+    assert.strictEqual(linuxSupport.status, 501, 'Expected unsupported browse to return HTTP 501')
+    assert(/paste a full path/i.test(linuxSupport.error || ''), 'Expected manual-path guidance for unsupported runtimes')
+
+    const darwinMissingBinary = skillsRouteTestHooks.getNativeDirectoryPickerSupportForRuntime('darwin', false)
+    assert.strictEqual(darwinMissingBinary.available, false, 'Expected missing osascript to disable browse')
+    assert(/osascript support is missing/i.test(darwinMissingBinary.error || ''), 'Expected missing osascript guidance')
+
+    const darwinSupported = skillsRouteTestHooks.getNativeDirectoryPickerSupportForRuntime('darwin', true)
+    assert.strictEqual(darwinSupported.available, true, 'Expected direct macOS runtimes with osascript to allow browse')
   })
 
   await test('install-requirements returns 400 when a skill has no dashboard-installable requirements', async () => {
