@@ -1,21 +1,21 @@
 # ClawMax Status
 
-**Current Version**: v1.9.0
-**Last Updated**: June 24, 2026
-**Status**: `v1.9.0` is the current promoted stable release from `main`. `1.9.1-test-rc2` is the active validation target for the next cleanup sprint: test backfill, operator diagnostics follow-through, public template/workflow sync, and remaining DocHub/workflow follow-through.
+**Current Version**: v1.9.1
+**Last Updated**: June 28, 2026
+**Status**: `v1.9.1` is the current promoted stable release. `main` has already moved onto the `1.9.2` line for diagnostics follow-through, DocHub/file-open closure, workflow/thread cleanup, selective public sync, and metering/workspace-state accuracy.
 
 ---
 
 ## Current State
 
-- `main` now contains the first `1.8.x` hardening pass, the `1.8.2` simplify/optimize slice, the `1.8.3` Add Agent regression fixes, the `1.8.4` agent delete UI cleanup, the `1.8.5` DocHub/notification polish pass, the `1.8.6` and `1.8.7` follow-through slices, the `1.8.8` template/workflow hardening pass, the `1.8.9` auth/runtime/chat stability pass, and the `1.9.0` workflow/thread/archive/operator hardening follow-through as the current stable baseline.
+- `main` now contains the first `1.8.x` hardening pass, the `1.8.2` simplify/optimize slice, the `1.8.3` Add Agent regression fixes, the `1.8.4` agent delete UI cleanup, the `1.8.5` DocHub/notification polish pass, the `1.8.6` and `1.8.7` follow-through slices, the `1.8.8` template/workflow hardening pass, the `1.8.9` auth/runtime/chat stability pass, the `1.9.0` workflow/thread/archive/operator hardening follow-through, and the promoted `1.9.1` stabilization line as the current stable baseline.
 - The `1.8.x` work is intentionally focused on hardening, simplification, regression safety, lightweight responsiveness wins, and backlog hygiene rather than major new feature scope.
 - Dashboard, CI, container images, cloud, and on-prem paths use the same tested OpenClaw `2026.5.26` baseline.
 - The release workflow now supports test images (`test-rcN`) and explicit promotion of validated images into official version tags.
 - Partner integrations are active product surfaces, including Resend, Cognee, Opik, GitHub, Senso, and partner plugin install/uninstall handling.
 - Resend has both dashboard test-email validation and first-party `clawmax-resend` agent-tool execution with runtime-secret support.
 - Cognee has a first-pass partner surface for cloud/self-hosted configuration and official OpenClaw plugin lifecycle management.
-- The latest reported full local integration run is green with `--with-validation --coverage`, including the expanded `369`-lane wrapper baseline and measured `c8` coverage of `77.25%` statements/lines, `67.18%` branches, and `88.27%` functions.
+- The latest reported full local integration run for the promoted `1.9.1` line is green with `--with-validation --coverage`, including the expanded `369`-lane wrapper baseline and measured `c8` coverage of `77.25%` statements/lines, `67.18%` branches, and `88.27%` functions.
 
 ## Active Release Track
 
@@ -23,10 +23,9 @@
 - Plans:
   - [planning/HARDENING_SIMPLIFICATION_1_8_X.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/HARDENING_SIMPLIFICATION_1_8_X.md)
   - [planning/SIMPLIFY_OPTIMIZE_1_8_X.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_OPTIMIZE_1_8_X.md)
-  - [planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_1.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_1.md)
+  - [planning/archive/SIMPLIFY_HARDEN_OPTIMIZE_1_9_1.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/archive/SIMPLIFY_HARDEN_OPTIMIZE_1_9_1.md)
   - [planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_2.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_2.md)
-- Near-term target: validate `1.9.1-test-rc2`, using the expanded `369`-count wrapper baseline plus cloud/on-prem image checks before deciding whether `1.9.1` needs more stabilization or is ready to promote.
-- Next line already queued if `1.9.1` validates cleanly: `1.9.2` for diagnostics follow-through, DocHub/file-open closure, workflow/thread cleanup, selective public sync, and metering/workspace-state accuracy.
+- Near-term target: cut and validate `1.9.2-test-rc1`, starting from the customer-facing skill-browse/runtime fix plus workflow diagnostics normalization already merged on `main`.
 
 ## Release References
 

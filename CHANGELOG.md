@@ -4,7 +4,7 @@ All notable changes to ClawMax are documented here.
 
 ## [Unreleased]
 
-## [v1.9.1] - pending validation
+## [v1.9.1] - 2026-06-28
 
 ### Changed
 - **Test Backfill Push** — the standard wrapper suite now surfaces substantially more helper/edge-case lanes across workspace scope/navigation, file mention parsing, navigation/plugin routing, notifications, markdown/file links, dropdown placement, prompt attachments, builder sessions, metering presentation, keys/secrets inventory, product icons, maintenance banners, skill tags, template search, auth, workspace upload, agent/workspace/template route edges, chat/workflow/gateway readiness, and related client/server helpers.
@@ -15,6 +15,9 @@ All notable changes to ClawMax are documented here.
 ### Testing
 - **Visible Wrapper Count Increase** — the default-safe wrapper count is now at `369` passing lanes on the current branch head.
 - **Measured Coverage Baseline** — the latest full wrapper run under `c8` is `77.25%` statements/lines, `67.18%` branches, and `88.27%` functions.
+
+### Release Validation
+- Promoted from `1.9.1-test-rc2` after cloud/on-prem validation on the `369`-lane wrapper baseline.
 
 ## [v1.9.0] - 2026-06-23
 

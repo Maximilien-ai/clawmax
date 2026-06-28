@@ -5,21 +5,20 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.9.0-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
+[![Version](https://img.shields.io/badge/version-1.9.1-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
 [![Tests](https://img.shields.io/badge/tests-96%20default--safe-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 Latest Stable Release: v1.9.0
+## 🔥 Latest Stable Release: v1.9.1
 
-- `1.9.0` packages the remaining hardening follow-through: archived-chat restore/continue, workflow stale-notification cleanup, group chat date separators, workflow-thread auth/runtime noise cleanup, runtime workflow channel inference, waiting-input conversation target inference, DocHub/file-open warmup fixes, host-agent warning scoping, and aligned chat/runtime diagnostic wording.
+- `1.9.1` is the stabilization release after `1.9.0`: broad test-backfill across client/server helper and route surfaces, opt-in wrapper `--coverage`, higher visible wrapper breadth, and a stronger measured regression baseline before the planned OpenClaw update track.
 
-## 🛠 Next Sprint: 1.9.1
+## 🛠 Next Sprint: 1.9.2
 
-- Active validation image: `1.9.1-test-rc2`
-- `1.9.1` is currently centered on test-backfill/stability work: broader helper-lane coverage, deeper server route/lib regression coverage, opt-in `--coverage` support in the normal wrapper flow, operator-facing diagnostics follow-through, selective public template/workflow sync, lingering DocHub/file-open edge cases, and any non-blocking workflow/thread polish that should stay out of the `1.9.0` release line.
-- Current measured wrapper baseline: `369` passing lanes on the full `integration --with-validation` path.
-- Current measured `c8` baseline on that same wrapper path: `77.25%` statements/lines, `67.18%` branches, and `88.27%` functions.
+- Next validation image: `1.9.2-test-rc1`
+- `1.9.2` starts with customer-facing cleanup after the `1.9.1` stabilization push: operator diagnostics follow-through, remaining DocHub/file-open closure, workflow/thread cleanup, selective public template/workflow sync, and metering/workspace-state accuracy.
+- Late `1.9.1` measured baseline before promotion: `369` passing wrapper lanes with `77.25%` statements/lines, `67.18%` branches, and `88.27%` functions on the full `integration --with-validation --coverage` path.
 
 ## ✨ 1.8.x Highlights
 
