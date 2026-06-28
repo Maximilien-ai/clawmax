@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
+import { detectLogRuntimeSignal } from '../lib/logRuntimeSignals'
 
 interface LogEntry {
   timestamp: string
@@ -81,11 +82,7 @@ export default function Logs() {
     return () => window.removeEventListener('open-doctor', handleOpenDoctor)
   }, [])
 
-  const runtimeHint = logs.find(log => log.raw.includes('missing dist/entry.(m)js'))
-    ? 'OpenClaw is present but not built in this runtime image. Rebuild the image from the canonical Dockerfile with the pinned OpenClaw build stage.'
-    : logs.find(log => log.raw.includes('openclaw fixture'))
-      ? 'This runtime is still using a fixture OpenClaw build instead of the real CLI/runtime.'
-      : null
+  const logRuntimeSignal = detectLogRuntimeSignal(logs.map((log) => log.raw), error)
   const visibleDoctorResults = (doctorResults?.results || [])
     .map((agent) => ({
       ...agent,
@@ -408,9 +405,15 @@ export default function Logs() {
         </div>
       )}
 
-      {runtimeHint && (
-        <div className="mb-4 p-3 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 text-sm text-amber-800 dark:text-amber-200">
-          {runtimeHint}
+      {logRuntimeSignal && (
+        <div className={`mb-4 rounded-lg border p-3 text-sm ${
+          logRuntimeSignal.severity === 'critical'
+            ? 'border-red-300 bg-red-50 text-red-800 dark:border-red-700 dark:bg-red-900/20 dark:text-red-200'
+            : 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200'
+        }`}>
+          <div className="font-semibold">{logRuntimeSignal.title}</div>
+          <div className="mt-1">{logRuntimeSignal.detail}</div>
+          <div className="mt-1 opacity-90">{logRuntimeSignal.hint}</div>
         </div>
       )}
 
