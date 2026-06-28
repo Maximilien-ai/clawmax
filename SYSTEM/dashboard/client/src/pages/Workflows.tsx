@@ -28,6 +28,7 @@ import {
 } from '../lib/workflowLoading'
 import { WorkspaceDocEntryRef } from '../lib/workspaceFiles'
 import { resolveNavigableWorkspaceDocPath } from '../lib/workspaceDocNavigation'
+import { summarizeWorkflowParticipantFailure } from '../lib/workflowRuntimeErrors'
 
 interface AgentTargeting {
   communities: string[]
@@ -386,10 +387,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   const aiEnabled = hasAiGenerationAccess(config)
   const aiReadiness = getAiGenerationReadiness(config)
   const formatParticipantError = React.useCallback((errorText: string) => {
-    if (/COMMS FAIL/i.test(errorText)) {
-      return 'Communication delivery failed. This workflow tried to post to a group or community that is missing or misconfigured.'
-    }
-    return errorText
+    return summarizeWorkflowParticipantFailure(errorText)
   }, [])
   const [workflows, setWorkflows] = useState<Workflow[]>([])
   const [selectedWorkflow, setSelectedWorkflow] = useState<WorkflowDetails | null>(null)

@@ -416,6 +416,17 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Workflow runtime errors helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/workflowRuntimeErrors.test.ts > /tmp/clawmax-workflow-runtime-errors.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-workflow-runtime-errors.out; then
+  workflow_runtime_errors_count=$(sed 's/\x1b\[[0-9;]*m//g' /tmp/clawmax-workflow-runtime-errors.out | sed -n 's/.*Tests passed: //p' | tail -n1 | tr -cd '0-9')
+  pass "Workflow runtime errors helper unit tests (${workflow_runtime_errors_count:-?} tests)"
+else
+  cat /tmp/clawmax-workflow-runtime-errors.out
+  fail "Workflow runtime errors helper unit tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Agent loading helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/agentLoading.test.ts > /tmp/clawmax-agent-loading.out 2>&1 || true
 if grep -q "agentLoading.test.ts:" /tmp/clawmax-agent-loading.out; then
