@@ -24,7 +24,9 @@
   - [planning/HARDENING_SIMPLIFICATION_1_8_X.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/HARDENING_SIMPLIFICATION_1_8_X.md)
   - [planning/SIMPLIFY_OPTIMIZE_1_8_X.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_OPTIMIZE_1_8_X.md)
   - [planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_1.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_1.md)
+  - [planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_2.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_2.md)
 - Near-term target: validate `1.9.1-test-rc2`, using the expanded `369`-count wrapper baseline plus cloud/on-prem image checks before deciding whether `1.9.1` needs more stabilization or is ready to promote.
+- Next line already queued if `1.9.1` validates cleanly: `1.9.2` for diagnostics follow-through, DocHub/file-open closure, workflow/thread cleanup, selective public sync, and metering/workspace-state accuracy.
 
 ## Release References
 
