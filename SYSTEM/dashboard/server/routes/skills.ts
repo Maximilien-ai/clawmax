@@ -64,6 +64,10 @@ function getNativeDirectoryPickerSupportForRuntime(
   return { available: true, status: 200 }
 }
 
+function getLocalSkillImportSourcePathGuidance(sourcePath: string) {
+  return `Source path "${sourcePath}" was not found in this dashboard runtime. If you are running in cloud, a container, or a remote/on-prem dashboard, paste a path that exists inside that runtime or copy/mount the skill directory there first.`
+}
+
 type SkillSetupSession = {
   id: string
   skillId: string
@@ -297,6 +301,7 @@ router.get('/browse-directory', async (req, res) => {
 
 export const __test = {
   getNativeDirectoryPickerSupportForRuntime,
+  getLocalSkillImportSourcePathGuidance,
 }
 
 // POST /api/skills - Create a new custom skill
@@ -824,14 +829,20 @@ router.post('/validate', (req, res) => {
 // Supports single skill dir or multi-skill dir (auto-detects skills/ subdirectory)
 router.post('/import', (req, res) => {
   try {
-    const { sourcePath } = req.body
+    const rawSourcePath = req.body?.sourcePath
+    const sourcePath = typeof rawSourcePath === 'string' ? rawSourcePath.trim() : ''
 
     if (!sourcePath) {
       return res.status(400).json({ error: 'sourcePath is required' })
     }
 
-    const fs = require('fs')
-    const path = require('path')
+    if (!fs.existsSync(sourcePath)) {
+      return res.status(400).json({ error: getLocalSkillImportSourcePathGuidance(sourcePath) })
+    }
+
+    if (!fs.statSync(sourcePath).isDirectory()) {
+      return res.status(400).json({ error: 'sourcePath must be a directory' })
+    }
 
     // Check if this is a multi-skill directory (has skills/ subdir with SKILL.md entries)
     const skillsSubdir = path.join(sourcePath, 'skills')

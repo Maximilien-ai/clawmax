@@ -373,6 +373,17 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Skills import edge-case unit tests...${NC}"
+npx ts-node --transpileOnly server/routes/skills-import-edges.test.ts > /tmp/clawmax-skills-import-edges.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-skills-import-edges.out; then
+  skills_import_edges_count=$(sed -n 's/^✓ /x/p' /tmp/clawmax-skills-import-edges.out | wc -l | tr -d ' ')
+  pass "Skills import edge-case unit tests (${skills_import_edges_count:-?} tests)"
+else
+  cat /tmp/clawmax-skills-import-edges.out
+  fail "Skills import edge-case unit tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Skill platform helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/skillPlatform.test.ts > /tmp/clawmax-skill-platform.out 2>&1 || true
 if grep -q "tests passed" /tmp/clawmax-skill-platform.out; then
