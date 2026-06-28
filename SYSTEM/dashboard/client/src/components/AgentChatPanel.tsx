@@ -9,7 +9,7 @@ import { ProductIconCell } from '../lib/productIcons'
 import { useAuth } from '../contexts/AuthContext'
 import { resolveAgentChatDocPath } from '../lib/agentChatDocs'
 import { transformWorkspaceMarkdownUrl } from '../lib/markdownLinks'
-import { extractWorkspaceFileMentions, linkifyWorkspaceFiles } from '../lib/workspaceFiles'
+import { extractWorkspaceFileMentions, linkifyWorkspaceFiles, parseWorkspaceDocEntriesResponse } from '../lib/workspaceFiles'
 import { summarizeAgentChatFailure } from '../lib/chatRuntimeErrors'
 
 interface Message {
@@ -246,10 +246,10 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
   useEffect(() => {
     let cancelled = false
     fetch('/api/docs')
-      .then((r) => r.ok ? r.json() : { entries: [] })
+      .then((r) => r.ok ? r.json() : {})
       .then((data) => {
         if (!cancelled) {
-          setDocEntries(Array.isArray(data.entries) ? data.entries : [])
+          setDocEntries(parseWorkspaceDocEntriesResponse(data))
         }
       })
       .catch(() => {})

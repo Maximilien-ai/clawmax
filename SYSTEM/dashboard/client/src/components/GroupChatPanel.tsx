@@ -13,7 +13,7 @@ import {
 import { ProductIconCell } from '../lib/productIcons'
 import { useAuth } from '../contexts/AuthContext'
 import { transformWorkspaceMarkdownUrl } from '../lib/markdownLinks'
-import { extractWorkspaceFileMentions, linkifyWorkspaceFiles } from '../lib/workspaceFiles'
+import { extractWorkspaceFileMentions, linkifyWorkspaceFiles, parseWorkspaceDocEntriesResponse } from '../lib/workspaceFiles'
 
 interface Message {
   id: string
@@ -225,9 +225,9 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
   useEffect(() => {
     let cancelled = false
     fetch('/api/docs')
-      .then((r) => r.ok ? r.json() : { entries: [] })
+      .then((r) => r.ok ? r.json() : {})
       .then((data) => {
-        if (!cancelled) setDocEntries(Array.isArray(data.entries) ? data.entries : [])
+        if (!cancelled) setDocEntries(parseWorkspaceDocEntriesResponse(data))
       })
       .catch(() => {
         if (!cancelled) setDocEntries([])

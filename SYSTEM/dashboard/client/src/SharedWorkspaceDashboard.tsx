@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { transformWorkspaceMarkdownUrl } from './lib/markdownLinks'
-import { extractWorkspaceFileMentions, linkifyWorkspaceFiles, normalizeWorkspaceFileTarget, resolveWorkspaceDocPath } from './lib/workspaceFiles'
+import { extractWorkspaceFileMentions, linkifyWorkspaceFiles, normalizeWorkspaceFileTarget, parseWorkspaceDocEntriesResponse, resolveWorkspaceDocPath } from './lib/workspaceFiles'
 import { resolveNavigableWorkspaceDocPath } from './lib/workspaceDocNavigation'
 
 interface SharedDashboardPayload {
@@ -419,7 +419,7 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
         const data = await res.json()
         if (!res.ok) throw new Error(data.error || 'Failed to load docs index')
         if (!cancelled) {
-          setDocEntries(Array.isArray(data.entries) ? data.entries : [])
+          setDocEntries(parseWorkspaceDocEntriesResponse(data))
         }
       } catch {
         if (!cancelled) {

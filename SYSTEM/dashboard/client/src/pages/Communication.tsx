@@ -4,6 +4,7 @@ import { useToast } from '../components/Toast'
 import { ConfirmDeleteDialog } from '../components/ConfirmDeleteDialog'
 import { buildBulkHistoryClearPlan, getChannelHistoryClearEndpoint } from '../lib/communicationBulkActions'
 import { resolveCommunicationDocPath } from '../lib/communicationMessages'
+import { parseWorkspaceDocEntriesResponse } from '../lib/workspaceFiles'
 import {
   headerPrimaryButtonClass,
   headerSecondaryButtonActiveClass,
@@ -178,9 +179,9 @@ export default function Communication({ onNavigateToAgent, onNavigateToWorkflow,
     if (!isActive) return
     let cancelled = false
     fetch('/api/docs')
-      .then((r) => r.ok ? r.json() : { entries: [] })
+      .then((r) => r.ok ? r.json() : {})
       .then((data) => {
-        if (!cancelled) setDocEntries(Array.isArray(data.entries) ? data.entries : [])
+        if (!cancelled) setDocEntries(parseWorkspaceDocEntriesResponse(data))
       })
       .catch(() => {
         if (!cancelled) setDocEntries([])

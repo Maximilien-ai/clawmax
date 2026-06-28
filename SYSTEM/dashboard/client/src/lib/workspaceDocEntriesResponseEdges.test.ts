@@ -31,6 +31,18 @@ test('parses legacy files payload entries', () => {
   )
 })
 
+test('parses entries payload entries', () => {
+  assert.deepStrictEqual(
+    parseWorkspaceDocEntriesResponse({
+      entries: [{ path: 'GROUPS/ops/NOTES.md' }, { path: 'COMMUNITIES/demo/README.md' }],
+    }),
+    [
+      { path: 'GROUPS/ops/NOTES.md' },
+      { path: 'COMMUNITIES/demo/README.md' },
+    ]
+  )
+})
+
 test('accepts string path arrays and trims blanks', () => {
   assert.deepStrictEqual(
     parseWorkspaceDocEntriesResponse({

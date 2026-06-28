@@ -20,6 +20,8 @@ export interface WorkspaceDocEntryRef {
 export function parseWorkspaceDocEntriesResponse(data: any): WorkspaceDocEntryRef[] {
   const candidates = Array.isArray(data?.docs)
     ? data.docs
+    : Array.isArray(data?.entries)
+      ? data.entries
     : Array.isArray(data?.files)
       ? data.files
       : []
