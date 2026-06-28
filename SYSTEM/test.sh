@@ -915,6 +915,16 @@ else
   fail "Log runtime signals unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Doctor runtime signals unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/doctorRuntimeSignals.test.ts > /tmp/clawmax-doctor-runtime-signals.out 2>&1 || true
+if grep -q "doctorRuntimeSignals.test.ts:" /tmp/clawmax-doctor-runtime-signals.out; then
+  doctor_runtime_signals_count=$(grep -o '[0-9]\+ tests passed' /tmp/clawmax-doctor-runtime-signals.out | head -1 | grep -o '[0-9]\+')
+  pass "Doctor runtime signals unit tests (${doctor_runtime_signals_count:-?} tests)"
+else
+  cat /tmp/clawmax-doctor-runtime-signals.out
+  fail "Doctor runtime signals unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Gateway RPC unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/gateway-rpc.test.ts > /tmp/clawmax-gateway-rpc.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-gateway-rpc.out; then

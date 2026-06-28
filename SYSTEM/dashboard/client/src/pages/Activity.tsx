@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { PageLoading, LoadingSpinner } from '../components/LoadingSpinner'
 import { ProductIconCell } from '../lib/productIcons'
+import { detectDoctorRuntimeSignal } from '../lib/doctorRuntimeSignals'
 import { formatMeteringCost, formatMeteringTokens, summarizeMeteringByAgentType } from '../lib/meteringPresentation'
 import { useWorkspace } from '../contexts/WorkspaceContext'
 import { buildWorkspaceScopedPath } from '../lib/workspaceScope'
@@ -903,6 +904,7 @@ function DoctorModal({ onClose }: { onClose: () => void }) {
       visibleChecks: (agent.checks || []).filter((check: any) => showInfoChecks || check.status !== 'pass'),
     }))
     .filter((agent: any) => showInfoChecks || agent.visibleChecks.length > 0)
+  const doctorRuntimeSignal = detectDoctorRuntimeSignal(results)
   useEffect(() => { runDoctor() }, [runDoctor])
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
@@ -926,6 +928,17 @@ function DoctorModal({ onClose }: { onClose: () => void }) {
         <div className="flex-1 overflow-y-auto p-6">
           {loading ? <div className="text-center text-gray-500 dark:text-gray-400 py-8">Running health checks...</div> : results ? (
             <div className="space-y-4">
+              {doctorRuntimeSignal && (
+                <div className={`rounded-lg border px-3 py-2 text-xs ${
+                  doctorRuntimeSignal.severity === 'critical'
+                    ? 'border-red-200 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200'
+                    : 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200'
+                }`}>
+                  <div className="font-semibold">{doctorRuntimeSignal.title}</div>
+                  <div className="mt-1">{doctorRuntimeSignal.detail}</div>
+                  <div className="mt-1 opacity-90">{doctorRuntimeSignal.hint}</div>
+                </div>
+              )}
               <div className="flex gap-3 text-sm flex-wrap">
                 <span className={`px-3 py-1.5 rounded-lg ${results.platform?.cli ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300' : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300'}`}>{results.platform?.cli ? '✓' : '✗'} CLI</span>
                 <span className={`px-3 py-1.5 rounded-lg ${isGatewayDoctorBadgeHealthy(results) ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300' : 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300'}`}>{isGatewayDoctorBadgeHealthy(results) ? '✓' : '⚠'} Gateway{results.platform?.gatewayPort ? `:${results.platform.gatewayPort}` : ''}</span>

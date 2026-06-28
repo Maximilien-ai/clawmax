@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
+import { detectDoctorRuntimeSignal } from '../lib/doctorRuntimeSignals'
 import { detectLogRuntimeSignal } from '../lib/logRuntimeSignals'
 
 interface LogEntry {
@@ -89,6 +90,7 @@ export default function Logs() {
       visibleChecks: (agent.checks || []).filter((check) => showDoctorInfoChecks || check.status !== 'pass'),
     }))
     .filter((agent) => showDoctorInfoChecks || agent.visibleChecks.length > 0)
+  const doctorRuntimeSignal = detectDoctorRuntimeSignal(doctorResults)
 
   const downloadLogs = () => {
     const lines = filteredLogs.map((log) => log.raw)
@@ -372,6 +374,17 @@ export default function Logs() {
             <div className="text-sm text-gray-500">Checking...</div>
           ) : (
             <div className="space-y-2">
+              {doctorRuntimeSignal && (
+                <div className={`rounded-lg border px-3 py-2 text-xs ${
+                  doctorRuntimeSignal.severity === 'critical'
+                    ? 'border-red-200 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200'
+                    : 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200'
+                }`}>
+                  <div className="font-semibold">{doctorRuntimeSignal.title}</div>
+                  <div className="mt-1">{doctorRuntimeSignal.detail}</div>
+                  <div className="mt-1 opacity-90">{doctorRuntimeSignal.hint}</div>
+                </div>
+              )}
               <div className="flex gap-2 text-xs flex-wrap">
                 <span className={`px-2 py-1 rounded ${doctorResults.platform?.cli ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'}`}>{doctorResults.platform?.cli ? '✓' : '✗'} CLI</span>
                 <span className={`px-2 py-1 rounded ${isGatewayBadgeHealthy(doctorResults) ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'}`}>{isGatewayBadgeHealthy(doctorResults) ? '✓' : '⚠'} Gateway{doctorResults.platform?.gatewayPort ? `:${doctorResults.platform.gatewayPort}` : ''}</span>
