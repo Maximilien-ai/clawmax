@@ -48,19 +48,13 @@ jobs:
             exit 1
           fi
 
-          commit_sha="$(curl -fsSL \
-            -H 'Accept: application/vnd.github+json' \
-            -H 'Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}' \
-            "https://api.github.com/repos/${{ github.repository }}/commits/${source_ref}" \
-            | jq -r '.sha // empty')"
-
-          if [ -z "$commit_sha" ]; then
-            echo "Unable to resolve source_ref '${source_ref}' to a commit SHA" >&2
-            exit 1
+          ref="${source_ref}"
+          if printf '%s' "${source_ref}" | grep -Eq '^[0-9a-f]{7,40}$'; then
+            ref="${source_ref}"
           fi
 
           {
-            echo "ref=${commit_sha}"
+            echo "ref=${ref}"
             echo "source_ref=${source_ref}"
             echo "test_tag=${test_tag}"
           } >> "$GITHUB_OUTPUT"
