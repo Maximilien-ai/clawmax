@@ -1,3 +1,6 @@
+import { summarizeAgentChatFailure } from './chatRuntimeErrors'
+import { summarizeWorkflowParticipantFailure } from './workflowRuntimeErrors'
+
 export interface NotificationAction {
   type: string
   label: string
@@ -110,4 +113,19 @@ export function getNotificationFooterActionLabel(notification: DashboardNotifica
   if (notification.entityType === 'budget') return 'View budget'
   if (notification.entityId && !notification.blockerType && notification.entityType !== 'agent') return 'View'
   return null
+}
+
+export function getNotificationDisplayMessage(notification: DashboardNotification): string {
+  const message = String(notification.message || '').trim()
+  if (!message) return ''
+
+  if (notification.type === 'agent-error' || notification.entityType === 'agent') {
+    return summarizeAgentChatFailure(message)
+  }
+
+  if (notification.type.startsWith('workflow-') || notification.entityType === 'workflow') {
+    return summarizeWorkflowParticipantFailure(message)
+  }
+
+  return message
 }

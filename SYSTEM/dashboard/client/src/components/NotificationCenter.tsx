@@ -7,6 +7,7 @@ import {
   filterNotifications,
   getArtifactDisplayName,
   getNotificationChannelTargetName,
+  getNotificationDisplayMessage,
   getNotificationFooterActionLabel,
   groupNotificationsByCategory,
   notificationHasPrimaryOpenAction,
@@ -333,7 +334,7 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToAgentChat, o
                             </button>
                             <span className="text-[10px] text-gray-400 dark:text-gray-500 shrink-0">{timeAgo(n.createdAt)}</span>
                           </div>
-                          <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">{n.message}</div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">{getNotificationDisplayMessage(n)}</div>
                           {n.type === 'artifact-update' && !n.grouped && (n.artifactPath || n.artifactUrl) && (
                             <button
                               type="button"
@@ -351,7 +352,7 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToAgentChat, o
                                   <div className="min-w-0">
                                     <div className="font-medium text-gray-700 dark:text-gray-200">{child.entityId || child.title}</div>
                                     <div className="truncate text-gray-500 dark:text-gray-400">
-                                      {child.artifactPath ? getArtifactDisplayName(child.artifactPath) : child.message}
+                                      {child.artifactPath ? getArtifactDisplayName(child.artifactPath) : getNotificationDisplayMessage(child)}
                                     </div>
                                   </div>
                                   {child.type === 'artifact-update' && (child.artifactPath || child.artifactUrl) && (
