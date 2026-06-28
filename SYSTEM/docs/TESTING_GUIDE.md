@@ -56,6 +56,28 @@ Current measured full-wrapper baseline:
 - Functions: `86.61%`
 - Lines: `74.74%`
 
+## RC Image Workflow
+
+Use the `Test Container Image` workflow with an advertised branch or tag ref only:
+
+```bash
+gh workflow run test-container-image.yml -f source_ref=main -f test_tag=rc1
+```
+
+Allowed `source_ref` examples:
+
+- `main`
+- `release/1.9.2`
+- `refs/tags/v1.9.2`
+
+Do not use a raw commit SHA such as `2b7323...` for `source_ref`.
+GitHub Actions checkout can reject bare SHAs in workflow-dispatch image builds with errors like:
+
+- `not our ref ...`
+- fetch/checkout failure before Docker build starts
+
+For exact provenance, use the workflow run's recorded `headSha` after the run starts instead of trying to dispatch from a bare SHA.
+
 ## Unit Tests (Section 0)
 
 Run standalone from `SYSTEM/dashboard/`:

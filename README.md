@@ -20,6 +20,11 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 - `1.9.2` starts with customer-facing cleanup after the `1.9.1` stabilization push: operator diagnostics follow-through, remaining DocHub/file-open closure, workflow/thread cleanup, selective public template/workflow sync, and metering/workspace-state accuracy.
 - Late `1.9.1` measured baseline before promotion: `369` passing wrapper lanes with `77.25%` statements/lines, `67.18%` branches, and `88.27%` functions on the full `integration --with-validation --coverage` path.
 
+RC image workflow note:
+- RC image builds must be dispatched from an advertised branch or tag ref such as `main` or `refs/tags/v1.9.2`.
+- Do not dispatch `test-container-image.yml` with a raw commit SHA. GitHub checkout can reject bare SHAs in workflow-dispatch builds, which causes image CI to fail before build/publish starts.
+- For reproducibility, use the run's recorded `headSha` to identify the exact tested source commit after the build starts.
+
 ## ✨ 1.8.x Highlights
 
 - `1.8.9`: stronger chat/runtime stability, waiting-for-input context routing, better workflow failure deep links, Builder/chat-history/WhatsApp fixes, and notification/workspace-switch cleanup.
