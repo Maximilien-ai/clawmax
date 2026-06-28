@@ -88,8 +88,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          tags="$(printf '%s\n%s' \
-            "${IMAGE_NAME}:test-${{ steps.vars.outputs.test_tag }}-${{ matrix.arch_tag }}" \
+          tags="$(printf '%s' \
             "${IMAGE_NAME}:${{ steps.version.outputs.semver }}-test-${{ steps.vars.outputs.test_tag }}-${{ matrix.arch_tag }}")"
 
           {
@@ -121,7 +120,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          image="${IMAGE_NAME}:test-${{ steps.vars.outputs.test_tag }}-${{ matrix.arch_tag }}"
+          image="${IMAGE_NAME}:${{ steps.version.outputs.semver }}-test-${{ steps.vars.outputs.test_tag }}-${{ matrix.arch_tag }}"
           expected="${{ steps.version.outputs.semver }}"
           expected_env="${{ steps.version.outputs.version }}"
 
@@ -157,8 +156,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          tags="$(printf '%s\n%s' \
-            "${IMAGE_NAME}:test-${{ needs.build.outputs.test_tag }}" \
+          tags="$(printf '%s' \
             "${IMAGE_NAME}:${{ needs.build.outputs.semver }}-test-${{ needs.build.outputs.test_tag }}")"
 
           {
@@ -189,10 +187,6 @@ jobs:
             [ -n "$tag" ] || continue
             suffix="${tag##*:}"
             case "$suffix" in
-              "test-${test_tag}")
-                source_a="${IMAGE_NAME}:test-${test_tag}-amd64"
-                source_b="${IMAGE_NAME}:test-${test_tag}-arm64"
-                ;;
               "${semver}-test-${test_tag}")
                 source_a="${IMAGE_NAME}:${semver}-test-${test_tag}-amd64"
                 source_b="${IMAGE_NAME}:${semver}-test-${test_tag}-arm64"
@@ -272,6 +266,6 @@ jobs:
             fi
           }
 
-          verify_image "${image}:test-${test_tag}" "linux/arm64" "${semver}" "${version}"
-          verify_image "${image}:test-${test_tag}-arm64" "linux/arm64" "${semver}" "${version}"
-          verify_image "${image}:test-${test_tag}-amd64" "linux/amd64" "${semver}" "${version}"
+          verify_image "${image}:${semver}-test-${test_tag}" "linux/arm64" "${semver}" "${version}"
+          verify_image "${image}:${semver}-test-${test_tag}-arm64" "linux/arm64" "${semver}" "${version}"
+          verify_image "${image}:${semver}-test-${test_tag}-amd64" "linux/amd64" "${semver}" "${version}"

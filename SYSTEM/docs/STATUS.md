@@ -11,7 +11,7 @@
 - `main` now contains the first `1.8.x` hardening pass, the `1.8.2` simplify/optimize slice, the `1.8.3` Add Agent regression fixes, the `1.8.4` agent delete UI cleanup, the `1.8.5` DocHub/notification polish pass, the `1.8.6` and `1.8.7` follow-through slices, the `1.8.8` template/workflow hardening pass, the `1.8.9` auth/runtime/chat stability pass, the `1.9.0` workflow/thread/archive/operator hardening follow-through, and the promoted `1.9.1` stabilization line as the current stable baseline.
 - The `1.8.x` work is intentionally focused on hardening, simplification, regression safety, lightweight responsiveness wins, and backlog hygiene rather than major new feature scope.
 - Dashboard, CI, container images, cloud, and on-prem paths use the same tested OpenClaw `2026.5.26` baseline.
-- The release workflow now supports test images (`test-rcN`) and explicit promotion of validated images into official version tags.
+- The release workflow now uses explicit versioned RC tags such as `1.9.2-test-rc1`, and promotion consumes those exact validated artifacts into official version tags.
 - Partner integrations are active product surfaces, including Resend, Cognee, Opik, GitHub, Senso, and partner plugin install/uninstall handling.
 - Resend has both dashboard test-email validation and first-party `clawmax-resend` agent-tool execution with runtime-secret support.
 - Cognee has a first-pass partner surface for cloud/self-hosted configuration and official OpenClaw plugin lifecycle management.

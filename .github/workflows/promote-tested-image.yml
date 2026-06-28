@@ -75,24 +75,24 @@ jobs:
           docker buildx imagetools create \
             -t "${image}:${version}-amd64" \
             -t "${image}:${semver}-amd64" \
-            "${image}:test-${test_tag}-amd64"
+            "${image}:${semver}-test-${test_tag}-amd64"
 
           docker buildx imagetools create \
             -t "${image}:${version}-arm64" \
             -t "${image}:${semver}-arm64" \
-            "${image}:test-${test_tag}-arm64"
+            "${image}:${semver}-test-${test_tag}-arm64"
 
           docker buildx imagetools create \
             -t "${image}:${version}" \
             -t "${image}:${semver}" \
-            "${image}:test-${test_tag}-amd64" \
-            "${image}:test-${test_tag}-arm64"
+            "${image}:${semver}-test-${test_tag}-amd64" \
+            "${image}:${semver}-test-${test_tag}-arm64"
 
           if [ "${{ steps.vars.outputs.publish_latest }}" = "true" ]; then
             docker buildx imagetools create \
               -t "${image}:latest" \
-              "${image}:test-${test_tag}-amd64" \
-              "${image}:test-${test_tag}-arm64"
+              "${image}:${semver}-test-${test_tag}-amd64" \
+              "${image}:${semver}-test-${test_tag}-arm64"
           fi
 
   registry-smoke:
