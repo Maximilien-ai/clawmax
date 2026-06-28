@@ -18,9 +18,17 @@ export interface WorkspaceDocEntryRef {
 }
 
 export function normalizeWorkspaceFileTarget(target: string): string {
-  const absoluteMatch = target.match(new RegExp(`(${WORKSPACE_ROOT_PREFIX}\\/[A-Za-z0-9_./-]+\\.${FILE_EXTENSION_PATTERN})`))
+  const trimmed = target.trim().replace(/^workspace-file:/, '')
+  const withoutSuffix = trimmed.split(/[?#]/, 1)[0] || ''
+  let decoded = withoutSuffix
+  try {
+    decoded = decodeURIComponent(withoutSuffix)
+  } catch {
+    decoded = withoutSuffix
+  }
+  const absoluteMatch = decoded.match(new RegExp(`(${WORKSPACE_ROOT_PREFIX}\\/[A-Za-z0-9_./ -]+\\.${FILE_EXTENSION_PATTERN})`))
   if (absoluteMatch) return absoluteMatch[1]
-  return target.trim()
+  return decoded
 }
 
 function isHiddenHelperPathContext(content: string, matchIndex: number): boolean {
