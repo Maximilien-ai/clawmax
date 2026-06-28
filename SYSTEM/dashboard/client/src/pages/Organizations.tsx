@@ -7,7 +7,7 @@ import { headerSecondaryButtonClass, headerSecondaryButtonIdleClass } from '../l
 import { buildOrganizationDeletePlan, buildOrganizationDisplayTeams } from '../lib/organizationTeams'
 import { ProductIconCell } from '../lib/productIcons'
 import { getViewportSafeDropdownStyle } from '../lib/dropdownPosition'
-import { WorkspaceDocEntryRef } from '../lib/workspaceFiles'
+import { parseWorkspaceDocEntriesResponse, WorkspaceDocEntryRef } from '../lib/workspaceFiles'
 import { resolveNavigableWorkspaceDocPath } from '../lib/workspaceDocNavigation'
 
 interface GroupEntry {
@@ -655,13 +655,7 @@ export default function Organizations({ onNavigateToAgent, onNavigateToWorkflow,
       .then((resp) => resp.ok ? resp.json() : Promise.reject(new Error('Failed to load docs')))
       .then((data) => {
         if (cancelled) return
-        setDocEntries(
-          Array.isArray(data?.files)
-            ? data.files
-                .map((file: any) => ({ path: String(file.path || '') }))
-                .filter((entry: WorkspaceDocEntryRef) => entry.path)
-            : []
-        )
+        setDocEntries(parseWorkspaceDocEntriesResponse(data))
       })
       .catch(() => {
         if (cancelled) return

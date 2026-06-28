@@ -17,6 +17,18 @@ export interface WorkspaceDocEntryRef {
   path: string
 }
 
+export function parseWorkspaceDocEntriesResponse(data: any): WorkspaceDocEntryRef[] {
+  const candidates = Array.isArray(data?.docs)
+    ? data.docs
+    : Array.isArray(data?.files)
+      ? data.files
+      : []
+
+  return candidates
+    .map((file: any) => ({ path: String(file?.path || file || '').trim() }))
+    .filter((entry: WorkspaceDocEntryRef) => !!entry.path)
+}
+
 export function normalizeWorkspaceFileTarget(target: string): string {
   const trimmed = target.trim().replace(/^workspace-file:/, '')
   const withoutSuffix = trimmed.split(/[?#]/, 1)[0] || ''

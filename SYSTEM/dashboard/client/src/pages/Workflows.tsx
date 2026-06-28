@@ -26,7 +26,7 @@ import {
   shouldFetchWorkflowsForWorkspace,
   shouldRunInitialWorkflowPoll,
 } from '../lib/workflowLoading'
-import { WorkspaceDocEntryRef } from '../lib/workspaceFiles'
+import { parseWorkspaceDocEntriesResponse, WorkspaceDocEntryRef } from '../lib/workspaceFiles'
 import { resolveNavigableWorkspaceDocPath } from '../lib/workspaceDocNavigation'
 import { summarizeWorkflowParticipantFailure } from '../lib/workflowRuntimeErrors'
 
@@ -485,13 +485,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
       .then((resp) => resp.ok ? resp.json() : Promise.reject(new Error('Failed to load docs')))
       .then((data) => {
         if (cancelled) return
-        setDocEntries(
-          Array.isArray(data?.files)
-            ? data.files
-                .map((file: any) => ({ path: String(file.path || '') }))
-                .filter((entry: WorkspaceDocEntryRef) => entry.path)
-            : []
-        )
+        setDocEntries(parseWorkspaceDocEntriesResponse(data))
       })
       .catch(() => {
         if (cancelled) return
