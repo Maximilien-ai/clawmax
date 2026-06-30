@@ -399,16 +399,25 @@ function isArchiveSessionFile(filename: string): boolean {
 
 function parseArchiveTimestamp(filename: string, fullPath: string): number {
   const suffixMatch = filename.match(/_(\d+)\.jsonl$/)
-  if (suffixMatch) return Number.parseInt(suffixMatch[1], 10)
+  if (suffixMatch) {
+    const parsed = Number.parseInt(suffixMatch[1], 10)
+    if (Number.isFinite(parsed) && parsed > 0) return parsed
+  }
 
   const prefixMatch = filename.match(/^(\d+)-.+\.jsonl$/)
-  if (prefixMatch) return Number.parseInt(prefixMatch[1], 10)
+  if (prefixMatch) {
+    const parsed = Number.parseInt(prefixMatch[1], 10)
+    if (Number.isFinite(parsed) && parsed > 0) return parsed
+  }
 
   try {
-    return fs.statSync(fullPath).mtimeMs
+    const statTime = fs.statSync(fullPath).mtimeMs
+    if (Number.isFinite(statTime) && statTime > 0) return statTime
   } catch {
-    return Date.now()
+    // fall through to Date.now()
   }
+
+  return Date.now()
 }
 
 function stripArchiveTitleNoise(text: string): string {

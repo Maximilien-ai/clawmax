@@ -1034,6 +1034,53 @@ async function run() {
     assert.equal(String(listRes.jsonBody?.archives?.[0]?.title || '').includes('Conversation context for this single-turn execution'), false, 'Expected stale cached runtime title to be replaced')
   })
 
+  await test('chat archives route falls back to file metadata when legacy archive filenames contain invalid timestamps', async () => {
+    writeAgent(workspacePath, 'bad-timestamp-archive-agent', [
+      '# IDENTITY.md',
+      '**Name:** bad-timestamp-archive-agent',
+      '**Model:** openai/gpt-4o-mini',
+      '**Role:** Test assistant',
+    ].join('\n'))
+
+    const configPath = path.join(tmpHome, '.openclaw', 'openclaw.json')
+    fs.writeFileSync(configPath, JSON.stringify({
+      agents: {
+        list: [{
+          id: 'bad-timestamp-archive-agent',
+          workspace: path.join(workspacePath, 'AGENTS', 'bad-timestamp-archive-agent'),
+          model: 'openai/gpt-4o-mini',
+        }],
+      },
+    }, null, 2))
+
+    const archiveDir = path.join(tmpHome, '.openclaw', 'agents', 'bad-timestamp-archive-agent', 'sessions', 'archive')
+    fs.mkdirSync(archiveDir, { recursive: true })
+
+    const archivePath = path.join(archiveDir, '0-agent-bad-timestamp-archive-agent-dashboard-chat--legacy.jsonl')
+    fs.writeFileSync(archivePath, [
+      JSON.stringify({
+        type: 'message',
+        timestamp: 2,
+        message: {
+          role: 'user',
+          content: [{ type: 'text', text: 'Reopen the deployment conversation' }],
+          timestamp: 2,
+        },
+      }),
+    ].join('\n'), 'utf-8')
+
+    const expectedTimestamp = fs.statSync(archivePath).mtimeMs
+
+    const listHandler = getRouteHandler('get', '/:id/chat/archives')
+    const listRes = makeRes()
+    await listHandler(makeReq({ params: { id: 'bad-timestamp-archive-agent' } }), listRes)
+
+    assert.strictEqual(listRes.statusCode, 200, 'Expected archive list success')
+    assert.strictEqual(listRes.jsonBody?.archives?.length, 1, 'Expected archive entry to remain visible')
+    assert(listRes.jsonBody?.archives?.[0]?.timestamp >= expectedTimestamp, 'Expected invalid legacy timestamp to fall back to file metadata')
+    assert.notStrictEqual(listRes.jsonBody?.archives?.[0]?.timestamp, 0, 'Expected invalid legacy timestamp not to surface as zero')
+  })
+
   await test('chat archive restore route reactivates an archived conversation as the current chat', async () => {
     writeAgent(workspacePath, 'restore-agent', [
       '# IDENTITY.md',
