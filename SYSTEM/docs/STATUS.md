@@ -27,8 +27,9 @@
   - [planning/archive/SIMPLIFY_HARDEN_OPTIMIZE_1_9_1.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/archive/SIMPLIFY_HARDEN_OPTIMIZE_1_9_1.md)
   - [planning/archive/SIMPLIFY_HARDEN_OPTIMIZE_1_9_2.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/archive/SIMPLIFY_HARDEN_OPTIMIZE_1_9_2.md)
   - [planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_3.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_3.md)
+  - [planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_4.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_4.md)
 - Near-term target: cut and validate `1.9.3-test-rc2`, carrying the chat archive list/resume fixes, the Templates mobile overflow and Workflows first-load stall hardening, and the on-prem custom-skill import guidance follow-through.
-- Next likely follow-through: continue `#158` / `#159` until archive metadata, resume, and reload/remount behavior are consistently stable, then close the new `1.9.2` validation regressions in the same line.
+- Next likely follow-through: promote `1.9.3` unless RC2/customer validation exposes a real ship blocker, then start `1.9.4` on shared provider-auth incident detection, repeated cron/workflow failure dedupe, and stronger doctor/preflight for runtime provider configuration.
 
 ## Release References
 
