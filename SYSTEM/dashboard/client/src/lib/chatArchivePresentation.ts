@@ -25,3 +25,7 @@ export function getChatArchiveTitle(archive: Pick<ChatArchiveSummary, 'title'>):
   const title = archive.title.trim()
   return title || 'Untitled conversation'
 }
+
+export function getChatArchiveStatusLabel(archive: Pick<ChatArchiveSummary, 'active' | 'filename'>): string | null {
+  return isCurrentChatArchive(archive) ? 'Current' : null
+}

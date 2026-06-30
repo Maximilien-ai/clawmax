@@ -4,6 +4,7 @@ import remarkGfm from 'remark-gfm'
 import {
   canRestoreChatArchive,
   formatChatArchiveTimestamp,
+  getChatArchiveStatusLabel,
   getChatArchiveTitle,
   isCurrentChatArchive,
   type ChatArchiveSummary,
@@ -393,8 +394,13 @@ export default function ChatPanel({ agentId, agentName, onClose }: Props) {
                           onClick={() => viewArchive(archive.filename)}
                           className="flex-1 text-left p-3"
                         >
-                    <div className="text-sm font-medium">
+                    <div className="flex items-center gap-2 text-sm font-medium">
                             {getChatArchiveTitle(archive)}
+                            {getChatArchiveStatusLabel(archive) && (
+                              <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-700">
+                                {getChatArchiveStatusLabel(archive)}
+                              </span>
+                            )}
                           </div>
                           <div className="text-xs text-gray-500 mt-1">
                             {formatChatArchiveTimestamp(archive.timestamp)} • {archive.messageCount} messages
@@ -416,8 +422,13 @@ export default function ChatPanel({ agentId, agentName, onClose }: Props) {
                         )}
                         <button
                           onClick={(e) => { e.stopPropagation(); setDeleteConfirm(archive.filename); }}
-                          className="p-3 text-red-400 hover:text-red-600 transition-colors"
-                          title="Delete archive"
+                          disabled={isCurrentChatArchive(archive)}
+                          className={`p-3 transition-colors ${
+                            isCurrentChatArchive(archive)
+                              ? 'text-gray-300 cursor-not-allowed'
+                              : 'text-red-400 hover:text-red-600'
+                          }`}
+                          title={isCurrentChatArchive(archive) ? 'Current conversation cannot be deleted from history' : 'Delete archive'}
                         >
                           🗑
                         </button>
