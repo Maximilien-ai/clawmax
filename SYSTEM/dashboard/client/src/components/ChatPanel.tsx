@@ -1,6 +1,13 @@
 import { useEffect, useState, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import {
+  canRestoreChatArchive,
+  formatChatArchiveTimestamp,
+  getChatArchiveTitle,
+  isCurrentChatArchive,
+  type ChatArchiveSummary,
+} from '../lib/chatArchivePresentation'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -22,10 +29,11 @@ export default function ChatPanel({ agentId, agentName, onClose }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [showClearConfirm, setShowClearConfirm] = useState(false)
   const [showArchives, setShowArchives] = useState(false)
-  const [archives, setArchives] = useState<Array<{ filename: string; timestamp: number; messageCount: number; title: string }>>([])
-  const [viewingArchive, setViewingArchive] = useState<{ filename: string; messages: Message[] } | null>(null)
+  const [archives, setArchives] = useState<ChatArchiveSummary[]>([])
+  const [viewingArchive, setViewingArchive] = useState<(ChatArchiveSummary & { messages: Message[] }) | null>(null)
   const [copyFeedback, setCopyFeedback] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
+  const [restoringArchive, setRestoringArchive] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -133,10 +141,38 @@ export default function ChatPanel({ agentId, agentName, onClose }: Props) {
     try {
       const r = await fetch(`/api/agents/${agentId}/chat/archives/${filename}`)
       const data = await r.json()
-      setViewingArchive({ filename, messages: data.messages || [] })
+      const archive = archives.find((entry) => entry.filename === filename)
+      setViewingArchive({
+        filename,
+        timestamp: archive?.timestamp || 0,
+        messageCount: archive?.messageCount || (data.messages || []).length,
+        title: archive?.title || '',
+        active: archive?.active === true,
+        messages: data.messages || [],
+      })
       setShowArchives(false)
     } catch (e) {
       console.error('Failed to load archive:', e)
+    }
+  }
+
+  async function restoreArchive(filename: string) {
+    setRestoringArchive(filename)
+    setError(null)
+    try {
+      const r = await fetch(`/api/agents/${agentId}/chat/archives/${filename}/restore`, { method: 'POST' })
+      const data = await r.json()
+      if (!r.ok) {
+        throw new Error(data?.error || 'Failed to restore archive')
+      }
+      setMessages(data.messages || [])
+      setViewingArchive(null)
+      setShowArchives(false)
+      await fetchArchivesList()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setRestoringArchive(null)
     }
   }
 
@@ -357,11 +393,11 @@ export default function ChatPanel({ agentId, agentName, onClose }: Props) {
                           onClick={() => viewArchive(archive.filename)}
                           className="flex-1 text-left p-3"
                         >
-                          <div className="text-sm font-medium">
-                            {archive.title || 'Untitled conversation'}
+                    <div className="text-sm font-medium">
+                            {getChatArchiveTitle(archive)}
                           </div>
                           <div className="text-xs text-gray-500 mt-1">
-                            {new Date(archive.timestamp).toLocaleDateString()} • {archive.messageCount} messages
+                            {formatChatArchiveTimestamp(archive.timestamp)} • {archive.messageCount} messages
                           </div>
                         </button>
                         <button
@@ -385,8 +421,22 @@ export default function ChatPanel({ agentId, agentName, onClose }: Props) {
           <div className="absolute inset-0 bg-black/20 flex items-center justify-center z-20">
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-2xl mx-4 max-h-[80vh] flex flex-col w-full">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-base font-semibold">Archived Chat</h3>
+                <h3 className="text-base font-semibold">{isCurrentChatArchive(viewingArchive) ? 'Current Chat' : 'Archived Chat'}</h3>
                 <div className="flex items-center gap-2">
+                  {canRestoreChatArchive(viewingArchive) && (
+                    <button
+                      onClick={() => void restoreArchive(viewingArchive.filename)}
+                      disabled={restoringArchive === viewingArchive.filename}
+                      className={`text-xs px-2 py-1 rounded transition-colors ${
+                        restoringArchive === viewingArchive.filename
+                          ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                          : 'text-sky-700 hover:bg-sky-50'
+                      }`}
+                      title="Restore this chat as the active conversation"
+                    >
+                      {restoringArchive === viewingArchive.filename ? '⏳ Restoring…' : '↺ Resume'}
+                    </button>
+                  )}
                   <button
                     onClick={() => copyToClipboard(viewingArchive.messages)}
                     className="text-xs px-2 py-1 text-gray-600 hover:bg-gray-100 rounded transition-colors dark:bg-gray-800 dark:hover:bg-gray-700"
@@ -403,7 +453,12 @@ export default function ChatPanel({ agentId, agentName, onClose }: Props) {
                   </button>
                   <button
                     onClick={() => setDeleteConfirm(viewingArchive.filename)}
-                    className="text-xs px-2 py-1 text-red-600 hover:bg-red-50 rounded transition-colors"
+                    disabled={isCurrentChatArchive(viewingArchive)}
+                    className={`text-xs px-2 py-1 rounded transition-colors ${
+                      isCurrentChatArchive(viewingArchive)
+                        ? 'text-gray-300 cursor-not-allowed'
+                        : 'text-red-600 hover:bg-red-50'
+                    }`}
                     title="Delete archive"
                   >
                     🗑 Delete
@@ -417,6 +472,9 @@ export default function ChatPanel({ agentId, agentName, onClose }: Props) {
                 </div>
               </div>
               <div className="overflow-y-auto flex-1 space-y-3 border border-gray-200 rounded p-4 dark:border-gray-700">
+                <div className="text-xs text-gray-500">
+                  {getChatArchiveTitle(viewingArchive)} • {formatChatArchiveTimestamp(viewingArchive.timestamp)}
+                </div>
                 {viewingArchive.messages.length === 0 ? (
                   <div className="flex items-center justify-center h-full text-gray-400 text-sm">
                     No messages in this archive

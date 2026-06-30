@@ -1167,6 +1167,16 @@ else
   fail "Agent chat session edge-case unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Chat archive presentation edge-case unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/chatArchivePresentation.test.ts > /tmp/clawmax-chat-archive-presentation.out 2>&1 || true
+if grep -q '^✓ ' /tmp/clawmax-chat-archive-presentation.out; then
+  chat_archive_presentation_count=$(grep -c '^✓ ' /tmp/clawmax-chat-archive-presentation.out || true)
+  pass "Chat archive presentation edge-case unit tests (${chat_archive_presentation_count:-?} tests)"
+else
+  cat /tmp/clawmax-chat-archive-presentation.out
+  fail "Chat archive presentation edge-case unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Agent template option helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/agentTemplateOptions.test.ts > /tmp/clawmax-agent-template-options.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-agent-template-options.out; then
