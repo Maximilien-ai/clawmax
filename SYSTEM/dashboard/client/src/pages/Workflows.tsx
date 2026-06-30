@@ -29,6 +29,7 @@ import {
 import { parseWorkspaceDocEntriesResponse, WorkspaceDocEntryRef } from '../lib/workspaceFiles'
 import { resolveNavigableWorkspaceDocPath } from '../lib/workspaceDocNavigation'
 import { summarizeWorkflowParticipantFailure } from '../lib/workflowRuntimeErrors'
+import { buildWorkflowDocsIndexPath, buildWorkflowsCollectionPath } from '../lib/workflowRequestPaths'
 
 interface AgentTargeting {
   communities: string[]
@@ -481,7 +482,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   useEffect(() => {
     if (!isActive || !onNavigateToDoc) return
     let cancelled = false
-    fetch('/api/docs')
+    fetch(buildWorkflowDocsIndexPath(activeWorkspace?.id))
       .then((resp) => resp.ok ? resp.json() : Promise.reject(new Error('Failed to load docs')))
       .then((data) => {
         if (cancelled) return
@@ -506,7 +507,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
     lastWorkflowFetchStartedAtRef.current = Date.now()
     loadedWorkflowWorkspaceRef.current = getWorkflowWorkspaceLoadKey(activeWorkspace?.id)
     if (!silent) setLoading(true)
-    fetch('/api/workflows')
+    fetch(buildWorkflowsCollectionPath(activeWorkspace?.id))
       .then(async r => {
         if (r.status === 429) {
           markRateLimited()
@@ -781,7 +782,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
       if (document.visibilityState !== 'visible') return
       if (Date.now() < rateLimitedUntil) return
       try {
-        const res = await fetch('/api/workflows')
+        const res = await fetch(buildWorkflowsCollectionPath(activeWorkspace?.id))
         if (res.status === 429) {
           markRateLimited()
           return

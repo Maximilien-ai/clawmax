@@ -426,6 +426,16 @@ else
   fail "Workflow loading helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Workflow request-path helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/workflowRequestPaths.test.ts > /tmp/clawmax-workflow-request-paths.out 2>&1 || true
+if grep -q "workflowRequestPaths.test.ts:" /tmp/clawmax-workflow-request-paths.out; then
+  workflow_request_paths_count=$(grep -o '[0-9]\+ tests passed' /tmp/clawmax-workflow-request-paths.out | head -1 | grep -o '[0-9]\+')
+  pass "Workflow request-path helper unit tests (${workflow_request_paths_count:-?} tests)"
+else
+  cat /tmp/clawmax-workflow-request-paths.out
+  fail "Workflow request-path helper unit tests"
+fi
+
 echo ""
 echo -e "${YELLOW}→ Running Workflow runtime errors helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/workflowRuntimeErrors.test.ts > /tmp/clawmax-workflow-runtime-errors.out 2>&1 || true
@@ -1526,6 +1536,16 @@ if grep -q "templateSearch.test.ts: ok" /tmp/clawmax-template-search.out; then
 else
   cat /tmp/clawmax-template-search.out
   fail "Template search helper unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Template layout helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/templateLayout.test.ts > /tmp/clawmax-template-layout.out 2>&1 || true
+if grep -q "templateLayout.test.ts:" /tmp/clawmax-template-layout.out; then
+  template_layout_count=$(grep -o '[0-9]\+ tests passed' /tmp/clawmax-template-layout.out | head -1 | grep -o '[0-9]\+')
+  pass "Template layout helper unit tests (${template_layout_count:-?} tests)"
+else
+  cat /tmp/clawmax-template-layout.out
+  fail "Template layout helper unit tests"
 fi
 
 echo -e "${YELLOW}→ Running Template search edge-case unit tests...${NC}"

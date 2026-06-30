@@ -13,6 +13,11 @@ import { organizationTemplateCanApplyNow } from '../lib/templateApplyReadiness'
 import { ProductIconCell, resolveTemplateVisual, resolveCategoryVisual } from '../lib/productIcons'
 import { matchesAgentTemplateSearch, matchesOrganizationTemplateSearch } from '../lib/templateSearch'
 import { getViewportSafeDropdownStyle } from '../lib/dropdownPosition'
+import {
+  TEMPLATE_FILTER_ROW_CLASSNAME,
+  TEMPLATE_HEADER_CONTROLS_CLASSNAME,
+  TEMPLATE_PAGE_CONTAINER_CLASSNAME,
+} from '../lib/templateLayout'
 
 function markTemplateLiteracy() {
   if (typeof window === 'undefined') return
@@ -1569,7 +1574,7 @@ export default function Templates() {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 sm:py-6">
+    <div className={TEMPLATE_PAGE_CONTAINER_CLASSNAME}>
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3 mb-6">
         <div className="min-w-0">
@@ -1581,7 +1586,7 @@ export default function Templates() {
           </p>
         </div>
         <div className="w-full sm:w-auto">
-          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
+          <div className={TEMPLATE_HEADER_CONTROLS_CLASSNAME}>
             <div className="flex w-full items-center border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden dark:border-gray-700 bg-white dark:bg-gray-800 sm:w-auto">
               <button
                 onClick={() => setViewMode('grid')}
@@ -1747,7 +1752,7 @@ export default function Templates() {
         )}
       </div>
 
-      <div className="flex gap-2 mb-4 flex-wrap">
+      <div className={TEMPLATE_FILTER_ROW_CLASSNAME}>
         {TEMPLATE_SOURCE_OPTIONS.map((option) => (
           <button
             key={option.key}
@@ -1796,7 +1801,7 @@ export default function Templates() {
       )}
 
       {/* Category filter */}
-      <div className="flex gap-2 mb-4">
+      <div className={TEMPLATE_FILTER_ROW_CLASSNAME}>
         {TEMPLATE_CATEGORY_OPTIONS.map(cat => (
           <button
             key={cat.key}
@@ -1823,7 +1828,7 @@ export default function Templates() {
         ))}
       </div>
 
-      <div className="flex gap-2 mb-4 flex-wrap">
+      <div className={TEMPLATE_FILTER_ROW_CLASSNAME}>
         {([
           { key: 'all', label: 'All Ratings' },
           { key: '4plus', label: '4★+' },
