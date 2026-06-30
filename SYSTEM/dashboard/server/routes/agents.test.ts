@@ -935,6 +935,105 @@ async function run() {
     assert(!String(listRes.jsonBody?.archives?.[0]?.title || '').includes('Conversation context for this single-turn execution'), 'Expected noisy injected context not to become the archive title')
   })
 
+  await test('chat archives route ignores runtime-only archive files with no visible chat messages', async () => {
+    writeAgent(workspacePath, 'runtime-only-archive-agent', [
+      '# IDENTITY.md',
+      '**Name:** runtime-only-archive-agent',
+      '**Model:** openai/gpt-4o-mini',
+      '**Role:** Test assistant',
+    ].join('\n'))
+
+    const configPath = path.join(tmpHome, '.openclaw', 'openclaw.json')
+    fs.writeFileSync(configPath, JSON.stringify({
+      agents: {
+        list: [{
+          id: 'runtime-only-archive-agent',
+          workspace: path.join(workspacePath, 'AGENTS', 'runtime-only-archive-agent'),
+          model: 'openai/gpt-4o-mini',
+        }],
+      },
+    }, null, 2))
+
+    const archiveDir = path.join(tmpHome, '.openclaw', 'agents', 'runtime-only-archive-agent', 'sessions', 'archive')
+    fs.mkdirSync(archiveDir, { recursive: true })
+
+    fs.writeFileSync(path.join(archiveDir, '1781888896343-agent-runtime-only-archive-agent-dashboard-chat--runtime.jsonl'), [
+      JSON.stringify({
+        type: 'message',
+        timestamp: 1,
+        message: {
+          role: 'system',
+          content: [{ type: 'text', text: 'Conversation context for this single-turn execution:' }],
+          timestamp: 1,
+        },
+      }),
+    ].join('\n'), 'utf-8')
+
+    const listHandler = getRouteHandler('get', '/:id/chat/archives')
+    const listRes = makeRes()
+    await listHandler(makeReq({ params: { id: 'runtime-only-archive-agent' } }), listRes)
+
+    assert.strictEqual(listRes.statusCode, 200, 'Expected archive list success')
+    assert.strictEqual(listRes.jsonBody?.archives?.length, 0, 'Expected runtime-only archive files to be excluded from the list')
+  })
+
+  await test('chat archives route regenerates stale noisy cached titles instead of reusing them', async () => {
+    writeAgent(workspacePath, 'cached-title-archive-agent', [
+      '# IDENTITY.md',
+      '**Name:** cached-title-archive-agent',
+      '**Model:** openai/gpt-4o-mini',
+      '**Role:** Test assistant',
+    ].join('\n'))
+
+    const configPath = path.join(tmpHome, '.openclaw', 'openclaw.json')
+    fs.writeFileSync(configPath, JSON.stringify({
+      agents: {
+        list: [{
+          id: 'cached-title-archive-agent',
+          workspace: path.join(workspacePath, 'AGENTS', 'cached-title-archive-agent'),
+          model: 'openai/gpt-4o-mini',
+        }],
+      },
+    }, null, 2))
+
+    const archiveDir = path.join(tmpHome, '.openclaw', 'agents', 'cached-title-archive-agent', 'sessions', 'archive')
+    fs.mkdirSync(archiveDir, { recursive: true })
+
+    const archiveFilename = '1781888896343-agent-cached-title-archive-agent-dashboard-chat--cached.jsonl'
+    fs.writeFileSync(path.join(archiveDir, archiveFilename), [
+      JSON.stringify({
+        type: 'message',
+        timestamp: 1,
+        message: {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'Conversation context for this single-turn execution:' }],
+          timestamp: 1,
+        },
+      }),
+      JSON.stringify({
+        type: 'message',
+        timestamp: 2,
+        message: {
+          role: 'user',
+          content: [{ type: 'text', text: 'Please continue the deployment checklist' }],
+          timestamp: 2,
+        },
+      }),
+    ].join('\n'), 'utf-8')
+
+    fs.writeFileSync(path.join(archiveDir, '.titles.json'), JSON.stringify({
+      [archiveFilename]: 'Conversation context for this single-turn execution:',
+    }, null, 2))
+
+    const listHandler = getRouteHandler('get', '/:id/chat/archives')
+    const listRes = makeRes()
+    await listHandler(makeReq({ params: { id: 'cached-title-archive-agent' } }), listRes)
+
+    assert.strictEqual(listRes.statusCode, 200, 'Expected archive list success')
+    assert.strictEqual(listRes.jsonBody?.archives?.length, 1, 'Expected archive entry to remain visible')
+    assert.equal(String(listRes.jsonBody?.archives?.[0]?.title || '').includes('Conversation context for this single-turn execution'), false, 'Expected stale cached runtime title to be replaced')
+  })
+
   await test('chat archive restore route reactivates an archived conversation as the current chat', async () => {
     writeAgent(workspacePath, 'restore-agent', [
       '# IDENTITY.md',

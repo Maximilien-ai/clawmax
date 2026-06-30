@@ -442,6 +442,14 @@ function getArchiveTitleMessages(messages: Array<{ role: 'user' | 'assistant'; c
   return meaningful.length > 0 ? meaningful : messages
 }
 
+function isUsableArchiveTitle(title: string | undefined): title is string {
+  if (typeof title !== 'string') return false
+  const normalized = stripArchiveTitleNoise(title)
+  if (!normalized) return false
+  if (/^empty conversation$/i.test(normalized)) return false
+  return normalized === title.trim() || normalized.length > 0
+}
+
 function getArchiveRestoreSessionId(agentId: string, homeDir: string = process.env.HOME || ''): string {
   const resolvedAgent = resolveAgentExecutionConfig(agentId)
   const sessionKey = getAgentDashboardSessionKey(agentId)
@@ -2515,8 +2523,6 @@ router.get('/:id/chat/archives', async (req, res) => {
             try {
               const obj = JSON.parse(line)
               if (obj.type === 'message' && obj.message) {
-                messageCount++
-
                 const msg = obj.message
                 if (!isVisibleChatRole(msg.role)) continue
                 let textContent = ''
@@ -2531,7 +2537,10 @@ router.get('/:id/chat/archives', async (req, res) => {
                 }
 
                 if (textContent && msg.role) {
-                  messages.push({ role: msg.role, content: normalizeChatMessage(textContent) })
+                  const normalized = normalizeChatMessage(textContent)
+                  if (!normalized) continue
+                  messageCount++
+                  messages.push({ role: msg.role, content: normalized })
                 }
               }
             } catch {
@@ -2565,6 +2574,9 @@ router.get('/:id/chat/archives', async (req, res) => {
     const archives = await Promise.all(
       fileInfos.map(async info => {
         let title = info.active ? 'Current conversation' : cachedTitles[info.filename]
+        if (!info.active && !isUsableArchiveTitle(title)) {
+          title = ''
+        }
 
         if (!title) {
           // Generate new title
