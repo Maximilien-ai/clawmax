@@ -99,6 +99,50 @@ export function groupNotificationsByCategory(notifications: DashboardNotificatio
   }, {})
 }
 
+function isSharedRuntimeAuthFailure(notification: DashboardNotification): boolean {
+  if (notification.grouped) return false
+  if (!(notification.type === 'agent-error' || notification.entityType === 'agent' || notification.type.startsWith('workflow-') || notification.entityType === 'workflow')) {
+    return false
+  }
+  const normalized = getNotificationDisplayMessage(notification).toLowerCase()
+  return normalized.includes('runtime auth error while contacting the configured model provider')
+}
+
+export function collapseSharedRuntimeAuthNotifications(notifications: DashboardNotification[]): DashboardNotification[] {
+  const authFailures = notifications.filter(isSharedRuntimeAuthFailure)
+  const uniqueEntities = new Set(authFailures.map((notification) => String(notification.entityId || notification.title || '').trim()).filter(Boolean))
+  if (authFailures.length < 3 || uniqueEntities.size < 2) return notifications
+
+  const groupedIds = authFailures.map((notification) => notification.id)
+  const groupedEntityIds = Array.from(uniqueEntities)
+  const latestCreatedAt = authFailures
+    .map((notification) => notification.createdAt)
+    .filter(Boolean)
+    .sort()
+    .slice(-1)[0] || new Date().toISOString()
+  const severity = authFailures.some((notification) => notification.severity === 'critical')
+    ? 'critical'
+    : authFailures.some((notification) => notification.severity === 'warning')
+      ? 'warning'
+      : 'info'
+  const incident: DashboardNotification = {
+    id: `shared-runtime-auth:${groupedIds.join('|')}`,
+    type: 'agent-error',
+    severity,
+    title: 'Shared model provider auth incident',
+    message: `${authFailures.length} agent/workflow failures are using the same runtime provider auth configuration. Check the shared provider key/configuration for this runtime.`,
+    entityType: 'agent',
+    createdAt: latestCreatedAt,
+    grouped: true,
+    groupedCount: authFailures.length,
+    groupedIds,
+    groupedChildren: [...authFailures].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '')),
+    groupedEntityIds,
+  }
+
+  return [incident, ...notifications.filter((notification) => !groupedIds.includes(notification.id))]
+}
+
 export function notificationHasPrimaryOpenAction(notification: DashboardNotification): boolean {
   if (notification.grouped) return false
   if (notification.type === 'artifact-update') return Boolean(notification.artifactPath || notification.artifactUrl)

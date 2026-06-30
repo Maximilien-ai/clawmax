@@ -822,6 +822,16 @@ else
   fail "Notification presentation runtime edge-case tests"
 fi
 
+echo -e "${YELLOW}→ Running Notification runtime incident summary unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/notificationRuntimeIncidentSummary.test.ts > /tmp/clawmax-notification-runtime-incident-summary.out 2>&1 || true
+if grep -q "tests passed" /tmp/clawmax-notification-runtime-incident-summary.out; then
+  notification_runtime_incident_summary_count=$(grep "notificationRuntimeIncidentSummary.test.ts:" /tmp/clawmax-notification-runtime-incident-summary.out | sed 's/.*notificationRuntimeIncidentSummary.test.ts: //' | tr -cd '0-9')
+  pass "Notification runtime incident summary unit tests (${notification_runtime_incident_summary_count:-?} tests)"
+else
+  cat /tmp/clawmax-notification-runtime-incident-summary.out
+  fail "Notification runtime incident summary unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Workspace artifact notification unit tests...${NC}"
 OPENCLAW_WORKSPACE=/tmp/clawmax-workspace-artifact-notifications npx ts-node --transpileOnly server/lib/workspace-artifact-notifications.test.ts > /tmp/clawmax-workspace-artifact-notifications.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-workspace-artifact-notifications.out; then

@@ -4,6 +4,7 @@ import {
   DashboardNotification as Notification,
   NotificationAction,
   NOTIFICATION_CATEGORY_LABELS,
+  collapseSharedRuntimeAuthNotifications,
   filterNotifications,
   getArtifactDisplayName,
   getNotificationChannelTargetName,
@@ -227,7 +228,7 @@ export function NotificationCenter({ onNavigateToAgent, onNavigateToAgentChat, o
     setOpen(false)
   }
 
-  const filtered = filterNotifications(notifications, searchQuery)
+  const filtered = filterNotifications(collapseSharedRuntimeAuthNotifications(notifications), searchQuery)
   const grouped = groupNotificationsByCategory(filtered)
 
   // Badge color
