@@ -26,7 +26,9 @@
   - [planning/SIMPLIFY_OPTIMIZE_1_8_X.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_OPTIMIZE_1_8_X.md)
   - [planning/archive/SIMPLIFY_HARDEN_OPTIMIZE_1_9_1.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/archive/SIMPLIFY_HARDEN_OPTIMIZE_1_9_1.md)
   - [planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_2.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_2.md)
+  - [planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_3.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_3.md)
 - Near-term target: cut and validate `1.9.2-test-rc1`, starting from the customer-facing skill-browse/runtime fix plus workflow diagnostics normalization already merged on `main`.
+- Next likely follow-through: `1.9.3` centered on chat archive correctness and archived conversation restore/resume (`#158` / `#159`) once `1.9.2` validation is settled.
 
 ## Release References
 
