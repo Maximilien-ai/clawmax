@@ -152,14 +152,24 @@ async function run() {
     const linuxSupport = skillsRouteTestHooks.getNativeDirectoryPickerSupportForRuntime('linux', false)
     assert.strictEqual(linuxSupport.available, false, 'Expected non-macOS runtimes to disable browse')
     assert.strictEqual(linuxSupport.status, 501, 'Expected unsupported browse to return HTTP 501')
-    assert(/paste a full path/i.test(linuxSupport.error || ''), 'Expected manual-path guidance for unsupported runtimes')
+    assert(/instead of a path on your laptop/i.test(linuxSupport.error || ''), 'Expected laptop-vs-runtime guidance for unsupported runtimes')
+    assert(/WORKSPACES\/.*\/SKILLS\/custom/i.test(linuxSupport.error || ''), 'Expected managed-skills directory guidance for unsupported runtimes')
+    assert(/SKILLS\/custom/i.test(linuxSupport.suggestedPath || ''), 'Expected suggested managed-skills path')
 
     const darwinMissingBinary = skillsRouteTestHooks.getNativeDirectoryPickerSupportForRuntime('darwin', false)
     assert.strictEqual(darwinMissingBinary.available, false, 'Expected missing osascript to disable browse')
-    assert(/osascript support is missing/i.test(darwinMissingBinary.error || ''), 'Expected missing osascript guidance')
+    assert(/path on your local machine/i.test(darwinMissingBinary.error || ''), 'Expected local-machine guidance when osascript is unavailable')
+    assert(/SKILLS\/custom/i.test(darwinMissingBinary.suggestedPath || ''), 'Expected suggested managed-skills path when osascript is unavailable')
 
     const darwinSupported = skillsRouteTestHooks.getNativeDirectoryPickerSupportForRuntime('darwin', true)
     assert.strictEqual(darwinSupported.available, true, 'Expected direct macOS runtimes with osascript to allow browse')
+  })
+
+  await test('local-skill missing path guidance explains laptop paths do not exist in remote runtimes', async () => {
+    const guidance = skillsRouteTestHooks.getLocalSkillImportSourcePathGuidance('/Users/miketoussaint/Documents/skill')
+    assert(/path from your laptop/i.test(guidance), 'Expected explicit laptop-path guidance')
+    assert(/copy\/mount the skill directory there first/i.test(guidance), 'Expected copy-or-mount guidance')
+    assert(/SKILLS\/custom/i.test(guidance), 'Expected managed-skills directory guidance')
   })
 
   await test('install-requirements returns 400 when a skill has no dashboard-installable requirements', async () => {

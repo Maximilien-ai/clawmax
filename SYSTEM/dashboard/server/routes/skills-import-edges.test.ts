@@ -64,6 +64,8 @@ async function main() {
     assert.match(res.jsonBody?.error || '', /dashboard runtime/i)
     assert.match(res.jsonBody?.error || '', /copy\/mount/i)
     assert.match(res.jsonBody?.error || '', /quickbooks-po-automation/)
+    assert.match(res.jsonBody?.error || '', /SKILLS\/custom/i)
+    assert.match(res.jsonBody?.suggestedPath || '', /SKILLS\/custom/i)
     assert.doesNotMatch(res.jsonBody?.error || '', /"  \//)
   })
 

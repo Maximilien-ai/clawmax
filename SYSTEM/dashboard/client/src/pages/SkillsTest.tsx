@@ -3983,6 +3983,9 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                               }
 
                               if (!res.ok) {
+                                if (typeof data.path === 'string' && data.path.trim()) {
+                                  setImportPath(data.path.trim())
+                                }
                                 setError(data.error || 'Browse is unavailable in this dashboard runtime. Paste a path manually instead.')
                                 return
                               }
@@ -4009,10 +4012,13 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                         Click Browse to select a directory, or paste the full path manually
                       </p>
                       <p className="text-xs text-gray-500">
-                        In cloud, containerized, or remote dashboard runtimes, Browse may be unavailable. Paste a path that the dashboard runtime itself can access.
+                        In cloud, containerized, or remote/on-prem dashboard runtimes, Browse may be unavailable. If the dashboard is not running on this same machine, a local path on your laptop will not work here.
                       </p>
                       <p className="text-xs text-gray-500">
-                        Example: /Users/you/projects/mechdog-skill
+                        Paste a path that exists inside the dashboard runtime, or copy/mount the directory there first. Managed custom skills normally live under `WORKSPACES/&lt;workspace&gt;/SKILLS/custom`.
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Example when the dashboard runs on your Mac: /Users/you/projects/mechdog-skill
                       </p>
                     </div>
                   </div>

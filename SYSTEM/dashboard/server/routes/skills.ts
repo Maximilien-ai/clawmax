@@ -14,6 +14,7 @@ import {
   getSkillSetupCommands,
   validateSkillChanges,
   stampImportedRegistrySkillMetadata,
+  getWorkspaceSkillsDir,
 } from '../lib/skills'
 import { getCuratedPartnerInstaller, listCuratedPartnerInstallers } from '../lib/partner-installs'
 import { generateSkillFromNL, setRequestByokKeys } from '../lib/ai-generator'
@@ -47,25 +48,29 @@ function getNativeDirectoryPickerSupportForRuntime(
   platform = process.platform,
   hasOsaScript = fs.existsSync('/usr/bin/osascript'),
 ) {
+  const managedSkillsDir = getWorkspaceSkillsDir()
   if (platform !== 'darwin') {
     return {
       available: false,
       status: 501,
-      error: 'Browse is only available when the dashboard runs directly on macOS. Paste a full path that this dashboard runtime can access instead.',
+      suggestedPath: managedSkillsDir,
+      error: `Browse is only available when the dashboard itself is running directly on macOS. If this is a cloud, container, or remote/on-prem dashboard, use a path inside that runtime instead of a path on your laptop. Managed custom skills live under ${managedSkillsDir}.`,
     }
   }
   if (!hasOsaScript) {
     return {
       available: false,
       status: 501,
-      error: 'Browse is unavailable in this dashboard runtime because macOS osascript support is missing. Paste a full path that this runtime can access instead.',
+      suggestedPath: managedSkillsDir,
+      error: `Browse is unavailable in this dashboard runtime because macOS osascript support is missing. Use a path that exists inside this runtime instead of a path on your local machine. Managed custom skills live under ${managedSkillsDir}.`,
     }
   }
   return { available: true, status: 200 }
 }
 
 function getLocalSkillImportSourcePathGuidance(sourcePath: string) {
-  return `Source path "${sourcePath}" was not found in this dashboard runtime. If you are running in cloud, a container, or a remote/on-prem dashboard, paste a path that exists inside that runtime or copy/mount the skill directory there first.`
+  const managedSkillsDir = getWorkspaceSkillsDir()
+  return `Source path "${sourcePath}" was not found in this dashboard runtime. If this dashboard is running in cloud, a container, or a remote/on-prem server, a path from your laptop (for example /Users/...) will not exist there. Paste a path that exists inside the dashboard runtime, or copy/mount the skill directory there first. Managed custom skills live under ${managedSkillsDir}.`
 }
 
 type SkillSetupSession = {
@@ -261,6 +266,8 @@ router.get('/browse-directory', async (req, res) => {
         error: support.error,
         supported: false,
         canPastePath: true,
+        suggestedPath: support.suggestedPath || null,
+        path: support.suggestedPath || null,
       })
     }
 
@@ -292,6 +299,8 @@ router.get('/browse-directory', async (req, res) => {
         error: support.error,
         supported: false,
         canPastePath: true,
+        suggestedPath: support.suggestedPath || null,
+        path: support.suggestedPath || null,
       })
     }
     console.error('Error showing directory picker:', err)
@@ -837,7 +846,11 @@ router.post('/import', (req, res) => {
     }
 
     if (!fs.existsSync(sourcePath)) {
-      return res.status(400).json({ error: getLocalSkillImportSourcePathGuidance(sourcePath) })
+      const suggestedPath = getWorkspaceSkillsDir()
+      return res.status(400).json({
+        error: getLocalSkillImportSourcePathGuidance(sourcePath),
+        suggestedPath,
+      })
     }
 
     if (!fs.statSync(sourcePath).isDirectory()) {
