@@ -18,12 +18,7 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 
 - Next validation image: `1.9.3-test-rc1`
 - `1.9.3` is focused on chat archives correctness and archived conversation restore/resume: broken archive rows/timestamps/title parsing plus clean resume back into the active conversation (`#158` / `#159`).
-- Current measured baseline on `main`: `378` passing wrapper lanes with `77.32%` statements/lines, `67.37%` branches, and `88.37%` functions on the full `integration --with-validation --coverage` path.
-
-RC image workflow note:
-- RC image builds must be dispatched from an advertised branch or tag ref such as `main` or `refs/tags/v1.9.3`.
-- Do not dispatch `test-container-image.yml` with a raw commit SHA. GitHub checkout can reject bare SHAs in workflow-dispatch builds, which causes image CI to fail before build/publish starts.
-- For reproducibility, use the run's recorded `headSha` to identify the exact tested source commit after the build starts.
+- Current measured baseline on `main`: `379` passing wrapper lanes with `77.32%` statements/lines, `67.39%` branches, and `88.38%` functions on the full `integration --with-validation --coverage` path.
 
 ## ✨ 1.8.x Highlights
 
