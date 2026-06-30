@@ -400,6 +400,20 @@ export default function ChatPanel({ agentId, agentName, onClose }: Props) {
                             {formatChatArchiveTimestamp(archive.timestamp)} • {archive.messageCount} messages
                           </div>
                         </button>
+                        {canRestoreChatArchive(archive) && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); void restoreArchive(archive.filename) }}
+                            disabled={restoringArchive === archive.filename}
+                            className={`p-3 transition-colors ${
+                              restoringArchive === archive.filename
+                                ? 'text-gray-300 cursor-not-allowed'
+                                : 'text-sky-500 hover:text-sky-700'
+                            }`}
+                            title="Resume this archived chat"
+                          >
+                            ↺
+                          </button>
+                        )}
                         <button
                           onClick={(e) => { e.stopPropagation(); setDeleteConfirm(archive.filename); }}
                           className="p-3 text-red-400 hover:text-red-600 transition-colors"
