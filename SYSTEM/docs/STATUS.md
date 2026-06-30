@@ -12,11 +12,11 @@
 - The `1.8.x` work is intentionally focused on hardening, simplification, regression safety, lightweight responsiveness wins, and backlog hygiene rather than major new feature scope.
 - Dashboard, CI, container images, cloud, and on-prem paths use the same tested OpenClaw `2026.5.26` baseline.
 - The release workflow now uses explicit versioned RC tags such as `1.9.2-test-rc1`, and promotion consumes those exact validated artifacts into official version tags.
-- RC image dispatch must use an advertised branch or tag ref such as `main` or `refs/tags/v1.9.2`, not a raw commit SHA. The workflow now rejects bare SHAs up front and relies on the run `headSha` for exact source traceability.
+- RC image dispatch must use an advertised branch or tag ref such as `main` or `refs/tags/v1.9.3`, not a raw commit SHA. The workflow now rejects bare SHAs up front and relies on the run `headSha` for exact source traceability.
 - Partner integrations are active product surfaces, including Resend, Cognee, Opik, GitHub, Senso, and partner plugin install/uninstall handling.
 - Resend has both dashboard test-email validation and first-party `clawmax-resend` agent-tool execution with runtime-secret support.
 - Cognee has a first-pass partner surface for cloud/self-hosted configuration and official OpenClaw plugin lifecycle management.
-- The latest reported full local integration run on the active `1.9.3` branch head is green with `--with-validation --coverage`, including the expanded `379`-lane wrapper baseline and measured `c8` coverage of `77.32%` statements/lines, `67.39%` branches, and `88.38%` functions.
+- The latest reported full local integration run on the active `1.9.3` branch head is green with `--with-validation --coverage`, including the expanded `382`-lane wrapper baseline and measured `c8` coverage of `77.41%` statements/lines, `67.37%` branches, and `88.61%` functions.
 
 ## Active Release Track
 
