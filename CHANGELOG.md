@@ -4,6 +4,20 @@ All notable changes to ClawMax are documented here.
 
 ## [Unreleased]
 
+## [v1.9.2] - 2026-06-30
+
+### Fixed
+- **Local Skill Import Runtime Guidance** — local skill browse/import now fails with clear runtime-visibility guidance instead of raw `osascript` shell noise, trims pasted local paths, and distinguishes missing paths from file-vs-directory mistakes in cloud/container/on-prem environments.
+- **Workflow / Logs / Notification / Doctor Diagnostics** — workflow participant failures, logs, notifications, and doctor surfaces now normalize raw provider/runtime/gateway/auth noise into clearer operator-facing messages for missing keys, invalid credentials, rate limits, cooldowns, missing runtime artifacts, and reconnect-class runtime faults.
+- **DocHub / File-Open Payload Parsing** — shared `/api/docs` response parsing now accepts `docs`, `entries`, and legacy `files` payload shapes consistently across Workflows, Organizations, Communication, shared dashboards, and chat surfaces.
+- **Workspace Doc Navigation URLs** — workspace doc navigation now correctly normalizes `workspace-file:` prefixes, fragments, query strings, and percent-encoded paths before resolving DocHub targets.
+
+### Testing
+- **Expanded 1.9.2 Coverage** — added visible regression lanes for workflow runtime errors, local skill-import edge cases, workspace doc-navigation URL parsing, log runtime signals, doctor runtime signals, notification runtime messaging, and docs-index response parsing.
+
+### Release Validation
+- Promoted from `1.9.2-test-rc1` after cloud/on-prem validation of the explicit versioned RC image tag flow and the customer-reported local skill import/runtime-path fixes.
+
 ## [v1.9.1] - 2026-06-28
 
 ### Changed

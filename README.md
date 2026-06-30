@@ -5,23 +5,23 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.9.1-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
+[![Version](https://img.shields.io/badge/version-1.9.2-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
 [![Tests](https://img.shields.io/badge/tests-96%20default--safe-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 Latest Stable Release: v1.9.1
+## 🔥 Latest Stable Release: v1.9.2
 
-- `1.9.1` is the stabilization release after `1.9.0`: broad test-backfill across client/server helper and route surfaces, opt-in wrapper `--coverage`, higher visible wrapper breadth, and a stronger measured regression baseline before the planned OpenClaw update track.
+- `1.9.2` is the customer-facing cleanup release after `1.9.1`: clearer workflow/log/notification/doctor diagnostics, safer local skill import/runtime-path handling, and more consistent DocHub/file-open payload parsing across dashboard surfaces.
 
-## 🛠 Next Sprint: 1.9.2
+## 🛠 Next Sprint: 1.9.3
 
-- Next validation image: `1.9.2-test-rc1`
-- `1.9.2` starts with customer-facing cleanup after the `1.9.1` stabilization push: operator diagnostics follow-through, remaining DocHub/file-open closure, workflow/thread cleanup, selective public template/workflow sync, and metering/workspace-state accuracy.
-- Late `1.9.1` measured baseline before promotion: `369` passing wrapper lanes with `77.25%` statements/lines, `67.18%` branches, and `88.27%` functions on the full `integration --with-validation --coverage` path.
+- Next validation image: `1.9.3-test-rc1`
+- `1.9.3` is focused on chat archives correctness and archived conversation restore/resume: broken archive rows/timestamps/title parsing plus clean resume back into the active conversation (`#158` / `#159`).
+- Current measured baseline on `main`: `378` passing wrapper lanes with `77.32%` statements/lines, `67.37%` branches, and `88.37%` functions on the full `integration --with-validation --coverage` path.
 
 RC image workflow note:
-- RC image builds must be dispatched from an advertised branch or tag ref such as `main` or `refs/tags/v1.9.2`.
+- RC image builds must be dispatched from an advertised branch or tag ref such as `main` or `refs/tags/v1.9.3`.
 - Do not dispatch `test-container-image.yml` with a raw commit SHA. GitHub checkout can reject bare SHAs in workflow-dispatch builds, which causes image CI to fail before build/publish starts.
 - For reproducibility, use the run's recorded `headSha` to identify the exact tested source commit after the build starts.
 

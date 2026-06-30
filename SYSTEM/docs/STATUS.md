@@ -1,8 +1,8 @@
 # ClawMax Status
 
-**Current Version**: v1.9.1
-**Last Updated**: June 28, 2026
-**Status**: `v1.9.1` is the current promoted stable release. `main` has already moved onto the `1.9.2` line for diagnostics follow-through, DocHub/file-open closure, workflow/thread cleanup, selective public sync, and metering/workspace-state accuracy.
+**Current Version**: v1.9.2
+**Last Updated**: June 30, 2026
+**Status**: `v1.9.2` is the current promoted stable release. `main` has already moved onto the `1.9.3` line for chat archive correctness and archived conversation restore/resume follow-through.
 
 ---
 
@@ -16,7 +16,7 @@
 - Partner integrations are active product surfaces, including Resend, Cognee, Opik, GitHub, Senso, and partner plugin install/uninstall handling.
 - Resend has both dashboard test-email validation and first-party `clawmax-resend` agent-tool execution with runtime-secret support.
 - Cognee has a first-pass partner surface for cloud/self-hosted configuration and official OpenClaw plugin lifecycle management.
-- The latest reported full local integration run for the promoted `1.9.1` line is green with `--with-validation --coverage`, including the expanded `369`-lane wrapper baseline and measured `c8` coverage of `77.25%` statements/lines, `67.18%` branches, and `88.27%` functions.
+- The latest reported full local integration run on the active `1.9.3` branch head is green with `--with-validation --coverage`, including the expanded `378`-lane wrapper baseline and measured `c8` coverage of `77.32%` statements/lines, `67.37%` branches, and `88.37%` functions.
 
 ## Active Release Track
 
@@ -25,10 +25,10 @@
   - [planning/HARDENING_SIMPLIFICATION_1_8_X.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/HARDENING_SIMPLIFICATION_1_8_X.md)
   - [planning/SIMPLIFY_OPTIMIZE_1_8_X.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_OPTIMIZE_1_8_X.md)
   - [planning/archive/SIMPLIFY_HARDEN_OPTIMIZE_1_9_1.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/archive/SIMPLIFY_HARDEN_OPTIMIZE_1_9_1.md)
-  - [planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_2.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_2.md)
+  - [planning/archive/SIMPLIFY_HARDEN_OPTIMIZE_1_9_2.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/archive/SIMPLIFY_HARDEN_OPTIMIZE_1_9_2.md)
   - [planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_3.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_3.md)
-- Near-term target: cut and validate `1.9.2-test-rc1`, starting from the customer-facing skill-browse/runtime fix plus workflow diagnostics normalization already merged on `main`.
-- Next likely follow-through: `1.9.3` centered on chat archive correctness and archived conversation restore/resume (`#158` / `#159`) once `1.9.2` validation is settled.
+- Near-term target: cut and validate `1.9.3-test-rc1`, starting from the chat archive list/resume fixes already merged on `main`.
+- Next likely follow-through: continue `#158` / `#159` until archive metadata, resume, and reload/remount behavior are consistently stable.
 
 ## Release References
 
