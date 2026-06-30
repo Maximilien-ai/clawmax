@@ -6,8 +6,14 @@ export interface ChatArchiveSummary {
   title: string
 }
 
+export type ChatArchiveOpenMode = 'archive' | 'current'
+
 export function isCurrentChatArchive(archive: Pick<ChatArchiveSummary, 'active' | 'filename'>): boolean {
   return archive.active === true || archive.filename.startsWith('current:')
+}
+
+export function getChatArchiveOpenMode(archive: Pick<ChatArchiveSummary, 'active' | 'filename'>): ChatArchiveOpenMode {
+  return isCurrentChatArchive(archive) ? 'current' : 'archive'
 }
 
 export function canRestoreChatArchive(archive: Pick<ChatArchiveSummary, 'active' | 'filename'>): boolean {

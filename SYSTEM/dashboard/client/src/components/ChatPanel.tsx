@@ -4,6 +4,7 @@ import remarkGfm from 'remark-gfm'
 import {
   canRestoreChatArchive,
   formatChatArchiveTimestamp,
+  getChatArchiveOpenMode,
   getChatArchiveStatusLabel,
   getChatArchiveTitle,
   isCurrentChatArchive,
@@ -155,6 +156,16 @@ export default function ChatPanel({ agentId, agentName, onClose }: Props) {
     } catch (e) {
       console.error('Failed to load archive:', e)
     }
+  }
+
+  async function openArchiveEntry(archive: ChatArchiveSummary) {
+    if (getChatArchiveOpenMode(archive) === 'current') {
+      setViewingArchive(null)
+      setShowArchives(false)
+      await fetchMessages()
+      return
+    }
+    await viewArchive(archive.filename)
   }
 
   async function restoreArchive(filename: string) {
@@ -391,7 +402,7 @@ export default function ChatPanel({ agentId, agentName, onClose }: Props) {
                         className="flex items-start gap-2 border border-gray-200 rounded hover:bg-gray-50 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-700"
                       >
                         <button
-                          onClick={() => viewArchive(archive.filename)}
+                          onClick={() => { void openArchiveEntry(archive) }}
                           className="flex-1 text-left p-3"
                         >
                     <div className="flex items-center gap-2 text-sm font-medium">
