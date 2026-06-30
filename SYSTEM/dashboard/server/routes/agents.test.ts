@@ -1154,8 +1154,10 @@ async function run() {
     await listHandler(makeReq({ params: { id: 'restore-agent' } }), listRes)
 
     assert.strictEqual(listRes.statusCode, 200, 'Expected archive list success after restore')
+    assert.strictEqual(listRes.jsonBody?.archives?.length, 1, 'Expected restored chat to replace its archived copy in the history list')
     assert.strictEqual(listRes.jsonBody?.archives?.[0]?.active, true, 'Expected restored conversation to become the current active history entry')
     assert.strictEqual(String(listRes.jsonBody?.archives?.[0]?.title || ''), 'Current conversation', 'Expected restored current history entry title')
+    assert.strictEqual(fs.existsSync(path.join(archiveDir, archiveFilename)), false, 'Expected restored archive file to be consumed from the archive directory')
   })
 
   await test('chat archive restore and delete routes reject current-session and path-traversal filenames', async () => {

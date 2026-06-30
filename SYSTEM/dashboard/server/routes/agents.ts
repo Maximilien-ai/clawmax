@@ -2610,6 +2610,7 @@ router.post('/:id/chat/archives/:filename/restore', async (req, res) => {
     const sessionsDir = getAgentSessionsDir(id, HOME)
     const archiveDir = path.join(sessionsDir, 'archive')
     const filePath = path.join(archiveDir, filename)
+    const titlesPath = path.join(archiveDir, '.titles.json')
 
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({ error: 'Archive not found' })
@@ -2624,6 +2625,19 @@ router.post('/:id/chat/archives/:filename/restore', async (req, res) => {
     const sessionId = getArchiveRestoreSessionId(id, HOME)
     const sessionPath = path.join(sessionsDir, `${sessionId}.jsonl`)
     fs.copyFileSync(filePath, sessionPath)
+    fs.unlinkSync(filePath)
+
+    try {
+      if (fs.existsSync(titlesPath)) {
+        const cachedTitles = JSON.parse(fs.readFileSync(titlesPath, 'utf-8'))
+        if (cachedTitles && typeof cachedTitles === 'object' && filename in cachedTitles) {
+          delete cachedTitles[filename]
+          fs.writeFileSync(titlesPath, JSON.stringify(cachedTitles, null, 2))
+        }
+      }
+    } catch {
+      // non-fatal cache cleanup
+    }
 
     const sessionsIndexPath = path.join(sessionsDir, 'sessions.json')
     const sessionKey = getAgentDashboardSessionKey(id)
