@@ -35,3 +35,13 @@ export function getChatArchiveTitle(archive: Pick<ChatArchiveSummary, 'title'>):
 export function getChatArchiveStatusLabel(archive: Pick<ChatArchiveSummary, 'active' | 'filename'>): string | null {
   return isCurrentChatArchive(archive) ? 'Current' : null
 }
+
+export function sortChatArchivesForDisplay<T extends Pick<ChatArchiveSummary, 'active' | 'filename' | 'timestamp'>>(archives: T[]): T[] {
+  return [...archives].sort((left, right) => {
+    const leftCurrent = isCurrentChatArchive(left)
+    const rightCurrent = isCurrentChatArchive(right)
+    if (leftCurrent && !rightCurrent) return -1
+    if (!leftCurrent && rightCurrent) return 1
+    return right.timestamp - left.timestamp
+  })
+}

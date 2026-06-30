@@ -8,6 +8,7 @@ import {
   getChatArchiveStatusLabel,
   getChatArchiveTitle,
   isCurrentChatArchive,
+  sortChatArchivesForDisplay,
   type ChatArchiveSummary,
 } from '../lib/chatArchivePresentation'
 
@@ -396,7 +397,7 @@ export default function ChatPanel({ agentId, agentName, onClose }: Props) {
                   <p className="text-sm text-gray-400 text-center py-8">No archives yet</p>
                 ) : (
                   <div className="space-y-2">
-                    {archives.map(archive => (
+                    {sortChatArchivesForDisplay(archives).map(archive => (
                       <div
                         key={archive.filename}
                         className="flex items-start gap-2 border border-gray-200 rounded hover:bg-gray-50 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-700"

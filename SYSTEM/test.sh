@@ -1197,6 +1197,16 @@ else
   fail "Chat archive open-mode unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Chat archive display-order unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/chatArchiveDisplayOrder.test.ts > /tmp/clawmax-chat-archive-display-order.out 2>&1 || true
+if grep -q '^✓ ' /tmp/clawmax-chat-archive-display-order.out; then
+  chat_archive_display_order_count=$(grep -c '^✓ ' /tmp/clawmax-chat-archive-display-order.out || true)
+  pass "Chat archive display-order unit tests (${chat_archive_display_order_count:-?} tests)"
+else
+  cat /tmp/clawmax-chat-archive-display-order.out
+  fail "Chat archive display-order unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Chat archive list presentation edge-case unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/chatArchiveListPresentation.test.ts > /tmp/clawmax-chat-archive-list-presentation.out 2>&1 || true
 if grep -q '^✓ ' /tmp/clawmax-chat-archive-list-presentation.out; then
