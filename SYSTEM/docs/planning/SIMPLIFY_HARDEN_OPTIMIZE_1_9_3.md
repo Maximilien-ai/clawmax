@@ -5,12 +5,14 @@
 
 ## Goal
 
-Use `1.9.3` as the focused chat-archives cleanup release after the `1.9.2` diagnostics and DocHub follow-through.
+Use `1.9.3` as the focused chat-archives cleanup release after the `1.9.2` diagnostics and DocHub follow-through, while closing the most visible new cloud/mobile regressions discovered during `1.9.2` validation.
 
 - fix the visible chat archive regressions reported in `#158`
 - restore proper continue / resume behavior for archived conversations from `#159`
 - keep the scope centered on chat archive correctness, not a broad chat rewrite
 - add explicit regression coverage for archive parsing, listing, restore, and resume behavior
+- fix the Templates mobile layout overflow regression seen on cloud Safari/iPhone
+- fix the Workflows first-load stall where the page can sit loading until a workspace switch/revisit
 
 ## Scope
 
@@ -43,6 +45,13 @@ Use `1.9.3` as the focused chat-archives cleanup release after the `1.9.2` diagn
 - [ ] add direct regression coverage for restore/resume endpoints and client behavior
 - [ ] use `--coverage` at meaningful checkpoints to ensure archive/runtime code, not only helper lanes, is moving
 - [ ] prefer real chat archive/server coverage over generic lane-count growth
+
+### Section 5: New 1.9.2 Validation Regressions
+
+- [ ] fix Templates page mobile overflow so filter/action chips and cards do not force horizontal spill on iPhone/Safari-sized viewports
+- [ ] add a direct regression for Templates mobile control wrapping or overflow-safe behavior
+- [ ] fix Workflows first-load behavior when cloud/workspace/doc initialization races leave the page stuck until switching away and back
+- [ ] add direct regression coverage for the Workflows initial-load state so the first visit succeeds without a workspace switch workaround
 
 ## Out of Scope
 

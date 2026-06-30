@@ -2,7 +2,7 @@
 
 **Current Version**: v1.9.2
 **Last Updated**: June 30, 2026
-**Status**: `v1.9.2` is the current promoted stable release. `main` has already moved onto the `1.9.3` line for chat archive correctness and archived conversation restore/resume follow-through.
+**Status**: `v1.9.2` is the current promoted stable release. `main` has already moved onto the `1.9.3` line for chat archive correctness, archived conversation restore/resume follow-through, and the newly surfaced cloud/mobile validation regressions on Templates and Workflows.
 
 ---
 
@@ -16,7 +16,7 @@
 - Partner integrations are active product surfaces, including Resend, Cognee, Opik, GitHub, Senso, and partner plugin install/uninstall handling.
 - Resend has both dashboard test-email validation and first-party `clawmax-resend` agent-tool execution with runtime-secret support.
 - Cognee has a first-pass partner surface for cloud/self-hosted configuration and official OpenClaw plugin lifecycle management.
-- The latest reported full local integration run on the active `1.9.3` branch head is green with `--with-validation --coverage`, including the expanded `378`-lane wrapper baseline and measured `c8` coverage of `77.32%` statements/lines, `67.37%` branches, and `88.37%` functions.
+- The latest reported full local integration run on the active `1.9.3` branch head is green with `--with-validation --coverage`, including the expanded `379`-lane wrapper baseline and measured `c8` coverage of `77.32%` statements/lines, `67.39%` branches, and `88.38%` functions.
 
 ## Active Release Track
 
@@ -27,8 +27,8 @@
   - [planning/archive/SIMPLIFY_HARDEN_OPTIMIZE_1_9_1.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/archive/SIMPLIFY_HARDEN_OPTIMIZE_1_9_1.md)
   - [planning/archive/SIMPLIFY_HARDEN_OPTIMIZE_1_9_2.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/archive/SIMPLIFY_HARDEN_OPTIMIZE_1_9_2.md)
   - [planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_3.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_3.md)
-- Near-term target: cut and validate `1.9.3-test-rc1`, starting from the chat archive list/resume fixes already merged on `main`.
-- Next likely follow-through: continue `#158` / `#159` until archive metadata, resume, and reload/remount behavior are consistently stable.
+- Near-term target: cut and validate `1.9.3-test-rc1`, starting from the chat archive list/resume fixes already merged on `main` plus the newly reported Templates mobile overflow and Workflows first-load stall.
+- Next likely follow-through: continue `#158` / `#159` until archive metadata, resume, and reload/remount behavior are consistently stable, then close the new `1.9.2` validation regressions in the same line.
 
 ## Release References
 
