@@ -2251,6 +2251,17 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Chat archive helper unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/chat-archives.test.ts > /tmp/clawmax-chat-archives.out 2>&1 || true
+if grep -q '^✓ ' /tmp/clawmax-chat-archives.out; then
+  chat_archives_count=$(grep -c '^✓ ' /tmp/clawmax-chat-archives.out || true)
+  pass "Chat archive helper unit tests (${chat_archives_count:-?} tests)"
+else
+  cat /tmp/clawmax-chat-archives.out
+  fail "Chat archive helper unit tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Chat route helper unit tests...${NC}"
 npx ts-node --transpileOnly server/routes/chat.test.ts > /tmp/clawmax-chat-routes.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-chat-routes.out; then
