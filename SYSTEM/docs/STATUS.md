@@ -1,8 +1,8 @@
 # ClawMax Status
 
-**Current Version**: v1.9.2
-**Last Updated**: June 30, 2026
-**Status**: `v1.9.2` is the current promoted stable release. `main` has already moved onto the `1.9.3` line for chat archive correctness, archived conversation restore/resume follow-through, and the newly surfaced cloud/mobile validation regressions on Templates and Workflows.
+**Current Version**: v1.9.3
+**Last Updated**: July 1, 2026
+**Status**: `v1.9.3` is the current promoted stable release. `main` has already moved onto the `1.9.4` line for provider/runtime incident hardening after the `1.9.3` chat-archives and validation-regression cleanup release.
 
 ---
 
@@ -16,7 +16,7 @@
 - Partner integrations are active product surfaces, including Resend, Cognee, Opik, GitHub, Senso, and partner plugin install/uninstall handling.
 - Resend has both dashboard test-email validation and first-party `clawmax-resend` agent-tool execution with runtime-secret support.
 - Cognee has a first-pass partner surface for cloud/self-hosted configuration and official OpenClaw plugin lifecycle management.
-- The latest reported full local integration run on the active `1.9.3` branch head is green with `--with-validation --coverage`, including the expanded `383`-lane wrapper baseline and measured `c8` coverage of `77.32%` statements/lines, `67.41%` branches, and `88.41%` functions.
+- The latest reported full local integration run on the active `1.9.4` branch head is green with `--with-validation --coverage`, including the expanded `383`-lane wrapper baseline and measured `c8` coverage of `77.32%` statements/lines, `67.41%` branches, and `88.41%` functions.
 
 ## Active Release Track
 
@@ -26,10 +26,10 @@
   - [planning/SIMPLIFY_OPTIMIZE_1_8_X.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_OPTIMIZE_1_8_X.md)
   - [planning/archive/SIMPLIFY_HARDEN_OPTIMIZE_1_9_1.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/archive/SIMPLIFY_HARDEN_OPTIMIZE_1_9_1.md)
   - [planning/archive/SIMPLIFY_HARDEN_OPTIMIZE_1_9_2.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/archive/SIMPLIFY_HARDEN_OPTIMIZE_1_9_2.md)
-  - [planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_3.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_3.md)
+  - [planning/archive/SIMPLIFY_HARDEN_OPTIMIZE_1_9_3.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/archive/SIMPLIFY_HARDEN_OPTIMIZE_1_9_3.md)
   - [planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_4.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_4.md)
-- Near-term target: cut and validate `1.9.3-test-rc2`, carrying the chat archive list/resume fixes, the Templates mobile overflow and Workflows first-load stall hardening, and the on-prem custom-skill import guidance follow-through.
-- Next likely follow-through: promote `1.9.3` unless RC2/customer validation exposes a real ship blocker, then start `1.9.4` on shared provider-auth incident detection, repeated cron/workflow failure dedupe, and stronger doctor/preflight for runtime provider configuration.
+- Near-term target: cut and validate `1.9.4-test-rc1`, starting from the first shared runtime auth-incident summarization pass and the new `1.9.4` provider/runtime hardening plan.
+- Next likely follow-through: continue `1.9.4` with provider-specific diagnosis, repeated cron/workflow failure suppression, and stronger doctor/preflight for runtime provider configuration.
 
 ## Release References
 

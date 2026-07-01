@@ -4,6 +4,20 @@ All notable changes to ClawMax are documented here.
 
 ## [Unreleased]
 
+## [v1.9.3] - 2026-07-01
+
+### Fixed
+- **Chat Archive Correctness / Resume** — archived chat history now filters runtime-only rows, sanitizes malformed legacy timestamps, keeps the current conversation distinct from archived rows, restores archived chats cleanly back into the active conversation, consumes restored archive copies instead of duplicating them, and keeps archive ordering stable across remounts.
+- **Templates Mobile Layout** — Templates now avoids the mobile overflow regression on narrow Safari/iPhone-sized viewports by using wrapping-safe control rows and overflow-safe page containers.
+- **Workflows First-Load Initialization** — Workflows initial-load and polling requests now use workspace-scoped paths consistently, reducing first-visit stalls that previously cleared only after switching workspaces and back.
+- **On-Prem Custom Skill Import Guidance** — unsupported local browse/import flows now explain the runtime-host vs laptop distinction clearly and point users at the managed workspace custom-skills directory for cloud/on-prem installs.
+
+### Testing
+- **Expanded 1.9.3 Coverage** — added visible regression lanes for chat archive presentation/open mode/list state/display order, archive helper behavior, template mobile layout, workflow request paths, and on-prem skill import/runtime-path guidance.
+
+### Release Validation
+- Promoted from `1.9.3-test-rc1` after chat archive, mobile Templates, first-load Workflows, and on-prem skill-import validation.
+
 ## [v1.9.2] - 2026-06-30
 
 ### Fixed

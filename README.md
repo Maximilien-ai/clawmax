@@ -10,14 +10,14 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 
 ---
 
-## 🔥 Latest Stable Release: v1.9.2
+## 🔥 Latest Stable Release: v1.9.3
 
-- `1.9.2` is the customer-facing cleanup release after `1.9.1`: clearer workflow/log/notification/doctor diagnostics, safer local skill import/runtime-path handling, and more consistent DocHub/file-open payload parsing across dashboard surfaces.
+- `1.9.3` is the chat-archives and validation-regression cleanup release after `1.9.2`: archive list/resume correctness, safer current-vs-archived conversation behavior, Templates mobile overflow hardening, Workflows first-load initialization fixes, and stronger on-prem custom-skill import guidance.
 
-## 🛠 Next Sprint: 1.9.3
+## 🛠 Next Sprint: 1.9.4
 
-- Next validation image: `1.9.3-test-rc2`
-- `1.9.3` is focused on chat archives correctness and archived conversation restore/resume: broken archive rows/timestamps/title parsing plus clean resume back into the active conversation (`#158` / `#159`).
+- Next validation image: `1.9.4-test-rc1`
+- `1.9.4` is focused on provider/runtime incident hardening: shared provider-auth incident detection, repeated cron/workflow auth-failure dedupe, and stronger doctor/preflight guidance for cloud/on-prem runtime provider configuration.
 - Current measured baseline on `main`: `383` passing wrapper lanes with `77.32%` statements/lines, `67.41%` branches, and `88.41%` functions on the full `integration --with-validation --coverage` path.
 
 ## ✨ 1.8.x Highlights
