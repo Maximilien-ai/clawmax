@@ -1199,8 +1199,8 @@ fi
 
 echo -e "${YELLOW}→ Running Chat archive open-mode unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/chatArchiveOpenMode.test.ts > /tmp/clawmax-chat-archive-open-mode.out 2>&1 || true
-if grep -q "ℹ pass " /tmp/clawmax-chat-archive-open-mode.out; then
-  chat_archive_open_mode_count=$(grep -oE 'ℹ pass [0-9]+' /tmp/clawmax-chat-archive-open-mode.out | tail -1 | awk '{print $3}')
+if grep -qE 'fail 0' /tmp/clawmax-chat-archive-open-mode.out; then
+  chat_archive_open_mode_count=$(grep -oE 'pass [0-9]+' /tmp/clawmax-chat-archive-open-mode.out | tail -1 | awk '{print $2}')
   pass "Chat archive open-mode unit tests (${chat_archive_open_mode_count:-?} tests)"
 else
   cat /tmp/clawmax-chat-archive-open-mode.out
