@@ -29,9 +29,9 @@ function test(name: string, run: () => void) {
 
 test('collapses repeated shared runtime auth failures into one grouped incident', () => {
   const items = [
-    notification({ id: 'a1', entityId: 'dev-team-engineer1', createdAt: '2026-06-30T23:00:00.000Z' }),
-    notification({ id: 'a2', entityId: 'dev-team-engineer2', createdAt: '2026-06-30T23:01:00.000Z' }),
-    notification({ id: 'a3', entityId: 'dev-team-tech-lead', createdAt: '2026-06-30T23:02:00.000Z' }),
+    notification({ id: 'a1', entityId: 'dev-team-engineer1', createdAt: '2026-06-30T23:00:00.000Z', message: 'No API key found for provider \"openai\"' }),
+    notification({ id: 'a2', entityId: 'dev-team-engineer2', createdAt: '2026-06-30T23:01:00.000Z', message: 'No API key found for provider \"openai\"' }),
+    notification({ id: 'a3', entityId: 'dev-team-tech-lead', createdAt: '2026-06-30T23:02:00.000Z', message: 'No API key found for provider \"openai\"' }),
     notification({ id: 'other', type: 'cost-warning', severity: 'warning', title: 'Budget', message: 'Budget warning: 90% used', entityType: 'budget', createdAt: '2026-06-30T23:03:00.000Z' }),
   ]
 
@@ -41,7 +41,7 @@ test('collapses repeated shared runtime auth failures into one grouped incident'
   assert(incident.grouped === true, 'Expected synthetic auth incident to be grouped')
   assert(incident.groupedCount === 3, `Expected grouped count 3, got ${incident.groupedCount}`)
   assert((incident.groupedChildren || []).length === 3, 'Expected grouped children to be preserved')
-  assert(/shared provider key\/configuration/i.test(incident.message), `Unexpected incident message: ${incident.message}`)
+  assert(/missing shared model provider credentials/i.test(incident.message), `Unexpected incident message: ${incident.message}`)
 })
 
 test('leaves sparse auth failures uncollapsed', () => {
@@ -64,6 +64,17 @@ test('does not collapse unrelated normalized failures', () => {
 
   const collapsed = collapseSharedRuntimeAuthNotifications(items)
   assert(collapsed.length === 3, `Expected unrelated failures to remain unchanged, got ${collapsed.length}`)
+})
+
+test('incident message distinguishes rejected shared api keys', () => {
+  const items = [
+    notification({ id: 'a1', entityId: 'dev-team-engineer1', message: 'FailoverError: 401 Incorrect API key provided: openai-cible.' }),
+    notification({ id: 'a2', entityId: 'dev-team-engineer2', message: 'FailoverError: 401 Incorrect API key provided: openai-cible.' }),
+    notification({ id: 'a3', entityId: 'dev-team-tech-lead', message: 'FailoverError: 401 Incorrect API key provided: openai-cible.' }),
+  ]
+
+  const collapsed = collapseSharedRuntimeAuthNotifications(items)
+  assert(/api key that was rejected/i.test(collapsed[0]?.message || ''), `Expected rejected-key guidance, got ${collapsed[0]?.message}`)
 })
 
 let passed = 0

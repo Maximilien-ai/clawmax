@@ -105,7 +105,23 @@ function isSharedRuntimeAuthFailure(notification: DashboardNotification): boolea
     return false
   }
   const normalized = getNotificationDisplayMessage(notification).toLowerCase()
+  const raw = String(notification.message || '').toLowerCase()
   return normalized.includes('runtime auth error while contacting the configured model provider')
+    || /no api key found for provider|incorrect api key provided|has auth issue \(skipping all models\)/i.test(raw)
+}
+
+function buildSharedRuntimeAuthIncidentMessage(authFailures: DashboardNotification[]): string {
+  const messages = authFailures.map((notification) => String(notification.message || ''))
+  if (messages.some((message) => /No API key found for provider/i.test(message))) {
+    return 'Multiple agent/workflow failures are missing shared model provider credentials in this runtime. Add the provider key/auth profile once and retry the affected jobs.'
+  }
+  if (messages.some((message) => /Incorrect API key provided/i.test(message))) {
+    return 'Multiple agent/workflow failures are using a shared model provider API key that was rejected. Update the runtime provider key/auth profile and retry the affected jobs.'
+  }
+  if (messages.some((message) => /has auth issue \(skipping all models\)/i.test(message))) {
+    return 'This runtime is marked with a shared provider auth issue from an earlier failed request. Refresh the runtime auth profile or provider key, then retry the affected jobs once the auth state clears.'
+  }
+  return `${authFailures.length} agent/workflow failures are using the same runtime provider auth configuration. Check the shared provider key/configuration for this runtime.`
 }
 
 export function collapseSharedRuntimeAuthNotifications(notifications: DashboardNotification[]): DashboardNotification[] {
@@ -130,7 +146,7 @@ export function collapseSharedRuntimeAuthNotifications(notifications: DashboardN
     type: 'agent-error',
     severity,
     title: 'Shared model provider auth incident',
-    message: `${authFailures.length} agent/workflow failures are using the same runtime provider auth configuration. Check the shared provider key/configuration for this runtime.`,
+    message: buildSharedRuntimeAuthIncidentMessage(authFailures),
     entityType: 'agent',
     createdAt: latestCreatedAt,
     grouped: true,
