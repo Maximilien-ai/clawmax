@@ -6,6 +6,10 @@ export interface DoctorRuntimeSignalInput {
     gatewayRecovery?: {
       message?: string
     }
+    providerExecution?: {
+      status?: 'configured' | 'partial' | 'missing'
+      message?: string
+    }
   }
   results?: Array<{
     checks?: Array<{
@@ -16,6 +20,23 @@ export interface DoctorRuntimeSignalInput {
 
 export function detectDoctorRuntimeSignal(input: DoctorRuntimeSignalInput | null | undefined): LogRuntimeSignal | null {
   if (!input) return null
+  const providerExecution = input.platform?.providerExecution
+  if (providerExecution?.status === 'missing' && typeof providerExecution.message === 'string' && providerExecution.message.trim()) {
+    return {
+      title: 'Shared Model Execution Path Missing',
+      detail: providerExecution.message.trim(),
+      hint: 'Configure at least one shared hosted provider credential or a local runtime path before relying on scheduled workflows or multi-agent execution in this runtime.',
+      severity: 'critical',
+    }
+  }
+  if (providerExecution?.status === 'partial' && typeof providerExecution.message === 'string' && providerExecution.message.trim()) {
+    return {
+      title: 'Shared Model Execution Path Needs Attention',
+      detail: providerExecution.message.trim(),
+      hint: 'This runtime has only a partial local/runtime execution path. Verify whether the configured local runtime is reachable or whether a shared provider credential is still required.',
+      severity: 'warning',
+    }
+  }
   const messages: string[] = []
 
   if (typeof input.message === 'string' && input.message.trim()) {

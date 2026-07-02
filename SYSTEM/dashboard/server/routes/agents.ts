@@ -13,7 +13,14 @@ import { validateAgentConfigSections, validateProvisionInput } from '../lib/agen
 import type { AgentModelConfigUpdateResult } from '../lib/agent-model'
 import { normalizeAgentModelInput, resetAgentSessionsForModelChange, upsertAgentModelInConfigFile, upsertAgentModelInIdentityContent } from '../lib/agent-model'
 import { validateAgentCostLimit } from '../lib/budget'
-import { getSystemProviderKeys, getUserDefaultProviderKeys, getDashboardEnvRaw } from '../lib/dashboard-env'
+import {
+  getSystemProviderKeys,
+  getUserDefaultProviderKeys,
+  getDashboardEnvRaw,
+  getDefaultOllamaBaseUrl,
+  isOllamaUiEnabled,
+  resolveSystemExecutionProviderKeys,
+} from '../lib/dashboard-env'
 import { discoverModels, getAvailableModelsCached, clearModelCache } from '../lib/model-discovery'
 import { getPausedAgents, pauseAgents, resumeAgents, getAgentCostLimit, setAgentCostLimit, getAllAgentCostLimits } from '../lib/agent-state'
 import { exportAgentToOpenClaw, getAgentTransferMetadata, importAgentFromBundleDirectory, importAgentFromOpenClaw, importAgentFromZipArchive, listImportableOpenClawAgents } from '../lib/openclaw-agent-transfer'
@@ -1009,6 +1016,10 @@ router.post('/doctor', async (req, res) => {
     status: 'not-needed' | 'not-attempted' | 'restarted' | 'unavailable' | 'failed'
     message: string
   } | undefined
+  let providerExecution: {
+    status: 'configured' | 'partial' | 'missing'
+    message: string
+  } | undefined
   const isManagedRuntime = Object.keys(getDashboardEnvRaw()).length === 0
   const summarizeDoctorGatewayMessage = (text: string | undefined): string | undefined => {
     const raw = String(text || '').trim()
@@ -1057,6 +1068,62 @@ router.post('/doctor', async (req, res) => {
     if (stderr.includes('missing dist/entry')) {
       platformMessage = 'OpenClaw is installed but its build output is missing. Rebuild the image with a built runtime.'
     }
+  }
+
+  const rawEnv = getDashboardEnvRaw()
+  const sharedProviderKeys = resolveSystemExecutionProviderKeys(rawEnv)
+  const configuredHostedProviders = [
+    sharedProviderKeys.openai ? 'OpenAI' : null,
+    sharedProviderKeys.anthropic ? 'Anthropic' : null,
+    sharedProviderKeys.gemini ? 'Gemini' : null,
+  ].filter(Boolean) as string[]
+  const openAiCompatibleBaseUrl = String(sharedProviderKeys.openaiCompatibleBaseUrl || '').trim()
+  const openAiCompatibleApiKey = String(sharedProviderKeys.openaiCompatibleApiKey || '').trim()
+  const ollamaUiEnabled = isOllamaUiEnabled(rawEnv)
+  const ollamaBaseUrl = getDefaultOllamaBaseUrl(rawEnv)
+
+  if (configuredHostedProviders.length > 0) {
+    providerExecution = {
+      status: 'configured',
+      message: `Shared hosted provider execution is configured for ${configuredHostedProviders.join(', ')}.`,
+    }
+    platformChecks.push({
+      check: 'provider-execution',
+      status: 'pass',
+      message: providerExecution.message,
+    })
+  } else if (openAiCompatibleBaseUrl) {
+    providerExecution = {
+      status: openAiCompatibleApiKey ? 'configured' : 'partial',
+      message: openAiCompatibleApiKey
+        ? `Shared OpenAI-compatible runtime is configured at ${openAiCompatibleBaseUrl}.`
+        : `Shared OpenAI-compatible runtime is configured at ${openAiCompatibleBaseUrl}, but no shared API key is set for runtimes that require authentication.`,
+    }
+    platformChecks.push({
+      check: 'provider-execution',
+      status: openAiCompatibleApiKey ? 'pass' : 'warn',
+      message: providerExecution.message,
+    })
+  } else if (ollamaUiEnabled && ollamaBaseUrl) {
+    providerExecution = {
+      status: 'partial',
+      message: `No shared hosted provider credentials are configured; this runtime is expected to use the local Ollama path at ${ollamaBaseUrl}.`,
+    }
+    platformChecks.push({
+      check: 'provider-execution',
+      status: 'warn',
+      message: providerExecution.message,
+    })
+  } else {
+    providerExecution = {
+      status: 'missing',
+      message: 'No shared model execution path is configured for this runtime. Add hosted provider credentials or configure a local runtime path in BYOK / workspace integrations.',
+    }
+    platformChecks.push({
+      check: 'provider-execution',
+      status: 'fail',
+      message: providerExecution.message,
+    })
   }
 
   const gatewayStatus = isGatewayRunning()
@@ -1162,7 +1229,7 @@ router.post('/doctor', async (req, res) => {
   } catch {
     res.json({
       results,
-      platform: { cli: hasOpenclawCli, gateway: effectiveGatewayRunning, gatewayPort, gatewayRecovery },
+      platform: { cli: hasOpenclawCli, gateway: effectiveGatewayRunning, gatewayPort, gatewayRecovery, providerExecution },
       summary: {
         total: platformChecks.length,
         pass: platformChecks.filter(c => c.status === 'pass').length,
@@ -1287,6 +1354,7 @@ router.post('/doctor', async (req, res) => {
       gateway: effectiveGatewayRunning,
       gatewayPort,
       gatewayRecovery,
+      providerExecution,
     },
     summary: { total: allChecks.length, pass, fail, warn, fixed },
     healthy: fail === 0,

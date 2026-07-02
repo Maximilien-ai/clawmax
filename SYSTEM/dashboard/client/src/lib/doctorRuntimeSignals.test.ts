@@ -41,6 +41,32 @@ test('detects missing OpenClaw runtime build artifacts from doctor messages', ()
   assert.strictEqual(signal?.title, 'OpenClaw Runtime Build Missing')
 })
 
+test('detects missing shared provider execution path from doctor platform status', () => {
+  const signal = detectDoctorRuntimeSignal({
+    platform: {
+      providerExecution: {
+        status: 'missing',
+        message: 'No shared model execution path is configured for this runtime. Add hosted provider credentials or configure a local runtime path in BYOK / workspace integrations.',
+      },
+    },
+  })
+  assert.strictEqual(signal?.title, 'Shared Model Execution Path Missing')
+  assert.strictEqual(signal?.severity, 'critical')
+})
+
+test('detects partial local runtime execution path from doctor platform status', () => {
+  const signal = detectDoctorRuntimeSignal({
+    platform: {
+      providerExecution: {
+        status: 'partial',
+        message: 'No shared hosted provider credentials are configured; this runtime is expected to use the local Ollama path at http://host.containers.internal:11434.',
+      },
+    },
+  })
+  assert.strictEqual(signal?.title, 'Shared Model Execution Path Needs Attention')
+  assert.strictEqual(signal?.severity, 'warning')
+})
+
 test('returns null when doctor results do not indicate runtime problems', () => {
   const signal = detectDoctorRuntimeSignal({
     message: 'All agents healthy',

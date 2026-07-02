@@ -186,6 +186,71 @@ async function run() {
     assert.strictEqual(skillsCheck, undefined, 'Expected no separate skills warning when IDENTITY.md is missing')
   })
 
+  await test('doctor reports missing shared provider execution path when no runtime path is configured', async () => {
+    const previous = {
+      openai: process.env.SYSTEM_OPENAI_API_KEY,
+      anthropic: process.env.SYSTEM_ANTHROPIC_API_KEY,
+      gemini: process.env.SYSTEM_GEMINI_API_KEY,
+      compatibleBaseUrl: process.env.SYSTEM_OPENAI_COMPATIBLE_BASE_URL,
+      compatibleApiKey: process.env.SYSTEM_OPENAI_COMPATIBLE_API_KEY,
+      ollamaEnabled: process.env.DASHBOARD_ENABLE_OLLAMA,
+      ollamaBaseUrl: process.env.OLLAMA_BASE_URL,
+      deploymentKind: process.env.DASHBOARD_DEPLOYMENT_KIND,
+    }
+    delete process.env.SYSTEM_OPENAI_API_KEY
+    delete process.env.SYSTEM_ANTHROPIC_API_KEY
+    delete process.env.SYSTEM_GEMINI_API_KEY
+    delete process.env.SYSTEM_OPENAI_COMPATIBLE_BASE_URL
+    delete process.env.SYSTEM_OPENAI_COMPATIBLE_API_KEY
+    process.env.DASHBOARD_ENABLE_OLLAMA = 'false'
+    process.env.OLLAMA_BASE_URL = ''
+    process.env.DASHBOARD_DEPLOYMENT_KIND = 'cloud'
+
+    try {
+      const handler = getRouteHandler('post', '/doctor')
+      const res = makeRes()
+      await handler(makeReq({ body: {} }), res)
+
+      assert.strictEqual(res.statusCode, 200, 'Expected doctor route success')
+      assert.strictEqual(res.jsonBody?.platform?.providerExecution?.status, 'missing', 'Expected missing provider execution status')
+      assert(/No shared model execution path is configured/i.test(res.jsonBody?.platform?.providerExecution?.message || ''), 'Expected missing execution-path guidance')
+    } finally {
+      if (typeof previous.openai === 'undefined') delete process.env.SYSTEM_OPENAI_API_KEY
+      else process.env.SYSTEM_OPENAI_API_KEY = previous.openai
+      if (typeof previous.anthropic === 'undefined') delete process.env.SYSTEM_ANTHROPIC_API_KEY
+      else process.env.SYSTEM_ANTHROPIC_API_KEY = previous.anthropic
+      if (typeof previous.gemini === 'undefined') delete process.env.SYSTEM_GEMINI_API_KEY
+      else process.env.SYSTEM_GEMINI_API_KEY = previous.gemini
+      if (typeof previous.compatibleBaseUrl === 'undefined') delete process.env.SYSTEM_OPENAI_COMPATIBLE_BASE_URL
+      else process.env.SYSTEM_OPENAI_COMPATIBLE_BASE_URL = previous.compatibleBaseUrl
+      if (typeof previous.compatibleApiKey === 'undefined') delete process.env.SYSTEM_OPENAI_COMPATIBLE_API_KEY
+      else process.env.SYSTEM_OPENAI_COMPATIBLE_API_KEY = previous.compatibleApiKey
+      if (typeof previous.ollamaEnabled === 'undefined') delete process.env.DASHBOARD_ENABLE_OLLAMA
+      else process.env.DASHBOARD_ENABLE_OLLAMA = previous.ollamaEnabled
+      if (typeof previous.ollamaBaseUrl === 'undefined') delete process.env.OLLAMA_BASE_URL
+      else process.env.OLLAMA_BASE_URL = previous.ollamaBaseUrl
+      if (typeof previous.deploymentKind === 'undefined') delete process.env.DASHBOARD_DEPLOYMENT_KIND
+      else process.env.DASHBOARD_DEPLOYMENT_KIND = previous.deploymentKind
+    }
+  })
+
+  await test('doctor reports configured shared hosted provider execution when system keys exist', async () => {
+    const previous = process.env.SYSTEM_OPENAI_API_KEY
+    process.env.SYSTEM_OPENAI_API_KEY = 'sk-test-openai'
+    try {
+      const handler = getRouteHandler('post', '/doctor')
+      const res = makeRes()
+      await handler(makeReq({ body: {} }), res)
+
+      assert.strictEqual(res.statusCode, 200, 'Expected doctor route success')
+      assert.strictEqual(res.jsonBody?.platform?.providerExecution?.status, 'configured', 'Expected configured provider execution status')
+      assert(/Shared hosted provider execution is configured for OpenAI/i.test(res.jsonBody?.platform?.providerExecution?.message || ''), 'Expected configured hosted-provider guidance')
+    } finally {
+      if (typeof previous === 'undefined') delete process.env.SYSTEM_OPENAI_API_KEY
+      else process.env.SYSTEM_OPENAI_API_KEY = previous
+    }
+  })
+
   await test('doctor reports gateway healthy when the runtime gateway is reachable but the admin probe token differs', async () => {
     await withGatewayRpcStubs({
       probeGatewayResponsive: async () => ({ running: false, port: 18789, error: 'token mismatch' }),
