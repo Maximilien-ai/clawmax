@@ -16,7 +16,7 @@
 - Partner integrations are active product surfaces, including Resend, Cognee, Opik, GitHub, Senso, and partner plugin install/uninstall handling.
 - Resend has both dashboard test-email validation and first-party `clawmax-resend` agent-tool execution with runtime-secret support.
 - Cognee has a first-pass partner surface for cloud/self-hosted configuration and official OpenClaw plugin lifecycle management.
-- The latest reported full local integration run on the active `1.9.4` branch head is green with `--with-validation --coverage`, including the expanded `383`-lane wrapper baseline and measured `c8` coverage of `77.32%` statements/lines, `67.41%` branches, and `88.41%` functions.
+- The latest reported full local integration run on the active `1.9.4` branch head is green with `--with-validation --coverage`, including the expanded `384`-lane wrapper baseline and measured coverage of `77.39%` statements/lines, `67.52%` branches, and `88.45%` functions.
 
 ## Active Release Track
 
@@ -28,7 +28,7 @@
   - [planning/archive/SIMPLIFY_HARDEN_OPTIMIZE_1_9_2.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/archive/SIMPLIFY_HARDEN_OPTIMIZE_1_9_2.md)
   - [planning/archive/SIMPLIFY_HARDEN_OPTIMIZE_1_9_3.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/archive/SIMPLIFY_HARDEN_OPTIMIZE_1_9_3.md)
   - [planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_4.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_4.md)
-- Near-term target: cut and validate `1.9.4-test-rc1`, starting from the first shared runtime auth-incident summarization pass and the new `1.9.4` provider/runtime hardening plan.
+- Near-term target: cut and validate `1.9.4-test-rc2`, starting from the grouped shared-auth incident work plus the newer doctor provider-execution preflight and repeated auth-notification suppression slices.
 - Next likely follow-through: continue `1.9.4` with provider-specific diagnosis, repeated cron/workflow failure suppression, and stronger doctor/preflight for runtime provider configuration.
 - Sequencing after `1.9.4`: use `1.9.5` for high-level performance baselining of core actions like agent chat and workflow first-run timing, then use `1.9.6` for the next deliberate OpenClaw update with those performance measurements available for before/after comparison plus the builder/template consistency investigation from the `AI-Driven Inbound Sales & Support Management` demo case (offer both team/company modes when ambiguous, and guarantee generated workflow handoff correctness).
 

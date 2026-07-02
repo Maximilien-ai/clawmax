@@ -16,7 +16,7 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 
 ## 🛠 Next Sprint: 1.9.4
 
-- Next validation image: `1.9.4-test-rc1`
+- Next validation image: `1.9.4-test-rc2`
 - `1.9.4` is focused on provider/runtime incident hardening: shared provider-auth incident detection, repeated cron/workflow auth-failure dedupe, and stronger doctor/preflight guidance for cloud/on-prem runtime provider configuration.
 - Current measured baseline on `main`: `383` passing wrapper lanes with `77.32%` statements/lines, `67.41%` branches, and `88.41%` functions on the full `integration --with-validation --coverage` path.
 
