@@ -28,6 +28,7 @@ CURL_OPTS="--connect-timeout 5 --max-time 10"
 PERF_DIR="$SYSTEM_DIR/dashboard/perf"
 PERF_SUMMARY_FILE="$PERF_DIR/perf-summary.json"
 PERF_HISTORY_FILE="$PERF_DIR/perf-history.json"
+PERF_MODEL_MATRIX_FILE="$PERF_DIR/perf-model-matrix.json"
 
 # Load dashboard auth token
 TOKEN_CANDIDATES=(
@@ -81,6 +82,10 @@ elapsed_ms() {
   echo $((end_ms - start_ms))
 }
 
+json_escape() {
+  node -e 'console.log(JSON.stringify(process.argv[1] || ""))' "$1"
+}
+
 write_perf_summary() {
   mkdir -p "$PERF_DIR"
   cat > "$PERF_SUMMARY_FILE" <<EOF
@@ -100,10 +105,19 @@ write_perf_summary() {
   "notes": {
     "agentChat": "${PERF_CHAT_NOTE:-}",
     "workflowProgress": "${PERF_WORKFLOW_PROGRESS_NOTE:-}"
-  }
+  },
+  "modelSamples": $(render_perf_model_samples_json)
 }
 EOF
   append_perf_history
+}
+
+render_perf_model_samples_json() {
+  if [ -f "$PERF_MODEL_MATRIX_FILE" ]; then
+    cat "$PERF_MODEL_MATRIX_FILE"
+  else
+    echo "[]"
+  fi
 }
 
 append_perf_history() {
@@ -236,6 +250,7 @@ SKIP_CI_QUARANTINED_TESTS="${SKIP_CI_QUARANTINED_TESTS:-false}"
 passed=0
 failed=0
 rm -f "$PERF_SUMMARY_FILE"
+rm -f "$PERF_MODEL_MATRIX_FILE"
 
 echo "========================================="
 echo "SYSTEM Test Suite"
@@ -266,6 +281,132 @@ fail() {
 
 warn() {
   echo -e "${YELLOW}⚠${NC} $1"
+}
+
+record_perf_model_sample() {
+  local model="$1"
+  local chat_ms="$2"
+  local note="$3"
+  local source="$4"
+
+  mkdir -p "$PERF_DIR"
+
+  local metrics_json="{}"
+  if [ -n "$chat_ms" ]; then
+    metrics_json="{\"agentChatRoundTripMs\":$chat_ms}"
+  fi
+
+  local note_json
+  note_json=$(json_escape "$note")
+  local model_json
+  model_json=$(json_escape "$model")
+  local source_json
+  source_json=$(json_escape "$source")
+
+  if [ ! -f "$PERF_MODEL_MATRIX_FILE" ]; then
+    echo "[]" > "$PERF_MODEL_MATRIX_FILE"
+  fi
+
+  node - "$PERF_MODEL_MATRIX_FILE" "$model_json" "$metrics_json" "$note_json" "$source_json" <<'EOF'
+const fs = require('fs')
+const filePath = process.argv[2]
+const model = JSON.parse(process.argv[3])
+const metrics = JSON.parse(process.argv[4])
+const note = JSON.parse(process.argv[5])
+const source = JSON.parse(process.argv[6])
+
+let samples = []
+try {
+  const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'))
+  if (Array.isArray(parsed)) samples = parsed
+} catch {}
+
+samples.push({
+  model,
+  source,
+  metrics,
+  notes: {
+    agentChat: note,
+  },
+})
+
+fs.writeFileSync(filePath, JSON.stringify(samples, null, 2))
+EOF
+}
+
+run_perf_model_matrix() {
+  local model_list_raw="${CLAWMAX_PERF_MODELS:-}"
+  if [ -z "$model_list_raw" ]; then
+    return 0
+  fi
+
+  echo ""
+  echo -e "${YELLOW}→ Running perf model matrix...${NC}"
+  echo "[]" > "$PERF_MODEL_MATRIX_FILE"
+
+  local old_ifs="$IFS"
+  IFS=','
+  read -r -a perf_models <<< "$model_list_raw"
+  IFS="$old_ifs"
+
+  for perf_model in "${perf_models[@]}"; do
+    perf_model="$(echo "$perf_model" | xargs)"
+    if [ -z "$perf_model" ]; then
+      continue
+    fi
+
+    local sample_note="skipped"
+    local sample_ms=""
+    local patch_failed=false
+    local patch_result=""
+    local patch_error=""
+
+    for agent_id in test-agent1 test-agent2 test-lead; do
+      patch_result=$(apicurl -X PATCH "$API_BASE/api/agents/$agent_id/model" \
+        -H 'Content-Type: application/json' \
+        -d "{\"model\":\"$perf_model\"}" 2>/dev/null)
+      if ! echo "$patch_result" | jq -e '.ok == true' > /dev/null 2>&1; then
+        patch_failed=true
+        patch_error=$(echo "$patch_result" | jq -r '.error // "unknown"' 2>/dev/null)
+        sample_note="model-patch-failed:${patch_error:-unknown}"
+        warn "Perf model sample $perf_model failed to patch $agent_id (${patch_error:-unknown})"
+        break
+      fi
+    done
+
+    if [ "$patch_failed" = true ]; then
+      record_perf_model_sample "$perf_model" "$sample_ms" "$sample_note" "matrix"
+      continue
+    fi
+
+    local session_slug
+    session_slug=$(echo "$perf_model" | tr '/:., ' '-----')
+    local sample_started_ms
+    sample_started_ms=$(now_ms)
+    local sample_result
+    sample_result=$(apicurl -X POST "$API_BASE/api/agents/test-lead/chat" \
+      -H 'Content-Type: application/json' \
+      -d "{\"message\":\"Say HELLO in exactly one word.\",\"sessionId\":\"perf-${session_slug}\"}" 2>/dev/null)
+    local sample_finished_ms
+    sample_finished_ms=$(now_ms)
+    sample_ms=$(elapsed_ms "$sample_started_ms" "$sample_finished_ms")
+
+    if echo "$sample_result" | jq -e '.text' > /dev/null 2>&1; then
+      sample_note="ok"
+      pass "Perf sample ${perf_model} chat works"
+    elif echo "$sample_result" | grep -q '"type":"complete"'; then
+      sample_note="ok-stream"
+      pass "Perf sample ${perf_model} chat works (stream)"
+    elif echo "$sample_result" | jq -e '.error' > /dev/null 2>&1; then
+      sample_note="error:$(echo "$sample_result" | jq -r '.error' 2>/dev/null)"
+      warn "Perf sample ${perf_model} chat error"
+    else
+      sample_note="unexpected-format"
+      warn "Perf sample ${perf_model} chat returned unexpected format"
+    fi
+
+    record_perf_model_sample "$perf_model" "$sample_ms" "$sample_note" "matrix"
+  done
 }
 
 assert_no_system_test_artifacts_in_active_workspace() {
@@ -4377,6 +4518,7 @@ echo "  Agent chat round-trip: $(format_perf_metric "$PERF_CHAT_ROUNDTRIP_MS")"
 echo "  Workflow trigger: $(format_perf_metric "$PERF_WORKFLOW_TRIGGER_MS")"
 echo "  Workflow first visible progress: $(format_perf_metric "$PERF_WORKFLOW_FIRST_PROGRESS_MS")"
 echo "  Workflow kickoff complete: $(format_perf_metric "$PERF_WORKFLOW_COMPLETE_MS")"
+run_perf_model_matrix
 write_perf_summary
 echo ""
 

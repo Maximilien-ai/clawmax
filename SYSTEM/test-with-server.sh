@@ -163,6 +163,7 @@ print_perf_summary() {
     const summary = JSON.parse(fs.readFileSync(summaryPath, "utf8"));
     const metrics = summary.metrics || {};
     const notes = summary.notes || {};
+    const modelSamples = Array.isArray(summary.modelSamples) ? summary.modelSamples : [];
     const history = fs.existsSync(historyPath)
       ? JSON.parse(fs.readFileSync(historyPath, "utf8"))
       : { runs: [] };
@@ -205,6 +206,17 @@ print_perf_summary() {
       const renderedAvg = typeof avg === "number" ? `${avg}ms` : "n/a";
       const renderedMed = typeof med === "number" ? `${med}ms` : "n/a";
       console.log(`  ${label}: ${renderedAvg} (median ${renderedMed}, n=${values.length})`);
+    }
+    if (modelSamples.length) {
+      console.log("  Model samples:");
+      for (const sample of modelSamples) {
+        const model = sample?.model || "unknown";
+        const chat = sample?.metrics?.agentChatRoundTripMs;
+        const note = sample?.notes?.agentChat || "";
+        const renderedChat = typeof chat === "number" ? `${chat}ms` : "n/a";
+        const suffix = note ? ` (${note})` : "";
+        console.log(`    ${model}: ${renderedChat}${suffix}`);
+      }
     }
     if (notes.agentChat) console.log(`  Agent chat note: ${notes.agentChat}`);
     if (notes.workflowProgress) console.log(`  Workflow progress note: ${notes.workflowProgress}`);
