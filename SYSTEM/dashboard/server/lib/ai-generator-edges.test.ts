@@ -25,20 +25,24 @@ async function test(name: string, fn: () => Promise<void> | void) {
 }
 
 async function withSystemProviderKeysCleared<T>(fn: () => Promise<T> | T): Promise<T> {
+  const dashboardEnv = require('./dashboard-env')
   const original = {
     SYSTEM_OPENAI_API_KEY: process.env.SYSTEM_OPENAI_API_KEY,
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
     SYSTEM_ANTHROPIC_API_KEY: process.env.SYSTEM_ANTHROPIC_API_KEY,
     ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+    resolveSystemExecutionProviderKeys: dashboardEnv.resolveSystemExecutionProviderKeys,
   }
   delete process.env.SYSTEM_OPENAI_API_KEY
   delete process.env.OPENAI_API_KEY
   delete process.env.SYSTEM_ANTHROPIC_API_KEY
   delete process.env.ANTHROPIC_API_KEY
+  dashboardEnv.resolveSystemExecutionProviderKeys = () => ({})
 
   try {
     return await fn()
   } finally {
+    dashboardEnv.resolveSystemExecutionProviderKeys = original.resolveSystemExecutionProviderKeys
     if (typeof original.SYSTEM_OPENAI_API_KEY === 'undefined') delete process.env.SYSTEM_OPENAI_API_KEY
     else process.env.SYSTEM_OPENAI_API_KEY = original.SYSTEM_OPENAI_API_KEY
     if (typeof original.OPENAI_API_KEY === 'undefined') delete process.env.OPENAI_API_KEY
