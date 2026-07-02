@@ -4325,15 +4325,25 @@ echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "Integration Test Summary"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+format_perf_metric() {
+  local value="$1"
+  if [ -n "$value" ]; then
+    printf '%sms' "$value"
+  else
+    printf 'n/a'
+  fi
+}
+
 echo "Duration: ${INTEGRATION_DURATION}s"
 echo "Model: ${SYSTEM_TEST_MODEL:-openai/gpt-4o-mini}"
 echo "Est. cost: ~$0.01-0.05 (based on ~3 agent calls)"
 echo "Perf:"
-echo "  Workflow list: ${PERF_WORKFLOW_LIST_MS:-n/a}ms"
-echo "  Agent chat round-trip: ${PERF_CHAT_ROUNDTRIP_MS:-n/a}ms"
-echo "  Workflow trigger: ${PERF_WORKFLOW_TRIGGER_MS:-n/a}ms"
-echo "  Workflow first visible progress: ${PERF_WORKFLOW_FIRST_PROGRESS_MS:-n/a}ms"
-echo "  Workflow kickoff complete: ${PERF_WORKFLOW_COMPLETE_MS:-n/a}ms"
+echo "  Workflow list: $(format_perf_metric "$PERF_WORKFLOW_LIST_MS")"
+echo "  Agent chat round-trip: $(format_perf_metric "$PERF_CHAT_ROUNDTRIP_MS")"
+echo "  Workflow trigger: $(format_perf_metric "$PERF_WORKFLOW_TRIGGER_MS")"
+echo "  Workflow first visible progress: $(format_perf_metric "$PERF_WORKFLOW_FIRST_PROGRESS_MS")"
+echo "  Workflow kickoff complete: $(format_perf_metric "$PERF_WORKFLOW_COMPLETE_MS")"
 write_perf_summary
 echo ""
 

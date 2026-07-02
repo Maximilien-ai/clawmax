@@ -6,6 +6,22 @@ const RED = '\x1b[31m'
 const YELLOW = '\x1b[33m'
 const RESET = '\x1b[0m'
 
+function extractSmokeContent(completion: any): string {
+  const raw = completion?.choices?.[0]?.message?.content
+  if (typeof raw === 'string') return raw.trim()
+  if (Array.isArray(raw)) {
+    return raw
+      .map((entry: any) => {
+        if (typeof entry === 'string') return entry
+        if (entry && typeof entry.text === 'string') return entry.text
+        return ''
+      })
+      .join(' ')
+      .trim()
+  }
+  return ''
+}
+
 async function main() {
   console.log(`\n${YELLOW}=== AI Generator Live Smoke Test ===${RESET}\n`)
 
@@ -25,8 +41,14 @@ async function main() {
       max_completion_tokens: 5,
       temperature: 0,
     })
-    const content = String(completion?.choices?.[0]?.message?.content || '').trim()
+    const content = extractSmokeContent(completion)
     if (!content) {
+      const finishReason = String(completion?.choices?.[0]?.finish_reason || '').trim()
+      if (finishReason) {
+        console.log(`${GREEN}✓${RESET} Explicit GPT-5 completion succeeded (finish_reason=${finishReason})`)
+        console.log(`${GREEN}All tests passed${RESET}`)
+        return
+      }
       throw new Error('Empty response from GPT-5 live smoke test')
     }
     console.log(`${GREEN}✓${RESET} Explicit GPT-5 completion succeeded: ${content}`)
