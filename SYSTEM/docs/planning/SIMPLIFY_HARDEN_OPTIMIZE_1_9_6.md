@@ -34,6 +34,12 @@ Use `1.9.6` for the next deliberate OpenClaw update and fold in the builder/temp
 - Reported prompt/result family:
   - template name: `AI-Driven Inbound Sales & Support Management`
   - source workspace: user reported it lives in the `1.9.x` workspace
+- Confirmed visual evidence from July 1, 2026:
+  - the saved artifact is shown in the dashboard as a `Company Template`
+  - version: `1.0.0`
+  - workspace shown in the UI: `test 1.9.x`
+  - visible agent count: `4`
+  - visible tags include: `sales`, `customer support`, `AI`, `automation`, `ads`, `company`, `revenue`
 - Important current limitation:
   - the `1.9.x` workspace and this exact generated template were **not** present in the local repo checkout on July 1, 2026
   - `WORKSPACES` in this checkout currently only contains `default`
