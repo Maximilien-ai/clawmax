@@ -68,6 +68,16 @@ Use `1.9.6` for the next deliberate OpenClaw update and fold in the builder/temp
   - if a generated company template creates two lines/pipelines/workflow branches, downstream handoff should complete reliably so the next workflow actually starts
   - every workflow that is expected to unlock a downstream workflow must perform that handoff deterministically; a “completed enough” visual state is not sufficient if the next workflow never starts
 
+### 5. Visual handoff representation
+
+- Add a clear visual representation of workflow-to-workflow handoff for generated company/team templates.
+- Today we can infer workflow order, but we do not have a useful cross-workflow handoff view when company templates create multiple lines or branches.
+- The goal is to make it obvious:
+  - which workflow is expected to unlock which downstream workflow
+  - whether the downstream workflow is waiting, ready, blocked, or never triggered
+  - where a company-level graph stalled
+- This does not need to become a giant new workflow feature; it needs to be good enough for debugging generated template progression and validating builder output quality.
+
 ## Required evidence
 
 Before coding the consistency fix, gather:
@@ -89,6 +99,7 @@ Before coding the consistency fix, gather:
   - perf comparison before/after the OpenClaw upgrade
   - builder consistency regression tests
   - generated workflow handoff regression tests
+  - visual verification that generated handoff structure is inspectable in the product
 
 ## Out of scope
 
