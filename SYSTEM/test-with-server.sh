@@ -163,7 +163,8 @@ print_perf_summary() {
     const notes = summary.notes || {};
     const format = (label, key) => {
       const value = metrics[key];
-      console.log(`  ${label}: ${typeof value === "number" ? `${value}ms` : "n/a"}`);
+      const rendered = typeof value === "number" ? `${value}ms` : "n/a";
+      console.log(`  ${label}: ${rendered}`);
     };
     format("Workflow list", "workflowListMs");
     format("Agent chat round-trip", "agentChatRoundTripMs");
