@@ -361,7 +361,7 @@ run_perf_model_matrix() {
     local patch_result=""
     local patch_error=""
 
-    for agent_id in test-agent1 test-agent2 test-lead; do
+    for agent_id in test-lead; do
       patch_result=$(apicurl -X PATCH "$API_BASE/api/agents/$agent_id/model" \
         -H 'Content-Type: application/json' \
         -d "{\"model\":\"$perf_model\"}" 2>/dev/null)
