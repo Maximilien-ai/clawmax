@@ -148,6 +148,7 @@ print_coverage_summary() {
 
 print_perf_summary() {
   local summary_file="$ROOT_DIR/SYSTEM/dashboard/perf/perf-summary.json"
+  local history_file="$ROOT_DIR/SYSTEM/dashboard/perf/perf-history.json"
 
   if [ ! -f "$summary_file" ]; then
     return 1
@@ -157,25 +158,60 @@ print_perf_summary() {
   echo "Performance summary"
   node -e '
     const fs = require("fs");
-    const path = process.argv[1];
-    const summary = JSON.parse(fs.readFileSync(path, "utf8"));
+    const summaryPath = process.argv[1];
+    const historyPath = process.argv[2];
+    const summary = JSON.parse(fs.readFileSync(summaryPath, "utf8"));
     const metrics = summary.metrics || {};
     const notes = summary.notes || {};
+    const history = fs.existsSync(historyPath)
+      ? JSON.parse(fs.readFileSync(historyPath, "utf8"))
+      : { runs: [] };
+    const runs = Array.isArray(history.runs) ? history.runs : [];
     const format = (label, key) => {
       const value = metrics[key];
       const rendered = typeof value === "number" ? `${value}ms` : "n/a";
       console.log(`  ${label}: ${rendered}`);
+    };
+    const numeric = (key) => runs
+      .map((run) => run?.metrics?.[key])
+      .filter((value) => typeof value === "number" && Number.isFinite(value));
+    const average = (values) => values.length
+      ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length)
+      : null;
+    const median = (values) => {
+      if (!values.length) return null;
+      const sorted = [...values].sort((a, b) => a - b);
+      const mid = Math.floor(sorted.length / 2);
+      if (sorted.length % 2 === 1) return sorted[mid];
+      return Math.round((sorted[mid - 1] + sorted[mid]) / 2);
     };
     format("Workflow list", "workflowListMs");
     format("Agent chat round-trip", "agentChatRoundTripMs");
     format("Workflow trigger", "workflowTriggerMs");
     format("Workflow first visible progress", "workflowFirstProgressMs");
     format("Workflow kickoff complete", "workflowKickoffCompleteMs");
+    console.log(`  History samples: ${runs.length}`);
+    const summaryStats = [
+      ["Workflow list avg", "workflowListMs"],
+      ["Agent chat avg", "agentChatRoundTripMs"],
+      ["Workflow trigger avg", "workflowTriggerMs"],
+      ["Workflow first progress avg", "workflowFirstProgressMs"],
+      ["Workflow kickoff complete avg", "workflowKickoffCompleteMs"],
+    ];
+    for (const [label, key] of summaryStats) {
+      const values = numeric(key);
+      const avg = average(values);
+      const med = median(values);
+      const renderedAvg = typeof avg === "number" ? `${avg}ms` : "n/a";
+      const renderedMed = typeof med === "number" ? `${med}ms` : "n/a";
+      console.log(`  ${label}: ${renderedAvg} (median ${renderedMed}, n=${values.length})`);
+    }
     if (notes.agentChat) console.log(`  Agent chat note: ${notes.agentChat}`);
     if (notes.workflowProgress) console.log(`  Workflow progress note: ${notes.workflowProgress}`);
-  ' "$summary_file"
+  ' "$summary_file" "$history_file"
   echo "Performance artifact:"
   echo "  $ROOT_DIR/SYSTEM/dashboard/perf/perf-summary.json"
+  echo "  $ROOT_DIR/SYSTEM/dashboard/perf/perf-history.json"
 }
 
 INITIAL_BACKEND_PIDS="$(port_pids "$BACKEND_PORT")"

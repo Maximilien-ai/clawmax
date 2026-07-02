@@ -27,6 +27,7 @@ FRONTEND_URL="${DASHBOARD_APP_URL:-http://localhost:${FRONTEND_PORT}}"
 CURL_OPTS="--connect-timeout 5 --max-time 10"
 PERF_DIR="$SYSTEM_DIR/dashboard/perf"
 PERF_SUMMARY_FILE="$PERF_DIR/perf-summary.json"
+PERF_HISTORY_FILE="$PERF_DIR/perf-history.json"
 
 # Load dashboard auth token
 TOKEN_CANDIDATES=(
@@ -85,6 +86,7 @@ write_perf_summary() {
   cat > "$PERF_SUMMARY_FILE" <<EOF
 {
   "generatedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "gitSha": "$(git -C "$SYSTEM_DIR/.." rev-parse --short HEAD 2>/dev/null || echo "")",
   "integrationDurationSec": ${INTEGRATION_DURATION:-0},
   "workspaceId": "${SYSTEM_TEST_WS:-}",
   "model": "${SYSTEM_TEST_MODEL:-}",
@@ -100,6 +102,37 @@ write_perf_summary() {
     "workflowProgress": "${PERF_WORKFLOW_PROGRESS_NOTE:-}"
   }
 }
+EOF
+  append_perf_history
+}
+
+append_perf_history() {
+  node - "$PERF_SUMMARY_FILE" "$PERF_HISTORY_FILE" <<'EOF'
+const fs = require('fs');
+
+const summaryPath = process.argv[2];
+const historyPath = process.argv[3];
+
+if (!fs.existsSync(summaryPath)) process.exit(0);
+
+const summary = JSON.parse(fs.readFileSync(summaryPath, 'utf8'));
+let history = { version: 1, runs: [] };
+
+if (fs.existsSync(historyPath)) {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(historyPath, 'utf8'));
+    if (parsed && Array.isArray(parsed.runs)) history = parsed;
+  } catch {}
+}
+
+history.version = 1;
+history.runs.push(summary);
+
+if (history.runs.length > 100) {
+  history.runs = history.runs.slice(history.runs.length - 100);
+}
+
+fs.writeFileSync(historyPath, JSON.stringify(history, null, 2));
 EOF
 }
 GREEN='\033[0;32m'
