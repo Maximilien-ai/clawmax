@@ -40,6 +40,16 @@ Use `1.9.6` for the next deliberate OpenClaw update and fold in the builder/temp
   - workspace shown in the UI: `test 1.9.x`
   - visible agent count: `4`
   - visible tags include: `sales`, `customer support`, `AI`, `automation`, `ads`, `company`, `revenue`
+- Confirmed exported markdown evidence from `/Users/maximilien/Desktop/TEMPLATE (1).md`:
+  - the artifact is exported as `type: organization`
+  - it defines `4` agents and a root company team plus `Leadership`, `Lead Capture`, `Lead Communication`, `Task Routing`, and `Analytics` teams
+  - despite being a company template, the workflow graph in the export is only a single linear chain:
+    - `kickoff`
+    - `lead-qualification` depends on `kickoff`
+    - `communication-followup` depends on `lead-qualification`
+    - `finalize-and-report` depends on `communication-followup`
+  - there is no visible parallel or multi-line company-level handoff structure in the exported workflow graph even though the template is modeled as a company
+  - this strengthens the suspicion that some builder outputs are choosing a company shell while still generating what is effectively a team-style sequential workflow plan
 - Important current limitation:
   - the `1.9.x` workspace and this exact generated template were **not** present in the local repo checkout on July 1, 2026
   - `WORKSPACES` in this checkout currently only contains `default`
