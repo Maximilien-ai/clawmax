@@ -25,6 +25,8 @@ FRONTEND_PORT="${DASHBOARD_CLIENT_PORT:-5173}"
 API_BASE="http://localhost:${BACKEND_PORT}"
 FRONTEND_URL="${DASHBOARD_APP_URL:-http://localhost:${FRONTEND_PORT}}"
 CURL_OPTS="--connect-timeout 5 --max-time 10"
+PERF_DIR="$SYSTEM_DIR/dashboard/perf"
+PERF_SUMMARY_FILE="$PERF_DIR/perf-summary.json"
 
 # Load dashboard auth token
 TOKEN_CANDIDATES=(
@@ -66,6 +68,39 @@ apicurl_long() {
   else
     curl -s $long_opts "$@"
   fi
+}
+
+now_ms() {
+  node -e 'console.log(Date.now())'
+}
+
+elapsed_ms() {
+  local start_ms="$1"
+  local end_ms="$2"
+  echo $((end_ms - start_ms))
+}
+
+write_perf_summary() {
+  mkdir -p "$PERF_DIR"
+  cat > "$PERF_SUMMARY_FILE" <<EOF
+{
+  "generatedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "integrationDurationSec": ${INTEGRATION_DURATION:-0},
+  "workspaceId": "${SYSTEM_TEST_WS:-}",
+  "model": "${SYSTEM_TEST_MODEL:-}",
+  "metrics": {
+    "workflowListMs": ${PERF_WORKFLOW_LIST_MS:-null},
+    "agentChatRoundTripMs": ${PERF_CHAT_ROUNDTRIP_MS:-null},
+    "workflowTriggerMs": ${PERF_WORKFLOW_TRIGGER_MS:-null},
+    "workflowFirstProgressMs": ${PERF_WORKFLOW_FIRST_PROGRESS_MS:-null},
+    "workflowKickoffCompleteMs": ${PERF_WORKFLOW_COMPLETE_MS:-null}
+  },
+  "notes": {
+    "agentChat": "${PERF_CHAT_NOTE:-}",
+    "workflowProgress": "${PERF_WORKFLOW_PROGRESS_NOTE:-}"
+  }
+}
+EOF
 }
 GREEN='\033[0;32m'
 RED='\033[0;31m'
@@ -167,6 +202,7 @@ SKIP_CI_QUARANTINED_TESTS="${SKIP_CI_QUARANTINED_TESTS:-false}"
 
 passed=0
 failed=0
+rm -f "$PERF_SUMMARY_FILE"
 
 echo "========================================="
 echo "SYSTEM Test Suite"
@@ -4002,6 +4038,7 @@ done
 # Template apply can return before every imported workflow is visible through
 # the active workspace read path, so wait briefly for the expected ids.
 wf_list=""
+workflow_list_started_ms=$(now_ms)
 for i in $(seq 1 10); do
   wf_list=$(apicurl "$API_BASE/api/workflows" | jq -r '.workflows[]?.id' 2>/dev/null | sort)
   ready_count=0
@@ -4015,6 +4052,8 @@ for i in $(seq 1 10); do
   fi
   sleep 2
 done
+workflow_list_finished_ms=$(now_ms)
+PERF_WORKFLOW_LIST_MS=$(elapsed_ms "$workflow_list_started_ms" "$workflow_list_finished_ms")
 
 expected_wfs="test-kickoff test-filesystem test-communications test-github test-dag-parallel-a test-dag-parallel-b test-report"
 for wf_id in $expected_wfs; do
@@ -4045,24 +4084,32 @@ echo -e "${YELLOW}→ Testing agent chat...${NC}"
 integration_openai_key=$(grep SYSTEM_OPENAI_API_KEY "dashboard/.env" 2>/dev/null | cut -d= -f2)
 integration_anthropic_key=$(grep SYSTEM_ANTHROPIC_API_KEY "dashboard/.env" 2>/dev/null | cut -d= -f2)
 if [ -z "${integration_openai_key:-}" ] && [ -z "${integration_anthropic_key:-}" ]; then
+  PERF_CHAT_NOTE="skipped:no-api-key"
   warn "Agent chat skipped (no SYSTEM_OPENAI_API_KEY or SYSTEM_ANTHROPIC_API_KEY configured)"
 else
+  chat_started_ms=$(now_ms)
   chat_result=$(apicurl -X POST "$API_BASE/api/agents/test-lead/chat" \
     -H 'Content-Type: application/json' \
     -d '{"message":"Say HELLO in exactly one word.","sessionId":"integration-test"}' 2>/dev/null)
+  chat_finished_ms=$(now_ms)
+  PERF_CHAT_ROUNDTRIP_MS=$(elapsed_ms "$chat_started_ms" "$chat_finished_ms")
 
   if echo "$chat_result" | jq -e '.text' > /dev/null 2>&1; then
+    PERF_CHAT_NOTE="ok"
     response_text=$(echo "$chat_result" | jq -r '.text' | head -1)
     pass "Agent chat works (response: ${response_text:0:50})"
   elif echo "$chat_result" | grep -q '"type":"complete"'; then
+    PERF_CHAT_NOTE="ok-stream"
     response_text=$(echo "$chat_result" | sed -n 's/^data: //p' | jq -r 'select(.type == "complete") | .data.text // empty' | tail -1)
     pass "Agent chat works (response: ${response_text:0:50})"
   else
     # Chat might use streaming — check for error
     if echo "$chat_result" | jq -e '.error' > /dev/null 2>&1; then
+      PERF_CHAT_NOTE="error"
       error_msg=$(echo "$chat_result" | jq -r '.error')
       warn "Agent chat: $error_msg (may need gateway)"
     else
+      PERF_CHAT_NOTE="unexpected-format"
       warn "Agent chat returned unexpected format"
     fi
   fi
@@ -4114,9 +4161,13 @@ elif [ -n "$BYOK_ANTHROPIC" ]; then
 fi
 
 # Trigger kickoff with BYOK keys
+workflow_trigger_started_ms=$(now_ms)
 trigger_result=$(apicurl -X POST "$API_BASE/api/workflows/test-kickoff/trigger" \
   -H 'Content-Type: application/json' \
   -d "{\"manual\":true,\"byok\":$BYOK_JSON}")
+workflow_trigger_finished_ms=$(now_ms)
+PERF_WORKFLOW_TRIGGER_MS=$(elapsed_ms "$workflow_trigger_started_ms" "$workflow_trigger_finished_ms")
+workflow_execution_started_ms="$workflow_trigger_finished_ms"
 
 if echo "$trigger_result" | jq -e '.executionId' > /dev/null 2>&1; then
   pass "Kickoff workflow triggered"
@@ -4126,14 +4177,23 @@ fi
 
 # Wait for kickoff to complete (max 120s)
 echo "  Waiting for kickoff to complete (max 120s)..."
+PERF_WORKFLOW_PROGRESS_NOTE="no-visible-progress"
 for i in $(seq 1 24); do
   sleep 5
   status=$(apicurl "$API_BASE/api/workflows/test-kickoff" | jq -r '.status // "idle"' 2>/dev/null)
+  if [ -z "${PERF_WORKFLOW_FIRST_PROGRESS_MS:-}" ] && [ "$status" != "idle" ]; then
+    workflow_progress_seen_ms=$(now_ms)
+    PERF_WORKFLOW_FIRST_PROGRESS_MS=$(elapsed_ms "$workflow_execution_started_ms" "$workflow_progress_seen_ms")
+    PERF_WORKFLOW_PROGRESS_NOTE="status:$status"
+  fi
   if [ "$status" = "completed" ]; then
+    workflow_completed_ms=$(now_ms)
+    PERF_WORKFLOW_COMPLETE_MS=$(elapsed_ms "$workflow_execution_started_ms" "$workflow_completed_ms")
     pass "Kickoff completed"
     break
   fi
   if [ "$i" = "24" ]; then
+    PERF_WORKFLOW_PROGRESS_NOTE="timeout:${status}"
     warn "Kickoff did not complete in 120s (status: $status)"
   fi
 done
@@ -4268,6 +4328,13 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "Duration: ${INTEGRATION_DURATION}s"
 echo "Model: ${SYSTEM_TEST_MODEL:-openai/gpt-4o-mini}"
 echo "Est. cost: ~$0.01-0.05 (based on ~3 agent calls)"
+echo "Perf:"
+echo "  Workflow list: ${PERF_WORKFLOW_LIST_MS:-n/a}ms"
+echo "  Agent chat round-trip: ${PERF_CHAT_ROUNDTRIP_MS:-n/a}ms"
+echo "  Workflow trigger: ${PERF_WORKFLOW_TRIGGER_MS:-n/a}ms"
+echo "  Workflow first visible progress: ${PERF_WORKFLOW_FIRST_PROGRESS_MS:-n/a}ms"
+echo "  Workflow kickoff complete: ${PERF_WORKFLOW_COMPLETE_MS:-n/a}ms"
+write_perf_summary
 echo ""
 
 fi

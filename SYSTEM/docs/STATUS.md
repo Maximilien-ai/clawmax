@@ -31,6 +31,7 @@
 - Near-term target: cut and validate `1.9.4-test-rc2`, starting from the grouped shared-auth incident work plus the newer doctor provider-execution preflight and repeated auth-notification suppression slices.
 - Next likely follow-through: continue `1.9.4` with provider-specific diagnosis, repeated cron/workflow failure suppression, and stronger doctor/preflight for runtime provider configuration.
 - Sequencing after `1.9.4`: use `1.9.5` for high-level performance baselining of core actions like agent chat and workflow first-run timing, then use `1.9.6` for the next deliberate OpenClaw update with those performance measurements available for before/after comparison plus the builder/template consistency investigation from the `AI-Driven Inbound Sales & Support Management` demo case (offer both team/company modes when ambiguous, and guarantee generated workflow handoff correctness).
+- `1.9.5` planning is now explicit and starts with perf artifacts in the existing integration harness: workflow list timing, agent chat round-trip, workflow trigger latency, first visible workflow progress, and kickoff completion timing, written to `SYSTEM/dashboard/perf/perf-summary.json`.
 
 ## Release References
 

@@ -146,6 +146,37 @@ print_coverage_summary() {
   echo "  $ROOT_DIR/SYSTEM/dashboard/coverage/"
 }
 
+print_perf_summary() {
+  local summary_file="$ROOT_DIR/SYSTEM/dashboard/perf/perf-summary.json"
+
+  if [ ! -f "$summary_file" ]; then
+    return 1
+  fi
+
+  echo ""
+  echo "Performance summary"
+  node -e '
+    const fs = require("fs");
+    const path = process.argv[1];
+    const summary = JSON.parse(fs.readFileSync(path, "utf8"));
+    const metrics = summary.metrics || {};
+    const notes = summary.notes || {};
+    const format = (label, key) => {
+      const value = metrics[key];
+      console.log(`  ${label}: ${typeof value === "number" ? `${value}ms` : "n/a"}`);
+    };
+    format("Workflow list", "workflowListMs");
+    format("Agent chat round-trip", "agentChatRoundTripMs");
+    format("Workflow trigger", "workflowTriggerMs");
+    format("Workflow first visible progress", "workflowFirstProgressMs");
+    format("Workflow kickoff complete", "workflowKickoffCompleteMs");
+    if (notes.agentChat) console.log(`  Agent chat note: ${notes.agentChat}`);
+    if (notes.workflowProgress) console.log(`  Workflow progress note: ${notes.workflowProgress}`);
+  ' "$summary_file"
+  echo "Performance artifact:"
+  echo "  $ROOT_DIR/SYSTEM/dashboard/perf/perf-summary.json"
+}
+
 INITIAL_BACKEND_PIDS="$(port_pids "$BACKEND_PORT")"
 INITIAL_FRONTEND_PIDS="$(port_pids "$FRONTEND_PORT")"
 STARTED_SERVER=false
@@ -215,6 +246,7 @@ if [ "$RUN_COVERAGE" = true ]; then
     ) || TEST_STATUS=$?
   fi
   print_coverage_summary || true
+  print_perf_summary || true
 else
   if [ "${#FORWARDED_ARGS[@]}" -gt 0 ]; then
     "$SCRIPT_DIR/test.sh" "${FORWARDED_ARGS[@]}" || TEST_STATUS=$?
