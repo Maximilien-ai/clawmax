@@ -118,6 +118,7 @@ export function getActiveNotifications(): Notification[] {
 
 const GROUP_WINDOW_MS = 90_000
 const WRITER_ATTRIBUTION_SUPPRESSION_MS = 10 * 60 * 1000
+const RUNTIME_AUTH_NOTIFICATION_SUPPRESSION_MS = 6 * 60 * 60 * 1000
 const WORKSPACE_FILE_REGEX = /\b(?:AGENTS|GROUPS|COMMUNITIES|WORKFLOWS|SYSTEM|ORG)\/[A-Za-z0-9_./-]+\.(?:md|txt|json|csv|pdf|html|yml|yaml|png|jpe?g|gif|webp|svg)\b|\b[A-Za-z0-9][A-Za-z0-9._/-]*\.(?:md|txt|json|csv|pdf|html|yml|yaml|png|jpe?g|gif|webp|svg)\b/g
 const ABSOLUTE_WORKSPACE_FILE_REGEX = /\/(?:Users|workspace|app)\/[^\s"'<>]+?\/((?:AGENTS|GROUPS|COMMUNITIES|WORKFLOWS|SYSTEM|ORG)\/[A-Za-z0-9_./-]+\.(?:md|txt|json|csv|pdf|html|yml|yaml|png|jpe?g|gif|webp|svg))/g
 const NOISE_FILE_NAMES = new Set(['IDENTITY.md', 'SOUL.md', 'TOOLS.md', 'GROUPS.md', 'COMMUNITIES.md', 'HEARTBEAT.md', 'USER.md', 'AGENTS.md'])
@@ -443,6 +444,21 @@ export function createNotification(params: {
     }
   }
 
+  const runtimeAuthSignature = getRuntimeAuthIncidentSignature(params)
+  if (runtimeAuthSignature) {
+    const newestMatchingIncident = notifications
+      .filter((notification) => !notification.dismissedAt)
+      .filter((notification) => getRuntimeAuthIncidentSignature(notification) === runtimeAuthSignature)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0]
+
+    if (newestMatchingIncident) {
+      const ageMs = Date.now() - new Date(newestMatchingIncident.createdAt).getTime()
+      if (!newestMatchingIncident.resolvedAt || ageMs < RUNTIME_AUTH_NOTIFICATION_SUPPRESSION_MS) {
+        return null
+      }
+    }
+  }
+
   const notification: Notification = {
     id: crypto.randomUUID(),
     type: params.type,
@@ -632,6 +648,30 @@ export function normalizeWorkflowNotificationErrorDetail(error: string): string 
   }
 
   return trimmed
+}
+
+function isRuntimeAuthIncidentText(value: string): boolean {
+  return /Incorrect API key provided|has auth issue \(skipping all models\)|No API key found for provider|Runtime auth error while contacting the configured model provider/i.test(value)
+}
+
+function getRuntimeAuthIncidentSignature(input: {
+  type: NotificationType
+  title: string
+  message: string
+  entityId?: string
+  entityType?: 'agent' | 'workflow' | 'budget' | 'channel'
+}): string | null {
+  if (input.type !== 'agent-error' && input.type !== 'workflow-failed') return null
+  if (input.entityType !== 'agent' && input.entityType !== 'workflow') return null
+
+  const entity = String(input.entityId || '').trim()
+  if (!entity) return null
+
+  const raw = `${input.title}\n${input.message}`.trim()
+  if (!isRuntimeAuthIncidentText(raw)) return null
+
+  const normalized = normalizeWorkflowNotificationErrorDetail(input.message || input.title || '')
+  return [input.type, input.entityType, entity, normalized].join('|')
 }
 
 function resolveIgnoredArtifactNotifications(): void {

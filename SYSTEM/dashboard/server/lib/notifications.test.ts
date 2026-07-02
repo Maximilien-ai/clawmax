@@ -96,6 +96,50 @@ test('createNotification deduplicates by fingerprint', () => {
   assert(n2 === null, 'Duplicate should be null')
 })
 
+test('createNotification suppresses repeated unchanged runtime auth incidents for the same agent', () => {
+  fs.writeFileSync(notifPath, '[]', 'utf-8')
+  const n1 = createNotification({
+    type: 'agent-error',
+    title: 'dev-team-tech-lead failed',
+    message: 'Runtime auth error while contacting the configured model provider. Check the provider key/configuration and retry.',
+    entityId: 'dev-team-tech-lead',
+    entityType: 'agent',
+    fingerprint: 'runtime-auth-repeat-1',
+  })
+  const n2 = createNotification({
+    type: 'agent-error',
+    title: 'dev-team-tech-lead failed again',
+    message: 'Runtime auth error while contacting the configured model provider. Check the provider key/configuration and retry.',
+    entityId: 'dev-team-tech-lead',
+    entityType: 'agent',
+    fingerprint: 'runtime-auth-repeat-2',
+  })
+  assert(n1 !== null, 'First runtime auth incident should create')
+  assert(n2 === null, 'Repeated unchanged runtime auth incident should be suppressed')
+})
+
+test('createNotification still creates a new incident when the provider auth failure meaning changes', () => {
+  fs.writeFileSync(notifPath, '[]', 'utf-8')
+  const n1 = createNotification({
+    type: 'agent-error',
+    title: 'dev-team-tech-lead failed',
+    message: 'No API key found for provider "openai"',
+    entityId: 'dev-team-tech-lead',
+    entityType: 'agent',
+    fingerprint: 'runtime-auth-change-1',
+  })
+  const n2 = createNotification({
+    type: 'agent-error',
+    title: 'dev-team-tech-lead failed',
+    message: 'FailoverError: 401 Incorrect API key provided: openai-cible.',
+    entityId: 'dev-team-tech-lead',
+    entityType: 'agent',
+    fingerprint: 'runtime-auth-change-2',
+  })
+  assert(n1 !== null, 'First auth incident should create')
+  assert(n2 !== null, 'Different auth/config incident should still create')
+})
+
 test('createNotification with blocker fields', () => {
   const n = createNotification({
     type: 'workflow-blocked',
