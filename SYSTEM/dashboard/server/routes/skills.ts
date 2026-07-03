@@ -16,6 +16,7 @@ import {
   stampImportedRegistrySkillMetadata,
   getWorkspaceSkillsDir,
 } from '../lib/skills'
+import { extractZipBufferToWorkspace, resolveWorkspacePath } from '../lib/workspace'
 import { getCuratedPartnerInstaller, listCuratedPartnerInstallers } from '../lib/partner-installs'
 import { generateSkillFromNL, setRequestByokKeys } from '../lib/ai-generator'
 import { safeEnv } from '../lib/safe-env'
@@ -71,6 +72,130 @@ function getNativeDirectoryPickerSupportForRuntime(
 function getLocalSkillImportSourcePathGuidance(sourcePath: string) {
   const managedSkillsDir = getWorkspaceSkillsDir()
   return `Source path "${sourcePath}" was not found in this dashboard runtime. If this dashboard is running in cloud, a container, or a remote/on-prem server, a path from your laptop (for example /Users/...) will not exist there. Paste a path that exists inside the dashboard runtime, or copy/mount the skill directory there first. Managed custom skills live under ${managedSkillsDir}.`
+}
+
+function isSingleSkillDirectory(sourcePath: string) {
+  return fs.existsSync(path.join(sourcePath, 'SKILL.md')) || fs.existsSync(path.join(sourcePath, 'skill.md'))
+}
+
+function detectImportableSkillRoot(sourcePath: string) {
+  const trimmedPath = sourcePath.trim()
+  if (!trimmedPath) {
+    return { ok: false as const, error: 'sourcePath is required' }
+  }
+
+  if (!fs.existsSync(trimmedPath)) {
+    return {
+      ok: false as const,
+      error: getLocalSkillImportSourcePathGuidance(trimmedPath),
+      suggestedPath: getWorkspaceSkillsDir(),
+    }
+  }
+
+  if (!fs.statSync(trimmedPath).isDirectory()) {
+    return { ok: false as const, error: 'sourcePath must be a directory' }
+  }
+
+  const skillsSubdir = path.join(trimmedPath, 'skills')
+  const isSingleSkill = isSingleSkillDirectory(trimmedPath)
+  const hasSkillsDir = fs.existsSync(skillsSubdir) && fs.statSync(skillsSubdir).isDirectory()
+
+  if (isSingleSkill || hasSkillsDir) {
+    return { ok: true as const, sourcePath: trimmedPath }
+  }
+
+  const childDirs = fs.readdirSync(trimmedPath)
+    .map((entry) => path.join(trimmedPath, entry))
+    .filter((entryPath) => {
+      try {
+        return fs.statSync(entryPath).isDirectory()
+      } catch {
+        return false
+      }
+    })
+
+  if (childDirs.length === 1) {
+    const nestedRoot = childDirs[0]
+    const nestedSkillsSubdir = path.join(nestedRoot, 'skills')
+    if (
+      isSingleSkillDirectory(nestedRoot) ||
+      (fs.existsSync(nestedSkillsSubdir) && fs.statSync(nestedSkillsSubdir).isDirectory())
+    ) {
+      return { ok: true as const, sourcePath: nestedRoot }
+    }
+  }
+
+  return {
+    ok: false as const,
+    error: 'Uploaded archive did not contain a skill directory or a skills/ bundle. ZIP files should contain a single skill folder with SKILL.md or a multi-skill bundle with a skills/ directory.',
+  }
+}
+
+function importSkillsFromDirectory(sourcePath: string) {
+  const detected = detectImportableSkillRoot(sourcePath)
+  if (!detected.ok) {
+    return {
+      ok: false as const,
+      status: 400,
+      error: detected.error,
+      suggestedPath: 'suggestedPath' in detected ? detected.suggestedPath : undefined,
+    }
+  }
+
+  const resolvedSourcePath = detected.sourcePath
+  const skillsSubdir = path.join(resolvedSourcePath, 'skills')
+  const isSingleSkill = isSingleSkillDirectory(resolvedSourcePath)
+  const hasSkillsDir = fs.existsSync(skillsSubdir) && fs.statSync(skillsSubdir).isDirectory()
+
+  if (hasSkillsDir && !isSingleSkill) {
+    const skillDirs = fs.readdirSync(skillsSubdir).filter((d: string) => {
+      const sp = path.join(skillsSubdir, d)
+      if (!fs.statSync(sp).isDirectory()) return false
+      return isSingleSkillDirectory(sp)
+    })
+
+    if (skillDirs.length === 0) {
+      return {
+        ok: false as const,
+        status: 400,
+        error: 'No skills found in skills/ directory (each skill needs a SKILL.md)',
+      }
+    }
+
+    const results: { skillId: string; ok: boolean; error?: string; warning?: string }[] = []
+    for (const dir of skillDirs) {
+      const result = importWorkspaceSkill(path.join(skillsSubdir, dir))
+      results.push({ skillId: result.skillId || dir, ok: result.success, error: result.error, warning: result.warning })
+    }
+
+    const imported = results.filter((r) => r.ok)
+    return {
+      ok: true as const,
+      status: 200,
+      body: {
+        ok: imported.length > 0,
+        imported: imported.length,
+        failed: results.length - imported.length,
+        total: results.length,
+        skills: results,
+      },
+    }
+  }
+
+  const result = importWorkspaceSkill(resolvedSourcePath)
+  if (!result.success) {
+    return {
+      ok: false as const,
+      status: 400,
+      error: result.error || 'Failed to import skill',
+    }
+  }
+
+  return {
+    ok: true as const,
+    status: 200,
+    body: { ok: true, skillId: result.skillId, imported: 1, total: 1, warning: result.warning },
+  }
 }
 
 type SkillSetupSession = {
@@ -311,6 +436,7 @@ router.get('/browse-directory', async (req, res) => {
 export const __test = {
   getNativeDirectoryPickerSupportForRuntime,
   getLocalSkillImportSourcePathGuidance,
+  detectImportableSkillRoot,
 }
 
 // POST /api/skills - Create a new custom skill
@@ -840,68 +966,70 @@ router.post('/import', (req, res) => {
   try {
     const rawSourcePath = req.body?.sourcePath
     const sourcePath = typeof rawSourcePath === 'string' ? rawSourcePath.trim() : ''
-
-    if (!sourcePath) {
-      return res.status(400).json({ error: 'sourcePath is required' })
-    }
-
-    if (!fs.existsSync(sourcePath)) {
-      const suggestedPath = getWorkspaceSkillsDir()
-      return res.status(400).json({
-        error: getLocalSkillImportSourcePathGuidance(sourcePath),
-        suggestedPath,
+    const result = importSkillsFromDirectory(sourcePath)
+    if (!result.ok) {
+      return res.status(result.status).json({
+        error: result.error,
+        ...(result.suggestedPath ? { suggestedPath: result.suggestedPath } : {}),
       })
     }
-
-    if (!fs.statSync(sourcePath).isDirectory()) {
-      return res.status(400).json({ error: 'sourcePath must be a directory' })
-    }
-
-    // Check if this is a multi-skill directory (has skills/ subdir with SKILL.md entries)
-    const skillsSubdir = path.join(sourcePath, 'skills')
-    const isSingleSkill = fs.existsSync(path.join(sourcePath, 'SKILL.md')) ||
-                          fs.existsSync(path.join(sourcePath, 'skill.md'))
-    const hasSkillsDir = fs.existsSync(skillsSubdir) && fs.statSync(skillsSubdir).isDirectory()
-
-    if (hasSkillsDir && !isSingleSkill) {
-      // Multi-skill: import each subdirectory under skills/
-      const skillDirs = fs.readdirSync(skillsSubdir).filter((d: string) => {
-        const sp = path.join(skillsSubdir, d)
-        if (!fs.statSync(sp).isDirectory()) return false
-        return fs.existsSync(path.join(sp, 'SKILL.md')) || fs.existsSync(path.join(sp, 'skill.md'))
-      })
-
-      if (skillDirs.length === 0) {
-        return res.status(400).json({ error: 'No skills found in skills/ directory (each skill needs a SKILL.md)' })
-      }
-
-      const results: { skillId: string; ok: boolean; error?: string; warning?: string }[] = []
-      for (const dir of skillDirs) {
-        const result = importWorkspaceSkill(path.join(skillsSubdir, dir))
-        results.push({ skillId: result.skillId || dir, ok: result.success, error: result.error, warning: result.warning })
-      }
-
-      const imported = results.filter(r => r.ok)
-      return res.json({
-        ok: imported.length > 0,
-        imported: imported.length,
-        failed: results.length - imported.length,
-        total: results.length,
-        skills: results,
-      })
-    }
-
-    // Single skill import
-    const result = importWorkspaceSkill(sourcePath)
-
-    if (!result.success) {
-      return res.status(400).json({ error: result.error })
-    }
-
-    res.json({ ok: true, skillId: result.skillId, imported: 1, total: 1, warning: result.warning })
+    res.status(result.status).json(result.body)
   } catch (err: any) {
     console.error('Error importing skill:', err)
     res.status(500).json({ error: err.message || 'Failed to import skill' })
+  }
+})
+
+// POST /api/skills/import-upload - Upload a ZIP archive from the client and import it into workspace custom skills
+router.post('/import-upload', express.raw({ type: '*/*', limit: '200mb' }), (req, res) => {
+  const fileNameHeader = req.header('x-file-name') || req.header('x-upload-file-name') || ''
+  const fileName = path.basename(fileNameHeader.trim())
+  const body = Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body || [])
+
+  if (!fileName) {
+    return res.status(400).json({ error: 'x-file-name header required' })
+  }
+  if (!fileName.toLowerCase().endsWith('.zip')) {
+    return res.status(400).json({ error: 'Only .zip skill uploads are supported right now' })
+  }
+  if (!body.length) {
+    return res.status(400).json({ error: 'File body required' })
+  }
+
+  const stagingRelDir = path.posix.join('SYSTEM', '.skill-imports', randomUUID())
+  const stagingAbsDir = resolveWorkspacePath(stagingRelDir)
+  if (!stagingAbsDir) {
+    return res.status(500).json({ error: 'Failed to prepare workspace staging directory for skill upload' })
+  }
+
+  try {
+    const extracted = extractZipBufferToWorkspace(stagingRelDir, body)
+    if (!extracted.ok) {
+      return res.status(400).json({ error: extracted.error || 'Failed to extract ZIP archive' })
+    }
+
+    const result = importSkillsFromDirectory(stagingAbsDir)
+    if (!result.ok) {
+      return res.status(result.status).json({
+        error: result.error,
+        ...(result.suggestedPath ? { suggestedPath: result.suggestedPath } : {}),
+      })
+    }
+
+    return res.status(result.status).json({
+      ...result.body,
+      upload: {
+        fileName,
+        extractedFiles: extracted.files?.length || 0,
+      },
+    })
+  } catch (err: any) {
+    console.error('Error importing uploaded skill ZIP:', err)
+    return res.status(500).json({ error: err.message || 'Failed to import uploaded skill ZIP' })
+  } finally {
+    try {
+      fs.rmSync(stagingAbsDir, { recursive: true, force: true })
+    } catch {}
   }
 })
 

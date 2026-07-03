@@ -1,8 +1,8 @@
 # ClawMax Status
 
 **Current Version**: v1.9.3
-**Last Updated**: July 1, 2026
-**Status**: `v1.9.3` is the current promoted stable release. `main` has already moved onto the `1.9.4` line for provider/runtime incident hardening after the `1.9.3` chat-archives and validation-regression cleanup release.
+**Last Updated**: July 3, 2026
+**Status**: `v1.9.3` is the current promoted stable release. `main` has now moved onto the `1.9.5` line after the `1.9.4` provider/runtime incident-hardening pass and the first customer-facing performance-baseline + skills-upload follow-through slices.
 
 ---
 
@@ -16,7 +16,7 @@
 - Partner integrations are active product surfaces, including Resend, Cognee, Opik, GitHub, Senso, and partner plugin install/uninstall handling.
 - Resend has both dashboard test-email validation and first-party `clawmax-resend` agent-tool execution with runtime-secret support.
 - Cognee has a first-pass partner surface for cloud/self-hosted configuration and official OpenClaw plugin lifecycle management.
-- The latest reported full local integration run on the active `1.9.4` branch head is green with `--with-validation --coverage`, including the expanded `384`-lane wrapper baseline and measured coverage of `77.39%` statements/lines, `67.52%` branches, and `88.45%` functions.
+- The latest reported full local integration run on the active `1.9.5` branch head is green with `--with-validation --coverage`, including the expanded `385`-lane wrapper baseline and measured coverage of `77.49%` statements/lines, `67.53%` branches, and `88.73%` functions.
 
 ## Active Release Track
 
@@ -28,10 +28,11 @@
   - [planning/archive/SIMPLIFY_HARDEN_OPTIMIZE_1_9_2.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/archive/SIMPLIFY_HARDEN_OPTIMIZE_1_9_2.md)
   - [planning/archive/SIMPLIFY_HARDEN_OPTIMIZE_1_9_3.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/archive/SIMPLIFY_HARDEN_OPTIMIZE_1_9_3.md)
   - [planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_4.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_4.md)
-- Near-term target: cut and validate `1.9.4-test-rc2`, starting from the grouped shared-auth incident work plus the newer doctor provider-execution preflight and repeated auth-notification suppression slices.
-- Next likely follow-through: continue `1.9.4` with provider-specific diagnosis, repeated cron/workflow failure suppression, and stronger doctor/preflight for runtime provider configuration.
-- Sequencing after `1.9.4`: use `1.9.5` for high-level performance baselining of core actions like agent chat and workflow first-run timing, then use `1.9.6` for the next deliberate OpenClaw update with those performance measurements available for before/after comparison plus the builder/template consistency investigation from the `AI-Driven Inbound Sales & Support Management` demo case (offer both team/company modes when ambiguous, and guarantee generated workflow handoff correctness).
-- `1.9.5` planning is now explicit and starts with perf artifacts in the existing integration harness: workflow list timing, agent chat round-trip, workflow trigger latency, first visible workflow progress, and kickoff completion timing, written to `SYSTEM/dashboard/perf/perf-summary.json`.
+  - [planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_5.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_5.md)
+- Near-term target: cut and validate `1.9.5-test-rc1`, starting from the perf baseline artifacts plus the customer-facing custom-skill ZIP upload path in the Skills import flow.
+- `1.9.5` scope now includes perf artifacts in the existing integration harness: workflow list timing, agent chat round-trip, workflow trigger latency, first visible workflow progress, kickoff completion timing, rolling history, and optional multi-model chat sampling.
+- Next likely follow-through inside `1.9.5`: tighten chat response-shape classification and workflow completion stability so the baseline is cleaner.
+- Sequencing after `1.9.5`: use `1.9.6` for the next deliberate OpenClaw update with these measurements available for before/after comparison plus the builder/template consistency investigation from the `AI-Driven Inbound Sales & Support Management` demo case.
 
 ## Release References
 

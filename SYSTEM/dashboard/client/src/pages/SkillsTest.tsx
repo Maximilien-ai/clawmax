@@ -399,6 +399,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
   const [showImportDialog, setShowImportDialog] = useState(false)
   const [importPath, setImportPath] = useState('')
   const [importing, setImporting] = useState(false)
+  const uploadSkillZipInputRef = useRef<HTMLInputElement>(null)
   const [importSource, setImportSource] = useState<'local' | 'github' | 'registry' | 'partner' | 'ai'>('local')
   const [registryProvider, setRegistryProvider] = useState<RegistryProvider>('clawhub')
   const [registryQuery, setRegistryQuery] = useState('')
@@ -1002,6 +1003,62 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
     } catch (error: any) {
       setError(error.message || 'Error importing skill')
     } finally {
+      setImporting(false)
+    }
+  }
+
+  async function handleUploadSkillZip(file: File) {
+    setImporting(true)
+    setError(null)
+
+    try {
+      const payload = await file.arrayBuffer()
+      const res = await fetch(`${API_BASE}/api/skills/import-upload`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/zip',
+          'x-file-name': file.name,
+        },
+        body: payload,
+      })
+      const data = await res.json()
+
+      if (!res.ok) {
+        setError(data.error || 'Failed to import uploaded ZIP')
+        return
+      }
+
+      setShowImportDialog(false)
+      setImportPath('')
+      setImportSource('local')
+      await loadSkills()
+      if (data.warning) {
+        showWarning(data.warning)
+      }
+      if (data.total && data.total > 1) {
+        const failed = data.skills?.filter((s: any) => !s.ok) || []
+        const warnings = data.skills?.filter((s: any) => s.warning).map((s: any) => s.warning) || []
+        const importedSkillNames = data.skills?.filter((s: any) => s.ok).map((s: any) => s.skillId).filter(Boolean) || []
+        showSuccess(`Imported ${data.imported}/${data.total} skills from ${file.name}`)
+        if (warnings.length > 0) {
+          showWarning(warnings.join(' '))
+        }
+        if (importedSkillNames.length > 0) {
+          await warnForSkillSetupByNames(importedSkillNames)
+        }
+        if (failed.length > 0) {
+          showToastError(`Failed: ${failed.map((f: any) => f.skillId).join(', ')}`)
+        }
+      } else {
+        showSuccess(`Imported skill from ${file.name}: ${data.skillId}`)
+        await warnForSkillSetupByNames([data.skillId])
+      }
+    } catch (error: any) {
+      setError(error.message || 'Error importing uploaded ZIP')
+    } finally {
+      if (uploadSkillZipInputRef.current) {
+        uploadSkillZipInputRef.current.value = ''
+      }
       setImporting(false)
     }
   }
@@ -4007,9 +4064,34 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                             Browse...
                           </span>
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => uploadSkillZipInputRef.current?.click()}
+                            disabled={importing}
+                          className="px-4 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg hover:bg-emerald-100 font-medium whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed dark:bg-emerald-900/20 dark:text-emerald-300 dark:border-emerald-800 dark:hover:bg-emerald-900/30"
+                        >
+                          <span className="inline-flex items-center gap-2">
+                            <ProductIconCell iconName="import" label="Upload ZIP" size="sm" className="border-transparent bg-transparent text-current" />
+                            Upload ZIP...
+                          </span>
+                        </button>
+                        <input
+                          ref={uploadSkillZipInputRef}
+                          type="file"
+                          accept=".zip,application/zip"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0]
+                            if (!file) return
+                            void handleUploadSkillZip(file)
+                          }}
+                        />
                       </div>
                       <p className="text-xs text-gray-500 mt-1">
                         Click Browse to select a directory, or paste the full path manually
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Recommended for cloud, container, and on-prem dashboard runtimes: upload a ZIP exported from your laptop and the dashboard will import it into this workspace for you.
                       </p>
                       <p className="text-xs text-gray-500">
                         In cloud, containerized, or remote/on-prem dashboard runtimes, Browse may be unavailable. If the dashboard is not running on this same machine, a local path on your laptop will not work here.
