@@ -4456,6 +4456,10 @@ else
   warn "Could not test memory creation (workspace path unknown)"
 fi
 
+# Optional perf model matrix must run before cleanup while the system-test
+# workspace is still active and the imported agents still exist on disk.
+run_perf_model_matrix
+
 # Cost estimation
 INTEGRATION_END=$(date +%s)
 INTEGRATION_DURATION=$((INTEGRATION_END - INTEGRATION_START))
@@ -4518,7 +4522,6 @@ echo "  Agent chat round-trip: $(format_perf_metric "$PERF_CHAT_ROUNDTRIP_MS")"
 echo "  Workflow trigger: $(format_perf_metric "$PERF_WORKFLOW_TRIGGER_MS")"
 echo "  Workflow first visible progress: $(format_perf_metric "$PERF_WORKFLOW_FIRST_PROGRESS_MS")"
 echo "  Workflow kickoff complete: $(format_perf_metric "$PERF_WORKFLOW_COMPLETE_MS")"
-run_perf_model_matrix
 write_perf_summary
 echo ""
 
