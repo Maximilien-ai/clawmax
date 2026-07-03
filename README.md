@@ -14,11 +14,12 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 
 - `1.9.3` is the chat-archives and validation-regression cleanup release after `1.9.2`: archive list/resume correctness, safer current-vs-archived conversation behavior, Templates mobile overflow hardening, Workflows first-load initialization fixes, and stronger on-prem custom-skill import guidance.
 
-## 🛠 Next Sprint: 1.9.4
+## 🛠 Current RC Line: 1.9.5
 
-- Next validation image: `1.9.4-test-rc2`
-- `1.9.4` is focused on provider/runtime incident hardening: shared provider-auth incident detection, repeated cron/workflow auth-failure dedupe, and stronger doctor/preflight guidance for cloud/on-prem runtime provider configuration.
-- Current measured baseline on `main`: `383` passing wrapper lanes with `77.32%` statements/lines, `67.41%` branches, and `88.41%` functions on the full `integration --with-validation --coverage` path.
+- Next validation image: `1.9.5-test-rc1`
+- `1.9.5` is focused on lightweight performance baselining and customer-facing follow-through around skill import UX.
+- This line adds machine-readable perf artifacts for core flows like direct agent chat, workflow load/trigger/progress, rolling history, and optional model-matrix chat samples.
+- The Skills page now supports uploading custom-skill ZIP bundles directly, which is the recommended path for cloud, containerized, and on-prem dashboard runtimes.
 
 ## ✨ 1.9.x Highlights
 

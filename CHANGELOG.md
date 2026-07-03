@@ -4,6 +4,13 @@ All notable changes to ClawMax are documented here.
 
 ## [Unreleased]
 
+### Added
+- **Workspace Skill ZIP Uploads** — the Skills import flow now supports uploading a ZIP bundle directly from the client, staging it into the active workspace, importing it through the normal custom-skill validation path, and avoiding the need for users to manually copy skill files into a cloud/container/on-prem dashboard runtime.
+- **Performance Baseline Artifacts** — the integration wrapper now records core timing artifacts for workflow list load, direct agent chat round-trip, workflow trigger, first visible workflow progress, kickoff completion, rolling history, and optional per-model chat samples so later releases can be compared against a repeatable baseline.
+
+### Changed
+- **Skill Import UX For Remote Runtimes** — local custom-skill import now offers an explicit `Upload ZIP...` path in addition to directory browse/paste so customer guidance no longer depends on exposing runtime-only filesystem paths inside the dashboard container.
+
 ## [v1.9.3] - 2026-07-01
 
 ### Fixed
