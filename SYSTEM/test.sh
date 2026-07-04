@@ -86,6 +86,73 @@ json_escape() {
   node -e 'console.log(JSON.stringify(process.argv[1] || ""))' "$1"
 }
 
+classify_agent_chat_payload() {
+  node - "$1" <<'EOF'
+const raw = process.argv[2] || ''
+
+function finish(result) {
+  process.stdout.write(JSON.stringify(result))
+}
+
+try {
+  const parsed = JSON.parse(raw)
+  if (typeof parsed?.text === 'string' && parsed.text.trim()) {
+    finish({ ok: true, note: 'ok', text: parsed.text.trim() })
+    process.exit(0)
+  }
+  const nestedResponse = parsed?.result?.response
+  if (typeof nestedResponse === 'string' && nestedResponse.trim()) {
+    finish({ ok: true, note: 'ok-json', text: nestedResponse.trim() })
+    process.exit(0)
+  }
+  if (typeof parsed?.error === 'string' && parsed.error.trim()) {
+    finish({ ok: false, note: `error:${parsed.error.trim()}` })
+    process.exit(0)
+  }
+} catch {}
+
+const dataLines = raw
+  .split(/\r?\n/)
+  .filter((line) => line.startsWith('data: '))
+  .map((line) => line.slice(6))
+
+let sawComplete = false
+let sawDelta = false
+let completeText = ''
+let deltaText = ''
+let errorText = ''
+
+for (const line of dataLines) {
+  try {
+    const parsed = JSON.parse(line)
+    if (parsed?.type === 'delta') {
+      sawDelta = true
+      if (typeof parsed?.data?.text === 'string') deltaText += parsed.data.text
+    } else if (parsed?.type === 'complete') {
+      sawComplete = true
+      if (typeof parsed?.data?.text === 'string') completeText = parsed.data.text
+    } else if (parsed?.type === 'error') {
+      if (typeof parsed?.data === 'string' && parsed.data.trim()) errorText = parsed.data.trim()
+      else if (typeof parsed?.data?.error === 'string' && parsed.data.error.trim()) errorText = parsed.data.error.trim()
+    }
+  } catch {}
+}
+
+if (errorText) {
+  finish({ ok: false, note: `error:${errorText}` })
+  process.exit(0)
+}
+
+const finalText = (completeText || deltaText).trim()
+if (sawComplete || (sawDelta && finalText)) {
+  finish({ ok: true, note: 'ok-stream', text: finalText })
+  process.exit(0)
+}
+
+finish({ ok: false, note: 'unexpected-format' })
+EOF
+}
+
 write_perf_summary() {
   mkdir -p "$PERF_DIR"
   cat > "$PERF_SUMMARY_FILE" <<EOF
@@ -390,19 +457,14 @@ run_perf_model_matrix() {
     local sample_finished_ms
     sample_finished_ms=$(now_ms)
     sample_ms=$(elapsed_ms "$sample_started_ms" "$sample_finished_ms")
+    local sample_classification
+    sample_classification=$(classify_agent_chat_payload "$sample_result")
+    sample_note=$(echo "$sample_classification" | jq -r '.note // "unexpected-format"' 2>/dev/null)
 
-    if echo "$sample_result" | jq -e '.text' > /dev/null 2>&1; then
-      sample_note="ok"
+    if echo "$sample_classification" | jq -e '.ok == true' > /dev/null 2>&1; then
       pass "Perf sample ${perf_model} chat works"
-    elif echo "$sample_result" | grep -q '"type":"complete"'; then
-      sample_note="ok-stream"
-      pass "Perf sample ${perf_model} chat works (stream)"
-    elif echo "$sample_result" | jq -e '.error' > /dev/null 2>&1; then
-      sample_note="error:$(echo "$sample_result" | jq -r '.error' 2>/dev/null)"
-      warn "Perf sample ${perf_model} chat error"
     else
-      sample_note="unexpected-format"
-      warn "Perf sample ${perf_model} chat returned unexpected format"
+      warn "Perf sample ${perf_model} chat returned ${sample_note}"
     fi
 
     record_perf_model_sample "$perf_model" "$sample_ms" "$sample_note" "matrix"
@@ -4267,25 +4329,17 @@ else
     -d '{"message":"Say HELLO in exactly one word.","sessionId":"integration-test"}' 2>/dev/null)
   chat_finished_ms=$(now_ms)
   PERF_CHAT_ROUNDTRIP_MS=$(elapsed_ms "$chat_started_ms" "$chat_finished_ms")
+  chat_classification=$(classify_agent_chat_payload "$chat_result")
+  PERF_CHAT_NOTE=$(echo "$chat_classification" | jq -r '.note // "unexpected-format"' 2>/dev/null)
 
-  if echo "$chat_result" | jq -e '.text' > /dev/null 2>&1; then
-    PERF_CHAT_NOTE="ok"
-    response_text=$(echo "$chat_result" | jq -r '.text' | head -1)
+  if echo "$chat_classification" | jq -e '.ok == true' > /dev/null 2>&1; then
+    response_text=$(echo "$chat_classification" | jq -r '.text // ""' | head -1)
     pass "Agent chat works (response: ${response_text:0:50})"
-  elif echo "$chat_result" | grep -q '"type":"complete"'; then
-    PERF_CHAT_NOTE="ok-stream"
-    response_text=$(echo "$chat_result" | sed -n 's/^data: //p' | jq -r 'select(.type == "complete") | .data.text // empty' | tail -1)
-    pass "Agent chat works (response: ${response_text:0:50})"
+  elif [[ "$PERF_CHAT_NOTE" == error:* ]]; then
+    error_msg="${PERF_CHAT_NOTE#error:}"
+    warn "Agent chat: $error_msg (may need gateway)"
   else
-    # Chat might use streaming — check for error
-    if echo "$chat_result" | jq -e '.error' > /dev/null 2>&1; then
-      PERF_CHAT_NOTE="error"
-      error_msg=$(echo "$chat_result" | jq -r '.error')
-      warn "Agent chat: $error_msg (may need gateway)"
-    else
-      PERF_CHAT_NOTE="unexpected-format"
-      warn "Agent chat returned unexpected format"
-    fi
+    warn "Agent chat returned unexpected format"
   fi
 fi
 

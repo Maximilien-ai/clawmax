@@ -19,6 +19,7 @@ import { getDashboardInstallRequirementCommands } from '../lib/skillInstall'
 import { buildSkillExportFilename, getSelectedSkillForExport } from '../lib/skillExport'
 import { buildRegistryCompatibilityNote, buildSkillsPageCountLabel, partitionSkillsBySection } from '../lib/skillsPageFlow'
 import { getViewportSafeDropdownStyle } from '../lib/dropdownPosition'
+import { LOCAL_SKILL_IMPORT_GUIDANCE, LOCAL_SKILL_IMPORT_PATH_PLACEHOLDER } from '../lib/skillImportPresentation'
 import { useAuth } from '../contexts/AuthContext'
 import { expandPromptWithAI } from '../lib/aiPrompt'
 import {
@@ -4024,50 +4025,13 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                           type="text"
                           value={importPath}
                           onChange={(e) => setImportPath(e.target.value)}
-                          placeholder="/path/to/your/custom-skill"
+                          placeholder={LOCAL_SKILL_IMPORT_PATH_PLACEHOLDER}
                           className="flex-1 px-4 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                         />
                         <button
                           type="button"
-                          onClick={async () => {
-                            try {
-                              const res = await fetch(`${API_BASE}/api/skills/browse-directory`)
-                              const data = await res.json()
-
-                              if (data.cancelled) {
-                                // User cancelled - do nothing
-                                return
-                              }
-
-                              if (!res.ok) {
-                                if (typeof data.path === 'string' && data.path.trim()) {
-                                  setImportPath(data.path.trim())
-                                }
-                                setError(data.error || 'Browse is unavailable in this dashboard runtime. Paste a path manually instead.')
-                                return
-                              }
-
-                              if (data.path) {
-                                setImportPath(data.path)
-                                setError(null)
-                              } else if (data.error) {
-                                setError(data.error)
-                              }
-                            } catch (err: any) {
-                              setError('Failed to open directory picker: ' + err.message)
-                            }
-                          }}
-                          className="px-4 py-2 bg-gray-100 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-200 font-medium whitespace-nowrap dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600"
-                        >
-                          <span className="inline-flex items-center gap-2">
-                            <ProductIconCell iconName="directory" label="Browse" size="sm" className="border-transparent bg-transparent text-current" />
-                            Browse...
-                          </span>
-                        </button>
-                        <button
-                          type="button"
                           onClick={() => uploadSkillZipInputRef.current?.click()}
-                            disabled={importing}
+                          disabled={importing}
                           className="px-4 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg hover:bg-emerald-100 font-medium whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed dark:bg-emerald-900/20 dark:text-emerald-300 dark:border-emerald-800 dark:hover:bg-emerald-900/30"
                         >
                           <span className="inline-flex items-center gap-2">
@@ -4087,21 +4051,11 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                           }}
                         />
                       </div>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Click Browse to select a directory, or paste the full path manually
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        Recommended for cloud, container, and on-prem dashboard runtimes: upload a ZIP exported from your laptop and the dashboard will import it into this workspace for you.
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        In cloud, containerized, or remote/on-prem dashboard runtimes, Browse may be unavailable. If the dashboard is not running on this same machine, a local path on your laptop will not work here.
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        Paste a path that exists inside the dashboard runtime, or copy/mount the directory there first. Managed custom skills normally live under `WORKSPACES/&lt;workspace&gt;/SKILLS/custom`.
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        Example when the dashboard runs on your Mac: /Users/you/projects/mechdog-skill
-                      </p>
+                      {LOCAL_SKILL_IMPORT_GUIDANCE.map((message, index) => (
+                        <p key={index} className={`text-xs text-gray-500${index === 0 ? ' mt-1' : ''}`}>
+                          {message}
+                        </p>
+                      ))}
                     </div>
                   </div>
                 )}
