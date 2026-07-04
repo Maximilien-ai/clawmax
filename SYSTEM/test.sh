@@ -72,6 +72,17 @@ apicurl_long() {
   fi
 }
 
+# Agent chat streams can stay open until the model finishes, so the default
+# short API timeout would cut off valid responses and skew perf samples.
+apicurl_chat() {
+  local chat_opts="--connect-timeout 5 --max-time 190"
+  if [ -n "$DASHBOARD_AUTH" ]; then
+    curl -s $chat_opts -H "Authorization: Bearer $DASHBOARD_AUTH" "$@"
+  else
+    curl -s $chat_opts "$@"
+  fi
+}
+
 now_ms() {
   node -e 'console.log(Date.now())'
 }
@@ -451,7 +462,7 @@ run_perf_model_matrix() {
     local sample_started_ms
     sample_started_ms=$(now_ms)
     local sample_result
-    sample_result=$(apicurl -X POST "$API_BASE/api/agents/test-lead/chat" \
+    sample_result=$(apicurl_chat -X POST "$API_BASE/api/agents/test-lead/chat" \
       -H 'Content-Type: application/json' \
       -d "{\"message\":\"Say HELLO in exactly one word.\",\"sessionId\":\"perf-${session_slug}\"}" 2>/dev/null)
     local sample_finished_ms
@@ -4324,7 +4335,7 @@ if [ -z "${integration_openai_key:-}" ] && [ -z "${integration_anthropic_key:-}"
   warn "Agent chat skipped (no SYSTEM_OPENAI_API_KEY or SYSTEM_ANTHROPIC_API_KEY configured)"
 else
   chat_started_ms=$(now_ms)
-  chat_result=$(apicurl -X POST "$API_BASE/api/agents/test-lead/chat" \
+  chat_result=$(apicurl_chat -X POST "$API_BASE/api/agents/test-lead/chat" \
     -H 'Content-Type: application/json' \
     -d '{"message":"Say HELLO in exactly one word.","sessionId":"integration-test"}' 2>/dev/null)
   chat_finished_ms=$(now_ms)
