@@ -105,6 +105,17 @@ function finish(result) {
   process.stdout.write(JSON.stringify(result))
 }
 
+function classifyErrorNote(message) {
+  const normalized = String(message || '').trim()
+  if (!normalized) return { ok: false, note: 'unexpected-format' }
+
+  if (/No model provider credentials are configured for this chat/i.test(normalized)) {
+    return { ok: false, note: `skipped:no-credentials:${normalized}` }
+  }
+
+  return { ok: false, note: `error:${normalized}` }
+}
+
 try {
   const parsed = JSON.parse(raw)
   if (typeof parsed?.text === 'string' && parsed.text.trim()) {
@@ -117,7 +128,7 @@ try {
     process.exit(0)
   }
   if (typeof parsed?.error === 'string' && parsed.error.trim()) {
-    finish({ ok: false, note: `error:${parsed.error.trim()}` })
+    finish(classifyErrorNote(parsed.error))
     process.exit(0)
   }
 } catch {}
@@ -150,7 +161,7 @@ for (const line of dataLines) {
 }
 
 if (errorText) {
-  finish({ ok: false, note: `error:${errorText}` })
+  finish(classifyErrorNote(errorText))
   process.exit(0)
 }
 
@@ -474,6 +485,8 @@ run_perf_model_matrix() {
 
     if echo "$sample_classification" | jq -e '.ok == true' > /dev/null 2>&1; then
       pass "Perf sample ${perf_model} chat works"
+    elif [[ "$sample_note" == skipped:* ]]; then
+      warn "Perf sample ${perf_model} chat skipped (${sample_note#skipped:})"
     else
       warn "Perf sample ${perf_model} chat returned ${sample_note}"
     fi
@@ -2090,6 +2103,15 @@ if grep -q "PASS: prepare-openclaw-target.sh uses the branch target Node/PNPM Op
 else
   [ -f /tmp/clawmax-openclaw-target-shell.out ] && cat /tmp/clawmax-openclaw-target-shell.out
   fail "OpenClaw target prep shell tests"
+fi
+
+echo -e "${YELLOW}→ Running OpenClaw version alignment shell tests...${NC}"
+bash "$SYSTEM_DIR/openclaw-version-alignment.test.sh" > /tmp/clawmax-openclaw-version-alignment-shell.out 2>&1 || true
+if grep -q "PASS: OpenClaw target is aligned across helper, Dockerfile, and CI" /tmp/clawmax-openclaw-version-alignment-shell.out; then
+  pass "OpenClaw version alignment shell tests"
+else
+  [ -f /tmp/clawmax-openclaw-version-alignment-shell.out ] && cat /tmp/clawmax-openclaw-version-alignment-shell.out
+  fail "OpenClaw version alignment shell tests"
 fi
 
 echo -e "${YELLOW}→ Running Uninstall shell tests...${NC}"
@@ -4346,6 +4368,8 @@ else
   if echo "$chat_classification" | jq -e '.ok == true' > /dev/null 2>&1; then
     response_text=$(echo "$chat_classification" | jq -r '.text // ""' | head -1)
     pass "Agent chat works (response: ${response_text:0:50})"
+  elif [[ "$PERF_CHAT_NOTE" == skipped:* ]]; then
+    warn "Agent chat skipped (${PERF_CHAT_NOTE#skipped:})"
   elif [[ "$PERF_CHAT_NOTE" == error:* ]]; then
     error_msg="${PERF_CHAT_NOTE#error:}"
     warn "Agent chat: $error_msg (may need gateway)"

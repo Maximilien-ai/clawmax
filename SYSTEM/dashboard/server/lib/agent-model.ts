@@ -82,13 +82,18 @@ export function updateAgentModelInConfigFile(
     }
 
     const previousModel = agentList[agentIndex]?.model
+    const changed = previousModel !== nextModel
+    if (!changed) {
+      return { ok: true, changed: false, model: nextModel }
+    }
+
     agentList[agentIndex] = {
       ...agentList[agentIndex],
       model: nextModel,
     }
 
     writeDashboardManagedOpenClawConfig(configPath, config, `updateAgentModelInConfigFile(${agentId})`)
-    return { ok: true, changed: previousModel !== nextModel, model: nextModel }
+    return { ok: true, changed, model: nextModel }
   } catch (err: any) {
     return { ok: false, error: err.message || String(err) }
   }
@@ -150,6 +155,10 @@ export function upsertAgentModelInConfigFile(
         ...(options?.agentDir ? { agentDir: options.agentDir } : {}),
         model: nextModel,
       }
+    }
+
+    if (!changed) {
+      return { ok: true, changed: false, model: nextModel }
     }
 
     writeDashboardManagedOpenClawConfig(configPath, config, `upsertAgentModelInConfigFile(${agentId})`)
@@ -218,10 +227,17 @@ export function restoreAgentModelInConfigFile(
     } else {
       delete nextAgent.model
     }
+
+    const previousModel = agentList[agentIndex]?.model
+    const nextModel = nextAgent.model
+    if (previousModel === nextModel) {
+      return { ok: true, changed: false, model: nextModel }
+    }
+
     agentList[agentIndex] = nextAgent
 
     writeDashboardManagedOpenClawConfig(configPath, config, `restoreAgentModelInConfigFile(${agentId})`)
-    return { ok: true }
+    return { ok: true, changed: true, model: nextModel }
   } catch (err: any) {
     return { ok: false, error: err.message || String(err) }
   }

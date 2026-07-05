@@ -56,6 +56,34 @@ test('updateAgentModelInConfigFile updates model in openclaw.json', () => {
   assert(typeof updated.meta?.lastTouchedAt === 'string', 'Expected metadata stamp to be written')
 })
 
+test('updateAgentModelInConfigFile is a no-op when the normalized model is unchanged', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-model-test-'))
+  const configPath = path.join(tmpDir, 'openclaw.json')
+  const original = {
+    gateway: {
+      auth: { token: 'stable-token' },
+    },
+    agents: {
+      list: [
+        { id: 'ceo', name: 'CEO', model: 'openai/gpt-4o-mini' }
+      ]
+    },
+    meta: {
+      lastTouchedAt: '2026-07-05T12:00:00.000Z'
+    }
+  }
+
+  fs.writeFileSync(configPath, JSON.stringify(original, null, 2))
+  const before = fs.readFileSync(configPath, 'utf-8')
+
+  const result = updateAgentModelInConfigFile(configPath, 'ceo', 'gpt4o-mini')
+  assert(result.ok, result.error || 'Expected update to succeed')
+  assert(result.changed === false, 'Expected unchanged model to report no change')
+
+  const after = fs.readFileSync(configPath, 'utf-8')
+  assert(after === before, 'Expected config file to remain unchanged for a no-op model update')
+})
+
 test('normalizeAgentModelInput qualifies common OpenAI aliases', () => {
   assert(normalizeAgentModelInput('gpt-4o-mini') === 'openai/gpt-4o-mini', 'Expected bare gpt-4o-mini to become openai-qualified')
   assert(normalizeAgentModelInput('gpt4o-mini') === 'openai/gpt-4o-mini', 'Expected compact gpt4o-mini to normalize')
@@ -138,6 +166,32 @@ test('upsertAgentModelInConfigFile updates the exact active workspace record', (
   const updated = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
   assert(updated.agents.list.length === 1, 'Expected exact workspace update not to append a duplicate')
   assert(updated.agents.list[0].model === 'openai/gpt-4o-mini', 'Expected active workspace model to be updated')
+})
+
+test('upsertAgentModelInConfigFile is a no-op when the exact workspace record already matches', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-model-test-'))
+  const configPath = path.join(tmpDir, 'openclaw.json')
+  const activeWorkspace = path.join(tmpDir, 'workspace', 'AGENTS', 'simple-agent')
+  const original = {
+    agents: {
+      list: [
+        { id: 'simple-agent', workspace: activeWorkspace, model: 'openai/gpt-4o-mini' }
+      ]
+    },
+    meta: {
+      lastTouchedAt: '2026-07-05T12:00:00.000Z'
+    }
+  }
+
+  fs.writeFileSync(configPath, JSON.stringify(original, null, 2))
+  const before = fs.readFileSync(configPath, 'utf-8')
+
+  const result = upsertAgentModelInConfigFile(configPath, 'simple-agent', 'gpt4o-mini', { workspacePath: activeWorkspace })
+  assert(result.ok, result.error || 'Expected upsert to succeed')
+  assert(result.changed === false, 'Expected matching workspace model to report no change')
+
+  const after = fs.readFileSync(configPath, 'utf-8')
+  assert(after === before, 'Expected config file to remain unchanged for a no-op upsert')
 })
 
 test('updateAgentModelInConfigFile rejects missing agent', () => {
