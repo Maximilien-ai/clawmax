@@ -2092,6 +2092,15 @@ else
   fail "OpenClaw target prep shell tests"
 fi
 
+echo -e "${YELLOW}→ Running OpenClaw version alignment shell tests...${NC}"
+bash "$SYSTEM_DIR/openclaw-version-alignment.test.sh" > /tmp/clawmax-openclaw-version-alignment-shell.out 2>&1 || true
+if grep -q "PASS: OpenClaw target is aligned across helper, Dockerfile, and CI" /tmp/clawmax-openclaw-version-alignment-shell.out; then
+  pass "OpenClaw version alignment shell tests"
+else
+  [ -f /tmp/clawmax-openclaw-version-alignment-shell.out ] && cat /tmp/clawmax-openclaw-version-alignment-shell.out
+  fail "OpenClaw version alignment shell tests"
+fi
+
 echo -e "${YELLOW}→ Running Uninstall shell tests...${NC}"
 bash "$SYSTEM_DIR/uninstall.test.sh" > /tmp/clawmax-uninstall-shell.out 2>&1 || true
 if grep -q "PASS: setup.sh uninstall covers podman orphan cleanup and privileged packaged-app removal" /tmp/clawmax-uninstall-shell.out; then
