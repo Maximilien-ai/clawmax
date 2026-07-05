@@ -5,24 +5,25 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.9.2-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
+[![Version](https://img.shields.io/badge/version-1.9.5-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
 [![Tests](https://img.shields.io/badge/tests-96%20default--safe-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 Latest Stable Release: v1.9.3
+## 🔥 Latest Stable Release: v1.9.5
 
-- `1.9.3` is the chat-archives and validation-regression cleanup release after `1.9.2`: archive list/resume correctness, safer current-vs-archived conversation behavior, Templates mobile overflow hardening, Workflows first-load initialization fixes, and stronger on-prem custom-skill import guidance.
+- `1.9.5` is the performance-baseline and custom-skill import UX release: machine-readable perf artifacts for chat/workflow flows, rolling history and optional model-matrix sampling, plus direct ZIP upload for workspace skills in cloud, containerized, and on-prem runtimes.
 
-## 🛠 Current RC Line: 1.9.5
+## 🛠 Current RC Line: 1.9.6
 
-- Next validation image: `1.9.5-test-rc1`
-- `1.9.5` is focused on lightweight performance baselining and customer-facing follow-through around skill import UX.
-- This line adds machine-readable perf artifacts for core flows like direct agent chat, workflow load/trigger/progress, rolling history, and optional model-matrix chat samples.
-- The Skills page now supports uploading custom-skill ZIP bundles directly, which is the recommended path for cloud, containerized, and on-prem dashboard runtimes.
+- Next validation image: `1.9.6-test-rc1`
+- `1.9.6` is the OpenClaw currency and runtime-follow-through line.
+- This line updates the tested OpenClaw baseline to `v2026.6.11`, adds explicit pin-alignment coverage across local prep, Docker, and CI, and reduces avoidable runtime config churn from no-op model saves.
+- Builder/template consistency and generated handoff follow-through will continue on top of this newer runtime baseline.
 
 ## ✨ 1.9.x Highlights
 
+- `1.9.5`: perf baseline artifacts, rolling history/model-matrix sampling, and direct custom-skill ZIP upload/import for cloud, container, and on-prem runtimes.
 - `1.9.3`: chat archive correctness, archived conversation resume/restore cleanup, Templates mobile overflow hardening, Workflows first-load initialization fixes, and clearer on-prem custom-skill import guidance.
 - `1.9.2`: clearer workflow/log/notification/doctor diagnostics, safer local skill import/runtime-path handling, and more consistent DocHub/file-open payload parsing across dashboard surfaces.
 - `1.9.1`: major test backfill push, built-in `--coverage` mode in the wrapper, and broader server-route/runtime regression coverage to establish a measured stabilization baseline.
