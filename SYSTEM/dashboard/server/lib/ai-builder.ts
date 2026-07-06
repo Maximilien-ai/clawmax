@@ -138,6 +138,8 @@ type SearchableRecord = {
 const TEAM_KEYWORDS = ['team', 'teams', 'handoff', 'handoffs', 'workflow', 'workflows', 'company', 'organization', 'org', 'lane', 'lanes', 'group', 'groups']
 const TEAM_OF_TEAMS_KEYWORDS = ['team of teams', 'teams of teams', 'multi-team', 'multiple teams', 'teams and subteams', 'org of teams', 'organization of teams']
 const COMPANY_SCOPE_KEYWORDS = ['company template', 'organization template', 'new company template', 'new organization template', 'create a new company template', 'create a new organization template']
+const COMPANY_DRAFT_KEYWORDS = ['company template', 'organization template', 'team of teams', 'teams of teams', 'multi-team', 'multiple teams']
+const COMPANY_STRUCTURE_KEYWORDS = ['leadership', 'leadership team', 'leadership teams', 'executive', 'executive reporting', 'departments', 'business units', 'functional teams']
 const AGENT_KEYWORDS = ['agent', 'assistant', 'helper', 'specialist']
 const SKILL_KEYWORDS = ['skill', 'skills', 'tool', 'tools', 'github', 'slack', 'whatsapp', 'gmail', 'calendar', 'integration', 'integrations', 'api', 'connect', 'connector']
 const CHAT_KEYWORDS = ['chat', 'talk', 'message', 'ask', 'speak']
@@ -357,6 +359,17 @@ function detectScope(prompt: string): AiBuilderScope {
   if (includesAny(prompt, ['operations', 'ops', 'intake', 'delivery']) && includesAny(prompt, TEMPLATE_KEYWORDS)) return 'team'
   if (includesAny(prompt, AGENT_KEYWORDS)) return 'single_agent'
   return 'unknown'
+}
+
+function shouldTargetCompanyTemplate(prompt: string): boolean {
+  if (includesAny(prompt, COMPANY_DRAFT_KEYWORDS)) return true
+  if (includesAny(prompt, ['organization', 'company']) && includesAny(prompt, COMPANY_STRUCTURE_KEYWORDS)) return true
+  return false
+}
+
+function resolveTeamTemplateDraftTarget(prompt: string, scope: AiBuilderScope): AiBuilderAction['templateDraftTarget'] {
+  if (scope !== 'team_of_teams') return 'team'
+  return shouldTargetCompanyTemplate(prompt) ? 'company' : 'team'
 }
 
 function detectOperation(prompt: string): AiBuilderOperation {
@@ -695,7 +708,7 @@ function buildConfirmationOptions(args: {
   const topAgent = matchedAgents[0]
   const topAgentTemplate = matchedAgentTemplates[0]
   const topOrgTemplate = matchedOrganizationTemplates[0]
-  const teamTemplateDraftTarget: AiBuilderAction['templateDraftTarget'] = scope === 'team_of_teams' ? 'company' : 'team'
+  const teamTemplateDraftTarget = resolveTeamTemplateDraftTarget(prompt, scope)
   const shouldOfferExistingAgentConfirmation = (
     scope === 'single_agent'
     || operation === 'reuse_existing'
@@ -748,13 +761,13 @@ function buildConfirmationOptions(args: {
   if (scope === 'team' || scope === 'team_of_teams') {
     options.push({
       id: 'confirm-new-team-template',
-      label: scope === 'team_of_teams' ? 'Create a new company template' : 'Create a new team template',
+      label: teamTemplateDraftTarget === 'company' ? 'Create a new company template' : 'Create a new team template',
       prompt: `${prompt}\n\nConfirmation: create a new team template from this request instead of reusing a generic one.`,
       reasoning: 'Use a fresh team template when the existing matches are too generic for the actual domain.',
       action: {
         id: 'confirm-create-team-template',
-        label: scope === 'team_of_teams' ? 'AI Create Company Template' : 'AI Create Team Template',
-        description: scope === 'team_of_teams'
+        label: teamTemplateDraftTarget === 'company' ? 'AI Create Company Template' : 'AI Create Team Template',
+        description: teamTemplateDraftTarget === 'company'
           ? 'Create a new company or team-of-teams template from this prompt.'
           : 'Create a new team template from this prompt.',
         page: 'templates',
@@ -1171,7 +1184,7 @@ export function buildAiBuilderRecommendation(prompt: string): AiBuilderRecommend
     matchedAgentTemplates,
     matchedOrganizationTemplates,
   })
-  const teamTemplateDraftTarget: AiBuilderAction['templateDraftTarget'] = scope === 'team_of_teams' ? 'company' : 'team'
+  const teamTemplateDraftTarget = resolveTeamTemplateDraftTarget(normalizedPrompt, scope)
   const topOrgTemplateFamily = describeFamilyFit(topOrgTemplate?.family)
 
   let recommendedPath: AiBuilderRecommendation['recommendedPath']
@@ -1425,15 +1438,15 @@ export function buildAiBuilderRecommendation(prompt: string): AiBuilderRecommend
     case 'team_template':
       recommendedPath = preferNewTeamTemplate
         ? {
-            title: scope === 'team_of_teams' ? 'Create a new company template' : 'Create a new team template',
+            title: teamTemplateDraftTarget === 'company' ? 'Create a new company template' : 'Create a new team template',
             reasoning: topOrgTemplate
               ? `${topOrgTemplate.name}${topOrgTemplateFamily ? ` is the closest existing ${topOrgTemplateFamily} template` : ' is the closest existing team template'}, but this request still looks more domain-specific than the current family hints. Start with a new AI-created template, or refine ${topOrgTemplate.name} if you want the fastest existing base.`
               : 'This request sounds multi-role and domain-specific, so a new AI-created team template is the best starting point.',
             primaryAction: {
               ...action(
                 'create-team-template',
-                scope === 'team_of_teams' ? 'AI Create Company Template' : 'AI Create Team Template',
-                scope === 'team_of_teams'
+                teamTemplateDraftTarget === 'company' ? 'AI Create Company Template' : 'AI Create Team Template',
+                teamTemplateDraftTarget === 'company'
                   ? 'Create a new company or team-of-teams template from this prompt.'
                   : 'Create a new team template from this prompt.',
                 'templates',
@@ -1613,9 +1626,7 @@ export function applyAiBuilderLlmFallback(
   }
 
   const topOrgTemplate = recommendation.matchedAssets.organizationTemplates[0]
-  const teamTemplateDraftTarget: AiBuilderAction['templateDraftTarget'] = (
-    (fallback.suggestedScope || recommendation.scope) === 'team_of_teams' ? 'company' : 'team'
-  )
+  const teamTemplateDraftTarget = resolveTeamTemplateDraftTarget(prompt, fallback.suggestedScope || recommendation.scope)
 
   const createNewAction: AiBuilderAction = {
     id: 'llm-create-team-template',

@@ -201,6 +201,21 @@ test('explicit new-agent research prompt keeps AI Generate in visible suggested 
   )
 })
 
+test('loose company language does not force company template draft target', () => {
+  const result = buildAiBuilderRecommendation('Create an AI-driven inbound sales and support management company with lead qualification, communication follow-up, and final reporting')
+  assert.equal(result.intent, 'team_template')
+  assert.equal(result.recommendedPath.primaryAction.page, 'templates')
+  assert.equal(result.recommendedPath.primaryAction.templateDraftTarget, 'team')
+  assert.equal(result.recommendedPath.title, 'Create a new team template')
+})
+
+test('explicit company template language still targets company draft generation', () => {
+  const result = buildAiBuilderRecommendation('Create a new company template for a boutique agency with leadership, outbound, fulfillment, and client success teams')
+  assert.equal(result.intent, 'team_template')
+  assert.equal(result.recommendedPath.primaryAction.page, 'templates')
+  assert.equal(result.recommendedPath.primaryAction.templateDraftTarget, 'company')
+})
+
 test('builder respects explicit no-template hints for new agent requests', () => {
   const result = buildAiBuilderRecommendation('Create a new agent for people research, do not use existing templates')
   assert.equal(result.intent, 'ai_generate')
