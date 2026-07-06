@@ -68,4 +68,5 @@ SYSTEM/scripts/
 tmp/
 
 # Private local planning drafts
-SYSTEM/docs/planning/CLAWMAX_2_0_CLEANUP_PLAN_PRIVATE.md
+SYSTEM/docs/planning/*PRIVATE*.md
+SYSTEM/docs/planning/*.private.md
