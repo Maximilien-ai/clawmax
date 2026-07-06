@@ -9,6 +9,7 @@ interface AIPromptEditorModalProps {
   isOpen: boolean
   title?: string
   initialValue: string
+  onDraftChange?: (value: string) => void
   onClose: () => void
   onSave: (value: string) => void
   onSaveAndGenerate?: (value: string) => void
@@ -40,6 +41,7 @@ export default function AIPromptEditorModal({
   isOpen,
   title = 'AI Editor',
   initialValue,
+  onDraftChange,
   onClose,
   onSave,
   onSaveAndGenerate,
@@ -90,6 +92,11 @@ export default function AIPromptEditorModal({
   }, [attachments, defaultExpandFormat, initialValue, isOpen])
 
   useEffect(() => {
+    if (!isOpen || !onDraftChange) return
+    onDraftChange(draft)
+  }, [draft, isOpen, onDraftChange])
+
+  useEffect(() => {
     return () => {
       if (flashTimeoutRef.current !== null) {
         window.clearTimeout(flashTimeoutRef.current)
@@ -132,7 +139,10 @@ export default function AIPromptEditorModal({
           <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{title}</h3>
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => {
+              onDraftChange?.(draft)
+              onClose()
+            }}
             className="text-gray-400 hover:text-gray-600 dark:text-gray-400"
           >
             ✕

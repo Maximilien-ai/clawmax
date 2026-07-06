@@ -2226,7 +2226,7 @@ export default function Builder({
                           : 'border border-gray-200 bg-white text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-200'
                       }`}
                     >
-                      {message.content}
+                      <span className="whitespace-pre-wrap">{message.content}</span>
                     </div>
                   </div>
                 </div>
@@ -2517,6 +2517,7 @@ export default function Builder({
           isOpen={showPromptEditor}
           title="Builder AI Editor"
           initialValue={prompt}
+          onDraftChange={setPrompt}
           placeholder="Describe what you want to build, whether this is one agent or a team, what should be reused or created, and how you want to test success."
           onClose={() => setShowPromptEditor(false)}
           onSave={setPrompt}
@@ -2856,7 +2857,7 @@ export default function Builder({
                       className="w-full rounded-2xl border border-gray-200 px-3 py-2 text-left text-sm text-gray-700 transition-colors hover:border-sky-300 hover:bg-sky-50 dark:border-gray-800 dark:text-gray-300 dark:hover:border-sky-700 dark:hover:bg-sky-900/20"
                       title="Load this prompt back into the composer"
                     >
-                      {item.content}
+                      <span className="whitespace-pre-wrap">{item.content}</span>
                     </button>
                   ))
                 )}
@@ -2997,7 +2998,7 @@ export default function Builder({
                       ? 'bg-sky-600 text-white'
                       : 'border border-gray-200 bg-gray-50 text-gray-700 dark:border-gray-800 dark:bg-gray-950/50 dark:text-gray-200'
                   }`}>
-                    {message.content}
+                    <span className="whitespace-pre-wrap">{message.content}</span>
                   </div>
                 </div>
               ))}
