@@ -175,6 +175,15 @@
         "business",
         "hr-team",
         "team-kickoff"
+      ],
+      "dependsOn": [],
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "team-kickoff",
+          "label": "Team Kickoff Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -202,6 +211,21 @@
         "business",
         "hr-team",
         "job-posting-review"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "team-kickoff",
+          "outputKey": "team-kickoff",
+          "label": "Team Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "job-posting-review",
+          "label": "Job Posting Review Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -229,6 +253,21 @@
         "business",
         "hr-team",
         "candidate-screening"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "job-posting-review",
+          "outputKey": "job-posting-review",
+          "label": "Job Posting Review Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "candidate-screening",
+          "label": "Candidate Screening Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -259,6 +298,21 @@
         "business",
         "hr-team",
         "onboarding-checklist"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "team-kickoff",
+          "outputKey": "team-kickoff",
+          "label": "Team Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "onboarding-checklist",
+          "label": "Onboarding Checklist Output",
+          "type": "markdown"
+        }
       ]
     }
   ],

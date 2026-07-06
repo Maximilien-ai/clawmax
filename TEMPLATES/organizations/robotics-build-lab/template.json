@@ -203,6 +203,15 @@
         "technical",
         "robotics-build-lab",
         "robotics-kickoff"
+      ],
+      "dependsOn": [],
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "robotics-kickoff",
+          "label": "Robotics Kickoff Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -233,6 +242,21 @@
         "technical",
         "robotics-build-lab",
         "platform-fit-review"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "robotics-kickoff",
+          "outputKey": "robotics-kickoff",
+          "label": "Robotics Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "platform-fit-review",
+          "label": "Platform Fit Review Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -264,6 +288,21 @@
         "technical",
         "robotics-build-lab",
         "robotics-architecture-pass"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "platform-fit-review",
+          "outputKey": "platform-fit-review",
+          "label": "Platform Fit Review Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "robotics-architecture-pass",
+          "label": "Robotics Architecture Pass Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -294,6 +333,21 @@
         "technical",
         "robotics-build-lab",
         "prototype-build-plan"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "robotics-architecture-pass",
+          "outputKey": "robotics-architecture-pass",
+          "label": "Robotics Architecture Pass Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "prototype-build-plan",
+          "label": "Prototype Build Plan Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -324,6 +378,21 @@
         "technical",
         "robotics-build-lab",
         "demo-readiness-brief"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "prototype-build-plan",
+          "outputKey": "prototype-build-plan",
+          "label": "Prototype Build Plan Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "demo-readiness-brief",
+          "label": "Demo Readiness Brief Output",
+          "type": "markdown"
+        }
       ]
     }
   ]

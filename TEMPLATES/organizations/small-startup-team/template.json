@@ -237,7 +237,15 @@
         "small-startup-kickoff"
       ],
       "scaling": "singleton",
-      "parallelism": 1
+      "parallelism": 1,
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "small-startup-kickoff",
+          "label": "Team Kickoff Output",
+          "type": "markdown"
+        }
+      ]
     },
     {
       "id": "daily-standup",
@@ -266,7 +274,22 @@
         "daily-standup"
       ],
       "scaling": "singleton",
-      "parallelism": 1
+      "parallelism": 1,
+      "inputRefs": [
+        {
+          "workflowId": "small-startup-kickoff",
+          "outputKey": "small-startup-kickoff",
+          "label": "Team Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "daily-standup",
+          "label": "Daily Standup Output",
+          "type": "markdown"
+        }
+      ]
     },
     {
       "id": "status-check",
@@ -295,7 +318,22 @@
         "status-check"
       ],
       "scaling": "singleton",
-      "parallelism": 1
+      "parallelism": 1,
+      "inputRefs": [
+        {
+          "workflowId": "small-startup-kickoff",
+          "outputKey": "small-startup-kickoff",
+          "label": "Team Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "status-check",
+          "label": "Status Check Output",
+          "type": "markdown"
+        }
+      ]
     },
     {
       "id": "issue-triage",
@@ -324,7 +362,22 @@
         "issue-triage"
       ],
       "scaling": "parallel",
-      "parallelism": 2
+      "parallelism": 2,
+      "inputRefs": [
+        {
+          "workflowId": "small-startup-kickoff",
+          "outputKey": "small-startup-kickoff",
+          "label": "Team Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "issue-triage",
+          "label": "Issue Triage Output",
+          "type": "markdown"
+        }
+      ]
     },
     {
       "id": "pr-review",
@@ -353,7 +406,22 @@
         "pr-review"
       ],
       "scaling": "parallel",
-      "parallelism": 2
+      "parallelism": 2,
+      "inputRefs": [
+        {
+          "workflowId": "coding-sprint",
+          "outputKey": "coding-sprint",
+          "label": "Coding Sprint Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "pr-review",
+          "label": "PR Review Output",
+          "type": "markdown"
+        }
+      ]
     },
     {
       "id": "coding-sprint",
@@ -382,7 +450,22 @@
         "coding-sprint"
       ],
       "scaling": "parallel",
-      "parallelism": 2
+      "parallelism": 2,
+      "inputRefs": [
+        {
+          "workflowId": "issue-triage",
+          "outputKey": "issue-triage",
+          "label": "Issue Triage Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "coding-sprint",
+          "label": "Coding Sprint Output",
+          "type": "markdown"
+        }
+      ]
     },
     {
       "id": "pr-merge",
@@ -409,6 +492,21 @@
         "business",
         "small-startup-team",
         "pr-merge"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "pr-review",
+          "outputKey": "pr-review",
+          "label": "PR Review Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "pr-merge",
+          "label": "PR Merge Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -437,6 +535,21 @@
         "business",
         "small-startup-team",
         "release"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "pr-merge",
+          "outputKey": "pr-merge",
+          "label": "PR Merge Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "release",
+          "label": "Release Output",
+          "type": "markdown"
+        }
       ]
     }
   ],

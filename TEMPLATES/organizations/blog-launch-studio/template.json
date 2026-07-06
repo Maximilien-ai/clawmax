@@ -170,6 +170,15 @@
         "personal",
         "blog-launch-studio",
         "blog-launch-kickoff"
+      ],
+      "dependsOn": [],
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "blog-launch-kickoff",
+          "label": "Blog Launch Kickoff Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -201,6 +210,21 @@
         "personal",
         "blog-launch-studio",
         "positioning-and-voice-review"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "blog-launch-kickoff",
+          "outputKey": "blog-launch-kickoff",
+          "label": "Blog Launch Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "positioning-and-voice-review",
+          "label": "Positioning And Voice Review Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -231,6 +255,21 @@
         "personal",
         "blog-launch-studio",
         "editorial-calendar-build"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "positioning-and-voice-review",
+          "outputKey": "positioning-and-voice-review",
+          "label": "Positioning And Voice Review Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "editorial-calendar-build",
+          "label": "Editorial Calendar Build Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -262,6 +301,27 @@
         "personal",
         "blog-launch-studio",
         "draft-pack-build"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "positioning-and-voice-review",
+          "outputKey": "positioning-and-voice-review",
+          "label": "Positioning And Voice Review Output",
+          "required": true
+        },
+        {
+          "workflowId": "editorial-calendar-build",
+          "outputKey": "editorial-calendar-build",
+          "label": "Editorial Calendar Build Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "draft-pack-build",
+          "label": "Draft Pack Build Output",
+          "type": "markdown"
+        }
       ]
     }
   ]

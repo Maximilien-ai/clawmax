@@ -170,6 +170,15 @@
         "personal",
         "email-calendar-manager",
         "communications-kickoff"
+      ],
+      "dependsOn": [],
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "communications-kickoff",
+          "label": "Communications Kickoff Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -200,6 +209,21 @@
         "personal",
         "email-calendar-manager",
         "inbox-triage-cycle"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "communications-kickoff",
+          "outputKey": "communications-kickoff",
+          "label": "Communications Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "inbox-triage-cycle",
+          "label": "Inbox Triage Cycle Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -230,6 +254,21 @@
         "personal",
         "email-calendar-manager",
         "calendar-coordination-cycle"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "inbox-triage-cycle",
+          "outputKey": "inbox-triage-cycle",
+          "label": "Inbox Triage Cycle Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "calendar-coordination-cycle",
+          "label": "Calendar Coordination Cycle Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -262,6 +301,21 @@
         "personal",
         "email-calendar-manager",
         "follow-up-review"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "calendar-coordination-cycle",
+          "outputKey": "calendar-coordination-cycle",
+          "label": "Calendar Coordination Cycle Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "follow-up-review",
+          "label": "Follow Up Review Output",
+          "type": "markdown"
+        }
       ]
     }
   ]

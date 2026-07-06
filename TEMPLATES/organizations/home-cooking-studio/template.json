@@ -158,7 +158,16 @@
         "cooking-kickoff"
       ],
       "scaling": "singleton",
-      "parallelism": 1
+      "parallelism": 1,
+      "dependsOn": [],
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "cooking-kickoff",
+          "label": "Cooking Kickoff Output",
+          "type": "markdown"
+        }
+      ]
     },
     {
       "id": "recipe-retro",
@@ -190,7 +199,22 @@
         "recipe-retro"
       ],
       "scaling": "parallel",
-      "parallelism": 2
+      "parallelism": 2,
+      "inputRefs": [
+        {
+          "workflowId": "cooking-kickoff",
+          "outputKey": "cooking-kickoff",
+          "label": "Cooking Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "recipe-retro",
+          "label": "Recipe Retro Output",
+          "type": "markdown"
+        }
+      ]
     },
     {
       "id": "menu-build",
@@ -222,7 +246,22 @@
         "menu-build"
       ],
       "scaling": "parallel",
-      "parallelism": 2
+      "parallelism": 2,
+      "inputRefs": [
+        {
+          "workflowId": "cooking-kickoff",
+          "outputKey": "cooking-kickoff",
+          "label": "Cooking Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "menu-build",
+          "label": "Menu Build Output",
+          "type": "markdown"
+        }
+      ]
     },
     {
       "id": "prep-plan",
@@ -254,7 +293,22 @@
         "prep-plan"
       ],
       "scaling": "parallel",
-      "parallelism": 2
+      "parallelism": 2,
+      "inputRefs": [
+        {
+          "workflowId": "cooking-kickoff",
+          "outputKey": "cooking-kickoff",
+          "label": "Cooking Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "prep-plan",
+          "label": "Prep Plan Output",
+          "type": "markdown"
+        }
+      ]
     },
     {
       "id": "cooking-session-brief",
@@ -288,7 +342,34 @@
         "cooking-session-brief"
       ],
       "scaling": "singleton",
-      "parallelism": 1
+      "parallelism": 1,
+      "inputRefs": [
+        {
+          "workflowId": "menu-build",
+          "outputKey": "menu-build",
+          "label": "Menu Build Output",
+          "required": true
+        },
+        {
+          "workflowId": "prep-plan",
+          "outputKey": "prep-plan",
+          "label": "Prep Plan Output",
+          "required": true
+        },
+        {
+          "workflowId": "recipe-retro",
+          "outputKey": "recipe-retro",
+          "label": "Recipe Retro Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "cooking-session-brief",
+          "label": "Cooking Session Brief Output",
+          "type": "markdown"
+        }
+      ]
     }
   ]
 }

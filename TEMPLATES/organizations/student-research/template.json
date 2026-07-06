@@ -178,6 +178,15 @@
         "personal",
         "student-research",
         "research-kickoff"
+      ],
+      "dependsOn": [],
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "research-kickoff",
+          "label": "Research Kickoff Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -207,6 +216,21 @@
         "personal",
         "student-research",
         "literature-search"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "research-kickoff",
+          "outputKey": "research-kickoff",
+          "label": "Research Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "literature-search",
+          "label": "Literature Search Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -236,6 +260,21 @@
         "personal",
         "student-research",
         "source-evaluation"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "literature-search",
+          "outputKey": "literature-search",
+          "label": "Literature Search Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "source-evaluation",
+          "label": "Source Evaluation Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -264,6 +303,21 @@
         "personal",
         "student-research",
         "draft-review"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "source-evaluation",
+          "outputKey": "source-evaluation",
+          "label": "Source Evaluation Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "draft-review",
+          "label": "Draft Review Output",
+          "type": "markdown"
+        }
       ]
     }
   ],

@@ -186,6 +186,15 @@
         "science",
         "statistics-research-lab",
         "study-kickoff"
+      ],
+      "dependsOn": [],
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "study-kickoff",
+          "label": "Study Kickoff Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -218,6 +227,21 @@
         "science",
         "statistics-research-lab",
         "data-and-design-audit"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "study-kickoff",
+          "outputKey": "study-kickoff",
+          "label": "Study Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "data-and-design-audit",
+          "label": "Data And Design Audit Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -248,6 +272,21 @@
         "science",
         "statistics-research-lab",
         "model-and-inference-cycle"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "data-and-design-audit",
+          "outputKey": "data-and-design-audit",
+          "label": "Data And Design Audit Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "model-and-inference-cycle",
+          "label": "Model And Inference Cycle Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -280,6 +319,21 @@
         "science",
         "statistics-research-lab",
         "results-review"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "model-and-inference-cycle",
+          "outputKey": "model-and-inference-cycle",
+          "label": "Model And Inference Cycle Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "results-review",
+          "label": "Results Review Output",
+          "type": "markdown"
+        }
       ]
     }
   ]

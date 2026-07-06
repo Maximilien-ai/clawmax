@@ -186,6 +186,15 @@
         "science",
         "ai-research-lab",
         "ai-kickoff"
+      ],
+      "dependsOn": [],
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "ai-kickoff",
+          "label": "AI Kickoff Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -216,6 +225,21 @@
         "science",
         "ai-research-lab",
         "data-and-baseline-sweep"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "ai-kickoff",
+          "outputKey": "ai-kickoff",
+          "label": "AI Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "data-and-baseline-sweep",
+          "label": "Data And Baseline Sweep Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -248,6 +272,21 @@
         "science",
         "ai-research-lab",
         "training-and-eval-cycle"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "data-and-baseline-sweep",
+          "outputKey": "data-and-baseline-sweep",
+          "label": "Data And Baseline Sweep Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "training-and-eval-cycle",
+          "label": "Training And Eval Cycle Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -280,6 +319,21 @@
         "science",
         "ai-research-lab",
         "release-bar-review"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "training-and-eval-cycle",
+          "outputKey": "training-and-eval-cycle",
+          "label": "Training And Eval Cycle Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "release-bar-review",
+          "label": "Release Bar Review Output",
+          "type": "markdown"
+        }
       ]
     }
   ]

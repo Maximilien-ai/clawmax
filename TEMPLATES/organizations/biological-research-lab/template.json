@@ -185,6 +185,15 @@
         "science",
         "biological-research-lab",
         "biology-kickoff"
+      ],
+      "dependsOn": [],
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "biology-kickoff",
+          "label": "Biology Kickoff Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -215,6 +224,21 @@
         "science",
         "biological-research-lab",
         "prior-work-sweep"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "biology-kickoff",
+          "outputKey": "biology-kickoff",
+          "label": "Biology Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "prior-work-sweep",
+          "label": "Prior Work Sweep Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -247,6 +271,21 @@
         "science",
         "biological-research-lab",
         "experiment-and-analysis-cycle"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "prior-work-sweep",
+          "outputKey": "prior-work-sweep",
+          "label": "Prior Work Sweep Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "experiment-and-analysis-cycle",
+          "label": "Experiment And Analysis Cycle Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -279,6 +318,21 @@
         "science",
         "biological-research-lab",
         "results-and-next-step-review"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "experiment-and-analysis-cycle",
+          "outputKey": "experiment-and-analysis-cycle",
+          "label": "Experiment And Analysis Cycle Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "results-and-next-step-review",
+          "label": "Results And Next Step Review Output",
+          "type": "markdown"
+        }
       ]
     }
   ]

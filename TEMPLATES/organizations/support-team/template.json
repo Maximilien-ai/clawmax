@@ -186,7 +186,16 @@
         "support-team-kickoff"
       ],
       "scaling": "singleton",
-      "parallelism": 1
+      "parallelism": 1,
+      "dependsOn": [],
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "support-team-kickoff",
+          "label": "Team Kickoff Output",
+          "type": "markdown"
+        }
+      ]
     },
     {
       "id": "ticket-triage",
@@ -216,7 +225,22 @@
         "ticket-triage"
       ],
       "scaling": "parallel",
-      "parallelism": 2
+      "parallelism": 2,
+      "inputRefs": [
+        {
+          "workflowId": "support-team-kickoff",
+          "outputKey": "support-team-kickoff",
+          "label": "Team Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "ticket-triage",
+          "label": "Ticket Triage Output",
+          "type": "markdown"
+        }
+      ]
     },
     {
       "id": "sla-monitoring",
@@ -246,7 +270,22 @@
         "sla-monitoring"
       ],
       "scaling": "singleton",
-      "parallelism": 1
+      "parallelism": 1,
+      "inputRefs": [
+        {
+          "workflowId": "support-team-kickoff",
+          "outputKey": "support-team-kickoff",
+          "label": "Team Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "sla-monitoring",
+          "label": "SLA Monitoring Output",
+          "type": "markdown"
+        }
+      ]
     },
     {
       "id": "knowledge-base-updates",
@@ -279,7 +318,28 @@
         "knowledge-base-updates"
       ],
       "scaling": "parallel",
-      "parallelism": 2
+      "parallelism": 2,
+      "inputRefs": [
+        {
+          "workflowId": "ticket-triage",
+          "outputKey": "ticket-triage",
+          "label": "Ticket Triage Output",
+          "required": true
+        },
+        {
+          "workflowId": "sla-monitoring",
+          "outputKey": "sla-monitoring",
+          "label": "SLA Monitoring Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "knowledge-base-updates",
+          "label": "Knowledge Base Updates Output",
+          "type": "markdown"
+        }
+      ]
     },
     {
       "id": "support-operations-brief",
@@ -313,7 +373,34 @@
         "support-operations-brief"
       ],
       "scaling": "singleton",
-      "parallelism": 1
+      "parallelism": 1,
+      "inputRefs": [
+        {
+          "workflowId": "ticket-triage",
+          "outputKey": "ticket-triage",
+          "label": "Ticket Triage Output",
+          "required": true
+        },
+        {
+          "workflowId": "sla-monitoring",
+          "outputKey": "sla-monitoring",
+          "label": "SLA Monitoring Output",
+          "required": true
+        },
+        {
+          "workflowId": "knowledge-base-updates",
+          "outputKey": "knowledge-base-updates",
+          "label": "Knowledge Base Updates Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "support-operations-brief",
+          "label": "Support Operations Brief Output",
+          "type": "markdown"
+        }
+      ]
     }
   ],
   "category": "business"

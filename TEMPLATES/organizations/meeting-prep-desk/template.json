@@ -178,6 +178,15 @@
         "personal",
         "meeting-prep-desk",
         "meeting-prep-kickoff"
+      ],
+      "dependsOn": [],
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "meeting-prep-kickoff",
+          "label": "Meeting Prep Kickoff Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -210,6 +219,21 @@
         "personal",
         "meeting-prep-desk",
         "people-and-topic-research"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "meeting-prep-kickoff",
+          "outputKey": "meeting-prep-kickoff",
+          "label": "Meeting Prep Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "people-and-topic-research",
+          "label": "People And Topic Research Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -240,6 +264,21 @@
         "personal",
         "meeting-prep-desk",
         "briefing-assembly"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "people-and-topic-research",
+          "outputKey": "people-and-topic-research",
+          "label": "People And Topic Research Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "briefing-assembly",
+          "label": "Briefing Assembly Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -271,6 +310,21 @@
         "personal",
         "meeting-prep-desk",
         "final-prep-review"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "briefing-assembly",
+          "outputKey": "briefing-assembly",
+          "label": "Briefing Assembly Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "final-prep-review",
+          "label": "Final Prep Review Output",
+          "type": "markdown"
+        }
       ]
     }
   ]

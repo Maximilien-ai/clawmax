@@ -184,7 +184,16 @@
         "specialty-retailer-kickoff"
       ],
       "scaling": "singleton",
-      "parallelism": 1
+      "parallelism": 1,
+      "dependsOn": [],
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "specialty-retailer-kickoff",
+          "label": "Team Kickoff Output",
+          "type": "markdown"
+        }
+      ]
     },
     {
       "id": "product-curation",
@@ -214,7 +223,22 @@
         "product-curation"
       ],
       "scaling": "parallel",
-      "parallelism": 2
+      "parallelism": 2,
+      "inputRefs": [
+        {
+          "workflowId": "specialty-retailer-kickoff",
+          "outputKey": "specialty-retailer-kickoff",
+          "label": "Team Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "product-curation",
+          "label": "Product Curation Output",
+          "type": "markdown"
+        }
+      ]
     },
     {
       "id": "pricing-review",
@@ -243,7 +267,22 @@
         "pricing-review"
       ],
       "scaling": "parallel",
-      "parallelism": 2
+      "parallelism": 2,
+      "inputRefs": [
+        {
+          "workflowId": "specialty-retailer-kickoff",
+          "outputKey": "specialty-retailer-kickoff",
+          "label": "Team Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "pricing-review",
+          "label": "Pricing Review Output",
+          "type": "markdown"
+        }
+      ]
     },
     {
       "id": "customer-follow-up",
@@ -274,7 +313,22 @@
         "customer-follow-up"
       ],
       "scaling": "parallel",
-      "parallelism": 2
+      "parallelism": 2,
+      "inputRefs": [
+        {
+          "workflowId": "specialty-retailer-kickoff",
+          "outputKey": "specialty-retailer-kickoff",
+          "label": "Team Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "customer-follow-up",
+          "label": "Customer Follow-up Output",
+          "type": "markdown"
+        }
+      ]
     },
     {
       "id": "specialty-retailer-brief",
@@ -308,6 +362,33 @@
         "business",
         "specialty-retailer",
         "specialty-retailer-brief"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "product-curation",
+          "outputKey": "product-curation",
+          "label": "Product Curation Output",
+          "required": true
+        },
+        {
+          "workflowId": "pricing-review",
+          "outputKey": "pricing-review",
+          "label": "Pricing Review Output",
+          "required": true
+        },
+        {
+          "workflowId": "customer-follow-up",
+          "outputKey": "customer-follow-up",
+          "label": "Customer Follow-up Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "specialty-retailer-brief",
+          "label": "Retail Operations Brief Output",
+          "type": "markdown"
+        }
       ]
     }
   ]

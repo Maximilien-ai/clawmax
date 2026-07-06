@@ -214,7 +214,12 @@
           "label": "Final output artifact",
           "type": "select",
           "required": true,
-          "options": ["run-of-show", "speaker packet", "ops plan", "recap"]
+          "options": [
+            "run-of-show",
+            "speaker packet",
+            "ops plan",
+            "recap"
+          ]
         }
       ],
       "owner": "event-director",
@@ -236,6 +241,15 @@
         "personal",
         "speaker-event-studio",
         "speaker-event-kickoff"
+      ],
+      "dependsOn": [],
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "speaker-event-kickoff",
+          "label": "Speaker Event Kickoff Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -266,6 +280,21 @@
         "personal",
         "speaker-event-studio",
         "speaker-readiness-review"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "speaker-event-kickoff",
+          "outputKey": "speaker-event-kickoff",
+          "label": "Speaker Event Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "speaker-readiness-review",
+          "label": "Speaker Readiness Review Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -296,6 +325,21 @@
         "personal",
         "speaker-event-studio",
         "run-of-show-build"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "speaker-event-kickoff",
+          "outputKey": "speaker-event-kickoff",
+          "label": "Speaker Event Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "run-of-show-build",
+          "label": "Run Of Show Build Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -327,6 +371,27 @@
         "personal",
         "speaker-event-studio",
         "event-day-ops-check"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "speaker-readiness-review",
+          "outputKey": "speaker-readiness-review",
+          "label": "Speaker Readiness Review Output",
+          "required": true
+        },
+        {
+          "workflowId": "run-of-show-build",
+          "outputKey": "run-of-show-build",
+          "label": "Run Of Show Build Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "event-day-ops-check",
+          "label": "Event Day Ops Check Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -357,6 +422,21 @@
         "personal",
         "speaker-event-studio",
         "speaker-event-follow-up"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "event-day-ops-check",
+          "outputKey": "event-day-ops-check",
+          "label": "Event Day Ops Check Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "speaker-event-follow-up",
+          "label": "Speaker Event Follow Up Output",
+          "type": "markdown"
+        }
       ]
     }
   ]

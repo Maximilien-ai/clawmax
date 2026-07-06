@@ -170,6 +170,15 @@
         "hobbies",
         "movie-trivia-night",
         "trivia-night-kickoff"
+      ],
+      "dependsOn": [],
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "trivia-night-kickoff",
+          "label": "Trivia Night Kickoff Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -200,6 +209,21 @@
         "hobbies",
         "movie-trivia-night",
         "trivia-pack-build"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "trivia-night-kickoff",
+          "outputKey": "trivia-night-kickoff",
+          "label": "Trivia Night Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "trivia-pack-build",
+          "label": "Trivia Pack Build Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -230,6 +254,21 @@
         "hobbies",
         "movie-trivia-night",
         "host-runbook"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "trivia-night-kickoff",
+          "outputKey": "trivia-night-kickoff",
+          "label": "Trivia Night Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "host-runbook",
+          "label": "Host Runbook Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -260,6 +299,21 @@
         "hobbies",
         "movie-trivia-night",
         "score-plan"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "trivia-night-kickoff",
+          "outputKey": "trivia-night-kickoff",
+          "label": "Trivia Night Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "score-plan",
+          "label": "Score Plan Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -292,6 +346,33 @@
         "hobbies",
         "movie-trivia-night",
         "trivia-night-brief"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "trivia-pack-build",
+          "outputKey": "trivia-pack-build",
+          "label": "Trivia Pack Build Output",
+          "required": true
+        },
+        {
+          "workflowId": "host-runbook",
+          "outputKey": "host-runbook",
+          "label": "Host Runbook Output",
+          "required": true
+        },
+        {
+          "workflowId": "score-plan",
+          "outputKey": "score-plan",
+          "label": "Score Plan Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "trivia-night-brief",
+          "label": "Trivia Night Brief Output",
+          "type": "markdown"
+        }
       ]
     }
   ]

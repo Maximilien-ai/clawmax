@@ -167,7 +167,16 @@
         "photo-project-kickoff"
       ],
       "scaling": "singleton",
-      "parallelism": 1
+      "parallelism": 1,
+      "dependsOn": [],
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "photo-project-kickoff",
+          "label": "Photo Project Kickoff Output",
+          "type": "markdown"
+        }
+      ]
     },
     {
       "id": "shoot-review",
@@ -201,7 +210,22 @@
         "shoot-review"
       ],
       "scaling": "parallel",
-      "parallelism": 2
+      "parallelism": 2,
+      "inputRefs": [
+        {
+          "workflowId": "photo-project-kickoff",
+          "outputKey": "photo-project-kickoff",
+          "label": "Photo Project Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "shoot-review",
+          "label": "Shoot Review Output",
+          "type": "markdown"
+        }
+      ]
     },
     {
       "id": "shoot-plan",
@@ -233,7 +257,22 @@
         "shoot-plan"
       ],
       "scaling": "parallel",
-      "parallelism": 2
+      "parallelism": 2,
+      "inputRefs": [
+        {
+          "workflowId": "photo-project-kickoff",
+          "outputKey": "photo-project-kickoff",
+          "label": "Photo Project Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "shoot-plan",
+          "label": "Shoot Plan Output",
+          "type": "markdown"
+        }
+      ]
     },
     {
       "id": "portfolio-direction",
@@ -265,7 +304,22 @@
         "portfolio-direction"
       ],
       "scaling": "parallel",
-      "parallelism": 2
+      "parallelism": 2,
+      "inputRefs": [
+        {
+          "workflowId": "photo-project-kickoff",
+          "outputKey": "photo-project-kickoff",
+          "label": "Photo Project Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "portfolio-direction",
+          "label": "Portfolio Direction Output",
+          "type": "markdown"
+        }
+      ]
     },
     {
       "id": "photo-project-brief",
@@ -299,7 +353,34 @@
         "photo-project-brief"
       ],
       "scaling": "singleton",
-      "parallelism": 1
+      "parallelism": 1,
+      "inputRefs": [
+        {
+          "workflowId": "shoot-plan",
+          "outputKey": "shoot-plan",
+          "label": "Shoot Plan Output",
+          "required": true
+        },
+        {
+          "workflowId": "shoot-review",
+          "outputKey": "shoot-review",
+          "label": "Shoot Review Output",
+          "required": true
+        },
+        {
+          "workflowId": "portfolio-direction",
+          "outputKey": "portfolio-direction",
+          "label": "Portfolio Direction Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "photo-project-brief",
+          "label": "Photo Project Brief Output",
+          "type": "markdown"
+        }
+      ]
     }
   ]
 }

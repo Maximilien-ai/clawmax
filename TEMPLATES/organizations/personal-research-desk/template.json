@@ -170,7 +170,6 @@
           "brief-writer"
         ]
       },
-      "content": "# Research Request Kickoff\n\nYou are the Research Lead. The personal research desk just came online.\n\n## Project Configuration\n> **Customize these before applying only if you already know them:**\n\n- **Research target (optional):** [person, company, topic, custom]\n- **Question to answer (optional):** [e.g., what matters most before the conversation?]\n- **Context (optional):** [meeting, outreach, diligence, personal decision, custom]\n- **Time horizon (optional):** [today, this week, background only, custom]\n- **Output artifact (optional):** [one-page brief, question list, company memo]\n\n## Your Tasks\n1. If any optional research-request fields are blank, ask for them in your first status post instead of blocking deployment\n2. Define the exact research question and useful output format\n3. Ask People Researcher and Company Researcher for the first evidence sweep as needed\n4. Ask Brief Writer to assemble the final briefing structure\n5. Post the research plan and expected confidence level to Status",
       "content": "# Research Request Kickoff\n\nYou are the Research Lead. The personal research desk just came online.\n\n## Project Configuration\n> **Customize these before applying only if you already know them:**\n\n- **Research target (optional):** [person, company, topic, custom]\n- **Question to answer (optional):** [e.g., what matters most before the conversation?]\n- **Context (optional):** [meeting, outreach, diligence, personal decision, custom]\n- **Time horizon (optional):** [today, this week, background only, custom]\n- **Output artifact (optional):** [one-page brief, question list, company memo]\n\n## Default Operating Rule\n- If the user already gave a clear target or question, proceed immediately and do not ask for format approval.\n- If any optional fields are blank, infer sensible defaults first:\n  - Research target: from the user request\n  - Question to answer: \"What matters most right now about this subject?\"\n  - Context: background research / decision support\n  - Time horizon: current snapshot\n  - Output artifact: concise one-page briefing\n- Only ask the user a follow-up if the request is too ambiguous to research responsibly.\n\n## Your Tasks\n1. Infer the exact research target, question, and output format from the request whenever possible\n2. Launch the first evidence sweep for People Researcher and Company Researcher immediately\n3. Instruct Brief Writer to expect a concise one-page briefing unless the user asked for another artifact\n4. Post the research plan, confidence target, and any remaining ambiguity to Status\n5. Keep the process moving; do not pause for optional formatting preferences unless the request is unclear",
       "type": "once",
       "owner": "research-lead",
@@ -179,6 +178,15 @@
         "personal",
         "personal-research-desk",
         "research-request-kickoff"
+      ],
+      "dependsOn": [],
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "research-request-kickoff",
+          "label": "Research Request Kickoff Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -211,6 +219,21 @@
         "personal",
         "personal-research-desk",
         "subject-research-sweep"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "research-request-kickoff",
+          "outputKey": "research-request-kickoff",
+          "label": "Research Request Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "subject-research-sweep",
+          "label": "Subject Research Sweep Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -241,6 +264,21 @@
         "personal",
         "personal-research-desk",
         "briefing-build"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "subject-research-sweep",
+          "outputKey": "subject-research-sweep",
+          "label": "Subject Research Sweep Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "briefing-build",
+          "label": "Briefing Build Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -272,6 +310,21 @@
         "personal",
         "personal-research-desk",
         "recommendation-review"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "briefing-build",
+          "outputKey": "briefing-build",
+          "label": "Briefing Build Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "recommendation-review",
+          "label": "Recommendation Review Output",
+          "type": "markdown"
+        }
       ]
     }
   ]

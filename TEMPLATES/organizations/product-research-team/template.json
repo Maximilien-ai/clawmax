@@ -169,6 +169,15 @@
         "business",
         "product-research-team",
         "product-research-kickoff"
+      ],
+      "dependsOn": [],
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "product-research-kickoff",
+          "label": "Product Research Kickoff Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -199,6 +208,21 @@
         "business",
         "product-research-team",
         "user-needs-sweep"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "product-research-kickoff",
+          "outputKey": "product-research-kickoff",
+          "label": "Product Research Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "user-needs-sweep",
+          "label": "User Needs Sweep Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -229,6 +253,21 @@
         "business",
         "product-research-team",
         "opportunity-framing-review"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "user-needs-sweep",
+          "outputKey": "user-needs-sweep",
+          "label": "User Needs Sweep Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "opportunity-framing-review",
+          "label": "Opportunity Framing Review Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -260,6 +299,27 @@
         "business",
         "product-research-team",
         "product-findings-synthesis"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "user-needs-sweep",
+          "outputKey": "user-needs-sweep",
+          "label": "User Needs Sweep Output",
+          "required": true
+        },
+        {
+          "workflowId": "opportunity-framing-review",
+          "outputKey": "opportunity-framing-review",
+          "label": "Opportunity Framing Review Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "product-findings-synthesis",
+          "label": "Product Findings Synthesis Output",
+          "type": "markdown"
+        }
       ]
     }
   ]

@@ -188,6 +188,15 @@
         "technical",
         "dev-team",
         "team-kickoff"
+      ],
+      "dependsOn": [],
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "team-kickoff",
+          "label": "Team Kickoff Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -215,6 +224,21 @@
         "technical",
         "dev-team",
         "pr-review"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "team-kickoff",
+          "outputKey": "team-kickoff",
+          "label": "Team Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "pr-review",
+          "label": "PR Review Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -244,6 +268,21 @@
         "technical",
         "dev-team",
         "ci-triage"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "team-kickoff",
+          "outputKey": "team-kickoff",
+          "label": "Team Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "ci-triage",
+          "label": "CI Triage Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -274,6 +313,27 @@
         "technical",
         "dev-team",
         "release-prep"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "pr-review",
+          "outputKey": "pr-review",
+          "label": "PR Review Output",
+          "required": true
+        },
+        {
+          "workflowId": "ci-triage",
+          "outputKey": "ci-triage",
+          "label": "CI Triage Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "release-prep",
+          "label": "Release Prep Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -301,6 +361,21 @@
         "technical",
         "dev-team",
         "daily-standup"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "team-kickoff",
+          "outputKey": "team-kickoff",
+          "label": "Team Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "daily-standup",
+          "label": "Daily Standup Output",
+          "type": "markdown"
+        }
       ]
     }
   ],

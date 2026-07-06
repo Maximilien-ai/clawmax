@@ -169,6 +169,15 @@
         "personal",
         "meeting-capture-follow-up",
         "meeting-capture-kickoff"
+      ],
+      "dependsOn": [],
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "meeting-capture-kickoff",
+          "label": "Meeting Capture Kickoff Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -199,6 +208,21 @@
         "personal",
         "meeting-capture-follow-up",
         "live-notes-pass"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "meeting-capture-kickoff",
+          "outputKey": "meeting-capture-kickoff",
+          "label": "Meeting Capture Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "live-notes-pass",
+          "label": "Live Notes Pass Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -229,6 +253,21 @@
         "personal",
         "meeting-capture-follow-up",
         "action-item-routing"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "live-notes-pass",
+          "outputKey": "live-notes-pass",
+          "label": "Live Notes Pass Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "action-item-routing",
+          "label": "Action Item Routing Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -261,6 +300,21 @@
         "personal",
         "meeting-capture-follow-up",
         "recap-and-follow-up-review"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "action-item-routing",
+          "outputKey": "action-item-routing",
+          "label": "Action Item Routing Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "recap-and-follow-up-review",
+          "label": "Recap And Follow Up Review Output",
+          "type": "markdown"
+        }
       ]
     }
   ]

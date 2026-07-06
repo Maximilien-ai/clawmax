@@ -178,6 +178,15 @@
         "personal",
         "tax-planning-desk",
         "tax-kickoff"
+      ],
+      "dependsOn": [],
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "tax-kickoff",
+          "label": "Tax Kickoff Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -208,6 +217,21 @@
         "personal",
         "tax-planning-desk",
         "document-readiness-sweep"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "tax-kickoff",
+          "outputKey": "tax-kickoff",
+          "label": "Tax Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "document-readiness-sweep",
+          "label": "Document Readiness Sweep Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -240,6 +264,21 @@
         "personal",
         "tax-planning-desk",
         "planning-and-deadline-review"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "document-readiness-sweep",
+          "outputKey": "document-readiness-sweep",
+          "label": "Document Readiness Sweep Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "planning-and-deadline-review",
+          "label": "Planning And Deadline Review Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -272,6 +311,21 @@
         "personal",
         "tax-planning-desk",
         "tax-readiness-review"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "planning-and-deadline-review",
+          "outputKey": "planning-and-deadline-review",
+          "label": "Planning And Deadline Review Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "tax-readiness-review",
+          "label": "Tax Readiness Review Output",
+          "type": "markdown"
+        }
       ]
     }
   ]

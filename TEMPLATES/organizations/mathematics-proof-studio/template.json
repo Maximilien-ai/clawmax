@@ -186,6 +186,15 @@
         "science",
         "mathematics-proof-studio",
         "conjecture-kickoff"
+      ],
+      "dependsOn": [],
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "conjecture-kickoff",
+          "label": "Conjecture Kickoff Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -216,6 +225,21 @@
         "science",
         "mathematics-proof-studio",
         "prior-results-sweep"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "conjecture-kickoff",
+          "outputKey": "conjecture-kickoff",
+          "label": "Conjecture Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "prior-results-sweep",
+          "label": "Prior Results Sweep Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -246,6 +270,21 @@
         "science",
         "mathematics-proof-studio",
         "proof-attempt-cycle"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "prior-results-sweep",
+          "outputKey": "prior-results-sweep",
+          "label": "Prior Results Sweep Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "proof-attempt-cycle",
+          "label": "Proof Attempt Cycle Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -278,6 +317,21 @@
         "science",
         "mathematics-proof-studio",
         "verification-and-exposition-review"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "proof-attempt-cycle",
+          "outputKey": "proof-attempt-cycle",
+          "label": "Proof Attempt Cycle Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "verification-and-exposition-review",
+          "label": "Verification And Exposition Review Output",
+          "type": "markdown"
+        }
       ]
     }
   ]

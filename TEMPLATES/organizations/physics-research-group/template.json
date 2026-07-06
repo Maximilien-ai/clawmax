@@ -182,6 +182,15 @@
         "science",
         "physics-research-group",
         "physics-kickoff"
+      ],
+      "dependsOn": [],
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "physics-kickoff",
+          "label": "Physics Kickoff Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -212,6 +221,21 @@
         "science",
         "physics-research-group",
         "theory-and-prior-work-sweep"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "physics-kickoff",
+          "outputKey": "physics-kickoff",
+          "label": "Physics Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "theory-and-prior-work-sweep",
+          "label": "Theory And Prior Work Sweep Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -244,6 +268,21 @@
         "science",
         "physics-research-group",
         "simulation-and-measurement-cycle"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "theory-and-prior-work-sweep",
+          "outputKey": "theory-and-prior-work-sweep",
+          "label": "Theory And Prior Work Sweep Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "simulation-and-measurement-cycle",
+          "label": "Simulation And Measurement Cycle Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -277,6 +316,21 @@
         "science",
         "physics-research-group",
         "physics-review"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "simulation-and-measurement-cycle",
+          "outputKey": "simulation-and-measurement-cycle",
+          "label": "Simulation And Measurement Cycle Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "physics-review",
+          "label": "Physics Review Output",
+          "type": "markdown"
+        }
       ]
     }
   ]

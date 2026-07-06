@@ -262,6 +262,15 @@
         "business",
         "luma-event-analysis-desk",
         "lu-ma-analysis-kickoff"
+      ],
+      "dependsOn": [],
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "lu-ma-analysis-kickoff",
+          "label": "Lu.ma Analysis Kickoff Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -303,6 +312,21 @@
         "business",
         "luma-event-analysis-desk",
         "lu-ma-event-patterns"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "lu-ma-analysis-kickoff",
+          "outputKey": "lu-ma-analysis-kickoff",
+          "label": "Lu.ma Analysis Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "lu-ma-event-patterns",
+          "label": "Lu.ma Event Patterns Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -344,6 +368,21 @@
         "business",
         "luma-event-analysis-desk",
         "lu-ma-audience-patterns"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "lu-ma-analysis-kickoff",
+          "outputKey": "lu-ma-analysis-kickoff",
+          "label": "Lu.ma Analysis Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "lu-ma-audience-patterns",
+          "label": "Lu.ma Audience Patterns Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -385,6 +424,21 @@
         "business",
         "luma-event-analysis-desk",
         "lu-ma-invite-funnel-review"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "lu-ma-analysis-kickoff",
+          "outputKey": "lu-ma-analysis-kickoff",
+          "label": "Lu.ma Analysis Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "lu-ma-invite-funnel-review",
+          "label": "Lu.ma Invite Funnel Review Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -426,6 +480,21 @@
         "business",
         "luma-event-analysis-desk",
         "lu-ma-engagement-signals"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "lu-ma-analysis-kickoff",
+          "outputKey": "lu-ma-analysis-kickoff",
+          "label": "Lu.ma Analysis Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "lu-ma-engagement-signals",
+          "label": "Lu.ma Engagement Signals Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -470,6 +539,39 @@
         "business",
         "luma-event-analysis-desk",
         "lu-ma-insight-brief"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "lu-ma-event-patterns",
+          "outputKey": "lu-ma-event-patterns",
+          "label": "Lu.ma Event Patterns Output",
+          "required": true
+        },
+        {
+          "workflowId": "lu-ma-audience-patterns",
+          "outputKey": "lu-ma-audience-patterns",
+          "label": "Lu.ma Audience Patterns Output",
+          "required": true
+        },
+        {
+          "workflowId": "lu-ma-invite-funnel-review",
+          "outputKey": "lu-ma-invite-funnel-review",
+          "label": "Lu.ma Invite Funnel Review Output",
+          "required": true
+        },
+        {
+          "workflowId": "lu-ma-engagement-signals",
+          "outputKey": "lu-ma-engagement-signals",
+          "label": "Lu.ma Engagement Signals Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "lu-ma-insight-brief",
+          "label": "Lu.ma Insight Brief Output",
+          "type": "markdown"
+        }
       ]
     }
   ]

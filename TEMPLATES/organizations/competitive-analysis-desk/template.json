@@ -168,6 +168,15 @@
         "business",
         "competitive-analysis-desk",
         "competitive-kickoff"
+      ],
+      "dependsOn": [],
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "competitive-kickoff",
+          "label": "Competitive Kickoff Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -198,6 +207,21 @@
         "business",
         "competitive-analysis-desk",
         "competitor-landscape-scan"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "competitive-kickoff",
+          "outputKey": "competitive-kickoff",
+          "label": "Competitive Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "competitor-landscape-scan",
+          "label": "Competitor Landscape Scan Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -228,6 +252,21 @@
         "business",
         "competitive-analysis-desk",
         "market-size-and-segments"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "competitive-kickoff",
+          "outputKey": "competitive-kickoff",
+          "label": "Competitive Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "market-size-and-segments",
+          "label": "Market Size And Segments Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -259,6 +298,27 @@
         "business",
         "competitive-analysis-desk",
         "competitive-strategy-brief"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "competitor-landscape-scan",
+          "outputKey": "competitor-landscape-scan",
+          "label": "Competitor Landscape Scan Output",
+          "required": true
+        },
+        {
+          "workflowId": "market-size-and-segments",
+          "outputKey": "market-size-and-segments",
+          "label": "Market Size And Segments Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "competitive-strategy-brief",
+          "label": "Competitive Strategy Brief Output",
+          "type": "markdown"
+        }
       ]
     }
   ]

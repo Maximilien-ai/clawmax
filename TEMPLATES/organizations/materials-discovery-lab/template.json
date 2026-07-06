@@ -181,6 +181,15 @@
         "science",
         "materials-discovery-lab",
         "materials-kickoff"
+      ],
+      "dependsOn": [],
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "materials-kickoff",
+          "label": "Materials Kickoff Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -211,6 +220,21 @@
         "science",
         "materials-discovery-lab",
         "materials-prior-art-sweep"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "materials-kickoff",
+          "outputKey": "materials-kickoff",
+          "label": "Materials Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "materials-prior-art-sweep",
+          "label": "Materials Prior Art Sweep Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -243,6 +267,21 @@
         "science",
         "materials-discovery-lab",
         "screening-and-validation-cycle"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "materials-prior-art-sweep",
+          "outputKey": "materials-prior-art-sweep",
+          "label": "Materials Prior Art Sweep Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "screening-and-validation-cycle",
+          "label": "Screening And Validation Cycle Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -275,6 +314,21 @@
         "science",
         "materials-discovery-lab",
         "candidate-review"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "screening-and-validation-cycle",
+          "outputKey": "screening-and-validation-cycle",
+          "label": "Screening And Validation Cycle Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "candidate-review",
+          "label": "Candidate Review Output",
+          "type": "markdown"
+        }
       ]
     }
   ]

@@ -165,6 +165,15 @@
         "travel",
         "trip-memory-studio",
         "memory-kickoff"
+      ],
+      "dependsOn": [],
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "memory-kickoff",
+          "label": "Memory Kickoff Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -197,6 +206,21 @@
         "travel",
         "trip-memory-studio",
         "highlight-curation"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "memory-kickoff",
+          "outputKey": "memory-kickoff",
+          "label": "Memory Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "highlight-curation",
+          "label": "Highlight Curation Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -227,6 +251,21 @@
         "travel",
         "trip-memory-studio",
         "sharing-plan"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "memory-kickoff",
+          "outputKey": "memory-kickoff",
+          "label": "Memory Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "sharing-plan",
+          "label": "Sharing Plan Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -258,6 +297,27 @@
         "travel",
         "trip-memory-studio",
         "trip-memory-brief"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "highlight-curation",
+          "outputKey": "highlight-curation",
+          "label": "Highlight Curation Output",
+          "required": true
+        },
+        {
+          "workflowId": "sharing-plan",
+          "outputKey": "sharing-plan",
+          "label": "Sharing Plan Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "trip-memory-brief",
+          "label": "Trip Memory Brief Output",
+          "type": "markdown"
+        }
       ]
     }
   ]

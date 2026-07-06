@@ -170,6 +170,15 @@
         "technical",
         "ai-model-eval-lab",
         "model-eval-kickoff"
+      ],
+      "dependsOn": [],
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "model-eval-kickoff",
+          "label": "Model Eval Kickoff Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -200,6 +209,21 @@
         "technical",
         "ai-model-eval-lab",
         "benchmark-design-review"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "model-eval-kickoff",
+          "outputKey": "model-eval-kickoff",
+          "label": "Model Eval Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "benchmark-design-review",
+          "label": "Benchmark Design Review Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -231,6 +255,21 @@
         "technical",
         "ai-model-eval-lab",
         "structured-eval-run"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "benchmark-design-review",
+          "outputKey": "benchmark-design-review",
+          "label": "Benchmark Design Review Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "structured-eval-run",
+          "label": "Structured Eval Run Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -262,6 +301,27 @@
         "technical",
         "ai-model-eval-lab",
         "comparison-memo"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "benchmark-design-review",
+          "outputKey": "benchmark-design-review",
+          "label": "Benchmark Design Review Output",
+          "required": true
+        },
+        {
+          "workflowId": "structured-eval-run",
+          "outputKey": "structured-eval-run",
+          "label": "Structured Eval Run Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "comparison-memo",
+          "label": "Comparison Memo Output",
+          "type": "markdown"
+        }
       ]
     }
   ]

@@ -166,6 +166,15 @@
         "technical",
         "engineering-team",
         "team-kickoff"
+      ],
+      "dependsOn": [],
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "team-kickoff",
+          "label": "Team Kickoff Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -193,6 +202,21 @@
         "technical",
         "engineering-team",
         "daily-standup"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "team-kickoff",
+          "outputKey": "team-kickoff",
+          "label": "Team Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "daily-standup",
+          "label": "Daily Standup Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -220,6 +244,21 @@
         "technical",
         "engineering-team",
         "code-review-reminder"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "team-kickoff",
+          "outputKey": "team-kickoff",
+          "label": "Team Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "code-review-reminder",
+          "label": "Code Review Reminder Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -247,6 +286,21 @@
         "technical",
         "engineering-team",
         "pr-review"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "team-kickoff",
+          "outputKey": "team-kickoff",
+          "label": "Team Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "pr-review",
+          "label": "PR Review Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -275,6 +329,21 @@
         "technical",
         "engineering-team",
         "release-preparation"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "team-kickoff",
+          "outputKey": "team-kickoff",
+          "label": "Team Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "release-preparation",
+          "label": "Release Preparation Output",
+          "type": "markdown"
+        }
       ]
     }
   ],

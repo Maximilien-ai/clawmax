@@ -185,6 +185,15 @@
         "science",
         "computer-science-lab",
         "cs-kickoff"
+      ],
+      "dependsOn": [],
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "cs-kickoff",
+          "label": "CS Kickoff Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -215,6 +224,21 @@
         "science",
         "computer-science-lab",
         "benchmark-sweep"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "cs-kickoff",
+          "outputKey": "cs-kickoff",
+          "label": "CS Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "benchmark-sweep",
+          "label": "Benchmark Sweep Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -247,6 +271,21 @@
         "science",
         "computer-science-lab",
         "prototype-and-eval-cycle"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "benchmark-sweep",
+          "outputKey": "benchmark-sweep",
+          "label": "Benchmark Sweep Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "prototype-and-eval-cycle",
+          "label": "Prototype And Eval Cycle Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -279,6 +318,21 @@
         "science",
         "computer-science-lab",
         "results-and-paper-review"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "prototype-and-eval-cycle",
+          "outputKey": "prototype-and-eval-cycle",
+          "label": "Prototype And Eval Cycle Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "results-and-paper-review",
+          "label": "Results And Paper Review Output",
+          "type": "markdown"
+        }
       ]
     }
   ]

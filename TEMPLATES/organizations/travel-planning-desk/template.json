@@ -168,7 +168,16 @@
         "trip-kickoff"
       ],
       "scaling": "singleton",
-      "parallelism": 1
+      "parallelism": 1,
+      "dependsOn": [],
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "trip-kickoff",
+          "label": "Trip Kickoff Output",
+          "type": "markdown"
+        }
+      ]
     },
     {
       "id": "itinerary-build",
@@ -200,7 +209,22 @@
         "itinerary-build"
       ],
       "scaling": "parallel",
-      "parallelism": 2
+      "parallelism": 2,
+      "inputRefs": [
+        {
+          "workflowId": "trip-kickoff",
+          "outputKey": "trip-kickoff",
+          "label": "Trip Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "itinerary-build",
+          "label": "Itinerary Build Output",
+          "type": "markdown"
+        }
+      ]
     },
     {
       "id": "logistics-check",
@@ -232,7 +256,22 @@
         "logistics-check"
       ],
       "scaling": "parallel",
-      "parallelism": 2
+      "parallelism": 2,
+      "inputRefs": [
+        {
+          "workflowId": "itinerary-build",
+          "outputKey": "itinerary-build",
+          "label": "Itinerary Build Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "logistics-check",
+          "label": "Logistics Check Output",
+          "type": "markdown"
+        }
+      ]
     },
     {
       "id": "memory-plan",
@@ -264,7 +303,22 @@
         "memory-plan"
       ],
       "scaling": "parallel",
-      "parallelism": 2
+      "parallelism": 2,
+      "inputRefs": [
+        {
+          "workflowId": "trip-kickoff",
+          "outputKey": "trip-kickoff",
+          "label": "Trip Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "memory-plan",
+          "label": "Memory Plan Output",
+          "type": "markdown"
+        }
+      ]
     },
     {
       "id": "trip-brief",
@@ -298,7 +352,34 @@
         "trip-brief"
       ],
       "scaling": "singleton",
-      "parallelism": 1
+      "parallelism": 1,
+      "inputRefs": [
+        {
+          "workflowId": "itinerary-build",
+          "outputKey": "itinerary-build",
+          "label": "Itinerary Build Output",
+          "required": true
+        },
+        {
+          "workflowId": "logistics-check",
+          "outputKey": "logistics-check",
+          "label": "Logistics Check Output",
+          "required": true
+        },
+        {
+          "workflowId": "memory-plan",
+          "outputKey": "memory-plan",
+          "label": "Memory Plan Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "trip-brief",
+          "label": "Trip Brief Output",
+          "type": "markdown"
+        }
+      ]
     }
   ]
 }

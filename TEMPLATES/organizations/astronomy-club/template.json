@@ -166,6 +166,15 @@
         "science",
         "astronomy-club",
         "astronomy-monthly-kickoff"
+      ],
+      "dependsOn": [],
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "astronomy-monthly-kickoff",
+          "label": "Astronomy Monthly Kickoff Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -196,6 +205,21 @@
         "science",
         "astronomy-club",
         "sky-event-digest"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "astronomy-monthly-kickoff",
+          "outputKey": "astronomy-monthly-kickoff",
+          "label": "Astronomy Monthly Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "sky-event-digest",
+          "label": "Sky Event Digest Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -226,6 +250,21 @@
         "science",
         "astronomy-club",
         "observing-window-review"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "astronomy-monthly-kickoff",
+          "outputKey": "astronomy-monthly-kickoff",
+          "label": "Astronomy Monthly Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "observing-window-review",
+          "label": "Observing Window Review Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -256,6 +295,21 @@
         "science",
         "astronomy-club",
         "observer-guide"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "astronomy-monthly-kickoff",
+          "outputKey": "astronomy-monthly-kickoff",
+          "label": "Astronomy Monthly Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "observer-guide",
+          "label": "Observer Guide Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -288,6 +342,33 @@
         "science",
         "astronomy-club",
         "monthly-sky-brief"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "sky-event-digest",
+          "outputKey": "sky-event-digest",
+          "label": "Sky Event Digest Output",
+          "required": true
+        },
+        {
+          "workflowId": "observing-window-review",
+          "outputKey": "observing-window-review",
+          "label": "Observing Window Review Output",
+          "required": true
+        },
+        {
+          "workflowId": "observer-guide",
+          "outputKey": "observer-guide",
+          "label": "Observer Guide Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "monthly-sky-brief",
+          "label": "Monthly Sky Brief Output",
+          "type": "markdown"
+        }
       ]
     }
   ]

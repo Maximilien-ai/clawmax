@@ -178,6 +178,15 @@
         "personal",
         "investing-research-desk",
         "investing-kickoff"
+      ],
+      "dependsOn": [],
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "investing-kickoff",
+          "label": "Investing Kickoff Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -208,6 +217,21 @@
         "personal",
         "investing-research-desk",
         "idea-sweep"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "investing-kickoff",
+          "outputKey": "investing-kickoff",
+          "label": "Investing Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "idea-sweep",
+          "label": "Idea Sweep Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -240,6 +264,21 @@
         "personal",
         "investing-research-desk",
         "thesis-and-risk-cycle"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "idea-sweep",
+          "outputKey": "idea-sweep",
+          "label": "Idea Sweep Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "thesis-and-risk-cycle",
+          "label": "Thesis And Risk Cycle Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -272,6 +311,21 @@
         "personal",
         "investing-research-desk",
         "watchlist-review"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "thesis-and-risk-cycle",
+          "outputKey": "thesis-and-risk-cycle",
+          "label": "Thesis And Risk Cycle Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "watchlist-review",
+          "label": "Watchlist Review Output",
+          "type": "markdown"
+        }
       ]
     }
   ]

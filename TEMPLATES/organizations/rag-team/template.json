@@ -240,6 +240,15 @@
         "technical",
         "rag-team",
         "rag-setup"
+      ],
+      "dependsOn": [],
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "rag-setup",
+          "label": "RAG Setup Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -268,6 +277,21 @@
         "technical",
         "rag-team",
         "data-pipeline"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "rag-setup",
+          "outputKey": "rag-setup",
+          "label": "RAG Setup Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "data-pipeline",
+          "label": "Data Pipeline Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -296,6 +320,21 @@
         "technical",
         "rag-team",
         "search-tuning"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "rag-setup",
+          "outputKey": "rag-setup",
+          "label": "RAG Setup Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "search-tuning",
+          "label": "Search Tuning Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -325,6 +364,27 @@
         "technical",
         "rag-team",
         "eval-cycle"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "data-pipeline",
+          "outputKey": "data-pipeline",
+          "label": "Data Pipeline Output",
+          "required": true
+        },
+        {
+          "workflowId": "search-tuning",
+          "outputKey": "search-tuning",
+          "label": "Search Tuning Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "eval-cycle",
+          "label": "Eval Cycle Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -353,6 +413,21 @@
         "technical",
         "rag-team",
         "deploy"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "eval-cycle",
+          "outputKey": "eval-cycle",
+          "label": "Eval Cycle Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "deploy",
+          "label": "Deploy Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -386,6 +461,39 @@
         "technical",
         "rag-team",
         "solution-brief"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "data-pipeline",
+          "outputKey": "data-pipeline",
+          "label": "Data Pipeline Output",
+          "required": true
+        },
+        {
+          "workflowId": "search-tuning",
+          "outputKey": "search-tuning",
+          "label": "Search Tuning Output",
+          "required": true
+        },
+        {
+          "workflowId": "eval-cycle",
+          "outputKey": "eval-cycle",
+          "label": "Eval Cycle Output",
+          "required": true
+        },
+        {
+          "workflowId": "deploy",
+          "outputKey": "deploy",
+          "label": "Deploy Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "solution-brief",
+          "label": "Solution Brief Output",
+          "type": "markdown"
+        }
       ]
     }
   ],

@@ -202,6 +202,15 @@
         "personal",
         "jarvis-command-desk",
         "jarvis-kickoff"
+      ],
+      "dependsOn": [],
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "jarvis-kickoff",
+          "label": "Jarvis Kickoff Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -234,6 +243,21 @@
         "personal",
         "jarvis-command-desk",
         "daily-command-brief"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "jarvis-kickoff",
+          "outputKey": "jarvis-kickoff",
+          "label": "Jarvis Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "daily-command-brief",
+          "label": "Daily Command Brief Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -264,6 +288,21 @@
         "personal",
         "jarvis-command-desk",
         "comms-and-follow-ups"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "jarvis-kickoff",
+          "outputKey": "jarvis-kickoff",
+          "label": "Jarvis Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "comms-and-follow-ups",
+          "label": "Comms And Follow-ups Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -294,6 +333,21 @@
         "personal",
         "jarvis-command-desk",
         "briefing-pack"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "jarvis-kickoff",
+          "outputKey": "jarvis-kickoff",
+          "label": "Jarvis Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "briefing-pack",
+          "label": "Briefing Pack Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -327,6 +381,33 @@
         "personal",
         "jarvis-command-desk",
         "execution-queue-refresh"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "daily-command-brief",
+          "outputKey": "daily-command-brief",
+          "label": "Daily Command Brief Output",
+          "required": true
+        },
+        {
+          "workflowId": "comms-and-follow-ups",
+          "outputKey": "comms-and-follow-ups",
+          "label": "Comms And Follow-ups Output",
+          "required": true
+        },
+        {
+          "workflowId": "briefing-pack",
+          "outputKey": "briefing-pack",
+          "label": "Briefing Pack Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "execution-queue-refresh",
+          "label": "Execution Queue Refresh Output",
+          "type": "markdown"
+        }
       ]
     }
   ]

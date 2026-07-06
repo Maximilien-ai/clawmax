@@ -157,6 +157,15 @@
         "family",
         "household-bills-desk",
         "bills-kickoff"
+      ],
+      "dependsOn": [],
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "bills-kickoff",
+          "label": "Bills Kickoff Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -189,6 +198,21 @@
         "family",
         "household-bills-desk",
         "monthly-admin-review"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "bills-kickoff",
+          "outputKey": "bills-kickoff",
+          "label": "Bills Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "monthly-admin-review",
+          "label": "Monthly Admin Review Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -219,6 +243,21 @@
         "family",
         "household-bills-desk",
         "due-date-calendar"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "bills-kickoff",
+          "outputKey": "bills-kickoff",
+          "label": "Bills Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "due-date-calendar",
+          "label": "Due Date Calendar Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -249,6 +288,21 @@
         "family",
         "household-bills-desk",
         "paperwork-follow-up"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "bills-kickoff",
+          "outputKey": "bills-kickoff",
+          "label": "Bills Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "paperwork-follow-up",
+          "label": "Paperwork Follow-up Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -281,6 +335,33 @@
         "family",
         "household-bills-desk",
         "household-admin-brief"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "due-date-calendar",
+          "outputKey": "due-date-calendar",
+          "label": "Due Date Calendar Output",
+          "required": true
+        },
+        {
+          "workflowId": "paperwork-follow-up",
+          "outputKey": "paperwork-follow-up",
+          "label": "Paperwork Follow-up Output",
+          "required": true
+        },
+        {
+          "workflowId": "monthly-admin-review",
+          "outputKey": "monthly-admin-review",
+          "label": "Monthly Admin Review Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "household-admin-brief",
+          "label": "Household Admin Brief Output",
+          "type": "markdown"
+        }
       ]
     }
   ]

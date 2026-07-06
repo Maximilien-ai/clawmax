@@ -139,7 +139,16 @@
         "convenience-store-kickoff"
       ],
       "scaling": "singleton",
-      "parallelism": 1
+      "parallelism": 1,
+      "dependsOn": [],
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "convenience-store-kickoff",
+          "label": "Team Kickoff Output",
+          "type": "markdown"
+        }
+      ]
     },
     {
       "id": "daily-inventory-count",
@@ -171,7 +180,22 @@
         "daily-inventory-count"
       ],
       "scaling": "parallel",
-      "parallelism": 2
+      "parallelism": 2,
+      "inputRefs": [
+        {
+          "workflowId": "convenience-store-kickoff",
+          "outputKey": "convenience-store-kickoff",
+          "label": "Team Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "daily-inventory-count",
+          "label": "Daily Inventory Count Output",
+          "type": "markdown"
+        }
+      ]
     },
     {
       "id": "restock-alerts",
@@ -201,7 +225,22 @@
         "restock-alerts"
       ],
       "scaling": "parallel",
-      "parallelism": 2
+      "parallelism": 2,
+      "inputRefs": [
+        {
+          "workflowId": "daily-inventory-count",
+          "outputKey": "daily-inventory-count",
+          "label": "Daily Inventory Count Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "restock-alerts",
+          "label": "Restock Alerts Output",
+          "type": "markdown"
+        }
+      ]
     },
     {
       "id": "shift-scheduling",
@@ -233,7 +272,22 @@
         "shift-scheduling"
       ],
       "scaling": "singleton",
-      "parallelism": 1
+      "parallelism": 1,
+      "inputRefs": [
+        {
+          "workflowId": "convenience-store-kickoff",
+          "outputKey": "convenience-store-kickoff",
+          "label": "Team Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "shift-scheduling",
+          "label": "Shift Scheduling Output",
+          "type": "markdown"
+        }
+      ]
     },
     {
       "id": "store-operations-brief",
@@ -267,7 +321,34 @@
         "store-operations-brief"
       ],
       "scaling": "singleton",
-      "parallelism": 1
+      "parallelism": 1,
+      "inputRefs": [
+        {
+          "workflowId": "daily-inventory-count",
+          "outputKey": "daily-inventory-count",
+          "label": "Daily Inventory Count Output",
+          "required": true
+        },
+        {
+          "workflowId": "restock-alerts",
+          "outputKey": "restock-alerts",
+          "label": "Restock Alerts Output",
+          "required": true
+        },
+        {
+          "workflowId": "shift-scheduling",
+          "outputKey": "shift-scheduling",
+          "label": "Shift Scheduling Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "store-operations-brief",
+          "label": "Store Operations Brief Output",
+          "type": "markdown"
+        }
+      ]
     }
   ],
   "category": "business"

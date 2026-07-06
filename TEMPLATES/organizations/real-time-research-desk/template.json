@@ -191,6 +191,15 @@
         "technical",
         "real-time-research-desk",
         "research-desk-kickoff"
+      ],
+      "dependsOn": [],
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "research-desk-kickoff",
+          "label": "Research Desk Kickoff Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -220,6 +229,21 @@
         "technical",
         "real-time-research-desk",
         "evidence-intake"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "research-desk-kickoff",
+          "outputKey": "research-desk-kickoff",
+          "label": "Research Desk Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "evidence-intake",
+          "label": "Evidence Intake Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -249,6 +273,21 @@
         "technical",
         "real-time-research-desk",
         "context-retrieval"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "evidence-intake",
+          "outputKey": "evidence-intake",
+          "label": "Evidence Intake Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "context-retrieval",
+          "label": "Context Retrieval Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -280,6 +319,21 @@
         "technical",
         "real-time-research-desk",
         "brief-action"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "context-retrieval",
+          "outputKey": "context-retrieval",
+          "label": "Context Retrieval Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "brief-action",
+          "label": "Brief & Action Output",
+          "type": "markdown"
+        }
       ]
     }
   ]

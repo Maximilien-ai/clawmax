@@ -168,6 +168,15 @@
         "business",
         "market-signal-desk",
         "market-attention-kickoff"
+      ],
+      "dependsOn": [],
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "market-attention-kickoff",
+          "label": "Market Attention Kickoff Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -198,6 +207,21 @@
         "business",
         "market-signal-desk",
         "macro-and-sector-scan"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "market-attention-kickoff",
+          "outputKey": "market-attention-kickoff",
+          "label": "Market Attention Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "macro-and-sector-scan",
+          "label": "Macro And Sector Scan Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -228,6 +252,21 @@
         "business",
         "market-signal-desk",
         "company-catalyst-review"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "market-attention-kickoff",
+          "outputKey": "market-attention-kickoff",
+          "label": "Market Attention Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "company-catalyst-review",
+          "label": "Company Catalyst Review Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -258,6 +297,21 @@
         "business",
         "market-signal-desk",
         "sentiment-signal-check"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "market-attention-kickoff",
+          "outputKey": "market-attention-kickoff",
+          "label": "Market Attention Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "sentiment-signal-check",
+          "label": "Sentiment Signal Check Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -290,6 +344,33 @@
         "business",
         "market-signal-desk",
         "market-signal-digest"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "macro-and-sector-scan",
+          "outputKey": "macro-and-sector-scan",
+          "label": "Macro And Sector Scan Output",
+          "required": true
+        },
+        {
+          "workflowId": "company-catalyst-review",
+          "outputKey": "company-catalyst-review",
+          "label": "Company Catalyst Review Output",
+          "required": true
+        },
+        {
+          "workflowId": "sentiment-signal-check",
+          "outputKey": "sentiment-signal-check",
+          "label": "Sentiment Signal Check Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "market-signal-digest",
+          "label": "Market Signal Digest Output",
+          "type": "markdown"
+        }
       ]
     }
   ]

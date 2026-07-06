@@ -130,7 +130,14 @@
           "label": "Event type",
           "type": "select",
           "required": true,
-          "options": ["birthday", "dinner", "meetup", "brunch", "shower", "custom"]
+          "options": [
+            "birthday",
+            "dinner",
+            "meetup",
+            "brunch",
+            "shower",
+            "custom"
+          ]
         },
         {
           "name": "eventDateTime",
@@ -161,7 +168,11 @@
           "label": "Final output artifact",
           "type": "select",
           "required": true,
-          "options": ["run-of-show", "host checklist", "guest plan"]
+          "options": [
+            "run-of-show",
+            "host checklist",
+            "guest plan"
+          ]
         }
       ],
       "owner": "event-lead",
@@ -183,6 +194,15 @@
         "personal",
         "small-event-planning-desk",
         "small-event-kickoff"
+      ],
+      "dependsOn": [],
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "small-event-kickoff",
+          "label": "Small Event Kickoff Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -213,6 +233,21 @@
         "personal",
         "small-event-planning-desk",
         "guest-list-check"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "small-event-kickoff",
+          "outputKey": "small-event-kickoff",
+          "label": "Small Event Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "guest-list-check",
+          "label": "Guest List Check Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -243,6 +278,21 @@
         "personal",
         "small-event-planning-desk",
         "event-day-readiness"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "small-event-kickoff",
+          "outputKey": "small-event-kickoff",
+          "label": "Small Event Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "event-day-readiness",
+          "label": "Event Day Readiness Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -274,6 +324,27 @@
         "personal",
         "small-event-planning-desk",
         "host-brief"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "guest-list-check",
+          "outputKey": "guest-list-check",
+          "label": "Guest List Check Output",
+          "required": true
+        },
+        {
+          "workflowId": "event-day-readiness",
+          "outputKey": "event-day-readiness",
+          "label": "Event Day Readiness Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "host-brief",
+          "label": "Host Brief Output",
+          "type": "markdown"
+        }
       ]
     }
   ]

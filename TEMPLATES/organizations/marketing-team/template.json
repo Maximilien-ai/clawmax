@@ -188,7 +188,16 @@
         "marketing-team-kickoff"
       ],
       "scaling": "singleton",
-      "parallelism": 1
+      "parallelism": 1,
+      "dependsOn": [],
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "marketing-team-kickoff",
+          "label": "Team Kickoff Output",
+          "type": "markdown"
+        }
+      ]
     },
     {
       "id": "marketing-content-calendar",
@@ -218,7 +227,22 @@
         "marketing-content-calendar"
       ],
       "scaling": "singleton",
-      "parallelism": 1
+      "parallelism": 1,
+      "inputRefs": [
+        {
+          "workflowId": "marketing-team-kickoff",
+          "outputKey": "marketing-team-kickoff",
+          "label": "Team Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "marketing-content-calendar",
+          "label": "Content Calendar Output",
+          "type": "markdown"
+        }
+      ]
     },
     {
       "id": "marketing-campaign-review",
@@ -247,7 +271,22 @@
         "marketing-campaign-review"
       ],
       "scaling": "parallel",
-      "parallelism": 2
+      "parallelism": 2,
+      "inputRefs": [
+        {
+          "workflowId": "marketing-content-calendar",
+          "outputKey": "marketing-content-calendar",
+          "label": "Content Calendar Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "marketing-campaign-review",
+          "label": "Campaign Review Output",
+          "type": "markdown"
+        }
+      ]
     },
     {
       "id": "marketing-analytics-report",
@@ -277,7 +316,22 @@
         "marketing-analytics-report"
       ],
       "scaling": "singleton",
-      "parallelism": 1
+      "parallelism": 1,
+      "inputRefs": [
+        {
+          "workflowId": "marketing-campaign-review",
+          "outputKey": "marketing-campaign-review",
+          "label": "Campaign Review Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "marketing-analytics-report",
+          "label": "Analytics Report Output",
+          "type": "markdown"
+        }
+      ]
     }
   ],
   "category": "business"

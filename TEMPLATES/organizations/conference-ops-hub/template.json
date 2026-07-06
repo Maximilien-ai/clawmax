@@ -240,7 +240,11 @@
           "label": "Final output artifact",
           "type": "select",
           "required": true,
-          "options": ["master runbook", "conference plan", "executive brief"]
+          "options": [
+            "master runbook",
+            "conference plan",
+            "executive brief"
+          ]
         }
       ],
       "owner": "conference-director",
@@ -264,7 +268,16 @@
         "conference-kickoff"
       ],
       "scaling": "singleton",
-      "parallelism": 1
+      "parallelism": 1,
+      "dependsOn": [],
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "conference-kickoff",
+          "label": "Conference Kickoff Output",
+          "type": "markdown"
+        }
+      ]
     },
     {
       "id": "track-planning-review",
@@ -296,7 +309,22 @@
         "track-planning-review"
       ],
       "scaling": "parallel",
-      "parallelism": 2
+      "parallelism": 2,
+      "inputRefs": [
+        {
+          "workflowId": "conference-kickoff",
+          "outputKey": "conference-kickoff",
+          "label": "Conference Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "track-planning-review",
+          "label": "Track Planning Review Output",
+          "type": "markdown"
+        }
+      ]
     },
     {
       "id": "speaker-ops-review",
@@ -328,7 +356,22 @@
         "speaker-ops-review"
       ],
       "scaling": "parallel",
-      "parallelism": 2
+      "parallelism": 2,
+      "inputRefs": [
+        {
+          "workflowId": "conference-kickoff",
+          "outputKey": "conference-kickoff",
+          "label": "Conference Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "speaker-ops-review",
+          "label": "Speaker Ops Review Output",
+          "type": "markdown"
+        }
+      ]
     },
     {
       "id": "capacity-and-venue-plan",
@@ -360,7 +403,22 @@
         "capacity-and-venue-plan"
       ],
       "scaling": "parallel",
-      "parallelism": 2
+      "parallelism": 2,
+      "inputRefs": [
+        {
+          "workflowId": "conference-kickoff",
+          "outputKey": "conference-kickoff",
+          "label": "Conference Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "capacity-and-venue-plan",
+          "label": "Capacity And Venue Plan Output",
+          "type": "markdown"
+        }
+      ]
     },
     {
       "id": "sponsor-readiness-check",
@@ -392,7 +450,22 @@
         "sponsor-readiness-check"
       ],
       "scaling": "parallel",
-      "parallelism": 2
+      "parallelism": 2,
+      "inputRefs": [
+        {
+          "workflowId": "conference-kickoff",
+          "outputKey": "conference-kickoff",
+          "label": "Conference Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "sponsor-readiness-check",
+          "label": "Sponsor Readiness Check Output",
+          "type": "markdown"
+        }
+      ]
     },
     {
       "id": "conference-follow-up",
@@ -427,7 +500,40 @@
         "conference-follow-up"
       ],
       "scaling": "singleton",
-      "parallelism": 1
+      "parallelism": 1,
+      "inputRefs": [
+        {
+          "workflowId": "track-planning-review",
+          "outputKey": "track-planning-review",
+          "label": "Track Planning Review Output",
+          "required": true
+        },
+        {
+          "workflowId": "speaker-ops-review",
+          "outputKey": "speaker-ops-review",
+          "label": "Speaker Ops Review Output",
+          "required": true
+        },
+        {
+          "workflowId": "capacity-and-venue-plan",
+          "outputKey": "capacity-and-venue-plan",
+          "label": "Capacity And Venue Plan Output",
+          "required": true
+        },
+        {
+          "workflowId": "sponsor-readiness-check",
+          "outputKey": "sponsor-readiness-check",
+          "label": "Sponsor Readiness Check Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "conference-follow-up",
+          "label": "Conference Follow Up Output",
+          "type": "markdown"
+        }
+      ]
     }
   ]
 }

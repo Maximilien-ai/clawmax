@@ -193,7 +193,16 @@
         "technical-writing-kickoff"
       ],
       "scaling": "singleton",
-      "parallelism": 1
+      "parallelism": 1,
+      "dependsOn": [],
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "technical-writing-kickoff",
+          "label": "Team Kickoff Output",
+          "type": "markdown"
+        }
+      ]
     },
     {
       "id": "technical-writing-outline-review",
@@ -225,7 +234,22 @@
         "technical-writing-outline-review"
       ],
       "scaling": "singleton",
-      "parallelism": 1
+      "parallelism": 1,
+      "inputRefs": [
+        {
+          "workflowId": "technical-writing-kickoff",
+          "outputKey": "technical-writing-kickoff",
+          "label": "Team Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "technical-writing-outline-review",
+          "label": "Outline Review Output",
+          "type": "markdown"
+        }
+      ]
     },
     {
       "id": "technical-writing-draft-writing",
@@ -254,7 +278,22 @@
         "technical-writing-draft-writing"
       ],
       "scaling": "parallel",
-      "parallelism": 2
+      "parallelism": 2,
+      "inputRefs": [
+        {
+          "workflowId": "technical-writing-outline-review",
+          "outputKey": "technical-writing-outline-review",
+          "label": "Outline Review Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "technical-writing-draft-writing",
+          "label": "Draft Writing Output",
+          "type": "markdown"
+        }
+      ]
     },
     {
       "id": "technical-writing-fact-check",
@@ -286,7 +325,22 @@
         "technical-writing-fact-check"
       ],
       "scaling": "parallel",
-      "parallelism": 2
+      "parallelism": 2,
+      "inputRefs": [
+        {
+          "workflowId": "technical-writing-draft-writing",
+          "outputKey": "technical-writing-draft-writing",
+          "label": "Draft Writing Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "technical-writing-fact-check",
+          "label": "Fact Check Output",
+          "type": "markdown"
+        }
+      ]
     },
     {
       "id": "technical-writing-publish",
@@ -318,7 +372,22 @@
         "technical-writing-publish"
       ],
       "scaling": "singleton",
-      "parallelism": 1
+      "parallelism": 1,
+      "inputRefs": [
+        {
+          "workflowId": "technical-writing-fact-check",
+          "outputKey": "technical-writing-fact-check",
+          "label": "Fact Check Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "technical-writing-publish",
+          "label": "Publish Output",
+          "type": "markdown"
+        }
+      ]
     }
   ],
   "category": "personal"

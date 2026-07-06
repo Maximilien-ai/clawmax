@@ -158,6 +158,15 @@
         "personal",
         "friday-night-movie-picker",
         "friday-movie-kickoff"
+      ],
+      "dependsOn": [],
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "friday-movie-kickoff",
+          "label": "Friday Movie Kickoff Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -188,6 +197,21 @@
         "personal",
         "friday-night-movie-picker",
         "final-pick-review"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "friday-movie-kickoff",
+          "outputKey": "friday-movie-kickoff",
+          "label": "Friday Movie Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "final-pick-review",
+          "label": "Final Pick Review Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -218,6 +242,21 @@
         "personal",
         "friday-night-movie-picker",
         "shortlist-build"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "friday-movie-kickoff",
+          "outputKey": "friday-movie-kickoff",
+          "label": "Friday Movie Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "shortlist-build",
+          "label": "Shortlist Build Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -248,6 +287,21 @@
         "personal",
         "friday-night-movie-picker",
         "snack-and-setup-plan"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "friday-movie-kickoff",
+          "outputKey": "friday-movie-kickoff",
+          "label": "Friday Movie Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "snack-and-setup-plan",
+          "label": "Snack and Setup Plan Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -280,6 +334,33 @@
         "personal",
         "friday-night-movie-picker",
         "friday-movie-brief"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "shortlist-build",
+          "outputKey": "shortlist-build",
+          "label": "Shortlist Build Output",
+          "required": true
+        },
+        {
+          "workflowId": "final-pick-review",
+          "outputKey": "final-pick-review",
+          "label": "Final Pick Review Output",
+          "required": true
+        },
+        {
+          "workflowId": "snack-and-setup-plan",
+          "outputKey": "snack-and-setup-plan",
+          "label": "Snack and Setup Plan Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "friday-movie-brief",
+          "label": "Friday Movie Brief Output",
+          "type": "markdown"
+        }
       ]
     }
   ]

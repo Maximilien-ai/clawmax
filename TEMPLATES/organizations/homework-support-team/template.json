@@ -167,6 +167,15 @@
         "family",
         "homework-support-team",
         "homework-kickoff"
+      ],
+      "dependsOn": [],
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "homework-kickoff",
+          "label": "Homework Kickoff Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -197,6 +206,21 @@
         "family",
         "homework-support-team",
         "assignment-breakdown"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "homework-kickoff",
+          "outputKey": "homework-kickoff",
+          "label": "Homework Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "assignment-breakdown",
+          "label": "Assignment Breakdown Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -227,6 +251,21 @@
         "family",
         "homework-support-team",
         "project-milestones"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "homework-kickoff",
+          "outputKey": "homework-kickoff",
+          "label": "Homework Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "project-milestones",
+          "label": "Project Milestones Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -257,6 +296,21 @@
         "family",
         "homework-support-team",
         "study-review-plan"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "homework-kickoff",
+          "outputKey": "homework-kickoff",
+          "label": "Homework Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "study-review-plan",
+          "label": "Study Review Plan Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -289,6 +343,33 @@
         "family",
         "homework-support-team",
         "homework-brief"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "assignment-breakdown",
+          "outputKey": "assignment-breakdown",
+          "label": "Assignment Breakdown Output",
+          "required": true
+        },
+        {
+          "workflowId": "project-milestones",
+          "outputKey": "project-milestones",
+          "label": "Project Milestones Output",
+          "required": true
+        },
+        {
+          "workflowId": "study-review-plan",
+          "outputKey": "study-review-plan",
+          "label": "Study Review Plan Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "homework-brief",
+          "label": "Homework Brief Output",
+          "type": "markdown"
+        }
       ]
     }
   ]

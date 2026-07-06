@@ -193,6 +193,15 @@
         "technical",
         "data-team",
         "team-kickoff"
+      ],
+      "dependsOn": [],
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "team-kickoff",
+          "label": "Team Kickoff Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -221,6 +230,21 @@
         "technical",
         "data-team",
         "pipeline-monitoring"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "team-kickoff",
+          "outputKey": "team-kickoff",
+          "label": "Team Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "pipeline-monitoring",
+          "label": "Pipeline Monitoring Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -250,6 +274,21 @@
         "technical",
         "data-team",
         "data-quality-check"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "team-kickoff",
+          "outputKey": "team-kickoff",
+          "label": "Team Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "data-quality-check",
+          "label": "Data Quality Check Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -281,6 +320,27 @@
         "technical",
         "data-team",
         "model-evaluation"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "pipeline-monitoring",
+          "outputKey": "pipeline-monitoring",
+          "label": "Pipeline Monitoring Output",
+          "required": true
+        },
+        {
+          "workflowId": "data-quality-check",
+          "outputKey": "data-quality-check",
+          "label": "Data Quality Check Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "model-evaluation",
+          "label": "Model Evaluation Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -311,6 +371,21 @@
         "technical",
         "data-team",
         "analytics-readout"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "team-kickoff",
+          "outputKey": "team-kickoff",
+          "label": "Team Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "analytics-readout",
+          "label": "Analytics Readout Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -344,6 +419,39 @@
         "technical",
         "data-team",
         "data-team-brief"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "pipeline-monitoring",
+          "outputKey": "pipeline-monitoring",
+          "label": "Pipeline Monitoring Output",
+          "required": true
+        },
+        {
+          "workflowId": "data-quality-check",
+          "outputKey": "data-quality-check",
+          "label": "Data Quality Check Output",
+          "required": true
+        },
+        {
+          "workflowId": "model-evaluation",
+          "outputKey": "model-evaluation",
+          "label": "Model Evaluation Output",
+          "required": true
+        },
+        {
+          "workflowId": "analytics-readout",
+          "outputKey": "analytics-readout",
+          "label": "Analytics Readout Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "data-team-brief",
+          "label": "Data Team Brief Output",
+          "type": "markdown"
+        }
       ]
     }
   ]

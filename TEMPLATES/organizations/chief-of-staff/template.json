@@ -181,6 +181,15 @@
         "personal",
         "chief-of-staff",
         "daily-priorities-kickoff"
+      ],
+      "dependsOn": [],
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "daily-priorities-kickoff",
+          "label": "Daily Priorities Kickoff Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -213,6 +222,21 @@
         "personal",
         "chief-of-staff",
         "inbox-and-calendar-triage"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "daily-priorities-kickoff",
+          "outputKey": "daily-priorities-kickoff",
+          "label": "Daily Priorities Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "inbox-and-calendar-triage",
+          "label": "Inbox And Calendar Triage Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -243,6 +267,21 @@
         "personal",
         "chief-of-staff",
         "meeting-prep-cycle"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "inbox-and-calendar-triage",
+          "outputKey": "inbox-and-calendar-triage",
+          "label": "Inbox And Calendar Triage Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "meeting-prep-cycle",
+          "label": "Meeting Prep Cycle Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -276,6 +315,21 @@
         "personal",
         "chief-of-staff",
         "follow-through-review"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "meeting-prep-cycle",
+          "outputKey": "meeting-prep-cycle",
+          "label": "Meeting Prep Cycle Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "follow-through-review",
+          "label": "Follow Through Review Output",
+          "type": "markdown"
+        }
       ]
     }
   ]

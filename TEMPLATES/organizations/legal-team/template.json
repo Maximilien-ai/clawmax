@@ -152,6 +152,15 @@
         "business",
         "legal-team",
         "team-kickoff"
+      ],
+      "dependsOn": [],
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "team-kickoff",
+          "label": "Team Kickoff Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -180,6 +189,21 @@
         "business",
         "legal-team",
         "contract-review"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "team-kickoff",
+          "outputKey": "team-kickoff",
+          "label": "Team Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "contract-review",
+          "label": "Contract Review Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -209,6 +233,21 @@
         "business",
         "legal-team",
         "compliance-check"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "team-kickoff",
+          "outputKey": "team-kickoff",
+          "label": "Team Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "compliance-check",
+          "label": "Compliance Check Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -238,6 +277,27 @@
         "business",
         "legal-team",
         "risk-assessment"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "contract-review",
+          "outputKey": "contract-review",
+          "label": "Contract Review Output",
+          "required": true
+        },
+        {
+          "workflowId": "compliance-check",
+          "outputKey": "compliance-check",
+          "label": "Compliance Check Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "risk-assessment",
+          "label": "Risk Assessment Output",
+          "type": "markdown"
+        }
       ]
     }
   ],

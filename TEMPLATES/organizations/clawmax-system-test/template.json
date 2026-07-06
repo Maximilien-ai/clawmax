@@ -136,6 +136,15 @@
         "test",
         "clawmax-system-test",
         "test-kickoff"
+      ],
+      "dependsOn": [],
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "test-kickoff",
+          "label": "Test Kickoff Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -166,6 +175,21 @@
         "test",
         "clawmax-system-test",
         "test-filesystem"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "test-kickoff",
+          "outputKey": "test-kickoff",
+          "label": "Test Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "test-filesystem",
+          "label": "Test Filesystem Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -198,6 +222,21 @@
         "test",
         "clawmax-system-test",
         "test-communications"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "test-filesystem",
+          "outputKey": "test-filesystem",
+          "label": "Test Filesystem Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "test-communications",
+          "label": "Test Communications Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -227,6 +266,21 @@
         "test",
         "clawmax-system-test",
         "test-github"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "test-communications",
+          "outputKey": "test-communications",
+          "label": "Test Communications Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "test-github",
+          "label": "Test GitHub Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -254,6 +308,21 @@
         "test",
         "clawmax-system-test",
         "test-dag-parallel-a"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "test-communications",
+          "outputKey": "test-communications",
+          "label": "Test Communications Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "test-dag-parallel-a",
+          "label": "Test DAG Parallel A Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -281,6 +350,21 @@
         "test",
         "clawmax-system-test",
         "test-dag-parallel-b"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "test-communications",
+          "outputKey": "test-communications",
+          "label": "Test Communications Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "test-dag-parallel-b",
+          "label": "Test DAG Parallel B Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -313,6 +397,33 @@
         "test",
         "clawmax-system-test",
         "test-report"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "test-github",
+          "outputKey": "test-github",
+          "label": "Test GitHub Output",
+          "required": true
+        },
+        {
+          "workflowId": "test-dag-parallel-a",
+          "outputKey": "test-dag-parallel-a",
+          "label": "Test DAG Parallel A Output",
+          "required": true
+        },
+        {
+          "workflowId": "test-dag-parallel-b",
+          "outputKey": "test-dag-parallel-b",
+          "label": "Test DAG Parallel B Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "test-report",
+          "label": "Test Report Output",
+          "type": "markdown"
+        }
       ]
     }
   ]

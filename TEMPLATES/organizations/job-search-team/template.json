@@ -201,6 +201,15 @@
         "business",
         "job-search-team",
         "job-search-kickoff"
+      ],
+      "dependsOn": [],
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "job-search-kickoff",
+          "label": "Job Search Kickoff Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -231,6 +240,21 @@
         "business",
         "job-search-team",
         "role-targeting-sweep"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "job-search-kickoff",
+          "outputKey": "job-search-kickoff",
+          "label": "Job Search Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "role-targeting-sweep",
+          "label": "Role Targeting Sweep Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -261,6 +285,21 @@
         "business",
         "job-search-team",
         "resume-tailoring-pack"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "role-targeting-sweep",
+          "outputKey": "role-targeting-sweep",
+          "label": "Role Targeting Sweep Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "resume-tailoring-pack",
+          "label": "Resume Tailoring Pack Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -291,6 +330,21 @@
         "business",
         "job-search-team",
         "outreach-and-networking-pack"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "role-targeting-sweep",
+          "outputKey": "role-targeting-sweep",
+          "label": "Role Targeting Sweep Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "outreach-and-networking-pack",
+          "label": "Outreach And Networking Pack Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -323,6 +377,27 @@
         "business",
         "job-search-team",
         "interview-prep-brief"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "resume-tailoring-pack",
+          "outputKey": "resume-tailoring-pack",
+          "label": "Resume Tailoring Pack Output",
+          "required": true
+        },
+        {
+          "workflowId": "outreach-and-networking-pack",
+          "outputKey": "outreach-and-networking-pack",
+          "label": "Outreach And Networking Pack Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "interview-prep-brief",
+          "label": "Interview Prep Brief Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -353,6 +428,21 @@
         "business",
         "job-search-team",
         "job-search-synthesis"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "interview-prep-brief",
+          "outputKey": "interview-prep-brief",
+          "label": "Interview Prep Brief Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "job-search-synthesis",
+          "label": "Job Search Synthesis Output",
+          "type": "markdown"
+        }
       ]
     }
   ]

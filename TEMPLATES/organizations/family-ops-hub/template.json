@@ -164,6 +164,15 @@
         "family",
         "family-ops-hub",
         "family-week-kickoff"
+      ],
+      "dependsOn": [],
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "family-week-kickoff",
+          "label": "Family Week Kickoff Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -194,6 +203,21 @@
         "family",
         "family-ops-hub",
         "household-reset"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "family-week-kickoff",
+          "outputKey": "family-week-kickoff",
+          "label": "Family Week Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "household-reset",
+          "label": "Household Reset Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -224,6 +248,21 @@
         "family",
         "family-ops-hub",
         "schedule-review"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "family-week-kickoff",
+          "outputKey": "family-week-kickoff",
+          "label": "Family Week Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "schedule-review",
+          "label": "Schedule Review Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -254,6 +293,21 @@
         "family",
         "family-ops-hub",
         "kids-support-plan"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "family-week-kickoff",
+          "outputKey": "family-week-kickoff",
+          "label": "Family Week Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "kids-support-plan",
+          "label": "Kids Support Plan Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -286,6 +340,33 @@
         "family",
         "family-ops-hub",
         "family-week-brief"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "household-reset",
+          "outputKey": "household-reset",
+          "label": "Household Reset Output",
+          "required": true
+        },
+        {
+          "workflowId": "schedule-review",
+          "outputKey": "schedule-review",
+          "label": "Schedule Review Output",
+          "required": true
+        },
+        {
+          "workflowId": "kids-support-plan",
+          "outputKey": "kids-support-plan",
+          "label": "Kids Support Plan Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "family-week-brief",
+          "label": "Family Week Brief Output",
+          "type": "markdown"
+        }
       ]
     }
   ]

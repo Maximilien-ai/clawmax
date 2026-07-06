@@ -193,6 +193,15 @@
         "dev-team",
         "clawmax-dev-team",
         "dev-team-kickoff"
+      ],
+      "dependsOn": [],
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "dev-team-kickoff",
+          "label": "Dev Team Kickoff Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -222,6 +231,21 @@
         "dev-team",
         "clawmax-dev-team",
         "issue-triage"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "dev-team-kickoff",
+          "outputKey": "dev-team-kickoff",
+          "label": "Dev Team Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "issue-triage",
+          "label": "Issue Triage Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -251,6 +275,21 @@
         "dev-team",
         "clawmax-dev-team",
         "test-run"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "dev-team-kickoff",
+          "outputKey": "dev-team-kickoff",
+          "label": "Dev Team Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "test-run",
+          "label": "Test Run Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -282,6 +321,21 @@
         "dev-team",
         "clawmax-dev-team",
         "pr-review"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "dev-team-kickoff",
+          "outputKey": "dev-team-kickoff",
+          "label": "Dev Team Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "pr-review",
+          "label": "PR Review Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -314,6 +368,27 @@
         "dev-team",
         "clawmax-dev-team",
         "release-prep"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "pr-review",
+          "outputKey": "pr-review",
+          "label": "PR Review Output",
+          "required": true
+        },
+        {
+          "workflowId": "test-run",
+          "outputKey": "test-run",
+          "label": "Test Run Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "release-prep",
+          "label": "Release Prep Output",
+          "type": "markdown"
+        }
       ]
     }
   ]

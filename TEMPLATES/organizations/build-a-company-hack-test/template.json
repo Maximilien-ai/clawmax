@@ -19,81 +19,147 @@
       "name": "CEO",
       "role": "Sets company direction, priorities, and final decision-making.",
       "model": "openai/gpt-4o-mini",
-      "tags": ["leadership", "exec"],
-      "communities": ["Build-a-Company"],
-      "groups": ["Leadership"]
+      "tags": [
+        "leadership",
+        "exec"
+      ],
+      "communities": [
+        "Build-a-Company"
+      ],
+      "groups": [
+        "Leadership"
+      ]
     },
     {
       "id": "execution-lead",
       "name": "Execution Lead",
       "role": "Turns company goals into an execution plan, milestones, and operating briefs.",
       "model": "openai/gpt-4o-mini",
-      "tags": ["execution", "operations", "lead"],
-      "communities": ["Build-a-Company"],
-      "groups": ["Leadership", "Execution"]
+      "tags": [
+        "execution",
+        "operations",
+        "lead"
+      ],
+      "communities": [
+        "Build-a-Company"
+      ],
+      "groups": [
+        "Leadership",
+        "Execution"
+      ]
     },
     {
       "id": "program-manager",
       "name": "Program Manager",
       "role": "Keeps milestones, dependencies, and execution follow-through aligned across teams.",
       "model": "openai/gpt-4o-mini",
-      "tags": ["execution", "operations"],
-      "communities": ["Build-a-Company"],
-      "groups": ["Execution"]
+      "tags": [
+        "execution",
+        "operations"
+      ],
+      "communities": [
+        "Build-a-Company"
+      ],
+      "groups": [
+        "Execution"
+      ]
     },
     {
       "id": "eng-lead",
       "name": "Engineering Lead",
       "role": "Owns technical planning, implementation sequencing, and engineering coordination.",
       "model": "openai/gpt-4o-mini",
-      "tags": ["engineering", "lead"],
-      "communities": ["Build-a-Company"],
-      "groups": ["Engineering"]
+      "tags": [
+        "engineering",
+        "lead"
+      ],
+      "communities": [
+        "Build-a-Company"
+      ],
+      "groups": [
+        "Engineering"
+      ]
     },
     {
       "id": "platform-engineer",
       "name": "Platform Engineer",
       "role": "Breaks the execution plan into implementation milestones, dependencies, and delivery notes.",
       "model": "openai/gpt-4o-mini",
-      "tags": ["engineering", "platform"],
-      "communities": ["Build-a-Company"],
-      "groups": ["Engineering"]
+      "tags": [
+        "engineering",
+        "platform"
+      ],
+      "communities": [
+        "Build-a-Company"
+      ],
+      "groups": [
+        "Engineering"
+      ]
     },
     {
       "id": "marketing-lead",
       "name": "Marketing Lead",
       "role": "Owns launch messaging, content packaging, and market-facing execution.",
       "model": "openai/gpt-4o-mini",
-      "tags": ["marketing", "lead"],
-      "communities": ["Build-a-Company"],
-      "groups": ["Marketing"]
+      "tags": [
+        "marketing",
+        "lead"
+      ],
+      "communities": [
+        "Build-a-Company"
+      ],
+      "groups": [
+        "Marketing"
+      ]
     },
     {
       "id": "content-strategist",
       "name": "Content Strategist",
       "role": "Turns launch goals into messaging, campaign assets, and reusable content packages.",
       "model": "openai/gpt-4o-mini",
-      "tags": ["marketing", "content"],
-      "communities": ["Build-a-Company"],
-      "groups": ["Marketing"]
+      "tags": [
+        "marketing",
+        "content"
+      ],
+      "communities": [
+        "Build-a-Company"
+      ],
+      "groups": [
+        "Marketing"
+      ]
     },
     {
       "id": "qa-lead",
       "name": "QA Lead",
       "role": "Validates quality, release readiness, and cross-team handoff completeness.",
       "model": "openai/gpt-4o-mini",
-      "tags": ["qa", "quality", "lead"],
-      "communities": ["Build-a-Company"],
-      "groups": ["QA"]
+      "tags": [
+        "qa",
+        "quality",
+        "lead"
+      ],
+      "communities": [
+        "Build-a-Company"
+      ],
+      "groups": [
+        "QA"
+      ]
     },
     {
       "id": "release-analyst",
       "name": "Release Analyst",
       "role": "Checks handoff completeness, release risks, and readiness evidence across teams.",
       "model": "openai/gpt-4o-mini",
-      "tags": ["qa", "analysis"],
-      "communities": ["Build-a-Company"],
-      "groups": ["QA"]
+      "tags": [
+        "qa",
+        "analysis"
+      ],
+      "communities": [
+        "Build-a-Company"
+      ],
+      "groups": [
+        "QA"
+      ]
     }
   ],
   "teams": [
@@ -103,52 +169,78 @@
       "purpose": "Root company team for the hackathon demo organization.",
       "leaderAgentId": "ceo",
       "memberAgentIds": [],
-      "tags": ["company", "org-root"]
+      "tags": [
+        "company",
+        "org-root"
+      ]
     },
     {
       "id": "leadership",
       "name": "Leadership",
       "purpose": "Set direction and issue the initial company brief.",
       "leaderAgentId": "ceo",
-      "memberAgentIds": ["execution-lead"],
+      "memberAgentIds": [
+        "execution-lead"
+      ],
       "parentTeamId": "build-a-company-hackathon-org",
-      "tags": ["exec"]
+      "tags": [
+        "exec"
+      ]
     },
     {
       "id": "execution",
       "name": "Execution",
       "purpose": "Translate leadership direction into an execution brief with milestones and owners.",
       "leaderAgentId": "execution-lead",
-      "memberAgentIds": ["program-manager"],
+      "memberAgentIds": [
+        "program-manager"
+      ],
       "parentTeamId": "leadership",
-      "tags": ["operations", "delivery"]
+      "tags": [
+        "operations",
+        "delivery"
+      ]
     },
     {
       "id": "engineering",
       "name": "Engineering",
       "purpose": "Convert the execution brief into a technical plan and delivery document.",
       "leaderAgentId": "eng-lead",
-      "memberAgentIds": ["platform-engineer"],
+      "memberAgentIds": [
+        "platform-engineer"
+      ],
       "parentTeamId": "leadership",
-      "tags": ["build"]
+      "tags": [
+        "build"
+      ]
     },
     {
       "id": "marketing",
       "name": "Marketing",
       "purpose": "Turn the execution and engineering outputs into launch messaging and campaign assets.",
       "leaderAgentId": "marketing-lead",
-      "memberAgentIds": ["content-strategist"],
+      "memberAgentIds": [
+        "content-strategist"
+      ],
       "parentTeamId": "leadership",
-      "tags": ["launch", "content"]
+      "tags": [
+        "launch",
+        "content"
+      ]
     },
     {
       "id": "qa",
       "name": "QA",
       "purpose": "Validate the end-to-end package, confirm readiness, and produce a release review.",
       "leaderAgentId": "qa-lead",
-      "memberAgentIds": ["release-analyst"],
+      "memberAgentIds": [
+        "release-analyst"
+      ],
       "parentTeamId": "leadership",
-      "tags": ["qa", "review"]
+      "tags": [
+        "qa",
+        "review"
+      ]
     }
   ],
   "communities": [
@@ -196,10 +288,16 @@
       "type": "once",
       "targeting": {
         "communities": [],
-        "groups": ["Leadership"],
+        "groups": [
+          "Leadership"
+        ],
         "tags": [],
-        "agents": ["ceo"],
-        "teamIds": ["leadership"]
+        "agents": [
+          "ceo"
+        ],
+        "teamIds": [
+          "leadership"
+        ]
       },
       "outputDefinitions": [
         {
@@ -208,7 +306,9 @@
           "type": "markdown"
         }
       ],
-      "content": "# Leadership Kickoff\n\nProduce the company direction and leadership brief.\n\n## Success Criteria\n- Keep the output under 150 words.\n- Use 4 bullets max.\n- State goals, top priority, top risk, and the next handoff.\n\n## Output\n- Publish a short leadership brief for downstream teams."
+      "content": "# Leadership Kickoff\n\nProduce the company direction and leadership brief.\n\n## Success Criteria\n- Keep the output under 150 words.\n- Use 4 bullets max.\n- State goals, top priority, top risk, and the next handoff.\n\n## Output\n- Publish a short leadership brief for downstream teams.",
+      "dependsOn": [],
+      "inputRefs": []
     },
     {
       "id": "execution-brief",
@@ -218,13 +318,21 @@
       "enabled": true,
       "executionMode": "managed",
       "owner": "execution-lead",
-      "dependsOn": ["leadership-kickoff"],
+      "dependsOn": [
+        "leadership-kickoff"
+      ],
       "targeting": {
         "communities": [],
-        "groups": ["Execution"],
+        "groups": [
+          "Execution"
+        ],
         "tags": [],
-        "agents": ["execution-lead"],
-        "teamIds": ["execution"]
+        "agents": [
+          "execution-lead"
+        ],
+        "teamIds": [
+          "execution"
+        ]
       },
       "inputRefs": [
         {
@@ -251,13 +359,21 @@
       "enabled": true,
       "executionMode": "managed",
       "owner": "eng-lead",
-      "dependsOn": ["execution-brief"],
+      "dependsOn": [
+        "execution-brief"
+      ],
       "targeting": {
         "communities": [],
-        "groups": ["Engineering"],
+        "groups": [
+          "Engineering"
+        ],
         "tags": [],
-        "agents": ["eng-lead"],
-        "teamIds": ["engineering"]
+        "agents": [
+          "eng-lead"
+        ],
+        "teamIds": [
+          "engineering"
+        ]
       },
       "inputRefs": [
         {
@@ -284,13 +400,21 @@
       "enabled": true,
       "executionMode": "managed",
       "owner": "marketing-lead",
-      "dependsOn": ["engineering-plan"],
+      "dependsOn": [
+        "engineering-plan"
+      ],
       "targeting": {
         "communities": [],
-        "groups": ["Marketing"],
+        "groups": [
+          "Marketing"
+        ],
         "tags": [],
-        "agents": ["marketing-lead"],
-        "teamIds": ["marketing"]
+        "agents": [
+          "marketing-lead"
+        ],
+        "teamIds": [
+          "marketing"
+        ]
       },
       "inputRefs": [
         {
@@ -323,13 +447,21 @@
       "enabled": true,
       "executionMode": "managed",
       "owner": "qa-lead",
-      "dependsOn": ["marketing-launch"],
+      "dependsOn": [
+        "marketing-launch"
+      ],
       "targeting": {
         "communities": [],
-        "groups": ["QA"],
+        "groups": [
+          "QA"
+        ],
         "tags": [],
-        "agents": ["qa-lead"],
-        "teamIds": ["qa"]
+        "agents": [
+          "qa-lead"
+        ],
+        "teamIds": [
+          "qa"
+        ]
       },
       "inputRefs": [
         {

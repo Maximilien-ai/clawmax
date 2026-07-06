@@ -193,7 +193,16 @@
         "sales-team-kickoff"
       ],
       "scaling": "singleton",
-      "parallelism": 1
+      "parallelism": 1,
+      "dependsOn": [],
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "sales-team-kickoff",
+          "label": "Team Kickoff Output",
+          "type": "markdown"
+        }
+      ]
     },
     {
       "id": "pipeline-review",
@@ -222,7 +231,22 @@
         "pipeline-review"
       ],
       "scaling": "parallel",
-      "parallelism": 2
+      "parallelism": 2,
+      "inputRefs": [
+        {
+          "workflowId": "sales-team-kickoff",
+          "outputKey": "sales-team-kickoff",
+          "label": "Team Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "pipeline-review",
+          "label": "Pipeline Review Output",
+          "type": "markdown"
+        }
+      ]
     },
     {
       "id": "lead-qualification",
@@ -251,7 +275,22 @@
         "lead-qualification"
       ],
       "scaling": "parallel",
-      "parallelism": 2
+      "parallelism": 2,
+      "inputRefs": [
+        {
+          "workflowId": "sales-team-kickoff",
+          "outputKey": "sales-team-kickoff",
+          "label": "Team Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "lead-qualification",
+          "label": "Lead Qualification Output",
+          "type": "markdown"
+        }
+      ]
     },
     {
       "id": "deal-forecast",
@@ -282,7 +321,28 @@
         "deal-forecast"
       ],
       "scaling": "singleton",
-      "parallelism": 1
+      "parallelism": 1,
+      "inputRefs": [
+        {
+          "workflowId": "pipeline-review",
+          "outputKey": "pipeline-review",
+          "label": "Pipeline Review Output",
+          "required": true
+        },
+        {
+          "workflowId": "lead-qualification",
+          "outputKey": "lead-qualification",
+          "label": "Lead Qualification Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "deal-forecast",
+          "label": "Deal Forecast Output",
+          "type": "markdown"
+        }
+      ]
     }
   ],
   "category": "business"

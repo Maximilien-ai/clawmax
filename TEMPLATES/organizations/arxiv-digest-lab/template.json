@@ -170,6 +170,15 @@
         "science",
         "arxiv-digest-lab",
         "arxiv-topic-kickoff"
+      ],
+      "dependsOn": [],
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "arxiv-topic-kickoff",
+          "label": "ArXiv Topic Kickoff Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -200,6 +209,21 @@
         "science",
         "arxiv-digest-lab",
         "paper-scouting-pass"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "arxiv-topic-kickoff",
+          "outputKey": "arxiv-topic-kickoff",
+          "label": "ArXiv Topic Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "paper-scouting-pass",
+          "label": "Paper Scouting Pass Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -230,6 +254,21 @@
         "science",
         "arxiv-digest-lab",
         "paper-summary-pass"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "paper-scouting-pass",
+          "outputKey": "paper-scouting-pass",
+          "label": "Paper Scouting Pass Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "paper-summary-pass",
+          "label": "Paper Summary Pass Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -261,6 +300,27 @@
         "science",
         "arxiv-digest-lab",
         "paper-digest-build"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "paper-scouting-pass",
+          "outputKey": "paper-scouting-pass",
+          "label": "Paper Scouting Pass Output",
+          "required": true
+        },
+        {
+          "workflowId": "paper-summary-pass",
+          "outputKey": "paper-summary-pass",
+          "label": "Paper Summary Pass Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "paper-digest-build",
+          "label": "Paper Digest Build Output",
+          "type": "markdown"
+        }
       ]
     }
   ]

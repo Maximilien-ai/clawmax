@@ -171,6 +171,15 @@
         "technical",
         "idea-to-site-studio",
         "site-idea-kickoff"
+      ],
+      "dependsOn": [],
+      "inputRefs": [],
+      "outputDefinitions": [
+        {
+          "key": "site-idea-kickoff",
+          "label": "Site Idea Kickoff Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -202,6 +211,21 @@
         "technical",
         "idea-to-site-studio",
         "site-positioning-and-copy"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "site-idea-kickoff",
+          "outputKey": "site-idea-kickoff",
+          "label": "Site Idea Kickoff Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "site-positioning-and-copy",
+          "label": "Site Positioning And Copy Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -232,6 +256,21 @@
         "technical",
         "idea-to-site-studio",
         "site-build-pass"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "site-positioning-and-copy",
+          "outputKey": "site-positioning-and-copy",
+          "label": "Site Positioning And Copy Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "site-build-pass",
+          "label": "Site Build Pass Output",
+          "type": "markdown"
+        }
       ]
     },
     {
@@ -263,6 +302,27 @@
         "technical",
         "idea-to-site-studio",
         "site-build-review"
+      ],
+      "inputRefs": [
+        {
+          "workflowId": "site-positioning-and-copy",
+          "outputKey": "site-positioning-and-copy",
+          "label": "Site Positioning And Copy Output",
+          "required": true
+        },
+        {
+          "workflowId": "site-build-pass",
+          "outputKey": "site-build-pass",
+          "label": "Site Build Pass Output",
+          "required": true
+        }
+      ],
+      "outputDefinitions": [
+        {
+          "key": "site-build-review",
+          "label": "Site Build Review Output",
+          "type": "markdown"
+        }
       ]
     }
   ]
