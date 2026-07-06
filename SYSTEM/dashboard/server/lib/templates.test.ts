@@ -26,6 +26,7 @@ import { checkTemplatePrereqs } from './prereqs'
 import { getTeam, listTeams } from './teams'
 import { getWorkflow } from './workflows'
 import { resetWorkspaceManagerForTests } from './workspace-manager'
+import { applyGeneratedWorkflowHandoffs, normalizeGeneratedWorkflowReferences } from './ai-generator'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
@@ -1782,6 +1783,87 @@ test('importOrganizationTemplate sanitizes invalid team ancestry before creating
     resetWorkspaceManagerForTests()
     fs.rmSync(tempHome, { recursive: true, force: true })
   }
+})
+
+test('importOrganizationTemplate backfills workflow handoff metadata for dependency-only templates', () => {
+  const originalWorkspace = process.env.OPENCLAW_WORKSPACE
+  const originalHome = process.env.HOME
+  const originalOpenAi = process.env.SYSTEM_OPENAI_API_KEY
+  const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-template-handoff-home-'))
+  const tempWorkspace = path.join(tempHome, 'workspace')
+
+  process.env.HOME = tempHome
+  process.env.OPENCLAW_WORKSPACE = tempWorkspace
+  process.env.SYSTEM_OPENAI_API_KEY = 'test-openai-key'
+  resetWorkspaceManagerForTests()
+  seedOpenClawConfig(tempHome)
+
+  try {
+    const imported = importOrganizationTemplate('travel-planning-desk', { prefix: 'handoff-' })
+    assert(imported.ok === true, `Expected import to succeed, got ${imported.error || 'unknown error'}`)
+
+    const kickoff = getWorkflow('handoff-trip-kickoff')
+    const itinerary = getWorkflow('handoff-itinerary-build')
+    const logistics = getWorkflow('handoff-logistics-check')
+    const memories = getWorkflow('handoff-memory-plan')
+    const brief = getWorkflow('handoff-trip-brief')
+
+    assert(kickoff?.outputDefinitions?.length === 1, 'Expected kickoff output to be backfilled during import')
+    assert(itinerary?.inputRefs?.some((ref) => ref.workflowId === 'handoff-trip-kickoff') === true, 'Expected itinerary handoff to reference kickoff')
+    assert(itinerary?.outputDefinitions?.length === 1, 'Expected itinerary output to be backfilled during import')
+    assert(logistics?.inputRefs?.some((ref) => ref.workflowId === 'handoff-itinerary-build') === true, 'Expected logistics handoff to reference itinerary')
+    assert(memories?.inputRefs?.some((ref) => ref.workflowId === 'handoff-trip-kickoff') === true, 'Expected memory plan handoff to reference kickoff')
+    assert(brief?.inputRefs?.some((ref) => ref.workflowId === 'handoff-itinerary-build') === true, 'Expected trip brief to consume itinerary output')
+    assert(brief?.inputRefs?.some((ref) => ref.workflowId === 'handoff-logistics-check') === true, 'Expected trip brief to consume logistics output')
+    assert(brief?.inputRefs?.some((ref) => ref.workflowId === 'handoff-memory-plan') === true, 'Expected trip brief to consume memory output')
+  } finally {
+    if (typeof originalOpenAi === 'undefined') delete process.env.SYSTEM_OPENAI_API_KEY
+    else process.env.SYSTEM_OPENAI_API_KEY = originalOpenAi
+    if (typeof originalHome === 'undefined') delete process.env.HOME
+    else process.env.HOME = originalHome
+    if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
+    else process.env.OPENCLAW_WORKSPACE = originalWorkspace
+    resetWorkspaceManagerForTests()
+    fs.rmSync(tempHome, { recursive: true, force: true })
+  }
+})
+
+test('organization template catalog normalizes workflow handoffs for dependency graphs', () => {
+  const templatesDir = path.join(REPO_ROOT, 'TEMPLATES', 'organizations')
+  const failures: string[] = []
+
+  for (const slug of fs.readdirSync(templatesDir)) {
+    const templatePath = path.join(templatesDir, slug, 'template.json')
+    if (!fs.existsSync(templatePath)) continue
+
+    const template = JSON.parse(fs.readFileSync(templatePath, 'utf-8'))
+    const normalizedWorkflows = applyGeneratedWorkflowHandoffs(
+      normalizeGeneratedWorkflowReferences(Array.isArray(template.workflows) ? template.workflows : [])
+    )
+    const workflowsById = new Map(normalizedWorkflows.map((workflow: any) => [workflow.id, workflow]))
+
+    for (const workflow of normalizedWorkflows) {
+      const dependsOn = Array.isArray(workflow.dependsOn) ? workflow.dependsOn.filter(Boolean) : []
+      if (dependsOn.length === 0) continue
+
+      const inputRefs = Array.isArray(workflow.inputRefs) ? workflow.inputRefs : []
+      for (const dependencyId of dependsOn) {
+        const upstream = workflowsById.get(dependencyId)
+        if (!upstream) {
+          failures.push(`${slug}:${workflow.id} depends on missing workflow ${dependencyId}`)
+          continue
+        }
+        if (!Array.isArray(upstream.outputDefinitions) || upstream.outputDefinitions.length === 0) {
+          failures.push(`${slug}:${dependencyId} missing outputDefinitions after normalization`)
+        }
+        if (!inputRefs.some((ref: any) => ref.workflowId === dependencyId)) {
+          failures.push(`${slug}:${workflow.id} missing inputRef for dependency ${dependencyId}`)
+        }
+      }
+    }
+  }
+
+  assert(failures.length === 0, `Expected all organization templates to normalize handoffs cleanly:\n${failures.slice(0, 20).join('\n')}`)
 })
 
 test('importOrganizationTemplate maps parameterized agent references for teams and workflows', () => {

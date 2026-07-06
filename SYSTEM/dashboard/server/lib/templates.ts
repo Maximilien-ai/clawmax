@@ -15,6 +15,7 @@ import { safeEnv } from './safe-env'
 import { recordTemplateApply, type CanonicalTemplateFeedbackSource, type CanonicalTemplateFeedbackType } from './template-feedback'
 import { resolveDefaultAgentModel } from './agent-default-model'
 import { resolveOpenClawCliPath } from './openclaw-cli'
+import { applyGeneratedWorkflowHandoffs, normalizeGeneratedWorkflowReferences } from './ai-generator'
 
 // Template storage paths (dynamic functions)
 
@@ -2475,6 +2476,8 @@ export function createOrganizationTemplate(
         owner: inferredOwner,
         type: wf.type,
         dependsOn: wf.dependsOn,
+        outputDefinitions: wf.outputDefinitions,
+        inputRefs: wf.inputRefs,
         targeting: wf.targeting,
         content: wf.content
       }
@@ -2676,6 +2679,9 @@ export function importOrganizationTemplate(
         },
         dependsOn: (workflow.dependsOn || []).map((dependencyId) => workflowIdRenames[dependencyId] || legacyWorkflowIdMap[dependencyId] || dependencyId),
       }))
+
+      adjustedTemplate.workflows = normalizeGeneratedWorkflowReferences(adjustedTemplate.workflows)
+      adjustedTemplate.workflows = applyGeneratedWorkflowHandoffs(adjustedTemplate.workflows)
 
       if ((adjustedTemplate.teams || []).length > 0) {
         adjustedTemplate.workflows = adjustedTemplate.workflows.map((workflow) => {
