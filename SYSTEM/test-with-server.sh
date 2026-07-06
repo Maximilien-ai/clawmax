@@ -173,8 +173,17 @@ print_perf_summary() {
       const rendered = typeof value === "number" ? `${value}ms` : "n/a";
       console.log(`  ${label}: ${rendered}`);
     };
+    const isSuccessfulChatRun = (run) => {
+      const note = String(run?.notes?.agentChat || "");
+      if (!note) return true;
+      return !(note.startsWith("skipped:") || note.startsWith("error:") || note === "unexpected-format");
+    };
     const numeric = (key) => runs
       .map((run) => run?.metrics?.[key])
+      .filter((value) => typeof value === "number" && Number.isFinite(value));
+    const numericSuccessfulChat = () => runs
+      .filter((run) => isSuccessfulChatRun(run))
+      .map((run) => run?.metrics?.agentChatRoundTripMs)
       .filter((value) => typeof value === "number" && Number.isFinite(value));
     const average = (values) => values.length
       ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length)
@@ -194,7 +203,6 @@ print_perf_summary() {
     console.log(`  History samples: ${runs.length}`);
     const summaryStats = [
       ["Workflow list avg", "workflowListMs"],
-      ["Agent chat avg", "agentChatRoundTripMs"],
       ["Workflow trigger avg", "workflowTriggerMs"],
       ["Workflow first progress avg", "workflowFirstProgressMs"],
       ["Workflow kickoff complete avg", "workflowKickoffCompleteMs"],
@@ -207,6 +215,12 @@ print_perf_summary() {
       const renderedMed = typeof med === "number" ? `${med}ms` : "n/a";
       console.log(`  ${label}: ${renderedAvg} (median ${renderedMed}, n=${values.length})`);
     }
+    const successfulChatValues = numericSuccessfulChat();
+    const successfulChatAvg = average(successfulChatValues);
+    const successfulChatMedian = median(successfulChatValues);
+    const renderedChatAvg = typeof successfulChatAvg === "number" ? `${successfulChatAvg}ms` : "n/a";
+    const renderedChatMedian = typeof successfulChatMedian === "number" ? `${successfulChatMedian}ms` : "n/a";
+    console.log(`  Agent chat avg: ${renderedChatAvg} (median ${renderedChatMedian}, successful n=${successfulChatValues.length})`);
     if (modelSamples.length) {
       console.log("  Model samples:");
       for (const sample of modelSamples) {
