@@ -1351,6 +1351,10 @@ export default function Builder({
   const historyItems = useMemo(() => messages.filter((message) => message.role === 'user').slice().reverse(), [messages])
   const hasConversation = historyItems.length > 0
   const secondarySuggestedActions = useMemo(() => getSecondarySuggestedActions(recommendation), [recommendation])
+  const editorInitialPrompt = useMemo(() => {
+    if (prompt.trim()) return prompt
+    return historyItems[0]?.content || ''
+  }, [historyItems, prompt])
   const promptHistory = useMemo(() => {
     const seen = new Set<string>()
     const nextHistory: string[] = []
@@ -1845,7 +1849,7 @@ export default function Builder({
               content: localRecommendation.summary,
             },
           ])
-          setPrompt('')
+          setPrompt(value)
           setAttachments([])
           setPromptHistoryIndex(null)
           setPromptDraftBeforeHistory('')
@@ -1868,7 +1872,7 @@ export default function Builder({
           content: nextRecommendation.summary,
         },
       ])
-      setPrompt('')
+      setPrompt(value)
       setAttachments([])
       setPromptHistoryIndex(null)
       setPromptDraftBeforeHistory('')
@@ -1886,7 +1890,7 @@ export default function Builder({
             content: `${localRecommendation.summary} Live AI routing took too long, so I used the local workspace matcher instead.`,
           },
         ])
-        setPrompt('')
+        setPrompt(value)
         setAttachments([])
         setPromptHistoryIndex(null)
         setPromptDraftBeforeHistory('')
@@ -2516,7 +2520,7 @@ export default function Builder({
         <AIPromptEditorModal
           isOpen={showPromptEditor}
           title="Builder AI Editor"
-          initialValue={prompt}
+          initialValue={editorInitialPrompt}
           onDraftChange={setPrompt}
           placeholder="Describe what you want to build, whether this is one agent or a team, what should be reused or created, and how you want to test success."
           onClose={() => setShowPromptEditor(false)}
