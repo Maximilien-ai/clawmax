@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { writeDashboardManagedOpenClawConfig } from './openclaw-config'
+import { getModelLifecycleEntry } from './openAiModelLifecycle'
 
 export interface AgentModelConfigUpdateResult {
   ok: boolean
@@ -12,7 +13,14 @@ export interface AgentModelConfigUpdateResult {
 export function normalizeAgentModelInput(model: string): string {
   const trimmed = model.trim()
   if (!trimmed) return ''
-  if (trimmed.includes('/')) return trimmed
+  if (trimmed.includes('/')) {
+    const lifecycle = getModelLifecycleEntry(trimmed)
+    if (lifecycle?.replacementModel && lifecycle.status === 'retired') {
+      const [provider] = trimmed.split('/', 1)
+      return `${provider}/${lifecycle.replacementModel}`
+    }
+    return trimmed
+  }
 
   const compact = trimmed.toLowerCase().replace(/[\s_]+/g, '-')
   const openAiAliases: Record<string, string> = {
@@ -30,7 +38,12 @@ export function normalizeAgentModelInput(model: string): string {
     normalizedOpenAiModel.startsWith('chatgpt-') ||
     normalizedOpenAiModel.startsWith('text-embedding-')
   ) {
-    return `openai/${normalizedOpenAiModel}`
+    const qualified = `openai/${normalizedOpenAiModel}`
+    const lifecycle = getModelLifecycleEntry(qualified)
+    if (lifecycle?.replacementModel && lifecycle.status === 'retired') {
+      return `openai/${lifecycle.replacementModel}`
+    }
+    return qualified
   }
 
   return trimmed

@@ -5,7 +5,7 @@ import { getWorkspacePath, parseIdentity } from './workspace'
 import type { ProviderKeys } from './dashboard-env'
 import { REPO_ROOT } from './paths'
 import { syncAssignedSkillGuidanceForAgent } from './skills'
-import { readAgentModelFromConfigFile, restoreAgentModelInConfigFile, updateAgentModelInConfigFile } from './agent-model'
+import { normalizeAgentModelInput, readAgentModelFromConfigFile, restoreAgentModelInConfigFile, updateAgentModelInConfigFile } from './agent-model'
 import { resetAgentSessionsForModelChange } from './agent-model'
 import { resolveDefaultAgentModel } from './agent-default-model'
 import { getAvailableModelsCached } from './model-discovery'
@@ -234,7 +234,7 @@ function normalizeMissingModel(model?: string): string | undefined {
   const trimmed = model?.trim()
   if (!trimmed) return undefined
   if (trimmed.toLowerCase() === 'unknown') return undefined
-  return trimmed
+  return normalizeAgentModelInput(trimmed)
 }
 
 function isSupportedHostedModel(model: string | undefined): boolean {
@@ -1145,7 +1145,7 @@ export async function withTemporaryAgentAuthProfiles<T>(
   let effectiveProvider = preferredProvider
   const prefersOpenAiFamily = preferredProvider === 'openai'
   if (preferredProvider === 'anthropic' && !providerKeys.anthropic && providerKeys.openai) {
-    effectiveModel = 'openai/gpt-4o'
+    effectiveModel = 'openai/gpt-4.1'
     effectiveProvider = 'openai'
     console.log(`[Auth] Agent ${agentId}: no Anthropic key, falling back to ${effectiveModel}`)
   } else if (prefersOpenAiFamily && !providerKeys.openai && !providerKeys.openaiCompatibleBaseUrl && providerKeys.anthropic) {
@@ -1153,7 +1153,7 @@ export async function withTemporaryAgentAuthProfiles<T>(
     effectiveProvider = 'anthropic'
     console.log(`[Auth] Agent ${agentId}: no OpenAI key, falling back to ${effectiveModel}`)
   } else if (preferredProvider === 'gemini' && !providerKeys.gemini && providerKeys.openai) {
-    effectiveModel = 'openai/gpt-4o'
+    effectiveModel = 'openai/gpt-4.1'
     effectiveProvider = 'openai'
     console.log(`[Auth] Agent ${agentId}: no Gemini key, falling back to ${effectiveModel}`)
   } else if (preferredProvider === 'gemini' && !providerKeys.gemini && providerKeys.anthropic) {

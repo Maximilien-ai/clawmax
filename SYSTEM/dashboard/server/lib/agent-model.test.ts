@@ -88,6 +88,8 @@ test('normalizeAgentModelInput qualifies common OpenAI aliases', () => {
   assert(normalizeAgentModelInput('gpt-4o-mini') === 'openai/gpt-4o-mini', 'Expected bare gpt-4o-mini to become openai-qualified')
   assert(normalizeAgentModelInput('gpt4o-mini') === 'openai/gpt-4o-mini', 'Expected compact gpt4o-mini to normalize')
   assert(normalizeAgentModelInput('gpt40-mini') === 'openai/gpt-4o-mini', 'Expected common zero/o typo to normalize')
+  assert(normalizeAgentModelInput('gpt-4o') === 'openai/gpt-4.1', 'Expected retired gpt-4o alias to normalize to gpt-4.1')
+  assert(normalizeAgentModelInput('openai/gpt-4o') === 'openai/gpt-4.1', 'Expected retired qualified gpt-4o to normalize to gpt-4.1')
   assert(normalizeAgentModelInput('ollama/qwen2.5:latest') === 'ollama/qwen2.5:latest', 'Expected qualified Ollama model to stay unchanged')
 })
 

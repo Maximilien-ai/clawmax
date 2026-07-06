@@ -9,7 +9,6 @@ const TAG_REGEX = /^[a-z][a-z0-9_-]*$/
 const PHONE_REGEX = /^\+?[1-9]\d{1,14}$/
 const STANDARD_OPENAI_MODELS = new Set([
   'openai/gpt-5',
-  'openai/gpt-4o',
   'openai/gpt-4o-mini',
   'openai/gpt-4.1',
   'openai/gpt-4.1-mini',

@@ -13,6 +13,7 @@ const ANTHROPIC_DEPRECATIONS_URL = 'https://platform.claude.com/docs/en/about-cl
 const GEMINI_DEPRECATIONS_URL = 'https://ai.google.dev/gemini-api/docs/deprecations'
 
 const MODEL_LIFECYCLE: Record<string, ProviderModelLifecycle> = {
+  'openai:gpt-4o': { providerLabel: 'OpenAI', status: 'retired', replacementModel: 'gpt-4.1', shutdownDate: '2026-07-01', sourceUrl: OPENAI_DEPRECATIONS_URL },
   'openai:gpt-5-2025-08-07': { providerLabel: 'OpenAI', status: 'deprecated', replacementModel: 'gpt-5', shutdownDate: '2026-12-10', sourceUrl: OPENAI_DEPRECATIONS_URL },
   'openai:gpt-5-mini-2025-08-07': { providerLabel: 'OpenAI', status: 'deprecated', replacementModel: 'gpt-5-mini', shutdownDate: '2026-12-10', sourceUrl: OPENAI_DEPRECATIONS_URL },
   'openai:gpt-5-nano-2025-08-07': { providerLabel: 'OpenAI', status: 'deprecated', replacementModel: 'gpt-5-nano', shutdownDate: '2026-12-10', sourceUrl: OPENAI_DEPRECATIONS_URL },

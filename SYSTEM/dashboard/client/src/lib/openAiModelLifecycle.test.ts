@@ -25,6 +25,7 @@ test('detects known deprecated OpenAI snapshot models', () => {
 })
 
 test('builds provider-aware replacement models', () => {
+  assert.equal(getOpenAiModelReplacement('openai/gpt-4o'), 'openai/gpt-4.1')
   assert.equal(getOpenAiModelReplacement('openai/gpt-5-mini-2025-08-07'), 'openai/gpt-5-mini')
   assert.equal(getOpenAiModelReplacement('openai-compatible/gpt-5-mini-2025-08-07'), null)
 })

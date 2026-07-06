@@ -79,6 +79,31 @@ test('resolveAgentExecutionConfig falls back to IDENTITY model when openclaw.jso
   assert(resolved.provider === 'openai', 'Expected provider derived from model')
 })
 
+test('resolveAgentExecutionConfig remaps retired openai/gpt-4o identities to openai/gpt-4.1', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
+  const workspace = path.join(home, 'workspace')
+  const agentWorkspace = path.join(workspace, 'AGENTS', 'double-agent')
+  const agentDir = path.join(home, '.openclaw', 'agents', 'double-agent', 'agent')
+  fs.mkdirSync(agentWorkspace, { recursive: true })
+  fs.mkdirSync(path.join(home, '.openclaw'), { recursive: true })
+  fs.writeFileSync(path.join(agentWorkspace, 'IDENTITY.md'), '# Identity\n\n- **Model:** openai/gpt-4o\n', 'utf-8')
+  fs.writeFileSync(path.join(home, '.openclaw', 'openclaw.json'), JSON.stringify({
+    agents: {
+      list: [
+        { id: 'double-agent', workspace: agentWorkspace, agentDir, model: 'openai/gpt-4o' }
+      ]
+    }
+  }, null, 2))
+
+  process.env.HOME = home
+  process.env.OPENCLAW_WORKSPACE = workspace
+  resetWorkspaceManagerForTests()
+
+  const resolved = resolveAgentExecutionConfig('double-agent')
+  assert(resolved.model === 'openai/gpt-4.1', `Expected retired gpt-4o identity to resolve to gpt-4.1, got ${resolved.model || 'missing'}`)
+  assert(resolved.provider === 'openai', 'Expected provider to remain openai')
+})
+
 test('deriveWorkspaceRootFromAgentWorkspace resolves AGENTS/<id> paths back to their workspace root', () => {
   const derived = deriveWorkspaceRootFromAgentWorkspace('/tmp/demo-workspace/AGENTS/jarvis')
   assert(derived === '/tmp/demo-workspace', 'Expected AGENTS/<id> path to resolve to workspace root')

@@ -154,7 +154,7 @@ function summarizeAiGenerationError(error: unknown): string {
   }
 
   if (/timed out after/i.test(message)) {
-    return 'AI generation timed out. GPT-5 may be unreachable or too slow right now. Try again, or switch the built-in/system generation model to gpt-4o.'
+    return 'AI generation timed out. GPT-5 may be unreachable or too slow right now. Try again, or switch the built-in/system generation model to gpt-4.1.'
   }
 
   return message || 'AI generation failed.'
