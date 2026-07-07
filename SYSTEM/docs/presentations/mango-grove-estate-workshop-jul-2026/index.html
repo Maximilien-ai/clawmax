@@ -1,0 +1,715 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ClawMax.ai x Mango Grove Estate Workshop #1</title>
+    <style>
+      :root {
+        --ink: #18220f;
+        --muted: #5d674a;
+        --olive: #777f10;
+        --olive-deep: #4a5109;
+        --mango: #f2aa3b;
+        --leaf: #dfe9bc;
+        --cream: #f8f7ef;
+        --panel: rgba(248, 247, 239, 0.82);
+        --panel-strong: rgba(248, 247, 239, 0.92);
+        --line: rgba(65, 79, 32, 0.14);
+        --shadow: 0 22px 60px rgba(31, 47, 12, 0.18);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        overflow: hidden;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background:
+          radial-gradient(circle at 12% 16%, rgba(242, 170, 59, 0.18), transparent 22%),
+          radial-gradient(circle at 87% 12%, rgba(119, 127, 16, 0.18), transparent 22%),
+          linear-gradient(180deg, #f2f5e6 0%, #eef2db 46%, #e7edd5 100%);
+        color: var(--ink);
+      }
+
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        background-image:
+          linear-gradient(var(--line) 1px, transparent 1px),
+          linear-gradient(90deg, var(--line) 1px, transparent 1px);
+        background-size: 84px 84px;
+        opacity: 0.24;
+        pointer-events: none;
+      }
+
+      .deck {
+        position: relative;
+        width: 100vw;
+        height: 100vh;
+        overflow: hidden;
+      }
+
+      .track {
+        display: flex;
+        width: 400vw;
+        height: 100vh;
+        transform: translateX(calc(var(--slide, 0) * -100vw));
+        transition: transform 420ms ease;
+      }
+
+      .slide {
+        position: relative;
+        width: 100vw;
+        height: 100vh;
+        padding: 34px 40px 36px;
+        overflow: hidden;
+      }
+
+      .slide-inner {
+        position: relative;
+        z-index: 1;
+        height: 100%;
+        display: grid;
+        gap: 24px;
+      }
+
+      .hero-bg {
+        position: absolute;
+        inset: 0;
+        background-size: cover;
+        background-position: center;
+        opacity: 0.16;
+        filter: saturate(1.08);
+      }
+
+      .hero-shade {
+        position: absolute;
+        inset: 0;
+        background:
+          linear-gradient(135deg, rgba(248, 247, 239, 0.9) 0%, rgba(248, 247, 239, 0.62) 42%, rgba(223, 233, 188, 0.84) 100%);
+      }
+
+      .brandbar {
+        display: inline-flex;
+        align-items: center;
+        gap: 18px;
+        padding: 18px 24px;
+        border-radius: 24px;
+        background: rgba(255, 255, 255, 0.52);
+        border: 1px solid rgba(74, 81, 9, 0.12);
+        backdrop-filter: blur(14px);
+        box-shadow: var(--shadow);
+        width: fit-content;
+      }
+
+      .brandbar img {
+        width: 64px;
+        height: 64px;
+        border-radius: 16px;
+      }
+
+      .brandcopy strong {
+        display: block;
+        font-size: 52px;
+        line-height: 1;
+        letter-spacing: 0.01em;
+      }
+
+      .brandcopy span {
+        display: block;
+        margin-top: 6px;
+        font-size: 18px;
+        color: var(--muted);
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 14px;
+        border-radius: 999px;
+        border: 1px solid rgba(119, 127, 16, 0.18);
+        background: rgba(255, 255, 255, 0.54);
+        color: var(--olive-deep);
+        font-size: 13px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.16em;
+      }
+
+      h1,
+      h2 {
+        margin: 0;
+        letter-spacing: -0.05em;
+      }
+
+      h1 {
+        font-size: clamp(52px, 7vw, 92px);
+        line-height: 0.9;
+        max-width: 980px;
+      }
+
+      h2 {
+        font-size: clamp(42px, 5.8vw, 74px);
+        line-height: 0.92;
+        max-width: 920px;
+      }
+
+      .accent {
+        color: var(--olive);
+      }
+
+      .lede {
+        max-width: 980px;
+        font-size: 26px;
+        line-height: 1.32;
+        color: var(--muted);
+        font-weight: 500;
+      }
+
+      .meta-row,
+      .chip-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+
+      .chip {
+        padding: 10px 14px;
+        border-radius: 999px;
+        border: 1px solid rgba(74, 81, 9, 0.12);
+        background: rgba(255, 255, 255, 0.62);
+        font-size: 15px;
+        font-weight: 700;
+        color: var(--olive-deep);
+      }
+
+      .hero-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1.25fr) 420px;
+        gap: 24px;
+        align-items: end;
+        flex: 1;
+      }
+
+      .hero-card,
+      .image-stack,
+      .agenda-grid,
+      .two-up {
+        min-width: 0;
+      }
+
+      .hero-card {
+        padding: 28px;
+        border-radius: 32px;
+        background: var(--panel);
+        border: 1px solid rgba(74, 81, 9, 0.12);
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(18px);
+      }
+
+      .hero-card strong {
+        display: block;
+        font-size: 16px;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: var(--olive);
+        margin-bottom: 10px;
+      }
+
+      .hero-card p {
+        margin: 0;
+        font-size: 20px;
+        line-height: 1.45;
+        color: var(--ink);
+      }
+
+      .image-stack {
+        display: grid;
+        gap: 14px;
+      }
+
+      .image-main,
+      .image-pair img {
+        width: 100%;
+        object-fit: cover;
+        border-radius: 28px;
+        border: 1px solid rgba(74, 81, 9, 0.12);
+        box-shadow: var(--shadow);
+        background: rgba(255, 255, 255, 0.5);
+      }
+
+      .image-main {
+        height: 380px;
+      }
+
+      .image-pair {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+      }
+
+      .image-pair img {
+        height: 168px;
+      }
+
+      .section-top {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-start;
+        align-items: flex-start;
+        gap: 16px;
+      }
+
+      .cta-stack {
+        display: grid;
+        gap: 14px;
+      }
+
+      .qr-panel {
+        display: grid;
+        grid-template-columns: 110px 1fr;
+        gap: 16px;
+        align-items: center;
+        padding: 18px;
+        border-radius: 24px;
+        background: rgba(255, 255, 255, 0.72);
+        border: 1px solid rgba(74, 81, 9, 0.12);
+        box-shadow: var(--shadow);
+      }
+
+      .qr-panel img {
+        width: 110px;
+        height: 110px;
+        border-radius: 18px;
+        background: white;
+        padding: 8px;
+        border: 1px solid rgba(74, 81, 9, 0.1);
+      }
+
+      .qr-panel strong {
+        display: block;
+        margin-bottom: 6px;
+        font-size: 20px;
+        line-height: 1.05;
+        letter-spacing: -0.03em;
+      }
+
+      .qr-panel p {
+        margin: 0;
+        font-size: 15px;
+        line-height: 1.45;
+        color: var(--muted);
+      }
+
+      .agenda-grid,
+      .two-up {
+        display: grid;
+        gap: 18px;
+      }
+
+      .agenda-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .two-up {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        align-items: start;
+      }
+
+      .agenda-card,
+      .panel {
+        padding: 24px 24px 22px;
+        border-radius: 28px;
+        background: var(--panel-strong);
+        border: 1px solid rgba(74, 81, 9, 0.12);
+        box-shadow: var(--shadow);
+      }
+
+      .agenda-card .kicker,
+      .panel .kicker {
+        margin-bottom: 12px;
+        color: var(--olive);
+        font-size: 13px;
+        font-weight: 800;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      .agenda-card h3,
+      .panel h3 {
+        margin: 0 0 10px;
+        font-size: 30px;
+        line-height: 1.02;
+        letter-spacing: -0.04em;
+      }
+
+      .agenda-card p,
+      .panel p,
+      .panel li {
+        font-size: 22px;
+        line-height: 1.46;
+        color: var(--muted);
+      }
+
+      .source-line {
+        margin-top: 12px;
+        font-size: 14px !important;
+        line-height: 1.45 !important;
+        color: rgba(93, 103, 74, 0.94) !important;
+      }
+
+      .source-line a {
+        color: var(--olive-deep);
+        text-decoration: underline;
+        text-underline-offset: 2px;
+      }
+
+      .panel ul {
+        margin: 0;
+        padding-left: 22px;
+      }
+
+      .panel li + li {
+        margin-top: 10px;
+      }
+
+      .footer {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        gap: 16px;
+        margin-top: auto;
+      }
+
+      .pager {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .dot {
+        width: 11px;
+        height: 11px;
+        border-radius: 999px;
+        background: rgba(74, 81, 9, 0.18);
+      }
+
+      .dot.active {
+        background: var(--olive);
+      }
+
+      .controls {
+        position: fixed;
+        right: 28px;
+        bottom: 24px;
+        z-index: 5;
+        display: flex;
+        gap: 10px;
+      }
+
+      .controls button {
+        appearance: none;
+        border: 0;
+        width: 48px;
+        height: 48px;
+        border-radius: 999px;
+        background: rgba(74, 81, 9, 0.92);
+        color: #fff;
+        font-size: 22px;
+        cursor: pointer;
+        box-shadow: var(--shadow);
+      }
+
+      .controls button:disabled {
+        opacity: 0.35;
+        cursor: default;
+      }
+
+      @media (max-width: 1100px) {
+        .hero-layout,
+        .agenda-grid,
+        .two-up {
+          grid-template-columns: 1fr;
+        }
+
+        .image-main {
+          height: 300px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="deck">
+      <div class="track" id="track">
+        <section class="slide">
+          <div class="hero-bg" style="background-image: url('./lu-ma-1.jpg')"></div>
+          <div class="hero-shade"></div>
+          <div class="slide-inner">
+            <div class="section-top">
+              <div class="brandbar">
+                <img src="./clawmax-logo.jpg" alt="ClawMax.ai logo" />
+                <div class="brandcopy">
+                  <strong>ClawMax.ai</strong>
+                  <span>Mango Grove Estate Workshop #1</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="hero-layout">
+              <div>
+                <div class="eyebrow">Live workshop agenda</div>
+                <h1>Building &amp; <span class="accent">orchestrating AI agent teams</span>.</h1>
+                <p class="lede">
+                  A hands-on session on autonomous AI workflows, self-hosted OpenClaw agents, and how ClawMax.ai turns
+                  them into something you can actually build, monitor, and operate.
+                </p>
+                <div class="meta-row">
+                  <div class="chip">Autonomous AI</div>
+                  <div class="chip">OpenClaw</div>
+                  <div class="chip">ClawMax orchestration</div>
+                  <div class="chip">Live co-creation</div>
+                </div>
+              </div>
+
+              <div class="image-stack">
+                <img class="image-main" src="./lu-ma-1.jpg" alt="ClawMax.ai x Mango Grove Estate workshop art" />
+                <div class="qr-panel">
+                  <img src="./clawmax-ai-qr.png" alt="ClawMax.ai QR code" />
+                  <div>
+                    <strong>Scan to access ClawMax.ai</strong>
+                    <p>
+                      Use this link to explore the ClawMax community, cloud, on-premise, and enterprise editions after
+                      the workshop and live demo.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="footer">
+              <div class="pager">
+                <div class="dot active"></div>
+                <div class="dot"></div>
+                <div class="dot"></div>
+                <div class="dot"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="slide">
+          <div class="slide-inner">
+            <div class="section-top">
+              <div>
+                <div class="eyebrow">Agenda 1 of 3</div>
+                <h2>The shift to <span class="accent">independent AI agents</span>.</h2>
+              </div>
+            </div>
+
+            <div class="agenda-grid">
+              <article class="agenda-card">
+                <div class="kicker">What we’ll cover</div>
+                <h3>The AI Agent Shift</h3>
+                <p>
+                  This is shifting from hype to operating model: OpenAI’s current Agents SDK is built around 3 core
+                  primitives, and Anthropic’s agent guide formalizes workflow-first patterns for real multi-step work.
+                </p>
+                <p class="source-line">
+                  Sources:
+                  <a href="https://openai.github.io/openai-agents-python/" target="_blank" rel="noreferrer">OpenAI Agents SDK</a>
+                  and
+                  <a href="https://www.anthropic.com/engineering/building-effective-agents" target="_blank" rel="noreferrer">Anthropic, Building Effective AI Agents</a>.
+                </p>
+              </article>
+              <article class="agenda-card">
+                <div class="kicker">Open source foundation</div>
+                <h3>Demystifying OpenClaw</h3>
+                <p>
+                  OpenClaw now has visible open-source weight: 382k stars, 80.1k forks, and 65,111 commits on GitHub
+                  as of July 7, 2026, which makes it a credible base for self-hosted persistent agent runtimes.
+                </p>
+                <p class="source-line">
+                  Source:
+                  <a href="https://github.com/openclaw/openclaw" target="_blank" rel="noreferrer">github.com/openclaw/openclaw</a>
+                </p>
+              </article>
+              <article class="agenda-card">
+                <div class="kicker">Audience takeaway</div>
+                <h3>What changes for builders</h3>
+                <p>
+                  The design question shifts from “what prompt should I send?” to “what team, workflow, memory, and
+                  handoff structure should I run?”
+                </p>
+              </article>
+              <article class="agenda-card">
+                <div class="kicker">Visual theme</div>
+                <h3>Autonomy in the open</h3>
+                <p>
+                  We’ll keep the session concrete: a visible stack, visible workflows, and visible coordination across
+                  agent roles rather than hidden background magic.
+                </p>
+              </article>
+            </div>
+
+            <div class="footer">
+              <div class="pager">
+                <div class="dot active"></div>
+                <div class="dot active"></div>
+                <div class="dot"></div>
+                <div class="dot"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="slide">
+          <div class="hero-bg" style="background-image: url('./lu-ma-2.jpg')"></div>
+          <div class="hero-shade"></div>
+          <div class="slide-inner">
+            <div class="section-top">
+              <div>
+                <div class="eyebrow">Agenda 2 of 3</div>
+                <h2>Orchestration with <span class="accent">ClawMax.ai</span>.</h2>
+              </div>
+            </div>
+
+            <div class="two-up">
+              <div class="panel">
+                <div class="kicker">Platform walkthrough</div>
+                <h3>From one web interface</h3>
+                <ul>
+                  <li>Use AI Builder and AI assistance to get started fast</li>
+                  <li>Build and organize multi-agent teams</li>
+                  <li>Define workflows, stages, and handoffs</li>
+                  <li>Monitor execution, progress, and blockers</li>
+                  <li>Manage self-hosted OpenClaw agents visually</li>
+                </ul>
+              </div>
+
+              <div class="panel">
+                <div class="kicker">What attendees should see</div>
+                <h3>A complete visual workflow demo</h3>
+                <ul>
+                  <li>How ClawMax simplifies persistent agent workspaces</li>
+                  <li>How teams coordinate across multiple stages of work</li>
+                  <li>How outputs, artifacts, and workflow state stay visible</li>
+                  <li>Why orchestration is the difference between agent experiments and operating systems</li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="image-pair">
+              <img src="./lu-ma-2.jpg" alt="Mango Grove workshop visual with agents under mango tree" />
+              <img src="./lu-ma-3.jpg" alt="Mango Grove workshop visual with operations room" />
+            </div>
+
+            <div class="footer">
+              <div class="pager">
+                <div class="dot active"></div>
+                <div class="dot active"></div>
+                <div class="dot active"></div>
+                <div class="dot"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="slide">
+          <div class="slide-inner">
+            <div class="section-top">
+              <div>
+                <div class="eyebrow">Agenda 3 of 3</div>
+                <h2>Live co-creation, <span class="accent">real use cases</span>, and Q&amp;A.</h2>
+              </div>
+            </div>
+
+            <div class="two-up">
+              <div class="panel">
+                <div class="kicker">Live workshop prompt</div>
+                <h3>What workflow would you want to build tonight?</h3>
+                <ul>
+                  <li>Bring a real business or personal workflow into the room</li>
+                  <li>See how that use case can become an operational agent workflow live</li>
+                  <li>Notice where teams, roles, and handoffs actually matter</li>
+                  <li>Look for a design you could adapt after the session</li>
+                </ul>
+              </div>
+
+              <div class="panel">
+                <div class="kicker">Interactive close</div>
+                <h3>How could you repeat this yourself?</h3>
+                <ul>
+                  <li>Get a ClawMax.ai instance: community, cloud, on-premise, or enterprise</li>
+                  <li>Add BYOK or runtime credentials for your preferred models</li>
+                  <li>Use AI Builder to pick a template or create agents and flows</li>
+                  <li>Run workflows, chat with agents, review outputs, and refine</li>
+                  <li>Automate the workflow once the results are reliable</li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="hero-card">
+              <strong>Who this is for</strong>
+              <p>
+                Developers, founders, automation enthusiasts, and anyone who wants AI agents to handle meaningful
+                background work instead of just answering questions one prompt at a time.
+              </p>
+            </div>
+
+            <div class="footer">
+              <div class="pager">
+                <div class="dot active"></div>
+                <div class="dot active"></div>
+                <div class="dot active"></div>
+                <div class="dot active"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="controls">
+        <button id="prev" aria-label="Previous slide">‹</button>
+        <button id="next" aria-label="Next slide">›</button>
+      </div>
+    </div>
+
+    <script>
+      const track = document.getElementById('track')
+      const prev = document.getElementById('prev')
+      const next = document.getElementById('next')
+      const total = 4
+      let slide = 0
+
+      function render() {
+        document.documentElement.style.setProperty('--slide', String(slide))
+        prev.disabled = slide === 0
+        next.disabled = slide === total - 1
+      }
+
+      function go(delta) {
+        slide = Math.max(0, Math.min(total - 1, slide + delta))
+        render()
+      }
+
+      prev.addEventListener('click', () => go(-1))
+      next.addEventListener('click', () => go(1))
+
+      window.addEventListener('keydown', (event) => {
+        if (event.key === 'ArrowRight' || event.key === ' ' || event.key === 'PageDown') go(1)
+        if (event.key === 'ArrowLeft' || event.key === 'PageUp') go(-1)
+      })
+
+      render()
+    </script>
+  </body>
+</html>

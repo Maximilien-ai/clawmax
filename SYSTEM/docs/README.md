@@ -43,6 +43,6 @@
 | `features/` | Feature design docs |
 | `operations/` | Ops and deployment guides |
 | `planning/` | Sprint plans (current in root, completed in `archive/`) |
-| `presentations/` | Demo and talk materials |
+| `presentations/` | Demo, talk, and workshop materials; latest deck: `mango-grove-estate-workshop-jul-2026/index.html` |
 | `videos/` | Local backup demo videos for workflow execution and add-agent walkthroughs |
 | `archive/` | Historical docs no longer actively maintained |

@@ -1,12 +1,40 @@
 # ClawMax Presentations
 
-This directory contains presentation materials for ClawMax demos and launches.
+This directory contains presentation materials for ClawMax demos, workshops, launches, and event one-pagers.
 
 Related backup media:
 - [Demo Videos](../DEMO_VIDEOS.md)
 - local video files in [`../videos/`](../videos/)
 
+## Latest Presentation
+
+### 2026-07-07: Mango Grove Estate Workshop #1
+**Files**:
+- `mango-grove-estate-workshop-jul-2026/index.html`
+- `mango-grove-estate-workshop-jul-2026/speaker-notes.md`
+
+**Format**: Single-page HTML workshop deck with local assets and separate speaker notes
+
+**Focus**:
+- the AI agent shift
+- OpenClaw as the open-source runtime base
+- ClawMax orchestration and AI Builder
+- live co-creation and repeat-it-yourself next steps
+
+**View it**:
+```bash
+open SYSTEM/docs/presentations/mango-grove-estate-workshop-jul-2026/index.html
+```
+
 ## Presentation History
+
+### 2026-07-07: Mango Grove Estate Workshop #1
+**File**: `mango-grove-estate-workshop-jul-2026/index.html`
+- **Event**: ClawMax.ai x Mango Grove Estate Workshop #1
+- **Location**: Miami, FL
+- **Format**: Single-page HTML workshop deck
+- **Focus**: autonomous agents, OpenClaw grounding, ClawMax orchestration, live co-creation
+- **Notes**: separate speaker notes in `mango-grove-estate-workshop-jul-2026/speaker-notes.md`
 
 ### 2026-04-26: Build-a-Company Hackathon
 **File**: `build-a-company-hackathon-apr-2026/index.html`
@@ -40,6 +68,10 @@ Related backup media:
 - **Used For**: March 14 launch talk
 
 ## Files
+- `mango-grove-estate-workshop-jul-2026/index.html` — current workshop deck covering autonomous agents, OpenClaw, ClawMax orchestration, and hands-on next steps
+- `mango-grove-estate-workshop-jul-2026/speaker-notes.md` — separate presenter notes for the workshop deck
+- `mango-grove-estate-workshop-jul-2026/lu-ma-*.jpg` — local workshop art pulled from Mango Grove event assets
+- `mango-grove-estate-workshop-jul-2026/clawmax-ai-qr.png` — QR asset reused from prior ClawMax presentations
 - `spring-2026-ai-forum/index.html` — event one-pager with ClawMax.ai hero, QR code, and live-demo framing
 - `spring-2026-ai-forum/clawmax-front-back-offices.jpg` — local hero background asset
 - `spring-2026-ai-forum/clawmax-hero-bg.jpg` — local hero backup asset
@@ -49,29 +81,24 @@ Related backup media:
 
 ### View the Presentation
 
-**Option 1: Open directly in browser**
+**Option 1: Open the latest workshop deck directly**
 ```bash
-# From the presentations directory
-open clawmax-v1-launch.html
-
-# Or from anywhere
-open /Users/maximilien/.openclaw/workspace/SYSTEM/docs/presentations/clawmax-v1-launch.html
+open SYSTEM/docs/presentations/mango-grove-estate-workshop-jul-2026/index.html
 ```
 
-**Option 2: Serve with local server** (recommended for best experience)
+**Option 2: Serve the presentations directory locally**
 ```bash
-cd /Users/maximilien/.openclaw/workspace/SYSTEM/docs/presentations
+cd /Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/presentations
 python3 -m http.server 8080
-# Then open http://localhost:8080/clawmax-v1-launch.html
+# Then open http://localhost:8080/mango-grove-estate-workshop-jul-2026/
 ```
 
 ### Navigation
 
 - **Next slide**: Arrow right, spacebar, or click
 - **Previous slide**: Arrow left
-- **Overview**: Press `ESC` to see all slides
-- **Speaker notes**: Press `S` to open speaker view
-- **Fullscreen**: Press `F`
+- **Speaker notes**: open the adjacent `speaker-notes.md` file in a separate window
+- **Fullscreen**: use the browser fullscreen shortcut
 
 ### Export to PDF
 
