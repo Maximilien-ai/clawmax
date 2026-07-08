@@ -4,10 +4,20 @@ export interface AgentInboxAttachmentRef extends Pick<PromptAttachment, 'name' |
   uploadedPath?: string
 }
 
+export type SharedInboxTargetType = 'group' | 'community'
+
 export function buildAgentInboxTargetPath(agentId: string, subdir?: string): string {
   const normalizedAgentId = `${agentId || ''}`.trim().replace(/^\/+|\/+$/g, '')
   const normalizedSubdir = `${subdir || ''}`.trim().replace(/^\/+|\/+$/g, '')
   const base = `AGENTS/${normalizedAgentId}/INBOX`
+  return normalizedSubdir ? `${base}/${normalizedSubdir}` : base
+}
+
+export function buildSharedInboxTargetPath(type: SharedInboxTargetType, name: string, subdir?: string): string {
+  const normalizedName = `${name || ''}`.trim().replace(/^\/+|\/+$/g, '')
+  const normalizedSubdir = `${subdir || ''}`.trim().replace(/^\/+|\/+$/g, '')
+  const root = type === 'community' ? 'COMMUNITIES' : 'GROUPS'
+  const base = `${root}/${normalizedName}/INBOX`
   return normalizedSubdir ? `${base}/${normalizedSubdir}` : base
 }
 

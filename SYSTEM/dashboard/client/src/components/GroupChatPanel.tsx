@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { buildAgentChatTimelineRows, shouldShowCalendarDate } from '../lib/agentChatTimeline'
+import { buildAgentInboxDisplayMessage, buildSharedInboxTargetPath, type AgentInboxAttachmentRef } from '../lib/agentInbox'
 import { byokForRequest, hasChatExecutionAccess, readStoredByokKeys } from '../lib/byok'
 import {
   buildCommunicationCacheKey,
@@ -11,6 +12,7 @@ import {
   shouldUpdateChannelMessages,
 } from '../lib/communicationMessages'
 import { ProductIconCell } from '../lib/productIcons'
+import { createPromptAttachment } from '../lib/promptAttachments'
 import { useAuth } from '../contexts/AuthContext'
 import { transformWorkspaceMarkdownUrl } from '../lib/markdownLinks'
 import { extractWorkspaceFileMentions, linkifyWorkspaceFiles, parseWorkspaceDocEntriesResponse } from '../lib/workspaceFiles'
@@ -50,6 +52,21 @@ interface Props {
 
 interface DocEntryRef {
   path: string
+}
+
+interface ChatAttachment extends AgentInboxAttachmentRef {
+  id: string
+  type: string
+  size: number
+  file: File
+}
+
+function AttachIcon() {
+  return (
+    <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+      <path d="M8.5 3.5a3.5 3.5 0 0 1 7 0v8.25a5.75 5.75 0 1 1-11.5 0V5.5a2.75 2.75 0 0 1 5.5 0v5.5a1 1 0 1 1-2 0V6.5a.75.75 0 0 0-1.5 0V11a2.5 2.5 0 1 0 5 0V5.5a4.25 4.25 0 0 0-8.5 0v6.25a6.75 6.75 0 1 0 13.5 0V3.5a4.5 4.5 0 0 0-9 0 1 1 0 1 1-2 0Z" />
+    </svg>
+  )
 }
 
 const groupChatMessageCache = new Map<string, Message[]>()
@@ -153,10 +170,12 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
   const [inputHistory, setInputHistory] = useState<string[]>([])
   const [historyIndex, setHistoryIndex] = useState(-1)
   const [docEntries, setDocEntries] = useState<DocEntryRef[]>([])
+  const [attachments, setAttachments] = useState<ChatAttachment[]>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const sendButtonRef = useRef<HTMLButtonElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const recognitionRef = useRef<any>(null)
   const userScrolledUp = useRef(false)
   const prevMessageCount = useRef(0)
@@ -174,6 +193,12 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
       .map((file) => ({ file, path: resolveCommunicationDocPath(file, docEntries) }))
       .filter((entry): entry is { file: string; path: string } => !!entry.path)
   ), [docEntries])
+
+  const refreshDocEntries = React.useCallback(async () => {
+    const response = await fetch('/api/docs')
+    const data = response.ok ? await response.json() : {}
+    setDocEntries(parseWorkspaceDocEntriesResponse(data))
+  }, [])
 
   useEffect(() => {
     fetchMessages()
@@ -223,17 +248,63 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
   }, [channel.name])
 
   useEffect(() => {
-    let cancelled = false
-    fetch('/api/docs')
-      .then((r) => r.ok ? r.json() : {})
-      .then((data) => {
-        if (!cancelled) setDocEntries(parseWorkspaceDocEntriesResponse(data))
+    refreshDocEntries().catch(() => setDocEntries([]))
+  }, [refreshDocEntries])
+
+  async function handleAttachFiles(event: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files || [])
+    if (!files.length) return
+    try {
+      const nextAttachments = await Promise.all(files.map(async (file) => {
+        const attachment = await createPromptAttachment(file)
+        return { ...attachment, file } satisfies ChatAttachment
+      }))
+      setAttachments((current) => {
+        const seen = new Set(current.map((attachment) => attachment.id))
+        return current.concat(nextAttachments.filter((attachment) => !seen.has(attachment.id)))
       })
-      .catch(() => {
-        if (!cancelled) setDocEntries([])
+    } catch (err: any) {
+      setError(err?.message || 'Failed to prepare attachments')
+    } finally {
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+    }
+  }
+
+  function removeAttachment(attachmentId: string) {
+    setAttachments((current) => current.filter((attachment) => attachment.id !== attachmentId))
+  }
+
+  async function ensureUploadedAttachments(currentAttachments: ChatAttachment[]): Promise<ChatAttachment[]> {
+    const nextAttachments = [...currentAttachments]
+    const inboxTarget = buildSharedInboxTargetPath(channel.type, channel.name)
+
+    for (let index = 0; index < nextAttachments.length; index += 1) {
+      const attachment = nextAttachments[index]
+      if (attachment.uploadedPath) continue
+      const response = await fetch(`/api/docs/upload?target=${encodeURIComponent(inboxTarget)}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': attachment.type || 'application/octet-stream',
+          'x-file-name': attachment.name,
+        },
+        body: await attachment.file.arrayBuffer(),
       })
-    return () => { cancelled = true }
-  }, [])
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok || !data.ok || typeof data.path !== 'string') {
+        throw new Error(data.error || `Failed to upload ${attachment.name}`)
+      }
+      nextAttachments[index] = {
+        ...attachment,
+        uploadedPath: data.path,
+      }
+    }
+
+    setAttachments(nextAttachments)
+    await refreshDocEntries().catch(() => {})
+    return nextAttachments
+  }
 
   useEffect(() => {
     // Only auto-scroll if user is near bottom or just sent a message
@@ -347,17 +418,20 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
   }
 
   async function sendMessage() {
-    if (!input.trim() || sending) return
+    if ((!input.trim() && attachments.length === 0) || sending) return
     if (!chatEnabled) {
       setError('Group chat is disabled because no AI execution path is configured. Open BYOK or Keys & Secrets first.')
       return
     }
 
     const userMessage = input.trim()
+    const currentAttachments = attachments
 
     // Add to input history
-    setInputHistory(prev => [...prev, userMessage])
-    setHistoryIndex(-1)
+    if (userMessage) {
+      setInputHistory(prev => [...prev, userMessage])
+      setHistoryIndex(-1)
+    }
 
     // For bulk chat (temporary ad-hoc groups), auto-mention all members
     const isBulkChat = channel.tags?.includes('bulk-chat')
@@ -388,6 +462,12 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
     userJustSent.current = true
 
     try {
+      const uploadedAttachments = currentAttachments.length > 0
+        ? await ensureUploadedAttachments(currentAttachments)
+        : []
+      const messageContent = buildAgentInboxDisplayMessage(userMessage, uploadedAttachments)
+      setAttachments([])
+
       const endpoint = channel.type === 'community'
         ? `/api/communities/${encodeURIComponent(channel.name)}/messages`
         : `/api/groups/${encodeURIComponent(channel.name)}/messages`
@@ -396,7 +476,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          content: userMessage,
+          content: messageContent,
           mentions: mentionedAgents.map(a => a.id),
           byok: byokForRequest(),
         }),
@@ -423,9 +503,17 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
       } else {
         const data = await r.json()
         setError(data.error || 'Failed to send message')
+        setInput(userMessage)
+        if (uploadedAttachments.length > 0) {
+          setAttachments(uploadedAttachments)
+        }
       }
     } catch (e) {
       setError(String(e))
+      setInput(userMessage)
+      if (currentAttachments.length > 0) {
+        setAttachments(currentAttachments)
+      }
     } finally {
       setSending(false)
     }
@@ -959,6 +1047,20 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
             </div>
           )}
 
+          {attachments.length > 0 && (
+            <div className="mb-3 flex flex-wrap gap-2">
+              {attachments.map((attachment) => (
+                <div key={attachment.id} className="inline-flex max-w-full items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs text-gray-700 dark:border-sky-800 dark:bg-sky-950/20 dark:text-gray-200">
+                  <span className="truncate">
+                    {attachment.isImage ? 'Image' : 'File'}: {attachment.name}
+                    {attachment.uploadedPath ? <span className="ml-1 text-sky-700 dark:text-sky-300">in inbox</span> : null}
+                  </span>
+                  <button onClick={() => removeAttachment(attachment.id)} className="text-gray-400 hover:text-red-500">×</button>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className="relative">
             {/* @Mention Dropdown */}
             {showMentions && filteredMentionAgents.length > 0 && (
@@ -1020,6 +1122,24 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
 
             <div className="flex gap-2">
               <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={sending}
+                className="inline-flex items-center justify-center rounded-lg border border-gray-200 bg-gray-50 p-2 text-gray-600 transition-colors hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+                title={`Attach files to the shared ${channel.type} inbox`}
+                aria-label={`Attach files to the shared ${channel.type} inbox`}
+              >
+                <AttachIcon />
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept="image/*,.txt,.md,.json,.csv,.yaml,.yml,.pdf"
+                onChange={handleAttachFiles}
+                className="hidden"
+              />
+              <button
                 onClick={toggleVoiceInput}
                 disabled={sending}
                 className={`p-2 rounded-lg transition-colors text-sm font-medium shrink-0 ${
@@ -1045,14 +1165,14 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
                 value={input}
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
-                placeholder={isListening ? "Listening..." : "Type or speak... posts to everyone by default, or use @name"}
+                placeholder={isListening ? "Listening..." : "Type, speak, or attach files... posts to everyone by default, or use @name"}
                 className="flex-1 px-4 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-400 focus:border-transparent disabled:bg-gray-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
                 disabled={sending || isListening || !chatEnabled}
               />
               <button
                 ref={sendButtonRef}
                 onClick={sendMessage}
-                disabled={!input.trim() || sending || !chatEnabled}
+                disabled={(!input.trim() && attachments.length === 0) || sending || !chatEnabled}
                 className="px-4 py-2 text-sm rounded-lg bg-sky-600 text-white hover:bg-sky-700 disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
               >
                 {sending ? 'Sending...' : 'Send'}

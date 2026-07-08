@@ -4,7 +4,7 @@
  * Run with: npx ts-node --transpileOnly client/src/lib/agentInbox.test.ts
  */
 
-import { appendAgentInboxAttachmentContext, buildAgentInboxDisplayMessage, buildAgentInboxTargetPath } from './agentInbox'
+import { appendAgentInboxAttachmentContext, buildAgentInboxDisplayMessage, buildAgentInboxTargetPath, buildSharedInboxTargetPath } from './agentInbox'
 
 function assert(condition: boolean, message: string) {
   if (!condition) throw new Error(message)
@@ -24,6 +24,17 @@ test('appends optional inbox subdirectories', () => {
   assert(
     buildAgentInboxTargetPath('mango-lead', 'follow-up/april') === 'AGENTS/mango-lead/INBOX/follow-up/april',
     'Expected nested inbox subdirectory path',
+  )
+})
+
+test('builds a shared group inbox path', () => {
+  assert(
+    buildSharedInboxTargetPath('group', 'mango-ops') === 'GROUPS/mango-ops/INBOX',
+    'Expected group inbox path',
+  )
+  assert(
+    buildSharedInboxTargetPath('community', 'mango-grove', 'images') === 'COMMUNITIES/mango-grove/INBOX/images',
+    'Expected community inbox path with subdirectory',
   )
 })
 
