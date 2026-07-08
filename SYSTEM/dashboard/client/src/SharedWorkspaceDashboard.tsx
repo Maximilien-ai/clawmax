@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { transformWorkspaceMarkdownUrl } from './lib/markdownLinks'
+import { buildWorkflowHandoffDisplay } from './lib/workflowDisplay'
 import { extractWorkspaceFileMentions, linkifyWorkspaceFiles, normalizeWorkspaceFileTarget, parseWorkspaceDocEntriesResponse, resolveWorkspaceDocPath } from './lib/workspaceFiles'
 import { resolveNavigableWorkspaceDocPath } from './lib/workspaceDocNavigation'
 
@@ -457,6 +458,14 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
       .sort((a, b) => new Date(b.latestExecution?.completedAt || b.latestExecution?.startedAt || 0).getTime() - new Date(a.latestExecution?.completedAt || a.latestExecution?.startedAt || 0).getTime())
     return workflowsWithArtifacts[0] || null
   }, [payload])
+  const companyHandoffFlow = useMemo(() => {
+    if (!payload || !companyFocus) return []
+    return buildWorkflowHandoffDisplay(
+      companyFocus.handoffs,
+      payload.workflows.map((workflow) => ({ id: workflow.id, name: workflow.name })),
+      companyFocus.label,
+    )
+  }, [companyFocus, payload])
 
   async function openDoc(path: string) {
     const resolvedPath = resolveNavigableWorkspaceDocPath(path, docEntries)
@@ -885,34 +894,53 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
           <div>
             <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-slate-500">Workflow Handoffs</div>
             <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Company Output Flow</h2>
+            <div className="mt-1 text-sm text-gray-500 dark:text-slate-400">Each handoff shows the upstream workflow, published output, and downstream stage that consumes it.</div>
           </div>
           <div className="text-xs text-gray-500 dark:text-slate-400">{companyFocus.workflowCount} workflows</div>
         </div>
         <div className="space-y-3">
-          {companyFocus.handoffs.slice(0, 8).map((handoff) => (
-            <div key={`${handoff.upstreamWorkflowId}-${handoff.workflowId}-${handoff.outputKey}`} className="rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-white/10 dark:bg-slate-800/70">
-              <div className="text-sm font-semibold text-gray-900 dark:text-slate-100">{handoff.label}</div>
-              <div className="mt-1 text-sm text-gray-600 dark:text-slate-300">{handoff.workflowName}</div>
-              <div className="mt-2 text-xs text-gray-500 dark:text-slate-400">
-                Depends on output <span className="font-medium">{handoff.outputKey}</span> from <span className="font-medium">{handoff.upstreamWorkflowId}</span>
+          {companyHandoffFlow.slice(0, 8).map((handoff) => (
+            <div key={handoff.key} className="rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-white/10 dark:bg-slate-800/70">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+                <div className="min-w-0 flex-1 rounded-xl border border-gray-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-slate-900/80">
+                  <div className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-slate-500">Upstream</div>
+                  <div className="truncate text-sm font-semibold text-gray-900 dark:text-slate-100">{handoff.upstreamDisplayName}</div>
+                  <div className="truncate text-xs text-gray-500 dark:text-slate-400">{handoff.upstreamWorkflowId}</div>
+                </div>
+                <div className="flex shrink-0 flex-col items-center gap-1">
+                  <div className="rounded-full border border-sky-500/30 bg-sky-500/10 px-3 py-1 text-xs font-medium text-sky-700 dark:text-sky-300">
+                    {handoff.label}
+                  </div>
+                  <div className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-slate-500">{handoff.outputKey}</div>
+                </div>
+                <div className="min-w-0 flex-1 rounded-xl border border-gray-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-slate-900/80">
+                  <div className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-slate-500">Downstream</div>
+                  <div className="truncate text-sm font-semibold text-gray-900 dark:text-slate-100">{handoff.downstreamDisplayName}</div>
+                  <div className="truncate text-xs text-gray-500 dark:text-slate-400">{handoff.downstreamWorkflowId}</div>
+                </div>
               </div>
               {handoff.summary && (
-                <div className="mt-2 text-sm text-gray-600 dark:text-slate-300">{handoff.summary}</div>
+                <div className="mt-3 text-sm text-gray-600 dark:text-slate-300">{handoff.summary}</div>
               )}
-              {handoff.artifactPath && (
-                <div className="mt-3">
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                {handoff.missing && (
+                  <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-[11px] text-amber-700 dark:text-amber-300">
+                    Missing latest artifact
+                  </span>
+                )}
+                {handoff.artifactPath && (
                   <button
                     type="button"
-                    onClick={() => openDoc(handoff.artifactPath!)}
+                    onClick={() => openDoc(handoff.artifactPath)}
                     className="rounded-full border border-sky-500/30 bg-sky-500/10 px-2.5 py-1 text-[11px] text-sky-700 hover:bg-sky-500/20 dark:text-sky-300"
                   >
                     Open handoff document
                   </button>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           ))}
-          {companyFocus.handoffs.length === 0 && (
+          {companyHandoffFlow.length === 0 && (
             <div className="text-sm text-gray-500 dark:text-slate-400">No explicit workflow handoffs captured for this company yet.</div>
           )}
         </div>
