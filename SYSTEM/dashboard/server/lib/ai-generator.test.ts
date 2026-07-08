@@ -4,6 +4,7 @@ import os from 'os'
 import path from 'path'
 import {
   applyCompanyWorkflowExecutionDefaults,
+  buildGeneratedExecutionSubteam,
   applyGeneratedWorkflowHandoffs,
   buildPromptExpansionSystemPrompt,
   buildResolvedModelRequestOptions,
@@ -30,17 +31,21 @@ import {
 
 let passed = 0
 let failed = 0
+const pendingTests: Promise<void>[] = []
 
-function test(name: string, fn: () => void) {
-  try {
-    fn()
-    console.log(`\x1b[32m✓\x1b[0m ${name}`)
-    passed++
-  } catch (err: any) {
-    console.error(`\x1b[31m✗\x1b[0m ${name}`)
-    console.error(err?.stack || err)
-    failed++
+function test(name: string, fn: () => void | Promise<void>) {
+  const run = async () => {
+    try {
+      await fn()
+      console.log(`\x1b[32m✓\x1b[0m ${name}`)
+      passed++
+    } catch (err: any) {
+      console.error(`\x1b[31m✗\x1b[0m ${name}`)
+      console.error(err?.stack || err)
+      failed++
+    }
   }
+  pendingTests.push(run())
 }
 
 console.log('\n\x1b[33m=== AI Generator Test Suite ===\x1b[0m\n')
@@ -677,6 +682,31 @@ test('ensureGeneratedCompanyRoot adds one explicit root above leadership', () =>
   assert.strictEqual(leadership?.parentTeamId, root?.id)
 })
 
+test('buildGeneratedExecutionSubteam skips empty execution leaves and keeps members when present', () => {
+  assert.strictEqual(
+    buildGeneratedExecutionSubteam({
+      id: 'engineering',
+      name: 'Engineering',
+      leaderAgentId: 'eng-lead',
+      memberAgentIds: [],
+    }),
+    null,
+    'Expected no execution subteam when the parent has no members beyond the leader'
+  )
+
+  const execution = buildGeneratedExecutionSubteam({
+    id: 'delivery',
+    name: 'Delivery',
+    leaderAgentId: 'delivery-lead',
+    memberAgentIds: ['operator-a', 'operator-b', 'operator-c'],
+  }) as any
+
+  assert(execution, 'Expected execution subteam when parent has members')
+  assert.strictEqual(execution.id, 'delivery-execution')
+  assert.strictEqual(execution.parentTeamId, 'delivery')
+  assert.deepStrictEqual(execution.memberAgentIds, ['operator-a', 'operator-b'])
+})
+
 test('normalizePromptExpansionTarget falls back to template', () => {
   assert.strictEqual(normalizePromptExpansionTarget('agent'), 'agent')
   assert.strictEqual(normalizePromptExpansionTarget('workflow'), 'workflow')
@@ -703,13 +733,15 @@ test('buildPromptExpansionSystemPrompt reflects requested format', () => {
   assert.match(guidedPrompt, /Make it shorter and emphasize testing\./i)
 })
 
-console.log('\n========================================')
-console.log(`Tests passed: ${passed}`)
-console.log(`Tests failed: ${failed}`)
-console.log('========================================\n')
+Promise.all(pendingTests).then(() => {
+  console.log('\n========================================')
+  console.log(`Tests passed: ${passed}`)
+  console.log(`Tests failed: ${failed}`)
+  console.log('========================================\n')
 
-if (failed > 0) {
-  process.exit(1)
-}
+  if (failed > 0) {
+    process.exit(1)
+  }
 
-console.log('\x1b[32mAll tests passed\x1b[0m')
+  console.log('\x1b[32mAll tests passed\x1b[0m')
+})

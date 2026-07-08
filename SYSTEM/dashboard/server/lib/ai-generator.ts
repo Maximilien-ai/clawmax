@@ -367,6 +367,25 @@ export function ensureGeneratedCompanyRoot(teams: any[], companyName: string, sh
   ]
 }
 
+export function buildGeneratedExecutionSubteam(parentTeam: {
+  id: string
+  name: string
+  leaderAgentId?: string
+  memberAgentIds?: string[]
+} | null | undefined) {
+  const nestedMembers = Array.isArray(parentTeam?.memberAgentIds) ? parentTeam.memberAgentIds.filter(Boolean) : []
+  if (!parentTeam || nestedMembers.length === 0) return null
+  return {
+    id: `${parentTeam.id}-execution`,
+    name: `${parentTeam.name} Execution`,
+    purpose: `Break ${parentTeam.name.toLowerCase()} work into execution lanes and milestones.`,
+    leaderAgentId: parentTeam.leaderAgentId,
+    memberAgentIds: nestedMembers.slice(0, 2),
+    parentTeamId: parentTeam.id,
+    tags: ['execution'],
+  }
+}
+
 function getPreferredAnthropicGenerationModel(): string {
   const override = process.env.CLAWMAX_ANTHROPIC_GENERATION_MODEL?.trim()
   if (override) return override.startsWith('anthropic/') ? override.replace(/^anthropic\//, '') : override
@@ -2218,16 +2237,9 @@ Respond with ONLY valid JSON, no markdown fences or explanation.`
 
       if (generatedTeams.length >= 3) {
         const nestedParent = generatedTeams.find((team) => /\b(delivery|service|operations|engineering|product)\b/i.test(team.id))
-        if (nestedParent) {
-          generatedTeams.push({
-            id: `${nestedParent.id}-execution`,
-            name: `${nestedParent.name} Execution`,
-            purpose: `Break ${nestedParent.name.toLowerCase()} work into execution lanes and milestones.`,
-            leaderAgentId: nestedParent.leaderAgentId,
-            memberAgentIds: [],
-            parentTeamId: nestedParent.id,
-            tags: ['execution'],
-          })
+        const nestedExecutionTeam = buildGeneratedExecutionSubteam(nestedParent)
+        if (nestedExecutionTeam) {
+          generatedTeams.push(nestedExecutionTeam)
         }
       }
 
