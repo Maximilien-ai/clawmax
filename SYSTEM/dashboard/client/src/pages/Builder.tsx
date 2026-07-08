@@ -11,6 +11,7 @@ import {
 import { shouldReserveBuilderTranscriptSpace } from '../lib/builderMobileLayout'
 import { expandPromptWithAI } from '../lib/aiPrompt'
 import { appendPromptAttachmentContext, createPromptAttachment, type PromptAttachment } from '../lib/promptAttachments'
+import { findActiveBuilderMention, insertBuilderMention, type BuilderMentionMatch } from '../lib/builderMentions'
 import { buildWorkspaceStarterPrompts, normalizeStarterPromptList, type StarterPromptAgent, type StarterPromptSkill, type StarterPromptTemplate, type StarterPromptWorkflow } from '../lib/builderStarterPrompts'
 import { organizationTemplateCanApplyNow } from '../lib/templateApplyReadiness'
 import AIPromptEditorModal from '../components/AIPromptEditorModal'
@@ -87,6 +88,11 @@ type BuilderRecommendation = {
 }
 
 type BuilderAttachment = PromptAttachment
+
+type BuilderMentionAgent = {
+  id: string
+  label: string
+}
 
 type BuilderMessage = {
   id: string
@@ -1333,6 +1339,9 @@ export default function Builder({
   const [showPromptEditor, setShowPromptEditor] = useState(false)
   const [showStarterPrompts, setShowStarterPrompts] = useState(false)
   const [hasAppliedTemplate, setHasAppliedTemplate] = useState(false)
+  const [availableMentionAgents, setAvailableMentionAgents] = useState<BuilderMentionAgent[]>([])
+  const [activeMention, setActiveMention] = useState<BuilderMentionMatch | null>(null)
+  const [selectedMentionIndex, setSelectedMentionIndex] = useState(0)
   const [remoteShareEnabled, setRemoteShareEnabled] = useState(false)
   const [remoteShareChecked, setRemoteShareChecked] = useState(false)
   const [sessionActionNotice, setSessionActionNotice] = useState<{
@@ -1366,6 +1375,13 @@ export default function Builder({
     }
     return nextHistory
   }, [historyItems])
+  const filteredMentionAgents = useMemo(() => {
+    if (!activeMention) return []
+    const query = activeMention.query.trim().toLowerCase()
+    return availableMentionAgents
+      .filter((agent) => !query || agent.label.toLowerCase().includes(query) || agent.id.toLowerCase().includes(query))
+      .slice(0, 8)
+  }, [activeMention, availableMentionAgents])
 
   function getRecommendationFeedbackValue(nextRecommendation: BuilderRecommendation | null): 'up' | 'down' | undefined {
     const key = buildBuilderRecommendationKey(nextRecommendation as any)
@@ -1397,6 +1413,8 @@ export default function Builder({
     setRecommendation(storedSession?.recommendation || null)
     setPrompt('')
     setAttachments([])
+    setActiveMention(null)
+    setSelectedMentionIndex(0)
     setPromptHistoryIndex(null)
     setPromptDraftBeforeHistory('')
     setError(null)
@@ -1452,6 +1470,14 @@ export default function Builder({
       ])
 
       const agents = (agentsResp.agents || []) as ApiAgent[]
+      setAvailableMentionAgents(
+        agents
+          .map((agent) => ({
+            id: agent.id,
+            label: (agent.name || agent.id).trim(),
+          }))
+          .filter((agent) => !!agent.id && !!agent.label)
+      )
       const skills = (skillsResp.skills || []) as ApiSkill[]
       const templates = {
         agents: (templatesResp.agents || []) as ApiTemplate[],
@@ -1510,6 +1536,7 @@ export default function Builder({
 
       setStarterPrompts(fallbackPrompts)
     } catch {
+      setAvailableMentionAgents([])
       setStarterPrompts(buildWorkspaceStarterPrompts({
         workspaceName: activeWorkspace?.name,
         workspaceTags: activeWorkspace?.tags,
@@ -1567,7 +1594,10 @@ export default function Builder({
         .map((result: any) => result?.[0]?.transcript || '')
         .join(' ')
         .trim()
-      setPrompt([listeningBasePromptRef.current.trim(), transcript].filter(Boolean).join(' '))
+      const nextPrompt = [listeningBasePromptRef.current.trim(), transcript].filter(Boolean).join(' ')
+      setPrompt(nextPrompt)
+      setActiveMention(null)
+      setSelectedMentionIndex(0)
       if (event.results?.[event.results.length - 1]?.isFinal) {
         textareaRef.current?.focus()
       }
@@ -1588,6 +1618,8 @@ export default function Builder({
   function resetBuilderSession() {
     setPrompt('')
     setAttachments([])
+    setActiveMention(null)
+    setSelectedMentionIndex(0)
     setPromptHistoryIndex(null)
     setPromptDraftBeforeHistory('')
     setError(null)
@@ -1635,10 +1667,17 @@ export default function Builder({
     return appendPromptAttachmentContext(basePrompt, attachments)
   }
 
+  function updatePromptMentionState(nextValue: string, cursorPosition: number) {
+    const nextMention = findActiveBuilderMention(nextValue, cursorPosition)
+    setActiveMention(nextMention)
+    setSelectedMentionIndex(0)
+  }
+
   function focusPromptAtEnd(nextValue: string) {
     window.setTimeout(() => {
       textareaRef.current?.focus()
       textareaRef.current?.setSelectionRange(nextValue.length, nextValue.length)
+      updatePromptMentionState(nextValue, nextValue.length)
     }, 0)
   }
 
@@ -1851,6 +1890,8 @@ export default function Builder({
           ])
           setPrompt(value)
           setAttachments([])
+          setActiveMention(null)
+          setSelectedMentionIndex(0)
           setPromptHistoryIndex(null)
           setPromptDraftBeforeHistory('')
           void refreshStarterPrompts({ seedPrompt: value })
@@ -1874,6 +1915,8 @@ export default function Builder({
       ])
       setPrompt(value)
       setAttachments([])
+      setActiveMention(null)
+      setSelectedMentionIndex(0)
       setPromptHistoryIndex(null)
       setPromptDraftBeforeHistory('')
       void refreshStarterPrompts({ seedPrompt: value })
@@ -1892,6 +1935,8 @@ export default function Builder({
         ])
         setPrompt(value)
         setAttachments([])
+        setActiveMention(null)
+        setSelectedMentionIndex(0)
         setPromptHistoryIndex(null)
         setPromptDraftBeforeHistory('')
         void refreshStarterPrompts({ seedPrompt: value })
@@ -2020,6 +2065,37 @@ export default function Builder({
   }
 
   function handlePromptKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (activeMention && filteredMentionAgents.length > 0) {
+      if (event.key === 'ArrowDown') {
+        event.preventDefault()
+        setSelectedMentionIndex((current) => Math.min(filteredMentionAgents.length - 1, current + 1))
+        return
+      }
+      if (event.key === 'ArrowUp') {
+        event.preventDefault()
+        setSelectedMentionIndex((current) => Math.max(0, current - 1))
+        return
+      }
+      if (event.key === 'Enter' || event.key === 'Tab') {
+        event.preventDefault()
+        const targetAgent = filteredMentionAgents[selectedMentionIndex]
+        if (targetAgent) {
+          const nextValue = insertBuilderMention(prompt, activeMention, targetAgent.label)
+          setPrompt(nextValue)
+          setActiveMention(null)
+          setSelectedMentionIndex(0)
+          focusPromptAtEnd(nextValue)
+        }
+        return
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        setActiveMention(null)
+        setSelectedMentionIndex(0)
+        return
+      }
+    }
+
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault()
       if (loading || !prompt.trim()) return
@@ -2079,6 +2155,7 @@ export default function Builder({
     setPromptHistoryIndex(null)
     setPromptDraftBeforeHistory('')
     setPrompt(value)
+    setActiveMention(null)
     focusPromptAtEnd(value)
   }
 
@@ -2422,14 +2499,50 @@ export default function Builder({
                 </div>
               )}
 
-              <textarea
-                ref={textareaRef}
-                value={prompt}
-                onChange={(event) => setPrompt(event.target.value)}
-                onKeyDown={handlePromptKeyDown}
-                placeholder="Example: I want a small team that watches competitor launches, writes concise summaries, and posts a final brief every Friday."
-                className="min-h-[7rem] max-h-[14rem] w-full resize-y rounded-xl border border-sky-200 bg-white/95 px-3 py-2 text-base text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-sky-400 dark:border-sky-900 dark:bg-gray-900 dark:text-gray-100 dark:focus:border-sky-700 sm:min-h-[56px] sm:max-h-[96px] sm:text-sm"
-              />
+              <div className="relative">
+                {activeMention && filteredMentionAgents.length > 0 && (
+                  <div className="absolute bottom-full left-0 z-10 mb-2 w-full rounded-xl border border-sky-200 bg-white shadow-lg dark:border-sky-900 dark:bg-gray-900">
+                    {filteredMentionAgents.map((agent, index) => (
+                      <button
+                        key={agent.id}
+                        type="button"
+                        onClick={() => {
+                          if (!activeMention) return
+                          const nextValue = insertBuilderMention(prompt, activeMention, agent.label)
+                          setPrompt(nextValue)
+                          setActiveMention(null)
+                          setSelectedMentionIndex(0)
+                          focusPromptAtEnd(nextValue)
+                        }}
+                        className={`flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition-colors ${
+                          index === selectedMentionIndex
+                            ? 'bg-sky-100 text-sky-900 dark:bg-sky-900/50 dark:text-sky-100'
+                            : 'text-gray-800 hover:bg-sky-50 dark:text-gray-200 dark:hover:bg-gray-800'
+                        }`}
+                      >
+                        <span className="truncate font-medium">{agent.label}</span>
+                        <span className="shrink-0 text-xs text-gray-400 dark:text-gray-500">{agent.id}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <textarea
+                  ref={textareaRef}
+                  value={prompt}
+                  onChange={(event) => {
+                    const nextValue = event.target.value
+                    setPrompt(nextValue)
+                    setPromptHistoryIndex(null)
+                    setPromptDraftBeforeHistory('')
+                    updatePromptMentionState(nextValue, event.target.selectionStart ?? nextValue.length)
+                  }}
+                  onClick={(event) => updatePromptMentionState(event.currentTarget.value, event.currentTarget.selectionStart ?? event.currentTarget.value.length)}
+                  onKeyUp={(event) => updatePromptMentionState(event.currentTarget.value, event.currentTarget.selectionStart ?? event.currentTarget.value.length)}
+                  onKeyDown={handlePromptKeyDown}
+                  placeholder="Example: I want a small team that watches competitor launches, writes concise summaries, and posts a final brief every Friday. Use @ to mention an existing agent."
+                  className="min-h-[7rem] max-h-[14rem] w-full resize-y rounded-xl border border-sky-200 bg-white/95 px-3 py-2 text-base text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-sky-400 dark:border-sky-900 dark:bg-gray-900 dark:text-gray-100 dark:focus:border-sky-700 sm:min-h-[56px] sm:max-h-[96px] sm:text-sm"
+                />
+              </div>
 
               <div className="mt-2 flex flex-wrap items-center justify-between gap-3 border-t border-sky-200/80 pt-2.5 dark:border-sky-900/60">
                 <div className="flex flex-wrap items-center gap-2">
@@ -2983,6 +3096,8 @@ export default function Builder({
                     setRecommendation(viewingArchive.recommendation)
                     setPrompt('')
                     setAttachments([])
+                    setActiveMention(null)
+                    setSelectedMentionIndex(0)
                     setError(null)
                     setShowArchives(false)
                     setViewingArchive(null)
