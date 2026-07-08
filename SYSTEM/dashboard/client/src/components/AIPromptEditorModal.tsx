@@ -73,23 +73,22 @@ export default function AIPromptEditorModal({
   const effectiveAttachments = attachments ?? localAttachments ?? EMPTY_ATTACHMENTS
 
   useEffect(() => {
-    if (isOpen) {
-      setDraft(initialValue)
-      setExpandFormat(defaultExpandFormat)
-      setExpandGuidance('')
-      setExpandError(null)
-      setExpandedFlash(false)
-      setPreviewWidth(380)
-      if (flashTimeoutRef.current !== null) {
-        window.clearTimeout(flashTimeoutRef.current)
-        flashTimeoutRef.current = null
-      }
-      setShowPreview(false)
-      if (attachments == null) {
-        setLocalAttachments([])
-      }
+    if (!isOpen) return
+    setDraft(initialValue)
+    setExpandFormat(defaultExpandFormat)
+    setExpandGuidance('')
+    setExpandError(null)
+    setExpandedFlash(false)
+    setPreviewWidth(380)
+    if (flashTimeoutRef.current !== null) {
+      window.clearTimeout(flashTimeoutRef.current)
+      flashTimeoutRef.current = null
     }
-  }, [attachments, defaultExpandFormat, initialValue, isOpen])
+    setShowPreview(false)
+    if (attachments == null) {
+      setLocalAttachments([])
+    }
+  }, [isOpen])
 
   useEffect(() => {
     if (!isOpen || !onDraftChange) return
