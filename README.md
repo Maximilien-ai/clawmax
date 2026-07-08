@@ -14,12 +14,12 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 
 - `1.9.5` is the performance-baseline and custom-skill import UX release: machine-readable perf artifacts for chat/workflow flows, rolling history and optional model-matrix sampling, plus direct ZIP upload for workspace skills in cloud, containerized, and on-prem runtimes.
 
-## 🛠 Current RC Line: 1.9.6
+## 🛠 Current RC Line: 1.9.7
 
-- Next validation image: `1.9.6-test-rc1`
-- `1.9.6` is the OpenClaw currency and runtime-follow-through line.
-- This line updates the tested OpenClaw baseline to `v2026.6.11`, adds explicit pin-alignment coverage across local prep, Docker, and CI, and reduces avoidable runtime config churn from no-op model saves.
-- Builder/template consistency and generated handoff follow-through will continue on top of this newer runtime baseline.
+- Next validation image: `1.9.7-test-rc1`
+- `1.9.7` is the follow-through line on top of the promoted OpenClaw `v2026.6.11` runtime baseline.
+- This line carries the Builder/company handoff clarity work, inbox attachments across agent and shared chats, and Builder `@agent` mention autocomplete.
+- Runtime/perf stabilization remains active on this line as the main remaining hardening area.
 
 ## ✨ 1.9.x Highlights
 
