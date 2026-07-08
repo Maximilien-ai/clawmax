@@ -90,6 +90,15 @@ The user should be able to tell:
 
 This is the only `2.0`-adjacent work I would deliberately allow into `1.9.7`.
 
+### 6. Builder mention and routing shortcuts
+
+- Let Builder recognize `@` mentions and offer matching agents from the current workspace.
+- Use this both as a direct-message shortcut and as a way to ground prompts against existing agents without forcing the user to type exact ids.
+- Keep the first pass lightweight:
+  - Builder prompt autocomplete only
+  - no cross-surface mention protocol yet
+  - no automatic send/action on mention selection
+
 Not the full user-facing score.
 
 Only the shared groundwork that makes `2.0.0` simpler and less risky:

@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { buildAgentChatTimelineRows, shouldShowCalendarDate } from '../lib/agentChatTimeline'
-import { buildAgentInboxDisplayMessage, buildSharedInboxTargetPath, type AgentInboxAttachmentRef } from '../lib/agentInbox'
+import { buildAgentInboxDisplayMessage, buildAgentInboxTargetPath, buildSharedInboxTargetPath, type AgentInboxAttachmentRef } from '../lib/agentInbox'
 import { byokForRequest, hasChatExecutionAccess, readStoredByokKeys } from '../lib/byok'
 import {
   buildCommunicationCacheKey,
@@ -171,6 +171,7 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
   const [historyIndex, setHistoryIndex] = useState(-1)
   const [docEntries, setDocEntries] = useState<DocEntryRef[]>([])
   const [attachments, setAttachments] = useState<ChatAttachment[]>([])
+  const [copyAttachmentsToMentionedAgents, setCopyAttachmentsToMentionedAgents] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -276,14 +277,12 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
     setAttachments((current) => current.filter((attachment) => attachment.id !== attachmentId))
   }
 
-  async function ensureUploadedAttachments(currentAttachments: ChatAttachment[]): Promise<ChatAttachment[]> {
+  async function uploadAttachmentsToTarget(target: string, currentAttachments: ChatAttachment[]): Promise<ChatAttachment[]> {
     const nextAttachments = [...currentAttachments]
-    const inboxTarget = buildSharedInboxTargetPath(channel.type, channel.name)
 
     for (let index = 0; index < nextAttachments.length; index += 1) {
       const attachment = nextAttachments[index]
-      if (attachment.uploadedPath) continue
-      const response = await fetch(`/api/docs/upload?target=${encodeURIComponent(inboxTarget)}`, {
+      const response = await fetch(`/api/docs/upload?target=${encodeURIComponent(target)}`, {
         method: 'POST',
         headers: {
           'Content-Type': attachment.type || 'application/octet-stream',
@@ -300,6 +299,13 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
         uploadedPath: data.path,
       }
     }
+
+    return nextAttachments
+  }
+
+  async function ensureUploadedAttachments(currentAttachments: ChatAttachment[]): Promise<ChatAttachment[]> {
+    const inboxTarget = buildSharedInboxTargetPath(channel.type, channel.name)
+    const nextAttachments = await uploadAttachmentsToTarget(inboxTarget, currentAttachments)
 
     setAttachments(nextAttachments)
     await refreshDocEntries().catch(() => {})
@@ -466,6 +472,13 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
         ? await ensureUploadedAttachments(currentAttachments)
         : []
       const messageContent = buildAgentInboxDisplayMessage(userMessage, uploadedAttachments)
+
+      if (copyAttachmentsToMentionedAgents && uploadedAttachments.length > 0 && mentionedAgents.length > 0) {
+        for (const agent of mentionedAgents) {
+          await uploadAttachmentsToTarget(buildAgentInboxTargetPath(agent.id), currentAttachments)
+        }
+      }
+
       setAttachments([])
 
       const endpoint = channel.type === 'community'
@@ -1048,16 +1061,26 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
           )}
 
           {attachments.length > 0 && (
-            <div className="mb-3 flex flex-wrap gap-2">
-              {attachments.map((attachment) => (
-                <div key={attachment.id} className="inline-flex max-w-full items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs text-gray-700 dark:border-sky-800 dark:bg-sky-950/20 dark:text-gray-200">
-                  <span className="truncate">
-                    {attachment.isImage ? 'Image' : 'File'}: {attachment.name}
-                    {attachment.uploadedPath ? <span className="ml-1 text-sky-700 dark:text-sky-300">in inbox</span> : null}
-                  </span>
-                  <button onClick={() => removeAttachment(attachment.id)} className="text-gray-400 hover:text-red-500">×</button>
-                </div>
-              ))}
+            <div className="mb-3 space-y-2">
+              <div className="flex flex-wrap gap-2">
+                {attachments.map((attachment) => (
+                  <div key={attachment.id} className="inline-flex max-w-full items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs text-gray-700 dark:border-sky-800 dark:bg-sky-950/20 dark:text-gray-200">
+                    <span className="truncate">
+                      {attachment.isImage ? 'Image' : 'File'}: {attachment.name}
+                      {attachment.uploadedPath ? <span className="ml-1 text-sky-700 dark:text-sky-300">in inbox</span> : null}
+                    </span>
+                    <button onClick={() => removeAttachment(attachment.id)} className="text-gray-400 hover:text-red-500">×</button>
+                  </div>
+                ))}
+              </div>
+              <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
+                <input
+                  type="checkbox"
+                  checked={copyAttachmentsToMentionedAgents}
+                  onChange={(event) => setCopyAttachmentsToMentionedAgents(event.target.checked)}
+                />
+                Also copy attachments to addressed agent inboxes
+              </label>
             </div>
           )}
 
