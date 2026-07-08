@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { buildDocHubTree, getDocHubChildDirectories, type FileTree } from '../lib/docHubTree'
+import { buildAgentInboxTargetPath } from '../lib/agentInbox'
 
 type DocSection = 'ORG' | 'AGENTS' | 'WORKFLOWS' | 'SYSTEM'
 
@@ -574,11 +575,11 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
   }, [])
 
   function buildUploadTargetPath() {
-    const base = uploadTargetMode === 'agent' && uploadAgentId.trim()
-      ? `AGENTS/${uploadAgentId.trim()}`
-      : 'AGENTS'
+    if (uploadTargetMode === 'agent' && uploadAgentId.trim()) {
+      return buildAgentInboxTargetPath(uploadAgentId.trim(), uploadSubdir.trim())
+    }
     const subdir = uploadSubdir.trim().replace(/^\/+|\/+$/g, '')
-    return subdir ? `${base}/${subdir}` : base
+    return subdir ? `AGENTS/${subdir}` : 'AGENTS'
   }
 
   async function uploadSelectedFiles() {
@@ -1465,7 +1466,7 @@ Start writing..."
 
             <div className="space-y-4">
               <div className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-xs text-sky-700 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-300">
-                Upload into the shared <span className="font-mono">AGENTS/</span> root so every agent can access it, or target one specific agent workspace. ZIP files can be expanded in place.
+                Upload into the shared <span className="font-mono">AGENTS/</span> root so every agent can access it, or target one specific agent inbox at <span className="font-mono">AGENTS/&lt;agent&gt;/INBOX/</span>. ZIP files can be expanded in place.
               </div>
 
               <div>
@@ -1512,7 +1513,7 @@ Start writing..."
                   type="text"
                   value={uploadSubdir}
                   onChange={e => setUploadSubdir(e.target.value)}
-                  placeholder="e.g. knowledge-base, inputs/april-demo"
+                  placeholder="e.g. follow-up, april-demo"
                   className="w-full px-3 py-2 border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent font-mono text-sm dark:border-gray-700"
                 />
                 <p className="text-xs text-gray-500 mt-1">Resolved target: <span className="font-mono">{buildUploadTargetPath()}</span></p>

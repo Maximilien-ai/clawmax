@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useRef, useCallback, type ChangeEvent } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { byokForRequest, hasChatExecutionAccess, readStoredByokKeys } from '../lib/byok'
@@ -8,7 +8,9 @@ import { getAgentChatCodeBlockClassName, getAgentChatInlineCodeClassName, getAge
 import { ProductIconCell } from '../lib/productIcons'
 import { useAuth } from '../contexts/AuthContext'
 import { resolveAgentChatDocPath } from '../lib/agentChatDocs'
+import { appendAgentInboxAttachmentContext, buildAgentInboxDisplayMessage, buildAgentInboxTargetPath, type AgentInboxAttachmentRef } from '../lib/agentInbox'
 import { transformWorkspaceMarkdownUrl } from '../lib/markdownLinks'
+import { createPromptAttachment } from '../lib/promptAttachments'
 import { extractWorkspaceFileMentions, linkifyWorkspaceFiles, parseWorkspaceDocEntriesResponse } from '../lib/workspaceFiles'
 import { summarizeAgentChatFailure } from '../lib/chatRuntimeErrors'
 
@@ -35,6 +37,21 @@ interface Props {
 
 interface DocEntryRef {
   path: string
+}
+
+interface ChatAttachment extends AgentInboxAttachmentRef {
+  id: string
+  type: string
+  size: number
+  file: File
+}
+
+function AttachIcon() {
+  return (
+    <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+      <path d="M8.5 3.5a3.5 3.5 0 0 1 7 0v8.25a5.75 5.75 0 1 1-11.5 0V5.5a2.75 2.75 0 0 1 5.5 0v5.5a1 1 0 1 1-2 0V6.5a.75.75 0 0 0-1.5 0V11a2.5 2.5 0 1 0 5 0V5.5a4.25 4.25 0 0 0-8.5 0v6.25a6.75 6.75 0 1 0 13.5 0V3.5a4.5 4.5 0 0 0-9 0 1 1 0 1 1-2 0Z" />
+    </svg>
+  )
 }
 
 function formatChatTime(timestamp: number | undefined, includeDate: boolean): string {
@@ -195,9 +212,11 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
   const [inputHistory, setInputHistory] = useState<string[]>([])
   const [historyIndex, setHistoryIndex] = useState(-1)
   const [docEntries, setDocEntries] = useState<DocEntryRef[]>([])
+  const [attachments, setAttachments] = useState<ChatAttachment[]>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const sendButtonRef = useRef<HTMLButtonElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
   const recognitionRef = useRef<any>(null)
 
@@ -243,20 +262,70 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
     return () => clearInterval(interval)
   }, [agentId, messages.length, streaming])
 
-  useEffect(() => {
-    let cancelled = false
-    fetch('/api/docs')
-      .then((r) => r.ok ? r.json() : {})
-      .then((data) => {
-        if (!cancelled) {
-          setDocEntries(parseWorkspaceDocEntriesResponse(data))
-        }
-      })
-      .catch(() => {})
-    return () => {
-      cancelled = true
-    }
+  const refreshDocEntries = useCallback(async () => {
+    const response = await fetch('/api/docs')
+    const data = response.ok ? await response.json() : {}
+    setDocEntries(parseWorkspaceDocEntriesResponse(data))
   }, [])
+
+  useEffect(() => {
+    refreshDocEntries().catch(() => {})
+  }, [refreshDocEntries])
+
+  async function handleAttachFiles(event: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files || [])
+    if (!files.length) return
+    try {
+      const nextAttachments = await Promise.all(files.map(async (file) => {
+        const attachment = await createPromptAttachment(file)
+        return { ...attachment, file } satisfies ChatAttachment
+      }))
+      setAttachments((current) => {
+        const seen = new Set(current.map((attachment) => attachment.id))
+        return current.concat(nextAttachments.filter((attachment) => !seen.has(attachment.id)))
+      })
+    } catch (err: any) {
+      setError(err?.message || 'Failed to prepare attachments')
+    } finally {
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+    }
+  }
+
+  function removeAttachment(attachmentId: string) {
+    setAttachments((current) => current.filter((attachment) => attachment.id !== attachmentId))
+  }
+
+  async function ensureUploadedAttachments(currentAttachments: ChatAttachment[]): Promise<ChatAttachment[]> {
+    const nextAttachments = [...currentAttachments]
+    const inboxTarget = buildAgentInboxTargetPath(agentId)
+
+    for (let index = 0; index < nextAttachments.length; index += 1) {
+      const attachment = nextAttachments[index]
+      if (attachment.uploadedPath) continue
+      const response = await fetch(`/api/docs/upload?target=${encodeURIComponent(inboxTarget)}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': attachment.type || 'application/octet-stream',
+          'x-file-name': attachment.name,
+        },
+        body: await attachment.file.arrayBuffer(),
+      })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok || !data.ok || typeof data.path !== 'string') {
+        throw new Error(data.error || `Failed to upload ${attachment.name}`)
+      }
+      nextAttachments[index] = {
+        ...attachment,
+        uploadedPath: data.path,
+      }
+    }
+
+    setAttachments(nextAttachments)
+    await refreshDocEntries().catch(() => {})
+    return nextAttachments
+  }
 
   useEffect(() => {
     checkGateway()
@@ -456,7 +525,8 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
 
   async function sendMessage(messageText?: string) {
     const textToSend = messageText || input.trim()
-    if (!textToSend || sending) return
+    const queuedAttachments = messageText ? [] : attachments
+    if ((!textToSend && queuedAttachments.length === 0) || sending) return
     if (!chatEnabled) {
       setError('Agent chat is disabled because no AI execution path is configured. Open BYOK or Keys & Secrets first.')
       return
@@ -474,27 +544,35 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
     setSending(true)
     setError(null)
     setStreaming(true)
-
-    // Add user message
-    const userMsg: Message = {
-      role: 'user',
-      content: textToSend,
-      timestamp: Date.now(),
-      id: `user-${Date.now()}`
-    }
-    setMessages(prev => [...prev, userMsg])
-
-    // Create assistant message placeholder
-    const assistantId = `assistant-${Date.now()}`
-    const assistantMsg: Message = {
-      role: 'assistant',
-      content: '',
-      timestamp: Date.now(),
-      id: assistantId
-    }
-    setMessages(prev => [...prev, assistantMsg])
+    let assistantId = ''
+    let preparedAttachments = queuedAttachments
 
     try {
+      const uploadedAttachments = queuedAttachments.length > 0
+        ? await ensureUploadedAttachments(queuedAttachments)
+        : []
+      preparedAttachments = uploadedAttachments
+      const displayMessage = buildAgentInboxDisplayMessage(textToSend, uploadedAttachments)
+      const executionMessage = appendAgentInboxAttachmentContext(textToSend, uploadedAttachments)
+
+      const userMsg: Message = {
+        role: 'user',
+        content: displayMessage,
+        timestamp: Date.now(),
+        id: `user-${Date.now()}`
+      }
+      assistantId = `assistant-${Date.now()}`
+      const assistantMsg: Message = {
+        role: 'assistant',
+        content: '',
+        timestamp: Date.now(),
+        id: assistantId
+      }
+      setMessages(prev => [...prev, userMsg, assistantMsg])
+      if (!messageText) {
+        setAttachments([])
+      }
+
       // Create abort controller for this request
       abortControllerRef.current = new AbortController()
 
@@ -502,7 +580,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          message: textToSend,
+          message: executionMessage,
           sessionId,
           contextMessages: messages.slice(-6).map(({ role, content }) => ({ role, content })),
           byok: byokForRequest(),
@@ -568,11 +646,19 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
       } else {
         setError(summarizeAgentChatFailure(String(e)))
       }
-      setMessages(prev => prev.map(m =>
-        m.id === assistantId
-          ? { ...m, content: summarizeAgentChatFailure(String(e)) }
-          : m
-      ))
+      if (!messageText) {
+        setInput(textToSend)
+        if (preparedAttachments.length > 0) {
+          setAttachments(preparedAttachments)
+        }
+      }
+      if (assistantId) {
+        setMessages(prev => prev.map(m =>
+          m.id === assistantId
+            ? { ...m, content: summarizeAgentChatFailure(String(e)) }
+            : m
+        ))
+      }
     } finally {
       setSending(false)
       setStreaming(false)
@@ -1087,7 +1173,38 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
 
         {/* Input */}
         <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-gray-200 shrink-0 dark:border-gray-700">
+          {attachments.length > 0 && (
+            <div className="mb-3 flex flex-wrap gap-2">
+              {attachments.map((attachment) => (
+                <div key={attachment.id} className="inline-flex max-w-full items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs text-gray-700 dark:border-sky-800 dark:bg-sky-950/20 dark:text-gray-200">
+                  <span className="truncate">
+                    {attachment.isImage ? 'Image' : 'File'}: {attachment.name}
+                    {attachment.uploadedPath ? <span className="ml-1 text-sky-700 dark:text-sky-300">in inbox</span> : null}
+                  </span>
+                  <button onClick={() => removeAttachment(attachment.id)} className="text-gray-400 hover:text-red-500">×</button>
+                </div>
+              ))}
+            </div>
+          )}
           <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={sending}
+              className="inline-flex items-center justify-center rounded-lg border border-gray-200 bg-gray-50 p-2 text-gray-600 transition-colors hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+              title="Attach files to this agent inbox"
+              aria-label="Attach files to this agent inbox"
+            >
+              <AttachIcon />
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept="image/*,.txt,.md,.json,.csv,.yaml,.yml,.pdf"
+              onChange={handleAttachFiles}
+              className="hidden"
+            />
             <button
               onClick={toggleVoiceInput}
               disabled={sending || !gatewayAvailable || !chatEnabled}
@@ -1146,7 +1263,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
                   }
                 }
               }}
-              placeholder={isListening ? "Listening..." : "Type or speak your message... (Enter to send)"}
+              placeholder={isListening ? "Listening..." : "Type, speak, or attach files... (Enter to send)"}
               disabled={sending || !gatewayAvailable || isListening || !chatEnabled}
               className="flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm disabled:bg-gray-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-900"
             />
@@ -1161,7 +1278,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
               <button
                 ref={sendButtonRef}
                 onClick={() => sendMessage()}
-                disabled={!input.trim() || sending || !gatewayAvailable || !chatEnabled}
+                disabled={(!input.trim() && attachments.length === 0) || sending || !gatewayAvailable || !chatEnabled}
                 className="px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition-colors text-sm font-medium disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed"
               >
                 Send
