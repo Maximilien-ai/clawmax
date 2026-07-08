@@ -154,18 +154,6 @@ try {
   }
 } catch {}
 
-const rawTrimmed = raw.trim()
-if (rawTrimmed) {
-  if (/Agent timeout/i.test(rawTrimmed)) {
-    finish({ ok: false, note: `error:${rawTrimmed}` })
-    process.exit(0)
-  }
-  if (/No model provider credentials are configured for this chat/i.test(rawTrimmed)) {
-    finish({ ok: false, note: `skipped:no-credentials:${rawTrimmed}` })
-    process.exit(0)
-  }
-}
-
 const dataLines = raw
   .split(/\r?\n/)
   .filter((line) => line.startsWith('data: '))
@@ -203,6 +191,18 @@ const finalText = (completeText || deltaText).trim()
 if (sawComplete || (sawDelta && finalText)) {
   finish({ ok: true, note: 'ok-stream', text: finalText })
   process.exit(0)
+}
+
+const rawTrimmed = raw.trim()
+if (rawTrimmed && dataLines.length === 0) {
+  if (/Agent timeout/i.test(rawTrimmed)) {
+    finish({ ok: false, note: `error:${rawTrimmed}` })
+    process.exit(0)
+  }
+  if (/No model provider credentials are configured for this chat/i.test(rawTrimmed)) {
+    finish({ ok: false, note: `skipped:no-credentials:${rawTrimmed}` })
+    process.exit(0)
+  }
 }
 
 finish({ ok: false, note: 'unexpected-format' })
@@ -269,6 +269,10 @@ classify_perf_model_availability() {
 
 write_perf_summary() {
   mkdir -p "$PERF_DIR"
+  local perf_chat_note_json
+  perf_chat_note_json=$(json_escape "${PERF_CHAT_NOTE:-}")
+  local perf_workflow_note_json
+  perf_workflow_note_json=$(json_escape "${PERF_WORKFLOW_PROGRESS_NOTE:-}")
   cat > "$PERF_SUMMARY_FILE" <<EOF
 {
   "generatedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
@@ -284,8 +288,8 @@ write_perf_summary() {
     "workflowKickoffCompleteMs": ${PERF_WORKFLOW_COMPLETE_MS:-null}
   },
   "notes": {
-    "agentChat": "${PERF_CHAT_NOTE:-}",
-    "workflowProgress": "${PERF_WORKFLOW_PROGRESS_NOTE:-}"
+    "agentChat": ${perf_chat_note_json},
+    "workflowProgress": ${perf_workflow_note_json}
   },
   "modelSamples": $(render_perf_model_samples_json)
 }

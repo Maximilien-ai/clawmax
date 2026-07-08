@@ -55,14 +55,6 @@ export function classifyAgentChatPayloadForPerf(raw: string): ChatPerfClassifica
     }
   } catch {}
 
-  const trimmedRaw = raw.trim()
-  if (trimmedRaw) {
-    if (/Agent timeout/i.test(trimmedRaw)) return { ok: false, note: `error:${trimmedRaw}` }
-    if (/No model provider credentials are configured for this chat/i.test(trimmedRaw)) {
-      return { ok: false, note: `skipped:no-credentials:${trimmedRaw}` }
-    }
-  }
-
   const dataLines = raw
     .split(/\r?\n/)
     .filter((line) => line.startsWith('data: '))
@@ -96,6 +88,14 @@ export function classifyAgentChatPayloadForPerf(raw: string): ChatPerfClassifica
   const finalText = (completeText || deltaText).trim()
   if (sawComplete || (sawDelta && finalText)) {
     return { ok: true, note: 'ok-stream', text: finalText }
+  }
+
+  const trimmedRaw = raw.trim()
+  if (trimmedRaw && dataLines.length === 0) {
+    if (/Agent timeout/i.test(trimmedRaw)) return { ok: false, note: `error:${trimmedRaw}` }
+    if (/No model provider credentials are configured for this chat/i.test(trimmedRaw)) {
+      return { ok: false, note: `skipped:no-credentials:${trimmedRaw}` }
+    }
   }
 
   return { ok: false, note: 'unexpected-format' }

@@ -54,6 +54,23 @@ test('classifies stream error payloads as skipped credential issues when appropr
   assert(result.note.startsWith('skipped:no-credentials:'), `Unexpected note: ${result.note}`)
 })
 
+test('ignores keepalive lines and still classifies SSE credential errors correctly', () => {
+  const result = classifyAgentChatPayloadForPerf(`: keepalive
+
+data: {"type":"start","data":{"sessionId":"abc"}}
+
+: keepalive
+
+data: {"type":"error","data":"No model provider credentials are configured for this chat."}
+
+data: {"type":"complete","data":{"text":""}}`)
+  assert(result.ok === false, 'Expected non-ok result')
+  assert(
+    result.note === 'skipped:no-credentials:No model provider credentials are configured for this chat.',
+    `Unexpected keepalive note: ${result.note}`,
+  )
+})
+
 test('maps curl timeout exit code to a transport timeout note', () => {
   const note = classifyCurlChatStatusForPerf(28)
   assert(note === 'error:transport-timeout:curl timed out waiting for chat response', `Unexpected curl note: ${note}`)
