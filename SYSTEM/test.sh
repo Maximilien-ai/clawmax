@@ -97,6 +97,19 @@ json_escape() {
   node -e 'console.log(JSON.stringify(process.argv[1] || ""))' "$1"
 }
 
+classify_curl_chat_status() {
+  local exit_code="$1"
+  case "$exit_code" in
+    0) echo "" ;;
+    28) echo "error:transport-timeout:curl timed out waiting for chat response" ;;
+    7) echo "error:transport-connect:could not connect to chat endpoint" ;;
+    22) echo "error:http-failure:chat request returned a failing HTTP status" ;;
+    52) echo "error:empty-reply:chat endpoint returned an empty reply" ;;
+    56) echo "error:transport-reset:chat connection was reset during streaming" ;;
+    *) echo "error:transport-curl-exit-${exit_code}:chat request failed before a usable response arrived" ;;
+  esac
+}
+
 classify_agent_chat_payload() {
   node - "$1" <<'EOF'
 const raw = process.argv[2] || ''
@@ -122,6 +135,14 @@ try {
     finish({ ok: true, note: 'ok', text: parsed.text.trim() })
     process.exit(0)
   }
+  if (typeof parsed?.response === 'string' && parsed.response.trim()) {
+    finish({ ok: true, note: 'ok-response', text: parsed.response.trim() })
+    process.exit(0)
+  }
+  if (typeof parsed?.message === 'string' && parsed.message.trim() && !parsed?.ok) {
+    finish(classifyErrorNote(parsed.message))
+    process.exit(0)
+  }
   const nestedResponse = parsed?.result?.response
   if (typeof nestedResponse === 'string' && nestedResponse.trim()) {
     finish({ ok: true, note: 'ok-json', text: nestedResponse.trim() })
@@ -133,10 +154,23 @@ try {
   }
 } catch {}
 
+const rawTrimmed = raw.trim()
+if (rawTrimmed) {
+  if (/Agent timeout/i.test(rawTrimmed)) {
+    finish({ ok: false, note: `error:${rawTrimmed}` })
+    process.exit(0)
+  }
+  if (/No model provider credentials are configured for this chat/i.test(rawTrimmed)) {
+    finish({ ok: false, note: `skipped:no-credentials:${rawTrimmed}` })
+    process.exit(0)
+  }
+}
+
 const dataLines = raw
   .split(/\r?\n/)
   .filter((line) => line.startsWith('data: '))
   .map((line) => line.slice(6))
+  .filter((line) => line !== '[DONE]')
 
 let sawComplete = false
 let sawDelta = false
@@ -173,6 +207,64 @@ if (sawComplete || (sawDelta && finalText)) {
 
 finish({ ok: false, note: 'unexpected-format' })
 EOF
+}
+
+resolve_perf_model_provider() {
+  local model="$1"
+  case "$model" in
+    openai/*) echo "openai" ;;
+    anthropic/*) echo "anthropic" ;;
+    google/*|gemini/*) echo "gemini" ;;
+    ollama/*) echo "ollama" ;;
+    openai-compatible/*) echo "openai-compatible" ;;
+    *) echo "unknown" ;;
+  esac
+}
+
+classify_perf_model_availability() {
+  local model="$1"
+  local provider
+  provider="$(resolve_perf_model_provider "$model")"
+  case "$provider" in
+    openai)
+      if [ -n "${BYOK_OPENAI:-}" ] || [ -n "${integration_openai_key:-}" ]; then
+        echo ""
+      else
+        echo "skipped:no-credentials:openai provider is not configured for perf sampling"
+      fi
+      ;;
+    anthropic)
+      if [ -n "${BYOK_ANTHROPIC:-}" ] || [ -n "${integration_anthropic_key:-}" ]; then
+        echo ""
+      else
+        echo "skipped:no-credentials:anthropic provider is not configured for perf sampling"
+      fi
+      ;;
+    gemini)
+      if [ -n "${BYOK_GEMINI:-}" ]; then
+        echo ""
+      else
+        echo "skipped:no-credentials:gemini provider is not configured for perf sampling"
+      fi
+      ;;
+    openai-compatible)
+      if [ -n "${OPENAI_COMPATIBLE_BASE_URL:-}" ] || [ -n "${OPENAI_COMPATIBLE_API_KEY:-}" ]; then
+        echo ""
+      else
+        echo "skipped:no-credentials:openai-compatible provider is not configured for perf sampling"
+      fi
+      ;;
+    ollama)
+      if [ -n "${OLLAMA_BASE_URL:-}" ]; then
+        echo ""
+      else
+        echo "skipped:no-credentials:ollama provider is not configured for perf sampling"
+      fi
+      ;;
+    *)
+      echo "skipped:unsupported-model:${model}"
+      ;;
+  esac
 }
 
 write_perf_summary() {
@@ -449,6 +541,15 @@ run_perf_model_matrix() {
     local patch_failed=false
     local patch_result=""
     local patch_error=""
+    local availability_note=""
+
+    availability_note=$(classify_perf_model_availability "$perf_model")
+    if [ -n "$availability_note" ]; then
+      sample_note="$availability_note"
+      warn "Perf sample ${perf_model} ${availability_note#skipped:}"
+      record_perf_model_sample "$perf_model" "$sample_ms" "$sample_note" "matrix"
+      continue
+    fi
 
     for agent_id in test-lead; do
       patch_result=$(apicurl -X PATCH "$API_BASE/api/agents/$agent_id/model" \
@@ -476,12 +577,18 @@ run_perf_model_matrix() {
     sample_result=$(apicurl_chat -X POST "$API_BASE/api/agents/test-lead/chat" \
       -H 'Content-Type: application/json' \
       -d "{\"message\":\"Say HELLO in exactly one word.\",\"sessionId\":\"perf-${session_slug}\"}" 2>/dev/null)
+    local sample_curl_status=$?
     local sample_finished_ms
     sample_finished_ms=$(now_ms)
     sample_ms=$(elapsed_ms "$sample_started_ms" "$sample_finished_ms")
     local sample_classification
-    sample_classification=$(classify_agent_chat_payload "$sample_result")
-    sample_note=$(echo "$sample_classification" | jq -r '.note // "unexpected-format"' 2>/dev/null)
+    if [ "$sample_curl_status" -ne 0 ] && [ -z "$sample_result" ]; then
+      sample_classification='{"ok":false}'
+      sample_note=$(classify_curl_chat_status "$sample_curl_status")
+    else
+      sample_classification=$(classify_agent_chat_payload "$sample_result")
+      sample_note=$(echo "$sample_classification" | jq -r '.note // "unexpected-format"' 2>/dev/null)
+    fi
 
     if echo "$sample_classification" | jq -e '.ok == true' > /dev/null 2>&1; then
       pass "Perf sample ${perf_model} chat works"
@@ -4360,10 +4467,16 @@ else
   chat_result=$(apicurl_chat -X POST "$API_BASE/api/agents/test-lead/chat" \
     -H 'Content-Type: application/json' \
     -d '{"message":"Say HELLO in exactly one word.","sessionId":"integration-test"}' 2>/dev/null)
+  chat_curl_status=$?
   chat_finished_ms=$(now_ms)
   PERF_CHAT_ROUNDTRIP_MS=$(elapsed_ms "$chat_started_ms" "$chat_finished_ms")
-  chat_classification=$(classify_agent_chat_payload "$chat_result")
-  PERF_CHAT_NOTE=$(echo "$chat_classification" | jq -r '.note // "unexpected-format"' 2>/dev/null)
+  if [ "$chat_curl_status" -ne 0 ] && [ -z "$chat_result" ]; then
+    PERF_CHAT_NOTE="$(classify_curl_chat_status "$chat_curl_status")"
+    chat_classification='{"ok":false}'
+  else
+    chat_classification=$(classify_agent_chat_payload "$chat_result")
+    PERF_CHAT_NOTE=$(echo "$chat_classification" | jq -r '.note // "unexpected-format"' 2>/dev/null)
+  fi
 
   if echo "$chat_classification" | jq -e '.ok == true' > /dev/null 2>&1; then
     response_text=$(echo "$chat_classification" | jq -r '.text // ""' | head -1)
