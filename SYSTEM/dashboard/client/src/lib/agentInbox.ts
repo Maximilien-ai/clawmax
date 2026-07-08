@@ -2,6 +2,7 @@ import type { PromptAttachment } from './promptAttachments'
 
 export interface AgentInboxAttachmentRef extends Pick<PromptAttachment, 'name' | 'contextSnippet' | 'isImage'> {
   uploadedPath?: string
+  uploadedPaths?: string[]
 }
 
 export type SharedInboxTargetType = 'group' | 'community'
@@ -21,19 +22,33 @@ export function buildSharedInboxTargetPath(type: SharedInboxTargetType, name: st
   return normalizedSubdir ? `${base}/${normalizedSubdir}` : base
 }
 
+export function getUploadedInboxPaths(attachment: AgentInboxAttachmentRef): string[] {
+  if (Array.isArray(attachment.uploadedPaths) && attachment.uploadedPaths.length > 0) {
+    return attachment.uploadedPaths.filter(Boolean)
+  }
+  return attachment.uploadedPath ? [attachment.uploadedPath] : []
+}
+
 export function buildAgentInboxDisplayMessage(baseMessage: string, attachments: AgentInboxAttachmentRef[]): string {
   const normalizedBase = baseMessage.trim()
-  const uploadedAttachments = attachments.filter((attachment) => !!attachment.uploadedPath)
-  if (!uploadedAttachments.length) return normalizedBase
+  const uploadedPaths = attachments.flatMap((attachment) => getUploadedInboxPaths(attachment))
+  if (!uploadedPaths.length) return normalizedBase
 
-  const lines = uploadedAttachments.map((attachment) => `- ${attachment.uploadedPath}`)
+  const lines = uploadedPaths.map((uploadedPath) => `- ${uploadedPath}`)
   const prefix = normalizedBase || 'Please review the attached inbox files.'
   return `${prefix}\n\nInbox files:\n${lines.join('\n')}`
 }
 
 export function appendAgentInboxAttachmentContext(baseMessage: string, attachments: AgentInboxAttachmentRef[]): string {
   const normalizedBase = baseMessage.trim() || 'Please review the attached inbox files.'
-  const uploadedAttachments = attachments.filter((attachment) => !!attachment.uploadedPath)
+  const uploadedAttachments = attachments.flatMap((attachment) => {
+    const paths = getUploadedInboxPaths(attachment)
+    return paths.map((uploadedPath) => ({
+      uploadedPath,
+      isImage: attachment.isImage,
+      contextSnippet: attachment.contextSnippet,
+    }))
+  })
   if (!uploadedAttachments.length) return normalizedBase
 
   const lines = uploadedAttachments.map((attachment) => {

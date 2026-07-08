@@ -600,7 +600,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
     try {
       const uploadedPaths: string[] = []
       for (const file of uploadFiles) {
-        const shouldExtract = extractZip && file.name.toLowerCase().endsWith('.zip')
+        const shouldExtract = file.name.toLowerCase().endsWith('.zip') && (extractZip || uploadTargetMode === 'agent')
         const res = await fetch(`/api/docs/upload?target=${encodeURIComponent(target)}&extractZip=${shouldExtract ? 'true' : 'false'}`, {
           method: 'POST',
           headers: {

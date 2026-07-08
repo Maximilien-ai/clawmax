@@ -8,6 +8,7 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import assert from 'assert'
+import { execFileSync } from 'child_process'
 import { resetWorkspaceManagerForTests } from '../lib/workspace-manager'
 
 const GREEN = '\x1b[32m'
@@ -183,6 +184,43 @@ async function run() {
       headers: {},
     }), missingHeaderRes)
     assert.strictEqual(missingHeaderRes.statusCode, 400, 'Expected missing file name header to return HTTP 400')
+  })
+
+  await test('upload route expands zip archives into inbox targets when extractZip=true', async () => {
+    const handler = getRouteHandler('post', '/upload')
+    const zipSourceRoot = fs.mkdtempSync(path.join(tmpHome, 'docs-upload-zip-src-'))
+    fs.mkdirSync(path.join(zipSourceRoot, 'nested'), { recursive: true })
+    fs.writeFileSync(path.join(zipSourceRoot, 'nested', 'brief.md'), '# Brief\n', 'utf-8')
+    fs.writeFileSync(path.join(zipSourceRoot, 'notes.txt'), 'hello zip\n', 'utf-8')
+
+    const zipPath = path.join(tmpHome, 'docs-upload.zip')
+    execFileSync('python3', ['-c', [
+      'import pathlib, sys, zipfile',
+      'src = pathlib.Path(sys.argv[1])',
+      'zip_path = pathlib.Path(sys.argv[2])',
+      'with zipfile.ZipFile(zip_path, "w") as zf:',
+      '    for item in src.rglob("*"):',
+      '        if item.is_file():',
+      '            zf.write(item, item.relative_to(src))',
+    ].join('\n'), zipSourceRoot, zipPath])
+
+    const res = makeRes()
+    await handler(makeReq({
+      query: {
+        target: 'AGENTS/test-agent/INBOX',
+        extractZip: 'true',
+      },
+      body: fs.readFileSync(zipPath),
+      headers: { 'x-file-name': 'briefing.zip' },
+    }), res)
+
+    assert.strictEqual(res.statusCode, 200, 'Expected zip upload to succeed')
+    assert.strictEqual(res.jsonBody?.ok, true, 'Expected ok response')
+    assert.strictEqual(res.jsonBody?.extracted, true, 'Expected extracted flag')
+    assert(Array.isArray(res.jsonBody?.files), 'Expected extracted files list')
+    assert((res.jsonBody?.files || []).includes('AGENTS/test-agent/INBOX/nested/brief.md'), 'Expected markdown extracted path')
+    assert(fs.existsSync(path.join(workspacePath, 'AGENTS', 'test-agent', 'INBOX', 'nested', 'brief.md')), 'Expected extracted markdown on disk')
+    assert(fs.existsSync(path.join(workspacePath, 'AGENTS', 'test-agent', 'INBOX', 'notes.txt')), 'Expected extracted text file on disk')
   })
 
   if (typeof originalHome === 'undefined') delete process.env.HOME

@@ -304,7 +304,8 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
     for (let index = 0; index < nextAttachments.length; index += 1) {
       const attachment = nextAttachments[index]
       if (attachment.uploadedPath) continue
-      const response = await fetch(`/api/docs/upload?target=${encodeURIComponent(inboxTarget)}`, {
+      const shouldExtractZip = attachment.name.toLowerCase().endsWith('.zip')
+      const response = await fetch(`/api/docs/upload?target=${encodeURIComponent(inboxTarget)}&extractZip=${shouldExtractZip ? 'true' : 'false'}`, {
         method: 'POST',
         headers: {
           'Content-Type': attachment.type || 'application/octet-stream',
@@ -313,12 +314,18 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
         body: await attachment.file.arrayBuffer(),
       })
       const data = await response.json().catch(() => ({}))
-      if (!response.ok || !data.ok || typeof data.path !== 'string') {
+      const uploadedPaths = Array.isArray(data.files)
+        ? data.files.filter((entry: unknown): entry is string => typeof entry === 'string' && entry.trim().length > 0)
+        : typeof data.path === 'string'
+          ? [data.path]
+          : []
+      if (!response.ok || !data.ok || uploadedPaths.length === 0) {
         throw new Error(data.error || `Failed to upload ${attachment.name}`)
       }
       nextAttachments[index] = {
         ...attachment,
-        uploadedPath: data.path,
+        uploadedPath: uploadedPaths[0],
+        uploadedPaths,
       }
     }
 

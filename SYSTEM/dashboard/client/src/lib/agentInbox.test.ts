@@ -46,6 +46,21 @@ test('builds a user-facing message with uploaded inbox paths', () => {
   assert(text.includes('AGENTS/mango-lead/INBOX/brief.md'), 'Expected uploaded path in display message')
 })
 
+test('includes every extracted inbox file path from zip uploads', () => {
+  const text = buildAgentInboxDisplayMessage('Please review these.', [
+    {
+      name: 'briefs.zip',
+      isImage: false,
+      uploadedPaths: [
+        'AGENTS/mango-lead/INBOX/briefs/alpha.md',
+        'AGENTS/mango-lead/INBOX/briefs/beta.md',
+      ],
+    },
+  ])
+  assert(text.includes('AGENTS/mango-lead/INBOX/briefs/alpha.md'), 'Expected first extracted path in display message')
+  assert(text.includes('AGENTS/mango-lead/INBOX/briefs/beta.md'), 'Expected second extracted path in display message')
+})
+
 test('builds an execution message with uploaded inbox paths and snippets', () => {
   const text = appendAgentInboxAttachmentContext('', [
     {
@@ -58,6 +73,22 @@ test('builds an execution message with uploaded inbox paths and snippets', () =>
   assert(text.startsWith('Please review the attached inbox files.'), 'Expected fallback instruction')
   assert(text.includes('Agent inbox files:'), 'Expected agent inbox section')
   assert(text.includes('Context: sales brief summary'), 'Expected inline text snippet')
+})
+
+test('builds execution context for extracted zip contents', () => {
+  const text = appendAgentInboxAttachmentContext('', [
+    {
+      name: 'briefs.zip',
+      isImage: false,
+      uploadedPaths: [
+        'GROUPS/mango-ops/INBOX/briefs/alpha.md',
+        'GROUPS/mango-ops/INBOX/briefs/beta.md',
+      ],
+      contextSnippet: 'zip summary',
+    },
+  ])
+  assert(text.includes('GROUPS/mango-ops/INBOX/briefs/alpha.md'), 'Expected extracted alpha path in context')
+  assert(text.includes('GROUPS/mango-ops/INBOX/briefs/beta.md'), 'Expected extracted beta path in context')
 })
 
 let passed = 0
