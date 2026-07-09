@@ -952,6 +952,45 @@ async function run() {
     assert.strictEqual(detailRes.jsonBody?.messages?.[0]?.content, 'Need help with the current thread')
   })
 
+  await test('clearing a mixed openclaw+runtime chat archives both stores in timestamp order (droid P1 regression)', async () => {
+    const { scopeSessionIdToModel } = require('../lib/agent-execution')
+    writeAgent(workspacePath, 'mixed-agent', [
+      '# IDENTITY.md',
+      '- **Name:** Mixed Agent',
+      '- **Model:** anthropic/claude-sonnet-4-20250514',
+    ].join('\n'))
+
+    // Same scoped session id the route resolves for the dashboard chat key.
+    const sid = scopeSessionIdToModel('agent:mixed-agent:dashboard-chat', 'anthropic/claude-sonnet-4-20250514')
+
+    // OpenClaw session file: an early turn (ts=1) and a late turn (ts=3).
+    const sessionsDir = path.join(tmpHome, '.openclaw', 'agents', 'mixed-agent', 'sessions')
+    fs.mkdirSync(sessionsDir, { recursive: true })
+    fs.writeFileSync(path.join(sessionsDir, `${sid}.jsonl`), [
+      JSON.stringify({ type: 'message', timestamp: 1, message: { role: 'user', content: [{ type: 'text', text: 'openclaw-early' }], timestamp: 1 } }),
+      JSON.stringify({ type: 'message', timestamp: 3, message: { role: 'assistant', content: [{ type: 'text', text: 'openclaw-late' }], timestamp: 3 } }),
+    ].join('\n'), 'utf-8')
+
+    // Runtime transcript for the SAME session: a turn that happened between them (ts=2).
+    const transcriptDir = path.join(workspacePath, 'SYSTEM', 'runtime-transcripts', 'mixed-agent')
+    fs.mkdirSync(transcriptDir, { recursive: true })
+    fs.writeFileSync(path.join(transcriptDir, `${sid}.jsonl`),
+      JSON.stringify({ role: 'user', content: 'runtime-middle', ts: 2 }) + '\n', 'utf-8')
+
+    const clearHandler = getRouteHandler('delete', '/:id/chat/messages')
+    const clearRes = makeRes()
+    await clearHandler(makeReq({ params: { id: 'mixed-agent' } }), clearRes)
+    assert.strictEqual(clearRes.jsonBody?.archived, true, 'Expected the mixed chat to be archived, not deleted')
+
+    const archiveDir = path.join(sessionsDir, 'archive')
+    const archiveFile = fs.readdirSync(archiveDir).find((name) => name.startsWith(sid))
+    assert.ok(archiveFile, 'Expected an archive file to be written')
+    const archivedOrder = fs.readFileSync(path.join(archiveDir, archiveFile!), 'utf-8')
+      .trim().split('\n').map((line) => JSON.parse(line).message.content)
+    assert.deepStrictEqual(archivedOrder, ['openclaw-early', 'runtime-middle', 'openclaw-late'],
+      'Expected the archive to preserve interleaved chronological order across both stores')
+  })
+
   await test('chat archives route ignores trajectory rows, parses prefixed timestamps, and avoids noisy titles', async () => {
     writeAgent(workspacePath, 'archive-agent', [
       '# IDENTITY.md',
