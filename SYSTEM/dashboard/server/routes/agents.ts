@@ -2627,8 +2627,11 @@ router.delete('/:id/chat/messages', async (req, res) => {
           let ts = 0
           try {
             const parsed = JSON.parse(raw)
-            ts = typeof parsed.timestamp === 'number' ? parsed.timestamp
-              : typeof parsed.message?.timestamp === 'number' ? parsed.message.timestamp : 0
+            // Match the read path's ordering key (parseVisibleChatMessages: msg.timestamp ||
+            // entry.timestamp) so the archive preserves exactly the order the user saw.
+            const msgTs = typeof parsed.message?.timestamp === 'number' ? parsed.message.timestamp : undefined
+            const entryTs = typeof parsed.timestamp === 'number' ? parsed.timestamp : undefined
+            ts = msgTs || entryTs || 0
           } catch {}
           return { ts, raw }
         })

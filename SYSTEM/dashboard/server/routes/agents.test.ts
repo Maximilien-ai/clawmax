@@ -963,13 +963,16 @@ async function run() {
     // Same scoped session id the route resolves for the dashboard chat key.
     const sid = scopeSessionIdToModel('agent:mixed-agent:dashboard-chat', 'anthropic/claude-sonnet-4-20250514')
 
-    // OpenClaw session file: an early turn (ts=1), an EMPTY-content turn (ts=2.5, must survive
-    // archiving), and a late turn (ts=4).
+    // OpenClaw session file: an early turn (ts=1), an EMPTY-content turn (must survive archiving),
+    // and a late turn. The empty row carries a top-level timestamp (100) that DISAGREES with its
+    // message.timestamp (2.5): the archive must order by message.timestamp — matching the read
+    // path's `msg.timestamp || entry.timestamp` — so it lands at 2.5 (between the runtime turn and
+    // the late turn), not at 100 (last).
     const sessionsDir = path.join(tmpHome, '.openclaw', 'agents', 'mixed-agent', 'sessions')
     fs.mkdirSync(sessionsDir, { recursive: true })
     fs.writeFileSync(path.join(sessionsDir, `${sid}.jsonl`), [
       JSON.stringify({ type: 'message', timestamp: 1, message: { role: 'user', content: [{ type: 'text', text: 'openclaw-early' }], timestamp: 1 } }),
-      JSON.stringify({ type: 'message', timestamp: 2.5, message: { role: 'assistant', content: [], timestamp: 2.5 } }),
+      JSON.stringify({ type: 'message', timestamp: 100, message: { role: 'assistant', content: [], timestamp: 2.5 } }),
       JSON.stringify({ type: 'message', timestamp: 4, message: { role: 'assistant', content: [{ type: 'text', text: 'openclaw-late' }], timestamp: 4 } }),
     ].join('\n'), 'utf-8')
 
