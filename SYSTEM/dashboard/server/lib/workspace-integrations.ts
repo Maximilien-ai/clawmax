@@ -1,10 +1,14 @@
 import fs from 'fs'
 import path from 'path'
 import { getWorkspacePath } from './workspace'
+import { normalizeAgentRuntime } from './agent-runtime'
 
 export interface WorkspaceIntegrationConfig {
   preferredModel?: string
   systemPreferredModel?: string
+  // Keep as an inline string union (not the `AgentRuntimeId` type) to avoid a type-level
+  // dependency on agent-runtime.ts, which already imports readWorkspaceIntegrationConfig from here.
+  agentRuntime?: 'openclaw' | 'claude' | 'droid'
   githubDefaultRepo?: string
   sensoContextLabel?: string
   ollamaBaseUrl?: string
@@ -116,6 +120,7 @@ export function writeWorkspaceIntegrationConfig(input: WorkspaceIntegrationConfi
   const next: WorkspaceIntegrationConfig = {
     preferredModel: input.preferredModel?.trim() || undefined,
     systemPreferredModel: input.systemPreferredModel?.trim() || undefined,
+    agentRuntime: normalizeAgentRuntime(input.agentRuntime),
     githubDefaultRepo: input.githubDefaultRepo?.trim() || undefined,
     sensoContextLabel: input.sensoContextLabel?.trim() || undefined,
     ollamaBaseUrl: input.ollamaBaseUrl?.trim() || undefined,

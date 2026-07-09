@@ -34,3 +34,19 @@
 6. The dashboard will display the public ngrok URL when ready.
 
 For more details, see the README.md.
+
+---
+
+## Agent Runtimes (optional)
+
+OpenClaw is the default agent runtime and needs no extra setup. To let agents run via Claude Code or Factory Droid instead:
+
+1. Install the CLI you want:
+   ```bash
+   npm install -g @anthropic-ai/claude-code          # Claude Code
+   curl -fsSL https://app.factory.ai/cli | sh         # Factory Droid
+   ```
+2. Set its auth key in `SYSTEM/dashboard/.env`: `ANTHROPIC_API_KEY` for Claude Code, `FACTORY_API_KEY` for Factory Droid.
+3. Pick a workspace default in **Integrations → Runtime**, or pin an individual agent to a runtime in the agent editor.
+
+`./setup.sh` and `./SYSTEM/doctor.sh` report whether each CLI is detected, but never install them automatically. See the "Agent Runtimes" section in [README.md](README.md) for the full picture, including headless auth and which features (Gateway, `openclaw logs`, `openclaw cron`) stay OpenClaw-only.

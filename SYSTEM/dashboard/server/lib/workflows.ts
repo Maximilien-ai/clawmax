@@ -20,6 +20,8 @@ import {
 import { readWorkspaceIntegrationConfig } from './workspace-integrations'
 import { hasWorkspaceManagedPartnerSecrets } from './workspace-integrations'
 import { resolveOpenClawCliPath } from './openclaw-cli'
+import { buildRuntimePlan, readAgentIdentitySystemPrompt, runRuntimeCli } from './agent-runtime'
+import { hasRuntimeSession } from './runtime-sessions'
 
 // Use dynamic workspace path to support multi-workspace
 function getWorkflowsDir(): string {
@@ -1118,15 +1120,26 @@ export function syncWorkflowToCron(workflow: Workflow, participants: string[]): 
   // Use first participant as the cron agent (OpenClaw cron targets one agent per job)
   // For multiagent workflows, we create one cron job per agent
   const results: string[] = []
+  let skippedNonOpenClaw = 0
 
   for (const agentId of participants) {
     const jobName = `clawmax-${workflow.id}-${agentId}`
 
-    // Remove existing job if any
+    // Remove existing job if any (e.g. a stale registration from before the agent's runtime was
+    // switched away from openclaw)
     const existingJobs = listCronJobs()
     const existing = existingJobs.find(j => j.name === jobName)
     if (existing) {
       removeCronJob(existing.id)
+    }
+
+    // openclaw cron only knows how to invoke the openclaw CLI — claude/droid participants are
+    // scheduled entirely by the in-process node-cron scheduler in lib/scheduler.ts instead.
+    const agentRuntime = resolveAgentExecutionConfig(agentId).runtime
+    if (agentRuntime !== 'openclaw') {
+      skippedNonOpenClaw++
+      console.log(`[Cron] cron: skipped openclaw cron registration for ${agentId} (runtime ${agentRuntime}); in-process scheduler covers it`)
+      continue
     }
 
     // Try to get agent's model from IDENTITY.md
@@ -1162,7 +1175,13 @@ export function syncWorkflowToCron(workflow: Workflow, participants: string[]): 
     }
   }
 
-  return { ok: results.length > 0, cronJobId: results.join(',') }
+  // Every participant was a non-openclaw runtime — nothing was attempted, so this isn't a
+  // failure, there's simply no openclaw cron registration for the in-process scheduler to need.
+  const attemptedOpenClawRegistration = participants.length > skippedNonOpenClaw
+  return {
+    ok: attemptedOpenClawRegistration ? results.length > 0 : true,
+    cronJobId: results.length > 0 ? results.join(',') : undefined,
+  }
 }
 
 export function removeCronJob(jobId: string): void {
@@ -1967,6 +1986,55 @@ export function triggerWorkflow(workflowId: string, options?: {
           const agentResponse = await runExclusiveAgentExecution(participant.agentId, async () => {
             const resolvedAgent = resolveAgentExecutionConfig(participant.agentId)
             executionEnv.CLAWMAX_AGENT_ID = participant.agentId
+
+            if (resolvedAgent.runtime !== 'openclaw') {
+              const runtimeSessionId = buildWorkflowSessionId(executionId, participant.agentId)
+              return await new Promise<string>((resolve, reject) => {
+                withTemporaryAgentAuthProfiles(participant.agentId, {
+                  openai: resolvedAgent.provider === 'openai-compatible' ? undefined : executionEnv.OPENAI_API_KEY,
+                  anthropic: executionEnv.ANTHROPIC_API_KEY,
+                  gemini: executionEnv.GEMINI_API_KEY,
+                  openaiCompatibleApiKey: resolvedAgent.provider === 'openai-compatible' ? executionEnv.OPENAI_API_KEY : undefined,
+                  openaiCompatibleBaseUrl: resolvedAgent.provider === 'openai-compatible' ? executionEnv.OPENAI_BASE_URL : undefined,
+                  openaiCompatibleDefaultModel: resolvedAgent.provider === 'openai-compatible'
+                    ? (options?.byok?.openaiCompatibleDefaultModel || integrationDefaults.openaiCompatibleDefaultModel || resolvedAgent.model)
+                    : undefined,
+                }, resolvedAgent.model, resolvedAgent.provider, async () => {
+                  const agentDir = resolvedAgent.workspace || path.join(getWorkspacePath(), 'AGENTS', participant.agentId)
+                  const systemPrompt = readAgentIdentitySystemPrompt(agentDir)
+                  const timeoutMs = getWorkflowAgentTimeoutMs()
+                  const startedAt = Date.now()
+                  const rebuildPlan = (resume: boolean) => buildRuntimePlan({
+                    runtime: resolvedAgent.runtime,
+                    mode: 'json',
+                    agentId: participant.agentId,
+                    scopedSessionId: runtimeSessionId,
+                    message: executionMessage,
+                    model: resolvedAgent.model,
+                    agentDir,
+                    systemPrompt,
+                    resume,
+                  })
+                  const plan = rebuildPlan(hasRuntimeSession(resolvedAgent.runtime, participant.agentId, runtimeSessionId))
+                  const { text, errorText } = await runRuntimeCli({
+                    plan,
+                    env: executionEnv,
+                    timeoutMs,
+                    rebuildPlan,
+                    runtime: resolvedAgent.runtime,
+                    mode: 'json',
+                    agentId: participant.agentId,
+                    scopedSessionId: runtimeSessionId,
+                  })
+                  if (errorText) {
+                    reject(new Error(errorText === 'timeout' ? formatWorkflowAgentTimeoutMessage(timeoutMs) : errorText))
+                    return
+                  }
+                  resolve({ text, meta: {}, durationMs: Date.now() - startedAt } as any)
+                }, { persistAuthProfiles: true, runtime: resolvedAgent.runtime }).catch(reject)
+              })
+            }
+
             const hasOllamaPath = !!(executionEnv.OLLAMA_BASE_URL || integrationDefaults.ollamaDefaultModel)
             if (resolvedAgent.provider === 'ollama' && !hasOllamaPath) {
               throw new Error(`Agent ${participant.agentId} is configured for ${resolvedAgent.model || 'ollama'}, but no Ollama runtime is configured`)

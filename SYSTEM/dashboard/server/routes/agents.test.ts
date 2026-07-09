@@ -125,6 +125,21 @@ function writeFakeOpenClawCli(tmpHome: string): string {
   return cliPath
 }
 
+function writeFakeDroidCli(filePath: string, resultText: string) {
+  const payload = JSON.stringify({
+    type: 'result',
+    subtype: 'success',
+    is_error: false,
+    duration_ms: 1,
+    num_turns: 1,
+    result: resultText,
+    session_id: 'fake-session',
+    usage: { input_tokens: 1, output_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+  })
+  fs.writeFileSync(filePath, `#!/bin/sh\necho '${payload}'\n`, 'utf-8')
+  fs.chmodSync(filePath, 0o755)
+}
+
 function makeReq(overrides: Record<string, any> = {}) {
   return {
     params: {},
@@ -1398,6 +1413,32 @@ async function run() {
     assert.strictEqual(res.statusCode, 400, 'Expected invalid config update id to return HTTP 400')
   })
 
+  await test('identity route surfaces the runtime pin for the agent edit form, omitting it when unset', async () => {
+    writeAgent(workspacePath, 'runtime-pinned-agent', [
+      '# IDENTITY.md',
+      '- **Name:** Pinned',
+      '- **Model:** anthropic/claude-sonnet-4-20250514',
+      '- **Runtime:** claude',
+    ].join('\n'))
+    writeAgent(workspacePath, 'runtime-default-agent', [
+      '# IDENTITY.md',
+      '- **Name:** Unpinned',
+      '- **Model:** anthropic/claude-sonnet-4-20250514',
+    ].join('\n'))
+
+    const identityHandler = getRouteHandler('get', '/:id/identity')
+
+    let res = makeRes()
+    await identityHandler(makeReq({ params: { id: 'runtime-pinned-agent' } }), res)
+    assert.strictEqual(res.statusCode, 200, 'Expected identity route success for pinned agent')
+    assert.strictEqual(res.jsonBody?.metadata?.runtime, 'claude', 'Expected pinned runtime to surface in identity metadata')
+
+    res = makeRes()
+    await identityHandler(makeReq({ params: { id: 'runtime-default-agent' } }), res)
+    assert.strictEqual(res.statusCode, 200, 'Expected identity route success for unpinned agent')
+    assert.strictEqual(res.jsonBody?.metadata?.runtime, undefined, 'Expected no runtime field when the agent has no pin')
+  })
+
   await test('agent model and tags routes reject invalid requests', async () => {
     const patchTagsHandler = getRouteHandler('patch', '/:id/tags')
     let res = makeRes()
@@ -1416,6 +1457,80 @@ async function run() {
     res = makeRes()
     await patchModelHandler(makeReq({ params: { id: 'plain-agent' }, body: {} }), res)
     assert.strictEqual(res.statusCode, 400, 'Expected missing model to return HTTP 400')
+  })
+
+  await test('runtime pin route validates input, persists to IDENTITY.md, and clears back to default', async () => {
+    writeAgent(workspacePath, 'runtime-route-agent', [
+      '# IDENTITY.md',
+      '- **Name:** Runtime Route Agent',
+      '- **Model:** anthropic/claude-sonnet-4-20250514',
+    ].join('\n'))
+    const identityPath = path.join(workspacePath, 'AGENTS', 'runtime-route-agent', 'IDENTITY.md')
+
+    const patchRuntimeHandler = getRouteHandler('patch', '/:id/runtime')
+
+    let res = makeRes()
+    await patchRuntimeHandler(makeReq({ params: { id: 'BAD ID' }, body: { runtime: 'claude' } }), res)
+    assert.strictEqual(res.statusCode, 400, 'Expected invalid runtime agent id to return HTTP 400')
+
+    res = makeRes()
+    await patchRuntimeHandler(makeReq({ params: { id: 'runtime-route-agent' }, body: {} }), res)
+    assert.strictEqual(res.statusCode, 400, 'Expected missing runtime to return HTTP 400')
+
+    res = makeRes()
+    await patchRuntimeHandler(makeReq({ params: { id: 'runtime-route-agent' }, body: { runtime: 'not-a-runtime' } }), res)
+    assert.strictEqual(res.statusCode, 400, 'Expected invalid runtime value to return HTTP 400')
+    assert(/default, openclaw, claude, droid/.test(res.jsonBody?.error || ''), 'Expected allowed runtime values listed in the error')
+
+    res = makeRes()
+    await patchRuntimeHandler(makeReq({ params: { id: 'missing-agent' }, body: { runtime: 'claude' } }), res)
+    assert.strictEqual(res.statusCode, 404, 'Expected missing agent runtime update to return HTTP 404')
+
+    res = makeRes()
+    await patchRuntimeHandler(makeReq({ params: { id: 'runtime-route-agent' }, body: { runtime: 'claude' } }), res)
+    assert.strictEqual(res.statusCode, 200, 'Expected valid runtime pin to succeed')
+    assert.strictEqual(res.jsonBody?.runtime, 'claude', 'Expected response to echo the normalized runtime')
+    assert(/\*\*Runtime:\*\* claude/.test(fs.readFileSync(identityPath, 'utf-8')), 'Expected runtime pin persisted to IDENTITY.md')
+
+    res = makeRes()
+    await patchRuntimeHandler(makeReq({ params: { id: 'runtime-route-agent' }, body: { runtime: 'default' } }), res)
+    assert.strictEqual(res.statusCode, 200, 'Expected clearing the runtime pin to succeed')
+    assert.strictEqual(res.jsonBody?.runtime, 'default', 'Expected response to echo default')
+    assert(!/\*\*Runtime:\*\*/.test(fs.readFileSync(identityPath, 'utf-8')), 'Expected runtime pin removed from IDENTITY.md')
+  })
+
+  await test('dashboard chat/messages route runs a droid-pinned agent through the runtime adapter instead of spawning openclaw', async () => {
+    writeAgent(workspacePath, 'droid-dashboard-chat', [
+      '# IDENTITY.md',
+      '- **Name:** Droid Dashboard Chat',
+      '- **Runtime:** droid',
+    ].join('\n'))
+
+    const droidCli = path.join(tmpHome, 'fake-droid-dashboard-chat')
+    writeFakeDroidCli(droidCli, 'hello from droid dashboard chat')
+    const originalDroidBin = process.env.DROID_BIN
+    process.env.DROID_BIN = droidCli
+
+    try {
+      const handler = getRouteHandler('post', '/:id/chat/messages')
+      const res = makeRes()
+      await handler(makeReq({ params: { id: 'droid-dashboard-chat' }, body: { message: 'hi' } }), res)
+      // The route resolves the droid CLI child process asynchronously (fire-and-forget past the
+      // await'd handler call, same as the existing openclaw branch below it); poll briefly for
+      // the real spawned fake-droid process to exit and call res.json().
+      for (let waited = 0; waited < 2000 && typeof res.jsonBody === 'undefined'; waited += 20) {
+        await new Promise(resolve => setTimeout(resolve, 20))
+      }
+      assert.strictEqual(res.statusCode, 200, 'Expected the droid-pinned dashboard chat call to succeed')
+      assert.strictEqual(
+        res.jsonBody?.result?.response,
+        'hello from droid dashboard chat',
+        'Expected the response text to come from the droid runtime adapter, not an openclaw JSON envelope'
+      )
+    } finally {
+      if (typeof originalDroidBin === 'undefined') delete process.env.DROID_BIN
+      else process.env.DROID_BIN = originalDroidBin
+    }
   })
 
   await test('agent archive and unarchive routes reject invalid ids and missing agents', async () => {

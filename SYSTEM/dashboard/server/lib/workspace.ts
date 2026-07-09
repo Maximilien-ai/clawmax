@@ -1450,6 +1450,9 @@ export function parseIdentity(content: string): any {
   const modelMatch = runtimeContent.match(/\*\*Model:\*\*\s*([^\n]+)/i)
   if (modelMatch) identity.model = modelMatch[1].trim()
 
+  const runtimeMatch = runtimeContent.match(/\*\*Runtime:\*\*\s*([^\n]+)/i)
+  if (runtimeMatch) identity.runtime = runtimeMatch[1].trim()
+
   const whatsappMatch = runtimeContent.match(/\*\*WhatsApp:\*\*\s*(\+?[0-9]+)?/i)
   if (whatsappMatch) {
     const value = (whatsappMatch[1] || '').trim()

@@ -2589,6 +2589,24 @@ else
   fail "Agent execution runtime unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Agent runtime adapter unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/agent-runtime.test.ts > /tmp/clawmax-agent-runtime.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-agent-runtime.out; then
+  agent_runtime_count=$(grep "Tests passed:" /tmp/clawmax-agent-runtime.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Agent runtime adapter unit tests (${agent_runtime_count:-?} tests)"
+else
+  fail "Agent runtime adapter unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Runtime session store unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/runtime-sessions.test.ts > /tmp/clawmax-runtime-sessions.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-runtime-sessions.out; then
+  runtime_sessions_count=$(grep "Tests passed:" /tmp/clawmax-runtime-sessions.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Runtime session store unit tests (${runtime_sessions_count:-?} tests)"
+else
+  fail "Runtime session store unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Workflow session regression tests...${NC}"
 npx ts-node --transpileOnly server/lib/workflow-session-regressions.test.ts > /tmp/clawmax-workflow-session-regressions.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-workflow-session-regressions.out; then

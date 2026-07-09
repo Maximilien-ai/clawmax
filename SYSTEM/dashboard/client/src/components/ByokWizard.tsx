@@ -15,7 +15,7 @@ function maskKey(value: string) {
   return `${value.slice(0, 4)}••••${value.slice(-4)}`
 }
 
-type Step = 'models' | 'partners' | `partner:${string}`
+type Step = 'models' | 'partners' | 'runtime' | `partner:${string}`
 type ModelTab = 'openai' | 'anthropic' | 'gemini' | 'ollama' | 'openaiCompatible'
 type ProviderKey = 'openai' | 'anthropic' | 'gemini' | 'ollama'
 type ValidationEntry = { status: 'idle' | 'valid' | 'invalid' | 'error' | 'skipped'; message: string }
@@ -67,6 +67,16 @@ type IntegrationStatus = {
   visiblePartners: string[]
   partnerDefinitions: PartnerDefinition[]
 }
+type AgentRuntimeId = 'openclaw' | 'claude' | 'droid'
+type RuntimeStatus = {
+  id: AgentRuntimeId
+  label: string
+  installed: boolean
+  version?: string
+  cliPath?: string
+  installHint: string
+  active: boolean
+}
 type WorkspaceIntegrationConfig = {
   preferredModel?: string
   systemPreferredModel?: string
@@ -80,6 +90,7 @@ type WorkspaceIntegrationConfig = {
   opikProject?: string
   enabledPartners?: string[]
   partners?: Record<string, Record<string, string | boolean | undefined>>
+  agentRuntime?: AgentRuntimeId
 }
 type PartnerValueMap = Record<string, Record<string, string>>
 type PartnerSecretPresence = Record<string, Record<string, boolean>>
@@ -204,6 +215,9 @@ export function ByokWizard({
   const [openaiCompatibleDefaultModel, setOpenaiCompatibleDefaultModel] = useState('')
   const [preferredModel, setPreferredModel] = useState('')
   const [systemPreferredModel, setSystemPreferredModel] = useState('')
+  const [agentRuntime, setAgentRuntime] = useState('')
+  const [runtimeStatuses, setRuntimeStatuses] = useState<RuntimeStatus[]>([])
+  const [runtimeStatusesLoading, setRuntimeStatusesLoading] = useState(false)
   const [partnerSecrets, setPartnerSecrets] = useState<PartnerValueMap>({})
   const [serverPartnerSecretPresence, setServerPartnerSecretPresence] = useState<PartnerSecretPresence>({})
   const [partnerValues, setPartnerValues] = useState<PartnerValueMap>({})
@@ -406,6 +420,7 @@ export function ByokWizard({
         setServerPartnerSecretPresence(typeof data?.secretPresence === 'object' && data.secretPresence ? data.secretPresence : {})
         setPreferredModel((current) => current || workspaceConfig.preferredModel || '')
         setSystemPreferredModel((current) => current || workspaceConfig.systemPreferredModel || '')
+        setAgentRuntime((current) => current || workspaceConfig.agentRuntime || '')
         setOllamaBaseUrl((current) => {
           const nextDefault = resolveOllamaBaseUrlForRuntime({
             configuredBaseUrl: workspaceConfig.ollamaBaseUrl || '',
@@ -553,7 +568,7 @@ export function ByokWizard({
   }, [lockedPartnerSlugs])
 
   const stepOrder = useMemo<Step[]>(
-    () => ['models', 'partners', ...selectedPartnerDefinitions.map((partner) => `partner:${partner.slug}` as const)],
+    () => ['models', 'partners', 'runtime', ...selectedPartnerDefinitions.map((partner) => `partner:${partner.slug}` as const)],
     [selectedPartnerDefinitions]
   )
 
@@ -791,6 +806,18 @@ export function ByokWizard({
 
     void refreshGithubChecks({ silent: true })
   }, [open, refreshGithubChecks])
+
+  useEffect(() => {
+    if (!open) return
+    setRuntimeStatusesLoading(true)
+    fetch('/api/integrations/runtimes')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        setRuntimeStatuses(Array.isArray(data?.runtimes) ? data.runtimes : [])
+      })
+      .catch(() => setRuntimeStatuses([]))
+      .finally(() => setRuntimeStatusesLoading(false))
+  }, [open])
 
   const loadOllamaModels = React.useCallback(async (forceRefresh: boolean = false) => {
     if (!ollamaEnabled) {
@@ -1243,6 +1270,7 @@ export function ByokWizard({
       body: JSON.stringify({
         preferredModel: preferredModel || undefined,
         systemPreferredModel: systemPreferredModel || undefined,
+        agentRuntime: agentRuntime || undefined,
         githubDefaultRepo: githubDefaultRepo.trim() || undefined,
         sensoContextLabel: sensoContextLabel.trim() || undefined,
         ollamaBaseUrl: ollamaEnabled ? (effectiveOllamaBaseUrl.trim() || undefined) : undefined,
@@ -1464,12 +1492,12 @@ export function ByokWizard({
   }
 
   const goToNextStep = () => {
-    if (step === 'partners' && selectedPartnerDefinitions.length === 0) {
+    const nextStep = stepOrder[currentStepIndex + 1]
+    if (!nextStep) {
       void handleSave()
       return
     }
-    const nextStep = stepOrder[currentStepIndex + 1]
-    if (nextStep) setStep(nextStep)
+    setStep(nextStep)
   }
 
   const goToPreviousStep = () => {
@@ -1896,6 +1924,14 @@ export function ByokWizard({
                 >
                   {initialStep === 'partners' ? 'Partners' : '2. Partners'}
                 </button>
+                <span>→</span>
+                <button
+                  type="button"
+                  onClick={() => setStep('runtime')}
+                  className={`px-2 py-1 rounded-full transition-colors ${step === 'runtime' ? 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 font-medium' : 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+                >
+                  {initialStep === 'partners' ? 'Runtime' : '3. Runtime'}
+                </button>
                 {selectedPartnerDefinitions.map((partner, index) => (
                   <React.Fragment key={partner.slug}>
                     <span>→</span>
@@ -1904,7 +1940,7 @@ export function ByokWizard({
                       onClick={() => setStep(`partner:${partner.slug}`)}
                       className={`px-2 py-1 rounded-full transition-colors ${step === `partner:${partner.slug}` ? 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 font-medium' : 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
                     >
-                      {initialStep === 'partners' ? partner.name : `${index + 3}. ${partner.name}`}
+                      {initialStep === 'partners' ? partner.name : `${index + 4}. ${partner.name}`}
                     </button>
                   </React.Fragment>
                 ))}
@@ -2458,8 +2494,65 @@ export function ByokWizard({
                   <div className="flex items-center gap-2">
                     <button onClick={handleSave} className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">Save &amp; Close</button>
                     <button onClick={goToNextStep} className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors">
-                      {selectedPartnerDefinitions.length > 0 ? 'Next →' : 'Save Integrations'}
+                      {currentStepIndex < stepOrder.length - 1 ? 'Next →' : 'Save Integrations'}
                     </button>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {step === 'runtime' && (
+              <>
+                <div className="mt-4 rounded-xl border border-cyan-200 dark:border-cyan-800 bg-cyan-50 dark:bg-cyan-900/20 p-4 text-sm text-cyan-900 dark:text-cyan-100">
+                  <div className="font-medium">Agent execution runtime</div>
+                  <div className="mt-1">
+                    Choose which CLI runs your agents by default. Individual agents can still pin their own runtime from the agent edit form.
+                  </div>
+                </div>
+
+                <div className="mt-5 space-y-4">
+                  {runtimeStatusesLoading && runtimeStatuses.length === 0 && (
+                    <div className="text-[11px] text-gray-500 dark:text-gray-400">Detecting installed runtimes…</div>
+                  )}
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    {runtimeStatuses.map((status) => (
+                      <button
+                        key={status.id}
+                        type="button"
+                        onClick={() => setAgentRuntime(status.id)}
+                        className={`rounded-lg border px-3 py-2 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500 ${
+                          (agentRuntime || 'openclaw') === status.id
+                            ? 'ring-2 ring-sky-400 dark:ring-sky-600 '
+                            : ''
+                        }${
+                          status.installed
+                            ? 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-100'
+                            : 'border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300'
+                        }`}
+                        aria-pressed={(agentRuntime || 'openclaw') === status.id}
+                        title={`Use ${status.label} to run agents`}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="font-medium">{status.label}</span>
+                          <span className="text-xs uppercase tracking-wide opacity-80">
+                            {status.installed ? `detected${status.version ? ` ${status.version}` : ''}` : 'not installed'}
+                          </span>
+                        </div>
+                        <div className="mt-1 text-xs opacity-80">{status.installed ? (status.cliPath || 'Ready') : status.installHint}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mt-6 flex items-center justify-between gap-3">
+                  <button onClick={goToPreviousStep} className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors">&larr; Back</button>
+                  <div className="flex items-center gap-2">
+                    <button onClick={handleSave} className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">Save &amp; Close</button>
+                    {currentStepIndex < stepOrder.length - 1 ? (
+                      <button onClick={goToNextStep} className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors">Next &rarr;</button>
+                    ) : (
+                      <button onClick={handleSave} className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors">Save Integrations</button>
+                    )}
                   </div>
                 </div>
               </>

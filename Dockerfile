@@ -123,6 +123,25 @@ COPY --from=openclaw-builder /opt/openclaw-src/openclaw-*.tgz /tmp/openclaw.tgz
 RUN npm install -g /tmp/openclaw.tgz \
   && rm -f /tmp/openclaw.tgz
 
+# Claude Code CLI (optional agent runtime: claude). Agents can be pinned to
+# this runtime instead of OpenClaw; ANTHROPIC_API_KEY must be set for it to
+# authenticate. Pinned via ARG so image builds stay reproducible.
+ARG CLAUDE_CODE_VERSION=2.1.205
+RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}
+
+# Factory Droid CLI (optional agent runtime: droid). Factory does not publish
+# droid to npm; it ships a curl-piped installer that drops a platform binary
+# at $HOME/.local/bin/droid. HOME is not set to /app until later in this
+# stage, so it's pinned here explicitly to match the runtime HOME (see `ENV
+# HOME=/app` below) and keep resolveRuntimeCliPath's `~/.local/bin/droid`
+# fallback consistent between build time and container run time. The
+# installer does not currently accept a version pin, so FACTORY_DROID_VERSION
+# is recorded for operator visibility/upgrade tracking only — re-verify this
+# install command against Factory's published docs if it ever changes.
+ARG FACTORY_DROID_VERSION=0.158.0
+RUN HOME=/app curl -fsSL https://app.factory.ai/cli | sh \
+  && /app/.local/bin/droid --version
+
 COPY --from=builder /app/SYSTEM/dashboard/dist ./dist
 COPY --from=builder /app/SYSTEM/dashboard/server/schemas ./server/schemas
 
