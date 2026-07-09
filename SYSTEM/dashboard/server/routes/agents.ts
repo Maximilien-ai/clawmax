@@ -2619,15 +2619,25 @@ router.delete('/:id/chat/messages', async (req, res) => {
       let archiveContent: string
       if (openclawExists && runtimeTurns.length > 0) {
         // Mixed session (chatted under openclaw, then re-pinned to claude/droid on the same scoped
-        // session id): merge both stores' visible messages by timestamp so the archived transcript
-        // preserves the interleaved order the user saw, matching readMergedChatSessionMessages.
-        const merged = [
-          ...readChatSessionMessages(id, actualSessionId, HOME),
-          ...runtimeTurns.map((turn) => ({ role: turn.role, content: turn.content, timestamp: turn.ts })),
-        ].sort((a, b) => a.timestamp - b.timestamp)
-        archiveContent = merged
-          .map((m) => JSON.stringify({ type: 'message', message: { role: m.role, content: m.content, timestamp: m.timestamp } }))
-          .join('\n') + '\n'
+        // session id): interleave by timestamp so the archive preserves the order the user saw. Keep
+        // the OpenClaw lines VERBATIM (parsing only their timestamp for ordering) so nothing that the
+        // openclaw-only verbatim-copy path would keep — empty-content rows, non-message rows — is lost.
+        const openclawLines = fs.readFileSync(jsonlPath, 'utf-8').split('\n').filter((line) => line.trim())
+        const ordered: Array<{ ts: number; raw: string }> = openclawLines.map((raw) => {
+          let ts = 0
+          try {
+            const parsed = JSON.parse(raw)
+            ts = typeof parsed.timestamp === 'number' ? parsed.timestamp
+              : typeof parsed.message?.timestamp === 'number' ? parsed.message.timestamp : 0
+          } catch {}
+          return { ts, raw }
+        })
+        runtimeTurns.forEach((turn) => {
+          ordered.push({ ts: turn.ts, raw: JSON.stringify({ type: 'message', message: { role: turn.role, content: turn.content, timestamp: turn.ts } }) })
+        })
+        // Stable sort preserves each store's internal order for equal timestamps.
+        ordered.sort((a, b) => a.ts - b.ts)
+        archiveContent = ordered.map((entry) => entry.raw).join('\n') + '\n'
       } else if (openclawExists) {
         // OpenClaw-only: preserve the raw session file verbatim (unchanged behavior).
         archiveContent = fs.readFileSync(jsonlPath, 'utf-8')

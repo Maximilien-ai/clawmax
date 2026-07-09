@@ -963,12 +963,14 @@ async function run() {
     // Same scoped session id the route resolves for the dashboard chat key.
     const sid = scopeSessionIdToModel('agent:mixed-agent:dashboard-chat', 'anthropic/claude-sonnet-4-20250514')
 
-    // OpenClaw session file: an early turn (ts=1) and a late turn (ts=3).
+    // OpenClaw session file: an early turn (ts=1), an EMPTY-content turn (ts=2.5, must survive
+    // archiving), and a late turn (ts=4).
     const sessionsDir = path.join(tmpHome, '.openclaw', 'agents', 'mixed-agent', 'sessions')
     fs.mkdirSync(sessionsDir, { recursive: true })
     fs.writeFileSync(path.join(sessionsDir, `${sid}.jsonl`), [
       JSON.stringify({ type: 'message', timestamp: 1, message: { role: 'user', content: [{ type: 'text', text: 'openclaw-early' }], timestamp: 1 } }),
-      JSON.stringify({ type: 'message', timestamp: 3, message: { role: 'assistant', content: [{ type: 'text', text: 'openclaw-late' }], timestamp: 3 } }),
+      JSON.stringify({ type: 'message', timestamp: 2.5, message: { role: 'assistant', content: [], timestamp: 2.5 } }),
+      JSON.stringify({ type: 'message', timestamp: 4, message: { role: 'assistant', content: [{ type: 'text', text: 'openclaw-late' }], timestamp: 4 } }),
     ].join('\n'), 'utf-8')
 
     // Runtime transcript for the SAME session: a turn that happened between them (ts=2).
@@ -985,10 +987,15 @@ async function run() {
     const archiveDir = path.join(sessionsDir, 'archive')
     const archiveFile = fs.readdirSync(archiveDir).find((name) => name.startsWith(sid))
     assert.ok(archiveFile, 'Expected an archive file to be written')
-    const archivedOrder = fs.readFileSync(path.join(archiveDir, archiveFile!), 'utf-8')
-      .trim().split('\n').map((line) => JSON.parse(line).message.content)
-    assert.deepStrictEqual(archivedOrder, ['openclaw-early', 'runtime-middle', 'openclaw-late'],
-      'Expected the archive to preserve interleaved chronological order across both stores')
+    const archivedLines = fs.readFileSync(path.join(archiveDir, archiveFile!), 'utf-8').trim().split('\n').map((line) => JSON.parse(line))
+    // The empty OpenClaw row must be preserved verbatim (droid P1: parsing openclaw through the
+    // visible-message filter would have dropped it), so all 4 rows survive in timestamp order.
+    assert.strictEqual(archivedLines.length, 4, 'Expected all 4 rows (incl. the empty openclaw turn) to be archived')
+    const textOf = (msg: any) => Array.isArray(msg.content)
+      ? msg.content.map((c: any) => c?.text || '').join('')
+      : String(msg.content ?? '')
+    assert.deepStrictEqual(archivedLines.map((l) => textOf(l.message)), ['openclaw-early', 'runtime-middle', '', 'openclaw-late'],
+      'Expected interleaved chronological order across both stores with the empty openclaw turn intact')
   })
 
   await test('chat archives route ignores trajectory rows, parses prefixed timestamps, and avoids noisy titles', async () => {
