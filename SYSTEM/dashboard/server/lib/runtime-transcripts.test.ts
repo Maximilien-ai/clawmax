@@ -14,6 +14,7 @@ import {
   getLatestRuntimeTranscriptSessionId,
   hasRuntimeTranscripts,
   readRuntimeTranscript,
+  readRuntimeTranscriptAsArchiveLines,
 } from './runtime-transcripts'
 
 const GREEN = '\x1b[32m'
@@ -222,6 +223,22 @@ test('getLatestRuntimeTranscriptSessionId returns the most recently written sess
     // sessions.json, so history routes resolve the active session from this pointer — it must
     // reflect transcript writes alone, with no openclaw session store present at all.
     assert.strictEqual(getLatestRuntimeTranscriptSessionId('agent-without-transcripts'), null)
+  })
+})
+
+test('readRuntimeTranscriptAsArchiveLines renders OpenClaw archive-format JSONL the archive parser accepts', () => {
+  withWorkspace(() => {
+    assert.strictEqual(readRuntimeTranscriptAsArchiveLines('agent1', 'sess1'), '', 'empty when no transcript')
+    appendRuntimeTranscriptExchange('agent1', 'sess1', 'hello there', 'general kenobi')
+    const lines = readRuntimeTranscriptAsArchiveLines('agent1', 'sess1').trim().split('\n')
+    assert.strictEqual(lines.length, 2)
+    const first = JSON.parse(lines[0])
+    // Shape must match what the archives list/detail parser reads: {type:'message', message:{role,content,timestamp}}.
+    assert.strictEqual(first.type, 'message')
+    assert.strictEqual(first.message.role, 'user')
+    assert.strictEqual(first.message.content, 'hello there')
+    assert.strictEqual(typeof first.message.timestamp, 'number')
+    assert.strictEqual(JSON.parse(lines[1]).message.role, 'assistant')
   })
 })
 

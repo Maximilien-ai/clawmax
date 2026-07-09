@@ -163,6 +163,23 @@ export function getLatestRuntimeTranscriptSessionId(agentId: string): string | n
   }
 }
 
+/**
+ * Runtime transcript turns rendered as OpenClaw archive-format JSONL lines
+ * (`{type:'message', message:{role, content, timestamp}}`), so clear-history can fold claude/droid
+ * turns into the same archive file the archives list/detail routes already parse. Returns '' when
+ * the agent+session has no transcript. Does not delete anything — the caller clears after archiving.
+ */
+export function readRuntimeTranscriptAsArchiveLines(agentId: string, scopedSessionId: string): string {
+  const turns = readRuntimeTranscript(agentId, scopedSessionId)
+  if (turns.length === 0) return ''
+  return turns
+    .map((turn) => JSON.stringify({
+      type: 'message',
+      message: { role: turn.role, content: turn.content, timestamp: turn.ts },
+    }))
+    .join('\n') + '\n'
+}
+
 /** Delete the transcript file for one agent+session (used by clear-history). Tolerates a missing file. */
 export function clearRuntimeTranscript(agentId: string, scopedSessionId: string): void {
   try {

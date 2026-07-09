@@ -1548,7 +1548,7 @@ async function run() {
     }
   })
 
-  await test('dashboard chat/messages route hands a claude-pinned agent the workspace ANTHROPIC_API_KEY (P2 regression: safeEnv() used to strip it)', async () => {
+  await test('dashboard chat/messages route hands a claude-pinned agent user-execution ANTHROPIC_API_KEY per the Separated Key Policy', async () => {
     writeAgent(workspacePath, 'claude-dashboard-chat', [
       '# IDENTITY.md',
       '- **Name:** Claude Dashboard Chat',
@@ -1562,8 +1562,14 @@ async function run() {
     process.env.CLAUDE_BIN = claudeCli
 
     try {
+      // This route is user-initiated agent execution, so it must resolve keys through the USER
+      // execution path (userExecutionEnv → resolveUserExecutionProviderKeys), NOT the system path.
+      // Stub the user resolver with a key and a system resolver with a DIFFERENT key: the CLI must
+      // receive the user key, proving the route honors the Separated Key Policy rather than leaking
+      // SYSTEM_* keys into user chats.
       await withDashboardEnvStubs({
-        resolveSystemExecutionProviderKeys: () => ({ anthropic: 'sk-ant-test-system-key' }),
+        resolveUserExecutionProviderKeys: () => ({ anthropic: 'sk-ant-user-key' }),
+        resolveSystemExecutionProviderKeys: () => ({ anthropic: 'sk-ant-system-key-must-not-leak' }),
       }, async () => {
         const handler = getRouteHandler('post', '/:id/chat/messages')
         const res = makeRes()
@@ -1576,8 +1582,8 @@ async function run() {
         assert.strictEqual(res.statusCode, 200, 'Expected the claude-pinned dashboard chat call to succeed')
         assert.strictEqual(
           res.jsonBody?.result?.response,
-          'ANTHROPIC_API_KEY=sk-ant-test-system-key',
-          'Expected the spawned claude CLI to see the workspace-configured ANTHROPIC_API_KEY in its env'
+          'ANTHROPIC_API_KEY=sk-ant-user-key',
+          'Expected the spawned claude CLI to see the user-execution ANTHROPIC_API_KEY, not the system key'
         )
       })
     } finally {
