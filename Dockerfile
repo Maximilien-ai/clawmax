@@ -132,15 +132,20 @@ RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}
 # Factory Droid CLI (optional agent runtime: droid). Factory does not publish
 # droid to npm; it ships a curl-piped installer that drops a platform binary
 # at $HOME/.local/bin/droid. HOME is not set to /app until later in this
-# stage, so it's pinned here explicitly to match the runtime HOME (see `ENV
+# stage, so it's exported here explicitly to match the runtime HOME (see `ENV
 # HOME=/app` below) and keep resolveRuntimeCliPath's `~/.local/bin/droid`
-# fallback consistent between build time and container run time. The
-# installer does not currently accept a version pin, so FACTORY_DROID_VERSION
-# is recorded for operator visibility/upgrade tracking only — re-verify this
-# install command against Factory's published docs if it ever changes.
+# fallback consistent between build time and container run time. `export` is
+# required (not a `VAR=value cmd` prefix) because the installer runs as `sh`
+# on the far side of a pipe — a leading assignment only scopes to the literal
+# command it precedes (`curl`), not to `sh`, so it would never see HOME=/app.
+# The installer does not currently accept a version pin, so
+# FACTORY_DROID_VERSION is recorded for operator visibility/upgrade tracking
+# only — re-verify this install command against Factory's published docs if
+# it ever changes.
 ARG FACTORY_DROID_VERSION=0.158.0
-RUN HOME=/app curl -fsSL https://app.factory.ai/cli | sh \
-  && /app/.local/bin/droid --version
+RUN export HOME=/app \
+  && curl -fsSL https://app.factory.ai/cli | sh \
+  && "$HOME/.local/bin/droid" --version
 
 COPY --from=builder /app/SYSTEM/dashboard/dist ./dist
 COPY --from=builder /app/SYSTEM/dashboard/server/schemas ./server/schemas

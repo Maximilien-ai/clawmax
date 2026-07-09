@@ -191,6 +191,22 @@ export function claudeSessionUuid(scopedSessionId: string, agentId: string): str
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`
 }
 
+// ── Deterministic droid session id ──
+
+const DROID_SESSION_ID_MAX_LENGTH = 48
+
+export function droidSessionId(scopedSessionId: string, agentId: string): string {
+  // Droid's `-s` value is looked up in a flat, workspace-wide session store with zero validation
+  // (droid-probe.md probe 2c: an unrecognized id silently starts a brand-new session keyed off
+  // that literal string). Mixing agentId into the hash — same reasoning as claudeSessionUuid
+  // above — guarantees two different agents can never collide on the same underlying droid
+  // session even when handed an identical raw scopedSessionId (e.g. agents sharing a DM key).
+  // Hex output is already droid-safe ([0-9a-f]) and the slice keeps it well under droid's
+  // documented ~48-char safe session-id length.
+  const hash = crypto.createHash('sha256').update(`clawmax:droid:${agentId}:${scopedSessionId}`).digest('hex')
+  return hash.slice(0, DROID_SESSION_ID_MAX_LENGTH)
+}
+
 // ── Spawn plan ──
 
 export interface RuntimePlan {
@@ -245,7 +261,7 @@ export function buildRuntimePlan(o: {
   const args = [
     'exec', o.message,
     ...(droidModel ? ['-m', droidModel] : []),
-    '-s', o.scopedSessionId,
+    '-s', droidSessionId(o.scopedSessionId, o.agentId),
     '--auto', 'high',
     '-o', 'json',
     '--cwd', o.agentDir,
