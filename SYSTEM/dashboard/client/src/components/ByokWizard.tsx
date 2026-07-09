@@ -9,6 +9,7 @@ import { BROWSER_VAULT_UPDATED_EVENT, readPartnerValuesFromSharedSecrets, readSh
 import { resolveResendTestRecipientEmail } from '../lib/resendTestEmail'
 import { formatOpenAiDeprecationNotice, formatOpenAiModelLabel, isSelectableLifecycleModel } from '../lib/openAiModelLifecycle'
 import { describeRuntimeStatusesFetchError, describeRuntimeStatusesViewState } from '../lib/runtimeStatusesLoading'
+import { resolveReloadedAgentRuntime } from '../lib/agentRuntimeReload'
 import { PartnerLogo } from './PartnerLogo'
 
 function maskKey(value: string) {
@@ -217,6 +218,7 @@ export function ByokWizard({
   const [preferredModel, setPreferredModel] = useState('')
   const [systemPreferredModel, setSystemPreferredModel] = useState('')
   const [agentRuntime, setAgentRuntime] = useState('')
+  const lastSyncedRuntimeWorkspaceIdRef = useRef<string | null>(null)
   const [runtimeStatuses, setRuntimeStatuses] = useState<RuntimeStatus[]>([])
   const [runtimeStatusesLoading, setRuntimeStatusesLoading] = useState(false)
   const [runtimeStatusesError, setRuntimeStatusesError] = useState<string | null>(null)
@@ -422,7 +424,13 @@ export function ByokWizard({
         setServerPartnerSecretPresence(typeof data?.secretPresence === 'object' && data.secretPresence ? data.secretPresence : {})
         setPreferredModel((current) => current || workspaceConfig.preferredModel || '')
         setSystemPreferredModel((current) => current || workspaceConfig.systemPreferredModel || '')
-        setAgentRuntime((current) => current || workspaceConfig.agentRuntime || '')
+        setAgentRuntime((current) => resolveReloadedAgentRuntime({
+          currentValue: current,
+          loadedValue: workspaceConfig.agentRuntime || '',
+          loadedWorkspaceId: activeWorkspace?.id ?? null,
+          lastSyncedWorkspaceId: lastSyncedRuntimeWorkspaceIdRef.current,
+        }))
+        lastSyncedRuntimeWorkspaceIdRef.current = activeWorkspace?.id ?? null
         setOllamaBaseUrl((current) => {
           const nextDefault = resolveOllamaBaseUrlForRuntime({
             configuredBaseUrl: workspaceConfig.ollamaBaseUrl || '',

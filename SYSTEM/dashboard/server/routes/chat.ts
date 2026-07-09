@@ -25,6 +25,7 @@ import {
 } from '../lib/agent-execution'
 import { buildRuntimePlan, runRuntimeCli, readAgentIdentitySystemPrompt, RuntimeModelError } from '../lib/agent-runtime'
 import { hasRuntimeSession } from '../lib/runtime-sessions'
+import { appendRuntimeTranscriptExchange } from '../lib/runtime-transcripts'
 import { getAuthenticatedSession } from '../lib/github-auth'
 
 const router = Router()
@@ -842,6 +843,11 @@ router.post('/:id/chat', async (req, res) => {
       clearChatTimeoutWatchdog()
 
       const completionText = normalizeChatMessage(text.trim())
+      // OpenClaw's own CLI persists its turns to a JSONL session file the dashboard already reads
+      // (see readChatSessionMessages in routes/agents.ts); claude/droid have no such dashboard-local
+      // record, so this is the only place a non-openclaw dashboard chat turn gets persisted for
+      // refresh / archive / clear-history to find later.
+      appendRuntimeTranscriptExchange(id, executionSessionId, message, completionText)
       if (!completionText) {
         send('error', errorText === 'timeout'
           ? 'Agent timeout (3 minutes)'

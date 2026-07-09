@@ -43,4 +43,24 @@ assert_contains "COPY SKILLS/custom/clawmax-workspace-ls ./SKILLS/custom/clawmax
 assert_contains "COPY SKILLS/custom/workspace-ls ./SKILLS/custom/workspace-ls"
 assert_contains "COPY SYSTEM/dashboard/clawmax-resend-send /usr/local/bin/clawmax-resend-send"
 
+assert_not_contains() {
+  needle="$1"
+  if grep -F "$needle" "$DOCKERFILE" >/dev/null 2>&1; then
+    echo "Expected Dockerfile to NOT contain: $needle" >&2
+    exit 1
+  fi
+}
+
+# Factory Droid must be genuinely pinned via a checksum-verified direct
+# download keyed off FACTORY_DROID_VERSION, not the mutable curl|sh
+# installer piped straight into the image (see Dockerfile comment).
+assert_not_contains "curl -fsSL https://app.factory.ai/cli | sh"
+assert_contains "ARG FACTORY_DROID_VERSION=0.158.0"
+assert_contains 'droid_url="https://downloads.factory.ai/factory-cli/releases/${FACTORY_DROID_VERSION}/linux/${droid_arch}${droid_suffix}/droid"'
+assert_contains "curl -fsSL -o /tmp/droid \"\$droid_url\""
+assert_contains "curl -fsSL -o /tmp/droid.sha256 \"\${droid_url}.sha256\""
+assert_contains 'actual_sha="$(sha256sum /tmp/droid | awk '"'"'{print $1}'"'"')"'
+assert_contains '[ -n "$expected_sha" ] && [ "$actual_sha" = "$expected_sha" ]'
+assert_contains 'droid" --version | grep -F "${FACTORY_DROID_VERSION}"'
+
 echo "dockerfile openclaw builder tests passed"

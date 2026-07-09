@@ -130,22 +130,53 @@ ARG CLAUDE_CODE_VERSION=2.1.205
 RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}
 
 # Factory Droid CLI (optional agent runtime: droid). Factory does not publish
-# droid to npm; it ships a curl-piped installer that drops a platform binary
-# at $HOME/.local/bin/droid. HOME is not set to /app until later in this
-# stage, so it's exported here explicitly to match the runtime HOME (see `ENV
-# HOME=/app` below) and keep resolveRuntimeCliPath's `~/.local/bin/droid`
-# fallback consistent between build time and container run time. `export` is
-# required (not a `VAR=value cmd` prefix) because the installer runs as `sh`
-# on the far side of a pipe — a leading assignment only scopes to the literal
-# command it precedes (`curl`), not to `sh`, so it would never see HOME=/app.
-# The installer does not currently accept a version pin, so
-# FACTORY_DROID_VERSION is recorded for operator visibility/upgrade tracking
-# only — re-verify this install command against Factory's published docs if
-# it ever changes.
+# droid to npm. Its published installer (https://app.factory.ai/cli) is a
+# curl-piped shell script that is NOT genuinely pinnable: it hardcodes an
+# internal `VER=` literal with no environment-variable override, so `curl
+# https://app.factory.ai/cli | sh` always installs whatever the remote script
+# bakes in that day — mutable and unreproducible at image build time. That
+# installer script does, however, resolve to a versioned, checksummed
+# artifact under the hood:
+#   https://downloads.factory.ai/factory-cli/releases/<version>/<platform>/<arch>/droid
+#   https://downloads.factory.ai/factory-cli/releases/<version>/<platform>/<arch>/droid.sha256
+# (the installer's own "Checksum verification passed" message comes from
+# comparing a sha256sum of the downloaded binary against that `.sha256`
+# sidecar). We bypass the mutable wrapper script and perform that exact
+# download-then-checksum step ourselves against FACTORY_DROID_VERSION, so the
+# ARG genuinely pins the artifact instead of being informational. The
+# `--version | grep` at the end fails the build if the checksum-verified
+# binary reports a different version than the one we asked for, so a
+# checksum-valid-but-wrong-version artifact still can't slip through.
+# HOME is not set to /app until later in this stage, so it's exported here
+# explicitly to match the runtime HOME (see `ENV HOME=/app` below) and keep
+# resolveRuntimeCliPath's `~/.local/bin/droid` fallback consistent between
+# build time and container run time.
 ARG FACTORY_DROID_VERSION=0.158.0
 RUN export HOME=/app \
-  && curl -fsSL https://app.factory.ai/cli | sh \
-  && "$HOME/.local/bin/droid" --version
+  && droid_arch="$(uname -m)" \
+  && case "$droid_arch" in \
+       x86_64|amd64) droid_arch="x64" ;; \
+       arm64|aarch64) droid_arch="arm64" ;; \
+       *) echo "Unsupported architecture for droid: $droid_arch" >&2; exit 1 ;; \
+     esac \
+  && droid_suffix="" \
+  && if [ "$droid_arch" = "x64" ] && ! grep -qi avx2 /proc/cpuinfo 2>/dev/null; then \
+       droid_suffix="-baseline"; \
+     fi \
+  && droid_url="https://downloads.factory.ai/factory-cli/releases/${FACTORY_DROID_VERSION}/linux/${droid_arch}${droid_suffix}/droid" \
+  && command -v sha256sum >/dev/null 2>&1 \
+    || { echo "sha256sum is required to verify the droid download" >&2; exit 1; } \
+  && curl -fsSL -o /tmp/droid "$droid_url" \
+  && curl -fsSL -o /tmp/droid.sha256 "${droid_url}.sha256" \
+  && actual_sha="$(sha256sum /tmp/droid | awk '{print $1}')" \
+  && expected_sha="$(cat /tmp/droid.sha256)" \
+  && [ -n "$expected_sha" ] && [ "$actual_sha" = "$expected_sha" ] \
+    || { echo "droid checksum mismatch: expected '$expected_sha', got '$actual_sha'" >&2; exit 1; } \
+  && mkdir -p "$HOME/.local/bin" \
+  && install -m 0755 /tmp/droid "$HOME/.local/bin/droid" \
+  && rm -f /tmp/droid /tmp/droid.sha256 \
+  && "$HOME/.local/bin/droid" --version | grep -F "${FACTORY_DROID_VERSION}" \
+    || { echo "droid --version did not report pinned version ${FACTORY_DROID_VERSION}" >&2; exit 1; }
 
 COPY --from=builder /app/SYSTEM/dashboard/dist ./dist
 COPY --from=builder /app/SYSTEM/dashboard/server/schemas ./server/schemas

@@ -140,6 +140,21 @@ function writeFakeDroidCli(filePath: string, resultText: string) {
   fs.chmodSync(filePath, 0o755)
 }
 
+// Fake `claude -p ... --output-format json` that dumps its own spawned ANTHROPIC_API_KEY env var
+// into the JSON result envelope instead of echoing a fixed string, so the caller can assert on
+// exactly what environment the route handed the child process (regression coverage for the P2
+// finding: this route used to build the child env with safeEnv(), which never carries
+// ANTHROPIC_API_KEY, so a claude-pinned agent silently authenticated with an empty key).
+function writeFakeClaudeCliDumpingAnthropicKey(filePath: string) {
+  const script = [
+    '#!/bin/sh',
+    'echo "{\\"type\\":\\"result\\",\\"subtype\\":\\"success\\",\\"is_error\\":false,\\"result\\":\\"ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY\\",\\"session_id\\":\\"fake-session\\"}"',
+    '',
+  ].join('\n')
+  fs.writeFileSync(filePath, script, 'utf-8')
+  fs.chmodSync(filePath, 0o755)
+}
+
 function makeReq(overrides: Record<string, any> = {}) {
   return {
     params: {},
@@ -1530,6 +1545,44 @@ async function run() {
     } finally {
       if (typeof originalDroidBin === 'undefined') delete process.env.DROID_BIN
       else process.env.DROID_BIN = originalDroidBin
+    }
+  })
+
+  await test('dashboard chat/messages route hands a claude-pinned agent the workspace ANTHROPIC_API_KEY (P2 regression: safeEnv() used to strip it)', async () => {
+    writeAgent(workspacePath, 'claude-dashboard-chat', [
+      '# IDENTITY.md',
+      '- **Name:** Claude Dashboard Chat',
+      '- **Model:** anthropic/claude-sonnet-4-20250514',
+      '- **Runtime:** claude',
+    ].join('\n'))
+
+    const claudeCli = path.join(tmpHome, 'fake-claude-dashboard-chat')
+    writeFakeClaudeCliDumpingAnthropicKey(claudeCli)
+    const originalClaudeBin = process.env.CLAUDE_BIN
+    process.env.CLAUDE_BIN = claudeCli
+
+    try {
+      await withDashboardEnvStubs({
+        resolveSystemExecutionProviderKeys: () => ({ anthropic: 'sk-ant-test-system-key' }),
+      }, async () => {
+        const handler = getRouteHandler('post', '/:id/chat/messages')
+        const res = makeRes()
+        await handler(makeReq({ params: { id: 'claude-dashboard-chat' }, body: { message: 'hi' } }), res)
+        // Same fire-and-forget shape as the droid case above; poll briefly for the real spawned
+        // fake-claude process to exit and call res.json().
+        for (let waited = 0; waited < 2000 && typeof res.jsonBody === 'undefined'; waited += 20) {
+          await new Promise(resolve => setTimeout(resolve, 20))
+        }
+        assert.strictEqual(res.statusCode, 200, 'Expected the claude-pinned dashboard chat call to succeed')
+        assert.strictEqual(
+          res.jsonBody?.result?.response,
+          'ANTHROPIC_API_KEY=sk-ant-test-system-key',
+          'Expected the spawned claude CLI to see the workspace-configured ANTHROPIC_API_KEY in its env'
+        )
+      })
+    } finally {
+      if (typeof originalClaudeBin === 'undefined') delete process.env.CLAUDE_BIN
+      else process.env.CLAUDE_BIN = originalClaudeBin
     }
   })
 
