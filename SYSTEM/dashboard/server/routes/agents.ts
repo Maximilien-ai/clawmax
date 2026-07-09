@@ -8,12 +8,13 @@ import { generateAgentFiles, generateArchiveTitle } from '../lib/ai-generator'
 import { importAgentFromTemplate } from '../lib/templates'
 import { getConfiguredGatewayPort, getGatewayClient, isGatewayConfigured, isGatewayRunning, probeGatewayResponsive } from '../lib/gateway-rpc'
 import { listWorkflows, resolveParticipants } from '../lib/workflows'
-import { safeEnv, validatePort } from '../lib/safe-env'
+import { safeEnv, systemExecutionEnv, validatePort } from '../lib/safe-env'
 import { validateAgentConfigSections, validateProvisionInput } from '../lib/agent-config-validation'
 import type { AgentModelConfigUpdateResult } from '../lib/agent-model'
 import { normalizeAgentModelInput, resetAgentSessionsForModelChange, upsertAgentModelInConfigFile, upsertAgentModelInIdentityContent, upsertAgentRuntimeInIdentityContent } from '../lib/agent-model'
 import { AGENT_RUNTIME_IDS, buildRuntimePlan, detectRuntimeStatuses, normalizeAgentRuntime, readAgentIdentitySystemPrompt, resolveWorkspaceRuntime, runRuntimeCli } from '../lib/agent-runtime'
 import { hasRuntimeSession } from '../lib/runtime-sessions'
+import { appendRuntimeTranscriptExchange, clearRuntimeTranscript, hasRuntimeTranscripts, readRuntimeTranscript } from '../lib/runtime-transcripts'
 import { validateAgentCostLimit } from '../lib/budget'
 import {
   getSystemProviderKeys,
@@ -411,6 +412,19 @@ function readChatSessionMessages(agentId: string, sessionId: string, homeDir: st
     return []
   }
   return parseVisibleChatMessages(fs.readFileSync(jsonlPath, 'utf-8'))
+}
+
+// Merges openclaw's own session JSONL (read above) with the runtime-transcripts store that
+// claude/droid chat turns are appended to (see lib/runtime-transcripts.ts). Both stores are keyed
+// by the same scoped session id, so a single agent's history can legitimately span both — e.g. an
+// agent chatted with while pinned to openclaw, then re-pinned to droid under the same model. Sorted
+// oldest-first (newest-last), matching the chronological order both individual stores already use.
+function readMergedChatSessionMessages(agentId: string, sessionId: string, homeDir: string = process.env.HOME || '') {
+  const openclawMessages = readChatSessionMessages(agentId, sessionId, homeDir)
+  const runtimeMessages = readRuntimeTranscript(agentId, sessionId)
+    .map((turn) => ({ role: turn.role, content: turn.content, timestamp: turn.ts }))
+  if (runtimeMessages.length === 0) return openclawMessages
+  return [...openclawMessages, ...runtimeMessages].sort((a, b) => a.timestamp - b.timestamp)
 }
 
 function getArchiveRestoreSessionId(agentId: string, homeDir: string = process.env.HOME || ''): string {
@@ -2057,7 +2071,13 @@ router.post('/:id/chat/messages', async (req, res) => {
         const plan = rebuildPlan(hasRuntimeSession(resolvedAgent.runtime, id, sessionId))
         runRuntimeCli({
           plan,
-          env: safeEnv(),
+          // This route takes no BYOK payload (dashboard ChatPanel posts { message } only), so — unlike
+          // chat.ts/channels.ts, which layer request-level BYOK over userExecutionEnv() — there's nothing
+          // to layer. Use the workspace's configured system provider keys directly (ANTHROPIC_API_KEY for
+          // claude, mirrors FACTORY_API_KEY's unconditional safeEnv passthrough for droid) so a claude/droid
+          // -pinned agent authenticates the same way the openclaw branch below already does via its own
+          // config, without requiring the interactive-BYOK opt-in gate (ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION).
+          env: systemExecutionEnv(),
           timeoutMs: 600000, // 10 min timeout, matches the openclaw path below
           rebuildPlan,
           runtime: resolvedAgent.runtime,
@@ -2070,6 +2090,7 @@ router.post('/:id/chat/messages', async (req, res) => {
             return
           }
           const responseText = normalizeChatMessage(text) || 'No response from agent'
+          appendRuntimeTranscriptExchange(id, sessionId, message, responseText)
           res.json({ ok: true, result: { response: responseText } })
           resolve()
         }).catch(reject)
@@ -2531,8 +2552,10 @@ router.get('/:id/chat/messages', async (req, res) => {
     const sessionsDir = getAgentSessionsDir(id, HOME)
     const sessionsIndexPath = path.join(sessionsDir, 'sessions.json')
 
-    // Check if sessions index exists
-    if (!fs.existsSync(sessionsIndexPath) && !fs.existsSync(sessionsDir)) {
+    // Check if either store has anything for this agent — openclaw's own session index/dir, or a
+    // non-openclaw (claude/droid) runtime transcript. A claude/droid-only agent never gets an
+    // openclaw sessions dir at all, so this check must not bail out before consulting the latter.
+    if (!fs.existsSync(sessionsIndexPath) && !fs.existsSync(sessionsDir) && !hasRuntimeTranscripts(id)) {
       return res.json({ messages: [] })
     }
 
@@ -2542,7 +2565,7 @@ router.get('/:id/chat/messages', async (req, res) => {
       return res.json({ messages: [] })
     }
 
-    res.json({ messages: readChatSessionMessages(id, actualSessionId, HOME) })
+    res.json({ messages: readMergedChatSessionMessages(id, actualSessionId, HOME) })
   } catch (err) {
     res.status(500).json({ error: String(err) })
   }
@@ -2560,7 +2583,7 @@ router.delete('/:id/chat/messages', async (req, res) => {
     const sessionsDir = getAgentSessionsDir(id, HOME)
     const sessionsIndexPath = path.join(sessionsDir, 'sessions.json')
 
-    if (!fs.existsSync(sessionsIndexPath) && !fs.existsSync(sessionsDir)) {
+    if (!fs.existsSync(sessionsIndexPath) && !fs.existsSync(sessionsDir) && !hasRuntimeTranscripts(id)) {
       return res.json({ ok: true, archived: false })
     }
 
@@ -2572,6 +2595,11 @@ router.delete('/:id/chat/messages', async (req, res) => {
     if (!actualSessionId) {
       return res.json({ ok: true, archived: false })
     }
+
+    // Runtime transcripts (claude/droid) have no archive concept of their own yet — clearing just
+    // deletes the transcript for this session, same as clearing openclaw history when there's no
+    // session file to archive below.
+    clearRuntimeTranscript(id, actualSessionId)
 
     const jsonlPath = path.join(sessionsDir, `${actualSessionId}.jsonl`)
 
@@ -2618,12 +2646,18 @@ router.get('/:id/chat/archives', async (req, res) => {
     const archiveDir = path.join(sessionsDir, 'archive')
 
     const activeSessionId = resolveAgentChatSessionId(id, HOME)
-    const activeSessionMessages = activeSessionId ? readChatSessionMessages(id, activeSessionId, HOME) : []
+    // readMergedChatSessionMessages pulls from both stores, so this entry (and its message count/
+    // timestamp below) reflects claude/droid runtime-transcript turns too, not just openclaw's own
+    // session file — a claude/droid-only agent never has an openclaw .jsonl to stat at all.
+    const activeSessionMessages = activeSessionId ? readMergedChatSessionMessages(id, activeSessionId, HOME) : []
     const activeSessionPath = activeSessionId ? path.join(sessionsDir, `${activeSessionId}.jsonl`) : null
-    const activeEntry = activeSessionId && activeSessionMessages.length > 0 && activeSessionPath && fs.existsSync(activeSessionPath)
+    const activeSessionTimestamp = activeSessionPath && fs.existsSync(activeSessionPath)
+      ? fs.statSync(activeSessionPath).mtimeMs
+      : (activeSessionMessages[activeSessionMessages.length - 1]?.timestamp ?? Date.now())
+    const activeEntry = activeSessionId && activeSessionMessages.length > 0
       ? [{
           filename: `current:${activeSessionId}`,
-          timestamp: fs.statSync(activeSessionPath).mtimeMs,
+          timestamp: activeSessionTimestamp,
           messageCount: activeSessionMessages.length,
           messages: activeSessionMessages.map((message) => ({ role: message.role, content: message.content })),
           active: true,
