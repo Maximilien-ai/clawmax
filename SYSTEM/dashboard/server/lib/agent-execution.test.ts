@@ -11,12 +11,14 @@ import {
   deriveWorkspaceRootFromAgentWorkspace,
   getAgentExecutionRetryDelay,
   isOpenClawSessionLockError,
+  providerFromModel,
   readLatestAssistantTextFromPersistedSession,
   readLatestAssistantUsageFromPersistedSession,
   resolvePersistedAgentSessionId,
   resolveAgentExecutionConfig,
   runExclusiveAgentExecution,
   scopeSessionIdToModel,
+  shouldRetryWithBackupModel,
   withTemporaryAgentAuthProfiles,
 } from './agent-execution'
 import { REPO_ROOT } from './paths'
@@ -77,6 +79,32 @@ test('resolveAgentExecutionConfig falls back to IDENTITY model when openclaw.jso
   const resolved = resolveAgentExecutionConfig('test1')
   assert(resolved.model === 'openai/gpt-4o-mini', 'Expected IDENTITY model fallback')
   assert(resolved.provider === 'openai', 'Expected provider derived from model')
+})
+
+test('resolveAgentExecutionConfig includes a distinct backup model when configured', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
+  const workspace = path.join(home, 'workspace')
+  const agentWorkspace = path.join(workspace, 'AGENTS', 'backup-agent')
+  const agentDir = path.join(home, '.openclaw', 'agents', 'backup-agent', 'agent')
+  fs.mkdirSync(agentWorkspace, { recursive: true })
+  fs.mkdirSync(path.join(home, '.openclaw'), { recursive: true })
+  fs.writeFileSync(path.join(agentWorkspace, 'IDENTITY.md'), '# Identity\n\n- **Model:** openai/gpt-4o-mini\n- **Backup Model:** anthropic/claude-sonnet-4-20250514\n', 'utf-8')
+  fs.writeFileSync(path.join(home, '.openclaw', 'openclaw.json'), JSON.stringify({
+    agents: {
+      list: [
+        { id: 'backup-agent', workspace: agentWorkspace, agentDir, model: 'openai/gpt-4o-mini', backupModel: 'anthropic/claude-sonnet-4-20250514' }
+      ]
+    }
+  }, null, 2))
+
+  process.env.HOME = home
+  process.env.OPENCLAW_WORKSPACE = workspace
+  resetWorkspaceManagerForTests()
+
+  const resolved = resolveAgentExecutionConfig('backup-agent')
+  assert(resolved.model === 'openai/gpt-4o-mini', 'Expected primary model to resolve')
+  assert(resolved.backupModel === 'anthropic/claude-sonnet-4-6', 'Expected backup model to resolve')
+  assert(resolved.backupProvider === 'anthropic', 'Expected backup provider derived from backup model')
 })
 
 test('resolveAgentExecutionConfig remaps retired openai/gpt-4o identities to openai/gpt-4.1', () => {
@@ -352,6 +380,13 @@ test('scopeSessionIdToModel isolates chats across model changes', () => {
   assert(!scoped.includes(':'), 'Expected scoped session id to be sanitized for OpenClaw')
   assert(scoped.includes('group-temp-test-agent1'), 'Expected original session prefix preserved in safe form')
   assert(scoped.includes('ollama-qwen2-5-latest'), 'Expected sanitized model suffix')
+})
+
+test('providerFromModel and shouldRetryWithBackupModel classify backup-retry conditions', () => {
+  assert(providerFromModel('anthropic/claude-sonnet-4-20250514') === 'anthropic', 'Expected providerFromModel to detect Anthropic provider')
+  assert(shouldRetryWithBackupModel('Agent timeout (3 minutes)'), 'Expected timeout to trigger backup retry')
+  assert(shouldRetryWithBackupModel('Unknown model: gpt-super-pro'), 'Expected unsupported model to trigger backup retry')
+  assert(!shouldRetryWithBackupModel('The agent replied with a blocked business rule.'), 'Expected semantic failures not to trigger backup retry')
 })
 
 test('resolvePersistedAgentSessionId uses mapped session file when preferred alias has no file', () => {

@@ -15,6 +15,7 @@ import { validateWorkflow } from './validator'
 import {
   resolveAgentExecutionConfig,
   runExclusiveAgentExecution,
+  shouldRetryWithBackupModel,
   withTemporaryAgentAuthProfiles,
 } from './agent-execution'
 import { readWorkspaceIntegrationConfig } from './workspace-integrations'
@@ -1966,77 +1967,87 @@ export function triggerWorkflow(workflowId: string, options?: {
           // Call agent via CLI
           const agentResponse = await runExclusiveAgentExecution(participant.agentId, async () => {
             const resolvedAgent = resolveAgentExecutionConfig(participant.agentId)
-            executionEnv.CLAWMAX_AGENT_ID = participant.agentId
-            const hasOllamaPath = !!(executionEnv.OLLAMA_BASE_URL || integrationDefaults.ollamaDefaultModel)
-            if (resolvedAgent.provider === 'ollama' && !hasOllamaPath) {
-              throw new Error(`Agent ${participant.agentId} is configured for ${resolvedAgent.model || 'ollama'}, but no Ollama runtime is configured`)
-            }
             const openclawCliPath = resolveWorkflowOpenClawCliPath()
-            const gatewayRunning = resolvedAgent.provider === 'ollama'
-              ? false
-              : (await waitForGatewayResponsive()).running
-            const useLocal = resolvedAgent.provider === 'ollama' || !gatewayRunning || hasWorkspaceManagedPartnerSecrets()
-            const sessionId = buildWorkflowSessionId(executionId, participant.agentId)
-            repairWorkflowSessionEntryForRun(participant.agentId, sessionId)
-            const args = ['agent', '--agent', participant.agentId, '--session-id', sessionId, '--message', executionMessage, '--json', ...(useLocal ? ['--local'] : [])]
-            return await new Promise<string>((resolve, reject) => {
-              withTemporaryAgentAuthProfiles(participant.agentId, {
-              openai: resolvedAgent.provider === 'openai-compatible' ? undefined : executionEnv.OPENAI_API_KEY,
-              anthropic: executionEnv.ANTHROPIC_API_KEY,
-              gemini: executionEnv.GEMINI_API_KEY,
-              openaiCompatibleApiKey: resolvedAgent.provider === 'openai-compatible' ? executionEnv.OPENAI_API_KEY : undefined,
-              openaiCompatibleBaseUrl: resolvedAgent.provider === 'openai-compatible' ? executionEnv.OPENAI_BASE_URL : undefined,
-              openaiCompatibleDefaultModel: resolvedAgent.provider === 'openai-compatible'
-                ? (options?.byok?.openaiCompatibleDefaultModel || integrationDefaults.openaiCompatibleDefaultModel || resolvedAgent.model)
-                : undefined,
-              }, resolvedAgent.model, resolvedAgent.provider, async () => {
-                await new Promise<void>((innerResolve) => {
-                  const proc = spawn(openclawCliPath, args, { env: executionEnv })
-                  let stdout = ''
-                  let stderr = ''
-                  const timeoutMs = getWorkflowAgentTimeoutMs()
-                  const timer = setTimeout(() => {
-                    proc.kill()
-                    reject(new Error(formatWorkflowAgentTimeoutMessage(timeoutMs)))
-                  }, timeoutMs)
+            executionEnv.CLAWMAX_AGENT_ID = participant.agentId
+            const executeAttempt = async (attemptModel: string | undefined, attemptProvider: typeof resolvedAgent.provider) => {
+              const hasOllamaPath = !!(executionEnv.OLLAMA_BASE_URL || integrationDefaults.ollamaDefaultModel)
+              if (attemptProvider === 'ollama' && !hasOllamaPath) {
+                throw new Error(`Agent ${participant.agentId} is configured for ${attemptModel || 'ollama'}, but no Ollama runtime is configured`)
+              }
+              const gatewayRunning = attemptProvider === 'ollama'
+                ? false
+                : (await waitForGatewayResponsive()).running
+              const useLocal = attemptProvider === 'ollama' || attemptProvider === 'openai-compatible' || !gatewayRunning || hasWorkspaceManagedPartnerSecrets()
+              const sessionId = buildWorkflowSessionId(executionId, participant.agentId)
+              repairWorkflowSessionEntryForRun(participant.agentId, sessionId)
+              const args = ['agent', '--agent', participant.agentId, '--session-id', sessionId, '--message', executionMessage, '--json', ...(useLocal ? ['--local'] : [])]
+              return await new Promise<any>((resolve, reject) => {
+                withTemporaryAgentAuthProfiles(participant.agentId, {
+                  openai: attemptProvider === 'openai-compatible' ? undefined : executionEnv.OPENAI_API_KEY,
+                  anthropic: executionEnv.ANTHROPIC_API_KEY,
+                  gemini: executionEnv.GEMINI_API_KEY,
+                  openaiCompatibleApiKey: attemptProvider === 'openai-compatible' ? executionEnv.OPENAI_API_KEY : undefined,
+                  openaiCompatibleBaseUrl: attemptProvider === 'openai-compatible' ? executionEnv.OPENAI_BASE_URL : undefined,
+                  openaiCompatibleDefaultModel: attemptProvider === 'openai-compatible'
+                    ? (options?.byok?.openaiCompatibleDefaultModel || integrationDefaults.openaiCompatibleDefaultModel || attemptModel)
+                    : undefined,
+                }, attemptModel, attemptProvider, async () => {
+                  await new Promise<void>((innerResolve) => {
+                    const proc = spawn(openclawCliPath, args, { env: executionEnv })
+                    let stdout = ''
+                    let stderr = ''
+                    const timeoutMs = getWorkflowAgentTimeoutMs()
+                    const timer = setTimeout(() => {
+                      proc.kill()
+                      reject(new Error(formatWorkflowAgentTimeoutMessage(timeoutMs)))
+                    }, timeoutMs)
 
-                let progressTicks = 0
-                  proc.stdout.on('data', (d: Buffer) => {
-                    stdout += d.toString()
-                    // Mark visible forward motion once work is actually streaming.
-                    progressTicks++
-                    const estimated = Math.min(20 + progressTicks * 10, 90)
-                    const current = getWorkflow(workflowId)?.progress || 0
-                    updateWorkflow(workflowId, { progress: Math.max(current, estimated) } as any)
-                  })
-                  proc.stderr.on('data', (d: Buffer) => { stderr += d.toString() })
-                  proc.on('close', (code: number) => {
-                    clearTimeout(timer)
-                    const payloadText = extractWorkflowAgentResultPayload(stdout, stderr)
-                    if (code !== 0 && !payloadText) {
-                      reject(new Error(`Agent failed: ${stderr.slice(0, 200)}`))
+                    let progressTicks = 0
+                    proc.stdout.on('data', (d: Buffer) => {
+                      stdout += d.toString()
+                      progressTicks++
+                      const estimated = Math.min(20 + progressTicks * 10, 90)
+                      const current = getWorkflow(workflowId)?.progress || 0
+                      updateWorkflow(workflowId, { progress: Math.max(current, estimated) } as any)
+                    })
+                    proc.stderr.on('data', (d: Buffer) => { stderr += d.toString() })
+                    proc.on('close', (code: number) => {
+                      clearTimeout(timer)
+                      const payloadText = extractWorkflowAgentResultPayload(stdout, stderr)
+                      if (code !== 0 && !payloadText) {
+                        reject(new Error(`Agent failed: ${stderr.slice(0, 200)}`))
+                        innerResolve()
+                        return
+                      }
+                      try {
+                        const result = JSON.parse(payloadText)
+                        const text = result?.payloads?.[0]?.text || result?.result?.payloads?.[0]?.text || ''
+                        const meta = result?.result?.meta || result?.meta || {}
+                        const agentMeta = meta.agentMeta || {}
+                        resolve({ text, meta: agentMeta, durationMs: meta.durationMs } as any)
+                      } catch {
+                        resolve({ text: payloadText, meta: {}, durationMs: 0 } as any)
+                      }
                       innerResolve()
-                      return
-                    }
-                    try {
-                      const result = JSON.parse(payloadText)
-                      const text = result?.payloads?.[0]?.text || result?.result?.payloads?.[0]?.text || ''
-                      // Extract meta for tracing
-                      const meta = result?.result?.meta || result?.meta || {}
-                      const agentMeta = meta.agentMeta || {}
-                      resolve({ text, meta: agentMeta, durationMs: meta.durationMs } as any)
-                    } catch {
-                      resolve({ text: payloadText, meta: {}, durationMs: 0 } as any)
-                    }
-                    innerResolve()
+                    })
+                    proc.on('error', (err) => {
+                      reject(err)
+                      innerResolve()
+                    })
                   })
-                  proc.on('error', (err) => {
-                    reject(err)
-                    innerResolve()
-                  })
-                })
-              }, { persistAuthProfiles: true }).catch(reject)
-            })
+                }, { persistAuthProfiles: true }).catch(reject)
+              })
+            }
+
+            try {
+              return await executeAttempt(resolvedAgent.model, resolvedAgent.provider)
+            } catch (err: any) {
+              if (!resolvedAgent.backupModel || !resolvedAgent.backupProvider || !shouldRetryWithBackupModel(err?.message || String(err))) {
+                throw err
+              }
+              console.log(`[Workflow] Retrying ${participant.agentId} with backup model ${resolvedAgent.backupModel}`)
+              return await executeAttempt(resolvedAgent.backupModel, resolvedAgent.backupProvider)
+            }
           }, {
             onSessionLockRetry: () => {
               const sessionId = buildWorkflowSessionId(executionId, participant.agentId)

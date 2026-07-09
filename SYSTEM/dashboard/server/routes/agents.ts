@@ -11,7 +11,14 @@ import { listWorkflows, resolveParticipants } from '../lib/workflows'
 import { safeEnv, validatePort } from '../lib/safe-env'
 import { validateAgentConfigSections, validateProvisionInput } from '../lib/agent-config-validation'
 import type { AgentModelConfigUpdateResult } from '../lib/agent-model'
-import { normalizeAgentModelInput, resetAgentSessionsForModelChange, upsertAgentModelInConfigFile, upsertAgentModelInIdentityContent } from '../lib/agent-model'
+import {
+  normalizeAgentModelInput,
+  resetAgentSessionsForModelChange,
+  updateAgentBackupModelInConfigFile,
+  upsertAgentBackupModelInIdentityContent,
+  upsertAgentModelInConfigFile,
+  upsertAgentModelInIdentityContent,
+} from '../lib/agent-model'
 import { validateAgentCostLimit } from '../lib/budget'
 import {
   getSystemProviderKeys,
@@ -111,9 +118,25 @@ function updateAgentModelInConfig(agentId: string, model: string): AgentModelCon
   })
 }
 
+function updateAgentBackupModelInConfig(agentId: string, backupModel: string | undefined): AgentModelConfigUpdateResult {
+  const HOME = process.env.HOME || ''
+  const defaultConfigPath = path.join(HOME, '.openclaw', 'openclaw.json')
+  const workspacePath = path.join(getWorkspacePath(), 'AGENTS', agentId)
+  return updateAgentBackupModelInConfigFile(defaultConfigPath, agentId, backupModel, {
+    workspacePath,
+  })
+}
+
 function updateAgentIdentityModel(identityPath: string, model: string) {
   const content = fs.readFileSync(identityPath, 'utf-8')
   fs.writeFileSync(identityPath, upsertAgentModelInIdentityContent(content, model), 'utf-8')
+}
+
+function syncAgentIdentityModels(identityContent: string, model: string, backupModel?: string): string {
+  return upsertAgentBackupModelInIdentityContent(
+    upsertAgentModelInIdentityContent(identityContent, model),
+    backupModel,
+  )
 }
 
 function resetAgentRuntimeForModelChange(agentId: string) {
@@ -660,9 +683,10 @@ router.post('/models/refresh', async (req, res) => {
 
 // POST /api/agents/provision — spawn setup.sh and stream output via SSE
 router.post('/provision', (req, res) => {
-  const { name, model, whatsapp, port, profile, cloneFrom, templateSlug, generatedFiles, tags, aiDescription, skills } = req.body as {
+  const { name, model, backupModel, whatsapp, port, profile, cloneFrom, templateSlug, generatedFiles, tags, aiDescription, skills } = req.body as {
     name?: string
     model?: string
+    backupModel?: string
     whatsapp?: string
     port?: number
     profile?: boolean
@@ -705,6 +729,7 @@ router.post('/provision', (req, res) => {
 
   const validatedName = name!
   const validatedModel = resolvedModel
+  const validatedBackupModel = backupModel ? normalizeAgentModelInput(backupModel) : undefined
   const availableSkillIds = new Set(listAvailableSkills().map((skill) => skill.id || skill.name).filter(Boolean))
   const requestedSkills = Array.isArray(skills)
     ? Array.from(new Set(skills.map((skill) => String(skill || '').trim()).filter((skill) => availableSkillIds.has(skill))))
@@ -730,7 +755,7 @@ router.post('/provision', (req, res) => {
     if (!generatedFiles) return
     const dstPath = path.join(getAgentsDir(), validatedName)
     fs.mkdirSync(dstPath, { recursive: true })
-    fs.writeFileSync(path.join(dstPath, 'IDENTITY.md'), generatedFiles.identity)
+    fs.writeFileSync(path.join(dstPath, 'IDENTITY.md'), syncAgentIdentityModels(generatedFiles.identity, validatedModel, validatedBackupModel))
     fs.writeFileSync(path.join(dstPath, 'SOUL.md'), generatedFiles.soul)
     fs.writeFileSync(path.join(dstPath, 'TOOLS.md'), generatedFiles.tools)
     send('log', `Wrote AI-generated files: IDENTITY.md, SOUL.md, TOOLS.md\n`)
@@ -770,11 +795,31 @@ router.post('/provision', (req, res) => {
     const seeded = ensureManagedAgentWorkspaceFiles({
       agentId: validatedName,
       model: validatedModel,
+      backupModel: validatedBackupModel,
       tags,
       workspacePath: getWorkspacePath(),
     })
     if (seeded.created.length > 0) {
       send('log', `Seeded default agent files: ${seeded.created.join(', ')}\n`)
+    }
+  }
+
+  const syncProvisionedAgentModels = () => {
+    const identityPath = path.join(getAgentsDir(), validatedName, 'IDENTITY.md')
+    const configUpdate = updateAgentModelInConfig(validatedName, validatedModel)
+    if (!configUpdate.ok) {
+      throw new Error(configUpdate.error || 'Failed to update live model config')
+    }
+    const backupConfigUpdate = updateAgentBackupModelInConfig(validatedName, validatedBackupModel)
+    if (!backupConfigUpdate.ok) {
+      throw new Error(backupConfigUpdate.error || 'Failed to update live backup model config')
+    }
+    if (fs.existsSync(identityPath)) {
+      const identityContent = fs.readFileSync(identityPath, 'utf-8')
+      fs.writeFileSync(identityPath, syncAgentIdentityModels(identityContent, configUpdate.model || validatedModel, backupConfigUpdate.backupModel), 'utf-8')
+    }
+    if (configUpdate.changed || backupConfigUpdate.changed) {
+      resetAgentRuntimeForModelChange(validatedName)
     }
   }
 
@@ -795,6 +840,13 @@ router.post('/provision', (req, res) => {
       applyWorkspaceFiles()
     } catch (err: any) {
       send('error', err.message || 'Failed to prepare agent workspace files')
+      res.end()
+      return
+    }
+    try {
+      syncProvisionedAgentModels()
+    } catch (err: any) {
+      send('error', err.message || 'Failed to sync agent model settings')
       res.end()
       return
     }
@@ -888,6 +940,7 @@ router.post('/provision', (req, res) => {
 - **Created:** ${new Date().toISOString()}
 - **Created By:** ClawMax Dashboard
 - **Model:** ${normalizedModel || model || 'default'}
+- **Backup Model:** ${validatedBackupModel || 'N/A'}
 - **Tags:** ${tags && tags.length > 0 ? tags.join(', ') : 'N/A'}
 - **Cloned From:** ${cloneFrom || 'N/A'}
 - **AI Description:** ${synthesizedAiDescription || 'N/A'}
@@ -936,6 +989,7 @@ router.post('/provision', (req, res) => {
 
     try {
       applyWorkspaceFiles()
+      syncProvisionedAgentModels()
     } catch (err: any) {
       send('error', `Failed to prepare agent workspace files: ${err.message}`)
       res.end()
@@ -974,6 +1028,7 @@ router.post('/provision', (req, res) => {
     if (code === 0) {
       try {
         applyWorkspaceFiles()
+        syncProvisionedAgentModels()
       } catch (err: any) {
         send('error', `Failed to prepare agent workspace files: ${err.message}`)
         send('done', 'post-provision file setup failed')
@@ -1573,12 +1628,17 @@ router.get('/:id/identity', (req, res) => {
     // Parse each metadata field
     const createdMatch = metadataSection.match(/\*\*Created:\*\*\s+(.+)/i)
     const modelMatch = metadataSection.match(/\*\*Model:\*\*\s+(.+)/i)
+    const backupModelMatch = metadataSection.match(/\*\*Backup Model:\*\*\s+(.+)/i)
     const tagsMatch = metadataSection.match(/\*\*Tags:\*\*\s+(.+)/i)
     const clonedFromMatch = metadataSection.match(/\*\*Cloned From:\*\*\s+(.+)/i)
     const aiDescriptionMatch = metadataSection.match(/\*\*AI Description:\*\*\s+(.+)/i)
 
     if (createdMatch) metadata.created = createdMatch[1].trim()
     if (modelMatch) metadata.model = modelMatch[1].trim()
+    if (backupModelMatch) {
+      const backupModel = backupModelMatch[1].trim()
+      metadata.backupModel = backupModel !== 'N/A' ? backupModel : null
+    }
     if (tagsMatch) {
       const tagsStr = tagsMatch[1].trim()
       metadata.tags = tagsStr !== 'N/A' ? tagsStr.split(',').map(t => t.trim()) : []
@@ -1600,11 +1660,15 @@ router.get('/:id/identity', (req, res) => {
     if (resolvedAgent.workspace || resolvedAgent.agentDir || resolvedAgent.model) {
       liveConfig = {
         model: resolvedAgent.model || metadata.model,
+        backupModel: resolvedAgent.backupModel || metadata.backupModel || undefined,
         workspace: resolvedAgent.workspace,
         agentDir: resolvedAgent.agentDir
       }
       if (resolvedAgent.model) {
         metadata.model = resolvedAgent.model
+      }
+      if (resolvedAgent.backupModel) {
+        metadata.backupModel = resolvedAgent.backupModel
       }
     }
   } catch (err) {
@@ -2259,14 +2323,25 @@ router.put('/:id/config', (req, res) => {
   try {
     let identityToWrite = typeof identity === 'string' ? identity : undefined
     let configUpdate: AgentModelConfigUpdateResult | undefined
+    let backupConfigUpdate: AgentModelConfigUpdateResult | undefined
     if (identityToWrite) {
-      const identityModel = normalizeAgentModelInput(parseIdentity(identityToWrite).model || '')
+      const parsedIdentity = parseIdentity(identityToWrite)
+      const identityModel = normalizeAgentModelInput(parsedIdentity.model || '')
+      const identityBackupModel = parsedIdentity.backupModel ? normalizeAgentModelInput(parsedIdentity.backupModel) : undefined
       if (identityModel) {
         configUpdate = updateAgentModelInConfig(id, identityModel)
         if (!configUpdate.ok) {
           return res.status(500).json({ error: configUpdate.error || 'Failed to update live model config' })
         }
-        identityToWrite = upsertAgentModelInIdentityContent(identityToWrite, configUpdate.model || identityModel)
+        backupConfigUpdate = updateAgentBackupModelInConfig(id, identityBackupModel)
+        if (!backupConfigUpdate.ok) {
+          return res.status(500).json({ error: backupConfigUpdate.error || 'Failed to update live backup model config' })
+        }
+        identityToWrite = syncAgentIdentityModels(
+          identityToWrite,
+          configUpdate.model || identityModel,
+          backupConfigUpdate.backupModel,
+        )
       }
     }
 
@@ -2279,10 +2354,10 @@ router.put('/:id/config', (req, res) => {
     if (typeof tools === 'string') {
       fs.writeFileSync(path.join(agentDir, 'TOOLS.md'), tools, 'utf-8')
     }
-    if (configUpdate?.changed) {
+    if (configUpdate?.changed || backupConfigUpdate?.changed) {
       resetAgentRuntimeForModelChange(id)
     }
-    res.json({ ok: true, warnings: validation.warnings, model: configUpdate?.model })
+    res.json({ ok: true, warnings: validation.warnings, model: configUpdate?.model, backupModel: backupConfigUpdate?.backupModel })
   } catch (err) {
     console.error('Failed to update agent config:', err)
     res.status(500).json({ error: 'Failed to update agent config' })
@@ -2292,7 +2367,7 @@ router.put('/:id/config', (req, res) => {
 // PATCH /api/agents/:id/model — update agent model in IDENTITY.md
 router.patch('/:id/model', (req, res) => {
   const { id } = req.params
-  const { model } = req.body
+  const { model, backupModel } = req.body
 
   if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
     return res.status(400).json({ error: 'Invalid agent id' })
@@ -2314,12 +2389,17 @@ router.patch('/:id/model', (req, res) => {
     if (!configUpdate.ok) {
       return res.status(500).json({ error: configUpdate.error || 'Failed to update live model config' })
     }
+    const backupConfigUpdate = updateAgentBackupModelInConfig(id, typeof backupModel === 'string' ? backupModel : undefined)
+    if (!backupConfigUpdate.ok) {
+      return res.status(500).json({ error: backupConfigUpdate.error || 'Failed to update live backup model config' })
+    }
 
-    updateAgentIdentityModel(identityPath, configUpdate.model || normalizedModel)
-    if (configUpdate.changed) {
+    const identityContent = fs.readFileSync(identityPath, 'utf-8')
+    fs.writeFileSync(identityPath, syncAgentIdentityModels(identityContent, configUpdate.model || normalizedModel, backupConfigUpdate.backupModel), 'utf-8')
+    if (configUpdate.changed || backupConfigUpdate.changed) {
       resetAgentRuntimeForModelChange(id)
     }
-    res.json({ ok: true, model: configUpdate.model || normalizedModel })
+    res.json({ ok: true, model: configUpdate.model || normalizedModel, backupModel: backupConfigUpdate.backupModel })
   } catch (err) {
     console.error('Failed to update model:', err)
     res.status(500).json({ error: 'Failed to update model' })

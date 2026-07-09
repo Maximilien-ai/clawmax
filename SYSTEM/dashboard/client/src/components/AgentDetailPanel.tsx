@@ -34,6 +34,7 @@ interface AgentActivity {
   skills?: string[]
   liveConfig?: {
     model: string
+    backupModel?: string
     workspace: string
     agentDir: string
   }
@@ -523,6 +524,12 @@ export default function AgentDetailPanel({
                       <span className="text-gray-400">Model</span>
                       <span className="text-gray-700 font-mono text-right break-all dark:text-gray-300">{activity.liveConfig.model}</span>
                     </div>
+                    {activity.liveConfig.backupModel && (
+                      <div className="flex items-start justify-between gap-3">
+                        <span className="text-gray-400">Backup</span>
+                        <span className="text-gray-700 font-mono text-right break-all dark:text-gray-300">{activity.liveConfig.backupModel}</span>
+                      </div>
+                    )}
                     <div className="flex items-start justify-between gap-3">
                       <span className="text-gray-400">Workspace</span>
                       <span className="text-gray-700 font-mono text-right text-[10px] leading-tight break-all dark:text-gray-300">

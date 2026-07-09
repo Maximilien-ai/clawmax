@@ -15,6 +15,7 @@ interface OpenClawAgentRecord {
   workspace?: string
   agentDir?: string
   model?: string
+  backupModel?: string
   skills?: string[]
 }
 
@@ -219,7 +220,7 @@ function readOpenClawAgentRecord(agentId: string, activeWorkspaceAgentDir?: stri
   }
 }
 
-function providerFromModel(model?: string): ExecutionProvider {
+export function providerFromModel(model?: string): ExecutionProvider {
   if (!model) return null
   if (model.startsWith('openai-compatible/')) return 'openai-compatible'
   if (model.startsWith('lmstudio/')) return 'openai-compatible'
@@ -259,9 +260,11 @@ function isSupportedHostedModel(model: string | undefined): boolean {
 
 export function resolveAgentExecutionConfig(agentId: string): {
   model?: string
+  backupModel?: string
   workspace?: string
   agentDir?: string
   provider?: ExecutionProvider
+  backupProvider?: ExecutionProvider
 } {
   const activeWorkspaceAgentDir = path.join(getWorkspacePath(), 'AGENTS', agentId)
   const record = readOpenClawAgentRecord(agentId, activeWorkspaceAgentDir)
@@ -278,17 +281,20 @@ export function resolveAgentExecutionConfig(agentId: string): {
       : path.join(process.env.OPENCLAW_WORKSPACE || '', 'AGENTS', agentId, 'IDENTITY.md')
 
   let identityModel: string | undefined
+  let identityBackupModel: string | undefined
   let identityTags: string[] = []
   try {
     const identity = fs.readFileSync(identityPath, 'utf-8')
     const parsedIdentity = parseIdentity(identity)
     identityModel = normalizeMissingModel(parsedIdentity.model || undefined)
+    identityBackupModel = normalizeMissingModel(parsedIdentity.backupModel || undefined)
     identityTags = Array.isArray(parsedIdentity.tags) ? parsedIdentity.tags : []
   } catch {}
 
   // If the active workspace contains this agent, trust its local identity first.
   // A stale global openclaw.json entry may point at a different workspace with the same agent id.
   const recordModel = normalizeMissingModel(record?.model)
+  const recordBackupModel = normalizeMissingModel(record?.backupModel)
   let model = hasActiveWorkspaceAgent
     ? (identityModel || recordModel || resolveDefaultAgentModel({ rawEnv: process.env as Record<string, string>, builtIn: identityTags.includes('built-in') }))
     : (recordModel || identityModel || resolveDefaultAgentModel({ rawEnv: process.env as Record<string, string>, builtIn: identityTags.includes('built-in') }))
@@ -299,12 +305,34 @@ export function resolveAgentExecutionConfig(agentId: string): {
       availableModels: getAvailableModelsCached(process.env as Record<string, string>),
     }) || model
   }
+  const backupModel = (() => {
+    const candidate = hasActiveWorkspaceAgent
+      ? (identityBackupModel || recordBackupModel)
+      : (recordBackupModel || identityBackupModel)
+    if (!candidate || candidate === model) return undefined
+    return candidate
+  })()
   return {
     model,
+    backupModel,
     workspace: resolvedWorkspace,
     agentDir: record?.agentDir,
     provider: providerFromModel(model),
+    backupProvider: providerFromModel(backupModel),
   }
+}
+
+export function shouldRetryWithBackupModel(errorText: string): boolean {
+  const text = String(errorText || '')
+  if (!text.trim()) return false
+  return /Unknown model:/i.test(text)
+    || /No API key found for provider/i.test(text)
+    || /Incorrect API key provided/i.test(text)
+    || /has auth issue \(skipping all models\)/i.test(text)
+    || /insufficient_quota|quota exceeded|rate limit|too many requests|429\b/i.test(text)
+    || /is in cooldown \(suspending lanes\)/i.test(text)
+    || /\btimeout\b/i.test(text)
+    || /All models failed/i.test(text)
 }
 
 export function resolveAgentSkillIds(agentId: string): string[] {

@@ -51,6 +51,7 @@ function prettifyAgentWorkspaceName(agentId: string): string {
 export function ensureManagedAgentWorkspaceFiles(args: {
   agentId: string
   model?: string
+  backupModel?: string
   tags?: string[]
   workspacePath?: string
 }): { created: string[] } {
@@ -73,6 +74,9 @@ export function ensureManagedAgentWorkspaceFiles(args: {
     ]
     if (args.model) {
       identityLines.push(`- **Model:** ${args.model}`)
+    }
+    if (args.backupModel) {
+      identityLines.push(`- **Backup Model:** ${args.backupModel}`)
     }
     identityLines.push('', '## Notes', '', 'Created by ClawMax Dashboard.')
     fs.writeFileSync(identityPath, identityLines.join('\n'), 'utf-8')
@@ -1450,6 +1454,9 @@ export function parseIdentity(content: string): any {
   const modelMatch = runtimeContent.match(/\*\*Model:\*\*\s*([^\n]+)/i)
   if (modelMatch) identity.model = modelMatch[1].trim()
 
+  const backupModelMatch = runtimeContent.match(/\*\*Backup Model:\*\*\s*([^\n]+)/i)
+  if (backupModelMatch) identity.backupModel = backupModelMatch[1].trim()
+
   const whatsappMatch = runtimeContent.match(/\*\*WhatsApp:\*\*\s*(\+?[0-9]+)?/i)
   if (whatsappMatch) {
     const value = (whatsappMatch[1] || '').trim()
@@ -1470,6 +1477,7 @@ export interface AgentActivity {
   skills?: string[]
   liveConfig?: {
     model: string
+    backupModel?: string
     workspace: string
     agentDir: string
   }
