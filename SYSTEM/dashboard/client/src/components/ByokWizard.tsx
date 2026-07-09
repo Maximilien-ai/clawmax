@@ -726,13 +726,17 @@ export function ByokWizard({
   }, [config?.authDisabled, dismissed, hasDefaultUserKeys, hasStoredKeys, hydrated, onboardingOpen, suppressAutoOpen, user])
 
   useEffect(() => {
+    // Only the BYOK (models) instance should respond to the legacy 'open-byok-wizard' event.
+    // Each instance already listens for its own openEventName above; without this guard, every
+    // mounted ByokWizard (BYOK, Partners, Runtime) would open at once on this shared event.
+    if (openEventName !== 'open-byok-wizard') return
     const openWizard = () => {
       setDismissed(false)
       setOpen(true)
     }
     window.addEventListener('open-byok-wizard', openWizard)
     return () => window.removeEventListener('open-byok-wizard', openWizard)
-  }, [])
+  }, [openEventName])
 
   useEffect(() => {
     const handleOnboardingVisibility = (event: Event) => {

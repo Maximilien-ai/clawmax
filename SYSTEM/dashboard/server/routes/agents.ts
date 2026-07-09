@@ -2604,11 +2604,9 @@ router.delete('/:id/chat/messages', async (req, res) => {
 
     const jsonlPath = path.join(sessionsDir, `${actualSessionId}.jsonl`)
     const openclawExists = fs.existsSync(jsonlPath)
-    // Fold claude/droid turns into the same archive file the archives routes parse, so clearing a
-    // runtime (or mixed) chat archives its history instead of silently deleting it.
-    const runtimeArchiveLines = readRuntimeTranscriptAsArchiveLines(id, actualSessionId)
+    const runtimeTurns = readRuntimeTranscript(id, actualSessionId)
 
-    if (openclawExists || runtimeArchiveLines) {
+    if (openclawExists || runtimeTurns.length > 0) {
       const archiveDir = path.join(sessionsDir, 'archive')
       if (!fs.existsSync(archiveDir)) {
         fs.mkdirSync(archiveDir, { recursive: true })
@@ -2618,10 +2616,24 @@ router.delete('/:id/chat/messages', async (req, res) => {
       const date = new Date(timestamp).toISOString().split('T')[0]
       const archiveFile = path.join(archiveDir, `${actualSessionId}_${date}_${timestamp}.jsonl`)
 
-      let archiveContent = openclawExists ? fs.readFileSync(jsonlPath, 'utf-8') : ''
-      if (runtimeArchiveLines) {
-        if (archiveContent && !archiveContent.endsWith('\n')) archiveContent += '\n'
-        archiveContent += runtimeArchiveLines
+      let archiveContent: string
+      if (openclawExists && runtimeTurns.length > 0) {
+        // Mixed session (chatted under openclaw, then re-pinned to claude/droid on the same scoped
+        // session id): merge both stores' visible messages by timestamp so the archived transcript
+        // preserves the interleaved order the user saw, matching readMergedChatSessionMessages.
+        const merged = [
+          ...readChatSessionMessages(id, actualSessionId, HOME),
+          ...runtimeTurns.map((turn) => ({ role: turn.role, content: turn.content, timestamp: turn.ts })),
+        ].sort((a, b) => a.timestamp - b.timestamp)
+        archiveContent = merged
+          .map((m) => JSON.stringify({ type: 'message', message: { role: m.role, content: m.content, timestamp: m.timestamp } }))
+          .join('\n') + '\n'
+      } else if (openclawExists) {
+        // OpenClaw-only: preserve the raw session file verbatim (unchanged behavior).
+        archiveContent = fs.readFileSync(jsonlPath, 'utf-8')
+      } else {
+        // Runtime-only (claude/droid): render the transcript as archive-format lines.
+        archiveContent = readRuntimeTranscriptAsArchiveLines(id, actualSessionId)
       }
       fs.writeFileSync(archiveFile, archiveContent)
 
