@@ -11,6 +11,7 @@ import {
   appendRuntimeTranscriptExchange,
   appendRuntimeTranscriptTurn,
   clearRuntimeTranscript,
+  getLatestRuntimeTranscriptSessionId,
   hasRuntimeTranscripts,
   readRuntimeTranscript,
 } from './runtime-transcripts'
@@ -205,6 +206,22 @@ test('FIFO cap: file count per agent never grows past 500, oldest session evicte
     // Oldest sessions (sess-0..sess-4) should have been evicted; most recent should still exist.
     assert.deepStrictEqual(readRuntimeTranscript('agent1', 'sess-0'), [])
     assert.strictEqual(readRuntimeTranscript('agent1', 'sess-504').length, 1)
+  })
+})
+
+test('getLatestRuntimeTranscriptSessionId returns the most recently written session, null when none', () => {
+  withWorkspace((dir) => {
+    assert.strictEqual(getLatestRuntimeTranscriptSessionId('agent1'), null)
+    appendRuntimeTranscriptTurn('agent1', 'older-session', 'user', 'first')
+    // mtime granularity can be coarse; force distinct mtimes rather than sleeping.
+    const olderPath = path.join(dir, 'SYSTEM', 'runtime-transcripts', 'agent1', 'older-session.jsonl')
+    fs.utimesSync(olderPath, new Date(Date.now() - 60_000), new Date(Date.now() - 60_000))
+    appendRuntimeTranscriptTurn('agent1', 'newer-session', 'user', 'second')
+    assert.strictEqual(getLatestRuntimeTranscriptSessionId('agent1'), 'newer-session')
+    // Live-verification regression (2026-07-09): claude/droid chats never write openclaw's
+    // sessions.json, so history routes resolve the active session from this pointer — it must
+    // reflect transcript writes alone, with no openclaw session store present at all.
+    assert.strictEqual(getLatestRuntimeTranscriptSessionId('agent-without-transcripts'), null)
   })
 })
 

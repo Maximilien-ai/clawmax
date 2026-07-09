@@ -136,6 +136,33 @@ export function hasRuntimeTranscripts(agentId: string): boolean {
   }
 }
 
+/**
+ * Session id of the most recently written transcript for an agent (by file mtime), or null.
+ * This is the non-openclaw counterpart of openclaw's sessions.json "current session" pointer:
+ * claude/droid chats never write that index, so history routes resolve the active session from
+ * the transcript store itself. Filenames are the sanitized scoped session id; scoped ids only
+ * contain filename-safe characters, so the round-trip is lossless in practice.
+ */
+export function getLatestRuntimeTranscriptSessionId(agentId: string): string | null {
+  try {
+    const dir = getRuntimeTranscriptsDir(agentId)
+    const newest = fs.readdirSync(dir)
+      .filter((name) => name.endsWith('.jsonl'))
+      .map((name) => {
+        try {
+          return { name, mtimeMs: fs.statSync(path.join(dir, name)).mtimeMs }
+        } catch {
+          return null
+        }
+      })
+      .filter((entry): entry is { name: string; mtimeMs: number } => !!entry)
+      .sort((a, b) => b.mtimeMs - a.mtimeMs)[0]
+    return newest ? newest.name.replace(/\.jsonl$/, '') : null
+  } catch {
+    return null
+  }
+}
+
 /** Delete the transcript file for one agent+session (used by clear-history). Tolerates a missing file. */
 export function clearRuntimeTranscript(agentId: string, scopedSessionId: string): void {
   try {

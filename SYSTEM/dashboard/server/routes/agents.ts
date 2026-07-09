@@ -14,7 +14,7 @@ import type { AgentModelConfigUpdateResult } from '../lib/agent-model'
 import { normalizeAgentModelInput, resetAgentSessionsForModelChange, upsertAgentModelInConfigFile, upsertAgentModelInIdentityContent, upsertAgentRuntimeInIdentityContent } from '../lib/agent-model'
 import { AGENT_RUNTIME_IDS, buildRuntimePlan, detectRuntimeStatuses, normalizeAgentRuntime, readAgentIdentitySystemPrompt, resolveWorkspaceRuntime, runRuntimeCli } from '../lib/agent-runtime'
 import { hasRuntimeSession } from '../lib/runtime-sessions'
-import { appendRuntimeTranscriptExchange, clearRuntimeTranscript, hasRuntimeTranscripts, readRuntimeTranscript } from '../lib/runtime-transcripts'
+import { appendRuntimeTranscriptExchange, clearRuntimeTranscript, getLatestRuntimeTranscriptSessionId, hasRuntimeTranscripts, readRuntimeTranscript } from '../lib/runtime-transcripts'
 import { validateAgentCostLimit } from '../lib/budget'
 import {
   getSystemProviderKeys,
@@ -362,7 +362,15 @@ function resolveAgentChatSessionId(agentId: string, homeDir: string = process.en
   const resolvedAgent = resolveAgentExecutionConfig(agentId)
   const sessionKey = getAgentDashboardSessionKey(agentId)
   const preferredSessionId = scopeSessionIdToModel(sessionKey, resolvedAgent.model)
-  return resolvePersistedAgentSessionId(agentId, sessionKey, preferredSessionId, homeDir) || null
+  const persisted = resolvePersistedAgentSessionId(agentId, sessionKey, preferredSessionId, homeDir)
+  // claude/droid chats never write openclaw's sessions.json index, so their "current session"
+  // pointer is the newest runtime transcript. Prefer the store that matches the agent's runtime
+  // so switching runtimes shows that runtime's conversation, with the other store as fallback.
+  const latestTranscript = getLatestRuntimeTranscriptSessionId(agentId)
+  if (resolvedAgent.runtime && resolvedAgent.runtime !== 'openclaw') {
+    return latestTranscript || persisted || null
+  }
+  return persisted || latestTranscript || null
 }
 
 function extractVisibleChatText(content: unknown): string {
