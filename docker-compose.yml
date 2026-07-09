@@ -10,6 +10,12 @@ services:
     volumes:
       - ./WORKSPACES:/app/WORKSPACES
       - clawmax-openclaw-state:/app/.openclaw
+      # Claude Code (agent runtime: claude) keeps its resumable session
+      # transcripts purely locally under $HOME/.claude (HOME=/app in this
+      # image) — unlike droid, there is no server-side session store, so
+      # without this volume every container restart silently drops
+      # multi-turn conversation continuity for agents pinned to claude.
+      - clawmax-claude-state:/app/.claude
     env_file:
       - path: ./SYSTEM/dashboard/.env
         required: false
@@ -36,3 +42,4 @@ services:
 
 volumes:
   clawmax-openclaw-state:
+  clawmax-claude-state:

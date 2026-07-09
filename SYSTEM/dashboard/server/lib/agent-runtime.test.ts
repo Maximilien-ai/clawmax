@@ -13,6 +13,7 @@ import {
   claudeSessionUuid,
   classifyClaudeSessionError,
   detectRuntimeStatuses,
+  droidSessionId,
   normalizeAgentRuntime,
   parseRuntimeResult,
   readAgentIdentitySystemPrompt,
@@ -294,6 +295,35 @@ test('claudeSessionUuid produces a valid RFC 4122 v4-shaped UUID', () => {
   )
 })
 
+// ── droidSessionId ──
+
+test('droidSessionId is deterministic for identical inputs', () => {
+  const a = droidSessionId('session-1', 'agent-1')
+  const b = droidSessionId('session-1', 'agent-1')
+  assert.strictEqual(a, b)
+})
+
+test('droidSessionId differs when scopedSessionId changes (agentId held fixed)', () => {
+  const base = droidSessionId('session-1', 'agent-1')
+  assert.notStrictEqual(droidSessionId('session-2', 'agent-1'), base)
+})
+
+test('droidSessionId binds to agentId: identical scopedSessionId never collides across two different agents', () => {
+  // This is the exact cross-agent-hijack shape from the finding: two agents sharing the same
+  // (client-derived or attacker-supplied) raw scopedSessionId must never resolve to the same
+  // underlying droid `-s` value.
+  const sharedScopedSessionId = 'agent:agent-a:dashboard-chat'
+  const forAgentA = droidSessionId(sharedScopedSessionId, 'agent-a')
+  const forAgentB = droidSessionId(sharedScopedSessionId, 'agent-b')
+  assert.notStrictEqual(forAgentA, forAgentB)
+})
+
+test('droidSessionId only ever produces droid-safe characters within the documented length bound', () => {
+  const id = droidSessionId('session-1', 'agent-1')
+  assert.ok(id.length > 0 && id.length <= 48, `Expected length in (0, 48], got ${id.length}`)
+  assert.ok(/^[0-9a-f]+$/.test(id), `Expected only [0-9a-f] characters, got ${id}`)
+})
+
 // ── runtimeModelArg / RuntimeModelError ──
 
 test('runtimeModelArg(claude) strips the anthropic/ prefix', () => {
@@ -439,12 +469,14 @@ test('buildRuntimePlan(claude) throws RuntimeModelError for a non-anthropic mode
 
 test('buildRuntimePlan(droid) includes -m only when a model is given, always -o json, no cwd field', () => {
   withStubbedClis(() => {
+    const boundSessionId = droidSessionId('sess1', 'agent1')
+
     const withModel = buildRuntimePlan({
       runtime: 'droid', mode: 'chat', agentId: 'agent1', scopedSessionId: 'sess1',
       message: 'hello', model: 'openai/gpt-5.5', agentDir: '/workspace/AGENTS/agent1', resume: false,
     })
     assert.deepStrictEqual(withModel.args, [
-      'exec', 'hello', '-m', 'gpt-5.5', '-s', 'sess1', '--auto', 'high', '-o', 'json', '--cwd', '/workspace/AGENTS/agent1',
+      'exec', 'hello', '-m', 'gpt-5.5', '-s', boundSessionId, '--auto', 'high', '-o', 'json', '--cwd', '/workspace/AGENTS/agent1',
     ])
     assert.strictEqual(withModel.cwd, undefined)
     assert.strictEqual(withModel.streamsDeltas, false)
@@ -454,9 +486,49 @@ test('buildRuntimePlan(droid) includes -m only when a model is given, always -o 
       message: 'hello', agentDir: '/workspace/AGENTS/agent1', resume: false,
     })
     assert.deepStrictEqual(withoutModel.args, [
-      'exec', 'hello', '-s', 'sess1', '--auto', 'high', '-o', 'json', '--cwd', '/workspace/AGENTS/agent1',
+      'exec', 'hello', '-s', boundSessionId, '--auto', 'high', '-o', 'json', '--cwd', '/workspace/AGENTS/agent1',
     ])
     assert.strictEqual(withoutModel.streamsDeltas, false)
+  })
+})
+
+test('buildRuntimePlan(droid) never passes the raw scopedSessionId as -s (must be agent-bound)', () => {
+  withStubbedClis(() => {
+    const plan = buildRuntimePlan({
+      runtime: 'droid', mode: 'json', agentId: 'agent1', scopedSessionId: 'sess1',
+      message: 'hello', agentDir: '/workspace/AGENTS/agent1', resume: false,
+    })
+    const sIndex = plan.args.indexOf('-s')
+    assert.ok(sIndex !== -1, 'expected -s flag in droid args')
+    assert.notStrictEqual(plan.args[sIndex + 1], 'sess1')
+  })
+})
+
+test('buildRuntimePlan(droid) binds -s to the agent: identical scopedSessionId yields different session ids for two agents', () => {
+  withStubbedClis(() => {
+    const planA = buildRuntimePlan({
+      runtime: 'droid', mode: 'json', agentId: 'agent-a', scopedSessionId: 'shared-session',
+      message: 'hello', agentDir: '/workspace/AGENTS/agent-a', resume: false,
+    })
+    const planB = buildRuntimePlan({
+      runtime: 'droid', mode: 'json', agentId: 'agent-b', scopedSessionId: 'shared-session',
+      message: 'hello', agentDir: '/workspace/AGENTS/agent-b', resume: false,
+    })
+    const sessionIdOf = (plan: { args: string[] }) => plan.args[plan.args.indexOf('-s') + 1]
+    assert.notStrictEqual(sessionIdOf(planA), sessionIdOf(planB))
+  })
+})
+
+test('buildRuntimePlan(droid) -s is deterministic across repeated calls for the same agent + scopedSessionId', () => {
+  withStubbedClis(() => {
+    const build = () => buildRuntimePlan({
+      runtime: 'droid', mode: 'json', agentId: 'agent1', scopedSessionId: 'sess1',
+      message: 'hello', agentDir: '/workspace/AGENTS/agent1', resume: false,
+    })
+    const first = build()
+    const second = build()
+    const sessionIdOf = (plan: { args: string[] }) => plan.args[plan.args.indexOf('-s') + 1]
+    assert.strictEqual(sessionIdOf(first), sessionIdOf(second))
   })
 })
 

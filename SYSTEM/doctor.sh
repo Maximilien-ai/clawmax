@@ -423,7 +423,13 @@ else
   info "Fix: npm install -g openclaw"
 fi
 
-CLAUDE_CLI_PATH="$(resolve_agent_runtime_cli claude "${CLAUDE_BIN:-}")"
+# resolve_agent_runtime_cli's final statement is `command -v`, which exits
+# non-zero when the binary isn't found (the expected/common case for these
+# optional runtimes). Under this script's `set -e`, a failing command
+# substitution used in a bare assignment aborts the whole script — so, like
+# every other fallible lookup above, the failure is absorbed with `|| true`
+# inside the substitution rather than left to propagate.
+CLAUDE_CLI_PATH="$(resolve_agent_runtime_cli claude "${CLAUDE_BIN:-}" || true)"
 if [ -n "$CLAUDE_CLI_PATH" ]; then
   CLAUDE_CLI_VER=$("$CLAUDE_CLI_PATH" --version 2>&1 | head -1 || echo "unknown")
   pass "Claude Code CLI: $CLAUDE_CLI_VER ($CLAUDE_CLI_PATH)"
@@ -432,7 +438,7 @@ else
   info "Fix: npm install -g @anthropic-ai/claude-code (or set CLAUDE_BIN)"
 fi
 
-DROID_CLI_PATH="$(resolve_agent_runtime_cli droid "${DROID_BIN:-}")"
+DROID_CLI_PATH="$(resolve_agent_runtime_cli droid "${DROID_BIN:-}" || true)"
 if [ -n "$DROID_CLI_PATH" ]; then
   DROID_CLI_VER=$("$DROID_CLI_PATH" --version 2>&1 | head -1 || echo "unknown")
   pass "Factory Droid CLI: $DROID_CLI_VER ($DROID_CLI_PATH)"

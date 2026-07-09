@@ -429,17 +429,15 @@ function evaluateChatExecutionReadiness(
     openaiCompatibleDefaultModel: useOpenAiCompatible ? (byok?.openaiCompatibleDefaultModel || integrationConfig.openaiCompatibleDefaultModel) : undefined,
   })
   executionEnv.OPENCLAW_WORKSPACE = effectiveWorkspaceRoot
-  if (!resolvedAgent.model || resolvedAgent.model.trim().toLowerCase() === 'unknown') {
-    return {
-      available: false,
-      error: `Agent ${agentId} has no model configured. Choose a model for this agent before chatting.`,
-      resolvedAgent,
-    }
-  }
 
   if (isNonOpenclawChatRuntime(resolvedAgent.runtime)) {
     // Non-openclaw runtimes authenticate via their own CLI (ANTHROPIC_API_KEY / FACTORY_API_KEY /
-    // CLI login) — the hosted-key / Ollama / OpenAI-compatible BYOK checks below don't apply.
+    // CLI login) — the hosted-key / Ollama / OpenAI-compatible BYOK checks below don't apply, and
+    // neither does the blanket "no model configured" gate below: droid legitimately runs with no
+    // model (falls back to its own default — see runtimeModelArg), while claude's own model
+    // requirement (must map to an Anthropic model) is enforced by buildRuntimePlan/runtimeModelArg
+    // via RuntimeModelError, caught below. Checking model-presence before this branch would reject
+    // valid modelless droid agents before buildRuntimePlan ever runs.
     try {
       const plan = buildRuntimePlan({
         runtime: resolvedAgent.runtime,
@@ -464,6 +462,14 @@ function evaluateChatExecutionReadiness(
       }
     }
     return { available: true, resolvedAgent }
+  }
+
+  if (!resolvedAgent.model || resolvedAgent.model.trim().toLowerCase() === 'unknown') {
+    return {
+      available: false,
+      error: `Agent ${agentId} has no model configured. Choose a model for this agent before chatting.`,
+      resolvedAgent,
+    }
   }
 
   const hasHostedKeys = !!(executionEnv.ANTHROPIC_API_KEY || executionEnv.OPENAI_API_KEY || executionEnv.GEMINI_API_KEY)
@@ -754,6 +760,31 @@ router.post('/:id/chat', async (req, res) => {
   let procExited = false
   let proc: ReturnType<typeof spawn> | null = null
 
+  // The 180s watchdog is armed only once execution actually starts — i.e. after
+  // runExclusiveAgentExecution's per-agent queue wait and withTemporaryAgentAuthProfiles setup
+  // both complete — not at request-arrival time. runExclusiveAgentExecution serializes calls per
+  // agentId, so a request queued behind another in-flight chat for the same agent would otherwise
+  // have its 180s budget silently consumed while waiting; arming here instead gives every request
+  // its full budget from the moment its own CLI/runtime call actually begins.
+  let watchdog: ReturnType<typeof setTimeout> | null = null
+  const armChatTimeoutWatchdog = () => {
+    if (watchdog) return
+    watchdog = setTimeout(() => {
+      clearInterval(keepalive)
+      proc?.kill()
+      send('error', 'Agent timeout (3 minutes)')
+      if (!res.writableEnded) {
+        res.end()
+      }
+    }, 180000) // 3 minutes to handle cold starts
+  }
+  const clearChatTimeoutWatchdog = () => {
+    if (watchdog) {
+      clearTimeout(watchdog)
+      watchdog = null
+    }
+  }
+
   if (isNonOpenclawChatRuntime(resolvedAgent.runtime)) {
     // Claude Code / Factory Droid: spawn via the shared runtime adapter instead of the openclaw
     // CLI. No gateway, no --local, no persisted openclaw session store — see agent-runtime.ts.
@@ -793,6 +824,7 @@ router.post('/:id/chat', async (req, res) => {
 
       send('start', { sessionId: effectiveSessionId })
       invalidateAgentStatusCache(id)
+      armChatTimeoutWatchdog()
 
       const { text, errorText } = await runRuntimeCli({
         plan: initialPlan,
@@ -807,6 +839,7 @@ router.post('/:id/chat', async (req, res) => {
       })
       procExited = true
       clearInterval(keepalive)
+      clearChatTimeoutWatchdog()
 
       const completionText = normalizeChatMessage(text.trim())
       if (!completionText) {
@@ -820,6 +853,7 @@ router.post('/:id/chat', async (req, res) => {
       }
     }, { persistAuthProfiles: true, runtime })).catch((err) => {
       console.error(`[Chat Route] Auth profile prep error for ${id}:`, err)
+      clearChatTimeoutWatchdog()
       clearInterval(keepalive)
       send('error', `Failed to prepare agent execution: ${err.message}`)
       if (!res.writableEnded) {
@@ -851,7 +885,11 @@ router.post('/:id/chat', async (req, res) => {
     }, resolvedAgent.model, resolvedAgent.provider, async () => {
       await new Promise<void>((resolve) => {
         if (!openclawCli) {
+          procExited = true
+          clearInterval(keepalive)
           send('error', 'OpenClaw CLI is not available in this runtime. Install or bundle the CLI, or set OPENCLAW_BIN to the executable path.')
+          send('complete', { text: '' })
+          if (!res.writableEnded) res.end()
           resolve()
           return
         }
@@ -864,6 +902,7 @@ router.post('/:id/chat', async (req, res) => {
 
         send('start', { sessionId: effectiveSessionId })
         invalidateAgentStatusCache(id)
+        armChatTimeoutWatchdog()
 
         spawned.stdout.on('data', (chunk: Buffer) => {
           const text = stripBenignChatRuntimeWarnings(chunk.toString())
@@ -881,6 +920,7 @@ router.post('/:id/chat', async (req, res) => {
         spawned.on('close', async (code) => {
           console.log(`[Chat Route] CLI exited for agent ${id} with code ${code}`)
           clearInterval(keepalive)
+          clearChatTimeoutWatchdog()
 
           if (stderrOutput) {
             console.error(`[Chat Route] stderr for ${id}:`, stderrOutput.slice(0, 500))
@@ -937,6 +977,7 @@ router.post('/:id/chat', async (req, res) => {
         spawned.on('error', (err) => {
           console.error(`[Chat Route] CLI spawn error for ${id}:`, err)
           clearInterval(keepalive)
+          clearChatTimeoutWatchdog()
           send('error', `Failed to start agent: ${err.message}`)
           if (!res.writableEnded) {
             res.end()
@@ -946,6 +987,7 @@ router.post('/:id/chat', async (req, res) => {
       })
     }, { persistAuthProfiles: true })).catch((err) => {
       console.error(`[Chat Route] Auth profile prep error for ${id}:`, err)
+      clearChatTimeoutWatchdog()
       clearInterval(keepalive)
       send('error', `Failed to prepare agent execution: ${err.message}`)
       if (!res.writableEnded) {
@@ -954,19 +996,10 @@ router.post('/:id/chat', async (req, res) => {
     })
   }
 
-  const timeout = setTimeout(() => {
-    clearInterval(keepalive)
-    proc?.kill()
-    send('error', 'Agent timeout (3 minutes)')
-    if (!res.writableEnded) {
-      res.end()
-    }
-  }, 180000) // 3 minutes to handle cold starts
-
   // Handle client disconnect — only kill if process hasn't exited yet
   req.on('close', () => {
     console.log(`[Chat Route] Client disconnected for agent ${id}, procExited=${procExited}`)
-    clearTimeout(timeout)
+    clearChatTimeoutWatchdog()
     clearInterval(keepalive)
     // Don't kill process immediately — let it finish if it's close to done
     // Only kill after a grace period

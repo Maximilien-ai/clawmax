@@ -8,6 +8,7 @@ import { DEFAULT_VISIBLE_PARTNERS, getDefaultPartnerDefinitions } from '../lib/d
 import { BROWSER_VAULT_UPDATED_EVENT, readPartnerValuesFromSharedSecrets, readSharedSecrets, writePartnerValuesToSharedSecrets, writeSharedSecrets } from '../lib/localSecrets'
 import { resolveResendTestRecipientEmail } from '../lib/resendTestEmail'
 import { formatOpenAiDeprecationNotice, formatOpenAiModelLabel, isSelectableLifecycleModel } from '../lib/openAiModelLifecycle'
+import { describeRuntimeStatusesFetchError, describeRuntimeStatusesViewState } from '../lib/runtimeStatusesLoading'
 import { PartnerLogo } from './PartnerLogo'
 
 function maskKey(value: string) {
@@ -218,6 +219,7 @@ export function ByokWizard({
   const [agentRuntime, setAgentRuntime] = useState('')
   const [runtimeStatuses, setRuntimeStatuses] = useState<RuntimeStatus[]>([])
   const [runtimeStatusesLoading, setRuntimeStatusesLoading] = useState(false)
+  const [runtimeStatusesError, setRuntimeStatusesError] = useState<string | null>(null)
   const [partnerSecrets, setPartnerSecrets] = useState<PartnerValueMap>({})
   const [serverPartnerSecretPresence, setServerPartnerSecretPresence] = useState<PartnerSecretPresence>({})
   const [partnerValues, setPartnerValues] = useState<PartnerValueMap>({})
@@ -584,6 +586,12 @@ export function ByokWizard({
     }
   }, [modelTab, ollamaEnabled])
 
+  const runtimeStatusesViewState = describeRuntimeStatusesViewState({
+    loading: runtimeStatusesLoading,
+    statusesCount: runtimeStatuses.length,
+    error: runtimeStatusesError,
+  })
+
   const githubReady = githubChecks.length > 0 && githubChecks.every((check) => check.status === 'pass')
   const sensoConfigured = !!getPartnerSecret('senso', 'apiKey').trim()
   const opikApiKey = getPartnerSecret('opik', 'apiKey')
@@ -807,17 +815,30 @@ export function ByokWizard({
     void refreshGithubChecks({ silent: true })
   }, [open, refreshGithubChecks])
 
+  const loadRuntimeStatuses = React.useCallback(async () => {
+    setRuntimeStatusesLoading(true)
+    setRuntimeStatusesError(null)
+    try {
+      const response = await fetch('/api/integrations/runtimes')
+      if (!response.ok) {
+        setRuntimeStatuses([])
+        setRuntimeStatusesError(describeRuntimeStatusesFetchError(response.status))
+        return
+      }
+      const data = await response.json()
+      setRuntimeStatuses(Array.isArray(data?.runtimes) ? data.runtimes : [])
+    } catch {
+      setRuntimeStatuses([])
+      setRuntimeStatusesError(describeRuntimeStatusesFetchError(null))
+    } finally {
+      setRuntimeStatusesLoading(false)
+    }
+  }, [])
+
   useEffect(() => {
     if (!open) return
-    setRuntimeStatusesLoading(true)
-    fetch('/api/integrations/runtimes')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        setRuntimeStatuses(Array.isArray(data?.runtimes) ? data.runtimes : [])
-      })
-      .catch(() => setRuntimeStatuses([]))
-      .finally(() => setRuntimeStatusesLoading(false))
-  }, [open])
+    void loadRuntimeStatuses()
+  }, [open, loadRuntimeStatuses])
 
   const loadOllamaModels = React.useCallback(async (forceRefresh: boolean = false) => {
     if (!ollamaEnabled) {
@@ -2511,8 +2532,21 @@ export function ByokWizard({
                 </div>
 
                 <div className="mt-5 space-y-4">
-                  {runtimeStatusesLoading && runtimeStatuses.length === 0 && (
+                  {runtimeStatusesViewState === 'loading' && (
                     <div className="text-[11px] text-gray-500 dark:text-gray-400">Detecting installed runtimes…</div>
+                  )}
+                  {runtimeStatusesViewState === 'error' && (
+                    <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-3 py-2 text-sm text-red-700 dark:text-red-300">
+                      <div>{runtimeStatusesError}</div>
+                      <button
+                        type="button"
+                        onClick={() => void loadRuntimeStatuses()}
+                        disabled={runtimeStatusesLoading}
+                        className="mt-2 px-3 py-1.5 text-xs rounded-md border border-red-300 dark:border-red-700 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors disabled:opacity-60"
+                      >
+                        {runtimeStatusesLoading ? 'Retrying…' : 'Retry'}
+                      </button>
+                    </div>
                   )}
                   <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                     {runtimeStatuses.map((status) => (
