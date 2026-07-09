@@ -8,13 +8,13 @@ import { generateAgentFiles, generateArchiveTitle } from '../lib/ai-generator'
 import { importAgentFromTemplate } from '../lib/templates'
 import { getConfiguredGatewayPort, getGatewayClient, isGatewayConfigured, isGatewayRunning, probeGatewayResponsive } from '../lib/gateway-rpc'
 import { listWorkflows, resolveParticipants } from '../lib/workflows'
-import { safeEnv, systemExecutionEnv, validatePort } from '../lib/safe-env'
+import { safeEnv, userExecutionEnv, validatePort } from '../lib/safe-env'
 import { validateAgentConfigSections, validateProvisionInput } from '../lib/agent-config-validation'
 import type { AgentModelConfigUpdateResult } from '../lib/agent-model'
 import { normalizeAgentModelInput, resetAgentSessionsForModelChange, upsertAgentModelInConfigFile, upsertAgentModelInIdentityContent, upsertAgentRuntimeInIdentityContent } from '../lib/agent-model'
 import { AGENT_RUNTIME_IDS, buildRuntimePlan, detectRuntimeStatuses, normalizeAgentRuntime, readAgentIdentitySystemPrompt, resolveWorkspaceRuntime, runRuntimeCli } from '../lib/agent-runtime'
 import { hasRuntimeSession } from '../lib/runtime-sessions'
-import { appendRuntimeTranscriptExchange, clearRuntimeTranscript, getLatestRuntimeTranscriptSessionId, hasRuntimeTranscripts, readRuntimeTranscript } from '../lib/runtime-transcripts'
+import { appendRuntimeTranscriptExchange, clearRuntimeTranscript, getLatestRuntimeTranscriptSessionId, hasRuntimeTranscripts, readRuntimeTranscript, readRuntimeTranscriptAsArchiveLines } from '../lib/runtime-transcripts'
 import { validateAgentCostLimit } from '../lib/budget'
 import {
   getSystemProviderKeys,
@@ -2079,13 +2079,11 @@ router.post('/:id/chat/messages', async (req, res) => {
         const plan = rebuildPlan(hasRuntimeSession(resolvedAgent.runtime, id, sessionId))
         runRuntimeCli({
           plan,
-          // This route takes no BYOK payload (dashboard ChatPanel posts { message } only), so — unlike
-          // chat.ts/channels.ts, which layer request-level BYOK over userExecutionEnv() — there's nothing
-          // to layer. Use the workspace's configured system provider keys directly (ANTHROPIC_API_KEY for
-          // claude, mirrors FACTORY_API_KEY's unconditional safeEnv passthrough for droid) so a claude/droid
-          // -pinned agent authenticates the same way the openclaw branch below already does via its own
-          // config, without requiring the interactive-BYOK opt-in gate (ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION).
-          env: systemExecutionEnv(),
+          // User-initiated agent execution: use userExecutionEnv() to honor the Separated Key Policy
+          // exactly like the sibling chat.ts/channels.ts paths (BYOK/USER_* keys, and SYSTEM_* only
+          // when ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION=true). This route carries no BYOK payload
+          // (ChatPanel posts { message } only), so there are no request-level overrides to layer on.
+          env: userExecutionEnv({}),
           timeoutMs: 600000, // 10 min timeout, matches the openclaw path below
           rebuildPlan,
           runtime: resolvedAgent.runtime,
@@ -2604,15 +2602,13 @@ router.delete('/:id/chat/messages', async (req, res) => {
       return res.json({ ok: true, archived: false })
     }
 
-    // Runtime transcripts (claude/droid) have no archive concept of their own yet — clearing just
-    // deletes the transcript for this session, same as clearing openclaw history when there's no
-    // session file to archive below.
-    clearRuntimeTranscript(id, actualSessionId)
-
     const jsonlPath = path.join(sessionsDir, `${actualSessionId}.jsonl`)
+    const openclawExists = fs.existsSync(jsonlPath)
+    // Fold claude/droid turns into the same archive file the archives routes parse, so clearing a
+    // runtime (or mixed) chat archives its history instead of silently deleting it.
+    const runtimeArchiveLines = readRuntimeTranscriptAsArchiveLines(id, actualSessionId)
 
-    if (fs.existsSync(jsonlPath)) {
-      // Archive the session file
+    if (openclawExists || runtimeArchiveLines) {
       const archiveDir = path.join(sessionsDir, 'archive')
       if (!fs.existsSync(archiveDir)) {
         fs.mkdirSync(archiveDir, { recursive: true })
@@ -2622,8 +2618,15 @@ router.delete('/:id/chat/messages', async (req, res) => {
       const date = new Date(timestamp).toISOString().split('T')[0]
       const archiveFile = path.join(archiveDir, `${actualSessionId}_${date}_${timestamp}.jsonl`)
 
-      fs.copyFileSync(jsonlPath, archiveFile)
-      fs.unlinkSync(jsonlPath)
+      let archiveContent = openclawExists ? fs.readFileSync(jsonlPath, 'utf-8') : ''
+      if (runtimeArchiveLines) {
+        if (archiveContent && !archiveContent.endsWith('\n')) archiveContent += '\n'
+        archiveContent += runtimeArchiveLines
+      }
+      fs.writeFileSync(archiveFile, archiveContent)
+
+      if (openclawExists) fs.unlinkSync(jsonlPath)
+      clearRuntimeTranscript(id, actualSessionId)
 
       // Remove session from index
       const sessionKey = getAgentDashboardSessionKey(id)
@@ -2794,7 +2797,9 @@ router.get('/:id/chat/archives/:filename', async (req, res) => {
       if (!sessionId) {
         return res.status(400).json({ error: 'Invalid current conversation id' })
       }
-      return res.json({ messages: readChatSessionMessages(id, sessionId, HOME) })
+      // Must match the archives-list entry, which counts messages from both stores — reading only
+      // openclaw's JSONL here would show an empty transcript for a claude/droid-only current chat.
+      return res.json({ messages: readMergedChatSessionMessages(id, sessionId, HOME) })
     }
 
     const filePath = path.join(archiveDir, filename)

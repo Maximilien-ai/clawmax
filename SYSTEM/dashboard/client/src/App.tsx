@@ -1294,6 +1294,13 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
           openEventName="open-partners-wizard"
           suppressAutoOpen={onboardingVisible}
         />
+        <ByokWizard
+          triggerLabel="Runtime"
+          triggerTitle="Choose the agent runtime CLI (OpenClaw, Claude Code, or Droid)"
+          initialStep="runtime"
+          openEventName="open-runtime-wizard"
+          suppressAutoOpen={onboardingVisible}
+        />
         {user && !config?.authDisabled && (
           <div className="hidden sm:flex items-center gap-2 rounded-full border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-2.5 py-1">
             {user.avatar ? (
