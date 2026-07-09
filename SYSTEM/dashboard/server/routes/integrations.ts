@@ -16,6 +16,7 @@ import { safeEnv } from '../lib/safe-env'
 import { getDashboardDeploymentKind, getDashboardEnvRaw, isOllamaUiEnabled } from '../lib/dashboard-env'
 import { getAuthenticatedSession } from '../lib/github-auth'
 import { getWorkspaceResendApiKey, resolveResendTestRecipient, sendResendTestEmail } from '../lib/resend-partner'
+import { detectRuntimeStatuses, normalizeAgentRuntime, resolveWorkspaceRuntime } from '../lib/agent-runtime'
 
 const router = Router()
 
@@ -50,6 +51,14 @@ router.get('/github-status', (_req, res) => {
   res.json({ ready, checks, mode: getGitHubAuthMode() })
 })
 
+router.get('/runtimes', (_req, res) => {
+  const workspaceDefault = resolveWorkspaceRuntime()
+  res.json({
+    runtimes: detectRuntimeStatuses(workspaceDefault),
+    workspaceDefault,
+  })
+})
+
 router.put('/config', (req, res) => {
   const body = (req.body || {}) as Record<string, unknown>
   const ollamaEnabled = isOllamaUiEnabled(getDashboardEnvRaw())
@@ -57,6 +66,7 @@ router.put('/config', (req, res) => {
   const config = writeWorkspaceIntegrationConfig({
     preferredModel: typeof body.preferredModel === 'string' ? body.preferredModel : undefined,
     systemPreferredModel: typeof body.systemPreferredModel === 'string' ? body.systemPreferredModel : undefined,
+    agentRuntime: typeof body.agentRuntime === 'string' ? normalizeAgentRuntime(body.agentRuntime) : undefined,
     githubDefaultRepo: typeof body.githubDefaultRepo === 'string' ? body.githubDefaultRepo : undefined,
     sensoContextLabel: typeof body.sensoContextLabel === 'string' ? body.sensoContextLabel : undefined,
     ollamaBaseUrl: ollamaEnabled && typeof body.ollamaBaseUrl === 'string' ? body.ollamaBaseUrl : undefined,

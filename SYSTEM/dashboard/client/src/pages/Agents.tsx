@@ -2676,6 +2676,7 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
   const [soul, setSoul] = React.useState('')
   const [tools, setTools] = React.useState('')
   const [model, setModel] = React.useState('')
+  const [runtime, setRuntime] = React.useState('default')
   const [availableModels, setAvailableModels] = React.useState<string[]>([])
   const [modelsByProvider, setModelsByProvider] = React.useState<Record<string, { name: string; models: string[] }>>({})
   const [loading, setLoading] = React.useState(true)
@@ -2708,6 +2709,37 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
     return joinSections(`${runtime.trimEnd()}\n\n- **Model:** ${nextModel}\n`)
   }, [])
 
+  // Mirrors server's upsertAgentRuntimeInIdentityContent (agent-model.ts) so the config PUT below
+  // (which overwrites IDENTITY.md wholesale) doesn't clobber the Runtime line the PATCH /runtime
+  // call just wrote — same reasoning as syncIdentityModel above.
+  const syncIdentityRuntime = React.useCallback((content: string, nextRuntime: string) => {
+    const metadataIndex = content.search(/^##\s+Creation Metadata\b/im)
+    const runtimeSection = metadataIndex === -1 ? content : content.slice(0, metadataIndex)
+    const suffix = metadataIndex === -1 ? '' : content.slice(metadataIndex)
+    const joinSections = (nextRuntimeSection: string) => suffix
+      ? `${nextRuntimeSection.trimEnd()}\n\n${suffix.trimStart()}`
+      : nextRuntimeSection
+    const hasExistingLine = /^[-*]\s+\*\*Runtime:\*\*\s*.*$/m.test(runtimeSection)
+
+    if (nextRuntime === 'default') {
+      if (!hasExistingLine) return content
+      return joinSections(runtimeSection.replace(/^[-*]\s+\*\*Runtime:\*\*\s*.*$\n?/m, ''))
+    }
+    if (hasExistingLine) {
+      return joinSections(runtimeSection.replace(/^[-*]\s+\*\*Runtime:\*\*\s*.*$/m, `- **Runtime:** ${nextRuntime}`))
+    }
+    if (/^[-*]\s+\*\*Model:\*\*\s*.*$/m.test(runtimeSection)) {
+      return joinSections(runtimeSection.replace(/^[-*]\s+\*\*Model:\*\*\s*.*$/m, match => `${match}\n- **Runtime:** ${nextRuntime}`))
+    }
+    if (/^[-*]\s+\*\*Tags:\*\*\s+.+$/m.test(runtimeSection)) {
+      return joinSections(runtimeSection.replace(/^[-*]\s+\*\*Tags:\*\*\s+.+$/m, `- **Runtime:** ${nextRuntime}\n$&`))
+    }
+    if (/^[-*]\s+\*\*Role:\*\*\s+.+$/m.test(runtimeSection)) {
+      return joinSections(runtimeSection.replace(/^[-*]\s+\*\*Role:\*\*\s+.+$/m, `$&\n- **Runtime:** ${nextRuntime}`))
+    }
+    return joinSections(`${runtimeSection.trimEnd()}\n\n- **Runtime:** ${nextRuntime}\n`)
+  }, [])
+
   React.useEffect(() => {
     setLoading(true)
     setError(null)
@@ -2730,6 +2762,7 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
         setSoul(configData.soul || '')
         setTools(configData.tools || '')
         setModel(identityData?.liveConfig?.model || identityData?.metadata?.model || '')
+        setRuntime(identityData?.metadata?.runtime || 'default')
         setAvailableModels(Array.isArray(modelsData.models) ? modelsData.models : [])
         setModelsByProvider(modelsData.modelsByProvider || {})
         setLoading(false)
@@ -2796,6 +2829,7 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
     setError(null)
     try {
       const nextIdentity = model ? syncIdentityModel(identity, model) : identity
+      const nextIdentityWithRuntime = syncIdentityRuntime(nextIdentity, runtime)
       if (model) {
         const modelRes = await fetch(`/api/agents/${agent.id}/model`, {
           method: 'PATCH',
@@ -2808,10 +2842,20 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
         }
       }
 
+      const runtimeRes = await fetch(`/api/agents/${agent.id}/runtime`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ runtime }),
+      })
+      if (!runtimeRes.ok) {
+        const data = await runtimeRes.json().catch(() => ({}))
+        throw new Error(data.error || 'Failed to save runtime')
+      }
+
       const res = await fetch(`/api/agents/${agent.id}/config`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identity: nextIdentity, soul, tools }),
+        body: JSON.stringify({ identity: nextIdentityWithRuntime, soul, tools }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -2821,7 +2865,7 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
         throw new Error(data.error || 'Failed to save config')
       }
       setWarnings(Array.isArray(data.warnings) ? data.warnings : [])
-      setIdentity(nextIdentity)
+      setIdentity(nextIdentityWithRuntime)
       onSaved()
     } catch (err: any) {
       setError(err.message || 'Failed to save config')
@@ -2934,6 +2978,20 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
                 {selectedModelDeprecation && (
                   <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">{selectedModelDeprecation}</p>
                 )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Runtime</label>
+                <select
+                  value={runtime}
+                  onChange={e => setRuntime(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-200 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+                >
+                  <option value="default">Default (workspace)</option>
+                  <option value="openclaw">OpenClaw</option>
+                  <option value="claude">Claude Code</option>
+                  <option value="droid">Factory Droid</option>
+                </select>
+                <p className="mt-1 text-xs text-gray-400">Which CLI executes this agent. Leave as Default to follow the workspace-wide runtime (BYOK &rarr; Runtime).</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">IDENTITY.md</label>

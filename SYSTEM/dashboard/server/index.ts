@@ -43,6 +43,7 @@ import { getHostAgentStatus } from './lib/host-agent-status'
 import { readWorkspaceIntegrationConfig } from './lib/workspace-integrations'
 import { resolveOpenClawCliPath } from './lib/openclaw-cli'
 import { buildSystemInfoPayload } from './lib/system-info'
+import { detectRuntimeStatuses, resolveWorkspaceRuntime } from './lib/agent-runtime'
 
 // ============================================================================
 // Crash Protection & Error Logging
@@ -107,11 +108,28 @@ async function autoRegisterWorkspaceAgents(): Promise<void> {
   if (fixed > 0) console.log(`[Doctor] Auto-registered ${fixed} unregistered agent(s)`)
 }
 
+function logDetectedAgentRuntimes(): void {
+  const workspaceDefault = resolveWorkspaceRuntime()
+  const summary = detectRuntimeStatuses(workspaceDefault)
+    .map((status) => {
+      const state = status.installed ? `installed${status.version ? ` (${status.version})` : ''}` : 'not installed'
+      return `${status.label}${status.active ? ' [workspace default]' : ''}: ${state}`
+    })
+    .join(', ')
+  console.log(`[Agent Runtimes] ${summary}`)
+}
+
 function startBackgroundServices() {
   setImmediate(() => {
     void autoRegisterWorkspaceAgents().catch((err) => {
       logToFile(`Auto-register failed: ${err instanceof Error ? err.stack || err.message : String(err)}`)
     })
+
+    try {
+      logDetectedAgentRuntimes()
+    } catch (err) {
+      logToFile(`Agent runtime detection failed: ${err instanceof Error ? err.stack || err.message : String(err)}`)
+    }
 
     try {
       startScheduler()

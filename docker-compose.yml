@@ -22,6 +22,11 @@ services:
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3001}
       WORKSPACES_INTEGRATIONS_THIRD_PARTIES: ${WORKSPACES_INTEGRATIONS_THIRD_PARTIES:-senso,opik,github,resend}
       CLAWMAX_EXTRA_PARTNER_DIRS: ${CLAWMAX_EXTRA_PARTNER_DIRS:-}
+      # Optional agent runtime auth — set these (via shell env or an .env file
+      # next to this compose file) to enable agents pinned to the claude/droid
+      # runtimes. OpenClaw remains the default and needs neither.
+      # ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # FACTORY_API_KEY: ${FACTORY_API_KEY:-}
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s

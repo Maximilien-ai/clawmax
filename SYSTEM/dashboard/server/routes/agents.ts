@@ -11,7 +11,9 @@ import { listWorkflows, resolveParticipants } from '../lib/workflows'
 import { safeEnv, validatePort } from '../lib/safe-env'
 import { validateAgentConfigSections, validateProvisionInput } from '../lib/agent-config-validation'
 import type { AgentModelConfigUpdateResult } from '../lib/agent-model'
-import { normalizeAgentModelInput, resetAgentSessionsForModelChange, upsertAgentModelInConfigFile, upsertAgentModelInIdentityContent } from '../lib/agent-model'
+import { normalizeAgentModelInput, resetAgentSessionsForModelChange, upsertAgentModelInConfigFile, upsertAgentModelInIdentityContent, upsertAgentRuntimeInIdentityContent } from '../lib/agent-model'
+import { AGENT_RUNTIME_IDS, buildRuntimePlan, detectRuntimeStatuses, normalizeAgentRuntime, readAgentIdentitySystemPrompt, resolveWorkspaceRuntime, runRuntimeCli } from '../lib/agent-runtime'
+import { hasRuntimeSession } from '../lib/runtime-sessions'
 import { validateAgentCostLimit } from '../lib/budget'
 import {
   getSystemProviderKeys,
@@ -114,6 +116,11 @@ function updateAgentModelInConfig(agentId: string, model: string): AgentModelCon
 function updateAgentIdentityModel(identityPath: string, model: string) {
   const content = fs.readFileSync(identityPath, 'utf-8')
   fs.writeFileSync(identityPath, upsertAgentModelInIdentityContent(content, model), 'utf-8')
+}
+
+function updateAgentIdentityRuntime(identityPath: string, runtime: string) {
+  const content = fs.readFileSync(identityPath, 'utf-8')
+  fs.writeFileSync(identityPath, upsertAgentRuntimeInIdentityContent(content, runtime), 'utf-8')
 }
 
 function resetAgentRuntimeForModelChange(agentId: string) {
@@ -499,6 +506,7 @@ router.get('/status', async (req, res) => {
     unknown,
     runningGateways,
     gatewayAvailable,
+    runtimes: detectRuntimeStatuses(resolveWorkspaceRuntime()),
     timestamp: new Date().toISOString(),
   })
 })
@@ -1070,6 +1078,23 @@ router.post('/doctor', async (req, res) => {
     }
   }
 
+  // Per-runtime CLI detection (claude/droid) — informational only; the openclaw-cli check above
+  // remains the sole source of truth for hasOpenclawCli/platformMessage. Only warn when a
+  // non-openclaw runtime is missing AND it's the workspace's active default (otherwise it's an
+  // optional/unused CLI and shouldn't affect doctor's overall healthy status).
+  for (const status of detectRuntimeStatuses(resolveWorkspaceRuntime())) {
+    if (status.id === 'openclaw') continue
+    platformChecks.push({
+      check: `runtime-${status.id}`,
+      status: status.installed ? 'pass' : (status.active ? 'warn' : 'pass'),
+      message: status.installed
+        ? `${status.label} CLI installed${status.version ? ` (${status.version})` : ''}${status.active ? ' — active workspace default' : ''}`
+        : status.active
+          ? `${status.label} CLI not installed, but it is the active workspace runtime default. ${status.installHint}`
+          : `${status.label} CLI not installed (not the active runtime, optional). ${status.installHint}`,
+    })
+  }
+
   const rawEnv = getDashboardEnvRaw()
   const sharedProviderKeys = resolveSystemExecutionProviderKeys(rawEnv)
   const configuredHostedProviders = [
@@ -1566,6 +1591,13 @@ router.get('/:id/identity', (req, res) => {
 
   // Parse creation metadata if it exists
   const metadata: any = {}
+
+  // Runtime pin (e.g. `- **Runtime:** claude`) lives above Creation Metadata, alongside Model —
+  // reuse parseIdentity's regex instead of duplicating it. Absent when the agent has no pin
+  // (falls back to the workspace default at execution time via resolveAgentRuntime).
+  const parsedIdentityRuntime = normalizeAgentRuntime(parseIdentity(content).runtime)
+  if (parsedIdentityRuntime) metadata.runtime = parsedIdentityRuntime
+
   const metadataMatch = content.match(/## Creation Metadata\s+([\s\S]*?)(?=\n##|\n---|$)/i)
   if (metadataMatch) {
     const metadataSection = metadataMatch[1]
@@ -2004,6 +2036,49 @@ router.post('/:id/chat/messages', async (req, res) => {
     const persistedSessionId = resolvePersistedAgentSessionId(id, sessionKey, preferredSessionId, HOME)
     const sessionId = scopeSessionIdToModel(persistedSessionId || sessionKey, resolvedAgent.model)
 
+    if (resolvedAgent.runtime !== 'openclaw') {
+      // Claude Code / Factory Droid: spawn via the shared runtime adapter instead of the
+      // openclaw CLI. No --local flag, no openclaw sessions.json bookkeeping — session
+      // continuity is tracked by runtime-sessions.ts (see agent-runtime.ts).
+      runExclusiveAgentExecution(id, () => new Promise<void>((resolve, reject) => {
+        const agentDir = resolvedAgent.workspace || path.join(getWorkspacePath(), 'AGENTS', id)
+        const systemPrompt = readAgentIdentitySystemPrompt(agentDir)
+        const rebuildPlan = (resume: boolean) => buildRuntimePlan({
+          runtime: resolvedAgent.runtime,
+          mode: 'json',
+          agentId: id,
+          scopedSessionId: sessionId,
+          message,
+          model: resolvedAgent.model,
+          agentDir,
+          systemPrompt,
+          resume,
+        })
+        const plan = rebuildPlan(hasRuntimeSession(resolvedAgent.runtime, id, sessionId))
+        runRuntimeCli({
+          plan,
+          env: safeEnv(),
+          timeoutMs: 600000, // 10 min timeout, matches the openclaw path below
+          rebuildPlan,
+          runtime: resolvedAgent.runtime,
+          mode: 'json',
+          agentId: id,
+          scopedSessionId: sessionId,
+        }).then(({ text, errorText }) => {
+          if (errorText) {
+            reject(new Error(errorText === 'timeout' ? 'Agent timeout' : errorText))
+            return
+          }
+          const responseText = normalizeChatMessage(text) || 'No response from agent'
+          res.json({ ok: true, result: { response: responseText } })
+          resolve()
+        }).catch(reject)
+      })).catch((err) => {
+        res.status(500).json({ error: String(err?.message || err) })
+      })
+      return
+    }
+
     runExclusiveAgentExecution(id, () => new Promise<void>((resolve, reject) => {
       const useLocal = !isGatewayConfigured()
       const args = ['agent', '--agent', id, '--session-id', sessionId, '--message', message, '--json', ...(useLocal ? ['--local'] : [])]
@@ -2323,6 +2398,40 @@ router.patch('/:id/model', (req, res) => {
   } catch (err) {
     console.error('Failed to update model:', err)
     res.status(500).json({ error: 'Failed to update model' })
+  }
+})
+
+// PATCH /api/agents/:id/runtime — pin (or clear) which CLI runtime executes this agent, in IDENTITY.md
+router.patch('/:id/runtime', (req, res) => {
+  const { id } = req.params
+  const { runtime } = req.body
+
+  if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
+    return res.status(400).json({ error: 'Invalid agent id' })
+  }
+
+  if (typeof runtime !== 'string') {
+    return res.status(400).json({ error: 'runtime is required' })
+  }
+  const normalizedRuntime = runtime === 'default' ? 'default' : normalizeAgentRuntime(runtime)
+  if (!normalizedRuntime) {
+    return res.status(400).json({ error: `runtime must be one of: default, ${AGENT_RUNTIME_IDS.join(', ')}` })
+  }
+
+  const agentDir = path.join(getAgentsDir(), id)
+  const identityPath = path.join(agentDir, 'IDENTITY.md')
+  if (!fs.existsSync(identityPath)) {
+    return res.status(404).json({ error: 'Agent not found' })
+  }
+
+  try {
+    updateAgentIdentityRuntime(identityPath, normalizedRuntime)
+    // No session reset needed here: each runtime keeps its own session store
+    // (openclaw's ~/.openclaw/agents/<id>/sessions vs. runtime-sessions.ts for claude/droid).
+    res.json({ ok: true, runtime: normalizedRuntime })
+  } catch (err) {
+    console.error('Failed to update runtime:', err)
+    res.status(500).json({ error: 'Failed to update runtime' })
   }
 })
 

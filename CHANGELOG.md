@@ -5,6 +5,7 @@ All notable changes to ClawMax are documented here.
 ## [Unreleased]
 
 ### Added
+- **Agent Runtimes (Claude Code / Factory Droid)** — agents can now execute via the Claude Code or Factory Droid CLI instead of OpenClaw, selectable as a workspace default (Integrations → Runtime) or pinned per agent (agent editor), consistently across direct chat, group/channel chat, workflows, and scheduled/cron runs. Both CLIs run with full autonomy (`claude --dangerously-skip-permissions`, `droid --auto high`) and authenticate headlessly via `ANTHROPIC_API_KEY` / `FACTORY_API_KEY`. Ships across every deployment path: Docker image (pinned `@anthropic-ai/claude-code` + Droid installer versions), `setup.sh`/`doctor.sh` non-fatal CLI detection, and `.env.example`/README/SETUP docs.
 - **Workspace Skill ZIP Uploads** — the Skills import flow now supports uploading a ZIP bundle directly from the client, staging it into the active workspace, importing it through the normal custom-skill validation path, and avoiding the need for users to manually copy skill files into a cloud/container/on-prem dashboard runtime.
 - **Performance Baseline Artifacts** — the integration wrapper now records core timing artifacts for workflow list load, direct agent chat round-trip, workflow trigger, first visible workflow progress, kickoff completion, rolling history, and optional per-model chat samples so later releases can be compared against a repeatable baseline.
 

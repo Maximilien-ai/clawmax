@@ -112,6 +112,20 @@ test('writeWorkspaceIntegrationConfig persists trimmed workspace defaults', () =
   assert(persisted.opikProject === 'clawmax', 'Expected persisted opik project')
 })
 
+test('writeWorkspaceIntegrationConfig persists a valid agentRuntime and omits invalid values', () => {
+  const config = writeWorkspaceIntegrationConfig({ agentRuntime: 'claude' })
+  assert(config.agentRuntime === 'claude', 'Expected agentRuntime to persist')
+
+  const persisted = readWorkspaceIntegrationConfig()
+  assert(persisted.agentRuntime === 'claude', 'Expected persisted agentRuntime')
+
+  const invalid = writeWorkspaceIntegrationConfig({ agentRuntime: 'not-a-runtime' as any })
+  assert(invalid.agentRuntime === undefined, 'Expected invalid agentRuntime to be omitted, not stored')
+
+  const persistedInvalid = readWorkspaceIntegrationConfig()
+  assert(persistedInvalid.agentRuntime === undefined, 'Expected invalid agentRuntime to stay omitted after reload')
+})
+
 test('writeWorkspaceIntegrationConfig normalizes enabled partner selections', () => {
   const config = writeWorkspaceIntegrationConfig({
     enabledPartners: [' senso ', 'github', 'github'],

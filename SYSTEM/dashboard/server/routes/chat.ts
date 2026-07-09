@@ -23,6 +23,8 @@ import {
   scopeSessionIdToModel,
   withTemporaryAgentAuthProfiles,
 } from '../lib/agent-execution'
+import { buildRuntimePlan, runRuntimeCli, readAgentIdentitySystemPrompt, RuntimeModelError } from '../lib/agent-runtime'
+import { hasRuntimeSession } from '../lib/runtime-sessions'
 import { getAuthenticatedSession } from '../lib/github-auth'
 
 const router = Router()
@@ -330,9 +332,35 @@ async function readLatestAssistantTextWithRetry(
   )
 }
 
-export function deriveChatError(raw: string, provider?: ChatProvider): string {
+// Display labels for the runtime-specific deriveChatError() messages below. openclaw never
+// reaches these branches (its errors are classified by the generic patterns further down).
+const RUNTIME_CHAT_LABELS: Record<'claude' | 'droid', string> = {
+  claude: 'Claude Code',
+  droid: 'Factory Droid',
+}
+
+// A missing/falsy runtime (e.g. an older resolvedAgent shape) defaults to openclaw, matching
+// resolveAgentRuntime()'s own default — never treat "unset" as "non-openclaw".
+function isNonOpenclawChatRuntime(runtime: unknown): runtime is 'claude' | 'droid' {
+  return runtime === 'claude' || runtime === 'droid'
+}
+
+export function deriveChatError(raw: string, provider?: ChatProvider, runtimeLabel?: string): string {
   const text = raw.trim()
   if (!text) return 'No reply from agent.'
+  if (/Please run \/login|not logged in/i.test(text)) {
+    return runtimeLabel
+      ? `The ${runtimeLabel} CLI is not authenticated on this server. Set ANTHROPIC_API_KEY / FACTORY_API_KEY or log the CLI in.`
+      : 'The agent runtime CLI is not authenticated on this server. Set ANTHROPIC_API_KEY / FACTORY_API_KEY or log the CLI in.'
+  }
+  if (/is already in use|No conversation found with session ID/i.test(text)) {
+    return 'This chat session is out of sync with the agent runtime. Retry once, or reset the chat session if the issue persists.'
+  }
+  if (/Invalid model:|There's an issue with the selected model/i.test(text)) {
+    return runtimeLabel
+      ? `This agent is configured with a model that the ${runtimeLabel} CLI cannot use. Choose a different model for this agent or switch its runtime.`
+      : 'This agent is configured with a model that the current runtime does not support. Choose a different model for the agent and try again.'
+  }
   if (/n_keep:\s*\d+\s*>=\s*n_ctx:\s*\d+/i.test(text)) {
     if (provider === 'openai-compatible') {
       return 'LM Studio rejected this prompt because the model is loaded with too little context. Increase the LM Studio context length for this model to at least 32768 tokens, reload the model, and try again.'
@@ -408,6 +436,36 @@ function evaluateChatExecutionReadiness(
       resolvedAgent,
     }
   }
+
+  if (isNonOpenclawChatRuntime(resolvedAgent.runtime)) {
+    // Non-openclaw runtimes authenticate via their own CLI (ANTHROPIC_API_KEY / FACTORY_API_KEY /
+    // CLI login) — the hosted-key / Ollama / OpenAI-compatible BYOK checks below don't apply.
+    try {
+      const plan = buildRuntimePlan({
+        runtime: resolvedAgent.runtime,
+        mode: 'chat',
+        agentId,
+        scopedSessionId: 'readiness-check',
+        message: '',
+        model: resolvedAgent.model,
+        agentDir: path.join(effectiveWorkspaceRoot, 'AGENTS', agentId),
+        resume: false,
+      })
+      if (!plan.cliPath) {
+        return { available: false, error: plan.missingCliError, resolvedAgent }
+      }
+    } catch (err: any) {
+      return {
+        available: false,
+        error: err instanceof RuntimeModelError
+          ? err.message
+          : (err?.message || `Agent ${agentId}'s runtime cannot execute the configured model.`),
+        resolvedAgent,
+      }
+    }
+    return { available: true, resolvedAgent }
+  }
+
   const hasHostedKeys = !!(executionEnv.ANTHROPIC_API_KEY || executionEnv.OPENAI_API_KEY || executionEnv.GEMINI_API_KEY)
   const hasOllamaPath = !!(executionEnv.OLLAMA_BASE_URL || integrationConfig.ollamaDefaultModel)
   const hasOpenAiCompatiblePath = !!(executionEnv.OPENAI_BASE_URL || integrationConfig.openaiCompatibleBaseUrl)
@@ -609,18 +667,23 @@ router.post('/:id/chat', async (req, res) => {
 
   // Use plain-text mode so stdout can stream deltas to the UI in real time.
   // History/persistence is handled by the explicit session id and the CLI itself.
-  const gatewayRunning = (
-    resolvedAgent.provider === 'ollama' || resolvedAgent.provider === 'openai-compatible'
-  )
+  // Gateway + --local are openclaw-only concepts; non-openclaw runtimes spawn their own CLI directly.
+  const gatewayRunning = isNonOpenclawChatRuntime(resolvedAgent.runtime)
     ? false
-    : (await waitForGatewayResponsive()).running
+    : (
+        resolvedAgent.provider === 'ollama' || resolvedAgent.provider === 'openai-compatible'
+      )
+      ? false
+      : (await waitForGatewayResponsive()).running
 
-  const useLocal = shouldUseLocalChatExecution({
-    provider: resolvedAgent.provider,
-    byok,
-    gatewayRunning,
-    hasWorkspaceManagedSecrets: hasWorkspaceManagedPartnerSecrets(),
-  })
+  const useLocal = isNonOpenclawChatRuntime(resolvedAgent.runtime)
+    ? false
+    : shouldUseLocalChatExecution({
+        provider: resolvedAgent.provider,
+        byok,
+        gatewayRunning,
+        hasWorkspaceManagedSecrets: hasWorkspaceManagedPartnerSecrets(),
+      })
   const useManagedSecretStatelessSession = shouldUseManagedSecretStatelessChatSession({
     useLocal,
     hasWorkspaceManagedSecrets: hasWorkspaceManagedPartnerSecrets(),
@@ -687,133 +750,209 @@ router.post('/:id/chat', async (req, res) => {
     ? buildManagedSecretStatelessChatMessage(message, (req.body as any).contextMessages, assignedSkills, currentAgentWorkspaceDir)
     : message
   const executionSessionId = effectiveSessionId
-  const args = [
-    'agent',
-    '--agent', id,
-    '--session-id', executionSessionId,
-    '--message', executionMessage,
-    ...(useLocal ? ['--local'] : []),
-  ]
-  const openclawCli = resolveOpenClawCliPath()
-  console.log(`[Chat Route] Spawning: ${openclawCli || 'openclaw'} ${args.join(' ')}`)
 
   let procExited = false
   let proc: ReturnType<typeof spawn> | null = null
-  let fullOutput = ''
-  let stderrOutput = ''
 
-  runExclusiveAgentExecution(id, () => withTemporaryAgentAuthProfiles(id, {
-    openai: executionEnv.OPENAI_API_KEY,
-    anthropic: executionEnv.ANTHROPIC_API_KEY,
-    gemini: executionEnv.GEMINI_API_KEY,
-    ollamaBaseUrl: executionEnv.OLLAMA_BASE_URL,
-    openaiCompatibleApiKey: useOpenAiCompatible ? executionEnv.OPENAI_API_KEY : undefined,
-    openaiCompatibleBaseUrl: useOpenAiCompatible ? executionEnv.OPENAI_BASE_URL : undefined,
-    openaiCompatibleDefaultModel: useOpenAiCompatible ? (byok?.openaiCompatibleDefaultModel || integrationConfig.openaiCompatibleDefaultModel) : undefined,
-  }, resolvedAgent.model, resolvedAgent.provider, async () => {
-    await new Promise<void>((resolve) => {
-      if (!openclawCli) {
-        send('error', 'OpenClaw CLI is not available in this runtime. Install or bundle the CLI, or set OPENCLAW_BIN to the executable path.')
-        resolve()
+  if (isNonOpenclawChatRuntime(resolvedAgent.runtime)) {
+    // Claude Code / Factory Droid: spawn via the shared runtime adapter instead of the openclaw
+    // CLI. No gateway, no --local, no persisted openclaw session store — see agent-runtime.ts.
+    const runtime = resolvedAgent.runtime
+    const runtimeLabel = RUNTIME_CHAT_LABELS[runtime]
+    const rebuildRuntimePlan = (resume: boolean) => buildRuntimePlan({
+      runtime,
+      mode: 'chat',
+      agentId: id,
+      scopedSessionId: executionSessionId,
+      message: executionMessage,
+      model: resolvedAgent.model,
+      agentDir: currentAgentWorkspaceDir,
+      systemPrompt: readAgentIdentitySystemPrompt(currentAgentWorkspaceDir),
+      resume,
+    })
+    const initialPlan = rebuildRuntimePlan(hasRuntimeSession(runtime, id, executionSessionId))
+    console.log(`[Chat Route] Spawning: ${initialPlan.cliPath || runtime} ${initialPlan.args.join(' ')}`)
+
+    runExclusiveAgentExecution(id, () => withTemporaryAgentAuthProfiles(id, {
+      openai: executionEnv.OPENAI_API_KEY,
+      anthropic: executionEnv.ANTHROPIC_API_KEY,
+      gemini: executionEnv.GEMINI_API_KEY,
+      ollamaBaseUrl: executionEnv.OLLAMA_BASE_URL,
+      openaiCompatibleApiKey: useOpenAiCompatible ? executionEnv.OPENAI_API_KEY : undefined,
+      openaiCompatibleBaseUrl: useOpenAiCompatible ? executionEnv.OPENAI_BASE_URL : undefined,
+      openaiCompatibleDefaultModel: useOpenAiCompatible ? (byok?.openaiCompatibleDefaultModel || integrationConfig.openaiCompatibleDefaultModel) : undefined,
+    }, resolvedAgent.model, resolvedAgent.provider, async () => {
+      if (!initialPlan.cliPath) {
+        procExited = true
+        clearInterval(keepalive)
+        send('error', initialPlan.missingCliError)
+        send('complete', { text: '' })
+        if (!res.writableEnded) res.end()
         return
       }
-
-      const spawned = spawn(openclawCli, args, {
-        env: executionEnv,
-        stdio: ['pipe', 'pipe', 'pipe']
-      })
-      proc = spawned
 
       send('start', { sessionId: effectiveSessionId })
       invalidateAgentStatusCache(id)
 
-      spawned.stdout.on('data', (chunk: Buffer) => {
-        const text = stripBenignChatRuntimeWarnings(chunk.toString())
-        if (!text) return
-        fullOutput += text
-        send('delta', { text })
+      const { text, errorText } = await runRuntimeCli({
+        plan: initialPlan,
+        env: executionEnv,
+        timeoutMs: 180000,
+        rebuildPlan: rebuildRuntimePlan,
+        runtime,
+        mode: 'chat',
+        agentId: id,
+        scopedSessionId: executionSessionId,
+        onDelta: (delta) => send('delta', { text: delta }),
       })
+      procExited = true
+      clearInterval(keepalive)
 
-      spawned.stderr.on('data', (chunk: Buffer) => {
-        stderrOutput += chunk.toString()
-      })
+      const completionText = normalizeChatMessage(text.trim())
+      if (!completionText) {
+        send('error', errorText === 'timeout'
+          ? 'Agent timeout (3 minutes)'
+          : deriveChatError(errorText || 'No reply from agent.', resolvedAgent.provider, runtimeLabel))
+      }
+      send('complete', { text: completionText })
+      if (!res.writableEnded) {
+        res.end()
+      }
+    }, { persistAuthProfiles: true, runtime })).catch((err) => {
+      console.error(`[Chat Route] Auth profile prep error for ${id}:`, err)
+      clearInterval(keepalive)
+      send('error', `Failed to prepare agent execution: ${err.message}`)
+      if (!res.writableEnded) {
+        res.end()
+      }
+    })
+  } else {
+    const args = [
+      'agent',
+      '--agent', id,
+      '--session-id', executionSessionId,
+      '--message', executionMessage,
+      ...(useLocal ? ['--local'] : []),
+    ]
+    const openclawCli = resolveOpenClawCliPath()
+    console.log(`[Chat Route] Spawning: ${openclawCli || 'openclaw'} ${args.join(' ')}`)
 
-      spawned.on('exit', () => { procExited = true })
+    let fullOutput = ''
+    let stderrOutput = ''
 
-      spawned.on('close', async (code) => {
-        console.log(`[Chat Route] CLI exited for agent ${id} with code ${code}`)
-        clearInterval(keepalive)
-
-        if (stderrOutput) {
-          console.error(`[Chat Route] stderr for ${id}:`, stderrOutput.slice(0, 500))
+    runExclusiveAgentExecution(id, () => withTemporaryAgentAuthProfiles(id, {
+      openai: executionEnv.OPENAI_API_KEY,
+      anthropic: executionEnv.ANTHROPIC_API_KEY,
+      gemini: executionEnv.GEMINI_API_KEY,
+      ollamaBaseUrl: executionEnv.OLLAMA_BASE_URL,
+      openaiCompatibleApiKey: useOpenAiCompatible ? executionEnv.OPENAI_API_KEY : undefined,
+      openaiCompatibleBaseUrl: useOpenAiCompatible ? executionEnv.OPENAI_BASE_URL : undefined,
+      openaiCompatibleDefaultModel: useOpenAiCompatible ? (byok?.openaiCompatibleDefaultModel || integrationConfig.openaiCompatibleDefaultModel) : undefined,
+    }, resolvedAgent.model, resolvedAgent.provider, async () => {
+      await new Promise<void>((resolve) => {
+        if (!openclawCli) {
+          send('error', 'OpenClaw CLI is not available in this runtime. Install or bundle the CLI, or set OPENCLAW_BIN to the executable path.')
+          resolve()
+          return
         }
 
-        const normalizedText = normalizeChatMessage(fullOutput.trim())
-        const persistedAssistant = !normalizedText
-          ? await readLatestAssistantTextWithRetry(
+        const spawned = spawn(openclawCli, args, {
+          env: executionEnv,
+          stdio: ['pipe', 'pipe', 'pipe']
+        })
+        proc = spawned
+
+        send('start', { sessionId: effectiveSessionId })
+        invalidateAgentStatusCache(id)
+
+        spawned.stdout.on('data', (chunk: Buffer) => {
+          const text = stripBenignChatRuntimeWarnings(chunk.toString())
+          if (!text) return
+          fullOutput += text
+          send('delta', { text })
+        })
+
+        spawned.stderr.on('data', (chunk: Buffer) => {
+          stderrOutput += chunk.toString()
+        })
+
+        spawned.on('exit', () => { procExited = true })
+
+        spawned.on('close', async (code) => {
+          console.log(`[Chat Route] CLI exited for agent ${id} with code ${code}`)
+          clearInterval(keepalive)
+
+          if (stderrOutput) {
+            console.error(`[Chat Route] stderr for ${id}:`, stderrOutput.slice(0, 500))
+          }
+
+          const normalizedText = normalizeChatMessage(fullOutput.trim())
+          const persistedAssistant = !normalizedText
+            ? await readLatestAssistantTextWithRetry(
+                id,
+                dashboardSessionKey,
+                executionSessionId
+              )
+            : null
+
+          let completionText = normalizedText || normalizeChatMessage(persistedAssistant?.content || '') || ''
+
+          if (completionText) {
+            const usage = readLatestAssistantUsageFromPersistedSession(
               id,
               dashboardSessionKey,
               executionSessionId
             )
-          : null
+            traceAgentChat(id, message, completionText, {
+              model: usage?.model || resolvedAgent.model,
+              provider: usage?.provider || resolvedAgent.provider || undefined,
+              inputTokens: usage?.inputTokens,
+              outputTokens: usage?.outputTokens,
+              cacheReadTokens: usage?.cacheReadTokens,
+              durationMs: Math.max(0, Date.now() - chatStartedAt),
+              estimatedCostUsd: usage?.estimatedCostUsd,
+              sessionId: usage?.sessionId || persistedAssistant?.sessionId || executionSessionId,
+              actorUserId: session?.userId,
+              actorLogin: session?.login,
+              actorEmail: session?.email,
+              dashboardInstanceId: getRequestDashboardInstanceId(req),
+            })
+          }
 
-        let completionText = normalizedText || normalizeChatMessage(persistedAssistant?.content || '') || ''
+          persistDashboardChatSession(id, executionSessionId)
 
-        if (completionText) {
-          const usage = readLatestAssistantUsageFromPersistedSession(
-            id,
-            dashboardSessionKey,
-            executionSessionId
-          )
-          traceAgentChat(id, message, completionText, {
-            model: usage?.model || resolvedAgent.model,
-            provider: usage?.provider || resolvedAgent.provider || undefined,
-            inputTokens: usage?.inputTokens,
-            outputTokens: usage?.outputTokens,
-            cacheReadTokens: usage?.cacheReadTokens,
-            durationMs: Math.max(0, Date.now() - chatStartedAt),
-            estimatedCostUsd: usage?.estimatedCostUsd,
-            sessionId: usage?.sessionId || persistedAssistant?.sessionId || executionSessionId,
-            actorUserId: session?.userId,
-            actorLogin: session?.login,
-            actorEmail: session?.email,
-            dashboardInstanceId: getRequestDashboardInstanceId(req),
-          })
-        }
+          if (!completionText) {
+            send('error', deriveChatError(
+              stderrOutput.slice(0, 300) || (code !== 0 ? 'Agent failed.' : 'No reply from agent.'),
+              resolvedAgent.provider
+            ))
+          }
+          send('complete', { text: completionText })
+          if (!res.writableEnded) {
+            res.end()
+          }
+          resolve()
+        })
 
-        persistDashboardChatSession(id, executionSessionId)
-
-        if (!completionText) {
-          send('error', deriveChatError(
-            stderrOutput.slice(0, 300) || (code !== 0 ? 'Agent failed.' : 'No reply from agent.'),
-            resolvedAgent.provider
-          ))
-        }
-        send('complete', { text: completionText })
-        if (!res.writableEnded) {
-          res.end()
-        }
-        resolve()
+        spawned.on('error', (err) => {
+          console.error(`[Chat Route] CLI spawn error for ${id}:`, err)
+          clearInterval(keepalive)
+          send('error', `Failed to start agent: ${err.message}`)
+          if (!res.writableEnded) {
+            res.end()
+          }
+          resolve()
+        })
       })
-
-      spawned.on('error', (err) => {
-        console.error(`[Chat Route] CLI spawn error for ${id}:`, err)
-        clearInterval(keepalive)
-        send('error', `Failed to start agent: ${err.message}`)
-        if (!res.writableEnded) {
-          res.end()
-        }
-        resolve()
-      })
+    }, { persistAuthProfiles: true })).catch((err) => {
+      console.error(`[Chat Route] Auth profile prep error for ${id}:`, err)
+      clearInterval(keepalive)
+      send('error', `Failed to prepare agent execution: ${err.message}`)
+      if (!res.writableEnded) {
+        res.end()
+      }
     })
-  }, { persistAuthProfiles: true })).catch((err) => {
-    console.error(`[Chat Route] Auth profile prep error for ${id}:`, err)
-    clearInterval(keepalive)
-    send('error', `Failed to prepare agent execution: ${err.message}`)
-    if (!res.writableEnded) {
-      res.end()
-    }
-  })
+  }
 
   const timeout = setTimeout(() => {
     clearInterval(keepalive)

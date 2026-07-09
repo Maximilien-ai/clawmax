@@ -48,6 +48,7 @@ import {
   formatParticipantFailure,
   normalizeWorkflowThreadDiagnostic,
   resolveWorkflowConversationTarget,
+  syncWorkflowToCron,
 } from './workflows'
 
 const GREEN = '\x1b[32m'
@@ -659,6 +660,63 @@ test('resolveWorkflowOpenClawCliPath honors OPENCLAW_BIN override', () => {
     if (typeof original === 'undefined') delete process.env.OPENCLAW_BIN
     else process.env.OPENCLAW_BIN = original
   }
+})
+
+function withRuntimePinnedWorkspace<T>(agentRuntimes: Record<string, string | undefined>, fn: (workspaceRoot: string) => T): T {
+  const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-workflow-cron-runtime-'))
+  const previousWorkspace = process.env.OPENCLAW_WORKSPACE
+  const previousHome = process.env.HOME
+  const home = path.join(workspaceRoot, '.home')
+  try {
+    process.env.OPENCLAW_WORKSPACE = workspaceRoot
+    process.env.HOME = home
+    fs.mkdirSync(path.join(home, '.openclaw'), { recursive: true })
+    fs.mkdirSync(path.join(workspaceRoot, 'SYSTEM'), { recursive: true })
+    for (const [agentId, runtime] of Object.entries(agentRuntimes)) {
+      const agentDir = path.join(workspaceRoot, 'AGENTS', agentId)
+      fs.mkdirSync(agentDir, { recursive: true })
+      const identityLines = ['# Identity', '', '- **Name:** Test Agent']
+      if (runtime) identityLines.push(`- **Runtime:** ${runtime}`)
+      fs.writeFileSync(path.join(agentDir, 'IDENTITY.md'), identityLines.join('\n'), 'utf-8')
+    }
+    return fn(workspaceRoot)
+  } finally {
+    if (typeof previousWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
+    else process.env.OPENCLAW_WORKSPACE = previousWorkspace
+    if (typeof previousHome === 'undefined') delete process.env.HOME
+    else process.env.HOME = previousHome
+    fs.rmSync(workspaceRoot, { recursive: true, force: true })
+  }
+}
+
+test('syncWorkflowToCron skips openclaw cron registration for a claude/droid-pinned participant', () => {
+  withRuntimePinnedWorkspace({ 'droid-runner': 'droid' }, () => {
+    const result = syncWorkflowToCron({
+      id: 'wf-runtime-skip',
+      enabled: true,
+      schedule: '0 9 * * *',
+      timezone: 'UTC',
+      content: 'Say hi',
+    } as any, ['droid-runner'])
+    assert(result.ok === true, `Expected ok:true when every participant is non-openclaw, got ${JSON.stringify(result)}`)
+    assert(result.cronJobId === undefined, `Expected no cron job id, got ${result.cronJobId}`)
+  })
+})
+
+test('syncWorkflowToCron does not mask a real openclaw registration failure behind runtime skips', () => {
+  withRuntimePinnedWorkspace({ 'droid-runner': 'droid', 'openclaw-runner': undefined }, () => {
+    // No real openclaw CLI is on PATH in this test environment, so the openclaw-runner
+    // registration attempt fails — that must still surface as ok:false, not be swallowed
+    // by the unrelated droid-runner skip.
+    const result = syncWorkflowToCron({
+      id: 'wf-runtime-mixed',
+      enabled: true,
+      schedule: '0 9 * * *',
+      timezone: 'UTC',
+      content: 'Say hi',
+    } as any, ['droid-runner', 'openclaw-runner'])
+    assert(result.ok === false, `Expected ok:false when an openclaw participant's registration genuinely fails, got ${JSON.stringify(result)}`)
+  })
 })
 
 test('buildWorkflowSessionId stays within provider cache key limits for long ids', () => {
