@@ -45,6 +45,7 @@ interface OpenClawConfigFile {
 type ExecutionProvider = 'openai' | 'openai-compatible' | 'anthropic' | 'gemini' | 'ollama' | null
 interface AgentAuthProfileOptions {
   persistAuthProfiles?: boolean
+  skipModelConfigMutation?: boolean
 }
 const LMSTUDIO_DEFAULT_CONTEXT_TOKENS = 64_000
 let openClawConfigMutationLock: Promise<void> = Promise.resolve()
@@ -548,7 +549,7 @@ function normalizeSessionModel(model?: string): string | undefined {
   return trimmed
 }
 
-function toExecutionModelOverride(model: string | undefined, provider: ExecutionProvider | undefined): string | undefined {
+export function toExecutionModelOverride(model: string | undefined, provider: ExecutionProvider | undefined): string | undefined {
   const trimmed = model?.trim()
   if (!trimmed) return undefined
   if (provider === 'openai-compatible' && trimmed.startsWith('openai-compatible/')) {
@@ -876,7 +877,12 @@ export async function withTemporaryAgentAuthProfiles<T>(
     }
   }
   if (hadConfig) {
-    ensureWorkspaceAgentRecordForExecution(configPath, agentId, execution, preferredModel)
+    ensureWorkspaceAgentRecordForExecution(
+      configPath,
+      agentId,
+      execution,
+      options.skipModelConfigMutation ? undefined : preferredModel
+    )
     const skillRootChanged = ensureWorkspaceSkillRootForExecution(configPath, execution)
     const bundledSkillRootChanged = ensureBundledRepoSkillRootForExecution(configPath, agentId, execution)
     if (skillRootChanged || bundledSkillRootChanged) {
@@ -1071,6 +1077,7 @@ export async function withTemporaryAgentAuthProfiles<T>(
     const normalizedOllamaBaseUrl = providerKeys.ollamaBaseUrl?.trim().replace(/\/+$/, '')
     const shouldOverrideModel = Boolean(
       hadConfig &&
+      !options.skipModelConfigMutation &&
       preferredModel &&
       preferredModel !== previousModel
     )
@@ -1123,6 +1130,7 @@ export async function withTemporaryAgentAuthProfiles<T>(
     )
     const shouldOverrideModel = Boolean(
       hadConfig &&
+      !options.skipModelConfigMutation &&
       executionModelOverride &&
       executionModelOverride !== previousModel
     )
@@ -1212,6 +1220,7 @@ export async function withTemporaryAgentAuthProfiles<T>(
   const previousModel = currentConfigModel.ok ? currentConfigModel.model : undefined
   const shouldOverrideModel = Boolean(
     hadConfig &&
+    !options.skipModelConfigMutation &&
     effectiveModel &&
     effectiveModel !== previousModel
   )

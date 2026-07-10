@@ -489,6 +489,66 @@ async function run() {
     }
   })
 
+  await test('provision route does not pass legacy --whatsapp to openclaw agents add', async () => {
+    const tmpCliDir = path.join(tmpHome, 'bin-no-whatsapp')
+    const fakeCli = path.join(tmpCliDir, 'openclaw')
+    fs.mkdirSync(tmpCliDir, { recursive: true })
+    fs.writeFileSync(fakeCli, '#!/bin/sh\necho test-openclaw\n', 'utf-8')
+    fs.chmodSync(fakeCli, 0o755)
+    process.env.OPENCLAW_BIN = fakeCli
+
+    const childProcess = require('child_process')
+    const originalSpawn = childProcess.spawn
+    const spawnCalls: Array<{ command: string; args: string[] }> = []
+
+    childProcess.spawn = (command: string, args: string[]) => {
+      spawnCalls.push({ command, args })
+      const listeners: Record<string, Function> = {}
+      return {
+        stdout: { on() {} },
+        stderr: { on() {} },
+        on(event: string, handler: Function) {
+          listeners[event] = handler
+          if (event === 'close') {
+            setTimeout(() => handler(0, null), 0)
+          }
+        },
+      }
+    }
+
+    try {
+      const handler = getRouteHandler('post', '/provision')
+      const res: any = {
+        writableEnded: false,
+        headers: {} as Record<string, string>,
+        setHeader(name: string, value: string) { this.headers[name] = value },
+        writeHead() { return this },
+        flushHeaders() {},
+        write() {},
+        end() { this.writableEnded = true },
+      }
+      const req: any = makeReq({
+        body: {
+          name: 'whatsapp-agent',
+          model: 'openai/gpt-5',
+          whatsapp: '+15142427899',
+          tags: [],
+        },
+        on() {},
+      })
+      await handler(req, res)
+      await new Promise(resolve => setTimeout(resolve, 20))
+
+      const addCall = spawnCalls.find((call) => call.args.slice(0, 3).join(' ') === 'agents add whatsapp-agent')
+      assert(addCall, 'Expected openclaw agents add to be invoked')
+      assert(!addCall!.args.includes('--whatsapp'), 'Expected provisioning to avoid legacy --whatsapp flag')
+      assert(!addCall!.args.includes('+15142427899'), 'Expected WhatsApp number not to be passed to openclaw agents add')
+    } finally {
+      childProcess.spawn = originalSpawn
+      delete require.cache[require.resolve('./agents')]
+    }
+  })
+
   await test('provision assigns inferred skills after agent creation succeeds', async () => {
     const tmpCliDir = path.join(tmpHome, 'bin-skills')
     const fakeCli = path.join(tmpCliDir, 'openclaw')

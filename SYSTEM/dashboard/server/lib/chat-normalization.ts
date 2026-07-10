@@ -122,8 +122,13 @@ function isDoctorWarningLine(trimmed: string): boolean {
   if (!trimmed) return false
   if (/doctor warnings/i.test(trimmed)) return true
   if (/left legacy config health state in place because/i.test(trimmed)) return true
+  if (/left migrated task registry sidecar in place because/i.test(trimmed)) return true
+  if (/left legacy update-check state in place because/i.test(trimmed)) return true
   if (/config-health\.json/i.test(trimmed)) return true
+  if (/runs\.sqlite\.migrated/i.test(trimmed)) return true
+  if (/update-check\.json/i.test(trimmed)) return true
   if (/legacy state migration warnings:/i.test(trimmed)) return true
+  if (/shared sqlite state/i.test(trimmed)) return true
   if (/^[\s|│┌┐└┘├┤┬┴┼─━═╭╮╰╯]+$/.test(trimmed)) return true
   return false
 }

@@ -21,6 +21,7 @@ import {
   resolveAgentExecutionConfig,
   resolvePersistedAgentSessionId,
   runExclusiveAgentExecution,
+  toExecutionModelOverride,
   shouldRetryWithBackupModel,
   scopeSessionIdToModel,
   withTemporaryAgentAuthProfiles,
@@ -705,11 +706,13 @@ router.post('/:id/chat', async (req, res) => {
     const executionSessionId = scopeSessionIdToModel(sessionSeed, attemptModel)
     currentSessionId = executionSessionId
     const attemptUseOpenAiCompatible = attemptProvider === 'openai-compatible'
+    const attemptExecutionModel = toExecutionModelOverride(attemptModel, attemptProvider)
     const args = [
       'agent',
       '--agent', id,
       '--session-id', executionSessionId,
       '--message', executionMessage,
+      ...(attemptExecutionModel ? ['--model', attemptExecutionModel] : []),
       ...(attemptUseOpenAiCompatible || attemptProvider === 'ollama' ? ['--local'] : (useLocal ? ['--local'] : [])),
     ]
     console.log(`[Chat Route] Spawning: ${openclawCli || 'openclaw'} ${args.join(' ')}`)
@@ -813,7 +816,7 @@ router.post('/:id/chat', async (req, res) => {
           reject(err)
         })
       })
-    }, { persistAuthProfiles: true })
+    }, { persistAuthProfiles: true, skipModelConfigMutation: true })
   }
 
   runExclusiveAgentExecution(id, async () => {

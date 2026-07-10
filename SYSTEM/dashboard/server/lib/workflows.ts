@@ -16,6 +16,7 @@ import {
   resolveAgentExecutionConfig,
   runExclusiveAgentExecution,
   shouldRetryWithBackupModel,
+  toExecutionModelOverride,
   withTemporaryAgentAuthProfiles,
 } from './agent-execution'
 import { readWorkspaceIntegrationConfig } from './workspace-integrations'
@@ -1979,8 +1980,9 @@ export function triggerWorkflow(workflowId: string, options?: {
                 : (await waitForGatewayResponsive()).running
               const useLocal = attemptProvider === 'ollama' || attemptProvider === 'openai-compatible' || !gatewayRunning || hasWorkspaceManagedPartnerSecrets()
               const sessionId = buildWorkflowSessionId(executionId, participant.agentId)
+              const executionModelOverride = toExecutionModelOverride(attemptModel, attemptProvider)
               repairWorkflowSessionEntryForRun(participant.agentId, sessionId)
-              const args = ['agent', '--agent', participant.agentId, '--session-id', sessionId, '--message', executionMessage, '--json', ...(useLocal ? ['--local'] : [])]
+              const args = ['agent', '--agent', participant.agentId, '--session-id', sessionId, '--message', executionMessage, '--json', ...(executionModelOverride ? ['--model', executionModelOverride] : []), ...(useLocal ? ['--local'] : [])]
               return await new Promise<any>((resolve, reject) => {
                 withTemporaryAgentAuthProfiles(participant.agentId, {
                   openai: attemptProvider === 'openai-compatible' ? undefined : executionEnv.OPENAI_API_KEY,
@@ -2035,7 +2037,7 @@ export function triggerWorkflow(workflowId: string, options?: {
                       innerResolve()
                     })
                   })
-                }, { persistAuthProfiles: true }).catch(reject)
+                }, { persistAuthProfiles: true, skipModelConfigMutation: true }).catch(reject)
               })
             }
 

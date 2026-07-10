@@ -918,8 +918,8 @@ router.post('/provision', (req, res) => {
 
   const args: string[] = ['agents', 'add', validatedName, '--workspace', workspaceArg, '--agent-dir', agentDirArg, '--non-interactive']
   if (normalizedModel) args.push('--model', normalizedModel)
-  if (whatsapp) args.push('--whatsapp', whatsapp)
   // --port is not supported by openclaw agents add command
+  // --whatsapp is not supported by current openclaw agents add builds; WhatsApp is linked later via the pairing route.
   // Profile support removed - not currently used
 
   send('start', `Creating agent: ${validatedName}`)

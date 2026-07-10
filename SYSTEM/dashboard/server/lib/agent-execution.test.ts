@@ -904,6 +904,41 @@ test('withTemporaryAgentAuthProfiles preserves gateway config fields during temp
   assert(!!restoredMatchingAgent, 'Expected workspace record to keep the resolved execution model after override')
 })
 
+test('withTemporaryAgentAuthProfiles can skip model config mutation for hosted execution paths', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
+  const agentDir = path.join(home, '.openclaw', 'agents', 'test1', 'agent')
+  const authProfilePath = path.join(agentDir, 'auth-profiles.json')
+  const configPath = path.join(home, '.openclaw', 'openclaw.json')
+  fs.mkdirSync(agentDir, { recursive: true })
+  fs.mkdirSync(path.join(home, '.openclaw'), { recursive: true })
+  fs.writeFileSync(configPath, JSON.stringify({
+    gateway: {
+      auth: { token: 'stable-token' },
+    },
+    agents: {
+      list: [
+        { id: 'test1', workspace: path.join(home, 'workspace', 'AGENTS', 'test1'), agentDir, model: 'openai/gpt-5.5' }
+      ]
+    }
+  }, null, 2))
+  fs.writeFileSync(authProfilePath, JSON.stringify({ version: 1, profiles: {}, usageStats: {} }, null, 2))
+
+  process.env.HOME = home
+  resetWorkspaceManagerForTests()
+
+  await withTemporaryAgentAuthProfiles('test1', { openai: 'fresh-openai' }, 'openai/gpt-4.1', 'openai', async () => {
+    const currentConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    const matchingAgent = currentConfig.agents.list.find((agent: any) => agent.id === 'test1')
+    const currentProfiles = JSON.parse(fs.readFileSync(authProfilePath, 'utf-8'))
+    assert(matchingAgent.model === 'openai/gpt-5.5', 'Expected hosted execution path to avoid mutating the saved model')
+    assert(currentProfiles.profiles['openai-key']?.key === 'fresh-openai', 'Expected temporary auth profiles to still be written')
+  }, { skipModelConfigMutation: true })
+
+  const restoredConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  const restoredMatchingAgent = restoredConfig.agents.list.find((agent: any) => agent.id === 'test1')
+  assert(restoredMatchingAgent.model === 'openai/gpt-5.5', 'Expected saved model to remain unchanged after execution')
+})
+
 test('withTemporaryAgentAuthProfiles updates the matching workspace record when ids collide', async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
   const defaultWorkspace = path.join(home, '.openclaw', 'workspace')

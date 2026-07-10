@@ -129,6 +129,18 @@ Useful agent response.`
   assert(normalized === 'Useful agent response.', `Unexpected normalized output: ${normalized}`)
 })
 
+test('strips state-migration warning variants from chat output so on-prem runtime leftovers do not appear as assistant replies', () => {
+  const raw = `│ - Left migrated task registry sidecar in place because archive already │ │ exists: /app/DATA/.home/.openclaw/tasks/runs.sqlite.migrated │ │ - Left legacy update-check state in place because shared SQLite state │ │ already differs: /app/DATA/.home/.openclaw/update-check.json │ │ with shared SQLite state: │
+
+Useful agent response.`
+  const stripped = stripBenignChatRuntimeWarnings(raw)
+  const normalized = normalizeChatMessage(raw)
+
+  assert(!/runs\.sqlite\.migrated/i.test(stripped), 'Expected migrated task registry warning stripped from streamed chunks')
+  assert(!/update-check\.json/i.test(stripped), 'Expected update-check warning stripped from streamed chunks')
+  assert(normalized === 'Useful agent response.', `Unexpected normalized output: ${normalized}`)
+})
+
 console.log('\n========================================')
 console.log(`Tests passed: ${testsPassed}`)
 console.log(`Tests failed: ${testsFailed}`)
