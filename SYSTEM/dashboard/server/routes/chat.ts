@@ -818,17 +818,23 @@ router.post('/:id/chat', async (req, res) => {
 
   runExclusiveAgentExecution(id, async () => {
     const primaryResult = await runChatAttempt(resolvedAgent.model, resolvedAgent.provider)
+    const fallbackModel = resolvedAgent.backupModel || (
+      /Unknown model:/i.test(primaryResult.rawError) ? resolvedAgent.implicitFallbackModel : undefined
+    )
+    const fallbackProvider = resolvedAgent.backupModel
+      ? resolvedAgent.backupProvider
+      : (/Unknown model:/i.test(primaryResult.rawError) ? resolvedAgent.implicitFallbackProvider : undefined)
     if (
       primaryResult.completionText ||
-      !resolvedAgent.backupModel ||
-      !resolvedAgent.backupProvider ||
+      !fallbackModel ||
+      !fallbackProvider ||
       primaryResult.hadVisibleOutput ||
       !shouldRetryWithBackupModel(primaryResult.rawError)
     ) {
       return primaryResult
     }
-    console.log(`[Chat Route] Retrying agent ${id} with backup model ${resolvedAgent.backupModel}`)
-    return await runChatAttempt(resolvedAgent.backupModel, resolvedAgent.backupProvider)
+    console.log(`[Chat Route] Retrying agent ${id} with fallback model ${fallbackModel}`)
+    return await runChatAttempt(fallbackModel, fallbackProvider)
   }).then((attemptResult) => {
     clearInterval(keepalive)
     if (attemptResult.completionText) {

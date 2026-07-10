@@ -8,6 +8,9 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import {
+  clearModelCache,
+} from './model-discovery'
+import {
   deriveWorkspaceRootFromAgentWorkspace,
   getAgentExecutionRetryDelay,
   isOpenClawSessionLockError,
@@ -74,6 +77,7 @@ test('resolveAgentExecutionConfig falls back to IDENTITY model when openclaw.jso
 
   process.env.HOME = home
   process.env.OPENCLAW_WORKSPACE = workspace
+  clearModelCache()
   resetWorkspaceManagerForTests()
 
   const resolved = resolveAgentExecutionConfig('test1')
@@ -99,12 +103,64 @@ test('resolveAgentExecutionConfig includes a distinct backup model when configur
 
   process.env.HOME = home
   process.env.OPENCLAW_WORKSPACE = workspace
+  clearModelCache()
   resetWorkspaceManagerForTests()
 
   const resolved = resolveAgentExecutionConfig('backup-agent')
   assert(resolved.model === 'openai/gpt-4o-mini', 'Expected primary model to resolve')
   assert(resolved.backupModel === 'anthropic/claude-sonnet-4-6', 'Expected backup model to resolve')
   assert(resolved.backupProvider === 'anthropic', 'Expected backup provider derived from backup model')
+})
+
+test('resolveAgentExecutionConfig exposes an implicit fallback model when the current default differs from the configured model', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
+  const workspace = path.join(home, 'workspace')
+  const agentWorkspace = path.join(workspace, 'AGENTS', 'legacy-openai-agent')
+  const agentDir = path.join(home, '.openclaw', 'agents', 'legacy-openai-agent', 'agent')
+  fs.mkdirSync(agentWorkspace, { recursive: true })
+  fs.mkdirSync(path.join(home, '.openclaw'), { recursive: true })
+  fs.writeFileSync(path.join(agentWorkspace, 'IDENTITY.md'), '# Identity\n\n- **Model:** openai/gpt-4o-mini\n', 'utf-8')
+  fs.writeFileSync(path.join(home, '.openclaw', 'openclaw.json'), JSON.stringify({
+    agents: {
+      list: [
+        { id: 'legacy-openai-agent', workspace: agentWorkspace, agentDir, model: 'openai/gpt-4o-mini' }
+      ]
+    }
+  }, null, 2))
+
+  process.env.HOME = home
+  process.env.OPENCLAW_WORKSPACE = workspace
+  clearModelCache()
+  resetWorkspaceManagerForTests()
+
+  const originalEnvOpenAi = process.env.SYSTEM_OPENAI_API_KEY
+  ;(process.env as any).SYSTEM_OPENAI_API_KEY = 'sk-test'
+  const originalGlobalFetch = globalThis.fetch
+  globalThis.fetch = (async (input: any) => {
+    if (String(input).includes('/api/models')) {
+      return {
+        ok: true,
+        json: async () => ({
+          data: [
+            { id: 'openai/gpt-5' },
+            { id: 'openai/gpt-4.1' },
+          ],
+        }),
+      } as any
+    }
+    throw new Error(`Unexpected fetch call: ${String(input)}`)
+  }) as any
+
+  try {
+    const resolved = resolveAgentExecutionConfig('legacy-openai-agent')
+    assert(resolved.model === 'openai/gpt-4o-mini', `Expected configured model to remain primary, got ${resolved.model || 'missing'}`)
+    assert(resolved.implicitFallbackModel === 'openai/gpt-5', `Expected implicit fallback model to be exposed, got ${resolved.implicitFallbackModel || 'missing'}`)
+  } finally {
+    clearModelCache()
+    globalThis.fetch = originalGlobalFetch
+    if (typeof originalEnvOpenAi === 'undefined') delete (process.env as any).SYSTEM_OPENAI_API_KEY
+    else (process.env as any).SYSTEM_OPENAI_API_KEY = originalEnvOpenAi
+  }
 })
 
 test('resolveAgentExecutionConfig remaps retired openai/gpt-4o identities to openai/gpt-4.1', () => {

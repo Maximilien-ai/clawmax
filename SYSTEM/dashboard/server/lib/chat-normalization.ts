@@ -118,11 +118,24 @@ function isBenignPluginRuntimeWarningLine(trimmed: string): boolean {
   return trimmed === 'plugin runtime config.loadConfig() is deprecated (runtime-config-load-write); use config.current().'
 }
 
+function isDoctorWarningLine(trimmed: string): boolean {
+  if (!trimmed) return false
+  if (/doctor warnings/i.test(trimmed)) return true
+  if (/left legacy config health state in place because/i.test(trimmed)) return true
+  if (/config-health\.json/i.test(trimmed)) return true
+  if (/legacy state migration warnings:/i.test(trimmed)) return true
+  if (/^[\s|│┌┐└┘├┤┬┴┼─━═╭╮╰╯]+$/.test(trimmed)) return true
+  return false
+}
+
 export function stripBenignChatRuntimeWarnings(content: string): string {
   if (!content) return content
   return content
     .split('\n')
-    .filter((line) => !isBenignPluginRuntimeWarningLine(line.trim()))
+    .filter((line) => {
+      const trimmed = line.trim()
+      return !isBenignPluginRuntimeWarningLine(trimmed) && !isDoctorWarningLine(trimmed)
+    })
     .join('\n')
 }
 
@@ -167,6 +180,7 @@ export function normalizeChatMessage(content: string): string {
     if (
       isRuntimeStatusLine(trimmed) ||
       isBenignPluginRuntimeWarningLine(trimmed) ||
+      isDoctorWarningLine(trimmed) ||
       trimmed.startsWith('🦞 OpenClaw') ||
       /^(Usage|Options|Commands|Examples|Docs|Available fields|Unknown JSON|GraphQL|\(Command exited|Command still|Process exited|Successfully wrote|store:)/.test(trimmed) ||
       /\{"type"\s*:\s*"/.test(trimmed) ||

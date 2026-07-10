@@ -15,7 +15,6 @@ interface OpenClawAgentRecord {
   workspace?: string
   agentDir?: string
   model?: string
-  backupModel?: string
   skills?: string[]
 }
 
@@ -261,10 +260,12 @@ function isSupportedHostedModel(model: string | undefined): boolean {
 export function resolveAgentExecutionConfig(agentId: string): {
   model?: string
   backupModel?: string
+  implicitFallbackModel?: string
   workspace?: string
   agentDir?: string
   provider?: ExecutionProvider
   backupProvider?: ExecutionProvider
+  implicitFallbackProvider?: ExecutionProvider
 } {
   const activeWorkspaceAgentDir = path.join(getWorkspacePath(), 'AGENTS', agentId)
   const record = readOpenClawAgentRecord(agentId, activeWorkspaceAgentDir)
@@ -309,13 +310,24 @@ export function resolveAgentExecutionConfig(agentId: string): {
     if (!candidate || candidate === model) return undefined
     return candidate
   })()
+  const implicitFallbackModel = (() => {
+    const candidate = resolveDefaultAgentModel({
+      builtIn: identityTags.includes('built-in'),
+      rawEnv: process.env as Record<string, string>,
+      availableModels: getAvailableModelsCached(process.env as Record<string, string>),
+    })
+    if (!candidate || candidate === model || candidate === backupModel) return undefined
+    return candidate
+  })()
   return {
     model,
     backupModel,
+    implicitFallbackModel,
     workspace: resolvedWorkspace,
     agentDir: record?.agentDir,
     provider: providerFromModel(model),
     backupProvider: providerFromModel(backupModel),
+    implicitFallbackProvider: providerFromModel(implicitFallbackModel),
   }
 }
 

@@ -2042,11 +2042,17 @@ export function triggerWorkflow(workflowId: string, options?: {
             try {
               return await executeAttempt(resolvedAgent.model, resolvedAgent.provider)
             } catch (err: any) {
-              if (!resolvedAgent.backupModel || !resolvedAgent.backupProvider || !shouldRetryWithBackupModel(err?.message || String(err))) {
+              const fallbackModel = resolvedAgent.backupModel || (
+                /Unknown model:/i.test(err?.message || String(err)) ? resolvedAgent.implicitFallbackModel : undefined
+              )
+              const fallbackProvider = resolvedAgent.backupModel
+                ? resolvedAgent.backupProvider
+                : (/Unknown model:/i.test(err?.message || String(err)) ? resolvedAgent.implicitFallbackProvider : undefined)
+              if (!fallbackModel || !fallbackProvider || !shouldRetryWithBackupModel(err?.message || String(err))) {
                 throw err
               }
-              console.log(`[Workflow] Retrying ${participant.agentId} with backup model ${resolvedAgent.backupModel}`)
-              return await executeAttempt(resolvedAgent.backupModel, resolvedAgent.backupProvider)
+              console.log(`[Workflow] Retrying ${participant.agentId} with fallback model ${fallbackModel}`)
+              return await executeAttempt(fallbackModel, fallbackProvider)
             }
           }, {
             onSessionLockRetry: () => {

@@ -113,6 +113,22 @@ test('strips benign Cognee plugin runtime config warning from chat output', () =
   assert(normalized === 'Useful agent response.', `Unexpected normalized output: ${normalized}`)
 })
 
+test('strips doctor warning blocks from chat output so runtime diagnostics do not appear as assistant replies', () => {
+  const raw = `|◇ Doctor warnings
+────────────────────────────────
+||| - Left legacy config health state in place because 1 entry conflicts || with shared SQLite state:
+|| /app/DATA/.home/.openclaw/logs/config-health.json |||
+────────────────────────────────
+
+Useful agent response.`
+  const stripped = stripBenignChatRuntimeWarnings(raw)
+  const normalized = normalizeChatMessage(raw)
+
+  assert(!/Doctor warnings/i.test(stripped), 'Expected doctor warning header stripped from streamed chunks')
+  assert(!/config-health\.json/i.test(stripped), 'Expected config health path stripped from streamed chunks')
+  assert(normalized === 'Useful agent response.', `Unexpected normalized output: ${normalized}`)
+})
+
 console.log('\n========================================')
 console.log(`Tests passed: ${testsPassed}`)
 console.log(`Tests failed: ${testsFailed}`)
