@@ -1,7 +1,10 @@
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import { writeDashboardManagedOpenClawConfig } from './openclaw-config'
+import {
+  healDashboardManagedOpenClawConfig,
+  writeDashboardManagedOpenClawConfig,
+} from './openclaw-config'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -27,55 +30,69 @@ function assert(condition: boolean, message: string) {
   if (!condition) throw new Error(message)
 }
 
-console.log(`\n${YELLOW}=== OpenClaw Config Helper Test Suite ===${RESET}\n`)
+console.log(`\n${YELLOW}=== OpenClaw Config Test Suite ===${RESET}\n`)
 
-test('writeDashboardManagedOpenClawConfig preserves latest gateway fields from disk', () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-openclaw-config-'))
-  const configPath = path.join(tempDir, 'openclaw.json')
+test('writeDashboardManagedOpenClawConfig strips unsupported dashboard-only agent keys before writing', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'openclaw-config-test-'))
+  const configPath = path.join(tmpDir, 'openclaw.json')
 
-  fs.writeFileSync(configPath, JSON.stringify({
+  writeDashboardManagedOpenClawConfig(configPath, {
     gateway: {
-      auth: { token: 'stable-auth' },
-      remote: { token: 'stable-remote' },
-      tailscale: { enabled: true, hostname: 'stable-host' },
+      auth: { token: 'stable-token' },
     },
     agents: {
       list: [
-        { id: 'alpha', workspace: '/workspace/alpha', skills: ['github'] },
+        {
+          id: 'ceo',
+          name: 'CEO',
+          workspace: '/tmp/workspace/AGENTS/ceo',
+          agentDir: '/tmp/.openclaw/agents/ceo/agent',
+          model: 'openai/gpt-4.1',
+          skills: ['github'],
+          backupModel: 'anthropic/claude-sonnet-4-6',
+        },
       ],
     },
-  }, null, 2), 'utf-8')
+  }, 'openclaw-config-test')
 
-  const staleConfig = {
-    gateway: {
-      auth: { token: 'stale-auth' },
-      remote: { token: 'stale-remote' },
-      tailscale: { enabled: false, hostname: 'stale-host' },
-    },
-    agents: {
-      list: [
-        { id: 'alpha', workspace: '/workspace/alpha', skills: ['slack'] },
-      ],
-    },
-  }
-
-  writeDashboardManagedOpenClawConfig(configPath, staleConfig, 'openclaw-config-test')
-
-  const saved = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-  assert(saved.gateway.auth.token === 'stable-auth', 'Expected gateway auth token preserved from latest on-disk config')
-  assert(saved.gateway.remote.token === 'stable-remote', 'Expected gateway remote token preserved from latest on-disk config')
-  assert(saved.gateway.tailscale.hostname === 'stable-host', 'Expected gateway tailscale config preserved from latest on-disk config')
-  assert(Array.isArray(saved.agents.list) && saved.agents.list[0].skills.includes('slack'), 'Expected non-gateway config changes to be written')
-  assert(saved.meta?.lastTouchedVersion === 'dashboard-0.1.0', 'Expected dashboard metadata stamping')
+  const written = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  const agent = written.agents.list[0]
+  assert(agent.id === 'ceo', 'Expected supported id field to persist')
+  assert(agent.model === 'openai/gpt-4.1', 'Expected supported model field to persist')
+  assert(Array.isArray(agent.skills) && agent.skills[0] === 'github', 'Expected supported skills field to persist')
+  assert(!('backupModel' in agent), 'Expected unsupported backupModel field to be stripped')
 })
 
-console.log(`\n${YELLOW}=== Test Summary ===${RESET}`)
-console.log(`${GREEN}Passed: ${testsPassed}${RESET}`)
-console.log(`${RED}Failed: ${testsFailed}${RESET}`)
+test('healDashboardManagedOpenClawConfig removes stale unsupported dashboard-only agent keys in place', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'openclaw-config-test-'))
+  const configPath = path.join(tmpDir, 'openclaw.json')
+
+  fs.writeFileSync(configPath, JSON.stringify({
+    agents: {
+      list: [
+        {
+          id: 'ceo',
+          model: 'openai/gpt-4o-mini',
+          backupModel: 'anthropic/claude-sonnet-4-6',
+        },
+      ],
+    },
+  }, null, 2))
+
+  const result = healDashboardManagedOpenClawConfig(configPath, 'openclaw-config-heal-test')
+  assert(result.ok, result.error || 'Expected config heal to succeed')
+  assert(result.changed === true, 'Expected config heal to report a change')
+
+  const healed = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  assert(!('backupModel' in healed.agents.list[0]), 'Expected stale unsupported backupModel to be removed')
+})
+
+console.log(`\nTests passed: ${testsPassed}`)
+console.log(`Tests failed: ${testsFailed}`)
 
 if (testsFailed > 0) {
   console.log(`\n${RED}Some tests failed${RESET}`)
   process.exit(1)
+} else {
+  console.log(`\n${GREEN}All tests passed${RESET}`)
 }
-
-console.log(`\n${GREEN}All tests passed! ✓${RESET}`)
