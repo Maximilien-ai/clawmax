@@ -145,19 +145,13 @@ export function updateAgentBackupModelInConfigFile(
       return { ok: false, error: `Agent ${agentId}${options?.workspacePath ? ` @ ${options.workspacePath}` : ''} not found in openclaw.json` }
     }
 
-    const previousBackupModel = normalizeOptionalAgentModelInput(agentList[agentIndex]?.backupModel)
-    if (previousBackupModel === nextBackupModel) {
+    const hadLegacyBackupModel = Object.prototype.hasOwnProperty.call(agentList[agentIndex] || {}, 'backupModel')
+    if (!hadLegacyBackupModel) {
       return { ok: true, changed: false, backupModel: nextBackupModel }
     }
 
-    const nextAgent = {
-      ...agentList[agentIndex],
-    }
-    if (nextBackupModel) {
-      nextAgent.backupModel = nextBackupModel
-    } else {
-      delete nextAgent.backupModel
-    }
+    const nextAgent = { ...agentList[agentIndex] }
+    delete nextAgent.backupModel
     agentList[agentIndex] = nextAgent
 
     writeDashboardManagedOpenClawConfig(configPath, config, `updateAgentBackupModelInConfigFile(${agentId})`)
@@ -288,7 +282,7 @@ export function readAgentBackupModelFromConfigFile(
       return { ok: false, error: `Agent ${agentId}${options?.workspacePath ? ` @ ${options.workspacePath}` : ''} not found in openclaw.json` }
     }
 
-    return { ok: true, backupModel: normalizeOptionalAgentModelInput(agent.backupModel) }
+    return { ok: true, backupModel: undefined }
   } catch (err: any) {
     return { ok: false, error: err.message || String(err) }
   }
@@ -364,19 +358,14 @@ export function restoreAgentBackupModelInConfigFile(
       return { ok: false, error: `Agent ${agentId}${options?.workspacePath ? ` @ ${options.workspacePath}` : ''} not found in openclaw.json` }
     }
 
-    const nextAgent = { ...agentList[agentIndex] }
     const nextBackupModel = normalizeOptionalAgentModelInput(backupModel)
-    if (nextBackupModel) {
-      nextAgent.backupModel = nextBackupModel
-    } else {
-      delete nextAgent.backupModel
-    }
-
-    const previousBackupModel = normalizeOptionalAgentModelInput(agentList[agentIndex]?.backupModel)
-    if (previousBackupModel === nextBackupModel) {
+    const hadLegacyBackupModel = Object.prototype.hasOwnProperty.call(agentList[agentIndex] || {}, 'backupModel')
+    if (!hadLegacyBackupModel) {
       return { ok: true, changed: false, backupModel: nextBackupModel }
     }
 
+    const nextAgent = { ...agentList[agentIndex] }
+    delete nextAgent.backupModel
     agentList[agentIndex] = nextAgent
 
     writeDashboardManagedOpenClawConfig(configPath, config, `restoreAgentBackupModelInConfigFile(${agentId})`)

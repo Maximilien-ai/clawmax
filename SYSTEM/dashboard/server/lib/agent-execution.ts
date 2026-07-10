@@ -294,7 +294,6 @@ export function resolveAgentExecutionConfig(agentId: string): {
   // If the active workspace contains this agent, trust its local identity first.
   // A stale global openclaw.json entry may point at a different workspace with the same agent id.
   const recordModel = normalizeMissingModel(record?.model)
-  const recordBackupModel = normalizeMissingModel(record?.backupModel)
   let model = hasActiveWorkspaceAgent
     ? (identityModel || recordModel || resolveDefaultAgentModel({ rawEnv: process.env as Record<string, string>, builtIn: identityTags.includes('built-in') }))
     : (recordModel || identityModel || resolveDefaultAgentModel({ rawEnv: process.env as Record<string, string>, builtIn: identityTags.includes('built-in') }))
@@ -306,9 +305,7 @@ export function resolveAgentExecutionConfig(agentId: string): {
     }) || model
   }
   const backupModel = (() => {
-    const candidate = hasActiveWorkspaceAgent
-      ? (identityBackupModel || recordBackupModel)
-      : (recordBackupModel || identityBackupModel)
+    const candidate = identityBackupModel
     if (!candidate || candidate === model) return undefined
     return candidate
   })()

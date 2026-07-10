@@ -346,23 +346,44 @@ test('upsertAgentBackupModelInIdentityContent inserts backup model after the pri
   assert(parsed.backupModel === 'anthropic/claude-sonnet-4-6', 'Expected inserted backup model to parse correctly')
 })
 
-test('updateAgentBackupModelInConfigFile updates backup model in openclaw.json', () => {
+test('updateAgentBackupModelInConfigFile strips unsupported backup model from openclaw.json while preserving returned value', () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-model-test-'))
   const configPath = path.join(tmpDir, 'openclaw.json')
 
   fs.writeFileSync(configPath, JSON.stringify({
     agents: {
       list: [
-        { id: 'ceo', name: 'CEO', model: 'openai/gpt-4.1' }
+        { id: 'ceo', name: 'CEO', model: 'openai/gpt-4.1', backupModel: 'anthropic/claude-3-haiku-20240307' }
       ]
     }
   }, null, 2))
 
   const result = updateAgentBackupModelInConfigFile(configPath, 'ceo', 'anthropic/claude-sonnet-4-20250514')
   assert(result.ok, result.error || 'Expected backup model update to succeed')
+  assert(result.backupModel === 'anthropic/claude-sonnet-4-6', 'Expected normalized backup model result')
 
   const updated = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-  assert(updated.agents.list[0].backupModel === 'anthropic/claude-sonnet-4-6', 'Expected backup model to be updated')
+  assert(!('backupModel' in updated.agents.list[0]), 'Expected unsupported backupModel key to be removed from openclaw.json')
+})
+
+test('updateAgentModelInConfigFile strips stale unsupported backup model keys while updating primary model', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-model-test-'))
+  const configPath = path.join(tmpDir, 'openclaw.json')
+
+  fs.writeFileSync(configPath, JSON.stringify({
+    agents: {
+      list: [
+        { id: 'ceo', name: 'CEO', model: 'openai/gpt-4o-mini', backupModel: 'anthropic/claude-sonnet-4-6' }
+      ]
+    }
+  }, null, 2))
+
+  const result = updateAgentModelInConfigFile(configPath, 'ceo', 'openai/gpt-4.1')
+  assert(result.ok, result.error || 'Expected model update to succeed')
+
+  const updated = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  assert(updated.agents.list[0].model === 'openai/gpt-4.1', 'Expected primary model update to persist')
+  assert(!('backupModel' in updated.agents.list[0]), 'Expected stale unsupported backupModel key to be scrubbed')
 })
 
 test('resetAgentSessionsForModelChange archives runtime session state', () => {
