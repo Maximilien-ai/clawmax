@@ -261,12 +261,10 @@ function isSupportedHostedModel(model: string | undefined): boolean {
 export function resolveAgentExecutionConfig(agentId: string): {
   model?: string
   backupModel?: string
-  implicitFallbackModel?: string
   workspace?: string
   agentDir?: string
   provider?: ExecutionProvider
   backupProvider?: ExecutionProvider
-  implicitFallbackProvider?: ExecutionProvider
 } {
   const activeWorkspaceAgentDir = path.join(getWorkspacePath(), 'AGENTS', agentId)
   const record = readOpenClawAgentRecord(agentId, activeWorkspaceAgentDir)
@@ -311,24 +309,13 @@ export function resolveAgentExecutionConfig(agentId: string): {
     if (!candidate || candidate === model) return undefined
     return candidate
   })()
-  const implicitFallbackModel = (() => {
-    const candidate = resolveDefaultAgentModel({
-      builtIn: identityTags.includes('built-in'),
-      rawEnv: process.env as Record<string, string>,
-      availableModels: getAvailableModelsCached(process.env as Record<string, string>),
-    })
-    if (!candidate || candidate === model || candidate === backupModel) return undefined
-    return candidate
-  })()
   return {
     model,
     backupModel,
-    implicitFallbackModel,
     workspace: resolvedWorkspace,
     agentDir: record?.agentDir,
     provider: providerFromModel(model),
     backupProvider: providerFromModel(backupModel),
-    implicitFallbackProvider: providerFromModel(implicitFallbackModel),
   }
 }
 
@@ -343,6 +330,19 @@ export function shouldRetryWithBackupModel(errorText: string): boolean {
     || /is in cooldown \(suspending lanes\)/i.test(text)
     || /\btimeout\b/i.test(text)
     || /All models failed/i.test(text)
+}
+
+export function shouldUseExplicitBackupModelRetry(args: {
+  backupModel?: string
+  backupProvider?: ExecutionProvider
+  rawError?: string
+  hadVisibleOutput?: boolean
+  completionText?: string
+}): boolean {
+  if (args.completionText) return false
+  if (args.hadVisibleOutput) return false
+  if (!args.backupModel || !args.backupProvider) return false
+  return shouldRetryWithBackupModel(args.rawError || '')
 }
 
 export function resolveAgentSkillIds(agentId: string): string[] {

@@ -15,7 +15,7 @@ import { validateWorkflow } from './validator'
 import {
   resolveAgentExecutionConfig,
   runExclusiveAgentExecution,
-  shouldRetryWithBackupModel,
+  shouldUseExplicitBackupModelRetry,
   toExecutionModelOverride,
   withTemporaryAgentAuthProfiles,
 } from './agent-execution'
@@ -2044,13 +2044,13 @@ export function triggerWorkflow(workflowId: string, options?: {
             try {
               return await executeAttempt(resolvedAgent.model, resolvedAgent.provider)
             } catch (err: any) {
-              const fallbackModel = resolvedAgent.backupModel || (
-                /Unknown model:/i.test(err?.message || String(err)) ? resolvedAgent.implicitFallbackModel : undefined
-              )
-              const fallbackProvider = resolvedAgent.backupModel
-                ? resolvedAgent.backupProvider
-                : (/Unknown model:/i.test(err?.message || String(err)) ? resolvedAgent.implicitFallbackProvider : undefined)
-              if (!fallbackModel || !fallbackProvider || !shouldRetryWithBackupModel(err?.message || String(err))) {
+              const fallbackModel = resolvedAgent.backupModel
+              const fallbackProvider = resolvedAgent.backupProvider
+              if (!shouldUseExplicitBackupModelRetry({
+                backupModel: fallbackModel,
+                backupProvider: fallbackProvider,
+                rawError: err?.message || String(err),
+              })) {
                 throw err
               }
               console.log(`[Workflow] Retrying ${participant.agentId} with fallback model ${fallbackModel}`)

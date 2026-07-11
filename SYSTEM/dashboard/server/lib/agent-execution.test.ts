@@ -21,6 +21,7 @@ import {
   resolveAgentExecutionConfig,
   runExclusiveAgentExecution,
   scopeSessionIdToModel,
+  shouldUseExplicitBackupModelRetry,
   shouldRetryWithBackupModel,
   withTemporaryAgentAuthProfiles,
 } from './agent-execution'
@@ -112,7 +113,7 @@ test('resolveAgentExecutionConfig includes a distinct backup model when configur
   assert(resolved.backupProvider === 'anthropic', 'Expected backup provider derived from backup model')
 })
 
-test('resolveAgentExecutionConfig exposes an implicit fallback model when the current default differs from the configured model', () => {
+test('resolveAgentExecutionConfig does not invent an implicit fallback model from runtime defaults', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
   const workspace = path.join(home, 'workspace')
   const agentWorkspace = path.join(workspace, 'AGENTS', 'legacy-openai-agent')
@@ -154,7 +155,7 @@ test('resolveAgentExecutionConfig exposes an implicit fallback model when the cu
   try {
     const resolved = resolveAgentExecutionConfig('legacy-openai-agent')
     assert(resolved.model === 'openai/gpt-4o-mini', `Expected configured model to remain primary, got ${resolved.model || 'missing'}`)
-    assert(resolved.implicitFallbackModel === 'openai/gpt-5', `Expected implicit fallback model to be exposed, got ${resolved.implicitFallbackModel || 'missing'}`)
+    assert(!('implicitFallbackModel' in resolved), 'Expected no implicit fallback model to be exposed')
   } finally {
     clearModelCache()
     globalThis.fetch = originalGlobalFetch
@@ -443,6 +444,42 @@ test('providerFromModel and shouldRetryWithBackupModel classify backup-retry con
   assert(shouldRetryWithBackupModel('Agent timeout (3 minutes)'), 'Expected timeout to trigger backup retry')
   assert(shouldRetryWithBackupModel('Unknown model: gpt-super-pro'), 'Expected unsupported model to trigger backup retry')
   assert(!shouldRetryWithBackupModel('The agent replied with a blocked business rule.'), 'Expected semantic failures not to trigger backup retry')
+})
+
+test('shouldUseExplicitBackupModelRetry only retries when an explicit backup model exists', () => {
+  assert(
+    shouldUseExplicitBackupModelRetry({
+      backupModel: 'anthropic/claude-sonnet-4-6',
+      backupProvider: 'anthropic',
+      rawError: 'Unknown model: openai/gpt-4o-mini',
+    }),
+    'Expected retry when explicit backup model is configured for a retryable failure'
+  )
+  assert(
+    !shouldUseExplicitBackupModelRetry({
+      backupProvider: 'anthropic',
+      rawError: 'Unknown model: openai/gpt-4o-mini',
+    }),
+    'Expected no retry when no explicit backup model is configured'
+  )
+  assert(
+    !shouldUseExplicitBackupModelRetry({
+      backupModel: 'anthropic/claude-sonnet-4-6',
+      backupProvider: 'anthropic',
+      rawError: 'Unknown model: openai/gpt-4o-mini',
+      hadVisibleOutput: true,
+    }),
+    'Expected no retry after visible partial output'
+  )
+  assert(
+    !shouldUseExplicitBackupModelRetry({
+      backupModel: 'anthropic/claude-sonnet-4-6',
+      backupProvider: 'anthropic',
+      rawError: 'Unknown model: openai/gpt-4o-mini',
+      completionText: 'Hello from the primary model',
+    }),
+    'Expected no retry after a successful primary completion'
+  )
 })
 
 test('resolvePersistedAgentSessionId uses mapped session file when preferred alias has no file', () => {

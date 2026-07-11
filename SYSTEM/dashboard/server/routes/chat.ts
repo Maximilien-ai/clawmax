@@ -21,9 +21,9 @@ import {
   resolveAgentExecutionConfig,
   resolvePersistedAgentSessionId,
   runExclusiveAgentExecution,
-  toExecutionModelOverride,
-  shouldRetryWithBackupModel,
+  shouldUseExplicitBackupModelRetry,
   scopeSessionIdToModel,
+  toExecutionModelOverride,
   withTemporaryAgentAuthProfiles,
 } from '../lib/agent-execution'
 import { getAuthenticatedSession } from '../lib/github-auth'
@@ -824,19 +824,15 @@ router.post('/:id/chat', async (req, res) => {
 
   runExclusiveAgentExecution(id, async () => {
     const primaryResult = await runChatAttempt(resolvedAgent.model, resolvedAgent.provider)
-    const fallbackModel = resolvedAgent.backupModel || (
-      /Unknown model:/i.test(primaryResult.rawError) ? resolvedAgent.implicitFallbackModel : undefined
-    )
-    const fallbackProvider = resolvedAgent.backupModel
-      ? resolvedAgent.backupProvider
-      : (/Unknown model:/i.test(primaryResult.rawError) ? resolvedAgent.implicitFallbackProvider : undefined)
-    if (
-      primaryResult.completionText ||
-      !fallbackModel ||
-      !fallbackProvider ||
-      primaryResult.hadVisibleOutput ||
-      !shouldRetryWithBackupModel(primaryResult.rawError)
-    ) {
+    const fallbackModel = resolvedAgent.backupModel
+    const fallbackProvider = resolvedAgent.backupProvider
+    if (!shouldUseExplicitBackupModelRetry({
+      completionText: primaryResult.completionText,
+      backupModel: fallbackModel,
+      backupProvider: fallbackProvider,
+      hadVisibleOutput: primaryResult.hadVisibleOutput,
+      rawError: primaryResult.rawError,
+    })) {
       return primaryResult
     }
     console.log(`[Chat Route] Retrying agent ${id} with fallback model ${fallbackModel}`)
