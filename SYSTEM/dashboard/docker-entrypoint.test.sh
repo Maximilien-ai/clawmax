@@ -94,6 +94,7 @@ export CLAWMAX_ENTRYPOINT_TEST_MODE=true
 export CLAWMAX_RUNTIME_PACKAGE_JSON="$TMP_DIR/package.json"
 export CLAWMAX_VERSION="v1.5.8"
 export GATEWAY_AUTH_TOKEN_FILE="$TMP_DIR/gateway.token"
+export CLAWMAX_HOST_OPENCLAW_CONFIG="$TMP_DIR/host-openclaw.json"
 
 . "$SCRIPT"
 
@@ -146,5 +147,44 @@ if CLAWMAX_RUNTIME_PACKAGE_JSON="$TMP_DIR/package-old.json" CLAWMAX_VERSION="v1.
   echo "Expected mismatched runtime package version to fail verification" >&2
   exit 1
 fi
+
+cat > "$TMP_DIR/host-openclaw.json" <<'EOF'
+{
+  "gateway": {
+    "port": 19999,
+    "auth": {
+      "mode": "token",
+      "token": "host-token"
+    }
+  }
+}
+EOF
+rm -f "$HOME/.openclaw/openclaw.json"
+sync_gateway_config
+assert_contains '"port": 19999' "$HOME/.openclaw/openclaw.json"
+assert_contains '"token": "host-token"' "$HOME/.openclaw/openclaw.json"
+assert_contains '"allow": [' "$HOME/.openclaw/openclaw.json"
+assert_contains '__clawmax_no_non_bundled_plugins__' "$HOME/.openclaw/openclaw.json"
+
+cat > "$TMP_DIR/host-openclaw.json" <<'EOF'
+{
+  "plugins": {
+    "allow": ["cognee-openclaw"],
+    "entries": {
+      "cognee-openclaw": {
+        "hooks": {
+          "allowConversationAccess": true
+        }
+      }
+    }
+  }
+}
+EOF
+rm -f "$HOME/.openclaw/openclaw.json"
+sync_gateway_config
+assert_contains '"allow": [' "$HOME/.openclaw/openclaw.json"
+assert_contains '"cognee-openclaw"' "$HOME/.openclaw/openclaw.json"
+assert_contains '"allowConversationAccess": true' "$HOME/.openclaw/openclaw.json"
+assert_not_contains '__clawmax_no_non_bundled_plugins__' "$HOME/.openclaw/openclaw.json"
 
 echo "docker-entrypoint gateway tests passed"

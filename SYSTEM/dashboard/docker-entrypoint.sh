@@ -8,13 +8,17 @@ export CLAWMAX_GATEWAY_WATCHDOG="${CLAWMAX_GATEWAY_WATCHDOG:-true}"
 export CLAWMAX_GATEWAY_WATCHDOG_INTERVAL_SEC="${CLAWMAX_GATEWAY_WATCHDOG_INTERVAL_SEC:-30}"
 export CLAWMAX_HOST_OPENCLAW_CONFIG="${CLAWMAX_HOST_OPENCLAW_CONFIG:-/root/.openclaw/openclaw.json}"
 export CLAWMAX_RUNTIME_PACKAGE_JSON="${CLAWMAX_RUNTIME_PACKAGE_JSON:-/app/SYSTEM/dashboard/package.json}"
+export CLAWMAX_STRICT_OPENCLAW_PLUGIN_POLICY="${CLAWMAX_STRICT_OPENCLAW_PLUGIN_POLICY:-true}"
 
 sync_gateway_config() {
-  HOST_CONFIG="$CLAWMAX_HOST_OPENCLAW_CONFIG" WORKING_CONFIG="$HOME/.openclaw/openclaw.json" node <<'NODE'
+  HOST_CONFIG="$CLAWMAX_HOST_OPENCLAW_CONFIG" WORKING_CONFIG="$HOME/.openclaw/openclaw.json" STRICT_PLUGIN_POLICY="$CLAWMAX_STRICT_OPENCLAW_PLUGIN_POLICY" node <<'NODE'
 const fs = require('fs')
+const path = require('path')
 
 const hostPath = process.env.HOST_CONFIG
 const workingPath = process.env.WORKING_CONFIG
+const strictPluginPolicy = !/^false$/i.test(String(process.env.STRICT_PLUGIN_POLICY || 'true').trim())
+const NON_BUNDLED_PLUGIN_BLOCK_SENTINEL = '__clawmax_no_non_bundled_plugins__'
 
 const tryReadJson = (targetPath) => {
   if (!targetPath || !fs.existsSync(targetPath)) return null
@@ -26,27 +30,44 @@ const tryReadJson = (targetPath) => {
 }
 
 const host = tryReadJson(hostPath)
-if (!host?.gateway) process.exit(0)
-
-const token = host.gateway?.auth?.token || host.gateway?.remote?.token || ''
-const port = host.gateway?.port
-const mode = host.gateway?.auth?.mode || 'token'
-if (!token && !port) process.exit(0)
-
 const working = tryReadJson(workingPath) || {}
-working.gateway = working.gateway || {}
-working.gateway.auth = working.gateway.auth || {}
-working.gateway.remote = working.gateway.remote || {}
 
-if (port) {
-  working.gateway.port = port
-}
-if (token) {
-  working.gateway.auth.token = token
-  working.gateway.remote.token = token
-}
-working.gateway.auth.mode = mode
+if (host?.gateway) {
+  const token = host.gateway?.auth?.token || host.gateway?.remote?.token || ''
+  const port = host.gateway?.port
+  const mode = host.gateway?.auth?.mode || 'token'
 
+  working.gateway = working.gateway || {}
+  working.gateway.auth = working.gateway.auth || {}
+  working.gateway.remote = working.gateway.remote || {}
+
+  if (port) {
+    working.gateway.port = port
+  }
+  if (token) {
+    working.gateway.auth.token = token
+    working.gateway.remote.token = token
+  }
+  working.gateway.auth.mode = mode
+}
+
+if (host?.plugins && typeof host.plugins === 'object') {
+  working.plugins = JSON.parse(JSON.stringify(host.plugins))
+}
+
+if (strictPluginPolicy) {
+  working.plugins = working.plugins || {}
+  const explicitAllow = Array.isArray(working.plugins.allow)
+    ? working.plugins.allow.map((value) => typeof value === 'string' ? value.trim() : '').filter(Boolean)
+    : []
+  if (explicitAllow.length === 0) {
+    working.plugins.allow = [NON_BUNDLED_PLUGIN_BLOCK_SENTINEL]
+  } else {
+    working.plugins.allow = explicitAllow
+  }
+}
+
+fs.mkdirSync(path.dirname(workingPath), { recursive: true })
 fs.writeFileSync(workingPath, JSON.stringify(working, null, 2))
 NODE
 }
