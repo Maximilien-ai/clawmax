@@ -622,10 +622,25 @@ export function detectParticipantReportedFailure(agentText: string): string | nu
 
   const lines = text.split('\n').map((line) => line.trim()).filter(Boolean)
   for (const line of lines) {
+    if (/FsSafeError: directory changed during operation/i.test(line)) {
+      return line
+    }
     if (/context overflow|prompt too large|prompt_cache_key|string too long|runtime error detail/i.test(line)) {
       return line
     }
     if (/EmbeddedAttemptSessionTakeoverError|session file changed while embedded prompt lock was released/i.test(line)) {
+      return line
+    }
+    if (/^Unknown model:/i.test(line)) {
+      return line
+    }
+    if (/Incorrect API key provided/i.test(line)) {
+      return line
+    }
+    if (/No API key found for provider/i.test(line)) {
+      return line
+    }
+    if (/has auth issue \(skipping all models\)/i.test(line)) {
       return line
     }
     if (/^LLM request rejected:/i.test(line)) {
@@ -670,6 +685,12 @@ export function stripBenignOpenClawRuntimeWarnings(text: string): string {
 }
 
 export function formatParticipantFailure(reportedFailure: string): string {
+  if (/FsSafeError: directory changed during operation/i.test(reportedFailure)) {
+    return 'The agent runtime changed files while this workflow was running and the participant could not complete. Retry once. If it keeps happening, restart the runtime or disable unstable runtime plugins before retrying.'
+  }
+  if (/^Unknown model:/i.test(reportedFailure)) {
+    return 'This workflow participant is configured with a model that the current runtime does not support. Choose a different model for the agent and retry the workflow.'
+  }
   if (/^LLM request rejected:/i.test(reportedFailure) || /usage limits|quota|insufficient_quota/i.test(reportedFailure)) {
     return 'Model provider usage limits blocked this workflow participant. Wait a moment and retry, or update the provider billing and rate-limit configuration for the selected model.'
   }
@@ -703,6 +724,14 @@ export function formatParticipantFailure(reportedFailure: string): string {
 export function normalizeWorkflowThreadDiagnostic(content: string): string | null {
   const trimmed = content.trim()
   if (!trimmed) return null
+
+  if (/FsSafeError: directory changed during operation/i.test(trimmed)) {
+    return 'The agent runtime changed files while this workflow was running and the participant could not complete. Retry once. If it keeps happening, restart the runtime or disable unstable runtime plugins before retrying.'
+  }
+
+  if (/^Unknown model:/i.test(trimmed)) {
+    return 'This workflow participant is configured with a model that the current runtime does not support. Choose a different model for the agent and retry the workflow.'
+  }
 
   const looksLikeRawRuntimeNoise =
     /model fallback decision|FailoverError|FallbackSummaryError|incorrect api key provided|Provider .* auth issue|network connection error|Connection error/i.test(trimmed)
