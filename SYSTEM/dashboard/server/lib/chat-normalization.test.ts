@@ -113,6 +113,36 @@ test('strips benign Cognee plugin runtime config warning from chat output', () =
   assert(normalized === 'Useful agent response.', `Unexpected normalized output: ${normalized}`)
 })
 
+test('strips plugin allowlist discovery warnings from chat output', () => {
+  const raw = `[plugins] plugins.allow is empty; discovered non-bundled plugins may auto-load: cognee-openclaw (/app/DATA/.home/.openclaw/npm/node_modules/@cognee/cognee-openclaw/dist/index.js). To trust them explicitly, set plugins.allow in openclaw.json (e.g. "plugins": { "allow": ["cognee-openclaw"] }). Run 'openclaw plugins list --enabled --verbose' or 'openclaw plugins inspect cognee-openclaw' to confirm plugin ids.
+
+Useful agent response.`
+  const stripped = stripBenignChatRuntimeWarnings(raw)
+  const normalized = normalizeChatMessage(raw)
+
+  assert(!/plugins\.allow is empty/i.test(stripped), 'Expected plugin discovery warning stripped from streamed chunks')
+  assert(normalized === 'Useful agent response.', `Unexpected normalized output: ${normalized}`)
+})
+
+test('strips stale plugin allowlist config warning blocks from chat output', () => {
+  const raw = `◇ Config warnings ───────────────────────────────────────────────────────╮ │ - plugins.allow: plugin not found: clawmax_no_non_bundled_plugins │ │ (stale config entry ignored; remove it from plugins config) │
+
+Useful agent response.`
+  const stripped = stripBenignChatRuntimeWarnings(raw)
+  const normalized = normalizeChatMessage(raw)
+
+  assert(!/Config warnings/i.test(stripped), 'Expected config warning header stripped from streamed chunks')
+  assert(!/clawmax_no_non_bundled_plugins/i.test(stripped), 'Expected stale sentinel warning stripped from streamed chunks')
+  assert(normalized === 'Useful agent response.', `Unexpected normalized output: ${normalized}`)
+})
+
+test('suppresses warning-only chat output instead of restoring the raw warning', () => {
+  const raw = `◇ Config warnings ───────────────────────────────────────────────────────╮ │ - plugins.allow: plugin not found: clawmax_no_non_bundled_plugins │ │ (stale config entry ignored; remove it from plugins config) │`
+  const normalized = normalizeChatMessage(raw)
+
+  assert(normalized === '', `Expected warning-only output to be suppressed, got: ${normalized}`)
+})
+
 test('strips doctor warning blocks from chat output so runtime diagnostics do not appear as assistant replies', () => {
   const raw = `|◇ Doctor warnings
 ────────────────────────────────

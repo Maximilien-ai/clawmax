@@ -18,7 +18,11 @@ const path = require('path')
 const hostPath = process.env.HOST_CONFIG
 const workingPath = process.env.WORKING_CONFIG
 const strictPluginPolicy = !/^false$/i.test(String(process.env.STRICT_PLUGIN_POLICY || 'true').trim())
-const NON_BUNDLED_PLUGIN_BLOCK_SENTINEL = '__clawmax_no_non_bundled_plugins__'
+const DEFAULT_DENIED_NON_BUNDLED_PLUGINS = ['cognee-openclaw']
+const DEPRECATED_ALLOW_SENTINELS = new Set([
+  '__clawmax_no_non_bundled_plugins__',
+  'clawmax_no_non_bundled_plugins'
+])
 
 const tryReadJson = (targetPath) => {
   if (!targetPath || !fs.existsSync(targetPath)) return null
@@ -58,12 +62,26 @@ if (host?.plugins && typeof host.plugins === 'object') {
 if (strictPluginPolicy) {
   working.plugins = working.plugins || {}
   const explicitAllow = Array.isArray(working.plugins.allow)
-    ? working.plugins.allow.map((value) => typeof value === 'string' ? value.trim() : '').filter(Boolean)
+    ? working.plugins.allow
+      .map((value) => typeof value === 'string' ? value.trim() : '')
+      .filter((value) => value && !DEPRECATED_ALLOW_SENTINELS.has(value))
     : []
+  const explicitDeny = Array.isArray(working.plugins.deny)
+    ? working.plugins.deny.map((value) => typeof value === 'string' ? value.trim() : '').filter(Boolean)
+    : []
+
   if (explicitAllow.length === 0) {
-    working.plugins.allow = [NON_BUNDLED_PLUGIN_BLOCK_SENTINEL]
+    delete working.plugins.allow
+    const deny = new Set(explicitDeny)
+    for (const pluginId of DEFAULT_DENIED_NON_BUNDLED_PLUGINS) deny.add(pluginId)
+    working.plugins.deny = Array.from(deny)
   } else {
     working.plugins.allow = explicitAllow
+    if (explicitDeny.length > 0) {
+      working.plugins.deny = explicitDeny
+    } else {
+      delete working.plugins.deny
+    }
   }
 }
 

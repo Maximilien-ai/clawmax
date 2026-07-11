@@ -163,8 +163,40 @@ rm -f "$HOME/.openclaw/openclaw.json"
 sync_gateway_config
 assert_contains '"port": 19999' "$HOME/.openclaw/openclaw.json"
 assert_contains '"token": "host-token"' "$HOME/.openclaw/openclaw.json"
-assert_contains '"allow": [' "$HOME/.openclaw/openclaw.json"
-assert_contains '__clawmax_no_non_bundled_plugins__' "$HOME/.openclaw/openclaw.json"
+assert_contains '"deny": [' "$HOME/.openclaw/openclaw.json"
+assert_contains '"cognee-openclaw"' "$HOME/.openclaw/openclaw.json"
+assert_not_contains '"allow": [' "$HOME/.openclaw/openclaw.json"
+assert_not_contains '__clawmax_no_non_bundled_plugins__' "$HOME/.openclaw/openclaw.json"
+
+cat > "$TMP_DIR/host-openclaw.json" <<'EOF'
+{}
+EOF
+cat > "$HOME/.openclaw/openclaw.json" <<'EOF'
+{
+  "plugins": {
+    "allow": ["__clawmax_no_non_bundled_plugins__"]
+  }
+}
+EOF
+sync_gateway_config
+assert_contains '"deny": [' "$HOME/.openclaw/openclaw.json"
+assert_contains '"cognee-openclaw"' "$HOME/.openclaw/openclaw.json"
+assert_not_contains '"allow": [' "$HOME/.openclaw/openclaw.json"
+assert_not_contains '__clawmax_no_non_bundled_plugins__' "$HOME/.openclaw/openclaw.json"
+
+cat > "$TMP_DIR/host-openclaw.json" <<'EOF'
+{
+  "plugins": {
+    "deny": ["custom-plugin"]
+  }
+}
+EOF
+rm -f "$HOME/.openclaw/openclaw.json"
+sync_gateway_config
+assert_contains '"deny": [' "$HOME/.openclaw/openclaw.json"
+assert_contains '"custom-plugin"' "$HOME/.openclaw/openclaw.json"
+assert_contains '"cognee-openclaw"' "$HOME/.openclaw/openclaw.json"
+assert_not_contains '__clawmax_no_non_bundled_plugins__' "$HOME/.openclaw/openclaw.json"
 
 cat > "$TMP_DIR/host-openclaw.json" <<'EOF'
 {
@@ -185,6 +217,7 @@ sync_gateway_config
 assert_contains '"allow": [' "$HOME/.openclaw/openclaw.json"
 assert_contains '"cognee-openclaw"' "$HOME/.openclaw/openclaw.json"
 assert_contains '"allowConversationAccess": true' "$HOME/.openclaw/openclaw.json"
+assert_not_contains '"deny": [' "$HOME/.openclaw/openclaw.json"
 assert_not_contains '__clawmax_no_non_bundled_plugins__' "$HOME/.openclaw/openclaw.json"
 
 echo "docker-entrypoint gateway tests passed"

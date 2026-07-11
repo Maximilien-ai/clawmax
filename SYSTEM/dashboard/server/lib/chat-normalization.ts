@@ -115,12 +115,21 @@ function isToolArtifactLine(trimmed: string): boolean {
 }
 
 function isBenignPluginRuntimeWarningLine(trimmed: string): boolean {
-  return trimmed === 'plugin runtime config.loadConfig() is deprecated (runtime-config-load-write); use config.current().'
+  if (trimmed === 'plugin runtime config.loadConfig() is deprecated (runtime-config-load-write); use config.current().') return true
+  if (/\[plugins\]\s+plugins\.allow is empty; discovered non-bundled plugins may auto-load:/i.test(trimmed)) return true
+  if (/discovered non-bundled plugins may auto-load:/i.test(trimmed)) return true
+  if (/to trust them explicitly, set plugins\.allow/i.test(trimmed)) return true
+  if (/run 'openclaw plugins list --enabled --verbose'/i.test(trimmed)) return true
+  return false
 }
 
 function isDoctorWarningLine(trimmed: string): boolean {
   if (!trimmed) return false
   if (/doctor warnings/i.test(trimmed)) return true
+  if (/config warnings/i.test(trimmed)) return true
+  if (/plugins\.allow:\s*plugin not found:/i.test(trimmed)) return true
+  if (/stale config entry ignored; remove it from plugins config/i.test(trimmed)) return true
+  if (/clawmax_no_non_bundled_plugins/i.test(trimmed)) return true
   if (/left legacy config health state in place because/i.test(trimmed)) return true
   if (/left migrated task registry sidecar in place because/i.test(trimmed)) return true
   if (/left legacy update-check state in place because/i.test(trimmed)) return true
@@ -208,5 +217,5 @@ export function normalizeChatMessage(content: string): string {
   }
 
   const normalized = cleanedLines.join('\n').replace(/\n{3,}/g, '\n\n').trim()
-  return normalized || withoutAnsi.trim() || content.trim()
+  return normalized || withoutAnsi.trim()
 }
