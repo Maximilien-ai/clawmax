@@ -336,6 +336,9 @@ async function readLatestAssistantTextWithRetry(
 export function deriveChatError(raw: string, provider?: ChatProvider): string {
   const text = raw.trim()
   if (!text) return 'No reply from agent.'
+  if (/FsSafeError: directory changed during operation/i.test(text)) {
+    return 'The agent runtime changed files while this chat was running and the request could not complete. Retry once. If it keeps happening, restart the runtime or disable unstable runtime plugins before retrying.'
+  }
   if (/n_keep:\s*\d+\s*>=\s*n_ctx:\s*\d+/i.test(text)) {
     if (provider === 'openai-compatible') {
       return 'LM Studio rejected this prompt because the model is loaded with too little context. Increase the LM Studio context length for this model to at least 32768 tokens, reload the model, and try again.'

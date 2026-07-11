@@ -1841,6 +1841,10 @@ function normalizeReleaseVersion(tag: string): string {
   return tag.replace(/^v/, '')
 }
 
+function releaseCoreVersion(tag: string): string {
+  return normalizeReleaseVersion(tag).split('-')[0]
+}
+
 function compareReleaseVersions(a: string, b: string): number {
   const av = normalizeReleaseVersion(a).split('.').map((part) => Number.parseInt(part, 10) || 0)
   const bv = normalizeReleaseVersion(b).split('.').map((part) => Number.parseInt(part, 10) || 0)
@@ -1855,6 +1859,12 @@ export function getDashboardVersion(): string {
   const envVersion = process.env.CLAWMAX_VERSION?.trim()
   const packageVersion = findDashboardPackageVersion()
   if (isUsableVersion(envVersion) && packageVersion) {
+    if (
+      releaseCoreVersion(envVersion) === releaseCoreVersion(packageVersion) &&
+      normalizeReleaseVersion(envVersion) !== normalizeReleaseVersion(packageVersion)
+    ) {
+      return normalizeReleaseVersion(envVersion)
+    }
     if (normalizeReleaseVersion(envVersion) !== normalizeReleaseVersion(packageVersion)) {
       return packageVersion
     }

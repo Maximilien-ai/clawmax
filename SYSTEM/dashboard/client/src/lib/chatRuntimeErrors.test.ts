@@ -43,6 +43,12 @@ test('summarizeAgentChatFailure normalizes missing execution path guidance', () 
   assert(/BYOK \/ workspace integrations/i.test(message), `Unexpected remediation guidance: ${message}`)
 })
 
+test('summarizeAgentChatFailure surfaces FsSafeError as a runtime state failure', () => {
+  const message = summarizeAgentChatFailure('FsSafeError: directory changed during operation')
+  assert(/runtime changed files while this chat was running/i.test(message), `Unexpected message: ${message}`)
+  assert(/restart the runtime or disable unstable runtime plugins/i.test(message), `Unexpected remediation guidance: ${message}`)
+})
+
 console.log('\n========================================')
 console.log(`Tests passed: ${testsPassed}`)
 console.log(`Tests failed: ${testsFailed}`)
