@@ -8,6 +8,7 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import assert from 'assert'
+import { EventEmitter } from 'events'
 import { resetWorkspaceManagerForTests } from '../lib/workspace-manager'
 
 const GREEN = '\x1b[32m'
@@ -78,6 +79,12 @@ function makeRes() {
       return this
     },
   }
+}
+
+function getRouteHandlerFromRouter(router: any, method: 'get' | 'post' | 'delete' | 'patch', routePath: string) {
+  const layer = router.stack.find((entry: any) => entry.route?.path === routePath && entry.route?.methods?.[method])
+  if (!layer) throw new Error(`Route ${method.toUpperCase()} ${routePath} not found`)
+  return layer.route.stack[layer.route.stack.length - 1].handle as Function
 }
 
 async function run() {
@@ -504,6 +511,80 @@ async function run() {
     await getGroupMessages(makeReq({ params: { name: encodeURIComponent('No Group') } }), res)
     assert.strictEqual(res.statusCode, 200, 'Expected empty group read success')
     assert.deepStrictEqual(res.jsonBody?.messages || [], [], 'Expected empty group messages')
+  })
+
+  await test('group mentions surface runtime fs errors instead of generic no-response placeholders', async () => {
+    const childProcess = require('child_process')
+    const originalSpawn = childProcess.spawn
+
+    const openclawDir = path.join(tmpHome, '.openclaw')
+    const agentWorkspace = path.join(workspacePath, 'AGENTS', 'double-agent')
+    const agentDir = path.join(openclawDir, 'agents', 'double-agent', 'agent')
+    fs.mkdirSync(agentWorkspace, { recursive: true })
+    fs.mkdirSync(path.dirname(agentDir), { recursive: true })
+    fs.writeFileSync(path.join(agentWorkspace, 'IDENTITY.md'), '# Identity\n\n- **Model:** openai/gpt-4.1\n', 'utf-8')
+    fs.writeFileSync(path.join(openclawDir, 'openclaw.json'), JSON.stringify({
+      agents: {
+        list: [
+          { id: 'double-agent', workspace: agentWorkspace, agentDir, model: 'openai/gpt-4.1' },
+        ],
+      },
+    }, null, 2))
+
+    childProcess.spawn = () => {
+      const proc = new EventEmitter() as any
+      proc.stdout = new EventEmitter()
+      proc.stderr = new EventEmitter()
+      process.nextTick(() => {
+        proc.stderr.emit('data', Buffer.from('FsSafeError: directory changed during operation\n'))
+        proc.emit('close', 0)
+      })
+      return proc
+    }
+
+    try {
+      resetWorkspaceManagerForTests()
+      delete require.cache[require.resolve('../lib/messages')]
+      delete require.cache[require.resolve('../lib/workspace')]
+      delete require.cache[require.resolve('../lib/gateway-rpc')]
+      delete require.cache[require.resolve('./channels')]
+      const gatewayRpc = require('../lib/gateway-rpc')
+      gatewayRpc.waitForGatewayResponsive = async () => ({ running: false })
+      const router = require('./channels').default
+      const sendGroupMessage = getRouteHandlerFromRouter(router, 'post', '/groups/:name/messages')
+      const getGroupMessages = getRouteHandlerFromRouter(router, 'get', '/groups/:name/messages')
+
+      const sendRes = makeRes()
+      await sendGroupMessage(makeReq({
+        params: { name: encodeURIComponent('Temp Group') },
+        body: {
+          content: 'who are you? status?',
+          from: 'User',
+          mentions: ['double-agent'],
+        },
+      }), sendRes)
+      assert.strictEqual(sendRes.statusCode, 200, 'Expected group mention send success')
+
+      let agentReply: any
+      for (let attempt = 0; attempt < 20; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 50))
+        const listRes = makeRes()
+        await getGroupMessages(makeReq({ params: { name: encodeURIComponent('Temp Group') } }), listRes)
+        agentReply = (listRes.jsonBody?.messages || []).find((message: any) => message.from === 'double-agent')
+        if (agentReply) break
+      }
+      assert(agentReply, 'Expected agent reply message to be recorded')
+      assert(
+        /runtime changed files while this chat was running/i.test(agentReply.content),
+        `Expected surfaced runtime fs error, got: ${agentReply.content || 'missing'}`
+      )
+      assert(
+        !/Agent did not return a response/i.test(agentReply.content),
+        'Expected runtime fs error to replace generic no-response placeholder'
+      )
+    } finally {
+      childProcess.spawn = originalSpawn
+    }
   })
 
   await test('archive delete routes and channel workflow routes return consistent payloads', async () => {

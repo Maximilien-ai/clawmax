@@ -20,8 +20,11 @@ import {
 import { readWorkspaceIntegrationConfig } from '../lib/workspace-integrations'
 import { hasWorkspaceManagedPartnerSecrets } from '../lib/workspace-integrations'
 import { getAuthenticatedSession } from '../lib/github-auth'
+import { deriveChatError } from './chat'
 
 const router = Router()
+
+const CHANNEL_RUNTIME_ERROR_PATTERN = /FsSafeError: directory changed during operation|Unknown model:|No API key found for provider|Incorrect API key provided|has auth issue \(skipping all models\)|insufficient_quota|quota exceeded|rate limit|too many requests|429\b|is in cooldown \(suspending lanes\)|EmbeddedAttemptSessionTakeoverError|session file changed while embedded prompt lock was released|All models failed|No API keys available|No execution path configured|gateway|timeout|n_keep:\s*\d+\s*>=\s*n_ctx:\s*\d+/i
 
 // List all communities
 router.get('/communities', (req, res) => {
@@ -387,9 +390,13 @@ async function callAgent(
     proc.on('close', (code: number) => {
       clearTimeout(timer)
       console.log(`[callAgent] ${agentId}: exit code=${code}, stdout len=${stdout.length}, stderr len=${stderr.length}`)
+      const rawDiagnostic = `${stdout}\n${stderr}`.trim()
+      const runtimeError = CHANNEL_RUNTIME_ERROR_PATTERN.test(rawDiagnostic)
+        ? deriveChatError(rawDiagnostic, resolvedAgent.provider as any)
+        : null
       // Only reject if exit code is non-zero AND there's nothing parseable anywhere
       if (code !== 0 && !stdout.trim() && !stderr.includes('{')) {
-        reject(new Error(`Agent command failed (code ${code}): ${stderr.slice(0, 200)}`))
+        reject(new Error(runtimeError || `Agent command failed (code ${code}): ${stderr.slice(0, 200)}`))
         return
       }
 
@@ -477,6 +484,10 @@ async function callAgent(
           responseText = stdout.trim()
         }
         responseText = normalizeChatMessage(responseText)
+        if (!responseText && runtimeError) {
+          reject(new Error(runtimeError))
+          return
+        }
         if (!responseText) {
           console.log(`[callAgent] ${agentId}: empty response, stdout=${stdout.slice(0, 200)}, stderr=${stderr.slice(0, 200)}`)
         }
