@@ -231,6 +231,38 @@ async function run() {
     })
   })
 
+  await test('chat readiness does not treat unrelated local runtimes as a hosted provider fallback', async () => {
+    await withModuleOverrides(agentExecutionModulePath, {
+      resolveAgentExecutionConfig: () => ({
+        workspace: '/tmp/workspace/AGENTS/openai-agent',
+        model: 'openai/gpt-5.4-mini',
+        provider: 'openai',
+      }),
+      deriveWorkspaceRootFromAgentWorkspace: () => '/tmp/workspace',
+    }, async () => {
+      await withModuleOverrides(workspaceIntegrationsModulePath, {
+        readWorkspaceIntegrationConfig: () => ({
+          ollamaBaseUrl: 'http://ollama:11434',
+          openaiCompatibleBaseUrl: 'http://lmstudio:1234/v1',
+        }),
+      }, async () => {
+        await withModuleOverrides(safeEnvModulePath, {
+          userExecutionEnv: () => ({
+            OLLAMA_BASE_URL: 'http://ollama:11434',
+            OPENAI_BASE_URL: 'http://lmstudio:1234/v1',
+          }),
+        }, async () => {
+          const handler = getRouteHandler('post', '/:id/chat/readiness')
+          const res = makeRes()
+          await handler(makeReq({ params: { id: 'openai-agent' }, body: {} }), res)
+          assert.strictEqual(res.statusCode, 200)
+          assert.strictEqual(res.jsonBody?.available, false)
+          assert(/no openai credential is available/i.test(res.jsonBody?.error || ''))
+        })
+      })
+    })
+  })
+
   await test('chat readiness explains missing OpenAI-compatible base URLs clearly', async () => {
     await withModuleOverrides(agentExecutionModulePath, {
       resolveAgentExecutionConfig: () => ({

@@ -408,6 +408,7 @@ function evaluateChatExecutionReadiness(
   })
   executionEnv.OPENCLAW_WORKSPACE = effectiveWorkspaceRoot
   const hasResolvedExecutionPath = (provider: ChatProvider | undefined) => {
+    if (!provider) return false
     const hasHostedKeys = !!(executionEnv.ANTHROPIC_API_KEY || executionEnv.OPENAI_API_KEY || executionEnv.GEMINI_API_KEY)
     const hasOllamaPath = !!(executionEnv.OLLAMA_BASE_URL || integrationConfig.ollamaDefaultModel)
     const hasOpenAiCompatiblePath = !!(executionEnv.OPENAI_BASE_URL || integrationConfig.openaiCompatibleBaseUrl)
@@ -816,7 +817,7 @@ router.post('/:id/chat', async (req, res) => {
 
           resolve({
             completionText,
-            rawError: stderrOutput.slice(0, 300) || (code !== 0 ? 'Agent failed.' : 'No reply from agent.'),
+            rawError: stderrOutput || (code !== 0 ? 'Agent failed.' : 'No reply from agent.'),
             usage,
             persistedAssistant,
             hadVisibleOutput,
