@@ -199,7 +199,9 @@ verify_runtime_version_matches_image() {
   [ -n "$actual" ] || return 0
 
   actual="$(normalize_version "$actual")"
-  if [ "$actual" != "$expected" ]; then
+  actual_core="${actual%%-*}"
+  expected_core="${expected%%-*}"
+  if [ "$actual_core" != "$expected_core" ]; then
     echo "[entrypoint] ERROR: runtime dashboard files report version ${actual}, but image expects ${expected}" >&2
     echo "[entrypoint] This usually means a host mount or stack override replaced /app/SYSTEM/dashboard with older files." >&2
     echo "[entrypoint] Check stack volume mounts and ensure the runtime is not overlaying bundled dashboard contents from another version." >&2

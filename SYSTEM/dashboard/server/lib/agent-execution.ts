@@ -556,6 +556,9 @@ export function toExecutionModelOverride(model: string | undefined, provider: Ex
   if (provider === 'openai-compatible' && trimmed.startsWith('openai-compatible/')) {
     return `lmstudio/${trimmed.slice('openai-compatible/'.length)}`
   }
+  if (provider === 'openai' && /^(?:openai\/)?gpt-(?:4o(?:-mini)?|4\.1(?:-mini)?)$/i.test(trimmed)) {
+    return 'openai/gpt-5.4-mini'
+  }
   return trimmed
 }
 
@@ -1195,7 +1198,6 @@ export async function withTemporaryAgentAuthProfiles<T>(
   }
 
   const nextAuthProfiles = buildAuthProfiles(providerKeys, effectiveProvider)
-  effectiveModel = toExecutionModelOverride(effectiveModel, effectiveProvider)
   const nextAuthProfilesSerialized = JSON.stringify(nextAuthProfiles, null, 2)
   const authProfilesChanged = authProfileStateFingerprint(previous) !== authProfileStateFingerprint(nextAuthProfilesSerialized)
 

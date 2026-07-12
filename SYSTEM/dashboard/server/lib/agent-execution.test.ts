@@ -23,6 +23,7 @@ import {
   scopeSessionIdToModel,
   shouldUseExplicitBackupModelRetry,
   shouldRetryWithBackupModel,
+  toExecutionModelOverride,
   withTemporaryAgentAuthProfiles,
 } from './agent-execution'
 import { REPO_ROOT } from './paths'
@@ -437,6 +438,14 @@ test('scopeSessionIdToModel isolates chats across model changes', () => {
   assert(!scoped.includes(':'), 'Expected scoped session id to be sanitized for OpenClaw')
   assert(scoped.includes('group-temp-test-agent1'), 'Expected original session prefix preserved in safe form')
   assert(scoped.includes('ollama-qwen2-5-latest'), 'Expected sanitized model suffix')
+})
+
+test('toExecutionModelOverride maps OpenClaw-retired OpenAI models to the supported mini model', () => {
+  assert(toExecutionModelOverride('openai/gpt-4o-mini', 'openai') === 'openai/gpt-5.4-mini', 'Expected gpt-4o-mini execution remap')
+  assert(toExecutionModelOverride('openai/gpt-4o', 'openai') === 'openai/gpt-5.4-mini', 'Expected gpt-4o execution remap')
+  assert(toExecutionModelOverride('openai/gpt-4.1', 'openai') === 'openai/gpt-5.4-mini', 'Expected gpt-4.1 execution remap')
+  assert(toExecutionModelOverride('openai/gpt-4.1-mini', 'openai') === 'openai/gpt-5.4-mini', 'Expected gpt-4.1-mini execution remap')
+  assert(toExecutionModelOverride('openai/gpt-5.4', 'openai') === 'openai/gpt-5.4', 'Expected supported OpenAI model unchanged')
 })
 
 test('providerFromModel and shouldRetryWithBackupModel classify backup-retry conditions', () => {

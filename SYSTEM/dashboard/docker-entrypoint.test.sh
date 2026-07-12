@@ -143,6 +143,11 @@ if ! CLAWMAX_RUNTIME_PACKAGE_JSON="$TMP_DIR/package.json" CLAWMAX_VERSION="v1.5.
   exit 1
 fi
 
+if ! CLAWMAX_RUNTIME_PACKAGE_JSON="$TMP_DIR/package.json" CLAWMAX_VERSION="1.5.8-test-rc15" sh -c '. "$1"; verify_runtime_version_matches_image' _ "$SCRIPT"; then
+  echo "Expected matching RC release line to pass verification" >&2
+  exit 1
+fi
+
 if CLAWMAX_RUNTIME_PACKAGE_JSON="$TMP_DIR/package-old.json" CLAWMAX_VERSION="v1.5.8" sh -c '. "$1"; verify_runtime_version_matches_image' _ "$SCRIPT"; then
   echo "Expected mismatched runtime package version to fail verification" >&2
   exit 1
