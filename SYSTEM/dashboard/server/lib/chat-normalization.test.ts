@@ -113,6 +113,17 @@ test('strips benign Cognee plugin runtime config warning from chat output', () =
   assert(normalized === 'Useful agent response.', `Unexpected normalized output: ${normalized}`)
 })
 
+test('strips OpenClaw provider transport diagnostics from streamed chat output', () => {
+  const raw = `[provider-transport-fetch] [model-fetch] start provider=lmstudio api=openai-completions model=qwen/qwen3.6-27b method=POST url=http://host.containers.internal:1234/v1/chat/completions timeoutMs=undefined proxy=none policy=custom
+[provider-transport-fetch] [model-fetch] response provider=lmstudio api=openai-completions model=qwen/qwen3.6-27b status=200 elapsedMs=16 contentType=text/event-stream
+RC14 container chat works`
+  const stripped = stripBenignChatRuntimeWarnings(raw)
+  const normalized = normalizeChatMessage(raw)
+
+  assert(!stripped.includes('[provider-transport-fetch]'), 'Expected provider transport diagnostics stripped from streamed chunks')
+  assert(normalized === 'RC14 container chat works', `Unexpected normalized output: ${normalized}`)
+})
+
 test('strips plugin allowlist discovery warnings from chat output', () => {
   const raw = `[plugins] plugins.allow is empty; discovered non-bundled plugins may auto-load: cognee-openclaw (/app/DATA/.home/.openclaw/npm/node_modules/@cognee/cognee-openclaw/dist/index.js). To trust them explicitly, set plugins.allow in openclaw.json (e.g. "plugins": { "allow": ["cognee-openclaw"] }). Run 'openclaw plugins list --enabled --verbose' or 'openclaw plugins inspect cognee-openclaw' to confirm plugin ids.
 
