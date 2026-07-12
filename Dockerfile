@@ -45,6 +45,10 @@ RUN retry() { \
       retry 3 5 npm install --legacy-peer-deps --ignore-scripts; \
     fi
 RUN npm run build:docker
+# Match the local/CI preparation path: install the bundled plugin payloads
+# before packing so the runtime image receives a complete OpenClaw artifact.
+RUN node scripts/postinstall-bundled-plugins.mjs \
+  && grep -q '"qqbot"' dist/cli-startup-metadata.json
 RUN npm pack
 
 FROM --platform=$BUILDPLATFORM node:22.19.0-bookworm-slim AS builder

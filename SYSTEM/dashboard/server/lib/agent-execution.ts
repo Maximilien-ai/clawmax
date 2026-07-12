@@ -48,6 +48,7 @@ interface AgentAuthProfileOptions {
   skipModelConfigMutation?: boolean
 }
 const LMSTUDIO_DEFAULT_CONTEXT_TOKENS = 64_000
+const OPENCLAW_CONFIG_RELOAD_SETTLE_MS = 1500
 let openClawConfigMutationLock: Promise<void> = Promise.resolve()
 const agentExecutionLocks = new Map<string, Promise<void>>()
 const AGENT_EXECUTION_SESSION_LOCK_RETRIES = 2
@@ -1071,16 +1072,8 @@ export async function withTemporaryAgentAuthProfiles<T>(
   }
 
   if (preferredProvider === 'ollama') {
-    const currentConfigModel = readCurrentModel()
-    const previousModel = currentConfigModel.ok ? currentConfigModel.model : undefined
     const previousOllamaProvider = readCurrentOllamaProviderConfig()
     const normalizedOllamaBaseUrl = providerKeys.ollamaBaseUrl?.trim().replace(/\/+$/, '')
-    const shouldOverrideModel = Boolean(
-      hadConfig &&
-      !options.skipModelConfigMutation &&
-      preferredModel &&
-      preferredModel !== previousModel
-    )
     const shouldInjectOllamaProvider = Boolean(
       hadConfig &&
       (
@@ -1090,50 +1083,32 @@ export async function withTemporaryAgentAuthProfiles<T>(
       )
     )
 
-    if (!shouldOverrideModel && !shouldInjectOllamaProvider) {
-      return await fn()
+    if (shouldInjectOllamaProvider) {
+      await runWithConfigMutationLock(async () => {
+        const latestOllamaProvider = readCurrentOllamaProviderConfig()
+        const latestBaseUrl = latestOllamaProvider.config?.baseUrl
+        const latestHasApi = !!latestOllamaProvider.config?.api
+        let changed = false
+        if (
+          (normalizedOllamaBaseUrl && (!latestOllamaProvider.exists || latestBaseUrl !== normalizedOllamaBaseUrl)) ||
+          (latestOllamaProvider.exists && !latestHasApi)
+        ) {
+          changed = applyOllamaProviderConfig(normalizedOllamaBaseUrl)
+        }
+        if (changed) {
+          await wait(OPENCLAW_CONFIG_RELOAD_SETTLE_MS)
+        }
+      })
     }
 
-    return await runWithConfigMutationLock(async () => {
-      if (shouldInjectOllamaProvider) {
-        applyOllamaProviderConfig(normalizedOllamaBaseUrl)
-      }
-      if (shouldOverrideModel) {
-        applyModelOverride(preferredModel)
-      }
-      try {
-        return await fn()
-      } finally {
-        if (shouldOverrideModel) {
-          restoreModelOverride(previousModel)
-        }
-        if (shouldInjectOllamaProvider) {
-          restoreOllamaProviderConfig(previousOllamaProvider)
-        }
-      }
-    })
+    return await fn()
   }
 
   if (preferredProvider === 'openai-compatible') {
-    const currentConfigModel = readCurrentModel()
-    const previousModel = currentConfigModel.ok ? currentConfigModel.model : undefined
     const previousOpenAiCompatibleProvider = readCurrentOpenAiCompatibleProviderConfig()
     const normalizedOpenAiCompatibleBaseUrl = providerKeys.openaiCompatibleBaseUrl?.trim().replace(/\/+$/, '')
     const executionModelOverride = toExecutionModelOverride(preferredModel, preferredProvider)
     const executionLmstudioModelId = executionModelOverride?.replace(/^lmstudio\//, '')
-    const hasExecutionLmstudioModel = Boolean(
-      executionLmstudioModelId &&
-      Array.isArray(previousOpenAiCompatibleProvider.config?.models) &&
-      previousOpenAiCompatibleProvider.config?.models.some((entry: any) =>
-        typeof entry === 'object' && entry !== null && String(entry.id || '').trim() === executionLmstudioModelId
-      )
-    )
-    const shouldOverrideModel = Boolean(
-      hadConfig &&
-      !options.skipModelConfigMutation &&
-      executionModelOverride &&
-      executionModelOverride !== previousModel
-    )
     const shouldInjectOpenAiCompatibleProvider = Boolean(
       hadConfig &&
       (
@@ -1141,42 +1116,54 @@ export async function withTemporaryAgentAuthProfiles<T>(
         (normalizedOpenAiCompatibleBaseUrl && previousOpenAiCompatibleProvider.config?.baseUrl !== normalizedOpenAiCompatibleBaseUrl) ||
         (previousOpenAiCompatibleProvider.exists && !previousOpenAiCompatibleProvider.config?.api) ||
         (providerKeys.openaiCompatibleApiKey?.trim() && previousOpenAiCompatibleProvider.config?.apiKey !== providerKeys.openaiCompatibleApiKey.trim()) ||
-        !hasExecutionLmstudioModel
+        !(
+          executionLmstudioModelId &&
+          Array.isArray(previousOpenAiCompatibleProvider.config?.models) &&
+          previousOpenAiCompatibleProvider.config?.models.some((entry: any) =>
+            typeof entry === 'object' && entry !== null && String(entry.id || '').trim() === executionLmstudioModelId
+          )
+        )
       )
     )
 
-    if (!shouldOverrideModel && !shouldInjectOpenAiCompatibleProvider) {
-      return await fn()
+    if (shouldInjectOpenAiCompatibleProvider) {
+      await runWithConfigMutationLock(async () => {
+        const latestOpenAiCompatibleProvider = readCurrentOpenAiCompatibleProviderConfig()
+        const latestHasExecutionModel = Boolean(
+          executionLmstudioModelId &&
+          Array.isArray(latestOpenAiCompatibleProvider.config?.models) &&
+          latestOpenAiCompatibleProvider.config?.models.some((entry: any) =>
+            typeof entry === 'object' && entry !== null && String(entry.id || '').trim() === executionLmstudioModelId
+          )
+        )
+        let changed = false
+        if (
+          (normalizedOpenAiCompatibleBaseUrl && !latestOpenAiCompatibleProvider.exists) ||
+          (normalizedOpenAiCompatibleBaseUrl && latestOpenAiCompatibleProvider.config?.baseUrl !== normalizedOpenAiCompatibleBaseUrl) ||
+          (latestOpenAiCompatibleProvider.exists && !latestOpenAiCompatibleProvider.config?.api) ||
+          (providerKeys.openaiCompatibleApiKey?.trim() && latestOpenAiCompatibleProvider.config?.apiKey !== providerKeys.openaiCompatibleApiKey.trim()) ||
+          !latestHasExecutionModel
+        ) {
+          changed = applyOpenAiCompatibleProviderConfig(
+            normalizedOpenAiCompatibleBaseUrl,
+            executionModelOverride,
+            providerKeys.openaiCompatibleApiKey,
+          )
+        }
+        if (changed) {
+          await wait(OPENCLAW_CONFIG_RELOAD_SETTLE_MS)
+        }
+      })
     }
 
-    return await runWithConfigMutationLock(async () => {
-      if (shouldInjectOpenAiCompatibleProvider) {
-        applyOpenAiCompatibleProviderConfig(
-          normalizedOpenAiCompatibleBaseUrl,
-          executionModelOverride,
-          providerKeys.openaiCompatibleApiKey,
-        )
-      }
-      if (shouldOverrideModel) {
-        applyModelOverride(executionModelOverride)
-      }
-      try {
-        await normalizeLmstudioLoadedModelState({
-          baseUrl: normalizedOpenAiCompatibleBaseUrl,
-          apiKey: providerKeys.openaiCompatibleApiKey,
-          modelId: executionLmstudioModelId,
-          requestedContextTokens: LMSTUDIO_DEFAULT_CONTEXT_TOKENS,
-        })
-        return await fn()
-      } finally {
-        if (shouldOverrideModel) {
-          restoreModelOverride(previousModel)
-        }
-        if (shouldInjectOpenAiCompatibleProvider) {
-          restoreOpenAiCompatibleProviderConfig(previousOpenAiCompatibleProvider)
-        }
-      }
+    await normalizeLmstudioLoadedModelState({
+      baseUrl: normalizedOpenAiCompatibleBaseUrl,
+      apiKey: providerKeys.openaiCompatibleApiKey,
+      modelId: executionLmstudioModelId,
+      requestedContextTokens: LMSTUDIO_DEFAULT_CONTEXT_TOKENS,
     })
+
+    return await fn()
   }
 
   const agentDir = execution.agentDir || path.join(process.env.HOME || '', '.openclaw', 'agents', agentId, 'agent')

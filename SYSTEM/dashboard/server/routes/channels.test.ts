@@ -516,22 +516,49 @@ async function run() {
   await test('group mentions surface runtime fs errors instead of generic no-response placeholders', async () => {
     const childProcess = require('child_process')
     const originalSpawn = childProcess.spawn
+    const originalFetch = global.fetch
 
     const openclawDir = path.join(tmpHome, '.openclaw')
     const agentWorkspace = path.join(workspacePath, 'AGENTS', 'double-agent')
     const agentDir = path.join(openclawDir, 'agents', 'double-agent', 'agent')
     fs.mkdirSync(agentWorkspace, { recursive: true })
     fs.mkdirSync(path.dirname(agentDir), { recursive: true })
-    fs.writeFileSync(path.join(agentWorkspace, 'IDENTITY.md'), '# Identity\n\n- **Model:** openai/gpt-4.1\n', 'utf-8')
+    fs.writeFileSync(path.join(agentWorkspace, 'IDENTITY.md'), '# Identity\n\n- **Model:** openai-compatible/qwen/qwen3.6-27b\n', 'utf-8')
     fs.writeFileSync(path.join(openclawDir, 'openclaw.json'), JSON.stringify({
       agents: {
         list: [
-          { id: 'double-agent', workspace: agentWorkspace, agentDir, model: 'openai/gpt-4.1' },
+          { id: 'double-agent', workspace: agentWorkspace, agentDir, model: 'openai-compatible/qwen/qwen3.6-27b' },
         ],
       },
     }, null, 2))
 
-    childProcess.spawn = () => {
+    const spawnCalls: string[][] = []
+    global.fetch = (async (input: any, init?: any) => {
+      const url = String(input)
+      const method = String(init?.method || 'GET').toUpperCase()
+      if (url.endsWith('/api/v1/models') && method === 'GET') {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ models: [{ key: 'qwen/qwen3.6-27b', loaded_instances: [] }] }),
+        } as any
+      }
+      if (url.endsWith('/api/v1/models/load') && method === 'POST') {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ status: 'loaded' }),
+        } as any
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({}),
+      } as any
+    }) as any
+
+    childProcess.spawn = (_cmd: string, args: string[]) => {
+      spawnCalls.push(args)
       const proc = new EventEmitter() as any
       proc.stdout = new EventEmitter()
       proc.stderr = new EventEmitter()
@@ -561,12 +588,16 @@ async function run() {
           content: 'who are you? status?',
           from: 'User',
           mentions: ['double-agent'],
+          byok: {
+            openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1',
+            openaiCompatibleApiKey: 'lmstudio-secret',
+          },
         },
       }), sendRes)
       assert.strictEqual(sendRes.statusCode, 200, 'Expected group mention send success')
 
       let agentReply: any
-      for (let attempt = 0; attempt < 20; attempt++) {
+      for (let attempt = 0; attempt < 80; attempt++) {
         await new Promise((resolve) => setTimeout(resolve, 50))
         const listRes = makeRes()
         await getGroupMessages(makeReq({ params: { name: encodeURIComponent('Temp Group') } }), listRes)
@@ -582,8 +613,14 @@ async function run() {
         !/Agent did not return a response/i.test(agentReply.content),
         'Expected runtime fs error to replace generic no-response placeholder'
       )
+      const agentSpawn = spawnCalls.find((args) => args.includes('--agent') && args.includes('double-agent'))
+      assert(agentSpawn, 'Expected group chat to spawn OpenClaw for mentioned agent')
+      const modelArgIndex = agentSpawn!.indexOf('--model')
+      assert(modelArgIndex >= 0, `Expected group chat to pass --model, got: ${agentSpawn!.join(' ')}`)
+      assert.strictEqual(agentSpawn![modelArgIndex + 1], 'lmstudio/qwen/qwen3.6-27b', 'Expected openai-compatible model to be passed as lmstudio execution model')
     } finally {
       childProcess.spawn = originalSpawn
+      global.fetch = originalFetch
     }
   })
 

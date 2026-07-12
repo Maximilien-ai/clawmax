@@ -1115,7 +1115,7 @@ test('withTemporaryAgentAuthProfiles bypasses auth-profile rewriting for ollama 
   assert(restoredOriginalEntry.model === 'ollama/qwen2.5:latest', 'Expected matching Ollama record model to remain intact after execution')
 })
 
-test('withTemporaryAgentAuthProfiles injects and restores temporary Ollama provider config', async () => {
+test('withTemporaryAgentAuthProfiles persists Ollama provider config instead of restoring during execution', async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
   const agentDir = path.join(home, '.openclaw', 'agents', 'test-ollama', 'agent')
   const configPath = path.join(home, '.openclaw', 'openclaw.json')
@@ -1140,11 +1140,12 @@ test('withTemporaryAgentAuthProfiles injects and restores temporary Ollama provi
     assert(currentConfig.agents.list[0].model === 'ollama/qwen2.5:latest', 'Expected model to remain intact during Ollama execution')
   })
 
-  const restoredConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-  assert(typeof restoredConfig.models === 'undefined', 'Expected temporary Ollama provider config removed after execution')
+  const persistedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  assert(persistedConfig.models.providers.ollama.baseUrl === 'http://127.0.0.1:11434', 'Expected Ollama base URL to remain stable after execution')
+  assert(persistedConfig.models.providers.ollama.api === 'ollama', 'Expected Ollama api marker to remain stable after execution')
 })
 
-test('withTemporaryAgentAuthProfiles maps dashboard openai-compatible models to the LM Studio provider for execution and restores the saved model', async () => {
+test('withTemporaryAgentAuthProfiles persists LM Studio provider config without mutating the saved dashboard model', async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
   const workspace = path.join(home, 'workspace')
   const agentWorkspace = path.join(workspace, 'AGENTS', 'test-compatible')
@@ -1212,32 +1213,32 @@ test('withTemporaryAgentAuthProfiles maps dashboard openai-compatible models to 
       'openai-compatible',
       async () => {
         const currentConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-        assert(currentConfig.agents.list[0].model === 'lmstudio/qwen/qwen3.6-27b', `Expected execution override to translate to lmstudio/<model>, got ${currentConfig.agents.list[0].model}`)
-        assert(currentConfig.models.providers.lmstudio.baseUrl === 'http://127.0.0.1:1234/v1', 'Expected temporary LM Studio base URL injected')
-        assert(currentConfig.models.providers.lmstudio.api === 'openai-completions', 'Expected temporary LM Studio api marker injected')
-        assert(currentConfig.models.providers.lmstudio.apiKey === 'lmstudio-secret', 'Expected temporary LM Studio api key injected')
-        assert(Array.isArray(currentConfig.models.providers.lmstudio.models), 'Expected temporary LM Studio provider models array injected')
+        assert(currentConfig.agents.list[0].model === 'openai-compatible/qwen/qwen3.6-27b', `Expected saved dashboard model to stay openai-compatible/<model>, got ${currentConfig.agents.list[0].model}`)
+        assert(currentConfig.models.providers.lmstudio.baseUrl === 'http://127.0.0.1:1234/v1', 'Expected stable LM Studio base URL persisted')
+        assert(currentConfig.models.providers.lmstudio.api === 'openai-completions', 'Expected stable LM Studio api marker persisted')
+        assert(currentConfig.models.providers.lmstudio.apiKey === 'lmstudio-secret', 'Expected stable LM Studio api key persisted')
+        assert(Array.isArray(currentConfig.models.providers.lmstudio.models), 'Expected stable LM Studio provider models array persisted')
         const activeEntry = currentConfig.models.providers.lmstudio.models.find((entry: any) => entry?.id === 'qwen/qwen3.6-27b')
-        assert(activeEntry, 'Expected temporary LM Studio catalog entry for the active model')
-        assert(activeEntry.contextWindow === 64000, 'Expected temporary LM Studio model entry to carry a larger context window')
-        assert(activeEntry.contextTokens === 64000, 'Expected temporary LM Studio model entry to carry a larger context token limit')
-        assert(activeEntry.maxTokens === 8192, 'Expected temporary LM Studio model entry to carry a bounded max token output limit')
+        assert(activeEntry, 'Expected stable LM Studio catalog entry for the active model')
+        assert(activeEntry.contextWindow === 64000, 'Expected stable LM Studio model entry to carry a larger context window')
+        assert(activeEntry.contextTokens === 64000, 'Expected stable LM Studio model entry to carry a larger context token limit')
+        assert(activeEntry.maxTokens === 8192, 'Expected stable LM Studio model entry to carry a bounded max token output limit')
       }
     )
   } finally {
     global.fetch = originalFetch
   }
 
-  const restoredConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-  assert(restoredConfig.agents.list[0].model === 'openai-compatible/qwen/qwen3.6-27b', 'Expected saved dashboard model to be restored after execution')
-  assert(typeof restoredConfig.models === 'undefined', 'Expected temporary LM Studio provider config removed after execution')
+  const persistedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  assert(persistedConfig.agents.list[0].model === 'openai-compatible/qwen/qwen3.6-27b', 'Expected saved dashboard model to stay unchanged after execution')
+  assert(persistedConfig.models.providers.lmstudio.baseUrl === 'http://127.0.0.1:1234/v1', 'Expected LM Studio provider config to remain stable after execution')
   const unloadCall = fetchCalls.find((call) => call.url.endsWith('/api/v1/models/unload'))
   assert(!!(unloadCall && unloadCall.body?.includes('"instance_id":"qwen/qwen3.6-27b"')), 'Expected undersized LM Studio instance to be unloaded before execution')
   const loadCall = fetchCalls.find((call) => call.url.endsWith('/api/v1/models/load'))
   assert(!!(loadCall && loadCall.body?.includes('"context_length":64000')), 'Expected LM Studio load request to target the larger execution context window')
 })
 
-test('withTemporaryAgentAuthProfiles preserves existing Ollama provider config fields while applying a temporary base URL', async () => {
+test('withTemporaryAgentAuthProfiles preserves existing Ollama provider config fields while applying a stable base URL', async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
   const agentDir = path.join(home, '.openclaw', 'agents', 'test-ollama', 'agent')
   const configPath = path.join(home, '.openclaw', 'openclaw.json')
@@ -1272,9 +1273,9 @@ test('withTemporaryAgentAuthProfiles preserves existing Ollama provider config f
     assert(Array.isArray(currentConfig.models.providers.ollama.models), 'Expected existing Ollama provider models array normalized during override')
   })
 
-  const restoredConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-  assert(restoredConfig.models.providers.ollama.baseUrl === 'http://old-host:11434', 'Expected prior Ollama base URL restored')
-  assert(restoredConfig.models.providers.ollama.headers['X-Test'] === 'keep-me', 'Expected prior Ollama provider fields restored')
+  const persistedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  assert(persistedConfig.models.providers.ollama.baseUrl === 'http://127.0.0.1:11434', 'Expected Ollama base URL to remain stable after execution')
+  assert(persistedConfig.models.providers.ollama.headers['X-Test'] === 'keep-me', 'Expected existing Ollama provider fields preserved')
 })
 
 test('withTemporaryAgentAuthProfiles preserves config validity when an existing Ollama provider lacks models array', async () => {

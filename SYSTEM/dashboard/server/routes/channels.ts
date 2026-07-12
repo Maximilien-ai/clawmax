@@ -15,6 +15,7 @@ import {
   resolveAgentExecutionConfig,
   runExclusiveAgentExecution,
   scopeSessionIdToModel,
+  toExecutionModelOverride,
   withTemporaryAgentAuthProfiles,
 } from '../lib/agent-execution'
 import { readWorkspaceIntegrationConfig } from '../lib/workspace-integrations'
@@ -374,7 +375,16 @@ async function callAgent(
     openaiCompatibleDefaultModel: useOpenAiCompatible ? (byokKeys?.openaiCompatibleDefaultModel || integrationConfig.openaiCompatibleDefaultModel) : undefined,
   }, resolvedAgent.model, resolvedAgent.provider, () => {
     return new Promise((resolve, reject) => {
-      const args = ['agent', '--agent', agentId, '--session-id', effectiveSessionId, '--message', message, '--json', ...(useLocal ? ['--local'] : [])]
+      const executionModelOverride = toExecutionModelOverride(resolvedAgent.model, resolvedAgent.provider)
+      const args = [
+        'agent',
+        '--agent', agentId,
+        '--session-id', effectiveSessionId,
+        '--message', message,
+        '--json',
+        ...(executionModelOverride ? ['--model', executionModelOverride] : []),
+        ...(useLocal ? ['--local'] : []),
+      ]
       const proc = spawn('openclaw', args, { env: executionEnv })
 
     let stdout = ''
