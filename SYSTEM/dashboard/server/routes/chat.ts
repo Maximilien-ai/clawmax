@@ -412,6 +412,9 @@ function evaluateChatExecutionReadiness(
     const hasOllamaPath = !!(executionEnv.OLLAMA_BASE_URL || integrationConfig.ollamaDefaultModel)
     const hasOpenAiCompatiblePath = !!(executionEnv.OPENAI_BASE_URL || integrationConfig.openaiCompatibleBaseUrl)
 
+    if (provider === 'openai') return !!executionEnv.OPENAI_API_KEY
+    if (provider === 'anthropic') return !!executionEnv.ANTHROPIC_API_KEY
+    if (provider === 'gemini') return !!executionEnv.GEMINI_API_KEY
     if (provider === 'ollama') return hasOllamaPath || hasHostedKeys
     if (provider === 'openai-compatible') return hasOpenAiCompatiblePath
     return hasHostedKeys || hasOllamaPath || hasOpenAiCompatiblePath
@@ -439,6 +442,19 @@ function evaluateChatExecutionReadiness(
       available: false,
       error: `Agent ${agentId} is configured for ${resolvedAgent.model || 'openai-compatible'}, but no OpenAI-compatible Base URL is configured. Add one in BYOK or workspace integrations.`,
       resolvedAgent,
+    }
+  }
+  if (
+    (resolvedAgent.provider === 'openai' && !executionEnv.OPENAI_API_KEY) ||
+    (resolvedAgent.provider === 'anthropic' && !executionEnv.ANTHROPIC_API_KEY) ||
+    (resolvedAgent.provider === 'gemini' && !executionEnv.GEMINI_API_KEY)
+  ) {
+    if (!hasResolvedExecutionPath(resolvedAgent.backupProvider)) {
+      return {
+        available: false,
+        error: `Agent ${agentId} is configured for ${resolvedAgent.model}, but no ${resolvedAgent.provider} credential is available. Add the matching key in BYOK or choose a configured model provider.`,
+        resolvedAgent,
+      }
     }
   }
   if (!hasHostedKeys && !hasOllamaPath && !hasOpenAiCompatiblePath) {

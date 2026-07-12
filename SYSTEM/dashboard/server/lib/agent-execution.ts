@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { createHash } from 'crypto'
+import { spawnSync } from 'child_process'
 import { getWorkspacePath, parseIdentity } from './workspace'
 import type { ProviderKeys } from './dashboard-env'
 import { REPO_ROOT } from './paths'
@@ -853,6 +854,26 @@ function authProfileStateFingerprint(raw: string | null): string | null {
   }
 }
 
+function persistPinnedOpenClawAuthStore(agentDir: string, store: AuthProfileFile): boolean {
+  const helperPath = path.join(REPO_ROOT, 'SYSTEM', 'dashboard', 'openclaw-auth-store.mjs')
+  const packageRoot = process.env.OPENCLAW_PACKAGE_ROOT || '/usr/local/lib/node_modules/openclaw'
+  if (!fs.existsSync(helperPath) || !fs.existsSync(path.join(packageRoot, 'dist'))) return false
+
+  const result = spawnSync(process.execPath, [helperPath, agentDir], {
+    input: JSON.stringify(store),
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      OPENCLAW_PACKAGE_ROOT: packageRoot,
+    },
+  })
+  if (result.status !== 0) {
+    const detail = String(result.stderr || result.stdout || '').trim()
+    throw new Error(`Failed to persist OpenClaw auth store for ${path.basename(path.dirname(agentDir))}: ${detail || `exit ${result.status}`}`)
+  }
+  return true
+}
+
 export async function withTemporaryAgentAuthProfiles<T>(
   agentId: string,
   providerKeys: ProviderKeys,
@@ -1200,10 +1221,14 @@ export async function withTemporaryAgentAuthProfiles<T>(
   const nextAuthProfiles = buildAuthProfiles(providerKeys, effectiveProvider)
   const nextAuthProfilesSerialized = JSON.stringify(nextAuthProfiles, null, 2)
   const authProfilesChanged = authProfileStateFingerprint(previous) !== authProfileStateFingerprint(nextAuthProfilesSerialized)
+  const hasNextAuthProfiles = Object.keys(nextAuthProfiles.profiles).length > 0
 
-  fs.writeFileSync(authProfilePath, nextAuthProfilesSerialized, 'utf-8')
-  if (authProfilesChanged) {
-    resetAgentSessionsForModelChange(process.env.HOME || '', agentId)
+  if (hasNextAuthProfiles) {
+    fs.writeFileSync(authProfilePath, nextAuthProfilesSerialized, 'utf-8')
+    persistPinnedOpenClawAuthStore(agentDir, nextAuthProfiles)
+    if (authProfilesChanged) {
+      resetAgentSessionsForModelChange(process.env.HOME || '', agentId)
+    }
   }
   const currentConfigModel = readCurrentModel()
   const previousModel = currentConfigModel.ok ? currentConfigModel.model : undefined
@@ -1231,6 +1256,8 @@ export async function withTemporaryAgentAuthProfiles<T>(
     if (options.persistAuthProfiles) {
       // Agent runs can launch async OpenClaw subagents after the parent CLI command exits.
       // Leave Dashboard-provided auth in place so those child lanes can authenticate.
+    } else if (!hasNextAuthProfiles) {
+      // No replacement credentials were supplied, so preserve any existing store.
     } else if (previous !== null) {
       fs.writeFileSync(authProfilePath, previous, 'utf-8')
     } else if (fs.existsSync(authProfilePath)) {

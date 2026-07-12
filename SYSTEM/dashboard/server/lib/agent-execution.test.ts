@@ -790,6 +790,29 @@ test('withTemporaryAgentAuthProfiles can persist generated auth profiles for asy
   assert(persisted.profiles['openai-key']?.key === 'fresh-openai', 'Expected generated auth profile to remain for async subagents')
 })
 
+test('withTemporaryAgentAuthProfiles preserves existing auth profiles when no replacement key is supplied', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
+  const agentDir = path.join(home, '.openclaw', 'agents', 'preserve-auth', 'agent')
+  const authProfilePath = path.join(agentDir, 'auth-profiles.json')
+  fs.mkdirSync(agentDir, { recursive: true })
+  const existing = JSON.stringify({
+    version: 1,
+    profiles: {
+      'openai:existing': { type: 'api_key', provider: 'openai', key: 'existing-key' },
+    },
+    usageStats: {},
+  }, null, 2)
+  fs.writeFileSync(authProfilePath, existing, 'utf8')
+
+  process.env.HOME = home
+  await withTemporaryAgentAuthProfiles('preserve-auth', {}, 'openai/gpt-4o-mini', 'openai', async () => {}, {
+    persistAuthProfiles: true,
+    skipModelConfigMutation: true,
+  })
+
+  assert(fs.readFileSync(authProfilePath, 'utf8') === existing, 'Expected no-key execution to preserve the existing auth profile store')
+})
+
 test('withTemporaryAgentAuthProfiles registers workspace custom skill root with OpenClaw', async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
   const workspace = path.join(home, '.openclaw', 'workspaces', 'robotics')

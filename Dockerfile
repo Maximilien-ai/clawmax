@@ -51,7 +51,7 @@ RUN node /tmp/patch-openclaw-fs-safe.mjs /opt/openclaw-src
 # before packing so the runtime image receives a complete OpenClaw artifact.
 RUN node scripts/postinstall-bundled-plugins.mjs \
   && grep -q '"qqbot"' dist/cli-startup-metadata.json
-RUN npm pack
+RUN npm pack --ignore-scripts
 
 FROM --platform=$BUILDPLATFORM node:22.19.0-bookworm-slim AS builder
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
@@ -145,6 +145,7 @@ COPY SKILLS/custom/workspace-ls ./SKILLS/custom/workspace-ls
 COPY SYSTEM/schemas ./SYSTEM/schemas
 COPY SYSTEM/dashboard/.env.example ./SYSTEM/dashboard/.env.example
 COPY SYSTEM/dashboard/docker-entrypoint.sh ./SYSTEM/dashboard/docker-entrypoint.sh
+COPY SYSTEM/dashboard/openclaw-auth-store.mjs ./SYSTEM/dashboard/openclaw-auth-store.mjs
 COPY SYSTEM/dashboard/clawmax-resend-send /usr/local/bin/clawmax-resend-send
 
 RUN mkdir -p /app/AGENTS \
