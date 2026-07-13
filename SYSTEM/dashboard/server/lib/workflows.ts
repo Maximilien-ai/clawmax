@@ -1977,16 +1977,6 @@ export function triggerWorkflow(workflowId: string, options?: {
         return
       }
 
-      const executionEnv = workflowExecutionEnv({
-        openai: options?.byok?.openai,
-        anthropic: options?.byok?.anthropic,
-        gemini: options?.byok?.gemini,
-        ollamaBaseUrl: options?.byok?.ollamaBaseUrl || integrationDefaults.ollamaBaseUrl,
-        openaiCompatibleApiKey: options?.byok?.openaiCompatibleApiKey,
-        openaiCompatibleBaseUrl: options?.byok?.openaiCompatibleBaseUrl || integrationDefaults.openaiCompatibleBaseUrl,
-        openaiCompatibleDefaultModel: options?.byok?.openaiCompatibleDefaultModel || integrationDefaults.openaiCompatibleDefaultModel,
-      })
-
       const runParticipant = async (participant: WorkflowExecutionParticipant) => {
         try {
           participant.status = 'running' as any
@@ -1998,8 +1988,24 @@ export function triggerWorkflow(workflowId: string, options?: {
           const agentResponse = await runExclusiveAgentExecution(participant.agentId, async () => {
             const resolvedAgent = resolveAgentExecutionConfig(participant.agentId)
             const openclawCliPath = resolveWorkflowOpenClawCliPath()
-            executionEnv.CLAWMAX_AGENT_ID = participant.agentId
             const executeAttempt = async (attemptModel: string | undefined, attemptProvider: typeof resolvedAgent.provider) => {
+              const useOpenAiCompatible = attemptProvider === 'openai-compatible'
+              const executionEnv = workflowExecutionEnv({
+                openai: attemptProvider === 'openai' ? options?.byok?.openai : undefined,
+                anthropic: attemptProvider === 'anthropic' ? options?.byok?.anthropic : undefined,
+                gemini: attemptProvider === 'gemini' ? options?.byok?.gemini : undefined,
+                ollamaBaseUrl: attemptProvider === 'ollama'
+                  ? (options?.byok?.ollamaBaseUrl || integrationDefaults.ollamaBaseUrl)
+                  : undefined,
+                openaiCompatibleApiKey: useOpenAiCompatible ? options?.byok?.openaiCompatibleApiKey : undefined,
+                openaiCompatibleBaseUrl: useOpenAiCompatible
+                  ? (options?.byok?.openaiCompatibleBaseUrl || integrationDefaults.openaiCompatibleBaseUrl)
+                  : undefined,
+                openaiCompatibleDefaultModel: useOpenAiCompatible
+                  ? (options?.byok?.openaiCompatibleDefaultModel || integrationDefaults.openaiCompatibleDefaultModel)
+                  : undefined,
+              }, attemptProvider || undefined)
+              executionEnv.CLAWMAX_AGENT_ID = participant.agentId
               const hasOllamaPath = !!(executionEnv.OLLAMA_BASE_URL || integrationDefaults.ollamaDefaultModel)
               if (attemptProvider === 'ollama' && !hasOllamaPath) {
                 throw new Error(`Agent ${participant.agentId} is configured for ${attemptModel || 'ollama'}, but no Ollama runtime is configured`)

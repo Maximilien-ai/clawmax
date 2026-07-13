@@ -163,6 +163,30 @@ test('workflowExecutionEnv preserves OpenAI-compatible runtime settings without 
   assert(env.GEMINI_API_KEY === '', 'Expected Gemini key slot blanked during OpenAI-compatible workflow execution')
 })
 
+test('workflowExecutionEnv isolates hosted OpenAI from an OpenAI-compatible base URL', () => {
+  const env = workflowExecutionEnv({
+    openai: 'hosted-openai-key',
+    openaiCompatibleApiKey: 'lmstudio-key',
+    openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1',
+    openaiCompatibleDefaultModel: 'qwen3.6-27b',
+  }, 'openai')
+
+  assert(env.OPENAI_API_KEY === 'hosted-openai-key', 'Expected the hosted OpenAI key in the execution env')
+  assert(env.OPENAI_BASE_URL === '', 'Expected hosted OpenAI execution to ignore the OpenAI-compatible base URL')
+})
+
+test('workflowExecutionEnv isolates OpenAI-compatible attempts from hosted OpenAI', () => {
+  const env = workflowExecutionEnv({
+    openai: 'hosted-openai-key',
+    openaiCompatibleApiKey: 'lmstudio-key',
+    openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1',
+    openaiCompatibleDefaultModel: 'qwen3.6-27b',
+  }, 'openai-compatible')
+
+  assert(env.OPENAI_API_KEY === 'lmstudio-key', 'Expected the OpenAI-compatible key in the execution env')
+  assert(env.OPENAI_BASE_URL === 'http://127.0.0.1:1234/v1', 'Expected the OpenAI-compatible base URL in the execution env')
+})
+
 test('systemExecutionEnv uses resolved system execution keys, not shell exports', () => {
   const env = systemExecutionEnv()
   assert(typeof env.PATH === 'string' && env.PATH.length > 0, 'Expected safe base env to retain PATH')

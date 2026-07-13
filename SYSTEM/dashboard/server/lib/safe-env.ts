@@ -18,6 +18,8 @@ export interface ExecutionEnvOverrides extends ProviderKeys {
   ollamaBaseUrl?: string
 }
 
+export type ExecutionModelProvider = 'openai' | 'anthropic' | 'gemini' | 'ollama' | 'openai-compatible'
+
 const STANDARD_RUNTIME_PATHS = [
   '/opt/homebrew/bin',
   '/opt/homebrew/sbin',
@@ -151,15 +153,30 @@ export function userExecutionEnv(byokOverrides?: ExecutionEnvOverrides): NodeJS.
   }))
 }
 
-export function workflowExecutionEnv(byokOverrides?: ExecutionEnvOverrides): NodeJS.ProcessEnv {
+export function workflowExecutionEnv(
+  byokOverrides?: ExecutionEnvOverrides,
+  selectedProvider?: ExecutionModelProvider,
+): NodeJS.ProcessEnv {
   const resolvedProviderKeys = resolveWorkflowExecutionProviderKeys(undefined, byokOverrides)
-  return safeEnv(providerKeysToEnv({
+  const executionProviderKeys: ExecutionEnvOverrides = {
     ...resolvedProviderKeys,
     ollamaBaseUrl: byokOverrides?.ollamaBaseUrl?.trim() || undefined,
     openaiCompatibleApiKey: byokOverrides?.openaiCompatibleApiKey?.trim() || resolvedProviderKeys.openaiCompatibleApiKey,
     openaiCompatibleBaseUrl: byokOverrides?.openaiCompatibleBaseUrl?.trim() || resolvedProviderKeys.openaiCompatibleBaseUrl,
     openaiCompatibleDefaultModel: byokOverrides?.openaiCompatibleDefaultModel?.trim() || resolvedProviderKeys.openaiCompatibleDefaultModel,
-  }))
+  }
+
+  if (selectedProvider) {
+    executionProviderKeys.openai = selectedProvider === 'openai' ? resolvedProviderKeys.openai : undefined
+    executionProviderKeys.anthropic = selectedProvider === 'anthropic' ? resolvedProviderKeys.anthropic : undefined
+    executionProviderKeys.gemini = selectedProvider === 'gemini' ? resolvedProviderKeys.gemini : undefined
+    executionProviderKeys.ollamaBaseUrl = selectedProvider === 'ollama' ? executionProviderKeys.ollamaBaseUrl : undefined
+    executionProviderKeys.openaiCompatibleApiKey = selectedProvider === 'openai-compatible' ? executionProviderKeys.openaiCompatibleApiKey : undefined
+    executionProviderKeys.openaiCompatibleBaseUrl = selectedProvider === 'openai-compatible' ? executionProviderKeys.openaiCompatibleBaseUrl : undefined
+    executionProviderKeys.openaiCompatibleDefaultModel = selectedProvider === 'openai-compatible' ? executionProviderKeys.openaiCompatibleDefaultModel : undefined
+  }
+
+  return safeEnv(providerKeysToEnv(executionProviderKeys))
 }
 
 export function systemExecutionEnv(): NodeJS.ProcessEnv {
