@@ -226,6 +226,15 @@ test('deriveChatError normalizes missing execution path guidance', () => {
   assert(/BYOK \/ workspace integrations/i.test(message), `Unexpected remediation guidance: ${message}`)
 })
 
+test('deriveChatError surfaces FsSafeError as a runtime state failure', () => {
+  const message = deriveChatError(
+    'FsSafeError: directory changed during operation',
+    'openai'
+  )
+  assert(/runtime changed files while this chat was running/i.test(message), `Unexpected message: ${message}`)
+  assert(/disable unstable runtime plugins/i.test(message), `Unexpected remediation guidance: ${message}`)
+})
+
 test('buildManagedSecretStatelessChatMessage preserves recent chat context in a single-turn prompt', () => {
   const prompt = buildManagedSecretStatelessChatMessage('Send that status in an email to mmaximilien@gmail.com', [
     { role: 'user', content: 'who are you? give me a status' },

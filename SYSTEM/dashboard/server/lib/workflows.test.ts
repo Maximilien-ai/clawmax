@@ -451,6 +451,14 @@ test('detectParticipantReportedFailure catches explicit FAIL markers', () => {
   assert(detectParticipantReportedFailure('FAIL\nNeed retry') === 'FAIL', 'Expected FAIL line to be treated as failure')
   assert(detectParticipantReportedFailure('COMMS PASS') === null, 'Expected PASS marker to remain non-failing')
   assert(
+    detectParticipantReportedFailure('FsSafeError: directory changed during operation') === 'FsSafeError: directory changed during operation',
+    'Expected runtime fs errors to be treated as failure'
+  )
+  assert(
+    detectParticipantReportedFailure('Unknown model: openai/gpt-4o-mini') === 'Unknown model: openai/gpt-4o-mini',
+    'Expected unsupported model errors to be treated as failure'
+  )
+  assert(
     detectParticipantReportedFailure('LLM request rejected: You have reached your specified API usage limits.') === 'LLM request rejected: You have reached your specified API usage limits.',
     'Expected upstream provider rejection to be treated as failure'
   )
@@ -477,6 +485,22 @@ test('formatParticipantFailure explains provider auth failures clearly', () => {
   assert(
     /authentication failed/i.test(message) && /api key|auth profile|byok/i.test(message),
     `Expected auth guidance, got: ${message}`
+  )
+})
+
+test('formatParticipantFailure explains runtime fs errors clearly', () => {
+  const message = formatParticipantFailure('FsSafeError: directory changed during operation')
+  assert(
+    /runtime changed files while this workflow was running/i.test(message) && /restart the runtime|disable unstable runtime plugins/i.test(message),
+    `Expected runtime fs guidance, got: ${message}`
+  )
+})
+
+test('formatParticipantFailure explains unsupported models clearly', () => {
+  const message = formatParticipantFailure('Unknown model: openai/gpt-4o-mini')
+  assert(
+    /configured with a model that the current runtime does not support/i.test(message) && /choose a different model/i.test(message),
+    `Expected unsupported-model guidance, got: ${message}`
   )
 })
 
@@ -511,6 +535,11 @@ test('normalizeWorkflowThreadDiagnostic compresses raw auth fallback noise for w
 test('normalizeWorkflowThreadDiagnostic compresses raw network fallback noise for workflow threads', () => {
   const normalized = normalizeWorkflowThreadDiagnostic('model fallback decision: decision=candidate_failed detail=Connection error. FailoverError: LLM request failed: network connection error.')
   assert(/Runtime connection error/i.test(normalized || ''), `Expected network normalization, got: ${normalized}`)
+})
+
+test('normalizeWorkflowThreadDiagnostic compresses runtime fs errors for workflow threads', () => {
+  const normalized = normalizeWorkflowThreadDiagnostic('FsSafeError: directory changed during operation')
+  assert(/runtime changed files while this workflow was running/i.test(normalized || ''), `Expected fs-safe normalization, got: ${normalized}`)
 })
 
 test('resolveWorkflowConversationTarget prefers workflow groups before communities', () => {

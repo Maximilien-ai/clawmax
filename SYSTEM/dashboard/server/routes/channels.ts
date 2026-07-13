@@ -15,6 +15,7 @@ import {
   resolveAgentExecutionConfig,
   runExclusiveAgentExecution,
   scopeSessionIdToModel,
+  toExecutionModelOverride,
   withTemporaryAgentAuthProfiles,
 } from '../lib/agent-execution'
 import { readWorkspaceIntegrationConfig } from '../lib/workspace-integrations'
@@ -22,12 +23,15 @@ import { hasWorkspaceManagedPartnerSecrets } from '../lib/workspace-integrations
 import { getAuthenticatedSession } from '../lib/github-auth'
 import { buildRuntimePlan, readAgentIdentitySystemPrompt, runRuntimeCli } from '../lib/agent-runtime'
 import { hasRuntimeSession } from '../lib/runtime-sessions'
+import { deriveChatError } from './chat'
 
 const router = Router()
 
 // claude/droid CLI turnaround runs noticeably slower than openclaw's local gateway path
 // (droid-probe.md: single-turn calls observed at 5.6s-33s even for trivial replies).
 const NON_OPENCLAW_CALL_AGENT_TIMEOUT_MS = 120000
+
+const CHANNEL_RUNTIME_ERROR_PATTERN = /FsSafeError: directory changed during operation|Unknown model:|No API key found for provider|Incorrect API key provided|has auth issue \(skipping all models\)|insufficient_quota|quota exceeded|rate limit|too many requests|429\b|is in cooldown \(suspending lanes\)|EmbeddedAttemptSessionTakeoverError|session file changed while embedded prompt lock was released|All models failed|No API keys available|No execution path configured|gateway|timeout|n_keep:\s*\d+\s*>=\s*n_ctx:\s*\d+/i
 
 // List all communities
 router.get('/communities', (req, res) => {
@@ -430,7 +434,16 @@ export async function callAgent(
     openaiCompatibleDefaultModel: useOpenAiCompatible ? (byokKeys?.openaiCompatibleDefaultModel || integrationConfig.openaiCompatibleDefaultModel) : undefined,
   }, resolvedAgent.model, resolvedAgent.provider, () => {
     return new Promise((resolve, reject) => {
-      const args = ['agent', '--agent', agentId, '--session-id', effectiveSessionId, '--message', message, '--json', ...(useLocal ? ['--local'] : [])]
+      const executionModelOverride = toExecutionModelOverride(resolvedAgent.model, resolvedAgent.provider)
+      const args = [
+        'agent',
+        '--agent', agentId,
+        '--session-id', effectiveSessionId,
+        '--message', message,
+        '--json',
+        ...(executionModelOverride ? ['--model', executionModelOverride] : []),
+        ...(useLocal ? ['--local'] : []),
+      ]
       const proc = spawn('openclaw', args, { env: executionEnv })
 
     let stdout = ''
@@ -446,9 +459,13 @@ export async function callAgent(
     proc.on('close', (code: number) => {
       clearTimeout(timer)
       console.log(`[callAgent] ${agentId}: exit code=${code}, stdout len=${stdout.length}, stderr len=${stderr.length}`)
+      const rawDiagnostic = `${stdout}\n${stderr}`.trim()
+      const runtimeError = CHANNEL_RUNTIME_ERROR_PATTERN.test(rawDiagnostic)
+        ? deriveChatError(rawDiagnostic, resolvedAgent.provider as any)
+        : null
       // Only reject if exit code is non-zero AND there's nothing parseable anywhere
       if (code !== 0 && !stdout.trim() && !stderr.includes('{')) {
-        reject(new Error(`Agent command failed (code ${code}): ${stderr.slice(0, 200)}`))
+        reject(new Error(runtimeError || `Agent command failed (code ${code}): ${stderr.slice(0, 200)}`))
         return
       }
 
@@ -536,6 +553,10 @@ export async function callAgent(
           responseText = stdout.trim()
         }
         responseText = normalizeChatMessage(responseText)
+        if (!responseText && runtimeError) {
+          reject(new Error(runtimeError))
+          return
+        }
         if (!responseText) {
           console.log(`[callAgent] ${agentId}: empty response, stdout=${stdout.slice(0, 200)}, stderr=${stderr.slice(0, 200)}`)
         }

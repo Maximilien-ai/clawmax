@@ -89,6 +89,7 @@ prepare_checkout() {
       cd "$src_dir"
       run_pnpm install --frozen-lockfile --ignore-scripts >&2
       run_pnpm run build:docker >&2
+      node "$SCRIPT_DIR/patch-openclaw-fs-safe.mjs" "$src_dir" >&2
       node scripts/postinstall-bundled-plugins.mjs >&2 || true
       grep -q '"qqbot"' dist/cli-startup-metadata.json
     )

@@ -44,6 +44,7 @@ import { readWorkspaceIntegrationConfig } from './lib/workspace-integrations'
 import { resolveOpenClawCliPath } from './lib/openclaw-cli'
 import { buildSystemInfoPayload } from './lib/system-info'
 import { detectRuntimeStatuses, resolveWorkspaceRuntime } from './lib/agent-runtime'
+import { healDashboardManagedOpenClawConfig } from './lib/openclaw-config'
 
 // ============================================================================
 // Crash Protection & Error Logging
@@ -119,8 +120,26 @@ function logDetectedAgentRuntimes(): void {
   console.log(`[Agent Runtimes] ${summary}`)
 }
 
+function healOpenClawConfigOnStartup(): void {
+  const configPath = path.join(os.homedir(), '.openclaw', 'openclaw.json')
+  const result = healDashboardManagedOpenClawConfig(configPath, 'dashboard-startup-heal')
+  if (!result.ok) {
+    logToFile(`OpenClaw config heal failed: ${result.error || 'unknown error'}`)
+    return
+  }
+  if (result.changed) {
+    logToFile(`OpenClaw config healed: removed unsupported dashboard-managed agent keys from ${configPath}`)
+  }
+}
+
 function startBackgroundServices() {
   setImmediate(() => {
+    try {
+      healOpenClawConfigOnStartup()
+    } catch (err) {
+      logToFile(`OpenClaw config heal failed: ${err instanceof Error ? err.stack || err.message : String(err)}`)
+    }
+
     void autoRegisterWorkspaceAgents().catch((err) => {
       logToFile(`Auto-register failed: ${err instanceof Error ? err.stack || err.message : String(err)}`)
     })

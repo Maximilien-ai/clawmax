@@ -31,6 +31,7 @@ type Step = 1 | 2 | 3 | 4
 interface FormState {
   name: string
   model: string
+  backupModel: string
   cloneFrom: string
   templateSlug: string
   whatsapp: string
@@ -79,6 +80,7 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
   const [form, setForm] = useState<FormState>({
     name: '',
     model: '',
+    backupModel: '',
     cloneFrom: defaultCloneFrom || '',
     templateSlug: '',
     whatsapp: '',
@@ -433,6 +435,7 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
       name: form.name,
       model: form.model,
     }
+    if (form.backupModel.trim()) body.backupModel = form.backupModel
     if (form.cloneFrom) body.cloneFrom = form.cloneFrom
     if (form.templateSlug) body.templateSlug = form.templateSlug
     if (form.whatsapp) body.whatsapp = form.whatsapp
@@ -623,6 +626,34 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
                 {selectedModelDeprecation && (
                   <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">{selectedModelDeprecation}</p>
                 )}
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                  Backup model <span className="text-gray-400">(optional)</span>
+                </label>
+                <select
+                  value={form.backupModel}
+                  onChange={e => set('backupModel', e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-md outline-none focus:border-sky-400 bg-white dark:bg-gray-800 dark:border-gray-700"
+                >
+                  <option value="">No backup model</option>
+                  {Object.keys(modelsByProvider).length > 0 ? (
+                    Object.entries(modelsByProvider).map(([providerId, provider]) => (
+                      <optgroup key={providerId} label={provider.name || providerId}>
+                        {provider.models
+                          .filter(m => isSelectableLifecycleModel(m, form.backupModel || form.model))
+                          .map(m => <option key={m} value={m}>{formatOpenAiModelLabel(m)}</option>)}
+                      </optgroup>
+                    ))
+                  ) : (
+                    availableModels
+                      .filter(m => isSelectableLifecycleModel(m, form.backupModel || form.model))
+                      .map(m => <option key={m} value={m}>{formatOpenAiModelLabel(m)}</option>)
+                  )}
+                </select>
+                <p className="mt-1 text-xs text-gray-400">
+                  Used automatically if the primary model times out, is unavailable, or its provider path fails.
+                </p>
               </div>
               {agentTemplates.length > 0 && (
                 <div>

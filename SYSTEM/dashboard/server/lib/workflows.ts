@@ -15,6 +15,8 @@ import { validateWorkflow } from './validator'
 import {
   resolveAgentExecutionConfig,
   runExclusiveAgentExecution,
+  shouldUseExplicitBackupModelRetry,
+  toExecutionModelOverride,
   withTemporaryAgentAuthProfiles,
 } from './agent-execution'
 import { readWorkspaceIntegrationConfig } from './workspace-integrations'
@@ -622,10 +624,25 @@ export function detectParticipantReportedFailure(agentText: string): string | nu
 
   const lines = text.split('\n').map((line) => line.trim()).filter(Boolean)
   for (const line of lines) {
+    if (/FsSafeError: directory changed during operation/i.test(line)) {
+      return line
+    }
     if (/context overflow|prompt too large|prompt_cache_key|string too long|runtime error detail/i.test(line)) {
       return line
     }
     if (/EmbeddedAttemptSessionTakeoverError|session file changed while embedded prompt lock was released/i.test(line)) {
+      return line
+    }
+    if (/^Unknown model:/i.test(line)) {
+      return line
+    }
+    if (/Incorrect API key provided/i.test(line)) {
+      return line
+    }
+    if (/No API key found for provider/i.test(line)) {
+      return line
+    }
+    if (/has auth issue \(skipping all models\)/i.test(line)) {
       return line
     }
     if (/^LLM request rejected:/i.test(line)) {
@@ -670,6 +687,12 @@ export function stripBenignOpenClawRuntimeWarnings(text: string): string {
 }
 
 export function formatParticipantFailure(reportedFailure: string): string {
+  if (/FsSafeError: directory changed during operation/i.test(reportedFailure)) {
+    return 'The agent runtime changed files while this workflow was running and the participant could not complete. Retry once. If it keeps happening, restart the runtime or disable unstable runtime plugins before retrying.'
+  }
+  if (/^Unknown model:/i.test(reportedFailure)) {
+    return 'This workflow participant is configured with a model that the current runtime does not support. Choose a different model for the agent and retry the workflow.'
+  }
   if (/^LLM request rejected:/i.test(reportedFailure) || /usage limits|quota|insufficient_quota/i.test(reportedFailure)) {
     return 'Model provider usage limits blocked this workflow participant. Wait a moment and retry, or update the provider billing and rate-limit configuration for the selected model.'
   }
@@ -703,6 +726,14 @@ export function formatParticipantFailure(reportedFailure: string): string {
 export function normalizeWorkflowThreadDiagnostic(content: string): string | null {
   const trimmed = content.trim()
   if (!trimmed) return null
+
+  if (/FsSafeError: directory changed during operation/i.test(trimmed)) {
+    return 'The agent runtime changed files while this workflow was running and the participant could not complete. Retry once. If it keeps happening, restart the runtime or disable unstable runtime plugins before retrying.'
+  }
+
+  if (/^Unknown model:/i.test(trimmed)) {
+    return 'This workflow participant is configured with a model that the current runtime does not support. Choose a different model for the agent and retry the workflow.'
+  }
 
   const looksLikeRawRuntimeNoise =
     /model fallback decision|FailoverError|FallbackSummaryError|incorrect api key provided|Provider .* auth issue|network connection error|Connection error/i.test(trimmed)
@@ -2035,76 +2066,93 @@ export function triggerWorkflow(workflowId: string, options?: {
               })
             }
 
-            const hasOllamaPath = !!(executionEnv.OLLAMA_BASE_URL || integrationDefaults.ollamaDefaultModel)
-            if (resolvedAgent.provider === 'ollama' && !hasOllamaPath) {
-              throw new Error(`Agent ${participant.agentId} is configured for ${resolvedAgent.model || 'ollama'}, but no Ollama runtime is configured`)
-            }
             const openclawCliPath = resolveWorkflowOpenClawCliPath()
-            const gatewayRunning = resolvedAgent.provider === 'ollama'
-              ? false
-              : (await waitForGatewayResponsive()).running
-            const useLocal = resolvedAgent.provider === 'ollama' || !gatewayRunning || hasWorkspaceManagedPartnerSecrets()
-            const sessionId = buildWorkflowSessionId(executionId, participant.agentId)
-            repairWorkflowSessionEntryForRun(participant.agentId, sessionId)
-            const args = ['agent', '--agent', participant.agentId, '--session-id', sessionId, '--message', executionMessage, '--json', ...(useLocal ? ['--local'] : [])]
-            return await new Promise<string>((resolve, reject) => {
-              withTemporaryAgentAuthProfiles(participant.agentId, {
-              openai: resolvedAgent.provider === 'openai-compatible' ? undefined : executionEnv.OPENAI_API_KEY,
-              anthropic: executionEnv.ANTHROPIC_API_KEY,
-              gemini: executionEnv.GEMINI_API_KEY,
-              openaiCompatibleApiKey: resolvedAgent.provider === 'openai-compatible' ? executionEnv.OPENAI_API_KEY : undefined,
-              openaiCompatibleBaseUrl: resolvedAgent.provider === 'openai-compatible' ? executionEnv.OPENAI_BASE_URL : undefined,
-              openaiCompatibleDefaultModel: resolvedAgent.provider === 'openai-compatible'
-                ? (options?.byok?.openaiCompatibleDefaultModel || integrationDefaults.openaiCompatibleDefaultModel || resolvedAgent.model)
-                : undefined,
-              }, resolvedAgent.model, resolvedAgent.provider, async () => {
-                await new Promise<void>((innerResolve) => {
-                  const proc = spawn(openclawCliPath, args, { env: executionEnv })
-                  let stdout = ''
-                  let stderr = ''
-                  const timeoutMs = getWorkflowAgentTimeoutMs()
-                  const timer = setTimeout(() => {
-                    proc.kill()
-                    reject(new Error(formatWorkflowAgentTimeoutMessage(timeoutMs)))
-                  }, timeoutMs)
+            const executeAttempt = async (attemptModel: string | undefined, attemptProvider: typeof resolvedAgent.provider) => {
+              const hasOllamaPath = !!(executionEnv.OLLAMA_BASE_URL || integrationDefaults.ollamaDefaultModel)
+              if (attemptProvider === 'ollama' && !hasOllamaPath) {
+                throw new Error(`Agent ${participant.agentId} is configured for ${attemptModel || 'ollama'}, but no Ollama runtime is configured`)
+              }
+              const gatewayRunning = attemptProvider === 'ollama'
+                ? false
+                : (await waitForGatewayResponsive()).running
+              const useLocal = attemptProvider === 'ollama' || attemptProvider === 'openai-compatible' || !gatewayRunning || hasWorkspaceManagedPartnerSecrets()
+              const sessionId = buildWorkflowSessionId(executionId, participant.agentId)
+              const executionModelOverride = toExecutionModelOverride(attemptModel, attemptProvider)
+              repairWorkflowSessionEntryForRun(participant.agentId, sessionId)
+              const args = ['agent', '--agent', participant.agentId, '--session-id', sessionId, '--message', executionMessage, '--json', ...(executionModelOverride ? ['--model', executionModelOverride] : []), ...(useLocal ? ['--local'] : [])]
+              return await new Promise<any>((resolve, reject) => {
+                withTemporaryAgentAuthProfiles(participant.agentId, {
+                  openai: attemptProvider === 'openai-compatible' ? undefined : executionEnv.OPENAI_API_KEY,
+                  anthropic: executionEnv.ANTHROPIC_API_KEY,
+                  gemini: executionEnv.GEMINI_API_KEY,
+                  openaiCompatibleApiKey: attemptProvider === 'openai-compatible' ? executionEnv.OPENAI_API_KEY : undefined,
+                  openaiCompatibleBaseUrl: attemptProvider === 'openai-compatible' ? executionEnv.OPENAI_BASE_URL : undefined,
+                  openaiCompatibleDefaultModel: attemptProvider === 'openai-compatible'
+                    ? (options?.byok?.openaiCompatibleDefaultModel || integrationDefaults.openaiCompatibleDefaultModel || attemptModel)
+                    : undefined,
+                }, attemptModel, attemptProvider, async () => {
+                  await new Promise<void>((innerResolve) => {
+                    const proc = spawn(openclawCliPath, args, { env: executionEnv })
+                    let stdout = ''
+                    let stderr = ''
+                    const timeoutMs = getWorkflowAgentTimeoutMs()
+                    const timer = setTimeout(() => {
+                      proc.kill()
+                      reject(new Error(formatWorkflowAgentTimeoutMessage(timeoutMs)))
+                    }, timeoutMs)
 
-                let progressTicks = 0
-                  proc.stdout.on('data', (d: Buffer) => {
-                    stdout += d.toString()
-                    // Mark visible forward motion once work is actually streaming.
-                    progressTicks++
-                    const estimated = Math.min(20 + progressTicks * 10, 90)
-                    const current = getWorkflow(workflowId)?.progress || 0
-                    updateWorkflow(workflowId, { progress: Math.max(current, estimated) } as any)
-                  })
-                  proc.stderr.on('data', (d: Buffer) => { stderr += d.toString() })
-                  proc.on('close', (code: number) => {
-                    clearTimeout(timer)
-                    const payloadText = extractWorkflowAgentResultPayload(stdout, stderr)
-                    if (code !== 0 && !payloadText) {
-                      reject(new Error(`Agent failed: ${stderr.slice(0, 200)}`))
+                    let progressTicks = 0
+                    proc.stdout.on('data', (d: Buffer) => {
+                      stdout += d.toString()
+                      progressTicks++
+                      const estimated = Math.min(20 + progressTicks * 10, 90)
+                      const current = getWorkflow(workflowId)?.progress || 0
+                      updateWorkflow(workflowId, { progress: Math.max(current, estimated) } as any)
+                    })
+                    proc.stderr.on('data', (d: Buffer) => { stderr += d.toString() })
+                    proc.on('close', (code: number) => {
+                      clearTimeout(timer)
+                      const payloadText = extractWorkflowAgentResultPayload(stdout, stderr)
+                      if (code !== 0 && !payloadText) {
+                        reject(new Error(`Agent failed: ${stderr.slice(0, 200)}`))
+                        innerResolve()
+                        return
+                      }
+                      try {
+                        const result = JSON.parse(payloadText)
+                        const text = result?.payloads?.[0]?.text || result?.result?.payloads?.[0]?.text || ''
+                        const meta = result?.result?.meta || result?.meta || {}
+                        const agentMeta = meta.agentMeta || {}
+                        resolve({ text, meta: agentMeta, durationMs: meta.durationMs } as any)
+                      } catch {
+                        resolve({ text: payloadText, meta: {}, durationMs: 0 } as any)
+                      }
                       innerResolve()
-                      return
-                    }
-                    try {
-                      const result = JSON.parse(payloadText)
-                      const text = result?.payloads?.[0]?.text || result?.result?.payloads?.[0]?.text || ''
-                      // Extract meta for tracing
-                      const meta = result?.result?.meta || result?.meta || {}
-                      const agentMeta = meta.agentMeta || {}
-                      resolve({ text, meta: agentMeta, durationMs: meta.durationMs } as any)
-                    } catch {
-                      resolve({ text: payloadText, meta: {}, durationMs: 0 } as any)
-                    }
-                    innerResolve()
+                    })
+                    proc.on('error', (err) => {
+                      reject(err)
+                      innerResolve()
+                    })
                   })
-                  proc.on('error', (err) => {
-                    reject(err)
-                    innerResolve()
-                  })
-                })
-              }, { persistAuthProfiles: true }).catch(reject)
-            })
+                }, { persistAuthProfiles: true, skipModelConfigMutation: true }).catch(reject)
+              })
+            }
+
+            try {
+              return await executeAttempt(resolvedAgent.model, resolvedAgent.provider)
+            } catch (err: any) {
+              const fallbackModel = resolvedAgent.backupModel
+              const fallbackProvider = resolvedAgent.backupProvider
+              if (!shouldUseExplicitBackupModelRetry({
+                backupModel: fallbackModel,
+                backupProvider: fallbackProvider,
+                rawError: err?.message || String(err),
+              })) {
+                throw err
+              }
+              console.log(`[Workflow] Retrying ${participant.agentId} with fallback model ${fallbackModel}`)
+              return await executeAttempt(fallbackModel, fallbackProvider)
+            }
           }, {
             onSessionLockRetry: () => {
               const sessionId = buildWorkflowSessionId(executionId, participant.agentId)
