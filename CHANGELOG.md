@@ -4,12 +4,46 @@ All notable changes to ClawMax are documented here.
 
 ## [Unreleased]
 
-### Added
-- **Workspace Skill ZIP Uploads** — the Skills import flow now supports uploading a ZIP bundle directly from the client, staging it into the active workspace, importing it through the normal custom-skill validation path, and avoiding the need for users to manually copy skill files into a cloud/container/on-prem dashboard runtime.
-- **Performance Baseline Artifacts** — the integration wrapper now records core timing artifacts for workflow list load, direct agent chat round-trip, workflow trigger, first visible workflow progress, kickoff completion, rolling history, and optional per-model chat samples so later releases can be compared against a repeatable baseline.
+### Planned
+- **1.9.8 Feedback Window** — reserve the next patch line for focused fixes and diagnostics driven by `1.9.7` feedback from Mike and other testers. Keep the OpenClaw baseline fixed unless a separately validated upstream change is required.
 
-### Changed
-- **Skill Import UX For Remote Runtimes** — local custom-skill import now offers an explicit `Upload ZIP...` path in addition to directory browse/paste so customer guidance no longer depends on exposing runtime-only filesystem paths inside the dashboard container.
+## [v1.9.7] - 2026-07-13
+
+### OpenClaw Runtime
+- **OpenClaw `v2026.6.11` Promotion** — this is the first fully validated ClawMax release on the new OpenClaw baseline across local development, CI/image packaging, cloud/container runtimes, and on-prem deployments.
+- **Container Runtime State Compatibility** — agent execution now works with mounted OpenClaw homes and persistent runtime state instead of relying on desktop-only filesystem behavior.
+- **Packaged Plugin Policy** — container startup cleans stale plugin allowlist sentinels, uses an explicit packaged plugin policy, and keeps non-bundled plugin discovery from silently changing runtime behavior.
+- **Current OpenClaw Config Compatibility** — agent provisioning, model fallback configuration, auth-profile persistence, and runtime config writes avoid keys or mutations rejected by the current OpenClaw contract.
+
+### Chat And Model Execution
+- **Containerized Agent Chat Recovery** — direct and group chat now use the correct packaged OpenClaw execution path, preserve current auth profiles, and surface temporary/runtime failures instead of returning empty or misleading responses.
+- **Provider Environment Isolation** — hosted OpenAI, Anthropic, Gemini, Ollama, and OpenAI-compatible/LM Studio execution environments are isolated so a local endpoint cannot accidentally capture a hosted model request.
+- **Explicit Execution Readiness** — agents with unavailable credentials, runtimes, or provider paths fail with actionable guidance before an opaque CLI attempt.
+- **Unsupported Model Remediation** — errors include the configured model identifier, explain why the current runtime may not support it, and provide a direct link to edit the affected agent.
+- **Conservative Backup Models** — automatic fallback only uses explicitly configured, valid backup models and repairs invalid legacy backup-model state.
+- **Cleaner Runtime Output** — benign OpenClaw transport, plugin, migration, and filesystem diagnostics no longer replace the useful agent response, while real runtime failures remain visible.
+
+### Workflow Reliability
+- **Embedded Session Conflict Recovery** — workflow participants recognize `EmbeddedAttemptSessionTakeoverError` and related session-change diagnostics even when OpenClaw returns them inside a successful or mixed diagnostic payload.
+- **Fresh Retry Sessions** — bounded retries rotate to a fresh workflow session identifier and repair stale session pointers instead of reopening the transcript that already conflicted.
+- **Provider-Correct Workflow Execution** — workflows inherit the same provider isolation and BYOK/auth handling as direct chat, preventing hosted models from being sent to OpenAI-compatible local endpoints.
+- **Actionable Workflow Failures** — workflow threads, notifications, and execution details normalize raw runtime errors into operator guidance without exposing internal session paths.
+
+### Builder And Communication
+- **Generated Handoff Correctness** — Builder/company generation better preserves workflow handoffs, avoids empty leaf teams, and makes upstream/downstream progression more consistent.
+- **Chat Inbox Attachments** — agent chat, group chat, and shared communication flows can fan uploaded inbox attachments out to the participating agents.
+- **Builder Agent Mentions** — Builder prompt entry supports current-workspace `@agent` autocomplete for clearer routing and grounding.
+- **Workspace Skill ZIP Uploads** — Skills can import ZIP bundles directly through the active workspace, including cloud/container/on-prem deployments where laptop filesystem paths are not visible to the runtime.
+
+### Testing And Validation
+- **Live BYOK Coverage** — integration chat, workflow, and per-model performance samples now pass configured system provider credentials through the same structured BYOK path used by the product.
+- **Full Local Gate** — the release branch passed `386/386` integration and validation checks with coverage at `77.52%` statements/lines, `68.03%` branches, and `88.42%` functions.
+- **Multi-Architecture Image Gate** — `1.9.7-test-rc22` passed amd64 and arm64 image builds, manifest publication, and registry smoke validation.
+- **On-Prem Runtime Gate** — direct agent chat, group chat, workflow kickoff, and the previously failing downstream Daily Standup workflow were verified on the promoted on-prem candidate; both participants completed without session-takeover failure.
+
+### Release Validation
+- Promoted from `1.9.7-test-rc22` after iterative cloud/on-prem debugging of the OpenClaw `v2026.6.11` packaging, auth, provider, plugin, and session-execution contracts.
+- `1.9.6` served as the initial OpenClaw update validation line but was not promoted as stable; `1.9.7` is the first release where the new runtime passed the complete local and containerized chat/workflow gate.
 
 ## [v1.9.3] - 2026-07-01
 

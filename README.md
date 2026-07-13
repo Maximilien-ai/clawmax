@@ -5,24 +5,27 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.9.5-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
+[![Version](https://img.shields.io/badge/version-1.9.7-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
 [![Tests](https://img.shields.io/badge/tests-96%20default--safe-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 Latest Stable Release: v1.9.5
+## 🔥 Latest Stable Release: v1.9.7
 
-- `1.9.5` is the performance-baseline and custom-skill import UX release: machine-readable perf artifacts for chat/workflow flows, rolling history and optional model-matrix sampling, plus direct ZIP upload for workspace skills in cloud, containerized, and on-prem runtimes.
+- `1.9.7` is the first fully validated ClawMax release on the OpenClaw `v2026.6.11` baseline. Local development, cloud/container packaging, and on-prem runtimes now share the same OpenClaw target, with verified direct chat, group chat, workflow DAG execution, mounted runtime state, and plugin policy.
+- Runtime failures now explain unsupported models and missing execution paths more clearly, including the configured model and a direct agent-edit path. Workflow execution automatically detects embedded session-takeover conflicts, retries with fresh workflow sessions, and handles both structured and diagnostic CLI output.
+- This release also includes Builder/company handoff cleanup, agent and shared-chat inbox attachments, Builder `@agent` mention autocomplete, and expanded live integration/performance validation.
 
-## 🛠 Current RC Line: 1.9.7
+## 🛠 Current Feedback Line: 1.9.8
 
-- Next validation image: `1.9.7-test-rc1`
-- `1.9.7` is the follow-through line on top of the promoted OpenClaw `v2026.6.11` runtime baseline.
-- This line carries the Builder/company handoff clarity work, inbox attachments across agent and shared chats, and Builder `@agent` mention autocomplete.
-- Runtime/perf stabilization remains active on this line as the main remaining hardening area.
+- Next validation image: `1.9.8-test-rc1`
+- `1.9.8` is intentionally reserved for feedback and focused hardening from the `1.9.7` tester rollout.
+- Prioritize reproducible issues from Mike and other testers across agent chat, group chat, workflows, model/runtime diagnostics, plugins, and containerized deployments.
+- Avoid another OpenClaw baseline change or broad feature expansion until the `1.9.7` feedback window is understood.
 
 ## ✨ 1.9.x Highlights
 
+- `1.9.7`: first fully validated OpenClaw `v2026.6.11` release across local/cloud/on-prem chat and workflows, automatic workflow session-conflict recovery, clearer unsupported-model remediation, Builder handoff cleanup, and chat inbox attachments.
 - `1.9.5`: perf baseline artifacts, rolling history/model-matrix sampling, and direct custom-skill ZIP upload/import for cloud, container, and on-prem runtimes.
 - `1.9.3`: chat archive correctness, archived conversation resume/restore cleanup, Templates mobile overflow hardening, Workflows first-load initialization fixes, and clearer on-prem custom-skill import guidance.
 - `1.9.2`: clearer workflow/log/notification/doctor diagnostics, safer local skill import/runtime-path handling, and more consistent DocHub/file-open payload parsing across dashboard surfaces.
