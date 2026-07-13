@@ -108,8 +108,11 @@ test('buildManagedResendDispatch returns null when there is no explicit recipien
 })
 
 test('deriveChatError surfaces unsupported models clearly', () => {
-  const message = deriveChatError('Unknown model: gpt-super-pro', 'openai')
+  const message = deriveChatError('Unknown model: openai/gpt-super-pro', 'openai', { agentId: 'agent0', model: 'openai/gpt-super-pro' })
   assert(/configured with a model that the current runtime does not support/i.test(message), `Unexpected unsupported-model message: ${message}`)
+  assert(message.includes('`openai/gpt-super-pro`'), `Expected unsupported model identifier: ${message}`)
+  assert(message.includes('/agents?agent=agent0&action=edit'), `Expected agent edit link: ${message}`)
+  assert(/removed or renamed/i.test(message), `Expected explanatory remediation: ${message}`)
 })
 
 testChain.then(() => {

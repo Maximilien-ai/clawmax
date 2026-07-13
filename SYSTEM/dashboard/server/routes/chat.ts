@@ -333,7 +333,28 @@ async function readLatestAssistantTextWithRetry(
   )
 }
 
-export function deriveChatError(raw: string, provider?: ChatProvider): string {
+export interface ChatErrorContext {
+  agentId?: string
+  model?: string
+}
+
+function extractUnsupportedModel(raw: string): string | undefined {
+  const match = raw.match(/(?:Unknown|Unsupported) model:\s*([^\s,;)\]}]+)/i)
+  return match?.[1]?.trim()
+}
+
+function formatUnsupportedModelError(raw: string, context?: ChatErrorContext): string {
+  const model = context?.model?.trim() || extractUnsupportedModel(raw)
+  const modelDetail = model ? `: \`${model}\`` : '.'
+  const cause = 'The model identifier is not recognized by the installed OpenClaw runtime. It may have been removed or renamed, or it may belong to a provider that is not available in this deployment.'
+  const action = 'Choose a model listed by a configured provider, save the agent, and retry.'
+  const editLink = context?.agentId
+    ? ` [Edit agent model](/agents?agent=${encodeURIComponent(context.agentId)}&action=edit)`
+    : ''
+  return `This agent is configured with a model that the current runtime does not support${modelDetail} ${cause} ${action}${editLink}`
+}
+
+export function deriveChatError(raw: string, provider?: ChatProvider, context?: ChatErrorContext): string {
   const text = raw.trim()
   if (!text) return 'No reply from agent.'
   if (/FsSafeError: directory changed during operation/i.test(text)) {
@@ -345,8 +366,8 @@ export function deriveChatError(raw: string, provider?: ChatProvider): string {
     }
     return 'The local model runtime rejected this prompt because the loaded model context is too small. Increase the model context length, reload the model, and try again.'
   }
-  if (/Unknown model:/i.test(text)) {
-    return 'This agent is configured with a model that the current runtime does not support. Choose a different model for the agent and try again.'
+  if (/(?:Unknown|Unsupported) model:/i.test(text)) {
+    return formatUnsupportedModelError(text, context)
   }
   if (/No API key found for provider/i.test(text)) {
     return 'No model provider credentials are configured for this chat. Add the missing API key or auth profile in BYOK, runtime settings, or the agent auth store and retry.'
@@ -367,7 +388,7 @@ export function deriveChatError(raw: string, provider?: ChatProvider): string {
     return 'OpenClaw reported an embedded session conflict while a tool was running. Reset the chat session and retry once; if this was a Resend email test, use the Resend partner test-email action to validate delivery without the agent chat session.'
   }
   if (/All models failed/i.test(text) && /Unknown model:/i.test(text)) {
-    return 'This agent is configured with an unsupported model, and fallback providers could not authenticate. Choose a supported model for the agent and try again.'
+    return formatUnsupportedModelError(text, context)
   }
   if (/gateway/i.test(text)) return 'Agent chat could not reach the gateway runtime.'
   if (/timeout/i.test(text)) return 'Agent chat timed out before a reply was produced. Retry once, or switch this agent to a faster model if the issue persists.'
@@ -872,7 +893,7 @@ router.post('/:id/chat', async (req, res) => {
         dashboardInstanceId: getRequestDashboardInstanceId(req),
       })
     } else {
-      send('error', deriveChatError(attemptResult.rawError, attemptResult.provider))
+      send('error', deriveChatError(attemptResult.rawError, attemptResult.provider, { agentId: id, model: attemptResult.model }))
     }
     send('complete', { text: attemptResult.completionText })
     if (!res.writableEnded) {
@@ -881,7 +902,7 @@ router.post('/:id/chat', async (req, res) => {
   }).catch((err) => {
     console.error(`[Chat Route] Auth profile prep error for ${id}:`, err)
     clearInterval(keepalive)
-    send('error', deriveChatError(err?.message || String(err), resolvedAgent.provider))
+    send('error', deriveChatError(err?.message || String(err), resolvedAgent.provider, { agentId: id, model: resolvedAgent.model }))
     send('complete', { text: '' })
     if (!res.writableEnded) {
       res.end()

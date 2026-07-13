@@ -407,6 +407,9 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
               </button>
             )
           }
+          if (href?.startsWith('/agents?')) {
+            return <a href={href} className={getAgentChatLinkClassName(role)}>{children}</a>
+          }
           return <a href={href} target="_blank" rel="noreferrer" className={getAgentChatLinkClassName(role)}>{children}</a>
         },
         code: ({ children, className }) => (

@@ -49,6 +49,12 @@ test('summarizeAgentChatFailure surfaces FsSafeError as a runtime state failure'
   assert(/restart the runtime or disable unstable runtime plugins/i.test(message), `Unexpected remediation guidance: ${message}`)
 })
 
+test('summarizeAgentChatFailure preserves detailed unsupported-model remediation', () => {
+  const detailed = 'This agent is configured with a model that the current runtime does not support: `openai/gpt-super-pro`. Choose a listed model. [Edit agent model](/agents?agent=agent0&action=edit)'
+  const message = summarizeAgentChatFailure(detailed)
+  assert(message === detailed, `Expected detailed error to remain intact: ${message}`)
+})
+
 console.log('\n========================================')
 console.log(`Tests passed: ${testsPassed}`)
 console.log(`Tests failed: ${testsFailed}`)

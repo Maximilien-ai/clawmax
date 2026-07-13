@@ -25,7 +25,7 @@ import { deriveChatError } from './chat'
 
 const router = Router()
 
-const CHANNEL_RUNTIME_ERROR_PATTERN = /FsSafeError: directory changed during operation|Unknown model:|No API key found for provider|Incorrect API key provided|has auth issue \(skipping all models\)|insufficient_quota|quota exceeded|rate limit|too many requests|429\b|is in cooldown \(suspending lanes\)|EmbeddedAttemptSessionTakeoverError|session file changed while embedded prompt lock was released|All models failed|No API keys available|No execution path configured|gateway|timeout|n_keep:\s*\d+\s*>=\s*n_ctx:\s*\d+/i
+const CHANNEL_RUNTIME_ERROR_PATTERN = /FsSafeError: directory changed during operation|(?:Unknown|Unsupported) model:|No API key found for provider|Incorrect API key provided|has auth issue \(skipping all models\)|insufficient_quota|quota exceeded|rate limit|too many requests|429\b|is in cooldown \(suspending lanes\)|EmbeddedAttemptSessionTakeoverError|session file changed while embedded prompt lock was released|All models failed|No API keys available|No execution path configured|gateway|timeout|n_keep:\s*\d+\s*>=\s*n_ctx:\s*\d+/i
 
 // List all communities
 router.get('/communities', (req, res) => {
@@ -402,7 +402,7 @@ async function callAgent(
       console.log(`[callAgent] ${agentId}: exit code=${code}, stdout len=${stdout.length}, stderr len=${stderr.length}`)
       const rawDiagnostic = `${stdout}\n${stderr}`.trim()
       const runtimeError = CHANNEL_RUNTIME_ERROR_PATTERN.test(rawDiagnostic)
-        ? deriveChatError(rawDiagnostic, resolvedAgent.provider as any)
+        ? deriveChatError(rawDiagnostic, resolvedAgent.provider as any, { agentId, model: resolvedAgent.model })
         : null
       // Only reject if exit code is non-zero AND there's nothing parseable anywhere
       if (code !== 0 && !stdout.trim() && !stderr.includes('{')) {
@@ -816,7 +816,7 @@ router.post('/communities/:name/messages', async (req, res) => {
           console.error(`[Group Chat] Failed to get response from agent ${agentId}:`, err)
           addMessage('community', decodedName, {
             from: agentId,
-            content: `*(Error: ${err instanceof Error ? err.message.slice(0, 100) : 'failed to respond'})*`,
+            content: `**Error:** ${err instanceof Error ? err.message : 'Agent failed to respond.'}`,
             mentions: []
           })
         }
@@ -899,7 +899,7 @@ router.post('/groups/:name/messages', async (req, res) => {
           console.error(`[Group Chat] Failed to get response from agent ${agentId}:`, err)
           addMessage('group', decodedName, {
             from: agentId,
-            content: `*(Error: ${err instanceof Error ? err.message.slice(0, 100) : 'failed to respond'})*`,
+            content: `**Error:** ${err instanceof Error ? err.message : 'Agent failed to respond.'}`,
             mentions: []
           })
         }

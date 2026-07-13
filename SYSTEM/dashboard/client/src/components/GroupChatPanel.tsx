@@ -842,6 +842,9 @@ function GroupChatPanel({ channel, onClose, mode = 'overlay', onExpand, onMessag
               </button>
             )
           }
+          if (href?.startsWith('/agents?')) {
+            return <a href={href}>{children}</a>
+          }
           return <a href={href} target="_blank" rel="noreferrer">{children}</a>
         },
       }}

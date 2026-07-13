@@ -387,8 +387,14 @@ export default function App() {
   const systemTourAutoExpandRef = useRef<null | boolean>(null)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [docFile, setDocFile] = useState<string | undefined>(undefined)
-  const [initialAgentId, setInitialAgentId] = useState<string | undefined>(undefined)
-  const [initialAgentAction, setInitialAgentAction] = useState<'create' | 'create-ai' | 'import' | 'chat' | undefined>(undefined)
+  const [initialAgentId, setInitialAgentId] = useState<string | undefined>(() => {
+    if (pathToPage(window.location.pathname) !== 'agents') return undefined
+    return new URLSearchParams(window.location.search).get('agent') || undefined
+  })
+  const [initialAgentAction, setInitialAgentAction] = useState<'create' | 'create-ai' | 'import' | 'chat' | 'edit' | undefined>(() => {
+    if (pathToPage(window.location.pathname) !== 'agents') return undefined
+    return new URLSearchParams(window.location.search).get('action') === 'edit' ? 'edit' : undefined
+  })
   const [initialAgentAiDescription, setInitialAgentAiDescription] = useState<string | undefined>(undefined)
   const [initialGroupName, setInitialGroupName] = useState<string | undefined>(undefined)
   const [initialOpenChatName, setInitialOpenChatName] = useState<string | undefined>(undefined)
@@ -960,7 +966,13 @@ export default function App() {
                   initialAgentId={initialAgentId}
                   initialAction={initialAgentAction}
                   initialAiDescription={initialAgentAiDescription}
-                  onInitialActionHandled={() => { setInitialAgentAction(undefined); setInitialAgentAiDescription(undefined) }}
+                  onInitialActionHandled={() => {
+                    setInitialAgentAction(undefined)
+                    setInitialAgentAiDescription(undefined)
+                    if (window.location.pathname === '/agents' && window.location.search) {
+                      window.history.replaceState({}, '', '/agents')
+                    }
+                  }}
                   isActive={page === 'agents'}
                 />
               </WorkspaceScoped>

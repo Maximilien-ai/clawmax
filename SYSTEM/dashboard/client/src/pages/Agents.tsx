@@ -142,7 +142,7 @@ function normalizeAgentLookup(value: string): string {
 type ViewMode = 'grid' | 'list' | 'table'
 type ArchiveTab = 'active' | 'archived'
 
-export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateToSkills, onNavigateToWorkflows, onNavigateToTemplates, initialAgentId, initialAction, initialAiDescription, onInitialActionHandled, isActive }: { onNavigateToDoc?: (file: string) => void; onNavigateToGroup?: (groupName: string) => void; onNavigateToSkills?: (agentId: string, skillName?: string) => void; onNavigateToWorkflows?: (workflowId: string) => void; onNavigateToTemplates?: () => void; initialAgentId?: string; initialAction?: 'create' | 'create-ai' | 'import' | 'chat'; initialAiDescription?: string; onInitialActionHandled?: () => void; isActive?: boolean } = {}) {
+export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateToSkills, onNavigateToWorkflows, onNavigateToTemplates, initialAgentId, initialAction, initialAiDescription, onInitialActionHandled, isActive }: { onNavigateToDoc?: (file: string) => void; onNavigateToGroup?: (groupName: string) => void; onNavigateToSkills?: (agentId: string, skillName?: string) => void; onNavigateToWorkflows?: (workflowId: string) => void; onNavigateToTemplates?: () => void; initialAgentId?: string; initialAction?: 'create' | 'create-ai' | 'import' | 'chat' | 'edit'; initialAiDescription?: string; onInitialActionHandled?: () => void; isActive?: boolean } = {}) {
   const { showSuccess, showError, showInfo } = useToast()
   const { config } = useAuth()
   const { activeWorkspace } = useWorkspace()
@@ -411,7 +411,15 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
       if (!agent) return
       setSelectedAgent(agent)
       setChatTarget(agent)
+    } else if (initialAction === 'edit' && initialAgentId && agents.length > 0) {
+      const target = normalizeAgentLookup(initialAgentId)
+      const agent = agents.find(a => normalizeAgentLookup(a.id) === target || normalizeAgentLookup(a.name) === target)
+      if (!agent) return
+      setSelectedAgent(agent)
+      setEditTarget(agent)
     } else if (initialAction === 'chat') {
+      return
+    } else if (initialAction === 'edit') {
       return
     }
     onInitialActionHandled?.()
