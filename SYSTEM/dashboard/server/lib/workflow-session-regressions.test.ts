@@ -5,6 +5,7 @@ import {
 } from './agent-execution'
 import {
   detectParticipantReportedFailure,
+  parseWorkflowAgentResultPayload,
   repairWorkflowSessionEntryForRun,
   throwIfWorkflowAgentResultNeedsRetry,
 } from './workflows'
@@ -79,6 +80,19 @@ async function run() {
 
     assert(result === 'completed', `Expected embedded result retry to succeed, got ${result}`)
     assert(attempts === 2, `Expected exactly one retry for embedded result text, got ${attempts}`)
+  })
+
+  await test('non-JSON CLI diagnostics enter the repaired session retry path', async () => {
+    let attempts = 0
+    const result = await runExclusiveAgentExecution('workflow-diagnostic-result-agent', async () => {
+      attempts++
+      return parseWorkflowAgentResultPayload(attempts === 1
+        ? '[provider-transport-fetch] status=200\nEmbeddedAttemptSessionTakeoverError: session file changed while embedded prompt lock was released: /tmp/workflow-agent.jsonl'
+        : 'plain text completion')
+    })
+
+    assert(result.text === 'plain text completion', `Expected diagnostic retry to succeed, got ${result.text}`)
+    assert(attempts === 2, `Expected exactly one retry for non-JSON diagnostic text, got ${attempts}`)
   })
 
   await test('workflow retry hook repairs stale session pointers before retry', async () => {

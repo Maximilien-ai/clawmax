@@ -963,6 +963,21 @@ export function throwIfWorkflowAgentResultNeedsRetry(agentText: string): void {
   }
 }
 
+export function parseWorkflowAgentResultPayload(payloadText: string): { text: string; meta: any; durationMs: number } {
+  let result: any
+  try {
+    result = JSON.parse(payloadText)
+  } catch {
+    throwIfWorkflowAgentResultNeedsRetry(payloadText)
+    return { text: payloadText, meta: {}, durationMs: 0 }
+  }
+
+  const text = result?.payloads?.[0]?.text || result?.result?.payloads?.[0]?.text || ''
+  throwIfWorkflowAgentResultNeedsRetry(text)
+  const meta = result?.result?.meta || result?.meta || {}
+  return { text, meta: meta.agentMeta || {}, durationMs: meta.durationMs || 0 }
+}
+
 export {
   getAgentExecutionRetryDelay as getWorkflowAgentRetryDelay,
   isOpenClawSessionLockError as isWorkflowSessionLockError,
@@ -2073,25 +2088,13 @@ export function triggerWorkflow(workflowId: string, options?: {
                         innerResolve()
                         return
                       }
-                      let result: any
                       try {
-                        result = JSON.parse(payloadText)
-                      } catch {
-                        resolve({ text: payloadText, meta: {}, durationMs: 0 } as any)
-                        innerResolve()
-                        return
-                      }
-                      const text = result?.payloads?.[0]?.text || result?.result?.payloads?.[0]?.text || ''
-                      try {
-                        throwIfWorkflowAgentResultNeedsRetry(text)
+                        resolve(parseWorkflowAgentResultPayload(payloadText) as any)
                       } catch (error) {
                         reject(error)
                         innerResolve()
                         return
                       }
-                      const meta = result?.result?.meta || result?.meta || {}
-                      const agentMeta = meta.agentMeta || {}
-                      resolve({ text, meta: agentMeta, durationMs: meta.durationMs } as any)
                       innerResolve()
                     })
                     proc.on('error', (err) => {
