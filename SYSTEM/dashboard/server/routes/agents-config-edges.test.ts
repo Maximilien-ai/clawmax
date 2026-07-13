@@ -64,6 +64,7 @@ function writeAgentFiles(workspacePath: string, agentId: string) {
     '',
     '- **Name:** plain-agent',
     '- **Model:** openai/gpt-4o-mini',
+    '- **Backup Model:** anthropic/claude-sonnet-4-20250514',
     '- **Tags:** alpha, beta',
     '',
     '## Identity',
@@ -130,7 +131,19 @@ async function run() {
   writeWorkspaceRegistry(tmpHome, workspacePath)
   writeAgentFiles(workspacePath, 'plain-agent')
   fs.mkdirSync(path.join(tmpHome, '.openclaw', 'agents'), { recursive: true })
-  fs.writeFileSync(path.join(tmpHome, '.openclaw', 'openclaw.json'), JSON.stringify({ agents: { list: [] } }, null, 2))
+  fs.writeFileSync(path.join(tmpHome, '.openclaw', 'openclaw.json'), JSON.stringify({
+    agents: {
+      list: [
+        {
+          id: 'plain-agent',
+          workspace: path.join(workspacePath, 'AGENTS', 'plain-agent'),
+          agentDir: path.join(tmpHome, '.openclaw', 'agents', 'plain-agent', 'agent'),
+          model: 'openai/gpt-4o-mini',
+          backupModel: 'anthropic/claude-sonnet-4-20250514',
+        }
+      ]
+    }
+  }, null, 2))
 
   process.env.HOME = tmpHome
   process.env.OPENCLAW_WORKSPACE = workspacePath
@@ -187,6 +200,7 @@ async function run() {
     let resetCalls = 0
     await withAgentModelOverrides({
       upsertAgentModelInConfigFile: () => ({ ok: true, changed: true, model: 'openai/gpt-5' }),
+      updateAgentBackupModelInConfigFile: () => ({ ok: true, changed: false, backupModel: 'anthropic/claude-sonnet-4-6' }),
       resetAgentSessionsForModelChange: () => {
         resetCalls += 1
         return { ok: true }
@@ -197,7 +211,7 @@ async function run() {
       await handler(makeReq({
         params: { id: 'plain-agent' },
         body: {
-          identity: '# IDENTITY.md\n\n- **Name:** plain-agent\n- **Model:** openai/gpt-5\n',
+          identity: '# IDENTITY.md\n\n- **Name:** plain-agent\n- **Model:** openai/gpt-5\n- **Backup Model:** anthropic/claude-sonnet-4-20250514\n',
           soul: '# SOUL\n\nUpdated soul\n',
           tools: '# TOOLS\n\nUpdated tools\n',
         },
@@ -206,8 +220,10 @@ async function run() {
       assert.strictEqual(res.statusCode, 200, 'Expected config update success')
       assert.strictEqual(res.jsonBody?.ok, true, 'Expected ok response')
       assert.strictEqual(res.jsonBody?.model, 'openai/gpt-5', 'Expected returned normalized model')
+      assert.strictEqual(res.jsonBody?.backupModel, 'anthropic/claude-sonnet-4-6', 'Expected returned backup model')
       assert.strictEqual(resetCalls, 1, 'Expected runtime reset after model change')
       assert(/openai\/gpt-5/.test(fs.readFileSync(path.join(workspacePath, 'AGENTS', 'plain-agent', 'IDENTITY.md'), 'utf-8')), 'Expected updated identity model written')
+      assert(/\*\*Backup Model:\*\*/.test(fs.readFileSync(path.join(workspacePath, 'AGENTS', 'plain-agent', 'IDENTITY.md'), 'utf-8')), 'Expected updated identity backup model written')
       assert(/Updated soul/.test(fs.readFileSync(path.join(workspacePath, 'AGENTS', 'plain-agent', 'SOUL.md'), 'utf-8')), 'Expected updated SOUL written')
       assert(/Updated tools/.test(fs.readFileSync(path.join(workspacePath, 'AGENTS', 'plain-agent', 'TOOLS.md'), 'utf-8')), 'Expected updated TOOLS written')
     })
@@ -216,6 +232,7 @@ async function run() {
   await test('config update surfaces model-config write failures as HTTP 500', async () => {
     await withAgentModelOverrides({
       upsertAgentModelInConfigFile: () => ({ ok: false, error: 'config write failed' }),
+      updateAgentBackupModelInConfigFile: () => ({ ok: true, changed: false, backupModel: undefined }),
     }, async () => {
       const handler = getRouteHandler('put', '/:id/config')
       const res = makeRes()
@@ -236,6 +253,7 @@ async function run() {
     let resetCalls = 0
     await withAgentModelOverrides({
       upsertAgentModelInConfigFile: () => ({ ok: true, changed: false, model: 'openai/gpt-4o-mini' }),
+      updateAgentBackupModelInConfigFile: () => ({ ok: true, changed: true, backupModel: 'google/gemini-2.5-flash' }),
       resetAgentSessionsForModelChange: () => {
         resetCalls += 1
         return { ok: true }
@@ -245,12 +263,14 @@ async function run() {
       const res = makeRes()
       await handler(makeReq({
         params: { id: 'plain-agent' },
-        body: { model: 'gpt-4o-mini' },
+        body: { model: 'gpt-4o-mini', backupModel: 'google/gemini-2.5-flash' },
       }), res)
       assert.strictEqual(res.statusCode, 200, 'Expected model patch success')
       assert.strictEqual(res.jsonBody?.model, 'openai/gpt-4o-mini', 'Expected normalized model response')
-      assert.strictEqual(resetCalls, 0, 'Expected no reset when the model did not change')
+      assert.strictEqual(res.jsonBody?.backupModel, 'google/gemini-2.5-flash', 'Expected backup model response')
+      assert.strictEqual(resetCalls, 1, 'Expected runtime reset when the backup model changes')
       assert(/openai\/gpt-4o-mini/.test(fs.readFileSync(path.join(workspacePath, 'AGENTS', 'plain-agent', 'IDENTITY.md'), 'utf-8')), 'Expected updated model in identity content')
+      assert(/google\/gemini-2.5-flash/.test(fs.readFileSync(path.join(workspacePath, 'AGENTS', 'plain-agent', 'IDENTITY.md'), 'utf-8')), 'Expected updated backup model in identity content')
     })
   })
 

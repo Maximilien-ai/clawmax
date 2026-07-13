@@ -11,6 +11,24 @@ export function stampDashboardMetadata(config: any): any {
   return config
 }
 
+export function stripUnsupportedDashboardAgentKeys(config: any): boolean {
+  const agentList = config?.agents?.list
+  if (!Array.isArray(agentList)) return false
+
+  let changed = false
+  for (let index = 0; index < agentList.length; index++) {
+    const entry = agentList[index]
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue
+    if (!Object.prototype.hasOwnProperty.call(entry, 'backupModel')) continue
+    const nextEntry = { ...entry }
+    delete nextEntry.backupModel
+    agentList[index] = nextEntry
+    changed = true
+  }
+
+  return changed
+}
+
 function safeReadJson(filePath: string): any | null {
   try {
     return JSON.parse(fs.readFileSync(filePath, 'utf-8'))
@@ -52,6 +70,23 @@ export function writeDashboardManagedOpenClawConfig(
     nextConfig.gateway = latestConfig.gateway
   }
 
+  stripUnsupportedDashboardAgentKeys(nextConfig)
   stampDashboardMetadata(nextConfig)
   fs.writeFileSync(configPath, JSON.stringify(nextConfig, null, 2), 'utf-8')
+}
+
+export function healDashboardManagedOpenClawConfig(configPath: string, context: string): { ok: boolean; changed: boolean; error?: string } {
+  try {
+    const current = safeReadJson(configPath)
+    if (!current || typeof current !== 'object' || Array.isArray(current)) {
+      return { ok: true, changed: false }
+    }
+    if (!stripUnsupportedDashboardAgentKeys(current)) {
+      return { ok: true, changed: false }
+    }
+    writeDashboardManagedOpenClawConfig(configPath, current, context)
+    return { ok: true, changed: true }
+  } catch (err: any) {
+    return { ok: false, changed: false, error: err?.message || String(err) }
+  }
 }

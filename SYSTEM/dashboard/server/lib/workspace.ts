@@ -51,6 +51,7 @@ function prettifyAgentWorkspaceName(agentId: string): string {
 export function ensureManagedAgentWorkspaceFiles(args: {
   agentId: string
   model?: string
+  backupModel?: string
   tags?: string[]
   workspacePath?: string
 }): { created: string[] } {
@@ -73,6 +74,9 @@ export function ensureManagedAgentWorkspaceFiles(args: {
     ]
     if (args.model) {
       identityLines.push(`- **Model:** ${args.model}`)
+    }
+    if (args.backupModel) {
+      identityLines.push(`- **Backup Model:** ${args.backupModel}`)
     }
     identityLines.push('', '## Notes', '', 'Created by ClawMax Dashboard.')
     fs.writeFileSync(identityPath, identityLines.join('\n'), 'utf-8')
@@ -1450,6 +1454,9 @@ export function parseIdentity(content: string): any {
   const modelMatch = runtimeContent.match(/\*\*Model:\*\*\s*([^\n]+)/i)
   if (modelMatch) identity.model = modelMatch[1].trim()
 
+  const backupModelMatch = runtimeContent.match(/\*\*Backup Model:\*\*\s*([^\n]+)/i)
+  if (backupModelMatch) identity.backupModel = backupModelMatch[1].trim()
+
   const runtimeMatch = runtimeContent.match(/\*\*Runtime:\*\*\s*([^\n]+)/i)
   if (runtimeMatch) identity.runtime = runtimeMatch[1].trim()
 
@@ -1473,6 +1480,7 @@ export interface AgentActivity {
   skills?: string[]
   liveConfig?: {
     model: string
+    backupModel?: string
     workspace: string
     agentDir: string
   }
@@ -1836,6 +1844,10 @@ function normalizeReleaseVersion(tag: string): string {
   return tag.replace(/^v/, '')
 }
 
+function releaseCoreVersion(tag: string): string {
+  return normalizeReleaseVersion(tag).split('-')[0]
+}
+
 function compareReleaseVersions(a: string, b: string): number {
   const av = normalizeReleaseVersion(a).split('.').map((part) => Number.parseInt(part, 10) || 0)
   const bv = normalizeReleaseVersion(b).split('.').map((part) => Number.parseInt(part, 10) || 0)
@@ -1850,6 +1862,12 @@ export function getDashboardVersion(): string {
   const envVersion = process.env.CLAWMAX_VERSION?.trim()
   const packageVersion = findDashboardPackageVersion()
   if (isUsableVersion(envVersion) && packageVersion) {
+    if (
+      releaseCoreVersion(envVersion) === releaseCoreVersion(packageVersion) &&
+      normalizeReleaseVersion(envVersion) !== normalizeReleaseVersion(packageVersion)
+    ) {
+      return normalizeReleaseVersion(envVersion)
+    }
     if (normalizeReleaseVersion(envVersion) !== normalizeReleaseVersion(packageVersion)) {
       return packageVersion
     }

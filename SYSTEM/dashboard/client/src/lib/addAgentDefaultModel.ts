@@ -79,6 +79,12 @@ export function resolveAddAgentWizardSuggestedModel(args: {
   const currentModel = normalize(args.currentModel)
   const suggestedModel = normalize(args.suggestedModel)
 
+  if (currentModel) {
+    if (models.length === 0) return currentModel
+    const currentMatch = matches(models, currentModel)
+    if (currentMatch) return currentMatch
+  }
+
   if (!suggestedModel) return currentModel
   if (models.length === 0) return suggestedModel
 

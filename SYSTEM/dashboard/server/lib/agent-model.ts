@@ -8,6 +8,7 @@ export interface AgentModelConfigUpdateResult {
   error?: string
   changed?: boolean
   model?: string
+  backupModel?: string
 }
 
 export function normalizeAgentModelInput(model: string): string {
@@ -47,6 +48,12 @@ export function normalizeAgentModelInput(model: string): string {
   }
 
   return trimmed
+}
+
+function normalizeOptionalAgentModelInput(model: string | undefined): string | undefined {
+  const trimmed = String(model || '').trim()
+  if (!trimmed) return undefined
+  return normalizeAgentModelInput(trimmed)
 }
 
 function splitIdentityRuntimeSection(content: string): { runtime: string; suffix: string } {
@@ -107,6 +114,48 @@ export function updateAgentModelInConfigFile(
 
     writeDashboardManagedOpenClawConfig(configPath, config, `updateAgentModelInConfigFile(${agentId})`)
     return { ok: true, changed, model: nextModel }
+  } catch (err: any) {
+    return { ok: false, error: err.message || String(err) }
+  }
+}
+
+export function updateAgentBackupModelInConfigFile(
+  configPath: string,
+  agentId: string,
+  backupModel: string | undefined,
+  options?: { workspacePath?: string }
+): AgentModelConfigUpdateResult {
+  try {
+    const nextBackupModel = normalizeOptionalAgentModelInput(backupModel)
+
+    if (!fs.existsSync(configPath)) {
+      return { ok: false, error: `Config not found: ${configPath}` }
+    }
+
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    const agentList = config?.agents?.list
+    if (!Array.isArray(agentList)) {
+      return { ok: false, error: 'Invalid openclaw.json structure: agents.list is missing' }
+    }
+
+    const agentIndex = typeof options?.workspacePath === 'string'
+      ? agentList.findIndex((agent: any) => agent.id === agentId && agent.workspace === options.workspacePath)
+      : agentList.findIndex((agent: any) => agent.id === agentId)
+    if (agentIndex === -1) {
+      return { ok: false, error: `Agent ${agentId}${options?.workspacePath ? ` @ ${options.workspacePath}` : ''} not found in openclaw.json` }
+    }
+
+    const hadLegacyBackupModel = Object.prototype.hasOwnProperty.call(agentList[agentIndex] || {}, 'backupModel')
+    if (!hadLegacyBackupModel) {
+      return { ok: true, changed: false, backupModel: nextBackupModel }
+    }
+
+    const nextAgent = { ...agentList[agentIndex] }
+    delete nextAgent.backupModel
+    agentList[agentIndex] = nextAgent
+
+    writeDashboardManagedOpenClawConfig(configPath, config, `updateAgentBackupModelInConfigFile(${agentId})`)
+    return { ok: true, changed: true, backupModel: nextBackupModel }
   } catch (err: any) {
     return { ok: false, error: err.message || String(err) }
   }
@@ -210,6 +259,35 @@ export function readAgentModelFromConfigFile(
   }
 }
 
+export function readAgentBackupModelFromConfigFile(
+  configPath: string,
+  agentId: string,
+  options?: { workspacePath?: string }
+): { ok: boolean; backupModel?: string; error?: string } {
+  try {
+    if (!fs.existsSync(configPath)) {
+      return { ok: false, error: `Config not found: ${configPath}` }
+    }
+
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    const agentList = config?.agents?.list
+    if (!Array.isArray(agentList)) {
+      return { ok: false, error: 'Invalid openclaw.json structure: agents.list is missing' }
+    }
+
+    const agent = typeof options?.workspacePath === 'string'
+      ? agentList.find((entry: any) => entry.id === agentId && entry.workspace === options.workspacePath)
+      : agentList.find((entry: any) => entry.id === agentId)
+    if (!agent) {
+      return { ok: false, error: `Agent ${agentId}${options?.workspacePath ? ` @ ${options.workspacePath}` : ''} not found in openclaw.json` }
+    }
+
+    return { ok: true, backupModel: undefined }
+  } catch (err: any) {
+    return { ok: false, error: err.message || String(err) }
+  }
+}
+
 export function restoreAgentModelInConfigFile(
   configPath: string,
   agentId: string,
@@ -251,6 +329,47 @@ export function restoreAgentModelInConfigFile(
 
     writeDashboardManagedOpenClawConfig(configPath, config, `restoreAgentModelInConfigFile(${agentId})`)
     return { ok: true, changed: true, model: nextModel }
+  } catch (err: any) {
+    return { ok: false, error: err.message || String(err) }
+  }
+}
+
+export function restoreAgentBackupModelInConfigFile(
+  configPath: string,
+  agentId: string,
+  backupModel: string | undefined,
+  options?: { workspacePath?: string }
+): AgentModelConfigUpdateResult {
+  try {
+    if (!fs.existsSync(configPath)) {
+      return { ok: false, error: `Config not found: ${configPath}` }
+    }
+
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    const agentList = config?.agents?.list
+    if (!Array.isArray(agentList)) {
+      return { ok: false, error: 'Invalid openclaw.json structure: agents.list is missing' }
+    }
+
+    const agentIndex = typeof options?.workspacePath === 'string'
+      ? agentList.findIndex((agent: any) => agent.id === agentId && agent.workspace === options.workspacePath)
+      : agentList.findIndex((agent: any) => agent.id === agentId)
+    if (agentIndex === -1) {
+      return { ok: false, error: `Agent ${agentId}${options?.workspacePath ? ` @ ${options.workspacePath}` : ''} not found in openclaw.json` }
+    }
+
+    const nextBackupModel = normalizeOptionalAgentModelInput(backupModel)
+    const hadLegacyBackupModel = Object.prototype.hasOwnProperty.call(agentList[agentIndex] || {}, 'backupModel')
+    if (!hadLegacyBackupModel) {
+      return { ok: true, changed: false, backupModel: nextBackupModel }
+    }
+
+    const nextAgent = { ...agentList[agentIndex] }
+    delete nextAgent.backupModel
+    agentList[agentIndex] = nextAgent
+
+    writeDashboardManagedOpenClawConfig(configPath, config, `restoreAgentBackupModelInConfigFile(${agentId})`)
+    return { ok: true, changed: true, backupModel: nextBackupModel }
   } catch (err: any) {
     return { ok: false, error: err.message || String(err) }
   }
@@ -339,6 +458,36 @@ export function upsertAgentRuntimeInIdentityContent(content: string, runtime: st
   }
 
   return joinIdentityRuntimeSection(`${runtimeSection.trimEnd()}\n\n- **Runtime:** ${runtime}\n`, suffix)
+}
+
+export function upsertAgentBackupModelInIdentityContent(content: string, backupModel: string | undefined): string {
+  const nextBackupModel = normalizeOptionalAgentModelInput(backupModel)
+  const { runtime, suffix } = splitIdentityRuntimeSection(content)
+  const backupPattern = /^[-*]\s+\*\*Backup Model:\*\*\s*.*$/m
+
+  if (!nextBackupModel) {
+    const cleanedRuntime = runtime
+      .replace(/^[-*]\s+\*\*Backup Model:\*\*\s*.*$\n?/m, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trimEnd()
+    return joinIdentityRuntimeSection(cleanedRuntime, suffix)
+  }
+
+  if (backupPattern.test(runtime)) {
+    return joinIdentityRuntimeSection(runtime.replace(
+      backupPattern,
+      `- **Backup Model:** ${nextBackupModel}`
+    ), suffix)
+  }
+
+  if (/^[-*]\s+\*\*Model:\*\*\s*.*$/m.test(runtime)) {
+    return joinIdentityRuntimeSection(runtime.replace(
+      /^[-*]\s+\*\*Model:\*\*\s*.*$/m,
+      match => `${match}\n- **Backup Model:** ${nextBackupModel}`
+    ), suffix)
+  }
+
+  return joinIdentityRuntimeSection(`${runtime.trimEnd()}\n- **Backup Model:** ${nextBackupModel}\n`, suffix)
 }
 
 export function resetAgentSessionsForModelChange(homeDir: string, agentId: string): { ok: boolean; error?: string } {

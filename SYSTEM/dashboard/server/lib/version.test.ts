@@ -65,6 +65,21 @@ async function run() {
     }
   })
 
+  await test('getDashboardVersion preserves full RC env tag when it matches the packaged release line', () => {
+    process.env.CLAWMAX_VERSION = '1.9.7-test-rc7'
+    const packageJsonPath = require('path').join(__dirname, '..', '..', 'package.json')
+    const fs = require('fs')
+    const original = fs.readFileSync(packageJsonPath, 'utf-8')
+    const parsed = JSON.parse(original)
+    parsed.version = '1.9.7'
+    fs.writeFileSync(packageJsonPath, JSON.stringify(parsed, null, 2), 'utf-8')
+    try {
+      assert(getDashboardVersion() === '1.9.7-test-rc7', `Expected full RC tag to be preserved, got ${getDashboardVersion()}`)
+    } finally {
+      fs.writeFileSync(packageJsonPath, original, 'utf-8')
+    }
+  })
+
   await test('getDashboardVersion prefers prerelease package versions for hack builds', () => {
     process.env.CLAWMAX_VERSION = 'dev'
     const packageJsonPath = require('path').join(__dirname, '..', '..', 'package.json')

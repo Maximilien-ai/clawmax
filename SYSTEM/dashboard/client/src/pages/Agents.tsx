@@ -2677,6 +2677,7 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
   const [tools, setTools] = React.useState('')
   const [model, setModel] = React.useState('')
   const [runtime, setRuntime] = React.useState('default')
+  const [backupModel, setBackupModel] = React.useState('')
   const [availableModels, setAvailableModels] = React.useState<string[]>([])
   const [modelsByProvider, setModelsByProvider] = React.useState<Record<string, { name: string; models: string[] }>>({})
   const [loading, setLoading] = React.useState(true)
@@ -2688,7 +2689,7 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
   const [validationRequestError, setValidationRequestError] = React.useState<string | null>(null)
   const selectedModelDeprecation = formatOpenAiDeprecationNotice(model)
 
-  const syncIdentityModel = React.useCallback((content: string, nextModel: string) => {
+  const syncIdentityModels = React.useCallback((content: string, nextModel: string, nextBackupModel: string) => {
     if (!nextModel.trim()) return content
     const metadataIndex = content.search(/^##\s+Creation Metadata\b/im)
     const runtime = metadataIndex === -1 ? content : content.slice(0, metadataIndex)
@@ -2697,16 +2698,30 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
       ? `${nextRuntime.trimEnd()}\n\n${suffix.trimStart()}`
       : nextRuntime
 
+    let nextRuntime = runtime
     if (/^[-*]\s+\*\*Model:\*\*\s*.*$/m.test(runtime)) {
-      return joinSections(runtime.replace(/^[-*]\s+\*\*Model:\*\*\s*.*$/m, `- **Model:** ${nextModel}`))
+      nextRuntime = runtime.replace(/^[-*]\s+\*\*Model:\*\*\s*.*$/m, `- **Model:** ${nextModel}`)
+    } else if (/^[-*]\s+\*\*Tags:\*\*\s+.+$/m.test(runtime)) {
+      nextRuntime = runtime.replace(/^[-*]\s+\*\*Tags:\*\*\s+.+$/m, `- **Model:** ${nextModel}\n$&`)
+    } else if (/^[-*]\s+\*\*Role:\*\*\s+.+$/m.test(runtime)) {
+      nextRuntime = runtime.replace(/^[-*]\s+\*\*Role:\*\*\s+.+$/m, `$&\n- **Model:** ${nextModel}`)
+    } else {
+      nextRuntime = `${runtime.trimEnd()}\n\n- **Model:** ${nextModel}\n`
     }
-    if (/^[-*]\s+\*\*Tags:\*\*\s+.+$/m.test(runtime)) {
-      return joinSections(runtime.replace(/^[-*]\s+\*\*Tags:\*\*\s+.+$/m, `- **Model:** ${nextModel}\n$&`))
+
+    if (nextBackupModel.trim()) {
+      if (/^[-*]\s+\*\*Backup Model:\*\*\s*.*$/m.test(nextRuntime)) {
+        nextRuntime = nextRuntime.replace(/^[-*]\s+\*\*Backup Model:\*\*\s*.*$/m, `- **Backup Model:** ${nextBackupModel}`)
+      } else if (/^[-*]\s+\*\*Model:\*\*\s*.*$/m.test(nextRuntime)) {
+        nextRuntime = nextRuntime.replace(/^[-*]\s+\*\*Model:\*\*\s*.*$/m, match => `${match}\n- **Backup Model:** ${nextBackupModel}`)
+      } else {
+        nextRuntime = `${nextRuntime.trimEnd()}\n- **Backup Model:** ${nextBackupModel}\n`
+      }
+    } else {
+      nextRuntime = nextRuntime.replace(/^[-*]\s+\*\*Backup Model:\*\*\s*.*$\n?/m, '').replace(/\n{3,}/g, '\n\n')
     }
-    if (/^[-*]\s+\*\*Role:\*\*\s+.+$/m.test(runtime)) {
-      return joinSections(runtime.replace(/^[-*]\s+\*\*Role:\*\*\s+.+$/m, `$&\n- **Model:** ${nextModel}`))
-    }
-    return joinSections(`${runtime.trimEnd()}\n\n- **Model:** ${nextModel}\n`)
+
+    return joinSections(nextRuntime)
   }, [])
 
   // Mirrors server's upsertAgentRuntimeInIdentityContent (agent-model.ts) so the config PUT below
@@ -2763,6 +2778,7 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
         setTools(configData.tools || '')
         setModel(identityData?.liveConfig?.model || identityData?.metadata?.model || '')
         setRuntime(identityData?.metadata?.runtime || 'default')
+        setBackupModel(identityData?.liveConfig?.backupModel || identityData?.metadata?.backupModel || '')
         setAvailableModels(Array.isArray(modelsData.models) ? modelsData.models : [])
         setModelsByProvider(modelsData.modelsByProvider || {})
         setLoading(false)
@@ -2828,13 +2844,13 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
     setSaving(true)
     setError(null)
     try {
-      const nextIdentity = model ? syncIdentityModel(identity, model) : identity
+      const nextIdentity = model ? syncIdentityModels(identity, model, backupModel) : identity
       const nextIdentityWithRuntime = syncIdentityRuntime(nextIdentity, runtime)
       if (model) {
         const modelRes = await fetch(`/api/agents/${agent.id}/model`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ model }),
+          body: JSON.stringify({ model, backupModel }),
         })
         if (!modelRes.ok) {
           const data = await modelRes.json().catch(() => ({}))
@@ -2992,6 +3008,30 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
                   <option value="droid">Factory Droid</option>
                 </select>
                 <p className="mt-1 text-xs text-gray-400">Which CLI executes this agent. Leave as Default to follow the workspace-wide runtime (BYOK &rarr; Runtime).</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Backup model</label>
+                <select
+                  value={backupModel}
+                  onChange={e => setBackupModel(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-200 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+                >
+                  <option value="">No backup model</option>
+                  {Object.keys(modelsByProvider).length > 0 ? (
+                    Object.entries(modelsByProvider).map(([providerId, provider]) => (
+                      <optgroup key={providerId} label={provider.name || providerId}>
+                        {provider.models.filter((option) => isSelectableLifecycleModel(option, backupModel || model)).map(option => (
+                          <option key={option} value={option}>{formatOpenAiModelLabel(option)}</option>
+                        ))}
+                      </optgroup>
+                    ))
+                  ) : (
+                    availableModels.filter((option) => isSelectableLifecycleModel(option, backupModel || model)).map(option => (
+                      <option key={option} value={option}>{formatOpenAiModelLabel(option)}</option>
+                    ))
+                  )}
+                </select>
+                <p className="mt-1 text-xs text-gray-400">Automatically retried when the primary model fails or times out before producing a usable reply.</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">IDENTITY.md</label>

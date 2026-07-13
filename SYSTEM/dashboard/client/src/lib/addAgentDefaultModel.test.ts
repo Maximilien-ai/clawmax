@@ -63,10 +63,19 @@ test('keeps current model when AI suggests an unavailable hosted model', () => {
   assert.equal(resolved, 'ollama/qwen2.5:latest')
 })
 
-test('accepts AI suggested model when it is available', () => {
+test('keeps current model when AI suggests a different available model', () => {
+  const resolved = resolveAddAgentWizardSuggestedModel({
+    models: ['openai/gpt-4o-mini', 'openai/gpt-5'],
+    currentModel: 'openai/gpt-5',
+    suggestedModel: 'openai/gpt-4o-mini',
+  })
+  assert.equal(resolved, 'openai/gpt-5')
+})
+
+test('accepts AI suggested model when no current model is selected', () => {
   const resolved = resolveAddAgentWizardSuggestedModel({
     models: ['openai/gpt-4o-mini', 'ollama/qwen2.5:latest'],
-    currentModel: 'ollama/qwen2.5:latest',
+    currentModel: '',
     suggestedModel: 'openai/gpt-4o-mini',
   })
   assert.equal(resolved, 'openai/gpt-4o-mini')
@@ -99,4 +108,4 @@ test('does not rewrite openai-compatible models that only look like OpenAI snaps
   assert.equal(resolved, 'openai-compatible/gpt-5-2025-08-07')
 })
 
-console.log('addAgentDefaultModel.test.ts: 10 tests passed')
+console.log('addAgentDefaultModel.test.ts: 11 tests passed')

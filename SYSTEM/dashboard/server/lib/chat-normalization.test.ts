@@ -113,6 +113,75 @@ test('strips benign Cognee plugin runtime config warning from chat output', () =
   assert(normalized === 'Useful agent response.', `Unexpected normalized output: ${normalized}`)
 })
 
+test('strips OpenClaw provider transport diagnostics from streamed chat output', () => {
+  const raw = `[provider-transport-fetch] [model-fetch] start provider=lmstudio api=openai-completions model=qwen/qwen3.6-27b method=POST url=http://host.containers.internal:1234/v1/chat/completions timeoutMs=undefined proxy=none policy=custom
+[provider-transport-fetch] [model-fetch] response provider=lmstudio api=openai-completions model=qwen/qwen3.6-27b status=200 elapsedMs=16 contentType=text/event-stream
+RC14 container chat works`
+  const stripped = stripBenignChatRuntimeWarnings(raw)
+  const normalized = normalizeChatMessage(raw)
+
+  assert(!stripped.includes('[provider-transport-fetch]'), 'Expected provider transport diagnostics stripped from streamed chunks')
+  assert(normalized === 'RC14 container chat works', `Unexpected normalized output: ${normalized}`)
+})
+
+test('strips plugin allowlist discovery warnings from chat output', () => {
+  const raw = `[plugins] plugins.allow is empty; discovered non-bundled plugins may auto-load: cognee-openclaw (/app/DATA/.home/.openclaw/npm/node_modules/@cognee/cognee-openclaw/dist/index.js). To trust them explicitly, set plugins.allow in openclaw.json (e.g. "plugins": { "allow": ["cognee-openclaw"] }). Run 'openclaw plugins list --enabled --verbose' or 'openclaw plugins inspect cognee-openclaw' to confirm plugin ids.
+
+Useful agent response.`
+  const stripped = stripBenignChatRuntimeWarnings(raw)
+  const normalized = normalizeChatMessage(raw)
+
+  assert(!/plugins\.allow is empty/i.test(stripped), 'Expected plugin discovery warning stripped from streamed chunks')
+  assert(normalized === 'Useful agent response.', `Unexpected normalized output: ${normalized}`)
+})
+
+test('strips stale plugin allowlist config warning blocks from chat output', () => {
+  const raw = `◇ Config warnings ───────────────────────────────────────────────────────╮ │ - plugins.allow: plugin not found: clawmax_no_non_bundled_plugins │ │ (stale config entry ignored; remove it from plugins config) │
+
+Useful agent response.`
+  const stripped = stripBenignChatRuntimeWarnings(raw)
+  const normalized = normalizeChatMessage(raw)
+
+  assert(!/Config warnings/i.test(stripped), 'Expected config warning header stripped from streamed chunks')
+  assert(!/clawmax_no_non_bundled_plugins/i.test(stripped), 'Expected stale sentinel warning stripped from streamed chunks')
+  assert(normalized === 'Useful agent response.', `Unexpected normalized output: ${normalized}`)
+})
+
+test('suppresses warning-only chat output instead of restoring the raw warning', () => {
+  const raw = `◇ Config warnings ───────────────────────────────────────────────────────╮ │ - plugins.allow: plugin not found: clawmax_no_non_bundled_plugins │ │ (stale config entry ignored; remove it from plugins config) │`
+  const normalized = normalizeChatMessage(raw)
+
+  assert(normalized === '', `Expected warning-only output to be suppressed, got: ${normalized}`)
+})
+
+test('strips doctor warning blocks from chat output so runtime diagnostics do not appear as assistant replies', () => {
+  const raw = `|◇ Doctor warnings
+────────────────────────────────
+||| - Left legacy config health state in place because 1 entry conflicts || with shared SQLite state:
+|| /app/DATA/.home/.openclaw/logs/config-health.json |||
+────────────────────────────────
+
+Useful agent response.`
+  const stripped = stripBenignChatRuntimeWarnings(raw)
+  const normalized = normalizeChatMessage(raw)
+
+  assert(!/Doctor warnings/i.test(stripped), 'Expected doctor warning header stripped from streamed chunks')
+  assert(!/config-health\.json/i.test(stripped), 'Expected config health path stripped from streamed chunks')
+  assert(normalized === 'Useful agent response.', `Unexpected normalized output: ${normalized}`)
+})
+
+test('strips state-migration warning variants from chat output so on-prem runtime leftovers do not appear as assistant replies', () => {
+  const raw = `│ - Left migrated task registry sidecar in place because archive already │ │ exists: /app/DATA/.home/.openclaw/tasks/runs.sqlite.migrated │ │ - Left legacy update-check state in place because shared SQLite state │ │ already differs: /app/DATA/.home/.openclaw/update-check.json │ │ with shared SQLite state: │
+
+Useful agent response.`
+  const stripped = stripBenignChatRuntimeWarnings(raw)
+  const normalized = normalizeChatMessage(raw)
+
+  assert(!/runs\.sqlite\.migrated/i.test(stripped), 'Expected migrated task registry warning stripped from streamed chunks')
+  assert(!/update-check\.json/i.test(stripped), 'Expected update-check warning stripped from streamed chunks')
+  assert(normalized === 'Useful agent response.', `Unexpected normalized output: ${normalized}`)
+})
+
 console.log('\n========================================')
 console.log(`Tests passed: ${testsPassed}`)
 console.log(`Tests failed: ${testsFailed}`)

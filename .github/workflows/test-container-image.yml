@@ -122,7 +122,7 @@ jobs:
           push: true
           provenance: false
           build-args: |
-            CLAWMAX_VERSION=${{ steps.version.outputs.version }}
+            CLAWMAX_VERSION=${{ steps.version.outputs.semver }}-test-${{ steps.vars.outputs.test_tag }}
           tags: ${{ steps.tags.outputs.tags }}
           labels: |
             org.opencontainers.image.title=ClawMax Dashboard
@@ -138,7 +138,7 @@ jobs:
 
           image="${IMAGE_NAME}:${{ steps.version.outputs.semver }}-test-${{ steps.vars.outputs.test_tag }}-${{ matrix.arch_tag }}"
           expected="${{ steps.version.outputs.semver }}"
-          expected_env="${{ steps.version.outputs.version }}"
+          expected_env="${{ steps.version.outputs.semver }}-test-${{ steps.vars.outputs.test_tag }}"
 
           actual_version="$(docker run --rm \
             --platform "${{ matrix.platform }}" \
@@ -282,6 +282,7 @@ jobs:
             fi
           }
 
-          verify_image "${image}:${semver}-test-${test_tag}" "linux/arm64" "${semver}" "${version}"
-          verify_image "${image}:${semver}-test-${test_tag}-arm64" "linux/arm64" "${semver}" "${version}"
-          verify_image "${image}:${semver}-test-${test_tag}-amd64" "linux/amd64" "${semver}" "${version}"
+          expected_env="${semver}-test-${test_tag}"
+          verify_image "${image}:${semver}-test-${test_tag}" "linux/arm64" "${semver}" "${expected_env}"
+          verify_image "${image}:${semver}-test-${test_tag}-arm64" "linux/arm64" "${semver}" "${expected_env}"
+          verify_image "${image}:${semver}-test-${test_tag}-amd64" "linux/amd64" "${semver}" "${expected_env}"
