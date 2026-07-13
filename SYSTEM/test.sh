@@ -578,9 +578,15 @@ run_perf_model_matrix() {
     local sample_started_ms
     sample_started_ms=$(now_ms)
     local sample_result
+    local sample_payload
+    sample_payload=$(jq -nc \
+      --arg message "Say HELLO in exactly one word." \
+      --arg sessionId "perf-${session_slug}" \
+      --argjson byok "$BYOK_JSON" \
+      '{message: $message, sessionId: $sessionId, byok: $byok}')
     sample_result=$(apicurl_chat -X POST "$API_BASE/api/agents/test-lead/chat" \
       -H 'Content-Type: application/json' \
-      -d "{\"message\":\"Say HELLO in exactly one word.\",\"sessionId\":\"perf-${session_slug}\"}" 2>/dev/null)
+      -d "$sample_payload" 2>/dev/null)
     local sample_curl_status=$?
     local sample_finished_ms
     sample_finished_ms=$(now_ms)
@@ -4462,16 +4468,27 @@ fi
 # Step 6: Test 1-1 agent chat
 echo ""
 echo -e "${YELLOW}→ Testing agent chat...${NC}"
-integration_openai_key=$(grep SYSTEM_OPENAI_API_KEY "dashboard/.env" 2>/dev/null | cut -d= -f2)
-integration_anthropic_key=$(grep SYSTEM_ANTHROPIC_API_KEY "dashboard/.env" 2>/dev/null | cut -d= -f2)
-if [ -z "${integration_openai_key:-}" ] && [ -z "${integration_anthropic_key:-}" ]; then
+BYOK_OPENAI=$(grep -m1 '^SYSTEM_OPENAI_API_KEY=' "dashboard/.env" 2>/dev/null | cut -d= -f2-)
+BYOK_ANTHROPIC=$(grep -m1 '^SYSTEM_ANTHROPIC_API_KEY=' "dashboard/.env" 2>/dev/null | cut -d= -f2-)
+BYOK_GEMINI=$(grep -m1 '^SYSTEM_GEMINI_API_KEY=' "dashboard/.env" 2>/dev/null | cut -d= -f2-)
+BYOK_JSON=$(jq -nc \
+  --arg openai "$BYOK_OPENAI" \
+  --arg anthropic "$BYOK_ANTHROPIC" \
+  --arg gemini "$BYOK_GEMINI" \
+  '{} + (if $openai != "" then {openai: $openai} else {} end) + (if $anthropic != "" then {anthropic: $anthropic} else {} end) + (if $gemini != "" then {gemini: $gemini} else {} end)')
+if [ "$BYOK_JSON" = "{}" ]; then
   PERF_CHAT_NOTE="skipped:no-api-key"
-  warn "Agent chat skipped (no SYSTEM_OPENAI_API_KEY or SYSTEM_ANTHROPIC_API_KEY configured)"
+  warn "Agent chat skipped (no supported system provider key configured)"
 else
+  chat_payload=$(jq -nc \
+    --arg message "Say HELLO in exactly one word." \
+    --arg sessionId "integration-test" \
+    --argjson byok "$BYOK_JSON" \
+    '{message: $message, sessionId: $sessionId, byok: $byok}')
   chat_started_ms=$(now_ms)
   chat_result=$(apicurl_chat -X POST "$API_BASE/api/agents/test-lead/chat" \
     -H 'Content-Type: application/json' \
-    -d '{"message":"Say HELLO in exactly one word.","sessionId":"integration-test"}' 2>/dev/null)
+    -d "$chat_payload" 2>/dev/null)
   chat_curl_status=$?
   chat_finished_ms=$(now_ms)
   PERF_CHAT_ROUNDTRIP_MS=$(elapsed_ms "$chat_started_ms" "$chat_finished_ms")
@@ -4528,24 +4545,12 @@ apicurl -X PUT "$API_BASE/api/workflows/test-dag-parallel-b" -H 'Content-Type: a
 apicurl -X PUT "$API_BASE/api/workflows/test-report" -H 'Content-Type: application/json' -d '{"dependsOn":["test-github","test-dag-parallel-a","test-dag-parallel-b"],"type":"conditional"}' > /dev/null 2>&1
 pass "DAG dependencies configured"
 
-# Read provider keys from dashboard .env for agent execution
-BYOK_ANTHROPIC=$(grep SYSTEM_ANTHROPIC_API_KEY "dashboard/.env" 2>/dev/null | cut -d= -f2)
-BYOK_OPENAI=$(grep SYSTEM_OPENAI_API_KEY "dashboard/.env" 2>/dev/null | cut -d= -f2)
-BYOK_GEMINI=$(grep SYSTEM_GEMINI_API_KEY "dashboard/.env" 2>/dev/null | cut -d= -f2)
-BYOK_JSON="{}"
-if [ -n "$BYOK_OPENAI" ]; then
-  BYOK_JSON="{\"openai\":\"$BYOK_OPENAI\"}"
-elif [ -n "$BYOK_GEMINI" ]; then
-  BYOK_JSON="{\"gemini\":\"$BYOK_GEMINI\"}"
-elif [ -n "$BYOK_ANTHROPIC" ]; then
-  BYOK_JSON="{\"anthropic\":\"$BYOK_ANTHROPIC\"}"
-fi
-
 # Trigger kickoff with BYOK keys
 workflow_trigger_started_ms=$(now_ms)
+workflow_trigger_payload=$(jq -nc --argjson byok "$BYOK_JSON" '{manual: true, byok: $byok}')
 trigger_result=$(apicurl -X POST "$API_BASE/api/workflows/test-kickoff/trigger" \
   -H 'Content-Type: application/json' \
-  -d "{\"manual\":true,\"byok\":$BYOK_JSON}")
+  -d "$workflow_trigger_payload")
 workflow_trigger_finished_ms=$(now_ms)
 PERF_WORKFLOW_TRIGGER_MS=$(elapsed_ms "$workflow_trigger_started_ms" "$workflow_trigger_finished_ms")
 workflow_execution_started_ms="$workflow_trigger_finished_ms"
