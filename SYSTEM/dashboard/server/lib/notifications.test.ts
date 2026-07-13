@@ -465,8 +465,8 @@ test('normalizeWorkflowNotificationErrorDetail rewrites cooldown and timeout fai
 
 test('normalizeWorkflowNotificationErrorDetail rewrites embedded session conflict failures', () => {
   const normalized = normalizeWorkflowNotificationErrorDetail('EmbeddedAttemptSessionTakeoverError: session file changed while embedded prompt lock was released')
-  assert(/session execution conflicted/i.test(normalized), `Expected embedded session conflict guidance, got ${normalized}`)
-  assert(/reset the active chat\/session/i.test(normalized), `Expected reset guidance, got ${normalized}`)
+  assert(/runtime retried this workflow participant/i.test(normalized), `Expected retry explanation, got ${normalized}`)
+  assert(/no chat request is active|restart the agent runtime/i.test(normalized), `Expected actionable session conflict guidance, got ${normalized}`)
 })
 
 // ============================================================================

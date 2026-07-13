@@ -1186,6 +1186,7 @@ if grep -q "All tests passed" /tmp/clawmax-notifications.out; then
   notif_count=$(grep "Passed:" /tmp/clawmax-notifications.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Passed: //' | tr -cd '0-9')
   pass "Notifications unit tests (${notif_count:-?} tests)"
 else
+  cat /tmp/clawmax-notifications.out
   fail "Notifications unit tests"
 fi
 
