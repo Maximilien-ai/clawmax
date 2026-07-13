@@ -808,6 +808,11 @@ export function buildWorkflowSessionId(executionId: string, agentId: string): st
   return `wf-${hash}-${agentTail}`.slice(0, 48)
 }
 
+export function buildWorkflowRetrySessionId(executionId: string, agentId: string, retryAttempt = 0): string {
+  const retryExecutionId = retryAttempt > 0 ? `${executionId}-retry-${retryAttempt}` : executionId
+  return buildWorkflowSessionId(retryExecutionId, agentId)
+}
+
 export function resolveWorkflowOpenClawCliPath(): string {
   const cliPath = resolveOpenClawCliPath()
   if (!cliPath) {
@@ -1996,6 +2001,7 @@ export function triggerWorkflow(workflowId: string, options?: {
           persistExecution()
 
           // Call agent via CLI
+          let workflowSessionRetryAttempt = 0
           const agentResponse = await runExclusiveAgentExecution(participant.agentId, async () => {
             const resolvedAgent = resolveAgentExecutionConfig(participant.agentId)
             const openclawCliPath = resolveWorkflowOpenClawCliPath()
@@ -2025,7 +2031,7 @@ export function triggerWorkflow(workflowId: string, options?: {
                 ? false
                 : (await waitForGatewayResponsive()).running
               const useLocal = attemptProvider === 'ollama' || attemptProvider === 'openai-compatible' || !gatewayRunning || hasWorkspaceManagedPartnerSecrets()
-              const sessionId = buildWorkflowSessionId(executionId, participant.agentId)
+              const sessionId = buildWorkflowRetrySessionId(executionId, participant.agentId, workflowSessionRetryAttempt)
               const executionModelOverride = toExecutionModelOverride(attemptModel, attemptProvider)
               repairWorkflowSessionEntryForRun(participant.agentId, sessionId)
               const args = ['agent', '--agent', participant.agentId, '--session-id', sessionId, '--message', executionMessage, '--json', ...(executionModelOverride ? ['--model', executionModelOverride] : []), ...(useLocal ? ['--local'] : [])]
@@ -2113,8 +2119,9 @@ export function triggerWorkflow(workflowId: string, options?: {
               return await executeAttempt(fallbackModel, fallbackProvider)
             }
           }, {
-            onSessionLockRetry: () => {
-              const sessionId = buildWorkflowSessionId(executionId, participant.agentId)
+            onSessionLockRetry: (attempt) => {
+              workflowSessionRetryAttempt = attempt + 1
+              const sessionId = buildWorkflowRetrySessionId(executionId, participant.agentId, workflowSessionRetryAttempt)
               repairWorkflowSessionEntryForRun(participant.agentId, sessionId)
             },
           })

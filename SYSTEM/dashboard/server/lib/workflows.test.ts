@@ -27,6 +27,7 @@ import {
   extractGitHubResultLinks,
   summarizeGitHubResultLink,
   buildWorkflowSessionId,
+  buildWorkflowRetrySessionId,
   resolveWorkflowOpenClawCliPath,
   repairWorkflowSessionEntryForRun,
   getLatestAgentSessionErrorMessage,
@@ -683,6 +684,15 @@ test('buildWorkflowSessionId produces distinct sessions per agent and run', () =
 
   assert(first !== second, 'Expected different agents in same execution to use different sessions')
   assert(first !== third, 'Expected same agent across executions to use different sessions')
+})
+
+test('buildWorkflowRetrySessionId rotates session keys for repaired retries', () => {
+  const initial = buildWorkflowRetrySessionId('execution-123', 'agent-a', 0)
+  const firstRetry = buildWorkflowRetrySessionId('execution-123', 'agent-a', 1)
+  const secondRetry = buildWorkflowRetrySessionId('execution-123', 'agent-a', 2)
+  assert(initial !== firstRetry, 'Expected first retry to use a fresh workflow session key')
+  assert(firstRetry !== secondRetry, 'Expected each retry to rotate the workflow session key')
+  assert(firstRetry.length <= 48, `Expected bounded retry session key, got ${firstRetry.length}`)
 })
 
 test('resolveWorkflowOpenClawCliPath honors OPENCLAW_BIN override', () => {
