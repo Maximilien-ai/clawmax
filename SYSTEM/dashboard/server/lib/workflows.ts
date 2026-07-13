@@ -14,6 +14,7 @@ import { checkBudgetBlock } from './budget'
 import { validateWorkflow } from './validator'
 import {
   resolveAgentExecutionConfig,
+  isOpenClawSessionLockError,
   runExclusiveAgentExecution,
   shouldUseExplicitBackupModelRetry,
   toExecutionModelOverride,
@@ -710,7 +711,7 @@ export function formatParticipantFailure(reportedFailure: string): string {
     return `Model provider rejected the request before generation. Raw error: ${reportedFailure}`
   }
   if (/EmbeddedAttemptSessionTakeoverError|session file changed while embedded prompt lock was released/i.test(reportedFailure)) {
-    return `Agent session execution conflicted with another embedded run. Reset the active chat/session and retry. Raw error: ${reportedFailure}`
+    return 'The runtime retried this workflow participant after an embedded session conflict, but the session kept changing. Retry when no chat request is active for this agent; restart the agent runtime if it continues.'
   }
   if (/^No execution path configured\b/i.test(reportedFailure) || /^No API keys available\b/i.test(reportedFailure)) {
     return 'No model execution path is configured for this workflow run. Add hosted provider keys or configure a local runtime in BYOK / workspace integrations.'
@@ -731,6 +732,10 @@ export function normalizeWorkflowThreadDiagnostic(content: string): string | nul
 
   if (/^Unknown model:/i.test(trimmed)) {
     return 'This workflow participant is configured with a model that the current runtime does not support. Choose a different model for the agent and retry the workflow.'
+  }
+
+  if (/EmbeddedAttemptSessionTakeoverError|session file changed while embedded prompt lock was released/i.test(trimmed)) {
+    return 'The runtime retried this workflow participant after an embedded session conflict, but the session kept changing. Retry when no chat request is active for this agent; restart the agent runtime if it continues.'
   }
 
   const looksLikeRawRuntimeNoise =
@@ -945,6 +950,12 @@ export function formatWorkflowAgentTimeoutMessage(timeoutMs = getWorkflowAgentTi
   }
   const roundedSeconds = timeoutMs % 1000 === 0 ? timeoutMs / 1000 : Number((timeoutMs / 1000).toFixed(1))
   return `Agent timeout after ${roundedSeconds} second${roundedSeconds === 1 ? '' : 's'}`
+}
+
+export function throwIfWorkflowAgentResultNeedsRetry(agentText: string): void {
+  if (isOpenClawSessionLockError(new Error(agentText))) {
+    throw new Error(agentText)
+  }
 }
 
 export {
@@ -2056,15 +2067,25 @@ export function triggerWorkflow(workflowId: string, options?: {
                         innerResolve()
                         return
                       }
+                      let result: any
                       try {
-                        const result = JSON.parse(payloadText)
-                        const text = result?.payloads?.[0]?.text || result?.result?.payloads?.[0]?.text || ''
-                        const meta = result?.result?.meta || result?.meta || {}
-                        const agentMeta = meta.agentMeta || {}
-                        resolve({ text, meta: agentMeta, durationMs: meta.durationMs } as any)
+                        result = JSON.parse(payloadText)
                       } catch {
                         resolve({ text: payloadText, meta: {}, durationMs: 0 } as any)
+                        innerResolve()
+                        return
                       }
+                      const text = result?.payloads?.[0]?.text || result?.result?.payloads?.[0]?.text || ''
+                      try {
+                        throwIfWorkflowAgentResultNeedsRetry(text)
+                      } catch (error) {
+                        reject(error)
+                        innerResolve()
+                        return
+                      }
+                      const meta = result?.result?.meta || result?.meta || {}
+                      const agentMeta = meta.agentMeta || {}
+                      resolve({ text, meta: agentMeta, durationMs: meta.durationMs } as any)
                       innerResolve()
                     })
                     proc.on('error', (err) => {

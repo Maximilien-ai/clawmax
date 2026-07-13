@@ -3,7 +3,11 @@ import {
   isOpenClawSessionLockError,
   getAgentExecutionRetryDelay,
 } from './agent-execution'
-import { detectParticipantReportedFailure, repairWorkflowSessionEntryForRun } from './workflows'
+import {
+  detectParticipantReportedFailure,
+  repairWorkflowSessionEntryForRun,
+  throwIfWorkflowAgentResultNeedsRetry,
+} from './workflows'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
@@ -60,6 +64,21 @@ async function run() {
     })
     assert(result === 'ok', `Expected retry to succeed, got ${result}`)
     assert(attempts === 2, `Expected exactly one retry, got ${attempts} attempts`)
+  })
+
+  await test('embedded CLI result text enters the repaired session retry path', async () => {
+    let attempts = 0
+    const result = await runExclusiveAgentExecution('workflow-embedded-result-agent', async () => {
+      attempts++
+      const text = attempts === 1
+        ? 'EmbeddedAttemptSessionTakeoverError: session file changed while embedded prompt lock was released: /tmp/workflow-agent.jsonl'
+        : 'completed'
+      throwIfWorkflowAgentResultNeedsRetry(text)
+      return text
+    })
+
+    assert(result === 'completed', `Expected embedded result retry to succeed, got ${result}`)
+    assert(attempts === 2, `Expected exactly one retry for embedded result text, got ${attempts}`)
   })
 
   await test('workflow retry hook repairs stale session pointers before retry', async () => {

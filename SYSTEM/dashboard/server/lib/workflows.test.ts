@@ -503,6 +503,16 @@ test('formatParticipantFailure explains unsupported models clearly', () => {
   )
 })
 
+test('workflow session conflicts are explained without exposing runtime session paths', () => {
+  const raw = 'EmbeddedAttemptSessionTakeoverError: session file changed while embedded prompt lock was released: /app/DATA/.home/.openclaw/agents/agent0/sessions/private.jsonl'
+  const failure = formatParticipantFailure(raw)
+  const threadMessage = normalizeWorkflowThreadDiagnostic(raw)
+  assert(/runtime retried this workflow participant/i.test(failure), `Expected retry explanation, got: ${failure}`)
+  assert(/runtime retried this workflow participant/i.test(threadMessage || ''), `Expected normalized thread explanation, got: ${threadMessage}`)
+  assert(!failure.includes('/app/DATA'), `Expected runtime path to be hidden: ${failure}`)
+  assert(!(threadMessage || '').includes('/app/DATA'), `Expected thread runtime path to be hidden: ${threadMessage}`)
+})
+
 test('formatParticipantFailure explains provider cooldowns clearly', () => {
   const message = formatParticipantFailure('FallbackSummaryError: All models failed (1): openai/gpt-5: Provider openai is in cooldown (suspending lanes) (timeout)')
   assert(
