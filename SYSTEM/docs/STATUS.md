@@ -3,7 +3,7 @@
 **Current Version**: v1.9.7
 **Development Line**: 1.9.8
 **Last Updated**: July 13, 2026
-**Status**: `v1.9.7` is the promoted stable release and the first fully validated local/cloud/on-prem line on OpenClaw `v2026.6.11`. `main` moves next to `1.9.8`, with `1.9.9` available for additional tester feedback and small features that build toward `2.0.0`.
+**Status**: `v1.9.7` is the promoted stable release and the first fully validated local/cloud/on-prem line on OpenClaw `v2026.6.11`. `main` is validating the first `1.9.8` bounded feature batch: federated registry search, safe DocHub bulk file actions, descriptive export names, and navigation memory. `1.9.9` remains available for additional tester feedback and small features toward `2.0.0`.
 
 ---
 

@@ -4,7 +4,7 @@
  * Run with: npx ts-node --transpileOnly client/src/lib/navigation.test.ts
  */
 
-import { buildPluginPage, pageToPath, pathToPage, pluginSlugFromPage } from './navigation'
+import { buildPluginPage, pageToPath, pathToPage, pluginSlugFromPage, resolveInitialPage } from './navigation'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -54,6 +54,13 @@ test('pageToPath returns canonical route paths', () => {
 test('pluginSlugFromPage returns plugin slug for plugin pages', () => {
   assert(pluginSlugFromPage(buildPluginPage('plugin-lab-guardrails')) === 'plugin-lab-guardrails', 'Expected plugin slug extraction')
   assert(pluginSlugFromPage('agents') === null, 'Expected non-plugin page to return null slug')
+})
+
+test('resolveInitialPage restores a validated page only from the root route', () => {
+  assert(resolveInitialPage('/', 'docs') === 'docs', 'Expected root route to restore last page')
+  assert(resolveInitialPage('/agents', 'docs') === 'agents', 'Expected explicit route to win')
+  assert(resolveInitialPage('/', 'not-a-page') === 'builder', 'Expected invalid stored page to fall back')
+  assert(resolveInitialPage('/', 'plugin:lab-notes') === 'plugin:lab-notes', 'Expected valid plugin page restoration')
 })
 
 console.log('\n========================================')

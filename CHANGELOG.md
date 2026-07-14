@@ -4,6 +4,12 @@ All notable changes to ClawMax are documented here.
 
 ## [Unreleased]
 
+### Added
+- **Federated Skill Registry Search** — the Skills import dialog can search ClawHub, Shipables, and Tessl together while retaining the correct provider for installation.
+- **Safe DocHub Bulk File Management** — user uploads are recorded in a dashboard-owned ownership ledger and can be selected, moved in bulk within their original upload boundary, or deleted in bulk; agent-generated and untracked files remain protected.
+- **Descriptive Export Filenames** — template, workflow, and agent downloads use sanitized object names and type-specific suffixes instead of generic filenames such as `TEMPLATE.md`.
+- **Dashboard Location Memory** — the dashboard remembers the last valid page when reopening from the root URL, while explicit deep links still take precedence; System navigation expansion continues to persist across refreshes.
+
 ### Planned
 - **1.9.8 Feedback And Small Features** — prioritize focused fixes and diagnostics driven by `1.9.7` feedback from Mike and other testers, while accepting small isolated features that build toward `2.0.0` without depending on its larger architecture.
 - **1.9.9 Follow-Through Space** — reserve a second minor line for additional bounded features and feedback follow-through so useful work does not need to wait for the complete `2.0.0` program.

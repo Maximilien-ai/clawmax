@@ -8,7 +8,7 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import { execFileSync } from 'child_process'
-import { deleteWorkspaceAsset, extractZipBufferToWorkspace, getAgentActivity, resolveWorkspacePath, writeWorkspaceBinaryFile } from './workspace'
+import { deleteDocHubUploads, extractZipBufferToWorkspace, getAgentActivity, moveDocHubUploads, recordDocHubUploads, resolveWorkspacePath, writeWorkspaceBinaryFile } from './workspace'
 import { resetWorkspaceManagerForTests } from './workspace-manager'
 
 const GREEN = '\x1b[32m'
@@ -114,38 +114,29 @@ test('extractZipBufferToWorkspace rejects archives that would overwrite existing
   assert(fs.readFileSync(existingPath, 'utf-8') === 'preexisting', 'Expected existing file to remain unchanged')
 })
 
-test('deleteWorkspaceAsset removes invalid auto-registered agent-like directories and stale runtime state', () => {
-  const previousHome = process.env.HOME || ''
-  process.env.HOME = tmpRoot
+test('DocHub upload ledger permits uploaded-file moves and deletes only inside the original boundary', () => {
+  const uploaded = 'AGENTS/shared/inbox/grading.txt'
+  const generated = 'AGENTS/shared/inbox/generated.txt'
+  assert(writeWorkspaceBinaryFile(uploaded, Buffer.from('score'), workspacePath), 'Expected upload fixture write')
+  assert(writeWorkspaceBinaryFile(generated, Buffer.from('runtime'), workspacePath), 'Expected generated fixture write')
+  assert(recordDocHubUploads([uploaded], 'AGENTS/shared/inbox', workspacePath), 'Expected upload ledger write')
 
-  const invalidDir = path.join(workspacePath, 'AGENTS', 'cw-items')
-  fs.mkdirSync(invalidDir, { recursive: true })
-  fs.writeFileSync(path.join(invalidDir, 'IDENTITY.md'), '# IDENTITY.md\n\n- **Name:**\n', 'utf-8')
-  fs.writeFileSync(path.join(invalidDir, 'grading.txt'), 'score', 'utf-8')
+  const generatedDelete = deleteDocHubUploads([generated], workspacePath)
+  assert(!generatedDelete.ok, 'Expected untracked generated file deletion to be rejected')
+  assert(fs.existsSync(path.join(workspacePath, generated)), 'Expected generated file to remain')
 
-  const openclawDir = path.join(tmpRoot, '.openclaw')
-  fs.mkdirSync(path.join(openclawDir, 'agents', 'cw-items', 'agent'), { recursive: true })
-  fs.writeFileSync(path.join(openclawDir, 'openclaw.json'), JSON.stringify({
-    agents: {
-      list: [
-        {
-          id: 'cw-items',
-          workspace: invalidDir,
-          agentDir: path.join(openclawDir, 'agents', 'cw-items', 'agent'),
-        },
-      ],
-    },
-  }, null, 2), 'utf-8')
+  const crossBoundaryMove = moveDocHubUploads([uploaded], 'AGENTS/shared/archive', workspacePath)
+  assert(!crossBoundaryMove.ok, 'Expected cross-boundary move to be rejected')
+  assert(/inside AGENTS\/shared\/inbox/i.test(crossBoundaryMove.error || ''), 'Expected original boundary guidance')
 
-  const result = deleteWorkspaceAsset('AGENTS/cw-items', workspacePath)
+  const moveResult = moveDocHubUploads([uploaded], 'AGENTS/shared/inbox/archive', workspacePath)
+  assert(moveResult.ok, `Expected same-boundary move to succeed: ${moveResult.error}`)
+  const moved = 'AGENTS/shared/inbox/archive/grading.txt'
+  assert(fs.existsSync(path.join(workspacePath, moved)), 'Expected moved upload at destination')
 
-  assert(result.ok, `Expected delete to succeed: ${result.error}`)
-  assert(!fs.existsSync(invalidDir), 'Expected invalid uploaded directory to be deleted')
-  const config = JSON.parse(fs.readFileSync(path.join(openclawDir, 'openclaw.json'), 'utf-8'))
-  assert((config.agents?.list || []).length === 0, 'Expected stale openclaw registration to be removed')
-  assert(!fs.existsSync(path.join(openclawDir, 'agents', 'cw-items')), 'Expected stale runtime state to be removed')
-
-  process.env.HOME = previousHome
+  const deleteResult = deleteDocHubUploads([moved], workspacePath)
+  assert(deleteResult.ok, `Expected tracked upload deletion to succeed: ${deleteResult.error}`)
+  assert(!fs.existsSync(path.join(workspacePath, moved)), 'Expected uploaded file deletion')
 })
 
 test('getAgentActivity prefers the active workspace live record when agent ids collide', () => {

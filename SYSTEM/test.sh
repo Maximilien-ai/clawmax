@@ -1942,6 +1942,25 @@ else
   fail "Skill export helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Federated registry search helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/registrySearch.test.ts > /tmp/clawmax-registry-search.out 2>&1 || true
+if grep -q "registrySearch.test.ts: 4 tests passed" /tmp/clawmax-registry-search.out; then
+  pass "Federated registry search helper unit tests (4 tests)"
+else
+  cat /tmp/clawmax-registry-search.out
+  fail "Federated registry search helper unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Named export filename unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/export-filename.test.ts > /tmp/clawmax-export-filename.out 2>&1 || true
+npx ts-node --transpileOnly client/src/lib/downloadFilename.test.ts > /tmp/clawmax-download-filename.out 2>&1 || true
+if grep -q "export-filename.test.ts: 4 tests passed" /tmp/clawmax-export-filename.out && grep -q "downloadFilename.test.ts: 3 tests passed" /tmp/clawmax-download-filename.out; then
+  pass "Named export filename unit tests (7 tests)"
+else
+  cat /tmp/clawmax-export-filename.out /tmp/clawmax-download-filename.out
+  fail "Named export filename unit tests"
+fi
+
 echo -e "${YELLOW}→ Running ClawMax packaged skills regression tests...${NC}"
 npx ts-node --transpileOnly server/lib/clawmax-skills-regressions.test.ts > /tmp/clawmax-packaged-skills-regressions.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-packaged-skills-regressions.out; then
@@ -2350,6 +2369,16 @@ if grep -q "All tests passed" /tmp/clawmax-workspace-upload-edges.out; then
 else
   cat /tmp/clawmax-workspace-upload-edges.out
   fail "Workspace upload edge-case unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Workspace upload ownership unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/workspace-upload.test.ts > /tmp/clawmax-workspace-upload.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-workspace-upload.out; then
+  workspace_upload_count=$(grep "Tests passed:" /tmp/clawmax-workspace-upload.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Workspace upload ownership unit tests (${workspace_upload_count:-?} tests)"
+else
+  cat /tmp/clawmax-workspace-upload.out
+  fail "Workspace upload ownership unit tests"
 fi
 
 echo -e "${YELLOW}→ Running Workspace manager unit tests...${NC}"

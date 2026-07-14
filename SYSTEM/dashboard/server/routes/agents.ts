@@ -39,6 +39,7 @@ import { resolveDefaultAgentModel } from '../lib/agent-default-model'
 import { getAuthenticatedSession } from '../lib/github-auth'
 import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
 import { resolveOpenClawCliPath } from '../lib/openclaw-cli'
+import { buildNamedExportFilename } from '../lib/export-filename'
 import { listAvailableSkills, setAgentSkills } from '../lib/skills'
 import {
   getArchiveTitleMessages,
@@ -3323,8 +3324,9 @@ router.get('/:id/export', async (req, res) => {
     }
 
     console.log('[Export API] Setting headers...')
+    const agentName = listAgents().find((agent) => agent.id === id)?.name || id
     res.setHeader('Content-Type', 'application/zip')
-    res.setHeader('Content-Disposition', `attachment; filename="${id}.zip"`)
+    res.setHeader('Content-Disposition', `attachment; filename="${buildNamedExportFilename(agentName, 'agent', 'zip')}"`)
 
     console.log('[Export API] Creating archive...')
     const archive = archiver('zip', { zlib: { level: 9 } })

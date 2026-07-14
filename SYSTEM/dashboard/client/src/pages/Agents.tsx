@@ -32,6 +32,7 @@ import { useWorkspace } from '../contexts/WorkspaceContext'
 import { buildWorkspaceScopedPath } from '../lib/workspaceScope'
 import { getSmartDropdownPlacement, getViewportSafeDropdownStyle, type DropdownPlacement } from '../lib/dropdownPosition'
 import { formatOpenAiDeprecationNotice, formatOpenAiModelLabel, isSelectableLifecycleModel } from '../lib/openAiModelLifecycle'
+import { getAttachmentFilename } from '../lib/downloadFilename'
 
 type AgentActionsMenuView = 'main' | 'maintain'
 
@@ -546,7 +547,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
 
       const link = document.createElement('a')
       link.href = url
-      link.download = `${agentId}.zip`
+      link.download = getAttachmentFilename(response.headers.get('content-disposition'), `${agentId}.agent.zip`)
       document.body.appendChild(link)
       console.log('[Export] Clicking download link...')
       link.click()

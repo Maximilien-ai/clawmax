@@ -31,6 +31,7 @@ import { getWorkspacePath, listAgents as listWorkspaceAgents, parseGroups } from
 import { addTemplateFeedback, getAllTemplateFeedbackSummaries, getTemplateApplyCount, getTemplateFeedbackSummary } from '../lib/template-feedback'
 import { getAuthenticatedSession } from '../lib/github-auth'
 import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
+import { buildNamedExportFilename } from '../lib/export-filename'
 
 const router = Router()
 
@@ -792,11 +793,11 @@ router.get('/workflows/:id/export-md', (req, res) => {
 
   const md = workflowToMarkdown(workflow)
   res.setHeader('Content-Type', 'text/markdown')
-  res.setHeader('Content-Disposition', `attachment; filename="${workflow.id}.md"`)
+  res.setHeader('Content-Disposition', `attachment; filename="${buildNamedExportFilename(workflow.name || workflow.id, 'workflow', 'md')}"`)
   res.send(md)
 })
 
-// GET /api/templates/:type/:slug/export-md — Export template as TEMPLATE.md
+// GET /api/templates/:type/:slug/export-md — Export template as named markdown
 router.get('/:type/:slug/export-md', (req, res) => {
   const { type, slug } = req.params
   const templateType = type === 'agents' ? 'agent' : type === 'organizations' ? 'organization' : null
@@ -832,7 +833,7 @@ router.get('/:type/:slug/export-md', (req, res) => {
 
   const md = templateToMarkdown(template, { agentFiles })
   res.setHeader('Content-Type', 'text/markdown')
-  res.setHeader('Content-Disposition', `attachment; filename="TEMPLATE.md"`)
+  res.setHeader('Content-Disposition', `attachment; filename="${buildNamedExportFilename(template.name || slug, 'template', 'md')}"`)
   res.send(md)
 })
 

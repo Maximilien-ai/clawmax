@@ -16,6 +16,18 @@ export type DashboardPage = CoreDashboardPage | PluginDashboardPage
 
 const DEFAULT_PAGE: CoreDashboardPage = 'builder'
 
+export function isDashboardPage(value: string | null | undefined): value is DashboardPage {
+  if (!value) return false
+  if (value.startsWith('plugin:')) return pluginSlugFromPage(value as DashboardPage) !== null
+  return Object.prototype.hasOwnProperty.call(PAGE_PATHS, value)
+}
+
+export function resolveInitialPage(pathname: string, storedPage?: string | null): DashboardPage {
+  const normalizedPath = (pathname || '/').trim().replace(/\/+$/, '') || '/'
+  if (normalizedPath === '/' && isDashboardPage(storedPage)) return storedPage
+  return pathToPage(normalizedPath)
+}
+
 const PAGE_PATHS: Record<CoreDashboardPage, string> = {
   builder: '/builder',
   agents: '/agents',

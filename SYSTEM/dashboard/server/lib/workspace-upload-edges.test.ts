@@ -52,6 +52,15 @@ test('resolveWorkspacePath rejects blank and traversal paths', () => {
   assert(resolveWorkspacePath('../../escape.txt', workspacePath) === null, 'Expected traversal path rejection')
 })
 
+test('resolveWorkspacePath rejects writes through symlinked ancestors', () => {
+  const outside = path.join(tmpRoot, 'outside')
+  const linked = path.join(workspacePath, 'AGENTS', 'linked')
+  fs.mkdirSync(outside, { recursive: true })
+  fs.mkdirSync(path.dirname(linked), { recursive: true })
+  fs.symlinkSync(outside, linked)
+  assert(resolveWorkspacePath('AGENTS/linked/new/report.txt', workspacePath) === null, 'Expected symlinked ancestor rejection')
+})
+
 test('readWorkspaceBinaryFile returns null for unsafe paths and missing files', () => {
   assert(readWorkspaceBinaryFile('../escape.txt', workspacePath) === null, 'Expected unsafe binary read rejection')
   assert(readWorkspaceBinaryFile('AGENTS/missing/file.bin', workspacePath) === null, 'Expected missing binary read to return null')
@@ -71,7 +80,7 @@ test('extractZipBufferToWorkspace rejects archives with unsafe entry paths', () 
   assert(/unsafe path/i.test(result.error || ''), 'Expected unsafe path error')
 })
 
-test('deleteWorkspaceAsset refuses non-agent paths and protected managed agent files', () => {
+test('deleteWorkspaceAsset refuses untracked and protected managed agent files', () => {
   const protectedAgentDir = path.join(workspacePath, 'AGENTS', 'managed-agent')
   fs.mkdirSync(protectedAgentDir, { recursive: true })
   fs.writeFileSync(path.join(protectedAgentDir, 'IDENTITY.md'), '# IDENTITY.md\n\n- **Name:** Managed Agent\n', 'utf-8')
@@ -79,11 +88,11 @@ test('deleteWorkspaceAsset refuses non-agent paths and protected managed agent f
 
   let result = deleteWorkspaceAsset('WORKFLOWS/outputs/report.txt', workspacePath)
   assert(!result.ok, 'Expected non-agent asset delete rejection')
-  assert(/Only AGENTS assets/i.test(result.error || ''), 'Expected AGENTS-only delete guidance')
+  assert(/not a user-uploaded file/i.test(result.error || ''), 'Expected upload ownership guidance')
 
   result = deleteWorkspaceAsset('AGENTS/managed-agent/IDENTITY.md', workspacePath)
   assert(!result.ok, 'Expected protected managed file delete rejection')
-  assert(/protected agent workspace files/i.test(result.error || ''), 'Expected protected file guidance')
+  assert(/not a user-uploaded file/i.test(result.error || ''), 'Expected upload ownership guidance')
 })
 
 test('writeWorkspaceBinaryFile can create nested files that readWorkspaceBinaryFile returns', () => {

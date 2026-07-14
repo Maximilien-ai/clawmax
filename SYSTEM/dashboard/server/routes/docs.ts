@@ -1,8 +1,18 @@
 import express, { Router } from 'express'
+import fs from 'fs'
 import path from 'path'
-import { deleteWorkspaceAsset, extractZipBufferToWorkspace, listDocEntries, listMarkdownFiles, readWorkspaceBinaryFile, readWorkspaceFile, writeWorkspaceFile, writeWorkspaceBinaryFile } from '../lib/workspace'
+import { deleteDocHubUploads, deleteWorkspaceAsset, extractZipBufferToWorkspace, listDocEntries, listMarkdownFiles, moveDocHubUploads, readWorkspaceBinaryFile, readWorkspaceFile, recordDocHubUploads, resolveWorkspacePath, writeWorkspaceFile, writeWorkspaceBinaryFile } from '../lib/workspace'
 
 const router = Router()
+
+function rollbackUntrackedUpload(paths: string[]) {
+  for (const relPath of paths) {
+    try {
+      const full = resolveWorkspacePath(relPath)
+      if (full && fs.statSync(full).isFile()) fs.unlinkSync(full)
+    } catch {}
+  }
+}
 
 // GET /api/docs — list all .md files with section classification
 router.get('/', (_req, res) => {
@@ -147,6 +157,10 @@ router.post('/upload', express.raw({ type: '*/*', limit: '200mb' }), (req, res) 
     if (!extracted.ok) {
       return res.status(400).json({ error: extracted.error || 'Failed to extract ZIP archive' })
     }
+    if (!recordDocHubUploads(extracted.files || [], target)) {
+      rollbackUntrackedUpload(extracted.files || [])
+      return res.status(500).json({ error: 'Upload ownership could not be recorded, so the extracted files were rolled back' })
+    }
     return res.json({ ok: true, extracted: true, files: extracted.files || [] })
   }
 
@@ -154,6 +168,10 @@ router.post('/upload', express.raw({ type: '*/*', limit: '200mb' }), (req, res) 
   const ok = writeWorkspaceBinaryFile(destination, body)
   if (!ok) {
     return res.status(400).json({ error: 'Cannot write to that path' })
+  }
+  if (!recordDocHubUploads([destination], target)) {
+    rollbackUntrackedUpload([destination])
+    return res.status(500).json({ error: 'Upload ownership could not be recorded, so the file was rolled back' })
   }
 
   res.json({ ok: true, extracted: false, path: destination })
@@ -170,6 +188,23 @@ router.delete('/entry', (req, res) => {
     return res.status(400).json({ error: result.error || 'Delete failed' })
   }
   res.json({ ok: true })
+})
+
+// POST /api/docs/entries/delete — delete user-uploaded files only
+router.post('/entries/delete', (req, res) => {
+  const paths = Array.isArray(req.body?.paths) ? req.body.paths.filter((entry: unknown) => typeof entry === 'string') : []
+  const result = deleteDocHubUploads(paths)
+  if (!result.ok) return res.status(400).json({ error: result.error || 'Delete failed' })
+  res.json({ ok: true, deleted: result.deleted || [] })
+})
+
+// POST /api/docs/entries/move — move uploads inside their original target boundary
+router.post('/entries/move', (req, res) => {
+  const paths = Array.isArray(req.body?.paths) ? req.body.paths.filter((entry: unknown) => typeof entry === 'string') : []
+  const destination = typeof req.body?.destination === 'string' ? req.body.destination : ''
+  const result = moveDocHubUploads(paths, destination)
+  if (!result.ok) return res.status(400).json({ error: result.error || 'Move failed' })
+  res.json({ ok: true, moved: result.moved || [] })
 })
 
 // GET /api/docs/search?q=query — search across all markdown files

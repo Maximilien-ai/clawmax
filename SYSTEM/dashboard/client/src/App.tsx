@@ -31,7 +31,7 @@ import { useWorkspace } from './contexts/WorkspaceContext'
 import { CHANNEL_API_ENDPOINTS } from './lib/channelApi'
 import { addVisitedPage } from './lib/appNavigationState'
 import { getVisibleMaintenanceBanner } from './lib/maintenanceBannerView'
-import { buildPluginPage, isPluginPage, pageToPath, pathToPage, pluginSlugFromPage, type CoreDashboardPage, type DashboardPage } from './lib/navigation'
+import { buildPluginPage, isPluginPage, pageToPath, pathToPage, pluginSlugFromPage, resolveInitialPage, type CoreDashboardPage, type DashboardPage } from './lib/navigation'
 import type { PluginManifest } from './lib/plugins'
 import { readGlobalWorkspaceTourDisabled, readWorkspaceTourState, resetWorkspaceTourState, shouldShowWorkspaceTour, writeWorkspaceTourState } from './lib/onboardingTour'
 
@@ -264,6 +264,7 @@ const CREATION_TABS_ORDER: Page[] = []
 const OPERATIONS_TABS_ORDER: Page[] = ['keys', 'activity', 'logs']
 const SYSTEM_TABS_ORDER: Page[] = [...DOCUMENTS_TABS_ORDER, ...CREATION_TABS_ORDER, ...OPERATIONS_TABS_ORDER]
 const SYSTEM_NAV_EXPANDED_STORAGE_KEY = 'clawmax-system-nav-expanded'
+const LAST_PAGE_STORAGE_KEY = 'clawmax-last-dashboard-page'
 
 function getPrimaryClientGroupIndex(page: CoreDashboardPage | undefined): number {
   if (!page) return -1
@@ -375,8 +376,9 @@ function WorkspaceScoped({ pageKey, children }: { pageKey: string; children: Rea
 }
 
 export default function App() {
-  const [page, setPage] = useState<Page>(() => pathToPage(window.location.pathname))
-  const [visitedPages, setVisitedPages] = useState<Set<Page>>(() => new Set<Page>([pathToPage(window.location.pathname)]))
+  const initialPage = resolveInitialPage(window.location.pathname, localStorage.getItem(LAST_PAGE_STORAGE_KEY))
+  const [page, setPage] = useState<Page>(initialPage)
+  const [visitedPages, setVisitedPages] = useState<Set<Page>>(() => new Set<Page>([initialPage]))
   const [plugins, setPlugins] = useState<PluginManifest[]>([])
   const [system, setSystem] = useState<SystemInfo | null>(null)
   const [navCollapsed, setNavCollapsed] = useState(false)
@@ -480,6 +482,7 @@ export default function App() {
 
   useEffect(() => {
     const canonicalPath = pageToPath(page)
+    localStorage.setItem(LAST_PAGE_STORAGE_KEY, page)
     if (window.location.pathname !== canonicalPath) {
       window.history.pushState({}, '', canonicalPath)
     }

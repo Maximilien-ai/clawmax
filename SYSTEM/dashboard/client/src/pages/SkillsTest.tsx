@@ -17,6 +17,7 @@ import { buildAgentSkillsScope, buildAssignedSkillBadges } from '../lib/agentSki
 import { getRegistrySkillCompatibility, normalizeRuntimePlatform, type RuntimePlatform } from '../lib/skillPlatform'
 import { getDashboardInstallRequirementCommands } from '../lib/skillInstall'
 import { buildSkillExportFilename, getSelectedSkillForExport } from '../lib/skillExport'
+import { combineRegistrySearchResponses, normalizeRegistrySearchResponse, type SkillRegistryProvider } from '../lib/registrySearch'
 import { buildRegistryCompatibilityNote, buildSkillsPageCountLabel, partitionSkillsBySection } from '../lib/skillsPageFlow'
 import { getViewportSafeDropdownStyle } from '../lib/dropdownPosition'
 import { LOCAL_SKILL_IMPORT_GUIDANCE, LOCAL_SKILL_IMPORT_PATH_PLACEHOLDER } from '../lib/skillImportPresentation'
@@ -305,7 +306,8 @@ const SKILL_SPEC_SECTIONS = [
   '## Examples',
 ]
 
-type RegistryProvider = 'clawhub' | 'shipables' | 'tessl'
+type RegistryProvider = SkillRegistryProvider
+type RegistryProviderSelection = RegistryProvider | 'all'
 type RegistrySkillResult = {
   name: string
   full_name?: string
@@ -318,6 +320,7 @@ type RegistrySkillResult = {
   categories?: string[]
   homepage?: string
   emoji?: string
+  registry_provider?: RegistryProvider
   raw?: any
 }
 
@@ -363,6 +366,15 @@ const REGISTRY_PROVIDERS: Array<{
   },
 ]
 
+const ALL_REGISTRIES_PROVIDER = {
+  id: 'all' as const,
+  label: 'All registries',
+  iconKey: 'registry',
+  description: 'Search ClawHub, Shipables, and Tessl together, then install from the matching source.',
+  searchPlaceholder: 'Search all registries... (e.g., github, docs, research)',
+  catalogSizeLabel: 'all supported catalogs',
+}
+
 export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentId?: string; initialSkillName?: string } = {}) {
   const { config } = useAuth()
   const { showSuccess, showWarning, showError: showToastError } = useToast()
@@ -402,7 +414,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
   const [importing, setImporting] = useState(false)
   const uploadSkillZipInputRef = useRef<HTMLInputElement>(null)
   const [importSource, setImportSource] = useState<'local' | 'github' | 'registry' | 'partner' | 'ai'>('local')
-  const [registryProvider, setRegistryProvider] = useState<RegistryProvider>('clawhub')
+  const [registryProvider, setRegistryProvider] = useState<RegistryProviderSelection>('all')
   const [registryQuery, setRegistryQuery] = useState('')
   const [registryResults, setRegistryResults] = useState<RegistrySkillResult[]>([])
   const [registrySearching, setRegistrySearching] = useState(false)
@@ -876,14 +888,23 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
     }
   }
 
-  async function searchRegistry(query: string, limit = 20, providerOverride?: RegistryProvider) {
+  async function searchRegistry(query: string, limit = 20, providerOverride?: RegistryProviderSelection) {
     setRegistrySearching(true)
     try {
       const provider = providerOverride || registryProvider
-      const resp = await fetch(`/api/skills/registry/search?provider=${provider}&q=${encodeURIComponent(query)}&limit=${limit}`)
-      const data = await resp.json()
-      setRegistryResults(data.results || [])
-      setRegistryTotal(data.total || data.results?.length || 0)
+      const providers = provider === 'all' ? REGISTRY_PROVIDERS.map((entry) => entry.id) : [provider]
+      const responses = await Promise.all(providers.map(async (providerId) => {
+        try {
+          const resp = await fetch(`/api/skills/registry/search?provider=${providerId}&q=${encodeURIComponent(query)}&limit=${limit}`)
+          const data = await resp.json()
+          return normalizeRegistrySearchResponse<RegistrySkillResult>(providerId, data)
+        } catch {
+          return { results: [] as RegistrySkillResult[], total: 0 }
+        }
+      }))
+      const combined = combineRegistrySearchResponses(responses)
+      setRegistryResults(combined.results)
+      setRegistryTotal(combined.total)
     } catch { setRegistryResults([]) }
     finally { setRegistrySearching(false) }
   }
@@ -1752,7 +1773,9 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
   )
   const hiddenRegistryResultsCount = registryResults.length - visibleRegistryResults.length
   const registryCompatibilityNote = buildRegistryCompatibilityNote(runtimePlatform)
-  const activeRegistryProvider = REGISTRY_PROVIDERS.find((provider) => provider.id === registryProvider) || REGISTRY_PROVIDERS[0]
+  const activeRegistryProvider = registryProvider === 'all'
+    ? ALL_REGISTRIES_PROVIDER
+    : (REGISTRY_PROVIDERS.find((provider) => provider.id === registryProvider) || REGISTRY_PROVIDERS[0])
   const serverManagedIntegrationSecrets = useMemo(
     () => buildServerManagedWorkspaceEntries(partnerDefinitions, serverPartnerSecretSummaries),
     [partnerDefinitions, serverPartnerSecretSummaries]
@@ -4089,10 +4112,24 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                 {importSource === 'registry' && (
                   <div className="space-y-4">
                     <p className="text-sm text-gray-600 dark:text-gray-300">
-                      Browse and install skills from supported registries. Start with <a href={activeRegistryProvider.homepage} target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:underline">{activeRegistryProvider.linkLabel}</a> and add skills directly into this workspace.
+                      Browse and install skills from supported registries. Search all sources together or select one registry to narrow the results.
                     </p>
 
                     <div className="flex flex-wrap gap-2">
+                      <button
+                        onClick={() => {
+                          setRegistryProvider('all')
+                          setRegistryResults([])
+                          setRegistryTotal(0)
+                        }}
+                        className={`px-3 py-1.5 text-sm rounded-full border transition-colors ${
+                          registryProvider === 'all'
+                            ? 'bg-purple-600 text-white border-purple-600'
+                            : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-purple-300 dark:hover:border-purple-600'
+                        }`}
+                      >
+                        {ALL_REGISTRIES_PROVIDER.label}
+                      </button>
                       {REGISTRY_PROVIDERS.map((provider) => (
                         <button
                           key={provider.id}
@@ -4125,10 +4162,12 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                       <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{activeRegistryProvider.label}</div>
                       <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{activeRegistryProvider.description}</div>
                       <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                        Searching across {activeRegistryProvider.catalogSizeLabel} in this registry.
+                        Searching across {activeRegistryProvider.catalogSizeLabel}{registryProvider === 'all' ? '.' : ' in this registry.'}
                       </div>
                       <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                        {registryProvider === 'tessl'
+                        {registryProvider === 'all'
+                          ? 'Results retain their source registry so installation uses the correct provider.'
+                          : registryProvider === 'tessl'
                           ? 'Experimental registry. Some skills may need extra security review or manual setup after install.'
                           : registryProvider === 'clawhub'
                             ? 'Native OpenClaw registry. Installed skills appear under User Skills and may still need local requirements or auth setup.'
@@ -4157,7 +4196,9 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
 
                     {/* Quick category buttons */}
                     <div className="flex flex-wrap gap-1.5">
-                      {(registryProvider === 'tessl'
+                      {(registryProvider === 'all'
+                        ? ['github', 'docs', 'research', 'productivity', 'api', 'automation']
+                        : registryProvider === 'tessl'
                         ? ['review', 'docs', 'research', 'planning', 'debug', 'content', 'api', 'automation']
                         : registryProvider === 'clawhub'
                           ? ['gmail', 'github', 'docs', 'research', 'productivity', 'calendar', 'browser', 'automation']
@@ -4209,11 +4250,16 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                         <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden max-h-80 overflow-y-auto">
                           {visibleRegistryResults.map((skill: any, idx: number) => {
                             const installName = skill.install_name || skill.full_name || skill.name
-                            const isInstalled = registryInstalledNames.has(`${registryProvider}:${installName}`)
+                            const resultProvider = skill.registry_provider || (registryProvider === 'all' ? 'clawhub' : registryProvider)
+                            const providerLabel = REGISTRY_PROVIDERS.find((entry) => entry.id === resultProvider)?.label || resultProvider
+                            const isInstalled = registryInstalledNames.has(`${resultProvider}:${installName}`)
                             return (
                               <div key={idx} className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-800 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-800/50">
                                 <div className="flex-1 min-w-0">
                                   <div className="font-medium text-sm text-gray-900 dark:text-gray-100">{skill.full_name || installName}</div>
+                                  {registryProvider === 'all' && (
+                                    <div className="text-[10px] font-medium uppercase text-purple-500 dark:text-purple-300">{providerLabel}</div>
+                                  )}
                                   {skill.name && skill.full_name && skill.name !== skill.full_name && (
                                     <div className="text-[11px] text-gray-400 dark:text-gray-500">{skill.name}</div>
                                   )}
@@ -4230,7 +4276,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                                   </span>
                                 ) : (
                                   <button
-                                    onClick={() => installRegistrySkill(installName, undefined, false, skill)}
+                                    onClick={() => installRegistrySkill(installName, resultProvider, false, skill)}
                                     disabled={!!registryInstalling}
                                     className="ml-3 px-3 py-1.5 text-xs font-medium bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed shrink-0"
                                   >

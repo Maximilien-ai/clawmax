@@ -12,6 +12,7 @@ interface DocEntry {
   kind?: 'markdown' | 'asset'
   assetSource?: 'uploaded' | 'generated'
   canDelete?: boolean
+  uploadBoundary?: string
   isAgentWorkspace?: boolean
   createdAt?: string
   updatedAt?: string
@@ -263,6 +264,21 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
   const [pendingDelete, setPendingDelete] = useState<DeleteConfirmationState | null>(null)
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
   const [deleting, setDeleting] = useState(false)
+  const [selectedUploads, setSelectedUploads] = useState<Set<string>>(new Set())
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false)
+  const [showMoveDialog, setShowMoveDialog] = useState(false)
+  const [moveDestination, setMoveDestination] = useState('')
+  const [bulkActionRunning, setBulkActionRunning] = useState(false)
+  const [bulkActionError, setBulkActionError] = useState<string | null>(null)
+
+  const selectedUploadEntries = useMemo(
+    () => entries.filter((entry) => selectedUploads.has(entry.path) && entry.canDelete && entry.assetSource === 'uploaded'),
+    [entries, selectedUploads],
+  )
+  const selectedUploadBoundaries = useMemo(
+    () => Array.from(new Set(selectedUploadEntries.map((entry) => entry.uploadBoundary).filter(Boolean) as string[])),
+    [selectedUploadEntries],
+  )
 
   useEffect(() => {
     fetch('/api/docs')
@@ -555,7 +571,80 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
   async function refreshEntries() {
     const entriesRes = await fetch('/api/docs')
     const entriesData = await entriesRes.json()
-    setEntries(entriesData.entries ?? [])
+    const nextEntries: DocEntry[] = entriesData.entries ?? []
+    setEntries(nextEntries)
+    const selectable = new Set(nextEntries.filter((entry) => entry.canDelete && entry.assetSource === 'uploaded').map((entry) => entry.path))
+    setSelectedUploads((current) => new Set(Array.from(current).filter((entry) => selectable.has(entry))))
+  }
+
+  function toggleUploadSelection(pathToToggle: string) {
+    setSelectedUploads((current) => {
+      const next = new Set(current)
+      if (next.has(pathToToggle)) next.delete(pathToToggle)
+      else next.add(pathToToggle)
+      return next
+    })
+  }
+
+  function openMoveSelectedDialog() {
+    if (selectedUploadEntries.length === 0 || selectedUploadBoundaries.length !== 1) return
+    setMoveDestination(selectedUploadBoundaries[0])
+    setBulkActionError(null)
+    setShowMoveDialog(true)
+  }
+
+  async function deleteSelectedUploads() {
+    if (selectedUploadEntries.length === 0) return
+    setBulkActionRunning(true)
+    setBulkActionError(null)
+    try {
+      const paths = selectedUploadEntries.map((entry) => entry.path)
+      const res = await fetch('/api/docs/entries/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paths }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.ok) throw new Error(data.error || 'Delete failed')
+      if (selected && paths.includes(selected)) {
+        setSelected(null)
+        setContent('')
+      }
+      setSelectedUploads(new Set())
+      setShowBulkDeleteConfirm(false)
+      await refreshEntries()
+    } catch (err: any) {
+      setBulkActionError(err.message || 'Delete failed')
+    } finally {
+      setBulkActionRunning(false)
+    }
+  }
+
+  async function moveSelectedUploads() {
+    if (selectedUploadEntries.length === 0 || !moveDestination.trim()) return
+    setBulkActionRunning(true)
+    setBulkActionError(null)
+    try {
+      const paths = selectedUploadEntries.map((entry) => entry.path)
+      const res = await fetch('/api/docs/entries/move', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paths, destination: moveDestination.trim() }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.ok) throw new Error(data.error || 'Move failed')
+      const moved = new Map<string, string>((data.moved || []).map((entry: { from: string; to: string }) => [entry.from, entry.to]))
+      if (selected && moved.has(selected)) {
+        setSelected(moved.get(selected) || null)
+      }
+      setSelectedUploads(new Set())
+      setShowMoveDialog(false)
+      await refreshEntries()
+    } catch (err: any) {
+      setBulkActionError(err.message || 'Move failed')
+    } finally {
+      setBulkActionRunning(false)
+    }
   }
 
   useEffect(() => {
@@ -718,8 +807,6 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
     const dirKey = `${section}/${dir}`
     const isDirCollapsed = collapsedDirs.has(dirKey)
     const dirMode = getDirAssetMode(section, dir, sectionEntries)
-    const canDeleteDir = section === 'AGENTS' && (dirMode === 'asset' || dirMode === 'generated')
-    const dirDeletePath = canDeleteDir ? `${section}/${dir}` : null
     const childDirs = getDocHubChildDirectories(tree, dir)
     const files = tree[dir] || []
     const dirName = dir.split('/').pop() || dir
@@ -742,15 +829,6 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
             </span>
             <span className={`text-xs opacity-40 group-hover:opacity-70 ${dirTone ? dirTone.text : cfg.accent}`}>{isDirCollapsed ? '▶' : '▼'}</span>
           </button>
-          {dirDeletePath && (
-            <button
-              onClick={() => requestDeleteAsset(dirDeletePath, `${dirName}/`, true)}
-              className="ml-2 rounded px-1.5 py-0.5 text-[10px] text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
-              title="Delete uploaded directory"
-            >
-              Delete
-            </button>
-          )}
         </div>
         {!isDirCollapsed && (
           <>
@@ -774,6 +852,15 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
                   }`}
                   style={{ paddingLeft: `${(depth + 1) * 14 + 16}px` }}
                 >
+                  {fullEntry?.canDelete && fullEntry.assetSource === 'uploaded' && (
+                    <input
+                      type="checkbox"
+                      checked={selectedUploads.has(actualPath)}
+                      onChange={() => toggleUploadSelection(actualPath)}
+                      className="h-4 w-4 shrink-0 accent-emerald-600"
+                      aria-label={`Select ${name}`}
+                    />
+                  )}
                   <button
                     ref={isSelected ? selectedButtonRef : null}
                     onClick={() => fullEntry ? openEntry(fullEntry) : loadFile(actualPath)}
@@ -863,6 +950,42 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
                   >◀</button>
                 </div>
               </div>
+
+              {selectedUploadEntries.length > 0 && (
+                <div className="mb-2 flex items-center justify-between gap-2 border border-emerald-200 bg-emerald-50 px-2 py-1.5 dark:border-emerald-800 dark:bg-emerald-950/30">
+                  <span className="text-xs font-medium text-emerald-800 dark:text-emerald-200">
+                    {selectedUploadEntries.length} selected
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={openMoveSelectedDialog}
+                      disabled={selectedUploadBoundaries.length !== 1}
+                      className="px-2 py-1 text-xs font-medium text-sky-700 hover:bg-sky-100 disabled:cursor-not-allowed disabled:text-gray-400 dark:text-sky-300 dark:hover:bg-sky-950/40"
+                      title={selectedUploadBoundaries.length === 1 ? 'Move selected uploads' : 'Select files from one upload boundary to move them together'}
+                    >
+                      Move
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setBulkActionError(null); setShowBulkDeleteConfirm(true) }}
+                      className="px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-100 dark:text-red-300 dark:hover:bg-red-950/40"
+                      title="Delete selected uploads"
+                    >
+                      Delete
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedUploads(new Set())}
+                      className="p-1 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"
+                      title="Clear selection"
+                      aria-label="Clear selected uploads"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Global content search */}
               <div className="relative mb-2">
@@ -1014,6 +1137,15 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
                                   : (isAsset ? assetTone.idle : cfg.itemCls)
                               }`}
                             >
+                              {fullEntry?.canDelete && fullEntry.assetSource === 'uploaded' && (
+                                <input
+                                  type="checkbox"
+                                  checked={selectedUploads.has(actualPath)}
+                                  onChange={() => toggleUploadSelection(actualPath)}
+                                  className="h-4 w-4 shrink-0 accent-emerald-600"
+                                  aria-label={`Select ${name}`}
+                                />
+                              )}
                               <button
                                 ref={isSelected ? selectedButtonRef : null}
                                 onClick={() => fullEntry ? openEntry(fullEntry) : loadFile(actualPath)}
@@ -1196,7 +1328,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
                     )}
                     <p className="mt-3 text-sm">
                       {selectedAgentAssetSource === 'generated'
-                        ? 'This file was generated by the agent runtime. Preview is not available for this file type, but you can still download or delete it from DocHub.'
+                        ? 'This file was generated by the agent runtime. Preview is not available for this file type, but you can still download it from DocHub.'
                         : 'Preview is not available for this file type. You can still download or delete it from DocHub if it is no longer needed.'}
                     </p>
                   </div>
@@ -1211,7 +1343,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
                       : 'border border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-200'
                   }`}>
                     {selectedAgentAssetSource === 'generated'
-                      ? 'This markdown file was generated by the agent runtime. You can review, edit, download, or delete it here.'
+                      ? 'This markdown file was generated by the agent runtime. You can review, edit, and download it here; deletion is reserved for user uploads.'
                       : 'This markdown file was uploaded into an agent workspace. You can review, edit, download, or delete it here.'}
                   </div>
                 )}
@@ -1242,7 +1374,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
                       )}
                       <p className="mt-2">
                         {selectedAgentAssetSource === 'generated'
-                          ? 'This file was generated by the agent runtime. It is not part of the protected agent definition, so you can edit, download, or delete it here.'
+                          ? 'This file was generated by the agent runtime. You can review and download it here, but only user-uploaded files can be moved or deleted.'
                           : 'This file was uploaded into an agent workspace. It is not part of the protected agent definition, so you can edit, download, or delete it here.'}
                       </p>
                     </div>
@@ -1304,7 +1436,48 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
         )}
       </div>
 
-      {/* Create Document Dialog */}
+      {showBulkDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30" onClick={() => !bulkActionRunning && setShowBulkDeleteConfirm(false)}>
+          <div className="w-full max-w-lg bg-white p-6 shadow-xl dark:bg-gray-800" onClick={(event) => event.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Delete {selectedUploadEntries.length} uploaded files?</h3>
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">Only files recorded as user uploads are included. This cannot be undone.</p>
+            <div className="mt-4 max-h-40 overflow-y-auto border border-gray-200 bg-gray-50 p-3 font-mono text-xs dark:border-gray-700 dark:bg-gray-900">
+              {selectedUploadEntries.map((entry) => <div key={entry.path} className="break-all py-0.5">{entry.path}</div>)}
+            </div>
+            {bulkActionError && <div className="mt-3 text-sm text-red-600 dark:text-red-300">{bulkActionError}</div>}
+            <div className="mt-6 flex justify-end gap-2">
+              <button type="button" onClick={() => setShowBulkDeleteConfirm(false)} disabled={bulkActionRunning} className="px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 disabled:opacity-50 dark:text-gray-300 dark:hover:bg-gray-700">Cancel</button>
+              <button type="button" onClick={deleteSelectedUploads} disabled={bulkActionRunning} className="bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:bg-gray-400">{bulkActionRunning ? 'Deleting...' : 'Delete files'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showMoveDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30" onClick={() => !bulkActionRunning && setShowMoveDialog(false)}>
+          <div className="w-full max-w-lg bg-white p-6 shadow-xl dark:bg-gray-800" onClick={(event) => event.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Move {selectedUploadEntries.length} uploaded files</h3>
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+              Destination must remain inside <span className="font-mono">{selectedUploadBoundaries[0]}</span>. Subdirectories are created when needed.
+            </p>
+            <label className="mt-4 block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="dochub-move-destination">Destination directory</label>
+            <input
+              id="dochub-move-destination"
+              value={moveDestination}
+              onChange={(event) => setMoveDestination(event.target.value)}
+              className="mt-2 w-full border border-gray-300 bg-white px-3 py-2 font-mono text-sm text-gray-900 focus:border-sky-500 focus:outline-none dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+              placeholder={`${selectedUploadBoundaries[0] || 'AGENTS'}/archive`}
+            />
+            {bulkActionError && <div className="mt-3 text-sm text-red-600 dark:text-red-300">{bulkActionError}</div>}
+            <div className="mt-6 flex justify-end gap-2">
+              <button type="button" onClick={() => setShowMoveDialog(false)} disabled={bulkActionRunning} className="px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 disabled:opacity-50 dark:text-gray-300 dark:hover:bg-gray-700">Cancel</button>
+              <button type="button" onClick={moveSelectedUploads} disabled={bulkActionRunning || !moveDestination.trim()} className="bg-sky-600 px-3 py-2 text-sm font-medium text-white hover:bg-sky-700 disabled:bg-gray-400">{bulkActionRunning ? 'Moving...' : 'Move files'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete uploaded file dialog */}
       {pendingDelete && (
         <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50" onClick={cancelDeleteAsset}>
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 p-6" onClick={e => e.stopPropagation()}>

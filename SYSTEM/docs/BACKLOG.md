@@ -1,11 +1,11 @@
 # Backlog
 
-> Last updated: July 13, 2026
+> Last updated: July 14, 2026
 > Completed and verified work is archived into [CHANGELOG.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/CHANGELOG.md) and historical notes under `SYSTEM/docs/**/archive/`
 
 ## Top Priority
 
-- [ ] **1.9.8 tester-feedback and small-feature track** — collect reproducible `1.9.7` feedback, prioritize narrow runtime fixes, and accept small independently testable features that build toward `2.0.0`. Active plan: [SIMPLIFY_HARDEN_OPTIMIZE_1_9_8.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_8.md).
+- [ ] **1.9.8 tester-feedback and small-feature track** — collect reproducible `1.9.7` feedback and validate the first bounded feature batch: federated registry search, ledger-protected DocHub bulk file actions, descriptive export names, and navigation memory. Active plan: [SIMPLIFY_HARDEN_OPTIMIZE_1_9_8.md](planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_8.md).
 - [ ] **1.9.9 bounded follow-through** — leave room for the next set of small features and tester-driven fixes without pulling the full `2.0.0` evaluation/control scope forward. Plan: [SIMPLIFY_HARDEN_OPTIMIZE_1_9_9.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_9.md).
 - [ ] **Hold the OpenClaw baseline during feedback** — keep `v2026.6.11` fixed through the initial `1.9.8` feedback window so new reports can be compared against the promoted `1.9.7` runtime; evaluate future upstream updates in a separate RC track.
 - [ ] **Plugin architecture MVP1 follow-through** — MVP0 host architecture is merged with dormant test fixtures only. Continue with generic follow-through only: plugin page/data loading speed, DocHub/file-open polish, stronger shared UI parity with Agents/Workflows, and eventually richer runtime/plugin contracts before any private plugin surfaces are considered for broader release.

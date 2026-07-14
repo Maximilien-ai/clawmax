@@ -86,7 +86,8 @@ test('listDocEntries includes non-markdown assets inside managed agent workspace
   assert(!!runtimeAsset, 'Expected managed agent runtime asset to be listed in DocHub')
   assert(runtimeAsset?.section === 'AGENTS', `Expected managed agent asset section AGENTS, got ${runtimeAsset?.section}`)
   assert(runtimeAsset?.kind === 'asset', `Expected managed agent runtime asset kind=asset, got ${runtimeAsset?.kind}`)
-  assert(runtimeAsset?.canDelete === true, 'Expected managed agent runtime asset to remain deletable')
+  assert(runtimeAsset?.assetSource === 'generated', 'Expected untracked runtime asset to be classified as generated')
+  assert(runtimeAsset?.canDelete === false, 'Expected managed agent runtime asset to be protected from DocHub deletion')
 })
 
 if (previousWorkspace === undefined) {

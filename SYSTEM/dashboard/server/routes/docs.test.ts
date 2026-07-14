@@ -223,6 +223,46 @@ async function run() {
     assert(fs.existsSync(path.join(workspacePath, 'AGENTS', 'test-agent', 'INBOX', 'notes.txt')), 'Expected extracted text file on disk')
   })
 
+  await test('bulk move and delete routes enforce recorded upload ownership and target boundary', async () => {
+    const listHandler = getRouteHandler('get', '/')
+    const moveHandler = getRouteHandler('post', '/entries/move')
+    const deleteHandler = getRouteHandler('post', '/entries/delete')
+    const uploadedPath = 'AGENTS/test-agent/INBOX/notes.txt'
+    const generatedPath = 'AGENTS/test-agent/INBOX/runtime-output.txt'
+    fs.writeFileSync(path.join(workspacePath, generatedPath), 'generated\n', 'utf-8')
+
+    const listRes = makeRes()
+    await listHandler(makeReq(), listRes)
+    const uploadedEntry = (listRes.jsonBody?.entries || []).find((entry: any) => entry.path === uploadedPath)
+    const generatedEntry = (listRes.jsonBody?.entries || []).find((entry: any) => entry.path === generatedPath)
+    assert.strictEqual(uploadedEntry?.assetSource, 'uploaded', 'Expected ledger-backed upload classification')
+    assert.strictEqual(uploadedEntry?.canDelete, true, 'Expected uploaded file to be selectable')
+    assert.strictEqual(uploadedEntry?.uploadBoundary, 'AGENTS/test-agent/INBOX', 'Expected original upload boundary')
+    assert.strictEqual(generatedEntry?.assetSource, 'generated', 'Expected untracked runtime output classification')
+    assert.strictEqual(generatedEntry?.canDelete, false, 'Expected generated output protection')
+
+    const generatedDeleteRes = makeRes()
+    await deleteHandler(makeReq({ body: { paths: [generatedPath] } }), generatedDeleteRes)
+    assert.strictEqual(generatedDeleteRes.statusCode, 400, 'Expected generated file deletion rejection')
+    assert(/not a user-uploaded file/i.test(generatedDeleteRes.jsonBody?.error || ''), 'Expected ownership rejection guidance')
+
+    const crossBoundaryRes = makeRes()
+    await moveHandler(makeReq({ body: { paths: [uploadedPath], destination: 'AGENTS/test-agent/archive' } }), crossBoundaryRes)
+    assert.strictEqual(crossBoundaryRes.statusCode, 400, 'Expected cross-boundary move rejection')
+
+    const moveRes = makeRes()
+    await moveHandler(makeReq({ body: { paths: [uploadedPath], destination: 'AGENTS/test-agent/INBOX/archive' } }), moveRes)
+    assert.strictEqual(moveRes.statusCode, 200, 'Expected same-boundary move success')
+    const movedPath = 'AGENTS/test-agent/INBOX/archive/notes.txt'
+    assert(fs.existsSync(path.join(workspacePath, movedPath)), 'Expected uploaded file at moved path')
+
+    const deleteRes = makeRes()
+    await deleteHandler(makeReq({ body: { paths: [movedPath] } }), deleteRes)
+    assert.strictEqual(deleteRes.statusCode, 200, 'Expected uploaded file delete success')
+    assert(!fs.existsSync(path.join(workspacePath, movedPath)), 'Expected uploaded file removed')
+    assert(fs.existsSync(path.join(workspacePath, generatedPath)), 'Expected generated file preserved')
+  })
+
   if (typeof originalHome === 'undefined') delete process.env.HOME
   else process.env.HOME = originalHome
   if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE

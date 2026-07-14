@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import net from 'net'
 import os from 'os'
+import { createHash, randomUUID } from 'crypto'
 import { execFileSync } from 'child_process'
 import { getWorkspaceManager } from './workspace-manager'
 import { getPausedAgents } from './agent-state'
@@ -222,9 +223,26 @@ export interface DocEntry {
   kind?: 'markdown' | 'asset'
   assetSource?: 'uploaded' | 'generated'
   canDelete?: boolean
+  uploadBoundary?: string
   isAgentWorkspace?: boolean
   createdAt?: string
   updatedAt?: string
+}
+
+interface DocHubUploadRecord {
+  path: string
+  boundary: string
+  uploadedAt: string
+}
+
+interface DocHubUploadLedger {
+  version: 1
+  files: DocHubUploadRecord[]
+}
+
+function getDocHubUploadLedgerPath(workspacePath: string): string {
+  const workspaceKey = createHash('sha256').update(path.resolve(workspacePath)).digest('hex').slice(0, 24)
+  return path.join(path.dirname(path.resolve(workspacePath)), '.clawmax-state', 'dochub-uploads', `${workspaceKey}.json`)
 }
 
 const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', '.pnpm', 'AGENTS'])
@@ -376,20 +394,90 @@ function isProtectedAgentWorkspaceFile(relPath: string): boolean {
   return PROTECTED_AGENT_WORKSPACE_FILES.has(segments[2])
 }
 
-function getAgentAssetSource(relPath: string): 'uploaded' | 'generated' {
-  const normalized = relPath.replace(/\\/g, '/')
-  const segments = normalized.split('/').filter(Boolean)
-  if (segments.length >= 3 && segments[0] === 'AGENTS') {
-    if (segments[2] === 'MEMORY.md') return 'generated'
-    if (segments[2] === 'memory') return 'generated'
+function normalizeWorkspaceRelativePath(relPath: string): string {
+  const normalized = path.posix.normalize(relPath.trim().replace(/\\/g, '/').replace(/^\/+|\/+$/g, ''))
+  return normalized === '.' ? '' : normalized
+}
+
+function readDocHubUploadLedger(workspacePath = getWorkspacePath()): DocHubUploadLedger {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(getDocHubUploadLedgerPath(workspacePath), 'utf-8'))
+    const files = Array.isArray(parsed?.files)
+      ? parsed.files.filter((entry: any) => (
+          typeof entry?.path === 'string'
+          && typeof entry?.boundary === 'string'
+          && typeof entry?.uploadedAt === 'string'
+        ))
+      : []
+    return { version: 1, files }
+  } catch {
+    return { version: 1, files: [] }
   }
-  return 'uploaded'
+}
+
+function writeDocHubUploadLedger(ledger: DocHubUploadLedger, workspacePath = getWorkspacePath()): boolean {
+  try {
+    const ledgerPath = getDocHubUploadLedgerPath(workspacePath)
+    fs.mkdirSync(path.dirname(ledgerPath), { recursive: true })
+    const tempPath = `${ledgerPath}.${randomUUID()}.tmp`
+    fs.writeFileSync(tempPath, `${JSON.stringify(ledger, null, 2)}\n`, 'utf-8')
+    fs.renameSync(tempPath, ledgerPath)
+    return true
+  } catch {
+    return false
+  }
+}
+
+function isWithinUploadBoundary(relPath: string, boundary: string): boolean {
+  return relPath === boundary || relPath.startsWith(`${boundary}/`)
+}
+
+export function recordDocHubUploads(relPaths: string[], boundary: string, workspacePath = getWorkspacePath()): boolean {
+  const normalizedBoundary = normalizeWorkspaceRelativePath(boundary)
+  if (!normalizedBoundary || !resolveWorkspacePath(normalizedBoundary, workspacePath)) return false
+  const normalizedPaths = Array.from(new Set(relPaths.map(normalizeWorkspaceRelativePath).filter(Boolean)))
+  if (normalizedPaths.length === 0) return false
+  if (normalizedPaths.some((relPath) => !isWithinUploadBoundary(relPath, normalizedBoundary) || !resolveWorkspacePath(relPath, workspacePath))) {
+    return false
+  }
+  if (normalizedPaths.some((relPath) => {
+    try {
+      const full = resolveWorkspacePath(relPath, workspacePath)
+      return !full || !fs.statSync(full).isFile()
+    } catch {
+      return true
+    }
+  })) return false
+
+  const ledger = readDocHubUploadLedger(workspacePath)
+  const updatedPaths = new Set(normalizedPaths)
+  const uploadedAt = new Date().toISOString()
+  ledger.files = [
+    ...ledger.files.filter((entry) => !updatedPaths.has(entry.path)),
+    ...normalizedPaths.map((relPath) => ({ path: relPath, boundary: normalizedBoundary, uploadedAt })),
+  ].sort((a, b) => a.path.localeCompare(b.path))
+  return writeDocHubUploadLedger(ledger, workspacePath)
+}
+
+function getDocHubUploadRecord(relPath: string, workspacePath = getWorkspacePath()): DocHubUploadRecord | null {
+  const normalized = normalizeWorkspaceRelativePath(relPath)
+  return readDocHubUploadLedger(workspacePath).files.find((entry) => entry.path === normalized) || null
+}
+
+function getAgentAssetSource(
+  relPath: string,
+  workspacePath = getWorkspacePath(),
+  uploadRecords?: Map<string, DocHubUploadRecord>,
+): 'uploaded' | 'generated' {
+  if (uploadRecords?.has(relPath) || (!uploadRecords && getDocHubUploadRecord(relPath, workspacePath))) return 'uploaded'
+  return 'generated'
 }
 
 export function listDocEntries(): DocEntry[] {
   const workspacePath = getWorkspacePath()
   const agentsDir = getAgentsDir()
   const registeredAgentDirs = getRegisteredAgentDirectoryNames()
+  const uploadRecords = new Map(readDocHubUploadLedger(workspacePath).files.map((entry) => [entry.path, entry]))
   function readTimestamps(fullPath: string): { createdAt?: string; updatedAt?: string } {
     try {
       const stats = fs.statSync(fullPath)
@@ -415,8 +503,9 @@ export function listDocEntries(): DocEntry[] {
       return {
         ...entry,
         kind: isRegisteredAgentWorkspace && isProtectedAgentFile ? 'markdown' : 'asset',
-        assetSource: isRegisteredAgentWorkspace && isProtectedAgentFile ? undefined : getAgentAssetSource(entry.path),
-        canDelete: entry.section === 'AGENTS' ? !isProtectedAgentFile : false,
+        assetSource: isRegisteredAgentWorkspace && isProtectedAgentFile ? undefined : getAgentAssetSource(entry.path, workspacePath, uploadRecords),
+        canDelete: entry.section === 'AGENTS' ? uploadRecords.has(entry.path) : false,
+        uploadBoundary: uploadRecords.get(entry.path)?.boundary,
         isAgentWorkspace: isRegisteredAgentWorkspace && isProtectedAgentFile,
         createdAt: timestamps.createdAt,
         updatedAt: timestamps.updatedAt,
@@ -434,7 +523,7 @@ export function listDocEntries(): DocEntry[] {
     for (const entry of entries) {
       if (shouldSkipDocHubEntryName(entry.name)) continue
       const full = path.join(currentDir, entry.name)
-      const rel = path.relative(workspacePath, full)
+      const rel = path.relative(workspacePath, full).replace(/\\/g, '/')
       if (entry.isDirectory()) {
         walkAssetDir(full, section, assetSource, canDelete)
         continue
@@ -446,8 +535,9 @@ export function listDocEntries(): DocEntry[] {
         path: rel,
         section,
         kind: 'asset',
-        assetSource: section === 'AGENTS' ? getAgentAssetSource(rel) : assetSource,
-        canDelete,
+        assetSource: section === 'AGENTS' ? getAgentAssetSource(rel, workspacePath, uploadRecords) : assetSource,
+        canDelete: section === 'AGENTS' ? uploadRecords.has(rel) : canDelete,
+        uploadBoundary: uploadRecords.get(rel)?.boundary,
         isAgentWorkspace: false,
         createdAt: timestamps.createdAt,
         updatedAt: timestamps.updatedAt,
@@ -466,14 +556,15 @@ export function listDocEntries(): DocEntry[] {
       }
       if (!entry.isFile()) continue
       if (entry.name.endsWith('.md')) continue
-      const relPath = path.relative(workspacePath, full)
+      const relPath = path.relative(workspacePath, full).replace(/\\/g, '/')
       const timestamps = readTimestamps(full)
       results.push({
         path: relPath,
         section: 'AGENTS',
         kind: 'asset',
-        assetSource: getAgentAssetSource(relPath),
-        canDelete: true,
+        assetSource: getAgentAssetSource(relPath, workspacePath, uploadRecords),
+        canDelete: uploadRecords.has(relPath),
+        uploadBoundary: uploadRecords.get(relPath)?.boundary,
         isAgentWorkspace: false,
         createdAt: timestamps.createdAt,
         updatedAt: timestamps.updatedAt,
@@ -495,19 +586,26 @@ export function listDocEntries(): DocEntry[] {
 
 /** Validate a workspace path is inside the workspace root. */
 function isWorkspacePathSafe(full: string, workspacePath: string): boolean {
-  // Resolve symlinks to prevent traversal via symlinks
-  let realFull: string
-  let realWorkspace: string
+  const resolvedWorkspace = path.resolve(workspacePath)
+  const resolvedFull = path.resolve(full)
+  if (resolvedFull !== resolvedWorkspace && !resolvedFull.startsWith(`${resolvedWorkspace}${path.sep}`)) return false
+
   try {
-    realWorkspace = fs.realpathSync(workspacePath)
-    // For reads, the file must exist for realpath; for writes, check parent
-    realFull = fs.existsSync(full) ? fs.realpathSync(full) : fs.realpathSync(path.dirname(full)) + path.sep + path.basename(full)
+    const realWorkspace = fs.realpathSync(resolvedWorkspace)
+    let existingAncestor = resolvedFull
+    const missingSegments: string[] = []
+    while (!fs.existsSync(existingAncestor)) {
+      const parent = path.dirname(existingAncestor)
+      if (parent === existingAncestor) return false
+      missingSegments.unshift(path.basename(existingAncestor))
+      existingAncestor = parent
+    }
+    const realAncestor = fs.realpathSync(existingAncestor)
+    const realFull = path.join(realAncestor, ...missingSegments)
+    return realFull === realWorkspace || realFull.startsWith(`${realWorkspace}${path.sep}`)
   } catch {
-    // If parent dir doesn't exist, fall back to resolved path check
-    realFull = full
-    realWorkspace = workspacePath
+    return false
   }
-  return realFull.startsWith(realWorkspace + path.sep) || realFull === realWorkspace
 }
 
 /** Validate a markdown workspace path is inside the workspace and ends with .md */
@@ -572,76 +670,110 @@ export function writeWorkspaceBinaryFile(relPath: string, content: Buffer, works
 }
 
 export function deleteWorkspaceAsset(relPath: string, workspacePath = getWorkspacePath()): { ok: boolean; error?: string } {
-  const normalized = relPath.trim().replace(/\\/g, '/')
-  if (!normalized.startsWith('AGENTS/')) {
-    return { ok: false, error: 'Only AGENTS assets can be deleted from DocHub' }
-  }
-
-  const segments = normalized.split('/').filter(Boolean)
-  if (segments.length < 2) {
-    return { ok: false, error: 'Refusing to delete AGENTS root' }
-  }
-
-  const topLevel = segments[1]
-  const registeredAgentDirs = getRegisteredAgentDirectoryNames()
-  if (registeredAgentDirs.has(topLevel)) {
-    if (segments.length === 2) {
-      return { ok: false, error: 'Refusing to delete a registered agent workspace from DocHub' }
-    }
-    if (isProtectedAgentWorkspaceFile(normalized)) {
-      return { ok: false, error: 'Refusing to delete protected agent workspace files from DocHub' }
-    }
-  }
-
-  const full = resolveWorkspacePath(normalized, workspacePath)
-  if (!full) {
-    return { ok: false, error: 'Cannot delete outside workspace' }
-  }
-  if (!fs.existsSync(full)) {
-    return { ok: false, error: 'Path not found' }
-  }
-
-  try {
-    const stats = fs.statSync(full)
-    if (stats.isDirectory()) {
-      fs.rmSync(full, { recursive: true, force: false })
-    } else {
-      fs.unlinkSync(full)
-    }
-    if (segments.length === 2) {
-      cleanupStaleAgentRegistration(topLevel, full)
-    }
-    return { ok: true }
-  } catch (error: any) {
-    return { ok: false, error: error?.message || 'Failed to delete asset' }
-  }
+  return deleteDocHubUploads([relPath], workspacePath)
 }
 
-function cleanupStaleAgentRegistration(agentId: string, workspaceDir: string) {
-  const home = process.env.HOME || ''
-  const configPath = path.join(home, '.openclaw', 'openclaw.json')
-  try {
-    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-    const list = Array.isArray(config?.agents?.list) ? config.agents.list : []
-    const normalizedWorkspaceDir = path.resolve(workspaceDir)
-    const nextList = list.filter((agent: any) => {
-      if (agent?.id === agentId) return false
-      if (typeof agent?.workspace === 'string' && path.resolve(agent.workspace) === normalizedWorkspaceDir) return false
-      return true
-    })
-    if (nextList.length !== list.length) {
-      config.agents = config.agents || {}
-      config.agents.list = nextList
-      fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8')
-    }
-  } catch {}
+export function deleteDocHubUploads(relPaths: string[], workspacePath = getWorkspacePath()): { ok: boolean; deleted?: string[]; error?: string } {
+  const normalizedPaths = Array.from(new Set(relPaths.map(normalizeWorkspaceRelativePath).filter(Boolean)))
+  if (normalizedPaths.length === 0) return { ok: false, error: 'At least one uploaded file is required' }
 
+  const ledger = readDocHubUploadLedger(workspacePath)
+  const records = new Map(ledger.files.map((entry) => [entry.path, entry]))
+  for (const relPath of normalizedPaths) {
+    if (!records.has(relPath)) return { ok: false, error: `${relPath} is not a user-uploaded file` }
+    const full = resolveWorkspacePath(relPath, workspacePath)
+    if (!full || !fs.existsSync(full)) return { ok: false, error: `${relPath} was not found` }
+    if (!fs.statSync(full).isFile()) return { ok: false, error: `${relPath} is not a file` }
+  }
+
+  const stagingDir = path.join(path.dirname(path.resolve(workspacePath)), '.clawmax-state', 'dochub-trash', randomUUID())
+  const staged: Array<{ source: string; stagedPath: string }> = []
   try {
-    fs.rmSync(path.join(home, '.openclaw', 'agents', agentId), { recursive: true, force: true })
-  } catch {}
+    fs.mkdirSync(stagingDir, { recursive: true })
+    normalizedPaths.forEach((relPath, index) => {
+      const source = resolveWorkspacePath(relPath, workspacePath)!
+      const stagedPath = path.join(stagingDir, `${index}-${path.basename(relPath)}`)
+      fs.renameSync(source, stagedPath)
+      staged.push({ source, stagedPath })
+    })
+    const deleted = new Set(normalizedPaths)
+    const nextLedger: DocHubUploadLedger = {
+      ...ledger,
+      files: ledger.files.filter((entry) => !deleted.has(entry.path)),
+    }
+    if (!writeDocHubUploadLedger(nextLedger, workspacePath)) throw new Error('Upload ledger could not be updated')
+  } catch (error: any) {
+    for (const entry of staged.reverse()) {
+      try {
+        if (fs.existsSync(entry.stagedPath) && !fs.existsSync(entry.source)) fs.renameSync(entry.stagedPath, entry.source)
+      } catch {}
+    }
+    try { fs.rmSync(stagingDir, { recursive: true, force: true }) } catch {}
+    return { ok: false, error: error?.message || 'Failed to delete uploaded files' }
+  }
+  try { fs.rmSync(stagingDir, { recursive: true, force: true }) } catch {}
+  return { ok: true, deleted: normalizedPaths }
+}
+
+export function moveDocHubUploads(
+  relPaths: string[],
+  destinationDir: string,
+  workspacePath = getWorkspacePath(),
+): { ok: boolean; moved?: Array<{ from: string; to: string }>; error?: string } {
+  const normalizedPaths = Array.from(new Set(relPaths.map(normalizeWorkspaceRelativePath).filter(Boolean)))
+  const normalizedDestination = normalizeWorkspaceRelativePath(destinationDir)
+  if (normalizedPaths.length === 0) return { ok: false, error: 'At least one uploaded file is required' }
+  if (!normalizedDestination || !resolveWorkspacePath(normalizedDestination, workspacePath)) {
+    return { ok: false, error: 'Destination must be inside the workspace' }
+  }
+
+  const ledger = readDocHubUploadLedger(workspacePath)
+  const records = new Map(ledger.files.map((entry) => [entry.path, entry]))
+  const moves: Array<{ from: string; to: string }> = []
+  const destinations = new Set<string>()
+  for (const from of normalizedPaths) {
+    const record = records.get(from)
+    if (!record) return { ok: false, error: `${from} is not a user-uploaded file` }
+    if (!isWithinUploadBoundary(normalizedDestination, record.boundary)) {
+      return { ok: false, error: `Destination must remain inside ${record.boundary}` }
+    }
+    const source = resolveWorkspacePath(from, workspacePath)
+    if (!source || !fs.existsSync(source) || !fs.statSync(source).isFile()) {
+      return { ok: false, error: `${from} was not found` }
+    }
+    const to = path.posix.join(normalizedDestination, path.posix.basename(from))
+    if (!resolveWorkspacePath(to, workspacePath)) return { ok: false, error: `Invalid destination for ${from}` }
+    if (destinations.has(to)) return { ok: false, error: `Multiple files would overwrite ${to}` }
+    destinations.add(to)
+    if (to !== from && fs.existsSync(resolveWorkspacePath(to, workspacePath)!)) {
+      return { ok: false, error: `${to} already exists` }
+    }
+    moves.push({ from, to })
+  }
+
+  const completed: Array<{ from: string; to: string }> = []
   try {
-    fs.rmSync(path.join(home, `.openclaw-${agentId}`), { recursive: true, force: true })
-  } catch {}
+    fs.mkdirSync(resolveWorkspacePath(normalizedDestination, workspacePath)!, { recursive: true })
+    for (const move of moves) {
+      if (move.from === move.to) continue
+      fs.renameSync(resolveWorkspacePath(move.from, workspacePath)!, resolveWorkspacePath(move.to, workspacePath)!)
+      completed.push(move)
+    }
+    const movedBySource = new Map(moves.map((move) => [move.from, move.to]))
+    ledger.files = ledger.files.map((entry) => {
+      const nextPath = movedBySource.get(entry.path)
+      return nextPath ? { ...entry, path: nextPath } : entry
+    }).sort((a, b) => a.path.localeCompare(b.path))
+    if (!writeDocHubUploadLedger(ledger, workspacePath)) throw new Error('Upload ledger could not be updated')
+    return { ok: true, moved: moves }
+  } catch (error: any) {
+    for (const move of completed.reverse()) {
+      try {
+        fs.renameSync(resolveWorkspacePath(move.to, workspacePath)!, resolveWorkspacePath(move.from, workspacePath)!)
+      } catch {}
+    }
+    return { ok: false, error: error?.message || 'Failed to move uploaded files' }
+  }
 }
 
 function validateZipEntryPath(entryPath: string): boolean {

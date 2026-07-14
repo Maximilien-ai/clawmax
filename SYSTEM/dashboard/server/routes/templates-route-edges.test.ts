@@ -180,8 +180,21 @@ async function run() {
     await handler(makeReq({ params: { id: 'daily-sync' } }), res)
     assert.strictEqual(res.statusCode, 200)
     assert.strictEqual(res.headers['Content-Type'], 'text/markdown')
-    assert.strictEqual(res.headers['Content-Disposition'], 'attachment; filename="daily-sync.md"')
+    assert.strictEqual(res.headers['Content-Disposition'], 'attachment; filename="daily-sync.workflow.md"')
     assert(/name: Daily Sync/.test(String(res.jsonBody || '')), 'Expected workflow markdown body')
+  })
+
+  await test('template export markdown route uses the template name in the attachment filename', async () => {
+    const handler = getRouteHandler('get', '/:type/:slug/export-md', {
+      templates: {
+        getTemplate: () => ({ slug: 'launch', name: 'Customer Launch Plan', type: 'agent' }),
+        templateToMarkdown: () => '# Customer Launch Plan\n',
+      } as any,
+    })
+    const res = makeRes()
+    await handler(makeReq({ params: { type: 'agents', slug: 'launch' } }), res)
+    assert.strictEqual(res.statusCode, 200)
+    assert.strictEqual(res.headers['Content-Disposition'], 'attachment; filename="customer-launch-plan.template.md"')
   })
 
   await test('template markdown import writes organization agent files on success', async () => {

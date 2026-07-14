@@ -1,8 +1,8 @@
 # Simplify / Harden / Optimize 1.9.8
 
-> Status: feedback intake
+> Status: first bounded feature batch in validation
 > Baseline: `v1.9.7` / OpenClaw `v2026.6.11`
-> Last updated: July 13, 2026
+> Last updated: July 14, 2026
 
 ## Goal
 
@@ -17,6 +17,13 @@ Small features may enter `1.9.8` when they:
 - can be covered by focused automated and manual tests
 - do not destabilize the promoted OpenClaw runtime baseline
 - can be deferred to `1.9.9` cleanly if tester fixes need the release budget
+
+## First Bounded Feature Batch
+
+- Federate Skills import searches across ClawHub, Shipables, and Tessl, preserving provider-specific installation.
+- Track DocHub uploads explicitly and allow multi-select move/delete only for ledger-backed user files; moves remain inside the original upload target boundary.
+- Name template, workflow, agent, and skill exports after the exported object instead of using generic attachment names.
+- Restore the last valid dashboard page from browser-local state when opening the root route and preserve System navigation expansion state.
 
 ## Intake Requirements
 
