@@ -256,13 +256,38 @@ test('getSkillRequirementStatus() keeps uv package inference package-based', () 
 })
 
 test('skills with required env/config automatically expose setup warnings', () => {
-  const trello = getSkillById('trello')
-  assert(trello !== null, 'Expected trello skill')
-  assert(trello!.setupRequirements?.message?.includes('TRELLO_API_KEY'), 'Expected env-based setup warning for trello')
+  const workspaceSkillsDir = getWorkspaceSkillsDir()
+  const envSkillDir = path.join(workspaceSkillsDir, 'test-env-setup-warning-skill')
+  const configSkillDir = path.join(workspaceSkillsDir, 'test-config-setup-warning-skill')
+  fs.mkdirSync(envSkillDir, { recursive: true })
+  fs.mkdirSync(configSkillDir, { recursive: true })
+  fs.writeFileSync(path.join(envSkillDir, 'SKILL.md'), `---
+name: test-env-setup-warning-skill
+description: Portable environment setup warning fixture
+requires:
+  env:
+    - TEST_RUNTIME_API_KEY
+---
 
-  const discord = getSkillById('discord')
-  assert(discord !== null, 'Expected discord skill')
-  assert(discord!.setupRequirements?.message?.includes('channels.discord.token'), 'Expected config-based setup warning for discord')
+# Test Environment Setup Warning Skill
+`, 'utf-8')
+  fs.writeFileSync(path.join(configSkillDir, 'SKILL.md'), `---
+name: test-config-setup-warning-skill
+description: Portable configuration setup warning fixture
+requires:
+  config:
+    - channels.test.token
+---
+
+# Test Configuration Setup Warning Skill
+`, 'utf-8')
+
+  const envSkill = getSkillById('test-env-setup-warning-skill')
+  const configSkill = getSkillById('test-config-setup-warning-skill')
+  assert(envSkill?.setupRequirements?.message?.includes('TEST_RUNTIME_API_KEY'), 'Expected env-based setup warning')
+  assert(configSkill?.setupRequirements?.message?.includes('channels.test.token'), 'Expected config-based setup warning')
+  deleteWorkspaceSkill('test-env-setup-warning-skill')
+  deleteWorkspaceSkill('test-config-setup-warning-skill')
 })
 
 test('getSkillById("workspace-ls") returns packaged ClawMax repo skill', () => {
@@ -594,8 +619,10 @@ test('getSkillById("invalid-skill") returns null', () => {
 })
 
 // Test 5: Validate skills - all valid
-test('validateSkills(["github", "slack"]) is valid', () => {
-  const result = validateSkills(['github', 'slack'])
+test('validateSkills accepts skills discovered in the active runtime catalog', () => {
+  const validSkillNames = listAvailableSkills().slice(0, 2).map((skill: OpenClawSkill) => skill.name)
+  assert(validSkillNames.length === 2, 'Expected at least two runtime skills for validation')
+  const result = validateSkills(validSkillNames)
 
   assert(result.valid === true, 'Should be valid')
   assert(result.missing.length === 0, 'Should have no missing skills')
