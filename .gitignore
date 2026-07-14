@@ -15,6 +15,7 @@ node_modules/
 dist/
 SYSTEM/dashboard/coverage/
 SYSTEM/dashboard/perf/
+SYSTEM/dashboard/test-output-*.md
 
 # Environment files
 .env
