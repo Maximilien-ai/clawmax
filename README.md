@@ -19,9 +19,9 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 ## 🛠 Current Feedback Line: 1.9.8
 
 - Next validation image: `1.9.8-test-rc1`
-- `1.9.8` is intentionally reserved for feedback and focused hardening from the `1.9.7` tester rollout.
+- `1.9.8` prioritizes feedback and focused hardening from the `1.9.7` tester rollout while allowing small, isolated features that move the product toward `2.0.0`.
 - Prioritize reproducible issues from Mike and other testers across agent chat, group chat, workflows, model/runtime diagnostics, plugins, and containerized deployments.
-- Avoid another OpenClaw baseline change or broad feature expansion until the `1.9.7` feedback window is understood.
+- Use `1.9.8` and `1.9.9` for bounded features that can ship independently; keep major evaluation/control architecture and another OpenClaw baseline change in separate validation tracks.
 
 ## ✨ 1.9.x Highlights
 

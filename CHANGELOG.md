@@ -5,7 +5,9 @@ All notable changes to ClawMax are documented here.
 ## [Unreleased]
 
 ### Planned
-- **1.9.8 Feedback Window** — reserve the next patch line for focused fixes and diagnostics driven by `1.9.7` feedback from Mike and other testers. Keep the OpenClaw baseline fixed unless a separately validated upstream change is required.
+- **1.9.8 Feedback And Small Features** — prioritize focused fixes and diagnostics driven by `1.9.7` feedback from Mike and other testers, while accepting small isolated features that build toward `2.0.0` without depending on its larger architecture.
+- **1.9.9 Follow-Through Space** — reserve a second minor line for additional bounded features and feedback follow-through so useful work does not need to wait for the complete `2.0.0` program.
+- **Stable Runtime Baseline** — keep OpenClaw fixed at `v2026.6.11` unless a separately validated upstream change is required.
 
 ## [v1.9.7] - 2026-07-13
 

@@ -1,8 +1,9 @@
 # ClawMax Status
 
 **Current Version**: v1.9.7
+**Development Line**: 1.9.8
 **Last Updated**: July 13, 2026
-**Status**: `v1.9.7` is the promoted stable release and the first fully validated local/cloud/on-prem line on OpenClaw `v2026.6.11`. `main` moves next to `1.9.8` for focused tester feedback and hardening.
+**Status**: `v1.9.7` is the promoted stable release and the first fully validated local/cloud/on-prem line on OpenClaw `v2026.6.11`. `main` moves next to `1.9.8`, with `1.9.9` available for additional tester feedback and small features that build toward `2.0.0`.
 
 ---
 
@@ -32,8 +33,9 @@
   - [planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_6.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_6.md)
   - [planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_7.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_7.md)
   - [planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_8.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_8.md)
+  - [planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_9.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_9.md)
 - Near-term target: collect `1.9.7` feedback from Mike and other testers, reproduce issues against the exact stable image, and cut `1.9.8-test-rc1` only when focused fixes are ready.
-- Keep `1.9.8` feedback-first: prioritize chat, group chat, workflow, plugin, model/runtime diagnostic, and container deployment regressions over new feature scope.
+- Keep `1.9.8` feedback-first, but accept small independently testable features that support the path to `2.0.0`; use `1.9.9` for the next bounded follow-through rather than overloading one release.
 - Keep OpenClaw pinned to `v2026.6.11` during the feedback window unless an upstream change is isolated and validated separately.
 
 ## Release References
