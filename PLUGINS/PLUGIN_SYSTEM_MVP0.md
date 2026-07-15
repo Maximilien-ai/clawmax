@@ -2,6 +2,9 @@
 
 This document defines the first plugin contract for ClawMax Dashboard.
 
+For the public-host/private-plugin boundary and the migration away from
+product-specific core object kinds, see [PLUGIN_SYSTEM_2_0.md](PLUGIN_SYSTEM_2_0.md).
+
 ## Goals
 
 - Allow multiple plugins to extend the dashboard without merging every feature into the core product.

@@ -2,6 +2,10 @@
 
 This guide is for users or AI coding assistants creating a new ClawMax plugin.
 
+This MVP0 guide documents the compatibility adapter. New 2.0 plugin work should
+also follow the public-host/private-plugin boundary in
+[PLUGIN_SYSTEM_2_0.md](PLUGIN_SYSTEM_2_0.md).
+
 ## Minimum Steps
 
 1. Create a plugin directory under `PLUGINS/<collection>/<plugin-slug>/` or use a standalone plugin repo root
