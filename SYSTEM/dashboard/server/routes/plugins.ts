@@ -9,11 +9,19 @@ import {
   listPluginRecords,
   listPluginTemplates,
   emitPluginRecordNotification,
+  PluginContractError,
   runPluginEval,
   upsertPluginRecord,
 } from '../lib/plugin-system'
 
 const router = Router()
+
+function sendPluginError(res: any, error: unknown) {
+  if (error instanceof PluginContractError) {
+    return res.status(error.statusCode).json({ error: error.message })
+  }
+  throw error
+}
 
 router.get('/', (_req, res) => {
   res.json({
@@ -51,18 +59,26 @@ router.get('/:pluginId/templates', (req, res) => {
 router.post('/:pluginId/items', (req, res) => {
   const plugin = getPluginBySlug(req.params.pluginId)
   if (!plugin) return res.status(404).json({ error: 'Plugin not found' })
-  const item = upsertPluginRecord(plugin, req.body || {})
-  res.status(201).json({ ok: true, item })
+  try {
+    const item = upsertPluginRecord(plugin, req.body || {})
+    res.status(201).json({ ok: true, item })
+  } catch (error) {
+    return sendPluginError(res, error)
+  }
 })
 
 router.put('/:pluginId/items/:itemId', (req, res) => {
   const plugin = getPluginBySlug(req.params.pluginId)
   if (!plugin) return res.status(404).json({ error: 'Plugin not found' })
-  const item = upsertPluginRecord(plugin, {
-    ...(req.body || {}),
-    id: req.params.itemId,
-  })
-  res.json({ ok: true, item })
+  try {
+    const item = upsertPluginRecord(plugin, {
+      ...(req.body || {}),
+      id: req.params.itemId,
+    })
+    res.json({ ok: true, item })
+  } catch (error) {
+    return sendPluginError(res, error)
+  }
 })
 
 router.delete('/:pluginId/items/:itemId', (req, res) => {
@@ -100,9 +116,13 @@ router.post('/:pluginId/items/:itemId/run', (req, res) => {
 router.post('/:pluginId/templates/:templateId/apply', (req, res) => {
   const plugin = getPluginBySlug(req.params.pluginId)
   if (!plugin) return res.status(404).json({ error: 'Plugin not found' })
-  const item = applyPluginTemplate(plugin, req.params.templateId)
-  if (!item) return res.status(404).json({ error: 'Plugin template not found' })
-  res.status(201).json({ ok: true, item })
+  try {
+    const item = applyPluginTemplate(plugin, req.params.templateId)
+    if (!item) return res.status(404).json({ error: 'Plugin template not found' })
+    res.status(201).json({ ok: true, item })
+  } catch (error) {
+    return sendPluginError(res, error)
+  }
 })
 
 export default router

@@ -2,6 +2,9 @@
 
 Status: integration contract in progress on `release-2.0.0`
 
+The first generic manifest, record schema, and declarative UI contract is
+implemented. See [PLUGIN_AUTHORING_2_0.md](PLUGIN_AUTHORING_2_0.md).
+
 ## Purpose
 
 ClawMax 2.0 provides a public plugin host. Product-specific plugins can remain in
@@ -108,4 +111,3 @@ The 2.0 plugin host is ready when:
 - Missing mounts, incompatible API versions, invalid manifests, and denied
   permissions produce actionable diagnostics.
 - No private plugin source or production enablement is tracked in this repo.
-

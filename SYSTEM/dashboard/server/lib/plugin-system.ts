@@ -6,10 +6,36 @@ import { createNotification } from './notifications'
 import { listAgents, getWorkspacePath, parseGroups } from './workspace'
 import { listWorkflows } from './workflows'
 
-export type PluginObjectKind = 'guardrail' | 'eval'
+export const PLUGIN_HOST_API_VERSION = 'clawmax.ai/v2' as const
+
+export type PluginObjectKind = string
 export type PluginVisibility = 'private' | 'public'
+export type PluginFieldValue = string | number | boolean | string[] | null
+
+export interface PluginRecordFieldSchema {
+  type: 'string' | 'number' | 'integer' | 'boolean' | 'array'
+  title: string
+  description?: string
+  default?: PluginFieldValue
+  enum?: string[]
+  format?: 'text' | 'textarea' | 'date' | 'uri'
+  items?: { type: 'string' }
+}
+
+export interface PluginRecordSchema {
+  type: 'object'
+  required?: string[]
+  additionalProperties?: false
+  properties: Record<string, PluginRecordFieldSchema>
+}
+
+export interface PluginUiContract {
+  form?: { order?: string[] }
+  list?: { fields?: string[] }
+}
 
 export interface PluginManifest {
+  apiVersion?: 'clawmax.ai/v1' | typeof PLUGIN_HOST_API_VERSION
   id: string
   slug: string
   name: string
@@ -41,6 +67,8 @@ export interface PluginManifest {
     singular?: string
     plural?: string
   }
+  recordSchema?: PluginRecordSchema
+  ui?: PluginUiContract
 }
 
 export interface PluginRecordTemplate {
@@ -115,7 +143,21 @@ export interface EvalRecord extends PluginRecordBase {
   lastRun?: EvalRunRecord | null
 }
 
-export type PluginRecord = GuardrailRecord | EvalRecord
+export interface GenericPluginRecord extends PluginRecordBase {
+  kind: string
+  fields: Record<string, PluginFieldValue>
+}
+
+export type PluginRecord = GuardrailRecord | EvalRecord | GenericPluginRecord
+
+export class PluginContractError extends Error {
+  statusCode = 400
+
+  constructor(message: string) {
+    super(message)
+    this.name = 'PluginContractError'
+  }
+}
 
 export interface PluginWorkspaceContext {
   agents: Array<{ id: string; name: string }>
@@ -160,21 +202,55 @@ type PluginManifestEntry = {
   manifest: PluginManifest
 }
 
+function isPluginFieldSchema(value: any): value is PluginRecordFieldSchema {
+  if (!value || typeof value !== 'object') return false
+  if (!['string', 'number', 'integer', 'boolean', 'array'].includes(value.type)) return false
+  if (typeof value.title !== 'string' || !value.title.trim()) return false
+  if (value.enum !== undefined && (!Array.isArray(value.enum) || value.enum.some((entry: unknown) => typeof entry !== 'string'))) return false
+  if (value.enum !== undefined && value.type !== 'string') return false
+  if (value.format !== undefined && value.type !== 'string') return false
+  if (value.type === 'array' && value.items?.type !== 'string') return false
+  if (value.default !== undefined) {
+    if (value.type === 'string' && typeof value.default !== 'string') return false
+    if ((value.type === 'number' || value.type === 'integer') && typeof value.default !== 'number') return false
+    if (value.type === 'boolean' && typeof value.default !== 'boolean') return false
+    if (value.type === 'array' && (!Array.isArray(value.default) || value.default.some((entry: unknown) => typeof entry !== 'string'))) return false
+  }
+  return true
+}
+
+function isPluginRecordSchema(value: any): value is PluginRecordSchema {
+  if (!value || value.type !== 'object' || !value.properties || typeof value.properties !== 'object') return false
+  if (value.required !== undefined && (!Array.isArray(value.required) || value.required.some((entry: unknown) => typeof entry !== 'string' || !value.properties[entry]))) return false
+  return Object.entries(value.properties).every(([key, field]) => /^[a-zA-Z][a-zA-Z0-9_-]*$/.test(key) && isPluginFieldSchema(field))
+}
+
 function isPluginManifest(value: any): value is PluginManifest {
-  return !!value
+  const commonValid = !!value
     && typeof value.id === 'string'
     && typeof value.slug === 'string'
     && typeof value.name === 'string'
     && typeof value.description === 'string'
     && typeof value.version === 'string'
     && typeof value.icon === 'string'
-    && (value.objectKind === 'guardrail' || value.objectKind === 'eval')
+    && typeof value.objectKind === 'string'
+    && /^[a-z0-9][a-z0-9-]*$/.test(value.objectKind)
     && (value.visibility === 'private' || value.visibility === 'public')
     && value.source
     && value.source.type === 'github'
     && typeof value.source.owner === 'string'
     && typeof value.source.repo === 'string'
     && typeof value.source.url === 'string'
+
+  if (!commonValid) return false
+  if (!value.apiVersion || value.apiVersion === 'clawmax.ai/v1') {
+    return value.objectKind === 'guardrail' || value.objectKind === 'eval'
+  }
+  if (value.apiVersion !== PLUGIN_HOST_API_VERSION) return false
+  if (!isPluginRecordSchema(value.recordSchema)) return false
+  const declaredFields = new Set(Object.keys(value.recordSchema.properties))
+  const uiFields = [...(value.ui?.form?.order || []), ...(value.ui?.list?.fields || [])]
+  return uiFields.every((field: unknown) => typeof field === 'string' && declaredFields.has(field))
 }
 
 function discoverPluginManifestEntries(root: string): PluginManifestEntry[] {
@@ -279,9 +355,52 @@ function ensurePluginStorage(plugin: PluginManifest): void {
   fs.mkdirSync(getPluginDocsDir(plugin), { recursive: true })
 }
 
+function usesLegacyAdapter(plugin: PluginManifest, kind: 'guardrail' | 'eval'): boolean {
+  return plugin.apiVersion !== PLUGIN_HOST_API_VERSION && plugin.objectKind === kind
+}
+
+function normalizeGenericFieldValue(schema: PluginRecordFieldSchema, value: unknown): PluginFieldValue {
+  const candidate = value === undefined ? schema.default : value
+  if (schema.type === 'boolean') return candidate === true
+  if (schema.type === 'number' || schema.type === 'integer') {
+    const parsed = typeof candidate === 'number' ? candidate : Number(candidate)
+    if (!Number.isFinite(parsed)) return typeof schema.default === 'number' ? schema.default : 0
+    return schema.type === 'integer' ? Math.trunc(parsed) : parsed
+  }
+  if (schema.type === 'array') {
+    const values = Array.isArray(candidate) ? candidate : typeof candidate === 'string' ? candidate.split(',') : []
+    return uniq(values.map(String))
+  }
+  const normalized = candidate === undefined || candidate === null ? '' : String(candidate).trim()
+  if (schema.enum?.length && !schema.enum.includes(normalized)) {
+    return typeof schema.default === 'string' && schema.enum.includes(schema.default) ? schema.default : schema.enum[0]
+  }
+  return normalized
+}
+
+function normalizeGenericFields(plugin: PluginManifest, value: unknown, validateRequired = false): Record<string, PluginFieldValue> {
+  const schema = plugin.recordSchema
+  if (!schema) throw new PluginContractError(`Plugin ${plugin.slug} does not provide a v2 record schema.`)
+  const input = value && typeof value === 'object' ? value as Record<string, unknown> : {}
+  const fields: Record<string, PluginFieldValue> = {}
+  for (const [key, fieldSchema] of Object.entries(schema.properties)) {
+    fields[key] = normalizeGenericFieldValue(fieldSchema, input[key])
+  }
+  if (validateRequired) {
+    for (const key of schema.required || []) {
+      const fieldValue = fields[key]
+      if (fieldValue === null || fieldValue === '' || (Array.isArray(fieldValue) && fieldValue.length === 0)) {
+        const label = schema.properties[key]?.title || key
+        throw new PluginContractError(`${label} is required.`)
+      }
+    }
+  }
+  return fields
+}
+
 function normalizeRecord(plugin: PluginManifest, value: any): PluginRecord | null {
   if (!value || typeof value !== 'object') return null
-  if (plugin.objectKind === 'guardrail') {
+  if (usesLegacyAdapter(plugin, 'guardrail')) {
     return {
       id: String(value.id || '').trim(),
       kind: 'guardrail',
@@ -305,6 +424,22 @@ function normalizeRecord(plugin: PluginManifest, value: any): PluginRecord | nul
         blockExternalDocs: !!value.controls?.blockExternalDocs,
         allowedSkills: uniq(Array.isArray(value.controls?.allowedSkills) ? value.controls.allowedSkills.map(String) : []),
       },
+    }
+  }
+
+  if (!usesLegacyAdapter(plugin, 'eval')) {
+    return {
+      id: String(value.id || '').trim(),
+      kind: plugin.objectKind,
+      name: String(value.name || '').trim(),
+      description: String(value.description || '').trim(),
+      tags: uniq(Array.isArray(value.tags) ? value.tags.map(String) : []),
+      enabled: value.enabled !== false,
+      archived: value.archived === true,
+      createdAt: String(value.createdAt || '').trim(),
+      updatedAt: String(value.updatedAt || '').trim(),
+      document: value.document || null,
+      fields: normalizeGenericFields(plugin, value.fields),
     }
   }
 
@@ -402,14 +537,39 @@ function buildPluginItemPath(plugin: PluginManifest, record: PluginRecord): stri
   return `SYSTEM/plugins/${plugin.slug}/items/${record.id}.md`
 }
 
+function isGuardrailRecord(record: PluginRecord): record is GuardrailRecord {
+  return record.kind === 'guardrail' && 'controls' in record && 'appliesTo' in record
+}
+
+function isEvalRecord(record: PluginRecord): record is EvalRecord {
+  return record.kind === 'eval' && 'experiment' in record && 'runs' in record
+}
+
+function formatPluginFieldValue(value: PluginFieldValue): string {
+  if (Array.isArray(value)) return value.join(', ') || 'none'
+  if (typeof value === 'boolean') return value ? 'yes' : 'no'
+  if (value === null || value === '') return 'none'
+  return String(value)
+}
+
+function genericFieldLines(plugin: PluginManifest, record: GenericPluginRecord): string[] {
+  const properties = plugin.recordSchema?.properties || {}
+  const order = plugin.ui?.form?.order || Object.keys(properties)
+  const keys = [...order, ...Object.keys(properties).filter((key) => !order.includes(key))]
+  return keys
+    .filter((key) => properties[key])
+    .map((key) => `- **${properties[key].title}:** ${formatPluginFieldValue(record.fields[key])}`)
+}
+
 function writePluginDocument(plugin: PluginManifest, record: PluginRecord): PluginDocument {
   ensurePluginStorage(plugin)
   const generatedAt = new Date().toISOString()
   const absolutePath = path.join(getWorkspacePath(), buildPluginDocPath(plugin, record))
   fs.mkdirSync(path.dirname(absolutePath), { recursive: true })
 
-  const lines = record.kind === 'guardrail'
-    ? [
+  let lines: string[]
+  if (isGuardrailRecord(record)) {
+    lines = [
         `# ${record.name}`,
         '',
         `- **Plugin:** ${plugin.name}`,
@@ -437,7 +597,8 @@ function writePluginDocument(plugin: PluginManifest, record: PluginRecord): Plug
         '',
         `Generated at ${generatedAt}.`,
       ]
-    : [
+  } else if (isEvalRecord(record)) {
+    lines = [
         `# ${record.name}`,
         '',
         `- **Plugin:** ${plugin.name}`,
@@ -468,11 +629,31 @@ function writePluginDocument(plugin: PluginManifest, record: PluginRecord): Plug
         '',
         `Generated at ${generatedAt}.`,
       ]
+  } else {
+    lines = [
+      `# ${record.name}`,
+      '',
+      `- **Plugin:** ${plugin.name}`,
+      `- **Type:** ${plugin.labels?.singular || plugin.objectKind}`,
+      `- **Enabled:** ${record.enabled ? 'Yes' : 'No'}`,
+      `- **Tags:** ${record.tags.join(', ') || 'none'}`,
+      '',
+      '## Summary',
+      '',
+      record.description || 'No description provided.',
+      '',
+      '## Details',
+      '',
+      ...genericFieldLines(plugin, record),
+      '',
+      `Generated at ${generatedAt}.`,
+    ]
+  }
 
   fs.writeFileSync(absolutePath, lines.join('\n'), 'utf-8')
   return {
     path: buildPluginDocPath(plugin, record),
-    title: `${record.name} ${plugin.objectKind === 'guardrail' ? 'guardrail' : 'eval'} summary`,
+    title: `${record.name} ${plugin.labels?.singular?.toLowerCase() || plugin.objectKind} summary`,
     generatedAt,
   }
 }
@@ -482,8 +663,9 @@ function writePluginItemFile(plugin: PluginManifest, record: PluginRecord): Plug
   const generatedAt = new Date().toISOString()
   const absolutePath = path.join(getWorkspacePath(), buildPluginItemPath(plugin, record))
   fs.mkdirSync(path.dirname(absolutePath), { recursive: true })
-  const frontmatter = record.kind === 'guardrail'
-    ? [
+  let frontmatter: string[]
+  if (isGuardrailRecord(record)) {
+    frontmatter = [
         '---',
         `plugin: ${plugin.slug}`,
         'kind: guardrail',
@@ -498,7 +680,8 @@ function writePluginItemFile(plugin: PluginManifest, record: PluginRecord): Plug
         `communities: [${record.appliesTo.communities.map((id) => `"${String(id).replace(/"/g, '\\"')}"`).join(', ')}]`,
         '---',
       ]
-    : [
+  } else if (isEvalRecord(record)) {
+    frontmatter = [
         '---',
         `plugin: ${plugin.slug}`,
         'kind: eval',
@@ -514,9 +697,23 @@ function writePluginItemFile(plugin: PluginManifest, record: PluginRecord): Plug
         `last_score: ${record.lastRun ? record.lastRun.score : 'null'}`,
         '---',
       ]
+  } else {
+    frontmatter = [
+      '---',
+      `plugin: ${plugin.slug}`,
+      `kind: ${plugin.objectKind}`,
+      `id: ${record.id}`,
+      `name: "${String(record.name).replace(/"/g, '\\"')}"`,
+      `status: ${record.archived ? 'archived' : record.enabled ? 'enabled' : 'disabled'}`,
+      `updated_at: ${generatedAt}`,
+      `tags: [${record.tags.map((tag) => `"${String(tag).replace(/"/g, '\\"')}"`).join(', ')}]`,
+      '---',
+    ]
+  }
 
-  const lines = record.kind === 'guardrail'
-    ? [
+  let lines: string[]
+  if (isGuardrailRecord(record)) {
+    lines = [
         ...frontmatter,
         '',
         `# ${record.name}`,
@@ -530,7 +727,8 @@ function writePluginItemFile(plugin: PluginManifest, record: PluginRecord): Plug
         `- Block external docs: ${record.controls.blockExternalDocs ? 'yes' : 'no'}`,
         `- Allowed skills: ${record.controls.allowedSkills.join(', ') || 'none'}`,
       ]
-    : [
+  } else if (isEvalRecord(record)) {
+    lines = [
         ...frontmatter,
         '',
         `# ${record.name}`,
@@ -548,11 +746,24 @@ function writePluginItemFile(plugin: PluginManifest, record: PluginRecord): Plug
         `- Runs: ${record.runs.length}`,
         `- Latest score: ${record.lastRun ? `${record.lastRun.score}/100` : 'none'}`,
       ]
+  } else {
+    lines = [
+      ...frontmatter,
+      '',
+      `# ${record.name}`,
+      '',
+      record.description || 'No description provided.',
+      '',
+      '## Details',
+      '',
+      ...genericFieldLines(plugin, record),
+    ]
+  }
 
   fs.writeFileSync(absolutePath, `${lines.join('\n').trim()}\n`, 'utf-8')
   return {
     path: buildPluginItemPath(plugin, record),
-    title: `${record.name} ${plugin.objectKind === 'guardrail' ? 'guardrail' : 'eval'} record`,
+    title: `${record.name} ${plugin.labels?.singular?.toLowerCase() || plugin.objectKind} record`,
     generatedAt,
   }
 }
@@ -638,12 +849,41 @@ function createEvalRecord(input: Partial<EvalRecord>): EvalRecord {
   }
 }
 
+function createGenericRecord(plugin: PluginManifest, input: Partial<GenericPluginRecord>): GenericPluginRecord {
+  const now = new Date().toISOString()
+  return {
+    id: String(input.id || crypto.randomUUID()),
+    kind: plugin.objectKind,
+    name: String(input.name || '').trim() || `Untitled ${plugin.labels?.singular?.toLowerCase() || plugin.objectKind}`,
+    description: String(input.description || '').trim(),
+    tags: uniq(Array.isArray(input.tags) ? input.tags.map(String) : []),
+    enabled: input.enabled !== false,
+    archived: input.archived === true,
+    createdAt: input.createdAt || now,
+    updatedAt: now,
+    document: input.document || null,
+    fields: normalizeGenericFields(plugin, input.fields, true),
+  }
+}
+
 export function upsertPluginRecord(plugin: PluginManifest, input: Partial<PluginRecord>): PluginRecord {
   const records = listPluginRecords(plugin)
   const existingIndex = records.findIndex((record) => record.id === input.id)
-  const nextRecord = plugin.objectKind === 'guardrail'
-    ? createGuardrailRecord(existingIndex >= 0 ? { ...records[existingIndex], ...input } as Partial<GuardrailRecord> : input as Partial<GuardrailRecord>)
-    : createEvalRecord(existingIndex >= 0 ? { ...records[existingIndex], ...input } as Partial<EvalRecord> : input as Partial<EvalRecord>)
+  const existing = existingIndex >= 0 ? records[existingIndex] : null
+  let nextRecord: PluginRecord
+  if (usesLegacyAdapter(plugin, 'guardrail')) {
+    nextRecord = createGuardrailRecord(existing ? { ...existing, ...input } as Partial<GuardrailRecord> : input as Partial<GuardrailRecord>)
+  } else if (usesLegacyAdapter(plugin, 'eval')) {
+    nextRecord = createEvalRecord(existing ? { ...existing, ...input } as Partial<EvalRecord> : input as Partial<EvalRecord>)
+  } else {
+    const existingFields = existing && !isGuardrailRecord(existing) && !isEvalRecord(existing) ? existing.fields : {}
+    const inputFields = 'fields' in input && input.fields && typeof input.fields === 'object' ? input.fields : {}
+    nextRecord = createGenericRecord(plugin, {
+      ...(existing || {}),
+      ...input,
+      fields: { ...existingFields, ...inputFields },
+    } as Partial<GenericPluginRecord>)
+  }
 
   if (existingIndex >= 0) records.splice(existingIndex, 1, nextRecord)
   else records.unshift(nextRecord)
@@ -729,12 +969,12 @@ function scoreEval(experiment: EvalRecord['experiment']): EvalRunRecord {
 }
 
 export function runPluginEval(plugin: PluginManifest, recordId: string): EvalRecord | null {
-  if (plugin.objectKind !== 'eval') return null
+  if (!usesLegacyAdapter(plugin, 'eval')) return null
   const records = listPluginRecords(plugin)
   const index = records.findIndex((record) => record.id === recordId && record.kind === 'eval')
   if (index < 0) return null
   const current = records[index]
-  if (current.kind !== 'eval') return null
+  if (!isEvalRecord(current)) return null
   const run = scoreEval(current.experiment)
   const updated: EvalRecord = {
     ...current,

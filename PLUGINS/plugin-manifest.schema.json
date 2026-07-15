@@ -16,6 +16,10 @@
     "source"
   ],
   "properties": {
+    "apiVersion": {
+      "type": "string",
+      "enum": ["clawmax.ai/v1", "clawmax.ai/v2"]
+    },
     "id": {
       "type": "string",
       "minLength": 1
@@ -42,7 +46,7 @@
     },
     "objectKind": {
       "type": "string",
-      "enum": ["guardrail", "eval"]
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
     },
     "visibility": {
       "type": "string",
@@ -107,6 +111,93 @@
       "properties": {
         "singular": { "type": "string" },
         "plural": { "type": "string" }
+      }
+    },
+    "recordSchema": {
+      "$ref": "#/$defs/recordSchema"
+    },
+    "ui": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "form": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "order": {
+              "type": "array",
+              "items": { "type": "string" },
+              "uniqueItems": true
+            }
+          }
+        },
+        "list": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "fields": {
+              "type": "array",
+              "items": { "type": "string" },
+              "uniqueItems": true
+            }
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "apiVersion": { "const": "clawmax.ai/v2" } },
+        "required": ["apiVersion"]
+      },
+      "then": { "required": ["recordSchema"] },
+      "else": {
+        "properties": { "objectKind": { "enum": ["guardrail", "eval"] } }
+      }
+    }
+  ],
+  "$defs": {
+    "recordSchema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "properties"],
+      "properties": {
+        "type": { "const": "object" },
+        "required": {
+          "type": "array",
+          "items": { "type": "string" },
+          "uniqueItems": true
+        },
+        "additionalProperties": { "const": false },
+        "properties": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/fieldSchema" }
+        }
+      }
+    },
+    "fieldSchema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "title"],
+      "properties": {
+        "type": { "enum": ["string", "number", "integer", "boolean", "array"] },
+        "title": { "type": "string", "minLength": 1 },
+        "description": { "type": "string" },
+        "default": {},
+        "enum": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "format": { "enum": ["text", "textarea", "date", "uri"] },
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type"],
+          "properties": { "type": { "const": "string" } }
+        }
       }
     }
   }

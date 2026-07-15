@@ -87,7 +87,7 @@ async function run() {
   process.env.OPENCLAW_WORKSPACE = tempWorkspace
   process.env.CLAWMAX_TEST_WORKSPACE = tempWorkspace
   process.env.HOME = tempHome
-  process.env.CLAWMAX_ENABLED_PLUGINS = 'plugin-lab-guardrails,plugin-lab-evals'
+  process.env.CLAWMAX_ENABLED_PLUGINS = 'plugin-lab-guardrails,plugin-lab-evals,plugin-lab-review-notes'
   process.env.CLAWMAX_PLUGIN_PATHS = ''
   delete process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS
   resetWorkspaceManagerForTests()
@@ -221,6 +221,30 @@ async function run() {
     await applyTemplate(makeReq({ params: { pluginId: 'plugin-lab-guardrails', templateId: 'no-outbound-email' } }), applyRes)
     assert.strictEqual(applyRes.statusCode, 201, 'Expected template apply success')
     assert.strictEqual(applyRes.jsonBody?.item?.name, 'No outbound email', 'Expected applied template to create a record')
+  })
+
+  await test('generic v2 plugin routes validate and persist declarative fields', async () => {
+    process.env.CLAWMAX_ENABLED_PLUGINS = 'plugin-lab-review-notes'
+    const createHandler = getRouteHandler('post', '/:pluginId/items')
+    const invalidRes = makeRes()
+    await createHandler(makeReq({
+      params: { pluginId: 'plugin-lab-review-notes' },
+      body: { name: 'Incomplete', fields: { priority: 'high' } },
+    }), invalidRes)
+    assert.strictEqual(invalidRes.statusCode, 400, 'Expected missing required generic field to return HTTP 400')
+    assert(/Notes is required/.test(invalidRes.jsonBody?.error || ''), 'Expected actionable schema validation message')
+
+    const createRes = makeRes()
+    await createHandler(makeReq({
+      params: { pluginId: 'plugin-lab-review-notes' },
+      body: {
+        name: 'Release review',
+        fields: { priority: 'high', notes: 'Check the release evidence', approved: false },
+      },
+    }), createRes)
+    assert.strictEqual(createRes.statusCode, 201, 'Expected generic item create success')
+    assert.strictEqual(createRes.jsonBody?.item?.kind, 'review-note', 'Expected generic object kind in response')
+    assert.strictEqual(createRes.jsonBody?.item?.fields?.priority, 'high', 'Expected declarative fields in response')
   })
 
   if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE

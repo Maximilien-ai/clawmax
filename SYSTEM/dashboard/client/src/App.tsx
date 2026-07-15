@@ -32,7 +32,7 @@ import { CHANNEL_API_ENDPOINTS } from './lib/channelApi'
 import { addVisitedPage } from './lib/appNavigationState'
 import { getVisibleMaintenanceBanner } from './lib/maintenanceBannerView'
 import { buildPluginPage, isPluginPage, pageToPath, pathToPage, pluginSlugFromPage, resolveInitialPage, type CoreDashboardPage, type DashboardPage } from './lib/navigation'
-import type { PluginManifest } from './lib/plugins'
+import { usesLegacyPluginAdapter, type PluginManifest } from './lib/plugins'
 import { readGlobalWorkspaceTourDisabled, readWorkspaceTourState, resetWorkspaceTourState, shouldShowWorkspaceTour, writeWorkspaceTourState } from './lib/onboardingTour'
 
 type Page = DashboardPage
@@ -185,6 +185,14 @@ function BeakerIcon({ className }: { className?: string }) {
       <path d="M8 2h8" />
       <path d="M9 13h6" />
       <path d="M8 17h8" />
+    </svg>
+  )
+}
+
+function PluginIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={iconClassName(className)}>
+      <path d="M8 3h8v4a2 2 0 1 0 0 4v4h-4a2 2 0 1 0-4 0H4v-4a2 2 0 1 0 0-4V3h4Z" />
     </svg>
   )
 }
@@ -789,7 +797,9 @@ export default function App() {
                   )}
                   {plugins.map((plugin) => {
                     const pluginPage = pluginPageBySlug.get(plugin.slug) || buildPluginPage(plugin.slug)
-                    const PluginIconComponent = plugin.objectKind === 'guardrail' ? ShieldIcon : BeakerIcon
+                    const PluginIconComponent = usesLegacyPluginAdapter(plugin, 'guardrail')
+                      ? ShieldIcon
+                      : usesLegacyPluginAdapter(plugin, 'eval') ? BeakerIcon : PluginIcon
                     return (
                       <NavItemDraggable
                         key={plugin.slug}

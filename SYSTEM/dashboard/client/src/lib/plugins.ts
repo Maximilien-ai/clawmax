@@ -1,6 +1,27 @@
-export type PluginObjectKind = 'guardrail' | 'eval'
+export const PLUGIN_HOST_API_VERSION = 'clawmax.ai/v2' as const
+
+export type PluginObjectKind = string
+export type PluginFieldValue = string | number | boolean | string[] | null
+
+export interface PluginRecordFieldSchema {
+  type: 'string' | 'number' | 'integer' | 'boolean' | 'array'
+  title: string
+  description?: string
+  default?: PluginFieldValue
+  enum?: string[]
+  format?: 'text' | 'textarea' | 'date' | 'uri'
+  items?: { type: 'string' }
+}
+
+export interface PluginRecordSchema {
+  type: 'object'
+  required?: string[]
+  additionalProperties?: false
+  properties: Record<string, PluginRecordFieldSchema>
+}
 
 export interface PluginManifest {
+  apiVersion?: 'clawmax.ai/v1' | typeof PLUGIN_HOST_API_VERSION
   id: string
   slug: string
   name: string
@@ -32,6 +53,32 @@ export interface PluginManifest {
     singular?: string
     plural?: string
   }
+  recordSchema?: PluginRecordSchema
+  ui?: {
+    form?: { order?: string[] }
+    list?: { fields?: string[] }
+  }
+}
+
+export function usesLegacyPluginAdapter(plugin: PluginManifest, kind: 'guardrail' | 'eval'): boolean {
+  return plugin.apiVersion !== PLUGIN_HOST_API_VERSION && plugin.objectKind === kind
+}
+
+export function getOrderedPluginFields(plugin: PluginManifest): Array<[string, PluginRecordFieldSchema]> {
+  const properties = plugin.recordSchema?.properties || {}
+  const order = plugin.ui?.form?.order || Object.keys(properties)
+  const keys = [...order, ...Object.keys(properties).filter((key) => !order.includes(key))]
+  return keys.filter((key) => properties[key]).map((key) => [key, properties[key]])
+}
+
+export function buildGenericPluginFields(plugin: PluginManifest): Record<string, PluginFieldValue> {
+  return Object.fromEntries(getOrderedPluginFields(plugin).map(([key, schema]) => {
+    if (schema.default !== undefined) return [key, schema.default]
+    if (schema.type === 'boolean') return [key, false]
+    if (schema.type === 'number' || schema.type === 'integer') return [key, 0]
+    if (schema.type === 'array') return [key, []]
+    return [key, '']
+  }))
 }
 
 export function titleCaseWords(value: string): string {
@@ -48,7 +95,7 @@ export function buildPluginDraftFromPrompt(plugin: PluginManifest, prompt: strin
   const normalizedName = titleCaseWords(firstSentence.split(/\s+/).slice(0, 5).join(' ')) || `New ${plugin.labels?.singular || plugin.name}`
   const tags = Array.from(new Set(trimmed.toLowerCase().match(/[a-z0-9-]{4,}/g)?.slice(0, 5) || []))
 
-  if (plugin.objectKind === 'guardrail') {
+  if (usesLegacyPluginAdapter(plugin, 'guardrail')) {
     const text = trimmed.toLowerCase()
     return {
       kind: 'guardrail',
@@ -66,25 +113,33 @@ export function buildPluginDraftFromPrompt(plugin: PluginManifest, prompt: strin
     }
   }
 
-  const text = trimmed.toLowerCase()
-  return {
-    kind: 'eval',
-    name: normalizedName,
-    description: trimmed,
-    enabled: true,
-    tags,
-    target: {
-      type: /workflow/.test(text) ? 'workflow' : /group|team/.test(text) ? 'group' : 'agent',
-      ids: [],
-    },
-    experiment: {
-      input: trimmed,
-      candidateOutput: '',
-      expectedOutput: `Success criteria for: ${firstSentence}`,
-      judge: /ai judge|model judge|semantic/.test(text) ? 'ai' : 'fixed',
-    },
-    runs: [],
+  if (usesLegacyPluginAdapter(plugin, 'eval')) {
+    const text = trimmed.toLowerCase()
+    return {
+      kind: 'eval',
+      name: normalizedName,
+      description: trimmed,
+      enabled: true,
+      tags,
+      target: {
+        type: /workflow/.test(text) ? 'workflow' : /group|team/.test(text) ? 'group' : 'agent',
+        ids: [],
+      },
+      experiment: {
+        input: trimmed,
+        candidateOutput: '',
+        expectedOutput: `Success criteria for: ${firstSentence}`,
+        judge: /ai judge|model judge|semantic/.test(text) ? 'ai' : 'fixed',
+      },
+      runs: [],
+    }
   }
+
+  const fields = buildGenericPluginFields(plugin)
+  const promptField = getOrderedPluginFields(plugin).find(([, schema]) => schema.type === 'string' && schema.format === 'textarea')
+    || getOrderedPluginFields(plugin).find(([, schema]) => schema.type === 'string' && !schema.enum)
+  if (promptField) fields[promptField[0]] = trimmed
+  return { kind: plugin.objectKind, name: normalizedName, description: trimmed, enabled: true, tags, fields }
 }
 
 export interface PluginRecordTemplate {
@@ -165,7 +220,65 @@ export interface EvalRecord {
   lastRun?: EvalRunRecord | null
 }
 
-export type PluginRecord = GuardrailRecord | EvalRecord
+export interface GenericPluginRecord {
+  id: string
+  kind: string
+  name: string
+  description: string
+  tags: string[]
+  enabled: boolean
+  archived?: boolean
+  createdAt: string
+  updatedAt: string
+  document?: PluginDocument | null
+  fields: Record<string, PluginFieldValue>
+}
+
+export type PluginRecord = GuardrailRecord | EvalRecord | GenericPluginRecord
+
+export function isGuardrailRecord(item: PluginRecord | Partial<PluginRecord>): item is GuardrailRecord {
+  return item.kind === 'guardrail' && 'controls' in item && 'appliesTo' in item
+}
+
+export function isEvalRecord(item: PluginRecord | Partial<PluginRecord>): item is EvalRecord {
+  return item.kind === 'eval' && 'experiment' in item && 'runs' in item
+}
+
+export function isGenericPluginRecord(item: PluginRecord | Partial<PluginRecord>): item is GenericPluginRecord {
+  return !!item.kind && 'fields' in item
+}
+
+export function formatPluginFieldValue(value: PluginFieldValue): string {
+  if (Array.isArray(value)) return value.join(', ') || 'none'
+  if (typeof value === 'boolean') return value ? 'yes' : 'no'
+  if (value === null || value === '') return 'none'
+  return String(value)
+}
+
+export function getPluginDetailLines(plugin: PluginManifest, item: PluginRecord): string[] {
+  if (isGuardrailRecord(item)) {
+    return [
+      `Agents: ${item.appliesTo.agents.join(', ') || 'none'}`,
+      `Workflows: ${item.appliesTo.workflows.join(', ') || 'none'}`,
+      `Groups: ${item.appliesTo.groups.join(', ') || 'none'}`,
+      `Communities: ${item.appliesTo.communities.join(', ') || 'none'}`,
+      `Allowed skills: ${item.controls.allowedSkills.join(', ') || 'none'}`,
+    ]
+  }
+  if (isEvalRecord(item)) {
+    return [
+      `Target type: ${item.target.type}`,
+      `Targets: ${item.target.ids.join(', ') || 'none'}`,
+      `Judge: ${item.experiment.judge === 'ai' ? 'AI placeholder' : 'Fixed heuristic'}`,
+      `Input: ${item.experiment.input || 'none'}`,
+      `Expected: ${item.experiment.expectedOutput || 'none'}`,
+    ]
+  }
+  const visibleFields = plugin.ui?.list?.fields?.length ? plugin.ui.list.fields : getOrderedPluginFields(plugin).map(([key]) => key)
+  return visibleFields
+    .filter((key) => plugin.recordSchema?.properties[key])
+    .map((key) => `${plugin.recordSchema!.properties[key].title}: ${formatPluginFieldValue(item.fields[key])}`)
+}
 
 export interface PluginWorkspaceContext {
   agents: Array<{ id: string; name: string }>
@@ -175,7 +288,7 @@ export interface PluginWorkspaceContext {
 }
 
 export function getPluginUsageTotals(item: PluginRecord): { runs: number; tokens: number; costUsd: number } {
-  if (item.kind !== 'eval') {
+  if (!isEvalRecord(item)) {
     return { runs: 0, tokens: 0, costUsd: 0 }
   }
 
@@ -191,7 +304,7 @@ export function getPluginUsageTotals(item: PluginRecord): { runs: number; tokens
 }
 
 export function formatPluginUsageSummary(item: PluginRecord): string {
-  if (item.kind !== 'eval') return 'No usage'
+  if (!isEvalRecord(item)) return 'No usage'
   const totals = getPluginUsageTotals(item)
   if (totals.runs === 0) return '0 runs'
   return `${totals.runs} runs · ${totals.tokens.toLocaleString()} tokens · $${totals.costUsd.toFixed(4)}`
@@ -208,18 +321,22 @@ export function matchesPluginSearch(item: PluginRecord, query: string): boolean 
     item.name,
     item.description,
     ...item.tags,
-    item.kind === 'guardrail'
+    isGuardrailRecord(item)
       ? [...item.appliesTo.agents, ...item.appliesTo.workflows, ...item.appliesTo.groups, ...item.appliesTo.communities, ...item.controls.allowedSkills]
-      : [...item.target.ids, item.experiment.input, item.experiment.candidateOutput, item.experiment.expectedOutput, item.experiment.judge],
+      : isEvalRecord(item)
+        ? [...item.target.ids, item.experiment.input, item.experiment.candidateOutput, item.experiment.expectedOutput, item.experiment.judge]
+        : Object.values(item.fields).flatMap((value) => Array.isArray(value) ? value : [String(value ?? '')]),
   ].join(' ').toLowerCase()
   return haystack.includes(normalized)
 }
 
 export function formatPluginScopeSummary(item: PluginRecord): string {
-  if (item.kind === 'guardrail') {
+  if (isGuardrailRecord(item)) {
     return `${item.appliesTo.agents.length} agents · ${item.appliesTo.workflows.length} workflows · ${item.appliesTo.groups.length} groups · ${item.appliesTo.communities.length} communities`
   }
-  return `${item.target.type} · ${item.target.ids.length} targets · ${item.runs.length} runs`
+  if (isEvalRecord(item)) return `${item.target.type} · ${item.target.ids.length} targets · ${item.runs.length} runs`
+  const populated = Object.values(item.fields).filter((value) => value !== '' && value !== null && (!Array.isArray(value) || value.length > 0)).length
+  return `${populated} configured fields`
 }
 
 export function formatPluginUpdatedAt(item: PluginRecord): string {
