@@ -2,6 +2,8 @@ import fs from 'fs'
 import path from 'path'
 import dotenv from 'dotenv'
 
+const inheritedProcessEnv = { ...process.env }
+
 export interface ProviderKeys {
   openai?: string
   anthropic?: string
@@ -75,10 +77,6 @@ function readDashboardEnvFile(): Record<string, string> {
 
 const dashboardEnv = readDashboardEnvFile()
 
-// Load dashboard-local env for legacy process.env readers. API config uses
-// getDashboardEnvRaw(), which overlays explicit runtime/container env values.
-dotenv.config({ path: DASHBOARD_ENV_PATH, override: true })
-
 const DASHBOARD_RUNTIME_ENV_KEYS = [
   'DASHBOARD_DEPLOYMENT_KIND',
   'CLAWMAX_DEPLOYMENT_KIND',
@@ -117,19 +115,33 @@ const DASHBOARD_RUNTIME_ENV_KEYS = [
   'MAINTENANCE_BANNER_DISMISSIBLE',
   'DASHBOARD_PORT',
   'DASHBOARD_HOST',
+  'CLAWMAX_PLUGIN_PATHS',
+  'CLAWMAX_ENABLED_PLUGINS',
+  'CLAWMAX_DISABLE_DEFAULT_PLUGINS',
   'NODE_ENV',
 ]
 
-function getDashboardRuntimeEnvOverrides(): Record<string, string> {
+const EMPTY_RUNTIME_OVERRIDE_KEYS = new Set([
+  'CLAWMAX_PLUGIN_PATHS',
+  'CLAWMAX_ENABLED_PLUGINS',
+  'CLAWMAX_DISABLE_DEFAULT_PLUGINS',
+])
+
+function getDashboardRuntimeEnvOverrides(source: NodeJS.ProcessEnv = process.env): Record<string, string> {
   const overrides: Record<string, string> = {}
   for (const key of DASHBOARD_RUNTIME_ENV_KEYS) {
-    const value = process.env[key]
-    if (typeof value === 'string' && value.trim().length > 0) {
+    const value = source[key]
+    if (typeof value === 'string' && (value.trim().length > 0 || EMPTY_RUNTIME_OVERRIDE_KEYS.has(key))) {
       overrides[key] = value.trim()
     }
   }
   return overrides
 }
+
+// Load dashboard-local env for legacy process.env readers, then restore explicit
+// runtime/container values for the supported override keys.
+dotenv.config({ path: DASHBOARD_ENV_PATH, override: true })
+Object.assign(process.env, getDashboardRuntimeEnvOverrides(inheritedProcessEnv))
 
 function firstNonEmpty(rawEnv: Record<string, string>, ...keys: string[]): string | undefined {
   for (const key of keys) {

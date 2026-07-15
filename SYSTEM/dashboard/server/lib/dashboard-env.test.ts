@@ -91,6 +91,30 @@ test('runtime env overrides parsed dashboard env for on-prem system config', () 
   }
 })
 
+test('runtime plugin settings participate in dashboard env overrides', () => {
+  const previous = {
+    paths: process.env.CLAWMAX_PLUGIN_PATHS,
+    enabled: process.env.CLAWMAX_ENABLED_PLUGINS,
+    disableDefaults: process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS,
+  }
+  process.env.CLAWMAX_PLUGIN_PATHS = '/plugins/private'
+  process.env.CLAWMAX_ENABLED_PLUGINS = 'example-review-plugin'
+  process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS = 'false'
+  try {
+    const raw = getDashboardEnvRaw()
+    assert(raw.CLAWMAX_PLUGIN_PATHS === '/plugins/private', 'Expected runtime plugin path override')
+    assert(raw.CLAWMAX_ENABLED_PLUGINS === 'example-review-plugin', 'Expected runtime plugin enablement override')
+    assert(raw.CLAWMAX_DISABLE_DEFAULT_PLUGINS === 'false', 'Expected runtime plugin default-policy override')
+  } finally {
+    if (previous.paths === undefined) delete process.env.CLAWMAX_PLUGIN_PATHS
+    else process.env.CLAWMAX_PLUGIN_PATHS = previous.paths
+    if (previous.enabled === undefined) delete process.env.CLAWMAX_ENABLED_PLUGINS
+    else process.env.CLAWMAX_ENABLED_PLUGINS = previous.enabled
+    if (previous.disableDefaults === undefined) delete process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS
+    else process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS = previous.disableDefaults
+  }
+})
+
 test('deployment kind falls back to cloud for managed runtime without onprem hints', () => {
   assert(getDashboardDeploymentKind({}) === 'cloud', 'Expected managed runtime without local-provider hints to be treated as cloud')
 })

@@ -10,6 +10,9 @@ All notable changes to ClawMax are documented here.
 - **Descriptive Export Filenames** — template, workflow, and agent downloads use sanitized object names and type-specific suffixes instead of generic filenames such as `TEMPLATE.md`.
 - **Dashboard Location Memory** — the dashboard remembers the last valid page when reopening from the root URL, while explicit deep links still take precedence; System navigation expansion continues to persist across refreshes.
 
+### Fixed
+- **Container Plugin Environment Precedence** — cloud and on-prem runtime values for plugin paths, explicit plugin enablement, and default-plugin policy now remain authoritative when the packaged dashboard also contains a local `.env` file.
+
 ### Planned
 - **1.9.8 Feedback And Small Features** — prioritize focused fixes and diagnostics driven by `1.9.7` feedback from Mike and other testers, while accepting small isolated features that build toward `2.0.0` without depending on its larger architecture.
 - **1.9.9 Follow-Through Space** — reserve a second minor line for additional bounded features and feedback follow-through so useful work does not need to wait for the complete `2.0.0` program.

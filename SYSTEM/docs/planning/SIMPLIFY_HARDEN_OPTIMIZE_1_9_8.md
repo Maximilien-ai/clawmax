@@ -1,6 +1,6 @@
 # Simplify / Harden / Optimize 1.9.8
 
-> Status: first bounded feature batch in validation
+> Status: RC2 validation
 > Baseline: `v1.9.7` / OpenClaw `v2026.6.11`
 > Last updated: July 14, 2026
 
@@ -24,6 +24,11 @@ Small features may enter `1.9.8` when they:
 - Track DocHub uploads explicitly and allow multi-select move/delete only for ledger-backed user files; moves remain inside the original upload target boundary.
 - Name template, workflow, agent, and skill exports after the exported object instead of using generic attachment names.
 - Restore the last valid dashboard page from browser-local state when opening the root route and preserve System navigation expansion state.
+
+## RC2 Fix
+
+- Preserve container-injected `CLAWMAX_PLUGIN_PATHS`, `CLAWMAX_ENABLED_PLUGINS`, and `CLAWMAX_DISABLE_DEFAULT_PLUGINS` when the packaged dashboard also loads a local `.env` file.
+- Keep the declarative `clawmax.ai/v2` plugin contract isolated on `release-2.0.0`; RC2 carries only the environment-precedence correction needed by the existing 1.9.8 plugin host.
 
 ## Intake Requirements
 
