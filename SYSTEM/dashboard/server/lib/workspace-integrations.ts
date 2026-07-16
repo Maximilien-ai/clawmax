@@ -9,6 +9,9 @@ export interface WorkspaceIntegrationConfig {
   // Keep as an inline string union (not the `AgentRuntimeId` type) to avoid a type-level
   // dependency on agent-runtime.ts, which already imports readWorkspaceIntegrationConfig from here.
   agentRuntime?: 'openclaw' | 'claude' | 'droid'
+  // CLI runtimes enabled for this workspace (multi-select). OpenClaw is always available; these are
+  // the non-openclaw CLIs an agent may be pinned to. Enabling one only makes it available per-agent.
+  enabledRuntimes?: ('claude' | 'droid')[]
   githubDefaultRepo?: string
   sensoContextLabel?: string
   ollamaBaseUrl?: string
@@ -121,6 +124,13 @@ export function writeWorkspaceIntegrationConfig(input: WorkspaceIntegrationConfi
     preferredModel: input.preferredModel?.trim() || undefined,
     systemPreferredModel: input.systemPreferredModel?.trim() || undefined,
     agentRuntime: normalizeAgentRuntime(input.agentRuntime),
+    enabledRuntimes: Array.isArray(input.enabledRuntimes)
+      ? (Array.from(new Set(
+          input.enabledRuntimes
+            .map((item) => normalizeAgentRuntime(item))
+            .filter((rt): rt is 'claude' | 'droid' => rt === 'claude' || rt === 'droid')
+        )) as ('claude' | 'droid')[])
+      : undefined,
     githubDefaultRepo: input.githubDefaultRepo?.trim() || undefined,
     sensoContextLabel: input.sensoContextLabel?.trim() || undefined,
     ollamaBaseUrl: input.ollamaBaseUrl?.trim() || undefined,
