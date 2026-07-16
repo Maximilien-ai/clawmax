@@ -18,11 +18,19 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 
 ## 🛠 Current Feedback Line: 1.9.8
 
-- Next validation image: `1.9.8-test-rc1`
+- Current validation image: `1.9.8-test-rc2`
 - `1.9.8` prioritizes feedback and focused hardening from the `1.9.7` tester rollout while allowing small, isolated features that move the product toward `2.0.0`.
 - Current `1.9.8` work includes federated skill-registry search, safe multi-select move/delete for user-uploaded DocHub files, descriptive export filenames, and restored dashboard navigation state.
 - Prioritize reproducible issues from Mike and other testers across agent chat, group chat, workflows, model/runtime diagnostics, plugins, and containerized deployments.
-- Use `1.9.8` and `1.9.9` for bounded features that can ship independently; keep major evaluation/control architecture and another OpenClaw baseline change in separate validation tracks.
+- Use `1.9.8` and `1.9.9` for bounded features that can ship independently; keep the `clawmax.ai/v2` plugin platform and another OpenClaw baseline change in separate validation tracks.
+
+## 🧩 2.0 Development Track: Plugin Platform
+
+- `2.0.0` is the major plugin-platform release. Its public core provides a versioned, declarative host contract so new plugin object types can integrate without adding product-specific routes, pages, or schemas to ClawMax core.
+- The first `clawmax.ai/v2` contract supports generic record schemas, defaults, list/form presentation, templates, workspace storage, document generation, capability declarations, and compatibility diagnostics.
+- Private plugins remain in private repositories and are mounted or installed at deployment time. They are never bundled into the public ClawMax repository or default container image, and production enablement is always explicit.
+- A standard ClawMax runtime must remain fully functional with zero plugins enabled. Public contract tests use synthetic fixtures only.
+- The active implementation branch is `release-2.0.0`. See [Plugin System 2.0](PLUGINS/PLUGIN_SYSTEM_2_0.md) and [Plugin Authoring 2.0](PLUGINS/PLUGIN_AUTHORING_2_0.md) for the current contract and acceptance boundary.
 
 ## ✨ 1.9.x Highlights
 
@@ -181,7 +189,7 @@ curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/ins
 Pinned release:
 
 ```bash
-curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.8.0
+curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.9.7
 ```
 
 What it does:
@@ -202,16 +210,16 @@ See [SYSTEM/docs/DEMO_VIDEOS.md](SYSTEM/docs/DEMO_VIDEOS.md) for the current inv
 You can also bootstrap directly with the checked-in wrapper:
 
 ```bash
-./setup.sh v1.8.0
+./setup.sh v1.9.7
 ```
 
 or choose a custom install directory:
 
 ```bash
-curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.8.0 --dir /opt/clawmax
+curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.9.7 --dir /opt/clawmax
 ```
 
-See [SYSTEM/docs/RELEASE_DISTRIBUTION.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/RELEASE_DISTRIBUTION.md) for the release distribution contract.
+See [SYSTEM/docs/RELEASE_DISTRIBUTION.md](SYSTEM/docs/RELEASE_DISTRIBUTION.md) for the release distribution contract.
 
 ```bash
 # Clone the repository

@@ -1,8 +1,8 @@
 # ClawMax Plugin Authoring 2.0
 
 Use this contract for declarative plugins that define object types outside
-ClawMax core. Legacy guardrail and eval manifests remain supported through the
-MVP0 compatibility adapters.
+ClawMax core. Legacy host-defined manifests remain supported temporarily
+through the MVP0 compatibility adapters.
 
 ## Manifest
 
@@ -127,4 +127,3 @@ the public ClawMax image.
 V2 plugins are declarative. They do not load arbitrary frontend bundles or
 execute unrestricted server code. Host-mediated custom actions and finer
 permission enforcement are later 2.0 contract phases.
-

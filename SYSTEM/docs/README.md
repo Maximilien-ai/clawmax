@@ -1,6 +1,6 @@
 # ClawMax Documentation
 
-> Last updated: May 24, 2026
+> Last updated: July 15, 2026
 
 ## Active Documents
 
@@ -14,8 +14,10 @@
 | [SECURITY.md](SECURITY.md) | Security architecture and policies |
 | [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) | Pre-release verification steps |
 | [DEMO_VIDEOS.md](DEMO_VIDEOS.md) | Local demo video inventory and when to use it |
-| [planning/HARDENING_SIMPLIFICATION_1_8_X.md](planning/HARDENING_SIMPLIFICATION_1_8_X.md) | Active `1.8.x` hardening, simplification, and backlog cleanup sprint plan |
-| [planning/CLIENT_SIMPLIFICATION_SPRINT_2026-05-27_28.md](planning/CLIENT_SIMPLIFICATION_SPRINT_2026-05-27_28.md) | Two-day simplification plan for the main client console surfaces |
+| [planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_8.md](planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_8.md) | Active `1.9.8` feedback and bounded-feature release plan |
+| [planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_9.md](planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_9.md) | Reserved `1.9.9` follow-through plan |
+| [../../PLUGINS/PLUGIN_SYSTEM_2_0.md](../../PLUGINS/PLUGIN_SYSTEM_2_0.md) | Public 2.0 plugin-host architecture and acceptance boundary |
+| [../../PLUGINS/PLUGIN_AUTHORING_2_0.md](../../PLUGINS/PLUGIN_AUTHORING_2_0.md) | Declarative 2.0 plugin authoring contract |
 | [architecture/DASHBOARD_RUNTIME_SPLIT.md](architecture/DASHBOARD_RUNTIME_SPLIT.md) | Investigation note for the 2-container vs 3-container dashboard runtime split |
 | [operations/TEMPLATE_CATALOG_AUDIT_2026-05-24.md](operations/TEMPLATE_CATALOG_AUDIT_2026-05-24.md) | First catalog audit pass for template lane/filesystem assumptions |
 | [operations/MOBILE_AUDIT_2026-05-24.md](operations/MOBILE_AUDIT_2026-05-24.md) | Focused narrow-width audit pass for high-traffic dashboard surfaces |
@@ -42,7 +44,7 @@
 | `architecture/` | System design docs |
 | `features/` | Feature design docs |
 | `operations/` | Ops and deployment guides |
-| `planning/` | Sprint plans (current in root, completed in `archive/`) |
+| `planning/` | Active release plans only; completed and superseded plans live in `planning/archive/` |
 | `presentations/` | Demo, talk, and workshop materials; latest deck: `mango-grove-estate-workshop-jul-2026/index.html` |
 | `videos/` | Local backup demo videos for workflow execution and add-agent walkthroughs |
 | `archive/` | Historical docs no longer actively maintained |

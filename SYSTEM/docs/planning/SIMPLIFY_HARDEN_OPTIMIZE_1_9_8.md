@@ -13,7 +13,7 @@ Use `1.9.8` as a feedback-first hardening and small-feature line after the first
 Small features may enter `1.9.8` when they:
 
 - have a narrow user-visible outcome
-- do not require the full `2.0.0` evaluation/control architecture
+- do not require or partially expose the `2.0.0` plugin-host contract
 - can be covered by focused automated and manual tests
 - do not destabilize the promoted OpenClaw runtime baseline
 - can be deferred to `1.9.9` cleanly if tester fixes need the release budget
@@ -53,7 +53,7 @@ For each report, capture:
 ## Guardrails
 
 - Keep OpenClaw pinned to `v2026.6.11` during initial feedback triage.
-- Keep features bounded; move larger or coupled work to `1.9.9` or `2.0.0`.
+- Keep features bounded; move larger or coupled work to `1.9.9` or the `release-2.0.0` plugin-platform track.
 - Require a regression test for every reproducible runtime fix.
 - Validate candidate images on amd64 and arm64, then run direct chat, group chat, and a multi-step workflow on cloud/on-prem before promotion.
 - Preserve `1.9.7` as the rollback target until `1.9.8` is promoted.

@@ -9,6 +9,8 @@ All notable changes to ClawMax are documented here.
 - **Safe DocHub Bulk File Management** — user uploads are recorded in a dashboard-owned ownership ledger and can be selected, moved in bulk within their original upload boundary, or deleted in bulk; agent-generated and untracked files remain protected.
 - **Descriptive Export Filenames** — template, workflow, and agent downloads use sanitized object names and type-specific suffixes instead of generic filenames such as `TEMPLATE.md`.
 - **Dashboard Location Memory** — the dashboard remembers the last valid page when reopening from the root URL, while explicit deep links still take precedence; System navigation expansion continues to persist across refreshes.
+- **2.0 Declarative Plugin Contract** — the `release-2.0.0` track adds a versioned `clawmax.ai/v2` manifest, generic record schemas and defaults, declarative list/form presentation, generic templates, workspace storage, and compatibility validation without requiring a new core page or route for every plugin type.
+- **External Plugin Boundary** — 2.0 plugin discovery supports deployment-mounted roots plus explicit enablement while preserving a zero-plugin runtime. Private plugin repositories and production enablement remain outside the public repository and default image.
 
 ### Fixed
 - **Container Plugin Environment Precedence** — cloud and on-prem runtime values for plugin paths, explicit plugin enablement, and default-plugin policy now remain authoritative when the packaged dashboard also contains a local `.env` file.
@@ -16,6 +18,7 @@ All notable changes to ClawMax are documented here.
 ### Planned
 - **1.9.8 Feedback And Small Features** — prioritize focused fixes and diagnostics driven by `1.9.7` feedback from Mike and other testers, while accepting small isolated features that build toward `2.0.0` without depending on its larger architecture.
 - **1.9.9 Follow-Through Space** — reserve a second minor line for additional bounded features and feedback follow-through so useful work does not need to wait for the complete `2.0.0` program.
+- **2.0 Plugin Platform Completion** — finish host-mediated actions and permissions, external-plugin packaging validation across local/cloud/on-prem runtimes, actionable compatibility diagnostics, and removal of remaining product-specific MVP0 adapters before promotion.
 - **Stable Runtime Baseline** — keep OpenClaw fixed at `v2026.6.11` unless a separately validated upstream change is required.
 
 ## [v1.9.7] - 2026-07-13

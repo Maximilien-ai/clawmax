@@ -139,13 +139,26 @@ Use [MANUAL_RELEASE_SMOKE_CHECKLIST.md](MANUAL_RELEASE_SMOKE_CHECKLIST.md) as th
   - remaining Builder quality work is framed as post-release eval/export/share polish
   - test automation priority
 
-## 6. Major Release Reminder
+## 6. 2.0 Plugin Release Gate
+
+Apply this section to `release-2.0.0` and later plugin-platform releases.
+
+- Confirm the public image and repository contain no private plugin source, credentials, or production enablement.
+- Run the full suite with zero plugins enabled.
+- Run discovery, CRUD, template, document, notification, and permission contract tests with synthetic external fixtures.
+- Verify a generic third object type loads without adding a product-specific core route, page, or schema branch.
+- Verify missing mounts, disabled plugins, incompatible API versions, invalid manifests, and denied capabilities produce actionable diagnostics.
+- Mount and enable deployment-managed plugins separately in local, cloud, and on-prem smoke environments without rebuilding the public image.
+- Confirm arbitrary remote frontend bundles and unrestricted plugin server code remain unsupported unless an isolation/signing design is separately approved.
+- Review [Plugin System 2.0](../../PLUGINS/PLUGIN_SYSTEM_2_0.md) and [Plugin Authoring 2.0](../../PLUGINS/PLUGIN_AUTHORING_2_0.md) against the release candidate.
+
+## 7. Major Release Reminder
 
 - For a major release such as `2.0`, review any local/private cleanup draft before cutting the tag.
 - If the local file `SYSTEM/docs/planning/CLAWMAX_2_0_CLEANUP_PLAN_PRIVATE.md` exists, read it and decide which disruptive cleanup items should be pulled into the `2.0` prep window.
 - If the `2.0` plan still includes Git history cleanup, run the validation and backup flow in [operations/CLAUDE_COAUTHOR_HISTORY_CLEANUP_RUNBOOK.md](operations/CLAUDE_COAUTHOR_HISTORY_CLEANUP_RUNBOOK.md) on a dedicated cleanup branch before touching `main`.
 
-## 7. Deferred to Post-Release
+## 8. Deferred to Post-Release
 
 - broader Builder eval corpus expansion
 - Builder export/share UX polish

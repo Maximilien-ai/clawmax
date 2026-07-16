@@ -6,7 +6,7 @@
 
 ## Goal
 
-Keep a second bounded release line available for small features and tester feedback that should ship before the complete `2.0.0` program is ready.
+Keep a second bounded release line available for small features and tester feedback that should ship before the complete `2.0.0` plugin platform is ready.
 
 ## Candidate Intake
 
@@ -20,7 +20,7 @@ Add named features here as they are defined. For each candidate, record:
 
 ## Guardrails
 
-- Do not turn `1.9.9` into a partial, incompatible `2.0.0` architecture.
+- Do not turn `1.9.9` into a partial, incompatible copy of the `clawmax.ai/v2` plugin architecture.
 - Keep OpenClaw/runtime upgrades on their own explicit RC validation path.
 - Preserve `1.9.7` as the known rollback baseline until a later release is promoted and validated.
 - Prefer small complete features over broad unfinished frameworks.

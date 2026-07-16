@@ -2,8 +2,10 @@
 
 Status: integration contract in progress on `release-2.0.0`
 
-The first generic manifest, record schema, and declarative UI contract is
-implemented. See [PLUGIN_AUTHORING_2_0.md](PLUGIN_AUTHORING_2_0.md).
+The integration baseline and first generic manifest, record schema, template,
+storage, and declarative UI contract are implemented. Host-mediated actions,
+permission enforcement, packaging validation, and legacy-adapter removal remain
+release work. See [PLUGIN_AUTHORING_2_0.md](PLUGIN_AUTHORING_2_0.md).
 
 ## Purpose
 
@@ -48,7 +50,7 @@ serve its source tree or credentials.
 MVP0 recognizes two host-defined object kinds and renders product-specific
 forms in core. That is a compatibility layer, not the final 2.0 contract.
 
-The 2.0 manifest will support a generic plugin identifier plus declarative
+The 2.0 manifest supports a generic plugin identifier plus declarative
 contracts for:
 
 - record schema and defaults
@@ -71,6 +73,8 @@ validated separately.
 
 ### Phase 1: Integration baseline
 
+Status: implemented; continue regression validation.
+
 - Keep zero-plugin startup working.
 - Load private and public manifests from external roots.
 - Require explicit enablement for non-default plugins.
@@ -78,6 +82,8 @@ validated separately.
 - Preserve the MVP0 object-kind adapters while 2.0 contracts are introduced.
 
 ### Phase 2: Generic manifest and records
+
+Status: first contract implemented; compatibility hardening remains.
 
 - Version the host API and manifest contract.
 - Add generic record schemas, defaults, and presentation metadata.
@@ -87,12 +93,16 @@ validated separately.
 
 ### Phase 3: Host-mediated actions
 
+Status: pending.
+
 - Declare plugin actions in the manifest.
 - Route actions through explicit host capabilities.
 - Record action results and failures with plugin diagnostics.
 - Prevent a plugin from using undeclared capabilities.
 
 ### Phase 4: Legacy adapter removal
+
+Status: pending.
 
 - Move product-specific schemas, templates, and presentation out of core.
 - Validate equivalent behavior through externally mounted plugins.

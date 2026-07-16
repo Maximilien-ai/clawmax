@@ -1,5 +1,9 @@
 # ClawMax Plugin Authoring Guide MVP0
 
+Status: historical compatibility guide. Examples refer only to synthetic
+plugin-lab fixtures. New plugins should use
+[PLUGIN_AUTHORING_2_0.md](PLUGIN_AUTHORING_2_0.md).
+
 This guide is for users or AI coding assistants creating a new ClawMax plugin.
 
 This MVP0 guide documents the compatibility adapter. New 2.0 plugin work should
