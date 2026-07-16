@@ -18,11 +18,11 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 
 ## 🛠 Current Feedback Line: 1.9.8
 
-- Next validation image: `1.9.8-test-rc1`
+- Current validation image: `1.9.8-test-rc3`
 - `1.9.8` prioritizes feedback and focused hardening from the `1.9.7` tester rollout while allowing small, isolated features that move the product toward `2.0.0`.
 - Current `1.9.8` work includes federated skill-registry search, safe multi-select move/delete for user-uploaded DocHub files, descriptive export filenames, and restored dashboard navigation state.
 - Prioritize reproducible issues from Mike and other testers across agent chat, group chat, workflows, model/runtime diagnostics, plugins, and containerized deployments.
-- Use `1.9.8` and `1.9.9` for bounded features that can ship independently; keep major evaluation/control architecture and another OpenClaw baseline change in separate validation tracks.
+- Use `1.9.8` for the current bounded feature batch. `1.9.9` is planned around brokered, explicitly granted agent-skill secret use; keep major evaluation/control architecture and another OpenClaw baseline change in separate validation tracks.
 
 ## ✨ 1.9.x Highlights
 
@@ -79,6 +79,8 @@ For full `1.8.x` / `1.7.x` details and RC history, see [CHANGELOG.md](CHANGELOG.
 Keys & Secrets safety model:
 - Values in `Keys & Secrets` are stored in the current browser only. They are meant to centralize capture and reuse across dashboard forms, not to act as a secure remote secrets manager.
 - ClawMax uses the browser vault to prefill matching inputs for templates, workflows, skills, and visible partner integrations. Users can still override values locally for a specific apply/run/edit flow.
+- Browser-local values are not automatically available to agent chat or skill subprocesses. The planned `1.9.9` flow requires an explicit skill/key grant and brokered execution rather than a general secret-reading tool.
+- Do not store normal account passwords for agent use. Prefer provider OAuth, service accounts, scoped tokens, or app passwords supported by the specific integration.
 - Browser-local values are not a substitute for proper server-side or infrastructure secret management. For production hosted or operator-managed deployments, keep system/runtime secrets in environment variables, secret stores, or your platform’s native secret manager.
 - If you share a browser profile or machine, treat browser-local vault contents as locally accessible to that profile. Clear or rotate values when changing environments or handing a machine to someone else.
 

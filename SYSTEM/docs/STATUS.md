@@ -2,8 +2,8 @@
 
 **Current Version**: v1.9.7
 **Development Line**: 1.9.8
-**Last Updated**: July 13, 2026
-**Status**: `v1.9.7` is the promoted stable release and the first fully validated local/cloud/on-prem line on OpenClaw `v2026.6.11`. `main` is validating the first `1.9.8` bounded feature batch: federated registry search, safe DocHub bulk file actions, descriptive export names, and navigation memory. `1.9.9` remains available for additional tester feedback and small features toward `2.0.0`.
+**Last Updated**: July 16, 2026
+**Status**: `v1.9.7` is the promoted stable release and the first fully validated local/cloud/on-prem line on OpenClaw `v2026.6.11`. `1.9.8-test-rc3` contains the current bounded feature/fix batch and passed multi-architecture build, manifest, and registry smoke. `1.9.9` is now planned around explicitly granted, brokered agent-skill secret use without exposing general vault access.
 
 ---
 
@@ -34,8 +34,8 @@
   - [planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_7.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_7.md)
   - [planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_8.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_8.md)
   - [planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_9.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_9.md)
-- Near-term target: collect `1.9.7` feedback from Mike and other testers, reproduce issues against the exact stable image, and cut `1.9.8-test-rc1` only when focused fixes are ready.
-- Keep `1.9.8` feedback-first, but accept small independently testable features that support the path to `2.0.0`; use `1.9.9` for the next bounded follow-through rather than overloading one release.
+- Near-term target: complete Mike and other tester validation against `1.9.8-test-rc3`, prune the living manual checklist, and promote only after the remaining container checks pass.
+- Begin `1.9.9` with current-state secret readiness clarity, then implement grant/resolver/broker boundaries and security-negative tests before accepting a real credential for agent-skill use.
 - Keep OpenClaw pinned to `v2026.6.11` during the feedback window unless an upstream change is isolated and validated separately.
 
 ## Release References

@@ -15,7 +15,8 @@ All notable changes to ClawMax are documented here.
 
 ### Planned
 - **1.9.8 Feedback And Small Features** — prioritize focused fixes and diagnostics driven by `1.9.7` feedback from Mike and other testers, while accepting small isolated features that build toward `2.0.0` without depending on its larger architecture.
-- **1.9.9 Follow-Through Space** — reserve a second minor line for additional bounded features and feedback follow-through so useful work does not need to wait for the complete `2.0.0` program.
+- **1.9.9 Brokered Agent-Skill Secrets** — plan explicit workspace/agent/skill/fingerprint/key grants and a narrow skill execution broker so authorized skills can use required credentials without giving agents a general vault reader or putting raw values in the parent agent environment.
+- **Google Credential Safety** — document OAuth, service-account, and supported app-password flows as the intended Google integration paths; normal Google account passwords must not be requested or recommended.
 - **Stable Runtime Baseline** — keep OpenClaw fixed at `v2026.6.11` unless a separately validated upstream change is required.
 
 ## [v1.9.7] - 2026-07-13

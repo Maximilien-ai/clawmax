@@ -1,26 +1,206 @@
 # Simplify / Harden / Optimize 1.9.9
 
-> Status: reserved
-> Baseline: `1.9.8` follow-through toward `2.0.0`
-> Last updated: July 13, 2026
+> Status: planned
+> Baseline: promoted `1.9.8`
+> Runtime baseline: OpenClaw `v2026.6.11`
+> Last updated: July 16, 2026
 
 ## Goal
 
-Keep a second bounded release line available for small features and tester feedback that should ship before the complete `2.0.0` program is ready.
+Make workspace secrets usable by explicitly authorized agent skills without exposing a general-purpose secret-reading capability to the agent or language model. Keep the work bounded and independently releasable before the broader `2.0.0` plugin/evaluation program.
 
-## Candidate Intake
+## Tester Problem
 
-Add named features here as they are defined. For each candidate, record:
+Mike saved Google credentials in `Keys & Secrets` and expected an assigned Google skill to use them during agent chat. That does not work today:
 
-- user problem and expected outcome
-- dependency on `1.9.8` or `2.0.0` work
-- affected product surfaces and runtime environments
-- focused automated and manual validation
-- whether it can ship independently or must remain in the `2.0.0` track
+- general `Keys & Secrets` values are stored in a browser-local vault
+- agent chat and tools execute in the server/container runtime
+- browser-local values are not automatically available to that runtime
+- `safeEnv()` forwards only approved provider keys and server-managed integration values
+- workflow-specific secrets work only because the workflow request explicitly carries them
 
-## Guardrails
+The UI centralizes secret capture and readiness, but it does not yet provide a secure browser-vault-to-agent-skill execution contract.
 
-- Do not turn `1.9.9` into a partial, incompatible `2.0.0` architecture.
-- Keep OpenClaw/runtime upgrades on their own explicit RC validation path.
-- Preserve `1.9.7` as the known rollback baseline until a later release is promoted and validated.
-- Prefer small complete features over broad unfinished frameworks.
+## Security Decisions
+
+- Do not add a generic `read-secret`, `list-secrets`, or vault browsing skill.
+- Do not inject all workspace secrets into the OpenClaw/agent process environment.
+- Do not place secret values in prompts, agent memory, workspace Markdown, chat transcripts, workflow records, logs, or error messages.
+- Do not encourage storage of a normal Google account password. Prefer OAuth, service-account credentials, or a Google app password when the specific integration supports it.
+- Grant access to a named skill and named secret requirements, not to an agent without context.
+- Workspace scope overrides global scope only through an explicit, testable resolution rule.
+- Imported skills remain a trust boundary: granting a skill a secret authorizes that skill to use it. The UI must identify the skill, requested keys, and risk before granting access.
+- Keep private `2.0.0` guardrail/evaluation plugins out of this release. The contract must remain generic.
+
+## Proposed Contract
+
+### 1. Declarative requirements
+
+Skills declare stable environment-style keys through existing requirement metadata:
+
+```yaml
+requires:
+  env:
+    - GOOGLE_CLIENT_ID
+    - GOOGLE_CLIENT_SECRET
+```
+
+Secret requirements must use validated uppercase identifiers. Wildcard requests are invalid.
+
+### 2. Explicit grants
+
+Record each grant with:
+
+- workspace id
+- agent id
+- skill id and immutable skill fingerprint/version
+- permitted secret key names
+- creation/update time
+- optional expiration and revocation state
+
+Changing the skill fingerprint or adding a required key invalidates readiness until the user reviews the request.
+
+### 3. Runtime secret resolver
+
+Introduce a server-side resolver interface with providers for:
+
+- runtime/infrastructure environment secrets
+- workspace-managed encrypted secrets
+- an explicit per-request browser-vault envelope for local preview flows
+
+The resolver returns only granted keys required by the selected skill. APIs return presence, source, and masked summaries, never raw values.
+
+Production cloud/on-prem deployments should use an infrastructure secret manager or an encrypted server-side store backed by an operator-provided master key. Browser storage remains a convenience and must be labeled accordingly.
+
+### 4. Skill execution broker
+
+Run an authorized skill through a broker that:
+
+- verifies workspace, agent, skill fingerprint, and grant
+- resolves only declared keys
+- creates a child environment for the skill subprocess, not the parent agent process
+- uses a fixed/validated skill entrypoint instead of accepting arbitrary shell text
+- captures output with size/time limits
+- redacts known values from stdout, stderr, errors, audit events, and returned tool content
+- records key names and result status for audit without recording values
+
+The agent may invoke the authorized skill, but it cannot enumerate the vault or obtain the raw resolver response.
+
+### 5. Google guidance
+
+The first documented example must distinguish:
+
+- OAuth client id/secret plus refresh-token flow for user-account APIs
+- service-account JSON for supported Workspace/service APIs
+- Google app passwords only for supported protocols such as SMTP/IMAP
+- normal Google account passwords, which must not be requested or recommended
+
+The Google skill declares the credential type it supports instead of requesting a generic `GOOGLE_PASSWORD`.
+
+## Delivery Plan
+
+### Phase 0: Current-state clarity
+
+- Distinguish browser capture from runtime availability in `Keys & Secrets`.
+- Label values as browser-local, workspace-managed, or runtime-managed.
+- Show `Not available to agent runtime` instead of a misleading ready state.
+- Link skill readiness to the correct secret configuration/grant flow.
+
+### Phase 1: Grant and resolution model
+
+- Define versioned grant and secret-presence schemas.
+- Add key validation, scope resolution, fingerprint invalidation, revocation, and masked inventory APIs.
+- Reuse existing `requires.env` and secret-requirement metadata where possible.
+- Add an encrypted workspace provider only when an operator key is configured; fail closed otherwise.
+
+### Phase 2: Brokered skill execution
+
+- Add the fixed-entrypoint execution broker.
+- Pass a capability reference to the agent/tool path rather than raw values.
+- Inject resolved values only into the authorized skill subprocess.
+- Redact broker output, errors, activity, logs, and execution history.
+- Preserve provider BYOK and managed partner behavior while compatible integrations migrate toward the broker.
+
+### Phase 3: Product flow
+
+- Add `Authorize secrets` to skill assignment/readiness.
+- Display requested key names, scope, source, skill fingerprint, and revocation controls.
+- Require reauthorization when requirements or skill content changes.
+- Add Google credential-type guidance without accepting a normal account password.
+
+### Phase 4: Validation and release
+
+- Exercise local, cloud/container, and on-prem paths.
+- Restart containers and verify configured grants/encrypted secrets persist.
+- Verify browser-local preview values do not silently become server-persisted.
+- Cut `1.9.9-test-rc1` only after security-negative tests pass.
+
+## Automated Test Matrix
+
+### Unit and contract tests
+
+- global/workspace/per-request resolution precedence
+- missing operator encryption key fails closed
+- malformed, wildcard, undeclared, and newly added key requests are rejected
+- agent, workspace, skill id, and skill fingerprint mismatches are rejected
+- revocation and expiration are enforced
+- unassigned skills cannot receive grants
+- inventory responses remain masked
+- values are removed from stdout, stderr, exceptions, logs, audit records, chat output, and workflow history
+
+### Controlled runtime integration
+
+Create a fake agent and assigned skill requiring `CLAWMAX_TEST_SECRET`. Its fixed entrypoint reports only `SECRET_AVAILABLE=true` and a non-reversible test fingerprint.
+
+Verify:
+
+- the authorized skill subprocess receives the expected value
+- the parent agent/OpenClaw environment does not contain it
+- an unrelated skill cannot request it
+- another agent and workspace cannot use the grant
+- changing the fake skill fingerprint invalidates the grant
+- asking the agent to print, list, or echo secrets does not reveal it
+- deliberately echoing it from the fake skill is redacted before user-visible or persisted output
+
+### Container integration
+
+- run the controlled test in the multi-architecture image path
+- cover runtime-managed and encrypted workspace-managed providers
+- restart and repeat without stale in-memory state
+- scan dashboard/OpenClaw logs and workspace artifacts for the sentinel
+- verify the sentinel is absent from workspace exports and support-log bundles
+
+### Manual validation
+
+- authorize a non-production Google test credential to a compatible test skill
+- run direct chat, group chat, and a workflow using the agent/skill
+- revoke the grant and confirm the next execution fails with actionable guidance
+- change the skill requirement/fingerprint and confirm reauthorization is required
+- inspect Keys & Secrets, skill details, logs, activity, and history for masked-only presentation
+
+## Release Gates
+
+- No generic secret enumeration or retrieval API is reachable by agents or skills.
+- Raw values never enter the parent agent process environment.
+- Every grant is workspace-, agent-, skill-, fingerprint-, and key-scoped.
+- All negative authorization and redaction tests pass.
+- Full validation/coverage passes without reducing coverage percentages.
+- amd64 and arm64 image builds plus registry smoke pass.
+- One local and one containerized Google test pass using a non-primary credential.
+- Documentation explicitly rejects normal account-password storage.
+
+## Non-Goals For 1.9.9
+
+- a universal secret-manager implementation for every provider
+- unrestricted shell execution with injected secrets
+- automatic authorization based only on skill assignment
+- exposing raw secrets to AI prompts
+- changing the OpenClaw baseline in the same RC track
+- shipping private guardrail/evaluation plugins
+
+## Open Questions Before Implementation
+
+- Which production provider is the minimum for `1.9.9`: encrypted file, Kubernetes Secrets, or both?
+- Can current OpenClaw skill invocation call a fixed ClawMax broker entrypoint, or is a ClawMax-managed tool adapter required?
+- Should grants expire by default or remain until revoked/fingerprint change?
+- Which Google skill and credential mode will be the first real integration test?

@@ -1,11 +1,11 @@
 # ClawMax Known Issues & Limitations
 
-**Last Updated**: June 10, 2026
-**Current Version**: v1.7.9
+**Last Updated**: July 16, 2026
+**Current Version**: v1.9.8 release-candidate line
 
 ---
 
-## Active Issues For 1.8.x
+## Active Issues
 
 ### 1. System-test workspace isolation needs hardening
 
@@ -111,6 +111,26 @@ Current target:
 - make command output visible for allowlisted partner plugin actions
 - improve secret readiness before template apply or workflow run
 - warn clearly when `OTP_DEV_MODE=log` is enabled outside dev/test
+
+---
+
+### 8. Browser-local secrets are not agent-runtime credentials
+
+**Severity**: High
+**Status**: Planned `1.9.9` security work
+
+General values saved in `Keys & Secrets` are browser-local. Direct agent chat and skill tools execute in the server/container runtime, so those values are not automatically available there. Treating browser capture as runtime readiness is misleading, while forwarding every value into the agent environment would expose too much authority.
+
+Current target:
+
+- distinguish browser-local capture from secure runtime availability
+- declare named skill requirements and require explicit skill/key grants
+- resolve only granted keys through a brokered fixed skill entrypoint
+- keep raw values out of the parent agent process, prompts, memory, logs, chat, history, and exports
+- add controlled sentinel/redaction tests locally and in containers
+- document OAuth, service accounts, and supported app passwords for Google integrations; reject normal account-password guidance
+
+Plan: [SIMPLIFY_HARDEN_OPTIMIZE_1_9_9.md](planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_9.md)
 
 ---
 
