@@ -2098,6 +2098,55 @@ export function ByokWizard({
                   </div>
                 </div>
 
+                <div className="mt-4">
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-gray-500 dark:text-gray-400">
+                    Run via CLI — no API key needed
+                  </div>
+                  <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">
+                    Instead of the model-provider keys above, run agents through a CLI using its own login (your Claude subscription or Factory login).
+                  </p>
+                  {runtimeStatusesLoading && runtimeStatuses.length === 0 ? (
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Detecting installed CLIs…</div>
+                  ) : (
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {runtimeStatuses.filter((status) => status.id === 'claude' || status.id === 'droid').map((status) => (
+                        <button
+                          key={status.id}
+                          type="button"
+                          onClick={() => setAgentRuntime(agentRuntime === status.id ? 'openclaw' : status.id)}
+                          disabled={!status.installed}
+                          className={`rounded-lg border px-3 py-2 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:opacity-60 disabled:cursor-not-allowed ${
+                            agentRuntime === status.id
+                              ? 'ring-2 ring-sky-400 dark:ring-sky-600 '
+                              : ''
+                          }${
+                            status.installed
+                              ? 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-100'
+                              : 'border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300'
+                          }`}
+                          aria-pressed={agentRuntime === status.id}
+                          title={status.installed ? `Run agents via ${status.label} (its own login)` : `${status.label} is not installed`}
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="font-medium">{status.label}</span>
+                            <span className="text-xs uppercase tracking-wide opacity-80">
+                              {status.installed ? `detected${status.version ? ` ${status.version}` : ''}` : 'not installed'}
+                            </span>
+                          </div>
+                          <div className="mt-1 text-xs opacity-80">
+                            {status.installed ? 'Runs agents with its own login' : status.installHint}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                    {agentRuntime === 'claude' || agentRuntime === 'droid'
+                      ? `Agents run via ${runtimeStatuses.find((status) => status.id === agentRuntime)?.label || agentRuntime} — the model-provider keys above are not used. Click it again to switch back to API providers.`
+                      : 'Agents currently use the model-provider keys above. Select a CLI to run them via its own login instead.'}
+                  </div>
+                </div>
+
                 <div className="mt-4 space-y-4">
                   {modelTab === 'openai' && (
                     <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900">
