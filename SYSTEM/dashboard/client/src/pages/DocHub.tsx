@@ -724,8 +724,8 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
   }
 
   function getAssetTone(entry?: DocEntry | null) {
-    const generated = entry?.assetSource === 'generated'
-    return generated
+    const generatedMarkdown = entry?.assetSource === 'generated' && entry.path?.toLowerCase().endsWith('.md')
+    return generatedMarkdown
       ? {
           selected: 'bg-emerald-100 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-200 font-medium',
           idle: 'text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/20',
@@ -952,28 +952,11 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
               </div>
 
               {selectedUploadEntries.length > 0 && (
-                <div className="mb-2 flex items-center justify-between gap-2 border border-emerald-200 bg-emerald-50 px-2 py-1.5 dark:border-emerald-800 dark:bg-emerald-950/30">
-                  <span className="text-xs font-medium text-emerald-800 dark:text-emerald-200">
-                    {selectedUploadEntries.length} selected
-                  </span>
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={openMoveSelectedDialog}
-                      disabled={selectedUploadBoundaries.length !== 1}
-                      className="px-2 py-1 text-xs font-medium text-sky-700 hover:bg-sky-100 disabled:cursor-not-allowed disabled:text-gray-400 dark:text-sky-300 dark:hover:bg-sky-950/40"
-                      title={selectedUploadBoundaries.length === 1 ? 'Move selected uploads' : 'Select files from one upload boundary to move them together'}
-                    >
-                      Move
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { setBulkActionError(null); setShowBulkDeleteConfirm(true) }}
-                      className="px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-100 dark:text-red-300 dark:hover:bg-red-950/40"
-                      title="Delete selected uploads"
-                    >
-                      Delete
-                    </button>
+                <div className="sticky top-0 z-20 mb-2 border border-emerald-300 bg-emerald-50 px-2 py-2 shadow-sm dark:border-emerald-700 dark:bg-emerald-950">
+                  <div className="mb-1.5 flex items-center justify-between gap-2">
+                    <span className="text-xs font-medium text-emerald-800 dark:text-emerald-200">
+                      {selectedUploadEntries.length} file{selectedUploadEntries.length === 1 ? '' : 's'} selected
+                    </span>
                     <button
                       type="button"
                       onClick={() => setSelectedUploads(new Set())}
@@ -982,6 +965,25 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
                       aria-label="Clear selected uploads"
                     >
                       ×
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1">
+                    <button
+                      type="button"
+                      onClick={openMoveSelectedDialog}
+                      disabled={selectedUploadBoundaries.length !== 1}
+                      className="min-w-0 px-2 py-1 text-xs font-medium text-sky-700 hover:bg-sky-100 disabled:cursor-not-allowed disabled:text-gray-400 dark:text-sky-300 dark:hover:bg-sky-950/40"
+                      title={selectedUploadBoundaries.length === 1 ? 'Move selected uploads' : 'Select files from one upload boundary to move them together'}
+                    >
+                      Move selected
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setBulkActionError(null); setShowBulkDeleteConfirm(true) }}
+                      className="min-w-0 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-100 dark:text-red-300 dark:hover:bg-red-950/40"
+                      title="Delete selected uploads"
+                    >
+                      Delete selected
                     </button>
                   </div>
                 </div>

@@ -4254,35 +4254,37 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                             const providerLabel = REGISTRY_PROVIDERS.find((entry) => entry.id === resultProvider)?.label || resultProvider
                             const isInstalled = registryInstalledNames.has(`${resultProvider}:${installName}`)
                             return (
-                              <div key={idx} className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-800 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-800/50">
-                                <div className="flex-1 min-w-0">
-                                  <div className="font-medium text-sm text-gray-900 dark:text-gray-100">{skill.full_name || installName}</div>
+                              <div key={idx} className="px-4 py-3 border-b border-gray-100 dark:border-gray-800 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                                <div className="min-w-0">
+                                  <div className="break-words font-medium text-sm text-gray-900 dark:text-gray-100">{skill.full_name || installName}</div>
                                   {registryProvider === 'all' && (
                                     <div className="text-[10px] font-medium uppercase text-purple-500 dark:text-purple-300">{providerLabel}</div>
                                   )}
                                   {skill.name && skill.full_name && skill.name !== skill.full_name && (
-                                    <div className="text-[11px] text-gray-400 dark:text-gray-500">{skill.name}</div>
+                                    <div className="break-words text-[11px] text-gray-400 dark:text-gray-500">{skill.name}</div>
                                   )}
-                                  {skill.description && <div className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2">{skill.description.split('\n')[0]}</div>}
-                                  <div className="flex gap-3 mt-1 text-[10px] text-gray-400">
+                                  {skill.description && <div className="break-words text-xs text-gray-500 dark:text-gray-400 line-clamp-2">{skill.description.split('\n')[0]}</div>}
+                                  <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1 text-[10px] text-gray-400">
                                     {skill.latest_version && <span>v{skill.latest_version}</span>}
                                     {skill.downloads_weekly != null && <span>{skill.downloads_weekly}/week</span>}
                                     {skill.categories?.length > 0 && <span>{skill.categories.join(', ')}</span>}
                                   </div>
                                 </div>
-                                {isInstalled ? (
-                                  <span className="ml-3 px-3 py-1.5 text-xs font-medium text-gray-400 dark:text-gray-500 border border-gray-200 dark:border-gray-700 rounded-md shrink-0">
-                                    Installed
-                                  </span>
-                                ) : (
-                                  <button
-                                    onClick={() => installRegistrySkill(installName, resultProvider, false, skill)}
-                                    disabled={!!registryInstalling}
-                                    className="ml-3 px-3 py-1.5 text-xs font-medium bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed shrink-0"
-                                  >
-                                    {registryInstalling === installName ? 'Installing...' : 'Install'}
-                                  </button>
-                                )}
+                                <div className="mt-2 flex justify-end">
+                                  {isInstalled ? (
+                                    <span className="px-3 py-1.5 text-xs font-medium text-gray-400 dark:text-gray-500 border border-gray-200 dark:border-gray-700 rounded-md">
+                                      Installed
+                                    </span>
+                                  ) : (
+                                    <button
+                                      onClick={() => installRegistrySkill(installName, resultProvider, false, skill)}
+                                      disabled={!!registryInstalling}
+                                      className="px-3 py-1.5 text-xs font-medium bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed"
+                                    >
+                                      {registryInstalling === installName ? 'Installing...' : 'Install'}
+                                    </button>
+                                  )}
+                                </div>
                               </div>
                             )
                           })}

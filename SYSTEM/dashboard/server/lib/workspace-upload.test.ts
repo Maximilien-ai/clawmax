@@ -129,9 +129,9 @@ test('DocHub upload ledger permits uploaded-file moves and deletes only inside t
   assert(!crossBoundaryMove.ok, 'Expected cross-boundary move to be rejected')
   assert(/inside AGENTS\/shared\/inbox/i.test(crossBoundaryMove.error || ''), 'Expected original boundary guidance')
 
-  const moveResult = moveDocHubUploads([uploaded], 'AGENTS/shared/inbox/archive', workspacePath)
+  const moveResult = moveDocHubUploads([uploaded], 'AGENTS/shared/inbox/reviewed', workspacePath)
   assert(moveResult.ok, `Expected same-boundary move to succeed: ${moveResult.error}`)
-  const moved = 'AGENTS/shared/inbox/archive/grading.txt'
+  const moved = 'AGENTS/shared/inbox/reviewed/grading.txt'
   assert(fs.existsSync(path.join(workspacePath, moved)), 'Expected moved upload at destination')
 
   const deleteResult = deleteDocHubUploads([moved], workspacePath)

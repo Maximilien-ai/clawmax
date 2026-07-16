@@ -251,10 +251,17 @@ async function run() {
     assert.strictEqual(crossBoundaryRes.statusCode, 400, 'Expected cross-boundary move rejection')
 
     const moveRes = makeRes()
-    await moveHandler(makeReq({ body: { paths: [uploadedPath], destination: 'AGENTS/test-agent/INBOX/archive' } }), moveRes)
+    await moveHandler(makeReq({ body: { paths: [uploadedPath], destination: 'AGENTS/test-agent/INBOX/reviewed' } }), moveRes)
     assert.strictEqual(moveRes.statusCode, 200, 'Expected same-boundary move success')
-    const movedPath = 'AGENTS/test-agent/INBOX/archive/notes.txt'
+    const movedPath = 'AGENTS/test-agent/INBOX/reviewed/notes.txt'
     assert(fs.existsSync(path.join(workspacePath, movedPath)), 'Expected uploaded file at moved path')
+
+    const movedListRes = makeRes()
+    await listHandler(makeReq(), movedListRes)
+    const movedEntry = (movedListRes.jsonBody?.entries || []).find((entry: any) => entry.path === movedPath)
+    assert.strictEqual(movedEntry?.assetSource, 'uploaded', 'Expected moved upload classification to persist')
+    assert.strictEqual(movedEntry?.canDelete, true, 'Expected moved upload to remain selectable')
+    assert.strictEqual(movedEntry?.uploadBoundary, 'AGENTS/test-agent/INBOX', 'Expected moved upload boundary to persist')
 
     const deleteRes = makeRes()
     await deleteHandler(makeReq({ body: { paths: [movedPath] } }), deleteRes)
