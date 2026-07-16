@@ -18,6 +18,7 @@ import {
   parseRuntimeResult,
   readAgentIdentitySystemPrompt,
   resolveAgentRuntime,
+  resolveEnabledRuntimes,
   resolveRuntimeCliPath,
   resolveWorkspaceRuntime,
   runRuntimeCli,
@@ -249,21 +250,39 @@ test('resolveWorkspaceRuntime falls back to openclaw for an invalid agentRuntime
   })
 })
 
-test('resolveAgentRuntime: per-agent pin wins over workspace default', () => {
-  withWorkspace({ agentRuntime: 'claude' }, () => {
+test('resolveEnabledRuntimes returns the enabled CLI set, filtering junk and openclaw', () => {
+  withWorkspace({ enabledRuntimes: ['claude', 'droid', 'openclaw', 'not-a-runtime'] }, () => {
+    assert.deepStrictEqual(resolveEnabledRuntimes(), ['claude', 'droid'])
+  })
+})
+
+test('resolveEnabledRuntimes returns [] when nothing is enabled', () => {
+  withWorkspace(null, () => {
+    assert.deepStrictEqual(resolveEnabledRuntimes(), [])
+  })
+})
+
+test('resolveAgentRuntime: honors a per-agent pin when that CLI is enabled', () => {
+  withWorkspace({ enabledRuntimes: ['droid'] }, () => {
     assert.strictEqual(resolveAgentRuntime('agent1', 'droid'), 'droid')
   })
 })
 
-test('resolveAgentRuntime: falls back to workspace default when no pin is set', () => {
-  withWorkspace({ agentRuntime: 'droid' }, () => {
-    assert.strictEqual(resolveAgentRuntime('agent1', undefined), 'droid')
+test('resolveAgentRuntime: unpinned agents run on openclaw even when CLIs are enabled', () => {
+  withWorkspace({ enabledRuntimes: ['claude', 'droid'] }, () => {
+    assert.strictEqual(resolveAgentRuntime('agent1', undefined), 'openclaw')
   })
 })
 
-test('resolveAgentRuntime: invalid pin is ignored in favor of workspace default', () => {
-  withWorkspace({ agentRuntime: 'droid' }, () => {
-    assert.strictEqual(resolveAgentRuntime('agent1', 'not-a-runtime'), 'droid')
+test('resolveAgentRuntime: a pin to a disabled CLI falls back to openclaw', () => {
+  withWorkspace({ enabledRuntimes: ['claude'] }, () => {
+    assert.strictEqual(resolveAgentRuntime('agent1', 'droid'), 'openclaw')
+  })
+})
+
+test('resolveAgentRuntime: an invalid pin falls back to openclaw', () => {
+  withWorkspace({ enabledRuntimes: ['claude', 'droid'] }, () => {
+    assert.strictEqual(resolveAgentRuntime('agent1', 'not-a-runtime'), 'openclaw')
   })
 })
 

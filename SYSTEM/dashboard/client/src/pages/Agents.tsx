@@ -2677,6 +2677,19 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
   const [tools, setTools] = React.useState('')
   const [model, setModel] = React.useState('')
   const [runtime, setRuntime] = React.useState('default')
+  const [enabledRuntimes, setEnabledRuntimes] = React.useState<string[]>([])
+  React.useEffect(() => {
+    let cancelled = false
+    fetch('/api/integrations/config')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled) return
+        const list = data?.config?.enabledRuntimes
+        setEnabledRuntimes(Array.isArray(list) ? list.filter((rt: string) => rt === 'claude' || rt === 'droid') : [])
+      })
+      .catch(() => { if (!cancelled) setEnabledRuntimes([]) })
+    return () => { cancelled = true }
+  }, [])
   const [backupModel, setBackupModel] = React.useState('')
   const [availableModels, setAvailableModels] = React.useState<string[]>([])
   const [modelsByProvider, setModelsByProvider] = React.useState<Record<string, { name: string; models: string[] }>>({})
@@ -2995,19 +3008,23 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
                   <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">{selectedModelDeprecation}</p>
                 )}
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Runtime</label>
+              <div className="rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-900/20 p-3">
+                <label className="block text-sm font-semibold text-sky-900 dark:text-sky-100 mb-1">Runtime — which CLI runs this agent</label>
                 <select
                   value={runtime}
                   onChange={e => setRuntime(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-200 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+                  className="w-full rounded-lg border border-sky-300 dark:border-sky-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-200 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
                 >
-                  <option value="default">Default (workspace)</option>
-                  <option value="openclaw">OpenClaw</option>
-                  <option value="claude">Claude Code</option>
-                  <option value="droid">Factory Droid</option>
+                  <option value="default">OpenClaw (model-provider keys) — default</option>
+                  <option value="openclaw">OpenClaw (model-provider keys)</option>
+                  {enabledRuntimes.includes('claude') && <option value="claude">Claude Code (its own login)</option>}
+                  {enabledRuntimes.includes('droid') && <option value="droid">Factory Droid (its own login)</option>}
                 </select>
-                <p className="mt-1 text-xs text-gray-400">Which CLI executes this agent. Leave as Default to follow the workspace-wide runtime (BYOK &rarr; Runtime).</p>
+                <p className="mt-1 text-xs text-sky-800/80 dark:text-sky-200/70">
+                  {enabledRuntimes.length > 0
+                    ? <>Run this agent on Claude or Droid using the CLI’s own login. Default keeps it on the model-provider keys.</>
+                    : <>Enable Claude Code or Factory Droid first in BYOK &rarr; “Run via CLI” to make them selectable here.</>}
+                </p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Backup model</label>

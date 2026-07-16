@@ -138,11 +138,24 @@ export function resolveWorkspaceRuntime(): AgentRuntimeId {
   return normalizeAgentRuntime(readWorkspaceIntegrationConfig().agentRuntime) || 'openclaw'
 }
 
+/** CLI runtimes enabled for the workspace (multi-select). OpenClaw is always available and not listed. */
+export function resolveEnabledRuntimes(): AgentRuntimeId[] {
+  const raw = readWorkspaceIntegrationConfig().enabledRuntimes
+  if (!Array.isArray(raw)) return []
+  return raw
+    .map((item) => normalizeAgentRuntime(item))
+    .filter((rt): rt is AgentRuntimeId => rt === 'claude' || rt === 'droid')
+}
+
 export function resolveAgentRuntime(agentId: string, identityRuntime?: string): AgentRuntimeId {
   // agentId is accepted (not just identityRuntime) so future per-agent overrides beyond
   // IDENTITY.md parsing can slot in here without changing every call site's signature.
   void agentId
-  return normalizeAgentRuntime(identityRuntime) || resolveWorkspaceRuntime()
+  const pinned = normalizeAgentRuntime(identityRuntime)
+  // Unpinned agents (and openclaw pins) run on OpenClaw. A claude/droid pin is honored only when
+  // that CLI is enabled for the workspace; a pin to a disabled CLI falls back to OpenClaw.
+  if (!pinned || pinned === 'openclaw') return 'openclaw'
+  return resolveEnabledRuntimes().includes(pinned) ? pinned : 'openclaw'
 }
 
 // ── Model notation translation ──

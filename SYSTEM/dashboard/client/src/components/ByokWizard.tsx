@@ -93,6 +93,7 @@ type WorkspaceIntegrationConfig = {
   enabledPartners?: string[]
   partners?: Record<string, Record<string, string | boolean | undefined>>
   agentRuntime?: AgentRuntimeId
+  enabledRuntimes?: AgentRuntimeId[]
 }
 type PartnerValueMap = Record<string, Record<string, string>>
 type PartnerSecretPresence = Record<string, Record<string, boolean>>
@@ -218,6 +219,7 @@ export function ByokWizard({
   const [preferredModel, setPreferredModel] = useState('')
   const [systemPreferredModel, setSystemPreferredModel] = useState('')
   const [agentRuntime, setAgentRuntime] = useState('')
+  const [enabledRuntimes, setEnabledRuntimes] = useState<AgentRuntimeId[]>([])
   const lastSyncedRuntimeWorkspaceIdRef = useRef<string | null>(null)
   const [runtimeStatuses, setRuntimeStatuses] = useState<RuntimeStatus[]>([])
   const [runtimeStatusesLoading, setRuntimeStatusesLoading] = useState(false)
@@ -431,6 +433,9 @@ export function ByokWizard({
           lastSyncedWorkspaceId: lastSyncedRuntimeWorkspaceIdRef.current,
         }))
         lastSyncedRuntimeWorkspaceIdRef.current = activeWorkspace?.id ?? null
+        setEnabledRuntimes(Array.isArray(workspaceConfig.enabledRuntimes)
+          ? workspaceConfig.enabledRuntimes.filter((rt): rt is AgentRuntimeId => rt === 'claude' || rt === 'droid')
+          : [])
         setOllamaBaseUrl((current) => {
           const nextDefault = resolveOllamaBaseUrlForRuntime({
             configuredBaseUrl: workspaceConfig.ollamaBaseUrl || '',
@@ -1304,6 +1309,7 @@ export function ByokWizard({
         preferredModel: preferredModel || undefined,
         systemPreferredModel: systemPreferredModel || undefined,
         agentRuntime: agentRuntime || undefined,
+        enabledRuntimes,
         githubDefaultRepo: githubDefaultRepo.trim() || undefined,
         sensoContextLabel: sensoContextLabel.trim() || undefined,
         ollamaBaseUrl: ollamaEnabled ? (effectiveOllamaBaseUrl.trim() || undefined) : undefined,
@@ -2100,50 +2106,55 @@ export function ByokWizard({
 
                 <div className="mt-4">
                   <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-gray-500 dark:text-gray-400">
-                    Run via CLI — no API key needed
+                    Run via CLI — enable the CLIs you want (no API key needed)
                   </div>
                   <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">
-                    Instead of the model-provider keys above, run agents through a CLI using its own login (your Claude subscription or Factory login).
+                    Separate from the model-provider keys above. Turn on the CLIs you want to use — each runs agents with its own login (your Claude subscription or Factory login). Enable both to run some agents on Claude and others on Droid.
                   </p>
                   {runtimeStatusesLoading && runtimeStatuses.length === 0 ? (
                     <div className="text-xs text-gray-500 dark:text-gray-400">Detecting installed CLIs…</div>
                   ) : (
                     <div className="grid gap-2 sm:grid-cols-2">
-                      {runtimeStatuses.filter((status) => status.id === 'claude' || status.id === 'droid').map((status) => (
-                        <button
-                          key={status.id}
-                          type="button"
-                          onClick={() => setAgentRuntime(agentRuntime === status.id ? 'openclaw' : status.id)}
-                          disabled={!status.installed}
-                          className={`rounded-lg border px-3 py-2 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:opacity-60 disabled:cursor-not-allowed ${
-                            agentRuntime === status.id
-                              ? 'ring-2 ring-sky-400 dark:ring-sky-600 '
-                              : ''
-                          }${
-                            status.installed
-                              ? 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-100'
-                              : 'border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300'
-                          }`}
-                          aria-pressed={agentRuntime === status.id}
-                          title={status.installed ? `Run agents via ${status.label} (its own login)` : `${status.label} is not installed`}
-                        >
-                          <div className="flex items-center justify-between gap-3">
-                            <span className="font-medium">{status.label}</span>
-                            <span className="text-xs uppercase tracking-wide opacity-80">
-                              {status.installed ? `detected${status.version ? ` ${status.version}` : ''}` : 'not installed'}
-                            </span>
-                          </div>
-                          <div className="mt-1 text-xs opacity-80">
-                            {status.installed ? 'Runs agents with its own login' : status.installHint}
-                          </div>
-                        </button>
-                      ))}
+                      {runtimeStatuses.filter((status) => status.id === 'claude' || status.id === 'droid').map((status) => {
+                        const runtimeEnabled = enabledRuntimes.includes(status.id)
+                        return (
+                          <button
+                            key={status.id}
+                            type="button"
+                            role="checkbox"
+                            aria-checked={runtimeEnabled}
+                            onClick={() => setEnabledRuntimes((prev) => prev.includes(status.id) ? prev.filter((rt) => rt !== status.id) : [...prev, status.id])}
+                            disabled={!status.installed}
+                            className={`rounded-lg border px-3 py-2 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:opacity-60 disabled:cursor-not-allowed ${
+                              runtimeEnabled
+                                ? 'border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-100'
+                                : 'border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300'
+                            }`}
+                            title={status.installed ? `${runtimeEnabled ? 'Disable' : 'Enable'} ${status.label}` : `${status.label} is not installed`}
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="flex items-center gap-2 font-medium">
+                                <span className={`inline-flex h-4 w-4 items-center justify-center rounded border text-[10px] leading-none ${runtimeEnabled ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-gray-300 dark:border-gray-600'}`}>
+                                  {runtimeEnabled ? '✓' : ''}
+                                </span>
+                                {status.label}
+                              </span>
+                              <span className="text-xs uppercase tracking-wide opacity-80">
+                                {status.installed ? `detected${status.version ? ` ${status.version}` : ''}` : 'not installed'}
+                              </span>
+                            </div>
+                            <div className="mt-1 pl-6 text-xs opacity-80">
+                              {status.installed ? (runtimeEnabled ? 'Enabled · runs agents with its own login' : 'Runs agents with its own login') : status.installHint}
+                            </div>
+                          </button>
+                        )
+                      })}
                     </div>
                   )}
-                  <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                    {agentRuntime === 'claude' || agentRuntime === 'droid'
-                      ? `Agents run via ${runtimeStatuses.find((status) => status.id === agentRuntime)?.label || agentRuntime} — the model-provider keys above are not used. Click it again to switch back to API providers.`
-                      : 'Agents currently use the model-provider keys above. Select a CLI to run them via its own login instead.'}
+                  <div className="mt-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900 dark:border-sky-800 dark:bg-sky-900/20 dark:text-sky-100">
+                    {enabledRuntimes.length > 0
+                      ? <>Enabled: {enabledRuntimes.map((rt) => runtimeStatuses.find((status) => status.id === rt)?.label || rt).join(', ')}. Now pick a runtime for each agent in the agent editor — agents you don’t assign keep using the model-provider keys above.</>
+                      : <>No CLI enabled — all agents use the model-provider keys above. Enable a CLI to make it available, then assign it per agent.</>}
                   </div>
                 </div>
 
@@ -2586,9 +2597,9 @@ export function ByokWizard({
             {step === 'runtime' && (
               <>
                 <div className="mt-4 rounded-xl border border-cyan-200 dark:border-cyan-800 bg-cyan-50 dark:bg-cyan-900/20 p-4 text-sm text-cyan-900 dark:text-cyan-100">
-                  <div className="font-medium">Agent execution runtime</div>
+                  <div className="font-medium">Agent runtimes</div>
                   <div className="mt-1">
-                    Choose which CLI runs your agents by default. Individual agents can still pin their own runtime from the agent edit form.
+                    Enable the CLIs you want to use — each runs agents with its own login. Then pick a runtime for each agent in the agent editor. Agents you don’t assign run on OpenClaw using the model-provider keys.
                   </div>
                 </div>
 
@@ -2609,33 +2620,39 @@ export function ByokWizard({
                       </button>
                     </div>
                   )}
-                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                    {runtimeStatuses.map((status) => (
-                      <button
-                        key={status.id}
-                        type="button"
-                        onClick={() => setAgentRuntime(status.id)}
-                        className={`rounded-lg border px-3 py-2 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500 ${
-                          (agentRuntime || 'openclaw') === status.id
-                            ? 'ring-2 ring-sky-400 dark:ring-sky-600 '
-                            : ''
-                        }${
-                          status.installed
-                            ? 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-100'
-                            : 'border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300'
-                        }`}
-                        aria-pressed={(agentRuntime || 'openclaw') === status.id}
-                        title={`Use ${status.label} to run agents`}
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="font-medium">{status.label}</span>
-                          <span className="text-xs uppercase tracking-wide opacity-80">
-                            {status.installed ? `detected${status.version ? ` ${status.version}` : ''}` : 'not installed'}
-                          </span>
-                        </div>
-                        <div className="mt-1 text-xs opacity-80">{status.installed ? (status.cliPath || 'Ready') : status.installHint}</div>
-                      </button>
-                    ))}
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {runtimeStatuses.filter((status) => status.id === 'claude' || status.id === 'droid').map((status) => {
+                      const runtimeEnabled = enabledRuntimes.includes(status.id)
+                      return (
+                        <button
+                          key={status.id}
+                          type="button"
+                          role="checkbox"
+                          aria-checked={runtimeEnabled}
+                          onClick={() => setEnabledRuntimes((prev) => prev.includes(status.id) ? prev.filter((rt) => rt !== status.id) : [...prev, status.id])}
+                          disabled={!status.installed}
+                          className={`rounded-lg border px-3 py-2 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:opacity-60 disabled:cursor-not-allowed ${
+                            runtimeEnabled
+                              ? 'border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-100'
+                              : 'border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300'
+                          }`}
+                          title={status.installed ? `${runtimeEnabled ? 'Disable' : 'Enable'} ${status.label}` : `${status.label} is not installed`}
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="flex items-center gap-2 font-medium">
+                              <span className={`inline-flex h-4 w-4 items-center justify-center rounded border text-[10px] leading-none ${runtimeEnabled ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-gray-300 dark:border-gray-600'}`}>
+                                {runtimeEnabled ? '✓' : ''}
+                              </span>
+                              {status.label}
+                            </span>
+                            <span className="text-xs uppercase tracking-wide opacity-80">
+                              {status.installed ? `detected${status.version ? ` ${status.version}` : ''}` : 'not installed'}
+                            </span>
+                          </div>
+                          <div className="mt-1 pl-6 text-xs opacity-80">{status.installed ? (status.cliPath || 'Ready') : status.installHint}</div>
+                        </button>
+                      )
+                    })}
                   </div>
                 </div>
 
