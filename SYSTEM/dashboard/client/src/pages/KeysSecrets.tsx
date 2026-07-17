@@ -6,7 +6,7 @@ import { PartnerLogo } from '../components/PartnerLogo'
 import { detectProviderKeyMismatch, isOllamaUiAvailable, readStoredByokKeys } from '../lib/byok'
 import { DEFAULT_VISIBLE_PARTNERS, getDefaultPartnerDefinitions } from '../lib/defaultPartners'
 import { BROWSER_VAULT_UPDATED_EVENT, findManagedSecretConflicts, getPartnerVaultKey, parseEnvLikeSecrets, readSharedSecrets, writeSharedSecrets } from '../lib/localSecrets'
-import { buildServerManagedWorkspaceEntries, listServerManagedIntegrationSecretKeys } from '../lib/keysSecretsInventory'
+import { buildServerManagedWorkspaceEntries, getSecretAvailabilityPresentation, listServerManagedIntegrationSecretKeys } from '../lib/keysSecretsInventory'
 
 type SecretDraft = { key: string; value: string }
 type PartnerDefinition = {
@@ -24,6 +24,18 @@ type SecretConsumerMatch = {
 }
 
 type KeyGroup = 'all' | 'llm' | 'partners' | 'infra' | 'other'
+
+function SecretAvailability({ serverManaged }: { serverManaged: boolean }) {
+  const presentation = getSecretAvailabilityPresentation(serverManaged)
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px]">
+      <span className="inline-flex rounded-full bg-white/80 px-2 py-0.5 font-medium uppercase dark:bg-gray-950/40">
+        {presentation.sourceLabel}
+      </span>
+      <span className="font-medium opacity-80">{presentation.runtimeLabel}</span>
+    </div>
+  )
+}
 
 function toDrafts(values: Record<string, string>): SecretDraft[] {
   return Object.entries(values)
@@ -123,12 +135,12 @@ function SecretSection({
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-      <div className="flex items-start justify-between gap-3">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{title}</h2>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{description}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={() => setOpen((current) => !current)}
@@ -356,6 +368,10 @@ export default function KeysSecrets() {
     () => findManagedSecretConflicts(visibleWorkspacePreview, managedSecrets),
     [visibleWorkspacePreview, managedSecrets]
   )
+  const serverManagedWorkspaceEntries = useMemo(
+    () => buildServerManagedWorkspaceEntries(partnerDefinitions, serverPartnerSecretSummaries),
+    [partnerDefinitions, serverPartnerSecretSummaries]
+  )
   const matchesKeyInventoryFilters = React.useCallback((key: string, value: string) => {
     const search = keySearch.trim().toLowerCase()
     const group = getKeyGroup(key, partnerDefinitions)
@@ -371,14 +387,13 @@ export default function KeysSecrets() {
   }, [keySearch, keyGroupFilter, partnerDefinitions, knownMatches])
   const filteredWorkspaceEntries = useMemo(
     () => {
-      const managedWorkspaceEntries = buildServerManagedWorkspaceEntries(partnerDefinitions, serverPartnerSecretSummaries)
       const combinedWorkspaceEntries = {
-        ...managedWorkspaceEntries,
+        ...serverManagedWorkspaceEntries,
         ...visibleWorkspacePreview,
       }
       return Object.entries(combinedWorkspaceEntries).filter(([key, value]) => matchesKeyInventoryFilters(key, value))
     },
-    [partnerDefinitions, serverPartnerSecretSummaries, visibleWorkspacePreview, matchesKeyInventoryFilters]
+    [serverManagedWorkspaceEntries, visibleWorkspacePreview, matchesKeyInventoryFilters]
   )
   const filteredGlobalEntries = useMemo(
     () => Object.entries(visibleGlobalPreview).filter(([key, value]) => matchesKeyInventoryFilters(key, value)),
@@ -427,6 +442,7 @@ export default function KeysSecrets() {
           <li>Workspace keys apply only to the active workspace.</li>
           <li>Global keys are available across all workspaces.</li>
           <li>Template/workflow/skill-specific values still override shared keys when present.</li>
+          <li>Saving a value here does not make it available to an agent or skill runtime.</li>
         </ul>
       </div>
 
@@ -479,7 +495,7 @@ export default function KeysSecrets() {
       <div className="grid gap-6 xl:grid-cols-2">
         <SecretSection
           title={`Workspace Keys${activeWorkspace ? ` · ${activeWorkspace.name}` : ''}`}
-          description="Use these for secrets that should stay scoped to the current workspace."
+          description="Browser-local values scoped to the current workspace. Agent and skill runtimes cannot read them from this vault."
           drafts={ollamaEnabled ? workspaceDrafts : workspaceDrafts.filter((entry) => entry.key !== 'OLLAMA_BASE_URL')}
           setDrafts={setWorkspaceDrafts}
           defaultOpen={(ollamaEnabled ? workspaceDrafts : workspaceDrafts.filter((entry) => entry.key !== 'OLLAMA_BASE_URL')).length === 0}
@@ -496,7 +512,7 @@ export default function KeysSecrets() {
 
         <SecretSection
           title="Global Keys"
-          description="Use these for secrets you want available across all workspaces in this browser."
+          description="Browser-local values shared across workspaces in this browser. Agent and skill runtimes cannot read them from this vault."
           drafts={ollamaEnabled ? globalDrafts : globalDrafts.filter((entry) => entry.key !== 'OLLAMA_BASE_URL')}
           setDrafts={setGlobalDrafts}
           defaultOpen={(ollamaEnabled ? globalDrafts : globalDrafts.filter((entry) => entry.key !== 'OLLAMA_BASE_URL')).length === 0}
@@ -517,7 +533,7 @@ export default function KeysSecrets() {
           <div>
             <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">Current Key Names</div>
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              Search across workspace and global keys, then narrow by group.
+              Search workspace and global keys, with storage source and runtime availability shown for each entry.
             </p>
           </div>
           <div className="w-full max-w-sm">
@@ -580,6 +596,7 @@ export default function KeysSecrets() {
                     </span>
                     <span className="opacity-70">{maskValue(value)}</span>
                   </div>
+                  <SecretAvailability serverManaged={false} />
                   {(knownMatches[key] || []).length > 0 && (
                     <div className="mt-2">
                       <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide opacity-70">Used By</div>
@@ -598,18 +615,18 @@ export default function KeysSecrets() {
           </div>
           <div>
             <div className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-              Workspace ({Object.keys({ ...buildServerManagedWorkspaceEntries(partnerDefinitions, serverPartnerSecretSummaries), ...visibleWorkspacePreview }).length})
+              Workspace ({Object.keys({ ...serverManagedWorkspaceEntries, ...visibleWorkspacePreview }).length})
             </div>
             <div className="mt-2 max-h-[24rem] space-y-2 overflow-y-auto pr-1">
-              {Object.keys({ ...buildServerManagedWorkspaceEntries(partnerDefinitions, serverPartnerSecretSummaries), ...visibleWorkspacePreview }).length === 0 && <span className="text-sm text-gray-400">None yet</span>}
-              {Object.keys({ ...buildServerManagedWorkspaceEntries(partnerDefinitions, serverPartnerSecretSummaries), ...visibleWorkspacePreview }).length > 0 && filteredWorkspaceEntries.length === 0 && (
+              {Object.keys({ ...serverManagedWorkspaceEntries, ...visibleWorkspacePreview }).length === 0 && <span className="text-sm text-gray-400">None yet</span>}
+              {Object.keys({ ...serverManagedWorkspaceEntries, ...visibleWorkspacePreview }).length > 0 && filteredWorkspaceEntries.length === 0 && (
                 <span className="text-sm text-gray-400">No workspace keys match your search or group filter.</span>
               )}
               {filteredWorkspaceEntries.map(([key, value]) => (
                 <div key={`workspace-${key}`} className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-700 dark:border-sky-800 dark:bg-sky-900/20 dark:text-sky-300">
                   <div className="flex flex-wrap items-center gap-2">
                     <span>{key}</span>
-                    {key in buildServerManagedWorkspaceEntries(partnerDefinitions, serverPartnerSecretSummaries) && (
+                    {key in serverManagedWorkspaceEntries && (
                       <span className="inline-flex rounded-full bg-white/80 px-2 py-0.5 text-[11px] uppercase tracking-wide dark:bg-sky-950/60">
                         managed
                       </span>
@@ -619,6 +636,7 @@ export default function KeysSecrets() {
                     </span>
                     <span className="opacity-70">{maskValue(value)}</span>
                   </div>
+                  <SecretAvailability serverManaged={key in serverManagedWorkspaceEntries} />
                   {(knownMatches[key] || []).length > 0 && (
                     <div className="mt-2">
                       <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide opacity-70">Used By</div>

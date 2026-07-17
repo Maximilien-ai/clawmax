@@ -8,6 +8,28 @@ type PartnerDefinition = {
 type PartnerSecretPresence = Record<string, Record<string, boolean>>
 type PartnerSecretSummary = Record<string, Record<string, { present?: boolean; preview?: string }>>
 
+export type SecretAvailabilityPresentation = {
+  sourceLabel: 'Browser-local' | 'Runtime-managed'
+  runtimeLabel: string
+  agentRuntimeAvailable: boolean
+}
+
+export function getSecretAvailabilityPresentation(serverManaged: boolean): SecretAvailabilityPresentation {
+  if (serverManaged) {
+    return {
+      sourceLabel: 'Runtime-managed',
+      runtimeLabel: 'Configured integration runtime only; agent skills require an explicit grant',
+      agentRuntimeAvailable: false,
+    }
+  }
+
+  return {
+    sourceLabel: 'Browser-local',
+    runtimeLabel: 'Not available to agent runtime from this vault',
+    agentRuntimeAvailable: false,
+  }
+}
+
 export function listServerManagedIntegrationSecretKeys(
   partnerDefinitions: PartnerDefinition[],
   secretPresence: PartnerSecretPresence
