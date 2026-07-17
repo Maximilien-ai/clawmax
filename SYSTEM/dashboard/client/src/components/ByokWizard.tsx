@@ -2145,60 +2145,6 @@ export function ByokWizard({
                   </div>
                 </div>
 
-                <div className="mt-4">
-                  <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-gray-500 dark:text-gray-400">
-                    Run via CLI — enable the CLIs you want (no API key needed)
-                  </div>
-                  <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">
-                    Separate from the model-provider keys above. Turn on the CLIs you want to use — each runs agents with its own login (your Claude subscription or Factory login). Enable both to run some agents on Claude and others on Droid.
-                  </p>
-                  {runtimeStatusesLoading && runtimeStatuses.length === 0 ? (
-                    <div className="text-xs text-gray-500 dark:text-gray-400">Detecting installed CLIs…</div>
-                  ) : (
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      {runtimeStatuses.filter((status) => status.id === 'claude' || status.id === 'droid').map((status) => {
-                        const runtimeEnabled = enabledRuntimes.includes(status.id)
-                        return (
-                          <button
-                            key={status.id}
-                            type="button"
-                            role="checkbox"
-                            aria-checked={runtimeEnabled}
-                            onClick={() => { enabledRuntimesDirtyRef.current = true; setEnabledRuntimes((prev) => prev.includes(status.id) ? prev.filter((rt) => rt !== status.id) : [...prev, status.id]) }}
-                            disabled={!status.installed && !runtimeEnabled}
-                            className={`rounded-lg border px-3 py-2 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:opacity-60 disabled:cursor-not-allowed ${
-                              runtimeEnabled
-                                ? 'border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-100'
-                                : 'border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300'
-                            }`}
-                            title={status.installed ? `${runtimeEnabled ? 'Disable' : 'Enable'} ${status.label}` : `${status.label} is not installed`}
-                          >
-                            <div className="flex items-center justify-between gap-3">
-                              <span className="flex items-center gap-2 font-medium">
-                                <span className={`inline-flex h-4 w-4 items-center justify-center rounded border text-[10px] leading-none ${runtimeEnabled ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-gray-300 dark:border-gray-600'}`}>
-                                  {runtimeEnabled ? '✓' : ''}
-                                </span>
-                                {status.label}
-                              </span>
-                              <span className="text-xs uppercase tracking-wide opacity-80">
-                                {status.installed ? `detected${status.version ? ` ${status.version}` : ''}` : 'not installed'}
-                              </span>
-                            </div>
-                            <div className="mt-1 pl-6 text-xs opacity-80">
-                              {status.installed ? (runtimeEnabled ? 'Enabled · runs agents with its own login' : 'Runs agents with its own login') : status.installHint}
-                            </div>
-                          </button>
-                        )
-                      })}
-                    </div>
-                  )}
-                  <div className="mt-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900 dark:border-sky-800 dark:bg-sky-900/20 dark:text-sky-100">
-                    {enabledRuntimes.length > 0
-                      ? <>Enabled: {enabledRuntimes.map((rt) => runtimeStatuses.find((status) => status.id === rt)?.label || rt).join(', ')}. Now pick a runtime for each agent in the agent editor — agents you don’t assign keep using the model-provider keys above.</>
-                      : <>No CLI enabled — all agents use the model-provider keys above. Enable a CLI to make it available, then assign it per agent.</>}
-                  </div>
-                </div>
-
                 <div className="mt-4 space-y-4">
                   {modelTab === 'openai' && (
                     <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900">
@@ -2491,6 +2437,60 @@ export function ByokWizard({
                       )}
                     </div>
                   )}
+                </div>
+
+                <div className="mt-4 border-t border-gray-200 dark:border-gray-700 pt-4">
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-gray-500 dark:text-gray-400">
+                    Run via CLI — enable the CLIs you want (no API key needed)
+                  </div>
+                  <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">
+                    Separate from the model-provider keys above. Turn on the CLIs you want to use — each runs agents with its own login (your Claude subscription or Factory login). Enable both to run some agents on Claude and others on Droid.
+                  </p>
+                  {runtimeStatusesLoading && runtimeStatuses.length === 0 ? (
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Detecting installed CLIs…</div>
+                  ) : (
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {runtimeStatuses.filter((status) => status.id === 'claude' || status.id === 'droid').map((status) => {
+                        const runtimeEnabled = enabledRuntimes.includes(status.id)
+                        return (
+                          <button
+                            key={status.id}
+                            type="button"
+                            role="checkbox"
+                            aria-checked={runtimeEnabled}
+                            onClick={() => { enabledRuntimesDirtyRef.current = true; setEnabledRuntimes((prev) => prev.includes(status.id) ? prev.filter((rt) => rt !== status.id) : [...prev, status.id]) }}
+                            disabled={!status.installed && !runtimeEnabled}
+                            className={`rounded-lg border px-3 py-2 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:opacity-60 disabled:cursor-not-allowed ${
+                              runtimeEnabled
+                                ? 'border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-100'
+                                : 'border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300'
+                            }`}
+                            title={status.installed ? `${runtimeEnabled ? 'Disable' : 'Enable'} ${status.label}` : `${status.label} is not installed`}
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="flex items-center gap-2 font-medium">
+                                <span className={`inline-flex h-4 w-4 items-center justify-center rounded border text-[10px] leading-none ${runtimeEnabled ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-gray-300 dark:border-gray-600'}`}>
+                                  {runtimeEnabled ? '✓' : ''}
+                                </span>
+                                {status.label}
+                              </span>
+                              <span className="text-xs uppercase tracking-wide opacity-80">
+                                {status.installed ? `detected${status.version ? ` ${status.version}` : ''}` : 'not installed'}
+                              </span>
+                            </div>
+                            <div className="mt-1 pl-6 text-xs opacity-80">
+                              {status.installed ? (runtimeEnabled ? 'Enabled · runs agents with its own login' : 'Runs agents with its own login') : status.installHint}
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                  <div className="mt-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900 dark:border-sky-800 dark:bg-sky-900/20 dark:text-sky-100">
+                    {enabledRuntimes.length > 0
+                      ? <>Enabled: {enabledRuntimes.map((rt) => runtimeStatuses.find((status) => status.id === rt)?.label || rt).join(', ')}. Now pick a runtime for each agent in the agent editor — agents you don’t assign keep using the model-provider keys above.</>
+                      : <>No CLI enabled — all agents use the model-provider keys above. Enable a CLI to make it available, then assign it per agent.</>}
+                  </div>
                 </div>
 
                 <div className="mt-6 flex items-center justify-between gap-3">
