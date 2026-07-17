@@ -849,12 +849,13 @@ export function ByokWizard({
       const data = await response.json()
       setRuntimeStatuses(Array.isArray(data?.runtimes) ? data.runtimes : [])
       // Sync the checkboxes to the server's RESOLVED enabled set (workspace config, or the env
-      // default). This fires only on open (loadRuntimeStatuses has stable deps), so it re-syncs a
-      // reopened instance and clears any stale dirty state — fixing cross-instance clobbering.
-      setEnabledRuntimes(Array.isArray(data?.enabledRuntimes)
-        ? data.enabledRuntimes.filter((rt: unknown): rt is AgentRuntimeId => rt === 'claude' || rt === 'droid')
-        : [])
-      enabledRuntimesDirtyRef.current = false
+      // default) — but only if the user hasn't toggled a card while this request was in flight
+      // (dirty is reset on open, before this runs). Otherwise we'd erase an edit made mid-load.
+      if (!enabledRuntimesDirtyRef.current) {
+        setEnabledRuntimes(Array.isArray(data?.enabledRuntimes)
+          ? data.enabledRuntimes.filter((rt: unknown): rt is AgentRuntimeId => rt === 'claude' || rt === 'droid')
+          : [])
+      }
     } catch {
       setRuntimeStatuses([])
       setRuntimeStatusesError(describeRuntimeStatusesFetchError(null))
@@ -865,6 +866,9 @@ export function ByokWizard({
 
   useEffect(() => {
     if (!open) return
+    // Clear stale dirty state on open, before the load, so a reopened instance re-syncs to the
+    // server value. A toggle made while the load is in flight re-sets dirty and is preserved.
+    enabledRuntimesDirtyRef.current = false
     void loadRuntimeStatuses()
   }, [open, loadRuntimeStatuses])
 
@@ -1330,7 +1334,7 @@ export function ByokWizard({
       } catch { /* keep local value on fetch failure */ }
     }
 
-    await fetch('/api/integrations/config', {
+    const putOk = await fetch('/api/integrations/config', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1351,18 +1355,22 @@ export function ByokWizard({
         partnerSecrets: serverPartnerSecrets,
       }),
     })
-      .then(async (response) => (response.ok ? response.json() : null))
-      .then((data) => {
+      .then(async (response) => {
+        if (!response.ok) return false
+        const data = await response.json().catch(() => null)
         if (typeof data?.secretPresence === 'object' && data.secretPresence) {
           setServerPartnerSecretPresence(data.secretPresence)
         }
+        return true
       })
-      .catch(() => {})
+      .catch(() => false)
 
-    // The config now holds enabledRuntimesToSave; sync local state and clear dirty so a subsequent
-    // save (or a reopen) re-syncs from the server instead of re-writing a stale value.
-    setEnabledRuntimes(enabledRuntimesToSave)
-    enabledRuntimesDirtyRef.current = false
+    // Only adopt the saved runtime value and clear dirty if the PUT actually persisted. On a failed
+    // save the edit stays dirty so it isn't silently marked clean / lost.
+    if (putOk) {
+      setEnabledRuntimes(enabledRuntimesToSave)
+      enabledRuntimesDirtyRef.current = false
+    }
 
     localStorage.removeItem(getByokDismissKey())
     setDismissed(false)

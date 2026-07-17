@@ -2680,11 +2680,14 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
   const [enabledRuntimes, setEnabledRuntimes] = React.useState<string[]>([])
   React.useEffect(() => {
     let cancelled = false
-    fetch('/api/integrations/config')
+    // Use the RESOLVED enabled set (workspace config OR the WORKSPACES_INTEGRATIONS_RUNTIMES env
+    // default) so this dropdown matches the BYOK wizard — /api/integrations/config is config-only
+    // and would hide an env-enabled runtime.
+    fetch('/api/integrations/runtimes')
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (cancelled) return
-        const list = data?.config?.enabledRuntimes
+        const list = data?.enabledRuntimes
         setEnabledRuntimes(Array.isArray(list) ? list.filter((rt: string) => rt === 'claude' || rt === 'droid') : [])
       })
       .catch(() => { if (!cancelled) setEnabledRuntimes([]) })
