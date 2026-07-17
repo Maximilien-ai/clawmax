@@ -437,10 +437,9 @@ export function ByokWizard({
           lastSyncedWorkspaceId: lastSyncedRuntimeWorkspaceIdRef.current,
         }))
         lastSyncedRuntimeWorkspaceIdRef.current = activeWorkspace?.id ?? null
-        setEnabledRuntimes(Array.isArray(workspaceConfig.enabledRuntimes)
-          ? workspaceConfig.enabledRuntimes.filter((rt): rt is AgentRuntimeId => rt === 'claude' || rt === 'droid')
-          : [])
-        enabledRuntimesDirtyRef.current = false
+        // enabledRuntimes is loaded from GET /api/integrations/runtimes (the resolved config-or-env
+        // value) in loadRuntimeStatuses, not from this config-only payload which is blind to the
+        // WORKSPACES_INTEGRATIONS_RUNTIMES env default.
         setOllamaBaseUrl((current) => {
           const nextDefault = resolveOllamaBaseUrlForRuntime({
             configuredBaseUrl: workspaceConfig.ollamaBaseUrl || '',
@@ -849,6 +848,13 @@ export function ByokWizard({
       }
       const data = await response.json()
       setRuntimeStatuses(Array.isArray(data?.runtimes) ? data.runtimes : [])
+      // Sync the checkboxes to the server's RESOLVED enabled set (workspace config, or the env
+      // default). This fires only on open (loadRuntimeStatuses has stable deps), so it re-syncs a
+      // reopened instance and clears any stale dirty state — fixing cross-instance clobbering.
+      setEnabledRuntimes(Array.isArray(data?.enabledRuntimes)
+        ? data.enabledRuntimes.filter((rt: unknown): rt is AgentRuntimeId => rt === 'claude' || rt === 'droid')
+        : [])
+      enabledRuntimesDirtyRef.current = false
     } catch {
       setRuntimeStatuses([])
       setRuntimeStatusesError(describeRuntimeStatusesFetchError(null))
@@ -1310,11 +1316,14 @@ export function ByokWizard({
     // The PUT below replaces the whole config, so every field must carry a fresh value. If the user
     // never toggled a CLI in this wizard instance, re-read the server's current enabledRuntimes so a
     // stale instance (e.g. Partners, opened before Runtime enabled a CLI) can't clobber it.
+    // Read the server's RESOLVED enabled set (config OR env default) so a non-editing instance
+    // sends the effective value instead of clobbering it with a blind [] — critically, this
+    // preserves a WORKSPACES_INTEGRATIONS_RUNTIMES default that was never written to config.
     let enabledRuntimesToSave = enabledRuntimes
     if (!enabledRuntimesDirtyRef.current) {
       try {
-        const latest = await fetch('/api/integrations/config').then((r) => (r.ok ? r.json() : null))
-        const serverList = latest?.config?.enabledRuntimes
+        const latest = await fetch('/api/integrations/runtimes').then((r) => (r.ok ? r.json() : null))
+        const serverList = latest?.enabledRuntimes
         if (Array.isArray(serverList)) {
           enabledRuntimesToSave = serverList.filter((rt: unknown): rt is AgentRuntimeId => rt === 'claude' || rt === 'droid')
         }
@@ -1349,6 +1358,11 @@ export function ByokWizard({
         }
       })
       .catch(() => {})
+
+    // The config now holds enabledRuntimesToSave; sync local state and clear dirty so a subsequent
+    // save (or a reopen) re-syncs from the server instead of re-writing a stale value.
+    setEnabledRuntimes(enabledRuntimesToSave)
+    enabledRuntimesDirtyRef.current = false
 
     localStorage.removeItem(getByokDismissKey())
     setDismissed(false)
@@ -2649,7 +2663,7 @@ export function ByokWizard({
                           role="checkbox"
                           aria-checked={runtimeEnabled}
                           onClick={() => { enabledRuntimesDirtyRef.current = true; setEnabledRuntimes((prev) => prev.includes(status.id) ? prev.filter((rt) => rt !== status.id) : [...prev, status.id]) }}
-                          disabled={!status.installed}
+                          disabled={!status.installed && !runtimeEnabled}
                           className={`rounded-lg border px-3 py-2 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:opacity-60 disabled:cursor-not-allowed ${
                             runtimeEnabled
                               ? 'border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-100'

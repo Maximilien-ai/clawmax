@@ -16,7 +16,7 @@ import { safeEnv } from '../lib/safe-env'
 import { getDashboardDeploymentKind, getDashboardEnvRaw, isOllamaUiEnabled } from '../lib/dashboard-env'
 import { getAuthenticatedSession } from '../lib/github-auth'
 import { getWorkspaceResendApiKey, resolveResendTestRecipient, sendResendTestEmail } from '../lib/resend-partner'
-import { detectRuntimeStatuses, normalizeAgentRuntime, resolveWorkspaceRuntime } from '../lib/agent-runtime'
+import { detectRuntimeStatuses, normalizeAgentRuntime, resolveEnabledRuntimes, resolveWorkspaceRuntime } from '../lib/agent-runtime'
 
 const router = Router()
 
@@ -56,6 +56,10 @@ router.get('/runtimes', (_req, res) => {
   res.json({
     runtimes: detectRuntimeStatuses(workspaceDefault),
     workspaceDefault,
+    // Resolved (effective) enabled set — workspace config, or the WORKSPACES_INTEGRATIONS_RUNTIMES
+    // env default when the workspace has no config. The client uses this so its checkboxes and its
+    // save value reflect the env default and never clobber it with a blind [].
+    enabledRuntimes: resolveEnabledRuntimes(),
   })
 })
 
