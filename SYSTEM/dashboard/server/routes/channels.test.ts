@@ -717,6 +717,9 @@ async function run() {
       '- **Name:** Droid Runner',
       '- **Runtime:** droid',
     ].join('\n'), 'utf-8')
+    // Droid must be enabled for the workspace for the per-agent pin to be honored.
+    fs.mkdirSync(path.join(workspacePath, 'SYSTEM'), { recursive: true })
+    fs.writeFileSync(path.join(workspacePath, 'SYSTEM', 'integrations.json'), JSON.stringify({ enabledRuntimes: ['droid'] }), 'utf-8')
 
     const droidCli = path.join(workspacePath, 'fake-droid')
     writeFakeDroidCli(droidCli, 'hello from droid')
@@ -736,6 +739,8 @@ async function run() {
       '- **Name:** Droid Runner Missing',
       '- **Runtime:** droid',
     ].join('\n'), 'utf-8')
+    fs.mkdirSync(path.join(workspacePath, 'SYSTEM'), { recursive: true })
+    fs.writeFileSync(path.join(workspacePath, 'SYSTEM', 'integrations.json'), JSON.stringify({ enabledRuntimes: ['droid'] }), 'utf-8')
 
     await withEnv({ DROID_BIN: undefined, PATH: path.join(workspacePath, 'empty-bin') }, async () => {
       await assert.rejects(

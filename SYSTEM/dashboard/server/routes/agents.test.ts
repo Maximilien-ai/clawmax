@@ -1629,6 +1629,8 @@ async function run() {
       '- **Name:** Droid Dashboard Chat',
       '- **Runtime:** droid',
     ].join('\n'))
+    fs.mkdirSync(path.join(workspacePath, 'SYSTEM'), { recursive: true })
+    fs.writeFileSync(path.join(workspacePath, 'SYSTEM', 'integrations.json'), JSON.stringify({ enabledRuntimes: ['droid'] }), 'utf-8')
 
     const droidCli = path.join(tmpHome, 'fake-droid-dashboard-chat')
     writeFakeDroidCli(droidCli, 'hello from droid dashboard chat')
@@ -1664,6 +1666,8 @@ async function run() {
       '- **Model:** anthropic/claude-sonnet-4-20250514',
       '- **Runtime:** claude',
     ].join('\n'))
+    fs.mkdirSync(path.join(workspacePath, 'SYSTEM'), { recursive: true })
+    fs.writeFileSync(path.join(workspacePath, 'SYSTEM', 'integrations.json'), JSON.stringify({ enabledRuntimes: ['claude'] }), 'utf-8')
 
     const claudeCli = path.join(tmpHome, 'fake-claude-dashboard-chat')
     writeFakeClaudeCliDumpingAnthropicKey(claudeCli)

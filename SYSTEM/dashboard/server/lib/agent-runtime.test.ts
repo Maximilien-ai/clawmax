@@ -258,7 +258,28 @@ test('resolveEnabledRuntimes returns the enabled CLI set, filtering junk and ope
 
 test('resolveEnabledRuntimes returns [] when nothing is enabled', () => {
   withWorkspace(null, () => {
-    assert.deepStrictEqual(resolveEnabledRuntimes(), [])
+    withEnv({ WORKSPACES_INTEGRATIONS_RUNTIMES: undefined }, () => {
+      assert.deepStrictEqual(resolveEnabledRuntimes(), [])
+    })
+  })
+})
+
+test('resolveEnabledRuntimes falls back to WORKSPACES_INTEGRATIONS_RUNTIMES when the workspace has no config', () => {
+  withWorkspace(null, () => {
+    withEnv({ WORKSPACES_INTEGRATIONS_RUNTIMES: 'claude, droid, bogus' }, () => {
+      assert.deepStrictEqual(resolveEnabledRuntimes(), ['claude', 'droid'])
+    })
+  })
+})
+
+test('resolveEnabledRuntimes: workspace config overrides the env default (incl. explicit empty = all off)', () => {
+  withEnv({ WORKSPACES_INTEGRATIONS_RUNTIMES: 'claude,droid' }, () => {
+    withWorkspace({ enabledRuntimes: ['claude'] }, () => {
+      assert.deepStrictEqual(resolveEnabledRuntimes(), ['claude'])
+    })
+    withWorkspace({ enabledRuntimes: [] }, () => {
+      assert.deepStrictEqual(resolveEnabledRuntimes(), [])
+    })
   })
 })
 

@@ -138,10 +138,19 @@ export function resolveWorkspaceRuntime(): AgentRuntimeId {
   return normalizeAgentRuntime(readWorkspaceIntegrationConfig().agentRuntime) || 'openclaw'
 }
 
-/** CLI runtimes enabled for the workspace (multi-select). OpenClaw is always available and not listed. */
+function parseRuntimeEnvList(raw: string | undefined): string[] {
+  return (raw || '').split(',').map((item) => item.trim().toLowerCase()).filter(Boolean)
+}
+
+/**
+ * CLI runtimes enabled for the workspace (multi-select). OpenClaw is always available and not listed.
+ * Per-workspace config wins — an explicit empty list means "all CLIs off". When a workspace has never
+ * configured runtimes, fall back to the WORKSPACES_INTEGRATIONS_RUNTIMES env default, the same
+ * deployment-default shape partners use with WORKSPACES_INTEGRATIONS_THIRD_PARTIES.
+ */
 export function resolveEnabledRuntimes(): AgentRuntimeId[] {
-  const raw = readWorkspaceIntegrationConfig().enabledRuntimes
-  if (!Array.isArray(raw)) return []
+  const config = readWorkspaceIntegrationConfig().enabledRuntimes
+  const raw = Array.isArray(config) ? config : parseRuntimeEnvList(process.env.WORKSPACES_INTEGRATIONS_RUNTIMES)
   return raw
     .map((item) => normalizeAgentRuntime(item))
     .filter((rt): rt is AgentRuntimeId => rt === 'claude' || rt === 'droid')

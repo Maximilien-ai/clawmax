@@ -221,6 +221,10 @@ export function ByokWizard({
   const [agentRuntime, setAgentRuntime] = useState('')
   const [enabledRuntimes, setEnabledRuntimes] = useState<AgentRuntimeId[]>([])
   const lastSyncedRuntimeWorkspaceIdRef = useRef<string | null>(null)
+  // True once the user toggles a CLI in THIS wizard instance. Three ByokWizard instances (BYOK,
+  // Partners, Runtime) each hold their own enabledRuntimes state; without this, a stale instance
+  // saving would clobber another instance's runtime edits (see handleSave).
+  const enabledRuntimesDirtyRef = useRef(false)
   const [runtimeStatuses, setRuntimeStatuses] = useState<RuntimeStatus[]>([])
   const [runtimeStatusesLoading, setRuntimeStatusesLoading] = useState(false)
   const [runtimeStatusesError, setRuntimeStatusesError] = useState<string | null>(null)
@@ -436,6 +440,7 @@ export function ByokWizard({
         setEnabledRuntimes(Array.isArray(workspaceConfig.enabledRuntimes)
           ? workspaceConfig.enabledRuntimes.filter((rt): rt is AgentRuntimeId => rt === 'claude' || rt === 'droid')
           : [])
+        enabledRuntimesDirtyRef.current = false
         setOllamaBaseUrl((current) => {
           const nextDefault = resolveOllamaBaseUrlForRuntime({
             configuredBaseUrl: workspaceConfig.ollamaBaseUrl || '',
@@ -1302,6 +1307,20 @@ export function ByokWizard({
     }, currentSharedSecrets)
     writeSharedSecrets(nextSharedSecrets, { scope: 'global' })
 
+    // The PUT below replaces the whole config, so every field must carry a fresh value. If the user
+    // never toggled a CLI in this wizard instance, re-read the server's current enabledRuntimes so a
+    // stale instance (e.g. Partners, opened before Runtime enabled a CLI) can't clobber it.
+    let enabledRuntimesToSave = enabledRuntimes
+    if (!enabledRuntimesDirtyRef.current) {
+      try {
+        const latest = await fetch('/api/integrations/config').then((r) => (r.ok ? r.json() : null))
+        const serverList = latest?.config?.enabledRuntimes
+        if (Array.isArray(serverList)) {
+          enabledRuntimesToSave = serverList.filter((rt: unknown): rt is AgentRuntimeId => rt === 'claude' || rt === 'droid')
+        }
+      } catch { /* keep local value on fetch failure */ }
+    }
+
     await fetch('/api/integrations/config', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -1309,7 +1328,7 @@ export function ByokWizard({
         preferredModel: preferredModel || undefined,
         systemPreferredModel: systemPreferredModel || undefined,
         agentRuntime: agentRuntime || undefined,
-        enabledRuntimes,
+        enabledRuntimes: enabledRuntimesToSave,
         githubDefaultRepo: githubDefaultRepo.trim() || undefined,
         sensoContextLabel: sensoContextLabel.trim() || undefined,
         ollamaBaseUrl: ollamaEnabled ? (effectiveOllamaBaseUrl.trim() || undefined) : undefined,
@@ -2123,8 +2142,8 @@ export function ByokWizard({
                             type="button"
                             role="checkbox"
                             aria-checked={runtimeEnabled}
-                            onClick={() => setEnabledRuntimes((prev) => prev.includes(status.id) ? prev.filter((rt) => rt !== status.id) : [...prev, status.id])}
-                            disabled={!status.installed}
+                            onClick={() => { enabledRuntimesDirtyRef.current = true; setEnabledRuntimes((prev) => prev.includes(status.id) ? prev.filter((rt) => rt !== status.id) : [...prev, status.id]) }}
+                            disabled={!status.installed && !runtimeEnabled}
                             className={`rounded-lg border px-3 py-2 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:opacity-60 disabled:cursor-not-allowed ${
                               runtimeEnabled
                                 ? 'border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-100'
@@ -2629,7 +2648,7 @@ export function ByokWizard({
                           type="button"
                           role="checkbox"
                           aria-checked={runtimeEnabled}
-                          onClick={() => setEnabledRuntimes((prev) => prev.includes(status.id) ? prev.filter((rt) => rt !== status.id) : [...prev, status.id])}
+                          onClick={() => { enabledRuntimesDirtyRef.current = true; setEnabledRuntimes((prev) => prev.includes(status.id) ? prev.filter((rt) => rt !== status.id) : [...prev, status.id]) }}
                           disabled={!status.installed}
                           className={`rounded-lg border px-3 py-2 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:opacity-60 disabled:cursor-not-allowed ${
                             runtimeEnabled
