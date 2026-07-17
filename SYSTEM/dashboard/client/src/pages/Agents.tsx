@@ -3019,6 +3019,11 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
                   <option value="openclaw">OpenClaw (model-provider keys)</option>
                   {enabledRuntimes.includes('claude') && <option value="claude">Claude Code (its own login)</option>}
                   {enabledRuntimes.includes('droid') && <option value="droid">Factory Droid (its own login)</option>}
+                  {(runtime === 'claude' || runtime === 'droid') && !enabledRuntimes.includes(runtime) && (
+                    <option value={runtime}>
+                      {runtime === 'claude' ? 'Claude Code' : 'Factory Droid'} — pinned, but disabled for this workspace
+                    </option>
+                  )}
                 </select>
                 <p className="mt-1 text-xs text-sky-800/80 dark:text-sky-200/70">
                   {enabledRuntimes.length > 0
