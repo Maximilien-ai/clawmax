@@ -16,6 +16,7 @@ All notable changes to ClawMax are documented here.
 ### Planned
 - **1.9.8 Feedback And Small Features** — prioritize focused fixes and diagnostics driven by `1.9.7` feedback from Mike and other testers, while accepting small isolated features that build toward `2.0.0` without depending on its larger architecture.
 - **1.9.9 Brokered Agent-Skill Secrets** — plan explicit workspace/agent/skill/fingerprint/key grants and a narrow skill execution broker so authorized skills can use required credentials without giving agents a general vault reader or putting raw values in the parent agent environment.
+- **2.0 Public Plugin And AI-Scoring Foundation** — publish the plugin/scorer contracts, shared scoring rubric, explainable prompt and artifact score shapes, and user-facing scoring surfaces. Proprietary guardrail and evaluation plugin implementations remain private and connect through the public contracts.
 - **Google Credential Safety** — document OAuth, service-account, and supported app-password flows as the intended Google integration paths; normal Google account passwords must not be requested or recommended.
 - **Stable Runtime Baseline** — keep OpenClaw fixed at `v2026.6.11` unless a separately validated upstream change is required.
 

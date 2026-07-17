@@ -18,11 +18,12 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 
 ## 🛠 Current Feedback Line: 1.9.8
 
-- Current validation image: `1.9.8-test-rc3`
+- Current validation image: `1.9.8-test-rc4`
 - `1.9.8` prioritizes feedback and focused hardening from the `1.9.7` tester rollout while allowing small, isolated features that move the product toward `2.0.0`.
 - Current `1.9.8` work includes federated skill-registry search, safe multi-select move/delete for user-uploaded DocHub files, descriptive export filenames, and restored dashboard navigation state.
 - Prioritize reproducible issues from Mike and other testers across agent chat, group chat, workflows, model/runtime diagnostics, plugins, and containerized deployments.
-- Use `1.9.8` for the current bounded feature batch. `1.9.9` is planned around brokered, explicitly granted agent-skill secret use; keep major evaluation/control architecture and another OpenClaw baseline change in separate validation tracks.
+- Use `1.9.8` for the current bounded feature batch. `1.9.9` is planned around brokered, explicitly granted agent-skill secret use; keep another OpenClaw baseline change in a separate validation track.
+- `2.0.0` will expose public plugin and AI-scoring contracts plus the first public scoring experience. Proprietary guardrail and evaluation plugin implementations remain private and are integrated through those public contracts rather than bundled in the public repository or default image.
 
 ## ✨ 1.9.x Highlights
 

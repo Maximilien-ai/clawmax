@@ -9,6 +9,8 @@
 
 Make workspace secrets usable by explicitly authorized agent skills without exposing a general-purpose secret-reading capability to the agent or language model. Keep the work bounded and independently releasable before the broader `2.0.0` plugin/evaluation program.
 
+Public AI scoring remains a `2.0.0` product feature. `1.9.9` may add independently useful schemas, fixtures, or test primitives that reduce later implementation risk, but it must not ship a competing scoring API or partial user-facing scoring experience.
+
 ## Tester Problem
 
 Mike saved Google credentials in `Keys & Secrets` and expected an assigned Google skill to use them during agent chat. That does not work today:
@@ -31,6 +33,7 @@ The UI centralizes secret capture and readiness, but it does not yet provide a s
 - Workspace scope overrides global scope only through an explicit, testable resolution rule.
 - Imported skills remain a trust boundary: granting a skill a secret authorizes that skill to use it. The UI must identify the skill, requested keys, and risk before granting access.
 - Keep private `2.0.0` guardrail/evaluation plugins out of this release. The contract must remain generic.
+- Keep AI scoring itself public: the future scoring contract, rubric, explanations, and product UI belong in the public `2.0.0` architecture. Only proprietary plugin implementations remain private.
 
 ## Proposed Contract
 
@@ -197,6 +200,7 @@ Verify:
 - exposing raw secrets to AI prompts
 - changing the OpenClaw baseline in the same RC track
 - shipping private guardrail/evaluation plugins
+- shipping the public AI-scoring product before the shared `2.0.0` contract is ready
 
 ## Open Questions Before Implementation
 
