@@ -726,6 +726,35 @@ async function run(): Promise<void> {
     })
   })
 
+  await testAsync('runRuntimeCli injects IS_SANDBOX=1 for claude when running as root, but not for droid', async () => {
+    await withTempDirAsync('clawmax-agent-runtime-sandbox-', async (dir) => {
+      const cli = path.join(dir, 'fake-cli.js')
+      // Echo the spawned IS_SANDBOX env value back through the result envelope.
+      writeFakeNodeCli(cli, `
+        process.stdout.write(JSON.stringify({ type: 'result', subtype: 'success', is_error: false, result: 'IS_SANDBOX=' + (process.env.IS_SANDBOX || ''), session_id: 's' }))
+      `)
+      fs.chmodSync(cli, 0o755)
+      const plan = { cliPath: cli, args: [], missingCliError: 'missing', streamsDeltas: false }
+      const baseEnv = { ...process.env, IS_SANDBOX: undefined } as NodeJS.ProcessEnv
+      const originalGetuid = process.getuid
+      ;(process as any).getuid = () => 0 // simulate running as root (the container case)
+      try {
+        const claudeRes = await runRuntimeCli({
+          plan, env: baseEnv, timeoutMs: 5000, rebuildPlan: () => plan,
+          runtime: 'claude', mode: 'json', agentId: 'a', scopedSessionId: 's',
+        })
+        assert.strictEqual(claudeRes.text, 'IS_SANDBOX=1', 'claude as root must receive IS_SANDBOX=1')
+        const droidRes = await runRuntimeCli({
+          plan, env: baseEnv, timeoutMs: 5000, rebuildPlan: () => plan,
+          runtime: 'droid', mode: 'json', agentId: 'a', scopedSessionId: 's',
+        })
+        assert.strictEqual(droidRes.text, 'IS_SANDBOX=', 'droid must not get IS_SANDBOX injected')
+      } finally {
+        ;(process as any).getuid = originalGetuid
+      }
+    })
+  })
+
   await testAsync('runRuntimeCli streams multiple chunks for streamsDeltas plans instead of one final delta', async () => {
     await withTempDirAsync('clawmax-agent-runtime-exec-stream-', async (dir) => {
       const cli = path.join(dir, 'fake-claude.js')

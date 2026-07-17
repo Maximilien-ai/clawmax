@@ -361,6 +361,9 @@ function runOnce(
     }
 
     const child = spawn(plan.cliPath, plan.args, { env, cwd: plan.cwd })
+    // The prompt is passed via CLI args, never stdin. Close stdin so claude/droid don't block
+    // waiting on it (claude otherwise stalls ~3s and emits a "no stdin data received" warning).
+    child.stdin?.end()
     let stdout = ''
     let stderr = ''
     let timedOut = false
@@ -400,9 +403,17 @@ export async function runRuntimeCli(o: {
   scopedSessionId: string
   onDelta?: (text: string) => void
 }): Promise<{ text: string; errorText?: string }> {
+  // Claude Code refuses --dangerously-skip-permissions when running as root (e.g. inside the
+  // container image, which runs as root) unless IS_SANDBOX marks a controlled environment. The
+  // dashboard always runs claude non-interactively with that flag, so opt in when we are root.
+  const runningAsRoot = typeof process.getuid === 'function' && process.getuid() === 0
+  const effectiveEnv: NodeJS.ProcessEnv = o.runtime === 'claude' && runningAsRoot
+    ? { ...o.env, IS_SANDBOX: '1' }
+    : o.env
+
   const attempt = async (plan: RuntimePlan) => {
     const onChunk = plan.streamsDeltas && o.onDelta ? o.onDelta : undefined
-    const result = await runOnce(plan, o.env, o.timeoutMs, onChunk)
+    const result = await runOnce(plan, effectiveEnv, o.timeoutMs, onChunk)
     if (result.timedOut) {
       return { result, text: '', errorText: 'timeout' as const }
     }
