@@ -5,7 +5,7 @@ import { DocHubSelectionActionBar } from './DocHubSelectionActionBar'
 const actions = { onMove: () => {}, onDelete: () => {}, onClear: () => {} }
 const multiple = renderToStaticMarkup(<DocHubSelectionActionBar selectedCount={3} canMove {...actions} />)
 
-assert(multiple.includes('sticky top-0 z-20'), 'selection actions should remain visible')
+assert(multiple.includes('shrink-0'), 'selection actions should retain their space in the fixed toolbar')
 assert(multiple.includes('3 files selected'), 'multiple selection count should be explicit')
 assert(multiple.includes('grid grid-cols-2'), 'actions should fit narrow sidebars predictably')
 assert(multiple.includes('Move selected'), 'move action should identify its selection scope')

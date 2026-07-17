@@ -5,6 +5,7 @@ import { buildDocHubTree, getDocHubChildDirectories, type FileTree } from '../li
 import { buildAgentInboxTargetPath } from '../lib/agentInbox'
 import { getDocHubAssetLabel } from '../lib/docHubAssetPresentation'
 import { DocHubSelectionActionBar } from '../components/DocHubSelectionActionBar'
+import { DocHubTreePaneLayout } from '../components/DocHubTreePaneLayout'
 
 type DocSection = 'ORG' | 'AGENTS' | 'WORKFLOWS' | 'SYSTEM'
 
@@ -912,7 +913,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
       )}
 
       <aside
-        className={`bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 overflow-y-auto shrink-0 transition-all duration-200 ${resizingTree ? 'select-none' : ''} ${mobileTreeOpen ? 'fixed inset-y-0 left-0 z-40 sm:relative' : 'hidden sm:block'}`}
+        className={`bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 overflow-hidden shrink-0 transition-all duration-200 ${resizingTree ? 'select-none' : ''} ${mobileTreeOpen ? 'fixed inset-y-0 left-0 z-40 sm:relative' : 'hidden sm:block'}`}
         style={{ width: treeCollapsed ? 32 : (mobileTreeOpen ? 'min(22rem, calc(100vw - 2rem))' : treeWidth) }}
       >
         {treeCollapsed ? (
@@ -924,8 +925,9 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
             >▶</button>
           </div>
         ) : (
-          <div className="flex flex-col h-full">
-            <div className="px-4 py-3 border-b border-gray-200 shrink-0 dark:border-gray-700">
+          <DocHubTreePaneLayout
+            toolbar={
+              <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
               <div className="flex items-center justify-between mb-2">
                 <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Documents</h2>
                 <div className="flex items-center gap-1">
@@ -1011,7 +1013,9 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
                   </button>
                 )}
               </div>
-            </div>
+              </div>
+            }
+          >
 
             {/* Search results */}
             {searchResults.length > 0 && (
@@ -1149,7 +1153,7 @@ export default function DocHub({ initialFile }: { initialFile?: string } = {}) {
                 <p className="px-4 py-4 text-sm text-gray-400">No documents found</p>
               )}
             </div>
-          </div>
+          </DocHubTreePaneLayout>
         )}
       </aside>
       {!treeCollapsed && (
