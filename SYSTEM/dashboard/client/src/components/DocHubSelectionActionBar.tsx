@@ -14,7 +14,7 @@ export function DocHubSelectionActionBar({
   if (selectedCount <= 0) return null
 
   return (
-    <div className="sticky top-0 z-20 mb-2 border border-emerald-300 bg-emerald-50 px-2 py-2 shadow-sm dark:border-emerald-700 dark:bg-emerald-950">
+    <div className="mb-2 shrink-0 border border-emerald-300 bg-emerald-50 px-2 py-2 shadow-sm dark:border-emerald-700 dark:bg-emerald-950">
       <div className="mb-1.5 flex items-center justify-between gap-2">
         <span className="text-xs font-medium text-emerald-800 dark:text-emerald-200">
           {selectedCount} file{selectedCount === 1 ? '' : 's'} selected

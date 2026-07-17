@@ -1954,13 +1954,15 @@ fi
 echo -e "${YELLOW}→ Running RC feedback presentation regression tests...${NC}"
 npx ts-node --transpileOnly --compiler-options '{"jsx":"react-jsx"}' client/src/components/skills/RegistryResultRow.test.tsx > /tmp/clawmax-registry-result-row.out 2>&1 || true
 npx ts-node --transpileOnly --compiler-options '{"jsx":"react-jsx"}' client/src/components/DocHubSelectionActionBar.test.tsx > /tmp/clawmax-dochub-selection-actions.out 2>&1 || true
+npx ts-node --transpileOnly --compiler-options '{"jsx":"react-jsx"}' client/src/components/DocHubTreePaneLayout.test.tsx > /tmp/clawmax-dochub-tree-pane-layout.out 2>&1 || true
 npx ts-node --transpileOnly client/src/lib/docHubAssetPresentation.test.ts > /tmp/clawmax-dochub-asset-presentation.out 2>&1 || true
 if grep -q "RegistryResultRow.test.tsx: 8 assertions passed" /tmp/clawmax-registry-result-row.out \
   && grep -q "DocHubSelectionActionBar.test.tsx: 9 assertions passed" /tmp/clawmax-dochub-selection-actions.out \
+  && grep -q "DocHubTreePaneLayout.test.tsx: 6 assertions passed" /tmp/clawmax-dochub-tree-pane-layout.out \
   && grep -q "docHubAssetPresentation.test.ts: 7 assertions passed" /tmp/clawmax-dochub-asset-presentation.out; then
-  pass "RC feedback presentation regression tests (24 assertions)"
+  pass "RC feedback presentation regression tests (30 assertions)"
 else
-  cat /tmp/clawmax-registry-result-row.out /tmp/clawmax-dochub-selection-actions.out /tmp/clawmax-dochub-asset-presentation.out
+  cat /tmp/clawmax-registry-result-row.out /tmp/clawmax-dochub-selection-actions.out /tmp/clawmax-dochub-tree-pane-layout.out /tmp/clawmax-dochub-asset-presentation.out
   fail "RC feedback presentation regression tests"
 fi
 

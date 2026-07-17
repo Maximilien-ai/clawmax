@@ -12,6 +12,7 @@ All notable changes to ClawMax are documented here.
 
 ### Fixed
 - **Container Plugin Environment Precedence** — cloud and on-prem runtime values for plugin paths, explicit plugin enablement, and default-plugin policy now remain authoritative when the packaged dashboard also contains a local `.env` file.
+- **Persistent DocHub Selection Actions** — the DocHub toolbar now stays outside the document-tree scroll region, keeping the selected-file count plus Move, Delete, and clear actions visible while browsing long agent and workflow lists.
 
 ### Planned
 - **1.9.8 Feedback And Small Features** — prioritize focused fixes and diagnostics driven by `1.9.7` feedback from Mike and other testers, while accepting small isolated features that build toward `2.0.0` without depending on its larger architecture.
