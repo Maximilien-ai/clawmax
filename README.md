@@ -23,7 +23,9 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 - Current `1.9.8` work includes federated skill-registry search, safe multi-select move/delete for user-uploaded DocHub files, descriptive export filenames, and restored dashboard navigation state.
 - Prioritize reproducible issues from Mike and other testers across agent chat, group chat, workflows, model/runtime diagnostics, plugins, and containerized deployments.
 - Use `1.9.8` for the current bounded feature batch. `1.9.9` is planned around brokered, explicitly granted agent-skill secret use; keep another OpenClaw baseline change in a separate validation track.
-- `2.0.0` will expose public plugin and AI-scoring contracts plus the first public scoring experience. Proprietary guardrail and evaluation plugin implementations remain private and are integrated through those public contracts rather than bundled in the public repository or default image.
+- After its broker is stable, `1.9.9` can add native xAI/Grok and OpenRouter provider paths plus the public mail capability/test foundation. Grok 4.5 remains gated on an exact compatibility probe against the pinned OpenClaw image.
+- `2.0.0` will expose public plugin and AI-scoring contracts plus the first public scoring experience and curated public Gmail and Microsoft 365/Outlook partner plugins. Mail starts with read/search/draft capabilities; sending and destructive actions require separate grants and confirmation. Proprietary guardrail and evaluation plugin implementations remain private and are integrated through the public contracts rather than bundled in the public repository or default image.
+- See the public [models, gateways, and email partner plan](SYSTEM/docs/planning/PUBLIC_MODELS_GATEWAYS_EMAIL_1_9_9_2_0.md) for the research, security rules, release split, and test gates.
 
 ## ✨ 1.9.x Highlights
 
