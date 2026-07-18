@@ -18,7 +18,7 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 
 ## 🛠 Current Feedback Line: 1.9.8
 
-- Current validation image: `1.9.8-test-rc4`
+- Current validation image: `1.9.8-test-rc5`
 - `1.9.8` prioritizes feedback and focused hardening from the `1.9.7` tester rollout while allowing small, isolated features that move the product toward `2.0.0`.
 - Current `1.9.8` work includes federated skill-registry search, safe multi-select move/delete for user-uploaded DocHub files, descriptive export filenames, and restored dashboard navigation state.
 - Prioritize reproducible issues from Mike and other testers across agent chat, group chat, workflows, model/runtime diagnostics, plugins, and containerized deployments.

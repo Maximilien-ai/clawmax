@@ -3,7 +3,7 @@
 **Current Version**: v1.9.7
 **Development Line**: 1.9.8
 **Last Updated**: July 17, 2026
-**Status**: `v1.9.7` is the promoted stable release and the first fully validated local/cloud/on-prem line on OpenClaw `v2026.6.11`. `1.9.8-test-rc4` contains the current bounded feature/fix batch and passed multi-architecture build, manifest, and registry smoke. `1.9.9` is planned around explicitly granted, brokered agent-skill secret use without exposing general vault access. `2.0.0` owns the public plugin and AI-scoring product surfaces while proprietary guardrail/evaluation plugins remain private.
+**Status**: `v1.9.7` is the promoted stable release and the first fully validated local/cloud/on-prem line on OpenClaw `v2026.6.11`. `1.9.8-test-rc5` contains the current bounded feature/fix batch and passed multi-architecture build, manifest, and registry smoke. `1.9.9` is planned around explicitly granted, brokered agent-skill secret use without exposing general vault access. `2.0.0` owns the public plugin and AI-scoring product surfaces while proprietary guardrail/evaluation plugins remain private.
 
 ---
 
@@ -34,7 +34,7 @@
   - [planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_7.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_7.md)
   - [planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_8.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_8.md)
   - [planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_9.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_9.md)
-- Near-term target: complete Mike and other tester validation against `1.9.8-test-rc4`, prune the living manual checklist, and promote only after the remaining container checks pass.
+- Near-term target: complete Mike and other tester validation against `1.9.8-test-rc5`, prune the living manual checklist, and promote only after the remaining container checks pass.
 - Begin `1.9.9` with current-state secret readiness clarity, then implement grant/resolver/broker boundaries and security-negative tests before accepting a real credential for agent-skill use.
 - Build public AI scoring as part of `2.0.0` on top of the public plugin architecture. Keep proprietary guardrail and evaluation implementations outside the public repository and default image.
 - Keep OpenClaw pinned to `v2026.6.11` during the feedback window unless an upstream change is isolated and validated separately.
