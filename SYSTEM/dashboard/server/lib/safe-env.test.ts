@@ -187,6 +187,20 @@ test('workflowExecutionEnv isolates OpenAI-compatible attempts from hosted OpenA
   assert(env.OPENAI_BASE_URL === 'http://127.0.0.1:1234/v1', 'Expected the OpenAI-compatible base URL in the execution env')
 })
 
+test('workflowExecutionEnv isolates native OpenRouter from OpenAI and local-compatible settings', () => {
+  const env = workflowExecutionEnv({
+    openai: 'hosted-openai-key',
+    openrouter: 'sk-or-test-key',
+    openaiCompatibleApiKey: 'lmstudio-key',
+    openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1',
+  }, 'openrouter')
+
+  assert(env.OPENROUTER_API_KEY === 'sk-or-test-key', 'Expected native OpenRouter key in execution env')
+  assert(env.OPENAI_API_KEY === '', 'Expected OpenAI key blanked during OpenRouter execution')
+  assert(env.OPENAI_BASE_URL === '', 'Expected LM Studio base URL blanked during OpenRouter execution')
+  assert(env.ANTHROPIC_API_KEY === '', 'Expected Anthropic key blanked during OpenRouter execution')
+})
+
 test('systemExecutionEnv uses resolved system execution keys, not shell exports', () => {
   const env = systemExecutionEnv()
   assert(typeof env.PATH === 'string' && env.PATH.length > 0, 'Expected safe base env to retain PATH')

@@ -132,7 +132,7 @@ router.post('/generate-cron', (req, res) => {
 router.post('/generate', async (req, res) => {
   const { description, byokKeys } = req.body as {
     description?: string
-    byokKeys?: { openai?: string; anthropic?: string; gemini?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string }
+    byokKeys?: { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string }
   }
   if (!description || typeof description !== 'string') {
     return res.status(400).json({ error: 'description is required' })
@@ -281,6 +281,7 @@ router.post('/:id/trigger', (req, res) => {
         openai?: string
         anthropic?: string
         gemini?: string
+        openrouter?: string
         ollamaBaseUrl?: string
         ollamaDefaultModel?: string
         openaiCompatibleApiKey?: string

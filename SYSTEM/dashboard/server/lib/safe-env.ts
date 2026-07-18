@@ -18,7 +18,7 @@ export interface ExecutionEnvOverrides extends ProviderKeys {
   ollamaBaseUrl?: string
 }
 
-export type ExecutionModelProvider = 'openai' | 'anthropic' | 'gemini' | 'ollama' | 'openai-compatible'
+export type ExecutionModelProvider = 'openai' | 'anthropic' | 'gemini' | 'openrouter' | 'ollama' | 'openai-compatible'
 
 const STANDARD_RUNTIME_PATHS = [
   '/opt/homebrew/bin',
@@ -133,6 +133,7 @@ function providerKeysToEnv(providerKeys: ExecutionEnvOverrides): Record<string, 
       : '',
     ANTHROPIC_API_KEY: providerKeys.anthropic || '',
     GEMINI_API_KEY: providerKeys.gemini || '',
+    OPENROUTER_API_KEY: providerKeys.openrouter || '',
     OLLAMA_BASE_URL: resolveRuntimeBaseUrl({
       configuredBaseUrl: providerKeys.ollamaBaseUrl || '',
       managedRuntime,
@@ -150,6 +151,7 @@ export function userExecutionEnv(byokOverrides?: ExecutionEnvOverrides): NodeJS.
     openaiCompatibleApiKey: byokOverrides?.openaiCompatibleApiKey?.trim() || undefined,
     openaiCompatibleBaseUrl: byokOverrides?.openaiCompatibleBaseUrl?.trim() || undefined,
     openaiCompatibleDefaultModel: byokOverrides?.openaiCompatibleDefaultModel?.trim() || undefined,
+    openrouter: byokOverrides?.openrouter?.trim() || undefined,
   }))
 }
 
@@ -164,12 +166,14 @@ export function workflowExecutionEnv(
     openaiCompatibleApiKey: byokOverrides?.openaiCompatibleApiKey?.trim() || resolvedProviderKeys.openaiCompatibleApiKey,
     openaiCompatibleBaseUrl: byokOverrides?.openaiCompatibleBaseUrl?.trim() || resolvedProviderKeys.openaiCompatibleBaseUrl,
     openaiCompatibleDefaultModel: byokOverrides?.openaiCompatibleDefaultModel?.trim() || resolvedProviderKeys.openaiCompatibleDefaultModel,
+    openrouter: byokOverrides?.openrouter?.trim() || resolvedProviderKeys.openrouter,
   }
 
   if (selectedProvider) {
     executionProviderKeys.openai = selectedProvider === 'openai' ? resolvedProviderKeys.openai : undefined
     executionProviderKeys.anthropic = selectedProvider === 'anthropic' ? resolvedProviderKeys.anthropic : undefined
     executionProviderKeys.gemini = selectedProvider === 'gemini' ? resolvedProviderKeys.gemini : undefined
+    executionProviderKeys.openrouter = selectedProvider === 'openrouter' ? resolvedProviderKeys.openrouter : undefined
     executionProviderKeys.ollamaBaseUrl = selectedProvider === 'ollama' ? executionProviderKeys.ollamaBaseUrl : undefined
     executionProviderKeys.openaiCompatibleApiKey = selectedProvider === 'openai-compatible' ? executionProviderKeys.openaiCompatibleApiKey : undefined
     executionProviderKeys.openaiCompatibleBaseUrl = selectedProvider === 'openai-compatible' ? executionProviderKeys.openaiCompatibleBaseUrl : undefined

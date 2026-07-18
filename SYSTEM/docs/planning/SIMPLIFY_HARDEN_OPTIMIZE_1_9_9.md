@@ -1,6 +1,6 @@
 # Simplify / Harden / Optimize 1.9.9
 
-> Status: planned
+> Status: in progress; native OpenRouter implemented
 > Baseline: promoted `1.9.8`
 > Runtime baseline: OpenClaw `v2026.6.11`
 > Last updated: July 18, 2026
@@ -11,7 +11,7 @@ Make workspace secrets usable by explicitly authorized agent skills without expo
 
 Public AI scoring remains a `2.0.0` product feature. `1.9.9` may add independently useful schemas, fixtures, or test primitives that reduce later implementation risk, but it must not ship a competing scoring API or partial user-facing scoring experience.
 
-The public xAI, OpenRouter, Gmail, and Microsoft 365 research and release split is tracked in [PUBLIC_MODELS_GATEWAYS_EMAIL_1_9_9_2_0.md](PUBLIC_MODELS_GATEWAYS_EMAIL_1_9_9_2_0.md). Native xAI/OpenRouter provider support and the mail security foundation may land as bounded `1.9.9` work after the broker is stable; production Gmail and Outlook mailbox actions target public `2.0.0` partner plugins.
+The public xAI, OpenRouter, Gmail, and Microsoft 365 research and release split is tracked in [PUBLIC_MODELS_GATEWAYS_EMAIL_1_9_9_2_0.md](PUBLIC_MODELS_GATEWAYS_EMAIL_1_9_9_2_0.md). Native OpenRouter is implemented on this branch and awaits real-key local/container smoke. Native xAI and the mail security foundation remain bounded `1.9.9` candidates; production Gmail and Outlook mailbox actions target public `2.0.0` partner plugins.
 
 ## Tester Problem
 
@@ -142,7 +142,8 @@ The Google skill declares the credential type it supports instead of requesting 
 
 ### Phase 5: public provider and mail foundation
 
-- Add native xAI and OpenRouter provider identities only after compatibility probes pass on the pinned OpenClaw image.
+- Validate the implemented native OpenRouter identity with a real key on the pinned local and container runtime.
+- Add native xAI only after compatibility probes pass on the pinned OpenClaw image.
 - Keep hosted gateways separate from the current LM Studio-oriented OpenAI-compatible execution path.
 - Define the public mail capability schema, fake provider, partner readiness states, and OAuth/test-account runbooks.
 - Do not expose production mailbox actions until the public `2.0.0` partner-plugin approval and audit contract is ready.

@@ -450,6 +450,7 @@ test('toExecutionModelOverride maps OpenClaw-retired OpenAI models to the suppor
 
 test('providerFromModel and shouldRetryWithBackupModel classify backup-retry conditions', () => {
   assert(providerFromModel('anthropic/claude-sonnet-4-20250514') === 'anthropic', 'Expected providerFromModel to detect Anthropic provider')
+  assert(providerFromModel('openrouter/anthropic/claude-sonnet-4') === 'openrouter', 'Expected providerFromModel to preserve native OpenRouter provider')
   assert(shouldRetryWithBackupModel('Agent timeout (3 minutes)'), 'Expected timeout to trigger backup retry')
   assert(shouldRetryWithBackupModel('Unknown model: gpt-super-pro'), 'Expected unsupported model to trigger backup retry')
   assert(!shouldRetryWithBackupModel('The agent replied with a blocked business rule.'), 'Expected semantic failures not to trigger backup retry')
@@ -760,6 +761,33 @@ test('withTemporaryAgentAuthProfiles writes both gemini and google auth profiles
     assert(current.profiles['google-key']?.provider === 'google', 'Expected google auth profile during execution')
     assert(current.lastGood?.google === 'google-key', 'Expected google provider selected as lastGood')
     assert(!current.lastGood?.openai, 'Did not expect openai lastGood to override Gemini preference')
+  })
+})
+
+test('withTemporaryAgentAuthProfiles writes a native OpenRouter auth profile', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
+  const agentDir = path.join(home, '.openclaw', 'agents', 'test1', 'agent')
+  const authProfilePath = path.join(agentDir, 'auth-profiles.json')
+  const configPath = path.join(home, '.openclaw', 'openclaw.json')
+  fs.mkdirSync(agentDir, { recursive: true })
+  fs.mkdirSync(path.join(home, '.openclaw'), { recursive: true })
+  fs.writeFileSync(configPath, JSON.stringify({
+    agents: {
+      list: [
+        { id: 'test1', workspace: path.join(home, 'workspace', 'AGENTS', 'test1'), agentDir }
+      ]
+    }
+  }, null, 2))
+
+  process.env.HOME = home
+  resetWorkspaceManagerForTests()
+
+  await withTemporaryAgentAuthProfiles('test1', { openai: 'openai-key', openrouter: 'sk-or-test' }, 'openrouter/auto', 'openrouter', async () => {
+    const current = JSON.parse(fs.readFileSync(authProfilePath, 'utf-8'))
+    assert(current.profiles['openrouter-key']?.provider === 'openrouter', 'Expected native OpenRouter auth profile during execution')
+    assert(current.profiles['openrouter-key']?.key === 'sk-or-test', 'Expected OpenRouter BYOK value in temporary profile')
+    assert(current.lastGood?.openrouter === 'openrouter-key', 'Expected OpenRouter selected as lastGood')
+    assert(!current.lastGood?.openai, 'Did not expect OpenAI lastGood to override OpenRouter preference')
   })
 })
 

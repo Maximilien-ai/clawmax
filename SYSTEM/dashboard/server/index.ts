@@ -274,7 +274,7 @@ app.get('/api/auth/config', (_req, res) => {
   const integrationConfig = readWorkspaceIntegrationConfig()
   const managedRuntime = isManagedRuntime(rawEnv)
   const deploymentKind = getDashboardDeploymentKind(rawEnv)
-  const hasHostedExecutionPath = !!(executionKeys.openai || executionKeys.anthropic || executionKeys.gemini)
+  const hasHostedExecutionPath = !!(executionKeys.openai || executionKeys.anthropic || executionKeys.gemini || executionKeys.openrouter)
   res.json({
     githubEnabled: isGitHubAuthConfigured(),
     otpEnabled: isOtpAuthConfigured(),
@@ -289,12 +289,14 @@ app.get('/api/auth/config', (_req, res) => {
       openai: !!systemKeys.openai,
       anthropic: !!systemKeys.anthropic,
       gemini: !!systemKeys.gemini,
+      openrouter: !!systemKeys.openrouter,
       openaiCompatible: !!systemKeys.openaiCompatibleBaseUrl,
     },
     userKeyDefaults: {
       openai: !!userKeys.openai,
       anthropic: !!userKeys.anthropic,
       gemini: !!userKeys.gemini,
+      openrouter: !!userKeys.openrouter,
       openaiCompatible: !!userKeys.openaiCompatibleBaseUrl,
     },
     allowSystemKeysForUserExecution: allowSystemKeysForUserExecution(),

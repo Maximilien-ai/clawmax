@@ -3,7 +3,7 @@
 **Current Version**: v1.9.7
 **Development Line**: 1.9.8
 **Last Updated**: July 18, 2026
-**Status**: `v1.9.7` is the promoted stable release and the first fully validated local/cloud/on-prem line on OpenClaw `v2026.6.11`. `1.9.8-test-rc5` contains the current bounded feature/fix batch and passed multi-architecture build, manifest, and registry smoke. `1.9.9` is planned around explicitly granted, brokered agent-skill secret use plus native xAI/OpenRouter provider work after pinned-runtime probes. `2.0.0` owns the public plugin, AI-scoring, Gmail, and Microsoft 365 partner surfaces while proprietary guardrail/evaluation plugins remain private.
+**Status**: `v1.9.7` is the promoted stable release and the first fully validated local/cloud/on-prem line on OpenClaw `v2026.6.11`. `1.9.8-test-rc5` contains the current bounded feature/fix batch and passed multi-architecture build, manifest, and registry smoke. The `1.9.9` branch now includes native OpenRouter provider support; brokered agent-skill secrets and native xAI remain next. `2.0.0` owns the public plugin, AI-scoring, Gmail, and Microsoft 365 partner surfaces while proprietary guardrail/evaluation plugins remain private.
 
 ---
 
@@ -36,7 +36,7 @@
   - [planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_9.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_9.md)
 - Near-term target: complete Mike and other tester validation against `1.9.8-test-rc5`, prune the living manual checklist, and promote only after the remaining container checks pass.
 - Begin `1.9.9` with current-state secret readiness clarity, then implement grant/resolver/broker boundaries and security-negative tests before accepting a real credential for agent-skill use.
-- After the broker is stable, add native xAI and OpenRouter provider paths and the public mail capability/test foundation described in [planning/PUBLIC_MODELS_GATEWAYS_EMAIL_1_9_9_2_0.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/PUBLIC_MODELS_GATEWAYS_EMAIL_1_9_9_2_0.md). Keep Grok 4.5 behind an exact pinned-runtime probe.
+- Validate the native OpenRouter path with a real credential in local and container runtimes, then add native xAI and the public mail capability/test foundation described in [planning/PUBLIC_MODELS_GATEWAYS_EMAIL_1_9_9_2_0.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/PUBLIC_MODELS_GATEWAYS_EMAIL_1_9_9_2_0.md). Keep Grok 4.5 behind an exact pinned-runtime probe.
 - Build public AI scoring as part of `2.0.0` on top of the public plugin architecture. Keep proprietary guardrail and evaluation implementations outside the public repository and default image.
 - Build Gmail and Microsoft 365/Outlook as public curated `2.0.0` partner plugins: read/search/draft first, explicit grants and confirmation for send or destructive actions, and no normal mailbox passwords.
 - Keep OpenClaw pinned to `v2026.6.11` during the feedback window unless an upstream change is isolated and validated separately.

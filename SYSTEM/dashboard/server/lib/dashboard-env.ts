@@ -8,6 +8,7 @@ export interface ProviderKeys {
   openai?: string
   anthropic?: string
   gemini?: string
+  openrouter?: string
   ollamaBaseUrl?: string
   openaiCompatibleApiKey?: string
   openaiCompatibleBaseUrl?: string
@@ -95,9 +96,12 @@ const DASHBOARD_RUNTIME_ENV_KEYS = [
   'ANTHROPIC_API_KEY',
   'SYSTEM_GEMINI_API_KEY',
   'GEMINI_API_KEY',
+  'SYSTEM_OPENROUTER_API_KEY',
+  'OPENROUTER_API_KEY',
   'USER_OPENAI_API_KEY',
   'USER_ANTHROPIC_API_KEY',
   'USER_GEMINI_API_KEY',
+  'USER_OPENROUTER_API_KEY',
   'USER_OPENAI_COMPATIBLE_API_KEY',
   'USER_OPENAI_COMPATIBLE_BASE_URL',
   'USER_OPENAI_COMPATIBLE_DEFAULT_MODEL',
@@ -157,7 +161,7 @@ function firstNonEmpty(rawEnv: Record<string, string>, ...keys: string[]): strin
 const isContainerMode = Object.keys(dashboardEnv).length === 0
 
 export function hasAnyProviderKey(keys: ProviderKeys): boolean {
-  return !!(keys.openai || keys.anthropic || keys.gemini || keys.openaiCompatibleBaseUrl)
+  return !!(keys.openai || keys.anthropic || keys.gemini || keys.openrouter || keys.openaiCompatibleBaseUrl)
 }
 
 function parseBooleanFlag(value?: string): boolean {
@@ -367,6 +371,7 @@ export function getSystemProviderKeys(rawEnv: Record<string, string> = dashboard
     openai: lookup('SYSTEM_OPENAI_API_KEY') || lookup('OPENAI_API_KEY'),
     anthropic: lookup('SYSTEM_ANTHROPIC_API_KEY') || lookup('ANTHROPIC_API_KEY'),
     gemini: lookup('SYSTEM_GEMINI_API_KEY') || lookup('GEMINI_API_KEY'),
+    openrouter: lookup('SYSTEM_OPENROUTER_API_KEY') || lookup('OPENROUTER_API_KEY'),
     openaiCompatibleApiKey: lookup('SYSTEM_OPENAI_COMPATIBLE_API_KEY') || lookup('OPENAI_COMPATIBLE_API_KEY'),
     openaiCompatibleBaseUrl: lookup('SYSTEM_OPENAI_COMPATIBLE_BASE_URL') || lookup('OPENAI_COMPATIBLE_BASE_URL'),
     openaiCompatibleDefaultModel: lookup('SYSTEM_OPENAI_COMPATIBLE_DEFAULT_MODEL') || lookup('OPENAI_COMPATIBLE_DEFAULT_MODEL'),
@@ -378,6 +383,7 @@ export function getUserDefaultProviderKeys(rawEnv: Record<string, string> = dash
     openai: firstNonEmpty(rawEnv, 'USER_OPENAI_API_KEY'),
     anthropic: firstNonEmpty(rawEnv, 'USER_ANTHROPIC_API_KEY'),
     gemini: firstNonEmpty(rawEnv, 'USER_GEMINI_API_KEY'),
+    openrouter: firstNonEmpty(rawEnv, 'USER_OPENROUTER_API_KEY'),
     openaiCompatibleApiKey: firstNonEmpty(rawEnv, 'USER_OPENAI_COMPATIBLE_API_KEY'),
     openaiCompatibleBaseUrl: firstNonEmpty(rawEnv, 'USER_OPENAI_COMPATIBLE_BASE_URL'),
     openaiCompatibleDefaultModel: firstNonEmpty(rawEnv, 'USER_OPENAI_COMPATIBLE_DEFAULT_MODEL'),
@@ -404,6 +410,7 @@ export function resolveUserExecutionProviderKeys(
       openai: byokOverrides?.openai?.trim() || undefined,
       anthropic: byokOverrides?.anthropic?.trim() || undefined,
       gemini: byokOverrides?.gemini?.trim() || undefined,
+      openrouter: byokOverrides?.openrouter?.trim() || undefined,
       openaiCompatibleApiKey: byokOverrides?.openaiCompatibleApiKey?.trim() || undefined,
       openaiCompatibleBaseUrl: byokOverrides?.openaiCompatibleBaseUrl?.trim() || undefined,
       openaiCompatibleDefaultModel: byokOverrides?.openaiCompatibleDefaultModel?.trim() || undefined,
@@ -437,6 +444,7 @@ export function getBestAvailableModel(rawEnv: Record<string, string> = dashboard
   if (keys.openai) return 'openai/gpt-5'
   if (keys.gemini) return 'google/gemini-2.5-flash'
   if (keys.anthropic) return 'anthropic/claude-sonnet-4-20250514'
+  if (keys.openrouter) return 'openrouter/auto'
   return 'openai/gpt-4o-mini' // fallback — may fail without keys
 }
 
@@ -449,6 +457,7 @@ export function getCostEfficientModel(rawEnv: Record<string, string> = dashboard
   if (keys.openai) return 'openai/gpt-4o-mini'
   if (keys.gemini) return 'google/gemini-2.5-flash'
   if (keys.anthropic) return 'anthropic/claude-sonnet-4-20250514'
+  if (keys.openrouter) return 'openrouter/auto'
   return 'openai/gpt-4o-mini'
 }
 

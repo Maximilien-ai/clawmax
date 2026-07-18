@@ -1,6 +1,6 @@
 # Public Models, Gateways, And Email Partners
 
-> Status: researched and planned
+> Status: OpenRouter implemented on `release-1.9.9`; xAI and mail foundation planned
 > Release targets: `1.9.9` foundation, `2.0.0` public partner plugins
 > Runtime baseline under test: OpenClaw `v2026.6.11`
 > Last updated: July 18, 2026
@@ -156,6 +156,8 @@ Current recommendation:
 
 ## Automated Validation
 
+Native OpenRouter coverage now exercises key-shape validation, catalog discovery, model namespace preservation, provider-isolated environment construction, temporary OpenClaw auth profiles, direct chat readiness/routing, and workflow/group execution plumbing. A real-key local and container smoke remains a release gate.
+
 ### Provider tests
 
 - xAI and OpenRouter keys remain isolated from other providers.
@@ -198,8 +200,8 @@ Current recommendation:
 
 ## Recommended Order
 
-1. Finish the `1.9.9` secret grant/resolver/broker foundation.
-2. Implement native OpenRouter because the runtime already has a dedicated provider namespace and the dashboard currently misclassifies the generic path.
+1. Validate the implemented native OpenRouter path with a real key in local and container runtimes.
+2. Finish the `1.9.9` secret grant/resolver/broker foundation.
 3. Implement native xAI and validate Grok 4.5 against the pinned runtime; isolate an OpenClaw update if required.
 4. Publish the mail capability schema, fake provider, threat tests, and partner setup states.
 5. Build the public Gmail plugin, using read/search/draft as the first real test of the broker and approval contract.

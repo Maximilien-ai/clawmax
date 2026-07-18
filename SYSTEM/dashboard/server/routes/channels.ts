@@ -334,7 +334,7 @@ async function callAgent(
   agentId: string,
   message: string,
   sessionId: string,
-  byokKeys?: { openai?: string; anthropic?: string; gemini?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string },
+  byokKeys?: { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string },
   actor?: { userId?: string; login?: string; email?: string | null }
 ): Promise<string> {
   const resolvedAgent = resolveAgentExecutionConfig(agentId)
@@ -344,6 +344,7 @@ async function callAgent(
     openai: useOpenAiCompatible ? undefined : byokKeys?.openai,
     anthropic: byokKeys?.anthropic,
     gemini: byokKeys?.gemini,
+    openrouter: byokKeys?.openrouter,
     ollamaBaseUrl: byokKeys?.ollamaBaseUrl || integrationConfig.ollamaBaseUrl,
     openaiCompatibleApiKey: useOpenAiCompatible ? byokKeys?.openaiCompatibleApiKey : undefined,
     openaiCompatibleBaseUrl: useOpenAiCompatible ? (byokKeys?.openaiCompatibleBaseUrl || integrationConfig.openaiCompatibleBaseUrl) : undefined,
@@ -369,6 +370,7 @@ async function callAgent(
     openai: executionEnv.OPENAI_API_KEY,
     anthropic: executionEnv.ANTHROPIC_API_KEY,
     gemini: executionEnv.GEMINI_API_KEY,
+    openrouter: executionEnv.OPENROUTER_API_KEY,
     ollamaBaseUrl: executionEnv.OLLAMA_BASE_URL,
     openaiCompatibleApiKey: useOpenAiCompatible ? executionEnv.OPENAI_API_KEY : undefined,
     openaiCompatibleBaseUrl: useOpenAiCompatible ? executionEnv.OPENAI_BASE_URL : undefined,
@@ -754,7 +756,7 @@ router.get('/communities/:name/messages', (req, res) => {
 // Send message to a community
 router.post('/communities/:name/messages', async (req, res) => {
   const { name } = req.params
-  const { content, mentions, from, byok } = req.body as { content?: string; mentions?: string[]; from?: string; byok?: { openai?: string; anthropic?: string; gemini?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string } }
+  const { content, mentions, from, byok } = req.body as { content?: string; mentions?: string[]; from?: string; byok?: { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string } }
 
   if (!content || typeof content !== 'string') {
     res.status(400).json({ ok: false, error: 'content is required' })
@@ -835,7 +837,7 @@ router.get('/groups/:name/messages', (req, res) => {
 // Send message to a group
 router.post('/groups/:name/messages', async (req, res) => {
   const { name } = req.params
-  const { content, mentions, from, byok } = req.body as { content?: string; mentions?: string[]; from?: string; byok?: { openai?: string; anthropic?: string; gemini?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string } }
+  const { content, mentions, from, byok } = req.body as { content?: string; mentions?: string[]; from?: string; byok?: { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string } }
 
   if (!content || typeof content !== 'string') {
     res.status(400).json({ ok: false, error: 'content is required' })

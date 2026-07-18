@@ -400,9 +400,11 @@ Recommended `SYSTEM/dashboard/.env` setup:
 ```env
 SYSTEM_ANTHROPIC_API_KEY=sk-ant-your-system-key
 SYSTEM_OPENAI_API_KEY=sk-your-system-key
+# SYSTEM_OPENROUTER_API_KEY=sk-or-your-system-key
 # Optional default user keys
 # USER_ANTHROPIC_API_KEY=sk-ant-your-user-key
 # USER_OPENAI_API_KEY=sk-your-user-key
+# USER_OPENROUTER_API_KEY=sk-or-your-user-key
 # Optional temporary fallback for user execution
 # ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION=false
 ```
@@ -411,8 +413,10 @@ SYSTEM_OPENAI_API_KEY=sk-your-system-key
 |---|---|---|
 | `SYSTEM_ANTHROPIC_API_KEY` | Anthropic system key | At least one system key |
 | `SYSTEM_OPENAI_API_KEY` | OpenAI system key | At least one system key |
+| `SYSTEM_OPENROUTER_API_KEY` | OpenRouter system key for native `openrouter/...` models | Optional |
 | `USER_ANTHROPIC_API_KEY` | Optional default user Anthropic key | Optional |
 | `USER_OPENAI_API_KEY` | Optional default user OpenAI key | Optional |
+| `USER_OPENROUTER_API_KEY` | Optional default user OpenRouter key | Optional |
 | `ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION` | Lets user agents/workflows fall back to system keys | Optional, defaults to `false` |
 | `GITHUB_CLIENT_ID` | GitHub OAuth client ID | Required for GitHub auth |
 | `GITHUB_CLIENT_SECRET` | GitHub OAuth client secret | Required for GitHub auth |

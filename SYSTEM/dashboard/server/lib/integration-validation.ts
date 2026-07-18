@@ -6,6 +6,7 @@ export interface IntegrationValidationResult {
 
 export interface IntegrationValidationResponse {
   openai?: IntegrationValidationResult
+  openrouter?: IntegrationValidationResult
   openaiCompatible?: IntegrationValidationResult
   anthropic?: IntegrationValidationResult
   gemini?: IntegrationValidationResult
@@ -19,6 +20,7 @@ type FetchLike = typeof fetch
 
 const OPENAI_VALIDATION_MODEL = 'gpt-4o-mini'
 const ANTHROPIC_VALIDATION_MODEL = 'claude-3-5-haiku-latest'
+const OPENROUTER_VALIDATION_MODEL = 'openrouter/auto'
 const OPENAI_COMPATIBLE_EXCLUDE = ['embedding', 'embed', 'rerank', 'whisper', 'tts', 'speech', 'transcription', 'moderation']
 
 function detectProviderFromKeyShape(key: string): 'openai' | 'anthropic' | 'gemini' | null {
@@ -220,6 +222,52 @@ export async function validateOpenAICompatibleConfig(
   }
 }
 
+export async function validateOpenRouterKey(apiKey: string, fetchImpl: FetchLike = fetch): Promise<IntegrationValidationResult> {
+  const key = apiKey.trim()
+  if (!key) return skipped('No OpenRouter key provided')
+  if (!/^sk-or-/i.test(key)) {
+    return invalid('This does not look like an OpenRouter API key. Expected a key beginning with sk-or-.')
+  }
+  try {
+    const modelsRes = await fetchImpl('https://openrouter.ai/api/v1/models', {
+      headers: { Authorization: `Bearer ${key}` },
+      signal: AbortSignal.timeout(8000),
+    })
+    if (!modelsRes.ok) {
+      const providerMessage = await readProviderErrorMessage(modelsRes)
+      if (modelsRes.status === 401 || modelsRes.status === 403) return invalid(providerMessage || 'OpenRouter rejected this key')
+      return errored(providerMessage || `OpenRouter models check returned ${modelsRes.status}`)
+    }
+
+    const completionRes = await fetchImpl('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${key}`,
+        'content-type': 'application/json',
+        'HTTP-Referer': 'https://clawmax.ai',
+        'X-OpenRouter-Title': 'ClawMax',
+      },
+      body: JSON.stringify({
+        model: OPENROUTER_VALIDATION_MODEL,
+        messages: [{ role: 'user', content: 'Reply with OK' }],
+        max_tokens: 5,
+        temperature: 0,
+      }),
+      signal: AbortSignal.timeout(15000),
+    })
+    if (completionRes.ok) return valid('OpenRouter key is valid and can complete prompts')
+    const providerMessage = await readProviderErrorMessage(completionRes)
+    if (completionRes.status === 401 || completionRes.status === 403) return invalid(providerMessage || 'OpenRouter rejected this key')
+    if (completionRes.status === 402) return invalid(providerMessage || 'OpenRouter accepted the key but the account has insufficient credits')
+    if (completionRes.status === 400 || completionRes.status === 404) {
+      return invalid(providerMessage || `OpenRouter could not complete a test prompt on ${OPENROUTER_VALIDATION_MODEL}`)
+    }
+    return errored(providerMessage || `OpenRouter prompt validation returned ${completionRes.status}`)
+  } catch (err: any) {
+    return errored(`OpenRouter validation failed: ${err.message || 'network error'}`)
+  }
+}
+
 export async function validateAnthropicKey(apiKey: string, fetchImpl: FetchLike = fetch): Promise<IntegrationValidationResult> {
   if (!apiKey.trim()) return skipped('No Anthropic key provided')
   const mismatch = providerShapeMismatch('anthropic', apiKey)
@@ -364,6 +412,7 @@ export async function validateCogneeConfig(
 
 export async function validateIntegrations(input: {
   openai?: string
+  openrouter?: string
   openaiCompatibleApiKey?: string
   openaiCompatibleBaseUrl?: string
   openaiCompatibleDefaultModel?: string
@@ -380,8 +429,9 @@ export async function validateIntegrations(input: {
   cogneeDatasetName?: string
   cogneeSearchType?: string
 }, fetchImpl: FetchLike = fetch): Promise<IntegrationValidationResponse> {
-  const [openai, openaiCompatible, anthropic, gemini, ollama, opik, senso, cognee] = await Promise.all([
+  const [openai, openrouter, openaiCompatible, anthropic, gemini, ollama, opik, senso, cognee] = await Promise.all([
     validateOpenAIKey(input.openai || '', fetchImpl),
+    validateOpenRouterKey(input.openrouter || '', fetchImpl),
     validateOpenAICompatibleConfig(input.openaiCompatibleBaseUrl || '', input.openaiCompatibleApiKey || '', input.openaiCompatibleDefaultModel || '', fetchImpl),
     validateAnthropicKey(input.anthropic || '', fetchImpl),
     validateGeminiKey(input.gemini || '', fetchImpl),
@@ -391,6 +441,6 @@ export async function validateIntegrations(input: {
     validateCogneeConfig(input.cogneeApiKey || '', input.cogneeBaseUrl || '', input.cogneeDatasetName || '', input.cogneeSearchType || ''),
   ])
 
-  return { openai, openaiCompatible, anthropic, gemini, ollama, opik, senso, cognee }
+  return { openai, openrouter, openaiCompatible, anthropic, gemini, ollama, opik, senso, cognee }
 }
 import { getDefaultOllamaBaseUrl } from './dashboard-env'

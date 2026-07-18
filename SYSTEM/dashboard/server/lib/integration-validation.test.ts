@@ -4,7 +4,7 @@
  * Run with: npx ts-node --transpileOnly server/lib/integration-validation.test.ts
  */
 
-import { validateAnthropicKey, validateCogneeConfig, validateGeminiKey, validateIntegrations, validateOllamaConfig, validateOpenAICompatibleConfig, validateOpenAIKey, validateOpikConfig, validateSensoConfig } from './integration-validation'
+import { validateAnthropicKey, validateCogneeConfig, validateGeminiKey, validateIntegrations, validateOllamaConfig, validateOpenAICompatibleConfig, validateOpenAIKey, validateOpenRouterKey, validateOpikConfig, validateSensoConfig } from './integration-validation'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -90,6 +90,27 @@ async function run() {
   await test('validateGeminiKey returns valid on 200', async () => {
     const result = await validateGeminiKey('gemini-test', mockFetch(200))
     assert(result.status === 'valid', 'Expected valid status')
+  })
+
+  await test('validateOpenRouterKey checks native catalog and completion endpoints', async () => {
+    const requests: string[] = []
+    const result = await validateOpenRouterKey('sk-or-test', (async (url: string) => {
+      requests.push(url)
+      return {
+        ok: true,
+        status: 200,
+        json: async () => url.endsWith('/models') ? { data: [{ id: 'openrouter/auto' }] } : { choices: [{ message: { content: 'OK' } }] },
+      } as any
+    }) as any)
+    assert(result.status === 'valid', 'Expected valid OpenRouter key')
+    assert(requests[0] === 'https://openrouter.ai/api/v1/models', 'Expected native OpenRouter catalog endpoint')
+    assert(requests[1] === 'https://openrouter.ai/api/v1/chat/completions', 'Expected native OpenRouter completion endpoint')
+  })
+
+  await test('validateOpenRouterKey rejects non-OpenRouter key shapes before network use', async () => {
+    const result = await validateOpenRouterKey('sk-openai-test', mockFetch(200))
+    assert(result.status === 'invalid', 'Expected non-OpenRouter key rejected')
+    assert(/sk-or-/i.test(result.message), 'Expected actionable OpenRouter key prefix guidance')
   })
 
   await test('validateOpenAIKey rejects obvious Anthropic key shape before network validation', async () => {

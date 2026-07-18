@@ -79,6 +79,7 @@ function getKeyGroup(key: string, partnerDefinitions: PartnerDefinition[]): KeyG
     normalized.startsWith('OPENAI_') ||
     normalized.startsWith('ANTHROPIC_') ||
     normalized.startsWith('GEMINI_') ||
+    normalized.startsWith('OPENROUTER_') ||
     normalized.startsWith('OLLAMA_')
   ) {
     return 'llm'
@@ -239,6 +240,7 @@ export default function KeysSecrets() {
       ...(stored.openai?.trim() ? { OPENAI_API_KEY: stored.openai.trim() } : {}),
       ...(stored.anthropic?.trim() ? { ANTHROPIC_API_KEY: stored.anthropic.trim() } : {}),
       ...(stored.geminiApiKey?.trim() ? { GEMINI_API_KEY: stored.geminiApiKey.trim() } : {}),
+      ...(stored.openrouter?.trim() ? { OPENROUTER_API_KEY: stored.openrouter.trim() } : {}),
       ...(ollamaEnabled && stored.ollamaBaseUrl?.trim() ? { OLLAMA_BASE_URL: stored.ollamaBaseUrl.trim() } : {}),
     })
   }, [activeWorkspace?.id, ollamaEnabled])
@@ -414,10 +416,11 @@ export default function KeysSecrets() {
   ]
 
   const validateProviderKeysInVault = React.useCallback((values: Record<string, string>) => {
-    const checks: Array<[keyof Pick<typeof values, never> | string, 'openai' | 'anthropic' | 'gemini']> = [
+    const checks: Array<[keyof Pick<typeof values, never> | string, 'openai' | 'anthropic' | 'gemini' | 'openrouter']> = [
       ['OPENAI_API_KEY', 'openai'],
       ['ANTHROPIC_API_KEY', 'anthropic'],
       ['GEMINI_API_KEY', 'gemini'],
+      ['OPENROUTER_API_KEY', 'openrouter'],
     ]
     for (const [keyName, provider] of checks) {
       const mismatch = detectProviderKeyMismatch(provider, values[keyName] || '')
@@ -747,7 +750,7 @@ export default function KeysSecrets() {
           value={importText}
           onChange={(e) => setImportText(e.target.value)}
           rows={7}
-          placeholder={`OPENAI_API_KEY=...\nANTHROPIC_API_KEY=...\nGITHUB_TOKEN=...`}
+          placeholder={`OPENAI_API_KEY=...\nOPENROUTER_API_KEY=...\nGITHUB_TOKEN=...`}
           className="mt-4 w-full rounded-lg border border-amber-300 bg-white px-3 py-3 font-mono text-sm text-gray-900 dark:border-amber-700 dark:bg-gray-900 dark:text-gray-100"
         />
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
