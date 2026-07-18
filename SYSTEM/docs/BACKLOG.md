@@ -1,14 +1,12 @@
 # Backlog
 
-> Last updated: July 17, 2026
+> Last updated: July 18, 2026
 > Completed and verified work is archived into [CHANGELOG.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/CHANGELOG.md) and historical notes under `SYSTEM/docs/**/archive/`
 
 ## Top Priority
 
-- [ ] **1.9.8 tester-feedback and small-feature track** — collect reproducible `1.9.7` feedback and validate the first bounded feature batch: federated registry search, ledger-protected DocHub bulk file actions, descriptive export names, and navigation memory. Active plan: [SIMPLIFY_HARDEN_OPTIMIZE_1_9_8.md](planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_8.md).
 - [ ] **1.9.9 brokered agent-skill secrets** — let explicitly authorized skills use named workspace/runtime secrets without exposing a general vault reader or injecting raw values into the parent agent process. Includes grant/fingerprint checks, masked readiness, redaction, controlled Google credential guidance, and local/container security-negative tests. Plan: [SIMPLIFY_HARDEN_OPTIMIZE_1_9_9.md](planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_9.md).
 - [ ] **2.0 public plugin and AI-scoring foundation** — publish generic plugin/scorer contracts, a shared explainable rubric, prompt and generated-artifact score shapes, and the first user-facing scoring flows. Proprietary guardrail and evaluation plugin implementations remain private and must not be bundled in the public repository or default image.
-- [ ] **Hold the OpenClaw baseline during feedback** — keep `v2026.6.11` fixed through the initial `1.9.8` feedback window so new reports can be compared against the promoted `1.9.7` runtime; evaluate future upstream updates in a separate RC track.
 - [ ] **Plugin architecture MVP1 follow-through** — MVP0 host architecture is merged with dormant test fixtures only. Continue with generic follow-through only: plugin page/data loading speed, DocHub/file-open polish, stronger shared UI parity with Agents/Workflows, and eventually richer runtime/plugin contracts before any private plugin surfaces are considered for broader release.
 - [ ] **DocHub remaining file-open polish** — continue tightening chat/status/notification file opens where visible file chips still fail to land in the correct DocHub entry, especially if a basename appears in more than one workspace location or if the source surface still lacks enough context to navigate safely.
 - [ ] **Provider cooldown/auth surfacing follow-through** — the first operator-facing message cleanup shipped in `1.8.5`, with more workflow/result wording in `1.8.6` and `1.8.7`; keep refining workflow/result/log UX so users can tell transient timeout/cooldown windows from hard auth, quota, or config failures without reading raw fallback chains.

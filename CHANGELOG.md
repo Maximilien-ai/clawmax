@@ -4,6 +4,14 @@ All notable changes to ClawMax are documented here.
 
 ## [Unreleased]
 
+### Planned
+- **1.9.9 Brokered Agent-Skill Secrets** — plan explicit workspace/agent/skill/fingerprint/key grants and a narrow skill execution broker so authorized skills can use required credentials without giving agents a general vault reader or putting raw values in the parent agent environment.
+- **2.0 Public Plugin And AI-Scoring Foundation** — publish the plugin/scorer contracts, shared scoring rubric, explainable prompt and artifact score shapes, and user-facing scoring surfaces. Proprietary guardrail and evaluation plugin implementations remain private and connect through the public contracts.
+- **Google Credential Safety** — document OAuth, service-account, and supported app-password flows as the intended Google integration paths; normal Google account passwords must not be requested or recommended.
+- **Stable Runtime Baseline** — keep OpenClaw fixed at `v2026.6.11` unless a separately validated upstream change is required.
+
+## [v1.9.8] - 2026-07-18
+
 ### Added
 - **Federated Skill Registry Search** — the Skills import dialog can search ClawHub, Shipables, and Tessl together while retaining the correct provider for installation.
 - **Safe DocHub Bulk File Management** — user uploads are recorded in a dashboard-owned ownership ledger and can be selected, moved in bulk within their original upload boundary, or deleted in bulk; agent-generated and untracked files remain protected.
@@ -14,12 +22,9 @@ All notable changes to ClawMax are documented here.
 - **Container Plugin Environment Precedence** — cloud and on-prem runtime values for plugin paths, explicit plugin enablement, and default-plugin policy now remain authoritative when the packaged dashboard also contains a local `.env` file.
 - **Persistent DocHub Selection Actions** — the DocHub toolbar now stays outside the document-tree scroll region, keeping the selected-file count plus Move, Delete, and clear actions visible while browsing long agent and workflow lists.
 
-### Planned
-- **1.9.8 Feedback And Small Features** — prioritize focused fixes and diagnostics driven by `1.9.7` feedback from Mike and other testers, while accepting small isolated features that build toward `2.0.0` without depending on its larger architecture.
-- **1.9.9 Brokered Agent-Skill Secrets** — plan explicit workspace/agent/skill/fingerprint/key grants and a narrow skill execution broker so authorized skills can use required credentials without giving agents a general vault reader or putting raw values in the parent agent environment.
-- **2.0 Public Plugin And AI-Scoring Foundation** — publish the plugin/scorer contracts, shared scoring rubric, explainable prompt and artifact score shapes, and user-facing scoring surfaces. Proprietary guardrail and evaluation plugin implementations remain private and connect through the public contracts.
-- **Google Credential Safety** — document OAuth, service-account, and supported app-password flows as the intended Google integration paths; normal Google account passwords must not be requested or recommended.
-- **Stable Runtime Baseline** — keep OpenClaw fixed at `v2026.6.11` unless a separately validated upstream change is required.
+### Release Validation
+- Promoted from `1.9.8-test-rc5` after amd64 and arm64 image builds, manifest publication, registry smoke, local automated coverage, and tester confirmation of the final DocHub selection-toolbar fix.
+- Preserves the OpenClaw `v2026.6.11` runtime baseline established in `1.9.7`.
 
 ## [v1.9.7] - 2026-07-13
 

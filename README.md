@@ -5,28 +5,27 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.9.7-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
+[![Version](https://img.shields.io/badge/version-1.9.8-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
 [![Tests](https://img.shields.io/badge/tests-96%20default--safe-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 Latest Stable Release: v1.9.7
+## 🔥 Latest Stable Release: v1.9.8
 
-- `1.9.7` is the first fully validated ClawMax release on the OpenClaw `v2026.6.11` baseline. Local development, cloud/container packaging, and on-prem runtimes now share the same OpenClaw target, with verified direct chat, group chat, workflow DAG execution, mounted runtime state, and plugin policy.
-- Runtime failures now explain unsupported models and missing execution paths more clearly, including the configured model and a direct agent-edit path. Workflow execution automatically detects embedded session-takeover conflicts, retries with fresh workflow sessions, and handles both structured and diagnostic CLI output.
-- This release also includes Builder/company handoff cleanup, agent and shared-chat inbox attachments, Builder `@agent` mention autocomplete, and expanded live integration/performance validation.
+- `1.9.8` adds federated skill search across ClawHub, Shipables, and Tessl; safe ledger-backed DocHub multi-select move/delete; descriptive export filenames; and restoration of the user's last dashboard location and System navigation state.
+- DocHub preserves uploaded asset types after moves, protects agent-created/untracked files from bulk deletion, enforces upload boundaries, and keeps selection actions visible while scrolling long trees.
+- The release retains the OpenClaw `v2026.6.11` baseline and includes container plugin-environment precedence fixes plus clearer secret-runtime availability.
 
-## 🛠 Current Feedback Line: 1.9.8
+## 🛠 Current Development Line: 1.9.9
 
-- Current validation image: `1.9.8-test-rc5`
-- `1.9.8` prioritizes feedback and focused hardening from the `1.9.7` tester rollout while allowing small, isolated features that move the product toward `2.0.0`.
-- Current `1.9.8` work includes federated skill-registry search, safe multi-select move/delete for user-uploaded DocHub files, descriptive export filenames, and restored dashboard navigation state.
-- Prioritize reproducible issues from Mike and other testers across agent chat, group chat, workflows, model/runtime diagnostics, plugins, and containerized deployments.
-- Use `1.9.8` for the current bounded feature batch. `1.9.9` is planned around brokered, explicitly granted agent-skill secret use; keep another OpenClaw baseline change in a separate validation track.
+- `1.9.9` focuses on brokered, explicitly granted agent-skill secret use without exposing a general vault reader or raw values to the parent agent process.
+- Native hosted-provider work begins with first-class OpenRouter support, followed by xAI/Grok only after compatibility probes against the pinned runtime.
+- Public Gmail and Microsoft 365 mail capability foundations may land here, while production partner plugins and public AI scoring remain targeted at `2.0.0`.
 - `2.0.0` will expose public plugin and AI-scoring contracts plus the first public scoring experience. Proprietary guardrail and evaluation plugin implementations remain private and are integrated through those public contracts rather than bundled in the public repository or default image.
 
 ## ✨ 1.9.x Highlights
 
+- `1.9.8`: federated skill search, safe DocHub bulk file management, named exports, dashboard location memory, and final RC feedback fixes.
 - `1.9.7`: first fully validated OpenClaw `v2026.6.11` release across local/cloud/on-prem chat and workflows, automatic workflow session-conflict recovery, clearer unsupported-model remediation, Builder handoff cleanup, and chat inbox attachments.
 - `1.9.5`: perf baseline artifacts, rolling history/model-matrix sampling, and direct custom-skill ZIP upload/import for cloud, container, and on-prem runtimes.
 - `1.9.3`: chat archive correctness, archived conversation resume/restore cleanup, Templates mobile overflow hardening, Workflows first-load initialization fixes, and clearer on-prem custom-skill import guidance.

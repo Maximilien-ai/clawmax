@@ -2228,6 +2228,15 @@ else
   fail "Dockerfile OpenClaw builder tests"
 fi
 
+echo -e "${YELLOW}→ Running tested-image promotion contract tests...${NC}"
+sh "$SYSTEM_DIR/promote-tested-image.test.sh" > /tmp/clawmax-promote-tested-image.out 2>&1 || true
+if grep -q "promote tested image tests passed" /tmp/clawmax-promote-tested-image.out; then
+  pass "Tested-image promotion contract tests"
+else
+  cat /tmp/clawmax-promote-tested-image.out
+  fail "Tested-image promotion contract tests"
+fi
+
 echo -e "${YELLOW}→ Running Installer shell tests...${NC}"
 bash "$SYSTEM_DIR/install.test.sh" > /tmp/clawmax-install-shell.out 2>&1 || true
 if [ -f /tmp/clawmax-install-shell.out ] \

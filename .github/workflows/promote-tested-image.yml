@@ -72,27 +72,38 @@ jobs:
           semver="${{ steps.vars.outputs.semver }}"
           test_tag="${{ steps.vars.outputs.test_tag }}"
 
-          docker buildx imagetools create \
-            -t "${image}:${version}-amd64" \
-            -t "${image}:${semver}-amd64" \
-            "${image}:${semver}-test-${test_tag}-amd64"
+          promotion_dockerfile="${RUNNER_TEMP}/Dockerfile.promote"
+          cat > "${promotion_dockerfile}" <<'EOF'
+          ARG SOURCE_IMAGE
+          FROM ${SOURCE_IMAGE}
+          ARG RELEASE_VERSION
+          ENV CLAWMAX_VERSION=${RELEASE_VERSION}
+          EOF
 
-          docker buildx imagetools create \
-            -t "${image}:${version}-arm64" \
-            -t "${image}:${semver}-arm64" \
-            "${image}:${semver}-test-${test_tag}-arm64"
+          for arch in amd64 arm64; do
+            docker buildx build \
+              --platform "linux/${arch}" \
+              --provenance=false \
+              --build-arg "SOURCE_IMAGE=${image}:${semver}-test-${test_tag}-${arch}" \
+              --build-arg "RELEASE_VERSION=${version}" \
+              -f "${promotion_dockerfile}" \
+              -t "${image}:${version}-${arch}" \
+              -t "${image}:${semver}-${arch}" \
+              --push \
+              "${RUNNER_TEMP}"
+          done
 
           docker buildx imagetools create \
             -t "${image}:${version}" \
             -t "${image}:${semver}" \
-            "${image}:${semver}-test-${test_tag}-amd64" \
-            "${image}:${semver}-test-${test_tag}-arm64"
+            "${image}:${semver}-amd64" \
+            "${image}:${semver}-arm64"
 
           if [ "${{ steps.vars.outputs.publish_latest }}" = "true" ]; then
             docker buildx imagetools create \
               -t "${image}:latest" \
-              "${image}:${semver}-test-${test_tag}-amd64" \
-              "${image}:${semver}-test-${test_tag}-arm64"
+              "${image}:${semver}-amd64" \
+              "${image}:${semver}-arm64"
           fi
 
   registry-smoke:
