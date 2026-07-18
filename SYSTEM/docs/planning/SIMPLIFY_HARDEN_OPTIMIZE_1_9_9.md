@@ -1,15 +1,17 @@
 # Simplify / Harden / Optimize 1.9.9
 
-> Status: planned
+> Status: in progress; native OpenRouter implemented
 > Baseline: promoted `1.9.8`
 > Runtime baseline: OpenClaw `v2026.6.11`
-> Last updated: July 16, 2026
+> Last updated: July 18, 2026
 
 ## Goal
 
 Make workspace secrets usable by explicitly authorized agent skills without exposing a general-purpose secret-reading capability to the agent or language model. Keep the work bounded and independently releasable before the broader `2.0.0` plugin/evaluation program.
 
 Public AI scoring remains a `2.0.0` product feature. `1.9.9` may add independently useful schemas, fixtures, or test primitives that reduce later implementation risk, but it must not ship a competing scoring API or partial user-facing scoring experience.
+
+The public xAI, OpenRouter, Gmail, and Microsoft 365 research and release split is tracked in [PUBLIC_MODELS_GATEWAYS_EMAIL_1_9_9_2_0.md](PUBLIC_MODELS_GATEWAYS_EMAIL_1_9_9_2_0.md). Native OpenRouter is implemented on this branch and awaits real-key local/container smoke. Native xAI and the mail security foundation remain bounded `1.9.9` candidates; production Gmail and Outlook mailbox actions target public `2.0.0` partner plugins.
 
 ## Tester Problem
 
@@ -138,6 +140,14 @@ The Google skill declares the credential type it supports instead of requesting 
 - Verify browser-local preview values do not silently become server-persisted.
 - Cut `1.9.9-test-rc1` only after security-negative tests pass.
 
+### Phase 5: public provider and mail foundation
+
+- Validate the implemented native OpenRouter identity with a real key on the pinned local and container runtime.
+- Add native xAI only after compatibility probes pass on the pinned OpenClaw image.
+- Keep hosted gateways separate from the current LM Studio-oriented OpenAI-compatible execution path.
+- Define the public mail capability schema, fake provider, partner readiness states, and OAuth/test-account runbooks.
+- Do not expose production mailbox actions until the public `2.0.0` partner-plugin approval and audit contract is ready.
+
 ## Automated Test Matrix
 
 ### Unit and contract tests
@@ -208,3 +218,5 @@ Verify:
 - Can current OpenClaw skill invocation call a fixed ClawMax broker entrypoint, or is a ClawMax-managed tool adapter required?
 - Should grants expire by default or remain until revoked/fingerprint change?
 - Which Google skill and credential mode will be the first real integration test?
+- Can pinned OpenClaw `v2026.6.11` execute `xai/grok-4.5`, which was released after that baseline, through dynamic discovery?
+- Which OpenRouter discovery and model-list limits keep the dashboard usable without caching stale provider state?

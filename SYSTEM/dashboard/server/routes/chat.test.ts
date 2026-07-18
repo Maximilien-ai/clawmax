@@ -57,6 +57,7 @@ test('hasByokExecutionPathForProvider detects matching hosted provider keys', ()
   assert(hasByokExecutionPathForProvider('openai', { openai: 'sk-test' }), 'Expected OpenAI BYOK key to match OpenAI provider')
   assert(hasByokExecutionPathForProvider('anthropic', { anthropic: 'sk-ant-test' }), 'Expected Anthropic BYOK key to match Anthropic provider')
   assert(hasByokExecutionPathForProvider('gemini', { gemini: 'AIza-test' }), 'Expected Gemini BYOK key to match Gemini provider')
+  assert(hasByokExecutionPathForProvider('openrouter', { openrouter: 'sk-or-test' }), 'Expected OpenRouter BYOK key to match OpenRouter provider')
   assert(!hasByokExecutionPathForProvider('openai', { anthropic: 'sk-ant-test' }), 'Expected Anthropic key not to satisfy OpenAI provider')
 })
 
@@ -64,6 +65,7 @@ test('resolveByokChatFallbackModel supplies a hosted default for browser BYOK wh
   assert(resolveByokChatFallbackModel({ openai: 'sk-test' }) === 'openai/gpt-5', 'Expected OpenAI BYOK fallback model')
   assert(resolveByokChatFallbackModel({ anthropic: 'sk-ant-test' }) === 'anthropic/claude-sonnet-4-20250514', 'Expected Anthropic BYOK fallback model')
   assert(resolveByokChatFallbackModel({ gemini: 'AIza-test' }) === 'google/gemini-2.5-flash', 'Expected Gemini BYOK fallback model')
+  assert(resolveByokChatFallbackModel({ openrouter: 'sk-or-test' }) === 'openrouter/auto', 'Expected OpenRouter BYOK fallback model')
   assert(resolveByokChatFallbackModel({ openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1', openaiCompatibleDefaultModel: 'qwen3.6-27b' }) === 'openai-compatible/qwen3.6-27b', 'Expected OpenAI-compatible BYOK fallback model')
 })
 

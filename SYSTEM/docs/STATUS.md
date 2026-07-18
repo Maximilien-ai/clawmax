@@ -3,7 +3,7 @@
 **Current Version**: v1.9.8
 **Development Line**: 1.9.9
 **Last Updated**: July 18, 2026
-**Status**: `v1.9.8` is promoted from `1.9.8-test-rc5` as the stable federated-search, safe DocHub bulk-management, named-export, and navigation-memory release on OpenClaw `v2026.6.11`. `main` now advances to brokered agent-skill secrets and native hosted-provider work for `1.9.9`. `2.0.0` owns the public plugin and AI-scoring product surfaces while proprietary guardrail/evaluation plugins remain private.
+**Status**: `v1.9.8` is promoted from `1.9.8-test-rc5` as the stable federated-search, safe DocHub bulk-management, named-export, and navigation-memory release on OpenClaw `v2026.6.11`. `main` is now the active `1.9.9` line with native OpenRouter merged; brokered agent-skill secrets and native xAI remain next. `2.0.0` owns the public plugin, AI-scoring, Gmail, and Microsoft 365 partner surfaces while proprietary guardrail/evaluation plugins remain private.
 
 ---
 
@@ -34,8 +34,9 @@
   - [planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_7.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_7.md)
   - [planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_8.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_8.md)
   - [planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_9.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_9.md)
-- Near-term target: merge the active `release-1.9.9` work into `main`, then implement grant/resolver/broker boundaries and security-negative tests before accepting a real credential for agent-skill use.
+- Near-term target: validate native OpenRouter with a real credential locally and in a container, then implement grant/resolver/broker boundaries and security-negative tests before accepting a real credential for agent-skill use. Native xAI and the public mail capability/test foundation follow under [planning/PUBLIC_MODELS_GATEWAYS_EMAIL_1_9_9_2_0.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/PUBLIC_MODELS_GATEWAYS_EMAIL_1_9_9_2_0.md); Grok 4.5 remains gated on an exact pinned-runtime probe.
 - Build public AI scoring as part of `2.0.0` on top of the public plugin architecture. Keep proprietary guardrail and evaluation implementations outside the public repository and default image.
+- Build Gmail and Microsoft 365/Outlook as public curated `2.0.0` partner plugins: read/search/draft first, explicit grants and confirmation for send or destructive actions, and no normal mailbox passwords.
 - Keep OpenClaw pinned to `v2026.6.11` during the feedback window unless an upstream change is isolated and validated separately.
 
 ## Release References

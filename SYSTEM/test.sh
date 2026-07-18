@@ -1827,6 +1827,16 @@ else
   fail "Prompt attachment edge-case unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Keys/secrets inventory unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/keysSecretsInventory.test.ts > /tmp/clawmax-keys-secrets-inventory.out 2>&1 || true
+if grep -q "keysSecretsInventory.test.ts: ok" /tmp/clawmax-keys-secrets-inventory.out; then
+  keys_secrets_inventory_count=$(grep -c "^✓" /tmp/clawmax-keys-secrets-inventory.out | tr -cd '0-9')
+  pass "Keys/secrets inventory unit tests (${keys_secrets_inventory_count:-?} tests)"
+else
+  cat /tmp/clawmax-keys-secrets-inventory.out
+  fail "Keys/secrets inventory unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Keys/secrets inventory edge-case unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/keysSecretsInventoryEdges.test.ts > /tmp/clawmax-keys-secrets-inventory-edges.out 2>&1 || true
 if grep -q "keysSecretsInventoryEdges.test.ts: ok" /tmp/clawmax-keys-secrets-inventory-edges.out; then

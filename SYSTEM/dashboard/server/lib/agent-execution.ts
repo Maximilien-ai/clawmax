@@ -43,7 +43,7 @@ interface OpenClawConfigFile {
   [key: string]: any
 }
 
-type ExecutionProvider = 'openai' | 'openai-compatible' | 'anthropic' | 'gemini' | 'ollama' | null
+type ExecutionProvider = 'openai' | 'openai-compatible' | 'anthropic' | 'gemini' | 'openrouter' | 'ollama' | null
 interface AgentAuthProfileOptions {
   persistAuthProfiles?: boolean
   skipModelConfigMutation?: boolean
@@ -226,6 +226,7 @@ export function providerFromModel(model?: string): ExecutionProvider {
   if (!model) return null
   if (model.startsWith('openai-compatible/')) return 'openai-compatible'
   if (model.startsWith('lmstudio/')) return 'openai-compatible'
+  if (model.startsWith('openrouter/')) return 'openrouter'
   if (model.startsWith('openai/') || model.startsWith('gpt-') || /^o[134](?:-|$)/.test(model)) return 'openai'
   if (model.startsWith('anthropic/') || model.startsWith('claude')) return 'anthropic'
   if (model.startsWith('gemini/') || model.startsWith('gemini-') || model.startsWith('google/')) return 'gemini'
@@ -243,7 +244,7 @@ function normalizeMissingModel(model?: string): string | undefined {
 function isSupportedHostedModel(model: string | undefined): boolean {
   if (!model) return false
   const provider = providerFromModel(model)
-  if (provider === 'openai' || provider === 'anthropic' || provider === 'gemini') {
+  if (provider === 'openai' || provider === 'anthropic' || provider === 'gemini' || provider === 'openrouter') {
     return true
   }
   const availableModels = getAvailableModelsCached(process.env as Record<string, string>)
@@ -539,7 +540,7 @@ function normalizeSessionModel(model?: string): string | undefined {
   if (!model) return undefined
   const trimmed = model.trim()
   if (!trimmed) return undefined
-  if (trimmed.startsWith('anthropic/') || trimmed.startsWith('openai/') || trimmed.startsWith('gemini/') || trimmed.startsWith('google/') || trimmed.startsWith('ollama/')) {
+  if (trimmed.startsWith('anthropic/') || trimmed.startsWith('openai/') || trimmed.startsWith('gemini/') || trimmed.startsWith('google/') || trimmed.startsWith('openrouter/') || trimmed.startsWith('ollama/')) {
     return trimmed
   }
   if (trimmed.startsWith('lmstudio/')) return trimmed
@@ -805,30 +806,36 @@ function buildAuthProfiles(providerKeys: ProviderKeys, preferredProvider?: Execu
 
   if (providerKeys.openai) {
     profiles['openai-key'] = { type: 'api_key', provider: 'openai', key: providerKeys.openai }
-    // Set lastGood if this is preferred OR if it's the only key available
-    if (preferredProvider === 'openai' || preferredProvider === 'openai-compatible' || (!providerKeys.anthropic && preferredProvider !== 'gemini')) {
+    // Select only the requested provider; without a preference, select a sole configured provider.
+    if (preferredProvider === 'openai' || preferredProvider === 'openai-compatible' || (!preferredProvider && !providerKeys.anthropic && !providerKeys.gemini && !providerKeys.openrouter)) {
       lastGood.openai = 'openai-key'
     }
   } else if (providerKeys.openaiCompatibleBaseUrl) {
     profiles['openai-key'] = { type: 'api_key', provider: 'openai', key: providerKeys.openaiCompatibleApiKey || 'openai-compatible' }
     profiles['lmstudio-key'] = { type: 'api_key', provider: 'lmstudio', key: providerKeys.openaiCompatibleApiKey || 'lmstudio-local' }
-    if (preferredProvider === 'openai-compatible' || (!providerKeys.anthropic && preferredProvider !== 'gemini')) {
+    if (preferredProvider === 'openai-compatible' || (!preferredProvider && !providerKeys.anthropic && !providerKeys.gemini && !providerKeys.openrouter)) {
       lastGood.openai = 'openai-key'
       lastGood.lmstudio = 'lmstudio-key'
     }
   }
   if (providerKeys.anthropic) {
     profiles['anthropic-key'] = { type: 'api_key', provider: 'anthropic', key: providerKeys.anthropic }
-    if (preferredProvider === 'anthropic' || !providerKeys.openai) {
+    if (preferredProvider === 'anthropic' || (!preferredProvider && !providerKeys.openai && !providerKeys.gemini && !providerKeys.openrouter)) {
       lastGood.anthropic = 'anthropic-key'
     }
   }
   if (providerKeys.gemini) {
     profiles['gemini-key'] = { type: 'api_key', provider: 'gemini', key: providerKeys.gemini }
     profiles['google-key'] = { type: 'api_key', provider: 'google', key: providerKeys.gemini }
-    if (preferredProvider === 'gemini' || (!providerKeys.openai && !providerKeys.anthropic)) {
+    if (preferredProvider === 'gemini' || (!preferredProvider && !providerKeys.openai && !providerKeys.anthropic && !providerKeys.openrouter)) {
       lastGood.gemini = 'gemini-key'
       lastGood.google = 'google-key'
+    }
+  }
+  if (providerKeys.openrouter) {
+    profiles['openrouter-key'] = { type: 'api_key', provider: 'openrouter', key: providerKeys.openrouter }
+    if (preferredProvider === 'openrouter' || (!preferredProvider && !providerKeys.openai && !providerKeys.anthropic && !providerKeys.gemini)) {
+      lastGood.openrouter = 'openrouter-key'
     }
   }
 

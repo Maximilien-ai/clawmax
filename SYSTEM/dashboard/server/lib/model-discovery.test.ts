@@ -7,18 +7,21 @@ const RESET = '\x1b[0m'
 
 let testsPassed = 0
 let testsFailed = 0
+let testChain: Promise<void> = Promise.resolve()
 const originalFetch = global.fetch
 
-function test(name: string, fn: () => void) {
-  try {
-    fn()
-    console.log(`${GREEN}✓${RESET} ${name}`)
-    testsPassed++
-  } catch (err: any) {
-    console.log(`${RED}✗${RESET} ${name}`)
-    console.log(`  Error: ${err.message}`)
-    testsFailed++
-  }
+function test(name: string, fn: () => void | Promise<void>) {
+  testChain = testChain.then(async () => {
+    try {
+      await fn()
+      console.log(`${GREEN}✓${RESET} ${name}`)
+      testsPassed++
+    } catch (err: any) {
+      console.log(`${RED}✗${RESET} ${name}`)
+      console.log(`  Error: ${err.message}`)
+      testsFailed++
+    }
+  })
 }
 
 function assert(condition: boolean, message: string) {
@@ -73,9 +76,23 @@ test('OpenAI-compatible show-all mode preserves filtered advanced models', () =>
   assert(filtered.length === 2, `Expected both OpenAI-compatible models in show-all mode, got ${filtered.length}`)
 })
 
+test('OpenRouter discovery preserves native provider/model namespaces', () => {
+  const filtered = __test.filterCompatibleDiscoveredModels('openrouter', [
+    'openrouter/auto',
+    'openrouter/anthropic/claude-sonnet-4',
+    'openrouter/openai/text-embedding-3-small',
+  ])
+  assert(filtered.includes('openrouter/auto'), 'Expected OpenRouter automatic router')
+  assert(filtered.includes('openrouter/anthropic/claude-sonnet-4'), 'Expected nested OpenRouter provider/model id')
+  assert(!filtered.includes('openrouter/openai/text-embedding-3-small'), 'Expected embedding-only OpenRouter model filtered')
+})
+
 test('discoverModels loads LM Studio models from an OpenAI-compatible endpoint', async () => {
   clearModelCache()
   global.fetch = (async (url: string) => {
+    if (url === 'https://api.openai.com/v1/models') {
+      return { ok: true, status: 200, json: async () => ({ data: [{ id: 'gpt-5' }] }) } as any
+    }
     assert(url === 'http://127.0.0.1:1234/v1/models', `Expected LM Studio models endpoint, got ${url}`)
     return {
       ok: true,
@@ -96,6 +113,9 @@ test('discoverModels loads LM Studio models from an OpenAI-compatible endpoint',
 test('discoverModels loads Ollama models from the local tags endpoint', async () => {
   clearModelCache()
   global.fetch = (async (url: string) => {
+    if (url === 'https://api.openai.com/v1/models') {
+      return { ok: true, status: 200, json: async () => ({ data: [{ id: 'gpt-5' }] }) } as any
+    }
     assert(url === 'http://127.0.0.1:11434/api/tags', `Expected Ollama tags endpoint, got ${url}`)
     return {
       ok: true,
@@ -112,14 +132,36 @@ test('discoverModels loads Ollama models from the local tags endpoint', async ()
   assert(result.modelsByProvider.ollama?.models.includes('ollama/llama3.2:latest'), 'Expected llama Ollama model')
 })
 
-console.log(`\nTests passed: ${testsPassed}`)
-console.log(`Tests failed: ${testsFailed}`)
+test('discoverModels loads native OpenRouter model ids from its hosted catalog', async () => {
+  clearModelCache()
+  global.fetch = (async (url: string) => {
+    if (url === 'https://api.openai.com/v1/models') {
+      return { ok: true, status: 200, json: async () => ({ data: [{ id: 'gpt-5' }] }) } as any
+    }
+    assert(url === 'https://openrouter.ai/api/v1/models', `Expected OpenRouter models endpoint, got ${url}`)
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ data: [{ id: 'anthropic/claude-sonnet-4' }, { id: 'openai/text-embedding-3-small' }] }),
+    } as any
+  }) as any
 
-global.fetch = originalFetch
+  const result = await discoverModels({ openrouter: 'sk-or-test' })
 
-if (testsFailed > 0) {
-  console.log(`\n${RED}Some tests failed${RESET}`)
-  process.exit(1)
-} else {
-  console.log(`\n${GREEN}All tests passed${RESET}`)
-}
+  assert(result.modelsByProvider.openrouter?.models.includes('openrouter/auto'), 'Expected OpenRouter automatic router fallback')
+  assert(result.modelsByProvider.openrouter?.models.includes('openrouter/anthropic/claude-sonnet-4'), 'Expected native OpenRouter model id')
+  assert(!result.modelsByProvider.openrouter?.models.includes('openrouter/openai/text-embedding-3-small'), 'Expected embedding-only OpenRouter model hidden')
+})
+
+testChain.then(() => {
+  global.fetch = originalFetch
+  console.log(`\nTests passed: ${testsPassed}`)
+  console.log(`Tests failed: ${testsFailed}`)
+
+  if (testsFailed > 0) {
+    console.log(`\n${RED}Some tests failed${RESET}`)
+    process.exit(1)
+  } else {
+    console.log(`\n${GREEN}All tests passed${RESET}`)
+  }
+})

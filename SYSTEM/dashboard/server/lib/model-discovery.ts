@@ -17,7 +17,7 @@ export interface ModelsResponse {
   modelsByProvider: Record<string, ProviderModels>
 }
 
-type ProviderId = 'openai' | 'anthropic' | 'gemini' | 'ollama' | 'openai-compatible'
+type ProviderId = 'openai' | 'anthropic' | 'gemini' | 'openrouter' | 'ollama' | 'openai-compatible'
 
 // ── Cache ──────────────────────────────────────────────────────────────────────
 
@@ -84,10 +84,13 @@ const FALLBACK_GEMINI = [
   'google/gemini-2.0-flash',
 ]
 
+const FALLBACK_OPENROUTER = ['openrouter/auto']
+
 const COMPATIBLE_MODELS: Record<Exclude<ProviderId, 'ollama'>, string[]> = {
   openai: FALLBACK_OPENAI,
   anthropic: FALLBACK_ANTHROPIC,
   gemini: FALLBACK_GEMINI,
+  openrouter: FALLBACK_OPENROUTER,
   'openai-compatible': [],
 }
 
@@ -95,6 +98,9 @@ function filterCompatibleDiscoveredModels(provider: ProviderId, models: string[]
   if (showAll || provider === 'ollama') return models
   if (provider === 'openai-compatible') {
     return models.filter((model) => isOpenAICompatibleChatModel(model.replace(/^openai-compatible\//, '')))
+  }
+  if (provider === 'openrouter') {
+    return models.filter((model) => isOpenAICompatibleChatModel(model.replace(/^openrouter\//, '')))
   }
   const compatible = new Set(COMPATIBLE_MODELS[provider as keyof typeof COMPATIBLE_MODELS] || [])
   return models.filter((model) => compatible.has(model))
@@ -225,6 +231,35 @@ async function fetchGeminiModels(apiKey: string): Promise<string[]> {
   }
 }
 
+async function fetchOpenRouterModels(apiKey: string): Promise<string[]> {
+  const cached = getCached('openrouter')
+  if (cached) return cached
+
+  try {
+    const res = await fetch('https://openrouter.ai/api/v1/models', {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(8000),
+    })
+    if (!res.ok) {
+      console.warn(`OpenRouter models API returned ${res.status}`)
+      return FALLBACK_OPENROUTER
+    }
+    const body = await res.json() as { data?: Array<{ id?: string }> }
+    const models = (body.data || [])
+      .map((model) => (model.id || '').trim())
+      .filter(Boolean)
+      .filter(isOpenAICompatibleChatModel)
+      .sort()
+      .map((id) => `openrouter/${id}`)
+    const resolved = Array.from(new Set([...FALLBACK_OPENROUTER, ...models]))
+    setCache('openrouter', resolved)
+    return resolved
+  } catch (err) {
+    console.warn('Failed to fetch OpenRouter models, using fallback:', (err as Error).message)
+    return FALLBACK_OPENROUTER
+  }
+}
+
 async function fetchOllamaModels(baseUrl: string): Promise<string[]> {
   const normalizedBaseUrl = (baseUrl.trim() || getDefaultOllamaBaseUrl()).replace(/\/+$/, '')
   if (!normalizedBaseUrl) return []
@@ -292,7 +327,7 @@ async function fetchOpenAICompatibleModels(baseUrl: string, apiKey?: string): Pr
 
 // ── Public API ─────────────────────────────────────────────────────────────────
 
-function resolveApiKey(provider: 'openai' | 'anthropic' | 'gemini', rawEnv?: Record<string, string>): string | undefined {
+function resolveApiKey(provider: 'openai' | 'anthropic' | 'gemini' | 'openrouter', rawEnv?: Record<string, string>): string | undefined {
   const systemKeys = getSystemProviderKeys(rawEnv)
   const userKeys = getUserDefaultProviderKeys(rawEnv)
   return systemKeys[provider] || userKeys[provider]
@@ -300,12 +335,13 @@ function resolveApiKey(provider: 'openai' | 'anthropic' | 'gemini', rawEnv?: Rec
 
 /** Fetch models for all configured providers. Returns immediately from cache when warm. */
 export async function discoverModels(
-  byokKeys?: { openai?: string; anthropic?: string; gemini?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string },
+  byokKeys?: { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string },
   options?: { showAll?: boolean }
 ): Promise<ModelsResponse> {
   const openaiKey = byokKeys?.openai || resolveApiKey('openai')
   const anthropicKey = byokKeys?.anthropic || resolveApiKey('anthropic')
   const geminiKey = byokKeys?.gemini || resolveApiKey('gemini')
+  const openrouterKey = byokKeys?.openrouter || resolveApiKey('openrouter')
   const ollamaBaseUrl = byokKeys?.ollamaBaseUrl?.trim()
   const openaiCompatibleApiKey = byokKeys?.openaiCompatibleApiKey?.trim()
   const openaiCompatibleBaseUrl = byokKeys?.openaiCompatibleBaseUrl?.trim()
@@ -338,6 +374,16 @@ export async function discoverModels(
       fetchGeminiModels(geminiKey).then(models => ({
         provider: 'gemini',
         name: 'Gemini',
+        models,
+      }))
+    )
+  }
+
+  if (openrouterKey) {
+    fetches.push(
+      fetchOpenRouterModels(openrouterKey).then(models => ({
+        provider: 'openrouter',
+        name: 'OpenRouter',
         models,
       }))
     )
@@ -389,6 +435,7 @@ export function getAvailableModelsCached(rawEnv?: Record<string, string>): strin
   const openaiKey = resolveApiKey('openai', rawEnv)
   const anthropicKey = resolveApiKey('anthropic', rawEnv)
   const geminiKey = resolveApiKey('gemini', rawEnv)
+  const openrouterKey = resolveApiKey('openrouter', rawEnv)
   const integrations = readWorkspaceIntegrationConfig()
   const systemKeys = getSystemProviderKeys(rawEnv)
   const userKeys = getUserDefaultProviderKeys(rawEnv)
@@ -401,6 +448,9 @@ export function getAvailableModelsCached(rawEnv?: Record<string, string>): strin
   }
   if (geminiKey) {
     models.push(...(getCached('gemini') || FALLBACK_GEMINI))
+  }
+  if (openrouterKey) {
+    models.push(...(getCached('openrouter') || FALLBACK_OPENROUTER))
   }
 
   const localDefaults: string[] = []

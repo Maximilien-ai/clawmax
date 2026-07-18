@@ -1,5 +1,9 @@
 import assert from 'assert'
-import { buildServerManagedWorkspaceEntries, listServerManagedIntegrationSecretKeys } from './keysSecretsInventory'
+import {
+  buildServerManagedWorkspaceEntries,
+  getSecretAvailabilityPresentation,
+  listServerManagedIntegrationSecretKeys,
+} from './keysSecretsInventory'
 
 function test(name: string, fn: () => void) {
   try {
@@ -51,6 +55,22 @@ test('buildServerManagedWorkspaceEntries returns masked previews for saved serve
   )
 
   assert.deepEqual(entries, { RESEND_API_KEY: 're_t••••_123' })
+})
+
+test('browser vault entries are explicitly unavailable to the agent runtime', () => {
+  assert.deepEqual(getSecretAvailabilityPresentation(false), {
+    sourceLabel: 'Browser-local',
+    runtimeLabel: 'Not available to agent runtime from this vault',
+    agentRuntimeAvailable: false,
+  })
+})
+
+test('runtime-managed integration entries do not imply an agent skill grant', () => {
+  assert.deepEqual(getSecretAvailabilityPresentation(true), {
+    sourceLabel: 'Runtime-managed',
+    runtimeLabel: 'Configured integration runtime only; agent skills require an explicit grant',
+    agentRuntimeAvailable: false,
+  })
 })
 
 console.log('keysSecretsInventory.test.ts: ok')

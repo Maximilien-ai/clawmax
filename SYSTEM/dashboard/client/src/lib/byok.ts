@@ -6,12 +6,13 @@ export interface StoredByokKeys {
   openai?: string
   anthropic?: string
   geminiApiKey?: string
+  openrouter?: string
   ollamaBaseUrl?: string
   ollamaDefaultModel?: string
   openaiCompatibleApiKey?: string
   openaiCompatibleBaseUrl?: string
   openaiCompatibleDefaultModel?: string
-  verifiedProviders?: Partial<Record<'openai' | 'anthropic' | 'gemini' | 'ollama' | 'openaiCompatible', string>>
+  verifiedProviders?: Partial<Record<'openai' | 'anthropic' | 'gemini' | 'openrouter' | 'ollama' | 'openaiCompatible', string>>
   sensoApiKey?: string
   sensoContextLabel?: string
   opikApiKey?: string
@@ -28,6 +29,7 @@ export interface ByokRequestPayload {
   openai?: string
   anthropic?: string
   gemini?: string
+  openrouter?: string
   ollamaBaseUrl?: string
   openaiCompatibleApiKey?: string
   openaiCompatibleBaseUrl?: string
@@ -47,12 +49,14 @@ interface AiExecutionConfig {
     openai?: boolean
     anthropic?: boolean
     gemini?: boolean
+    openrouter?: boolean
     openaiCompatible?: boolean
   }
   userKeyDefaults?: {
     openai?: boolean
     anthropic?: boolean
     gemini?: boolean
+    openrouter?: boolean
     openaiCompatible?: boolean
   }
 }
@@ -152,9 +156,9 @@ export function hasCogneeConfiguration(input: {
 }
 
 export type ProviderKeyMismatch = {
-  provider: 'openai' | 'anthropic' | 'gemini'
+  provider: 'openai' | 'anthropic' | 'gemini' | 'openrouter'
   expectedLabel: string
-  detectedProvider: 'openai' | 'anthropic' | 'gemini'
+  detectedProvider: 'openai' | 'anthropic' | 'gemini' | 'openrouter'
   detectedLabel: string
   message: string
 }
@@ -163,13 +167,14 @@ function detectProviderFromKeyShape(key: string): ProviderKeyMismatch['detectedP
   const trimmed = key.trim()
   if (!trimmed) return null
   if (/^sk-ant-/i.test(trimmed)) return 'anthropic'
+  if (/^sk-or-/i.test(trimmed)) return 'openrouter'
   if (/^AIza[0-9A-Za-z\-_]{20,}$/i.test(trimmed)) return 'gemini'
   if (/^sk-(?!ant-)[0-9A-Za-z_\-]{10,}$/i.test(trimmed)) return 'openai'
   return null
 }
 
 export function detectProviderKeyMismatch(
-  provider: 'openai' | 'anthropic' | 'gemini',
+  provider: 'openai' | 'anthropic' | 'gemini' | 'openrouter',
   key: string
 ): ProviderKeyMismatch | null {
   const detectedProvider = detectProviderFromKeyShape(key)
@@ -179,6 +184,7 @@ export function detectProviderKeyMismatch(
     openai: 'OpenAI',
     anthropic: 'Anthropic',
     gemini: 'Gemini',
+    openrouter: 'OpenRouter',
   } as const
 
   return {
@@ -242,12 +248,13 @@ export function writeStoredByokKeys(keys: StoredByokKeys, options?: { silent?: b
 }
 
 export function buildByokVerificationFingerprint(
-  provider: 'openai' | 'anthropic' | 'gemini' | 'ollama' | 'openaiCompatible',
-  values: { openai?: string; anthropic?: string; geminiApiKey?: string; ollamaBaseUrl?: string; ollamaDefaultModel?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string }
+  provider: 'openai' | 'anthropic' | 'gemini' | 'openrouter' | 'ollama' | 'openaiCompatible',
+  values: { openai?: string; anthropic?: string; geminiApiKey?: string; openrouter?: string; ollamaBaseUrl?: string; ollamaDefaultModel?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string }
 ): string {
   if (provider === 'openai') return values.openai?.trim() || ''
   if (provider === 'anthropic') return values.anthropic?.trim() || ''
   if (provider === 'gemini') return values.geminiApiKey?.trim() || ''
+  if (provider === 'openrouter') return values.openrouter?.trim() || ''
   if (provider === 'openaiCompatible') {
     return `${values.openaiCompatibleBaseUrl?.trim() || ''}::${values.openaiCompatibleApiKey?.trim() || ''}::${values.openaiCompatibleDefaultModel?.trim() || ''}`
   }
@@ -261,6 +268,7 @@ export function byokForRequest(): ByokRequestPayload {
     openai: keys.openai,
     anthropic: keys.anthropic,
     gemini: keys.geminiApiKey,
+    openrouter: keys.openrouter,
     ollamaBaseUrl: keys.ollamaBaseUrl,
     openaiCompatibleApiKey: keys.openaiCompatibleApiKey,
     openaiCompatibleBaseUrl: keys.openaiCompatibleBaseUrl,
@@ -269,11 +277,11 @@ export function byokForRequest(): ByokRequestPayload {
 }
 
 /** Check if any LLM API keys are available (BYOK, system, or user defaults) */
-export function hasAnyLLMKeys(config?: { systemKeyDefaults?: { openai?: boolean; anthropic?: boolean }; userKeyDefaults?: { openai?: boolean; anthropic?: boolean } }): boolean {
+export function hasAnyLLMKeys(config?: Pick<AiExecutionConfig, 'systemKeyDefaults' | 'userKeyDefaults'>): boolean {
   const byok = readStoredByokKeys()
-  if (byok.openai || byok.anthropic || byok.geminiApiKey || byok.ollamaBaseUrl || byok.ollamaDefaultModel || byok.openaiCompatibleBaseUrl || byok.openaiCompatibleDefaultModel) return true
-  if (config?.systemKeyDefaults?.openai || config?.systemKeyDefaults?.anthropic || (config as any)?.systemKeyDefaults?.gemini || (config as any)?.systemKeyDefaults?.openaiCompatible) return true
-  if (config?.userKeyDefaults?.openai || config?.userKeyDefaults?.anthropic || (config as any)?.userKeyDefaults?.gemini || (config as any)?.userKeyDefaults?.openaiCompatible) return true
+  if (byok.openai || byok.anthropic || byok.geminiApiKey || byok.openrouter || byok.ollamaBaseUrl || byok.ollamaDefaultModel || byok.openaiCompatibleBaseUrl || byok.openaiCompatibleDefaultModel) return true
+  if (config?.systemKeyDefaults?.openai || config?.systemKeyDefaults?.anthropic || config?.systemKeyDefaults?.gemini || config?.systemKeyDefaults?.openrouter || config?.systemKeyDefaults?.openaiCompatible) return true
+  if (config?.userKeyDefaults?.openai || config?.userKeyDefaults?.anthropic || config?.userKeyDefaults?.gemini || config?.userKeyDefaults?.openrouter || config?.userKeyDefaults?.openaiCompatible) return true
   return false
 }
 
@@ -349,12 +357,12 @@ export function getAiGenerationReadiness(config?: AiExecutionConfig | null): AiG
 /** Check whether the current browser/user execution path can actually run chat turns */
 export function hasChatExecutionAccess(config?: AiExecutionConfig | null): boolean {
   const byok = readStoredByokKeys()
-  if (byok.openai || byok.anthropic || byok.geminiApiKey || byok.ollamaBaseUrl || byok.ollamaDefaultModel || byok.openaiCompatibleBaseUrl || byok.openaiCompatibleDefaultModel) return true
+  if (byok.openai || byok.anthropic || byok.geminiApiKey || byok.openrouter || byok.ollamaBaseUrl || byok.ollamaDefaultModel || byok.openaiCompatibleBaseUrl || byok.openaiCompatibleDefaultModel) return true
   if (isOllamaUiAvailable(config)) return true
-  if (config?.userKeyDefaults?.openai || config?.userKeyDefaults?.anthropic || config?.userKeyDefaults?.gemini || (config as any)?.userKeyDefaults?.openaiCompatible) return true
+  if (config?.userKeyDefaults?.openai || config?.userKeyDefaults?.anthropic || config?.userKeyDefaults?.gemini || config?.userKeyDefaults?.openrouter || (config as any)?.userKeyDefaults?.openaiCompatible) return true
   if (
     config?.allowSystemKeysForUserExecution &&
-    (config?.systemKeyDefaults?.openai || config?.systemKeyDefaults?.anthropic || config?.systemKeyDefaults?.gemini || (config as any)?.systemKeyDefaults?.openaiCompatible)
+    (config?.systemKeyDefaults?.openai || config?.systemKeyDefaults?.anthropic || config?.systemKeyDefaults?.gemini || config?.systemKeyDefaults?.openrouter || (config as any)?.systemKeyDefaults?.openaiCompatible)
   ) {
     return true
   }
@@ -372,6 +380,7 @@ export function byokModelParamsWithOptions(options?: { showAll?: boolean }): str
   if (keys.openai) params.set('openaiKey', keys.openai)
   if (keys.anthropic) params.set('anthropicKey', keys.anthropic)
   if (keys.geminiApiKey) params.set('geminiKey', keys.geminiApiKey)
+  if (keys.openrouter) params.set('openrouterKey', keys.openrouter)
   if (keys.ollamaBaseUrl) params.set('ollamaBaseUrl', keys.ollamaBaseUrl)
   if (keys.openaiCompatibleApiKey) params.set('openaiCompatibleApiKey', keys.openaiCompatibleApiKey)
   if (keys.openaiCompatibleBaseUrl) params.set('openaiCompatibleBaseUrl', keys.openaiCompatibleBaseUrl)

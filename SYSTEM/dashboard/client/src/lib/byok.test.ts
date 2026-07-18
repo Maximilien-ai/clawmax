@@ -148,6 +148,15 @@ async function main() {
     assert(hasChatExecutionAccess(null) === true, 'Expected Ollama BYOK to enable chat execution')
   })
 
+  await test('OpenRouter BYOK enables chat and is forwarded with its native request field', () => {
+    localStorage.clear()
+    writeStoredByokKeys({ openrouter: 'sk-or-test' })
+    assert(hasChatExecutionAccess(null) === true, 'Expected OpenRouter BYOK to enable chat execution')
+    const payload = byokForRequest()
+    assert(payload.openrouter === 'sk-or-test', 'Expected OpenRouter key in BYOK request payload')
+    assert(typeof payload.openai === 'undefined', 'Expected OpenRouter BYOK not to populate OpenAI key')
+  })
+
   await test('chat execution access supports on-prem default Ollama contract from auth config', () => {
     localStorage.clear()
     assert(
@@ -268,6 +277,12 @@ async function main() {
 
     const noMismatch = detectProviderKeyMismatch('gemini', 'AIzaSyExampleGoogleKey1234567890')
     assert(noMismatch === null, 'Expected Gemini-shaped key to be accepted for Gemini')
+
+    const openRouterMismatch = detectProviderKeyMismatch('openai', 'sk-or-v1-test-value')
+    assert(openRouterMismatch?.detectedProvider === 'openrouter', 'Expected OpenRouter key shape to be rejected for OpenAI')
+
+    const openRouterMatch = detectProviderKeyMismatch('openrouter', 'sk-or-v1-test-value')
+    assert(openRouterMatch === null, 'Expected OpenRouter-shaped key to be accepted for OpenRouter')
   })
 
   await test('refreshModelsWithByok posts request-shaped provider keys', async () => {

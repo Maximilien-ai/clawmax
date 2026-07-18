@@ -211,6 +211,11 @@ test('Gemini defaults use google-prefixed model ids', () => {
   assert(getCostEfficientModel({ SYSTEM_GEMINI_API_KEY: 'gem-key' }) === 'google/gemini-2.5-flash', 'Expected google-prefixed cost-efficient Gemini model')
 })
 
+test('OpenRouter is available as a native hosted-provider default', () => {
+  assert(getBestAvailableModel({ SYSTEM_OPENROUTER_API_KEY: 'sk-or-test' }) === 'openrouter/auto', 'Expected OpenRouter best-model fallback')
+  assert(getCostEfficientModel({ USER_OPENROUTER_API_KEY: 'sk-or-test' }) === 'openrouter/auto', 'Expected OpenRouter cost-efficient fallback')
+})
+
 test('system key execution gate honors explicit env file flag', () => {
   assert(allowSystemKeysForUserExecution({ ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION: 'true' }) === true, 'Expected explicit env-file true to enable system keys')
   assert(allowSystemKeysForUserExecution({ ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION: 'false' }) === false, 'Expected explicit env-file false to disable system keys')
