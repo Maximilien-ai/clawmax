@@ -13,6 +13,7 @@ import agentsRouter from './routes/agents'
 import channelsRouter from './routes/channels'
 import templatesRouter from './routes/templates'
 import skillsRouter from './routes/skills'
+import skillSecretBrokerRouter, { skillSecretBrokerRuntimeRouter } from './routes/skill-secret-broker'
 import workspacesRouter from './routes/workspaces'
 import workspaceDashboardsRouter from './routes/workspace-dashboards'
 import chatRouter from './routes/chat'
@@ -263,6 +264,7 @@ app.post('/api/auth/verify', verifyToken)
 
 // GitHub OAuth routes (public)
 app.use('/api/auth', createAuthRouter())
+app.use('/api/runtime/skill-broker', skillSecretBrokerRuntimeRouter)
 
 // Auth config info (public — so login page knows what's available)
 app.get('/api/auth/config', (_req, res) => {
@@ -693,6 +695,7 @@ app.use('/api/agents', protect, logsRouter)
 app.use('/api/templates', protect, templatesRouter)
 app.use('/api/template-registry', templateRegistryRouter)
 app.use('/api/skills', protect, skillsRouter)
+app.use('/api/skill-secret-broker', protect, skillSecretBrokerRouter)
 app.use('/api/workflows', protect, workflowsRouter)
 app.use('/api/ai', protect, aiRouter)
 app.use('/api/ai-builder', protect, aiBuilderRouter)

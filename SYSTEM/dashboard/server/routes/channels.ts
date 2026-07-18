@@ -22,6 +22,7 @@ import { readWorkspaceIntegrationConfig } from '../lib/workspace-integrations'
 import { hasWorkspaceManagedPartnerSecrets } from '../lib/workspace-integrations'
 import { getAuthenticatedSession } from '../lib/github-auth'
 import { deriveChatError } from './chat'
+import { createBrokerCapabilityToken } from '../lib/skill-secret-broker'
 
 const router = Router()
 
@@ -350,6 +351,13 @@ async function callAgent(
     openaiCompatibleBaseUrl: useOpenAiCompatible ? (byokKeys?.openaiCompatibleBaseUrl || integrationConfig.openaiCompatibleBaseUrl) : undefined,
     openaiCompatibleDefaultModel: useOpenAiCompatible ? (byokKeys?.openaiCompatibleDefaultModel || integrationConfig.openaiCompatibleDefaultModel) : undefined,
   })
+  executionEnv.OPENCLAW_WORKSPACE = getWorkspacePath()
+  executionEnv.CLAWMAX_AGENT_ID = agentId
+  const brokerCapability = createBrokerCapabilityToken(agentId)
+  if (brokerCapability) {
+    executionEnv.CLAWMAX_SECRET_BROKER_TOKEN = brokerCapability
+    executionEnv.CLAWMAX_SECRET_BROKER_URL = `http://127.0.0.1:${process.env.DASHBOARD_PORT || '3001'}/api/runtime/skill-broker/execute`
+  }
   const effectiveSessionId = scopeSessionIdToModel(sessionId, resolvedAgent.model)
   const gatewayRunning = (
     resolvedAgent.provider === 'ollama' || resolvedAgent.provider === 'openai-compatible'

@@ -27,6 +27,7 @@ import {
   withTemporaryAgentAuthProfiles,
 } from '../lib/agent-execution'
 import { getAuthenticatedSession } from '../lib/github-auth'
+import { createBrokerCapabilityToken } from '../lib/skill-secret-broker'
 
 const router = Router()
 type ChatProvider = 'openai' | 'openai-compatible' | 'anthropic' | 'gemini' | 'openrouter' | 'ollama' | null | undefined
@@ -641,6 +642,11 @@ router.post('/:id/chat', async (req, res) => {
   })
   executionEnv.OPENCLAW_WORKSPACE = effectiveWorkspaceRoot
   executionEnv.CLAWMAX_AGENT_ID = id
+  const brokerCapability = createBrokerCapabilityToken(id, effectiveWorkspaceRoot)
+  if (brokerCapability) {
+    executionEnv.CLAWMAX_SECRET_BROKER_TOKEN = brokerCapability
+    executionEnv.CLAWMAX_SECRET_BROKER_URL = `http://127.0.0.1:${process.env.DASHBOARD_PORT || '3001'}/api/runtime/skill-broker/execute`
+  }
   const sessionSeed = sessionId || buildDashboardChatSeed(id, resolvedAgent.workspace)
 
   console.log(`[Chat Route] Starting CLI chat for agent ${id}`)

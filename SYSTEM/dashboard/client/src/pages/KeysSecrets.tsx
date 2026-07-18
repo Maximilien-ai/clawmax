@@ -6,6 +6,7 @@ import { PartnerLogo } from '../components/PartnerLogo'
 import { detectProviderKeyMismatch, isOllamaUiAvailable, readStoredByokKeys } from '../lib/byok'
 import { DEFAULT_VISIBLE_PARTNERS, getDefaultPartnerDefinitions } from '../lib/defaultPartners'
 import { BROWSER_VAULT_UPDATED_EVENT, findManagedSecretConflicts, getPartnerVaultKey, parseEnvLikeSecrets, readSharedSecrets, writeSharedSecrets } from '../lib/localSecrets'
+import { SkillSecretBrokerPanel } from '../components/SkillSecretBrokerPanel'
 import { buildServerManagedWorkspaceEntries, getSecretAvailabilityPresentation, listServerManagedIntegrationSecretKeys } from '../lib/keysSecretsInventory'
 
 type SecretDraft = { key: string; value: string }
@@ -457,6 +458,8 @@ export default function KeysSecrets() {
           <li>If you share this browser profile or machine, treat vault values as accessible to that local profile.</li>
         </ul>
       </div>
+
+      <SkillSecretBrokerPanel />
 
       {(workspaceManagedConflicts.length > 0 || globalManagedConflicts.length > 0) && (
         <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900 dark:border-rose-800 dark:bg-rose-900/20 dark:text-rose-100">

@@ -142,11 +142,13 @@ COPY SKILLS/custom/clawmax-resend ./SKILLS/custom/clawmax-resend
 COPY SKILLS/custom/clawmax-workspace-ls ./SKILLS/custom/clawmax-workspace-ls
 COPY SKILLS/custom/luma-event-insights ./SKILLS/custom/luma-event-insights
 COPY SKILLS/custom/workspace-ls ./SKILLS/custom/workspace-ls
+COPY SKILLS/custom/clawmax-secret-test ./SKILLS/custom/clawmax-secret-test
 COPY SYSTEM/schemas ./SYSTEM/schemas
 COPY SYSTEM/dashboard/.env.example ./SYSTEM/dashboard/.env.example
 COPY SYSTEM/dashboard/docker-entrypoint.sh ./SYSTEM/dashboard/docker-entrypoint.sh
 COPY SYSTEM/dashboard/openclaw-auth-store.mjs ./SYSTEM/dashboard/openclaw-auth-store.mjs
 COPY SYSTEM/dashboard/clawmax-resend-send /usr/local/bin/clawmax-resend-send
+COPY SYSTEM/dashboard/clawmax-skill-run /usr/local/bin/clawmax-skill-run
 
 RUN mkdir -p /app/AGENTS \
   /app/.openclaw \
@@ -156,7 +158,7 @@ RUN mkdir -p /app/AGENTS \
   /app/WORKSPACES/default/GROUPS \
   /app/WORKSPACES/default/COMMUNITIES \
   /app/WORKSPACES/default/ORG \
-  && chmod +x /app/SYSTEM/dashboard/docker-entrypoint.sh /usr/local/bin/clawmax-resend-send
+  && chmod +x /app/SYSTEM/dashboard/docker-entrypoint.sh /usr/local/bin/clawmax-resend-send /usr/local/bin/clawmax-skill-run
 
 ENV NODE_ENV=production
 ENV HOME=/app

@@ -18,7 +18,7 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 
 ## 🛠 Current Development Line: 1.9.9
 
-- `1.9.9` focuses on brokered, explicitly granted agent-skill secret use without exposing a general vault reader or raw values to the parent agent process.
+- `1.9.9` includes brokered, explicitly granted agent-skill secret use without exposing a general vault reader or raw values to the parent agent process. Workspace values are encrypted with an operator-provided master key and released only to registered fixed child actions after workspace, agent, assignment, skill fingerprint, key, expiry, and revocation checks.
 - Native OpenRouter support is now merged, including BYOK, model discovery, direct/group/workflow routing, and provider-isolated runtime credentials. Native xAI/Grok follows only after pinned-runtime compatibility probes.
 - Public Gmail and Microsoft 365 mail capability foundations may land here, while production partner plugins and public AI scoring remain targeted at `2.0.0`.
 - `2.0.0` will expose public plugin and AI-scoring contracts plus the first public scoring experience and curated public Gmail and Microsoft 365/Outlook partner plugins. Mail starts with read/search/draft capabilities; sending and destructive actions require separate grants and confirmation. The plugin architecture also lets deployments add organization-specific capabilities such as private enterprise integrations, custom operational tabs, and specialized workflows without changing the core dashboard.
@@ -80,7 +80,8 @@ For full `1.8.x` / `1.7.x` details and RC history, see [CHANGELOG.md](CHANGELOG.
 Keys & Secrets safety model:
 - Values in `Keys & Secrets` are stored in the current browser only. They are meant to centralize capture and reuse across dashboard forms, not to act as a secure remote secrets manager.
 - ClawMax uses the browser vault to prefill matching inputs for templates, workflows, skills, and visible partner integrations. Users can still override values locally for a specific apply/run/edit flow.
-- Browser-local values are not automatically available to agent chat or skill subprocesses. The planned `1.9.9` flow requires an explicit skill/key grant and brokered execution rather than a general secret-reading tool.
+- Browser-local values are not automatically available to agent chat or skill subprocesses. Brokered runtime values use a separate encrypted workspace store and require an explicit skill/key grant rather than a general secret-reading tool.
+- Brokered values require `CLAWMAX_SECRET_MASTER_KEY` with at least 32 characters. Keep this operator key stable and outside the workspace; changing or losing it makes existing encrypted values unreadable. Workspace exports exclude broker ciphertext, grants, audit records, and runtime integration secret files.
 - Do not store normal account passwords for agent use. Prefer provider OAuth, service accounts, scoped tokens, or app passwords supported by the specific integration.
 - Browser-local values are not a substitute for proper server-side or infrastructure secret management. For production hosted or operator-managed deployments, keep system/runtime secrets in environment variables, secret stores, or your platform’s native secret manager.
 - If you share a browser profile or machine, treat browser-local vault contents as locally accessible to that profile. Clear or rotate values when changing environments or handing a machine to someone else.

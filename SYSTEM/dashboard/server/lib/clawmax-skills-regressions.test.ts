@@ -44,6 +44,13 @@ test('clawmax-workspace-ls is discoverable as the canonical first-party workspac
   assert(skill?.source === 'bundled' || skill?.source === 'workspace', `Expected clawmax-workspace-ls to be discoverable, got ${skill?.source}`)
 })
 
+test('clawmax-secret-test declares its brokered sentinel key and fixed command', () => {
+  const skill = getSkillById('clawmax-secret-test')
+  assert(!!skill, 'Expected clawmax-secret-test to exist')
+  assert(skill?.requires?.env?.includes('CLAWMAX_TEST_SECRET') === true, 'Expected declared broker secret key')
+  assert(skill?.requires?.bins?.includes('clawmax-skill-run') === true, 'Expected broker command requirement')
+})
+
 console.log(`\nTests passed: ${testsPassed}`)
 console.log(`Tests failed: ${testsFailed}`)
 

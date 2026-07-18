@@ -1,0 +1,27 @@
+#!/bin/sh
+set -eu
+
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname "$0")" && pwd)"
+
+if [ -n "${CLAWMAX_REPO_ROOT:-}" ] && [ -d "${CLAWMAX_REPO_ROOT}/SYSTEM/dashboard" ]; then
+  ROOT_DIR="${CLAWMAX_REPO_ROOT}/SYSTEM/dashboard"
+elif [ -d "$SCRIPT_DIR/dist/server" ] || [ -d "$SCRIPT_DIR/server/scripts" ]; then
+  ROOT_DIR="$SCRIPT_DIR"
+else
+  ROOT_DIR="/app/SYSTEM/dashboard"
+fi
+
+DIST_SCRIPT="$ROOT_DIR/dist/server/scripts/clawmax-skill-run.js"
+SRC_SCRIPT="$ROOT_DIR/server/scripts/clawmax-skill-run.ts"
+
+if [ -f "$DIST_SCRIPT" ]; then
+  exec node "$DIST_SCRIPT" "$@"
+fi
+
+TS_NODE="$ROOT_DIR/node_modules/.bin/ts-node"
+if [ -x "$TS_NODE" ] && [ -f "$SRC_SCRIPT" ]; then
+  exec "$TS_NODE" --transpileOnly "$SRC_SCRIPT" "$@"
+fi
+
+echo "clawmax-skill-run is unavailable: build the dashboard or install dev dependencies first." >&2
+exit 1

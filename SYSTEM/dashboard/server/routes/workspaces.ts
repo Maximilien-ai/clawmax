@@ -11,7 +11,7 @@ import {
   updateWorkspaceDashboard,
 } from '../lib/workspace-dashboards'
 import { inferWorkspaceDashboardCompanies } from './workspace-dashboards'
-import { buildWorkspaceExportManifest, getWorkspaceExportFileName, getWorkspaceExportRootName } from '../lib/workspace-export'
+import { buildWorkspaceExportManifest, getWorkspaceExportFileName, getWorkspaceExportRootName, WORKSPACE_EXPORT_SECRET_GLOBS } from '../lib/workspace-export'
 import { importWorkspaceFromZipArchive } from '../lib/workspace-import'
 import { listTeams } from '../lib/teams'
 import { listWorkflows } from '../lib/workflows'
@@ -156,7 +156,11 @@ router.get('/:id/export', async (req, res) => {
       throw err
     })
     archive.pipe(res)
-    archive.directory(workspace.path, rootName)
+    archive.glob('**/*', {
+      cwd: workspace.path,
+      dot: true,
+      ignore: [...WORKSPACE_EXPORT_SECRET_GLOBS],
+    }, { prefix: rootName })
     archive.append(JSON.stringify(manifest, null, 2), { name: `${rootName}/SYSTEM/export-manifest.json` })
     await archive.finalize()
   } catch (err: any) {

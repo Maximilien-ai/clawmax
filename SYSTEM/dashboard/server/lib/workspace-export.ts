@@ -3,6 +3,12 @@ import { getWorkspaceManager, type Workspace } from './workspace-manager'
 import { listWorkspaceDashboards } from './workspace-dashboards'
 import { readWorkspaceIntegrationConfig } from './workspace-integrations'
 
+export const WORKSPACE_EXPORT_SECRET_GLOBS = [
+  '.git/**',
+  'SYSTEM/.clawmax/**',
+  'SYSTEM/integrations.secrets.json',
+] as const
+
 export interface WorkspaceExportManifest {
   version: string
   exportedAt: string
@@ -76,6 +82,7 @@ export async function buildWorkspaceExportManifest(workspaceId: string): Promise
       notes: [
         'Browser-local secrets are not included in workspace exports.',
         'Server .env secrets are not included in workspace exports.',
+        'Encrypted skill secrets, grants, audit records, and runtime-managed integration secret files are not included in workspace exports.',
         'Import/restore is not implemented yet; keep this archive for manual recovery until import is added.',
       ],
     }

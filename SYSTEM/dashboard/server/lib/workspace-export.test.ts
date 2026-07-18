@@ -7,7 +7,7 @@
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import { buildWorkspaceExportManifest, getWorkspaceExportFileName, sanitizeWorkspaceExportName } from './workspace-export'
+import { buildWorkspaceExportManifest, getWorkspaceExportFileName, sanitizeWorkspaceExportName, WORKSPACE_EXPORT_SECRET_GLOBS } from './workspace-export'
 import { resetWorkspaceManagerForTests } from './workspace-manager'
 import { writeWorkspaceIntegrationConfig } from './workspace-integrations'
 import { createWorkspaceDashboard } from './workspace-dashboards'
@@ -69,6 +69,10 @@ process.env.OPENCLAW_WORKSPACE = workspacePath
 resetWorkspaceManagerForTests()
 
 async function run() {
+  await test('workspace export excludes every server-managed secret path', async () => {
+    assert(WORKSPACE_EXPORT_SECRET_GLOBS.includes('SYSTEM/.clawmax/**'), 'Expected broker files to be excluded')
+    assert(WORKSPACE_EXPORT_SECRET_GLOBS.includes('SYSTEM/integrations.secrets.json'), 'Expected integration secrets to be excluded')
+  })
   await test('sanitizeWorkspaceExportName creates stable slugs', () => {
     assert(sanitizeWorkspaceExportName('My Workspace!') === 'my-workspace', 'Expected slugified workspace name')
   })

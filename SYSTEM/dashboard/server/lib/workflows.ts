@@ -23,6 +23,7 @@ import {
 import { readWorkspaceIntegrationConfig } from './workspace-integrations'
 import { hasWorkspaceManagedPartnerSecrets } from './workspace-integrations'
 import { resolveOpenClawCliPath } from './openclaw-cli'
+import { createBrokerCapabilityToken } from './skill-secret-broker'
 
 // Use dynamic workspace path to support multi-workspace
 function getWorkflowsDir(): string {
@@ -2040,6 +2041,11 @@ export function triggerWorkflow(workflowId: string, options?: {
                   : undefined,
               }, attemptProvider || undefined)
               executionEnv.CLAWMAX_AGENT_ID = participant.agentId
+              const brokerCapability = createBrokerCapabilityToken(participant.agentId)
+              if (brokerCapability) {
+                executionEnv.CLAWMAX_SECRET_BROKER_TOKEN = brokerCapability
+                executionEnv.CLAWMAX_SECRET_BROKER_URL = `http://127.0.0.1:${process.env.DASHBOARD_PORT || '3001'}/api/runtime/skill-broker/execute`
+              }
               const hasOllamaPath = !!(executionEnv.OLLAMA_BASE_URL || integrationDefaults.ollamaDefaultModel)
               if (attemptProvider === 'ollama' && !hasOllamaPath) {
                 throw new Error(`Agent ${participant.agentId} is configured for ${attemptModel || 'ollama'}, but no Ollama runtime is configured`)

@@ -1,6 +1,6 @@
 # Simplify / Harden / Optimize 1.9.9
 
-> Status: in progress; native OpenRouter implemented
+> Status: in progress; native OpenRouter and brokered secret implementation ready for RC3 validation
 > Baseline: promoted `1.9.8`
 > Runtime baseline: OpenClaw `v2026.6.11`
 > Last updated: July 18, 2026

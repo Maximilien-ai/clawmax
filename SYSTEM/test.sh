@@ -1273,6 +1273,53 @@ else
   fail "Local secrets unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Brokered skill secret security unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/skill-secret-broker.test.ts > /tmp/clawmax-skill-secret-broker.out 2>&1 || true
+if grep -q "Tests failed: 0" /tmp/clawmax-skill-secret-broker.out; then
+  skill_secret_broker_count=$(grep "Tests passed:" /tmp/clawmax-skill-secret-broker.out | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Brokered skill secret security unit tests (${skill_secret_broker_count:-?} tests)"
+else
+  cat /tmp/clawmax-skill-secret-broker.out
+  fail "Brokered skill secret security unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Brokered skill secret route tests...${NC}"
+npx ts-node --transpileOnly server/routes/skill-secret-broker.test.ts > /tmp/clawmax-skill-secret-broker-routes.out 2>&1 || true
+if grep -q "Tests failed: 0" /tmp/clawmax-skill-secret-broker-routes.out; then
+  skill_secret_broker_route_count=$(grep "Tests passed:" /tmp/clawmax-skill-secret-broker-routes.out | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Brokered skill secret route tests (${skill_secret_broker_route_count:-?} tests)"
+else
+  cat /tmp/clawmax-skill-secret-broker-routes.out
+  fail "Brokered skill secret route tests"
+fi
+
+echo -e "${YELLOW}→ Running Brokered skill runtime wiring tests...${NC}"
+npx ts-node --transpileOnly server/lib/skill-secret-runtime-wiring.test.ts > /tmp/clawmax-skill-secret-runtime-wiring.out 2>&1 || true
+if grep -q "13 assertions passed" /tmp/clawmax-skill-secret-runtime-wiring.out; then
+  pass "Brokered skill runtime wiring tests (13 tests)"
+else
+  cat /tmp/clawmax-skill-secret-runtime-wiring.out
+  fail "Brokered skill runtime wiring tests"
+fi
+
+echo -e "${YELLOW}→ Running Brokered skill secret UI contract tests...${NC}"
+npx ts-node --transpileOnly client/src/components/SkillSecretBrokerPanel.test.ts > /tmp/clawmax-skill-secret-broker-ui.out 2>&1 || true
+if grep -q "8 assertions passed" /tmp/clawmax-skill-secret-broker-ui.out; then
+  pass "Brokered skill secret UI contract tests (8 tests)"
+else
+  cat /tmp/clawmax-skill-secret-broker-ui.out
+  fail "Brokered skill secret UI contract tests"
+fi
+
+echo -e "${YELLOW}→ Running Brokered skill command wrapper tests...${NC}"
+sh "$SYSTEM_DIR/clawmax-skill-run-wrapper.test.sh" > /tmp/clawmax-skill-run-wrapper.out 2>&1 || true
+if grep -q "clawmax-skill-run wrapper tests passed" /tmp/clawmax-skill-run-wrapper.out; then
+  pass "Brokered skill command wrapper tests (1 tests)"
+else
+  cat /tmp/clawmax-skill-run-wrapper.out
+  fail "Brokered skill command wrapper tests"
+fi
+
 echo -e "${YELLOW}→ Running BYOK helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/byok.test.ts > /tmp/clawmax-byok.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-byok.out; then

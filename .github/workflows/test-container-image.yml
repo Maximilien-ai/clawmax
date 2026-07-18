@@ -152,6 +152,12 @@ jobs:
             "${image}" \
             -lc "printf '%s' \"\$CLAWMAX_VERSION\"")"
 
+          docker run --rm \
+            --platform "${{ matrix.platform }}" \
+            --entrypoint /bin/sh \
+            "${image}" \
+            -lc "test -x /usr/local/bin/clawmax-skill-run && test -f /app/SKILLS/custom/clawmax-secret-test/SKILL.md && clawmax-skill-run --help >/dev/null"
+
           if [ "${actual_version}" != "${expected}" ]; then
             echo "Packaged dashboard version mismatch: expected ${expected}, got ${actual_version}" >&2
             exit 1
@@ -270,6 +276,8 @@ jobs:
 
             actual_version="$(retry 3 5 docker run --rm --platform "$platform" --entrypoint /bin/sh "$ref" -lc "node -p \"require('/app/SYSTEM/dashboard/package.json').version\"")"
             actual_env="$(retry 3 5 docker run --rm --platform "$platform" --entrypoint /bin/sh "$ref" -lc "printf '%s' \"\$CLAWMAX_VERSION\"")"
+            retry 3 5 docker run --rm --platform "$platform" --entrypoint /bin/sh "$ref" \
+              -lc "test -x /usr/local/bin/clawmax-skill-run && test -f /app/SKILLS/custom/clawmax-secret-test/SKILL.md && clawmax-skill-run --help >/dev/null"
 
             if [ "$actual_version" != "$expected_version" ]; then
               echo "Packaged dashboard version mismatch for $ref: expected $expected_version, got $actual_version" >&2
