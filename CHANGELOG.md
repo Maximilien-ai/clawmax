@@ -8,6 +8,7 @@ All notable changes to ClawMax are documented here.
 - **Native OpenRouter Provider** — `1.9.9` adds first-class OpenRouter credentials, native `openrouter/...` model discovery, provider-isolated chat/group/workflow execution, actionable readiness checks, and Keys & Secrets/BYOK support without routing OpenRouter through the LM Studio-oriented generic endpoint.
 
 ### Fixed
+- **Mobile-Safe Workflow Runs** — workflow run dialogs now use the dynamic mobile viewport, keep long forms in an independent scroll region, and keep Cancel/Run actions above iPhone browser chrome and safe areas. A repository-wide dialog audit now prevents new full-panel viewport-scrolling regressions.
 - **Truthful Secret Runtime Availability** — Keys & Secrets distinguishes browser-local vault entries from runtime-managed integration entries and explicitly states that browser-vault values are not available to agents or skills. Runtime-managed entries no longer imply a general agent secret grant.
 
 ### Planned

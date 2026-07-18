@@ -1728,6 +1728,26 @@ else
   fail "Builder mobile layout helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Mobile-safe dialog layout unit tests...${NC}"
+npx ts-node --transpileOnly --compiler-options '{"jsx":"react-jsx"}' client/src/components/MobileSafeDialog.test.tsx > /tmp/clawmax-mobile-safe-dialog.out 2>&1
+mobile_safe_dialog_status=$?
+if [ "$mobile_safe_dialog_status" -eq 0 ]; then
+  pass "Mobile-safe dialog layout unit tests (7 tests)"
+else
+  cat /tmp/clawmax-mobile-safe-dialog.out
+  fail "Mobile-safe dialog layout unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Mobile dialog/pop-up audit tests...${NC}"
+npx ts-node --transpileOnly client/src/components/mobileDialogAudit.test.ts > /tmp/clawmax-mobile-dialog-audit.out 2>&1
+mobile_dialog_audit_status=$?
+if [ "$mobile_dialog_audit_status" -eq 0 ]; then
+  pass "Mobile dialog/pop-up audit tests (4 tests)"
+else
+  cat /tmp/clawmax-mobile-dialog-audit.out
+  fail "Mobile dialog/pop-up audit tests"
+fi
+
 echo -e "${YELLOW}→ Running Onboarding tour helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/onboardingTour.test.ts > /tmp/clawmax-onboarding-tour.out 2>&1 || true
 if grep -q "onboardingTour.test.ts: ok" /tmp/clawmax-onboarding-tour.out; then
