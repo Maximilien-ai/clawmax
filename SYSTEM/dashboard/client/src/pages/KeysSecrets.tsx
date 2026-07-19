@@ -25,6 +25,25 @@ type SecretConsumerMatch = {
 }
 
 type KeyGroup = 'all' | 'llm' | 'partners' | 'infra' | 'other'
+type KeysSecretsTab = 'access' | 'workspace' | 'global' | 'partners'
+
+const KEYS_SECRETS_TAB_STORAGE_KEY = 'clawmax.keys-secrets.active-tab'
+const KEYS_SECRETS_TABS: Array<{ id: KeysSecretsTab; label: string; description: string }> = [
+  { id: 'access', label: 'Agent & Skill Access', description: 'Authorize exact secrets for an assigned skill and agent.' },
+  { id: 'workspace', label: 'Workspace Keys', description: 'Manage browser-local keys for the active workspace.' },
+  { id: 'global', label: 'Global Keys', description: 'Manage browser-local keys shared across workspaces.' },
+  { id: 'partners', label: 'Partners', description: 'Review integration-managed credentials and requirements.' },
+]
+
+function readInitialKeysSecretsTab(): KeysSecretsTab {
+  if (typeof window === 'undefined') return 'access'
+  try {
+    const stored = window.localStorage.getItem(KEYS_SECRETS_TAB_STORAGE_KEY)
+    return KEYS_SECRETS_TABS.some((tab) => tab.id === stored) ? stored as KeysSecretsTab : 'access'
+  } catch {
+    return 'access'
+  }
+}
 
 function SecretAvailability({ serverManaged }: { serverManaged: boolean }) {
   const presentation = getSecretAvailabilityPresentation(serverManaged)
@@ -221,9 +240,9 @@ export default function KeysSecrets() {
   const { activeWorkspace } = useWorkspace()
   const { config } = useAuth()
   const ollamaEnabled = isOllamaUiAvailable(config)
+  const [activeTab, setActiveTab] = useState<KeysSecretsTab>(readInitialKeysSecretsTab)
   const [globalDrafts, setGlobalDrafts] = useState<SecretDraft[]>([])
   const [workspaceDrafts, setWorkspaceDrafts] = useState<SecretDraft[]>([])
-  const [importScope, setImportScope] = useState<'workspace' | 'global'>('workspace')
   const [importText, setImportText] = useState('')
   const [partnerDefinitions, setPartnerDefinitions] = useState<PartnerDefinition[]>([])
   const [serverPartnerSecretPresence, setServerPartnerSecretPresence] = useState<Record<string, Record<string, boolean>>>({})
@@ -249,6 +268,15 @@ export default function KeysSecrets() {
   useEffect(() => {
     refreshVaultState()
   }, [refreshVaultState])
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(KEYS_SECRETS_TAB_STORAGE_KEY, activeTab)
+    } catch {}
+    setImportText('')
+    setKeySearch('')
+    setKeyGroupFilter('all')
+  }, [activeTab])
 
   useEffect(() => {
     refreshVaultState()
@@ -402,7 +430,6 @@ export default function KeysSecrets() {
     () => Object.entries(visibleGlobalPreview).filter(([key, value]) => matchesKeyInventoryFilters(key, value)),
     [visibleGlobalPreview, matchesKeyInventoryFilters]
   )
-  const totalVisibleKeyEntries = filteredWorkspaceEntries.length + filteredGlobalEntries.length
   const managedIntegrationSecretKeys = useMemo(() => {
     const browserManaged = Object.keys(managedSecrets).sort((a, b) => a.localeCompare(b))
     const serverManaged = listServerManagedIntegrationSecretKeys(partnerDefinitions, serverPartnerSecretPresence)
@@ -431,37 +458,69 @@ export default function KeysSecrets() {
   }, [])
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="min-w-0 space-y-6 overflow-x-hidden p-4 sm:p-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Keys & Secrets</h1>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          Manage reusable browser-local keys once, then let template, workflow, skill, and integration inputs prefill automatically.
+          Manage runtime access, workspace and global keys, and partner credentials by scope.
         </p>
       </div>
 
-      <div className="rounded-xl border border-violet-200 bg-violet-50 p-4 text-sm text-violet-900 dark:border-violet-800 dark:bg-violet-900/20 dark:text-violet-100">
-        <div className="font-medium">How this works</div>
-        <ul className="mt-2 list-disc pl-5 space-y-1 text-xs opacity-90">
-          <li>Values are stored only in this browser.</li>
-          <li>Workspace keys apply only to the active workspace.</li>
-          <li>Global keys are available across all workspaces.</li>
-          <li>Template/workflow/skill-specific values still override shared keys when present.</li>
-          <li>Saving a value here does not make it available to an agent or skill runtime.</li>
-        </ul>
+      <div className="overflow-x-auto border-b border-gray-200 dark:border-gray-700">
+        <div className="flex min-w-max" role="tablist" aria-label="Keys and secrets sections">
+          {KEYS_SECRETS_TABS.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              id={`keys-secrets-tab-${tab.id}`}
+              aria-selected={activeTab === tab.id}
+              aria-controls={`keys-secrets-panel-${tab.id}`}
+              onClick={() => setActiveTab(tab.id)}
+              className={`whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+                activeTab === tab.id
+                  ? 'border-sky-600 text-sky-600 dark:text-sky-400'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-100">
-        <div className="font-medium">Safety & Security</div>
-        <ul className="mt-2 list-disc pl-5 space-y-1 text-xs opacity-90">
-          <li>This vault is a browser-local convenience layer for capture and reuse, not a hardened remote secrets manager.</li>
-          <li>Use platform or infrastructure secret stores for production cloud and on-prem deployments.</li>
-          <li>If you share this browser profile or machine, treat vault values as accessible to that local profile.</li>
-        </ul>
-      </div>
+      <div
+        role="tabpanel"
+        id={`keys-secrets-panel-${activeTab}`}
+        aria-labelledby={`keys-secrets-tab-${activeTab}`}
+        className="space-y-6"
+      >
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          {KEYS_SECRETS_TABS.find((tab) => tab.id === activeTab)?.description}
+        </p>
 
-      <SkillSecretBrokerPanel />
+        {activeTab === 'access' && (
+          <>
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-100">
+              <div className="font-medium">Runtime access is explicit</div>
+              <p className="mt-1 text-xs opacity-90">
+                Browser-local workspace and global keys are never automatically exposed to agents. A broker grant authorizes an exact agent, assigned skill, skill fingerprint, and key set.
+              </p>
+            </div>
+            <SkillSecretBrokerPanel />
+          </>
+        )}
 
-      {(workspaceManagedConflicts.length > 0 || globalManagedConflicts.length > 0) && (
+        {(activeTab === 'workspace' || activeTab === 'global') && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-100">
+            <div className="font-medium">Browser-local convenience vault</div>
+            <p className="mt-1 text-xs opacity-90">
+              Values are available to this browser profile, not directly to agent runtimes. Use platform or infrastructure secret stores for production cloud and on-prem deployments.
+            </p>
+          </div>
+        )}
+
+      {(activeTab === 'workspace' || activeTab === 'global') && (workspaceManagedConflicts.length > 0 || globalManagedConflicts.length > 0) && (
         <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900 dark:border-rose-800 dark:bg-rose-900/20 dark:text-rose-100">
           <div className="font-medium">Integration override notice</div>
           <div className="mt-1 text-sm opacity-90">
@@ -498,7 +557,7 @@ export default function KeysSecrets() {
         </div>
       )}
 
-      <div className="grid gap-6 xl:grid-cols-2">
+      {activeTab === 'workspace' && (
         <SecretSection
           title={`Workspace Keys${activeWorkspace ? ` · ${activeWorkspace.name}` : ''}`}
           description="Browser-local values scoped to the current workspace. Agent and skill runtimes cannot read them from this vault."
@@ -515,7 +574,9 @@ export default function KeysSecrets() {
             showSuccess('Saved workspace keys')
           }}
         />
+      )}
 
+      {activeTab === 'global' && (
         <SecretSection
           title="Global Keys"
           description="Browser-local values shared across workspaces in this browser. Agent and skill runtimes cannot read them from this vault."
@@ -532,14 +593,15 @@ export default function KeysSecrets() {
             showSuccess('Saved global keys')
           }}
         />
-      </div>
+      )}
 
-      <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+      {(activeTab === 'workspace' || activeTab === 'global') && (
+      <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">Current Key Names</div>
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              Search workspace and global keys, with storage source and runtime availability shown for each entry.
+              Search {activeTab} keys, with storage source and runtime availability shown for each entry.
             </p>
           </div>
           <div className="w-full max-w-sm">
@@ -581,9 +643,10 @@ export default function KeysSecrets() {
           )}
         </div>
         <div className="mt-3 text-xs text-gray-500 dark:text-gray-400">
-          Showing {totalVisibleKeyEntries} key{totalVisibleKeyEntries !== 1 ? 's' : ''}
+          Showing {activeTab === 'workspace' ? filteredWorkspaceEntries.length : filteredGlobalEntries.length} key{(activeTab === 'workspace' ? filteredWorkspaceEntries.length : filteredGlobalEntries.length) !== 1 ? 's' : ''}
         </div>
-        <div className="mt-3 grid max-h-[28rem] gap-4 md:grid-cols-2">
+        <div className="mt-3 max-h-[28rem]">
+          {activeTab === 'global' && (
           <div>
             <div className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
               Global ({Object.keys(visibleGlobalPreview).length})
@@ -619,6 +682,8 @@ export default function KeysSecrets() {
               ))}
             </div>
           </div>
+          )}
+          {activeTab === 'workspace' && (
           <div>
             <div className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
               Workspace ({Object.keys({ ...serverManagedWorkspaceEntries, ...visibleWorkspacePreview }).length})
@@ -659,10 +724,13 @@ export default function KeysSecrets() {
               ))}
             </div>
           </div>
+          )}
         </div>
       </div>
+      )}
 
-      <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+      {activeTab === 'partners' && (
+      <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">Partner Integrations</div>
@@ -723,8 +791,10 @@ export default function KeysSecrets() {
           ))}
         </div>
       </div>
+      )}
 
-      <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 shadow-sm dark:border-amber-800 dark:bg-amber-900/20">
+      {(activeTab === 'workspace' || activeTab === 'global') && (
+      <div className="rounded-lg border border-amber-200 bg-amber-50 p-5 shadow-sm dark:border-amber-800 dark:bg-amber-900/20">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Import From .env / Key List</h2>
@@ -732,21 +802,8 @@ export default function KeysSecrets() {
               Paste `KEY=value` lines and import them into workspace or global browser-local keys in one step.
             </p>
           </div>
-          <div className="inline-flex rounded-lg border border-amber-300 bg-white p-1 text-xs dark:border-amber-700 dark:bg-gray-900">
-            <button
-              type="button"
-              onClick={() => setImportScope('workspace')}
-              className={`rounded-md px-3 py-1.5 ${importScope === 'workspace' ? 'bg-amber-500 text-white' : 'text-gray-600 dark:text-gray-300'}`}
-            >
-              Workspace
-            </button>
-            <button
-              type="button"
-              onClick={() => setImportScope('global')}
-              className={`rounded-md px-3 py-1.5 ${importScope === 'global' ? 'bg-amber-500 text-white' : 'text-gray-600 dark:text-gray-300'}`}
-            >
-              Global
-            </button>
+          <div className="rounded-md border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium text-amber-800 dark:border-amber-700 dark:bg-gray-900 dark:text-amber-200">
+            Import to {activeTab}
           </div>
         </div>
         <textarea
@@ -766,19 +823,21 @@ export default function KeysSecrets() {
               const imported = parseEnvLikeSecrets(importText)
               const count = Object.keys(imported).length
               if (count === 0) return
-              if (importScope === 'workspace') {
+              if (activeTab === 'workspace') {
                 setWorkspaceDrafts((current) => mergeDraftsWithImported(current, imported))
               } else {
                 setGlobalDrafts((current) => mergeDraftsWithImported(current, imported))
               }
               setImportText('')
-              showSuccess(`Imported ${count} key${count === 1 ? '' : 's'} into ${importScope === 'workspace' ? 'workspace' : 'global'} keys`)
+              showSuccess(`Imported ${count} key${count === 1 ? '' : 's'} into ${activeTab} keys`)
             }}
             className="rounded-md bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600"
           >
             Import Keys
           </button>
         </div>
+      </div>
+      )}
       </div>
     </div>
   )

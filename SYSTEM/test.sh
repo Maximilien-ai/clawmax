@@ -1311,6 +1311,15 @@ else
   fail "Brokered skill secret UI contract tests"
 fi
 
+echo -e "${YELLOW}→ Running Keys & Secrets tab navigation tests...${NC}"
+npx ts-node --transpileOnly client/src/pages/KeysSecretsTabs.test.ts > /tmp/clawmax-keys-secrets-tabs.out 2>&1 || true
+if grep -q "10 assertions passed" /tmp/clawmax-keys-secrets-tabs.out; then
+  pass "Keys & Secrets tab navigation tests (10 tests)"
+else
+  cat /tmp/clawmax-keys-secrets-tabs.out
+  fail "Keys & Secrets tab navigation tests"
+fi
+
 echo -e "${YELLOW}→ Running Brokered skill command wrapper tests...${NC}"
 sh "$SYSTEM_DIR/clawmax-skill-run-wrapper.test.sh" > /tmp/clawmax-skill-run-wrapper.out 2>&1 || true
 if grep -q "clawmax-skill-run wrapper tests passed" /tmp/clawmax-skill-run-wrapper.out; then
