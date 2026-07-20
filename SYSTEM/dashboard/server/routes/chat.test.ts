@@ -63,7 +63,7 @@ test('hasByokExecutionPathForProvider detects matching hosted provider keys', ()
 })
 
 test('resolveByokChatFallbackModel supplies a hosted default for browser BYOK when an agent record has no model', () => {
-  assert(resolveByokChatFallbackModel({ openai: 'sk-test' }) === 'openai/gpt-5', 'Expected OpenAI BYOK fallback model')
+  assert(resolveByokChatFallbackModel({ openai: 'sk-test' }) === 'openai/gpt-5.4-mini', 'Expected OpenAI BYOK fallback model supported by pinned OpenClaw')
   assert(resolveByokChatFallbackModel({ anthropic: 'sk-ant-test' }) === 'anthropic/claude-sonnet-4-20250514', 'Expected Anthropic BYOK fallback model')
   assert(resolveByokChatFallbackModel({ gemini: 'AIza-test' }) === 'google/gemini-2.5-flash', 'Expected Gemini BYOK fallback model')
   assert(resolveByokChatFallbackModel({ openrouter: 'sk-or-test' }) === 'openrouter/auto', 'Expected OpenRouter BYOK fallback model')
@@ -150,6 +150,12 @@ test('deriveChatError hides embedded session takeover internals', () => {
   )
   assert(/embedded session conflict/i.test(message), 'Expected friendly embedded-session conflict summary')
   assert(!message.includes('/Users/maximilien'), 'Expected local session path to be hidden')
+})
+
+test('deriveChatError explains incomplete tool turns without implying no work occurred', () => {
+  const message = deriveChatError("Agent couldn't generate a response. Note: some tool actions may have already been executed.", 'openai')
+  assert(/used tools but did not produce a final reply/i.test(message), `Unexpected message: ${message}`)
+  assert(/verify the requested results/i.test(message), `Expected verification guidance: ${message}`)
 })
 
 test('deriveChatError surfaces provider cooldowns as transient retryable failures', () => {

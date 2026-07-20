@@ -1319,8 +1319,8 @@ Available skills that can be assigned: ${availableSkills.join(', ') || 'gh-issue
 
 Available models:
 - anthropic/${getPreferredAnthropicGenerationModel()} (best available Anthropic generation model)
-- openai/gpt-5 (latest OpenAI reasoning model when available)
-- openai/gpt-4o (strong default OpenAI general-purpose model)
+- openai/gpt-5.4 (strong OpenAI reasoning model)
+- openai/gpt-5.4-mini (cost-efficient OpenAI general-purpose model)
 
 IMPORTANT: If the user mentions a specific name for the agent (e.g., "Create jarvis", "Make a bot called Friday"), use that name. The name should be a simple, clean identifier.
 

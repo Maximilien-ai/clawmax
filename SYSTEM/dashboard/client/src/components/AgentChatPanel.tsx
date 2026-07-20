@@ -12,7 +12,7 @@ import { appendAgentInboxAttachmentContext, buildAgentInboxDisplayMessage, build
 import { transformWorkspaceMarkdownUrl } from '../lib/markdownLinks'
 import { createPromptAttachment } from '../lib/promptAttachments'
 import { extractWorkspaceFileMentions, linkifyWorkspaceFiles, parseWorkspaceDocEntriesResponse } from '../lib/workspaceFiles'
-import { summarizeAgentChatFailure } from '../lib/chatRuntimeErrors'
+import { formatAgentWorkStatus, summarizeAgentChatFailure } from '../lib/chatRuntimeErrors'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -189,6 +189,8 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [streaming, setStreaming] = useState(false)
+  const [streamingStartedAt, setStreamingStartedAt] = useState<number | null>(null)
+  const [streamingElapsedMs, setStreamingElapsedMs] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [sessionId, setSessionId] = useState<string>(() => buildPersistentDashboardChatSessionId(agentId))
   const [gatewayAvailable, setGatewayAvailable] = useState<boolean | null>(null)
@@ -554,6 +556,8 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
     setSending(true)
     setError(null)
     setStreaming(true)
+    setStreamingStartedAt(Date.now())
+    setStreamingElapsedMs(0)
     let assistantId = ''
     let preparedAttachments = queuedAttachments
 
@@ -672,10 +676,20 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
     } finally {
       setSending(false)
       setStreaming(false)
+      setStreamingStartedAt(null)
+      setStreamingElapsedMs(0)
       abortControllerRef.current = null
       setTimeout(() => inputRef.current?.focus(), 0)
     }
   }
+
+  useEffect(() => {
+    if (!streaming || streamingStartedAt === null) return
+    const updateElapsed = () => setStreamingElapsedMs(Date.now() - streamingStartedAt)
+    updateElapsed()
+    const timer = window.setInterval(updateElapsed, 1000)
+    return () => window.clearInterval(timer)
+  }, [streaming, streamingStartedAt])
 
   function cancelStreaming() {
     if (abortControllerRef.current) {
@@ -1177,7 +1191,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
         {/* Typing indicator */}
         {streaming && (
           <div className="px-6 py-2 bg-sky-50 dark:bg-sky-900/30 border-t border-sky-200 dark:border-sky-800">
-            <p className="text-xs text-sky-600 dark:text-sky-400">Agent is typing...</p>
+            <p className="text-xs text-sky-600 dark:text-sky-400">{formatAgentWorkStatus(streamingElapsedMs)}</p>
           </div>
         )}
 

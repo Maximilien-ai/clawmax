@@ -518,8 +518,24 @@ export default function KeysSecrets() {
           <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-100">
             <div className="font-medium">Browser-local convenience vault</div>
             <p className="mt-1 text-xs opacity-90">
-              Values are available to this browser profile, not directly to agent runtimes. Use platform or infrastructure secret stores for production cloud and on-prem deployments.
+              Values are available to this browser profile, not directly to agent runtimes, and cannot be referenced by name in agent chat. Storing a Gmail password here does not grant mailbox access; assign and configure a Gmail-capable skill first.
             </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setActiveTab('access')}
+                className="rounded-md border border-amber-400 bg-white px-3 py-1.5 text-xs font-medium text-amber-900 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-100 dark:hover:bg-amber-900/30"
+              >
+                Agent &amp; Skill Access
+              </button>
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new CustomEvent('navigate-to-page', { detail: { page: 'skills' } }))}
+                className="rounded-md border border-amber-400 bg-white px-3 py-1.5 text-xs font-medium text-amber-900 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-100 dark:hover:bg-amber-900/30"
+              >
+                Find Email Skills
+              </button>
+            </div>
           </div>
         )}
 

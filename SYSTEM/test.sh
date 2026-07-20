@@ -1313,8 +1313,8 @@ fi
 
 echo -e "${YELLOW}→ Running Keys & Secrets tab navigation tests...${NC}"
 npx ts-node --transpileOnly client/src/pages/KeysSecretsTabs.test.ts > /tmp/clawmax-keys-secrets-tabs.out 2>&1 || true
-if grep -q "10 assertions passed" /tmp/clawmax-keys-secrets-tabs.out; then
-  pass "Keys & Secrets tab navigation tests (10 tests)"
+if grep -q "14 assertions passed" /tmp/clawmax-keys-secrets-tabs.out; then
+  pass "Keys & Secrets tab navigation tests (14 tests)"
 else
   cat /tmp/clawmax-keys-secrets-tabs.out
   fail "Keys & Secrets tab navigation tests"

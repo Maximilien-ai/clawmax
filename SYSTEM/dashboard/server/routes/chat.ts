@@ -204,7 +204,7 @@ export function hasByokExecutionPathForProvider(provider: ChatProvider, byok?: C
 
 export function resolveByokChatFallbackModel(byok?: ChatByokPayload): string | undefined {
   if (!byok) return undefined
-  if (hasText(byok.openai)) return 'openai/gpt-5'
+  if (hasText(byok.openai)) return 'openai/gpt-5.4-mini'
   if (hasText(byok.anthropic)) return 'anthropic/claude-sonnet-4-20250514'
   if (hasText(byok.gemini)) return 'google/gemini-2.5-flash'
   if (hasText(byok.openrouter)) return 'openrouter/auto'
@@ -395,6 +395,9 @@ export function deriveChatError(raw: string, provider?: ChatProvider, context?: 
   }
   if (/EmbeddedAttemptSessionTakeoverError|session file changed while embedded prompt lock was released/i.test(text)) {
     return 'OpenClaw reported an embedded session conflict while a tool was running. Reset the chat session and retry once; if this was a Resend email test, use the Resend partner test-email action to validate delivery without the agent chat session.'
+  }
+  if (/Agent couldn't generate a response|incomplete turn detected|hasLastAssistant=no/i.test(text)) {
+    return 'The agent used tools but did not produce a final reply. Some tool actions may already have completed. Verify the requested results, then retry or reset this chat session.'
   }
   if (/All models failed/i.test(text) && /Unknown model:/i.test(text)) {
     return formatUnsupportedModelError(text, context)

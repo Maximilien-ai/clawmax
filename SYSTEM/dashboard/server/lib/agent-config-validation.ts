@@ -8,6 +8,15 @@ const AGENT_ID_REGEX = /^[a-z][a-z0-9_-]*$/
 const TAG_REGEX = /^[a-z][a-z0-9_-]*$/
 const PHONE_REGEX = /^\+?[1-9]\d{1,14}$/
 const STANDARD_OPENAI_MODELS = new Set([
+  'openai/gpt-5.4',
+  'openai/gpt-5.4-mini',
+  'openai/gpt-5.4-nano',
+  'openai/gpt-5.4-pro',
+  'openai/gpt-5.3-chat-latest',
+  'openai/gpt-5.3-codex',
+  'openai/gpt-5.5',
+  'openai/gpt-5.5-pro',
+  // Retained for validation of saved agents; execution remaps unsupported aliases.
   'openai/gpt-5',
   'openai/gpt-4o-mini',
   'openai/gpt-4.1',

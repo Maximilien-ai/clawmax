@@ -559,7 +559,7 @@ export function toExecutionModelOverride(model: string | undefined, provider: Ex
   if (provider === 'openai-compatible' && trimmed.startsWith('openai-compatible/')) {
     return `lmstudio/${trimmed.slice('openai-compatible/'.length)}`
   }
-  if (provider === 'openai' && /^(?:openai\/)?gpt-(?:4o(?:-mini)?|4\.1(?:-mini)?)$/i.test(trimmed)) {
+  if (provider === 'openai' && /^(?:openai\/)?gpt-(?:4o(?:-mini)?|4\.1(?:-mini)?|5)$/i.test(trimmed)) {
     return 'openai/gpt-5.4-mini'
   }
   return trimmed

@@ -445,6 +445,7 @@ test('toExecutionModelOverride maps OpenClaw-retired OpenAI models to the suppor
   assert(toExecutionModelOverride('openai/gpt-4o', 'openai') === 'openai/gpt-5.4-mini', 'Expected gpt-4o execution remap')
   assert(toExecutionModelOverride('openai/gpt-4.1', 'openai') === 'openai/gpt-5.4-mini', 'Expected gpt-4.1 execution remap')
   assert(toExecutionModelOverride('openai/gpt-4.1-mini', 'openai') === 'openai/gpt-5.4-mini', 'Expected gpt-4.1-mini execution remap')
+  assert(toExecutionModelOverride('openai/gpt-5', 'openai') === 'openai/gpt-5.4-mini', 'Expected unsupported gpt-5 alias execution remap')
   assert(toExecutionModelOverride('openai/gpt-5.4', 'openai') === 'openai/gpt-5.4', 'Expected supported OpenAI model unchanged')
 })
 

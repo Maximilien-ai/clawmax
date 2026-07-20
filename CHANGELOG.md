@@ -14,6 +14,9 @@ All notable changes to ClawMax are documented here.
 ### Fixed
 - **Mobile-Safe Workflow Runs** — workflow run dialogs now use the dynamic mobile viewport, keep long forms in an independent scroll region, and keep Cancel/Run actions above iPhone browser chrome and safe areas. A repository-wide dialog audit now prevents new full-panel viewport-scrolling regressions.
 - **Truthful Secret Runtime Availability** — Keys & Secrets distinguishes browser-local vault entries from runtime-managed integration entries and explicitly states that browser-vault values are not available to agents or skills. Runtime-managed entries no longer imply a general agent secret grant.
+- **Pinned OpenAI Model Compatibility** — model discovery and defaults now follow the OpenClaw `v2026.6.11` runtime catalog. Existing agents saved with unsupported `gpt-5`, `gpt-4.1`, or `gpt-4o` aliases execute through `gpt-5.4-mini` without requiring redeployment.
+- **Long Agent Tool-Run Feedback** — chat distinguishes a potentially multi-minute tool-enabled run from ordinary typing, reports elapsed time and the three-minute bound, and explains incomplete tool turns without implying that no actions occurred.
+- **Gmail Secret Boundary Guidance** — browser-local key tabs now state that key names cannot be referenced from agent chat and that storing a Gmail password alone does not grant mailbox access, with direct navigation to skill discovery and explicit agent-skill authorization.
 
 ### Planned
 - **2.0 Public Plugin And AI-Scoring Foundation** — replace the guardrail/eval-shaped MVP0 host with a generic contribution-based plugin contract for pages, APIs, data, actions, jobs, events, settings, skills, providers, docs, and extension points; then publish scorer contracts and user-facing scoring surfaces on that foundation.

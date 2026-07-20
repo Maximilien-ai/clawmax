@@ -3,7 +3,7 @@
 **Current Version**: v1.9.8
 **Development Line**: 1.9.9
 **Last Updated**: July 20, 2026
-**Status**: `v1.9.8` is promoted from `1.9.8-test-rc5`. `main` is the active `1.9.9` line with native OpenRouter, native runtime-gated xAI/Grok, and the first complete brokered agent-skill secret slice ready for RC5 validation. `2.0.0` owns the public plugin, AI-scoring, Gmail, and Microsoft 365 partner surfaces; deployments can add private enterprise capabilities through the same public extension contracts.
+**Status**: `v1.9.8` is promoted from `1.9.8-test-rc5`. `main` is the active `1.9.9` line with native OpenRouter, native runtime-gated xAI/Grok, the first complete brokered agent-skill secret slice, and RC4 feedback fixes for pinned OpenAI model aliases, long chat tool runs, and Gmail secret-boundary guidance. These fixes target RC6 after RC5's xAI build. `2.0.0` owns the public plugin, AI-scoring, Gmail, and Microsoft 365 partner surfaces; deployments can add private enterprise capabilities through the same public extension contracts.
 
 ---
 

@@ -30,16 +30,16 @@ function assert(condition: boolean, message: string) {
 
 console.log(`\n${YELLOW}=== Model Discovery Test Suite ===${RESET}\n`)
 
-test('OpenAI discovery hides unsupported future models by default', () => {
+test('OpenAI discovery follows the pinned OpenClaw runtime catalog', () => {
   const filtered = __test.filterCompatibleDiscoveredModels('openai', [
     'openai/gpt-5',
     'openai/gpt-5.4-mini',
     'openai/gpt-4.1',
     'openai/gpt-4o-mini',
   ])
-  assert(filtered.includes('openai/gpt-5'), 'Expected gpt-5 to remain visible')
-  assert(filtered.includes('openai/gpt-4.1'), 'Expected gpt-4.1 to remain visible')
-  assert(!filtered.includes('openai/gpt-5.4-mini'), 'Expected unsupported gpt-5.4-mini to be hidden')
+  assert(!filtered.includes('openai/gpt-5'), 'Did not expect unsupported gpt-5 alias')
+  assert(!filtered.includes('openai/gpt-4.1'), 'Did not expect unsupported gpt-4.1 alias')
+  assert(filtered.includes('openai/gpt-5.4-mini'), 'Expected runtime-supported gpt-5.4-mini')
 })
 
 test('Show-all mode preserves provider models without compatibility filtering', () => {

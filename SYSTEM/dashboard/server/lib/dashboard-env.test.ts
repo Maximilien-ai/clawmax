@@ -211,6 +211,11 @@ test('Gemini defaults use google-prefixed model ids', () => {
   assert(getCostEfficientModel({ SYSTEM_GEMINI_API_KEY: 'gem-key' }) === 'google/gemini-2.5-flash', 'Expected google-prefixed cost-efficient Gemini model')
 })
 
+test('OpenAI defaults use a model supported by the pinned OpenClaw runtime', () => {
+  assert(getBestAvailableModel({ SYSTEM_OPENAI_API_KEY: 'sk-test' }) === 'openai/gpt-5.4-mini', 'Expected supported OpenAI best-model fallback')
+  assert(getCostEfficientModel({ USER_OPENAI_API_KEY: 'sk-test' }) === 'openai/gpt-5.4-mini', 'Expected supported OpenAI cost-efficient fallback')
+})
+
 test('OpenRouter is available as a native hosted-provider default', () => {
   assert(getBestAvailableModel({ SYSTEM_OPENROUTER_API_KEY: 'sk-or-test' }) === 'openrouter/auto', 'Expected OpenRouter best-model fallback')
   assert(getCostEfficientModel({ USER_OPENROUTER_API_KEY: 'sk-or-test' }) === 'openrouter/auto', 'Expected OpenRouter cost-efficient fallback')

@@ -1,4 +1,4 @@
-import { summarizeAgentChatFailure } from './chatRuntimeErrors'
+import { formatAgentWorkStatus, summarizeAgentChatFailure } from './chatRuntimeErrors'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -53,6 +53,19 @@ test('summarizeAgentChatFailure preserves detailed unsupported-model remediation
   const detailed = 'This agent is configured with a model that the current runtime does not support: `openai/gpt-super-pro`. Choose a listed model. [Edit agent model](/agents?agent=agent0&action=edit)'
   const message = summarizeAgentChatFailure(detailed)
   assert(message === detailed, `Expected detailed error to remain intact: ${message}`)
+})
+
+test('summarizeAgentChatFailure explains incomplete tool turns', () => {
+  const message = summarizeAgentChatFailure("Agent couldn't generate a response. Some tool actions may have already been executed.")
+  assert(/used tools but did not produce a final reply/i.test(message), `Unexpected message: ${message}`)
+  assert(/verify the requested results/i.test(message), `Expected verification guidance: ${message}`)
+})
+
+test('formatAgentWorkStatus distinguishes long tool-enabled requests', () => {
+  assert(formatAgentWorkStatus(5_000) === 'Agent is working...', 'Expected concise initial status')
+  assert(/45s elapsed/.test(formatAgentWorkStatus(45_000)), 'Expected seconds elapsed')
+  assert(/1m 15s elapsed/.test(formatAgentWorkStatus(75_000)), 'Expected minutes elapsed')
+  assert(/up to 3 minutes/.test(formatAgentWorkStatus(75_000)), 'Expected timeout expectation')
 })
 
 console.log('\n========================================')

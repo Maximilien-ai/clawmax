@@ -14,5 +14,9 @@ assert(source.includes('overflow-x-auto border-b'), 'the established border tab 
 assert(source.includes("'clawmax.keys-secrets.active-tab'"), 'the selected section should persist across refreshes')
 assert(source.includes("activeTab === 'workspace' || activeTab === 'global'"), 'inventory and import tools should remain scoped to browser key tabs')
 assert(source.includes('rounded-full px-3 py-1.5'), 'pills should remain available for inventory filtering')
+assert(source.includes('cannot be referenced by name in agent chat'), 'browser-local vault should explicitly explain the agent boundary')
+assert(source.includes('Storing a Gmail password here does not grant mailbox access'), 'Gmail credentials should not imply mailbox capability')
+assert(source.includes("setActiveTab('access')"), 'browser-local guidance should link to agent and skill access')
+assert(source.includes("detail: { page: 'skills' }"), 'browser-local guidance should link to skill discovery')
 
-console.log('KeysSecretsTabs.test.ts: 10 assertions passed')
+console.log('KeysSecretsTabs.test.ts: 14 assertions passed')

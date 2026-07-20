@@ -448,12 +448,12 @@ export function resolveWorkflowExecutionProviderKeys(
  */
 export function getBestAvailableModel(rawEnv: Record<string, string> = dashboardEnv): string {
   const keys = resolveSystemExecutionProviderKeys(rawEnv)
-  if (keys.openai) return 'openai/gpt-5'
+  if (keys.openai) return 'openai/gpt-5.4-mini'
   if (keys.gemini) return 'google/gemini-2.5-flash'
   if (keys.anthropic) return 'anthropic/claude-sonnet-4-20250514'
   if (keys.openrouter) return 'openrouter/auto'
   if (keys.xai) return 'xai/grok-4.3'
-  return 'openai/gpt-4o-mini' // fallback — may fail without keys
+  return 'openai/gpt-5.4-mini' // fallback - may fail without keys
 }
 
 /**
@@ -462,7 +462,7 @@ export function getBestAvailableModel(rawEnv: Record<string, string> = dashboard
  */
 export function getCostEfficientModel(rawEnv: Record<string, string> = dashboardEnv): string {
   const keys = resolveSystemExecutionProviderKeys(rawEnv)
-  if (keys.openai) return 'openai/gpt-4o-mini'
+  if (keys.openai) return 'openai/gpt-5.4-mini'
   if (keys.gemini) return 'google/gemini-2.5-flash'
   if (keys.anthropic) return 'anthropic/claude-sonnet-4-20250514'
   if (keys.openrouter) return 'openrouter/auto'

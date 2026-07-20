@@ -2375,9 +2375,9 @@ export function ByokWizard({
                             )}
                             {hasOpenAiAvailable && (
                               <>
-                                <option value="openai/gpt-5">GPT-5 (latest)</option>
-                                <option value="openai/gpt-4.1">GPT-4.1 (balanced)</option>
-                                <option value="openai/gpt-4o-mini">GPT-4o Mini (cost efficient)</option>
+                                <option value="openai/gpt-5.4">GPT-5.4</option>
+                                <option value="openai/gpt-5.4-mini">GPT-5.4 Mini (cost efficient)</option>
+                                <option value="openai/gpt-5.4-nano">GPT-5.4 Nano</option>
                               </>
                             )}
                             {hasGeminiAvailable && (
@@ -2419,9 +2419,9 @@ export function ByokWizard({
                             )}
                             {hasOpenAiAvailable && (
                               <>
-                                <option value="openai/gpt-5">GPT-5 (latest)</option>
-                                <option value="openai/gpt-4.1">GPT-4.1 (balanced)</option>
-                                <option value="openai/gpt-4o-mini">GPT-4o Mini (cost efficient)</option>
+                                <option value="openai/gpt-5.4">GPT-5.4</option>
+                                <option value="openai/gpt-5.4-mini">GPT-5.4 Mini (cost efficient)</option>
+                                <option value="openai/gpt-5.4-nano">GPT-5.4 Nano</option>
                               </>
                             )}
                             {hasGeminiAvailable && (

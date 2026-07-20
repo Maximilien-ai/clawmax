@@ -224,7 +224,7 @@ async function run() {
           await handler(makeReq({ params: { id: 'valid-agent' }, body: { byok: { openai: 'sk-browser' } } }), res)
           assert.strictEqual(res.statusCode, 200)
           assert.strictEqual(res.jsonBody?.available, true)
-          assert.strictEqual(res.jsonBody?.resolvedAgent?.model, 'openai/gpt-5')
+          assert.strictEqual(res.jsonBody?.resolvedAgent?.model, 'openai/gpt-5.4-mini')
           assert.strictEqual(res.jsonBody?.resolvedAgent?.provider, 'openai')
         })
       })
