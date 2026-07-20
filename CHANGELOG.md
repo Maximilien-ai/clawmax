@@ -16,7 +16,8 @@ All notable changes to ClawMax are documented here.
 - **Truthful Secret Runtime Availability** — Keys & Secrets distinguishes browser-local vault entries from runtime-managed integration entries and explicitly states that browser-vault values are not available to agents or skills. Runtime-managed entries no longer imply a general agent secret grant.
 
 ### Planned
-- **2.0 Public Plugin And AI-Scoring Foundation** — publish the plugin/scorer contracts, shared scoring rubric, explainable prompt and artifact score shapes, and user-facing scoring surfaces. Deployments can extend those public contracts with organization-specific integrations, controls, and dashboard tabs.
+- **2.0 Public Plugin And AI-Scoring Foundation** — replace the guardrail/eval-shaped MVP0 host with a generic contribution-based plugin contract for pages, APIs, data, actions, jobs, events, settings, skills, providers, docs, and extension points; then publish scorer contracts and user-facing scoring surfaces on that foundation.
+- **2.0 Public Optimize Plugin** — add token-first workflow and agent accounting, derived cost with dated pricing provenance, workspace-constrained workflow allocations, workflow-scoped model recommendations, confirmed schedule suggestions, and reversible application.
 - **Public Gmail And Microsoft 365 Partners** — define a shared mail capability/OAuth/test foundation in `1.9.9`, then ship public curated Gmail and Outlook plugins in `2.0.0`. Begin with read/search/draft and require separate grants plus confirmation for send or destructive actions.
 - **Google Credential Safety** — document OAuth, service-account, and supported app-password flows as the intended Google integration paths; normal Google account passwords must not be requested or recommended.
 - **Stable Runtime Baseline** — keep OpenClaw fixed at `v2026.6.11` unless a separately validated upstream change is required.
