@@ -153,6 +153,34 @@ test('discoverModels loads native OpenRouter model ids from its hosted catalog',
   assert(!result.modelsByProvider.openrouter?.models.includes('openrouter/openai/text-embedding-3-small'), 'Expected embedding-only OpenRouter model hidden')
 })
 
+test('xAI discovery only exposes models supported by the pinned OpenClaw runtime', async () => {
+  clearModelCache()
+  global.fetch = (async (url: string) => {
+    if (url === 'https://api.openai.com/v1/models') {
+      return { ok: true, status: 200, json: async () => ({ data: [{ id: 'gpt-5' }] }) } as any
+    }
+    assert(url === 'https://api.x.ai/v1/models', `Expected xAI models endpoint, got ${url}`)
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ data: [
+        { id: 'grok-3' },
+        { id: 'grok-4.3' },
+        { id: 'grok-4.5' },
+        { id: 'v1' },
+      ] }),
+    } as any
+  }) as any
+
+  const result = await discoverModels({ xai: 'xai-test' })
+  const models = result.modelsByProvider.xai?.models || []
+
+  assert(models.includes('xai/grok-3'), 'Expected compatible Grok model')
+  assert(models.includes('xai/grok-4.3'), 'Expected compatible Grok 4.3 model')
+  assert(!models.includes('xai/grok-4.5'), 'Did not expect Grok 4.5 before pinned runtime support')
+  assert(!models.includes('xai/v1'), 'Did not expect non-Grok endpoint id')
+})
+
 testChain.then(() => {
   global.fetch = originalFetch
   console.log(`\nTests passed: ${testsPassed}`)

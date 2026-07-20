@@ -6,6 +6,7 @@ All notable changes to ClawMax are documented here.
 
 ### Added
 - **Native OpenRouter Provider** — `1.9.9` adds first-class OpenRouter credentials, native `openrouter/...` model discovery, provider-isolated chat/group/workflow execution, actionable readiness checks, and Keys & Secrets/BYOK support without routing OpenRouter through the LM Studio-oriented generic endpoint.
+- **Native xAI / Grok Provider** — first-class `XAI_API_KEY` capture and validation, runtime-compatible `xai/...` model discovery, native OpenClaw auth profiles, and provider-isolated direct/group/workflow execution. Grok 4.5 remains hidden until the pinned OpenClaw runtime advertises and executes it.
 - **Brokered Agent-Skill Secrets** — encrypted workspace storage, exact agent/skill/fingerprint/key grants, revocation, short-lived runtime capabilities, fixed registered actions, child-process-only injection, masked inventory, and output/audit redaction let authorized skills use credentials without exposing a general vault reader or placing raw values in the parent agent environment.
 - **Secret Broker Validation Skill** — the packaged `clawmax-secret-test` skill and `clawmax-skill-run` runtime command provide a non-production local/container validation path that reports availability and a one-way fingerprint without returning the raw sentinel.
 - **Scoped Keys & Secrets Navigation** — reorganized the page into persistent Agent & Skill Access, Workspace Keys, Global Keys, and Partners tabs using the dashboard's existing bottom-border tab pattern, with mobile horizontal scrolling and filter pills retained inside key inventories.
@@ -15,8 +16,7 @@ All notable changes to ClawMax are documented here.
 - **Truthful Secret Runtime Availability** — Keys & Secrets distinguishes browser-local vault entries from runtime-managed integration entries and explicitly states that browser-vault values are not available to agents or skills. Runtime-managed entries no longer imply a general agent secret grant.
 
 ### Planned
-- **1.9.9 Native xAI Provider** — add first-class xAI/Grok identity, auth/readiness, discovery, diagnostics, and chat/workflow/container tests. Keep Grok 4.5 gated on an exact probe against the pinned OpenClaw image.
-- **2.0 Public Plugin And AI-Scoring Foundation** — publish the plugin/scorer contracts, shared scoring rubric, explainable prompt and artifact score shapes, and user-facing scoring surfaces. Proprietary guardrail and evaluation plugin implementations remain private and connect through the public contracts.
+- **2.0 Public Plugin And AI-Scoring Foundation** — publish the plugin/scorer contracts, shared scoring rubric, explainable prompt and artifact score shapes, and user-facing scoring surfaces. Deployments can extend those public contracts with organization-specific integrations, controls, and dashboard tabs.
 - **Public Gmail And Microsoft 365 Partners** — define a shared mail capability/OAuth/test foundation in `1.9.9`, then ship public curated Gmail and Outlook plugins in `2.0.0`. Begin with read/search/draft and require separate grants plus confirmation for send or destructive actions.
 - **Google Credential Safety** — document OAuth, service-account, and supported app-password flows as the intended Google integration paths; normal Google account passwords must not be requested or recommended.
 - **Stable Runtime Baseline** — keep OpenClaw fixed at `v2026.6.11` unless a separately validated upstream change is required.

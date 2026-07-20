@@ -1,9 +1,9 @@
 # Public Models, Gateways, And Email Partners
 
-> Status: OpenRouter implemented on `release-1.9.9`; xAI and mail foundation planned
+> Status: OpenRouter and runtime-gated xAI implemented on `main`; mail foundation planned
 > Release targets: `1.9.9` foundation, `2.0.0` public partner plugins
 > Runtime baseline under test: OpenClaw `v2026.6.11`
-> Last updated: July 18, 2026
+> Last updated: July 20, 2026
 
 ## Decision Summary
 
@@ -22,7 +22,7 @@ All work in this plan is public.
 
 xAI exposes an API-key-authenticated API at `https://api.x.ai/v1`, an authenticated model catalog, Chat Completions and Responses APIs, function calling, structured output, and current Grok models. OpenClaw also documents a native `xai/<model>` provider and `XAI_API_KEY`/OAuth authentication.
 
-Grok 4.5 was published after the pinned OpenClaw baseline. Before advertising `xai/grok-4.5`, ClawMax must prove that `v2026.6.11` can resolve and execute that model dynamically. If it cannot, the provider UI may still land in `1.9.9`, but Grok 4.5 must wait for a separately validated OpenClaw update. We must not silently change the runtime baseline inside the same RC.
+Grok 4.5 was published after the pinned OpenClaw baseline. A direct `v2026.6.11` catalog probe confirms native xAI provider support but does not advertise `xai/grok-4.5`. ClawMax therefore ships the native provider with a runtime-proven fallback catalog and hides Grok 4.5 until a separately validated OpenClaw update can resolve and execute it. The RC does not silently change the runtime baseline.
 
 Primary references:
 
@@ -156,7 +156,7 @@ Current recommendation:
 
 ## Automated Validation
 
-Native OpenRouter coverage now exercises key-shape validation, catalog discovery, model namespace preservation, provider-isolated environment construction, temporary OpenClaw auth profiles, direct chat readiness/routing, and workflow/group execution plumbing. A real-key local and container smoke remains a release gate.
+Native OpenRouter and xAI coverage now exercises key-shape validation, catalog discovery, model namespace preservation, pinned-runtime compatibility gating, provider-isolated environment construction, temporary OpenClaw auth profiles, direct chat readiness/routing, and workflow/group execution plumbing. Real-key local and container smoke remains a release gate for both providers.
 
 ### Provider tests
 
@@ -200,9 +200,9 @@ Native OpenRouter coverage now exercises key-shape validation, catalog discovery
 
 ## Recommended Order
 
-1. Validate the implemented native OpenRouter path with a real key in local and container runtimes.
-2. Finish the `1.9.9` secret grant/resolver/broker foundation.
-3. Implement native xAI and validate Grok 4.5 against the pinned runtime; isolate an OpenClaw update if required.
+1. Validate the implemented native OpenRouter and xAI paths with real keys in local and container runtimes.
+2. Finish the `1.9.9` secret grant/resolver/broker release gate.
+3. Keep Grok 4.5 gated until a separately validated OpenClaw update supports it.
 4. Publish the mail capability schema, fake provider, threat tests, and partner setup states.
 5. Build the public Gmail plugin, using read/search/draft as the first real test of the broker and approval contract.
 6. Build the public Microsoft Graph plugin against the same contract.

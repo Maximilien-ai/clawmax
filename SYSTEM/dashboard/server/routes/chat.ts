@@ -30,12 +30,13 @@ import { getAuthenticatedSession } from '../lib/github-auth'
 import { createBrokerCapabilityToken } from '../lib/skill-secret-broker'
 
 const router = Router()
-type ChatProvider = 'openai' | 'openai-compatible' | 'anthropic' | 'gemini' | 'openrouter' | 'ollama' | null | undefined
+type ChatProvider = 'openai' | 'openai-compatible' | 'anthropic' | 'gemini' | 'openrouter' | 'xai' | 'ollama' | null | undefined
 type ChatByokPayload = {
   openai?: string
   anthropic?: string
   gemini?: string
   openrouter?: string
+  xai?: string
   ollamaBaseUrl?: string
   openaiCompatibleApiKey?: string
   openaiCompatibleBaseUrl?: string
@@ -190,6 +191,8 @@ export function hasByokExecutionPathForProvider(provider: ChatProvider, byok?: C
       return hasText(byok.gemini)
     case 'openrouter':
       return hasText(byok.openrouter)
+    case 'xai':
+      return hasText(byok.xai)
     case 'ollama':
       return hasText(byok.ollamaBaseUrl)
     case 'openai-compatible':
@@ -205,6 +208,7 @@ export function resolveByokChatFallbackModel(byok?: ChatByokPayload): string | u
   if (hasText(byok.anthropic)) return 'anthropic/claude-sonnet-4-20250514'
   if (hasText(byok.gemini)) return 'google/gemini-2.5-flash'
   if (hasText(byok.openrouter)) return 'openrouter/auto'
+  if (hasText(byok.xai)) return 'xai/grok-3'
   if (hasText(byok.openaiCompatibleBaseUrl)) {
     const configuredModel = byok.openaiCompatibleDefaultModel?.trim().replace(/^openai-compatible\//, '')
     return configuredModel ? `openai-compatible/${configuredModel}` : undefined
@@ -406,7 +410,7 @@ export function deriveChatError(raw: string, provider?: ChatProvider, context?: 
 
 function evaluateChatExecutionReadiness(
   agentId: string,
-  byok?: { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string }
+  byok?: { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; xai?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string }
 ) {
   const integrationConfig = readWorkspaceIntegrationConfig()
   const baseResolvedAgent = resolveAgentExecutionConfig(agentId)
@@ -428,6 +432,7 @@ function evaluateChatExecutionReadiness(
     anthropic: byok?.anthropic,
     gemini: byok?.gemini,
     openrouter: byok?.openrouter,
+    xai: byok?.xai,
     ollamaBaseUrl: byok?.ollamaBaseUrl || integrationConfig.ollamaBaseUrl,
     openaiCompatibleApiKey: useOpenAiCompatible ? byok?.openaiCompatibleApiKey : undefined,
     openaiCompatibleBaseUrl: useOpenAiCompatible ? (byok?.openaiCompatibleBaseUrl || integrationConfig.openaiCompatibleBaseUrl) : undefined,
@@ -436,7 +441,7 @@ function evaluateChatExecutionReadiness(
   executionEnv.OPENCLAW_WORKSPACE = effectiveWorkspaceRoot
   const hasResolvedExecutionPath = (provider: ChatProvider | undefined) => {
     if (!provider) return false
-    const hasHostedKeys = !!(executionEnv.ANTHROPIC_API_KEY || executionEnv.OPENAI_API_KEY || executionEnv.GEMINI_API_KEY || executionEnv.OPENROUTER_API_KEY)
+    const hasHostedKeys = !!(executionEnv.ANTHROPIC_API_KEY || executionEnv.OPENAI_API_KEY || executionEnv.GEMINI_API_KEY || executionEnv.OPENROUTER_API_KEY || executionEnv.XAI_API_KEY)
     const hasOllamaPath = !!(executionEnv.OLLAMA_BASE_URL || integrationConfig.ollamaDefaultModel)
     const hasOpenAiCompatiblePath = !!(executionEnv.OPENAI_BASE_URL || integrationConfig.openaiCompatibleBaseUrl)
 
@@ -444,6 +449,7 @@ function evaluateChatExecutionReadiness(
     if (provider === 'anthropic') return !!executionEnv.ANTHROPIC_API_KEY
     if (provider === 'gemini') return !!executionEnv.GEMINI_API_KEY
     if (provider === 'openrouter') return !!executionEnv.OPENROUTER_API_KEY
+    if (provider === 'xai') return !!executionEnv.XAI_API_KEY
     if (provider === 'ollama') return hasOllamaPath || hasHostedKeys
     if (provider === 'openai-compatible') return hasOpenAiCompatiblePath
     return hasHostedKeys || hasOllamaPath || hasOpenAiCompatiblePath
@@ -455,7 +461,7 @@ function evaluateChatExecutionReadiness(
       resolvedAgent,
     }
   }
-  const hasHostedKeys = !!(executionEnv.ANTHROPIC_API_KEY || executionEnv.OPENAI_API_KEY || executionEnv.GEMINI_API_KEY || executionEnv.OPENROUTER_API_KEY)
+  const hasHostedKeys = !!(executionEnv.ANTHROPIC_API_KEY || executionEnv.OPENAI_API_KEY || executionEnv.GEMINI_API_KEY || executionEnv.OPENROUTER_API_KEY || executionEnv.XAI_API_KEY)
   const hasOllamaPath = !!(executionEnv.OLLAMA_BASE_URL || integrationConfig.ollamaDefaultModel)
   const hasOpenAiCompatiblePath = !!(executionEnv.OPENAI_BASE_URL || integrationConfig.openaiCompatibleBaseUrl)
 
@@ -478,6 +484,7 @@ function evaluateChatExecutionReadiness(
     (resolvedAgent.provider === 'anthropic' && !executionEnv.ANTHROPIC_API_KEY) ||
     (resolvedAgent.provider === 'gemini' && !executionEnv.GEMINI_API_KEY)
     || (resolvedAgent.provider === 'openrouter' && !executionEnv.OPENROUTER_API_KEY)
+    || (resolvedAgent.provider === 'xai' && !executionEnv.XAI_API_KEY)
   ) {
     if (!hasResolvedExecutionPath(resolvedAgent.backupProvider)) {
       return {
@@ -604,7 +611,7 @@ router.post('/:id/chat', async (req, res) => {
     message?: string
     sessionId?: string
     contextMessages?: ChatContextMessage[]
-    byok?: { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string }
+    byok?: { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; xai?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string }
   }
 
   if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
@@ -635,6 +642,7 @@ router.post('/:id/chat', async (req, res) => {
     anthropic: byok?.anthropic,
     gemini: byok?.gemini,
     openrouter: byok?.openrouter,
+    xai: byok?.xai,
     ollamaBaseUrl: byok?.ollamaBaseUrl || integrationConfig.ollamaBaseUrl,
     openaiCompatibleApiKey: useOpenAiCompatible ? byok?.openaiCompatibleApiKey : undefined,
     openaiCompatibleBaseUrl: useOpenAiCompatible ? (byok?.openaiCompatibleBaseUrl || integrationConfig.openaiCompatibleBaseUrl) : undefined,
@@ -777,6 +785,7 @@ router.post('/:id/chat', async (req, res) => {
       anthropic: executionEnv.ANTHROPIC_API_KEY,
       gemini: executionEnv.GEMINI_API_KEY,
       openrouter: executionEnv.OPENROUTER_API_KEY,
+      xai: executionEnv.XAI_API_KEY,
       ollamaBaseUrl: executionEnv.OLLAMA_BASE_URL,
       openaiCompatibleApiKey: attemptUseOpenAiCompatible ? executionEnv.OPENAI_API_KEY : undefined,
       openaiCompatibleBaseUrl: attemptUseOpenAiCompatible ? executionEnv.OPENAI_BASE_URL : undefined,

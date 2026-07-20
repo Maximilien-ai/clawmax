@@ -7,6 +7,7 @@ export interface IntegrationValidationResult {
 export interface IntegrationValidationResponse {
   openai?: IntegrationValidationResult
   openrouter?: IntegrationValidationResult
+  xai?: IntegrationValidationResult
   openaiCompatible?: IntegrationValidationResult
   anthropic?: IntegrationValidationResult
   gemini?: IntegrationValidationResult
@@ -21,6 +22,7 @@ type FetchLike = typeof fetch
 const OPENAI_VALIDATION_MODEL = 'gpt-4o-mini'
 const ANTHROPIC_VALIDATION_MODEL = 'claude-3-5-haiku-latest'
 const OPENROUTER_VALIDATION_MODEL = 'openrouter/auto'
+const XAI_VALIDATION_MODEL = 'grok-3'
 const OPENAI_COMPATIBLE_EXCLUDE = ['embedding', 'embed', 'rerank', 'whisper', 'tts', 'speech', 'transcription', 'moderation']
 
 function detectProviderFromKeyShape(key: string): 'openai' | 'anthropic' | 'gemini' | null {
@@ -268,6 +270,53 @@ export async function validateOpenRouterKey(apiKey: string, fetchImpl: FetchLike
   }
 }
 
+export async function validateXaiKey(apiKey: string, fetchImpl: FetchLike = fetch): Promise<IntegrationValidationResult> {
+  const key = apiKey.trim()
+  if (!key) return skipped('No xAI key provided')
+  if (!/^xai-/i.test(key)) {
+    return invalid('This does not look like an xAI API key. Expected a key beginning with xai-.')
+  }
+  try {
+    const modelsRes = await fetchImpl('https://api.x.ai/v1/models', {
+      headers: { Authorization: `Bearer ${key}` },
+      signal: AbortSignal.timeout(8000),
+    })
+    if (!modelsRes.ok) {
+      const providerMessage = await readProviderErrorMessage(modelsRes)
+      if (modelsRes.status === 401 || modelsRes.status === 403) return invalid(providerMessage || 'xAI rejected this key')
+      return errored(providerMessage || `xAI models check returned ${modelsRes.status}`)
+    }
+
+    const completionRes = await fetchImpl('https://api.x.ai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${key}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: XAI_VALIDATION_MODEL,
+        messages: [{ role: 'user', content: 'Reply with OK' }],
+        max_tokens: 5,
+        temperature: 0,
+      }),
+      signal: AbortSignal.timeout(15000),
+    })
+    if (completionRes.ok) return valid('xAI key is valid and can complete prompts')
+    const providerMessage = await readProviderErrorMessage(completionRes)
+    if (completionRes.status === 401 || completionRes.status === 403) return invalid(providerMessage || 'xAI rejected this key')
+    if (completionRes.status === 402) return invalid(providerMessage || 'xAI accepted the key but the account has insufficient credits')
+    if (completionRes.status === 400 || completionRes.status === 404) {
+      if (isModelAvailabilityWarning(providerMessage)) {
+        return valid(`xAI key authenticated successfully, but the test model ${XAI_VALIDATION_MODEL} was unavailable. The key may still work for other models. ${providerMessage}`)
+      }
+      return invalid(providerMessage || `xAI could not complete a test prompt on ${XAI_VALIDATION_MODEL}`)
+    }
+    return errored(providerMessage || `xAI prompt validation returned ${completionRes.status}`)
+  } catch (err: any) {
+    return errored(`xAI validation failed: ${err.message || 'network error'}`)
+  }
+}
+
 export async function validateAnthropicKey(apiKey: string, fetchImpl: FetchLike = fetch): Promise<IntegrationValidationResult> {
   if (!apiKey.trim()) return skipped('No Anthropic key provided')
   const mismatch = providerShapeMismatch('anthropic', apiKey)
@@ -413,6 +462,7 @@ export async function validateCogneeConfig(
 export async function validateIntegrations(input: {
   openai?: string
   openrouter?: string
+  xai?: string
   openaiCompatibleApiKey?: string
   openaiCompatibleBaseUrl?: string
   openaiCompatibleDefaultModel?: string
@@ -429,9 +479,10 @@ export async function validateIntegrations(input: {
   cogneeDatasetName?: string
   cogneeSearchType?: string
 }, fetchImpl: FetchLike = fetch): Promise<IntegrationValidationResponse> {
-  const [openai, openrouter, openaiCompatible, anthropic, gemini, ollama, opik, senso, cognee] = await Promise.all([
+  const [openai, openrouter, xai, openaiCompatible, anthropic, gemini, ollama, opik, senso, cognee] = await Promise.all([
     validateOpenAIKey(input.openai || '', fetchImpl),
     validateOpenRouterKey(input.openrouter || '', fetchImpl),
+    validateXaiKey(input.xai || '', fetchImpl),
     validateOpenAICompatibleConfig(input.openaiCompatibleBaseUrl || '', input.openaiCompatibleApiKey || '', input.openaiCompatibleDefaultModel || '', fetchImpl),
     validateAnthropicKey(input.anthropic || '', fetchImpl),
     validateGeminiKey(input.gemini || '', fetchImpl),
@@ -441,6 +492,6 @@ export async function validateIntegrations(input: {
     validateCogneeConfig(input.cogneeApiKey || '', input.cogneeBaseUrl || '', input.cogneeDatasetName || '', input.cogneeSearchType || ''),
   ])
 
-  return { openai, openrouter, openaiCompatible, anthropic, gemini, ollama, opik, senso, cognee }
+  return { openai, openrouter, xai, openaiCompatible, anthropic, gemini, ollama, opik, senso, cognee }
 }
 import { getDefaultOllamaBaseUrl } from './dashboard-env'

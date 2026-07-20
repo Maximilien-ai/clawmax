@@ -451,6 +451,7 @@ test('toExecutionModelOverride maps OpenClaw-retired OpenAI models to the suppor
 test('providerFromModel and shouldRetryWithBackupModel classify backup-retry conditions', () => {
   assert(providerFromModel('anthropic/claude-sonnet-4-20250514') === 'anthropic', 'Expected providerFromModel to detect Anthropic provider')
   assert(providerFromModel('openrouter/anthropic/claude-sonnet-4') === 'openrouter', 'Expected providerFromModel to preserve native OpenRouter provider')
+  assert(providerFromModel('xai/grok-4.3') === 'xai', 'Expected providerFromModel to preserve native xAI provider')
   assert(shouldRetryWithBackupModel('Agent timeout (3 minutes)'), 'Expected timeout to trigger backup retry')
   assert(shouldRetryWithBackupModel('Unknown model: gpt-super-pro'), 'Expected unsupported model to trigger backup retry')
   assert(!shouldRetryWithBackupModel('The agent replied with a blocked business rule.'), 'Expected semantic failures not to trigger backup retry')
@@ -788,6 +789,34 @@ test('withTemporaryAgentAuthProfiles writes a native OpenRouter auth profile', a
     assert(current.profiles['openrouter-key']?.key === 'sk-or-test', 'Expected OpenRouter BYOK value in temporary profile')
     assert(current.lastGood?.openrouter === 'openrouter-key', 'Expected OpenRouter selected as lastGood')
     assert(!current.lastGood?.openai, 'Did not expect OpenAI lastGood to override OpenRouter preference')
+  })
+})
+
+test('withTemporaryAgentAuthProfiles writes and selects a native xAI auth profile', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
+  const agentDir = path.join(home, '.openclaw', 'agents', 'test1', 'agent')
+  const authProfilePath = path.join(agentDir, 'auth-profiles.json')
+  const configPath = path.join(home, '.openclaw', 'openclaw.json')
+  fs.mkdirSync(agentDir, { recursive: true })
+  fs.mkdirSync(path.join(home, '.openclaw'), { recursive: true })
+  fs.writeFileSync(configPath, JSON.stringify({
+    agents: {
+      list: [
+        { id: 'test1', workspace: path.join(home, 'workspace', 'AGENTS', 'test1'), agentDir }
+      ]
+    }
+  }, null, 2))
+
+  process.env.HOME = home
+  resetWorkspaceManagerForTests()
+
+  await withTemporaryAgentAuthProfiles('test1', { openai: 'openai-key', openrouter: 'sk-or-test', xai: 'xai-test' }, 'xai/grok-3', 'xai', async () => {
+    const current = JSON.parse(fs.readFileSync(authProfilePath, 'utf-8'))
+    assert(current.profiles['xai-key']?.provider === 'xai', 'Expected native xAI auth profile during execution')
+    assert(current.profiles['xai-key']?.key === 'xai-test', 'Expected xAI BYOK value in temporary profile')
+    assert(current.lastGood?.xai === 'xai-key', 'Expected xAI selected as lastGood')
+    assert(!current.lastGood?.openai, 'Did not expect OpenAI lastGood to override xAI preference')
+    assert(!current.lastGood?.openrouter, 'Did not expect OpenRouter lastGood to override xAI preference')
   })
 })
 

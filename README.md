@@ -19,7 +19,7 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 ## 🛠 Current Development Line: 1.9.9
 
 - `1.9.9` includes brokered, explicitly granted agent-skill secret use without exposing a general vault reader or raw values to the parent agent process. Workspace values are encrypted with an operator-provided master key and released only to registered fixed child actions after workspace, agent, assignment, skill fingerprint, key, expiry, and revocation checks.
-- Native OpenRouter support is now merged, including BYOK, model discovery, direct/group/workflow routing, and provider-isolated runtime credentials. Native xAI/Grok follows only after pinned-runtime compatibility probes.
+- Native OpenRouter and xAI/Grok support are now merged, including BYOK, model discovery, direct/group/workflow routing, and provider-isolated runtime credentials. xAI models are limited to the catalog proven compatible with the pinned OpenClaw runtime; Grok 4.5 remains hidden until that runtime can execute it.
 - Public Gmail and Microsoft 365 mail capability foundations may land here, while production partner plugins and public AI scoring remain targeted at `2.0.0`.
 - `2.0.0` will expose public plugin and AI-scoring contracts plus the first public scoring experience and curated public Gmail and Microsoft 365/Outlook partner plugins. Mail starts with read/search/draft capabilities; sending and destructive actions require separate grants and confirmation. The plugin architecture also lets deployments add organization-specific capabilities such as private enterprise integrations, custom operational tabs, and specialized workflows without changing the core dashboard.
 - See the public [models, gateways, and email partner plan](SYSTEM/docs/planning/PUBLIC_MODELS_GATEWAYS_EMAIL_1_9_9_2_0.md) for the research, security rules, release split, and test gates.
@@ -413,9 +413,11 @@ SYSTEM_OPENAI_API_KEY=sk-your-system-key
 | `SYSTEM_ANTHROPIC_API_KEY` | Anthropic system key | At least one system key |
 | `SYSTEM_OPENAI_API_KEY` | OpenAI system key | At least one system key |
 | `SYSTEM_OPENROUTER_API_KEY` | OpenRouter system key for native `openrouter/...` models | Optional |
+| `SYSTEM_XAI_API_KEY` | xAI system key for runtime-compatible native `xai/...` Grok models | Optional |
 | `USER_ANTHROPIC_API_KEY` | Optional default user Anthropic key | Optional |
 | `USER_OPENAI_API_KEY` | Optional default user OpenAI key | Optional |
 | `USER_OPENROUTER_API_KEY` | Optional default user OpenRouter key | Optional |
+| `USER_XAI_API_KEY` | Optional default user xAI key | Optional |
 | `ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION` | Lets user agents/workflows fall back to system keys | Optional, defaults to `false` |
 | `GITHUB_CLIENT_ID` | GitHub OAuth client ID | Required for GitHub auth |
 | `GITHUB_CLIENT_SECRET` | GitHub OAuth client secret | Required for GitHub auth |

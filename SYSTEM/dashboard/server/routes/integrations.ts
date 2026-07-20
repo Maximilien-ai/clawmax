@@ -24,7 +24,7 @@ router.get('/status', (_req, res) => {
   res.json({
     validationAvailable: true,
     validationMode: 'live',
-    providers: ollamaEnabled ? ['openai', 'anthropic', 'gemini', 'openrouter', 'ollama', 'openai-compatible', 'opik'] : ['openai', 'anthropic', 'gemini', 'openrouter', 'openai-compatible', 'opik'],
+    providers: ollamaEnabled ? ['openai', 'anthropic', 'gemini', 'openrouter', 'xai', 'ollama', 'openai-compatible', 'opik'] : ['openai', 'anthropic', 'gemini', 'openrouter', 'xai', 'openai-compatible', 'opik'],
     notes: [
       'Validation runs against the current server build.',
       'Provider secrets remain browser-local in this preview flow.',

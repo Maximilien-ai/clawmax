@@ -558,6 +558,7 @@ interface WorkflowRuntimeOverrides {
   anthropic?: string
   gemini?: string
   openrouter?: string
+  xai?: string
   ollamaBaseUrl?: string
   openaiCompatibleApiKey?: string
   openaiCompatibleBaseUrl?: string
@@ -2029,6 +2030,7 @@ export function triggerWorkflow(workflowId: string, options?: {
                 anthropic: attemptProvider === 'anthropic' ? options?.byok?.anthropic : undefined,
                 gemini: attemptProvider === 'gemini' ? options?.byok?.gemini : undefined,
                 openrouter: attemptProvider === 'openrouter' ? options?.byok?.openrouter : undefined,
+                xai: attemptProvider === 'xai' ? options?.byok?.xai : undefined,
                 ollamaBaseUrl: attemptProvider === 'ollama'
                   ? (options?.byok?.ollamaBaseUrl || integrationDefaults.ollamaBaseUrl)
                   : undefined,
@@ -2064,6 +2066,7 @@ export function triggerWorkflow(workflowId: string, options?: {
                   anthropic: executionEnv.ANTHROPIC_API_KEY,
                   gemini: executionEnv.GEMINI_API_KEY,
                   openrouter: executionEnv.OPENROUTER_API_KEY,
+                  xai: executionEnv.XAI_API_KEY,
                   openaiCompatibleApiKey: attemptProvider === 'openai-compatible' ? executionEnv.OPENAI_API_KEY : undefined,
                   openaiCompatibleBaseUrl: attemptProvider === 'openai-compatible' ? executionEnv.OPENAI_BASE_URL : undefined,
                   openaiCompatibleDefaultModel: attemptProvider === 'openai-compatible'

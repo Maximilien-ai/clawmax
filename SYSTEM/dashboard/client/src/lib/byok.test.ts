@@ -157,6 +157,15 @@ async function main() {
     assert(typeof payload.openai === 'undefined', 'Expected OpenRouter BYOK not to populate OpenAI key')
   })
 
+  await test('xAI BYOK enables chat and remains isolated from OpenAI', () => {
+    localStorage.clear()
+    writeStoredByokKeys({ xai: 'xai-test' })
+    assert(hasChatExecutionAccess(null) === true, 'Expected xAI BYOK to enable chat execution')
+    const payload = byokForRequest()
+    assert(payload.xai === 'xai-test', 'Expected xAI key in BYOK request payload')
+    assert(typeof payload.openai === 'undefined', 'Expected xAI BYOK not to populate OpenAI key')
+  })
+
   await test('chat execution access supports on-prem default Ollama contract from auth config', () => {
     localStorage.clear()
     assert(
@@ -252,6 +261,7 @@ async function main() {
       openai: 'openai-test',
       anthropic: 'anthropic-test',
       geminiApiKey: 'gemini-test',
+      xai: 'xai-test',
       ollamaBaseUrl: 'http://localhost:11434',
       openaiCompatibleApiKey: 'compat-test',
       openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1',
@@ -261,6 +271,7 @@ async function main() {
     assert(payload.openai === 'openai-test', 'Expected OpenAI key in request payload')
     assert(payload.anthropic === 'anthropic-test', 'Expected Anthropic key in request payload')
     assert(payload.gemini === 'gemini-test', 'Expected Gemini key to map from geminiApiKey')
+    assert(payload.xai === 'xai-test', 'Expected xAI key in request payload')
     assert(payload.ollamaBaseUrl === 'http://localhost:11434', 'Expected Ollama base URL in request payload')
     assert(payload.openaiCompatibleApiKey === 'compat-test', 'Expected OpenAI-compatible key in request payload')
     assert(payload.openaiCompatibleBaseUrl === 'http://127.0.0.1:1234/v1', 'Expected OpenAI-compatible base URL in request payload')
@@ -283,6 +294,12 @@ async function main() {
 
     const openRouterMatch = detectProviderKeyMismatch('openrouter', 'sk-or-v1-test-value')
     assert(openRouterMatch === null, 'Expected OpenRouter-shaped key to be accepted for OpenRouter')
+
+    const xaiMismatch = detectProviderKeyMismatch('openai', 'xai-test-value')
+    assert(xaiMismatch?.detectedProvider === 'xai', 'Expected xAI key shape to be rejected for OpenAI')
+
+    const xaiMatch = detectProviderKeyMismatch('xai', 'xai-test-value')
+    assert(xaiMatch === null, 'Expected xAI-shaped key to be accepted for xAI')
   })
 
   await test('refreshModelsWithByok posts request-shaped provider keys', async () => {
@@ -291,6 +308,7 @@ async function main() {
       openai: 'openai-test',
       anthropic: 'anthropic-test',
       geminiApiKey: 'gemini-test',
+      xai: 'xai-test',
       ollamaBaseUrl: 'http://localhost:11434',
       openaiCompatibleApiKey: 'compat-test',
       openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1',
@@ -310,6 +328,7 @@ async function main() {
     assert(requestBody?.openai === 'openai-test', 'Expected refresh request to include OpenAI key')
     assert(requestBody?.anthropic === 'anthropic-test', 'Expected refresh request to include Anthropic key')
     assert(requestBody?.gemini === 'gemini-test', 'Expected refresh request to include Gemini key under gemini')
+    assert(requestBody?.xai === 'xai-test', 'Expected refresh request to include xAI key')
     assert(!('geminiApiKey' in (requestBody || {})), 'Expected refresh request to omit geminiApiKey storage field')
     assert(requestBody?.ollamaBaseUrl === 'http://localhost:11434', 'Expected refresh request to include Ollama base URL')
     assert(requestBody?.openaiCompatibleApiKey === 'compat-test', 'Expected refresh request to include OpenAI-compatible key')

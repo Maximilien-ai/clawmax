@@ -201,6 +201,23 @@ test('workflowExecutionEnv isolates native OpenRouter from OpenAI and local-comp
   assert(env.ANTHROPIC_API_KEY === '', 'Expected Anthropic key blanked during OpenRouter execution')
 })
 
+test('workflowExecutionEnv isolates native xAI from every other hosted provider', () => {
+  const env = workflowExecutionEnv({
+    openai: 'hosted-openai-key',
+    anthropic: 'anthropic-key',
+    openrouter: 'sk-or-test-key',
+    xai: 'xai-test-key',
+    openaiCompatibleApiKey: 'lmstudio-key',
+    openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1',
+  }, 'xai')
+
+  assert(env.XAI_API_KEY === 'xai-test-key', 'Expected native xAI key in execution env')
+  assert(env.OPENAI_API_KEY === '', 'Expected OpenAI key blanked during xAI execution')
+  assert(env.OPENROUTER_API_KEY === '', 'Expected OpenRouter key blanked during xAI execution')
+  assert(env.ANTHROPIC_API_KEY === '', 'Expected Anthropic key blanked during xAI execution')
+  assert(env.OPENAI_BASE_URL === '', 'Expected local-compatible base URL blanked during xAI execution')
+})
+
 test('systemExecutionEnv uses resolved system execution keys, not shell exports', () => {
   const env = systemExecutionEnv()
   assert(typeof env.PATH === 'string' && env.PATH.length > 0, 'Expected safe base env to retain PATH')

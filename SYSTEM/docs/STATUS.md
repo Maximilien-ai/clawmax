@@ -2,8 +2,8 @@
 
 **Current Version**: v1.9.8
 **Development Line**: 1.9.9
-**Last Updated**: July 18, 2026
-**Status**: `v1.9.8` is promoted from `1.9.8-test-rc5`. `main` is the active `1.9.9` line with native OpenRouter and the first complete brokered agent-skill secret slice implemented for RC3 validation; native xAI remains gated on the pinned-runtime probe. `2.0.0` owns the public plugin, AI-scoring, Gmail, and Microsoft 365 partner surfaces while proprietary guardrail/evaluation plugins remain private.
+**Last Updated**: July 20, 2026
+**Status**: `v1.9.8` is promoted from `1.9.8-test-rc5`. `main` is the active `1.9.9` line with native OpenRouter, native runtime-gated xAI/Grok, and the first complete brokered agent-skill secret slice ready for RC5 validation. `2.0.0` owns the public plugin, AI-scoring, Gmail, and Microsoft 365 partner surfaces; deployments can add private enterprise capabilities through the same public extension contracts.
 
 ---
 
@@ -34,7 +34,7 @@
   - [planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_7.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_7.md)
   - [planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_8.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_8.md)
   - [planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_9.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_9.md)
-- Near-term target: validate native OpenRouter and the brokered skill-secret flow with real local/container execution using the persistent RC checklist. Native xAI follows only if the exact pinned-runtime probe passes; Grok 4.5 remains gated on that proof.
+- Near-term target: validate native OpenRouter, native xAI, and the brokered skill-secret flow with real local/container execution using the persistent RC checklist. The pinned runtime supports the `xai/...` provider and the curated Grok fallback catalog, but not Grok 4.5; that model remains gated on a future runtime proof.
 - Build public AI scoring as part of `2.0.0` on top of the public plugin architecture. Keep proprietary guardrail and evaluation implementations outside the public repository and default image.
 - Build Gmail and Microsoft 365/Outlook as public curated `2.0.0` partner plugins: read/search/draft first, explicit grants and confirmation for send or destructive actions, and no normal mailbox passwords.
 - Keep OpenClaw pinned to `v2026.6.11` during the feedback window unless an upstream change is isolated and validated separately.

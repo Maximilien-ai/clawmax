@@ -30,6 +30,7 @@ interface AuthConfig {
     anthropic: boolean
     gemini?: boolean
     openrouter?: boolean
+    xai?: boolean
     openaiCompatible?: boolean
   }
   userKeyDefaults?: {
@@ -37,6 +38,7 @@ interface AuthConfig {
     anthropic: boolean
     gemini?: boolean
     openrouter?: boolean
+    xai?: boolean
     openaiCompatible?: boolean
   }
   preferredModel?: string

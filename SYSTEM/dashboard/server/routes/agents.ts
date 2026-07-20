@@ -535,7 +535,7 @@ router.post('/generate', async (req, res) => {
     name?: string
     tags?: string[]
     suggestMeta?: boolean
-    byokKeys?: { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string }
+    byokKeys?: { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; xai?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string }
   }
 
   if (!description) {
@@ -611,6 +611,7 @@ router.post('/validate-provision', async (req, res) => {
     anthropic: typeof body.anthropic === 'string' ? body.anthropic : undefined,
     gemini: typeof body.gemini === 'string' ? body.gemini : undefined,
     openrouter: typeof body.openrouter === 'string' ? body.openrouter : undefined,
+    xai: typeof body.xai === 'string' ? body.xai : undefined,
     ollamaBaseUrl: typeof body.ollamaBaseUrl === 'string' ? body.ollamaBaseUrl : undefined,
     openaiCompatibleApiKey: typeof body.openaiCompatibleApiKey === 'string' ? body.openaiCompatibleApiKey : undefined,
     openaiCompatibleBaseUrl: typeof body.openaiCompatibleBaseUrl === 'string' ? body.openaiCompatibleBaseUrl : undefined,
@@ -618,7 +619,7 @@ router.post('/validate-provision', async (req, res) => {
   }
 
   let availableModels = getAvailableModels()
-  if (byokKeys.openai || byokKeys.anthropic || byokKeys.gemini || byokKeys.openrouter || byokKeys.ollamaBaseUrl || byokKeys.openaiCompatibleBaseUrl) {
+  if (byokKeys.openai || byokKeys.anthropic || byokKeys.gemini || byokKeys.openrouter || byokKeys.xai || byokKeys.ollamaBaseUrl || byokKeys.openaiCompatibleBaseUrl) {
     try {
       availableModels = (await discoverModels(byokKeys)).models || availableModels
     } catch {
@@ -642,6 +643,7 @@ router.get('/models', async (req, res) => {
       anthropic: req.query.anthropicKey as string | undefined,
       gemini: req.query.geminiKey as string | undefined,
       openrouter: req.query.openrouterKey as string | undefined,
+      xai: req.query.xaiKey as string | undefined,
       ollamaBaseUrl: req.query.ollamaBaseUrl as string | undefined,
       openaiCompatibleApiKey: req.query.openaiCompatibleApiKey as string | undefined,
       openaiCompatibleBaseUrl: req.query.openaiCompatibleBaseUrl as string | undefined,
@@ -649,7 +651,7 @@ router.get('/models', async (req, res) => {
     }
     const showAll = String(req.query.showAll || '').toLowerCase() === 'true'
     const result = await discoverModels(
-      byokKeys.openai || byokKeys.anthropic || byokKeys.gemini || byokKeys.openrouter || byokKeys.ollamaBaseUrl || byokKeys.openaiCompatibleBaseUrl ? byokKeys : undefined,
+      byokKeys.openai || byokKeys.anthropic || byokKeys.gemini || byokKeys.openrouter || byokKeys.xai || byokKeys.ollamaBaseUrl || byokKeys.openaiCompatibleBaseUrl ? byokKeys : undefined,
       { showAll }
     )
     res.json(result)
@@ -663,19 +665,20 @@ router.get('/models', async (req, res) => {
 router.post('/models/refresh', async (req, res) => {
   clearModelCache()
   try {
-    const body = (req.body || {}) as { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string; showAll?: boolean }
+    const body = (req.body || {}) as { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; xai?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string; showAll?: boolean }
     const byokKeys = {
       openai: body.openai,
       anthropic: body.anthropic,
       gemini: body.gemini,
       openrouter: body.openrouter,
+      xai: body.xai,
       ollamaBaseUrl: body.ollamaBaseUrl,
       openaiCompatibleApiKey: body.openaiCompatibleApiKey,
       openaiCompatibleBaseUrl: body.openaiCompatibleBaseUrl,
       openaiCompatibleDefaultModel: body.openaiCompatibleDefaultModel,
     }
     const result = await discoverModels(
-      byokKeys.openai || byokKeys.anthropic || byokKeys.gemini || byokKeys.openrouter || byokKeys.ollamaBaseUrl || byokKeys.openaiCompatibleBaseUrl ? byokKeys : undefined,
+      byokKeys.openai || byokKeys.anthropic || byokKeys.gemini || byokKeys.openrouter || byokKeys.xai || byokKeys.ollamaBaseUrl || byokKeys.openaiCompatibleBaseUrl ? byokKeys : undefined,
       { showAll: body.showAll === true }
     )
     res.json(result)

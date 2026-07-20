@@ -20,6 +20,7 @@ interface ExecutionConfig {
     anthropic?: boolean
     gemini?: boolean
     openrouter?: boolean
+    xai?: boolean
     openaiCompatible?: boolean
   }
   userKeyDefaults?: {
@@ -27,6 +28,7 @@ interface ExecutionConfig {
     anthropic?: boolean
     gemini?: boolean
     openrouter?: boolean
+    xai?: boolean
     openaiCompatible?: boolean
   }
 }

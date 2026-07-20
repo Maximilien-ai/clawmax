@@ -16,8 +16,8 @@ function maskKey(value: string) {
 }
 
 type Step = 'models' | 'partners' | `partner:${string}`
-type ModelTab = 'openai' | 'anthropic' | 'gemini' | 'openrouter' | 'ollama' | 'openaiCompatible'
-type ProviderKey = 'openai' | 'anthropic' | 'gemini' | 'openrouter' | 'ollama'
+type ModelTab = 'openai' | 'anthropic' | 'gemini' | 'openrouter' | 'xai' | 'ollama' | 'openaiCompatible'
+type ProviderKey = 'openai' | 'anthropic' | 'gemini' | 'openrouter' | 'xai' | 'ollama'
 type ValidationEntry = { status: 'idle' | 'valid' | 'invalid' | 'error' | 'skipped'; message: string }
 type ValidationState = Record<string, ValidationEntry>
 type ModelsByProvider = Record<string, { name: string; models: string[] }>
@@ -83,7 +83,7 @@ type WorkspaceIntegrationConfig = {
 }
 type PartnerValueMap = Record<string, Record<string, string>>
 type PartnerSecretPresence = Record<string, Record<string, boolean>>
-type ScopedValidationTarget = 'all' | 'current-partner' | 'openai' | 'openaiCompatible' | 'anthropic' | 'gemini' | 'openrouter' | 'ollama'
+type ScopedValidationTarget = 'all' | 'current-partner' | 'openai' | 'openaiCompatible' | 'anthropic' | 'gemini' | 'openrouter' | 'xai' | 'ollama'
 type PartnerPluginAction = 'install' | 'uninstall'
 type PartnerPluginRun = {
   slug: string
@@ -162,7 +162,7 @@ function sortPartnerDefinitions(partners: PartnerDefinition[]): PartnerDefinitio
 
 function mergeProviderKeysIntoSharedSecrets(
   existing: Record<string, string>,
-  values: { openai: string; anthropic: string; gemini: string; openrouter: string; ollamaBaseUrl: string }
+  values: { openai: string; anthropic: string; gemini: string; openrouter: string; xai: string; ollamaBaseUrl: string }
 ) {
   const next = { ...existing }
   if (values.openai) next.OPENAI_API_KEY = values.openai
@@ -173,6 +173,8 @@ function mergeProviderKeysIntoSharedSecrets(
   else delete next.GEMINI_API_KEY
   if (values.openrouter) next.OPENROUTER_API_KEY = values.openrouter
   else delete next.OPENROUTER_API_KEY
+  if (values.xai) next.XAI_API_KEY = values.xai
+  else delete next.XAI_API_KEY
   if (values.ollamaBaseUrl) next.OLLAMA_BASE_URL = values.ollamaBaseUrl
   else delete next.OLLAMA_BASE_URL
   return next
@@ -200,6 +202,7 @@ export function ByokWizard({
   const [anthropicKey, setAnthropicKey] = useState('')
   const [geminiApiKey, setGeminiApiKey] = useState('')
   const [openrouterKey, setOpenrouterKey] = useState('')
+  const [xaiKey, setXaiKey] = useState('')
   const [ollamaBaseUrl, setOllamaBaseUrl] = useState('')
   const [ollamaDefaultModel, setOllamaDefaultModel] = useState('')
   const [openaiCompatibleApiKey, setOpenaiCompatibleApiKey] = useState('')
@@ -222,6 +225,7 @@ export function ByokWizard({
     anthropic: { status: 'idle', message: '' },
     gemini: { status: 'idle', message: '' },
     openrouter: { status: 'idle', message: '' },
+    xai: { status: 'idle', message: '' },
     ollama: { status: 'idle', message: '' },
     openaiCompatible: { status: 'idle', message: '' },
     opik: { status: 'idle', message: '' },
@@ -272,6 +276,7 @@ export function ByokWizard({
     setAnthropicKey(shared.ANTHROPIC_API_KEY || stored.anthropic || '')
     setGeminiApiKey(shared.GEMINI_API_KEY || stored.geminiApiKey || '')
     setOpenrouterKey(shared.OPENROUTER_API_KEY || stored.openrouter || '')
+    setXaiKey(shared.XAI_API_KEY || stored.xai || '')
     setOllamaBaseUrl(resolveOllamaBaseUrlForRuntime({
       configuredBaseUrl: shared.OLLAMA_BASE_URL || stored.ollamaBaseUrl || '',
       managedRuntime,
@@ -293,7 +298,7 @@ export function ByokWizard({
   }, [config?.defaultOllamaBaseUrl, defaultOllamaBaseUrl, managedRuntime])
 
   const updateStoredVerification = React.useCallback((
-    updater: (current: Partial<Record<'openai' | 'anthropic' | 'gemini' | 'openrouter' | 'ollama' | 'openaiCompatible', string>>) => Partial<Record<'openai' | 'anthropic' | 'gemini' | 'openrouter' | 'ollama' | 'openaiCompatible', string>>
+    updater: (current: Partial<Record<'openai' | 'anthropic' | 'gemini' | 'openrouter' | 'xai' | 'ollama' | 'openaiCompatible', string>>) => Partial<Record<'openai' | 'anthropic' | 'gemini' | 'openrouter' | 'xai' | 'ollama' | 'openaiCompatible', string>>
   ) => {
     const stored = readStoredByokKeys()
     writeStoredByokKeys({
@@ -307,9 +312,10 @@ export function ByokWizard({
     anthropic: buildByokVerificationFingerprint('anthropic', { anthropic: anthropicKey }),
     gemini: buildByokVerificationFingerprint('gemini', { geminiApiKey }),
     openrouter: buildByokVerificationFingerprint('openrouter', { openrouter: openrouterKey }),
+    xai: buildByokVerificationFingerprint('xai', { xai: xaiKey }),
     ollama: buildByokVerificationFingerprint('ollama', { ollamaBaseUrl, ollamaDefaultModel }),
     openaiCompatible: buildByokVerificationFingerprint('openaiCompatible', { openaiCompatibleApiKey, openaiCompatibleBaseUrl, openaiCompatibleDefaultModel }),
-  }), [anthropicKey, geminiApiKey, ollamaBaseUrl, ollamaDefaultModel, openaiCompatibleApiKey, openaiCompatibleBaseUrl, openaiCompatibleDefaultModel, openaiKey, openrouterKey])
+  }), [anthropicKey, geminiApiKey, ollamaBaseUrl, ollamaDefaultModel, openaiCompatibleApiKey, openaiCompatibleBaseUrl, openaiCompatibleDefaultModel, openaiKey, openrouterKey, xaiKey])
 
   const refreshGithubChecks = React.useCallback(async (options?: { silent?: boolean }) => {
     const silent = options?.silent === true
@@ -472,13 +478,14 @@ export function ByokWizard({
       .catch(() => {})
   }, [activeWorkspace?.id, config?.cogneeRuntimeConfigured, config?.defaultOllamaBaseUrl, config?.opikRuntimeConfigured, config?.resendRuntimeConfigured, defaultOllamaBaseUrl, hydrated, managedRuntime])
 
-  const hasStoredKeys = !!(openaiKey || anthropicKey || geminiApiKey || openrouterKey || openaiCompatibleBaseUrl || openaiCompatibleDefaultModel)
-  const hasDefaultUserKeys = !!(config?.userKeyDefaults?.openai || config?.userKeyDefaults?.anthropic || config?.userKeyDefaults?.gemini || config?.userKeyDefaults?.openrouter || config?.userKeyDefaults?.openaiCompatible)
-  const hasSystemProviderKeys = !!(config?.systemKeyDefaults?.openai || config?.systemKeyDefaults?.anthropic || config?.systemKeyDefaults?.gemini || config?.systemKeyDefaults?.openrouter || config?.systemKeyDefaults?.openaiCompatible)
+  const hasStoredKeys = !!(openaiKey || anthropicKey || geminiApiKey || openrouterKey || xaiKey || openaiCompatibleBaseUrl || openaiCompatibleDefaultModel)
+  const hasDefaultUserKeys = !!(config?.userKeyDefaults?.openai || config?.userKeyDefaults?.anthropic || config?.userKeyDefaults?.gemini || config?.userKeyDefaults?.openrouter || config?.userKeyDefaults?.xai || config?.userKeyDefaults?.openaiCompatible)
+  const hasSystemProviderKeys = !!(config?.systemKeyDefaults?.openai || config?.systemKeyDefaults?.anthropic || config?.systemKeyDefaults?.gemini || config?.systemKeyDefaults?.openrouter || config?.systemKeyDefaults?.xai || config?.systemKeyDefaults?.openaiCompatible)
   const hasOpenAiAvailable = !!(openaiKey || config?.userKeyDefaults?.openai || config?.systemKeyDefaults?.openai)
   const hasAnthropicAvailable = !!(anthropicKey || config?.userKeyDefaults?.anthropic || config?.systemKeyDefaults?.anthropic)
   const hasGeminiAvailable = !!(geminiApiKey || config?.userKeyDefaults?.gemini || config?.systemKeyDefaults?.gemini)
   const hasOpenrouterAvailable = !!(openrouterKey || config?.userKeyDefaults?.openrouter || config?.systemKeyDefaults?.openrouter)
+  const hasXaiAvailable = !!(xaiKey || config?.userKeyDefaults?.xai || config?.systemKeyDefaults?.xai)
   const hasOpenAiCompatibleAvailable = !!(openaiCompatibleBaseUrl || config?.userKeyDefaults?.openaiCompatible || config?.systemKeyDefaults?.openaiCompatible)
   const normalizedOllamaBaseUrl = effectiveOllamaBaseUrl.trim()
   const ollamaConfigured = ollamaEnabled && (!!ollamaDefaultModel.trim() || (normalizedOllamaBaseUrl !== '' && normalizedOllamaBaseUrl !== defaultOllamaBaseUrl))
@@ -614,6 +621,12 @@ export function ByokWizard({
         if (config?.systemKeyDefaults?.openrouter) return 'system default'
         return 'not configured'
       }
+      if (provider === 'xai') {
+        if (xaiKey) return 'browser BYOK'
+        if (config?.userKeyDefaults?.xai) return 'user default'
+        if (config?.systemKeyDefaults?.xai) return 'system default'
+        return 'not configured'
+      }
       if (provider === 'openaiCompatible') {
         if (openaiCompatibleBaseUrl) return 'browser/workspace BYOK'
         if (config?.userKeyDefaults?.openaiCompatible) return 'user default'
@@ -642,6 +655,7 @@ export function ByokWizard({
       { id: 'anthropic', label: 'Anthropic', state: resolveState('anthropic'), source: resolveSource('anthropic') },
       { id: 'gemini', label: 'Gemini', state: resolveState('gemini'), source: resolveSource('gemini') },
       { id: 'openrouter', label: 'OpenRouter', state: resolveState('openrouter'), source: resolveSource('openrouter') },
+      { id: 'xai', label: 'xAI / Grok', state: resolveState('xai'), source: resolveSource('xai') },
     ]
 
     if (ollamaEnabled) {
@@ -670,9 +684,11 @@ export function ByokWizard({
     config?.systemKeyDefaults?.anthropic,
     config?.systemKeyDefaults?.openai,
     config?.systemKeyDefaults?.openrouter,
+    config?.systemKeyDefaults?.xai,
     config?.userKeyDefaults?.anthropic,
     config?.userKeyDefaults?.openai,
     config?.userKeyDefaults?.openrouter,
+    config?.userKeyDefaults?.xai,
     geminiApiKey,
     hasAnthropicAvailable,
     hasGeminiAvailable,
@@ -683,6 +699,7 @@ export function ByokWizard({
     openaiCompatibleBaseUrl,
     openaiKey,
     openrouterKey,
+    xaiKey,
     validation,
     ollamaBaseUrl,
     defaultOllamaBaseUrl,
@@ -693,7 +710,7 @@ export function ByokWizard({
   ])
 
   const hostedProviderChecks = useMemo(
-    () => providerChecks.filter((provider) => ['openai', 'anthropic', 'gemini', 'openrouter'].includes(provider.id)),
+    () => providerChecks.filter((provider) => ['openai', 'anthropic', 'gemini', 'openrouter', 'xai'].includes(provider.id)),
     [providerChecks],
   )
 
@@ -853,6 +870,7 @@ export function ByokWizard({
       anthropic: anthropicKey.trim(),
       gemini: geminiApiKey.trim(),
       openrouter: openrouterKey.trim(),
+      xai: xaiKey.trim(),
       ollamaBaseUrl: ollamaEnabled ? effectiveOllamaBaseUrl.trim() : '',
       openaiCompatibleApiKey: openaiCompatibleApiKey.trim(),
       openaiCompatibleBaseUrl: openaiCompatibleBaseUrl.trim(),
@@ -882,7 +900,7 @@ export function ByokWizard({
     } finally {
       setAvailableModelsLoading(false)
     }
-  }, [effectiveOllamaBaseUrl, geminiApiKey, anthropicKey, openaiCompatibleApiKey, openaiCompatibleBaseUrl, openaiCompatibleDefaultModel, openaiKey, openrouterKey, ollamaEnabled, showAllDiscoveredModels])
+  }, [effectiveOllamaBaseUrl, geminiApiKey, anthropicKey, openaiCompatibleApiKey, openaiCompatibleBaseUrl, openaiCompatibleDefaultModel, openaiKey, openrouterKey, xaiKey, ollamaEnabled, showAllDiscoveredModels])
 
   useEffect(() => {
     if (!open || step !== 'models') return
@@ -899,11 +917,12 @@ export function ByokWizard({
         anthropicKey ? `Anthropic ${maskKey(anthropicKey)}` : null,
         geminiApiKey ? `Gemini ${maskKey(geminiApiKey)}` : null,
         openrouterKey ? `OpenRouter ${maskKey(openrouterKey)}` : null,
+        xaiKey ? `xAI ${maskKey(xaiKey)}` : null,
       ].filter(Boolean)
       return labels.join(' · ')
     }
     return 'No user keys configured yet'
-  }, [anthropicKey, geminiApiKey, hasDefaultUserKeys, hasStoredKeys, openaiCompatibleBaseUrl, openaiKey, openrouterKey])
+  }, [anthropicKey, geminiApiKey, hasDefaultUserKeys, hasStoredKeys, openaiCompatibleBaseUrl, openaiKey, openrouterKey, xaiKey])
 
   const browserLocalKeysNotice = useMemo(() => {
     if (hasStoredKeys) return null
@@ -925,7 +944,7 @@ export function ByokWizard({
           if (partner.slug === 'opik') return opikConfigured || !!opikWorkspace.trim() || !!opikProject.trim()
           return hasSecret || hasValue
         })
-      : hasOpenAiAvailable || hasOpenAiCompatibleAvailable || hasAnthropicAvailable || hasGeminiAvailable || hasOpenrouterAvailable || (ollamaEnabled && ollamaConfigured)
+      : hasOpenAiAvailable || hasOpenAiCompatibleAvailable || hasAnthropicAvailable || hasGeminiAvailable || hasOpenrouterAvailable || hasXaiAvailable || (ollamaEnabled && ollamaConfigured)
 
   const monitoringStatusText = useMemo(() => {
     if (opikApiKey) {
@@ -959,7 +978,7 @@ export function ByokWizard({
 
   const runValidation = async (scope: ScopedValidationTarget = 'all') => {
     const currentPartnerSlug = step.startsWith('partner:') ? step.replace('partner:', '') : null
-    const providerScope = scope === 'openai' || scope === 'openaiCompatible' || scope === 'anthropic' || scope === 'gemini' || scope === 'openrouter' || scope === 'ollama' ? scope : null
+    const providerScope = scope === 'openai' || scope === 'openaiCompatible' || scope === 'anthropic' || scope === 'gemini' || scope === 'openrouter' || scope === 'xai' || scope === 'ollama' ? scope : null
     const scopedPayload = {
       openai: scope === 'all' || providerScope === 'openai' ? openaiKey.trim() : '',
       openaiCompatibleApiKey: scope === 'all' || providerScope === 'openaiCompatible' ? openaiCompatibleApiKey.trim() : '',
@@ -968,6 +987,7 @@ export function ByokWizard({
       anthropic: scope === 'all' || providerScope === 'anthropic' ? anthropicKey.trim() : '',
       gemini: scope === 'all' || providerScope === 'gemini' ? geminiApiKey.trim() : '',
       openrouter: scope === 'all' || providerScope === 'openrouter' ? openrouterKey.trim() : '',
+      xai: scope === 'all' || providerScope === 'xai' ? xaiKey.trim() : '',
       ollamaBaseUrl: (scope === 'all' || providerScope === 'ollama') && ollamaEnabled ? effectiveOllamaBaseUrl.trim() : '',
       ollamaDefaultModel: (scope === 'all' || providerScope === 'ollama') && ollamaEnabled ? ollamaDefaultModel.trim() : '',
       opikApiKey: scope === 'all' || currentPartnerSlug === 'opik' ? opikApiKey.trim() : '',
@@ -1004,11 +1024,17 @@ export function ByokWizard({
       showWarning('No OpenRouter key provided')
       return false
     }
+    if (providerScope === 'xai' && !scopedPayload.xai) {
+      setValidation((current) => ({ ...current, xai: { status: 'invalid', message: 'No xAI key provided' } }))
+      showWarning('No xAI key provided')
+      return false
+    }
     const localProviderMismatches = [
       scopedPayload.openai ? detectProviderKeyMismatch('openai', scopedPayload.openai) : null,
       scopedPayload.anthropic ? detectProviderKeyMismatch('anthropic', scopedPayload.anthropic) : null,
       scopedPayload.gemini ? detectProviderKeyMismatch('gemini', scopedPayload.gemini) : null,
       scopedPayload.openrouter ? detectProviderKeyMismatch('openrouter', scopedPayload.openrouter) : null,
+      scopedPayload.xai ? detectProviderKeyMismatch('xai', scopedPayload.xai) : null,
     ].filter(Boolean)
     if (localProviderMismatches.length > 0) {
       const mismatchEntries = localProviderMismatches.map((mismatch) => [
@@ -1052,6 +1078,7 @@ export function ByokWizard({
           anthropic: { status: 'skipped', message: 'Validation unavailable from the current server build' },
           gemini: { status: 'skipped', message: 'Validation unavailable from the current server build' },
           openrouter: { status: 'skipped', message: 'Validation unavailable from the current server build' },
+          xai: { status: 'skipped', message: 'Validation unavailable from the current server build' },
           ollama: { status: 'skipped', message: 'Validation unavailable from the current server build' },
           opik: { status: 'skipped', message: 'Validation unavailable from the current server build' },
           senso: { status: 'skipped', message: 'Validation unavailable from the current server build' },
@@ -1068,6 +1095,7 @@ export function ByokWizard({
         anthropic: { status: data.anthropic?.status || 'idle', message: data.anthropic?.message || '' },
         gemini: { status: data.gemini?.status || 'idle', message: data.gemini?.message || '' },
         openrouter: { status: data.openrouter?.status || 'idle', message: data.openrouter?.message || '' },
+        xai: { status: data.xai?.status || 'idle', message: data.xai?.message || '' },
         ollama: ollamaEnabled
           ? { status: data.ollama?.status || 'idle', message: data.ollama?.message || '' }
           : { status: 'skipped', message: 'Ollama is disabled in this runtime' },
@@ -1078,7 +1106,7 @@ export function ByokWizard({
       setValidation(nextState)
       updateStoredVerification((current) => {
         const next = { ...current }
-        ;(['openai', 'openaiCompatible', 'anthropic', 'gemini', 'openrouter', 'ollama'] as const).forEach((provider) => {
+        ;(['openai', 'openaiCompatible', 'anthropic', 'gemini', 'openrouter', 'xai', 'ollama'] as const).forEach((provider) => {
           if (nextState[provider].status === 'valid') next[provider] = currentVerificationFingerprints[provider]
           else if (providerScope === provider || (!providerScope && scope !== 'current-partner')) delete next[provider]
         })
@@ -1128,6 +1156,7 @@ export function ByokWizard({
       anthropic: 'Anthropic',
       gemini: 'Gemini',
       openrouter: 'OpenRouter',
+      xai: 'xAI',
       ollama: 'Ollama',
       opik: 'Opik',
       senso: 'Senso',
@@ -1136,7 +1165,7 @@ export function ByokWizard({
     return labels[slug] || slug
   }
 
-  const clearProviderKey = (provider: 'openai' | 'openaiCompatible' | 'anthropic' | 'gemini' | 'openrouter' | 'ollama') => {
+  const clearProviderKey = (provider: 'openai' | 'openaiCompatible' | 'anthropic' | 'gemini' | 'openrouter' | 'xai' | 'ollama') => {
     if (provider === 'openai') {
       setOpenaiKey('')
       setValidation((current) => ({ ...current, openai: { status: 'idle', message: '' } }))
@@ -1169,6 +1198,12 @@ export function ByokWizard({
       updateStoredVerification((current) => { const next = { ...current }; delete next.openrouter; return next })
       return
     }
+    if (provider === 'xai') {
+      setXaiKey('')
+      setValidation((current) => ({ ...current, xai: { status: 'idle', message: '' } }))
+      updateStoredVerification((current) => { const next = { ...current }; delete next.xai; return next })
+      return
+    }
     setOllamaBaseUrl(defaultOllamaBaseUrl)
     setOllamaDefaultModel('')
     setValidation((current) => ({ ...current, ollama: { status: 'idle', message: '' } }))
@@ -1181,6 +1216,7 @@ export function ByokWizard({
       detectProviderKeyMismatch('anthropic', anthropicKey),
       detectProviderKeyMismatch('gemini', geminiApiKey),
       detectProviderKeyMismatch('openrouter', openrouterKey),
+      detectProviderKeyMismatch('xai', xaiKey),
     ].filter(Boolean)
     if (providerMismatches.length > 0) {
       showWarning(providerMismatches[0]!.message)
@@ -1191,8 +1227,8 @@ export function ByokWizard({
       const ok = await runValidation()
       if (!ok) return
     }
-    if (!openaiKey.trim() && !openaiCompatibleBaseUrl.trim() && !anthropicKey.trim() && !geminiApiKey.trim() && !openrouterKey.trim() && !config?.userKeyDefaults?.openai && !config?.userKeyDefaults?.openaiCompatible && !config?.userKeyDefaults?.anthropic && !config?.userKeyDefaults?.gemini && !config?.userKeyDefaults?.openrouter && !config?.systemKeyDefaults?.openai && !config?.systemKeyDefaults?.openaiCompatible && !config?.systemKeyDefaults?.anthropic && !config?.systemKeyDefaults?.gemini && !config?.systemKeyDefaults?.openrouter) {
-      showWarning('No LLM providers detected yet. Add OpenAI, OpenRouter, OpenAI-Compatible, Anthropic, or Gemini, or rely on configured defaults before running agents.')
+    if (!openaiKey.trim() && !openaiCompatibleBaseUrl.trim() && !anthropicKey.trim() && !geminiApiKey.trim() && !openrouterKey.trim() && !xaiKey.trim() && !config?.userKeyDefaults?.openai && !config?.userKeyDefaults?.openaiCompatible && !config?.userKeyDefaults?.anthropic && !config?.userKeyDefaults?.gemini && !config?.userKeyDefaults?.openrouter && !config?.userKeyDefaults?.xai && !config?.systemKeyDefaults?.openai && !config?.systemKeyDefaults?.openaiCompatible && !config?.systemKeyDefaults?.anthropic && !config?.systemKeyDefaults?.gemini && !config?.systemKeyDefaults?.openrouter && !config?.systemKeyDefaults?.xai) {
+      showWarning('No LLM providers detected yet. Add OpenAI, OpenRouter, xAI, OpenAI-Compatible, Anthropic, or Gemini, or rely on configured defaults before running agents.')
     }
 
     const persistedPartnerValues = buildPartnerConfig(partnerValues)
@@ -1230,6 +1266,7 @@ export function ByokWizard({
       anthropic: anthropicKey.trim(),
       gemini: geminiApiKey.trim(),
       openrouter: openrouterKey.trim(),
+      xai: xaiKey.trim(),
       ollamaBaseUrl: effectiveOllamaBaseUrl.trim(),
     }
     const currentStoredKeys = readStoredByokKeys()
@@ -1242,6 +1279,7 @@ export function ByokWizard({
       anthropic: providerKeyValues.anthropic,
       geminiApiKey: providerKeyValues.gemini,
       openrouter: providerKeyValues.openrouter,
+      xai: providerKeyValues.xai,
       ollamaBaseUrl: providerKeyValues.ollamaBaseUrl,
       ollamaDefaultModel: ollamaEnabled ? ollamaDefaultModel.trim() : '',
       verifiedProviders: currentStoredKeys.verifiedProviders || {},
@@ -2149,6 +2187,26 @@ export function ByokWizard({
                       </div>
                       <input id="byok-openrouter" type="password" value={openrouterKey} onChange={(e) => { setOpenrouterKey(e.target.value); setValidation((current) => ({ ...current, openrouter: { status: 'idle', message: '' } })); updateStoredVerification((current) => { const next = { ...current }; delete next.openrouter; return next }) }} placeholder="sk-or-..." className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
                       {renderValidation('openrouter')}
+                    </div>
+                  )}
+
+                  {modelTab === 'xai' && (
+                    <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="font-medium text-gray-900 dark:text-gray-100">xAI / Grok</div>
+                        <button onClick={() => runValidation('xai')} disabled={validating} className="px-3 py-1.5 text-xs rounded-md border border-sky-300 dark:border-sky-700 text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors disabled:opacity-60">{validating ? 'Checking…' : 'Check Key'}</button>
+                      </div>
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Use native <span className="font-mono">xai/grok-*</span> routing. Only models verified against this ClawMax OpenClaw runtime are shown.</p>
+                      <div className="mt-3 flex items-center justify-between gap-3">
+                        <label htmlFor="byok-xai" className="block text-sm font-medium text-gray-700 dark:text-gray-300">API key</label>
+                        {xaiKey && (
+                          <button type="button" onClick={() => clearProviderKey('xai')} className="text-xs text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-300">
+                            Clear
+                          </button>
+                        )}
+                      </div>
+                      <input id="byok-xai" type="password" value={xaiKey} onChange={(e) => { setXaiKey(e.target.value); setValidation((current) => ({ ...current, xai: { status: 'idle', message: '' } })); updateStoredVerification((current) => { const next = { ...current }; delete next.xai; return next }) }} placeholder="xai-..." className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
+                      {renderValidation('xai')}
                     </div>
                   )}
 

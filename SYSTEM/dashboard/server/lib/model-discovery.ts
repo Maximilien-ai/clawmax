@@ -1,5 +1,5 @@
 /**
- * Dynamic model discovery — fetches available models from OpenAI, Anthropic, and Gemini APIs.
+ * Dynamic model discovery for configured hosted and local model providers.
  * Results are cached for 1 hour. Falls back to hardcoded lists on API failure.
  */
 import { getDefaultOllamaBaseUrl, getSystemProviderKeys, getUserDefaultProviderKeys, type ProviderKeys } from './dashboard-env'
@@ -17,7 +17,7 @@ export interface ModelsResponse {
   modelsByProvider: Record<string, ProviderModels>
 }
 
-type ProviderId = 'openai' | 'anthropic' | 'gemini' | 'openrouter' | 'ollama' | 'openai-compatible'
+type ProviderId = 'openai' | 'anthropic' | 'gemini' | 'openrouter' | 'xai' | 'ollama' | 'openai-compatible'
 
 // ── Cache ──────────────────────────────────────────────────────────────────────
 
@@ -86,11 +86,23 @@ const FALLBACK_GEMINI = [
 
 const FALLBACK_OPENROUTER = ['openrouter/auto']
 
+// Models confirmed by the OpenClaw runtime pinned for ClawMax 1.9.9.
+// New xAI releases remain hidden until that runtime advertises them.
+export const FALLBACK_XAI = [
+  'xai/grok-3',
+  'xai/grok-3-fast',
+  'xai/grok-4.3',
+  'xai/grok-4.20-0309-reasoning',
+  'xai/grok-4.20-0309-non-reasoning',
+  'xai/grok-code-fast-1',
+]
+
 const COMPATIBLE_MODELS: Record<Exclude<ProviderId, 'ollama'>, string[]> = {
   openai: FALLBACK_OPENAI,
   anthropic: FALLBACK_ANTHROPIC,
   gemini: FALLBACK_GEMINI,
   openrouter: FALLBACK_OPENROUTER,
+  xai: FALLBACK_XAI,
   'openai-compatible': [],
 }
 
@@ -101,6 +113,10 @@ function filterCompatibleDiscoveredModels(provider: ProviderId, models: string[]
   }
   if (provider === 'openrouter') {
     return models.filter((model) => isOpenAICompatibleChatModel(model.replace(/^openrouter\//, '')))
+  }
+  if (provider === 'xai') {
+    const compatible = new Set(FALLBACK_XAI)
+    return models.filter((model) => compatible.has(model))
   }
   const compatible = new Set(COMPATIBLE_MODELS[provider as keyof typeof COMPATIBLE_MODELS] || [])
   return models.filter((model) => compatible.has(model))
@@ -260,6 +276,35 @@ async function fetchOpenRouterModels(apiKey: string): Promise<string[]> {
   }
 }
 
+async function fetchXaiModels(apiKey: string): Promise<string[]> {
+  const cached = getCached('xai')
+  if (cached) return cached
+
+  try {
+    const res = await fetch('https://api.x.ai/v1/models', {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(8000),
+    })
+    if (!res.ok) {
+      console.warn(`xAI models API returned ${res.status}`)
+      return FALLBACK_XAI
+    }
+    const body = await res.json() as { data?: Array<{ id?: string }> }
+    const discovered = (body.data || [])
+      .map((model) => (model.id || '').trim())
+      .filter((id) => id.toLowerCase().startsWith('grok-'))
+      .sort()
+      .map((id) => `xai/${id}`)
+    const runtimeCompatible = discovered.filter((model) => FALLBACK_XAI.includes(model))
+    const resolved = Array.from(new Set([...FALLBACK_XAI, ...runtimeCompatible]))
+    setCache('xai', resolved)
+    return resolved
+  } catch (err) {
+    console.warn('Failed to fetch xAI models, using fallback:', (err as Error).message)
+    return FALLBACK_XAI
+  }
+}
+
 async function fetchOllamaModels(baseUrl: string): Promise<string[]> {
   const normalizedBaseUrl = (baseUrl.trim() || getDefaultOllamaBaseUrl()).replace(/\/+$/, '')
   if (!normalizedBaseUrl) return []
@@ -327,7 +372,7 @@ async function fetchOpenAICompatibleModels(baseUrl: string, apiKey?: string): Pr
 
 // ── Public API ─────────────────────────────────────────────────────────────────
 
-function resolveApiKey(provider: 'openai' | 'anthropic' | 'gemini' | 'openrouter', rawEnv?: Record<string, string>): string | undefined {
+function resolveApiKey(provider: 'openai' | 'anthropic' | 'gemini' | 'openrouter' | 'xai', rawEnv?: Record<string, string>): string | undefined {
   const systemKeys = getSystemProviderKeys(rawEnv)
   const userKeys = getUserDefaultProviderKeys(rawEnv)
   return systemKeys[provider] || userKeys[provider]
@@ -335,13 +380,14 @@ function resolveApiKey(provider: 'openai' | 'anthropic' | 'gemini' | 'openrouter
 
 /** Fetch models for all configured providers. Returns immediately from cache when warm. */
 export async function discoverModels(
-  byokKeys?: { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string },
+  byokKeys?: { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; xai?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string },
   options?: { showAll?: boolean }
 ): Promise<ModelsResponse> {
   const openaiKey = byokKeys?.openai || resolveApiKey('openai')
   const anthropicKey = byokKeys?.anthropic || resolveApiKey('anthropic')
   const geminiKey = byokKeys?.gemini || resolveApiKey('gemini')
   const openrouterKey = byokKeys?.openrouter || resolveApiKey('openrouter')
+  const xaiKey = byokKeys?.xai || resolveApiKey('xai')
   const ollamaBaseUrl = byokKeys?.ollamaBaseUrl?.trim()
   const openaiCompatibleApiKey = byokKeys?.openaiCompatibleApiKey?.trim()
   const openaiCompatibleBaseUrl = byokKeys?.openaiCompatibleBaseUrl?.trim()
@@ -384,6 +430,16 @@ export async function discoverModels(
       fetchOpenRouterModels(openrouterKey).then(models => ({
         provider: 'openrouter',
         name: 'OpenRouter',
+        models,
+      }))
+    )
+  }
+
+  if (xaiKey) {
+    fetches.push(
+      fetchXaiModels(xaiKey).then(models => ({
+        provider: 'xai',
+        name: 'xAI',
         models,
       }))
     )
@@ -436,6 +492,7 @@ export function getAvailableModelsCached(rawEnv?: Record<string, string>): strin
   const anthropicKey = resolveApiKey('anthropic', rawEnv)
   const geminiKey = resolveApiKey('gemini', rawEnv)
   const openrouterKey = resolveApiKey('openrouter', rawEnv)
+  const xaiKey = resolveApiKey('xai', rawEnv)
   const integrations = readWorkspaceIntegrationConfig()
   const systemKeys = getSystemProviderKeys(rawEnv)
   const userKeys = getUserDefaultProviderKeys(rawEnv)
@@ -451,6 +508,9 @@ export function getAvailableModelsCached(rawEnv?: Record<string, string>): strin
   }
   if (openrouterKey) {
     models.push(...(getCached('openrouter') || FALLBACK_OPENROUTER))
+  }
+  if (xaiKey) {
+    models.push(...(getCached('xai') || FALLBACK_XAI))
   }
 
   const localDefaults: string[] = []

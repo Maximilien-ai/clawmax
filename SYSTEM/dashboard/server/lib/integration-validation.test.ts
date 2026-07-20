@@ -4,7 +4,7 @@
  * Run with: npx ts-node --transpileOnly server/lib/integration-validation.test.ts
  */
 
-import { validateAnthropicKey, validateCogneeConfig, validateGeminiKey, validateIntegrations, validateOllamaConfig, validateOpenAICompatibleConfig, validateOpenAIKey, validateOpenRouterKey, validateOpikConfig, validateSensoConfig } from './integration-validation'
+import { validateAnthropicKey, validateCogneeConfig, validateGeminiKey, validateIntegrations, validateOllamaConfig, validateOpenAICompatibleConfig, validateOpenAIKey, validateOpenRouterKey, validateOpikConfig, validateSensoConfig, validateXaiKey } from './integration-validation'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -111,6 +111,23 @@ async function run() {
     const result = await validateOpenRouterKey('sk-openai-test', mockFetch(200))
     assert(result.status === 'invalid', 'Expected non-OpenRouter key rejected')
     assert(/sk-or-/i.test(result.message), 'Expected actionable OpenRouter key prefix guidance')
+  })
+
+  await test('validateXaiKey checks the native catalog and completion endpoints', async () => {
+    const requests: string[] = []
+    const result = await validateXaiKey('xai-test', (async (url: string) => {
+      requests.push(url)
+      return { ok: true, status: 200, json: async () => ({}) } as any
+    }) as any)
+    assert(result.status === 'valid', 'Expected valid xAI key')
+    assert(requests[0] === 'https://api.x.ai/v1/models', 'Expected native xAI catalog endpoint')
+    assert(requests[1] === 'https://api.x.ai/v1/chat/completions', 'Expected native xAI completion endpoint')
+  })
+
+  await test('validateXaiKey rejects non-xAI key shapes before network use', async () => {
+    const result = await validateXaiKey('sk-openai-test', mockFetch(200))
+    assert(result.status === 'invalid', 'Expected non-xAI key rejected')
+    assert(/xai-/i.test(result.message), 'Expected actionable xAI key prefix guidance')
   })
 
   await test('validateOpenAIKey rejects obvious Anthropic key shape before network validation', async () => {

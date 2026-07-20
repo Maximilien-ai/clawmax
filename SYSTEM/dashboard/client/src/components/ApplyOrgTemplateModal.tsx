@@ -88,6 +88,7 @@ type ExecutionConfig = {
     anthropic?: boolean
     gemini?: boolean
     openrouter?: boolean
+    xai?: boolean
     openaiCompatible?: boolean
   }
   userKeyDefaults?: {
@@ -95,6 +96,7 @@ type ExecutionConfig = {
     anthropic?: boolean
     gemini?: boolean
     openrouter?: boolean
+    xai?: boolean
     openaiCompatible?: boolean
   }
 }

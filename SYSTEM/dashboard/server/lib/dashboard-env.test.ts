@@ -216,6 +216,11 @@ test('OpenRouter is available as a native hosted-provider default', () => {
   assert(getCostEfficientModel({ USER_OPENROUTER_API_KEY: 'sk-or-test' }) === 'openrouter/auto', 'Expected OpenRouter cost-efficient fallback')
 })
 
+test('xAI is available as a native hosted-provider default', () => {
+  assert(getBestAvailableModel({ SYSTEM_XAI_API_KEY: 'xai-test' }) === 'xai/grok-4.3', 'Expected xAI best-model fallback')
+  assert(getCostEfficientModel({ USER_XAI_API_KEY: 'xai-test' }) === 'xai/grok-3', 'Expected xAI cost-efficient fallback')
+})
+
 test('system key execution gate honors explicit env file flag', () => {
   assert(allowSystemKeysForUserExecution({ ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION: 'true' }) === true, 'Expected explicit env-file true to enable system keys')
   assert(allowSystemKeysForUserExecution({ ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION: 'false' }) === false, 'Expected explicit env-file false to disable system keys')
