@@ -16,6 +16,7 @@ import {
   emitPluginRecordNotification,
   generatePluginRecordDocument,
   getPluginBySlug,
+  getPluginDiagnosticsReport,
   getPluginWorkspaceContext,
   listConfiguredPlugins,
   listPluginRecords,
@@ -128,6 +129,9 @@ async function run() {
     process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS = 'true'
     const plugins = listConfiguredPlugins()
     assert.strictEqual(plugins.length, 0, 'Expected no plugins to load by default')
+    const report = getPluginDiagnosticsReport()
+    assert.strictEqual(report.healthy, true, 'Expected disabled plugins to preserve a healthy zero-plugin host')
+    assert.strictEqual(report.summary.loaded, 0, 'Expected zero loaded plugins')
     if (typeof previousEnabled === 'undefined') delete process.env.CLAWMAX_ENABLED_PLUGINS
     else process.env.CLAWMAX_ENABLED_PLUGINS = previousEnabled
     if (typeof previousDisableDefaults === 'undefined') delete process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS
@@ -233,6 +237,67 @@ async function run() {
     else process.env.CLAWMAX_ENABLED_PLUGINS = previousEnabled
     if (typeof previousPluginPaths === 'undefined') delete process.env.CLAWMAX_PLUGIN_PATHS
     else process.env.CLAWMAX_PLUGIN_PATHS = previousPluginPaths
+  })
+
+  await test('plugin diagnostics retain invalid, incompatible, duplicate, disabled, and missing outcomes', () => {
+    const pluginRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-plugin-diagnostics-root-'))
+    const missingRoot = path.join(pluginRoot, 'missing-mount')
+    const previousEnabled = process.env.CLAWMAX_ENABLED_PLUGINS
+    const previousPluginPaths = process.env.CLAWMAX_PLUGIN_PATHS
+    const previousDisableDefaults = process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS
+    const baseManifest = {
+      apiVersion: 'clawmax.ai/v2',
+      name: 'Diagnostics plugin',
+      description: 'Exercises host diagnostics.',
+      version: '2.0.0',
+      icon: 'plugin',
+      objectKind: 'diagnostic-note',
+      visibility: 'public',
+      source: { type: 'github', owner: 'example', repo: 'diagnostics', url: 'https://example.invalid/diagnostics' },
+      recordSchema: { type: 'object', properties: { note: { type: 'string', title: 'Note' } } },
+    }
+    const writeManifest = (directoryName: string, manifest: Record<string, any> | string) => {
+      const directory = path.join(pluginRoot, directoryName)
+      fs.mkdirSync(directory, { recursive: true })
+      fs.writeFileSync(
+        path.join(directory, 'clawmax-plugin.json'),
+        typeof manifest === 'string' ? manifest : JSON.stringify(manifest, null, 2),
+        'utf-8'
+      )
+    }
+
+    try {
+      writeManifest('alpha', { ...baseManifest, id: 'alpha', slug: 'alpha', name: 'Alpha' })
+      writeManifest('alpha-copy', { ...baseManifest, id: 'alpha', slug: 'alpha', name: 'Alpha duplicate' })
+      writeManifest('beta', { ...baseManifest, id: 'beta', slug: 'beta', name: 'Beta' })
+      writeManifest('broken-json', '{not json')
+      writeManifest('future', { ...baseManifest, id: 'future', slug: 'future', apiVersion: 'clawmax.ai/v99' })
+      writeManifest('invalid-v2', { ...baseManifest, id: 'invalid-v2', slug: 'invalid-v2', recordSchema: undefined })
+
+      process.env.CLAWMAX_PLUGIN_PATHS = `${pluginRoot}${path.delimiter}${missingRoot}`
+      process.env.CLAWMAX_ENABLED_PLUGINS = 'alpha,not-mounted'
+      delete process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS
+
+      const report = getPluginDiagnosticsReport()
+      assert.strictEqual(report.healthy, false, 'Expected actionable plugin failures to make diagnostics unhealthy')
+      assert(report.diagnostics.some((entry) => entry.pluginId === 'alpha' && entry.status === 'loaded'), 'Expected one duplicate identity to load')
+      assert(report.diagnostics.some((entry) => entry.pluginId === 'alpha' && entry.status === 'duplicate'), 'Expected duplicate identity diagnostic')
+      assert(report.diagnostics.some((entry) => entry.pluginId === 'beta' && entry.status === 'disabled'), 'Expected disabled plugin diagnostic')
+      assert(report.diagnostics.some((entry) => entry.pluginId === 'broken-json' && entry.status === 'invalid'), 'Expected invalid JSON diagnostic')
+      assert(report.diagnostics.some((entry) => entry.pluginId === 'future' && entry.status === 'incompatible'), 'Expected unsupported API diagnostic')
+      assert(report.diagnostics.some((entry) => entry.pluginId === 'invalid-v2' && entry.status === 'invalid'), 'Expected incomplete v2 diagnostic')
+      assert(report.diagnostics.some((entry) => entry.pluginId === 'not-mounted' && entry.status === 'missing'), 'Expected explicitly enabled missing plugin diagnostic')
+      assert(report.diagnostics.some((entry) => entry.path === missingRoot && entry.status === 'missing'), 'Expected missing configured path diagnostic')
+      assert.strictEqual(listConfiguredPlugins().filter((plugin) => plugin.slug === 'alpha').length, 1, 'Expected duplicate plugins to load only once')
+    } finally {
+      fs.rmSync(pluginRoot, { recursive: true, force: true })
+      if (typeof previousEnabled === 'undefined') delete process.env.CLAWMAX_ENABLED_PLUGINS
+      else process.env.CLAWMAX_ENABLED_PLUGINS = previousEnabled
+      if (typeof previousPluginPaths === 'undefined') delete process.env.CLAWMAX_PLUGIN_PATHS
+      else process.env.CLAWMAX_PLUGIN_PATHS = previousPluginPaths
+      if (typeof previousDisableDefaults === 'undefined') delete process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS
+      else process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS = previousDisableDefaults
+    }
   })
 
   await test('guardrail plugin records persist, generate docs, and emit notifications', () => {

@@ -351,3 +351,62 @@ export function formatPluginUpdatedAt(item: PluginRecord): string {
     timeZone: 'UTC',
   })
 }
+
+export type PluginDiagnosticStatus = 'loaded' | 'disabled' | 'invalid' | 'incompatible' | 'duplicate' | 'missing'
+
+export interface PluginDiagnostic {
+  status: PluginDiagnosticStatus
+  pluginId: string | null
+  name: string | null
+  path: string
+  manifestPath: string | null
+  apiVersion: string | null
+  pluginVersion: string | null
+  message: string
+  remediation: string | null
+}
+
+export interface PluginDiagnosticsReport {
+  healthy: boolean
+  hostApiVersion: string
+  roots: string[]
+  summary: Record<PluginDiagnosticStatus, number>
+  diagnostics: PluginDiagnostic[]
+}
+
+const PLUGIN_DIAGNOSTIC_STATUSES: PluginDiagnosticStatus[] = ['loaded', 'disabled', 'invalid', 'incompatible', 'duplicate', 'missing']
+
+export function normalizePluginDiagnosticsReport(value: any): PluginDiagnosticsReport {
+  const diagnostics = (Array.isArray(value?.diagnostics) ? value.diagnostics : [])
+    .filter((entry: any) => entry && PLUGIN_DIAGNOSTIC_STATUSES.includes(entry.status))
+    .map((entry: any): PluginDiagnostic => ({
+      status: entry.status,
+      pluginId: typeof entry.pluginId === 'string' ? entry.pluginId : null,
+      name: typeof entry.name === 'string' ? entry.name : null,
+      path: typeof entry.path === 'string' ? entry.path : '',
+      manifestPath: typeof entry.manifestPath === 'string' ? entry.manifestPath : null,
+      apiVersion: typeof entry.apiVersion === 'string' ? entry.apiVersion : null,
+      pluginVersion: typeof entry.pluginVersion === 'string' ? entry.pluginVersion : null,
+      message: typeof entry.message === 'string' ? entry.message : 'Plugin diagnostic details are unavailable.',
+      remediation: typeof entry.remediation === 'string' ? entry.remediation : null,
+    }))
+  const summary = Object.fromEntries(PLUGIN_DIAGNOSTIC_STATUSES.map((status) => [
+    status,
+    diagnostics.filter((entry) => entry.status === status).length,
+  ])) as Record<PluginDiagnosticStatus, number>
+
+  return {
+    healthy: summary.invalid + summary.incompatible + summary.duplicate + summary.missing === 0,
+    hostApiVersion: typeof value?.hostApiVersion === 'string' ? value.hostApiVersion : PLUGIN_HOST_API_VERSION,
+    roots: Array.isArray(value?.roots) ? value.roots.filter((root: unknown): root is string => typeof root === 'string') : [],
+    summary,
+    diagnostics,
+  }
+}
+
+export function formatPluginDiagnosticsSummary(report: PluginDiagnosticsReport): string {
+  const issues = report.summary.invalid + report.summary.incompatible + report.summary.duplicate + report.summary.missing
+  if (issues > 0) return `${issues} ${issues === 1 ? 'issue' : 'issues'} · ${report.summary.loaded} loaded`
+  if (report.summary.loaded === 0 && report.summary.disabled === 0) return 'No plugins discovered'
+  return `${report.summary.loaded} loaded · ${report.summary.disabled} disabled`
+}

@@ -4,6 +4,7 @@ import {
   deletePluginRecord,
   generatePluginRecordDocument,
   getPluginBySlug,
+  getPluginDiagnosticsReport,
   getPluginWorkspaceContext,
   listConfiguredPlugins,
   listPluginRecords,
@@ -27,6 +28,10 @@ router.get('/', (_req, res) => {
   res.json({
     plugins: listConfiguredPlugins(),
   })
+})
+
+router.get('/diagnostics', (_req, res) => {
+  res.json(getPluginDiagnosticsReport())
 })
 
 router.get('/:pluginId/context', (req, res) => {

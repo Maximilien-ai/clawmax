@@ -126,6 +126,21 @@ async function run() {
     assert(res.jsonBody.plugins.some((plugin: any) => plugin.slug === 'plugin-lab-evals'), 'Expected evals test plugin in index')
   })
 
+  await test('plugin diagnostics route reports host compatibility and load status', async () => {
+    const handler = getRouteHandler('get', '/diagnostics')
+    process.env.CLAWMAX_ENABLED_PLUGINS = 'plugin-lab-review-notes,missing-route-plugin'
+    process.env.CLAWMAX_PLUGIN_PATHS = ''
+    delete process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS
+    const res = makeRes()
+    await handler(makeReq(), res)
+
+    assert.strictEqual(res.statusCode, 200, 'Expected plugin diagnostics route success')
+    assert.strictEqual(res.jsonBody?.hostApiVersion, 'clawmax.ai/v2', 'Expected host API version')
+    assert.strictEqual(res.jsonBody?.healthy, false, 'Expected missing enabled plugin to make diagnostics unhealthy')
+    assert(res.jsonBody?.diagnostics?.some((entry: any) => entry.pluginId === 'plugin-lab-review-notes' && entry.status === 'loaded'), 'Expected loaded plugin diagnostic')
+    assert(res.jsonBody?.diagnostics?.some((entry: any) => entry.pluginId === 'missing-route-plugin' && entry.status === 'missing'), 'Expected missing plugin diagnostic')
+  })
+
   await test('plugin CRUD and document routes work for guardrails', async () => {
     const createHandler = getRouteHandler('post', '/:pluginId/items')
     process.env.CLAWMAX_ENABLED_PLUGINS = 'plugin-lab-guardrails,plugin-lab-evals'

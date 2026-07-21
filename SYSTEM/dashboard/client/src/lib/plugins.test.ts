@@ -3,12 +3,14 @@ import {
   buildGenericPluginFields,
   collectPluginTags,
   formatPluginScopeSummary,
+  formatPluginDiagnosticsSummary,
   formatPluginUpdatedAt,
   formatPluginUsageSummary,
   getPluginUsageTotals,
   getPluginDetailLines,
   isGenericPluginRecord,
   matchesPluginSearch,
+  normalizePluginDiagnosticsReport,
   type PluginManifest,
   type PluginRecord,
 } from './plugins'
@@ -229,6 +231,38 @@ test('formatPluginUsageSummary returns stable summaries for evals and non-evals'
   }
   assert(formatPluginUsageSummary(guardrail) === 'No usage', 'Expected non-evals to report no usage')
   assert(formatPluginUsageSummary(record) === '1 runs · 75 tokens · $0.0042', 'Expected eval usage summary')
+})
+
+test('normalizePluginDiagnosticsReport filters malformed entries and recomputes health', () => {
+  const report = normalizePluginDiagnosticsReport({
+    healthy: true,
+    hostApiVersion: 'clawmax.ai/v2',
+    roots: ['/plugins', 42],
+    diagnostics: [
+      { status: 'loaded', pluginId: 'notes', name: 'Notes', path: '/plugins/notes', message: 'Loaded' },
+      { status: 'missing', pluginId: 'mail', path: '', message: 'Not mounted', remediation: 'Mount it' },
+      { status: 'unknown', pluginId: 'ignored' },
+      null,
+    ],
+  })
+  assert(report.healthy === false, 'Expected client health to reflect actionable diagnostics')
+  assert(report.roots.length === 1 && report.roots[0] === '/plugins', 'Expected malformed roots to be filtered')
+  assert(report.diagnostics.length === 2, 'Expected unknown diagnostics to be filtered')
+  assert(report.summary.loaded === 1 && report.summary.missing === 1, 'Expected status counts to be recomputed')
+})
+
+test('formatPluginDiagnosticsSummary distinguishes healthy, unhealthy, and empty hosts', () => {
+  const unhealthy = normalizePluginDiagnosticsReport({ diagnostics: [
+    { status: 'loaded', pluginId: 'notes', message: 'Loaded' },
+    { status: 'invalid', pluginId: 'mail', message: 'Invalid' },
+  ] })
+  assert(formatPluginDiagnosticsSummary(unhealthy) === '1 issue · 1 loaded', 'Expected actionable issue summary')
+  const healthy = normalizePluginDiagnosticsReport({ diagnostics: [
+    { status: 'loaded', pluginId: 'notes', message: 'Loaded' },
+    { status: 'disabled', pluginId: 'mail', message: 'Disabled' },
+  ] })
+  assert(formatPluginDiagnosticsSummary(healthy) === '1 loaded · 1 disabled', 'Expected healthy load summary')
+  assert(formatPluginDiagnosticsSummary(normalizePluginDiagnosticsReport(null)) === 'No plugins discovered', 'Expected empty host summary')
 })
 
 if (process.exitCode && process.exitCode !== 0) {

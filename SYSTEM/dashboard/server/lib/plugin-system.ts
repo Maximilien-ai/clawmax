@@ -202,6 +202,37 @@ type PluginManifestEntry = {
   manifest: PluginManifest
 }
 
+export type PluginDiagnosticStatus = 'loaded' | 'disabled' | 'invalid' | 'incompatible' | 'duplicate' | 'missing'
+
+export interface PluginDiagnostic {
+  status: PluginDiagnosticStatus
+  pluginId: string | null
+  name: string | null
+  path: string
+  manifestPath: string | null
+  apiVersion: string | null
+  pluginVersion: string | null
+  message: string
+  remediation: string | null
+}
+
+export interface PluginDiagnosticsReport {
+  healthy: boolean
+  hostApiVersion: typeof PLUGIN_HOST_API_VERSION
+  roots: string[]
+  summary: Record<PluginDiagnosticStatus, number>
+  diagnostics: PluginDiagnostic[]
+}
+
+type PluginManifestCandidate = {
+  directory: string
+  manifestPath: string
+  manifest: PluginManifest | null
+  rawManifest: any
+  issue: 'invalid' | 'incompatible' | null
+  issueMessage: string | null
+}
+
 function isPluginFieldSchema(value: any): value is PluginRecordFieldSchema {
   if (!value || typeof value !== 'object') return false
   if (!['string', 'number', 'integer', 'boolean', 'array'].includes(value.type)) return false
@@ -253,20 +284,62 @@ function isPluginManifest(value: any): value is PluginManifest {
   return uiFields.every((field: unknown) => typeof field === 'string' && declaredFields.has(field))
 }
 
-function discoverPluginManifestEntries(root: string): PluginManifestEntry[] {
+function inspectPluginManifest(directory: string, manifestPath: string): PluginManifestCandidate {
+  let rawManifest: any = null
+  try {
+    rawManifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'))
+  } catch {
+    return {
+      directory,
+      manifestPath,
+      manifest: null,
+      rawManifest: null,
+      issue: 'invalid',
+      issueMessage: 'Manifest is not valid JSON.',
+    }
+  }
+
+  const apiVersion = typeof rawManifest?.apiVersion === 'string' ? rawManifest.apiVersion : 'clawmax.ai/v1'
+  if (apiVersion !== 'clawmax.ai/v1' && apiVersion !== PLUGIN_HOST_API_VERSION) {
+    return {
+      directory,
+      manifestPath,
+      manifest: null,
+      rawManifest,
+      issue: 'incompatible',
+      issueMessage: `Plugin API ${apiVersion} is not supported by host ${PLUGIN_HOST_API_VERSION}.`,
+    }
+  }
+
+  if (!isPluginManifest(rawManifest)) {
+    return {
+      directory,
+      manifestPath,
+      manifest: null,
+      rawManifest,
+      issue: 'invalid',
+      issueMessage: apiVersion === PLUGIN_HOST_API_VERSION
+        ? 'Manifest does not satisfy the clawmax.ai/v2 contract, including a valid recordSchema and declared UI fields.'
+        : 'Manifest does not satisfy the required plugin identity, source, visibility, and legacy object-kind contract.',
+    }
+  }
+
+  return { directory, manifestPath, manifest: rawManifest, rawManifest, issue: null, issueMessage: null }
+}
+
+function discoverPluginManifestCandidates(root: string): PluginManifestCandidate[] {
   if (!fs.existsSync(root)) return []
 
   const seen = new Set<string>()
-  const entries: PluginManifestEntry[] = []
+  const candidates: PluginManifestCandidate[] = []
 
   const visitDirectory = (directory: string, depth: number) => {
     if (depth > 2 || seen.has(directory)) return
     seen.add(directory)
 
     const manifestPath = path.join(directory, PLUGIN_MANIFEST_FILE)
-    const manifest = readJsonFile<PluginManifest>(manifestPath)
-    if (isPluginManifest(manifest)) {
-      entries.push({ directory, manifest })
+    if (fs.existsSync(manifestPath)) {
+      candidates.push(inspectPluginManifest(directory, manifestPath))
       return
     }
 
@@ -285,15 +358,15 @@ function discoverPluginManifestEntries(root: string): PluginManifestEntry[] {
   }
 
   visitDirectory(root, 0)
-  return entries
+  return candidates
 }
 
-function listDiscoveredPluginEntries(): PluginManifestEntry[] {
+function listDiscoveredPluginCandidates(): PluginManifestCandidate[] {
   const seenDirectories = new Set<string>()
-  const discovered: PluginManifestEntry[] = []
+  const discovered: PluginManifestCandidate[] = []
 
   for (const root of getPluginRoots()) {
-    for (const entry of discoverPluginManifestEntries(root)) {
+    for (const entry of discoverPluginManifestCandidates(root)) {
       if (seenDirectories.has(entry.directory)) continue
       seenDirectories.add(entry.directory)
       discovered.push(entry)
@@ -303,26 +376,176 @@ function listDiscoveredPluginEntries(): PluginManifestEntry[] {
   return discovered
 }
 
+function listDiscoveredPluginEntries(): PluginManifestEntry[] {
+  return listDiscoveredPluginCandidates()
+    .filter((candidate): candidate is PluginManifestCandidate & { manifest: PluginManifest } => !!candidate.manifest)
+    .map(({ directory, manifest }) => ({ directory, manifest }))
+}
+
+function getEnabledPluginFilter(): Set<string> {
+  return new Set(uniq(String(process.env.CLAWMAX_ENABLED_PLUGINS || '').split(',')))
+}
+
+function isPluginEnabled(manifest: PluginManifest, enabledFilter: Set<string>, disableDefaults: boolean): boolean {
+  if (enabledFilter.size > 0) return enabledFilter.has(manifest.slug) || enabledFilter.has(manifest.id)
+  if (disableDefaults) return false
+  return manifest.enabledByDefault === true
+}
+
 export function listConfiguredPlugins(): PluginManifest[] {
   const disableDefaults = String(process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS || '').trim().toLowerCase() === 'true'
-  const enabledFilter = new Set(
-    uniq(String(process.env.CLAWMAX_ENABLED_PLUGINS || '').split(','))
-  )
+  const enabledFilter = getEnabledPluginFilter()
   const manifests: PluginManifest[] = []
+  const seenIdentities = new Set<string>()
 
   for (const entry of listDiscoveredPluginEntries()) {
     const manifest = entry.manifest
-    if (enabledFilter.size > 0) {
-      if (!enabledFilter.has(manifest.slug) && !enabledFilter.has(manifest.id)) continue
-    } else if (disableDefaults) {
-      continue
-    } else if (manifest.enabledByDefault !== true) {
-      continue
-    }
+    if (seenIdentities.has(manifest.id) || seenIdentities.has(manifest.slug)) continue
+    seenIdentities.add(manifest.id)
+    seenIdentities.add(manifest.slug)
+    if (!isPluginEnabled(manifest, enabledFilter, disableDefaults)) continue
     manifests.push(manifest)
   }
 
   return manifests.sort(sortPlugins)
+}
+
+export function getPluginDiagnosticsReport(): PluginDiagnosticsReport {
+  const roots = getPluginRoots()
+  const enabledFilter = getEnabledPluginFilter()
+  const disableDefaults = String(process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS || '').trim().toLowerCase() === 'true'
+  const diagnostics: PluginDiagnostic[] = []
+  const seenIdentities = new Map<string, string>()
+  const discoveredIdentities = new Set<string>()
+
+  for (const root of roots) {
+    let isDirectory = false
+    try {
+      isDirectory = fs.statSync(root).isDirectory()
+    } catch {
+      isDirectory = false
+    }
+    if (!isDirectory) {
+      diagnostics.push({
+        status: 'missing',
+        pluginId: null,
+        name: null,
+        path: root,
+        manifestPath: null,
+        apiVersion: null,
+        pluginVersion: null,
+        message: `Configured plugin path does not exist or is not a directory: ${root}`,
+        remediation: 'Mount or create the directory, or remove it from CLAWMAX_PLUGIN_PATHS.',
+      })
+    }
+  }
+
+  for (const candidate of listDiscoveredPluginCandidates()) {
+    const raw = candidate.rawManifest || {}
+    const pluginId = typeof raw.slug === 'string' && raw.slug.trim()
+      ? raw.slug.trim()
+      : typeof raw.id === 'string' && raw.id.trim()
+        ? raw.id.trim()
+        : path.basename(candidate.directory)
+    const name = typeof raw.name === 'string' && raw.name.trim() ? raw.name.trim() : pluginId
+    const apiVersion = typeof raw.apiVersion === 'string' ? raw.apiVersion : 'clawmax.ai/v1'
+    const pluginVersion = typeof raw.version === 'string' ? raw.version : null
+    if (typeof raw.id === 'string') discoveredIdentities.add(raw.id)
+    if (typeof raw.slug === 'string') discoveredIdentities.add(raw.slug)
+    discoveredIdentities.add(pluginId)
+
+    if (!candidate.manifest) {
+      diagnostics.push({
+        status: candidate.issue || 'invalid',
+        pluginId,
+        name,
+        path: candidate.directory,
+        manifestPath: candidate.manifestPath,
+        apiVersion,
+        pluginVersion,
+        message: candidate.issueMessage || 'Plugin manifest is invalid.',
+        remediation: candidate.issue === 'incompatible'
+          ? `Use a plugin compatible with ${PLUGIN_HOST_API_VERSION} or update its manifest contract.`
+          : 'Validate clawmax-plugin.json against PLUGINS/plugin-manifest.schema.json.',
+      })
+      continue
+    }
+
+    const manifest = candidate.manifest
+    const duplicatePath = seenIdentities.get(manifest.id) || seenIdentities.get(manifest.slug)
+    if (duplicatePath) {
+      diagnostics.push({
+        status: 'duplicate',
+        pluginId: manifest.slug,
+        name: manifest.name,
+        path: candidate.directory,
+        manifestPath: candidate.manifestPath,
+        apiVersion,
+        pluginVersion,
+        message: `Plugin ID or slug duplicates the manifest already discovered at ${duplicatePath}.`,
+        remediation: 'Give every plugin a unique id and slug, then remove the duplicate mount.',
+      })
+      continue
+    }
+
+    seenIdentities.set(manifest.id, candidate.directory)
+    seenIdentities.set(manifest.slug, candidate.directory)
+    const enabled = isPluginEnabled(manifest, enabledFilter, disableDefaults)
+    diagnostics.push({
+      status: enabled ? 'loaded' : 'disabled',
+      pluginId: manifest.slug,
+      name: manifest.name,
+      path: candidate.directory,
+      manifestPath: candidate.manifestPath,
+      apiVersion,
+      pluginVersion,
+      message: enabled ? 'Plugin loaded and enabled.' : 'Plugin was discovered but is not enabled.',
+      remediation: enabled ? null : `Add ${manifest.slug} to CLAWMAX_ENABLED_PLUGINS to enable it.`,
+    })
+  }
+
+  for (const requested of enabledFilter) {
+    if (discoveredIdentities.has(requested)) continue
+    diagnostics.push({
+      status: 'missing',
+      pluginId: requested,
+      name: requested,
+      path: '',
+      manifestPath: null,
+      apiVersion: null,
+      pluginVersion: null,
+      message: `Enabled plugin "${requested}" was not found in any configured plugin path.`,
+      remediation: 'Mount the plugin directory through CLAWMAX_PLUGIN_PATHS or remove it from CLAWMAX_ENABLED_PLUGINS.',
+    })
+  }
+
+  const statusOrder: Record<PluginDiagnosticStatus, number> = {
+    invalid: 0,
+    incompatible: 1,
+    duplicate: 2,
+    missing: 3,
+    loaded: 4,
+    disabled: 5,
+  }
+  diagnostics.sort((a, b) => statusOrder[a.status] - statusOrder[b.status]
+    || String(a.pluginId || a.path).localeCompare(String(b.pluginId || b.path)))
+  const summary: Record<PluginDiagnosticStatus, number> = {
+    loaded: 0,
+    disabled: 0,
+    invalid: 0,
+    incompatible: 0,
+    duplicate: 0,
+    missing: 0,
+  }
+  for (const diagnostic of diagnostics) summary[diagnostic.status]++
+
+  return {
+    healthy: summary.invalid + summary.incompatible + summary.duplicate + summary.missing === 0,
+    hostApiVersion: PLUGIN_HOST_API_VERSION,
+    roots,
+    summary,
+    diagnostics,
+  }
 }
 
 export function getPluginBySlug(slug: string): PluginManifest | null {

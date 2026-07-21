@@ -1,6 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { detectDoctorRuntimeSignal } from '../lib/doctorRuntimeSignals'
 import { detectLogRuntimeSignal } from '../lib/logRuntimeSignals'
+import {
+  formatPluginDiagnosticsSummary,
+  normalizePluginDiagnosticsReport,
+  type PluginDiagnosticStatus,
+  type PluginDiagnosticsReport,
+} from '../lib/plugins'
 
 interface LogEntry {
   timestamp: string
@@ -56,6 +62,10 @@ export default function Logs() {
   const [doctorResults, setDoctorResults] = useState<DoctorResults | null>(null)
   const [doctorFixing, setDoctorFixing] = useState(false)
   const [showDoctorInfoChecks, setShowDoctorInfoChecks] = useState(false)
+  const [showPluginDiagnostics, setShowPluginDiagnostics] = useState(false)
+  const [pluginDiagnostics, setPluginDiagnostics] = useState<PluginDiagnosticsReport | null>(null)
+  const [pluginDiagnosticsLoading, setPluginDiagnosticsLoading] = useState(false)
+  const [pluginDiagnosticsError, setPluginDiagnosticsError] = useState<string | null>(null)
   const [refreshNonce, setRefreshNonce] = useState(0)
   const logsEndRef = useRef<HTMLDivElement>(null)
   const logsContainerRef = useRef<HTMLDivElement>(null)
@@ -114,6 +124,29 @@ export default function Logs() {
     pausedLogsBufferRef.current = []
     setPaused(false)
     setRefreshNonce((value) => value + 1)
+  }
+
+  const loadPluginDiagnostics = async () => {
+    setPluginDiagnosticsLoading(true)
+    setPluginDiagnosticsError(null)
+    try {
+      const response = await fetch('/api/plugins/diagnostics')
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(data?.error || `Plugin diagnostics failed (${response.status})`)
+      setPluginDiagnostics(normalizePluginDiagnosticsReport(data))
+    } catch (err: any) {
+      setPluginDiagnostics(null)
+      setPluginDiagnosticsError(err?.message || 'Plugin diagnostics are unavailable.')
+    } finally {
+      setPluginDiagnosticsLoading(false)
+    }
+  }
+
+  const pluginStatusClass = (status: PluginDiagnosticStatus) => {
+    if (status === 'loaded') return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+    if (status === 'disabled') return 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+    if (status === 'missing' || status === 'duplicate') return 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200'
+    return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
   }
 
   // Parse log line into structured entry
@@ -281,6 +314,19 @@ export default function Logs() {
               🩺 Doctor
             </button>
             <button
+              onClick={() => {
+                setShowPluginDiagnostics(true)
+                void loadPluginDiagnostics()
+              }}
+              className={`inline-flex w-full items-center justify-center rounded border px-3 py-1.5 text-sm transition-colors sm:w-auto ${
+                pluginDiagnostics && !pluginDiagnostics.healthy
+                  ? 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200'
+                  : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800'
+              }`}
+            >
+              Plugins
+            </button>
+            <button
               onClick={() => setLogs([])}
               className="inline-flex w-full items-center justify-center rounded bg-gray-100 px-3 py-1.5 text-sm text-gray-700 transition-colors hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 sm:w-auto"
             >
@@ -416,6 +462,64 @@ export default function Logs() {
             </div>
           )}
         </div>
+      )}
+
+      {showPluginDiagnostics && (
+        <section className="mb-4 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900" aria-labelledby="plugin-health-title">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h3 id="plugin-health-title" className="text-sm font-semibold text-gray-900 dark:text-gray-100">Plugin Health</h3>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                {pluginDiagnostics ? formatPluginDiagnosticsSummary(pluginDiagnostics) : 'Checking configured plugin paths and manifests'}
+                {pluginDiagnostics ? ` · Host ${pluginDiagnostics.hostApiVersion}` : ''}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => void loadPluginDiagnostics()}
+                disabled={pluginDiagnosticsLoading}
+                className="rounded border border-gray-200 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:text-gray-400 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+              >
+                {pluginDiagnosticsLoading ? 'Checking...' : 'Refresh'}
+              </button>
+              <button
+                onClick={() => setShowPluginDiagnostics(false)}
+                aria-label="Close plugin health"
+                className="rounded px-2 py-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+              >
+                &times;
+              </button>
+            </div>
+          </div>
+
+          {pluginDiagnosticsError && (
+            <div className="mt-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">
+              {pluginDiagnosticsError}
+            </div>
+          )}
+
+          {pluginDiagnostics && pluginDiagnostics.diagnostics.length === 0 && (
+            <div className="mt-3 text-xs text-gray-500 dark:text-gray-400">No plugins or plugin manifests were discovered.</div>
+          )}
+
+          {pluginDiagnostics && pluginDiagnostics.diagnostics.length > 0 && (
+            <div className="mt-3 divide-y divide-gray-200 border-y border-gray-200 dark:divide-gray-700 dark:border-gray-700">
+              {pluginDiagnostics.diagnostics.map((diagnostic, index) => (
+                <div key={`${diagnostic.status}-${diagnostic.pluginId || diagnostic.path}-${index}`} className="py-3 text-xs">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={`rounded-full px-2 py-0.5 font-medium ${pluginStatusClass(diagnostic.status)}`}>{diagnostic.status}</span>
+                    <span className="font-medium text-gray-900 dark:text-gray-100">{diagnostic.name || diagnostic.pluginId || 'Plugin path'}</span>
+                    {diagnostic.pluginVersion ? <span className="text-gray-500">v{diagnostic.pluginVersion}</span> : null}
+                    {diagnostic.apiVersion ? <span className="font-mono text-gray-500">{diagnostic.apiVersion}</span> : null}
+                  </div>
+                  <div className="mt-1 text-gray-700 dark:text-gray-300">{diagnostic.message}</div>
+                  {diagnostic.remediation ? <div className="mt-1 text-gray-500 dark:text-gray-400">{diagnostic.remediation}</div> : null}
+                  {diagnostic.path ? <div className="mt-1 break-all font-mono text-gray-400">{diagnostic.path}</div> : null}
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
       )}
 
       {logRuntimeSignal && (

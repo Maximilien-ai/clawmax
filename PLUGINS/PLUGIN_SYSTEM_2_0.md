@@ -83,13 +83,14 @@ Status: implemented; continue regression validation.
 
 ### Phase 2: Generic manifest and records
 
-Status: first contract implemented; compatibility hardening remains.
+Status: first contract and health diagnostics implemented; compatibility hardening remains.
 
 - Version the host API and manifest contract.
 - Add generic record schemas, defaults, and presentation metadata.
 - Add capability and permission validation.
 - Store unknown plugin records without product-specific coercion.
 - Render a useful generic list, detail, and editor experience.
+- Report loaded, disabled, invalid, incompatible, duplicate, and missing plugins through a host diagnostics API and System & Logs surface.
 
 ### Phase 3: Host-mediated actions
 

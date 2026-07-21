@@ -122,6 +122,25 @@ Multiple plugin roots use the platform path delimiter. Production deployment
 must mount private repositories or packaged plugin directories separately from
 the public ClawMax image.
 
+## Health Diagnostics
+
+Before debugging a missing navigation entry, open **System & Logs > Plugins**
+or request `GET /api/plugins/diagnostics`. The response reports the host API
+version, configured roots, a status summary, and one entry per discovered or
+requested plugin:
+
+- `loaded`: valid and enabled
+- `disabled`: valid and discovered, but not selected by the current enablement policy
+- `invalid`: unreadable JSON or a manifest that does not satisfy its declared contract
+- `incompatible`: the manifest requests an unsupported host API version
+- `duplicate`: another discovered plugin already owns the same `id` or `slug`
+- `missing`: a configured root does not exist, or an explicitly enabled plugin was not found
+
+Disabled plugins do not make the host unhealthy. Invalid, incompatible,
+duplicate, and missing entries do. Each failing entry includes remediation and
+the relevant manifest or configured-root path. Duplicate identities are
+diagnosed and only the first discovered manifest is eligible to load.
+
 ## Current Boundary
 
 V2 plugins are declarative. They do not load arbitrary frontend bundles or
