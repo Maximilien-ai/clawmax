@@ -5,6 +5,17 @@ All notable changes to ClawMax are documented here.
 ## [Unreleased]
 
 ### Added
+- **2.0 Declarative Plugin Contract** — the `clawmax.ai/v2` manifest adds generic record schemas and defaults, declarative list/form presentation, generic templates, workspace storage, and compatibility validation without requiring a new core page or route for every plugin domain.
+- **External Plugin Boundary** — plugin discovery supports deployment-mounted roots plus explicit enablement while preserving a zero-plugin runtime. Public and private plugins use the same contract; private source and production enablement remain outside the public repository and default image.
+
+### Planned
+- **2.0 Public Plugin And AI-Scoring Foundation** — complete the generic contribution-based plugin contract for pages, APIs, data, actions, jobs, events, settings, skills, providers, docs, and extension points; then publish scorer contracts and user-facing scoring surfaces on that foundation.
+- **2.0 Public Optimize Plugin** — add token-first workflow and agent accounting, derived cost with dated pricing provenance, workspace-constrained workflow allocations, workflow-scoped model recommendations, confirmed schedule suggestions, and reversible application.
+- **Public Gmail And Microsoft 365 Partners** — ship curated public Gmail and Outlook plugins beginning with read/search/draft; sending and destructive actions require separate grants and confirmation.
+
+## [v1.9.9] - 2026-07-21
+
+### Added
 - **Native OpenRouter Provider** — `1.9.9` adds first-class OpenRouter credentials, native `openrouter/...` model discovery, provider-isolated chat/group/workflow execution, actionable readiness checks, and Keys & Secrets/BYOK support without routing OpenRouter through the LM Studio-oriented generic endpoint.
 - **Native xAI / Grok Provider** — first-class `XAI_API_KEY` capture and validation, runtime-compatible `xai/...` model discovery, native OpenClaw auth profiles, and provider-isolated direct/group/workflow execution. Grok 4.5 remains hidden until the pinned OpenClaw runtime advertises and executes it.
 - **Brokered Agent-Skill Secrets** — encrypted workspace storage, exact agent/skill/fingerprint/key grants, revocation, short-lived runtime capabilities, fixed registered actions, child-process-only injection, masked inventory, and output/audit redaction let authorized skills use credentials without exposing a general vault reader or placing raw values in the parent agent environment.
@@ -18,12 +29,9 @@ All notable changes to ClawMax are documented here.
 - **Long Agent Tool-Run Feedback** — chat distinguishes a potentially multi-minute tool-enabled run from ordinary typing, reports elapsed time and the three-minute bound, and explains incomplete tool turns without implying that no actions occurred.
 - **Gmail Secret Boundary Guidance** — browser-local key tabs now state that key names cannot be referenced from agent chat and that storing a Gmail password alone does not grant mailbox access, with direct navigation to skill discovery and explicit agent-skill authorization.
 
-### Planned
-- **2.0 Public Plugin And AI-Scoring Foundation** — replace the guardrail/eval-shaped MVP0 host with a generic contribution-based plugin contract for pages, APIs, data, actions, jobs, events, settings, skills, providers, docs, and extension points; then publish scorer contracts and user-facing scoring surfaces on that foundation.
-- **2.0 Public Optimize Plugin** — add token-first workflow and agent accounting, derived cost with dated pricing provenance, workspace-constrained workflow allocations, workflow-scoped model recommendations, confirmed schedule suggestions, and reversible application.
-- **Public Gmail And Microsoft 365 Partners** — define a shared mail capability/OAuth/test foundation in `1.9.9`, then ship public curated Gmail and Outlook plugins in `2.0.0`. Begin with read/search/draft and require separate grants plus confirmation for send or destructive actions.
-- **Google Credential Safety** — document OAuth, service-account, and supported app-password flows as the intended Google integration paths; normal Google account passwords must not be requested or recommended.
-- **Stable Runtime Baseline** — keep OpenClaw fixed at `v2026.6.11` unless a separately validated upstream change is required.
+### Release Validation
+- Promoted unchanged from `1.9.9-test-rc6` after `401/401` local integration/validation checks, amd64 and arm64 image verification, manifest publication, and registry smoke.
+- Preserves the OpenClaw `v2026.6.11` runtime baseline and keeps normal Google account passwords outside supported agent-secret flows.
 
 ## [v1.9.8] - 2026-07-18
 

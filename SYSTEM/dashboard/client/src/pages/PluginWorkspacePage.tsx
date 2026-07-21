@@ -5,15 +5,22 @@ import { headerPrimaryButtonClass } from '../lib/headerControls'
 import { expandPromptWithAI } from '../lib/aiPrompt'
 import { getAiGenerationReadiness, hasAiGenerationAccess } from '../lib/byok'
 import { getViewportSafeDropdownStyle } from '../lib/dropdownPosition'
-import type { PluginManifest, PluginRecord, PluginRecordTemplate, PluginWorkspaceContext } from '../lib/plugins'
+import type { GenericPluginRecord, PluginFieldValue, PluginManifest, PluginRecord, PluginRecordTemplate, PluginWorkspaceContext } from '../lib/plugins'
 import {
+  buildGenericPluginFields,
   buildPluginDraftFromPrompt,
   collectPluginTags,
   formatPluginScopeSummary,
   formatPluginUpdatedAt,
   formatPluginUsageSummary,
+  getOrderedPluginFields,
+  getPluginDetailLines,
   getPluginUsageTotals,
+  isEvalRecord,
+  isGenericPluginRecord,
+  isGuardrailRecord,
   matchesPluginSearch,
+  usesLegacyPluginAdapter,
 } from '../lib/plugins'
 
 type Props = {
@@ -26,7 +33,7 @@ type ArchiveTab = 'active' | 'archived'
 type PluginViewMode = 'grid' | 'detail' | 'table'
 
 function PluginIcon({ plugin }: { plugin: PluginManifest }) {
-  if (plugin.objectKind === 'guardrail') {
+  if (usesLegacyPluginAdapter(plugin, 'guardrail')) {
     return (
       <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M12 3 5 6v6c0 4.5 2.9 7.9 7 9 4.1-1.1 7-4.5 7-9V6Z" />
@@ -34,7 +41,7 @@ function PluginIcon({ plugin }: { plugin: PluginManifest }) {
       </svg>
     )
   }
-  return (
+  if (usesLegacyPluginAdapter(plugin, 'eval')) return (
     <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M10 2v7.3L4.6 18a2 2 0 0 0 1.7 3h11.4a2 2 0 0 0 1.7-3L14 9.3V2" />
       <path d="M8 2h8" />
@@ -42,6 +49,7 @@ function PluginIcon({ plugin }: { plugin: PluginManifest }) {
       <path d="M8 17h8" />
     </svg>
   )
+  return <ProductIconCell iconName={plugin.icon || 'plugin'} label={plugin.name} size="sm" className="border-transparent bg-transparent text-current" />
 }
 
 function EmptyState({ plugin, onCreate }: { plugin: PluginManifest; onCreate: () => void }) {
@@ -52,9 +60,11 @@ function EmptyState({ plugin, onCreate }: { plugin: PluginManifest; onCreate: ()
       </div>
       <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">No {plugin.labels?.plural || plugin.name} yet</h3>
       <p className="mx-auto mt-2 max-w-2xl text-sm text-gray-500 dark:text-gray-400">
-        {plugin.objectKind === 'guardrail'
+        {usesLegacyPluginAdapter(plugin, 'guardrail')
           ? 'Create workspace-scoped guardrails that describe which agents or workflows are constrained and what they are allowed to do.'
-          : 'Create workspace-scoped eval experiments with inputs, expected outputs, judge mode, and repeatable score history.'}
+          : usesLegacyPluginAdapter(plugin, 'eval')
+            ? 'Create workspace-scoped eval experiments with inputs, expected outputs, judge mode, and repeatable score history.'
+            : `Create workspace-scoped ${plugin.labels?.plural?.toLowerCase() || plugin.name.toLowerCase()} using this plugin's declared fields.`}
       </p>
       <button
         onClick={onCreate}
@@ -63,6 +73,80 @@ function EmptyState({ plugin, onCreate }: { plugin: PluginManifest; onCreate: ()
         <ProductIconCell iconName="create" label="Create" size="sm" className="border-white/20 bg-white/10 text-white" />
         Create
       </button>
+    </div>
+  )
+}
+
+function GenericPluginFields({
+  plugin,
+  fields,
+  onChange,
+}: {
+  plugin: PluginManifest
+  fields: Record<string, PluginFieldValue>
+  onChange: (fields: Record<string, PluginFieldValue>) => void
+}) {
+  const required = new Set(plugin.recordSchema?.required || [])
+  const update = (key: string, value: PluginFieldValue) => onChange({ ...fields, [key]: value })
+
+  return (
+    <div className="space-y-4">
+      {getOrderedPluginFields(plugin).map(([key, schema]) => {
+        const value = fields[key]
+        const label = <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">{schema.title}{required.has(key) ? ' *' : ''}</span>
+        const className = 'w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100'
+        if (schema.type === 'boolean') {
+          return (
+            <label key={key} className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
+              <input type="checkbox" checked={value === true} onChange={(event) => update(key, event.target.checked)} className="mt-0.5" />
+              <span><span className="font-medium">{schema.title}</span>{schema.description ? <span className="mt-0.5 block text-xs text-gray-500">{schema.description}</span> : null}</span>
+            </label>
+          )
+        }
+        if (schema.enum?.length) {
+          return (
+            <label key={key} className="block">
+              {label}
+              <select value={typeof value === 'string' ? value : ''} onChange={(event) => update(key, event.target.value)} className={className}>
+                {schema.enum.map((option) => <option key={option} value={option}>{option}</option>)}
+              </select>
+              {schema.description ? <span className="mt-1 block text-xs text-gray-500">{schema.description}</span> : null}
+            </label>
+          )
+        }
+        if (schema.type === 'array') {
+          return (
+            <label key={key} className="block">
+              {label}
+              <input value={Array.isArray(value) ? value.join(', ') : ''} onChange={(event) => update(key, event.target.value.split(',').map((entry) => entry.trim()).filter(Boolean))} className={className} placeholder="Comma-separated values" />
+              {schema.description ? <span className="mt-1 block text-xs text-gray-500">{schema.description}</span> : null}
+            </label>
+          )
+        }
+        if (schema.format === 'textarea') {
+          return (
+            <label key={key} className="block">
+              {label}
+              <textarea value={typeof value === 'string' ? value : ''} onChange={(event) => update(key, event.target.value)} rows={5} className={className} />
+              {schema.description ? <span className="mt-1 block text-xs text-gray-500">{schema.description}</span> : null}
+            </label>
+          )
+        }
+        const inputType = schema.type === 'number' || schema.type === 'integer' ? 'number' : schema.format === 'date' ? 'date' : schema.format === 'uri' ? 'url' : 'text'
+        return (
+          <label key={key} className="block">
+            {label}
+            <input
+              type={inputType}
+              step={schema.type === 'integer' ? 1 : schema.type === 'number' ? 'any' : undefined}
+              value={typeof value === 'number' || typeof value === 'string' ? value : ''}
+              onChange={(event) => update(key, schema.type === 'number' || schema.type === 'integer' ? Number(event.target.value) : event.target.value)}
+              className={className}
+            />
+            {schema.description ? <span className="mt-1 block text-xs text-gray-500">{schema.description}</span> : null}
+          </label>
+        )
+      })}
     </div>
   )
 }
@@ -87,10 +171,11 @@ function PluginFormModal({
   }, [draft])
 
   const tags = typeof form.tags?.join === 'function' ? form.tags.join(', ') : ''
-  const allowedSkills = form.kind === 'guardrail'
+  const allowedSkills = isGuardrailRecord(form)
     ? (form.controls?.allowedSkills || []).join(', ')
     : ''
-  const targetIds = form.kind === 'eval' ? (form.target?.ids || []).join(', ') : ''
+  const targetIds = isEvalRecord(form) ? (form.target?.ids || []).join(', ') : ''
+  const genericFields = isGenericPluginRecord(form) ? form.fields : buildGenericPluginFields(plugin)
 
   const parseCommaList = (value: string) => value.split(',').map((item) => item.trim()).filter(Boolean)
 
@@ -144,7 +229,7 @@ function PluginFormModal({
             </label>
           </div>
 
-          {plugin.objectKind === 'guardrail' ? (
+          {usesLegacyPluginAdapter(plugin, 'guardrail') ? (
             <div className="space-y-4">
               <label className="block">
                 <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Allowed skills</span>
@@ -255,7 +340,7 @@ function PluginFormModal({
                 </select>
               </label>
             </div>
-          ) : (
+          ) : usesLegacyPluginAdapter(plugin, 'eval') ? (
             <div className="space-y-4">
               <label className="block">
                 <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Target type</span>
@@ -367,6 +452,12 @@ function PluginFormModal({
                 />
               </label>
             </div>
+          ) : (
+            <GenericPluginFields
+              plugin={plugin}
+              fields={genericFields}
+              onChange={(fields) => setForm((current) => ({ ...current, kind: plugin.objectKind, fields } as Partial<GenericPluginRecord>))}
+            />
           )}
         </div>
         <div className="flex items-center justify-end gap-3 border-t border-gray-200 px-5 py-4 dark:border-gray-700">
@@ -405,21 +496,7 @@ function ItemCard({
   const archived = item.archived === true
   const usageSummary = formatPluginUsageSummary(item)
   const [showActions, setShowActions] = useState(false)
-  const detailLines = item.kind === 'guardrail'
-    ? [
-        item.appliesTo.agents.length > 0 ? `Agents: ${item.appliesTo.agents.join(', ')}` : '',
-        item.appliesTo.workflows.length > 0 ? `Workflows: ${item.appliesTo.workflows.join(', ')}` : '',
-        item.appliesTo.groups.length > 0 ? `Groups: ${item.appliesTo.groups.join(', ')}` : '',
-        item.appliesTo.communities.length > 0 ? `Communities: ${item.appliesTo.communities.join(', ')}` : '',
-        item.controls.allowedSkills.length > 0 ? `Allowed skills: ${item.controls.allowedSkills.join(', ')}` : '',
-      ].filter(Boolean)
-    : [
-        `Target type: ${item.target.type}`,
-        item.target.ids.length > 0 ? `Targets: ${item.target.ids.join(', ')}` : '',
-        `Judge: ${item.experiment.judge === 'ai' ? 'AI placeholder' : 'Fixed heuristic'}`,
-        item.experiment.input ? `Input: ${item.experiment.input}` : '',
-        item.experiment.expectedOutput ? `Expected: ${item.experiment.expectedOutput}` : '',
-      ].filter(Boolean)
+  const detailLines = getPluginDetailLines(plugin, item)
 
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md dark:border-gray-700 dark:bg-gray-900/60">
@@ -427,7 +504,7 @@ function ItemCard({
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <div className="rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-700 dark:bg-sky-900/30 dark:text-sky-300">
-              {item.kind === 'guardrail' ? 'Guardrail' : 'Eval'}
+              {plugin.labels?.singular || plugin.objectKind}
             </div>
             <div className={`rounded-full px-2 py-0.5 text-xs font-medium ${archived ? 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' : item.enabled ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}>
               {archived ? 'Archived' : item.enabled ? 'Enabled' : 'Disabled'}
@@ -509,7 +586,7 @@ function ItemCard({
           )}
         </div>
       </div>
-      {item.kind === 'eval' && (
+      {isEvalRecord(item) && (
         <div className="mt-4 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-300">
           {usageSummary}
         </div>
@@ -547,7 +624,7 @@ function ItemCard({
           </button>
         )}
       </div>
-      {item.kind === 'eval' && item.lastRun && (
+      {isEvalRecord(item) && item.lastRun && (
         <div className="mt-4 rounded-xl border border-violet-200 bg-violet-50 px-3 py-3 dark:border-violet-900/40 dark:bg-violet-900/10">
           <div className="flex items-center justify-between gap-3">
             <div className="text-sm font-medium text-violet-800 dark:text-violet-300">Latest score</div>
@@ -610,13 +687,13 @@ function CompactItemCard({
       <div className="mt-3 flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
         <span>{formatPluginScopeSummary(item)}</span>
       </div>
-      {item.kind === 'eval' && (
+      {isEvalRecord(item) && (
         <div className="mt-3 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-300">
           {usageSummary}
         </div>
       )}
       <div className="mt-3 flex items-center gap-4 text-gray-300 dark:text-gray-500">
-        <ProductIconCell iconName={item.kind === 'eval' ? 'play' : 'status'} label="Type" size="sm" className="border-transparent bg-transparent text-current" />
+        <ProductIconCell iconName={isEvalRecord(item) ? 'play' : 'status'} label="Type" size="sm" className="border-transparent bg-transparent text-current" />
         <ProductIconCell iconName="docs" label="Docs" size="sm" className="border-transparent bg-transparent text-current" />
         <ProductIconCell iconName="communication" label="Notifications" size="sm" className="border-transparent bg-transparent text-current" />
       </div>
@@ -665,26 +742,7 @@ function PluginDetailsPanel({
     ...(item.document?.path ? [item.document.path] : []),
   ]))
   const usageTotals = getPluginUsageTotals(item)
-  const detailLines = item.kind === 'guardrail'
-    ? [
-        `Agents: ${item.appliesTo.agents.length > 0 ? item.appliesTo.agents.join(', ') : 'none'}`,
-        `Workflows: ${item.appliesTo.workflows.length > 0 ? item.appliesTo.workflows.join(', ') : 'none'}`,
-        `Groups: ${item.appliesTo.groups.length > 0 ? item.appliesTo.groups.join(', ') : 'none'}`,
-        `Communities: ${item.appliesTo.communities.length > 0 ? item.appliesTo.communities.join(', ') : 'none'}`,
-        `Allowed skills: ${item.controls.allowedSkills.length > 0 ? item.controls.allowedSkills.join(', ') : 'none'}`,
-        `Block email: ${item.controls.blockEmail ? 'yes' : 'no'}`,
-        `Block web: ${item.controls.blockWeb ? 'yes' : 'no'}`,
-        `Block external docs: ${item.controls.blockExternalDocs ? 'yes' : 'no'}`,
-      ]
-    : [
-        `Target type: ${item.target.type}`,
-        `Targets: ${item.target.ids.length > 0 ? item.target.ids.join(', ') : 'none'}`,
-        `Judge: ${item.experiment.judge === 'ai' ? 'AI placeholder' : 'Fixed heuristic'}`,
-        `Input: ${item.experiment.input || 'none'}`,
-        `Candidate output: ${item.experiment.candidateOutput || 'none'}`,
-        `Expected output: ${item.experiment.expectedOutput || 'none'}`,
-        `Runs: ${item.runs.length}`,
-      ]
+  const detailLines = getPluginDetailLines(plugin, item)
 
   return (
     <div className="fixed inset-0 bg-black/30 z-40 md:bg-black/20" onClick={onClose}>
@@ -702,7 +760,7 @@ function PluginDetailsPanel({
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <span className="rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-700 dark:bg-sky-900/30 dark:text-sky-300">
-              {item.kind === 'guardrail' ? 'Guardrail' : 'Eval'}
+              {plugin.labels?.singular || plugin.objectKind}
             </span>
             <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${archived ? 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' : item.enabled ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}>
               {archived ? 'Archived' : item.enabled ? 'Enabled' : 'Disabled'}
@@ -772,7 +830,7 @@ function PluginDetailsPanel({
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5 sm:px-5">
-        {item.kind === 'eval' && (
+        {isEvalRecord(item) && (
           <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-3 dark:border-emerald-900/40 dark:bg-emerald-950/20">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -851,7 +909,7 @@ function PluginDetailsPanel({
           </div>
         </div>
 
-        {item.kind === 'eval' && item.lastRun && (
+        {isEvalRecord(item) && item.lastRun && (
           <div className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-3 dark:border-violet-900/40 dark:bg-violet-900/10">
             <div className="flex items-center justify-between gap-3">
               <div className="text-sm font-medium text-violet-800 dark:text-violet-300">Latest score</div>
@@ -876,8 +934,8 @@ function TemplateCard({
   onApply: () => void
 }) {
   return (
-    <div className="rounded-2xl border border-sky-200 bg-sky-50/70 p-4 dark:border-sky-900/40 dark:bg-sky-950/20">
-      <div className="flex items-start justify-between gap-3">
+    <div className="rounded-lg border border-sky-200 bg-sky-50/70 p-4 dark:border-sky-900/40 dark:bg-sky-950/20">
+      <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className="rounded-full bg-white/80 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-sky-700 dark:bg-sky-900/50 dark:text-sky-300">
@@ -895,7 +953,7 @@ function TemplateCard({
             ))}
           </div>
         </div>
-        <button onClick={onApply} className={headerPrimaryButtonClass}>Use Template</button>
+        <button onClick={onApply} className={`${headerPrimaryButtonClass} w-full justify-center sm:w-auto`}>Use Template</button>
       </div>
     </div>
   )
@@ -1034,9 +1092,11 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
     }
   }, [items, selectedItemId])
 
-  const createDraft: Partial<PluginRecord> = plugin.objectKind === 'guardrail'
+  const createDraft: Partial<PluginRecord> = usesLegacyPluginAdapter(plugin, 'guardrail')
     ? { kind: 'guardrail', enabled: true, tags: [], appliesTo: { agents: [], workflows: [], groups: [], communities: [] }, controls: { blockEmail: false, blockWeb: false, blockExternalDocs: false, allowedSkills: [] } }
-    : { kind: 'eval', enabled: true, tags: [], target: { type: 'agent', ids: [] }, experiment: { input: '', candidateOutput: '', expectedOutput: '', judge: 'fixed' }, runs: [] }
+    : usesLegacyPluginAdapter(plugin, 'eval')
+      ? { kind: 'eval', enabled: true, tags: [], target: { type: 'agent', ids: [] }, experiment: { input: '', candidateOutput: '', expectedOutput: '', judge: 'fixed' }, runs: [] }
+      : { kind: plugin.objectKind, enabled: true, tags: [], fields: buildGenericPluginFields(plugin) }
 
   const applyTemplate = async (templateId: string) => {
     const res = await fetch(`/api/plugins/${encodeURIComponent(plugin.slug)}/templates/${encodeURIComponent(templateId)}/apply`, { method: 'POST' })
@@ -1317,7 +1377,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                             <ProductIconCell iconName="communication" label="Notify" size="sm" className="border-transparent bg-transparent text-current" />
                             Notify
                           </button>
-                          {item.kind === 'eval' && (
+                          {isEvalRecord(item) && (
                             <button onClick={() => { setActiveCompactActions(null); void callItemAction(item.id, 'run') }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800">
                               <ProductIconCell iconName="play" label="Run Eval" size="sm" className="border-transparent bg-transparent text-current" />
                               Run Eval
@@ -1350,7 +1410,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                       onToggle={() => void callItemAction(item.id, 'toggle')}
                       onGenerateDoc={() => void callItemAction(item.id, 'document')}
                       onNotify={() => void callItemAction(item.id, 'notify')}
-                      onRun={item.kind === 'eval' ? (() => void callItemAction(item.id, 'run')) : null}
+                      onRun={isEvalRecord(item) ? (() => void callItemAction(item.id, 'run')) : null}
                       onOpenDoc={onNavigateToDoc || null}
                       onArchiveToggle={() => void saveItem({ ...item, archived: item.archived !== true } as Partial<PluginRecord>)}
                     />
@@ -1429,7 +1489,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                 onToggle={() => void callItemAction(selectedItem.id, 'toggle')}
                 onArchiveToggle={() => void saveItem({ ...selectedItem, archived: selectedItem.archived !== true } as Partial<PluginRecord>)}
                 onDelete={() => void callItemAction(selectedItem.id, 'delete')}
-                onRun={selectedItem.kind === 'eval' ? (() => void callItemAction(selectedItem.id, 'run')) : null}
+                onRun={isEvalRecord(selectedItem) ? (() => void callItemAction(selectedItem.id, 'run')) : null}
               />
             </div>
           )}
@@ -1473,9 +1533,11 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
             <textarea
               value={aiPromptText}
               onChange={(e) => setAiPromptText(e.target.value)}
-              placeholder={plugin.objectKind === 'guardrail'
+              placeholder={usesLegacyPluginAdapter(plugin, 'guardrail')
                 ? 'e.g., Create a guardrail for research agents that blocks outbound email and external document sharing'
-                : 'e.g., Create an eval for a research workflow that judges output quality and compares summaries against expected findings'}
+                : usesLegacyPluginAdapter(plugin, 'eval')
+                  ? 'e.g., Create an eval for a research workflow that judges output quality and compares summaries against expected findings'
+                  : `Describe the ${plugin.labels?.singular?.toLowerCase() || plugin.objectKind} to create`}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[100px] resize-y"
               autoFocus
               onKeyDown={(e) => { if (e.key === 'Enter' && e.metaKey) void handleAiGenerate() }}

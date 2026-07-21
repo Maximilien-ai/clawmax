@@ -1,10 +1,13 @@
 import {
   buildPluginDraftFromPrompt,
+  buildGenericPluginFields,
   collectPluginTags,
   formatPluginScopeSummary,
   formatPluginUpdatedAt,
   formatPluginUsageSummary,
   getPluginUsageTotals,
+  getPluginDetailLines,
+  isGenericPluginRecord,
   matchesPluginSearch,
   type PluginManifest,
   type PluginRecord,
@@ -109,6 +112,42 @@ const guardrailPlugin: PluginManifest = {
   },
 }
 
+const reviewPlugin: PluginManifest = {
+  apiVersion: 'clawmax.ai/v2',
+  id: 'review-notes',
+  slug: 'plugin-lab-review-notes',
+  name: 'Review Notes',
+  description: 'Generic review notes',
+  version: '0.2.0',
+  icon: 'docs',
+  objectKind: 'review-note',
+  visibility: 'private',
+  source: { type: 'github', owner: 'example', repo: 'review-notes', url: 'https://example.invalid/review-notes' },
+  labels: { singular: 'Review Note', plural: 'Review Notes' },
+  recordSchema: {
+    type: 'object',
+    required: ['priority', 'notes'],
+    properties: {
+      priority: { type: 'string', title: 'Priority', enum: ['low', 'medium', 'high'], default: 'medium' },
+      notes: { type: 'string', title: 'Notes', format: 'textarea' },
+      approved: { type: 'boolean', title: 'Approved', default: false },
+    },
+  },
+  ui: { form: { order: ['priority', 'notes', 'approved'] }, list: { fields: ['priority', 'approved'] } },
+}
+
+const reviewRecord: PluginRecord = {
+  id: 'review-1',
+  kind: 'review-note',
+  name: 'Release review',
+  description: 'Review release readiness',
+  tags: ['release'],
+  enabled: true,
+  createdAt: '2026-07-15T00:00:00.000Z',
+  updatedAt: '2026-07-15T00:00:00.000Z',
+  fields: { priority: 'high', notes: 'Check acceptance evidence', approved: false },
+}
+
 test('collectPluginTags returns sorted unique tags', () => {
   const tags = collectPluginTags([guardrail, evalRecord])
   assert(JSON.stringify(tags) === JSON.stringify(['email', 'quality', 'research', 'security']), 'Expected sorted unique tags')
@@ -149,6 +188,24 @@ test('buildPluginDraftFromPrompt creates an eval draft from natural language', (
   assert(draft.kind === 'eval', 'Expected eval draft')
   assert(draft.target?.type === 'workflow', 'Expected workflow target to be inferred')
   assert(draft.experiment?.judge === 'ai', 'Expected AI judge to be inferred')
+})
+
+test('generic v2 plugins build defaults and prompt-backed declarative fields', () => {
+  const defaults = buildGenericPluginFields(reviewPlugin)
+  assert(defaults.priority === 'medium', 'Expected manifest default for priority')
+  assert(defaults.approved === false, 'Expected boolean manifest default')
+  const draft = buildPluginDraftFromPrompt(reviewPlugin, 'Review the release evidence before promotion')
+  assert(isGenericPluginRecord(draft), 'Expected a generic plugin draft')
+  assert(draft.kind === 'review-note', 'Expected generic object kind to persist')
+  assert(draft.fields.notes === 'Review the release evidence before promotion', 'Expected prompt to populate the declarative textarea')
+})
+
+test('generic plugin records participate in search, scope, and declarative detail presentation', () => {
+  assert(matchesPluginSearch(reviewRecord, 'acceptance evidence'), 'Expected generic field values in search')
+  assert(formatPluginScopeSummary(reviewRecord) === '3 configured fields', 'Expected generic configured field count')
+  const lines = getPluginDetailLines(reviewPlugin, reviewRecord)
+  assert(lines.includes('Priority: high'), 'Expected configured list field presentation')
+  assert(lines.includes('Approved: no'), 'Expected boolean list field presentation')
 })
 
 test('getPluginUsageTotals aggregates eval runs for plugin usage surfaces', () => {

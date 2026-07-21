@@ -1,16 +1,15 @@
 # Backlog
 
-> Last updated: July 20, 2026
-> Completed and verified work is archived into [CHANGELOG.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/CHANGELOG.md) and historical notes under `SYSTEM/docs/**/archive/`
+> Last updated: July 21, 2026
+> Completed and verified work is archived into [CHANGELOG.md](../../CHANGELOG.md) and historical notes under `SYSTEM/docs/**/archive/`.
 
 ## Top Priority
 
-- [ ] **1.9.9 brokered agent-skill secrets** — implementation is in RC5 validation: encrypted workspace storage, grant/fingerprint checks, fixed child actions, masked readiness, redaction, controlled Google credential guidance, and local security-negative tests are complete. Remaining gates are real agent/group/workflow and restart/export/log validation in a container. Plan: [SIMPLIFY_HARDEN_OPTIMIZE_1_9_9.md](planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_9.md).
-- [ ] **1.9.9 native xAI/Grok provider release gate** — implementation and automated coverage are complete for first-class xAI key/readiness, runtime-compatible `xai/...` discovery/selection, actionable failures, and isolated chat/group/workflow execution. Remaining work is real-key local and RC5 container validation. Grok 4.5 stays hidden until a future pinned OpenClaw image executes that exact model. Plan: [PUBLIC_MODELS_GATEWAYS_EMAIL_1_9_9_2_0.md](planning/PUBLIC_MODELS_GATEWAYS_EMAIL_1_9_9_2_0.md).
-- [ ] **Public Gmail and Microsoft 365 mail partners** — define the shared mail capability schema, OAuth/readiness states, fake-provider and prompt-injection tests in `1.9.9`, then ship public curated Gmail and Outlook plugins in `2.0.0`. Start with read/search/draft; gate send and destructive actions separately. Never request normal mailbox passwords. Plan: [PUBLIC_MODELS_GATEWAYS_EMAIL_1_9_9_2_0.md](planning/PUBLIC_MODELS_GATEWAYS_EMAIL_1_9_9_2_0.md).
+- [ ] **1.9.9 hotfix watch** — `v1.9.9` is promoted from RC6. Accept only reproducible release-blocking fixes on `release-1.9.9`; otherwise keep development on `main` for 2.0.
+- [ ] **Public Gmail and Microsoft 365 mail partners** — define the shared mail capability schema, OAuth/readiness states, fake-provider and prompt-injection tests, then ship curated Gmail and Outlook plugins in `2.0.0`. Start with read/search/draft; gate send and destructive actions separately. Never request normal mailbox passwords. Plan: [PUBLIC_MODELS_GATEWAYS_EMAIL_1_9_9_2_0.md](planning/PUBLIC_MODELS_GATEWAYS_EMAIL_1_9_9_2_0.md).
 - [ ] **2.0 public plugin and AI-scoring foundation** — replace the current guardrail/eval-shaped MVP0 host with a generic contribution-based plugin contract. A plugin may add any combination of pages, APIs, data, actions, jobs, events, settings, skills, providers, docs, or extension points. Publish that SDK plus generic scorer contracts and the first user-facing scoring flows. Plan: [PUBLIC_PLUGIN_ARCHITECTURE_2_0.md](planning/PUBLIC_PLUGIN_ARCHITECTURE_2_0.md).
 - [ ] **2.0 public Optimize plugin** — add workflow-first token and cost accounting, budget-period allocations, per-run forecasts, workflow-scoped model recommendations, confirmed schedule suggestions, and reversible application. Tokens remain authoritative when model pricing is unavailable; cost uses dated pricing snapshots and never treats unknown pricing as zero. Plan: [PUBLIC_OPTIMIZE_PLUGIN_2_0.md](planning/PUBLIC_OPTIMIZE_PLUGIN_2_0.md).
-- [ ] **Plugin architecture MVP1 follow-through** — MVP0 host architecture is merged with dormant test fixtures only. Continue with generic follow-through only: plugin page/data loading speed, DocHub/file-open polish, stronger shared UI parity with Agents/Workflows, and eventually richer runtime/plugin contracts before any private plugin surfaces are considered for broader release.
+- [ ] **Plugin architecture MVP1 follow-through** — the first generic declarative v2 host contract is merged. Continue with host-mediated actions and permissions, health diagnostics, external packaging validation, plugin page/data loading speed, DocHub/file-open polish, and shared UI parity with Agents/Workflows.
 - [ ] **DocHub remaining file-open polish** — continue tightening chat/status/notification file opens where visible file chips still fail to land in the correct DocHub entry, especially if a basename appears in more than one workspace location or if the source surface still lacks enough context to navigate safely.
 - [ ] **Provider cooldown/auth surfacing follow-through** — the first operator-facing message cleanup shipped in `1.8.5`, with more workflow/result wording in `1.8.6` and `1.8.7`; keep refining workflow/result/log UX so users can tell transient timeout/cooldown windows from hard auth, quota, or config failures without reading raw fallback chains.
 - [ ] **Template audit for lane/subdirectory assumptions** — audit organization and workflow templates for the same class of bug seen in CW reruns: hidden/helper dirs being treated as work items, ambiguous lane ownership, weak filesystem verification, or success reporting that does not re-check on-disk outputs. Prioritize templates that scan subdirectories, split work across multiple agents, or rely on reruns/idempotent regeneration.
@@ -147,5 +146,5 @@
 
 ## History
 
-- Shipped work lives in [CHANGELOG.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/CHANGELOG.md)
+- Shipped work lives in [CHANGELOG.md](../../CHANGELOG.md)
 - Historical hack planning lives under `SYSTEM/docs/hacks/**/archive/`

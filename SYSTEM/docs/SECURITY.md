@@ -4,8 +4,8 @@
 
 ClawMax Dashboard provides a web-based interface for managing OpenClaw agents. Security is paramount as the dashboard enables direct interaction with agent gateways that can execute commands and access sensitive data.
 
-**Last Updated:** 2026-06-03
-**Dashboard Version:** v1.7.3
+**Last Updated:** 2026-07-15
+**Dashboard Version:** v1.9.9
 **OpenClaw Protocol:** Version 4
 
 ---
@@ -255,8 +255,8 @@ ClawMax Dashboard implements OpenClaw Gateway Protocol Version 4:
 ## Upgrading OpenClaw for Security
 
 ### Current Status
-- **Dashboard:** v1.7.3
-- **OpenClaw:** Using system installation
+- **Dashboard:** v1.9.9
+- **OpenClaw:** Pinned release baseline `v2026.6.11`
 - **Gateway Protocol:** v4
 
 ### Upgrade Process
@@ -339,7 +339,7 @@ For security issues in OpenClaw Gateway:
 
 - [OpenClaw Gateway Protocol Specification](https://docs.openclaw.com/protocol)
 - [OpenClaw Security Documentation](https://docs.openclaw.com/security)
-- [ClawMax Dashboard Architecture](./docs/ARCHITECTURE.md)
+- [ClawMax Documentation Index](README.md)
 - [React Security Best Practices](https://react.dev/learn/security)
 
 ---

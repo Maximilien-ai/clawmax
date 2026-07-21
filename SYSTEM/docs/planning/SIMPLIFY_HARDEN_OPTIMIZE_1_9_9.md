@@ -1,9 +1,9 @@
 # Simplify / Harden / Optimize 1.9.9
 
-> Status: in progress; native OpenRouter, runtime-gated xAI, and brokered secret implementation ready for RC5 validation
+> Status: completed and promoted as `v1.9.9` from RC6
 > Baseline: promoted `1.9.8`
 > Runtime baseline: OpenClaw `v2026.6.11`
-> Last updated: July 18, 2026
+> Last updated: July 21, 2026
 
 ## Goal
 

@@ -11,6 +11,7 @@ import assert from 'assert'
 import { createWorkflow } from './workflows'
 import { getActiveNotifications } from './notifications'
 import {
+  applyPluginTemplate,
   deletePluginRecord,
   emitPluginRecordNotification,
   generatePluginRecordDocument,
@@ -18,6 +19,8 @@ import {
   getPluginWorkspaceContext,
   listConfiguredPlugins,
   listPluginRecords,
+  listPluginTemplates,
+  PluginContractError,
   runPluginEval,
   upsertPluginRecord,
 } from './plugin-system'
@@ -112,7 +115,7 @@ async function run() {
   process.env.OPENCLAW_WORKSPACE = tempWorkspace
   process.env.CLAWMAX_TEST_WORKSPACE = tempWorkspace
   process.env.HOME = tempHome
-  process.env.CLAWMAX_ENABLED_PLUGINS = 'plugin-lab-guardrails,plugin-lab-evals'
+  process.env.CLAWMAX_ENABLED_PLUGINS = 'plugin-lab-guardrails,plugin-lab-evals,plugin-lab-review-notes'
   process.env.CLAWMAX_PLUGIN_PATHS = ''
   delete process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS
   resetWorkspaceManagerForTests()
@@ -133,9 +136,12 @@ async function run() {
 
   await test('configured plugins expose manifests in sidebar order', () => {
     const plugins = listConfiguredPlugins()
-    assert(plugins.length >= 2, 'Expected at least the test guardrails and evals plugins to be configured')
+    assert(plugins.length >= 3, 'Expected all three synthetic plugin contracts to be configured')
     assert.strictEqual(plugins[0]?.slug, 'plugin-lab-guardrails', 'Expected guardrails test plugin to sort before evals')
     assert.strictEqual(plugins[1]?.slug, 'plugin-lab-evals', 'Expected evals test plugin to appear second')
+    assert.strictEqual(plugins[2]?.slug, 'plugin-lab-review-notes', 'Expected generic v2 plugin to appear third')
+    assert.strictEqual(plugins[2]?.apiVersion, 'clawmax.ai/v2', 'Expected generic plugin to declare the v2 host API')
+    assert.strictEqual(plugins[2]?.objectKind, 'review-note', 'Expected a non-core object kind to load')
     assert(plugins.every((plugin) => plugin.visibility === 'private'), 'Expected MVP0 plugins to be private')
     assert(plugins.every((plugin) => plugin.nav?.section === 'plugins'), 'Expected plugins to target the plugin nav section')
     assert(plugins.every((plugin) => plugin.capabilities?.notifications && plugin.capabilities?.docs), 'Expected plugins to declare core host capabilities')
@@ -197,6 +203,38 @@ async function run() {
     else process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS = previousDisableDefaults
   })
 
+  await test('host rejects unsupported API versions and incomplete v2 manifests', () => {
+    const pluginRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-invalid-plugin-root-'))
+    const previousEnabled = process.env.CLAWMAX_ENABLED_PLUGINS
+    const previousPluginPaths = process.env.CLAWMAX_PLUGIN_PATHS
+    const baseManifest = {
+      name: 'Invalid plugin',
+      description: 'Must not load.',
+      version: '0.2.0',
+      icon: 'docs',
+      objectKind: 'review-note',
+      visibility: 'private',
+      source: { type: 'github', owner: 'example', repo: 'invalid', url: 'https://example.invalid/invalid' },
+    }
+    for (const [slug, extra] of [
+      ['future-version-plugin', { apiVersion: 'clawmax.ai/v99', recordSchema: { type: 'object', properties: {} } }],
+      ['missing-schema-plugin', { apiVersion: 'clawmax.ai/v2' }],
+    ] as const) {
+      const directory = path.join(pluginRoot, slug)
+      fs.mkdirSync(directory, { recursive: true })
+      fs.writeFileSync(path.join(directory, 'clawmax-plugin.json'), JSON.stringify({ ...baseManifest, ...extra, id: slug, slug }, null, 2), 'utf-8')
+    }
+    process.env.CLAWMAX_PLUGIN_PATHS = pluginRoot
+    process.env.CLAWMAX_ENABLED_PLUGINS = 'future-version-plugin,missing-schema-plugin'
+    assert.deepStrictEqual(listConfiguredPlugins(), [], 'Expected incompatible manifests to be excluded')
+
+    fs.rmSync(pluginRoot, { recursive: true, force: true })
+    if (typeof previousEnabled === 'undefined') delete process.env.CLAWMAX_ENABLED_PLUGINS
+    else process.env.CLAWMAX_ENABLED_PLUGINS = previousEnabled
+    if (typeof previousPluginPaths === 'undefined') delete process.env.CLAWMAX_PLUGIN_PATHS
+    else process.env.CLAWMAX_PLUGIN_PATHS = previousPluginPaths
+  })
+
   await test('guardrail plugin records persist, generate docs, and emit notifications', () => {
     const plugin = getPluginBySlug('plugin-lab-guardrails')
     assert(plugin, 'Expected guardrails test plugin manifest to load')
@@ -250,6 +288,50 @@ async function run() {
 
     assert(deletePluginRecord(plugin!, created.id), 'Expected delete to remove guardrail record')
     assert.strictEqual(listPluginRecords(plugin!).length, 0, 'Expected no guardrail records after delete')
+  })
+
+  await test('generic v2 plugin validates schema, persists fields, and applies templates', () => {
+    const plugin = getPluginBySlug('plugin-lab-review-notes')
+    assert(plugin, 'Expected generic review-note plugin manifest to load')
+
+    assert.throws(
+      () => upsertPluginRecord(plugin!, { name: 'Incomplete review', fields: { priority: 'high' } } as any),
+      (error: unknown) => error instanceof PluginContractError && /Notes is required/.test(error.message),
+      'Expected required declarative fields to be enforced'
+    )
+
+    const created = upsertPluginRecord(plugin!, {
+      name: 'Release review',
+      description: 'Review release readiness',
+      tags: ['release'],
+      fields: {
+        priority: 'high',
+        notes: 'Check acceptance evidence',
+        owner: 'release-manager',
+        approved: false,
+        references: ['CHANGELOG.md'],
+        ignoredUnknownField: 'must not persist',
+      },
+    } as any)
+    assert.strictEqual(created.kind, 'review-note', 'Expected arbitrary plugin object kind to persist')
+    assert('fields' in created, 'Expected generic record fields')
+    assert.strictEqual(created.fields.priority, 'high', 'Expected schema field to persist')
+    assert(!('ignoredUnknownField' in created.fields), 'Expected undeclared fields to be discarded')
+
+    const updated = upsertPluginRecord(plugin!, { id: created.id, fields: { approved: true } } as any)
+    assert('fields' in updated, 'Expected generic update result')
+    assert.strictEqual(updated.fields.approved, true, 'Expected partial field update')
+    assert.strictEqual(updated.fields.notes, 'Check acceptance evidence', 'Expected partial update to retain required fields')
+
+    const withDoc = generatePluginRecordDocument(plugin!, created.id)
+    assert(withDoc?.document?.path, 'Expected generic document path')
+    const documentContent = fs.readFileSync(path.join(tempWorkspace, withDoc!.document!.path), 'utf-8')
+    assert(documentContent.includes('**Priority:** high'), 'Expected generic schema fields in generated document')
+    assert(documentContent.includes('**Approved:** yes'), 'Expected generic boolean formatting in generated document')
+
+    assert(listPluginTemplates(plugin!).some((template) => template.id === 'release-readiness'), 'Expected generic template discovery')
+    const applied = applyPluginTemplate(plugin!, 'release-readiness')
+    assert(applied && 'fields' in applied && applied.fields.owner === 'release-manager', 'Expected generic template application')
   })
 
   await test('eval plugin runs score experiments and surfaces workspace context', () => {

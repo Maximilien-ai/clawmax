@@ -1,0 +1,20 @@
+{
+  "id": "release-readiness",
+  "name": "Release readiness review",
+  "description": "Track a release-readiness decision with an explicit owner and evidence.",
+  "recommended": true,
+  "tags": ["release", "review"],
+  "payload": {
+    "name": "Release readiness review",
+    "description": "Review the release against its acceptance criteria.",
+    "enabled": true,
+    "tags": ["release", "review"],
+    "fields": {
+      "priority": "high",
+      "notes": "Record the acceptance evidence and any remaining blockers.",
+      "owner": "release-manager",
+      "approved": false,
+      "references": ["CHANGELOG.md"]
+    }
+  }
+}

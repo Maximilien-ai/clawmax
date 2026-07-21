@@ -5,23 +5,22 @@
 ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenClaw AI agent teams. Deploy team [templates](https://github.com/Maximilien-ai/templates), visualize workflow DAGs, track progress, and coordinate agents across your entire ecosystem.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.9.8-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
+[![Version](https://img.shields.io/badge/version-1.9.9-green.svg)](https://github.com/Maximilien-ai/clawmax/releases)
 [![Tests](https://img.shields.io/badge/tests-96%20default--safe-brightgreen.svg)](SYSTEM/test.sh)
 
 ---
 
-## 🔥 Latest Stable Release: v1.9.8
+## 🔥 Latest Stable Release: v1.9.9
 
-- `1.9.8` adds federated skill search across ClawHub, Shipables, and Tessl; safe ledger-backed DocHub multi-select move/delete; descriptive export filenames; and restoration of the user's last dashboard location and System navigation state.
-- DocHub preserves uploaded asset types after moves, protects agent-created/untracked files from bulk deletion, enforces upload boundaries, and keeps selection actions visible while scrolling long trees.
-- The release retains the OpenClaw `v2026.6.11` baseline and includes container plugin-environment precedence fixes plus clearer secret-runtime availability.
+- `1.9.9` adds native OpenRouter and xAI/Grok providers, brokered agent-skill secret grants, scoped Keys & Secrets navigation, mobile-safe workflow runs, pinned OpenAI model compatibility, and clearer long-running tool feedback.
+- Browser-local secrets remain unavailable to agent chat by design. Runtime use requires an explicitly assigned skill, an exact secret grant, and a registered broker action; normal Google account passwords are not supported.
+- The release retains the OpenClaw `v2026.6.11` baseline and was promoted unchanged from the multi-architecture `1.9.9-test-rc6` image.
 
-## 🛠 Current Development Line: 1.9.9
+## 🛠 Current Development Line: 2.0.0
 
-- `1.9.9` includes brokered, explicitly granted agent-skill secret use without exposing a general vault reader or raw values to the parent agent process. Workspace values are encrypted with an operator-provided master key and released only to registered fixed child actions after workspace, agent, assignment, skill fingerprint, key, expiry, and revocation checks.
-- Native OpenRouter and xAI/Grok support are now merged, including BYOK, model discovery, direct/group/workflow routing, and provider-isolated runtime credentials. xAI models are limited to the catalog proven compatible with the pinned OpenClaw runtime; Grok 4.5 remains hidden until that runtime can execute it.
-- Public Gmail and Microsoft 365 mail capability foundations may land here, while production partner plugins and public AI scoring remain targeted at `2.0.0`.
-- `2.0.0` will expose public plugin and AI-scoring contracts, the public token-first Optimize plugin, and curated public Gmail and Microsoft 365/Outlook partner plugins. Optimize will forecast workflow and agent tokens/cost, recommend workflow-scoped model and schedule changes within the workspace budget, and preserve pricing provenance and undo. Mail starts with read/search/draft capabilities; sending and destructive actions require separate grants and confirmation. The plugin architecture also lets deployments add organization-specific capabilities such as private enterprise integrations, custom operational tabs, and specialized workflows without changing the core dashboard.
+- `main` now carries the public `clawmax.ai/v2` plugin platform. A plugin can contribute any combination of pages, APIs, data, actions, jobs, events, settings, skills, providers, docs, and extension points; guardrails and evaluations are implementations, not host-level plugin types.
+- Public and private plugins use the same generic contract. Private enterprise integrations can add organization-specific tabs and capabilities without being bundled in the public repository or default image.
+- Public 2.0 products include AI scoring, the token-first Optimize plugin, and curated Gmail and Microsoft 365/Outlook plugins. Mail begins with read/search/draft; sending and destructive actions require separate grants and confirmation.
 - See the public [models, gateways, and email partner plan](SYSTEM/docs/planning/PUBLIC_MODELS_GATEWAYS_EMAIL_1_9_9_2_0.md) for the research, security rules, release split, and test gates.
 - See the public [Optimize plugin plan](SYSTEM/docs/planning/PUBLIC_OPTIMIZE_PLUGIN_2_0.md) for token accounting, pricing snapshots, workflow budget semantics, recommendations, and delivery phases.
 - See the public [2.0 plugin architecture plan](SYSTEM/docs/planning/PUBLIC_PLUGIN_ARCHITECTURE_2_0.md) for the generic contribution-based contract. Guardrails and evaluations are plugin implementations, not fixed plugin types.
@@ -187,7 +186,7 @@ curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/ins
 Pinned release:
 
 ```bash
-curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.8.0
+curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.9.9
 ```
 
 What it does:
@@ -208,16 +207,16 @@ See [SYSTEM/docs/DEMO_VIDEOS.md](SYSTEM/docs/DEMO_VIDEOS.md) for the current inv
 You can also bootstrap directly with the checked-in wrapper:
 
 ```bash
-./setup.sh v1.8.0
+./setup.sh v1.9.9
 ```
 
 or choose a custom install directory:
 
 ```bash
-curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.8.0 --dir /opt/clawmax
+curl -fsSL https://github.com/Maximilien-ai/clawmax/releases/latest/download/install.sh | bash -s -- v1.9.9 --dir /opt/clawmax
 ```
 
-See [SYSTEM/docs/RELEASE_DISTRIBUTION.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/RELEASE_DISTRIBUTION.md) for the release distribution contract.
+See [SYSTEM/docs/RELEASE_DISTRIBUTION.md](SYSTEM/docs/RELEASE_DISTRIBUTION.md) for the release distribution contract.
 
 ```bash
 # Clone the repository

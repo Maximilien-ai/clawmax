@@ -3749,8 +3749,7 @@ else
 fi
 
 # Create a test skill for import
-TEST_SKILL_DIR="/tmp/test-skill-$RANDOM"
-mkdir -p "$TEST_SKILL_DIR"
+TEST_SKILL_DIR=$(mktemp -d /tmp/clawmax-test-skill-XXXXXX)
 
 # Create skill.md
 cat > "$TEST_SKILL_DIR/skill.md" <<'EOF'
@@ -3820,8 +3819,7 @@ else
 fi
 
 # Test import validation - missing skill.md
-TEST_INVALID_DIR="/tmp/test-invalid-skill-$RANDOM"
-mkdir -p "$TEST_INVALID_DIR"
+TEST_INVALID_DIR=$(mktemp -d /tmp/clawmax-test-invalid-skill-XXXXXX)
 echo "export const tools = {}" > "$TEST_INVALID_DIR/index.ts"
 
 response=$(apicurl -X POST "$API_BASE/api/skills/import" \
@@ -3835,8 +3833,7 @@ else
 fi
 
 # Test import validation - markdown-only skill import (index.ts optional)
-TEST_INVALID_DIR2="/tmp/test-invalid-skill2-$RANDOM"
-mkdir -p "$TEST_INVALID_DIR2"
+TEST_INVALID_DIR2=$(mktemp -d /tmp/clawmax-test-markdown-skill-XXXXXX)
 echo "# Test" > "$TEST_INVALID_DIR2/SKILL.md"
 
 response=$(apicurl -X POST "$API_BASE/api/skills/import" \
@@ -3844,7 +3841,11 @@ response=$(apicurl -X POST "$API_BASE/api/skills/import" \
   -d "{\"sourcePath\":\"$TEST_INVALID_DIR2\"}")
 
 if echo "$response" | jq -e '(.ok == true) or (.imported == 1 and .total == 1)' > /dev/null 2>&1; then
+  markdown_skill_id=$(echo "$response" | jq -r '.skillId // empty')
   pass "Markdown-only skill import succeeds without index.ts"
+  if [ -n "$markdown_skill_id" ]; then
+    apicurl -X DELETE "$API_BASE/api/skills/$markdown_skill_id" > /dev/null
+  fi
 else
   echo "$response"
   fail "Markdown-only skill import failed without index.ts"

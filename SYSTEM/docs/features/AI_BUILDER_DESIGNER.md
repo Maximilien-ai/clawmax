@@ -238,7 +238,7 @@ Current implementation status:
 - local feedback exists today
 - remote sharing contract is planned
 - initial web handoff/spec exists in:
-  - [AI_BUILDER_WEB_CONTRACT.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/specs/AI_BUILDER_WEB_CONTRACT.md)
+  - [AI_BUILDER_WEB_CONTRACT.md](../specs/AI_BUILDER_WEB_CONTRACT.md)
 
 ## Design Principles
 
@@ -518,7 +518,7 @@ Builder quality should be measured with an external evaluation corpus rather tha
 
 Current canonical file:
 
-- [ai-builder-evals.json](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/dashboard/server/lib/ai-builder-evals.json)
+- [ai-builder-evals.json](../../dashboard/server/lib/ai-builder-evals.json)
 
 This file should evolve into a broader suite covering:
 
@@ -567,7 +567,7 @@ Required product/legal support:
 - clear UI disclosure where remote sharing is enabled
 - ability to disable remote sharing in local/on-prem environments
 - detailed web handoff in:
-  - [AI_BUILDER_WEB_CONTRACT.md](/Users/maximilien/github/Maximilien-ai/clawmax-codex/SYSTEM/docs/specs/AI_BUILDER_WEB_CONTRACT.md)
+  - [AI_BUILDER_WEB_CONTRACT.md](../specs/AI_BUILDER_WEB_CONTRACT.md)
 
 ## Metering and Model Selection
 

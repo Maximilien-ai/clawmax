@@ -1,0 +1,72 @@
+{
+  "apiVersion": "clawmax.ai/v2",
+  "id": "plugin-lab-review-notes",
+  "slug": "plugin-lab-review-notes",
+  "name": "Review Notes Test Plugin",
+  "description": "A dormant synthetic plugin that validates the generic 2.0 record contract.",
+  "version": "0.2.0-test",
+  "icon": "docs",
+  "objectKind": "review-note",
+  "visibility": "private",
+  "enabledByDefault": false,
+  "source": {
+    "type": "github",
+    "owner": "Maximilien-ai",
+    "repo": "clawmax",
+    "url": "https://github.com/Maximilien-ai/clawmax/tree/main/PLUGINS/test/plugin-lab-review-notes",
+    "branch": "main"
+  },
+  "nav": {
+    "section": "plugins",
+    "order": 30
+  },
+  "capabilities": {
+    "notifications": true,
+    "docs": true
+  },
+  "labels": {
+    "singular": "Review Note",
+    "plural": "Review Notes"
+  },
+  "recordSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["priority", "notes"],
+    "properties": {
+      "priority": {
+        "type": "string",
+        "title": "Priority",
+        "enum": ["low", "medium", "high"],
+        "default": "medium"
+      },
+      "notes": {
+        "type": "string",
+        "title": "Notes",
+        "format": "textarea"
+      },
+      "owner": {
+        "type": "string",
+        "title": "Owner"
+      },
+      "approved": {
+        "type": "boolean",
+        "title": "Approved",
+        "default": false
+      },
+      "references": {
+        "type": "array",
+        "title": "References",
+        "items": { "type": "string" },
+        "default": []
+      }
+    }
+  },
+  "ui": {
+    "form": {
+      "order": ["priority", "notes", "owner", "approved", "references"]
+    },
+    "list": {
+      "fields": ["priority", "owner", "approved"]
+    }
+  }
+}
