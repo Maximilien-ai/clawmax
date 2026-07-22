@@ -3005,6 +3005,25 @@ test_json_field "System has agentCount" "/api/system" ".agentCount"
 test_json_field "System has version" "/api/system" ".version"
 test_api "Activity feed endpoint" "/api/activity"
 
+if [ -n "${CLAWMAX_ENABLED_PLUGINS:-}" ]; then
+  test_api "Test plugin index" "/api/plugins"
+  plugin_index_json="$(apicurl "$API_BASE/api/plugins")"
+  IFS=',' read -r -a expected_test_plugins <<< "$CLAWMAX_ENABLED_PLUGINS"
+  for plugin_id in "${expected_test_plugins[@]}"; do
+    plugin_id="$(printf '%s' "$plugin_id" | xargs)"
+    [ -n "$plugin_id" ] || continue
+    if PLUGIN_ID="$plugin_id" PLUGIN_INDEX_JSON="$plugin_index_json" node -e '
+      const payload = JSON.parse(process.env.PLUGIN_INDEX_JSON || "{}")
+      const plugins = Array.isArray(payload.plugins) ? payload.plugins : []
+      process.exit(plugins.some((plugin) => plugin.slug === process.env.PLUGIN_ID || plugin.id === process.env.PLUGIN_ID) ? 0 : 1)
+    '; then
+      pass "Test plugin enabled ($plugin_id)"
+    else
+      fail "Test plugin enabled ($plugin_id)"
+    fi
+  done
+fi
+
 echo ""
 
 # =========================================

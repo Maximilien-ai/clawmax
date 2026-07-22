@@ -3,9 +3,10 @@
 Status: integration contract in progress on `main`
 
 The integration baseline and first generic manifest, record schema, template,
-storage, and declarative UI contract are implemented. Host-mediated actions,
-permission enforcement, packaging validation, and legacy-adapter removal remain
-release work. See [PLUGIN_AUTHORING_2_0.md](PLUGIN_AUTHORING_2_0.md).
+storage, declarative UI, diagnostics, and least-privilege capability contract
+are implemented. Generic custom actions, packaging validation, and
+legacy-adapter removal remain release work. See
+[PLUGIN_AUTHORING_2_0.md](PLUGIN_AUTHORING_2_0.md).
 
 ## Purpose
 
@@ -83,23 +84,25 @@ Status: implemented; continue regression validation.
 
 ### Phase 2: Generic manifest and records
 
-Status: first contract and health diagnostics implemented; compatibility hardening remains.
+Status: first contract, health diagnostics, and capability enforcement implemented; compatibility hardening remains.
 
 - Version the host API and manifest contract.
 - Add generic record schemas, defaults, and presentation metadata.
-- Add capability and permission validation.
+- Validate capability declarations and deny undeclared document, notification, and context access.
 - Store unknown plugin records without product-specific coercion.
 - Render a useful generic list, detail, and editor experience.
 - Report loaded, disabled, invalid, incompatible, duplicate, and missing plugins through a host diagnostics API and System & Logs surface.
 
 ### Phase 3: Host-mediated actions
 
-Status: pending.
+Status: existing host operations enforced; generic custom-action contract pending.
 
 - Declare plugin actions in the manifest.
-- Route actions through explicit host capabilities.
+- Route actions through explicit host capabilities. Document and notification
+  actions already enforce their grants.
 - Record action results and failures with plugin diagnostics.
-- Prevent a plugin from using undeclared capabilities.
+- Prevent a plugin from using undeclared capabilities. Workspace context is
+  already filtered across agents, workflows, and communications.
 
 ### Phase 4: Legacy adapter removal
 

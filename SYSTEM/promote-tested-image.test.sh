@@ -15,6 +15,8 @@ require_text() {
 
 require_text 'FROM ${SOURCE_IMAGE}' 'promotion must inherit from the tested per-architecture image'
 require_text 'ENV CLAWMAX_VERSION=${RELEASE_VERSION}' 'promotion must stamp the official runtime version'
+require_text 'ENV CLAWMAX_ENABLED_PLUGINS=' 'promotion must clear test-only plugin enablement'
+require_text 'Stable image retained test plugin selection' 'promotion smoke must verify test-only plugins are cleared'
 require_text '--build-arg "SOURCE_IMAGE=${image}:${semver}-test-${test_tag}-${arch}"' 'promotion must use the selected RC image as its source'
 require_text '--provenance=false' 'per-architecture promotion tags must remain runnable image manifests'
 require_text '"${image}:${semver}-amd64"' 'stable manifest must use the promoted amd64 image'

@@ -2,6 +2,9 @@ export const PLUGIN_HOST_API_VERSION = 'clawmax.ai/v2' as const
 
 export type PluginObjectKind = string
 export type PluginFieldValue = string | number | boolean | string[] | null
+export type PluginCapability = 'docs' | 'notifications' | 'agents' | 'workflows' | 'communications'
+
+const PLUGIN_CAPABILITIES: PluginCapability[] = ['docs', 'notifications', 'agents', 'workflows', 'communications']
 
 export interface PluginRecordFieldSchema {
   type: 'string' | 'number' | 'integer' | 'boolean' | 'array'
@@ -62,6 +65,10 @@ export interface PluginManifest {
 
 export function usesLegacyPluginAdapter(plugin: PluginManifest, kind: 'guardrail' | 'eval'): boolean {
   return plugin.apiVersion !== PLUGIN_HOST_API_VERSION && plugin.objectKind === kind
+}
+
+export function getPluginGrantedCapabilities(plugin: PluginManifest): PluginCapability[] {
+  return PLUGIN_CAPABILITIES.filter((capability) => plugin.capabilities?.[capability] === true)
 }
 
 export function getOrderedPluginFields(plugin: PluginManifest): Array<[string, PluginRecordFieldSchema]> {
@@ -362,6 +369,7 @@ export interface PluginDiagnostic {
   manifestPath: string | null
   apiVersion: string | null
   pluginVersion: string | null
+  capabilities: PluginCapability[]
   message: string
   remediation: string | null
 }
@@ -387,6 +395,7 @@ export function normalizePluginDiagnosticsReport(value: any): PluginDiagnosticsR
       manifestPath: typeof entry.manifestPath === 'string' ? entry.manifestPath : null,
       apiVersion: typeof entry.apiVersion === 'string' ? entry.apiVersion : null,
       pluginVersion: typeof entry.pluginVersion === 'string' ? entry.pluginVersion : null,
+      capabilities: PLUGIN_CAPABILITIES.filter((capability) => entry.capabilities?.includes?.(capability)),
       message: typeof entry.message === 'string' ? entry.message : 'Plugin diagnostic details are unavailable.',
       remediation: typeof entry.remediation === 'string' ? entry.remediation : null,
     }))

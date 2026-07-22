@@ -109,6 +109,30 @@ Templates use the same record shape in `payload`. The host supplies IDs and
 timestamps, applies defaults, validates required fields, and materializes the
 workspace JSON and Markdown files.
 
+## Capabilities And Least Privilege
+
+Capabilities are optional, deny-by-default host grants. Declare only what the
+plugin needs:
+
+- `docs`: generate a workspace document for a plugin record
+- `notifications`: emit a dashboard notification for a plugin record
+- `agents`: include non-archived agents in plugin workspace context
+- `workflows`: include workflows in plugin workspace context
+- `communications`: include groups and communities in plugin workspace context
+
+The host filters `GET /api/plugins/:pluginId/context` to the declared grants.
+Undeclared context collections are returned as empty arrays. Explicit document
+or notification operations without the matching grant return HTTP `403` with
+the manifest property needed to authorize the operation. Unknown capability
+names and non-boolean values make the manifest invalid.
+
+Generating a document emits an artifact notification only when the plugin has
+both `docs` and `notifications`; the grants do not imply one another.
+
+Granted capabilities are visible on the plugin page and in **System & Logs >
+Plugins**. Changing a manifest requires reloading the plugin host; grants cannot
+be expanded from the dashboard UI.
+
 ## Loading An External Plugin
 
 Mount or check out the plugin repository outside ClawMax, then configure:
@@ -127,7 +151,7 @@ the public ClawMax image.
 Before debugging a missing navigation entry, open **System & Logs > Plugins**
 or request `GET /api/plugins/diagnostics`. The response reports the host API
 version, configured roots, a status summary, and one entry per discovered or
-requested plugin:
+requested plugin. Each entry also reports its recognized capability grants:
 
 - `loaded`: valid and enabled
 - `disabled`: valid and discovered, but not selected by the current enablement policy
@@ -144,5 +168,7 @@ diagnosed and only the first discovered manifest is eligible to load.
 ## Current Boundary
 
 V2 plugins are declarative. They do not load arbitrary frontend bundles or
-execute unrestricted server code. Host-mediated custom actions and finer
-permission enforcement are later 2.0 contract phases.
+execute unrestricted server code. The existing document, notification, and
+workspace-context operations are host-mediated and capability-enforced.
+Manifest-declared custom actions and finer action-specific grants are later 2.0
+contract phases.

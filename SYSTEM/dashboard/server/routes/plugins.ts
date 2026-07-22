@@ -39,7 +39,7 @@ router.get('/:pluginId/context', (req, res) => {
   if (!plugin) return res.status(404).json({ error: 'Plugin not found' })
   res.json({
     plugin,
-    context: getPluginWorkspaceContext(),
+    context: getPluginWorkspaceContext(plugin),
   })
 })
 
@@ -97,17 +97,25 @@ router.delete('/:pluginId/items/:itemId', (req, res) => {
 router.post('/:pluginId/items/:itemId/document', (req, res) => {
   const plugin = getPluginBySlug(req.params.pluginId)
   if (!plugin) return res.status(404).json({ error: 'Plugin not found' })
-  const item = generatePluginRecordDocument(plugin, req.params.itemId)
-  if (!item) return res.status(404).json({ error: 'Plugin item not found' })
-  res.json({ ok: true, item })
+  try {
+    const item = generatePluginRecordDocument(plugin, req.params.itemId)
+    if (!item) return res.status(404).json({ error: 'Plugin item not found' })
+    res.json({ ok: true, item })
+  } catch (error) {
+    return sendPluginError(res, error)
+  }
 })
 
 router.post('/:pluginId/items/:itemId/notify', (req, res) => {
   const plugin = getPluginBySlug(req.params.pluginId)
   if (!plugin) return res.status(404).json({ error: 'Plugin not found' })
-  const item = emitPluginRecordNotification(plugin, req.params.itemId)
-  if (!item) return res.status(404).json({ error: 'Plugin item not found' })
-  res.json({ ok: true, item })
+  try {
+    const item = emitPluginRecordNotification(plugin, req.params.itemId)
+    if (!item) return res.status(404).json({ error: 'Plugin item not found' })
+    res.json({ ok: true, item })
+  } catch (error) {
+    return sendPluginError(res, error)
+  }
 })
 
 router.post('/:pluginId/items/:itemId/run', (req, res) => {

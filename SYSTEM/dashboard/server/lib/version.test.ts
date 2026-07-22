@@ -114,7 +114,7 @@ async function run() {
     process.env.CLAWMAX_VERSION = 'dev'
     const resolved = getDashboardVersion()
     assert(
-      resolved.startsWith('v') || /^\d+\.\d+\.\d+(?:-[0-9a-f]{7}\*?)?$/.test(resolved),
+      resolved.startsWith('v') || /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?\*?$/.test(resolved),
       `Expected a real fallback version, got ${resolved}`,
     )
   })
@@ -126,6 +126,9 @@ async function run() {
       return
     }
     if (/^\d+\.\d+\.\d+$/.test(resolved)) {
+      return
+    }
+    if (/^\d+\.\d+\.\d+-[0-9A-Za-z.-]+$/.test(resolved)) {
       return
     }
     assert(

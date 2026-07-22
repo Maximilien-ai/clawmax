@@ -78,6 +78,7 @@ jobs:
           FROM ${SOURCE_IMAGE}
           ARG RELEASE_VERSION
           ENV CLAWMAX_VERSION=${RELEASE_VERSION}
+          ENV CLAWMAX_ENABLED_PLUGINS=
           EOF
 
           for arch in amd64 arm64; do
@@ -160,6 +161,7 @@ jobs:
 
             actual_version="$(retry 3 5 docker run --rm --platform "$platform" --entrypoint /bin/sh "$ref" -lc "node -p \"require('/app/SYSTEM/dashboard/package.json').version\"")"
             actual_env="$(retry 3 5 docker run --rm --platform "$platform" --entrypoint /bin/sh "$ref" -lc "printf '%s' \"\$CLAWMAX_VERSION\"")"
+            actual_plugins="$(retry 3 5 docker run --rm --platform "$platform" --entrypoint /bin/sh "$ref" -lc "printf '%s' \"\$CLAWMAX_ENABLED_PLUGINS\"")"
 
             if [ "$actual_version" != "$expected_version" ]; then
               echo "Packaged dashboard version mismatch for $ref: expected $expected_version, got $actual_version" >&2
@@ -168,6 +170,11 @@ jobs:
 
             if [ "$actual_env" != "$expected_env" ]; then
               echo "CLAWMAX_VERSION mismatch for $ref: expected $expected_env, got $actual_env" >&2
+              return 1
+            fi
+
+            if [ -n "$actual_plugins" ]; then
+              echo "Stable image retained test plugin selection for $ref: $actual_plugins" >&2
               return 1
             fi
           }

@@ -14,6 +14,7 @@ import {
   formatPluginUpdatedAt,
   formatPluginUsageSummary,
   getOrderedPluginFields,
+  getPluginGrantedCapabilities,
   getPluginDetailLines,
   getPluginUsageTotals,
   isEvalRecord,
@@ -480,6 +481,8 @@ function ItemCard({
   onRun,
   onOpenDoc,
   onArchiveToggle,
+  canGenerateDocs,
+  canNotify,
 }: {
   plugin: PluginManifest
   item: PluginRecord
@@ -491,6 +494,8 @@ function ItemCard({
   onRun: (() => void) | null
   onOpenDoc: ((path: string) => void) | null
   onArchiveToggle: () => void
+  canGenerateDocs: boolean
+  canNotify: boolean
 }) {
   const commonSummary = formatPluginScopeSummary(item)
   const archived = item.archived === true
@@ -545,14 +550,14 @@ function ItemCard({
                   {archived ? 'Restore' : 'Archive'}
                 </button>
                 <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
-                <button onClick={() => { setShowActions(false); onGenerateDoc() }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800">
+                {canGenerateDocs && <button onClick={() => { setShowActions(false); onGenerateDoc() }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800">
                   <ProductIconCell iconName="docs" label="Generate Doc" size="sm" className="border-transparent bg-transparent text-current" />
                   Generate Doc
-                </button>
-                <button onClick={() => { setShowActions(false); onNotify() }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800">
+                </button>}
+                {canNotify && <button onClick={() => { setShowActions(false); onNotify() }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800">
                   <ProductIconCell iconName="communication" label="Notify" size="sm" className="border-transparent bg-transparent text-current" />
                   Notify
-                </button>
+                </button>}
                 {onRun && (
                   <button onClick={() => { setShowActions(false); onRun() }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800">
                     <ProductIconCell iconName="play" label="Run Eval" size="sm" className="border-transparent bg-transparent text-current" />
@@ -605,14 +610,14 @@ function ItemCard({
         >
           <ProductIconCell iconName="docs" label="Open Doc" size="sm" className="border-transparent bg-transparent text-current" />
         </button>
-        <button
+        {canGenerateDocs && <button
           onClick={onGenerateDoc}
           className="inline-flex h-9 w-9 items-center justify-center rounded-full text-purple-500 transition-colors hover:bg-purple-50 hover:text-purple-700 dark:hover:bg-purple-900/30"
           title="Generate doc"
           aria-label="Generate doc"
         >
           <ProductIconCell iconName="docs" label="Generate Doc" size="sm" className="border-transparent bg-transparent text-current" />
-        </button>
+        </button>}
         {onRun && (
           <button
             onClick={onRun}
@@ -723,6 +728,8 @@ function PluginDetailsPanel({
   onArchiveToggle,
   onDelete,
   onRun,
+  canGenerateDocs,
+  canNotify,
 }: {
   plugin: PluginManifest
   item: PluginRecord
@@ -735,6 +742,8 @@ function PluginDetailsPanel({
   onArchiveToggle: () => void
   onDelete: () => void
   onRun: (() => void) | null
+  canGenerateDocs: boolean
+  canNotify: boolean
 }) {
   const archived = item.archived === true
   const files = Array.from(new Set([
@@ -768,14 +777,14 @@ function PluginDetailsPanel({
           </div>
         </div>
         <div className="flex items-center gap-1.5 mt-0.5 shrink-0">
-          <button
+          {canNotify && <button
             onClick={onNotify}
             className="h-9 w-9 inline-flex items-center justify-center rounded-full text-sky-500 hover:text-sky-700 hover:bg-sky-50 dark:hover:bg-sky-900/30 transition-colors"
             aria-label="Notify"
             title="Notify"
           >
             <ProductIconCell iconName="communication" label="Notify" size="sm" className="border-transparent bg-transparent text-current" />
-          </button>
+          </button>}
           <button
             onClick={onEdit}
             className="h-9 w-9 inline-flex items-center justify-center rounded-full text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors"
@@ -784,14 +793,14 @@ function PluginDetailsPanel({
           >
             <ProductIconCell iconName="edit" label="Edit" size="sm" className="border-transparent bg-transparent text-current" />
           </button>
-          <button
+          {canGenerateDocs && <button
             onClick={onGenerateDoc}
             className="h-9 w-9 inline-flex items-center justify-center rounded-full text-purple-500 hover:text-purple-700 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors"
             aria-label="Generate document"
             title="Generate document"
           >
             <ProductIconCell iconName="docs" label="Generate document" size="sm" className="border-transparent bg-transparent text-current" />
-          </button>
+          </button>}
           {onRun && (
             <button
               onClick={onRun}
@@ -982,6 +991,9 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
   const [activeCompactActions, setActiveCompactActions] = useState<string | null>(null)
   const aiReadiness = getAiGenerationReadiness()
   const aiEnabled = hasAiGenerationAccess()
+  const grantedCapabilities = getPluginGrantedCapabilities(plugin)
+  const canGenerateDocs = grantedCapabilities.includes('docs')
+  const canNotify = grantedCapabilities.includes('notifications')
 
   const load = async () => {
     try {
@@ -1120,6 +1132,14 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
             <span>v{plugin.version}</span>
           </p>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{plugin.description}</p>
+          <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+            <span className="font-medium">Host grants:</span>
+            {grantedCapabilities.length > 0 ? grantedCapabilities.map((capability) => (
+              <span key={capability} className="rounded-full border border-gray-200 bg-white px-2 py-0.5 dark:border-gray-700 dark:bg-gray-800">
+                {capability}
+              </span>
+            )) : <span>none</span>}
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <div className="flex items-center border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden bg-white dark:bg-gray-800">
@@ -1369,14 +1389,14 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                             {item.archived ? 'Restore' : 'Archive'}
                           </button>
                           <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
-                          <button onClick={() => { setActiveCompactActions(null); void callItemAction(item.id, 'document') }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800">
+                          {canGenerateDocs && <button onClick={() => { setActiveCompactActions(null); void callItemAction(item.id, 'document') }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800">
                             <ProductIconCell iconName="docs" label="Generate Doc" size="sm" className="border-transparent bg-transparent text-current" />
                             Generate Doc
-                          </button>
-                          <button onClick={() => { setActiveCompactActions(null); void callItemAction(item.id, 'notify') }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800">
+                          </button>}
+                          {canNotify && <button onClick={() => { setActiveCompactActions(null); void callItemAction(item.id, 'notify') }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800">
                             <ProductIconCell iconName="communication" label="Notify" size="sm" className="border-transparent bg-transparent text-current" />
                             Notify
-                          </button>
+                          </button>}
                           {isEvalRecord(item) && (
                             <button onClick={() => { setActiveCompactActions(null); void callItemAction(item.id, 'run') }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800">
                               <ProductIconCell iconName="play" label="Run Eval" size="sm" className="border-transparent bg-transparent text-current" />
@@ -1413,6 +1433,8 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                       onRun={isEvalRecord(item) ? (() => void callItemAction(item.id, 'run')) : null}
                       onOpenDoc={onNavigateToDoc || null}
                       onArchiveToggle={() => void saveItem({ ...item, archived: item.archived !== true } as Partial<PluginRecord>)}
+                      canGenerateDocs={canGenerateDocs}
+                      canNotify={canNotify}
                     />
                   </div>
                 ))}
@@ -1455,20 +1477,20 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                       >
                         <ProductIconCell iconName="details" label="Open details" size="sm" className="border-transparent bg-transparent text-current" />
                       </button>
-                      <button
+                      {canGenerateDocs && <button
                         onClick={(event) => { event.stopPropagation(); void callItemAction(item.id, 'document') }}
                         className="text-gray-300 hover:text-purple-500 transition-colors text-xs p-1 rounded hover:bg-purple-50 dark:hover:bg-purple-900/30"
                         title="Generate document"
                       >
                         <ProductIconCell iconName="docs" label="Generate document" size="sm" className="border-transparent bg-transparent text-current" />
-                      </button>
-                      <button
+                      </button>}
+                      {canNotify && <button
                         onClick={(event) => { event.stopPropagation(); void callItemAction(item.id, 'notify') }}
                         className="text-gray-300 hover:text-emerald-500 transition-colors text-xs p-1 rounded hover:bg-emerald-50 dark:hover:bg-emerald-900/30"
                         title="Notify"
                       >
                         <ProductIconCell iconName="communication" label="Notify" size="sm" className="border-transparent bg-transparent text-current" />
-                      </button>
+                      </button>}
                     </div>
                   </div>
                 ))}
@@ -1490,6 +1512,8 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                 onArchiveToggle={() => void saveItem({ ...selectedItem, archived: selectedItem.archived !== true } as Partial<PluginRecord>)}
                 onDelete={() => void callItemAction(selectedItem.id, 'delete')}
                 onRun={isEvalRecord(selectedItem) ? (() => void callItemAction(selectedItem.id, 'run')) : null}
+                canGenerateDocs={canGenerateDocs}
+                canNotify={canNotify}
               />
             </div>
           )}

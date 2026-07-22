@@ -21,6 +21,7 @@ BACKEND_PORT="${DASHBOARD_PORT:-3001}"
 FRONTEND_PORT="${DASHBOARD_CLIENT_PORT:-5173}"
 FRONTEND_URL="${DASHBOARD_APP_URL:-http://localhost:${FRONTEND_PORT}}"
 API_BASE="http://localhost:${BACKEND_PORT}"
+TEST_PLUGIN_IDS="plugin-lab-guardrails,plugin-lab-evals,plugin-lab-review-notes"
 RUN_INTEGRATION=false
 RUN_COVERAGE=false
 FORWARDED_ARGS=()
@@ -39,6 +40,9 @@ done
 export DASHBOARD_PORT="$BACKEND_PORT"
 export DASHBOARD_CLIENT_PORT="$FRONTEND_PORT"
 export DASHBOARD_APP_URL="$FRONTEND_URL"
+if [ -z "${CLAWMAX_ENABLED_PLUGINS+x}" ]; then
+  export CLAWMAX_ENABLED_PLUGINS="$TEST_PLUGIN_IDS"
+fi
 
 port_pids() {
   lsof -ti:"$1" 2>/dev/null || true

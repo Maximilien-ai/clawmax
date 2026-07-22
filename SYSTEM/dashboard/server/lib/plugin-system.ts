@@ -11,6 +11,9 @@ export const PLUGIN_HOST_API_VERSION = 'clawmax.ai/v2' as const
 export type PluginObjectKind = string
 export type PluginVisibility = 'private' | 'public'
 export type PluginFieldValue = string | number | boolean | string[] | null
+export type PluginCapability = 'notifications' | 'docs' | 'agents' | 'workflows' | 'communications'
+
+const PLUGIN_CAPABILITIES: PluginCapability[] = ['docs', 'notifications', 'agents', 'workflows', 'communications']
 
 export interface PluginRecordFieldSchema {
   type: 'string' | 'number' | 'integer' | 'boolean' | 'array'
@@ -151,12 +154,25 @@ export interface GenericPluginRecord extends PluginRecordBase {
 export type PluginRecord = GuardrailRecord | EvalRecord | GenericPluginRecord
 
 export class PluginContractError extends Error {
-  statusCode = 400
+  statusCode: number
 
-  constructor(message: string) {
+  constructor(message: string, statusCode = 400) {
     super(message)
     this.name = 'PluginContractError'
+    this.statusCode = statusCode
   }
+}
+
+export function getPluginGrantedCapabilities(plugin: PluginManifest): PluginCapability[] {
+  return PLUGIN_CAPABILITIES.filter((capability) => plugin.capabilities?.[capability] === true)
+}
+
+export function assertPluginCapability(plugin: PluginManifest, capability: PluginCapability): void {
+  if (plugin.capabilities?.[capability] === true) return
+  throw new PluginContractError(
+    `Plugin ${plugin.slug} is not granted the "${capability}" capability. Add capabilities.${capability}=true to its manifest, then reload the plugin.`,
+    403,
+  )
 }
 
 export interface PluginWorkspaceContext {
@@ -212,6 +228,7 @@ export interface PluginDiagnostic {
   manifestPath: string | null
   apiVersion: string | null
   pluginVersion: string | null
+  capabilities: PluginCapability[]
   message: string
   remediation: string | null
 }
@@ -256,6 +273,13 @@ function isPluginRecordSchema(value: any): value is PluginRecordSchema {
   return Object.entries(value.properties).every(([key, field]) => /^[a-zA-Z][a-zA-Z0-9_-]*$/.test(key) && isPluginFieldSchema(field))
 }
 
+function isPluginCapabilities(value: unknown): boolean {
+  if (value === undefined) return true
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  return Object.entries(value).every(([key, enabled]) =>
+    PLUGIN_CAPABILITIES.includes(key as PluginCapability) && typeof enabled === 'boolean')
+}
+
 function isPluginManifest(value: any): value is PluginManifest {
   const commonValid = !!value
     && typeof value.id === 'string'
@@ -272,6 +296,7 @@ function isPluginManifest(value: any): value is PluginManifest {
     && typeof value.source.owner === 'string'
     && typeof value.source.repo === 'string'
     && typeof value.source.url === 'string'
+    && isPluginCapabilities(value.capabilities)
 
   if (!commonValid) return false
   if (!value.apiVersion || value.apiVersion === 'clawmax.ai/v1') {
@@ -434,6 +459,7 @@ export function getPluginDiagnosticsReport(): PluginDiagnosticsReport {
         manifestPath: null,
         apiVersion: null,
         pluginVersion: null,
+        capabilities: [],
         message: `Configured plugin path does not exist or is not a directory: ${root}`,
         remediation: 'Mount or create the directory, or remove it from CLAWMAX_PLUGIN_PATHS.',
       })
@@ -450,6 +476,7 @@ export function getPluginDiagnosticsReport(): PluginDiagnosticsReport {
     const name = typeof raw.name === 'string' && raw.name.trim() ? raw.name.trim() : pluginId
     const apiVersion = typeof raw.apiVersion === 'string' ? raw.apiVersion : 'clawmax.ai/v1'
     const pluginVersion = typeof raw.version === 'string' ? raw.version : null
+    const capabilities = PLUGIN_CAPABILITIES.filter((capability) => raw.capabilities?.[capability] === true)
     if (typeof raw.id === 'string') discoveredIdentities.add(raw.id)
     if (typeof raw.slug === 'string') discoveredIdentities.add(raw.slug)
     discoveredIdentities.add(pluginId)
@@ -463,6 +490,7 @@ export function getPluginDiagnosticsReport(): PluginDiagnosticsReport {
         manifestPath: candidate.manifestPath,
         apiVersion,
         pluginVersion,
+        capabilities,
         message: candidate.issueMessage || 'Plugin manifest is invalid.',
         remediation: candidate.issue === 'incompatible'
           ? `Use a plugin compatible with ${PLUGIN_HOST_API_VERSION} or update its manifest contract.`
@@ -482,6 +510,7 @@ export function getPluginDiagnosticsReport(): PluginDiagnosticsReport {
         manifestPath: candidate.manifestPath,
         apiVersion,
         pluginVersion,
+        capabilities: getPluginGrantedCapabilities(manifest),
         message: `Plugin ID or slug duplicates the manifest already discovered at ${duplicatePath}.`,
         remediation: 'Give every plugin a unique id and slug, then remove the duplicate mount.',
       })
@@ -499,6 +528,7 @@ export function getPluginDiagnosticsReport(): PluginDiagnosticsReport {
       manifestPath: candidate.manifestPath,
       apiVersion,
       pluginVersion,
+      capabilities: getPluginGrantedCapabilities(manifest),
       message: enabled ? 'Plugin loaded and enabled.' : 'Plugin was discovered but is not enabled.',
       remediation: enabled ? null : `Add ${manifest.slug} to CLAWMAX_ENABLED_PLUGINS to enable it.`,
     })
@@ -514,6 +544,7 @@ export function getPluginDiagnosticsReport(): PluginDiagnosticsReport {
       manifestPath: null,
       apiVersion: null,
       pluginVersion: null,
+      capabilities: [],
       message: `Enabled plugin "${requested}" was not found in any configured plugin path.`,
       remediation: 'Mount the plugin directory through CLAWMAX_PLUGIN_PATHS or remove it from CLAWMAX_ENABLED_PLUGINS.',
     })
@@ -1003,6 +1034,7 @@ function emitPluginArtifactNotification(plugin: PluginManifest, record: PluginRe
 }
 
 export function emitPluginRecordNotification(plugin: PluginManifest, recordId: string): PluginRecord | null {
+  assertPluginCapability(plugin, 'notifications')
   const record = listPluginRecords(plugin).find((entry) => entry.id === recordId) || null
   if (!record) return null
   createNotification({
@@ -1146,6 +1178,7 @@ export function deletePluginRecord(plugin: PluginManifest, recordId: string): bo
 }
 
 export function generatePluginRecordDocument(plugin: PluginManifest, recordId: string): PluginRecord | null {
+  assertPluginCapability(plugin, 'docs')
   const records = listPluginRecords(plugin)
   const index = records.findIndex((record) => record.id === recordId)
   if (index < 0) return null
@@ -1154,7 +1187,9 @@ export function generatePluginRecordDocument(plugin: PluginManifest, recordId: s
   records.splice(index, 1, updated)
   writePluginRecords(plugin, records)
   writePluginItemFile(plugin, updated)
-  emitPluginArtifactNotification(plugin, updated, document)
+  if (plugin.capabilities?.notifications === true) {
+    emitPluginArtifactNotification(plugin, updated, document)
+  }
   return updated
 }
 
@@ -1217,22 +1252,22 @@ export function runPluginEval(plugin: PluginManifest, recordId: string): EvalRec
   return updated
 }
 
-export function getPluginWorkspaceContext(): PluginWorkspaceContext {
-  const agents = listAgents()
+export function getPluginWorkspaceContext(plugin: PluginManifest): PluginWorkspaceContext {
+  const agents = plugin.capabilities?.agents === true ? listAgents()
     .filter((agent) => !agent.archived)
     .map((agent) => ({ id: agent.id, name: agent.name || agent.id }))
-    .sort((a, b) => a.name.localeCompare(b.name))
+    .sort((a, b) => a.name.localeCompare(b.name)) : []
 
-  const workflows = listWorkflows()
+  const workflows = plugin.capabilities?.workflows === true ? listWorkflows()
     .map((workflow) => ({ id: workflow.id, name: workflow.name || workflow.id }))
-    .sort((a, b) => a.name.localeCompare(b.name))
+    .sort((a, b) => a.name.localeCompare(b.name)) : []
 
   const groupsPath = path.join(getWorkspacePath(), 'ORG', 'GROUPS.md')
   const communitiesPath = path.join(getWorkspacePath(), 'ORG', 'COMMUNITIES.md')
-  const groups = fs.existsSync(groupsPath)
+  const groups = plugin.capabilities?.communications === true && fs.existsSync(groupsPath)
     ? parseGroups(fs.readFileSync(groupsPath, 'utf-8')).groups.map((group) => group.name).sort((a, b) => a.localeCompare(b))
     : []
-  const communities = fs.existsSync(communitiesPath)
+  const communities = plugin.capabilities?.communications === true && fs.existsSync(communitiesPath)
     ? parseGroups(fs.readFileSync(communitiesPath, 'utf-8')).communities.map((community) => community.name).sort((a, b) => a.localeCompare(b))
     : []
 

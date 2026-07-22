@@ -4,6 +4,8 @@ set -eu
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 DOCKERFILE="$ROOT_DIR/Dockerfile"
 VERSION_HELPER="$ROOT_DIR/SYSTEM/openclaw-version.sh"
+TEST_WRAPPER="$ROOT_DIR/SYSTEM/test-with-server.sh"
+TEST_IMAGE_WORKFLOW="$ROOT_DIR/.github/workflows/test-container-image.yml"
 
 [ -f "$VERSION_HELPER" ] || {
   echo "Expected version helper to exist: $VERSION_HELPER" >&2
@@ -50,5 +52,12 @@ assert_contains "COPY SKILLS/custom/clawmax-secret-test ./SKILLS/custom/clawmax-
 assert_contains "COPY SYSTEM/dashboard/clawmax-resend-send /usr/local/bin/clawmax-resend-send"
 assert_contains "COPY SYSTEM/dashboard/clawmax-skill-run /usr/local/bin/clawmax-skill-run"
 assert_contains "COPY SYSTEM/dashboard/openclaw-auth-store.mjs ./SYSTEM/dashboard/openclaw-auth-store.mjs"
+assert_contains "ARG CLAWMAX_ENABLED_PLUGINS="
+assert_contains 'ENV CLAWMAX_ENABLED_PLUGINS=${CLAWMAX_ENABLED_PLUGINS}'
+
+grep -Fq 'TEST_PLUGIN_IDS="plugin-lab-guardrails,plugin-lab-evals,plugin-lab-review-notes"' "$TEST_WRAPPER" \
+  || { echo "Expected local test wrapper to enable synthetic plugins" >&2; exit 1; }
+grep -Fq 'CLAWMAX_ENABLED_PLUGINS=plugin-lab-guardrails,plugin-lab-evals,plugin-lab-review-notes' "$TEST_IMAGE_WORKFLOW" \
+  || { echo "Expected test images to enable synthetic plugins" >&2; exit 1; }
 
 echo "dockerfile openclaw builder tests passed"

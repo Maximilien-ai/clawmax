@@ -511,6 +511,14 @@ export default function Logs() {
                     <span className="font-medium text-gray-900 dark:text-gray-100">{diagnostic.name || diagnostic.pluginId || 'Plugin path'}</span>
                     {diagnostic.pluginVersion ? <span className="text-gray-500">v{diagnostic.pluginVersion}</span> : null}
                     {diagnostic.apiVersion ? <span className="font-mono text-gray-500">{diagnostic.apiVersion}</span> : null}
+                    {diagnostic.capabilities.map((capability) => (
+                      <span key={capability} className="rounded-full border border-gray-200 px-2 py-0.5 text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                        {capability}
+                      </span>
+                    ))}
+                    {diagnostic.status === 'loaded' && diagnostic.capabilities.length === 0 ? (
+                      <span className="text-gray-400">no optional grants</span>
+                    ) : null}
                   </div>
                   <div className="mt-1 text-gray-700 dark:text-gray-300">{diagnostic.message}</div>
                   {diagnostic.remediation ? <div className="mt-1 text-gray-500 dark:text-gray-400">{diagnostic.remediation}</div> : null}

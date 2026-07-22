@@ -223,6 +223,7 @@ async function run() {
     for (const [slug, extra] of [
       ['future-version-plugin', { apiVersion: 'clawmax.ai/v99', recordSchema: { type: 'object', properties: {} } }],
       ['missing-schema-plugin', { apiVersion: 'clawmax.ai/v2' }],
+      ['invalid-capability-plugin', { apiVersion: 'clawmax.ai/v2', capabilities: { shell: true }, recordSchema: { type: 'object', properties: {} } }],
     ] as const) {
       const directory = path.join(pluginRoot, slug)
       fs.mkdirSync(directory, { recursive: true })
@@ -429,11 +430,44 @@ async function run() {
     assert(evaluated?.document?.path?.includes(`SYSTEM/plugins/${plugin!.slug}/docs/${created.id}.md`), 'Expected eval run to generate a plugin doc')
     assert(fs.existsSync(path.join(tempWorkspace, `SYSTEM/plugins/${plugin!.slug}/items/${created.id}.md`)), 'Expected canonical eval item file on disk')
 
-    const context = getPluginWorkspaceContext()
+    const context = getPluginWorkspaceContext(plugin!)
     assert(context.agents.some((agent) => agent.id === 'analyst'), 'Expected plugin context to expose workspace agents')
     assert(context.workflows.some((workflow) => workflow.name === 'Research Sweep'), 'Expected plugin context to expose workflows')
     assert(context.groups.includes('Research Ops'), 'Expected plugin context to expose groups')
     assert(context.communities.includes('Research'), 'Expected plugin context to expose communities')
+  })
+
+  await test('host capabilities deny undeclared actions and filter workspace context', () => {
+    const source = getPluginBySlug('plugin-lab-review-notes')
+    assert(source, 'Expected generic test plugin manifest to load')
+    const plugin = { ...source!, id: 'no-grants', slug: 'no-grants', capabilities: {} }
+    const created = upsertPluginRecord(plugin, {
+      name: 'Private note',
+      description: 'Must remain isolated',
+      fields: { priority: 'low', notes: 'isolated' },
+    } as any)
+
+    const context = getPluginWorkspaceContext(plugin)
+    assert.deepStrictEqual(context, { agents: [], workflows: [], groups: [], communities: [] }, 'Expected undeclared context reads to be empty')
+    assert.throws(
+      () => generatePluginRecordDocument(plugin, created.id),
+      (error: any) => error instanceof PluginContractError && error.statusCode === 403 && error.message.includes('capabilities.docs=true'),
+      'Expected document generation to require the docs grant',
+    )
+    assert.throws(
+      () => emitPluginRecordNotification(plugin, created.id),
+      (error: any) => error instanceof PluginContractError && error.statusCode === 403 && error.message.includes('capabilities.notifications=true'),
+      'Expected notifications to require the notifications grant',
+    )
+
+    const docsOnlyPlugin = { ...plugin, id: 'docs-only', slug: 'docs-only', capabilities: { docs: true } }
+    const docsOnlyRecord = upsertPluginRecord(docsOnlyPlugin, {
+      name: 'Documented note',
+      fields: { priority: 'medium', notes: 'document only' },
+    } as any)
+    const notificationCount = getActiveNotifications().length
+    assert(generatePluginRecordDocument(docsOnlyPlugin, docsOnlyRecord.id)?.document?.path, 'Expected docs-only grant to generate a document')
+    assert.strictEqual(getActiveNotifications().length, notificationCount, 'Expected docs-only action not to emit a notification')
   })
 
   if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE

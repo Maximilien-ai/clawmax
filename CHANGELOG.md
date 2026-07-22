@@ -8,6 +8,8 @@ All notable changes to ClawMax are documented here.
 - **2.0 Declarative Plugin Contract** — the `clawmax.ai/v2` manifest adds generic record schemas and defaults, declarative list/form presentation, generic templates, workspace storage, and compatibility validation without requiring a new core page or route for every plugin domain.
 - **External Plugin Boundary** — plugin discovery supports deployment-mounted roots plus explicit enablement while preserving a zero-plugin runtime. Public and private plugins use the same contract; private source and production enablement remain outside the public repository and default image.
 - **Plugin Health Diagnostics** — System & Logs and `/api/plugins/diagnostics` report loaded, disabled, invalid, incompatible, duplicate, and missing plugins with manifest versions, paths, and actionable remediation instead of silently dropping discovery failures.
+- **Least-Privilege Plugin Capabilities** — plugin document and notification operations now require explicit manifest grants, workspace context is filtered across agents, workflows, and communications, malformed capability declarations invalidate the manifest, and plugin pages plus diagnostics expose the effective grants.
+- **Test Plugin Validation Policy** — local test runs and `*-test-*` images enable the synthetic guardrail, eval, and generic review-note fixtures for broader plugin coverage; stable image promotion explicitly clears this test-only selection.
 
 ### Planned
 - **2.0 Public Plugin And AI-Scoring Foundation** — complete the generic contribution-based plugin contract for pages, APIs, data, actions, jobs, events, settings, skills, providers, docs, and extension points; then publish scorer contracts and user-facing scoring surfaces on that foundation.

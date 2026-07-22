@@ -138,6 +138,11 @@ async function run() {
     assert.strictEqual(res.jsonBody?.hostApiVersion, 'clawmax.ai/v2', 'Expected host API version')
     assert.strictEqual(res.jsonBody?.healthy, false, 'Expected missing enabled plugin to make diagnostics unhealthy')
     assert(res.jsonBody?.diagnostics?.some((entry: any) => entry.pluginId === 'plugin-lab-review-notes' && entry.status === 'loaded'), 'Expected loaded plugin diagnostic')
+    assert.deepStrictEqual(
+      res.jsonBody?.diagnostics?.find((entry: any) => entry.pluginId === 'plugin-lab-review-notes')?.capabilities,
+      ['docs', 'notifications'],
+      'Expected diagnostics to expose granted host capabilities',
+    )
     assert(res.jsonBody?.diagnostics?.some((entry: any) => entry.pluginId === 'missing-route-plugin' && entry.status === 'missing'), 'Expected missing plugin diagnostic')
   })
 
@@ -260,6 +265,50 @@ async function run() {
     assert.strictEqual(createRes.statusCode, 201, 'Expected generic item create success')
     assert.strictEqual(createRes.jsonBody?.item?.kind, 'review-note', 'Expected generic object kind in response')
     assert.strictEqual(createRes.jsonBody?.item?.fields?.priority, 'high', 'Expected declarative fields in response')
+  })
+
+  await test('plugin routes enforce capability grants and filter context', async () => {
+    const pluginRoot = path.join(tempHome, 'no-grants-plugin')
+    fs.mkdirSync(pluginRoot, { recursive: true })
+    fs.writeFileSync(path.join(pluginRoot, 'clawmax-plugin.json'), JSON.stringify({
+      apiVersion: 'clawmax.ai/v2',
+      id: 'no-grants',
+      slug: 'no-grants',
+      name: 'No Grants',
+      description: 'Capability enforcement fixture.',
+      version: '0.1.0',
+      icon: 'plugin',
+      objectKind: 'note',
+      visibility: 'private',
+      source: { type: 'github', owner: 'example', repo: 'no-grants', url: 'https://example.invalid/no-grants' },
+      recordSchema: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['notes'],
+        properties: { notes: { type: 'string', title: 'Notes' } },
+      },
+    }, null, 2), 'utf-8')
+    process.env.CLAWMAX_PLUGIN_PATHS = pluginRoot
+    process.env.CLAWMAX_ENABLED_PLUGINS = 'no-grants'
+
+    const contextHandler = getRouteHandler('get', '/:pluginId/context')
+    const contextRes = makeRes()
+    await contextHandler(makeReq({ params: { pluginId: 'no-grants' } }), contextRes)
+    assert.deepStrictEqual(contextRes.jsonBody?.context, { agents: [], workflows: [], groups: [], communities: [] }, 'Expected filtered context')
+
+    const createHandler = getRouteHandler('post', '/:pluginId/items', false)
+    const createRes = makeRes()
+    await createHandler(makeReq({ params: { pluginId: 'no-grants' }, body: { name: 'Private', fields: { notes: 'isolated' } } }), createRes)
+    const itemId = createRes.jsonBody?.item?.id
+    assert(itemId, 'Expected fixture item')
+
+    for (const [route, capability] of [['/:pluginId/items/:itemId/document', 'docs'], ['/:pluginId/items/:itemId/notify', 'notifications']] as const) {
+      const handler = getRouteHandler('post', route, false)
+      const res = makeRes()
+      await handler(makeReq({ params: { pluginId: 'no-grants', itemId } }), res)
+      assert.strictEqual(res.statusCode, 403, `Expected ${capability} action to be denied`)
+      assert(String(res.jsonBody?.error).includes(`capabilities.${capability}=true`), `Expected actionable ${capability} remediation`)
+    }
   })
 
   if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
