@@ -401,8 +401,12 @@ async function run() {
     assert(documentContent.includes('**Release:** 2.0.0-test-rc4'), 'Expected release boundary in generated document')
     assert(documentContent.includes('**Completed:** yes'), 'Expected generic checkbox formatting in generated document')
 
-    assert(listPluginTemplates(plugin!).some((template) => template.id === 'release-readiness'), 'Expected generic template discovery')
-    const applied = applyPluginTemplate(plugin!, 'release-readiness')
+    const releaseTemplates = listPluginTemplates(plugin!).filter((template) => (
+      'fields' in template.payload && template.payload.fields?.release === '2.0.0-test-rc5'
+    ))
+    assert.strictEqual(releaseTemplates.length, 8, 'Expected one release file to expand into eight checklist items')
+    assert(releaseTemplates.some((template) => template.id === '2.0.0-test-rc5:release-readiness'), 'Expected release-qualified checklist item discovery')
+    const applied = applyPluginTemplate(plugin!, '2.0.0-test-rc5:release-readiness')
     assert(applied && 'fields' in applied && applied.fields.owner === 'release-manager', 'Expected generic template application')
   })
 

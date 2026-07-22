@@ -109,7 +109,7 @@ Generic record state is stored under `fields`:
   "tags": ["release"],
   "enabled": true,
   "fields": {
-    "release": "2.0.0-test-rc4",
+    "release": "2.0.0-test-rc5",
     "notes": "Check acceptance evidence.",
     "completed": false
   }
@@ -119,6 +119,40 @@ Generic record state is stored under `fields`:
 Templates use the same record shape in `payload`. The host supplies IDs and
 timestamps, applies defaults, validates required fields, and materializes the
 workspace JSON and Markdown files.
+
+Checklist plugins, identified by declaring both `ui.list.groupBy` and
+`ui.list.checkField`, may define an entire release in one file under
+`templates/`. The host expands `items` into records and qualifies their seed
+IDs with the bundle ID so definitions for multiple releases can coexist:
+
+```json
+{
+  "id": "2.0.0-test-rc5",
+  "name": "2.0.0-test-rc5 release checklist",
+  "release": "2.0.0-test-rc5",
+  "recommended": true,
+  "defaults": {
+    "enabled": true,
+    "fields": {
+      "completed": false,
+      "outcome": "pending",
+      "notes": ""
+    }
+  },
+  "items": [
+    {
+      "id": "release-identity",
+      "name": "Release identity",
+      "description": "Dashboard and API versions match.",
+      "fields": { "area": "identity" }
+    }
+  ]
+}
+```
+
+The dashboard presents these bundles as release checklists, not as template
+cards. Updating or adding a release only requires a new JSON file; completed
+records, outcomes, notes, and evidence remain stored in the workspace.
 
 ## Capabilities And Least Privilege
 

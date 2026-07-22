@@ -783,6 +783,46 @@ function normalizeTemplate(plugin: PluginManifest, value: any): PluginRecordTemp
   }
 }
 
+function normalizeTemplateFile(plugin: PluginManifest, value: any): PluginRecordTemplate[] {
+  if (!value || typeof value !== 'object' || !Array.isArray(value.items)) {
+    const template = normalizeTemplate(plugin, value)
+    return template ? [template] : []
+  }
+
+  const release = String(value.release || '').trim()
+  const defaults = value.defaults && typeof value.defaults === 'object' ? value.defaults : {}
+  const defaultFields = defaults.fields && typeof defaults.fields === 'object' ? defaults.fields : {}
+  const bundleTags = Array.isArray(value.tags) ? value.tags.map(String) : []
+
+  return value.items.flatMap((item: any) => {
+    if (!item || typeof item !== 'object') return []
+    const itemFields = item.fields && typeof item.fields === 'object' ? item.fields : {}
+    const template = normalizeTemplate(plugin, {
+      ...item,
+      id: `${String(value.id || release || 'checklist').trim()}:${String(item.id || '').trim()}`,
+      recommended: item.recommended ?? value.recommended,
+      tags: uniq([...bundleTags, ...(Array.isArray(item.tags) ? item.tags.map(String) : [])]),
+      payload: {
+        ...defaults,
+        name: item.name,
+        description: item.description,
+        enabled: item.enabled ?? defaults.enabled,
+        tags: uniq([
+          ...bundleTags,
+          ...(Array.isArray(defaults.tags) ? defaults.tags.map(String) : []),
+          ...(Array.isArray(item.tags) ? item.tags.map(String) : []),
+        ]),
+        fields: {
+          ...defaultFields,
+          ...itemFields,
+          ...(release ? { release } : {}),
+        },
+      },
+    })
+    return template ? [template] : []
+  })
+}
+
 export function listPluginTemplates(plugin: PluginManifest): PluginRecordTemplate[] {
   const pluginDir = findPluginDirectory(plugin)
   if (!pluginDir) return []
@@ -792,7 +832,7 @@ export function listPluginTemplates(plugin: PluginManifest): PluginRecordTemplat
   return fs.readdirSync(templateDir, { withFileTypes: true })
     .filter((entry) => entry.isFile() && entry.name.endsWith('.json'))
     .map((entry) => readJsonFile<any>(path.join(templateDir, entry.name)))
-    .map((value) => normalizeTemplate(plugin, value))
+    .flatMap((value) => normalizeTemplateFile(plugin, value))
     .filter((value): value is PluginRecordTemplate => {
       if (!value) return false
       return Boolean(value.id) && Boolean(value.name)

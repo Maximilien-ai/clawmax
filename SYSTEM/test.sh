@@ -1608,8 +1608,8 @@ fi
 
 echo -e "${YELLOW}→ Running Plugin release checklist regression tests...${NC}"
 npx ts-node --transpileOnly client/src/PluginReviewChecklist.test.ts > /tmp/clawmax-plugin-review-checklist.out 2>&1 || true
-if grep -q "PluginReviewChecklist.test.ts: 10 tests passed" /tmp/clawmax-plugin-review-checklist.out; then
-  pass "Plugin release checklist regression tests (10 tests)"
+if grep -q "PluginReviewChecklist.test.ts: 16 tests passed" /tmp/clawmax-plugin-review-checklist.out; then
+  pass "Plugin release checklist regression tests (16 tests)"
 else
   cat /tmp/clawmax-plugin-review-checklist.out
   fail "Plugin release checklist regression tests"

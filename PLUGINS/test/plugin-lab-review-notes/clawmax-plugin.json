@@ -4,7 +4,7 @@
   "slug": "plugin-lab-review-notes",
   "name": "Release Review",
   "description": "Keep acceptance checklists separated by release and preserve their results as release history.",
-  "version": "0.2.0-test",
+  "version": "0.3.0-test",
   "icon": "docs",
   "objectKind": "review-note",
   "visibility": "private",

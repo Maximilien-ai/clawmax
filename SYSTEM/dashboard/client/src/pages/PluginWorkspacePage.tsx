@@ -1008,6 +1008,65 @@ function TemplateCard({
   )
 }
 
+function ChecklistItemRow({
+  item,
+  checkField,
+  onToggle,
+  onEdit,
+}: {
+  item: GenericPluginRecord
+  checkField: string
+  onToggle: () => void
+  onEdit: () => void
+}) {
+  const completed = item.fields[checkField] === true
+  const area = String(item.fields.area || 'review')
+  const outcome = String(item.fields.outcome || 'pending')
+  const notes = String(item.fields.notes || '').trim()
+  const evidence = Array.isArray(item.fields.evidence) ? item.fields.evidence : []
+  const outcomeClass = outcome === 'passed'
+    ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-300'
+    : outcome === 'failed'
+      ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300'
+      : outcome === 'blocked'
+        ? 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300'
+        : 'border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300'
+
+  return (
+    <div className={`max-w-full overflow-hidden border-b border-gray-100 p-4 last:border-b-0 dark:border-gray-700/70 ${completed ? 'bg-emerald-50/30 dark:bg-emerald-950/10' : ''}`}>
+      <div className="flex items-start gap-3">
+        <input
+          type="checkbox"
+          checked={completed}
+          onChange={onToggle}
+          aria-label={`Mark ${item.name} complete`}
+          className="mt-1 h-5 w-5 shrink-0 rounded border-gray-300 text-sky-600 focus:ring-sky-500"
+        />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <h3 className={`break-words text-sm font-semibold text-gray-900 dark:text-gray-100 ${completed ? 'line-through decoration-gray-400' : ''}`}>{item.name}</h3>
+              <p className="mt-1 break-words text-sm text-gray-600 dark:text-gray-300">{item.description}</p>
+            </div>
+            <div className="flex shrink-0 flex-wrap gap-2">
+              <span className="rounded-md border border-gray-200 bg-white px-2 py-0.5 text-xs font-medium capitalize text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">{area}</span>
+              <span className={`rounded-md border px-2 py-0.5 text-xs font-medium capitalize ${outcomeClass}`}>{outcome}</span>
+            </div>
+          </div>
+          <div className="mt-3 flex flex-col gap-2 border-t border-gray-100 pt-3 dark:border-gray-700/70 sm:flex-row sm:items-start sm:justify-between">
+            <p className={`min-w-0 break-words text-sm ${notes ? 'text-gray-500 dark:text-gray-400' : 'italic text-gray-400 dark:text-gray-500'}`}>
+              {notes || 'No notes yet.'}
+            </p>
+            <button type="button" onClick={onEdit} className="shrink-0 self-start text-sm font-medium text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300">
+              {notes ? 'Edit notes' : 'Add notes'}{evidence.length > 0 ? ` · ${evidence.length} evidence` : ''}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function PluginWorkspacePage({ plugin, isActive = false, onNavigateToDoc }: Props) {
   const workflowCreateMenuButtonRef = useRef<HTMLButtonElement | null>(null)
   const [context, setContext] = useState<PluginWorkspaceContext>({ agents: [], workflows: [], groups: [], communities: [] })
@@ -1037,6 +1096,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
   const canNotify = grantedCapabilities.includes('notifications')
   const groupField = getPluginGroupField(plugin)
   const checkField = getPluginCheckField(plugin)
+  const isChecklist = Boolean(groupField && checkField)
 
   const load = async () => {
     try {
@@ -1106,6 +1166,16 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
       return isGenericPluginRecord(item) && item.fields[groupField] === templateGroup
     })
   }), [templates, items, groupField])
+  const checklistTemplatesByRelease = useMemo(() => {
+    if (!isChecklist || !groupField) return []
+    const byRelease = new Map<string, PluginRecordTemplate[]>()
+    recommendedTemplates.forEach((template) => {
+      const fields = 'fields' in template.payload ? template.payload.fields : undefined
+      const release = fields && typeof fields[groupField] === 'string' ? String(fields[groupField]) : 'Unversioned'
+      byRelease.set(release, [...(byRelease.get(release) || []), template])
+    })
+    return Array.from(byRelease.entries()).sort(([a], [b]) => b.localeCompare(a, undefined, { numeric: true }))
+  }, [recommendedTemplates, isChecklist, groupField])
   const activeCount = useMemo(() => items.filter((item) => item.archived !== true).length, [items])
   const archivedCount = useMemo(() => items.filter((item) => item.archived === true).length, [items])
   const selectedItem = useMemo(
@@ -1196,8 +1266,8 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
     await load()
   }
 
-  const applyRecommendedTemplates = async () => {
-    const responses = await Promise.all(recommendedTemplates.map((template) => fetch(
+  const applyRecommendedTemplates = async (templatesToApply = recommendedTemplates) => {
+    const responses = await Promise.all(templatesToApply.map((template) => fetch(
       `/api/plugins/${encodeURIComponent(plugin.slug)}/templates/${encodeURIComponent(template.id)}/apply`,
       { method: 'POST' },
     )))
@@ -1232,6 +1302,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          {!isChecklist && <>
           <div className="flex items-center border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden bg-white dark:bg-gray-800">
             <button
               onClick={() => setViewMode('grid')}
@@ -1299,6 +1370,16 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
               </>
             )}
           </div>
+          </>}
+          {isChecklist && (
+            <button
+              type="button"
+              onClick={() => { setEditing(null); setShowModal(true) }}
+              className={headerPrimaryButtonClass}
+            >
+              Add check
+            </button>
+          )}
           <button
             onClick={() => void load()}
             className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 hover:text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-gray-600 dark:hover:bg-gray-700 dark:hover:text-white"
@@ -1310,7 +1391,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
         </div>
       </div>
 
-      <div className="mb-4">
+      {(groups.length > 0 || !isChecklist || items.length > 0) && <div className="mb-4">
         {groupField && groups.length > 0 && (
           <div className="mb-4">
             <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Release</div>
@@ -1356,9 +1437,9 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
             Archived ({archivedCount})
           </button>
         </div>
-      </div>
+      </div>}
 
-      <div className="mb-4">
+      {(!isChecklist || items.length > 0) && <div className="mb-4">
         <div className="relative">
           <input
             value={search}
@@ -1381,9 +1462,9 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
             Found {filtered.length} {plugin.labels?.plural?.toLowerCase() || 'items'}
           </div>
         )}
-      </div>
+      </div>}
 
-      <div className="mb-6">
+      {!isChecklist && <div className="mb-6">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs text-gray-400 font-medium">Filter by tags:</span>
           <button
@@ -1440,31 +1521,47 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
             </button>
           ))}
         </div>
-      </div>
+      </div>}
 
       {!loading && !error && recommendedTemplates.length > 0 && (
         <div className="mt-6">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Recommended</h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Starter templates to help users and plugin authors validate the plugin flow quickly.</p>
+          {isChecklist ? (
+            <div className="rounded-lg border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-900/40">
+              <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Start a release checklist</h2>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Checklist items are loaded from the plugin's versioned release file. Results and notes remain separated by release.</p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {checklistTemplatesByRelease.map(([release, releaseTemplates]) => (
+                  <button
+                    key={release}
+                    type="button"
+                    onClick={() => void applyRecommendedTemplates(releaseTemplates)}
+                    className={headerPrimaryButtonClass}
+                  >
+                    Start {release} checklist
+                  </button>
+                ))}
+              </div>
             </div>
-            {recommendedTemplates.length > 1 && (
-              <button type="button" onClick={() => void applyRecommendedTemplates()} className={headerPrimaryButtonClass}>
-                Add release checklist ({recommendedTemplates.length})
-              </button>
-            )}
-          </div>
-          <div className="grid gap-4 xl:grid-cols-2">
-            {recommendedTemplates.map((template) => (
-              <TemplateCard
-                key={template.id}
-                plugin={plugin}
-                template={template}
-                onApply={() => void applyTemplate(template.id)}
-              />
-            ))}
-          </div>
+          ) : (
+            <>
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Recommended</h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Starter templates to help users and plugin authors validate the plugin flow quickly.</p>
+                </div>
+              </div>
+              <div className="grid gap-4 xl:grid-cols-2">
+                {recommendedTemplates.map((template) => (
+                  <TemplateCard
+                    key={template.id}
+                    plugin={plugin}
+                    template={template}
+                    onApply={() => void applyTemplate(template.id)}
+                  />
+                ))}
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -1472,6 +1569,10 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
         <div className="mt-6 rounded-2xl border border-gray-200 bg-white p-8 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900/40 dark:text-gray-400">Loading plugin workspace...</div>
       ) : error ? (
         <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-900/10 dark:text-red-300">{error}</div>
+      ) : filtered.length === 0 && isChecklist && recommendedTemplates.length > 0 ? null : filtered.length === 0 && isChecklist ? (
+        <div className="mt-6 rounded-lg border border-gray-200 bg-white px-5 py-8 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900/40 dark:text-gray-400">
+          No checks match the current release or search.
+        </div>
       ) : filtered.length === 0 ? (
         <div className="mt-6">
           <EmptyState plugin={plugin} onCreate={() => { setEditing(null); setShowModal(true) }} />
@@ -1479,7 +1580,19 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
       ) : (
         <div className={`mt-6 ${selectedItem ? 'xl:grid xl:grid-cols-[minmax(0,1fr)_360px] xl:gap-6' : ''}`}>
           <div>
-            {viewMode === 'grid' ? (
+            {isChecklist && checkField ? (
+              <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900/40">
+                {filtered.filter(isGenericPluginRecord).map((item) => (
+                  <ChecklistItemRow
+                    key={item.id}
+                    item={item}
+                    checkField={checkField}
+                    onToggle={() => void toggleCheck(item)}
+                    onEdit={() => { setEditing(item); setShowModal(true) }}
+                  />
+                ))}
+              </div>
+            ) : viewMode === 'grid' ? (
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 {filtered.map((item) => (
                   <div key={item.id} className="relative">
