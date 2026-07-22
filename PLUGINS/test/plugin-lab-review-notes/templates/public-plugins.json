@@ -1,0 +1,22 @@
+{
+  "id": "public-plugins",
+  "name": "Public plugin host",
+  "description": "Verify enabled public test plugins load in order with their declared capabilities and compact labels.",
+  "recommended": true,
+  "tags": ["release", "plugins"],
+  "payload": {
+    "name": "Public plugin host",
+    "description": "The plugin index, diagnostics, navigation, and workspace pages agree on enabled plugins.",
+    "enabled": true,
+    "tags": ["plugins", "public"],
+    "fields": {
+      "release": "2.0.0-test-rc4",
+      "area": "plugins",
+      "completed": false,
+      "outcome": "pending",
+      "notes": "Capture plugin index and diagnostics evidence.",
+      "owner": "release-manager",
+      "evidence": []
+    }
+  }
+}

@@ -11,7 +11,10 @@ A v2 plugin repository provides `clawmax-plugin.json` with:
 - `apiVersion: clawmax.ai/v2`
 - a unique lowercase `objectKind`
 - a `recordSchema` using the supported field subset
+- optional `nav.label` containing one or two compact words for the sidebar
 - optional `ui.form.order` and `ui.list.fields`
+- optional `ui.list.groupBy` string field for mutually exclusive record tabs
+- optional `ui.list.checkField` boolean field for direct persisted checkboxes
 - explicit host capabilities
 - `enabledByDefault: false` for private or deployment-managed plugins
 
@@ -27,6 +30,11 @@ A v2 plugin repository provides `clawmax-plugin.json` with:
   "objectKind": "review-note",
   "visibility": "private",
   "enabledByDefault": false,
+  "nav": {
+    "section": "plugins",
+    "order": 30,
+    "label": "Reviews"
+  },
   "source": {
     "type": "github",
     "owner": "example",
@@ -45,29 +53,31 @@ A v2 plugin repository provides `clawmax-plugin.json` with:
   "recordSchema": {
     "type": "object",
     "additionalProperties": false,
-    "required": ["priority", "notes"],
+    "required": ["release", "notes"],
     "properties": {
-      "priority": {
+      "release": {
         "type": "string",
-        "title": "Priority",
-        "enum": ["low", "medium", "high"],
-        "default": "medium"
+        "title": "Release"
       },
       "notes": {
         "type": "string",
         "title": "Notes",
         "format": "textarea"
       },
-      "approved": {
+      "completed": {
         "type": "boolean",
-        "title": "Approved",
+        "title": "Completed",
         "default": false
       }
     }
   },
   "ui": {
-    "form": { "order": ["priority", "notes", "approved"] },
-    "list": { "fields": ["priority", "approved"] }
+    "form": { "order": ["release", "notes", "completed"] },
+    "list": {
+      "fields": ["completed"],
+      "groupBy": "release",
+      "checkField": "completed"
+    }
   }
 }
 ```
@@ -85,7 +95,8 @@ The first v2 contract intentionally supports a constrained schema subset:
 Each property requires a `title` and may provide `description` and `default`.
 Required fields must name declared properties. Form and list field references
 must also name declared properties. Undeclared record fields are discarded by
-the host.
+the host. `ui.list.groupBy` must reference a string field, while
+`ui.list.checkField` must reference a boolean field.
 
 ## Records And Templates
 
@@ -98,9 +109,9 @@ Generic record state is stored under `fields`:
   "tags": ["release"],
   "enabled": true,
   "fields": {
-    "priority": "high",
+    "release": "2.0.0-test-rc4",
     "notes": "Check acceptance evidence.",
-    "approved": false
+    "completed": false
   }
 }
 ```

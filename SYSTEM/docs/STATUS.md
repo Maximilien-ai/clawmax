@@ -16,7 +16,7 @@
 - The first generic `clawmax.ai/v2` declarative plugin contract is merged into `main`. It supports generic manifests, records, templates, storage, declarative UI, explicit enablement, compatibility checks, and zero-plugin operation.
 - System & Logs and `/api/plugins/diagnostics` now retain and explain loaded, disabled, invalid, incompatible, duplicate, and missing plugin outcomes instead of silently hiding discovery failures.
 - Plugin host capabilities are now deny-by-default: explicit document and notification operations return actionable `403` responses without a grant, and plugin workspace context is filtered across agent, workflow, group, and community access.
-- Local test runs and test images enable the three synthetic plugin-lab fixtures; stable image promotion clears the test-only selection.
+- Local test runs and test images enable the three synthetic plugin-lab fixtures; compact plugin navigation, scroll containment, and release-scoped Review checklists are being validated for RC4. Stable image promotion clears the test-only selection.
 - Public and private plugins use the same host contract. Private source, credentials, distribution, and production enablement remain outside the public repository and default image.
 
 ## Active Release Tracks
@@ -32,7 +32,7 @@
 ### 2.0.0 development
 
 - Branch: `main`
-- Current test candidate: `2.0.0-test-rc2` (enforced host capabilities, visible grants, and test-image plugin validation)
+- Current test candidate: `2.0.0-test-rc3`; RC4 is in preparation with compact plugin navigation, sidebar overflow containment, and release-scoped Review checklists.
 - Architecture: [Plugin System 2.0](../../PLUGINS/PLUGIN_SYSTEM_2_0.md)
 - Authoring contract: [Plugin Authoring 2.0](../../PLUGINS/PLUGIN_AUTHORING_2_0.md)
 - Generic architecture plan: [PUBLIC_PLUGIN_ARCHITECTURE_2_0.md](planning/PUBLIC_PLUGIN_ARCHITECTURE_2_0.md)

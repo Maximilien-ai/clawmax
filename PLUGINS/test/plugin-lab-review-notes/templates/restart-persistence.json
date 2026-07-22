@@ -1,0 +1,22 @@
+{
+  "id": "restart-persistence",
+  "name": "Restart persistence",
+  "description": "Verify workspace records, release checklists, plugin discovery, and OpenClaw state survive restart.",
+  "recommended": true,
+  "tags": ["release", "persistence"],
+  "payload": {
+    "name": "Restart persistence",
+    "description": "Release checklist results and plugin state survive a container restart with persistent storage.",
+    "enabled": true,
+    "tags": ["persistence", "container"],
+    "fields": {
+      "release": "2.0.0-test-rc4",
+      "area": "persistence",
+      "completed": false,
+      "outcome": "pending",
+      "notes": "Check the same records before and after restart.",
+      "owner": "release-manager",
+      "evidence": []
+    }
+  }
+}

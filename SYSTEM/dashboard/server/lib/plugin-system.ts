@@ -34,7 +34,7 @@ export interface PluginRecordSchema {
 
 export interface PluginUiContract {
   form?: { order?: string[] }
-  list?: { fields?: string[] }
+  list?: { fields?: string[]; groupBy?: string; checkField?: string }
 }
 
 export interface PluginManifest {
@@ -58,6 +58,7 @@ export interface PluginManifest {
   nav?: {
     order?: number
     section?: 'plugins'
+    label?: string
   }
   capabilities?: {
     notifications?: boolean
@@ -280,6 +281,18 @@ function isPluginCapabilities(value: unknown): boolean {
     PLUGIN_CAPABILITIES.includes(key as PluginCapability) && typeof enabled === 'boolean')
 }
 
+function isPluginNav(value: unknown): boolean {
+  if (value === undefined) return true
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const nav = value as Record<string, unknown>
+  if (nav.order !== undefined && typeof nav.order !== 'number') return false
+  if (nav.section !== undefined && nav.section !== 'plugins') return false
+  if (nav.label !== undefined) {
+    if (typeof nav.label !== 'string' || nav.label.length > 24 || !/^\S+(?:\s+\S+)?$/.test(nav.label)) return false
+  }
+  return Object.keys(nav).every((key) => ['order', 'section', 'label'].includes(key))
+}
+
 function isPluginManifest(value: any): value is PluginManifest {
   const commonValid = !!value
     && typeof value.id === 'string'
@@ -296,6 +309,7 @@ function isPluginManifest(value: any): value is PluginManifest {
     && typeof value.source.owner === 'string'
     && typeof value.source.repo === 'string'
     && typeof value.source.url === 'string'
+    && isPluginNav(value.nav)
     && isPluginCapabilities(value.capabilities)
 
   if (!commonValid) return false
@@ -305,8 +319,16 @@ function isPluginManifest(value: any): value is PluginManifest {
   if (value.apiVersion !== PLUGIN_HOST_API_VERSION) return false
   if (!isPluginRecordSchema(value.recordSchema)) return false
   const declaredFields = new Set(Object.keys(value.recordSchema.properties))
-  const uiFields = [...(value.ui?.form?.order || []), ...(value.ui?.list?.fields || [])]
-  return uiFields.every((field: unknown) => typeof field === 'string' && declaredFields.has(field))
+  const uiFields = [
+    ...(value.ui?.form?.order || []),
+    ...(value.ui?.list?.fields || []),
+    value.ui?.list?.groupBy,
+    value.ui?.list?.checkField,
+  ].filter((field) => field !== undefined)
+  if (!uiFields.every((field: unknown) => typeof field === 'string' && declaredFields.has(field))) return false
+  if (value.ui?.list?.groupBy && value.recordSchema.properties[value.ui.list.groupBy]?.type !== 'string') return false
+  if (value.ui?.list?.checkField && value.recordSchema.properties[value.ui.list.checkField]?.type !== 'boolean') return false
+  return true
 }
 
 function inspectPluginManifest(directory: string, manifestPath: string): PluginManifestCandidate {

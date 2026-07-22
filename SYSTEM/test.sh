@@ -1597,6 +1597,24 @@ else
   fail "App navigation state edge-case unit tests"
 fi
 
+echo -e "${YELLOW}→ Running App sidebar layout regression tests...${NC}"
+npx ts-node --transpileOnly client/src/AppSidebar.test.ts > /tmp/clawmax-app-sidebar.out 2>&1 || true
+if grep -q "AppSidebar.test.ts: 6 tests passed" /tmp/clawmax-app-sidebar.out; then
+  pass "App sidebar layout regression tests (6 tests)"
+else
+  cat /tmp/clawmax-app-sidebar.out
+  fail "App sidebar layout regression tests"
+fi
+
+echo -e "${YELLOW}→ Running Plugin release checklist regression tests...${NC}"
+npx ts-node --transpileOnly client/src/PluginReviewChecklist.test.ts > /tmp/clawmax-plugin-review-checklist.out 2>&1 || true
+if grep -q "PluginReviewChecklist.test.ts: 10 tests passed" /tmp/clawmax-plugin-review-checklist.out; then
+  pass "Plugin release checklist regression tests (10 tests)"
+else
+  cat /tmp/clawmax-plugin-review-checklist.out
+  fail "Plugin release checklist regression tests"
+fi
+
 echo -e "${YELLOW}→ Running System refresh helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/systemRefresh.test.ts > /tmp/clawmax-system-refresh.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-system-refresh.out; then

@@ -1,0 +1,22 @@
+{
+  "id": "guardrails",
+  "name": "Guardrails operations",
+  "description": "Exercise Guardrails creation, editing, targeting, documents, notifications, and capability boundaries.",
+  "recommended": true,
+  "tags": ["release", "guardrails"],
+  "payload": {
+    "name": "Guardrails operations",
+    "description": "Guardrails operations behave consistently and respect host capability grants.",
+    "enabled": true,
+    "tags": ["guardrails", "plugins"],
+    "fields": {
+      "release": "2.0.0-test-rc4",
+      "area": "guardrails",
+      "completed": false,
+      "outcome": "pending",
+      "notes": "Record each operation tested and any runtime limitation.",
+      "owner": "release-manager",
+      "evidence": []
+    }
+  }
+}

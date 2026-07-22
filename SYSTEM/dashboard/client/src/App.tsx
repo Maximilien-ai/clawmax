@@ -32,7 +32,7 @@ import { CHANNEL_API_ENDPOINTS } from './lib/channelApi'
 import { addVisitedPage } from './lib/appNavigationState'
 import { getVisibleMaintenanceBanner } from './lib/maintenanceBannerView'
 import { buildPluginPage, isPluginPage, pageToPath, pathToPage, pluginSlugFromPage, resolveInitialPage, type CoreDashboardPage, type DashboardPage } from './lib/navigation'
-import { usesLegacyPluginAdapter, type PluginManifest } from './lib/plugins'
+import { getPluginNavLabel, usesLegacyPluginAdapter, type PluginManifest } from './lib/plugins'
 import { readGlobalWorkspaceTourDisabled, readWorkspaceTourState, resetWorkspaceTourState, shouldShowWorkspaceTour, writeWorkspaceTourState } from './lib/onboardingTour'
 
 type Page = DashboardPage
@@ -726,7 +726,7 @@ export default function App() {
           )}
 
           {/* Sidebar */}
-          <aside className={`bg-gray-900 text-gray-100 flex flex-col shrink-0 transition-all duration-200 ${
+          <aside className={`h-screen max-h-screen overflow-hidden bg-gray-900 text-gray-100 flex flex-col shrink-0 transition-all duration-200 ${
             navCollapsed ? 'w-14' : 'w-56'
           } ${
             mobileNavOpen ? 'fixed inset-y-0 left-0 z-50 md:relative' : 'hidden md:flex'
@@ -766,7 +766,7 @@ export default function App() {
             )}
 
             {/* Nav */}
-            <nav className="flex-1 px-2 py-4 space-y-1">
+            <nav className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 py-4 space-y-1">
               {navBeforePlugins.map((item, index) => (
                 <React.Fragment key={item.id}>
                   <NavItemDraggable
@@ -803,7 +803,7 @@ export default function App() {
                     return (
                       <NavItemDraggable
                         key={plugin.slug}
-                        label={plugin.name}
+                        label={getPluginNavLabel(plugin)}
                         icon={PluginIconComponent}
                         active={page === pluginPage}
                         onClick={() => {
@@ -880,10 +880,10 @@ export default function App() {
             </nav>
 
             {/* User info */}
-            <UserBadge collapsed={navCollapsed} />
+            <div className="shrink-0"><UserBadge collapsed={navCollapsed} /></div>
 
             {/* Footer / collapse toggle */}
-            <div className={`border-t border-gray-700 ${navCollapsed ? 'px-2 py-3 flex justify-center' : 'px-4 py-3 flex items-center justify-between'}`}>
+            <div className={`shrink-0 border-t border-gray-700 ${navCollapsed ? 'px-2 py-3 flex justify-center' : 'px-4 py-3 flex items-center justify-between'}`}>
               {!navCollapsed ? (
                 <div className="flex min-w-0 flex-1 items-center justify-between gap-3">
                   <div className="min-w-0">
@@ -1387,7 +1387,7 @@ function NavItemDraggable({ label, icon: Icon, dataTourId, active, badge, onClic
       onDragOver={onDragOver}
       onDragEnd={onDragEnd}
       onClick={onClick}
-      title={collapsed ? label : undefined}
+      title={label}
       className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
         draggable ? 'cursor-move' : 'cursor-pointer'
       } ${
@@ -1407,8 +1407,8 @@ function NavItemDraggable({ label, icon: Icon, dataTourId, active, badge, onClic
         )}
       </span>
       {!collapsed && (
-        <span className="flex-1 flex items-center justify-between">
-          {label}
+        <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
+          <span className="truncate">{label}</span>
           {badge != null && badge > 0 && (
             <span className="min-w-[18px] h-[18px] rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center px-1">
               {badge > 99 ? '99+' : badge}

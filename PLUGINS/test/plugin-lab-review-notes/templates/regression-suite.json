@@ -1,0 +1,22 @@
+{
+  "id": "regression-suite",
+  "name": "Automated regression suite",
+  "description": "Run the complete local suite with validation and coverage and confirm both image workflows pass.",
+  "recommended": true,
+  "tags": ["release", "regression", "coverage"],
+  "payload": {
+    "name": "Automated regression suite",
+    "description": "Local validation, coverage, and multi-architecture image CI are green.",
+    "enabled": true,
+    "tags": ["regression", "coverage", "ci"],
+    "fields": {
+      "release": "2.0.0-test-rc4",
+      "area": "regression",
+      "completed": false,
+      "outcome": "pending",
+      "notes": "Attach local summary and CI run links.",
+      "owner": "release-manager",
+      "evidence": []
+    }
+  }
+}

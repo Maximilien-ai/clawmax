@@ -17,7 +17,8 @@
   },
   "nav": {
     "section": "plugins",
-    "order": 10
+    "order": 10,
+    "label": "Guardrails"
   },
   "capabilities": {
     "notifications": true,

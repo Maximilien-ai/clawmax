@@ -44,6 +44,7 @@ export interface PluginManifest {
   nav?: {
     order?: number
     section?: 'plugins'
+    label?: string
   }
   capabilities?: {
     notifications?: boolean
@@ -59,8 +60,22 @@ export interface PluginManifest {
   recordSchema?: PluginRecordSchema
   ui?: {
     form?: { order?: string[] }
-    list?: { fields?: string[] }
+    list?: { fields?: string[]; groupBy?: string; checkField?: string }
   }
+}
+
+export function getPluginNavLabel(plugin: PluginManifest): string {
+  return plugin.nav?.label?.trim() || plugin.name
+}
+
+export function getPluginGroupField(plugin: PluginManifest): string | null {
+  const field = plugin.ui?.list?.groupBy
+  return field && plugin.recordSchema?.properties[field]?.type === 'string' ? field : null
+}
+
+export function getPluginCheckField(plugin: PluginManifest): string | null {
+  const field = plugin.ui?.list?.checkField
+  return field && plugin.recordSchema?.properties[field]?.type === 'boolean' ? field : null
 }
 
 export function usesLegacyPluginAdapter(plugin: PluginManifest, kind: 'guardrail' | 'eval'): boolean {

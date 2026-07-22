@@ -249,7 +249,7 @@ async function run() {
     const invalidRes = makeRes()
     await createHandler(makeReq({
       params: { pluginId: 'plugin-lab-review-notes' },
-      body: { name: 'Incomplete', fields: { priority: 'high' } },
+      body: { name: 'Incomplete', fields: { release: '2.0.0-test-rc4' } },
     }), invalidRes)
     assert.strictEqual(invalidRes.statusCode, 400, 'Expected missing required generic field to return HTTP 400')
     assert(/Notes is required/.test(invalidRes.jsonBody?.error || ''), 'Expected actionable schema validation message')
@@ -259,12 +259,18 @@ async function run() {
       params: { pluginId: 'plugin-lab-review-notes' },
       body: {
         name: 'Release review',
-        fields: { priority: 'high', notes: 'Check the release evidence', approved: false },
+        fields: {
+          release: '2.0.0-test-rc4',
+          area: 'regression',
+          completed: false,
+          outcome: 'pending',
+          notes: 'Check the release evidence',
+        },
       },
     }), createRes)
     assert.strictEqual(createRes.statusCode, 201, 'Expected generic item create success')
     assert.strictEqual(createRes.jsonBody?.item?.kind, 'review-note', 'Expected generic object kind in response')
-    assert.strictEqual(createRes.jsonBody?.item?.fields?.priority, 'high', 'Expected declarative fields in response')
+    assert.strictEqual(createRes.jsonBody?.item?.fields?.release, '2.0.0-test-rc4', 'Expected release boundary in response')
   })
 
   await test('plugin routes enforce capability grants and filter context', async () => {

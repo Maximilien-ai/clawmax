@@ -5,6 +5,9 @@ import {
   formatPluginScopeSummary,
   formatPluginDiagnosticsSummary,
   getPluginGrantedCapabilities,
+  getPluginCheckField,
+  getPluginGroupField,
+  getPluginNavLabel,
   formatPluginUpdatedAt,
   formatPluginUsageSummary,
   getPluginUsageTotals,
@@ -126,17 +129,18 @@ const reviewPlugin: PluginManifest = {
   objectKind: 'review-note',
   visibility: 'private',
   source: { type: 'github', owner: 'example', repo: 'review-notes', url: 'https://example.invalid/review-notes' },
+  nav: { section: 'plugins', order: 30, label: 'Review' },
   labels: { singular: 'Review Note', plural: 'Review Notes' },
   recordSchema: {
     type: 'object',
-    required: ['priority', 'notes'],
+    required: ['release', 'notes'],
     properties: {
-      priority: { type: 'string', title: 'Priority', enum: ['low', 'medium', 'high'], default: 'medium' },
+      release: { type: 'string', title: 'Release' },
       notes: { type: 'string', title: 'Notes', format: 'textarea' },
-      approved: { type: 'boolean', title: 'Approved', default: false },
+      completed: { type: 'boolean', title: 'Completed', default: false },
     },
   },
-  ui: { form: { order: ['priority', 'notes', 'approved'] }, list: { fields: ['priority', 'approved'] } },
+  ui: { form: { order: ['release', 'notes', 'completed'] }, list: { fields: ['completed'], groupBy: 'release', checkField: 'completed' } },
 }
 
 const reviewRecord: PluginRecord = {
@@ -148,8 +152,17 @@ const reviewRecord: PluginRecord = {
   enabled: true,
   createdAt: '2026-07-15T00:00:00.000Z',
   updatedAt: '2026-07-15T00:00:00.000Z',
-  fields: { priority: 'high', notes: 'Check acceptance evidence', approved: false },
+  fields: { release: '2.0.0-test-rc4', notes: 'Check acceptance evidence', completed: false },
 }
+
+test('plugin navigation and checklist metadata resolve valid compact fields', () => {
+  assert(getPluginNavLabel(reviewPlugin) === 'Review', 'Expected compact plugin navigation label')
+  assert(getPluginGroupField(reviewPlugin) === 'release', 'Expected release grouping field')
+  assert(getPluginCheckField(reviewPlugin) === 'completed', 'Expected checklist completion field')
+  assert(getPluginNavLabel({ ...reviewPlugin, nav: undefined }) === 'Review Notes', 'Expected plugin name fallback')
+  assert(getPluginGroupField({ ...reviewPlugin, ui: { list: { groupBy: 'completed' } } }) === null, 'Expected non-string group field rejection')
+  assert(getPluginCheckField({ ...reviewPlugin, ui: { list: { checkField: 'release' } } }) === null, 'Expected non-boolean check field rejection')
+})
 
 test('collectPluginTags returns sorted unique tags', () => {
   const tags = collectPluginTags([guardrail, evalRecord])
@@ -195,8 +208,8 @@ test('buildPluginDraftFromPrompt creates an eval draft from natural language', (
 
 test('generic v2 plugins build defaults and prompt-backed declarative fields', () => {
   const defaults = buildGenericPluginFields(reviewPlugin)
-  assert(defaults.priority === 'medium', 'Expected manifest default for priority')
-  assert(defaults.approved === false, 'Expected boolean manifest default')
+  assert(defaults.release === '', 'Expected empty release default')
+  assert(defaults.completed === false, 'Expected boolean manifest default')
   const draft = buildPluginDraftFromPrompt(reviewPlugin, 'Review the release evidence before promotion')
   assert(isGenericPluginRecord(draft), 'Expected a generic plugin draft')
   assert(draft.kind === 'review-note', 'Expected generic object kind to persist')
@@ -207,8 +220,7 @@ test('generic plugin records participate in search, scope, and declarative detai
   assert(matchesPluginSearch(reviewRecord, 'acceptance evidence'), 'Expected generic field values in search')
   assert(formatPluginScopeSummary(reviewRecord) === '3 configured fields', 'Expected generic configured field count')
   const lines = getPluginDetailLines(reviewPlugin, reviewRecord)
-  assert(lines.includes('Priority: high'), 'Expected configured list field presentation')
-  assert(lines.includes('Approved: no'), 'Expected boolean list field presentation')
+  assert(lines.includes('Completed: no'), 'Expected boolean list field presentation')
 })
 
 test('getPluginUsageTotals aggregates eval runs for plugin usage surfaces', () => {

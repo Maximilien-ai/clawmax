@@ -10,6 +10,11 @@ All notable changes to ClawMax are documented here.
 - **Plugin Health Diagnostics** — System & Logs and `/api/plugins/diagnostics` report loaded, disabled, invalid, incompatible, duplicate, and missing plugins with manifest versions, paths, and actionable remediation instead of silently dropping discovery failures.
 - **Least-Privilege Plugin Capabilities** — plugin document and notification operations now require explicit manifest grants, workspace context is filtered across agents, workflows, and communications, malformed capability declarations invalidate the manifest, and plugin pages plus diagnostics expose the effective grants.
 - **Test Plugin Validation Policy** — local test runs and `*-test-*` images enable the synthetic guardrail, eval, and generic review-note fixtures for broader plugin coverage; stable image promotion explicitly clears this test-only selection.
+- **Release Review Checklists** — the public Review fixture can add a complete acceptance checklist in one action, isolates records behind one release tab at a time, reports completed/total progress, and persists direct card/list checkboxes so results from one RC cannot be mistaken for another.
+
+### Fixed
+- **Compact Plugin Navigation** — manifests can declare a one- or two-word `nav.label`; the sidebar truncates unexpected overflow with a tooltip while preserving the full plugin name on its page.
+- **Scrollable Sidebar Layout** — long plugin and System navigation now scrolls inside the dark viewport-height sidebar while account and version controls remain visible instead of overflowing onto the page background.
 
 ### Planned
 - **2.0 Public Plugin And AI-Scoring Foundation** — complete the generic contribution-based plugin contract for pages, APIs, data, actions, jobs, events, settings, skills, providers, docs, and extension points; then publish scorer contracts and user-facing scoring surfaces on that foundation.

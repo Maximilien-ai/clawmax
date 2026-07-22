@@ -14,7 +14,9 @@ import {
   formatPluginUpdatedAt,
   formatPluginUsageSummary,
   getOrderedPluginFields,
+  getPluginCheckField,
   getPluginGrantedCapabilities,
+  getPluginGroupField,
   getPluginDetailLines,
   getPluginUsageTotals,
   isEvalRecord,
@@ -483,6 +485,7 @@ function ItemCard({
   onArchiveToggle,
   canGenerateDocs,
   canNotify,
+  onCheckToggle,
 }: {
   plugin: PluginManifest
   item: PluginRecord
@@ -496,12 +499,15 @@ function ItemCard({
   onArchiveToggle: () => void
   canGenerateDocs: boolean
   canNotify: boolean
+  onCheckToggle: (() => void) | null
 }) {
   const commonSummary = formatPluginScopeSummary(item)
   const archived = item.archived === true
   const usageSummary = formatPluginUsageSummary(item)
   const [showActions, setShowActions] = useState(false)
   const detailLines = getPluginDetailLines(plugin, item)
+  const checkField = getPluginCheckField(plugin)
+  const checked = checkField && isGenericPluginRecord(item) ? item.fields[checkField] === true : false
 
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md dark:border-gray-700 dark:bg-gray-900/60">
@@ -581,6 +587,17 @@ function ItemCard({
           <span className="text-xs text-gray-400">No tags</span>
         )}
       </div>
+      {checkField && onCheckToggle && (
+        <label className="mt-4 flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
+          <input
+            type="checkbox"
+            checked={checked}
+            onChange={onCheckToggle}
+            className="h-4 w-4 rounded border-gray-300 text-sky-600 focus:ring-sky-500"
+          />
+          Completed
+        </label>
+      )}
       <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50/80 px-3 py-3 dark:border-gray-800 dark:bg-gray-950/40">
         <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">More</div>
         <div className="mt-2 space-y-1.5 text-sm text-gray-600 dark:text-gray-300">
@@ -643,18 +660,24 @@ function ItemCard({
 }
 
 function CompactItemCard({
+  plugin,
   item,
   selected,
   onOpen,
   onToggleActions,
+  onCheckToggle,
 }: {
+  plugin: PluginManifest
   item: PluginRecord
   selected: boolean
   onOpen: () => void
   onToggleActions: () => void
+  onCheckToggle: (() => void) | null
 }) {
   const archived = item.archived === true
   const usageSummary = formatPluginUsageSummary(item)
+  const checkField = getPluginCheckField(plugin)
+  const checked = checkField && isGenericPluginRecord(item) ? item.fields[checkField] === true : false
   return (
     <div
       className={`rounded-xl border bg-white p-4 shadow-sm transition-all hover:shadow-md dark:bg-gray-800 ${
@@ -692,6 +715,23 @@ function CompactItemCard({
       <div className="mt-3 flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
         <span>{formatPluginScopeSummary(item)}</span>
       </div>
+      {checkField && onCheckToggle && (
+        <label
+          className="mt-3 flex cursor-pointer items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-200"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <input
+            type="checkbox"
+            checked={checked}
+            onChange={(event) => {
+              event.stopPropagation()
+              onCheckToggle()
+            }}
+            className="h-4 w-4 rounded border-gray-300 text-sky-600 focus:ring-sky-500"
+          />
+          Completed
+        </label>
+      )}
       {isEvalRecord(item) && (
         <div className="mt-3 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-300">
           {usageSummary}
@@ -989,11 +1029,14 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
   const [aiPromptText, setAiPromptText] = useState('')
   const [aiGenerating, setAiGenerating] = useState(false)
   const [activeCompactActions, setActiveCompactActions] = useState<string | null>(null)
+  const [selectedGroup, setSelectedGroup] = useState<string | null>(null)
   const aiReadiness = getAiGenerationReadiness()
   const aiEnabled = hasAiGenerationAccess()
   const grantedCapabilities = getPluginGrantedCapabilities(plugin)
   const canGenerateDocs = grantedCapabilities.includes('docs')
   const canNotify = grantedCapabilities.includes('notifications')
+  const groupField = getPluginGroupField(plugin)
+  const checkField = getPluginCheckField(plugin)
 
   const load = async () => {
     try {
@@ -1024,6 +1067,20 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
   }, [plugin.slug, isActive])
 
   const tags = useMemo(() => collectPluginTags(items), [items])
+  const groups = useMemo(() => {
+    if (!groupField) return []
+    return Array.from(new Set(items.flatMap((item) => {
+      if (!isGenericPluginRecord(item)) return []
+      const value = item.fields[groupField]
+      return typeof value === 'string' && value.trim() ? [value.trim()] : []
+    }))).sort((a, b) => b.localeCompare(a, undefined, { numeric: true }))
+  }, [items, groupField])
+  const activeGroup = selectedGroup && groups.includes(selectedGroup) ? selectedGroup : groups[0] || null
+  const groupProgress = useMemo(() => Object.fromEntries(groups.map((group) => {
+    const records = items.filter((item) => isGenericPluginRecord(item) && item.fields[groupField!] === group)
+    const completed = checkField ? records.filter((item) => isGenericPluginRecord(item) && item.fields[checkField] === true).length : 0
+    return [group, { completed, total: records.length }]
+  })), [groups, items, groupField, checkField])
   const filtered = useMemo(
     () => items.filter((item) => {
       const archived = item.archived === true
@@ -1032,11 +1089,23 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
       if (selectedTag !== 'all' && !item.tags.includes(selectedTag)) return false
       if (statusFilter === 'enabled' && !item.enabled) return false
       if (statusFilter === 'disabled' && item.enabled) return false
+      if (groupField && activeGroup) {
+        if (!isGenericPluginRecord(item) || item.fields[groupField] !== activeGroup) return false
+      }
       return matchesPluginSearch(item, search)
     }),
-    [items, search, selectedTag, statusFilter, archiveTab]
+    [items, search, selectedTag, statusFilter, archiveTab, groupField, activeGroup]
   )
-  const recommendedTemplates = useMemo(() => templates.filter((entry) => entry.recommended !== false), [templates])
+  const recommendedTemplates = useMemo(() => templates.filter((entry) => {
+    if (entry.recommended === false) return false
+    const templateFields = 'fields' in entry.payload ? entry.payload.fields : undefined
+    const templateGroup = groupField && templateFields ? templateFields[groupField] : null
+    return !items.some((item) => {
+      if (item.name !== entry.payload.name) return false
+      if (!groupField || typeof templateGroup !== 'string') return true
+      return isGenericPluginRecord(item) && item.fields[groupField] === templateGroup
+    })
+  }), [templates, items, groupField])
   const activeCount = useMemo(() => items.filter((item) => item.archived !== true).length, [items])
   const archivedCount = useMemo(() => items.filter((item) => item.archived === true).length, [items])
   const selectedItem = useMemo(
@@ -1062,6 +1131,14 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
     setShowModal(false)
     setEditing(null)
     await load()
+  }
+
+  const toggleCheck = async (item: PluginRecord) => {
+    if (!checkField || !isGenericPluginRecord(item)) return
+    await saveItem({
+      ...item,
+      fields: { ...item.fields, [checkField]: item.fields[checkField] !== true },
+    } as Partial<PluginRecord>)
   }
 
   const handleAiGenerate = async (promptOverride?: string) => {
@@ -1115,6 +1192,19 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
       throw new Error(data.error || 'Failed to apply template')
+    }
+    await load()
+  }
+
+  const applyRecommendedTemplates = async () => {
+    const responses = await Promise.all(recommendedTemplates.map((template) => fetch(
+      `/api/plugins/${encodeURIComponent(plugin.slug)}/templates/${encodeURIComponent(template.id)}/apply`,
+      { method: 'POST' },
+    )))
+    const failed = responses.find((response) => !response.ok)
+    if (failed) {
+      const data = await failed.json().catch(() => ({}))
+      throw new Error(data.error || 'Failed to add release checklist')
     }
     await load()
   }
@@ -1221,6 +1311,29 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
       </div>
 
       <div className="mb-4">
+        {groupField && groups.length > 0 && (
+          <div className="mb-4">
+            <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Release</div>
+            <div className="flex flex-wrap gap-2" role="tablist" aria-label="Release checklists">
+              {groups.map((group) => (
+                <button
+                  key={group}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeGroup === group}
+                  onClick={() => setSelectedGroup(group)}
+                  className={`rounded-md border px-3 py-1.5 text-sm font-medium transition-colors ${activeGroup === group
+                    ? 'border-sky-600 bg-sky-600 text-white'
+                    : 'border-gray-200 bg-white text-gray-600 hover:border-sky-300 hover:text-sky-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                  }`}
+                >
+                  {group}
+                  {checkField && groupProgress[group] ? ` · ${groupProgress[group].completed}/${groupProgress[group].total}` : ''}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         <div className="inline-flex border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
           <button
             onClick={() => setArchiveTab('active')}
@@ -1336,6 +1449,11 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
               <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Recommended</h2>
               <p className="text-sm text-gray-500 dark:text-gray-400">Starter templates to help users and plugin authors validate the plugin flow quickly.</p>
             </div>
+            {recommendedTemplates.length > 1 && (
+              <button type="button" onClick={() => void applyRecommendedTemplates()} className={headerPrimaryButtonClass}>
+                Add release checklist ({recommendedTemplates.length})
+              </button>
+            )}
           </div>
           <div className="grid gap-4 xl:grid-cols-2">
             {recommendedTemplates.map((template) => (
@@ -1366,10 +1484,12 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                 {filtered.map((item) => (
                   <div key={item.id} className="relative">
                     <CompactItemCard
+                      plugin={plugin}
                       item={item}
                       selected={selectedItemId === item.id}
                       onOpen={() => setSelectedItemId(item.id)}
                       onToggleActions={() => setActiveCompactActions((current) => current === item.id ? null : item.id)}
+                      onCheckToggle={checkField ? (() => void toggleCheck(item)) : null}
                     />
                     {activeCompactActions === item.id && (
                       <>
@@ -1435,6 +1555,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                       onArchiveToggle={() => void saveItem({ ...item, archived: item.archived !== true } as Partial<PluginRecord>)}
                       canGenerateDocs={canGenerateDocs}
                       canNotify={canNotify}
+                      onCheckToggle={checkField ? (() => void toggleCheck(item)) : null}
                     />
                   </div>
                 ))}
@@ -1462,6 +1583,17 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                       <div className="truncate text-xs text-gray-500 dark:text-gray-400">{item.description || item.id}</div>
                     </div>
                     <div>
+                      {checkField && isGenericPluginRecord(item) && (
+                        <label className="mb-1.5 flex cursor-pointer items-center gap-1.5 text-xs font-medium text-gray-600 dark:text-gray-300" onClick={(event) => event.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={item.fields[checkField] === true}
+                            onChange={() => void toggleCheck(item)}
+                            className="h-4 w-4 rounded border-gray-300 text-sky-600 focus:ring-sky-500"
+                          />
+                          Done
+                        </label>
+                      )}
                       <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${item.archived ? 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' : item.enabled ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}>
                         {item.archived ? 'Archived' : item.enabled ? 'Enabled' : 'Disabled'}
                       </span>

@@ -17,7 +17,8 @@
   },
   "nav": {
     "section": "plugins",
-    "order": 20
+    "order": 20,
+    "label": "Evals"
   },
   "capabilities": {
     "notifications": true,

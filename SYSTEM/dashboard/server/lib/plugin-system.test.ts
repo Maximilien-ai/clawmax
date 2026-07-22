@@ -146,6 +146,9 @@ async function run() {
     assert.strictEqual(plugins[2]?.slug, 'plugin-lab-review-notes', 'Expected generic v2 plugin to appear third')
     assert.strictEqual(plugins[2]?.apiVersion, 'clawmax.ai/v2', 'Expected generic plugin to declare the v2 host API')
     assert.strictEqual(plugins[2]?.objectKind, 'review-note', 'Expected a non-core object kind to load')
+    assert.deepStrictEqual(plugins.map((plugin) => plugin.nav?.label), ['Guardrails', 'Evals', 'Review'], 'Expected compact one-word plugin navigation labels')
+    assert.strictEqual(plugins[2]?.ui?.list?.groupBy, 'release', 'Expected release checklist grouping metadata')
+    assert.strictEqual(plugins[2]?.ui?.list?.checkField, 'completed', 'Expected release checklist completion metadata')
     assert(plugins.every((plugin) => plugin.visibility === 'private'), 'Expected MVP0 plugins to be private')
     assert(plugins.every((plugin) => plugin.nav?.section === 'plugins'), 'Expected plugins to target the plugin nav section')
     assert(plugins.every((plugin) => plugin.capabilities?.notifications && plugin.capabilities?.docs), 'Expected plugins to declare core host capabilities')
@@ -361,7 +364,7 @@ async function run() {
     assert(plugin, 'Expected generic review-note plugin manifest to load')
 
     assert.throws(
-      () => upsertPluginRecord(plugin!, { name: 'Incomplete review', fields: { priority: 'high' } } as any),
+      () => upsertPluginRecord(plugin!, { name: 'Incomplete review', fields: { release: '2.0.0-test-rc4' } } as any),
       (error: unknown) => error instanceof PluginContractError && /Notes is required/.test(error.message),
       'Expected required declarative fields to be enforced'
     )
@@ -371,29 +374,32 @@ async function run() {
       description: 'Review release readiness',
       tags: ['release'],
       fields: {
-        priority: 'high',
+        release: '2.0.0-test-rc4',
+        area: 'regression',
+        completed: false,
+        outcome: 'pending',
         notes: 'Check acceptance evidence',
         owner: 'release-manager',
-        approved: false,
-        references: ['CHANGELOG.md'],
+        evidence: ['CHANGELOG.md'],
         ignoredUnknownField: 'must not persist',
       },
     } as any)
     assert.strictEqual(created.kind, 'review-note', 'Expected arbitrary plugin object kind to persist')
     assert('fields' in created, 'Expected generic record fields')
-    assert.strictEqual(created.fields.priority, 'high', 'Expected schema field to persist')
+    assert.strictEqual(created.fields.release, '2.0.0-test-rc4', 'Expected release boundary to persist')
     assert(!('ignoredUnknownField' in created.fields), 'Expected undeclared fields to be discarded')
 
-    const updated = upsertPluginRecord(plugin!, { id: created.id, fields: { approved: true } } as any)
+    const updated = upsertPluginRecord(plugin!, { id: created.id, fields: { completed: true, outcome: 'passed' } } as any)
     assert('fields' in updated, 'Expected generic update result')
-    assert.strictEqual(updated.fields.approved, true, 'Expected partial field update')
+    assert.strictEqual(updated.fields.completed, true, 'Expected partial checklist update')
+    assert.strictEqual(updated.fields.outcome, 'passed', 'Expected outcome update')
     assert.strictEqual(updated.fields.notes, 'Check acceptance evidence', 'Expected partial update to retain required fields')
 
     const withDoc = generatePluginRecordDocument(plugin!, created.id)
     assert(withDoc?.document?.path, 'Expected generic document path')
     const documentContent = fs.readFileSync(path.join(tempWorkspace, withDoc!.document!.path), 'utf-8')
-    assert(documentContent.includes('**Priority:** high'), 'Expected generic schema fields in generated document')
-    assert(documentContent.includes('**Approved:** yes'), 'Expected generic boolean formatting in generated document')
+    assert(documentContent.includes('**Release:** 2.0.0-test-rc4'), 'Expected release boundary in generated document')
+    assert(documentContent.includes('**Completed:** yes'), 'Expected generic checkbox formatting in generated document')
 
     assert(listPluginTemplates(plugin!).some((template) => template.id === 'release-readiness'), 'Expected generic template discovery')
     const applied = applyPluginTemplate(plugin!, 'release-readiness')
@@ -444,7 +450,7 @@ async function run() {
     const created = upsertPluginRecord(plugin, {
       name: 'Private note',
       description: 'Must remain isolated',
-      fields: { priority: 'low', notes: 'isolated' },
+      fields: { release: '2.0.0-test-rc4', area: 'regression', completed: false, outcome: 'pending', notes: 'isolated' },
     } as any)
 
     const context = getPluginWorkspaceContext(plugin)
@@ -463,7 +469,7 @@ async function run() {
     const docsOnlyPlugin = { ...plugin, id: 'docs-only', slug: 'docs-only', capabilities: { docs: true } }
     const docsOnlyRecord = upsertPluginRecord(docsOnlyPlugin, {
       name: 'Documented note',
-      fields: { priority: 'medium', notes: 'document only' },
+      fields: { release: '2.0.0-test-rc4', area: 'regression', completed: false, outcome: 'pending', notes: 'document only' },
     } as any)
     const notificationCount = getActiveNotifications().length
     assert(generatePluginRecordDocument(docsOnlyPlugin, docsOnlyRecord.id)?.document?.path, 'Expected docs-only grant to generate a document')

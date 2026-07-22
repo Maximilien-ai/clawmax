@@ -2,8 +2,8 @@
   "apiVersion": "clawmax.ai/v2",
   "id": "plugin-lab-review-notes",
   "slug": "plugin-lab-review-notes",
-  "name": "Review Notes Test Plugin",
-  "description": "A dormant synthetic plugin that validates the generic 2.0 record contract.",
+  "name": "Release Review",
+  "description": "Keep acceptance checklists separated by release and preserve their results as release history.",
   "version": "0.2.0-test",
   "icon": "docs",
   "objectKind": "review-note",
@@ -18,26 +18,42 @@
   },
   "nav": {
     "section": "plugins",
-    "order": 30
+    "order": 30,
+    "label": "Review"
   },
   "capabilities": {
     "notifications": true,
     "docs": true
   },
   "labels": {
-    "singular": "Review Note",
-    "plural": "Review Notes"
+    "singular": "Check",
+    "plural": "Checks"
   },
   "recordSchema": {
     "type": "object",
     "additionalProperties": false,
-    "required": ["priority", "notes"],
+    "required": ["release", "area", "outcome", "notes"],
     "properties": {
-      "priority": {
+      "release": {
         "type": "string",
-        "title": "Priority",
-        "enum": ["low", "medium", "high"],
-        "default": "medium"
+        "title": "Release"
+      },
+      "area": {
+        "type": "string",
+        "title": "Area",
+        "enum": ["identity", "navigation", "plugins", "guardrails", "evals", "persistence", "responsive", "regression"],
+        "default": "regression"
+      },
+      "completed": {
+        "type": "boolean",
+        "title": "Completed",
+        "default": false
+      },
+      "outcome": {
+        "type": "string",
+        "title": "Outcome",
+        "enum": ["pending", "passed", "failed", "blocked"],
+        "default": "pending"
       },
       "notes": {
         "type": "string",
@@ -48,14 +64,9 @@
         "type": "string",
         "title": "Owner"
       },
-      "approved": {
-        "type": "boolean",
-        "title": "Approved",
-        "default": false
-      },
-      "references": {
+      "evidence": {
         "type": "array",
-        "title": "References",
+        "title": "Evidence",
         "items": { "type": "string" },
         "default": []
       }
@@ -63,10 +74,12 @@
   },
   "ui": {
     "form": {
-      "order": ["priority", "notes", "owner", "approved", "references"]
+      "order": ["release", "area", "completed", "outcome", "notes", "owner", "evidence"]
     },
     "list": {
-      "fields": ["priority", "owner", "approved"]
+      "fields": ["area", "outcome", "completed", "owner", "evidence"],
+      "groupBy": "release",
+      "checkField": "completed"
     }
   }
 }
