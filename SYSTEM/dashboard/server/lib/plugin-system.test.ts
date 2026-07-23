@@ -116,7 +116,7 @@ async function run() {
   process.env.OPENCLAW_WORKSPACE = tempWorkspace
   process.env.CLAWMAX_TEST_WORKSPACE = tempWorkspace
   process.env.HOME = tempHome
-  process.env.CLAWMAX_ENABLED_PLUGINS = 'plugin-lab-guardrails,plugin-lab-evals,plugin-lab-review-notes'
+  process.env.CLAWMAX_ENABLED_PLUGINS = 'plugin-lab-guardrails,plugin-lab-evals,plugin-lab-review-notes,clawmax-optimize'
   process.env.CLAWMAX_PLUGIN_PATHS = ''
   delete process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS
   resetWorkspaceManagerForTests()
@@ -140,16 +140,18 @@ async function run() {
 
   await test('configured plugins expose manifests in sidebar order', () => {
     const plugins = listConfiguredPlugins()
-    assert(plugins.length >= 3, 'Expected all three synthetic plugin contracts to be configured')
+    assert(plugins.length >= 4, 'Expected the three synthetic plugins and public Optimize plugin to be configured')
     assert.strictEqual(plugins[0]?.slug, 'plugin-lab-guardrails', 'Expected guardrails test plugin to sort before evals')
     assert.strictEqual(plugins[1]?.slug, 'plugin-lab-evals', 'Expected evals test plugin to appear second')
     assert.strictEqual(plugins[2]?.slug, 'plugin-lab-review-notes', 'Expected generic v2 plugin to appear third')
     assert.strictEqual(plugins[2]?.apiVersion, 'clawmax.ai/v2', 'Expected generic plugin to declare the v2 host API')
     assert.strictEqual(plugins[2]?.objectKind, 'review-note', 'Expected a non-core object kind to load')
-    assert.deepStrictEqual(plugins.map((plugin) => plugin.nav?.label), ['Guardrails', 'Evals', 'Review'], 'Expected compact one-word plugin navigation labels')
+    assert.strictEqual(plugins[3]?.slug, 'clawmax-optimize', 'Expected public Optimize plugin to appear fourth')
+    assert.deepStrictEqual(plugins.map((plugin) => plugin.nav?.label), ['Guardrails', 'Evals', 'Review', 'Optimize'], 'Expected compact one-word plugin navigation labels')
     assert.strictEqual(plugins[2]?.ui?.list?.groupBy, 'release', 'Expected release checklist grouping metadata')
     assert.strictEqual(plugins[2]?.ui?.list?.checkField, 'completed', 'Expected release checklist completion metadata')
-    assert(plugins.every((plugin) => plugin.visibility === 'private'), 'Expected MVP0 plugins to be private')
+    assert(plugins.slice(0, 3).every((plugin) => plugin.visibility === 'private'), 'Expected synthetic MVP0 plugins to be private')
+    assert.strictEqual(plugins[3]?.visibility, 'public', 'Expected Optimize to remain public')
     assert(plugins.every((plugin) => plugin.nav?.section === 'plugins'), 'Expected plugins to target the plugin nav section')
     assert(plugins.every((plugin) => plugin.capabilities?.notifications && plugin.capabilities?.docs), 'Expected plugins to declare core host capabilities')
   })
@@ -328,11 +330,16 @@ async function run() {
     } as any)
 
     assert.strictEqual(created.kind, 'guardrail', 'Expected guardrail record kind')
+    assert('history' in created && created.history[0]?.action === 'activated', 'Expected initial activation in guardrail history')
+    assert(getActiveNotifications().some((notification) => notification.entityId === created.id && notification.title.includes('activated')), 'Expected guardrail activation notification')
     assert.strictEqual(listPluginRecords(plugin!).length, 1, 'Expected created guardrail to persist')
     assert(fs.existsSync(path.join(tempWorkspace, `SYSTEM/plugins/${plugin!.slug}/items/${created.id}.md`)), 'Expected canonical guardrail item file on disk')
 
     const archived = upsertPluginRecord(plugin!, { ...created, archived: true } as any)
     assert.strictEqual(archived.archived, true, 'Expected archive flag to persist on plugin records')
+    const deactivated = upsertPluginRecord(plugin!, { ...archived, enabled: false } as any)
+    assert('history' in deactivated && deactivated.history[0]?.action === 'deactivated', 'Expected deactivation in guardrail history')
+    assert(getActiveNotifications().some((notification) => notification.entityId === created.id && notification.title.includes('deactivated')), 'Expected guardrail deactivation notification')
 
     const withDoc = generatePluginRecordDocument(plugin!, created.id)
     assert(withDoc?.document?.path === `SYSTEM/plugins/${plugin!.slug}/docs/${created.id}.md`, 'Expected generated guardrail doc path')
@@ -364,8 +371,8 @@ async function run() {
     assert(plugin, 'Expected generic review-note plugin manifest to load')
 
     assert.throws(
-      () => upsertPluginRecord(plugin!, { name: 'Incomplete review', fields: { release: '2.0.0-test-rc4' } } as any),
-      (error: unknown) => error instanceof PluginContractError && /Notes is required/.test(error.message),
+      () => upsertPluginRecord(plugin!, { name: 'Invalid review', fields: { release: '', area: 'regression', outcome: 'pending' } } as any),
+      (error: unknown) => error instanceof PluginContractError && /Release is required/.test(error.message),
       'Expected required declarative fields to be enforced'
     )
 
@@ -402,11 +409,11 @@ async function run() {
     assert(documentContent.includes('**Completed:** yes'), 'Expected generic checkbox formatting in generated document')
 
     const releaseTemplates = listPluginTemplates(plugin!).filter((template) => (
-      'fields' in template.payload && template.payload.fields?.release === '2.0.0-test-rc5'
+      'fields' in template.payload && template.payload.fields?.release === '2.0.0-test-rc6'
     ))
-    assert.strictEqual(releaseTemplates.length, 8, 'Expected one release file to expand into eight checklist items')
-    assert(releaseTemplates.some((template) => template.id === '2.0.0-test-rc5:release-readiness'), 'Expected release-qualified checklist item discovery')
-    const applied = applyPluginTemplate(plugin!, '2.0.0-test-rc5:release-readiness')
+    assert.strictEqual(releaseTemplates.length, 13, 'Expected one release file to expand into thirteen checklist items')
+    assert(releaseTemplates.some((template) => template.id === '2.0.0-test-rc6:release-readiness'), 'Expected release-qualified checklist item discovery')
+    const applied = applyPluginTemplate(plugin!, '2.0.0-test-rc6:release-readiness')
     assert(applied && 'fields' in applied && applied.fields.owner === 'release-manager', 'Expected generic template application')
   })
 
@@ -437,6 +444,7 @@ async function run() {
     assert((evaluated?.lastRun?.tokensIn || 0) > 0, 'Expected eval run tokensIn to be populated')
     assert((evaluated?.lastRun?.tokensOut || 0) > 0, 'Expected eval run tokensOut to be populated')
     assert((evaluated?.lastRun?.costUsd || 0) > 0, 'Expected eval run costUsd to be populated')
+    assert(getActiveNotifications().some((notification) => notification.entityId === created.id && notification.title.includes('Eval completed')), 'Expected eval completion notification')
     assert(evaluated?.document?.path?.includes(`SYSTEM/plugins/${plugin!.slug}/docs/${created.id}.md`), 'Expected eval run to generate a plugin doc')
     assert(fs.existsSync(path.join(tempWorkspace, `SYSTEM/plugins/${plugin!.slug}/items/${created.id}.md`)), 'Expected canonical eval item file on disk')
 

@@ -1023,6 +1023,16 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Plugin relationship helper unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/pluginRelationships.test.ts > /tmp/clawmax-plugin-relationships.out 2>&1 || true
+if grep -q "pluginRelationships.test.ts: 4 tests passed" /tmp/clawmax-plugin-relationships.out; then
+  pass "Plugin relationship helper unit tests (4 tests)"
+else
+  cat /tmp/clawmax-plugin-relationships.out
+  fail "Plugin relationship helper unit tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Agent doctor route unit tests...${NC}"
 npx ts-node --transpileOnly server/routes/agents.test.ts > /tmp/clawmax-agent-routes.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-agent-routes.out; then
@@ -1608,11 +1618,20 @@ fi
 
 echo -e "${YELLOW}→ Running Plugin release checklist regression tests...${NC}"
 npx ts-node --transpileOnly client/src/PluginReviewChecklist.test.ts > /tmp/clawmax-plugin-review-checklist.out 2>&1 || true
-if grep -q "PluginReviewChecklist.test.ts: 16 tests passed" /tmp/clawmax-plugin-review-checklist.out; then
-  pass "Plugin release checklist regression tests (16 tests)"
+if grep -q "PluginReviewChecklist.test.ts: 23 tests passed" /tmp/clawmax-plugin-review-checklist.out; then
+  pass "Plugin release checklist regression tests (23 tests)"
 else
   cat /tmp/clawmax-plugin-review-checklist.out
   fail "Plugin release checklist regression tests"
+fi
+
+echo -e "${YELLOW}→ Running Optimize plugin skeleton contract tests...${NC}"
+npx ts-node --transpileOnly client/src/PluginOptimizeSkeleton.test.ts > /tmp/clawmax-plugin-optimize.out 2>&1 || true
+if grep -q "PluginOptimizeSkeleton.test.ts: 12 tests passed" /tmp/clawmax-plugin-optimize.out; then
+  pass "Optimize plugin skeleton contract tests (12 tests)"
+else
+  cat /tmp/clawmax-plugin-optimize.out
+  fail "Optimize plugin skeleton contract tests"
 fi
 
 echo -e "${YELLOW}→ Running System refresh helper unit tests...${NC}"

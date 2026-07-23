@@ -164,6 +164,60 @@ export function buildPluginDraftFromPrompt(plugin: PluginManifest, prompt: strin
   return { kind: plugin.objectKind, name: normalizedName, description: trimmed, enabled: true, tags, fields }
 }
 
+export interface PluginDraftQuality {
+  score: number
+  suggestions: string[]
+}
+
+export function scorePluginDraft(plugin: PluginManifest, draft: Partial<PluginRecord>): PluginDraftQuality {
+  let earned = 0
+  let possible = 0
+  const suggestions: string[] = []
+  const award = (points: number, condition: boolean, suggestion: string) => {
+    possible += points
+    if (condition) earned += points
+    else suggestions.push(suggestion)
+  }
+
+  award(10, Boolean(draft.name?.trim()), 'Add a clear, specific name.')
+  award(10, Boolean(draft.description?.trim() && draft.description.trim().length >= 20), 'Describe the intended behavior and success criteria.')
+  award(5, Boolean(draft.tags?.length), 'Add tags so the item is easier to find and organize.')
+
+  if (usesLegacyPluginAdapter(plugin, 'guardrail')) {
+    const appliesTo = draft.kind === 'guardrail' ? draft.appliesTo : null
+    const controls = draft.kind === 'guardrail' ? draft.controls : null
+    award(30, Boolean(appliesTo && (appliesTo.agents.length + appliesTo.workflows.length > 0)), 'Select at least one agent or workflow target.')
+    award(30, Boolean(controls && (
+      controls.blockEmail
+      || controls.blockWeb
+      || controls.blockExternalDocs
+      || controls.allowedSkills.length > 0
+    )), 'Enable a restriction or declare the allowed skills.')
+    award(15, Boolean(appliesTo && appliesTo.agents.length > 0 && appliesTo.workflows.length > 0), 'Consider whether this guardrail should cover both agents and workflows.')
+  } else if (usesLegacyPluginAdapter(plugin, 'eval')) {
+    const target = draft.kind === 'eval' ? draft.target : null
+    const experiment = draft.kind === 'eval' ? draft.experiment : null
+    award(20, Boolean(target?.ids.length), 'Select at least one agent, workflow, or group target.')
+    award(20, Boolean(experiment?.input.trim()), 'Add the input or task that the eval should exercise.')
+    award(20, Boolean(experiment?.expectedOutput.trim()), 'Define the expected output or measurable success criteria.')
+    award(10, Boolean(experiment?.candidateOutput.trim()), 'Add a candidate output now, or populate it before running the eval.')
+    award(5, Boolean(experiment?.judge), 'Choose a judge mode.')
+  } else {
+    const fields = isGenericPluginRecord(draft) ? draft.fields : {}
+    const required = plugin.recordSchema?.required || []
+    award(55, required.every((key) => {
+      const value = fields[key]
+      return Array.isArray(value) ? value.length > 0 : value !== '' && value !== null && value !== undefined
+    }), 'Complete every required plugin field.')
+    award(20, Object.values(fields).some((value) => Array.isArray(value) ? value.length > 0 : Boolean(value)), 'Add meaningful plugin-specific configuration.')
+  }
+
+  return {
+    score: possible > 0 ? Math.round((earned / possible) * 100) : 0,
+    suggestions: suggestions.slice(0, 3),
+  }
+}
+
 export interface PluginRecordTemplate {
   id: string
   pluginId: string
@@ -204,6 +258,14 @@ export interface GuardrailRecord {
     blockExternalDocs: boolean
     allowedSkills: string[]
   }
+  history: GuardrailHistoryEvent[]
+}
+
+export interface GuardrailHistoryEvent {
+  id: string
+  action: 'created' | 'activated' | 'deactivated' | 'updated'
+  summary: string
+  createdAt: string
 }
 
 export interface EvalRunRecord {
@@ -285,6 +347,8 @@ export function getPluginDetailLines(plugin: PluginManifest, item: PluginRecord)
       `Groups: ${item.appliesTo.groups.join(', ') || 'none'}`,
       `Communities: ${item.appliesTo.communities.join(', ') || 'none'}`,
       `Allowed skills: ${item.controls.allowedSkills.join(', ') || 'none'}`,
+      `History: ${item.history.length} event${item.history.length === 1 ? '' : 's'}`,
+      ...(item.history[0] ? [`Latest: ${item.history[0].action} · ${item.history[0].summary}`] : []),
     ]
   }
   if (isEvalRecord(item)) {

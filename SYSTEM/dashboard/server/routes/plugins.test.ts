@@ -167,6 +167,12 @@ async function run() {
     const itemId = createRes.jsonBody?.item?.id
     assert(itemId, 'Expected created plugin item id')
 
+    const relationshipsHandler = getRouteHandler('get', '/relationships', false)
+    const relationshipsRes = makeRes()
+    await relationshipsHandler(makeReq(), relationshipsRes)
+    assert.strictEqual(relationshipsRes.statusCode, 200, 'Expected plugin relationship route success')
+    assert.strictEqual(relationshipsRes.jsonBody?.agents?.analyst?.[0]?.itemId, itemId, 'Expected active guardrail on its targeted agent')
+
     const updateHandler = getRouteHandler('put', '/:pluginId/items/:itemId', false)
     const updateRes = makeRes()
     await updateHandler(makeReq({
@@ -249,10 +255,10 @@ async function run() {
     const invalidRes = makeRes()
     await createHandler(makeReq({
       params: { pluginId: 'plugin-lab-review-notes' },
-      body: { name: 'Incomplete', fields: { release: '2.0.0-test-rc4' } },
+      body: { name: 'Incomplete', fields: { release: '', area: 'regression', outcome: 'pending' } },
     }), invalidRes)
     assert.strictEqual(invalidRes.statusCode, 400, 'Expected missing required generic field to return HTTP 400')
-    assert(/Notes is required/.test(invalidRes.jsonBody?.error || ''), 'Expected actionable schema validation message')
+    assert(/Release is required/.test(invalidRes.jsonBody?.error || ''), 'Expected actionable schema validation message')
 
     const createRes = makeRes()
     await createHandler(makeReq({

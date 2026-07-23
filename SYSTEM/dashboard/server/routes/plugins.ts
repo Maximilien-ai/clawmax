@@ -8,6 +8,7 @@ import {
   getPluginWorkspaceContext,
   listConfiguredPlugins,
   listPluginRecords,
+  listPluginRelationships,
   listPluginTemplates,
   emitPluginRecordNotification,
   PluginContractError,
@@ -32,6 +33,10 @@ router.get('/', (_req, res) => {
 
 router.get('/diagnostics', (_req, res) => {
   res.json(getPluginDiagnosticsReport())
+})
+
+router.get('/relationships', (_req, res) => {
+  res.json(listPluginRelationships())
 })
 
 router.get('/:pluginId/context', (req, res) => {

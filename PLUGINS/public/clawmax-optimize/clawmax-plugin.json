@@ -1,0 +1,101 @@
+{
+  "apiVersion": "clawmax.ai/v2",
+  "id": "clawmax-optimize",
+  "slug": "clawmax-optimize",
+  "name": "Optimize",
+  "description": "Plan workflow and agent token, cost, model, and schedule improvements within workspace budgets.",
+  "version": "0.1.0",
+  "icon": "activity",
+  "objectKind": "optimization-plan",
+  "visibility": "public",
+  "enabledByDefault": false,
+  "source": {
+    "type": "github",
+    "owner": "Maximilien-ai",
+    "repo": "clawmax",
+    "url": "https://github.com/Maximilien-ai/clawmax/tree/main/PLUGINS/public/clawmax-optimize",
+    "branch": "main"
+  },
+  "nav": {
+    "section": "plugins",
+    "order": 40,
+    "label": "Optimize"
+  },
+  "capabilities": {
+    "notifications": true,
+    "docs": true,
+    "agents": true,
+    "workflows": true
+  },
+  "labels": {
+    "singular": "Plan",
+    "plural": "Plans"
+  },
+  "recordSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["scope", "targetIds", "monthlyTokenBudget", "monthlyCostBudget", "status"],
+    "properties": {
+      "scope": {
+        "type": "string",
+        "title": "Optimize",
+        "enum": ["workflow", "agent", "workspace"],
+        "default": "workflow"
+      },
+      "targetIds": {
+        "type": "array",
+        "title": "Targets",
+        "description": "Workflow or agent IDs covered by this plan.",
+        "items": { "type": "string" },
+        "default": []
+      },
+      "monthlyTokenBudget": {
+        "type": "integer",
+        "title": "Monthly token budget",
+        "default": 1000000
+      },
+      "monthlyCostBudget": {
+        "type": "number",
+        "title": "Monthly cost budget",
+        "default": 25
+      },
+      "currentTokens": {
+        "type": "integer",
+        "title": "Current monthly tokens",
+        "default": 0
+      },
+      "currentCost": {
+        "type": "number",
+        "title": "Current monthly cost",
+        "default": 0
+      },
+      "recommendedModel": {
+        "type": "string",
+        "title": "Recommended model"
+      },
+      "recommendedSchedule": {
+        "type": "string",
+        "title": "Recommended schedule"
+      },
+      "status": {
+        "type": "string",
+        "title": "Status",
+        "enum": ["draft", "recommended", "applied"],
+        "default": "draft"
+      },
+      "rationale": {
+        "type": "string",
+        "title": "Recommendation",
+        "format": "textarea"
+      }
+    }
+  },
+  "ui": {
+    "form": {
+      "order": ["scope", "targetIds", "monthlyTokenBudget", "monthlyCostBudget", "currentTokens", "currentCost", "recommendedModel", "recommendedSchedule", "status", "rationale"]
+    },
+    "list": {
+      "fields": ["scope", "targetIds", "monthlyTokenBudget", "monthlyCostBudget", "recommendedModel", "status"]
+    }
+  }
+}

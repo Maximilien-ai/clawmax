@@ -32,7 +32,7 @@
   "recordSchema": {
     "type": "object",
     "additionalProperties": false,
-    "required": ["release", "area", "outcome", "notes"],
+    "required": ["release", "area", "outcome"],
     "properties": {
       "release": {
         "type": "string",

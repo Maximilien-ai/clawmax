@@ -1,0 +1,25 @@
+{
+  "id": "workflow-budget",
+  "name": "Workflow budget plan",
+  "description": "Compare a recurring workflow with a monthly token and cost budget.",
+  "recommended": true,
+  "tags": ["workflow", "budget"],
+  "payload": {
+    "name": "Workflow budget plan",
+    "description": "Tune a recurring workflow to remain within its monthly allowance.",
+    "tags": ["workflow", "budget"],
+    "enabled": true,
+    "fields": {
+      "scope": "workflow",
+      "targetIds": [],
+      "monthlyTokenBudget": 1000000,
+      "monthlyCostBudget": 25,
+      "currentTokens": 0,
+      "currentCost": 0,
+      "recommendedModel": "",
+      "recommendedSchedule": "",
+      "status": "draft",
+      "rationale": "Select a workflow and record its current usage before choosing a model or schedule."
+    }
+  }
+}

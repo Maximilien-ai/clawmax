@@ -23,6 +23,7 @@ import {
   isGenericPluginRecord,
   isGuardrailRecord,
   matchesPluginSearch,
+  scorePluginDraft,
   usesLegacyPluginAdapter,
 } from '../lib/plugins'
 
@@ -33,7 +34,7 @@ type Props = {
 }
 
 type ArchiveTab = 'active' | 'archived'
-type PluginViewMode = 'grid' | 'detail' | 'table'
+type PluginViewMode = 'grid' | 'detail' | 'table' | 'graph'
 
 function PluginIcon({ plugin }: { plugin: PluginManifest }) {
   if (usesLegacyPluginAdapter(plugin, 'guardrail')) {
@@ -179,6 +180,7 @@ function PluginFormModal({
     : ''
   const targetIds = isEvalRecord(form) ? (form.target?.ids || []).join(', ') : ''
   const genericFields = isGenericPluginRecord(form) ? form.fields : buildGenericPluginFields(plugin)
+  const draftQuality = useMemo(() => scorePluginDraft(plugin, form), [plugin, form])
 
   const parseCommaList = (value: string) => value.split(',').map((item) => item.trim()).filter(Boolean)
 
@@ -463,9 +465,27 @@ function PluginFormModal({
             />
           )}
         </div>
-        <div className="flex items-center justify-end gap-3 border-t border-gray-200 px-5 py-4 dark:border-gray-700">
+        <div className="border-t border-gray-200 px-5 py-4 dark:border-gray-700">
+          <div className="mb-4 rounded-lg border border-sky-200 bg-sky-50/70 p-3 dark:border-sky-900/50 dark:bg-sky-950/20">
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-sm font-semibold text-sky-900 dark:text-sky-200">Draft quality</div>
+              <div className="text-lg font-semibold text-sky-700 dark:text-sky-300">{draftQuality.score}/100</div>
+            </div>
+            <div className="mt-2 h-2 overflow-hidden rounded-full bg-sky-100 dark:bg-sky-950">
+              <div className="h-full rounded-full bg-sky-600 transition-[width]" style={{ width: `${draftQuality.score}%` }} />
+            </div>
+            {draftQuality.suggestions.length > 0 ? (
+              <ul className="mt-2 space-y-1 text-xs text-sky-800 dark:text-sky-200">
+                {draftQuality.suggestions.map((suggestion) => <li key={suggestion}>• {suggestion}</li>)}
+              </ul>
+            ) : (
+              <p className="mt-2 text-xs text-emerald-700 dark:text-emerald-300">Configuration is ready to save.</p>
+            )}
+          </div>
+          <div className="flex items-center justify-end gap-3">
           <button onClick={onClose} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 dark:border-gray-600 dark:text-gray-300">Cancel</button>
           <button onClick={() => onSave(form)} className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700">Save</button>
+          </div>
         </div>
       </div>
     </div>
@@ -486,6 +506,7 @@ function ItemCard({
   canGenerateDocs,
   canNotify,
   onCheckToggle,
+  running = false,
 }: {
   plugin: PluginManifest
   item: PluginRecord
@@ -500,6 +521,7 @@ function ItemCard({
   canGenerateDocs: boolean
   canNotify: boolean
   onCheckToggle: (() => void) | null
+  running?: boolean
 }) {
   const commonSummary = formatPluginScopeSummary(item)
   const archived = item.archived === true
@@ -609,8 +631,11 @@ function ItemCard({
         </div>
       </div>
       {isEvalRecord(item) && (
-        <div className="mt-4 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-300">
-          {usageSummary}
+        <div className={`mt-4 rounded-lg border px-3 py-2 text-sm ${running
+          ? 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-300'
+          : 'border-emerald-100 bg-emerald-50 text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-300'
+        }`}>
+          {running ? 'Running eval…' : usageSummary}
         </div>
       )}
       <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -638,11 +663,12 @@ function ItemCard({
         {onRun && (
           <button
             onClick={onRun}
+            disabled={running}
             className="inline-flex h-9 w-9 items-center justify-center rounded-full text-emerald-500 transition-colors hover:bg-emerald-50 hover:text-emerald-700 dark:hover:bg-emerald-900/30"
             title="Run eval"
             aria-label="Run eval"
           >
-            <ProductIconCell iconName="play" label="Run Eval" size="sm" className="border-transparent bg-transparent text-current" />
+            <ProductIconCell iconName={running ? 'refresh' : 'play'} label={running ? 'Running eval' : 'Run Eval'} size="sm" className="border-transparent bg-transparent text-current" />
           </button>
         )}
       </div>
@@ -666,6 +692,7 @@ function CompactItemCard({
   onOpen,
   onToggleActions,
   onCheckToggle,
+  running = false,
 }: {
   plugin: PluginManifest
   item: PluginRecord
@@ -673,6 +700,7 @@ function CompactItemCard({
   onOpen: () => void
   onToggleActions: () => void
   onCheckToggle: (() => void) | null
+  running?: boolean
 }) {
   const archived = item.archived === true
   const usageSummary = formatPluginUsageSummary(item)
@@ -733,8 +761,15 @@ function CompactItemCard({
         </label>
       )}
       {isEvalRecord(item) && (
-        <div className="mt-3 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-300">
-          {usageSummary}
+        <div className={`mt-3 rounded-lg border px-3 py-2 text-xs ${running
+          ? 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-300'
+          : 'border-violet-200 bg-violet-50 text-violet-800 dark:border-violet-900/40 dark:bg-violet-950/20 dark:text-violet-300'
+        }`}>
+          {running
+            ? 'Running eval…'
+            : item.lastRun
+              ? `Score ${item.lastRun.score}/100 · ${usageSummary}`
+              : `Not run · ${usageSummary}`}
         </div>
       )}
       <div className="mt-3 flex items-center gap-4 text-gray-300 dark:text-gray-500">
@@ -983,17 +1018,17 @@ function TemplateCard({
   onApply: () => void
 }) {
   return (
-    <div className="rounded-lg border border-sky-200 bg-sky-50/70 p-4 dark:border-sky-900/40 dark:bg-sky-950/20">
+    <div className="min-w-0 overflow-hidden rounded-lg border border-sky-200 bg-sky-50/70 p-4 dark:border-sky-900/40 dark:bg-sky-950/20">
       <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className="rounded-full bg-white/80 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-sky-700 dark:bg-sky-900/50 dark:text-sky-300">
-              Recommended
+              Suggested
             </span>
-            <span className="text-xs text-sky-700/80 dark:text-sky-300/80">{plugin.labels?.singular || plugin.name} template</span>
+            <span className="text-xs text-sky-700/80 dark:text-sky-300/80">{plugin.labels?.singular || plugin.name}</span>
           </div>
           <h3 className="mt-2 text-base font-semibold text-gray-900 dark:text-gray-100">{template.name}</h3>
-          <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">{template.description}</p>
+          <p className="mt-1 break-words text-sm text-gray-600 dark:text-gray-300">{template.description}</p>
           <div className="mt-3 flex flex-wrap gap-2">
             {template.tags.map((tag) => (
               <span key={tag} className="rounded-full bg-white px-2 py-0.5 text-xs text-sky-700 dark:bg-sky-900/50 dark:text-sky-300">
@@ -1002,7 +1037,7 @@ function TemplateCard({
             ))}
           </div>
         </div>
-        <button onClick={onApply} className={`${headerPrimaryButtonClass} w-full justify-center sm:w-auto`}>Use Template</button>
+        <button onClick={onApply} className={`${headerPrimaryButtonClass} w-full justify-center sm:w-auto`}>Use</button>
       </div>
     </div>
   )
@@ -1012,11 +1047,13 @@ function ChecklistItemRow({
   item,
   checkField,
   onToggle,
+  onFail,
   onEdit,
 }: {
   item: GenericPluginRecord
   checkField: string
   onToggle: () => void
+  onFail: () => void
   onEdit: () => void
 }) {
   const completed = item.fields[checkField] === true
@@ -1024,6 +1061,15 @@ function ChecklistItemRow({
   const outcome = String(item.fields.outcome || 'pending')
   const notes = String(item.fields.notes || '').trim()
   const evidence = Array.isArray(item.fields.evidence) ? item.fields.evidence : []
+  const rowClass = outcome === 'failed'
+    ? 'bg-red-50/80 dark:bg-red-950/20'
+    : outcome === 'blocked'
+      ? 'bg-amber-50/80 dark:bg-amber-950/20'
+      : completed
+        ? 'bg-emerald-50/50 dark:bg-emerald-950/15'
+        : notes
+          ? 'bg-yellow-50/70 dark:bg-yellow-950/15'
+          : ''
   const outcomeClass = outcome === 'passed'
     ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-300'
     : outcome === 'failed'
@@ -1033,7 +1079,7 @@ function ChecklistItemRow({
         : 'border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300'
 
   return (
-    <div className={`max-w-full overflow-hidden border-b border-gray-100 p-4 last:border-b-0 dark:border-gray-700/70 ${completed ? 'bg-emerald-50/30 dark:bg-emerald-950/10' : ''}`}>
+    <div className={`min-w-0 max-w-full overflow-hidden border-b border-gray-100 p-4 last:border-b-0 dark:border-gray-700/70 ${rowClass}`}>
       <div className="flex items-start gap-3">
         <input
           type="checkbox"
@@ -1048,9 +1094,18 @@ function ChecklistItemRow({
               <h3 className={`break-words text-sm font-semibold text-gray-900 dark:text-gray-100 ${completed ? 'line-through decoration-gray-400' : ''}`}>{item.name}</h3>
               <p className="mt-1 break-words text-sm text-gray-600 dark:text-gray-300">{item.description}</p>
             </div>
-            <div className="flex shrink-0 flex-wrap gap-2">
+            <div className="flex shrink-0 flex-wrap items-center gap-2">
               <span className="rounded-md border border-gray-200 bg-white px-2 py-0.5 text-xs font-medium capitalize text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">{area}</span>
               <span className={`rounded-md border px-2 py-0.5 text-xs font-medium capitalize ${outcomeClass}`}>{outcome}</span>
+              <button
+                type="button"
+                onClick={onFail}
+                aria-label={`Mark ${item.name} failed`}
+                title="Mark failed"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-red-200 bg-white text-sm font-semibold text-red-600 hover:bg-red-50 dark:border-red-800 dark:bg-gray-900 dark:text-red-300 dark:hover:bg-red-950/30"
+              >
+                ×
+              </button>
             </div>
           </div>
           <div className="mt-3 flex flex-col gap-2 border-t border-gray-100 pt-3 dark:border-gray-700/70 sm:flex-row sm:items-start sm:justify-between">
@@ -1063,6 +1118,73 @@ function ChecklistItemRow({
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+function PluginRelationshipView({
+  items,
+  context,
+  onOpen,
+}: {
+  items: PluginRecord[]
+  context: PluginWorkspaceContext
+  onOpen: (id: string) => void
+}) {
+  const resolveTarget = (kind: 'agent' | 'workflow' | 'group' | 'community', id: string) => {
+    if (kind === 'agent') return context.agents.find((entry) => entry.id === id)?.name || id
+    if (kind === 'workflow') return context.workflows.find((entry) => entry.id === id)?.name || id
+    return id
+  }
+
+  const relationships = (item: PluginRecord) => {
+    if (isGuardrailRecord(item)) {
+      return [
+        ...item.appliesTo.agents.map((id) => ({ kind: 'agent' as const, id })),
+        ...item.appliesTo.workflows.map((id) => ({ kind: 'workflow' as const, id })),
+        ...item.appliesTo.groups.map((id) => ({ kind: 'group' as const, id })),
+        ...item.appliesTo.communities.map((id) => ({ kind: 'community' as const, id })),
+      ]
+    }
+    if (isEvalRecord(item)) return item.target.ids.map((id) => ({ kind: item.target.type, id }))
+    const ids = Array.isArray(item.fields.targetIds) ? item.fields.targetIds.map(String) : []
+    const scope = item.fields.scope === 'agent' ? 'agent' : 'workflow'
+    return ids.map((id) => ({ kind: scope, id }))
+  }
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900/40">
+      <div className="grid grid-cols-[minmax(0,1fr)_28px_minmax(0,1.2fr)] border-b border-gray-200 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:border-gray-700 dark:text-gray-400">
+        <div>Selected item</div>
+        <div />
+        <div>Applies to</div>
+      </div>
+      {items.map((item) => {
+        const targets = relationships(item)
+        return (
+          <button
+            type="button"
+            key={item.id}
+            onClick={() => onOpen(item.id)}
+            className="grid w-full grid-cols-[minmax(0,1fr)_28px_minmax(0,1.2fr)] items-center border-b border-gray-100 px-4 py-4 text-left last:border-b-0 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-800/50"
+          >
+            <div className="min-w-0">
+              <div className="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">{item.name}</div>
+              <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{item.enabled ? 'Active' : 'Inactive'}</div>
+            </div>
+            <div className="h-px bg-sky-300 dark:bg-sky-700" />
+            <div className="flex min-w-0 flex-wrap gap-2 pl-3">
+              {targets.length > 0 ? targets.map((target) => (
+                <span key={`${target.kind}:${target.id}`} className="max-w-full truncate rounded-md border border-sky-200 bg-sky-50 px-2 py-1 text-xs text-sky-700 dark:border-sky-800 dark:bg-sky-900/20 dark:text-sky-300">
+                  <span className="font-medium capitalize">{target.kind}</span>: {resolveTarget(target.kind, target.id)}
+                </span>
+              )) : (
+                <span className="text-xs italic text-gray-400">No targets selected</span>
+              )}
+            </div>
+          </button>
+        )
+      })}
     </div>
   )
 }
@@ -1088,6 +1210,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
   const [aiPromptText, setAiPromptText] = useState('')
   const [aiGenerating, setAiGenerating] = useState(false)
   const [activeCompactActions, setActiveCompactActions] = useState<string | null>(null)
+  const [runningItemIds, setRunningItemIds] = useState<Set<string>>(new Set())
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null)
   const aiReadiness = getAiGenerationReadiness()
   const aiEnabled = hasAiGenerationAccess()
@@ -1211,6 +1334,18 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
     } as Partial<PluginRecord>)
   }
 
+  const setChecklistOutcome = async (item: PluginRecord, outcome: 'pending' | 'passed' | 'failed') => {
+    if (!checkField || !isGenericPluginRecord(item)) return
+    await saveItem({
+      ...item,
+      fields: {
+        ...item.fields,
+        [checkField]: outcome !== 'pending',
+        outcome,
+      },
+    } as Partial<PluginRecord>)
+  }
+
   const handleAiGenerate = async (promptOverride?: string) => {
     const promptText = typeof promptOverride === 'string' ? promptOverride.trim() : aiPromptText.trim()
     if (!promptText) return
@@ -1234,15 +1369,28 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
       return
     }
 
+    if (action === 'run') {
+      setRunningItemIds((current) => new Set(current).add(itemId))
+    }
     const route = action === 'delete'
       ? `/api/plugins/${encodeURIComponent(plugin.slug)}/items/${encodeURIComponent(itemId)}`
       : `/api/plugins/${encodeURIComponent(plugin.slug)}/items/${encodeURIComponent(itemId)}/${action === 'document' ? 'document' : action}`
-    const res = await fetch(route, { method: action === 'delete' ? 'DELETE' : 'POST' })
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}))
-      throw new Error(data.error || 'Plugin action failed')
+    try {
+      const res = await fetch(route, { method: action === 'delete' ? 'DELETE' : 'POST' })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || 'Plugin action failed')
+      }
+      await load()
+    } finally {
+      if (action === 'run') {
+        setRunningItemIds((current) => {
+          const next = new Set(current)
+          next.delete(itemId)
+          return next
+        })
+      }
     }
-    await load()
   }
 
   useEffect(() => {
@@ -1263,7 +1411,12 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
       const data = await res.json().catch(() => ({}))
       throw new Error(data.error || 'Failed to apply template')
     }
+    const data = await res.json()
     await load()
+    if (data.item) {
+      setEditing(data.item)
+      setShowModal(true)
+    }
   }
 
   const applyRecommendedTemplates = async (templatesToApply = recommendedTemplates) => {
@@ -1280,7 +1433,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+    <div className="mx-auto w-full min-w-0 max-w-7xl overflow-x-hidden px-4 py-6 sm:px-6">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">{plugin.name}</h1>
@@ -1291,7 +1444,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
             <span className="text-gray-300">·</span>
             <span>v{plugin.version}</span>
           </p>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{plugin.description}</p>
+          <p className="mt-1 break-words text-sm text-gray-500 dark:text-gray-400">{plugin.description}</p>
           <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
             <span className="font-medium">Host grants:</span>
             {grantedCapabilities.length > 0 ? grantedCapabilities.map((capability) => (
@@ -1324,6 +1477,13 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
               className={`px-2.5 py-1.5 text-xs transition-colors border-l border-gray-200 dark:border-gray-700 ${viewMode === 'table' ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
             >
               <ProductIconCell iconName="list" label="List view" size="sm" className="border-transparent bg-transparent text-current" />
+            </button>
+            <button
+              onClick={() => setViewMode('graph')}
+              title="Relationship view"
+              className={`px-2.5 py-1.5 text-xs transition-colors border-l border-gray-200 dark:border-gray-700 ${viewMode === 'graph' ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+            >
+              <ProductIconCell iconName="workflow" label="Relationship view" size="sm" className="border-transparent bg-transparent text-current" />
             </button>
           </div>
           <div className="relative">
@@ -1546,11 +1706,11 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
             <>
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Recommended</h2>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Starter templates to help users and plugin authors validate the plugin flow quickly.</p>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Suggested</h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Proposed {plugin.labels?.plural?.toLowerCase() || 'items'} you can use and customize for this workspace.</p>
                 </div>
               </div>
-              <div className="grid gap-4 xl:grid-cols-2">
+              <div className="grid min-w-0 gap-4 xl:grid-cols-2">
                 {recommendedTemplates.map((template) => (
                   <TemplateCard
                     key={template.id}
@@ -1580,6 +1740,14 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
       ) : (
         <div className={`mt-6 ${selectedItem ? 'xl:grid xl:grid-cols-[minmax(0,1fr)_360px] xl:gap-6' : ''}`}>
           <div>
+            {!isChecklist && (
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Selected</h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{filtered.length} configured for this workspace. Open any item to customize it.</p>
+                </div>
+              </div>
+            )}
             {isChecklist && checkField ? (
               <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900/40">
                 {filtered.filter(isGenericPluginRecord).map((item) => (
@@ -1587,7 +1755,8 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                     key={item.id}
                     item={item}
                     checkField={checkField}
-                    onToggle={() => void toggleCheck(item)}
+                    onToggle={() => void setChecklistOutcome(item, item.fields[checkField] === true ? 'pending' : 'passed')}
+                    onFail={() => void setChecklistOutcome(item, 'failed')}
                     onEdit={() => { setEditing(item); setShowModal(true) }}
                   />
                 ))}
@@ -1603,6 +1772,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                       onOpen={() => setSelectedItemId(item.id)}
                       onToggleActions={() => setActiveCompactActions((current) => current === item.id ? null : item.id)}
                       onCheckToggle={checkField ? (() => void toggleCheck(item)) : null}
+                      running={runningItemIds.has(item.id)}
                     />
                     {activeCompactActions === item.id && (
                       <>
@@ -1669,10 +1839,17 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                       canGenerateDocs={canGenerateDocs}
                       canNotify={canNotify}
                       onCheckToggle={checkField ? (() => void toggleCheck(item)) : null}
+                      running={runningItemIds.has(item.id)}
                     />
                   </div>
                 ))}
               </div>
+            ) : viewMode === 'graph' ? (
+              <PluginRelationshipView
+                items={filtered}
+                context={context}
+                onOpen={setSelectedItemId}
+              />
             ) : (
               <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
                 <div className="grid grid-cols-[minmax(0,2fr)_120px_minmax(0,2fr)_minmax(0,1.5fr)_140px_120px] gap-3 border-b border-gray-200 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:border-gray-700 dark:text-gray-400">

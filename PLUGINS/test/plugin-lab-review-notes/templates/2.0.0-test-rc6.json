@@ -1,0 +1,150 @@
+{
+  "id": "2.0.0-test-rc6",
+  "name": "2.0.0-test-rc6 release checklist",
+  "description": "Acceptance checks for the 2.0.0-test-rc6 release candidate.",
+  "release": "2.0.0-test-rc6",
+  "recommended": true,
+  "tags": ["release"],
+  "defaults": {
+    "enabled": true,
+    "tags": ["release"],
+    "fields": {
+      "completed": false,
+      "outcome": "pending",
+      "owner": "release-manager",
+      "evidence": []
+    }
+  },
+  "items": [
+    {
+      "id": "release-readiness",
+      "name": "Release identity",
+      "description": "Dashboard, API, image, and OpenClaw versions match the release candidate.",
+      "tags": ["review"],
+      "fields": {
+        "area": "identity",
+        "notes": ""
+      }
+    },
+    {
+      "id": "sidebar-layout",
+      "name": "Plugin navigation and sidebar",
+      "description": "Compact labels remain readable and the sidebar never falls onto a white page background.",
+      "tags": ["navigation", "responsive"],
+      "fields": {
+        "area": "navigation",
+        "notes": ""
+      }
+    },
+    {
+      "id": "public-plugins",
+      "name": "Public plugin host",
+      "description": "Plugin index, diagnostics, navigation, and workspace pages agree on enabled public plugins.",
+      "tags": ["plugins", "public"],
+      "fields": {
+        "area": "plugins",
+        "notes": ""
+      }
+    },
+    {
+      "id": "private-plugins",
+      "name": "Private plugin image",
+      "description": "The private image loads only its intended plugin inventory from locked source commits.",
+      "tags": ["plugins", "private"],
+      "fields": {
+        "area": "plugins",
+        "notes": ""
+      }
+    },
+    {
+      "id": "guardrails",
+      "name": "Guardrails suggestions and targeting",
+      "description": "Suggested guardrails can be selected, customized, and assigned to agents and workflows.",
+      "tags": ["guardrails", "plugins"],
+      "fields": {
+        "area": "guardrails",
+        "notes": ""
+      }
+    },
+    {
+      "id": "evals",
+      "name": "Evals suggestions and runs",
+      "description": "Suggested evals can be customized and run with visible progress, score, token, and cost results.",
+      "tags": ["evals", "plugins"],
+      "fields": {
+        "area": "evals",
+        "notes": ""
+      }
+    },
+    {
+      "id": "ai-create-quality",
+      "name": "AI Create quality scoring",
+      "description": "Guardrail and eval creation show a public quality score with useful suggestions before saving.",
+      "tags": ["ai", "scoring"],
+      "fields": {
+        "area": "plugins",
+        "notes": ""
+      }
+    },
+    {
+      "id": "relationship-views",
+      "name": "Plugin relationship views",
+      "description": "Grid, detail, list, and relationship views show selected items and their agent or workflow targets.",
+      "tags": ["plugins", "navigation"],
+      "fields": {
+        "area": "navigation",
+        "notes": ""
+      }
+    },
+    {
+      "id": "plugin-notifications",
+      "name": "Plugin lifecycle notifications",
+      "description": "Eval completion and guardrail activation or deactivation produce useful notifications and history.",
+      "tags": ["plugins", "notifications"],
+      "fields": {
+        "area": "plugins",
+        "notes": ""
+      }
+    },
+    {
+      "id": "optimize-skeleton",
+      "name": "Optimize plugin skeleton",
+      "description": "The public Optimize plugin loads and supports draft workflow or agent budget recommendations.",
+      "tags": ["plugins", "optimize", "public"],
+      "fields": {
+        "area": "plugins",
+        "notes": ""
+      }
+    },
+    {
+      "id": "restart-persistence",
+      "name": "Restart persistence",
+      "description": "Checklist results, plugin discovery, workspace records, and OpenClaw state survive restart.",
+      "tags": ["persistence", "container"],
+      "fields": {
+        "area": "persistence",
+        "notes": ""
+      }
+    },
+    {
+      "id": "responsive-plugin-ui",
+      "name": "Responsive plugin operations",
+      "description": "Plugin forms, suggested items, checklist actions, views, and details remain usable on phone and desktop.",
+      "tags": ["responsive", "plugins"],
+      "fields": {
+        "area": "responsive",
+        "notes": ""
+      }
+    },
+    {
+      "id": "regression-suite",
+      "name": "Automated regression suite",
+      "description": "Local validation, coverage, and multi-architecture image CI are green.",
+      "tags": ["regression", "coverage", "ci"],
+      "fields": {
+        "area": "regression",
+        "notes": ""
+      }
+    }
+  ]
+}

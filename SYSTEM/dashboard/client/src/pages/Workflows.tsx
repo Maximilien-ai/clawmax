@@ -31,6 +31,7 @@ import { resolveNavigableWorkspaceDocPath } from '../lib/workspaceDocNavigation'
 import { summarizeWorkflowParticipantFailure } from '../lib/workflowRuntimeErrors'
 import { buildWorkflowDocsIndexPath, buildWorkflowsCollectionPath } from '../lib/workflowRequestPaths'
 import { MobileSafeDialog } from '../components/MobileSafeDialog'
+import { emptyPluginRelationships, fetchPluginRelationships, type PluginRelationship } from '../lib/pluginRelationships'
 
 interface AgentTargeting {
   communities: string[]
@@ -397,6 +398,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   const [loading, setLoading] = useState(true)
   const [agentCosts, setAgentCosts] = useState<Record<string, number>>({})
   const [costTrackingEnabled, setCostTrackingEnabled] = useState(true)
+  const [pluginRelationships, setPluginRelationships] = useState(emptyPluginRelationships)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set())
   const [showDetailPanel, setShowDetailPanel] = useState(false)
@@ -452,6 +454,10 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   const loadedWorkflowWorkspaceRef = useRef<string | null>(null)
   const lastWorkflowFetchStartedAtRef = useRef(0)
   const activeWorkspaceId = activeWorkspace?.id || 'default'
+
+  useEffect(() => {
+    void fetchPluginRelationships().then(setPluginRelationships).catch(() => setPluginRelationships(emptyPluginRelationships()))
+  }, [activeWorkspaceId])
 
   useEffect(() => {
     const handleBuilderGenerateWorkflow = (event: Event) => {
@@ -1848,6 +1854,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                   isRunning={runningWorkflows.has(workflow.id)}
                   healthState={getWorkflowHealthState(workflow, runningWorkflows.has(workflow.id), latestExecutionStatuses[workflow.id])}
                   totalCost={costTrackingEnabled ? Object.values(agentCosts).reduce((s, c) => s + c, 0) : undefined}
+                  guardrails={pluginRelationships.workflows[workflow.id] || []}
                 />
               ))}
             </div>
@@ -3415,7 +3422,7 @@ function WorkflowsTable({
   )
 }
 
-function WorkflowCard({ workflow, onClick, onToggle, onDelete, onOpenFile, isSelected, onToggleSelect, isRunning, healthState, totalCost }: {
+function WorkflowCard({ workflow, onClick, onToggle, onDelete, onOpenFile, isSelected, onToggleSelect, isRunning, healthState, totalCost, guardrails = [] }: {
   workflow: Workflow
   onClick: () => void
   onToggle: (currentEnabled: boolean) => void
@@ -3426,6 +3433,7 @@ function WorkflowCard({ workflow, onClick, onToggle, onDelete, onOpenFile, isSel
   isRunning?: boolean
   healthState?: WorkflowHealthState
   totalCost?: number
+  guardrails?: PluginRelationship[]
 }) {
   const [showMenu, setShowMenu] = React.useState(false)
   const statusDotClass = getWorkflowHealthDotClass(healthState || getWorkflowHealthState(workflow, Boolean(isRunning)))
@@ -3464,6 +3472,14 @@ function WorkflowCard({ workflow, onClick, onToggle, onDelete, onOpenFile, isSel
             {isRunning && (
               <span className="px-1.5 py-0.5 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded animate-pulse">
                 Running
+              </span>
+            )}
+            {guardrails.length > 0 && (
+              <span
+                className="rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300"
+                title={guardrails.map((guardrail) => guardrail.name).join(', ')}
+              >
+                {guardrails.length} guardrail{guardrails.length === 1 ? '' : 's'}
               </span>
             )}
           </div>

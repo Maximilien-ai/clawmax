@@ -33,6 +33,7 @@ import { buildWorkspaceScopedPath } from '../lib/workspaceScope'
 import { getSmartDropdownPlacement, getViewportSafeDropdownStyle, type DropdownPlacement } from '../lib/dropdownPosition'
 import { formatOpenAiDeprecationNotice, formatOpenAiModelLabel, isSelectableLifecycleModel } from '../lib/openAiModelLifecycle'
 import { getAttachmentFilename } from '../lib/downloadFilename'
+import { emptyPluginRelationships, fetchPluginRelationships, type PluginRelationship } from '../lib/pluginRelationships'
 
 type AgentActionsMenuView = 'main' | 'maintain'
 
@@ -215,8 +216,13 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
   const [agentWorkflows, setAgentWorkflows] = useState<Map<string, Workflow[]>>(new Map())
   const [renameTarget, setRenameTarget] = useState<Agent | null>(null)
   const [agentUsage, setAgentUsage] = useState<Record<string, { totalTokens: number; inputTokens: number; outputTokens: number; totalCost: number }>>({})
+  const [pluginRelationships, setPluginRelationships] = useState(emptyPluginRelationships)
   const loadedAgentWorkspaceRef = useRef<string | null>(null)
   const lastAgentFetchStartedAtRef = useRef(0)
+
+  useEffect(() => {
+    void fetchPluginRelationships().then(setPluginRelationships).catch(() => setPluginRelationships(emptyPluginRelationships()))
+  }, [activeWorkspace?.id])
 
   const highlightCreatedAgent = useCallback(async (agentId: string) => {
     if (!agentId) return
@@ -1522,6 +1528,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                       metering={costTrackingEnabled ? agentMetering[agent.id] : undefined}
                       costLimit={costTrackingEnabled ? (agentCostLimits[agent.id] ?? null) : null}
                       costTrackingEnabled={costTrackingEnabled}
+                      guardrails={pluginRelationships.agents[agent.id] || []}
                       onUnlinkWa={() => {
                         fetch(`/api/agents/${agent.id}/whatsapp`, { method: 'DELETE' })
                           .then(() => fetchAgents())
@@ -3224,7 +3231,7 @@ function RenameAgentModal({ agent, existingAgents, onClose, onSave }: { agent: A
 }
 
 const AgentCard = React.memo(function AgentCard({
-  agent, selected, collapsed, onToggle, onClick, onDelete, onLinkWa, onSyncGroups, onUnlinkWa, onChat, onClone, onEdit, onViewDocs, onRemoveTag, onManageTags, onManageCommunities, onNavigateToGroup, onNavigateToSkills, onNavigateToWorkflow, onRestart, onArchive, onUnarchive, onRename, onSetBudget, onSaveAsTemplate, onExport, workflows, isSelected, onToggleSelect, metering, costLimit, costTrackingEnabled = true,
+  agent, selected, collapsed, onToggle, onClick, onDelete, onLinkWa, onSyncGroups, onUnlinkWa, onChat, onClone, onEdit, onViewDocs, onRemoveTag, onManageTags, onManageCommunities, onNavigateToGroup, onNavigateToSkills, onNavigateToWorkflow, onRestart, onArchive, onUnarchive, onRename, onSetBudget, onSaveAsTemplate, onExport, workflows, isSelected, onToggleSelect, metering, costLimit, costTrackingEnabled = true, guardrails = [],
 }: {
   agent: Agent
   selected: boolean
@@ -3258,6 +3265,7 @@ const AgentCard = React.memo(function AgentCard({
   metering?: { calls: number; tokens: number; cost: number }
   costLimit?: number | null
   costTrackingEnabled?: boolean
+  guardrails?: PluginRelationship[]
 }) {
   const [confirmUnlink, setConfirmUnlink] = React.useState(false)
   const [showActionsMenu, setShowActionsMenu] = React.useState(false)
@@ -3952,6 +3960,14 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
         )}
         {agent.archived && (
           <ProductIconCell iconName="archive" label="Archived" size="sm" className="border-transparent bg-transparent text-orange-500 dark:text-orange-400" />
+        )}
+        {guardrails.length > 0 && (
+          <span
+            className="shrink-0 rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300"
+            title={guardrails.map((guardrail) => guardrail.name).join(', ')}
+          >
+            {guardrails.length} guardrail{guardrails.length === 1 ? '' : 's'}
+          </span>
         )}
       </div>
       <TruncatedText

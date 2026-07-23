@@ -55,9 +55,9 @@ assert_contains "COPY SYSTEM/dashboard/openclaw-auth-store.mjs ./SYSTEM/dashboar
 assert_contains "ARG CLAWMAX_ENABLED_PLUGINS="
 assert_contains 'ENV CLAWMAX_ENABLED_PLUGINS=${CLAWMAX_ENABLED_PLUGINS}'
 
-grep -Fq 'TEST_PLUGIN_IDS="plugin-lab-guardrails,plugin-lab-evals,plugin-lab-review-notes"' "$TEST_WRAPPER" \
+grep -Fq 'TEST_PLUGIN_IDS="plugin-lab-guardrails,plugin-lab-evals,plugin-lab-review-notes,clawmax-optimize"' "$TEST_WRAPPER" \
   || { echo "Expected local test wrapper to enable synthetic plugins" >&2; exit 1; }
-grep -Fq 'CLAWMAX_ENABLED_PLUGINS=plugin-lab-guardrails,plugin-lab-evals,plugin-lab-review-notes' "$TEST_IMAGE_WORKFLOW" \
+grep -Fq 'CLAWMAX_ENABLED_PLUGINS=plugin-lab-guardrails,plugin-lab-evals,plugin-lab-review-notes,clawmax-optimize' "$TEST_IMAGE_WORKFLOW" \
   || { echo "Expected test images to enable synthetic plugins" >&2; exit 1; }
 
 echo "dockerfile openclaw builder tests passed"

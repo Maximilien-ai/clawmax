@@ -118,6 +118,14 @@ export interface GuardrailRecord extends PluginRecordBase {
     blockExternalDocs: boolean
     allowedSkills: string[]
   }
+  history: GuardrailHistoryEvent[]
+}
+
+export interface GuardrailHistoryEvent {
+  id: string
+  action: 'created' | 'activated' | 'deactivated' | 'updated'
+  summary: string
+  createdAt: string
 }
 
 export interface EvalRunRecord {
@@ -700,6 +708,12 @@ function normalizeRecord(plugin: PluginManifest, value: any): PluginRecord | nul
         blockExternalDocs: !!value.controls?.blockExternalDocs,
         allowedSkills: uniq(Array.isArray(value.controls?.allowedSkills) ? value.controls.allowedSkills.map(String) : []),
       },
+      history: Array.isArray(value.history) ? value.history.slice(0, 50).map((event: any) => ({
+        id: String(event.id || crypto.randomUUID()),
+        action: ['created', 'activated', 'deactivated', 'updated'].includes(event.action) ? event.action : 'updated',
+        summary: String(event.summary || '').trim(),
+        createdAt: String(event.createdAt || '').trim(),
+      })) : [],
     }
   }
 
@@ -1085,10 +1099,13 @@ function writePluginItemFile(plugin: PluginManifest, record: PluginRecord): Plug
 }
 
 function emitPluginArtifactNotification(plugin: PluginManifest, record: PluginRecord, document: PluginDocument): void {
+  const completedEval = isEvalRecord(record) && record.lastRun
   createNotification({
     type: 'artifact-update',
-    title: `${plugin.name} updated ${record.name}`,
-    message: `${plugin.name} generated a plugin document: ${document.path}`,
+    title: completedEval ? `${plugin.name}: Eval completed` : `${plugin.name} updated ${record.name}`,
+    message: completedEval
+      ? `${record.name} completed with a score of ${record.lastRun!.score}/100.`
+      : `${plugin.name} generated a plugin document: ${document.path}`,
     entityId: record.id,
     fingerprint: `plugin-artifact:${plugin.slug}:${record.id}:${document.generatedAt}`,
     artifactPath: document.path,
@@ -1135,6 +1152,7 @@ function createGuardrailRecord(input: Partial<GuardrailRecord>): GuardrailRecord
       blockExternalDocs: !!input.controls?.blockExternalDocs,
       allowedSkills: uniq(Array.isArray(input.controls?.allowedSkills) ? input.controls.allowedSkills : []),
     },
+    history: Array.isArray(input.history) ? input.history.slice(0, 50) : [],
   }
 }
 
@@ -1189,7 +1207,36 @@ export function upsertPluginRecord(plugin: PluginManifest, input: Partial<Plugin
   const existing = existingIndex >= 0 ? records[existingIndex] : null
   let nextRecord: PluginRecord
   if (usesLegacyAdapter(plugin, 'guardrail')) {
-    nextRecord = createGuardrailRecord(existing ? { ...existing, ...input } as Partial<GuardrailRecord> : input as Partial<GuardrailRecord>)
+    const existingGuardrail = existing && isGuardrailRecord(existing) ? existing : null
+    const nextEnabled = input.enabled !== undefined ? input.enabled !== false : existingGuardrail?.enabled !== false
+    const action: GuardrailHistoryEvent['action'] = !existingGuardrail
+      ? nextEnabled ? 'activated' : 'created'
+      : existingGuardrail.enabled !== nextEnabled
+        ? nextEnabled ? 'activated' : 'deactivated'
+        : 'updated'
+    const targetInput = input.kind === 'guardrail' && 'appliesTo' in input ? input.appliesTo : undefined
+    const agents = targetInput?.agents ?? existingGuardrail?.appliesTo.agents ?? []
+    const workflows = targetInput?.workflows ?? existingGuardrail?.appliesTo.workflows ?? []
+    const event: GuardrailHistoryEvent = {
+      id: crypto.randomUUID(),
+      action,
+      summary: `${action === 'activated' ? 'Active' : action === 'deactivated' ? 'Inactive' : 'Updated'} for ${agents.length} agent${agents.length === 1 ? '' : 's'} and ${workflows.length} workflow${workflows.length === 1 ? '' : 's'}.`,
+      createdAt: new Date().toISOString(),
+    }
+    nextRecord = createGuardrailRecord({
+      ...(existingGuardrail || {}),
+      ...input,
+      history: [event, ...(existingGuardrail?.history || [])].slice(0, 50),
+    } as Partial<GuardrailRecord>)
+    if (plugin.capabilities?.notifications === true && (action === 'activated' || action === 'deactivated')) {
+      createNotification({
+        type: 'artifact-update',
+        title: `${plugin.name}: ${action}`,
+        message: `${String(input.name || existingGuardrail?.name || 'Guardrail')} is ${nextEnabled ? 'active' : 'inactive'} for ${agents.length} agents and ${workflows.length} workflows.`,
+        entityId: nextRecord.id,
+        fingerprint: `plugin-guardrail:${plugin.slug}:${nextRecord.id}:${event.id}`,
+      })
+    }
   } else if (usesLegacyAdapter(plugin, 'eval')) {
     nextRecord = createEvalRecord(existing ? { ...existing, ...input } as Partial<EvalRecord> : input as Partial<EvalRecord>)
   } else {
@@ -1312,6 +1359,28 @@ export function runPluginEval(plugin: PluginManifest, recordId: string): EvalRec
   writePluginItemFile(plugin, updated)
   emitPluginArtifactNotification(plugin, updated, document)
   return updated
+}
+
+export interface PluginRelationshipSummary {
+  agents: Record<string, Array<{ pluginId: string; itemId: string; name: string }>>
+  workflows: Record<string, Array<{ pluginId: string; itemId: string; name: string }>>
+}
+
+export function listPluginRelationships(): PluginRelationshipSummary {
+  const summary: PluginRelationshipSummary = { agents: {}, workflows: {} }
+  for (const plugin of listConfiguredPlugins()) {
+    for (const record of listPluginRecords(plugin)) {
+      if (!isGuardrailRecord(record) || !record.enabled || record.archived) continue
+      const relationship = { pluginId: plugin.slug, itemId: record.id, name: record.name }
+      for (const agentId of record.appliesTo.agents) {
+        summary.agents[agentId] = [...(summary.agents[agentId] || []), relationship]
+      }
+      for (const workflowId of record.appliesTo.workflows) {
+        summary.workflows[workflowId] = [...(summary.workflows[workflowId] || []), relationship]
+      }
+    }
+  }
+  return summary
 }
 
 export function getPluginWorkspaceContext(plugin: PluginManifest): PluginWorkspaceContext {

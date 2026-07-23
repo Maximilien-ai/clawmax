@@ -123,7 +123,7 @@ jobs:
           provenance: false
           build-args: |
             CLAWMAX_VERSION=${{ steps.version.outputs.semver }}-test-${{ steps.vars.outputs.test_tag }}
-            CLAWMAX_ENABLED_PLUGINS=plugin-lab-guardrails,plugin-lab-evals,plugin-lab-review-notes
+            CLAWMAX_ENABLED_PLUGINS=plugin-lab-guardrails,plugin-lab-evals,plugin-lab-review-notes,clawmax-optimize
           tags: ${{ steps.tags.outputs.tags }}
           labels: |
             org.opencontainers.image.title=ClawMax Dashboard
@@ -140,7 +140,7 @@ jobs:
           image="${IMAGE_NAME}:${{ steps.version.outputs.semver }}-test-${{ steps.vars.outputs.test_tag }}-${{ matrix.arch_tag }}"
           expected="${{ steps.version.outputs.semver }}"
           expected_env="${{ steps.version.outputs.semver }}-test-${{ steps.vars.outputs.test_tag }}"
-          expected_plugins="plugin-lab-guardrails,plugin-lab-evals,plugin-lab-review-notes"
+          expected_plugins="plugin-lab-guardrails,plugin-lab-evals,plugin-lab-review-notes,clawmax-optimize"
 
           actual_version="$(docker run --rm \
             --platform "${{ matrix.platform }}" \
@@ -303,7 +303,7 @@ jobs:
               return 1
             fi
 
-            if [ "$actual_plugins" != "plugin-lab-guardrails,plugin-lab-evals,plugin-lab-review-notes" ]; then
+            if [ "$actual_plugins" != "plugin-lab-guardrails,plugin-lab-evals,plugin-lab-review-notes,clawmax-optimize" ]; then
               echo "Test plugins are not enabled for $ref: $actual_plugins" >&2
               return 1
             fi

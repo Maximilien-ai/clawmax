@@ -15,6 +15,7 @@ import {
   isGenericPluginRecord,
   matchesPluginSearch,
   normalizePluginDiagnosticsReport,
+  scorePluginDraft,
   type PluginManifest,
   type PluginRecord,
 } from './plugins'
@@ -204,6 +205,33 @@ test('buildPluginDraftFromPrompt creates an eval draft from natural language', (
   assert(draft.kind === 'eval', 'Expected eval draft')
   assert(draft.target?.type === 'workflow', 'Expected workflow target to be inferred')
   assert(draft.experiment?.judge === 'ai', 'Expected AI judge to be inferred')
+})
+
+test('plugin draft scoring exposes actionable guardrail and eval improvements', () => {
+  const guardrailDraft = buildPluginDraftFromPrompt(guardrailPlugin, 'Block outbound email for finance agents')
+  const initialGuardrailQuality = scorePluginDraft(guardrailPlugin, guardrailDraft)
+  assert(initialGuardrailQuality.score < 100, 'Expected untargeted guardrail draft to remain improvable')
+  assert(initialGuardrailQuality.suggestions.some((entry) => /Select at least one/.test(entry)), 'Expected guardrail target guidance')
+  const targetedGuardrailQuality = scorePluginDraft(guardrailPlugin, {
+    ...guardrailDraft,
+    appliesTo: { agents: ['finance'], workflows: ['finance-close'], groups: [], communities: [] },
+  })
+  assert(targetedGuardrailQuality.score > initialGuardrailQuality.score, 'Expected targeting to improve guardrail quality')
+
+  const evalDraft = buildPluginDraftFromPrompt(evalPlugin, 'Create a workflow eval with ai judge for release quality')
+  const initialEvalQuality = scorePluginDraft(evalPlugin, evalDraft)
+  assert(initialEvalQuality.suggestions.some((entry) => /candidate output/i.test(entry)), 'Expected candidate-output guidance')
+  const completedEvalQuality = scorePluginDraft(evalPlugin, {
+    ...evalDraft,
+    target: { type: 'workflow', ids: ['release-check'] },
+    experiment: {
+      input: 'Review the release',
+      candidateOutput: 'All checks passed',
+      expectedOutput: 'All checks passed',
+      judge: 'ai',
+    },
+  })
+  assert(completedEvalQuality.score > initialEvalQuality.score, 'Expected complete eval configuration to score higher')
 })
 
 test('generic v2 plugins build defaults and prompt-backed declarative fields', () => {
