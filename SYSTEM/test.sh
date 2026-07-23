@@ -2360,6 +2360,15 @@ else
   fail "Dockerfile OpenClaw builder tests"
 fi
 
+echo -e "${YELLOW}→ Running local plugin startup contract tests...${NC}"
+bash "$SYSTEM_DIR/start-local-plugins.test.sh" > /tmp/clawmax-start-local-plugins.out 2>&1 || true
+if grep -q "start-local-plugins.test.sh: 4 tests passed" /tmp/clawmax-start-local-plugins.out; then
+  pass "Local plugin startup contract tests (4 tests)"
+else
+  cat /tmp/clawmax-start-local-plugins.out
+  fail "Local plugin startup contract tests"
+fi
+
 echo -e "${YELLOW}→ Running tested-image promotion contract tests...${NC}"
 sh "$SYSTEM_DIR/promote-tested-image.test.sh" > /tmp/clawmax-promote-tested-image.out 2>&1 || true
 if grep -q "promote tested image tests passed" /tmp/clawmax-promote-tested-image.out; then
