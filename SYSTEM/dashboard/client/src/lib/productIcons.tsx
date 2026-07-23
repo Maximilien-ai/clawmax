@@ -56,6 +56,24 @@ function IconSvg({ iconName, className }: { iconName: ProductIconName; className
           <path d="M8 17h5" />
         </svg>
       )
+    case 'checklist':
+      return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={cls}>
+          <path d="m4 6 1.5 1.5L8 5" />
+          <path d="m4 12 1.5 1.5L8 11" />
+          <path d="m4 18 1.5 1.5L8 17" />
+          <path d="M11 6h9" />
+          <path d="M11 12h9" />
+          <path d="M11 18h9" />
+        </svg>
+      )
+    case 'activity':
+      return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={cls}>
+          <path d="M3 3v18h18" />
+          <path d="m7 14 3-3 3 2 4-5" />
+        </svg>
+      )
     case 'save':
       return (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={cls}>

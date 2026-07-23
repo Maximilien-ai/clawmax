@@ -17,7 +17,7 @@ assert(manifest.ui.list.groupBy === 'release', 'Review records must be compartme
 assert(manifest.ui.list.checkField === 'completed', 'Review records must declare their completion checkbox')
 assert(checklistFiles.length === 1, 'Each release must be defined by one checklist file')
 assert(checklist.release === '2.0.0-test-rc6', 'Checklist file must identify exactly one release')
-assert(checklist.items.length === 13, 'RC6 must ship with the complete thirteen-item acceptance checklist')
+assert(checklist.items.length === 14, 'RC6 must ship with the complete fourteen-item acceptance checklist')
 assert(new Set(checklist.items.map((item: any) => item.id)).size === checklist.items.length, 'Checklist item IDs must be unique within the release')
 assert(checklist.items.every((item: any) => item.fields.notes === ''), 'New checklist notes must start empty and visually neutral')
 assert(checklist.defaults.fields.completed === false, 'Each new release checklist must start unchecked')
@@ -36,5 +36,7 @@ assert(pageSource.includes("completed ? 'line-through"), 'Completed checks must 
 assert(pageSource.includes(": notes\n          ? 'bg-yellow"), 'Commented pending checks must be highlighted')
 assert(pageSource.includes('w-full min-w-0 max-w-7xl overflow-x-hidden'), 'Plugin pages must constrain narrow-screen horizontal overflow')
 assert(pageSource.includes('min-w-0 overflow-hidden rounded-lg border border-sky-200'), 'Suggested cards must shrink within phone viewports')
+assert(checklist.items.some((item: any) => item.id === 'all-plugin-tab-layouts'), 'RC6 must explicitly verify every enabled plugin tab and view mode')
+assert(checklist.items.find((item: any) => item.id === 'all-plugin-tab-layouts')?.description.includes('desktop and mobile'), 'Cross-plugin layout review must cover desktop and mobile')
 
-console.log('PluginReviewChecklist.test.ts: 23 tests passed')
+console.log('PluginReviewChecklist.test.ts: 25 tests passed')

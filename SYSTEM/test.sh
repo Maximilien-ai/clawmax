@@ -1618,11 +1618,20 @@ fi
 
 echo -e "${YELLOW}→ Running Plugin release checklist regression tests...${NC}"
 npx ts-node --transpileOnly client/src/PluginReviewChecklist.test.ts > /tmp/clawmax-plugin-review-checklist.out 2>&1 || true
-if grep -q "PluginReviewChecklist.test.ts: 23 tests passed" /tmp/clawmax-plugin-review-checklist.out; then
-  pass "Plugin release checklist regression tests (23 tests)"
+if grep -q "PluginReviewChecklist.test.ts: 25 tests passed" /tmp/clawmax-plugin-review-checklist.out; then
+  pass "Plugin release checklist regression tests (25 tests)"
 else
   cat /tmp/clawmax-plugin-review-checklist.out
   fail "Plugin release checklist regression tests"
+fi
+
+echo -e "${YELLOW}→ Running Plugin workspace layout regression tests...${NC}"
+npx ts-node --transpileOnly client/src/PluginWorkspaceLayout.test.ts > /tmp/clawmax-plugin-workspace-layout.out 2>&1 || true
+if grep -q "PluginWorkspaceLayout.test.ts: 17 tests passed" /tmp/clawmax-plugin-workspace-layout.out; then
+  pass "Plugin workspace layout regression tests (17 tests)"
+else
+  cat /tmp/clawmax-plugin-workspace-layout.out
+  fail "Plugin workspace layout regression tests"
 fi
 
 echo -e "${YELLOW}→ Running Optimize plugin skeleton contract tests...${NC}"

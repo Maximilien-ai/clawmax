@@ -28,6 +28,8 @@ export type ProductIconName =
   | 'grid'
   | 'list'
   | 'history'
+  | 'checklist'
+  | 'activity'
   | 'expand'
   | 'close'
   | 'play'
@@ -104,6 +106,10 @@ const ICON_KEY_ALIASES: Record<string, ProductIconName> = {
   grid: 'grid',
   list: 'list',
   history: 'history',
+  checklist: 'checklist',
+  review: 'checklist',
+  activity: 'activity',
+  optimize: 'activity',
   expand: 'expand',
   close: 'close',
   play: 'play',

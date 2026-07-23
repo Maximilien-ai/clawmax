@@ -197,6 +197,27 @@ function PluginIcon({ className }: { className?: string }) {
   )
 }
 
+function ChecklistIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={iconClassName(className)}>
+      <path d="m4 6 1.5 1.5L8 5" />
+      <path d="m4 12 1.5 1.5L8 11" />
+      <path d="m4 18 1.5 1.5L8 17" />
+      <path d="M11 6h9" />
+      <path d="M11 12h9" />
+      <path d="M11 18h9" />
+    </svg>
+  )
+}
+
+function getPluginNavIcon(plugin: PluginManifest): React.ComponentType<{ className?: string }> {
+  if (usesLegacyPluginAdapter(plugin, 'guardrail')) return ShieldIcon
+  if (usesLegacyPluginAdapter(plugin, 'eval')) return BeakerIcon
+  if (plugin.objectKind === 'review-note' || plugin.icon === 'checklist') return ChecklistIcon
+  if (plugin.objectKind === 'optimization-plan' || plugin.icon === 'activity') return ActivityIcon
+  return PluginIcon
+}
+
 function KeyIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={iconClassName(className)}>
@@ -716,7 +737,7 @@ export default function App() {
             onClose={() => setShowWorkspaceDialog(false)}
           />
           <TermsOfServiceModal open={showTermsOfService} onClose={() => setShowTermsOfService(false)} />
-          <div className="flex h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 dark:bg-gray-900">
+          <div className="flex h-[100dvh] bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 dark:bg-gray-900">
           {/* Mobile nav overlay backdrop */}
           {mobileNavOpen && (
             <div
@@ -726,7 +747,7 @@ export default function App() {
           )}
 
           {/* Sidebar */}
-          <aside className={`h-screen max-h-screen overflow-hidden bg-gray-900 text-gray-100 flex flex-col shrink-0 transition-all duration-200 ${
+          <aside className={`h-[100dvh] max-h-[100dvh] overflow-hidden bg-gray-900 text-gray-100 flex flex-col shrink-0 transition-all duration-200 ${
             navCollapsed ? 'w-14' : 'w-56'
           } ${
             mobileNavOpen ? 'fixed inset-y-0 left-0 z-50 md:relative' : 'hidden md:flex'
@@ -797,9 +818,7 @@ export default function App() {
                   )}
                   {plugins.map((plugin) => {
                     const pluginPage = pluginPageBySlug.get(plugin.slug) || buildPluginPage(plugin.slug)
-                    const PluginIconComponent = usesLegacyPluginAdapter(plugin, 'guardrail')
-                      ? ShieldIcon
-                      : usesLegacyPluginAdapter(plugin, 'eval') ? BeakerIcon : PluginIcon
+                    const PluginIconComponent = getPluginNavIcon(plugin)
                     return (
                       <NavItemDraggable
                         key={plugin.slug}

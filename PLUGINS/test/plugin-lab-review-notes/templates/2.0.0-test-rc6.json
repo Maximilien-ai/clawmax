@@ -137,6 +137,16 @@
       }
     },
     {
+      "id": "all-plugin-tab-layouts",
+      "name": "All plugin tab layouts",
+      "description": "Guardrails, Evals, Review, Optimize, and every enabled plugin match the Agents tab layout conventions across grid, detail, list, and relationship views on desktop and mobile.",
+      "tags": ["plugins", "navigation", "responsive"],
+      "fields": {
+        "area": "navigation",
+        "notes": ""
+      }
+    },
+    {
       "id": "regression-suite",
       "name": "Automated regression suite",
       "description": "Local validation, coverage, and multi-architecture image CI are green.",

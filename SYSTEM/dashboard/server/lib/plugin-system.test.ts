@@ -411,7 +411,7 @@ async function run() {
     const releaseTemplates = listPluginTemplates(plugin!).filter((template) => (
       'fields' in template.payload && template.payload.fields?.release === '2.0.0-test-rc6'
     ))
-    assert.strictEqual(releaseTemplates.length, 13, 'Expected one release file to expand into thirteen checklist items')
+    assert.strictEqual(releaseTemplates.length, 14, 'Expected one release file to expand into fourteen checklist items')
     assert(releaseTemplates.some((template) => template.id === '2.0.0-test-rc6:release-readiness'), 'Expected release-qualified checklist item discovery')
     const applied = applyPluginTemplate(plugin!, '2.0.0-test-rc6:release-readiness')
     assert(applied && 'fields' in applied && applied.fields.owner === 'release-manager', 'Expected generic template application')

@@ -39,3 +39,13 @@ test('resolveCategoryVisual maps template category keys', () => {
   const visual = resolveCategoryVisual('business', '💼')
   assert.equal(visual.iconName, 'business')
 })
+
+test('resolveSkillVisual maps checklist icons for review plugins', () => {
+  const visual = resolveSkillVisual({ name: 'release-review', iconKey: 'checklist' })
+  assert.equal(visual.iconName, 'checklist')
+})
+
+test('resolveSkillVisual maps activity icons for optimization plugins', () => {
+  const visual = resolveSkillVisual({ name: 'optimize', iconKey: 'activity' })
+  assert.equal(visual.iconName, 'activity')
+})

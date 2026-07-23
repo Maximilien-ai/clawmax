@@ -5,7 +5,7 @@
   "name": "Release Review",
   "description": "Keep acceptance checklists separated by release and preserve their results as release history.",
   "version": "0.3.0-test",
-  "icon": "docs",
+  "icon": "checklist",
   "objectKind": "review-note",
   "visibility": "private",
   "enabledByDefault": false,

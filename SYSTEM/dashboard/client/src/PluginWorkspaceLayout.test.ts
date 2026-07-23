@@ -1,0 +1,41 @@
+import assert from 'assert'
+import fs from 'fs'
+import path from 'path'
+
+const sourceRoot = path.resolve(__dirname)
+const agentsSource = fs.readFileSync(path.join(sourceRoot, 'pages/Agents.tsx'), 'utf8')
+const appSource = fs.readFileSync(path.join(sourceRoot, 'App.tsx'), 'utf8')
+const pluginPageSource = fs.readFileSync(path.join(sourceRoot, 'pages/PluginWorkspacePage.tsx'), 'utf8')
+const repoRoot = path.resolve(sourceRoot, '../../../..')
+const manifests = [
+  'PLUGINS/test/plugin-lab-guardrails/clawmax-plugin.json',
+  'PLUGINS/test/plugin-lab-evals/clawmax-plugin.json',
+  'PLUGINS/test/plugin-lab-review-notes/clawmax-plugin.json',
+  'PLUGINS/public/clawmax-optimize/clawmax-plugin.json',
+].map((relativePath) => JSON.parse(fs.readFileSync(path.join(repoRoot, relativePath), 'utf8')))
+
+assert(
+  agentsSource.includes('costTrackingEnabled = true, guardrails = []'),
+  'Agent grid cards must receive a safe guardrail relationship default',
+)
+assert(
+  (agentsSource.match(/guardrails=\{pluginRelationships\.agents\[agent\.id\] \|\| \[\]\}/g) || []).length >= 5,
+  'Every agent card rendering path must receive plugin relationships',
+)
+assert(appSource.includes('h-[100dvh] max-h-[100dvh]'), 'The mobile sidebar must fit the dynamic viewport')
+assert(appSource.includes('function ChecklistIcon'), 'Release Review must have a checklist navigation icon')
+assert(appSource.includes("plugin.objectKind === 'optimization-plan'"), 'Optimize must have a distinct activity navigation icon')
+assert(pluginPageSource.includes("viewMode === 'grid' ? ("), 'Plugin content must render a compact grid view')
+assert(pluginPageSource.includes("viewMode === 'detail' ? ("), 'Plugin content must render a detail view')
+assert(pluginPageSource.includes("viewMode === 'graph' ? ("), 'Plugin content must render a relationship view')
+assert(pluginPageSource.includes('selectedSuggestedTemplateId'), 'Suggested items must expose inspectable details')
+assert(pluginPageSource.includes('heading="Suggested item"'), 'Suggested relationship views must identify their own records')
+assert(pluginPageSource.includes('Actions <span className="text-xs">▾</span>'), 'Plugin refresh belongs in the standard Actions menu')
+assert(pluginPageSource.includes('history: []'), 'Suggested guardrails must normalize persistence-only history before preview')
+assert(pluginPageSource.includes('runs: []'), 'Suggested evals must normalize persistence-only runs before preview')
+assert(pluginPageSource.includes('fields: base.fields || {}'), 'Suggested generic plugins must normalize declarative fields before preview')
+assert(pluginPageSource.includes('min-w-0 w-full sm:w-auto'), 'Plugin headers must stack without clipping on phone viewports')
+assert(manifests.every((manifest) => !/dormant|test plugin|mvp/i.test(`${manifest.name} ${manifest.description} ${manifest.version}`)), 'Enabled plugin UI copy must be product-ready')
+assert(new Set(manifests.map((manifest) => manifest.icon)).size === manifests.length, 'Each first-party plugin must declare a distinct navigation icon')
+
+console.log('PluginWorkspaceLayout.test.ts: 17 tests passed')

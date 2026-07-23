@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import AIPromptEditorModal from '../components/AIPromptEditorModal'
 import { ProductIconCell } from '../lib/productIcons'
-import { headerPrimaryButtonClass } from '../lib/headerControls'
+import { headerPrimaryButtonClass, headerSecondaryButtonClass, headerSecondaryButtonIdleClass } from '../lib/headerControls'
 import { expandPromptWithAI } from '../lib/aiPrompt'
 import { getAiGenerationReadiness, hasAiGenerationAccess } from '../lib/byok'
 import { getViewportSafeDropdownStyle } from '../lib/dropdownPosition'
@@ -534,7 +534,7 @@ function ItemCard({
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md dark:border-gray-700 dark:bg-gray-900/60">
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
+        <div className="min-w-0 w-full sm:w-auto">
           <div className="flex items-center gap-2">
             <div className="rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-700 dark:bg-sky-900/30 dark:text-sky-300">
               {plugin.labels?.singular || plugin.objectKind}
@@ -1012,14 +1012,22 @@ function TemplateCard({
   plugin,
   template,
   onApply,
+  detailed = false,
+  compact = false,
 }: {
   plugin: PluginManifest
   template: PluginRecordTemplate
   onApply: () => void
+  detailed?: boolean
+  compact?: boolean
 }) {
+  const [showDetails, setShowDetails] = useState(detailed)
+  const preview = templateToPreviewRecord(template)
+  const detailLines = getPluginDetailLines(plugin, preview)
+
   return (
     <div className="min-w-0 overflow-hidden rounded-lg border border-sky-200 bg-sky-50/70 p-4 dark:border-sky-900/40 dark:bg-sky-950/20">
-      <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div className={`flex flex-col items-stretch gap-3 ${compact ? '' : 'sm:flex-row sm:items-start sm:justify-between'}`}>
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className="rounded-full bg-white/80 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-sky-700 dark:bg-sky-900/50 dark:text-sky-300">
@@ -1037,10 +1045,62 @@ function TemplateCard({
             ))}
           </div>
         </div>
-        <button onClick={onApply} className={`${headerPrimaryButtonClass} w-full justify-center sm:w-auto`}>Use</button>
+        <div className={`flex w-full shrink-0 gap-2 ${compact ? '' : 'sm:w-auto'}`}>
+          <button
+            type="button"
+            onClick={() => setShowDetails((current) => !current)}
+            className={`${headerSecondaryButtonClass} ${headerSecondaryButtonIdleClass} flex-1 justify-center sm:flex-none`}
+          >
+            {showDetails ? 'Hide details' : 'Details'}
+          </button>
+          <button onClick={onApply} className={`${headerPrimaryButtonClass} flex-1 justify-center sm:flex-none`}>Use</button>
+        </div>
       </div>
+      {showDetails && (
+        <dl className="mt-4 grid gap-3 border-t border-sky-200/80 pt-4 text-sm dark:border-sky-900/50 sm:grid-cols-2">
+          {detailLines.map((line) => (
+            <div key={`${line.label}:${line.value}`} className="min-w-0">
+              <dt className="text-xs font-medium uppercase tracking-wide text-gray-400">{line.label}</dt>
+              <dd className="mt-0.5 break-words text-gray-700 dark:text-gray-200">{line.value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
     </div>
   )
+}
+
+function templateToPreviewRecord(template: PluginRecordTemplate): PluginRecord {
+  const base = {
+    ...template.payload,
+    id: `suggested:${template.id}`,
+    name: template.payload.name || template.name,
+    description: template.payload.description || template.description,
+    tags: template.payload.tags || template.tags,
+    enabled: template.payload.enabled !== false,
+    createdAt: '',
+    updatedAt: '',
+  }
+  if (base.kind === 'guardrail') {
+    return {
+      ...base,
+      appliesTo: base.appliesTo || { agents: [], workflows: [], groups: [], communities: [] },
+      controls: base.controls || { blockEmail: false, blockWeb: false, blockExternalDocs: false, allowedSkills: [] },
+      history: [],
+    } as PluginRecord
+  }
+  if (base.kind === 'eval') {
+    return {
+      ...base,
+      target: base.target || { type: 'agent', ids: [] },
+      experiment: base.experiment || { input: '', candidateOutput: '', expectedOutput: '', judge: 'fixed' },
+      runs: [],
+    } as PluginRecord
+  }
+  return {
+    ...base,
+    fields: base.fields || {},
+  } as PluginRecord
 }
 
 function ChecklistItemRow({
@@ -1126,10 +1186,12 @@ function PluginRelationshipView({
   items,
   context,
   onOpen,
+  heading = 'Selected item',
 }: {
   items: PluginRecord[]
   context: PluginWorkspaceContext
   onOpen: (id: string) => void
+  heading?: string
 }) {
   const resolveTarget = (kind: 'agent' | 'workflow' | 'group' | 'community', id: string) => {
     if (kind === 'agent') return context.agents.find((entry) => entry.id === id)?.name || id
@@ -1155,7 +1217,7 @@ function PluginRelationshipView({
   return (
     <div className="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900/40">
       <div className="grid grid-cols-[minmax(0,1fr)_28px_minmax(0,1.2fr)] border-b border-gray-200 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:border-gray-700 dark:text-gray-400">
-        <div>Selected item</div>
+        <div>{heading}</div>
         <div />
         <div>Applies to</div>
       </div>
@@ -1191,6 +1253,7 @@ function PluginRelationshipView({
 
 export default function PluginWorkspacePage({ plugin, isActive = false, onNavigateToDoc }: Props) {
   const workflowCreateMenuButtonRef = useRef<HTMLButtonElement | null>(null)
+  const actionsMenuButtonRef = useRef<HTMLButtonElement | null>(null)
   const [context, setContext] = useState<PluginWorkspaceContext>({ agents: [], workflows: [], groups: [], communities: [] })
   const [items, setItems] = useState<PluginRecord[]>([])
   const [templates, setTemplates] = useState<PluginRecordTemplate[]>([])
@@ -1204,7 +1267,9 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<PluginRecord | null>(null)
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null)
+  const [selectedSuggestedTemplateId, setSelectedSuggestedTemplateId] = useState<string | null>(null)
   const [showCreateMenu, setShowCreateMenu] = useState(false)
+  const [showActionsMenu, setShowActionsMenu] = useState(false)
   const [showAiPrompt, setShowAiPrompt] = useState(false)
   const [showAiPromptEditor, setShowAiPromptEditor] = useState(false)
   const [aiPromptText, setAiPromptText] = useState('')
@@ -1289,6 +1354,14 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
       return isGenericPluginRecord(item) && item.fields[groupField] === templateGroup
     })
   }), [templates, items, groupField])
+  const suggestedPreviewRecords = useMemo(
+    () => recommendedTemplates.map(templateToPreviewRecord),
+    [recommendedTemplates],
+  )
+  const selectedSuggestedTemplate = useMemo(
+    () => recommendedTemplates.find((template) => template.id === selectedSuggestedTemplateId) || null,
+    [recommendedTemplates, selectedSuggestedTemplateId],
+  )
   const checklistTemplatesByRelease = useMemo(() => {
     if (!isChecklist || !groupField) return []
     const byRelease = new Map<string, PluginRecordTemplate[]>()
@@ -1454,7 +1527,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
             )) : <span>none</span>}
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+        <div className="flex w-full max-w-full flex-wrap items-center gap-2 sm:w-auto sm:gap-3">
           {!isChecklist && <>
           <div className="flex items-center border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden bg-white dark:bg-gray-800">
             <button
@@ -1540,14 +1613,36 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
               Add check
             </button>
           )}
-          <button
-            onClick={() => void load()}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 hover:text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-gray-600 dark:hover:bg-gray-700 dark:hover:text-white"
-            title="Refresh plugin workspace"
-            aria-label="Refresh plugin workspace"
-          >
-            <ProductIconCell iconName="refresh" label="Refresh" size="sm" className="border-transparent bg-transparent text-current" />
-          </button>
+          <div className="relative">
+            <button
+              ref={actionsMenuButtonRef}
+              onClick={() => setShowActionsMenu(!showActionsMenu)}
+              className={`${headerSecondaryButtonClass} ${headerSecondaryButtonIdleClass}`}
+              title="Actions"
+            >
+              Actions <span className="text-xs">▾</span>
+            </button>
+            {showActionsMenu && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setShowActionsMenu(false)} />
+                <div
+                  className="z-20 rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
+                  style={actionsMenuButtonRef.current ? getViewportSafeDropdownStyle(actionsMenuButtonRef.current.getBoundingClientRect(), 220) : undefined}
+                >
+                  <button
+                    onClick={() => {
+                      setShowActionsMenu(false)
+                      void load()
+                    }}
+                    className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700"
+                  >
+                    <ProductIconCell iconName="refresh" label="Refresh" size="sm" className="border-transparent bg-transparent text-current" />
+                    Refresh
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -1710,16 +1805,82 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                   <p className="text-sm text-gray-500 dark:text-gray-400">Proposed {plugin.labels?.plural?.toLowerCase() || 'items'} you can use and customize for this workspace.</p>
                 </div>
               </div>
-              <div className="grid min-w-0 gap-4 xl:grid-cols-2">
-                {recommendedTemplates.map((template) => (
-                  <TemplateCard
-                    key={template.id}
-                    plugin={plugin}
-                    template={template}
-                    onApply={() => void applyTemplate(template.id)}
+              {viewMode === 'grid' ? (
+                <div className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                  {recommendedTemplates.map((template) => (
+                    <TemplateCard
+                      key={template.id}
+                      plugin={plugin}
+                      template={template}
+                      compact
+                      onApply={() => void applyTemplate(template.id)}
+                    />
+                  ))}
+                </div>
+              ) : viewMode === 'detail' ? (
+                <div className="grid min-w-0 gap-4 xl:grid-cols-2">
+                  {recommendedTemplates.map((template) => (
+                    <TemplateCard
+                      key={template.id}
+                      plugin={plugin}
+                      template={template}
+                      detailed
+                      onApply={() => void applyTemplate(template.id)}
+                    />
+                  ))}
+                </div>
+              ) : viewMode === 'graph' ? (
+                <div className="space-y-4">
+                  <PluginRelationshipView
+                    items={suggestedPreviewRecords}
+                    context={context}
+                    onOpen={(id) => setSelectedSuggestedTemplateId(id.replace(/^suggested:/, ''))}
+                    heading="Suggested item"
                   />
-                ))}
-              </div>
+                  {selectedSuggestedTemplate && (
+                    <TemplateCard
+                      plugin={plugin}
+                      template={selectedSuggestedTemplate}
+                      detailed
+                      onApply={() => void applyTemplate(selectedSuggestedTemplate.id)}
+                    />
+                  )}
+                </div>
+              ) : (
+                <div className="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900/40">
+                  <div className="hidden grid-cols-[minmax(0,2fr)_minmax(0,1fr)_170px] gap-3 border-b border-gray-200 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:border-gray-700 dark:text-gray-400 sm:grid">
+                    <div>Name</div>
+                    <div>Tags</div>
+                    <div>Actions</div>
+                  </div>
+                  {recommendedTemplates.map((template) => (
+                    <div key={template.id} className="grid gap-3 border-b border-gray-100 px-4 py-3 last:border-b-0 dark:border-gray-800 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_170px] sm:items-center">
+                      <div className="min-w-0">
+                        <div className="font-medium text-gray-900 dark:text-gray-100">{template.name}</div>
+                        <div className="mt-0.5 break-words text-sm text-gray-500 dark:text-gray-400">{template.description}</div>
+                      </div>
+                      <div className="flex min-w-0 flex-wrap gap-1.5">
+                        {template.tags.map((tag) => <span key={tag} className="rounded-md bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">{tag}</span>)}
+                      </div>
+                      <div className="flex gap-2 sm:justify-end">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedSuggestedTemplateId((current) => current === template.id ? null : template.id)}
+                          className={`${headerSecondaryButtonClass} ${headerSecondaryButtonIdleClass}`}
+                        >
+                          Details
+                        </button>
+                        <button type="button" onClick={() => void applyTemplate(template.id)} className={headerPrimaryButtonClass}>Use</button>
+                      </div>
+                      {selectedSuggestedTemplateId === template.id && (
+                        <div className="sm:col-span-3">
+                          <TemplateCard plugin={plugin} template={template} detailed onApply={() => void applyTemplate(template.id)} />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </>
           )}
         </div>

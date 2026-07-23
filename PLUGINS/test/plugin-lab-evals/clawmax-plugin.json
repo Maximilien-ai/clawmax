@@ -1,9 +1,9 @@
 {
   "id": "plugin-lab-evals",
   "slug": "plugin-lab-evals",
-  "name": "Evals Test Plugin",
-  "description": "A dormant reference plugin for workspace-scoped eval experiments.",
-  "version": "0.1.0-mvp0",
+  "name": "Evals",
+  "description": "Create, run, and compare workspace-scoped evaluations for agents and workflows.",
+  "version": "0.2.0-test",
   "icon": "beaker",
   "objectKind": "eval",
   "visibility": "private",

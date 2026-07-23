@@ -1,9 +1,9 @@
 {
   "id": "plugin-lab-guardrails",
   "slug": "plugin-lab-guardrails",
-  "name": "Guardrails Test Plugin",
-  "description": "A dormant reference plugin for workspace-scoped guardrail objects.",
-  "version": "0.1.0-mvp0",
+  "name": "Guardrails",
+  "description": "Create and apply workspace-scoped controls for agents and workflows.",
+  "version": "0.2.0-test",
   "icon": "shield",
   "objectKind": "guardrail",
   "visibility": "private",

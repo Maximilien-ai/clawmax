@@ -33,6 +33,14 @@
   domain, such as run history, activation history, scores, progress, targets,
   notifications, notes, or evidence. Do not expose an action without a way to
   see what happened afterward.
+- Treat the Agents page as the dashboard layout contract for plugin tabs:
+  preserve its header hierarchy, view-control placement, action menus, filters,
+  responsive stacking, and distinct grid, detail, list, and relationship
+  presentations. View controls must affect every visible collection they imply,
+  including suggested items, and each item must expose inspectable details.
+- Keep release review files separated by release while carrying forward all
+  still-relevant prior checks. New RC coverage should accumulate without
+  silently removing earlier acceptance criteria.
 
 ## Tests And Release Validation
 

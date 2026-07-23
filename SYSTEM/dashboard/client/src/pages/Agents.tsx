@@ -1708,6 +1708,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                         metering={costTrackingEnabled ? agentMetering[agent.id] : undefined}
                         costLimit={costTrackingEnabled ? (agentCostLimits[agent.id] ?? null) : null}
                         costTrackingEnabled={costTrackingEnabled}
+                        guardrails={pluginRelationships.agents[agent.id] || []}
                       />
                     ))}
                   </div>
@@ -1759,6 +1760,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                               metering={costTrackingEnabled ? agentMetering[agent.id] : undefined}
                               costLimit={costTrackingEnabled ? (agentCostLimits[agent.id] ?? null) : null}
                               costTrackingEnabled={costTrackingEnabled}
+                              guardrails={pluginRelationships.agents[agent.id] || []}
                             />
                           ))}
                         </div>
@@ -1862,6 +1864,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
               metering={costTrackingEnabled ? agentMetering[agent.id] : undefined}
               costLimit={costTrackingEnabled ? (agentCostLimits[agent.id] ?? null) : null}
               costTrackingEnabled={costTrackingEnabled}
+              guardrails={pluginRelationships.agents[agent.id] || []}
             />
                       ))}
                     </div>
@@ -1915,6 +1918,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                           metering={costTrackingEnabled ? agentMetering[agent.id] : undefined}
                           costLimit={costTrackingEnabled ? (agentCostLimits[agent.id] ?? null) : null}
                           costTrackingEnabled={costTrackingEnabled}
+                          guardrails={pluginRelationships.agents[agent.id] || []}
                         />
                       ))}
                     </div>
@@ -3889,7 +3893,7 @@ const AgentCard = React.memo(function AgentCard({
   )
 })
 
-const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onClick, onChat, onStatus, onDelete, onClone, onEdit, onLinkWa, onSyncGroups, onSaveAsTemplate, onExport, onViewDocs, onManageTags, onNavigateToSkills, onRestart, onArchive, onUnarchive, onRename, onSetBudget, isSelected, onToggleSelect, usage, metering, costLimit, costTrackingEnabled = true }: { agent: Agent; selected: boolean; onClick: () => void; onChat: () => void; onStatus: () => void; onDelete: () => void; onClone: () => void; onEdit?: () => void; onLinkWa: () => void; onSyncGroups: () => void; onSaveAsTemplate: () => void; onExport: () => void; onViewDocs?: () => void; onManageTags: () => void; onNavigateToSkills?: (agentId: string) => void; onRestart: () => void; onArchive: () => void; onUnarchive: () => void; onRename: () => void; onSetBudget: () => void; isSelected?: boolean; onToggleSelect?: () => void; usage?: { totalTokens: number; inputTokens: number; outputTokens: number; totalCost: number }; metering?: { calls: number; tokens: number; cost: number }; costLimit?: number | null; costTrackingEnabled?: boolean }) {
+const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onClick, onChat, onStatus, onDelete, onClone, onEdit, onLinkWa, onSyncGroups, onSaveAsTemplate, onExport, onViewDocs, onManageTags, onNavigateToSkills, onRestart, onArchive, onUnarchive, onRename, onSetBudget, isSelected, onToggleSelect, usage, metering, costLimit, costTrackingEnabled = true, guardrails = [] }: { agent: Agent; selected: boolean; onClick: () => void; onChat: () => void; onStatus: () => void; onDelete: () => void; onClone: () => void; onEdit?: () => void; onLinkWa: () => void; onSyncGroups: () => void; onSaveAsTemplate: () => void; onExport: () => void; onViewDocs?: () => void; onManageTags: () => void; onNavigateToSkills?: (agentId: string) => void; onRestart: () => void; onArchive: () => void; onUnarchive: () => void; onRename: () => void; onSetBudget: () => void; isSelected?: boolean; onToggleSelect?: () => void; usage?: { totalTokens: number; inputTokens: number; outputTokens: number; totalCost: number }; metering?: { calls: number; tokens: number; cost: number }; costLimit?: number | null; costTrackingEnabled?: boolean; guardrails?: PluginRelationship[] }) {
   const [showActionsMenu, setShowActionsMenu] = React.useState(false)
   const [actionsMenuView, setActionsMenuView] = React.useState<AgentActionsMenuView>('main')
   const [menuPlacement, setMenuPlacement] = React.useState<DropdownPlacement>('top')
