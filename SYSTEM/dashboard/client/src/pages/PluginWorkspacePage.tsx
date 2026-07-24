@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import AIPromptEditorModal from '../components/AIPromptEditorModal'
+import { useAuth } from '../contexts/AuthContext'
 import { ProductIconCell } from '../lib/productIcons'
 import { headerPrimaryButtonClass, headerSecondaryButtonClass, headerSecondaryButtonIdleClass } from '../lib/headerControls'
 import { expandPromptWithAI } from '../lib/aiPrompt'
@@ -26,6 +27,13 @@ import {
   scorePluginDraft,
   usesLegacyPluginAdapter,
 } from '../lib/plugins'
+import {
+  buildReleaseReviewFilename,
+  buildReleaseReviewMarkdown,
+  isReviewErrorLine,
+  sanitizeReviewLogLine,
+  type ReviewExportInstance,
+} from '../lib/reviewExport'
 
 type Props = {
   plugin: PluginManifest
@@ -35,6 +43,34 @@ type Props = {
 
 type ArchiveTab = 'active' | 'archived'
 type PluginViewMode = 'grid' | 'detail' | 'table' | 'graph'
+
+function collectRecentRuntimeErrors(timeoutMs = 2500): Promise<string[]> {
+  return new Promise((resolve) => {
+    const errors: string[] = []
+    const source = new EventSource('/api/system/logs')
+    let settled = false
+    const finish = () => {
+      if (settled) return
+      settled = true
+      window.clearTimeout(timer)
+      source.close()
+      resolve(Array.from(new Set(errors)).slice(-20))
+    }
+    const timer = window.setTimeout(finish, timeoutMs)
+
+    source.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data)
+        const line = typeof payload?.line === 'string' ? payload.line : ''
+        if (line && isReviewErrorLine(line)) errors.push(sanitizeReviewLogLine(line))
+        if (errors.length >= 20) finish()
+      } catch {
+        // Ignore malformed stream entries and preserve the rest of the export.
+      }
+    }
+    source.onerror = finish
+  })
+}
 
 function PluginIcon({ plugin }: { plugin: PluginManifest }) {
   if (usesLegacyPluginAdapter(plugin, 'guardrail')) {
@@ -1252,6 +1288,7 @@ function PluginRelationshipView({
 }
 
 export default function PluginWorkspacePage({ plugin, isActive = false, onNavigateToDoc }: Props) {
+  const { user, config: authConfig } = useAuth()
   const workflowCreateMenuButtonRef = useRef<HTMLButtonElement | null>(null)
   const actionsMenuButtonRef = useRef<HTMLButtonElement | null>(null)
   const [context, setContext] = useState<PluginWorkspaceContext>({ agents: [], workflows: [], groups: [], communities: [] })
@@ -1263,7 +1300,10 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
   const [selectedTag, setSelectedTag] = useState<string>('all')
   const [statusFilter, setStatusFilter] = useState<'all' | 'enabled' | 'disabled'>('all')
   const [archiveTab, setArchiveTab] = useState<ArchiveTab>('active')
-  const [viewMode, setViewMode] = useState<PluginViewMode>('grid')
+  const [viewMode, setViewMode] = useState<PluginViewMode>(() => {
+    const saved = localStorage.getItem(`clawmax-plugin-view-mode:${plugin.slug}`)
+    return saved === 'detail' || saved === 'table' || saved === 'graph' ? saved : 'grid'
+  })
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<PluginRecord | null>(null)
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null)
@@ -1277,6 +1317,13 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
   const [activeCompactActions, setActiveCompactActions] = useState<string | null>(null)
   const [runningItemIds, setRunningItemIds] = useState<Set<string>>(new Set())
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null)
+  const [showReviewExport, setShowReviewExport] = useState(false)
+  const [reviewerName, setReviewerName] = useState('')
+  const [reviewerEmail, setReviewerEmail] = useState('')
+  const [reviewEnvironment, setReviewEnvironment] = useState<'local' | 'cloud' | 'onprem'>('local')
+  const [reviewInstance, setReviewInstance] = useState<ReviewExportInstance>({})
+  const [reviewExporting, setReviewExporting] = useState(false)
+  const [reviewExportError, setReviewExportError] = useState<string | null>(null)
   const aiReadiness = getAiGenerationReadiness()
   const aiEnabled = hasAiGenerationAccess()
   const grantedCapabilities = getPluginGrantedCapabilities(plugin)
@@ -1313,6 +1360,10 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
     if (!isActive) return
     void load()
   }, [plugin.slug, isActive])
+
+  useEffect(() => {
+    localStorage.setItem(`clawmax-plugin-view-mode:${plugin.slug}`, viewMode)
+  }, [plugin.slug, viewMode])
 
   const tags = useMemo(() => collectPluginTags(items), [items])
   const groups = useMemo(() => {
@@ -1505,10 +1556,61 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
     await load()
   }
 
+  const openReviewExport = async () => {
+    setShowActionsMenu(false)
+    setReviewExportError(null)
+    setReviewerName(user?.name || user?.login || '')
+    setReviewerEmail(user?.email || '')
+    setReviewEnvironment(authConfig?.deploymentKind || 'local')
+    setShowReviewExport(true)
+    try {
+      const response = await fetch('/api/system')
+      const data = response.ok ? await response.json() : {}
+      const deploymentKind = data.deploymentKind === 'cloud' || data.deploymentKind === 'onprem'
+        ? data.deploymentKind
+        : 'local'
+      setReviewEnvironment(deploymentKind)
+      setReviewInstance(data)
+    } catch {
+      setReviewInstance({})
+    }
+  }
+
+  const exportReview = async () => {
+    if (!activeGroup || !reviewerName.trim()) return
+    setReviewExporting(true)
+    setReviewExportError(null)
+    try {
+      const exportedAt = new Date().toISOString()
+      const recentErrors = await collectRecentRuntimeErrors()
+      const markdown = buildReleaseReviewMarkdown({
+        release: activeGroup,
+        reviewer: { name: reviewerName.trim(), email: reviewerEmail.trim() },
+        instance: { ...reviewInstance, deploymentKind: reviewEnvironment },
+        exportedAt,
+        records: items.filter(isGenericPluginRecord),
+        recentErrors,
+      })
+      const url = URL.createObjectURL(new Blob([markdown], { type: 'text/markdown;charset=utf-8' }))
+      const link = document.createElement('a')
+      link.href = url
+      link.download = buildReleaseReviewFilename(activeGroup, exportedAt)
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+      setShowReviewExport(false)
+    } catch (err: any) {
+      setReviewExportError(err?.message || 'Failed to export this release review.')
+    } finally {
+      setReviewExporting(false)
+    }
+  }
+
   return (
     <div className="mx-auto w-full min-w-0 max-w-7xl overflow-x-hidden px-4 py-6 sm:px-6">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div className="min-w-0">
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
           <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">{plugin.name}</h1>
           <p className="text-sm text-gray-500 mt-0.5 flex items-center gap-1.5">
             {filtered.length} shown
@@ -1517,7 +1619,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
             <span className="text-gray-300">·</span>
             <span>v{plugin.version}</span>
           </p>
-          <p className="mt-1 break-words text-sm text-gray-500 dark:text-gray-400">{plugin.description}</p>
+          <p className="mt-1 max-w-2xl break-words text-sm leading-5 text-gray-500 dark:text-gray-400">{plugin.description}</p>
           <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
             <span className="font-medium">Host grants:</span>
             {grantedCapabilities.length > 0 ? grantedCapabilities.map((capability) => (
@@ -1527,7 +1629,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
             )) : <span>none</span>}
           </div>
         </div>
-        <div className="flex w-full max-w-full flex-wrap items-center gap-2 sm:w-auto sm:gap-3">
+        <div className="flex w-full max-w-full shrink-0 flex-wrap items-center gap-2 sm:w-auto sm:gap-3">
           {!isChecklist && <>
           <div className="flex items-center border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden bg-white dark:bg-gray-800">
             <button
@@ -1639,6 +1741,16 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                     <ProductIconCell iconName="refresh" label="Refresh" size="sm" className="border-transparent bg-transparent text-current" />
                     Refresh
                   </button>
+                  {isChecklist && (
+                    <button
+                      onClick={() => void openReviewExport()}
+                      disabled={!activeGroup || items.length === 0}
+                      className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-400 dark:text-gray-300 dark:hover:bg-gray-700"
+                    >
+                      <ProductIconCell iconName="export" label="Export review" size="sm" className="border-transparent bg-transparent text-current" />
+                      Export release review
+                    </button>
+                  )}
                 </div>
               </>
             )}
@@ -1721,7 +1833,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
 
       {!isChecklist && <div className="mb-6">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs text-gray-400 font-medium">Filter by tags:</span>
+          <span className="text-xs text-gray-400 font-medium">Filter:</span>
           <button
             onClick={() => setSelectedTag('all')}
             className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
@@ -2111,6 +2223,71 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
           onClose={() => { setShowModal(false); setEditing(null) }}
           onSave={(draft) => { void saveItem(draft) }}
         />
+      )}
+
+      {showReviewExport && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="flex max-h-[90dvh] w-full max-w-xl flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900">
+            <div className="flex shrink-0 items-start justify-between gap-4 border-b border-gray-200 px-5 py-4 dark:border-gray-700">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Export {activeGroup} review</h2>
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                  Creates a shareable Markdown report with checklist results, notes, instance details, and sanitized recent runtime errors.
+                </p>
+              </div>
+              <button type="button" onClick={() => setShowReviewExport(false)} className="text-gray-400 hover:text-gray-600" aria-label="Close review export">✕</button>
+            </div>
+            <div className="min-h-0 space-y-4 overflow-y-auto px-5 py-4">
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Reviewer name</span>
+                <input
+                  value={reviewerName}
+                  onChange={(event) => setReviewerName(event.target.value)}
+                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                  autoFocus
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Reviewer email</span>
+                <input
+                  type="email"
+                  value={reviewerEmail}
+                  onChange={(event) => setReviewerEmail(event.target.value)}
+                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                />
+              </label>
+              <fieldset>
+                <legend className="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Environment</legend>
+                <div className="inline-flex max-w-full overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
+                  {(['local', 'cloud', 'onprem'] as const).map((kind) => (
+                    <button
+                      key={kind}
+                      type="button"
+                      onClick={() => setReviewEnvironment(kind)}
+                      className={`border-r border-gray-200 px-3 py-2 text-sm font-medium capitalize last:border-r-0 dark:border-gray-700 ${reviewEnvironment === kind
+                        ? 'bg-sky-600 text-white'
+                        : 'bg-white text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      {kind === 'onprem' ? 'On-prem' : kind}
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+              <div className="rounded-md border border-gray-200 bg-gray-50 px-4 py-3 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-800/60 dark:text-gray-300">
+                <div>{reviewInstance.instanceLabel || reviewInstance.machineName || reviewInstance.hostname || 'Current instance'}</div>
+                <div className="mt-1 text-gray-500">Dashboard {reviewInstance.version || 'unknown'} · {reviewInstance.platform || 'unknown platform'}</div>
+              </div>
+              {reviewExportError && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300">{reviewExportError}</div>}
+            </div>
+            <div className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-gray-200 px-5 py-4 dark:border-gray-700">
+              <button type="button" onClick={() => setShowReviewExport(false)} className={`${headerSecondaryButtonClass} ${headerSecondaryButtonIdleClass}`}>Cancel</button>
+              <button type="button" onClick={() => void exportReview()} disabled={!reviewerName.trim() || reviewExporting} className={`${headerPrimaryButtonClass} disabled:cursor-not-allowed disabled:opacity-50`}>
+                {reviewExporting ? 'Collecting errors…' : 'Export review'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {showAiPrompt && (

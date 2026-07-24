@@ -3,7 +3,7 @@
   "id": "clawmax-optimize",
   "slug": "clawmax-optimize",
   "name": "Optimize",
-  "description": "Plan workflow and agent token, cost, model, and schedule improvements within workspace budgets.",
+  "description": "Plan workspace, workflow, and agent token and cost budgets, then compare model and schedule recommendations against current usage.",
   "version": "0.1.0",
   "icon": "activity",
   "objectKind": "optimization-plan",

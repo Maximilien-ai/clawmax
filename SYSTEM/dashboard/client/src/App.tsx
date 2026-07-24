@@ -32,7 +32,13 @@ import { CHANNEL_API_ENDPOINTS } from './lib/channelApi'
 import { addVisitedPage } from './lib/appNavigationState'
 import { getVisibleMaintenanceBanner } from './lib/maintenanceBannerView'
 import { buildPluginPage, isPluginPage, pageToPath, pathToPage, pluginSlugFromPage, resolveInitialPage, type CoreDashboardPage, type DashboardPage } from './lib/navigation'
-import { getPluginNavLabel, usesLegacyPluginAdapter, type PluginManifest } from './lib/plugins'
+import {
+  getPluginNavLabel,
+  normalizePluginNavOrder,
+  PLUGIN_NAV_ORDER_STORAGE_KEY,
+  usesLegacyPluginAdapter,
+  type PluginManifest,
+} from './lib/plugins'
 import { readGlobalWorkspaceTourDisabled, readWorkspaceTourState, resetWorkspaceTourState, shouldShowWorkspaceTour, writeWorkspaceTourState } from './lib/onboardingTour'
 
 type Page = DashboardPage
@@ -409,6 +415,15 @@ export default function App() {
   const [page, setPage] = useState<Page>(initialPage)
   const [visitedPages, setVisitedPages] = useState<Set<Page>>(() => new Set<Page>([initialPage]))
   const [plugins, setPlugins] = useState<PluginManifest[]>([])
+  const [pluginNavOrder, setPluginNavOrder] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem(PLUGIN_NAV_ORDER_STORAGE_KEY)
+      return saved ? JSON.parse(saved) : []
+    } catch {
+      return []
+    }
+  })
+  const [draggedPluginIndex, setDraggedPluginIndex] = useState<number | null>(null)
   const [system, setSystem] = useState<SystemInfo | null>(null)
   const [navCollapsed, setNavCollapsed] = useState(false)
   const [systemNavExpanded, setSystemNavExpanded] = useState<boolean>(() => {
@@ -478,7 +493,11 @@ export default function App() {
   const navBeforePlugins = pluginAnchorIndex >= 0 ? coreUserNav.slice(0, pluginAnchorIndex + 1) : coreUserNav
   const navAfterPlugins = pluginAnchorIndex >= 0 ? coreUserNav.slice(pluginAnchorIndex + 1) : []
   const navIndexById = new Map(navOrder.map((item, index) => [item.id, index]))
-  const pluginPageBySlug = useMemo(() => new Map(plugins.map((plugin) => [plugin.slug, buildPluginPage(plugin.slug)])), [plugins])
+  const orderedPlugins = useMemo(
+    () => normalizePluginNavOrder(plugins, pluginNavOrder),
+    [plugins, pluginNavOrder],
+  )
+  const pluginPageBySlug = useMemo(() => new Map(orderedPlugins.map((plugin) => [plugin.slug, buildPluginPage(plugin.slug)])), [orderedPlugins])
 
   // Apply dark mode class to document
   useEffect(() => {
@@ -553,6 +572,14 @@ export default function App() {
       .then((data) => setPlugins(Array.isArray(data.plugins) ? data.plugins : []))
       .catch(() => setPlugins([]))
   }, [])
+
+  useEffect(() => {
+    if (plugins.length === 0) return
+    const normalized = normalizePluginNavOrder(plugins, pluginNavOrder).map((plugin) => plugin.slug)
+    if (JSON.stringify(normalized) === JSON.stringify(pluginNavOrder)) return
+    setPluginNavOrder(normalized)
+    localStorage.setItem(PLUGIN_NAV_ORDER_STORAGE_KEY, JSON.stringify(normalized))
+  }, [plugins, pluginNavOrder])
 
   useEffect(() => {
     if (!isPluginPage(page)) return
@@ -683,6 +710,22 @@ export default function App() {
   const handleNavDragEnd = () => {
     setDraggedNavIndex(null)
     localStorage.setItem('nav-order', JSON.stringify(navOrder))
+  }
+
+  const handlePluginDragOver = (event: React.DragEvent, index: number) => {
+    event.preventDefault()
+    if (draggedPluginIndex === null || draggedPluginIndex === index) return
+    const slugs = orderedPlugins.map((plugin) => plugin.slug)
+    const [moved] = slugs.splice(draggedPluginIndex, 1)
+    slugs.splice(index, 0, moved)
+    setPluginNavOrder(slugs)
+    setDraggedPluginIndex(index)
+  }
+
+  const handlePluginDragEnd = () => {
+    setDraggedPluginIndex(null)
+    const slugs = orderedPlugins.map((plugin) => plugin.slug)
+    localStorage.setItem(PLUGIN_NAV_ORDER_STORAGE_KEY, JSON.stringify(slugs))
   }
 
   useEffect(() => {
@@ -816,7 +859,7 @@ export default function App() {
                   {!navCollapsed && (
                     <div className="px-3 pb-1 pt-1 text-[11px] uppercase tracking-[0.18em] text-gray-400">Plugins</div>
                   )}
-                  {plugins.map((plugin) => {
+                  {orderedPlugins.map((plugin, pluginIndex) => {
                     const pluginPage = pluginPageBySlug.get(plugin.slug) || buildPluginPage(plugin.slug)
                     const PluginIconComponent = getPluginNavIcon(plugin)
                     return (
@@ -830,7 +873,9 @@ export default function App() {
                           setMobileNavOpen(false)
                         }}
                         collapsed={navCollapsed}
-                        draggable={false}
+                        onDragStart={() => setDraggedPluginIndex(pluginIndex)}
+                        onDragOver={(event) => handlePluginDragOver(event, pluginIndex)}
+                        onDragEnd={handlePluginDragEnd}
                       />
                     )
                   })}
@@ -1101,12 +1146,12 @@ export default function App() {
               </WorkspaceScoped>
             </div>
             )}
-            {plugins
+            {orderedPlugins
               .filter((plugin) => visitedPages.has(buildPluginPage(plugin.slug)))
               .map((plugin) => {
                 const pluginPage = buildPluginPage(plugin.slug)
                 return (
-                  <div key={plugin.slug} className={`flex-1 overflow-auto ${page === pluginPage ? '' : 'hidden'}`}>
+                  <div key={plugin.slug} className={`min-w-0 flex-1 overflow-auto overflow-x-hidden ${page === pluginPage ? '' : 'hidden'}`}>
                     <WorkspaceScoped pageKey={`plugin:${plugin.slug}`}>
                       <PluginWorkspacePage
                         plugin={plugin}

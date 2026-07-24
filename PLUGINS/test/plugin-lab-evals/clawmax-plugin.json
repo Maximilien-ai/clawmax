@@ -2,7 +2,7 @@
   "id": "plugin-lab-evals",
   "slug": "plugin-lab-evals",
   "name": "Evals",
-  "description": "Create, run, and compare workspace-scoped evaluations for agents and workflows.",
+  "description": "Create and run repeatable workspace-scoped evaluations that measure agent and workflow output quality, scores, progress, and execution history.",
   "version": "0.2.0-test",
   "icon": "beaker",
   "objectKind": "eval",

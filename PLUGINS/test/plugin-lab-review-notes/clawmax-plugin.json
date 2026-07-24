@@ -3,7 +3,7 @@
   "id": "plugin-lab-review-notes",
   "slug": "plugin-lab-review-notes",
   "name": "Release Review",
-  "description": "Keep acceptance checklists separated by release and preserve their results as release history.",
+  "description": "Run acceptance checklists independently for each release, capture reviewer evidence and notes, and export a complete report for follow-up.",
   "version": "0.3.0-test",
   "icon": "checklist",
   "objectKind": "review-note",
@@ -18,7 +18,7 @@
   },
   "nav": {
     "section": "plugins",
-    "order": 30,
+    "order": 1000,
     "label": "Review"
   },
   "capabilities": {

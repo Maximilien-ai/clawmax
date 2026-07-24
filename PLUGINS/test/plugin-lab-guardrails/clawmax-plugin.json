@@ -2,7 +2,7 @@
   "id": "plugin-lab-guardrails",
   "slug": "plugin-lab-guardrails",
   "name": "Guardrails",
-  "description": "Create and apply workspace-scoped controls for agents and workflows.",
+  "description": "Create, apply, and review workspace-scoped controls that constrain agent and workflow behavior while preserving clear ownership and activation history.",
   "version": "0.2.0-test",
   "icon": "shield",
   "objectKind": "guardrail",

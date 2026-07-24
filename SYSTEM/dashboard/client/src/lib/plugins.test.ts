@@ -14,6 +14,7 @@ import {
   getPluginDetailLines,
   isGenericPluginRecord,
   matchesPluginSearch,
+  normalizePluginNavOrder,
   normalizePluginDiagnosticsReport,
   scorePluginDraft,
   type PluginManifest,
@@ -90,6 +91,7 @@ const evalPlugin: PluginManifest = {
   icon: 'beaker',
   objectKind: 'eval',
   visibility: 'private',
+  nav: { section: 'plugins', order: 20, label: 'Evals' },
   source: {
     type: 'github',
     owner: 'example',
@@ -107,6 +109,7 @@ const guardrailPlugin: PluginManifest = {
   icon: 'shield',
   objectKind: 'guardrail',
   visibility: 'private',
+  nav: { section: 'plugins', order: 10, label: 'Guardrails' },
   labels: {
     singular: 'Guardrail',
     plural: 'Guardrails',
@@ -296,6 +299,29 @@ test('normalizePluginDiagnosticsReport filters malformed entries and recomputes 
 test('getPluginGrantedCapabilities reports only enabled grants in stable order', () => {
   const plugin = { capabilities: { communications: true, docs: true, agents: false } } as any
   assert(getPluginGrantedCapabilities(plugin).join(',') === 'docs,communications', 'Expected enabled capability grants only')
+})
+
+test('normalizePluginNavOrder keeps Review last by default and preserves browser order', () => {
+  const optimizePlugin = {
+    ...reviewPlugin,
+    id: 'clawmax-optimize',
+    slug: 'clawmax-optimize',
+    name: 'Optimize',
+    objectKind: 'optimization-plan',
+    nav: { order: 40, section: 'plugins' as const, label: 'Optimize' },
+  }
+  const defaults = normalizePluginNavOrder(
+    [reviewPlugin, evalPlugin, optimizePlugin, guardrailPlugin],
+    null,
+  )
+  assert(defaults.map((plugin) => plugin.slug).join(',') === 'plugin-lab-guardrails,plugin-lab-evals,clawmax-optimize,plugin-lab-review-notes', 'Expected Review to be the final default plugin')
+
+  const saved = normalizePluginNavOrder(
+    [reviewPlugin, evalPlugin, optimizePlugin, guardrailPlugin],
+    ['clawmax-optimize', 'plugin-lab-review-notes', 'missing', 'clawmax-optimize'],
+  )
+  assert(saved[0].slug === 'clawmax-optimize' && saved[1].slug === 'plugin-lab-review-notes', 'Expected valid saved browser order to win')
+  assert(new Set(saved.map((plugin) => plugin.slug)).size === 4, 'Expected duplicate and missing saved entries to be normalized')
 })
 
 test('formatPluginDiagnosticsSummary distinguishes healthy, unhealthy, and empty hosts', () => {

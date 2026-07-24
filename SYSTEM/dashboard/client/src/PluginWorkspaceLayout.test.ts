@@ -31,6 +31,11 @@ assert(pluginPageSource.includes("viewMode === 'graph' ? ("), 'Plugin content mu
 assert(pluginPageSource.includes('selectedSuggestedTemplateId'), 'Suggested items must expose inspectable details')
 assert(pluginPageSource.includes('heading="Suggested item"'), 'Suggested relationship views must identify their own records')
 assert(pluginPageSource.includes('Actions <span className="text-xs">▾</span>'), 'Plugin refresh belongs in the standard Actions menu')
+assert(appSource.includes('PLUGIN_NAV_ORDER_STORAGE_KEY'), 'Plugin navigation order must persist in the current browser')
+assert(appSource.includes('handlePluginDragOver'), 'Plugin navigation items must support reordering')
+assert(appSource.includes('min-w-0 flex-1 overflow-auto overflow-x-hidden'), 'Plugin routes must not widen the mobile dashboard viewport')
+assert(pluginPageSource.includes('max-w-2xl break-words text-sm leading-5'), 'Plugin descriptions must wrap into a readable multi-line measure')
+assert(pluginPageSource.includes("localStorage.setItem(`clawmax-plugin-view-mode:${plugin.slug}`"), 'Plugin view selection must persist like core tabs')
 assert(pluginPageSource.includes('history: []'), 'Suggested guardrails must normalize persistence-only history before preview')
 assert(pluginPageSource.includes('runs: []'), 'Suggested evals must normalize persistence-only runs before preview')
 assert(pluginPageSource.includes('fields: base.fields || {}'), 'Suggested generic plugins must normalize declarative fields before preview')
@@ -38,4 +43,4 @@ assert(pluginPageSource.includes('min-w-0 w-full sm:w-auto'), 'Plugin headers mu
 assert(manifests.every((manifest) => !/dormant|test plugin|mvp/i.test(`${manifest.name} ${manifest.description} ${manifest.version}`)), 'Enabled plugin UI copy must be product-ready')
 assert(new Set(manifests.map((manifest) => manifest.icon)).size === manifests.length, 'Each first-party plugin must declare a distinct navigation icon')
 
-console.log('PluginWorkspaceLayout.test.ts: 17 tests passed')
+console.log('PluginWorkspaceLayout.test.ts: 22 tests passed')

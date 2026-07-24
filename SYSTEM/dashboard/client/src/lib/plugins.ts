@@ -64,6 +64,39 @@ export interface PluginManifest {
   }
 }
 
+export const PLUGIN_NAV_ORDER_STORAGE_KEY = 'clawmax-plugin-nav-order'
+
+export function normalizePluginNavOrder(
+  plugins: PluginManifest[],
+  savedOrder: unknown,
+): PluginManifest[] {
+  const bySlug = new Map(plugins.map((plugin) => [plugin.slug, plugin]))
+  const savedSlugs = Array.isArray(savedOrder)
+    ? savedOrder.filter((slug): slug is string => typeof slug === 'string')
+    : []
+  const seen = new Set<string>()
+  const ordered: PluginManifest[] = []
+
+  for (const slug of savedSlugs) {
+    const plugin = bySlug.get(slug)
+    if (!plugin || seen.has(slug)) continue
+    seen.add(slug)
+    ordered.push(plugin)
+  }
+
+  const remaining = plugins
+    .filter((plugin) => !seen.has(plugin.slug))
+    .sort((a, b) => {
+      const aReview = a.objectKind === 'review-note'
+      const bReview = b.objectKind === 'review-note'
+      if (aReview !== bReview) return aReview ? 1 : -1
+      const orderDifference = (a.nav?.order ?? 999) - (b.nav?.order ?? 999)
+      return orderDifference || a.name.localeCompare(b.name)
+    })
+
+  return [...ordered, ...remaining]
+}
+
 export function getPluginNavLabel(plugin: PluginManifest): string {
   return plugin.nav?.label?.trim() || plugin.name
 }

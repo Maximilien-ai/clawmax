@@ -13,6 +13,7 @@ function assert(condition: boolean, message: string) {
 }
 
 assert(manifest.nav.label === 'Review', 'Review plugin must use a compact navigation label')
+assert(manifest.nav.order === 1000, 'Review must be the last plugin in the default navigation order')
 assert(manifest.ui.list.groupBy === 'release', 'Review records must be compartmentalized by release')
 assert(manifest.ui.list.checkField === 'completed', 'Review records must declare their completion checkbox')
 assert(checklistFiles.length === 1, 'Each release must be defined by one checklist file')
@@ -38,5 +39,9 @@ assert(pageSource.includes('w-full min-w-0 max-w-7xl overflow-x-hidden'), 'Plugi
 assert(pageSource.includes('min-w-0 overflow-hidden rounded-lg border border-sky-200'), 'Suggested cards must shrink within phone viewports')
 assert(checklist.items.some((item: any) => item.id === 'all-plugin-tab-layouts'), 'RC6 must explicitly verify every enabled plugin tab and view mode')
 assert(checklist.items.find((item: any) => item.id === 'all-plugin-tab-layouts')?.description.includes('desktop and mobile'), 'Cross-plugin layout review must cover desktop and mobile')
+assert(pageSource.includes('Export release review'), 'Review actions must expose a release report export')
+assert(pageSource.includes('collectRecentRuntimeErrors'), 'Review exports must collect recent runtime errors')
+assert(pageSource.includes('Reviewer name'), 'Review export must identify the reviewer')
+assert(pageSource.includes("kind === 'onprem' ? 'On-prem'"), 'Review export must identify local, cloud, and on-prem environments')
 
-console.log('PluginReviewChecklist.test.ts: 25 tests passed')
+console.log('PluginReviewChecklist.test.ts: 30 tests passed')
