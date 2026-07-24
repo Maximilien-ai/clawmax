@@ -26,6 +26,7 @@ All notable changes to ClawMax are documented here.
 - **Scrollable Sidebar Layout** — long plugin and System navigation now scrolls inside the dark viewport-height sidebar while account and version controls remain visible instead of overflowing onto the page background.
 - **Mobile Plugin And Export Layout** — plugin routes constrain horizontal overflow and the Review export dialog keeps its header, scrollable content, and actions usable at narrow mobile widths.
 - **Mobile Plugin Toolbar Wrapping** — plugin view controls use their own mobile row so Create and Actions remain visible instead of being clipped offscreen.
+- **Cached Plugin Suggestions** — plugin suggestion files are cached for five minutes, revisited plugin pages retain their rendered data while refreshing in the background, and the explicit Refresh action bypasses the cache.
 
 ### Planned
 - **2.0 Public Plugin And AI-Scoring Foundation** — complete the generic contribution-based plugin contract for pages, APIs, data, actions, jobs, events, settings, skills, providers, docs, and extension points; then publish scorer contracts and user-facing scoring surfaces on that foundation.

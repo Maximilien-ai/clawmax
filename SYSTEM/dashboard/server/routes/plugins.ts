@@ -62,7 +62,7 @@ router.get('/:pluginId/templates', (req, res) => {
   if (!plugin) return res.status(404).json({ error: 'Plugin not found' })
   res.json({
     plugin,
-    templates: listPluginTemplates(plugin),
+    templates: listPluginTemplates(plugin, { forceRefresh: req.query.refresh === '1' }),
   })
 })
 

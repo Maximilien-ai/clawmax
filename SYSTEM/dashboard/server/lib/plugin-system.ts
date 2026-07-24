@@ -14,6 +14,14 @@ export type PluginFieldValue = string | number | boolean | string[] | null
 export type PluginCapability = 'notifications' | 'docs' | 'agents' | 'workflows' | 'communications'
 
 const PLUGIN_CAPABILITIES: PluginCapability[] = ['docs', 'notifications', 'agents', 'workflows', 'communications']
+const PLUGIN_TEMPLATE_CACHE_TTL_MS = 5 * 60 * 1000
+
+interface PluginTemplateCacheEntry {
+  templates: PluginRecordTemplate[]
+  expiresAt: number
+}
+
+const pluginTemplateCache = new Map<string, PluginTemplateCacheEntry>()
 
 export interface PluginRecordFieldSchema {
   type: 'string' | 'number' | 'integer' | 'boolean' | 'array'
@@ -837,13 +845,35 @@ function normalizeTemplateFile(plugin: PluginManifest, value: any): PluginRecord
   })
 }
 
-export function listPluginTemplates(plugin: PluginManifest): PluginRecordTemplate[] {
-  const pluginDir = findPluginDirectory(plugin)
-  if (!pluginDir) return []
-  const templateDir = path.join(pluginDir, PLUGIN_TEMPLATE_DIR)
-  if (!fs.existsSync(templateDir)) return []
+export function clearPluginTemplateCache(plugin?: Pick<PluginManifest, 'slug'>): void {
+  if (plugin) {
+    pluginTemplateCache.delete(plugin.slug)
+    return
+  }
+  pluginTemplateCache.clear()
+}
 
-  return fs.readdirSync(templateDir, { withFileTypes: true })
+export function listPluginTemplates(
+  plugin: PluginManifest,
+  options: { forceRefresh?: boolean } = {},
+): PluginRecordTemplate[] {
+  const cached = pluginTemplateCache.get(plugin.slug)
+  if (!options.forceRefresh && cached && cached.expiresAt > Date.now()) {
+    return cached.templates
+  }
+
+  const pluginDir = findPluginDirectory(plugin)
+  if (!pluginDir) {
+    pluginTemplateCache.delete(plugin.slug)
+    return []
+  }
+  const templateDir = path.join(pluginDir, PLUGIN_TEMPLATE_DIR)
+  if (!fs.existsSync(templateDir)) {
+    pluginTemplateCache.delete(plugin.slug)
+    return []
+  }
+
+  const templates = fs.readdirSync(templateDir, { withFileTypes: true })
     .filter((entry) => entry.isFile() && entry.name.endsWith('.json'))
     .map((entry) => readJsonFile<any>(path.join(templateDir, entry.name)))
     .flatMap((value) => normalizeTemplateFile(plugin, value))
@@ -852,6 +882,12 @@ export function listPluginTemplates(plugin: PluginManifest): PluginRecordTemplat
       return Boolean(value.id) && Boolean(value.name)
     })
     .sort((a, b) => a.name.localeCompare(b.name))
+
+  pluginTemplateCache.set(plugin.slug, {
+    templates,
+    expiresAt: Date.now() + PLUGIN_TEMPLATE_CACHE_TTL_MS,
+  })
+  return templates
 }
 
 function writePluginRecords(plugin: PluginManifest, records: PluginRecord[]): void {

@@ -36,6 +36,9 @@ assert(pluginPageSource.includes("collectionTab === 'suggested' && ("), 'Suggest
 assert(pluginPageSource.includes('value={suggestionSort}'), 'Suggested entries must expose independent sorting')
 assert(pluginPageSource.includes('suggestionTags'), 'Suggested entries must expose independent tag filters')
 assert(pluginPageSource.includes("setCollectionTab('active')"), 'Using a suggestion must return users to their active workspace entries')
+assert(pluginPageSource.includes('const hasLoadedRef = useRef(false)'), 'Revisited plugin pages must retain rendered data during background refreshes')
+assert(pluginPageSource.includes('const [contextRes, itemsRes, templatesRes] = await Promise.all(['), 'Plugin context, items, and suggestions must load in parallel')
+assert(pluginPageSource.includes("forceTemplateRefresh ? '?refresh=1' : ''"), 'The explicit Refresh action must bypass the suggestion cache')
 assert(pluginPageSource.includes('Actions <span className="text-xs">▾</span>'), 'Plugin refresh belongs in the standard Actions menu')
 assert(appSource.includes('PLUGIN_NAV_ORDER_STORAGE_KEY'), 'Plugin navigation order must persist in the current browser')
 assert(appSource.includes('handlePluginDragOver'), 'Plugin navigation items must support reordering')
@@ -50,4 +53,4 @@ assert(pluginPageSource.includes('flex w-full items-center overflow-hidden round
 assert(manifests.every((manifest) => !/dormant|test plugin|mvp/i.test(`${manifest.name} ${manifest.description} ${manifest.version}`)), 'Enabled plugin UI copy must be product-ready')
 assert(new Set(manifests.map((manifest) => manifest.icon)).size === manifests.length, 'Each first-party plugin must declare a distinct navigation icon')
 
-console.log('PluginWorkspaceLayout.test.ts: 29 tests passed')
+console.log('PluginWorkspaceLayout.test.ts: 32 tests passed')

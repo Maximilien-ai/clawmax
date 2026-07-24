@@ -12,6 +12,7 @@ import { createWorkflow } from './workflows'
 import { getActiveNotifications } from './notifications'
 import {
   applyPluginTemplate,
+  clearPluginTemplateCache,
   deletePluginRecord,
   emitPluginRecordNotification,
   generatePluginRecordDocument,
@@ -154,6 +155,35 @@ async function run() {
     assert.strictEqual(plugins[2]?.visibility, 'public', 'Expected Optimize to remain public')
     assert(plugins.every((plugin) => plugin.nav?.section === 'plugins'), 'Expected plugins to target the plugin nav section')
     assert(plugins.every((plugin) => plugin.capabilities?.notifications && plugin.capabilities?.docs), 'Expected plugins to declare core host capabilities')
+  })
+
+  await test('plugin suggestions are cached until an explicit refresh', () => {
+    const plugin = getPluginBySlug('plugin-lab-guardrails')
+    assert(plugin, 'Expected guardrails test plugin manifest to load')
+    clearPluginTemplateCache(plugin!)
+
+    const originalReadFileSync = fs.readFileSync
+    let templateReads = 0
+    ;(fs as any).readFileSync = (...args: any[]) => {
+      const filePath = String(args[0] || '')
+      if (filePath.includes(`${path.sep}templates${path.sep}`) && filePath.endsWith('.json')) {
+        templateReads++
+      }
+      return (originalReadFileSync as any).apply(fs, args)
+    }
+
+    try {
+      assert(listPluginTemplates(plugin!).length > 0, 'Expected suggestions on the first read')
+      const readsAfterFirstLoad = templateReads
+      assert(readsAfterFirstLoad > 0, 'Expected the first load to read suggestion files')
+      assert(listPluginTemplates(plugin!).length > 0, 'Expected cached suggestions on the second read')
+      assert.strictEqual(templateReads, readsAfterFirstLoad, 'Expected cached suggestions to avoid repeated file reads')
+      assert(listPluginTemplates(plugin!, { forceRefresh: true }).length > 0, 'Expected forced suggestion refresh')
+      assert(templateReads > readsAfterFirstLoad, 'Expected forced refresh to reread suggestion files')
+    } finally {
+      ;(fs as any).readFileSync = originalReadFileSync
+      clearPluginTemplateCache(plugin!)
+    }
   })
 
   await test('plugin paths can point directly at a standalone plugin repo root', () => {

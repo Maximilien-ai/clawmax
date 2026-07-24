@@ -1295,6 +1295,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
   const { user, config: authConfig } = useAuth()
   const workflowCreateMenuButtonRef = useRef<HTMLButtonElement | null>(null)
   const actionsMenuButtonRef = useRef<HTMLButtonElement | null>(null)
+  const hasLoadedRef = useRef(false)
   const [context, setContext] = useState<PluginWorkspaceContext>({ agents: [], workflows: [], groups: [], communities: [] })
   const [items, setItems] = useState<PluginRecord[]>([])
   const [templates, setTemplates] = useState<PluginRecordTemplate[]>([])
@@ -1340,18 +1341,21 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
   const checkField = getPluginCheckField(plugin)
   const isChecklist = Boolean(groupField && checkField)
 
-  const load = async () => {
+  const load = async ({ forceTemplateRefresh = false }: { forceTemplateRefresh?: boolean } = {}) => {
     try {
-      setLoading(true)
-      const [contextRes, itemsRes] = await Promise.all([
+      if (!hasLoadedRef.current) setLoading(true)
+      const templateQuery = forceTemplateRefresh ? '?refresh=1' : ''
+      const [contextRes, itemsRes, templatesRes] = await Promise.all([
         fetch(`/api/plugins/${encodeURIComponent(plugin.slug)}/context`),
         fetch(`/api/plugins/${encodeURIComponent(plugin.slug)}/items`),
+        fetch(`/api/plugins/${encodeURIComponent(plugin.slug)}/templates${templateQuery}`),
       ])
-      const templatesRes = await fetch(`/api/plugins/${encodeURIComponent(plugin.slug)}/templates`)
       if (!contextRes.ok || !itemsRes.ok || !templatesRes.ok) throw new Error('Failed to load plugin data')
-      const contextJson = await contextRes.json()
-      const itemsJson = await itemsRes.json()
-      const templatesJson = await templatesRes.json()
+      const [contextJson, itemsJson, templatesJson] = await Promise.all([
+        contextRes.json(),
+        itemsRes.json(),
+        templatesRes.json(),
+      ])
       setContext(contextJson.context || { agents: [], workflows: [], groups: [], communities: [] })
       setItems(Array.isArray(itemsJson.items) ? itemsJson.items : [])
       setTemplates(Array.isArray(templatesJson.templates) ? templatesJson.templates : [])
@@ -1359,6 +1363,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
     } catch (err: any) {
       setError(err.message || 'Failed to load plugin data')
     } finally {
+      hasLoadedRef.current = true
       setLoading(false)
     }
   }
@@ -1754,7 +1759,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                   <button
                     onClick={() => {
                       setShowActionsMenu(false)
-                      void load()
+                      void load({ forceTemplateRefresh: true })
                     }}
                     className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700"
                   >
