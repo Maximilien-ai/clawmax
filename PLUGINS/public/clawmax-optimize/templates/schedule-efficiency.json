@@ -1,0 +1,25 @@
+{
+  "id": "schedule-efficiency",
+  "name": "Workflow schedule review",
+  "description": "Reduce the frequency of a recurring workflow when its schedule exceeds its budget.",
+  "recommended": true,
+  "tags": ["workflow", "schedule", "budget"],
+  "payload": {
+    "name": "Workflow schedule review",
+    "description": "Compare workflow frequency with monthly usage and recommend a sustainable schedule.",
+    "tags": ["workflow", "schedule", "budget"],
+    "enabled": true,
+    "fields": {
+      "scope": "workflow",
+      "targetIds": [],
+      "monthlyTokenBudget": 750000,
+      "monthlyCostBudget": 20,
+      "currentTokens": 0,
+      "currentCost": 0,
+      "recommendedModel": "",
+      "recommendedSchedule": "Run once daily",
+      "status": "draft",
+      "rationale": "Select a recurring workflow and compare its run frequency with the available monthly budget."
+    }
+  }
+}

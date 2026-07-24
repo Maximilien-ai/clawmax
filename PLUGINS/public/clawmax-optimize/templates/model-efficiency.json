@@ -1,0 +1,25 @@
+{
+  "id": "model-efficiency",
+  "name": "Model efficiency review",
+  "description": "Compare a higher-cost agent model with a more economical candidate.",
+  "recommended": true,
+  "tags": ["agent", "model", "cost"],
+  "payload": {
+    "name": "Model efficiency review",
+    "description": "Test whether a less expensive model can preserve acceptable quality for a selected agent.",
+    "tags": ["agent", "model", "cost"],
+    "enabled": true,
+    "fields": {
+      "scope": "agent",
+      "targetIds": [],
+      "monthlyTokenBudget": 1000000,
+      "monthlyCostBudget": 30,
+      "currentTokens": 0,
+      "currentCost": 0,
+      "recommendedModel": "Choose after comparing quality",
+      "recommendedSchedule": "",
+      "status": "draft",
+      "rationale": "Select an agent, record its current model and usage, then compare a lower-cost model on representative work."
+    }
+  }
+}

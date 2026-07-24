@@ -19,6 +19,7 @@ import {
   normalizePluginNavOrder,
   normalizePluginDiagnosticsReport,
   scorePluginDraft,
+  splitPluginDetailLine,
   sortPluginTemplates,
   type PluginManifest,
   type PluginRecord,
@@ -285,6 +286,17 @@ test('generic plugin records participate in search, scope, and declarative detai
   assert(formatPluginScopeSummary(reviewRecord) === '3 configured fields', 'Expected generic configured field count')
   const lines = getPluginDetailLines(reviewPlugin, reviewRecord)
   assert(lines.includes('Completed: no'), 'Expected boolean list field presentation')
+})
+
+test('suggested detail lines split labels from visible values', () => {
+  assert(
+    JSON.stringify(splitPluginDetailLine('Monthly cost budget: 25')) === JSON.stringify({ label: 'Monthly cost budget', value: '25' }),
+    'Expected detail label and value to be split at the first colon',
+  )
+  assert(
+    JSON.stringify(splitPluginDetailLine('Unstructured detail')) === JSON.stringify({ label: 'Detail', value: 'Unstructured detail' }),
+    'Expected unstructured details to retain visible text',
+  )
 })
 
 test('getPluginUsageTotals aggregates eval runs for plugin usage surfaces', () => {

@@ -1,0 +1,25 @@
+{
+  "id": "workspace-ceiling",
+  "name": "Workspace budget ceiling",
+  "description": "Set a shared monthly token and cost ceiling before tuning individual work.",
+  "recommended": true,
+  "tags": ["workspace", "budget", "starter"],
+  "payload": {
+    "name": "Workspace budget ceiling",
+    "description": "Create a workspace-level allowance that workflow and agent recommendations must respect.",
+    "tags": ["workspace", "budget", "starter"],
+    "enabled": true,
+    "fields": {
+      "scope": "workspace",
+      "targetIds": [],
+      "monthlyTokenBudget": 5000000,
+      "monthlyCostBudget": 100,
+      "currentTokens": 0,
+      "currentCost": 0,
+      "recommendedModel": "",
+      "recommendedSchedule": "",
+      "status": "draft",
+      "rationale": "Record the workspace's current usage, then use this ceiling when reviewing agent and workflow plans."
+    }
+  }
+}

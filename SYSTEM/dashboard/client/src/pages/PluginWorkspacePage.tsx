@@ -27,6 +27,7 @@ import {
   matchesPluginTemplateSearch,
   matchesPluginSearch,
   scorePluginDraft,
+  splitPluginDetailLine,
   sortPluginTemplates,
   type PluginTemplateSort,
   usesLegacyPluginAdapter,
@@ -1087,24 +1088,29 @@ function TemplateCard({
           </div>
         </div>
         <div className={`grid w-full min-w-0 grid-cols-2 gap-2 ${compact ? '' : 'sm:flex sm:w-auto'}`}>
-          <button
-            type="button"
-            onClick={() => setShowDetails((current) => !current)}
-            className={`${headerSecondaryButtonClass} ${headerSecondaryButtonIdleClass} flex-1 justify-center sm:flex-none`}
-          >
-            {showDetails ? 'Hide details' : 'Details'}
-          </button>
+          {detailLines.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowDetails((current) => !current)}
+              className={`${headerSecondaryButtonClass} ${headerSecondaryButtonIdleClass} flex-1 justify-center sm:flex-none`}
+            >
+              {showDetails ? 'Hide details' : 'Details'}
+            </button>
+          )}
           <button onClick={onApply} className={`${headerPrimaryButtonClass} flex-1 justify-center sm:flex-none`}>Use</button>
         </div>
       </div>
       {showDetails && (
         <dl className="mt-4 grid w-full min-w-0 gap-3 overflow-hidden border-t border-sky-200/80 pt-4 text-sm dark:border-sky-900/50 sm:grid-cols-2">
-          {detailLines.map((line) => (
-            <div key={`${line.label}:${line.value}`} className="min-w-0">
-              <dt className="text-xs font-medium uppercase tracking-wide text-gray-400">{line.label}</dt>
-              <dd className="mt-0.5 min-w-0 break-words text-gray-700 [overflow-wrap:anywhere] dark:text-gray-200">{line.value}</dd>
-            </div>
-          ))}
+          {detailLines.map((line) => {
+            const detail = splitPluginDetailLine(line)
+            return (
+              <div key={line} className="min-w-0">
+                <dt className="text-xs font-medium uppercase tracking-wide text-gray-400">{detail.label}</dt>
+                <dd className="mt-0.5 min-w-0 break-words text-gray-700 [overflow-wrap:anywhere] dark:text-gray-200">{detail.value}</dd>
+              </div>
+            )
+          })}
         </dl>
       )}
     </div>
@@ -1436,7 +1442,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
   const suggestionTags = useMemo(() => {
     const allTags = collectPluginTemplateTags(recommendedTemplates)
     if (!isChecklist) return allTags
-    return ['1.9.9', '2.0.0', '2.0.0-test-rc9'].filter((tag) => allTags.includes(tag))
+    return ['1.9.9', '2.0.0', '2.0.0-test-rc10'].filter((tag) => allTags.includes(tag))
   }, [recommendedTemplates, isChecklist])
   const filteredSuggestions = useMemo(() => sortPluginTemplates(
     recommendedTemplates.filter((template) => (

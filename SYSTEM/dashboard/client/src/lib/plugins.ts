@@ -399,6 +399,15 @@ export function getPluginDetailLines(plugin: PluginManifest, item: PluginRecord)
     .map((key) => `${plugin.recordSchema!.properties[key].title}: ${formatPluginFieldValue(item.fields[key])}`)
 }
 
+export function splitPluginDetailLine(line: string): { label: string; value: string } {
+  const separator = line.indexOf(':')
+  if (separator <= 0) return { label: 'Detail', value: line }
+  return {
+    label: line.slice(0, separator).trim(),
+    value: line.slice(separator + 1).trim(),
+  }
+}
+
 export interface PluginWorkspaceContext {
   agents: Array<{ id: string; name: string }>
   workflows: Array<{ id: string; name: string }>

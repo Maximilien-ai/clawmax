@@ -20,8 +20,11 @@ assert(manifest.recordSchema.required.includes('monthlyTokenBudget'), 'Optimize 
 assert(manifest.recordSchema.required.includes('monthlyCostBudget'), 'Optimize must treat cost as a first-class budget')
 assert(manifest.recordSchema.properties.recommendedModel.type === 'string', 'Optimize must support model recommendations')
 assert(manifest.recordSchema.properties.recommendedSchedule.type === 'string', 'Optimize must support schedule recommendations')
-assert(templateFiles.length === 2, 'Optimize must provide workflow and agent starting points')
+assert(templateFiles.length === 5, 'Optimize must provide five distinct workspace, workflow, and agent starting points')
 assert(templates.every((template) => template.recommended === true), 'Optimize starting points must be suggested items')
 assert(new Set(templates.map((template) => template.id)).size === templates.length, 'Optimize starting point IDs must be unique')
+assert(templates.some((template) => template.payload.fields.scope === 'workspace'), 'Optimize must include a workspace budget starting point')
+assert(templates.some((template) => template.payload.fields.recommendedSchedule), 'Optimize must include a schedule starting point')
+assert(templates.some((template) => template.tags.includes('model')), 'Optimize must include a model-efficiency starting point')
 
-console.log('PluginOptimizeSkeleton.test.ts: 12 tests passed')
+console.log('PluginOptimizeSkeleton.test.ts: 15 tests passed')
