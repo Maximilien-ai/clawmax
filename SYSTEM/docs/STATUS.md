@@ -33,15 +33,15 @@
 ### 2.0.0 development
 
 - Branch: `main`
-- Current test candidate: `2.0.0-test-rc9`, focused on mobile plugin layout, reviewer identity prefill, and a pruned plain-language test handoff after Max completed all RC8 checks on on-prem.
+- Current test candidate: `2.0.0-test-rc10`, focused on visible suggestion details and larger demo-ready Guardrails, Evals, and Optimize catalogs after Max completed all RC9 checks.
 - Architecture: [Plugin System 2.0](../../PLUGINS/PLUGIN_SYSTEM_2_0.md)
 - Authoring contract: [Plugin Authoring 2.0](../../PLUGINS/PLUGIN_AUTHORING_2_0.md)
 - Generic architecture plan: [PUBLIC_PLUGIN_ARCHITECTURE_2_0.md](planning/PUBLIC_PLUGIN_ARCHITECTURE_2_0.md)
 - Optimize plan: [PUBLIC_OPTIMIZE_PLUGIN_2_0.md](planning/PUBLIC_OPTIMIZE_PLUGIN_2_0.md)
 - Mail/provider plan: [PUBLIC_MODELS_GATEWAYS_EMAIL_2_0.md](planning/PUBLIC_MODELS_GATEWAYS_EMAIL_2_0.md)
 - Activity Export/partner plan: [PUBLIC_ACTIVITY_EXPORT_PARTNERS_2_0.md](planning/PUBLIC_ACTIVITY_EXPORT_PARTNERS_2_0.md)
-- RC9 validation focus: phone-width plugin controls and expanded suggestion cards, authenticated or browser-remembered reviewer details, clean startup, and no repetition of Max's completed RC8 acceptance checks.
-- Immediate work after RC9 feedback: reconcile the declarative v2 contract with the generic contribution model; add manifest-declared custom actions, error isolation, and external packaging validation on top of the enforced host capabilities.
+- RC10 validation focus: nine private Guardrails suggestions, nine private Evals suggestions, five public Optimize suggestions, visible Details content, successful Use flows, and clean public/private image startup.
+- Immediate work after RC10 feedback: reconcile the declarative v2 contract with the generic contribution model; add manifest-declared custom actions, error isolation, and external packaging validation on top of the enforced host capabilities.
 - Product work: public AI scoring, public token-first Optimize, curated public Gmail and Microsoft 365/Outlook plugins, and a consent-gated Activity Export contract proven first with ClawMax.ai and then Digo.
 - Plugins remain domain-neutral. Guardrails and evaluations are possible implementations, not fixed host-level plugin types.
 
