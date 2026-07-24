@@ -20,8 +20,9 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 
 - `main` now carries the public `clawmax.ai/v2` plugin platform. A plugin can contribute any combination of pages, APIs, data, actions, jobs, events, settings, skills, providers, docs, and extension points; guardrails and evaluations are implementations, not host-level plugin types.
 - Public and private plugins use the same generic contract. Private enterprise integrations can add organization-specific tabs and capabilities without being bundled in the public repository or default image.
+- Review and Optimize are the public product plugins in the current 2.0 phase. Other plugin implementations remain private unless their ownership is explicitly changed; `plugin-lab-*` directories are synthetic contract fixtures, not private product source.
 - Public 2.0 products include AI scoring, the token-first Optimize plugin, and curated Gmail and Microsoft 365/Outlook plugins. Mail begins with read/search/draft; sending and destructive actions require separate grants and confirmation.
-- See the public [models, gateways, and email partner plan](SYSTEM/docs/planning/PUBLIC_MODELS_GATEWAYS_EMAIL_1_9_9_2_0.md) for the research, security rules, release split, and test gates.
+- See the public [models, gateways, and email partner plan](SYSTEM/docs/planning/PUBLIC_MODELS_GATEWAYS_EMAIL_2_0.md) for the research, security rules, shipped provider decisions, and 2.0 test gates.
 - See the public [Optimize plugin plan](SYSTEM/docs/planning/PUBLIC_OPTIMIZE_PLUGIN_2_0.md) for token accounting, pricing snapshots, workflow budget semantics, recommendations, and delivery phases.
 - See the public [2.0 plugin architecture plan](SYSTEM/docs/planning/PUBLIC_PLUGIN_ARCHITECTURE_2_0.md) for the generic contribution-based contract. Guardrails and evaluations are plugin implementations, not fixed plugin types.
 

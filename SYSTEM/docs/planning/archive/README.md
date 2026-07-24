@@ -3,19 +3,18 @@
 Completed, promoted, or superseded plans live here. They are retained for
 release history and decision context, but they are not active sources of truth.
 
-Current plans remain one directory above this archive:
+Active 2.0 plans and contracts are maintained one directory above this archive
+and in:
 
-- `SIMPLIFY_HARDEN_OPTIMIZE_1_9_8.md`
-- `SIMPLIFY_HARDEN_OPTIMIZE_1_9_9.md`
-
-The active 2.0 plugin contract is maintained in:
-
+- [`PUBLIC_PLUGIN_ARCHITECTURE_2_0.md`](../PUBLIC_PLUGIN_ARCHITECTURE_2_0.md)
+- [`PUBLIC_OPTIMIZE_PLUGIN_2_0.md`](../PUBLIC_OPTIMIZE_PLUGIN_2_0.md)
+- [`PUBLIC_MODELS_GATEWAYS_EMAIL_2_0.md`](../PUBLIC_MODELS_GATEWAYS_EMAIL_2_0.md)
 - [`PLUGINS/PLUGIN_SYSTEM_2_0.md`](../../../../PLUGINS/PLUGIN_SYSTEM_2_0.md)
 - [`PLUGINS/PLUGIN_AUTHORING_2_0.md`](../../../../PLUGINS/PLUGIN_AUTHORING_2_0.md)
 
 Archived categories include:
 
-- promoted 1.8.x and 1.9.0-1.9.7 release plans
+- promoted 1.8.x and 1.9.x release plans
 - completed dated sprint plans
 - completed Builder and client-simplification passes
 - superseded plugin MVP planning

@@ -14,7 +14,8 @@ All notable changes to ClawMax are documented here.
 - **Public Optimize Skeleton** — the first public `clawmax-optimize` plugin contract models workflow, agent, and workspace plans with monthly token and cost budgets, current usage, model and schedule recommendations, status, rationale, and suggested workflow/agent starting points.
 - **Plugin Draft Quality Scoring** — AI Create and manual plugin creation expose a public deterministic quality score with concrete suggestions for missing targets, controls, eval inputs, expected outputs, and generic required fields.
 - **Plugin Relationships And Lifecycle Evidence** — plugin workspaces add a relationship view alongside grid, detail, and list views; active guardrails appear on targeted agent and workflow cards; guardrail activation history and eval completion notifications make plugin activity visible after an operation.
-- **Expanded Guardrail And Eval Suggestions** — private combined test deployments expose six suggested guardrails and six suggested evals for customization and demo coverage while their manifests and item definitions remain in the owning private repositories.
+- **Persistent Plugin Navigation And Views** — plugin entries can be reordered in the sidebar and retain that browser-local order, with Review last by default; each plugin also restores its last selected grid, detail, list, or relationship view.
+- **Release Review Export** — Review exports a release-specific Markdown handoff containing checklist outcomes, notes, evidence, reviewer identity, environment and instance details, timestamps, and sanitized recent runtime errors.
 
 ### Fixed
 - **Checklist-First Review UI** — release checks now render as a responsive list with direct completion and note editing. Internal checklist seeds no longer appear as misleading `Recommended` cards with `Use Template` actions.
@@ -22,6 +23,7 @@ All notable changes to ClawMax are documented here.
 - **Plugin Starter Language** — generic plugin starter content now uses `Suggested` and `Use`, reserving `template` for ClawMax organization, agent, and workflow templates; applying a suggestion opens the selected item for immediate customization.
 - **Compact Plugin Navigation** — manifests can declare a one- or two-word `nav.label`; the sidebar truncates unexpected overflow with a tooltip while preserving the full plugin name on its page.
 - **Scrollable Sidebar Layout** — long plugin and System navigation now scrolls inside the dark viewport-height sidebar while account and version controls remain visible instead of overflowing onto the page background.
+- **Mobile Plugin And Export Layout** — plugin routes constrain horizontal overflow and the Review export dialog keeps its header, scrollable content, and actions usable at narrow mobile widths.
 
 ### Planned
 - **2.0 Public Plugin And AI-Scoring Foundation** — complete the generic contribution-based plugin contract for pages, APIs, data, actions, jobs, events, settings, skills, providers, docs, and extension points; then publish scorer contracts and user-facing scoring surfaces on that foundation.

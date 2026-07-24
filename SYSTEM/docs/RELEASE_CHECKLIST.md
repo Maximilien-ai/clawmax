@@ -2,6 +2,19 @@
 
 Use this as the final pass before the next dashboard release.
 
+## Long-Running Job Checks
+
+Before starting CI, image, deployment, or full-suite validation, record its
+observed average duration. Use two planned status checks:
+
+1. Check near half the expected duration to catch an early failure.
+2. If healthy and still running, check at the expected duration plus one minute.
+
+Do not continuously refresh a healthy job. If it exceeds the second checkpoint,
+switch to sparse checks and inspect logs only when there is a failure signal.
+For local tests, use one long wait with a small output budget and report the
+failure or final summary rather than streaming routine progress.
+
 ## 1. Environment and Startup
 
 - Copy values from [SYSTEM/dashboard/.env.example](../dashboard/.env.example) into `SYSTEM/dashboard/.env`
@@ -138,6 +151,10 @@ Use [MANUAL_RELEASE_SMOKE_CHECKLIST.md](MANUAL_RELEASE_SMOKE_CHECKLIST.md) as th
   - completed release work has moved to changelog/archive
   - remaining Builder quality work is framed as post-release eval/export/share polish
   - test automation priority
+- Documentation index, status, known issues, backlog, README, and changelog
+  agree on the stable version, current candidate, and active development line.
+- Completed release plans and release-specific manual checklists are archived,
+  while incomplete issue work remains in the active backlog.
 
 ## 6. 2.0 Plugin Release Gate
 

@@ -2,7 +2,7 @@
 
 **Current Version**: v1.9.9
 **Development Line**: 2.0.0
-**Last Updated**: July 22, 2026
+**Last Updated**: July 24, 2026
 **Status**: `v1.9.9` is promoted unchanged from `1.9.9-test-rc6`. `main` now owns the public 2.0 plugin platform, AI scoring, Optimize, Gmail, and Microsoft 365 work. `release-1.9.9` is retained only for release-blocking hotfixes.
 
 ---
@@ -16,8 +16,9 @@
 - The first generic `clawmax.ai/v2` declarative plugin contract is merged into `main`. It supports generic manifests, records, templates, storage, declarative UI, explicit enablement, compatibility checks, and zero-plugin operation.
 - System & Logs and `/api/plugins/diagnostics` now retain and explain loaded, disabled, invalid, incompatible, duplicate, and missing plugin outcomes instead of silently hiding discovery failures.
 - Plugin host capabilities are now deny-by-default: explicit document and notification operations return actionable `403` responses without a grant, and plugin workspace context is filtered across agent, workflow, group, and community access.
-- Local test runs and test images enable the three synthetic plugin-lab fixtures; compact plugin navigation, scroll containment, and release-scoped Review checklists are being validated for RC4. Stable image promotion clears the test-only selection.
-- Public and private plugins use the same host contract. Private source, credentials, distribution, and production enablement remain outside the public repository and default image.
+- Local test runs and test images enable synthetic plugin fixtures. RC7 adds the cumulative public Review checklist, plugin layout parity, mobile navigation containment, and local plugin enablement. Stable image promotion clears non-product test fixtures.
+- The current development tree adds browser-persisted plugin ordering with Review last by default, persistent per-plugin views, and release-review export with reviewer, instance, checklist, evidence, and sanitized recent-error context. These changes passed the full `413/413` local integration, validation, and coverage gate and have not yet been tagged as RC8.
+- Review and Optimize are the public product plugins in the current 2.0 phase. Public and private plugins use the same host contract, but all other plugin source, content, credentials, distribution, and production enablement remain in their owning private repositories and outside the public image. The public `plugin-lab-*` directories are synthetic contract fixtures only.
 
 ## Active Release Tracks
 
@@ -32,12 +33,12 @@
 ### 2.0.0 development
 
 - Branch: `main`
-- Current test candidate: `2.0.0-test-rc3`; RC4 is in preparation with compact plugin navigation, sidebar overflow containment, and release-scoped Review checklists.
+- Current test candidate: `2.0.0-test-rc7`; RC8 is intentionally deferred until the current local plugin navigation and Review export changes complete manual validation.
 - Architecture: [Plugin System 2.0](../../PLUGINS/PLUGIN_SYSTEM_2_0.md)
 - Authoring contract: [Plugin Authoring 2.0](../../PLUGINS/PLUGIN_AUTHORING_2_0.md)
 - Generic architecture plan: [PUBLIC_PLUGIN_ARCHITECTURE_2_0.md](planning/PUBLIC_PLUGIN_ARCHITECTURE_2_0.md)
 - Optimize plan: [PUBLIC_OPTIMIZE_PLUGIN_2_0.md](planning/PUBLIC_OPTIMIZE_PLUGIN_2_0.md)
-- Mail/provider plan: [PUBLIC_MODELS_GATEWAYS_EMAIL_1_9_9_2_0.md](planning/PUBLIC_MODELS_GATEWAYS_EMAIL_1_9_9_2_0.md)
+- Mail/provider plan: [PUBLIC_MODELS_GATEWAYS_EMAIL_2_0.md](planning/PUBLIC_MODELS_GATEWAYS_EMAIL_2_0.md)
 - Immediate work: reconcile the declarative v2 contract with the generic contribution model; add manifest-declared custom actions, error isolation, and external packaging validation on top of the enforced host capabilities.
 - Product work: public AI scoring, public token-first Optimize, and curated public Gmail and Microsoft 365/Outlook plugins.
 - Plugins remain domain-neutral. Guardrails and evaluations are possible implementations, not fixed host-level plugin types.

@@ -18,6 +18,13 @@
   and plugin-specific tests in their owning private repositories. Package them
   through the private aggregator; never copy private source into this repository
   or the public image.
+- Review and Optimize are the only public product plugins in the current 2.0
+  phase. Treat `PLUGINS/test/plugin-lab-*` as synthetic contract fixtures only;
+  they must not contain or become copies of private product implementations.
+- Keep every other plugin private unless its ownership is explicitly changed.
+  Public documentation may describe the generic host boundary, but must not
+  enumerate private plugin items, rules, prompts, schemas, or implementation
+  details.
 - A plugin can represent any ClawMax extension domain. Do not design generic
   plugin APIs or UI around assumptions that all plugins are guardrails or evals.
 
@@ -56,9 +63,30 @@
 - For public/private combined RCs, verify amd64 and arm64 image builds, registry
   smoke tests, packaged version identity, plugin discovery, restart persistence,
   and the public/private source boundary before reporting the release ready.
-- Poll long-running image and deployment jobs at intervals appropriate to their
-  expected duration, usually two to five minutes for a 15-minute build. Do not
-  burn time or tokens with rapid status refreshes.
+- Record the observed or documented duration before starting a long-running CI,
+  image, deployment, or test job. Do not continuously poll it.
+- Check once near half the expected duration to catch an early failure. If the
+  job is still healthy, check next at the expected completion time plus one
+  minute. Only use additional sparse checks when the job exceeds that window or
+  a known failure needs investigation.
+- When waiting on local test processes, use long yielded waits and small output
+  budgets. Report the failure or final summary instead of repeatedly relaying
+  routine progress output.
 - Before handoff, commit and push every owning repository with an approved
   lowercase prefix, record the relevant SHAs and CI links, and verify that no
   task-created changes remain uncommitted.
+
+## Documentation Maintenance
+
+- Audit active documentation when a stable release is promoted, a major release
+  changes phase, or release feedback materially changes the roadmap.
+- Keep `README.md`, `CHANGELOG.md`, `SYSTEM/docs/STATUS.md`,
+  `SYSTEM/docs/KNOWN_ISSUES.md`, `SYSTEM/docs/BACKLOG.md`, and the documentation
+  index aligned on the stable version, active development line, and release
+  boundary.
+- Move completed or superseded release plans and validation checklists into the
+  appropriate archive. Preserve useful history, but do not leave shipped work
+  presented as an active plan or backlog item.
+- Update archive indexes and links as part of the same change. Do not close or
+  archive a partially completed issue solely because one implementation phase
+  shipped; retain the remaining concrete work in the active backlog.

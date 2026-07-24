@@ -1,6 +1,6 @@
 # Simplify / Harden / Optimize 1.9.8
 
-> Status: completed and promoted as `v1.9.8`
+> Archive status: completed and promoted as `v1.9.8`
 > Baseline: `v1.9.7` / OpenClaw `v2026.6.11`
 > Last updated: July 18, 2026
 

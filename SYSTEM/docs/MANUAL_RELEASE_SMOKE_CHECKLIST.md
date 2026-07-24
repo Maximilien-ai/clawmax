@@ -2,7 +2,10 @@
 
 Use this after images/assets are built and before pushing a release broadly to customers.
 
-This file is intended to be edited directly during testing.
+This file is the reusable baseline for releases without a Review-plugin
+checklist. For 2.0 release candidates, use the Review plugin as the active
+release record so checklist state, notes, evidence, reviewer identity, instance
+details, and sanitized recent errors can be exported together.
 
 Conventions:
 - change `[ ]` to `[x]` when complete
@@ -10,9 +13,10 @@ Conventions:
 - use `[-]` for not applicable
 - add short notes directly under any item
 
-Template use:
-- keep this file as the reusable master checklist
-- for a specific release, duplicate it and rename it with the release number/date if you want a permanent testing record
+Checklist use:
+- keep this file unchanged as the reusable master checklist
+- use Review for active 2.0 release-candidate testing and export the completed handoff
+- if Review is unavailable, duplicate this file and archive the completed copy under `testing/archive/`
 
 ---
 

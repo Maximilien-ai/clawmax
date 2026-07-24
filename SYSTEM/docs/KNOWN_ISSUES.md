@@ -1,6 +1,6 @@
 # ClawMax Known Issues And Limitations
 
-**Last Updated**: July 21, 2026
+**Last Updated**: July 24, 2026
 **Stable Version**: v1.9.9
 **Development Track**: 2.0.0 on `main`
 
@@ -75,14 +75,16 @@ arbitrary frontend bundles or unrestricted server code.
 
 Before promotion, 2.0 still needs:
 
-- host-mediated actions and permission enforcement
+- manifest-declared custom actions with action-specific grants
 - external plugin packaging validation across local, cloud, and on-prem
-- actionable diagnostics for missing, disabled, incompatible, or unhealthy plugins
+- performance validation for plugin page and data loading
 - removal of remaining product-specific MVP0 adapters
 - a full zero-plugin and synthetic external-plugin release gate
 
 Private plugins remain external to this repository and are never enabled by
-default in the public image.
+default in the public image. Review and Optimize are the current public product
+plugins; similarly named `plugin-lab-*` content is synthetic test coverage and
+does not contain private product source.
 
 ## Tracking
 

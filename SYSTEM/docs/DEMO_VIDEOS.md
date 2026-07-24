@@ -53,4 +53,4 @@ If we only record a few first, prioritize:
 
 - [SYSTEM/docs/presentations/README.md](presentations/README.md)
 - [SYSTEM/docs/TESTING_GUIDE.md](TESTING_GUIDE.md)
-- [README.md](../README.md)
+- [README.md](../../README.md)

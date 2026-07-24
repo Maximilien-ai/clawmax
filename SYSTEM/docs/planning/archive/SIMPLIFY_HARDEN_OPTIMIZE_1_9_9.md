@@ -1,6 +1,6 @@
 # Simplify / Harden / Optimize 1.9.9
 
-> Status: completed and promoted as `v1.9.9` from RC6
+> Archive status: completed and promoted as `v1.9.9` from RC6
 > Baseline: promoted `1.9.8`
 > Runtime baseline: OpenClaw `v2026.6.11`
 > Last updated: July 21, 2026
@@ -11,7 +11,7 @@ Make workspace secrets usable by explicitly authorized agent skills without expo
 
 Public AI scoring remains a `2.0.0` product feature. `1.9.9` may add independently useful schemas, fixtures, or test primitives that reduce later implementation risk, but it must not ship a competing scoring API or partial user-facing scoring experience.
 
-The public xAI, OpenRouter, Gmail, and Microsoft 365 research and release split is tracked in [PUBLIC_MODELS_GATEWAYS_EMAIL_1_9_9_2_0.md](PUBLIC_MODELS_GATEWAYS_EMAIL_1_9_9_2_0.md). Native OpenRouter and runtime-gated xAI are implemented on this branch and await real-key local/container smoke. The mail security foundation remains a bounded `1.9.9` candidate; production Gmail and Outlook mailbox actions target public `2.0.0` partner plugins.
+The public xAI, OpenRouter, Gmail, and Microsoft 365 research and release split is tracked in [PUBLIC_MODELS_GATEWAYS_EMAIL_2_0.md](../PUBLIC_MODELS_GATEWAYS_EMAIL_2_0.md). Native OpenRouter and runtime-gated xAI shipped in this release. Production Gmail and Outlook mailbox actions target public `2.0.0` partner plugins.
 
 ## Tester Problem
 

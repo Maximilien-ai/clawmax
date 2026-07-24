@@ -1,9 +1,9 @@
 # Public Models, Gateways, And Email Partners
 
-> Status: OpenRouter and runtime-gated xAI implemented on `main`; mail foundation planned
-> Release targets: `1.9.9` foundation, `2.0.0` public partner plugins
+> Status: OpenRouter and runtime-gated xAI shipped in `v1.9.9`; mail partner plugins planned
+> Release target: `2.0.0` public partner plugins
 > Runtime baseline under test: OpenClaw `v2026.6.11`
-> Last updated: July 20, 2026
+> Last updated: July 24, 2026
 
 ## Decision Summary
 

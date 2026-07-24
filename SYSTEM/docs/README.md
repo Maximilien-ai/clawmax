@@ -1,6 +1,6 @@
 # ClawMax Documentation
 
-> Last updated: July 15, 2026
+> Last updated: July 24, 2026
 
 ## Active Documents
 
@@ -14,8 +14,9 @@
 | [SECURITY.md](SECURITY.md) | Security architecture and policies |
 | [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) | Pre-release verification steps |
 | [DEMO_VIDEOS.md](DEMO_VIDEOS.md) | Local demo video inventory and when to use it |
-| [planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_8.md](planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_8.md) | Active `1.9.8` feedback and bounded-feature release plan |
-| [planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_9.md](planning/SIMPLIFY_HARDEN_OPTIMIZE_1_9_9.md) | Reserved `1.9.9` follow-through plan |
+| [planning/PUBLIC_PLUGIN_ARCHITECTURE_2_0.md](planning/PUBLIC_PLUGIN_ARCHITECTURE_2_0.md) | Active public 2.0 plugin and AI-scoring plan |
+| [planning/PUBLIC_OPTIMIZE_PLUGIN_2_0.md](planning/PUBLIC_OPTIMIZE_PLUGIN_2_0.md) | Active public token-first Optimize plugin plan |
+| [planning/PUBLIC_MODELS_GATEWAYS_EMAIL_2_0.md](planning/PUBLIC_MODELS_GATEWAYS_EMAIL_2_0.md) | Active public Gmail and Microsoft 365 partner plan; records shipped model-provider decisions |
 | [../../PLUGINS/PLUGIN_SYSTEM_2_0.md](../../PLUGINS/PLUGIN_SYSTEM_2_0.md) | Public 2.0 plugin-host architecture and acceptance boundary |
 | [../../PLUGINS/PLUGIN_AUTHORING_2_0.md](../../PLUGINS/PLUGIN_AUTHORING_2_0.md) | Declarative 2.0 plugin authoring contract |
 | [architecture/DASHBOARD_RUNTIME_SPLIT.md](architecture/DASHBOARD_RUNTIME_SPLIT.md) | Investigation note for the 2-container vs 3-container dashboard runtime split |
@@ -44,7 +45,8 @@
 | `architecture/` | System design docs |
 | `features/` | Feature design docs |
 | `operations/` | Ops and deployment guides |
-| `planning/` | Active release plans only; completed and superseded plans live in `planning/archive/` |
+| `planning/` | Active 2.0 plans only; completed and superseded plans live in `planning/archive/` |
+| `testing/archive/` | Historical release-specific manual validation records |
 | `presentations/` | Demo, talk, and workshop materials; latest deck: `mango-grove-estate-workshop-jul-2026/index.html` |
 | `videos/` | Local backup demo videos for workflow execution and add-agent walkthroughs |
 | `archive/` | Historical docs no longer actively maintained |
