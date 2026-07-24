@@ -1,0 +1,77 @@
+{
+  "id": "2.0.0-test-rc8",
+  "name": "2.0.0-test-rc8 focused checklist",
+  "description": "Focused acceptance checks for changes added after the RC7 test image.",
+  "release": "2.0.0-test-rc8",
+  "recommended": true,
+  "tags": ["release", "current", "2.0.0-test-rc8"],
+  "defaults": {
+    "enabled": true,
+    "tags": ["release", "current", "2.0.0-test-rc8"],
+    "fields": {
+      "completed": false,
+      "outcome": "pending",
+      "owner": "release-tester",
+      "evidence": [],
+      "verifiedBy": []
+    }
+  },
+  "items": [
+    {
+      "id": "release-identity",
+      "name": "RC8 identity and clean startup",
+      "description": "Test: Fresh-pull or update the candidate, open the dashboard, /api/health, /api/system, /api/plugins, and restart once. Pass: Health is 200, every surface reports 2.0.0-test-rc8, intended plugins load, and workspace state persists.",
+      "tags": ["identity", "startup"],
+      "fields": {"area": "identity", "notes": ""}
+    },
+    {
+      "id": "three-review-sets",
+      "name": "Three clear Review sets",
+      "description": "Test: Open Review > Suggested and inspect 1.9.9 regression, 2.0.0 previous RCs, and 2.0.0-test-rc8 before starting each. Pass: Exactly these three non-overlapping sets are available, every check states Test and Pass instructions, and each set remains a separate release tab.",
+      "tags": ["review", "checklist", "suggested"],
+      "fields": {"area": "plugins", "notes": ""}
+    },
+    {
+      "id": "suggested-tabs-discovery",
+      "name": "Separate Suggested discovery",
+      "description": "Test: In Guardrails, Evals, Optimize, and Review, switch Active/Archived/Suggested; search, filter, sort, view details, and Use one suggestion. Pass: Suggestions never appear in Active, controls affect only Suggested, counts are correct, and Use returns to Active with an editable created item.",
+      "tags": ["plugins", "suggested", "navigation"],
+      "fields": {"area": "navigation", "notes": ""}
+    },
+    {
+      "id": "suggestion-cache",
+      "name": "Fast cached suggestions",
+      "description": "Test: Open Suggested once in each plugin, navigate away and back several times, then choose Actions > Refresh after changing or mounting a suggestion file if available. Pass: First load may fetch, repeat visits render immediately without the prior three-second blank state, and explicit Refresh picks up file changes.",
+      "tags": ["plugins", "suggested", "performance"],
+      "fields": {"area": "regression", "notes": ""}
+    },
+    {
+      "id": "plugin-navigation-order",
+      "name": "Persistent plugin navigation order",
+      "description": "Test: Drag plugin navigation into a new order, place Review somewhere else, refresh, then test in a second browser profile. Pass: The first profile restores its chosen order, a new profile uses defaults with Review last, and every plugin remains navigable.",
+      "tags": ["plugins", "navigation", "persistence"],
+      "fields": {"area": "navigation", "notes": ""}
+    },
+    {
+      "id": "review-export",
+      "name": "Review export handoff",
+      "description": "Test: Complete/pass/fail several checks, add notes and evidence, then export with reviewer name/email and the correct local, cloud, or on-prem environment. Pass: The named Markdown includes only the selected set, outcomes, notes, evidence, timestamp, instance/version details, and sanitized recent errors with no secrets.",
+      "tags": ["review", "export"],
+      "fields": {"area": "plugins", "notes": ""}
+    },
+    {
+      "id": "mobile-plugin-toolbar",
+      "name": "Mobile plugin toolbar and dialogs",
+      "description": "Test: At 390px width, open every plugin, switch all views and collection tabs, open Actions/Create/details and the Review export dialog. Pass: View controls occupy a stable row, Create/Actions remain visible, dialogs scroll internally, text wraps, and no control or page content is clipped.",
+      "tags": ["plugins", "mobile", "responsive"],
+      "fields": {"area": "responsive", "notes": ""}
+    },
+    {
+      "id": "release-regression-gate",
+      "name": "Automated and image release gate",
+      "description": "Test: Run integration with validation and coverage, then inspect candidate image jobs and smoke both public and authorized private images where credentials are available. Pass: All tests pass, coverage does not regress unexpectedly, amd64/arm64 jobs are green, and each image exposes only its intended plugin inventory.",
+      "tags": ["regression", "coverage", "ci", "container"],
+      "fields": {"area": "regression", "notes": ""}
+    }
+  ]
+}

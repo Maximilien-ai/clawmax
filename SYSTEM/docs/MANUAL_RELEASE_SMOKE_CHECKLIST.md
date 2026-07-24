@@ -18,6 +18,19 @@ Checklist use:
 - use Review for active 2.0 release-candidate testing and export the completed handoff
 - if Review is unavailable, duplicate this file and archive the completed copy under `testing/archive/`
 
+Review set policy:
+- present one retained stable-line regression set, one cumulative set for earlier
+  RC changes, and one focused set for the current RC
+- keep only checks that still lack one identifiable user confirmation or need a
+  deliberate cross-environment regression
+- every check must state a short action and observable pass result
+- record prior confirmation as `Tester · environment · date`; do not infer it
+  from general feedback such as "looks good"
+- remove a set after one tester completes it fully, unless it remains a named
+  cross-environment release gate
+- consolidate duplicates into the cumulative set instead of asking testers to
+  repeat the same action under multiple release tabs
+
 ---
 
 ## Release Metadata

@@ -1161,6 +1161,8 @@ function ChecklistItemRow({
   const outcome = String(item.fields.outcome || 'pending')
   const notes = String(item.fields.notes || '').trim()
   const evidence = Array.isArray(item.fields.evidence) ? item.fields.evidence : []
+  const verifiedBy = Array.isArray(item.fields.verifiedBy) ? item.fields.verifiedBy.map(String).filter(Boolean) : []
+  const instructionMatch = item.description.match(/^Test:\s*(.+?)\s+Pass:\s*(.+)$/i)
   const rowClass = outcome === 'failed'
     ? 'bg-red-50/80 dark:bg-red-950/20'
     : outcome === 'blocked'
@@ -1192,7 +1194,19 @@ function ChecklistItemRow({
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
               <h3 className={`break-words text-sm font-semibold text-gray-900 dark:text-gray-100 ${completed ? 'line-through decoration-gray-400' : ''}`}>{item.name}</h3>
-              <p className="mt-1 break-words text-sm text-gray-600 dark:text-gray-300">{item.description}</p>
+              {instructionMatch ? (
+                <div className="mt-1 space-y-1 break-words text-sm text-gray-600 dark:text-gray-300">
+                  <p><span className="font-semibold text-gray-700 dark:text-gray-200">Test:</span> {instructionMatch[1]}</p>
+                  <p><span className="font-semibold text-gray-700 dark:text-gray-200">Pass:</span> {instructionMatch[2]}</p>
+                </div>
+              ) : (
+                <p className="mt-1 break-words text-sm text-gray-600 dark:text-gray-300">{item.description}</p>
+              )}
+              {verifiedBy.length > 0 && (
+                <p className="mt-2 break-words text-xs font-medium text-emerald-700 dark:text-emerald-300">
+                  Previously verified by {verifiedBy.join(', ')}
+                </p>
+              )}
             </div>
             <div className="flex shrink-0 flex-wrap items-center gap-2">
               <span className="rounded-md border border-gray-200 bg-white px-2 py-0.5 text-xs font-medium capitalize text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">{area}</span>
@@ -1418,7 +1432,11 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
       return isGenericPluginRecord(item) && item.fields[groupField] === templateGroup
     })
   }), [templates, items, groupField])
-  const suggestionTags = useMemo(() => collectPluginTemplateTags(recommendedTemplates), [recommendedTemplates])
+  const suggestionTags = useMemo(() => {
+    const allTags = collectPluginTemplateTags(recommendedTemplates)
+    if (!isChecklist) return allTags
+    return ['1.9.9', '2.0.0', '2.0.0-test-rc8'].filter((tag) => allTags.includes(tag))
+  }, [recommendedTemplates, isChecklist])
   const filteredSuggestions = useMemo(() => sortPluginTemplates(
     recommendedTemplates.filter((template) => (
       (suggestionTag === 'all' || template.tags.includes(suggestionTag))

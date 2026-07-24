@@ -69,15 +69,22 @@
         "title": "Evidence",
         "items": { "type": "string" },
         "default": []
+      },
+      "verifiedBy": {
+        "type": "array",
+        "title": "Previously verified by",
+        "description": "Tester, environment, and date from an earlier exported review.",
+        "items": { "type": "string" },
+        "default": []
       }
     }
   },
   "ui": {
     "form": {
-      "order": ["release", "area", "completed", "outcome", "notes", "owner", "evidence"]
+      "order": ["release", "area", "completed", "outcome", "notes", "owner", "evidence", "verifiedBy"]
     },
     "list": {
-      "fields": ["area", "outcome", "completed", "owner", "evidence"],
+      "fields": ["area", "outcome", "completed", "owner", "evidence", "verifiedBy"],
       "groupBy": "release",
       "checkField": "completed"
     }

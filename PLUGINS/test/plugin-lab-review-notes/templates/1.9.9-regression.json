@@ -1,0 +1,119 @@
+{
+  "id": "1.9.9-regression",
+  "name": "1.9.9 regression checklist",
+  "description": "Unconfirmed manual checks retained from the complete 1.9.9 release-candidate line.",
+  "release": "1.9.9 regression",
+  "recommended": true,
+  "tags": ["release", "regression", "1.9.9"],
+  "defaults": {
+    "enabled": true,
+    "tags": ["release", "regression", "1.9.9"],
+    "fields": {
+      "completed": false,
+      "outcome": "pending",
+      "owner": "release-tester",
+      "evidence": [],
+      "verifiedBy": []
+    }
+  },
+  "items": [
+    {
+      "id": "runtime-identity-persistence",
+      "name": "1.9.9 runtime identity and restart",
+      "description": "Test: Open the dashboard and /api/system, record the ClawMax and OpenClaw versions, restart the container, and reopen the same workspace. Pass: ClawMax reports 1.9.9, OpenClaw reports v2026.6.11, and workspace plus OpenClaw state survive restart.",
+      "tags": ["identity", "container"],
+      "fields": {"area": "identity", "notes": ""}
+    },
+    {
+      "id": "core-execution-paths",
+      "name": "Direct, group, and workflow execution",
+      "description": "Test: Send a direct agent message, a group message, and manually run a workflow using configured models. Pass: All three complete with usable output and no unsupported-model, gateway, or stuck-running error.",
+      "tags": ["agents", "workflows", "chat"],
+      "fields": {"area": "regression", "notes": ""}
+    },
+    {
+      "id": "openai-model-migration",
+      "name": "Legacy OpenAI model compatibility",
+      "description": "Test: Chat with an existing agent saved as openai/gpt-5 with openai/gpt-4.1-mini backup, then inspect model choices in Edit Agent. Pass: Chat maps to supported openai/gpt-5.4-mini without redeploying, and new choices show supported gpt-5.4 IDs rather than stale aliases.",
+      "tags": ["openai", "models"],
+      "fields": {"area": "regression", "notes": ""}
+    },
+    {
+      "id": "long-tool-run-feedback",
+      "name": "Long and incomplete tool-run feedback",
+      "description": "Test: Run one tool request lasting over 15 seconds and, if possible, one incomplete tool turn. Pass: Chat shows elapsed work and the three-minute bound, exits the working state, and warns that tool actions may already have occurred.",
+      "tags": ["chat", "tools"],
+      "fields": {"area": "regression", "notes": ""}
+    },
+    {
+      "id": "mobile-workflow-run",
+      "name": "Mobile workflow run dialog",
+      "description": "Test: On iPhone Safari or a 390px viewport, open a workflow with a long run form, scroll it, and submit it; repeat once on desktop. Pass: Form content scrolls independently and Cancel plus Run Workflow remain visible, tappable, and above browser chrome.",
+      "tags": ["mobile", "workflows"],
+      "fields": {"area": "responsive", "notes": ""}
+    },
+    {
+      "id": "keys-tabs-responsive",
+      "name": "Keys and Secrets navigation",
+      "description": "Test: Visit Agent & Skill Access, Workspace Keys, Global Keys, and Partners, refresh on a non-default tab, and repeat at phone width. Pass: Only the selected section shows, selection restores, filter pills stay inside inventories, and the tab row scrolls without widening the page.",
+      "tags": ["secrets", "mobile"],
+      "fields": {"area": "responsive", "notes": ""}
+    },
+    {
+      "id": "gmail-browser-vault-boundary",
+      "name": "Gmail browser-vault boundary",
+      "description": "Test: Save a non-production Gmail-shaped value in Workspace Keys and ask an agent without a Gmail skill to use it. Pass: The UI and chat explain that browser-local keys cannot be referenced by name, offer Agent & Skill Access and Find Email Skills, and never imply mailbox access.",
+      "tags": ["gmail", "secrets"],
+      "fields": {"area": "regression", "notes": ""}
+    },
+    {
+      "id": "secret-broker-encryption",
+      "name": "Encrypted secret broker persistence",
+      "description": "Test: With a stable 32+ character CLAWMAX_SECRET_MASTER_KEY, save a unique CLAWMAX_TEST_SECRET sentinel, refresh, restart, then briefly try a missing or different master key. Pass: Only masked inventory persists with the original key and the broker fails closed with the wrong key.",
+      "tags": ["secrets", "security"],
+      "fields": {"area": "persistence", "notes": ""}
+    },
+    {
+      "id": "secret-grant-boundaries",
+      "name": "Explicit secret grant boundaries",
+      "description": "Test: Assign clawmax-secret-test to one agent, grant its declared key, click Test Access, then try an unassigned agent plus a wildcard or undeclared key. Pass: The valid path returns availability and a one-way fingerprint only; every invalid path is rejected without the raw sentinel.",
+      "tags": ["secrets", "authorization"],
+      "fields": {"area": "regression", "notes": ""}
+    },
+    {
+      "id": "secret-runtime-redaction",
+      "name": "Secret use across execution paths",
+      "description": "Test: Invoke clawmax-secret-test from direct chat, group chat, and a workflow, then ask the agent to print the secret and repeat with an ungranted agent. Pass: Granted calls report availability/fingerprint, denied calls give setup guidance, and no transcript or history contains the sentinel.",
+      "tags": ["secrets", "chat", "workflows"],
+      "fields": {"area": "regression", "notes": ""}
+    },
+    {
+      "id": "secret-revocation",
+      "name": "Secret revocation and skill removal",
+      "description": "Test: Revoke a working grant and retry, then reauthorize, restart, retry, remove the skill assignment, and retry again. Pass: Revocation and skill removal deny the next invocation, while an authorized grant survives restart only while its skill remains assigned.",
+      "tags": ["secrets", "revocation"],
+      "fields": {"area": "persistence", "notes": ""}
+    },
+    {
+      "id": "secret-export-log-safety",
+      "name": "Secret export and log safety",
+      "description": "Test: Export the workspace and search the ZIP, dashboard/OpenClaw logs, Markdown, chat, and workflow history for the sentinel. Pass: There are zero matches and the ZIP excludes SYSTEM/.clawmax plus SYSTEM/integrations.secrets.json.",
+      "tags": ["secrets", "export", "logs"],
+      "fields": {"area": "regression", "notes": ""}
+    },
+    {
+      "id": "openrouter-provider",
+      "name": "OpenRouter provider isolation",
+      "description": "Test: With a developer key, run direct chat, group chat, and a workflow locally, then direct chat and workflow in a container; also try an invalid key/model. Pass: Valid runs complete through OpenRouter, failures name OpenRouter, and LM Studio/OpenAI-compatible settings do not capture traffic.",
+      "tags": ["openrouter", "models", "container"],
+      "fields": {"area": "regression", "notes": ""}
+    },
+    {
+      "id": "xai-provider",
+      "name": "xAI and Grok provider isolation",
+      "description": "Test: Add an xAI key, refresh models, run direct/group/workflow locally and direct/workflow in a container, then try invalid credentials. Pass: Supported native xai models work, grok-4.5 stays hidden on v2026.6.11, failures name xAI, and other provider credentials cannot capture traffic.",
+      "tags": ["xai", "grok", "models", "container"],
+      "fields": {"area": "regression", "notes": ""}
+    }
+  ]
+}

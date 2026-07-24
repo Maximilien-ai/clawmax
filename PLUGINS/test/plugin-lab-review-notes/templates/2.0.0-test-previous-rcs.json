@@ -1,0 +1,105 @@
+{
+  "id": "2.0.0-test-previous-rcs",
+  "name": "2.0.0 previous RC regression checklist",
+  "description": "Cumulative unconfirmed checks introduced across earlier 2.0.0 test candidates.",
+  "release": "2.0.0 previous RCs",
+  "recommended": true,
+  "tags": ["release", "regression", "2.0.0"],
+  "defaults": {
+    "enabled": true,
+    "tags": ["release", "regression", "2.0.0"],
+    "fields": {
+      "completed": false,
+      "outcome": "pending",
+      "owner": "release-tester",
+      "evidence": [],
+      "verifiedBy": []
+    }
+  },
+  "items": [
+    {
+      "id": "plugin-inventory-diagnostics",
+      "name": "Public and private plugin inventory",
+      "description": "Test: Compare sidebar plugins with /api/plugins and System & Logs diagnostics in the public image, then in the authorized private image. Pass: Public shows only intended public/test fixtures, private adds its intended locked plugins, and missing/disabled/incompatible entries have actionable diagnostics.",
+      "tags": ["plugins", "diagnostics"],
+      "fields": {"area": "plugins", "notes": ""}
+    },
+    {
+      "id": "plugin-sidebar-mobile",
+      "name": "Plugin sidebar and mobile navigation",
+      "description": "Test: Open every plugin from desktop and phone navigation with the System section expanded. Pass: One- or two-word labels and distinct icons are readable, the sidebar scrolls inside the viewport, version/TOS remain reachable, and plugin content does not block switching pages.",
+      "tags": ["plugins", "navigation", "mobile"],
+      "fields": {"area": "navigation", "notes": ""}
+    },
+    {
+      "id": "plugin-layout-views",
+      "name": "Plugin layout and all view modes",
+      "description": "Test: In Guardrails, Evals, Optimize, and Review, switch through grid, detail, list, and relationship views and open one item detail. Pass: Views visibly differ, selected details are readable, controls follow Agents-tab conventions, and desktop plus mobile layouts do not overflow.",
+      "tags": ["plugins", "views", "responsive"],
+      "fields": {"area": "navigation", "notes": ""}
+    },
+    {
+      "id": "guardrail-create-target",
+      "name": "Guardrail creation and targeting",
+      "description": "Test: Use a suggested guardrail, customize it, assign it to one agent and one workflow, save, disable, and re-enable it. Pass: Targets persist, relationship views and agent/workflow cards show the guardrail, and activation/deactivation history is visible.",
+      "tags": ["guardrails", "agents", "workflows"],
+      "fields": {"area": "guardrails", "notes": ""}
+    },
+    {
+      "id": "guardrail-ai-quality",
+      "name": "Guardrail AI Create quality score",
+      "description": "Test: Start AI Create with an intentionally vague guardrail prompt, apply the score suggestions, and save the improved draft. Pass: The public deterministic score identifies missing targets or controls, rises after useful edits, and the saved guardrail matches the draft.",
+      "tags": ["guardrails", "ai", "scoring"],
+      "fields": {"area": "guardrails", "notes": ""}
+    },
+    {
+      "id": "eval-create-run",
+      "name": "Eval creation, run, and results",
+      "description": "Test: Use a suggested eval, customize target/input/expected output/judge, save, and run it. Pass: Progress is visible and completion records a prominent score, token input/output, derived cost, timestamp, and run history.",
+      "tags": ["evals", "runs", "scoring"],
+      "fields": {"area": "evals", "notes": ""}
+    },
+    {
+      "id": "eval-ai-quality",
+      "name": "Eval AI Create quality score",
+      "description": "Test: Start AI Create with an incomplete eval prompt, follow score suggestions, and save the improved draft. Pass: Suggestions identify missing target, input, candidate, expected output, or judge details and the public score increases after meaningful edits.",
+      "tags": ["evals", "ai", "scoring"],
+      "fields": {"area": "evals", "notes": ""}
+    },
+    {
+      "id": "plugin-notifications-history",
+      "name": "Plugin notifications and lifecycle evidence",
+      "description": "Test: Activate/deactivate a guardrail and complete an eval run, then inspect notifications and item history. Pass: Each event produces a useful, non-duplicated notification and enough history to identify item, action, result, and time.",
+      "tags": ["plugins", "notifications", "history"],
+      "fields": {"area": "plugins", "notes": ""}
+    },
+    {
+      "id": "optimize-skeleton",
+      "name": "Public Optimize planning",
+      "description": "Test: Open Optimize, use one workflow-budget suggestion and one agent-model suggestion, edit values, and inspect every view. Pass: Plans save as public plugin records with token/cost budget, recommendation, rationale, status, and workflow or agent scope.",
+      "tags": ["optimize", "public", "budget"],
+      "fields": {"area": "plugins", "notes": ""}
+    },
+    {
+      "id": "review-checklist-lifecycle",
+      "name": "Release checklist lifecycle",
+      "description": "Test: Start one Review set, pass one check, fail one, add notes/evidence to one, switch release tabs, and return. Pass: States persist, passed rows are green/crossed, failed rows are red, commented pending rows are amber, and releases never mix.",
+      "tags": ["review", "checklist"],
+      "fields": {"area": "plugins", "notes": ""}
+    },
+    {
+      "id": "plugin-restart-persistence",
+      "name": "Plugin restart persistence",
+      "description": "Test: Create or edit one item in each enabled plugin, restart the container, and revisit each plugin. Pass: Discovery, records, targets, run/history data, Review state, and selected workspace survive with no duplicate seed items.",
+      "tags": ["plugins", "persistence", "container"],
+      "fields": {"area": "persistence", "notes": ""}
+    },
+    {
+      "id": "plugin-image-regression",
+      "name": "Plugin image and architecture regression",
+      "description": "Test: Install the candidate fresh on one supported architecture and update an existing instance; inspect CI for the other architecture. Pass: Health is HTTP 200, versions match, plugins load after restart, and local validation plus amd64/arm64 image jobs are green.",
+      "tags": ["plugins", "container", "ci"],
+      "fields": {"area": "regression", "notes": ""}
+    }
+  ]
+}
