@@ -85,35 +85,6 @@
       "fields": {"area": "plugins", "notes": ""}
     },
     {
-      "id": "review-checklist-lifecycle",
-      "name": "Release checklist lifecycle",
-      "description": "Test: 1) Start one Suggested Review set. 2) Mark one row passed, mark another failed with the X action, and leave a third pending with a note and evidence path/URL. 3) Switch to another release tab, refresh the browser, and return to the first set. Pass: Passed is green and crossed out, failed is red, noted pending is amber, notes/evidence and outcomes persist after refresh, progress totals are correct, and no row or result moves into another release.",
-      "tags": ["review", "checklist"],
-      "fields": {"area": "plugins", "notes": ""}
-    },
-    {
-      "id": "plugin-restart-persistence",
-      "name": "Plugin restart persistence",
-      "description": "Test: 1) In one named workspace, create or edit one record in every enabled plugin and record names, targets, status, Review outcome, and any run/history count. 2) Restart the dashboard container or local server without deleting mounted state. 3) Reopen the same workspace and compare every recorded value; refresh once more. Pass: The same plugins are discovered, records and targets are unchanged, run/history and Review state remain, the selected workspace is restored, and no suggestion or seed item is duplicated.",
-      "tags": ["plugins", "persistence", "container"],
-      "fields": {
-        "area": "persistence",
-        "notes": "",
-        "verifiedBy": ["Max <mmaximilien@gmail.com> - local Dev - 2026-07-24 (RC5 export)"]
-      }
-    },
-    {
-      "id": "local-regression-suite",
-      "name": "Local automated regression suite",
-      "description": "Test: 1) From the candidate checkout, record the commit and configured plugin allowlist. 2) Run ./SYSTEM/test-with-server.sh integration --with-validation --coverage and let the wrapper finish cleanup. 3) Save total/pass/fail counts, coverage percentages, and the performance artifact paths. Pass: The wrapper exits successfully with zero failed tests, validation and live integration sections complete, coverage does not regress without explanation, system-test workspace cleanup succeeds, and no test-created dashboard process remains running.",
-      "tags": ["regression", "coverage", "local"],
-      "fields": {
-        "area": "regression",
-        "notes": "",
-        "verifiedBy": ["Max <mmaximilien@gmail.com> - local Dev - 2026-07-24 (RC5 export)"]
-      }
-    },
-    {
       "id": "plugin-image-regression",
       "name": "Plugin image and architecture regression",
       "description": "Test: 1) Fresh-install the exact candidate image on one supported architecture, record its digest, and check /api/health, /api/system, and /api/plugins before and after restart. 2) Update an existing instance to the same tag and confirm its workspace/plugin state. 3) Inspect the CI build, manifest, and smoke jobs for amd64 and arm64 and verify both digests are in the published manifest. Pass: Health is HTTP 200, dashboard/package/image versions match the candidate, intended plugins load before and after restart, the update preserves state, both architectures are published, and every required build/manifest/smoke job is green.",
