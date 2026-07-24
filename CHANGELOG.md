@@ -33,6 +33,7 @@ All notable changes to ClawMax are documented here.
 - **2.0 Public Plugin And AI-Scoring Foundation** — complete the generic contribution-based plugin contract for pages, APIs, data, actions, jobs, events, settings, skills, providers, docs, and extension points; then publish scorer contracts and user-facing scoring surfaces on that foundation.
 - **2.0 Public Optimize Plugin** — add token-first workflow and agent accounting, derived cost with dated pricing provenance, workspace-constrained workflow allocations, workflow-scoped model recommendations, confirmed schedule suggestions, and reversible application.
 - **Public Gmail And Microsoft 365 Partners** — ship curated public Gmail and Outlook plugins beginning with read/search/draft; sending and destructive actions require separate grants and confirmation.
+- **Public Activity Export And Digo Partner** — define a destination-neutral, per-user opt-in contract for scoped conversation/workflow export with visible sharing state, secret redaction, durable asynchronous batching, immediate opt-out, and authenticated/idempotent delivery. Validate it first with a dedicated ClawMax.ai reference receiver before enabling Digo against the same contract.
 
 ## [v1.9.9] - 2026-07-21
 

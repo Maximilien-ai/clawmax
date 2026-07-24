@@ -51,6 +51,14 @@
 
 ## Tests And Release Validation
 
+- Treat transcript, prompt, conversation, and user-activity export as sensitive
+  data egress. It must be disabled by default, explicitly consented per affected
+  user, scoped to a named destination and purpose, visibly indicated while
+  active, redacted before durable storage, revocable immediately, and delivered
+  asynchronously so partner failure cannot block normal product behavior.
+- Configuring a partner is not user consent. Never silently reuse consent when
+  the destination, purpose, scopes, identity fields, or disclosure version
+  changes, and never expose a general transcript-reading capability to plugins.
 - Add or update focused tests for every behavior change, including error,
   persistence, and responsive presentation paths where applicable. Improve
   coverage with each change rather than relying only on existing tests.

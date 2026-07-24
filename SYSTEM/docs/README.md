@@ -17,6 +17,7 @@
 | [planning/PUBLIC_PLUGIN_ARCHITECTURE_2_0.md](planning/PUBLIC_PLUGIN_ARCHITECTURE_2_0.md) | Active public 2.0 plugin and AI-scoring plan |
 | [planning/PUBLIC_OPTIMIZE_PLUGIN_2_0.md](planning/PUBLIC_OPTIMIZE_PLUGIN_2_0.md) | Active public token-first Optimize plugin plan |
 | [planning/PUBLIC_MODELS_GATEWAYS_EMAIL_2_0.md](planning/PUBLIC_MODELS_GATEWAYS_EMAIL_2_0.md) | Active public Gmail and Microsoft 365 partner plan; records shipped model-provider decisions |
+| [planning/PUBLIC_ACTIVITY_EXPORT_PARTNERS_2_0.md](planning/PUBLIC_ACTIVITY_EXPORT_PARTNERS_2_0.md) | Public consent-gated activity export contract, ClawMax.ai reference receiver, and Digo integration plan |
 | [../../PLUGINS/PLUGIN_SYSTEM_2_0.md](../../PLUGINS/PLUGIN_SYSTEM_2_0.md) | Public 2.0 plugin-host architecture and acceptance boundary |
 | [../../PLUGINS/PLUGIN_AUTHORING_2_0.md](../../PLUGINS/PLUGIN_AUTHORING_2_0.md) | Declarative 2.0 plugin authoring contract |
 | [architecture/DASHBOARD_RUNTIME_SPLIT.md](architecture/DASHBOARD_RUNTIME_SPLIT.md) | Investigation note for the 2-container vs 3-container dashboard runtime split |
