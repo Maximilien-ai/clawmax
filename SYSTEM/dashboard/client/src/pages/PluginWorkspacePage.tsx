@@ -1181,8 +1181,8 @@ function ChecklistItemRow({
         : 'border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300'
 
   return (
-    <div className={`min-w-0 max-w-full overflow-hidden border-b border-gray-100 p-4 last:border-b-0 dark:border-gray-700/70 ${rowClass}`}>
-      <div className="flex items-start gap-3">
+    <div className={`w-full min-w-0 max-w-full overflow-hidden border-b border-gray-100 p-4 last:border-b-0 dark:border-gray-700/70 ${rowClass}`}>
+      <div className="flex min-w-0 items-start gap-3">
         <input
           type="checkbox"
           checked={completed}
@@ -1195,7 +1195,7 @@ function ChecklistItemRow({
             <div className="min-w-0">
               <h3 className={`break-words text-sm font-semibold text-gray-900 dark:text-gray-100 ${completed ? 'line-through decoration-gray-400' : ''}`}>{item.name}</h3>
               {instructionMatch ? (
-                <div className="mt-1 space-y-1 break-words text-sm text-gray-600 dark:text-gray-300">
+                <div className="mt-1 min-w-0 max-w-full space-y-1 break-words text-sm text-gray-600 [overflow-wrap:anywhere] dark:text-gray-300">
                   <p><span className="font-semibold text-gray-700 dark:text-gray-200">Test:</span> {instructionMatch[1]}</p>
                   <p><span className="font-semibold text-gray-700 dark:text-gray-200">Pass:</span> {instructionMatch[2]}</p>
                 </div>
@@ -1223,7 +1223,7 @@ function ChecklistItemRow({
             </div>
           </div>
           <div className="mt-3 flex flex-col gap-2 border-t border-gray-100 pt-3 dark:border-gray-700/70 sm:flex-row sm:items-start sm:justify-between">
-            <p className={`min-w-0 break-words text-sm ${notes ? 'text-gray-500 dark:text-gray-400' : 'italic text-gray-400 dark:text-gray-500'}`}>
+            <p className={`min-w-0 max-w-full break-words text-sm [overflow-wrap:anywhere] ${notes ? 'text-gray-500 dark:text-gray-400' : 'italic text-gray-400 dark:text-gray-500'}`}>
               {notes || 'No notes yet.'}
             </p>
             <button type="button" onClick={onEdit} className="shrink-0 self-start text-sm font-medium text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300">

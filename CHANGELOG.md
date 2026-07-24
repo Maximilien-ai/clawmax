@@ -18,6 +18,7 @@ All notable changes to ClawMax are documented here.
 - **Release Review Export** — Review exports a release-specific Markdown handoff containing checklist outcomes, notes, evidence, reviewer identity, environment and instance details, timestamps, and sanitized recent runtime errors.
 - **Dedicated Plugin Suggestions** — plugin suggestions live in a separate counted tab instead of appearing above active workspace items, with independent search, tag filters, recommendation/name sorting, and a return to Active after use.
 - **Consolidated Tester Review Sets** — Review offers one retained 1.9.9 regression set, one cumulative earlier-2.0 set, and one focused current-RC set; every check separates the action from its pass result and can identify prior tester confirmation without merging browser-local state.
+- **Actionable Review Procedures And Imported Evidence** — every retained release check now includes numbered actions and an objective pass condition; RC4/RC5 exports preserve Max's local navigation, restart, and automated-suite confirmations while keeping untested image, private-plugin, Guardrails, Evals, and RC8 work pending.
 
 ### Fixed
 - **Checklist-First Review UI** — release checks now render as a responsive list with direct completion and note editing. Internal checklist seeds no longer appear as misleading `Recommended` cards with `Use Template` actions.

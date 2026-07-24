@@ -1,7 +1,7 @@
 {
   "id": "2.0.0-test-previous-rcs",
   "name": "2.0.0 previous RC regression checklist",
-  "description": "Cumulative unconfirmed checks introduced across earlier 2.0.0 test candidates.",
+  "description": "Cumulative checks introduced across earlier 2.0.0 test candidates, including clearly labeled prior tester confirmations.",
   "release": "2.0.0 previous RCs",
   "recommended": true,
   "tags": ["release", "regression", "2.0.0"],
@@ -20,84 +20,103 @@
     {
       "id": "plugin-inventory-diagnostics",
       "name": "Public and private plugin inventory",
-      "description": "Test: Compare sidebar plugins with /api/plugins and System & Logs diagnostics in the public image, then in the authorized private image. Pass: Public shows only intended public/test fixtures, private adds its intended locked plugins, and missing/disabled/incompatible entries have actionable diagnostics.",
+      "description": "Test: 1) Start the public candidate and record the plugin names shown in the sidebar. 2) Compare them with GET /api/plugins and System & Logs > Plugin diagnostics, including loaded, disabled, missing, invalid, and incompatible sections. 3) Repeat with the authorized combined private image and record its image tag. Pass: The public image exposes only Review, Optimize, and explicitly enabled synthetic test fixtures; the authorized image adds only its intended private plugins; all three inventories agree; and every unavailable plugin has a reason and remediation instead of disappearing silently.",
       "tags": ["plugins", "diagnostics"],
       "fields": {"area": "plugins", "notes": ""}
     },
     {
       "id": "plugin-sidebar-mobile",
       "name": "Plugin sidebar and mobile navigation",
-      "description": "Test: Open every plugin from desktop and phone navigation with the System section expanded. Pass: One- or two-word labels and distinct icons are readable, the sidebar scrolls inside the viewport, version/TOS remain reachable, and plugin content does not block switching pages.",
+      "description": "Test: 1) At desktop width, expand System and open every plugin from the sidebar. 2) Collapse and reopen the sidebar, then repeat at 390x844 or on a phone with System expanded. 3) Scroll to the bottom, open version/TOS, and switch from each plugin to Agents and back. Pass: Every plugin has a readable one- or two-word label and distinct icon, the navigation scrolls inside the viewport without covering content, version/TOS remain reachable, and every page switch works on the first selection.",
       "tags": ["plugins", "navigation", "mobile"],
-      "fields": {"area": "navigation", "notes": ""}
+      "fields": {
+        "area": "navigation",
+        "notes": "",
+        "verifiedBy": ["Max <mmaximilien@gmail.com> - local Dev - 2026-07-24 (RC4 and RC5 exports)"]
+      }
     },
     {
       "id": "plugin-layout-views",
       "name": "Plugin layout and all view modes",
-      "description": "Test: In Guardrails, Evals, Optimize, and Review, switch through grid, detail, list, and relationship views and open one item detail. Pass: Views visibly differ, selected details are readable, controls follow Agents-tab conventions, and desktop plus mobile layouts do not overflow.",
+      "description": "Test: 1) Seed or create at least two active items in Guardrails, Evals, Optimize, and Review. 2) In each plugin switch Grid, Detail, List, and Relationships, selecting a specific item in Detail. 3) Repeat the switches at desktop and 390px width and use search/filter once in each view. Pass: Grid is card-based, List is compact rows, Detail shows the selected record's complete fields, Relationships visualizes targets/links, search/filter affects the visible collection, controls match the Agents-page placement, and no view is merely the same cards relabeled or clipped.",
       "tags": ["plugins", "views", "responsive"],
       "fields": {"area": "navigation", "notes": ""}
     },
     {
       "id": "guardrail-create-target",
       "name": "Guardrail creation and targeting",
-      "description": "Test: Use a suggested guardrail, customize it, assign it to one agent and one workflow, save, disable, and re-enable it. Pass: Targets persist, relationship views and agent/workflow cards show the guardrail, and activation/deactivation history is visible.",
+      "description": "Test: 1) In Guardrails > Suggested, open one suggestion and choose Use. 2) Change its name or rule, select one existing agent and one existing workflow as targets, and save. 3) Refresh, inspect Relationships plus the targeted Agent and Workflow cards, then disable and re-enable the item. Pass: The customized item appears only in Active, both targets survive refresh, both target surfaces identify the guardrail, enabled state changes immediately, and history records activation and deactivation with item, action, result, and time.",
       "tags": ["guardrails", "agents", "workflows"],
       "fields": {"area": "guardrails", "notes": ""}
     },
     {
       "id": "guardrail-ai-quality",
       "name": "Guardrail AI Create quality score",
-      "description": "Test: Start AI Create with an intentionally vague guardrail prompt, apply the score suggestions, and save the improved draft. Pass: The public deterministic score identifies missing targets or controls, rises after useful edits, and the saved guardrail matches the draft.",
+      "description": "Test: 1) Choose AI Create and enter a deliberately incomplete prompt such as 'prevent unsafe behavior'. 2) Record the initial quality score and suggestions. 3) Add a concrete behavior, response/control, and agent or workflow target based on those suggestions, regenerate or rescore, then save. Pass: The initial score calls out the missing concrete fields, the score increases only after meaningful additions, the suggestions update as gaps are resolved, and the saved Active item preserves the improved rule, controls, and targets.",
       "tags": ["guardrails", "ai", "scoring"],
       "fields": {"area": "guardrails", "notes": ""}
     },
     {
       "id": "eval-create-run",
       "name": "Eval creation, run, and results",
-      "description": "Test: Use a suggested eval, customize target/input/expected output/judge, save, and run it. Pass: Progress is visible and completion records a prominent score, token input/output, derived cost, timestamp, and run history.",
+      "description": "Test: 1) In Evals > Suggested, Use one item. 2) Select a real agent or workflow and enter a distinct input, candidate output, expected output, and judge mode; save and refresh. 3) Start the eval and watch it until completion, then reopen it and inspect history. Pass: Customized values and target persist, running progress/status is visible, the finished card and detail show a prominent score plus input/output tokens, derived cost or explicit unavailable pricing, timestamp, result summary, and a retained run-history entry.",
       "tags": ["evals", "runs", "scoring"],
       "fields": {"area": "evals", "notes": ""}
     },
     {
       "id": "eval-ai-quality",
       "name": "Eval AI Create quality score",
-      "description": "Test: Start AI Create with an incomplete eval prompt, follow score suggestions, and save the improved draft. Pass: Suggestions identify missing target, input, candidate, expected output, or judge details and the public score increases after meaningful edits.",
+      "description": "Test: 1) Choose Evals > AI Create and enter an incomplete request such as 'evaluate my support agent'. 2) Record the initial score and every missing-field suggestion. 3) Add a target, representative input, candidate output, expected output or rubric, and judge details, then rescore and save. Pass: Suggestions name the actual missing eval fields, the score rises as testability improves, resolved suggestions disappear or change, and the saved eval contains the same complete experiment definition shown before save.",
       "tags": ["evals", "ai", "scoring"],
       "fields": {"area": "evals", "notes": ""}
     },
     {
       "id": "plugin-notifications-history",
       "name": "Plugin notifications and lifecycle evidence",
-      "description": "Test: Activate/deactivate a guardrail and complete an eval run, then inspect notifications and item history. Pass: Each event produces a useful, non-duplicated notification and enough history to identify item, action, result, and time.",
+      "description": "Test: 1) Clear or note the current notification count. 2) Activate and deactivate one guardrail once each, then run one eval to completion. 3) Open Notifications and each item's history, following any notification deep link. Pass: Each operation creates one useful notification rather than duplicates, deep links open the correct item, and notification/history text identifies the plugin item, action, success/failure result, score where applicable, and timestamp.",
       "tags": ["plugins", "notifications", "history"],
       "fields": {"area": "plugins", "notes": ""}
     },
     {
       "id": "optimize-skeleton",
       "name": "Public Optimize planning",
-      "description": "Test: Open Optimize, use one workflow-budget suggestion and one agent-model suggestion, edit values, and inspect every view. Pass: Plans save as public plugin records with token/cost budget, recommendation, rationale, status, and workflow or agent scope.",
+      "description": "Test: 1) In Optimize > Suggested, Use one workflow-budget suggestion and one agent-model suggestion. 2) Select real workflow/agent targets, change token and cost values, recommendation text, rationale, and status, then save and refresh. 3) Inspect both records in Grid, List, Detail, and Relationships. Pass: Both records remain editable public plugin data, all changed fields persist, workflow and agent scopes point to the selected targets, unknown pricing is not shown as zero cost, and every view presents the same plan without losing budget or rationale.",
       "tags": ["optimize", "public", "budget"],
       "fields": {"area": "plugins", "notes": ""}
     },
     {
       "id": "review-checklist-lifecycle",
       "name": "Release checklist lifecycle",
-      "description": "Test: Start one Review set, pass one check, fail one, add notes/evidence to one, switch release tabs, and return. Pass: States persist, passed rows are green/crossed, failed rows are red, commented pending rows are amber, and releases never mix.",
+      "description": "Test: 1) Start one Suggested Review set. 2) Mark one row passed, mark another failed with the X action, and leave a third pending with a note and evidence path/URL. 3) Switch to another release tab, refresh the browser, and return to the first set. Pass: Passed is green and crossed out, failed is red, noted pending is amber, notes/evidence and outcomes persist after refresh, progress totals are correct, and no row or result moves into another release.",
       "tags": ["review", "checklist"],
       "fields": {"area": "plugins", "notes": ""}
     },
     {
       "id": "plugin-restart-persistence",
       "name": "Plugin restart persistence",
-      "description": "Test: Create or edit one item in each enabled plugin, restart the container, and revisit each plugin. Pass: Discovery, records, targets, run/history data, Review state, and selected workspace survive with no duplicate seed items.",
+      "description": "Test: 1) In one named workspace, create or edit one record in every enabled plugin and record names, targets, status, Review outcome, and any run/history count. 2) Restart the dashboard container or local server without deleting mounted state. 3) Reopen the same workspace and compare every recorded value; refresh once more. Pass: The same plugins are discovered, records and targets are unchanged, run/history and Review state remain, the selected workspace is restored, and no suggestion or seed item is duplicated.",
       "tags": ["plugins", "persistence", "container"],
-      "fields": {"area": "persistence", "notes": ""}
+      "fields": {
+        "area": "persistence",
+        "notes": "",
+        "verifiedBy": ["Max <mmaximilien@gmail.com> - local Dev - 2026-07-24 (RC5 export)"]
+      }
+    },
+    {
+      "id": "local-regression-suite",
+      "name": "Local automated regression suite",
+      "description": "Test: 1) From the candidate checkout, record the commit and configured plugin allowlist. 2) Run ./SYSTEM/test-with-server.sh integration --with-validation --coverage and let the wrapper finish cleanup. 3) Save total/pass/fail counts, coverage percentages, and the performance artifact paths. Pass: The wrapper exits successfully with zero failed tests, validation and live integration sections complete, coverage does not regress without explanation, system-test workspace cleanup succeeds, and no test-created dashboard process remains running.",
+      "tags": ["regression", "coverage", "local"],
+      "fields": {
+        "area": "regression",
+        "notes": "",
+        "verifiedBy": ["Max <mmaximilien@gmail.com> - local Dev - 2026-07-24 (RC5 export)"]
+      }
     },
     {
       "id": "plugin-image-regression",
       "name": "Plugin image and architecture regression",
-      "description": "Test: Install the candidate fresh on one supported architecture and update an existing instance; inspect CI for the other architecture. Pass: Health is HTTP 200, versions match, plugins load after restart, and local validation plus amd64/arm64 image jobs are green.",
+      "description": "Test: 1) Fresh-install the exact candidate image on one supported architecture, record its digest, and check /api/health, /api/system, and /api/plugins before and after restart. 2) Update an existing instance to the same tag and confirm its workspace/plugin state. 3) Inspect the CI build, manifest, and smoke jobs for amd64 and arm64 and verify both digests are in the published manifest. Pass: Health is HTTP 200, dashboard/package/image versions match the candidate, intended plugins load before and after restart, the update preserves state, both architectures are published, and every required build/manifest/smoke job is green.",
       "tags": ["plugins", "container", "ci"],
       "fields": {"area": "regression", "notes": ""}
     }
