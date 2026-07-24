@@ -38,6 +38,7 @@ import {
   sanitizeReviewLogLine,
   type ReviewExportInstance,
 } from '../lib/reviewExport'
+import { readStoredReviewIdentity, resolveReviewIdentity, storeReviewIdentity } from '../lib/reviewIdentity'
 
 type Props = {
   plugin: PluginManifest
@@ -1066,7 +1067,7 @@ function TemplateCard({
   const detailLines = getPluginDetailLines(plugin, preview)
 
   return (
-    <div className="min-w-0 overflow-hidden rounded-lg border border-sky-200 bg-sky-50/70 p-4 dark:border-sky-900/40 dark:bg-sky-950/20">
+    <div className="w-full min-w-0 max-w-full overflow-hidden rounded-lg border border-sky-200 bg-sky-50/70 p-3 dark:border-sky-900/40 dark:bg-sky-950/20 sm:p-4">
       <div className={`flex flex-col items-stretch gap-3 ${compact ? '' : 'sm:flex-row sm:items-start sm:justify-between'}`}>
         <div className="min-w-0">
           <div className="flex items-center gap-2">
@@ -1085,7 +1086,7 @@ function TemplateCard({
             ))}
           </div>
         </div>
-        <div className={`flex w-full shrink-0 gap-2 ${compact ? '' : 'sm:w-auto'}`}>
+        <div className={`grid w-full min-w-0 grid-cols-2 gap-2 ${compact ? '' : 'sm:flex sm:w-auto'}`}>
           <button
             type="button"
             onClick={() => setShowDetails((current) => !current)}
@@ -1097,11 +1098,11 @@ function TemplateCard({
         </div>
       </div>
       {showDetails && (
-        <dl className="mt-4 grid gap-3 border-t border-sky-200/80 pt-4 text-sm dark:border-sky-900/50 sm:grid-cols-2">
+        <dl className="mt-4 grid w-full min-w-0 gap-3 overflow-hidden border-t border-sky-200/80 pt-4 text-sm dark:border-sky-900/50 sm:grid-cols-2">
           {detailLines.map((line) => (
             <div key={`${line.label}:${line.value}`} className="min-w-0">
               <dt className="text-xs font-medium uppercase tracking-wide text-gray-400">{line.label}</dt>
-              <dd className="mt-0.5 break-words text-gray-700 dark:text-gray-200">{line.value}</dd>
+              <dd className="mt-0.5 min-w-0 break-words text-gray-700 [overflow-wrap:anywhere] dark:text-gray-200">{line.value}</dd>
             </div>
           ))}
         </dl>
@@ -1435,7 +1436,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
   const suggestionTags = useMemo(() => {
     const allTags = collectPluginTemplateTags(recommendedTemplates)
     if (!isChecklist) return allTags
-    return ['1.9.9', '2.0.0', '2.0.0-test-rc8'].filter((tag) => allTags.includes(tag))
+    return ['1.9.9', '2.0.0', '2.0.0-test-rc9'].filter((tag) => allTags.includes(tag))
   }, [recommendedTemplates, isChecklist])
   const filteredSuggestions = useMemo(() => sortPluginTemplates(
     recommendedTemplates.filter((template) => (
@@ -1600,8 +1601,9 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
   const openReviewExport = async () => {
     setShowActionsMenu(false)
     setReviewExportError(null)
-    setReviewerName(user?.name || user?.login || '')
-    setReviewerEmail(user?.email || '')
+    const identity = resolveReviewIdentity(user, readStoredReviewIdentity(window.localStorage))
+    setReviewerName(identity.name)
+    setReviewerEmail(identity.email)
     setReviewEnvironment(authConfig?.deploymentKind || 'local')
     setShowReviewExport(true)
     try {
@@ -1632,6 +1634,10 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
         records: items.filter(isGenericPluginRecord),
         recentErrors,
       })
+      storeReviewIdentity(window.localStorage, {
+        name: reviewerName,
+        email: reviewerEmail,
+      })
       const url = URL.createObjectURL(new Blob([markdown], { type: 'text/markdown;charset=utf-8' }))
       const link = document.createElement('a')
       link.href = url
@@ -1651,11 +1657,11 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
   const shownCount = collectionTab === 'suggested' ? filteredSuggestions.length : filtered.length
 
   return (
-    <div className="mx-auto w-full min-w-0 max-w-7xl overflow-x-hidden px-4 py-6 sm:px-6">
+    <div className="mx-auto w-full min-w-0 max-w-7xl overflow-x-hidden px-3 py-5 sm:px-6 sm:py-6">
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
           <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">{plugin.name}</h1>
-          <p className="text-sm text-gray-500 mt-0.5 flex items-center gap-1.5">
+          <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-sm text-gray-500">
             {shownCount} shown
             <span className="text-gray-300">·</span>
             <span>workspace-scoped</span>
@@ -1674,32 +1680,32 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
         </div>
         <div className="flex w-full max-w-full shrink-0 flex-wrap items-center gap-2 sm:w-auto sm:gap-3">
           {!isChecklist && <>
-          <div className="flex w-full items-center overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800 sm:w-auto">
+          <div className="grid w-full min-w-0 grid-cols-4 overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800 sm:flex sm:w-auto">
             <button
               onClick={() => setViewMode('grid')}
               title="Grid view (compact)"
-              className={`px-2.5 py-1.5 text-xs transition-colors ${viewMode === 'grid' ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+              className={`min-w-0 px-2.5 py-1.5 text-xs transition-colors ${viewMode === 'grid' ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
             >
               <ProductIconCell iconName="grid" label="Grid view" size="sm" className="border-transparent bg-transparent text-current" />
             </button>
             <button
               onClick={() => setViewMode('detail')}
               title="Detail view"
-              className={`px-2.5 py-1.5 text-xs transition-colors border-l border-gray-200 dark:border-gray-700 ${viewMode === 'detail' ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+              className={`min-w-0 border-l border-gray-200 px-2.5 py-1.5 text-xs transition-colors dark:border-gray-700 ${viewMode === 'detail' ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
             >
               <ProductIconCell iconName="docs" label="Detail view" size="sm" className="border-transparent bg-transparent text-current" />
             </button>
             <button
               onClick={() => setViewMode('table')}
               title="List view"
-              className={`px-2.5 py-1.5 text-xs transition-colors border-l border-gray-200 dark:border-gray-700 ${viewMode === 'table' ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+              className={`min-w-0 border-l border-gray-200 px-2.5 py-1.5 text-xs transition-colors dark:border-gray-700 ${viewMode === 'table' ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
             >
               <ProductIconCell iconName="list" label="List view" size="sm" className="border-transparent bg-transparent text-current" />
             </button>
             <button
               onClick={() => setViewMode('graph')}
               title="Relationship view"
-              className={`px-2.5 py-1.5 text-xs transition-colors border-l border-gray-200 dark:border-gray-700 ${viewMode === 'graph' ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+              className={`min-w-0 border-l border-gray-200 px-2.5 py-1.5 text-xs transition-colors dark:border-gray-700 ${viewMode === 'graph' ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
             >
               <ProductIconCell iconName="workflow" label="Relationship view" size="sm" className="border-transparent bg-transparent text-current" />
             </button>
@@ -1825,11 +1831,11 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
             </div>
           </div>
         )}
-        <div className="inline-flex border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+        <div className="grid w-full min-w-0 grid-cols-3 overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700 sm:inline-flex sm:w-auto">
           <button
             onClick={() => setCollectionTab('active')}
             aria-pressed={collectionTab === 'active'}
-            className={`px-4 py-2 text-sm font-medium transition-colors ${
+            className={`min-w-0 px-2 py-2 text-sm font-medium transition-colors sm:px-4 ${
               collectionTab === 'active'
                 ? 'bg-sky-600 text-white'
                 : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
@@ -1840,7 +1846,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
           <button
             onClick={() => setCollectionTab('archived')}
             aria-pressed={collectionTab === 'archived'}
-            className={`px-4 py-2 text-sm font-medium transition-colors ${
+            className={`min-w-0 px-2 py-2 text-sm font-medium transition-colors sm:px-4 ${
               collectionTab === 'archived'
                 ? 'bg-sky-600 text-white'
                 : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
@@ -1851,7 +1857,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
           <button
             onClick={() => setCollectionTab('suggested')}
             aria-pressed={collectionTab === 'suggested'}
-            className={`border-l border-gray-200 px-4 py-2 text-sm font-medium transition-colors dark:border-gray-700 ${
+            className={`min-w-0 border-l border-gray-200 px-2 py-2 text-sm font-medium transition-colors dark:border-gray-700 sm:px-4 ${
               collectionTab === 'suggested'
                 ? 'bg-sky-600 text-white'
                 : 'bg-white text-gray-700 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'
@@ -1997,7 +2003,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                 {tag === 'all' ? 'All' : tag}
               </button>
             ))}
-            <span className="ml-auto text-xs text-gray-500 dark:text-gray-400">{filteredSuggestions.length} shown</span>
+            <span className="w-full text-xs text-gray-500 dark:text-gray-400 sm:ml-auto sm:w-auto">{filteredSuggestions.length} shown</span>
           </div>
         </div>
       )}
@@ -2346,9 +2352,9 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
       )}
 
       {showReviewExport && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-2 sm:p-4">
           <div className="flex max-h-[90dvh] w-full max-w-xl flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900">
-            <div className="flex shrink-0 items-start justify-between gap-4 border-b border-gray-200 px-5 py-4 dark:border-gray-700">
+            <div className="flex shrink-0 items-start justify-between gap-3 border-b border-gray-200 px-4 py-3 dark:border-gray-700 sm:px-5 sm:py-4">
               <div>
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Export {activeGroup} review</h2>
                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -2357,7 +2363,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
               </div>
               <button type="button" onClick={() => setShowReviewExport(false)} className="text-gray-400 hover:text-gray-600" aria-label="Close review export">✕</button>
             </div>
-            <div className="min-h-0 space-y-4 overflow-y-auto px-5 py-4">
+            <div className="min-h-0 space-y-4 overflow-y-auto px-4 py-3 sm:px-5 sm:py-4">
               <label className="block">
                 <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Reviewer name</span>
                 <input
@@ -2400,7 +2406,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
               </div>
               {reviewExportError && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300">{reviewExportError}</div>}
             </div>
-            <div className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-gray-200 px-5 py-4 dark:border-gray-700">
+            <div className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-gray-200 px-4 py-3 [padding-bottom:max(0.75rem,env(safe-area-inset-bottom))] dark:border-gray-700 sm:px-5 sm:py-4">
               <button type="button" onClick={() => setShowReviewExport(false)} className={`${headerSecondaryButtonClass} ${headerSecondaryButtonIdleClass}`}>Cancel</button>
               <button type="button" onClick={() => void exportReview()} disabled={!reviewerName.trim() || reviewExporting} className={`${headerPrimaryButtonClass} disabled:cursor-not-allowed disabled:opacity-50`}>
                 {reviewExporting ? 'Collecting errors…' : 'Export review'}

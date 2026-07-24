@@ -2175,6 +2175,14 @@ else
   fail "Release review export unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Release reviewer identity unit tests...${NC}"
+if npx ts-node --transpileOnly client/src/lib/reviewIdentity.test.ts > /tmp/clawmax-review-identity.out 2>&1; then
+  pass "Release reviewer identity unit tests (7 tests)"
+else
+  cat /tmp/clawmax-review-identity.out
+  fail "Release reviewer identity unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Partner catalog helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/partnerCatalog.test.ts > /tmp/clawmax-partner-catalog.out 2>&1 || true
 if grep -q "partnerCatalog.test.ts: ok" /tmp/clawmax-partner-catalog.out; then

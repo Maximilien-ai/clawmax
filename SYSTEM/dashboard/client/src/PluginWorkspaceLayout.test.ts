@@ -49,7 +49,7 @@ assert(pluginPageSource.includes('history: []'), 'Suggested guardrails must norm
 assert(pluginPageSource.includes('runs: []'), 'Suggested evals must normalize persistence-only runs before preview')
 assert(pluginPageSource.includes('fields: base.fields || {}'), 'Suggested generic plugins must normalize declarative fields before preview')
 assert(pluginPageSource.includes('min-w-0 w-full sm:w-auto'), 'Plugin headers must stack without clipping on phone viewports')
-assert(pluginPageSource.includes('flex w-full items-center overflow-hidden rounded-lg border'), 'Plugin view controls must occupy their own mobile row')
+assert(pluginPageSource.includes('grid w-full min-w-0 grid-cols-4 overflow-hidden rounded-lg border'), 'Plugin view controls must occupy four stable mobile columns')
 assert(manifests.every((manifest) => !/dormant|test plugin|mvp/i.test(`${manifest.name} ${manifest.description} ${manifest.version}`)), 'Enabled plugin UI copy must be product-ready')
 assert(new Set(manifests.map((manifest) => manifest.icon)).size === manifests.length, 'Each first-party plugin must declare a distinct navigation icon')
 
