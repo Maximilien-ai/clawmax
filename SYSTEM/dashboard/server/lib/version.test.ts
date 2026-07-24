@@ -128,7 +128,7 @@ async function run() {
     if (/^\d+\.\d+\.\d+$/.test(resolved)) {
       return
     }
-    if (/^\d+\.\d+\.\d+-[0-9A-Za-z.-]+$/.test(resolved)) {
+    if (/^\d+\.\d+\.\d+-[0-9A-Za-z.-]+\*?$/.test(resolved)) {
       return
     }
     assert(

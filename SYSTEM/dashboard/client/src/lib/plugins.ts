@@ -433,6 +433,38 @@ export function collectPluginTags(items: PluginRecord[]): string[] {
   return Array.from(new Set(items.flatMap((item) => item.tags))).sort((a, b) => a.localeCompare(b))
 }
 
+export function collectPluginTemplateTags(templates: PluginRecordTemplate[]): string[] {
+  return Array.from(new Set(templates.flatMap((template) => template.tags))).sort((a, b) => a.localeCompare(b))
+}
+
+export function matchesPluginTemplateSearch(template: PluginRecordTemplate, query: string): boolean {
+  const normalized = query.trim().toLowerCase()
+  if (!normalized) return true
+  const payloadValues = 'fields' in template.payload
+    ? Object.values(template.payload.fields || {}).flatMap((value) => Array.isArray(value) ? value : [String(value ?? '')])
+    : []
+  return [
+    template.name,
+    template.description,
+    ...template.tags,
+    ...payloadValues,
+  ].join(' ').toLowerCase().includes(normalized)
+}
+
+export type PluginTemplateSort = 'recommended' | 'name-asc' | 'name-desc'
+
+export function sortPluginTemplates(
+  templates: PluginRecordTemplate[],
+  sort: PluginTemplateSort,
+): PluginRecordTemplate[] {
+  if (sort === 'recommended') return [...templates]
+  return [...templates].sort((a, b) => (
+    sort === 'name-desc'
+      ? b.name.localeCompare(a.name)
+      : a.name.localeCompare(b.name)
+  ))
+}
+
 export function matchesPluginSearch(item: PluginRecord, query: string): boolean {
   const normalized = query.trim().toLowerCase()
   if (!normalized) return true

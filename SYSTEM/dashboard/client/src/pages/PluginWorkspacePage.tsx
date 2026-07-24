@@ -10,6 +10,7 @@ import type { GenericPluginRecord, PluginFieldValue, PluginManifest, PluginRecor
 import {
   buildGenericPluginFields,
   buildPluginDraftFromPrompt,
+  collectPluginTemplateTags,
   collectPluginTags,
   formatPluginScopeSummary,
   formatPluginUpdatedAt,
@@ -23,8 +24,11 @@ import {
   isEvalRecord,
   isGenericPluginRecord,
   isGuardrailRecord,
+  matchesPluginTemplateSearch,
   matchesPluginSearch,
   scorePluginDraft,
+  sortPluginTemplates,
+  type PluginTemplateSort,
   usesLegacyPluginAdapter,
 } from '../lib/plugins'
 import {
@@ -41,7 +45,7 @@ type Props = {
   onNavigateToDoc?: (path: string) => void
 }
 
-type ArchiveTab = 'active' | 'archived'
+type PluginCollectionTab = 'active' | 'archived' | 'suggested'
 type PluginViewMode = 'grid' | 'detail' | 'table' | 'graph'
 
 function collectRecentRuntimeErrors(timeoutMs = 2500): Promise<string[]> {
@@ -1299,7 +1303,10 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
   const [search, setSearch] = useState('')
   const [selectedTag, setSelectedTag] = useState<string>('all')
   const [statusFilter, setStatusFilter] = useState<'all' | 'enabled' | 'disabled'>('all')
-  const [archiveTab, setArchiveTab] = useState<ArchiveTab>('active')
+  const [suggestionSearch, setSuggestionSearch] = useState('')
+  const [suggestionTag, setSuggestionTag] = useState<string>('all')
+  const [collectionTab, setCollectionTab] = useState<PluginCollectionTab>('active')
+  const [suggestionSort, setSuggestionSort] = useState<PluginTemplateSort>('recommended')
   const [viewMode, setViewMode] = useState<PluginViewMode>(() => {
     const saved = localStorage.getItem(`clawmax-plugin-view-mode:${plugin.slug}`)
     return saved === 'detail' || saved === 'table' || saved === 'graph' ? saved : 'grid'
@@ -1383,8 +1390,9 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
   const filtered = useMemo(
     () => items.filter((item) => {
       const archived = item.archived === true
-      if (archiveTab === 'active' && archived) return false
-      if (archiveTab === 'archived' && !archived) return false
+      if (collectionTab === 'active' && archived) return false
+      if (collectionTab === 'archived' && !archived) return false
+      if (collectionTab === 'suggested') return false
       if (selectedTag !== 'all' && !item.tags.includes(selectedTag)) return false
       if (statusFilter === 'enabled' && !item.enabled) return false
       if (statusFilter === 'disabled' && item.enabled) return false
@@ -1393,7 +1401,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
       }
       return matchesPluginSearch(item, search)
     }),
-    [items, search, selectedTag, statusFilter, archiveTab, groupField, activeGroup]
+    [items, search, selectedTag, statusFilter, collectionTab, groupField, activeGroup]
   )
   const recommendedTemplates = useMemo(() => templates.filter((entry) => {
     if (entry.recommended === false) return false
@@ -1405,24 +1413,32 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
       return isGenericPluginRecord(item) && item.fields[groupField] === templateGroup
     })
   }), [templates, items, groupField])
+  const suggestionTags = useMemo(() => collectPluginTemplateTags(recommendedTemplates), [recommendedTemplates])
+  const filteredSuggestions = useMemo(() => sortPluginTemplates(
+    recommendedTemplates.filter((template) => (
+      (suggestionTag === 'all' || template.tags.includes(suggestionTag))
+      && matchesPluginTemplateSearch(template, suggestionSearch)
+    )),
+    suggestionSort,
+  ), [recommendedTemplates, suggestionTag, suggestionSearch, suggestionSort])
   const suggestedPreviewRecords = useMemo(
-    () => recommendedTemplates.map(templateToPreviewRecord),
-    [recommendedTemplates],
+    () => filteredSuggestions.map(templateToPreviewRecord),
+    [filteredSuggestions],
   )
   const selectedSuggestedTemplate = useMemo(
-    () => recommendedTemplates.find((template) => template.id === selectedSuggestedTemplateId) || null,
-    [recommendedTemplates, selectedSuggestedTemplateId],
+    () => filteredSuggestions.find((template) => template.id === selectedSuggestedTemplateId) || null,
+    [filteredSuggestions, selectedSuggestedTemplateId],
   )
   const checklistTemplatesByRelease = useMemo(() => {
     if (!isChecklist || !groupField) return []
     const byRelease = new Map<string, PluginRecordTemplate[]>()
-    recommendedTemplates.forEach((template) => {
+    filteredSuggestions.forEach((template) => {
       const fields = 'fields' in template.payload ? template.payload.fields : undefined
       const release = fields && typeof fields[groupField] === 'string' ? String(fields[groupField]) : 'Unversioned'
       byRelease.set(release, [...(byRelease.get(release) || []), template])
     })
     return Array.from(byRelease.entries()).sort(([a], [b]) => b.localeCompare(a, undefined, { numeric: true }))
-  }, [recommendedTemplates, isChecklist, groupField])
+  }, [filteredSuggestions, isChecklist, groupField])
   const activeCount = useMemo(() => items.filter((item) => item.archived !== true).length, [items])
   const archivedCount = useMemo(() => items.filter((item) => item.archived === true).length, [items])
   const selectedItem = useMemo(
@@ -1537,6 +1553,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
     }
     const data = await res.json()
     await load()
+    setCollectionTab('active')
     if (data.item) {
       setEditing(data.item)
       setShowModal(true)
@@ -1554,6 +1571,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
       throw new Error(data.error || 'Failed to add release checklist')
     }
     await load()
+    setCollectionTab('active')
   }
 
   const openReviewExport = async () => {
@@ -1607,13 +1625,15 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
     }
   }
 
+  const shownCount = collectionTab === 'suggested' ? filteredSuggestions.length : filtered.length
+
   return (
     <div className="mx-auto w-full min-w-0 max-w-7xl overflow-x-hidden px-4 py-6 sm:px-6">
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
           <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">{plugin.name}</h1>
           <p className="text-sm text-gray-500 mt-0.5 flex items-center gap-1.5">
-            {filtered.length} shown
+            {shownCount} shown
             <span className="text-gray-300">·</span>
             <span>workspace-scoped</span>
             <span className="text-gray-300">·</span>
@@ -1631,7 +1651,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
         </div>
         <div className="flex w-full max-w-full shrink-0 flex-wrap items-center gap-2 sm:w-auto sm:gap-3">
           {!isChecklist && <>
-          <div className="flex items-center border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden bg-white dark:bg-gray-800">
+          <div className="flex w-full items-center overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800 sm:w-auto">
             <button
               onClick={() => setViewMode('grid')}
               title="Grid view (compact)"
@@ -1758,8 +1778,8 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
         </div>
       </div>
 
-      {(groups.length > 0 || !isChecklist || items.length > 0) && <div className="mb-4">
-        {groupField && groups.length > 0 && (
+      {(groups.length > 0 || !isChecklist || items.length > 0 || recommendedTemplates.length > 0) && <div className="mb-4">
+        {collectionTab !== 'suggested' && groupField && groups.length > 0 && (
           <div className="mb-4">
             <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Release</div>
             <div className="flex flex-wrap gap-2" role="tablist" aria-label="Release checklists">
@@ -1784,9 +1804,10 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
         )}
         <div className="inline-flex border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
           <button
-            onClick={() => setArchiveTab('active')}
+            onClick={() => setCollectionTab('active')}
+            aria-pressed={collectionTab === 'active'}
             className={`px-4 py-2 text-sm font-medium transition-colors ${
-              archiveTab === 'active'
+              collectionTab === 'active'
                 ? 'bg-sky-600 text-white'
                 : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
             }`}
@@ -1794,19 +1815,31 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
             Active ({activeCount})
           </button>
           <button
-            onClick={() => setArchiveTab('archived')}
+            onClick={() => setCollectionTab('archived')}
+            aria-pressed={collectionTab === 'archived'}
             className={`px-4 py-2 text-sm font-medium transition-colors ${
-              archiveTab === 'archived'
+              collectionTab === 'archived'
                 ? 'bg-sky-600 text-white'
                 : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
             }`}
           >
             Archived ({archivedCount})
           </button>
+          <button
+            onClick={() => setCollectionTab('suggested')}
+            aria-pressed={collectionTab === 'suggested'}
+            className={`border-l border-gray-200 px-4 py-2 text-sm font-medium transition-colors dark:border-gray-700 ${
+              collectionTab === 'suggested'
+                ? 'bg-sky-600 text-white'
+                : 'bg-white text-gray-700 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'
+            }`}
+          >
+            Suggested ({recommendedTemplates.length})
+          </button>
         </div>
       </div>}
 
-      {(!isChecklist || items.length > 0) && <div className="mb-4">
+      {collectionTab !== 'suggested' && (!isChecklist || items.length > 0) && <div className="mb-4">
         <div className="relative">
           <input
             value={search}
@@ -1831,7 +1864,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
         )}
       </div>}
 
-      {!isChecklist && <div className="mb-6">
+      {!isChecklist && collectionTab !== 'suggested' && <div className="mb-6">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs text-gray-400 font-medium">Filter:</span>
           <button
@@ -1890,7 +1923,63 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
         </div>
       </div>}
 
-      {!loading && !error && recommendedTemplates.length > 0 && (
+      {collectionTab === 'suggested' && (
+        <div className="mb-6 space-y-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="relative min-w-0 flex-1">
+              <input
+                value={suggestionSearch}
+                onChange={(event) => setSuggestionSearch(event.target.value)}
+                placeholder={`Search suggested ${plugin.labels?.plural?.toLowerCase() || 'items'} by name, description, tags, or configuration`}
+                className="w-full rounded-md border border-gray-200 bg-white px-4 py-2 pr-10 text-sm text-gray-900 placeholder-gray-400 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-sky-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
+              />
+              {suggestionSearch && (
+                <button
+                  type="button"
+                  onClick={() => setSuggestionSearch('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 transition-colors hover:text-gray-600"
+                  title="Clear suggested search"
+                  aria-label="Clear suggested search"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+            <label className="flex shrink-0 items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+              <span>Sort</span>
+              <select
+                value={suggestionSort}
+                onChange={(event) => setSuggestionSort(event.target.value as PluginTemplateSort)}
+                className="rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+              >
+                <option value="recommended">Recommended</option>
+                <option value="name-asc">Name A-Z</option>
+                <option value="name-desc">Name Z-A</option>
+              </select>
+            </label>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-medium text-gray-400">Filter:</span>
+            {['all', ...suggestionTags].map((tag) => (
+              <button
+                key={tag}
+                type="button"
+                onClick={() => setSuggestionTag(tag)}
+                className={`rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
+                  suggestionTag === tag
+                    ? 'border-sky-600 bg-sky-600 text-white'
+                    : 'border-gray-200 bg-white text-gray-600 hover:border-sky-300 hover:text-sky-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400'
+                }`}
+              >
+                {tag === 'all' ? 'All' : tag}
+              </button>
+            ))}
+            <span className="ml-auto text-xs text-gray-500 dark:text-gray-400">{filteredSuggestions.length} shown</span>
+          </div>
+        </div>
+      )}
+
+      {!loading && !error && collectionTab === 'suggested' && filteredSuggestions.length > 0 && (
         <div className="mt-6">
           {isChecklist ? (
             <div className="rounded-lg border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-900/40">
@@ -1919,7 +2008,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
               </div>
               {viewMode === 'grid' ? (
                 <div className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                  {recommendedTemplates.map((template) => (
+                  {filteredSuggestions.map((template) => (
                     <TemplateCard
                       key={template.id}
                       plugin={plugin}
@@ -1931,7 +2020,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                 </div>
               ) : viewMode === 'detail' ? (
                 <div className="grid min-w-0 gap-4 xl:grid-cols-2">
-                  {recommendedTemplates.map((template) => (
+                  {filteredSuggestions.map((template) => (
                     <TemplateCard
                       key={template.id}
                       plugin={plugin}
@@ -1965,7 +2054,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                     <div>Tags</div>
                     <div>Actions</div>
                   </div>
-                  {recommendedTemplates.map((template) => (
+                  {filteredSuggestions.map((template) => (
                     <div key={template.id} className="grid gap-3 border-b border-gray-100 px-4 py-3 last:border-b-0 dark:border-gray-800 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_170px] sm:items-center">
                       <div className="min-w-0">
                         <div className="font-medium text-gray-900 dark:text-gray-100">{template.name}</div>
@@ -2002,9 +2091,17 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
         <div className="mt-6 rounded-2xl border border-gray-200 bg-white p-8 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900/40 dark:text-gray-400">Loading plugin workspace...</div>
       ) : error ? (
         <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-900/10 dark:text-red-300">{error}</div>
-      ) : filtered.length === 0 && isChecklist && recommendedTemplates.length > 0 ? null : filtered.length === 0 && isChecklist ? (
+      ) : collectionTab === 'suggested' ? (
+        filteredSuggestions.length === 0 ? (
+          <div className="mt-6 rounded-lg border border-gray-200 bg-white px-5 py-8 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900/40 dark:text-gray-400">
+            {recommendedTemplates.length === 0
+              ? `No suggested ${plugin.labels?.plural?.toLowerCase() || 'items'} are available.`
+              : 'No suggestions match the current search and filters.'}
+          </div>
+        ) : null
+      ) : filtered.length === 0 && isChecklist ? (
         <div className="mt-6 rounded-lg border border-gray-200 bg-white px-5 py-8 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900/40 dark:text-gray-400">
-          No checks match the current release or search.
+          {collectionTab === 'archived' ? 'No archived checks match the current release or search.' : 'No checks match the current release or search. Open Suggested to start a release checklist.'}
         </div>
       ) : filtered.length === 0 ? (
         <div className="mt-6">

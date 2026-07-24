@@ -1,6 +1,7 @@
 import {
   buildPluginDraftFromPrompt,
   buildGenericPluginFields,
+  collectPluginTemplateTags,
   collectPluginTags,
   formatPluginScopeSummary,
   formatPluginDiagnosticsSummary,
@@ -13,12 +14,15 @@ import {
   getPluginUsageTotals,
   getPluginDetailLines,
   isGenericPluginRecord,
+  matchesPluginTemplateSearch,
   matchesPluginSearch,
   normalizePluginNavOrder,
   normalizePluginDiagnosticsReport,
   scorePluginDraft,
+  sortPluginTemplates,
   type PluginManifest,
   type PluginRecord,
+  type PluginRecordTemplate,
 } from './plugins'
 
 function assert(condition: boolean, message: string) {
@@ -171,6 +175,35 @@ test('plugin navigation and checklist metadata resolve valid compact fields', ()
 test('collectPluginTags returns sorted unique tags', () => {
   const tags = collectPluginTags([guardrail, evalRecord])
   assert(JSON.stringify(tags) === JSON.stringify(['email', 'quality', 'research', 'security']), 'Expected sorted unique tags')
+})
+
+test('suggested plugin entries support independent tags, search, and sorting', () => {
+  const suggestions: PluginRecordTemplate[] = [
+    {
+      id: 'email',
+      pluginId: 'plugin-lab-guardrails',
+      name: 'No outbound email',
+      description: 'Block external mail',
+      objectKind: 'guardrail',
+      tags: ['safety', 'email'],
+      payload: { name: 'No outbound email' },
+    },
+    {
+      id: 'docs',
+      pluginId: 'plugin-lab-guardrails',
+      name: 'Internal docs',
+      description: 'Keep files private',
+      objectKind: 'guardrail',
+      tags: ['safety', 'docs'],
+      payload: { name: 'Internal docs' },
+    },
+  ]
+  assert(JSON.stringify(collectPluginTemplateTags(suggestions)) === JSON.stringify(['docs', 'email', 'safety']), 'Expected sorted unique suggestion tags')
+  assert(matchesPluginTemplateSearch(suggestions[0], 'external mail'))
+  assert(!matchesPluginTemplateSearch(suggestions[0], 'private files'))
+  assert(JSON.stringify(sortPluginTemplates(suggestions, 'name-asc').map((entry) => entry.id)) === JSON.stringify(['docs', 'email']), 'Expected ascending suggestion sort')
+  assert(JSON.stringify(sortPluginTemplates(suggestions, 'name-desc').map((entry) => entry.id)) === JSON.stringify(['email', 'docs']), 'Expected descending suggestion sort')
+  assert(JSON.stringify(sortPluginTemplates(suggestions, 'recommended').map((entry) => entry.id)) === JSON.stringify(['email', 'docs']), 'Expected original recommendation order')
 })
 
 test('matchesPluginSearch finds guardrail targets and controls', () => {

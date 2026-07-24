@@ -16,6 +16,7 @@ All notable changes to ClawMax are documented here.
 - **Plugin Relationships And Lifecycle Evidence** — plugin workspaces add a relationship view alongside grid, detail, and list views; active guardrails appear on targeted agent and workflow cards; guardrail activation history and eval completion notifications make plugin activity visible after an operation.
 - **Persistent Plugin Navigation And Views** — plugin entries can be reordered in the sidebar and retain that browser-local order, with Review last by default; each plugin also restores its last selected grid, detail, list, or relationship view.
 - **Release Review Export** — Review exports a release-specific Markdown handoff containing checklist outcomes, notes, evidence, reviewer identity, environment and instance details, timestamps, and sanitized recent runtime errors.
+- **Dedicated Plugin Suggestions** — plugin suggestions live in a separate counted tab instead of appearing above active workspace items, with independent search, tag filters, recommendation/name sorting, and a return to Active after use.
 
 ### Fixed
 - **Checklist-First Review UI** — release checks now render as a responsive list with direct completion and note editing. Internal checklist seeds no longer appear as misleading `Recommended` cards with `Use Template` actions.
@@ -24,6 +25,7 @@ All notable changes to ClawMax are documented here.
 - **Compact Plugin Navigation** — manifests can declare a one- or two-word `nav.label`; the sidebar truncates unexpected overflow with a tooltip while preserving the full plugin name on its page.
 - **Scrollable Sidebar Layout** — long plugin and System navigation now scrolls inside the dark viewport-height sidebar while account and version controls remain visible instead of overflowing onto the page background.
 - **Mobile Plugin And Export Layout** — plugin routes constrain horizontal overflow and the Review export dialog keeps its header, scrollable content, and actions usable at narrow mobile widths.
+- **Mobile Plugin Toolbar Wrapping** — plugin view controls use their own mobile row so Create and Actions remain visible instead of being clipped offscreen.
 
 ### Planned
 - **2.0 Public Plugin And AI-Scoring Foundation** — complete the generic contribution-based plugin contract for pages, APIs, data, actions, jobs, events, settings, skills, providers, docs, and extension points; then publish scorer contracts and user-facing scoring surfaces on that foundation.
