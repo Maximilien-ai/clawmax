@@ -33,14 +33,15 @@
 ### 2.0.0 development
 
 - Branch: `main`
-- Current test candidate: `2.0.0-test-rc7`; RC8 is intentionally deferred until the current local plugin navigation and Review export changes complete manual validation.
+- Current test candidate: `2.0.0-test-rc8`, built from the current `main` release boundary after local plugin navigation, cached suggestions, consolidated Review sets, export handoff, and detailed tester guidance completed validation.
 - Architecture: [Plugin System 2.0](../../PLUGINS/PLUGIN_SYSTEM_2_0.md)
 - Authoring contract: [Plugin Authoring 2.0](../../PLUGINS/PLUGIN_AUTHORING_2_0.md)
 - Generic architecture plan: [PUBLIC_PLUGIN_ARCHITECTURE_2_0.md](planning/PUBLIC_PLUGIN_ARCHITECTURE_2_0.md)
 - Optimize plan: [PUBLIC_OPTIMIZE_PLUGIN_2_0.md](planning/PUBLIC_OPTIMIZE_PLUGIN_2_0.md)
 - Mail/provider plan: [PUBLIC_MODELS_GATEWAYS_EMAIL_2_0.md](planning/PUBLIC_MODELS_GATEWAYS_EMAIL_2_0.md)
 - Activity Export/partner plan: [PUBLIC_ACTIVITY_EXPORT_PARTNERS_2_0.md](planning/PUBLIC_ACTIVITY_EXPORT_PARTNERS_2_0.md)
-- Immediate work: reconcile the declarative v2 contract with the generic contribution model; add manifest-declared custom actions, error isolation, and external packaging validation on top of the enforced host capabilities.
+- RC8 validation focus: public/private plugin inventory, all plugin layouts and view modes, cached Suggested loading, browser-local plugin ordering, cumulative Review state/export, cloud/on-prem restart persistence, and mobile toolbars/dialogs.
+- Immediate work after RC8 feedback: reconcile the declarative v2 contract with the generic contribution model; add manifest-declared custom actions, error isolation, and external packaging validation on top of the enforced host capabilities.
 - Product work: public AI scoring, public token-first Optimize, curated public Gmail and Microsoft 365/Outlook plugins, and a consent-gated Activity Export contract proven first with ClawMax.ai and then Digo.
 - Plugins remain domain-neutral. Guardrails and evaluations are possible implementations, not fixed host-level plugin types.
 
