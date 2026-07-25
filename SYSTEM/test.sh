@@ -1609,11 +1609,20 @@ fi
 
 echo -e "${YELLOW}→ Running App sidebar layout regression tests...${NC}"
 npx ts-node --transpileOnly client/src/AppSidebar.test.ts > /tmp/clawmax-app-sidebar.out 2>&1 || true
-if grep -q "AppSidebar.test.ts: 6 tests passed" /tmp/clawmax-app-sidebar.out; then
-  pass "App sidebar layout regression tests (6 tests)"
+if grep -q "AppSidebar.test.ts: 12 tests passed" /tmp/clawmax-app-sidebar.out; then
+  pass "App sidebar layout regression tests (12 tests)"
 else
   cat /tmp/clawmax-app-sidebar.out
   fail "App sidebar layout regression tests"
+fi
+
+echo -e "${YELLOW}→ Running Plugin navigation state unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/pluginsNavigation.test.ts > /tmp/clawmax-plugin-navigation.out 2>&1 || true
+if grep -q "pluginsNavigation.test.ts: 4 tests passed" /tmp/clawmax-plugin-navigation.out; then
+  pass "Plugin navigation state unit tests (4 tests)"
+else
+  cat /tmp/clawmax-plugin-navigation.out
+  fail "Plugin navigation state unit tests"
 fi
 
 echo -e "${YELLOW}→ Running Plugin release checklist regression tests...${NC}"
@@ -1634,8 +1643,8 @@ fi
 
 echo -e "${YELLOW}→ Running Plugin workspace layout regression tests...${NC}"
 npx ts-node --transpileOnly client/src/PluginWorkspaceLayout.test.ts > /tmp/clawmax-plugin-workspace-layout.out 2>&1 || true
-if grep -q "PluginWorkspaceLayout.test.ts: 32 tests passed" /tmp/clawmax-plugin-workspace-layout.out; then
-  pass "Plugin workspace layout regression tests (32 tests)"
+if grep -q "PluginWorkspaceLayout.test.ts: 34 tests passed" /tmp/clawmax-plugin-workspace-layout.out; then
+  pass "Plugin workspace layout regression tests (34 tests)"
 else
   cat /tmp/clawmax-plugin-workspace-layout.out
   fail "Plugin workspace layout regression tests"

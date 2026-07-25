@@ -42,6 +42,8 @@ assert(pluginPageSource.includes("forceTemplateRefresh ? '?refresh=1' : ''"), 'T
 assert(pluginPageSource.includes('Actions <span className="text-xs">▾</span>'), 'Plugin refresh belongs in the standard Actions menu')
 assert(appSource.includes('PLUGIN_NAV_ORDER_STORAGE_KEY'), 'Plugin navigation order must persist in the current browser')
 assert(appSource.includes('handlePluginDragOver'), 'Plugin navigation items must support reordering')
+assert(appSource.includes('PLUGIN_NAV_EXPANDED_STORAGE_KEY'), 'Plugin section expansion must persist in the current browser')
+assert(appSource.includes('resolvePluginNavExpanded'), 'Plugin navigation must use the default-expanded persistence helper')
 assert(appSource.includes('min-w-0 flex-1 overflow-auto overflow-x-hidden'), 'Plugin routes must not widen the mobile dashboard viewport')
 assert(pluginPageSource.includes('max-w-2xl break-words text-sm leading-5'), 'Plugin descriptions must wrap into a readable multi-line measure')
 assert(pluginPageSource.includes("localStorage.setItem(`clawmax-plugin-view-mode:${plugin.slug}`"), 'Plugin view selection must persist like core tabs')
@@ -53,4 +55,4 @@ assert(pluginPageSource.includes('grid w-full min-w-0 grid-cols-4 overflow-hidde
 assert(manifests.every((manifest) => !/dormant|test plugin|mvp/i.test(`${manifest.name} ${manifest.description} ${manifest.version}`)), 'Enabled plugin UI copy must be product-ready')
 assert(new Set(manifests.map((manifest) => manifest.icon)).size === manifests.length, 'Each first-party plugin must declare a distinct navigation icon')
 
-console.log('PluginWorkspaceLayout.test.ts: 32 tests passed')
+console.log('PluginWorkspaceLayout.test.ts: 34 tests passed')

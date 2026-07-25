@@ -13,5 +13,11 @@ assert(source.includes('<div className="shrink-0"><UserBadge'), 'Sidebar user ar
 assert(source.includes('shrink-0 border-t border-gray-700'), 'Sidebar footer must remain visible')
 assert(source.includes('label={getPluginNavLabel(plugin)}'), 'Plugin navigation must use compact manifest labels')
 assert(source.includes('<span className="truncate">{label}</span>'), 'Navigation labels must not wrap or widen the sidebar')
+assert(source.includes('{coreUserNav.map((item, index) => ('), 'All core navigation must render before the plugin section')
+assert(!source.includes('pluginAnchorIndex'), 'Plugins must not split the core navigation at an anchor tab')
+assert(source.includes('aria-expanded={pluginNavExpanded}'), 'Plugin navigation must expose an accessible collapsible section')
+assert(source.includes('pluginNavExpanded && orderedPlugins.map'), 'Collapsed plugin navigation must hide plugin entries')
+assert(source.indexOf('{coreUserNav.map((item, index) => (') < source.indexOf('aria-expanded={pluginNavExpanded}'), 'Plugins must render after all core navigation')
+assert(source.indexOf('aria-expanded={pluginNavExpanded}') < source.indexOf('onClick={() => setSystemNavExpanded'), 'Plugins must render immediately before the System section')
 
-console.log('AppSidebar.test.ts: 6 tests passed')
+console.log('AppSidebar.test.ts: 12 tests passed')

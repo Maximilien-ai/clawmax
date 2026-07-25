@@ -65,6 +65,11 @@ export interface PluginManifest {
 }
 
 export const PLUGIN_NAV_ORDER_STORAGE_KEY = 'clawmax-plugin-nav-order'
+export const PLUGIN_NAV_EXPANDED_STORAGE_KEY = 'clawmax-plugin-nav-expanded'
+
+export function resolvePluginNavExpanded(savedValue: string | null): boolean {
+  return savedValue === null ? true : savedValue === 'true'
+}
 
 export function normalizePluginNavOrder(
   plugins: PluginManifest[],

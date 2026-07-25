@@ -35,7 +35,9 @@ import { buildPluginPage, isPluginPage, pageToPath, pathToPage, pluginSlugFromPa
 import {
   getPluginNavLabel,
   normalizePluginNavOrder,
+  PLUGIN_NAV_EXPANDED_STORAGE_KEY,
   PLUGIN_NAV_ORDER_STORAGE_KEY,
+  resolvePluginNavExpanded,
   usesLegacyPluginAdapter,
   type PluginManifest,
 } from './lib/plugins'
@@ -424,6 +426,9 @@ export default function App() {
     }
   })
   const [draggedPluginIndex, setDraggedPluginIndex] = useState<number | null>(null)
+  const [pluginNavExpanded, setPluginNavExpanded] = useState<boolean>(() =>
+    resolvePluginNavExpanded(localStorage.getItem(PLUGIN_NAV_EXPANDED_STORAGE_KEY)),
+  )
   const [system, setSystem] = useState<SystemInfo | null>(null)
   const [navCollapsed, setNavCollapsed] = useState(false)
   const [systemNavExpanded, setSystemNavExpanded] = useState<boolean>(() => {
@@ -489,9 +494,6 @@ export default function App() {
   const [showTermsOfService, setShowTermsOfService] = useState(false)
 
   const coreUserNav = navOrder.slice(0, USER_TABS_COUNT)
-  const pluginAnchorIndex = coreUserNav.findIndex((item) => item.id === 'communication')
-  const navBeforePlugins = pluginAnchorIndex >= 0 ? coreUserNav.slice(0, pluginAnchorIndex + 1) : coreUserNav
-  const navAfterPlugins = pluginAnchorIndex >= 0 ? coreUserNav.slice(pluginAnchorIndex + 1) : []
   const navIndexById = new Map(navOrder.map((item, index) => [item.id, index]))
   const orderedPlugins = useMemo(
     () => normalizePluginNavOrder(plugins, pluginNavOrder),
@@ -741,6 +743,10 @@ export default function App() {
   }, [systemNavExpanded])
 
   useEffect(() => {
+    localStorage.setItem(PLUGIN_NAV_EXPANDED_STORAGE_KEY, String(pluginNavExpanded))
+  }, [pluginNavExpanded])
+
+  useEffect(() => {
     const handleWorkspaceTourStep = (event: Event) => {
       const detail = (event as CustomEvent<{ visible?: boolean; stepId?: string | null }>).detail
       const isSystemStep = detail?.visible === true && detail?.stepId === 'system'
@@ -831,7 +837,7 @@ export default function App() {
 
             {/* Nav */}
             <nav className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 py-4 space-y-1">
-              {navBeforePlugins.map((item, index) => (
+              {coreUserNav.map((item, index) => (
                 <React.Fragment key={item.id}>
                   <NavItemDraggable
                     label={item.label}
@@ -848,7 +854,7 @@ export default function App() {
                     onDragOver={(e) => handleNavDragOver(e, navIndexById.get(item.id) ?? index)}
                     onDragEnd={handleNavDragEnd}
                   />
-                  {index < navBeforePlugins.length - 1 && getPrimaryClientGroupIndex(item.id) !== getPrimaryClientGroupIndex(navBeforePlugins[index + 1]?.id) && (
+                  {index < coreUserNav.length - 1 && getPrimaryClientGroupIndex(item.id) !== getPrimaryClientGroupIndex(coreUserNav[index + 1]?.id) && (
                     <div className="my-2 mx-3 border-t border-gray-700"></div>
                   )}
                 </React.Fragment>
@@ -856,10 +862,23 @@ export default function App() {
               {plugins.length > 0 && (
                 <>
                   <div className="my-2 mx-3 border-t border-gray-700"></div>
-                  {!navCollapsed && (
-                    <div className="px-3 pb-1 pt-1 text-[11px] uppercase tracking-[0.18em] text-gray-400">Plugins</div>
-                  )}
-                  {orderedPlugins.map((plugin, pluginIndex) => {
+                  <button
+                    type="button"
+                    onClick={() => setPluginNavExpanded((current) => !current)}
+                    aria-expanded={pluginNavExpanded}
+                    className={`flex w-full items-center rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-300 transition-colors hover:bg-gray-800 hover:text-white ${navCollapsed ? 'justify-center' : 'justify-between'}`}
+                    title={navCollapsed ? 'Toggle plugin navigation' : undefined}
+                  >
+                    {navCollapsed ? (
+                      pluginNavExpanded ? <ChevronDownIcon className="h-4 w-4" /> : <ChevronRightSmallIcon className="h-4 w-4" />
+                    ) : (
+                      <>
+                        <span className="uppercase tracking-[0.18em] text-[11px] text-gray-400">Plugins</span>
+                        {pluginNavExpanded ? <ChevronDownIcon className="h-4 w-4" /> : <ChevronRightSmallIcon className="h-4 w-4" />}
+                      </>
+                    )}
+                  </button>
+                  {pluginNavExpanded && orderedPlugins.map((plugin, pluginIndex) => {
                     const pluginPage = pluginPageBySlug.get(plugin.slug) || buildPluginPage(plugin.slug)
                     const PluginIconComponent = getPluginNavIcon(plugin)
                     return (
@@ -879,28 +898,6 @@ export default function App() {
                       />
                     )
                   })}
-                </>
-              )}
-              {navAfterPlugins.length > 0 && (
-                <>
-                  <div className="my-2 mx-3 border-t border-gray-700"></div>
-                  {navAfterPlugins.map((item) => (
-                    <NavItemDraggable
-                      key={item.id}
-                      label={item.label}
-                      icon={item.icon}
-                      dataTourId={`nav-${item.id}`}
-                      active={page === item.id}
-                      onClick={() => {
-                        setPage(item.id)
-                        setMobileNavOpen(false)
-                      }}
-                      collapsed={navCollapsed}
-                      onDragStart={() => handleNavDragStart(navIndexById.get(item.id) ?? 0)}
-                      onDragOver={(e) => handleNavDragOver(e, navIndexById.get(item.id) ?? 0)}
-                      onDragEnd={handleNavDragEnd}
-                    />
-                  ))}
                 </>
               )}
               <div className="my-2 mx-3 border-t border-gray-700"></div>
