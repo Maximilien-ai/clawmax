@@ -45,6 +45,7 @@ export interface PartnerDefinition {
 }
 
 export const DEFAULT_PARTNERS = ['senso', 'opik', 'github', 'resend', 'cognee', 'gmail', 'microsoft365'] as const
+const LEGACY_DEFAULT_PARTNERS = ['senso', 'opik', 'github', 'resend', 'cognee'] as const
 
 function splitList(raw: string | undefined): string[] {
   return (raw || '')
@@ -64,7 +65,9 @@ function getPartnerRoots(): string[] {
 export function getEnabledPartnerSlugs(): string[] {
   const configured = splitList(process.env.WORKSPACES_INTEGRATIONS_THIRD_PARTIES)
   const allowed = new Set<string>(DEFAULT_PARTNERS)
-  const selected = configured.length > 0 ? configured : [...DEFAULT_PARTNERS]
+  const legacyDefault = configured.length === LEGACY_DEFAULT_PARTNERS.length
+    && LEGACY_DEFAULT_PARTNERS.every((slug) => configured.includes(slug))
+  const selected = configured.length === 0 || legacyDefault ? [...DEFAULT_PARTNERS] : configured
   return selected.filter((slug, index) => allowed.has(slug) && selected.indexOf(slug) === index)
 }
 

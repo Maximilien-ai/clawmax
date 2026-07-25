@@ -40,11 +40,18 @@ test('getEnabledPartnerSlugs defaults to current partner parity set', () => {
   assert(slugs.join(',') === 'senso,opik,github,resend,cognee,gmail,microsoft365', `Unexpected default partner slugs: ${slugs.join(',')}`)
 })
 
-test('listPartnerDefinitions respects configured allowlist', () => {
+test('legacy default allowlist gains newly shipped default partners', () => {
   process.env.WORKSPACES_INTEGRATIONS_THIRD_PARTIES = 'github,senso,opik,resend,cognee'
   const partners = listPartnerDefinitions()
   const slugs = partners.map((partner) => partner.slug)
-  assert(slugs.join(',') === 'github,senso,opik,resend,cognee', `Unexpected visible partners: ${slugs.join(',')}`)
+  assert(slugs.join(',') === 'senso,opik,github,resend,cognee,gmail,microsoft365', `Unexpected migrated partners: ${slugs.join(',')}`)
+})
+
+test('custom partner allowlist remains explicit', () => {
+  process.env.WORKSPACES_INTEGRATIONS_THIRD_PARTIES = 'github,resend'
+  const partners = listPartnerDefinitions()
+  const slugs = partners.map((partner) => partner.slug)
+  assert(slugs.join(',') === 'github,resend', `Unexpected custom partners: ${slugs.join(',')}`)
 })
 
 test('resend partner exposes server-stored API key field and skill catalog', () => {

@@ -26,6 +26,7 @@ All notable changes to ClawMax are documented here.
 - **Mail Partner Connections And Draft Adapters** — Gmail and Microsoft Partner panels expose workspace connection, refresh, reconnect, and disconnect states; bounded provider adapters implement inbox list/search, metadata/body read, and unsent draft creation without a send operation, while recipient and subject header injection fails closed.
 
 ### Fixed
+- **Mail Partners Hidden After Upgrade** — the exact legacy five-partner availability default now migrates to include Gmail and Microsoft 365, while genuinely custom partner allowlists remain unchanged.
 - **Checklist-First Review UI** — release checks now render as a responsive list with direct completion and note editing. Internal checklist seeds no longer appear as misleading `Recommended` cards with `Use Template` actions.
 - **Review Outcome Visibility** — passed checks remain green and crossed out, failed checks have a direct fail action and red treatment, and checks with user notes use an amber treatment without pre-populated guidance making untouched checks look commented.
 - **Plugin Starter Language** — generic plugin starter content now uses `Suggested` and `Use`, reserving `template` for ClawMax organization, agent, and workflow templates; applying a suggestion opens the selected item for immediate customization.
