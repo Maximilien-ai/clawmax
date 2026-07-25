@@ -67,6 +67,7 @@ const MAX_QUERY_LENGTH = 500
 const MAX_DRAFT_RECIPIENTS = 20
 const MAX_DRAFT_SUBJECT_LENGTH = 998
 const MAX_DRAFT_BODY_LENGTH = 100_000
+const EMAIL_PATTERN = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/
 
 function requireText(value: string | undefined, label: string, maxLength: number): string {
   const normalized = value?.trim() || ''
@@ -112,8 +113,12 @@ export function validateMailInvocation(grant: MailCapabilityGrant, request: Mail
     const recipients = Array.from(new Set((args.to || []).map((entry) => entry.trim()).filter(Boolean)))
     if (recipients.length === 0) throw new Error('At least one draft recipient is required')
     if (recipients.length > MAX_DRAFT_RECIPIENTS) throw new Error(`Draft recipients exceed the ${MAX_DRAFT_RECIPIENTS} recipient limit`)
+    if (recipients.some((recipient) => !EMAIL_PATTERN.test(recipient) || /[\r\n]/.test(recipient))) {
+      throw new Error('Draft recipients must be valid email addresses')
+    }
     args.to = recipients
     args.subject = requireText(args.subject, 'Draft subject', MAX_DRAFT_SUBJECT_LENGTH)
+    if (/[\r\n]/.test(args.subject)) throw new Error('Draft subject cannot contain line breaks')
     args.body = requireText(args.body, 'Draft body', MAX_DRAFT_BODY_LENGTH)
   }
 

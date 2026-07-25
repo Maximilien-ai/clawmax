@@ -3070,8 +3070,8 @@ fi
 echo ""
 echo -e "${YELLOW}→ Running Public mail capability unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/mail-capabilities.test.ts > /tmp/clawmax-mail-capabilities.out 2>&1 || true
-if grep -q "18 assertions passed" /tmp/clawmax-mail-capabilities.out; then
-  pass "Public mail capability unit tests (18 tests)"
+if grep -q "20 assertions passed" /tmp/clawmax-mail-capabilities.out; then
+  pass "Public mail capability unit tests (20 tests)"
 else
   cat /tmp/clawmax-mail-capabilities.out
   fail "Public mail capability unit tests"
@@ -3098,6 +3098,16 @@ else
   fail "Production mail OAuth provider tests"
 fi
 
+echo -e "${YELLOW}→ Running Production mail capability adapter tests...${NC}"
+npx ts-node --transpileOnly server/lib/mail-provider-adapters.test.ts > /tmp/clawmax-mail-provider-adapters.out 2>&1 || true
+if grep -q "Tests failed: 0" /tmp/clawmax-mail-provider-adapters.out; then
+  mail_provider_adapter_count=$(grep "Tests passed:" /tmp/clawmax-mail-provider-adapters.out | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Production mail capability adapter tests (${mail_provider_adapter_count:-?} tests)"
+else
+  cat /tmp/clawmax-mail-provider-adapters.out
+  fail "Production mail capability adapter tests"
+fi
+
 echo -e "${YELLOW}→ Running Mail OAuth route tests...${NC}"
 npx ts-node --transpileOnly server/routes/mail-oauth.test.ts > /tmp/clawmax-mail-oauth-routes.out 2>&1 || true
 if grep -q "Tests failed: 0" /tmp/clawmax-mail-oauth-routes.out; then
@@ -3106,6 +3116,24 @@ if grep -q "Tests failed: 0" /tmp/clawmax-mail-oauth-routes.out; then
 else
   cat /tmp/clawmax-mail-oauth-routes.out
   fail "Mail OAuth route tests"
+fi
+
+echo -e "${YELLOW}→ Running Mail OAuth client helper tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/mailOAuth.test.ts > /tmp/clawmax-mail-oauth-client.out 2>&1 || true
+if grep -q "10 assertions passed" /tmp/clawmax-mail-oauth-client.out; then
+  pass "Mail OAuth client helper tests (10 tests)"
+else
+  cat /tmp/clawmax-mail-oauth-client.out
+  fail "Mail OAuth client helper tests"
+fi
+
+echo -e "${YELLOW}→ Running Mail partner panel regression tests...${NC}"
+npx ts-node --transpileOnly client/src/components/MailPartnerPanel.test.ts > /tmp/clawmax-mail-partner-panel.out 2>&1 || true
+if grep -q "12 assertions passed" /tmp/clawmax-mail-partner-panel.out; then
+  pass "Mail partner panel regression tests (12 tests)"
+else
+  cat /tmp/clawmax-mail-partner-panel.out
+  fail "Mail partner panel regression tests"
 fi
 
 cd ..

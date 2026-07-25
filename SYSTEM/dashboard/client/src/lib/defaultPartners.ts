@@ -196,7 +196,7 @@ export const DEFAULT_PARTNER_DEFINITIONS: DefaultPartnerDefinition[] = [
     validation: {
       mode: 'status',
       label: 'Connection status',
-      helperText: 'OAuth connection and mailbox actions are not enabled yet. A normal Google password or app password is not accepted.',
+      helperText: 'Delegated OAuth is available when the operator configures the Google client ID, secret, callback URI, and encryption master key. Passwords and app passwords are not accepted.',
     },
   },
   {
@@ -215,7 +215,7 @@ export const DEFAULT_PARTNER_DEFINITIONS: DefaultPartnerDefinition[] = [
     validation: {
       mode: 'status',
       label: 'Connection status',
-      helperText: 'OAuth connection and Graph mailbox actions are not enabled yet. A normal Microsoft password or app password is not accepted.',
+      helperText: 'Delegated OAuth is available when the operator configures the Entra client ID, secret, callback URI, and encryption master key. Passwords and app passwords are not accepted.',
     },
   },
 ]

@@ -83,6 +83,22 @@ async function main() {
     () => invokeMailCapability(grant, provider, { ...request('mail.list'), capability: 'mail.send' as any }),
     /Unsupported mail capability/,
   )
+  await rejects(
+    () => invokeMailCapability(grant, provider, request('mail.draft.create', {
+      to: ['reviewer@example.com\r\nBcc: attacker@example.com'],
+      subject: 'Review',
+      body: 'Body',
+    })),
+    /valid email addresses/,
+  )
+  await rejects(
+    () => invokeMailCapability(grant, provider, request('mail.draft.create', {
+      to: ['reviewer@example.com'],
+      subject: 'Review\r\nBcc: attacker@example.com',
+      body: 'Body',
+    })),
+    /cannot contain line breaks/,
+  )
 
   const audit = createMailAuditEvent(request('mail.draft.create', {
     to: ['reviewer@example.com'],
@@ -100,7 +116,7 @@ async function main() {
   assert(schema.properties.capability.enum.includes('mail.draft.create'), 'public schema should expose initial draft capability')
   assert(!schema.properties.capability.enum.includes('mail.send'), 'public schema must not expose send before confirmation policy exists')
 
-  console.log('mail-capabilities.test.ts: 18 assertions passed')
+  console.log('mail-capabilities.test.ts: 20 assertions passed')
 }
 
 main().catch((error) => {

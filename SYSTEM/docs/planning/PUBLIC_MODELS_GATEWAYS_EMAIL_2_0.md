@@ -109,7 +109,13 @@ codes, PKCE verifiers, client secrets, access tokens, and refresh tokens are
 never returned by the API or written to routine audit records. Callers can
 request only declared ClawMax mail capabilities; the host maps them to provider
 scopes and rejects raw scopes such as `Mail.Send` or full Google mailbox access.
-Mailbox actions and the connection UI remain intentionally disabled until
+The Partner panel now supports workspace connection status, connect, refresh,
+reconnect, and disconnect. Provider adapters implement inbox list, search,
+metadata/body read, and unsent draft creation with bounded normalized results.
+Microsoft does not request `Mail.Send`. Google requires `gmail.compose` for
+general draft creation; because that provider scope can also send, ClawMax
+contains it behind a fixed draft-only adapter with no send route or capability.
+Persisted agent/plugin grants and runtime invocation remain disabled until
 test-account validation is complete.
 
 A provider advertises capabilities instead of receiving unrestricted mailbox access:

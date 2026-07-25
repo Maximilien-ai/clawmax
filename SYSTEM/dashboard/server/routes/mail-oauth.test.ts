@@ -41,8 +41,11 @@ function response() {
   return {
     statusCode: 200,
     body: undefined as any,
+    contentType: '',
     status(code: number) { this.statusCode = code; return this },
     json(body: any) { this.body = body; return this },
+    type(value: string) { this.contentType = value; return this },
+    send(body: any) { this.body = body; return this },
   }
 }
 
@@ -114,6 +117,30 @@ async function run() {
     const res = response()
     await layer.route.stack[0].handle({ params: {}, query: {}, body: {}, headers: {}, cookies: {} }, res)
     assert.strictEqual(res.body.providers[0].connections[0].accountId, 'route-google-account')
+  })
+
+  await test('browser callback closes its popup without posting account or token data', async () => {
+    const begin = await invoke('post', '/:provider/begin', {
+      params: { provider: 'microsoft365' },
+      query: {},
+      body: { capabilities: ['mail.read.metadata'] },
+      headers: {},
+      cookies: {},
+    })
+    const popupState = new URL(begin.body.authorizationUrl).searchParams.get('state') || ''
+    const res = await invoke('get', '/:provider/callback', {
+      params: { provider: 'microsoft365' },
+      query: { state: popupState, code: 'popup-code-secret' },
+      body: {},
+      headers: { accept: 'text/html' },
+      cookies: {},
+    })
+    assert.strictEqual(res.statusCode, 200)
+    assert.strictEqual(res.contentType, 'html')
+    assert(`${res.body}`.includes('clawmax-mail-oauth-complete'))
+    assert(`${res.body}`.includes('window.close()'))
+    assert(!`${res.body}`.includes('popup-code-secret'))
+    assert(!`${res.body}`.includes('tester@microsoft365.test'))
   })
 
   await test('callback blocks OAuth state replay', async () => {

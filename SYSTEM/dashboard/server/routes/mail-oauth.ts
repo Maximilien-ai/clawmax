@@ -70,6 +70,10 @@ export function createMailOAuthRouter(providers: ProviderMap = createDefaultMail
         code: `${req.query.code || ''}`,
         adapter,
       })
+      if (`${req.headers.accept || ''}`.includes('text/html')) {
+        res.type('html').send(`<!doctype html><html><body><p>Mail account connected. You can close this window.</p><script>window.opener?.postMessage({type:'clawmax-mail-oauth-complete',provider:${JSON.stringify(provider)}},'*');window.close();</script></body></html>`)
+        return
+      }
       res.json({ ok: true, connection })
     } catch (error: any) {
       res.status(errorStatus(error?.message || '')).json({ error: error?.message || 'Failed to complete mail authorization' })

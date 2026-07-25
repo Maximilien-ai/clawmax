@@ -9,6 +9,14 @@ import { BROWSER_VAULT_UPDATED_EVENT, readPartnerValuesFromSharedSecrets, readSh
 import { resolveResendTestRecipientEmail } from '../lib/resendTestEmail'
 import { formatOpenAiDeprecationNotice, formatOpenAiModelLabel, isSelectableLifecycleModel } from '../lib/openAiModelLifecycle'
 import { PartnerLogo } from './PartnerLogo'
+import {
+  beginMailOAuthConnection,
+  disconnectMailOAuthConnection,
+  isMailOAuthProvider,
+  loadMailOAuthStatus,
+  MailOAuthStatus,
+  refreshMailOAuthConnection,
+} from '../lib/mailOAuth'
 
 function maskKey(value: string) {
   if (value.length <= 8) return 'configured'
@@ -250,6 +258,10 @@ export function ByokWizard({
   const [partnerInstallState, setPartnerInstallState] = useState<Record<string, 'idle' | 'installing' | 'uninstalling'>>({})
   const [partnerPluginStatuses, setPartnerPluginStatuses] = useState<Record<string, PartnerPluginStatus>>({})
   const [partnerPluginRun, setPartnerPluginRun] = useState<PartnerPluginRun | null>(null)
+  const [mailOAuthStatus, setMailOAuthStatus] = useState<MailOAuthStatus | null>(null)
+  const [mailOAuthBusy, setMailOAuthBusy] = useState<string | null>(null)
+  const [mailOAuthError, setMailOAuthError] = useState<string | null>(null)
+  const mailOAuthPopupRef = useRef<Window | null>(null)
   const preferredModelRef = useRef<HTMLSelectElement | null>(null)
   const [highlightPreferredModel, setHighlightPreferredModel] = useState(false)
   const [modelTab, setModelTab] = useState<ModelTab>('openai')
@@ -826,6 +838,90 @@ export function ByokWizard({
     void refreshGithubChecks({ silent: true })
   }, [open, refreshGithubChecks])
 
+  const refreshMailStatus = React.useCallback(async () => {
+    try {
+      setMailOAuthError(null)
+      setMailOAuthStatus(await loadMailOAuthStatus())
+    } catch (error: any) {
+      setMailOAuthStatus(null)
+      setMailOAuthError(error?.message || 'Failed to load mail connection status')
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!open) return
+    void refreshMailStatus()
+  }, [open, refreshMailStatus])
+
+  useEffect(() => {
+    const handleMailOAuthComplete = (event: MessageEvent) => {
+      if (event.source !== mailOAuthPopupRef.current) return
+      if (event.data?.type !== 'clawmax-mail-oauth-complete') return
+      mailOAuthPopupRef.current = null
+      void refreshMailStatus()
+      showSuccess('Mail account connected')
+    }
+    window.addEventListener('message', handleMailOAuthComplete)
+    return () => window.removeEventListener('message', handleMailOAuthComplete)
+  }, [refreshMailStatus, showSuccess])
+
+  async function connectMailProvider(provider: 'gmail' | 'microsoft365') {
+    setMailOAuthBusy(`${provider}:connect`)
+    setMailOAuthError(null)
+    try {
+      const authorizationUrl = await beginMailOAuthConnection(provider, [
+        'mail.list',
+        'mail.search',
+        'mail.read.metadata',
+        'mail.read.body',
+        'mail.draft.create',
+      ])
+      const popup = window.open(authorizationUrl, `clawmax-${provider}-oauth`, 'popup,width=620,height=760')
+      if (!popup) throw new Error('The authorization window was blocked. Allow pop-ups for this dashboard and try again.')
+      mailOAuthPopupRef.current = popup
+      popup.focus()
+    } catch (error: any) {
+      const message = error?.message || 'Failed to start mail authorization'
+      setMailOAuthError(message)
+      showWarning(message)
+    } finally {
+      setMailOAuthBusy(null)
+    }
+  }
+
+  async function refreshMailConnection(provider: 'gmail' | 'microsoft365', accountId: string) {
+    setMailOAuthBusy(`${provider}:${accountId}:refresh`)
+    setMailOAuthError(null)
+    try {
+      await refreshMailOAuthConnection(provider, accountId)
+      await refreshMailStatus()
+      showSuccess('Mail connection refreshed')
+    } catch (error: any) {
+      const message = error?.message || 'Failed to refresh mail connection'
+      setMailOAuthError(message)
+      showWarning(message)
+    } finally {
+      setMailOAuthBusy(null)
+    }
+  }
+
+  async function disconnectMailConnection(provider: 'gmail' | 'microsoft365', accountId: string) {
+    if (!window.confirm('Disconnect this mail account from the current workspace?')) return
+    setMailOAuthBusy(`${provider}:${accountId}:disconnect`)
+    setMailOAuthError(null)
+    try {
+      await disconnectMailOAuthConnection(provider, accountId)
+      await refreshMailStatus()
+      showSuccess('Mail account disconnected')
+    } catch (error: any) {
+      const message = error?.message || 'Failed to disconnect mail account'
+      setMailOAuthError(message)
+      showWarning(message)
+    } finally {
+      setMailOAuthBusy(null)
+    }
+  }
+
   const loadOllamaModels = React.useCallback(async (forceRefresh: boolean = false) => {
     if (!ollamaEnabled) {
       setOllamaModels([])
@@ -942,6 +1038,9 @@ export function ByokWizard({
           if (partner.slug === 'github') return githubReady || !!githubDefaultRepo.trim()
           if (partner.slug === 'senso') return sensoConfigured || !!sensoContextLabel.trim()
           if (partner.slug === 'opik') return opikConfigured || !!opikWorkspace.trim() || !!opikProject.trim()
+          if (isMailOAuthProvider(partner.slug)) {
+            return (mailOAuthStatus?.providers.find((provider) => provider.provider === partner.slug)?.connections.length || 0) > 0
+          }
           return hasSecret || hasValue
         })
       : hasOpenAiAvailable || hasOpenAiCompatibleAvailable || hasAnthropicAvailable || hasGeminiAvailable || hasOpenrouterAvailable || hasXaiAvailable || (ollamaEnabled && ollamaConfigured)
@@ -1491,6 +1590,9 @@ export function ByokWizard({
   const systemPreferredModelDeprecation = formatOpenAiDeprecationNotice(systemPreferredModel)
   const currentPartner = step.startsWith('partner:')
     ? visiblePartnerDefinitions.find((partner) => partner.slug === step.replace(/^partner:/, ''))
+    : null
+  const currentMailProviderStatus = currentPartner && isMailOAuthProvider(currentPartner.slug)
+    ? mailOAuthStatus?.providers.find((provider) => provider.provider === currentPartner.slug)
     : null
 
   const templateDefaultsSummary = [
@@ -2617,6 +2719,88 @@ export function ByokWizard({
                   <div className="mt-1">{describePartnerStatus(currentPartner)}</div>
                 </div>
 
+                {isMailOAuthProvider(currentPartner.slug) && (
+                  <div className="mt-4 rounded-xl border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <div className="font-medium text-gray-900 dark:text-gray-100">Connected accounts</div>
+                        <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                          Connections belong to this workspace. Agents receive only explicitly granted mail actions, never OAuth credentials.
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void connectMailProvider(currentPartner.slug)}
+                        disabled={mailOAuthBusy !== null || !mailOAuthStatus?.storageConfigured || !currentMailProviderStatus?.configured}
+                        className="rounded-md bg-sky-600 px-4 py-2 text-sm text-white transition-colors hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {mailOAuthBusy === `${currentPartner.slug}:connect` ? 'Connecting…' : 'Connect account'}
+                      </button>
+                    </div>
+
+                    {!mailOAuthStatus?.storageConfigured && (
+                      <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-100">
+                        Encrypted connection storage is unavailable. Configure <code>CLAWMAX_SECRET_MASTER_KEY</code> and restart this runtime.
+                      </div>
+                    )}
+                    {mailOAuthStatus?.storageConfigured && currentMailProviderStatus && !currentMailProviderStatus.configured && (
+                      <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-100">
+                        {currentMailProviderStatus.unavailableReason}
+                      </div>
+                    )}
+                    {mailOAuthError && (
+                      <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-red-800 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">
+                        {mailOAuthError}
+                      </div>
+                    )}
+
+                    <div className="mt-3 space-y-2">
+                      {(currentMailProviderStatus?.connections || []).map((connection) => (
+                        <div key={connection.accountId} className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-gray-200 px-3 py-3 dark:border-gray-700">
+                          <div className="min-w-0">
+                            <div className="truncate font-medium text-gray-900 dark:text-gray-100">
+                              {connection.accountEmail || 'Connected mail account'}
+                            </div>
+                            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                              <span className={`rounded-full px-2 py-0.5 font-medium ${
+                                connection.status === 'connected'
+                                  ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200'
+                                  : 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200'
+                              }`}>
+                                {connection.status === 'connected' ? 'Connected' : 'Reconnect required'}
+                              </span>
+                              <span>{connection.scopes.length} delegated scopes</span>
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => void refreshMailConnection(currentPartner.slug, connection.accountId)}
+                              disabled={mailOAuthBusy !== null}
+                              className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
+                            >
+                              {mailOAuthBusy === `${currentPartner.slug}:${connection.accountId}:refresh` ? 'Refreshing…' : 'Refresh'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void disconnectMailConnection(currentPartner.slug, connection.accountId)}
+                              disabled={mailOAuthBusy !== null}
+                              className="rounded-md border border-red-300 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-900/20"
+                            >
+                              {mailOAuthBusy === `${currentPartner.slug}:${connection.accountId}:disconnect` ? 'Disconnecting…' : 'Disconnect'}
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                      {currentMailProviderStatus?.configured && (currentMailProviderStatus.connections || []).length === 0 && (
+                        <div className="rounded-md border border-dashed border-gray-300 px-3 py-4 text-center text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                          No account connected to this workspace.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {currentPartner.slug === 'github' && (
                   <div className="mt-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-4 text-sm text-gray-600 dark:text-gray-300">
                     <div className="font-medium text-gray-900 dark:text-gray-100">GitHub readiness</div>
@@ -2733,7 +2917,7 @@ export function ByokWizard({
                 <div className="mt-5 space-y-4">
                   {(currentPartner.fields || []).map((field) => renderPartnerField(currentPartner, field))}
                   {currentPartner.slug === 'resend' && renderResendTestEmailPanel()}
-                  {currentPartner.validation && currentPartner.slug !== 'github' && renderPartnerValidation(currentPartner)}
+                  {currentPartner.validation && currentPartner.slug !== 'github' && !isMailOAuthProvider(currentPartner.slug) && renderPartnerValidation(currentPartner)}
                   {currentPartner.slug === 'opik' && (
                     <div className="flex justify-end">
                       <button
@@ -2749,7 +2933,7 @@ export function ByokWizard({
                 <div className="mt-6 flex items-center justify-between gap-3">
                   <button onClick={goToPreviousStep} className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors">&larr; Back</button>
                   <div className="flex items-center gap-2">
-                    {currentPartner.validation && currentPartner.slug !== 'github' && (
+                    {currentPartner.validation && currentPartner.slug !== 'github' && !isMailOAuthProvider(currentPartner.slug) && (
                       <button onClick={() => runValidation('current-partner')} disabled={validating} className="px-4 py-2 text-sm rounded-md border border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors disabled:opacity-60">
                         {validating ? 'Checking…' : currentPartner.validation.label || 'Check Keys'}
                       </button>

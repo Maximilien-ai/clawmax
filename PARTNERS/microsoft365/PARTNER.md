@@ -13,5 +13,8 @@ connection lifecycle. The production Microsoft identity authorization, token,
 refresh, and Graph account-profile endpoints are implemented behind operator
 environment configuration. Local disconnect removes encrypted credentials;
 Microsoft account or tenant controls own provider-side consent revocation.
-Mailbox actions and the end-user connection UI remain disabled until
-test-account, local, and container validation are complete.
+The Partner panel can connect, refresh, and disconnect workspace accounts.
+Graph list/search/read/draft adapter code is implemented behind the fixed
+ClawMax capability validator without requesting `Mail.Send`, but agent execution
+remains disabled until grant/runtime wiring and test-account, local, and
+container validation are complete.
