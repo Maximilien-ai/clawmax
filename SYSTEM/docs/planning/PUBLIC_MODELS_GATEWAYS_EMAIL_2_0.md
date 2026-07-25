@@ -1,6 +1,6 @@
 # Public Models, Gateways, And Email Partners
 
-> Status: OpenRouter and runtime-gated xAI shipped in `v1.9.9`; mail partner plugins planned
+> Status: OpenRouter and runtime-gated xAI shipped in `v1.9.9`; public mail capability foundation in progress
 > Release target: `2.0.0` public partner plugins
 > Runtime baseline under test: OpenClaw `v2026.6.11`
 > Last updated: July 24, 2026
@@ -92,6 +92,17 @@ Ship Gmail and Microsoft 365/Outlook as public, curated partner plugins using th
 7. Keep proprietary guardrail/evaluation plugins private; the mail plugins, approval contract, audit events, and public scoring integration remain public.
 
 ## Public Mail Capability Contract
+
+The first public implementation now lives in
+[`PARTNERS/mail-capability.schema.json`](../../../PARTNERS/mail-capability.schema.json)
+and `server/lib/mail-capabilities.ts`. It includes the five initial
+read/search/draft capabilities, exact workspace/agent/plugin/fingerprint/account
+grant binding, bounded arguments, metadata-only audit events, and a fake provider
+with malicious-message tests. Gmail and Microsoft 365 partner entries are
+visible as preview integrations without accepting passwords or tokens.
+
+Production OAuth, provider adapters, connected-account storage, and mailbox
+actions remain intentionally disabled.
 
 A provider advertises capabilities instead of receiving unrestricted mailbox access:
 

@@ -20,6 +20,7 @@ All notable changes to ClawMax are documented here.
 - **Consolidated Tester Review Sets** — Review offers one retained 1.9.9 regression set, one cumulative earlier-2.0 set, and one focused current-RC set; every check separates the action from its pass result and can identify prior tester confirmation without merging browser-local state.
 - **Actionable Review Procedures And Imported Evidence** — every retained release check now includes numbered actions and an objective pass condition; RC4/RC5 exports preserve Max's local navigation, restart, and automated-suite confirmations while keeping untested image, private-plugin, Guardrails, Evals, and RC8 work pending.
 - **Review Release Archiving** — testers can archive or restore an entire selected release from Review, archived releases no longer clutter Active, and starting a new checklist automatically retires fully completed older sets while preserving unfinished work.
+- **Public Mail Capability Foundation** — Gmail and Microsoft 365 share a versioned read/search/read-body/create-draft contract with exact workspace, agent, plugin fingerprint, account, and capability grants; bounded fake-provider tests prove inbound message text cannot add recipients or permissions, while preview partner entries avoid unusable password fields.
 
 ### Fixed
 - **Checklist-First Review UI** — release checks now render as a responsive list with direct completion and note editing. Internal checklist seeds no longer appear as misleading `Recommended` cards with `Use Template` actions.

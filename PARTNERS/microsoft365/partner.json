@@ -1,0 +1,19 @@
+{
+  "slug": "microsoft365",
+  "name": "Microsoft 365",
+  "website": "https://www.microsoft.com/microsoft-365",
+  "docsUrl": "https://learn.microsoft.com/graph/api/resources/mail-api-overview",
+  "description": "Delegated Outlook and Microsoft 365 mail access for bounded inbox search, reading, and draft creation.",
+  "category": "communications",
+  "categories": ["communications", "productivity"],
+  "enabledByDefault": true,
+  "skills": {
+    "mode": "planned",
+    "label": "Public OAuth preview: Microsoft Graph read, search, and draft capabilities without exposing account passwords or OAuth tokens to agents."
+  },
+  "validation": {
+    "mode": "status",
+    "label": "Connection status",
+    "helperText": "OAuth connection and Graph mailbox actions are not enabled yet. A normal Microsoft password or app password is not accepted."
+  }
+}

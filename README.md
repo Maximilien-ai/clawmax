@@ -307,7 +307,7 @@ OTP_DEV_MODE=log
 # Latest code is written to .clawmax-otp-dev.json
 
 # Optional partner visibility in Workspaces Integrations
-WORKSPACES_INTEGRATIONS_THIRD_PARTIES=senso,opik,github,resend
+WORKSPACES_INTEGRATIONS_THIRD_PARTIES=senso,opik,github,resend,cognee,gmail,microsoft365
 
 # Optional explicit runtime/deployment kind for provider defaults and UI behavior.
 # Supported:

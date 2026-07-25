@@ -1558,6 +1558,9 @@ export function ByokWizard({
   }
 
   const describePartnerStatus = (partner: PartnerDefinition) => {
+    if (partner.skills?.mode === 'planned') {
+      return partner.skills.label || 'Public partner integration preview; connection is not enabled yet.'
+    }
     if (partner.slug === 'senso') {
       return sensoConfigured
         ? `Configured ${maskKey(getPartnerSecret('senso', 'apiKey'))}${sensoContextLabel ? ` · context: ${sensoContextLabel}` : ''}`

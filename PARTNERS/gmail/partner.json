@@ -1,0 +1,19 @@
+{
+  "slug": "gmail",
+  "name": "Gmail",
+  "website": "https://workspace.google.com/products/gmail/",
+  "docsUrl": "https://developers.google.com/workspace/gmail/api/guides",
+  "description": "Delegated Gmail access for bounded inbox search, reading, and draft creation.",
+  "category": "communications",
+  "categories": ["communications", "productivity"],
+  "enabledByDefault": true,
+  "skills": {
+    "mode": "planned",
+    "label": "Public OAuth preview: read, search, and create drafts without exposing Google passwords or OAuth tokens to agents."
+  },
+  "validation": {
+    "mode": "status",
+    "label": "Connection status",
+    "helperText": "OAuth connection and mailbox actions are not enabled yet. A normal Google password or app password is not accepted."
+  }
+}

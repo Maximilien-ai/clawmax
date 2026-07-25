@@ -21,7 +21,7 @@ services:
       CLAWMAX_VERSION: ${CLAWMAX_VERSION:-}
       CLAWMAX_SECRET_MASTER_KEY: ${CLAWMAX_SECRET_MASTER_KEY:-}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3001}
-      WORKSPACES_INTEGRATIONS_THIRD_PARTIES: ${WORKSPACES_INTEGRATIONS_THIRD_PARTIES:-senso,opik,github,resend}
+      WORKSPACES_INTEGRATIONS_THIRD_PARTIES: ${WORKSPACES_INTEGRATIONS_THIRD_PARTIES:-senso,opik,github,resend,cognee,gmail,microsoft365}
       CLAWMAX_EXTRA_PARTNER_DIRS: ${CLAWMAX_EXTRA_PARTNER_DIRS:-}
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]

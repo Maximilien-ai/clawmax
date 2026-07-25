@@ -37,7 +37,7 @@ const previous = process.env.WORKSPACES_INTEGRATIONS_THIRD_PARTIES
 test('getEnabledPartnerSlugs defaults to current partner parity set', () => {
   delete process.env.WORKSPACES_INTEGRATIONS_THIRD_PARTIES
   const slugs = getEnabledPartnerSlugs()
-  assert(slugs.join(',') === 'senso,opik,github,resend,cognee', `Unexpected default partner slugs: ${slugs.join(',')}`)
+  assert(slugs.join(',') === 'senso,opik,github,resend,cognee,gmail,microsoft365', `Unexpected default partner slugs: ${slugs.join(',')}`)
 })
 
 test('listPartnerDefinitions respects configured allowlist', () => {
@@ -68,6 +68,18 @@ test('cognee partner exposes cloud/self-hosted fields and official OpenClaw plug
   assert(partner.skills?.mode === 'curated-installer', 'Expected Cognee official plugin to use curated installer')
   assert(partner.skills?.commandId === 'cognee-openclaw', 'Expected Cognee curated installer command id')
   assert((partner.skills?.items || []).includes('@cognee/cognee-openclaw'), 'Expected official Cognee OpenClaw plugin in partner skills')
+})
+
+test('mail partners expose preview metadata without password or token fields', () => {
+  process.env.WORKSPACES_INTEGRATIONS_THIRD_PARTIES = 'gmail,microsoft365'
+  const partners = listPartnerDefinitions()
+  assert(partners.map((partner) => partner.slug).join(',') === 'gmail,microsoft365', 'Expected both public mail partners')
+  for (const partner of partners) {
+    assert(partner.skills?.mode === 'planned', `Expected ${partner.slug} to remain preview-only`)
+    assert((partner.fields || []).length === 0, `Expected ${partner.slug} to avoid unusable password/token fields`)
+    assert(/OAuth/i.test(partner.skills?.label || ''), `Expected ${partner.slug} to explain delegated OAuth`)
+    assert(/not enabled yet/i.test(partner.validation?.helperText || ''), `Expected ${partner.slug} to describe readiness honestly`)
+  }
 })
 
 if (typeof previous === 'undefined') delete process.env.WORKSPACES_INTEGRATIONS_THIRD_PARTIES

@@ -18,9 +18,18 @@ export type DefaultPartnerDefinition = {
   categories?: string[]
   enabledByDefault?: boolean
   fields?: DefaultPartnerFieldDefinition[]
+  skills?: {
+    mode: 'planned'
+    label: string
+  }
+  validation?: {
+    mode: 'status'
+    label: string
+    helperText: string
+  }
 }
 
-export const DEFAULT_VISIBLE_PARTNERS = ['senso', 'opik', 'github', 'resend', 'cognee'] as const
+export const DEFAULT_VISIBLE_PARTNERS = ['senso', 'opik', 'github', 'resend', 'cognee', 'gmail', 'microsoft365'] as const
 
 export const DEFAULT_PARTNER_DEFINITIONS: DefaultPartnerDefinition[] = [
   {
@@ -170,6 +179,44 @@ export const DEFAULT_PARTNER_DEFINITIONS: DefaultPartnerDefinition[] = [
         secret: false,
       },
     ],
+  },
+  {
+    slug: 'gmail',
+    name: 'Gmail',
+    website: 'https://workspace.google.com/products/gmail/',
+    docsUrl: 'https://developers.google.com/workspace/gmail/api/guides',
+    description: 'Delegated Gmail access for bounded inbox search, reading, and draft creation.',
+    category: 'communications',
+    categories: ['communications', 'productivity'],
+    enabledByDefault: true,
+    skills: {
+      mode: 'planned',
+      label: 'Public OAuth preview: read, search, and create drafts without exposing Google passwords or OAuth tokens to agents.',
+    },
+    validation: {
+      mode: 'status',
+      label: 'Connection status',
+      helperText: 'OAuth connection and mailbox actions are not enabled yet. A normal Google password or app password is not accepted.',
+    },
+  },
+  {
+    slug: 'microsoft365',
+    name: 'Microsoft 365',
+    website: 'https://www.microsoft.com/microsoft-365',
+    docsUrl: 'https://learn.microsoft.com/graph/api/resources/mail-api-overview',
+    description: 'Delegated Outlook and Microsoft 365 mail access for bounded inbox search, reading, and draft creation.',
+    category: 'communications',
+    categories: ['communications', 'productivity'],
+    enabledByDefault: true,
+    skills: {
+      mode: 'planned',
+      label: 'Public OAuth preview: Microsoft Graph read, search, and draft capabilities without exposing account passwords or OAuth tokens to agents.',
+    },
+    validation: {
+      mode: 'status',
+      label: 'Connection status',
+      helperText: 'OAuth connection and Graph mailbox actions are not enabled yet. A normal Microsoft password or app password is not accepted.',
+    },
   },
 ]
 

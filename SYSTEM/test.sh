@@ -3067,6 +3067,16 @@ else
   fail "Partners unit tests"
 fi
 
+echo ""
+echo -e "${YELLOW}→ Running Public mail capability unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/mail-capabilities.test.ts > /tmp/clawmax-mail-capabilities.out 2>&1 || true
+if grep -q "18 assertions passed" /tmp/clawmax-mail-capabilities.out; then
+  pass "Public mail capability unit tests (18 tests)"
+else
+  cat /tmp/clawmax-mail-capabilities.out
+  fail "Public mail capability unit tests"
+fi
+
 cd ..
 echo ""
 

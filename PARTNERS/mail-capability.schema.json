@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://clawmax.ai/schemas/mail-capability/v1.json",
+  "title": "ClawMax Mail Capability Invocation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["provider", "accountId", "capability", "context", "args"],
+  "properties": {
+    "provider": {
+      "enum": ["gmail", "microsoft365"]
+    },
+    "accountId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "capability": {
+      "enum": [
+        "mail.list",
+        "mail.search",
+        "mail.read.metadata",
+        "mail.read.body",
+        "mail.draft.create"
+      ]
+    },
+    "context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["workspaceId", "agentId", "pluginId", "pluginFingerprint"],
+      "properties": {
+        "workspaceId": { "type": "string", "minLength": 1 },
+        "agentId": { "type": "string", "minLength": 1 },
+        "pluginId": { "type": "string", "minLength": 1 },
+        "pluginFingerprint": { "type": "string", "minLength": 1 }
+      }
+    },
+    "args": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "query": { "type": "string", "maxLength": 500 },
+        "messageId": { "type": "string", "maxLength": 500 },
+        "limit": { "type": "integer", "minimum": 1, "maximum": 50 },
+        "to": {
+          "type": "array",
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "subject": { "type": "string", "minLength": 1, "maxLength": 998 },
+        "body": { "type": "string", "minLength": 1, "maxLength": 100000 }
+      }
+    }
+  }
+}
