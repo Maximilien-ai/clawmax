@@ -1314,8 +1314,8 @@ fi
 
 echo -e "${YELLOW}→ Running Brokered skill secret UI contract tests...${NC}"
 npx ts-node --transpileOnly client/src/components/SkillSecretBrokerPanel.test.ts > /tmp/clawmax-skill-secret-broker-ui.out 2>&1 || true
-if grep -q "8 assertions passed" /tmp/clawmax-skill-secret-broker-ui.out; then
-  pass "Brokered skill secret UI contract tests (8 tests)"
+if grep -q "12 assertions passed" /tmp/clawmax-skill-secret-broker-ui.out; then
+  pass "Brokered skill secret UI contract tests (12 tests)"
 else
   cat /tmp/clawmax-skill-secret-broker-ui.out
   fail "Brokered skill secret UI contract tests"
@@ -1622,6 +1622,14 @@ if npx ts-node --transpileOnly client/src/PluginReviewChecklist.test.ts > /tmp/c
 else
   cat /tmp/clawmax-plugin-review-checklist.out
   fail "Plugin release checklist regression tests"
+fi
+
+echo -e "${YELLOW}→ Running Review release lifecycle unit tests...${NC}"
+if npx ts-node --transpileOnly client/src/lib/reviewLifecycle.test.ts > /tmp/clawmax-review-lifecycle.out 2>&1; then
+  pass "Review release lifecycle unit tests (4 tests)"
+else
+  cat /tmp/clawmax-review-lifecycle.out
+  fail "Review release lifecycle unit tests"
 fi
 
 echo -e "${YELLOW}→ Running Plugin workspace layout regression tests...${NC}"

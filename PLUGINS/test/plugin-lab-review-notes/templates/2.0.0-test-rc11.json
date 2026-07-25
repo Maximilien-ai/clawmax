@@ -1,0 +1,56 @@
+{
+  "id": "2.0.0-test-rc11",
+  "name": "2.0.0-test-rc11 focused checklist",
+  "description": "Focused checks for suggestion details, review-set archiving, and encrypted secret setup.",
+  "release": "2.0.0-test-rc11",
+  "recommended": true,
+  "tags": ["release", "current", "2.0.0-test-rc11"],
+  "defaults": {
+    "enabled": true,
+    "tags": ["release", "current", "2.0.0-test-rc11"],
+    "fields": {
+      "completed": false,
+      "outcome": "pending",
+      "owner": "release-tester",
+      "evidence": [],
+      "verifiedBy": []
+    }
+  },
+  "items": [
+    {
+      "id": "suggested-details",
+      "name": "Suggested Details show useful information",
+      "description": "Test: Open Suggested in Guardrails, Evals, and Optimize. Choose Details on one card in each tab, read the added information, then choose Hide details. Pass: Details adds labeled values below the card, Hide details removes them, no blank panel appears, and cards without extra information do not show a Details button.",
+      "tags": ["plugins", "suggested", "details"],
+      "fields": {"area": "plugins", "notes": ""}
+    },
+    {
+      "id": "expanded-suggestion-catalogs",
+      "name": "Expanded starter suggestions",
+      "description": "Test: In the private image, confirm Suggested contains at least nine Guardrails and nine Evals. Confirm Optimize contains five suggestions. Search or filter each list, then choose Use on one new item from each plugin and save it. Pass: The expected suggestions are easy to distinguish, search and filters find them, and each selected item becomes one editable Active record with its settings preserved.",
+      "tags": ["plugins", "suggested", "catalog"],
+      "fields": {"area": "plugins", "notes": ""}
+    },
+    {
+      "id": "review-release-archive",
+      "name": "Review release sets archive and restore",
+      "description": "Test: Open Review, choose an older release, then use Actions > Archive release checklist. Open Archived and restore it. Complete every check in that older release, then start the RC11 checklist from Suggested. Pass: The manual archive disappears from Active and can be restored, while a fully completed older release archives automatically when RC11 starts. Releases with unfinished checks stay Active.",
+      "tags": ["review", "archive", "lifecycle"],
+      "fields": {"area": "plugins", "notes": ""}
+    },
+    {
+      "id": "secret-operator-key-setup",
+      "name": "Encrypted secret setup and save are clear",
+      "description": "Test: On an instance without CLAWMAX_SECRET_MASTER_KEY, open Keys & Secrets > Agent & Skill Access. Confirm secret inputs are locked and copy the setup steps. Configure the operator key, restart, return to the page, and save a test secret. Pass: No credential can be entered while locked, the copied steps explain setup without exposing a secret, and after restart Save succeeds with only a masked preview shown.",
+      "tags": ["secrets", "onprem", "setup"],
+      "fields": {"area": "security", "notes": ""}
+    },
+    {
+      "id": "rc11-release-smoke",
+      "name": "RC11 public and private images start cleanly",
+      "description": "Test: Start the RC11 public image and open Review and Optimize. Start the authorized private image and also open Guardrails and Evals. Restart each once and reopen the same workspace. Pass: Both report 2.0.0-test-rc11, stay healthy after restart, preserve workspace state, and show only the plugin inventory intended for that image.",
+      "tags": ["identity", "startup", "plugins"],
+      "fields": {"area": "regression", "notes": ""}
+    }
+  ]
+}

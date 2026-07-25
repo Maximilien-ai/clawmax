@@ -33,6 +33,7 @@ export function SkillSecretBrokerPanel() {
   const [skillId, setSkillId] = useState('clawmax-secret-test')
   const [grantKeys, setGrantKeys] = useState('CLAWMAX_TEST_SECRET')
   const [busy, setBusy] = useState(false)
+  const [setupCopied, setSetupCopied] = useState(false)
   const [message, setMessage] = useState<{ kind: 'success' | 'error'; text: string } | null>(null)
 
   const refresh = useCallback(async () => {
@@ -101,6 +102,21 @@ export function SkillSecretBrokerPanel() {
     } catch {}
   }
 
+  async function copyOperatorSetup() {
+    const setup = [
+      '1. Generate a key: openssl rand -base64 48',
+      '2. Set the result as CLAWMAX_SECRET_MASTER_KEY in your deployment or container secret environment.',
+      '3. Restart the ClawMax dashboard, then return to Keys & Secrets.',
+    ].join('\n')
+    try {
+      await navigator.clipboard.writeText(setup)
+      setSetupCopied(true)
+      window.setTimeout(() => setSetupCopied(false), 2000)
+    } catch {
+      setMessage({ kind: 'error', text: 'Could not copy setup steps. Select the command and copy it manually.' })
+    }
+  }
+
   if (!status) {
     return <div className="rounded-lg border border-gray-200 bg-white p-4 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-800">Loading brokered skill secrets...</div>
   }
@@ -123,8 +139,20 @@ export function SkillSecretBrokerPanel() {
       </div>
 
       {!status.configured && (
-        <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-100">
-          Set <code>CLAWMAX_SECRET_MASTER_KEY</code> to a random value of at least 32 characters and restart the dashboard. No runtime secret is stored until that operator key is configured.
+        <div id="skill-secret-operator-setup" className="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-100">
+          <div className="font-semibold">Encrypted saving is locked</div>
+          <ol className="mt-2 min-w-0 list-decimal space-y-2 pl-5 [overflow-wrap:anywhere]">
+            <li>
+              Generate a random key:
+              <code className="mt-1 block w-fit max-w-full break-all rounded bg-amber-100 px-1 py-0.5 dark:bg-amber-950/50">openssl rand -base64 48</code>
+            </li>
+            <li>Set it as <code>CLAWMAX_SECRET_MASTER_KEY</code> in the deployment or container secret environment.</li>
+            <li>Restart the ClawMax dashboard, then return here.</li>
+          </ol>
+          <p className="mt-2 text-xs">The key must remain outside the workspace so exported workspaces cannot decrypt saved credentials.</p>
+          <button type="button" onClick={copyOperatorSetup} className="mt-3 rounded-md border border-amber-400 bg-white px-3 py-1.5 text-xs font-medium text-amber-900 hover:bg-amber-100 dark:bg-transparent dark:text-amber-100 dark:hover:bg-amber-950/40">
+            {setupCopied ? 'Setup steps copied' : 'Copy setup steps'}
+          </button>
         </div>
       )}
 
@@ -144,9 +172,9 @@ export function SkillSecretBrokerPanel() {
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Use API tokens, OAuth credentials, service-account values, or supported app passwords. Do not store a normal Google account password.</p>
           </div>
           <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_auto]">
-            <input value={secretKey} onChange={(event) => setSecretKey(event.target.value.toUpperCase())} placeholder="SECRET_KEY" className="min-w-0 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-mono dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100" />
-            <input type="password" value={secretValue} onChange={(event) => setSecretValue(event.target.value)} placeholder="Secret value" className="min-w-0 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100" />
-            <button type="button" disabled={!status.configured || busy || !secretKey.trim() || !secretValue} onClick={saveSecret} className="rounded-md bg-sky-600 px-3 py-2 text-sm font-medium text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50">Save</button>
+            <input disabled={!status.configured || busy} aria-describedby={!status.configured ? 'skill-secret-operator-setup' : undefined} value={secretKey} onChange={(event) => setSecretKey(event.target.value.toUpperCase())} placeholder={status.configured ? 'SECRET_KEY' : 'Configure operator key first'} className="min-w-0 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-mono disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:disabled:bg-gray-800" />
+            <input disabled={!status.configured || busy} aria-describedby={!status.configured ? 'skill-secret-operator-setup' : undefined} type="password" value={secretValue} onChange={(event) => setSecretValue(event.target.value)} placeholder={status.configured ? 'Secret value' : 'Saving is locked'} className="min-w-0 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm disabled:cursor-not-allowed disabled:bg-gray-100 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:disabled:bg-gray-800" />
+            <button type="button" title={!status.configured ? 'Configure CLAWMAX_SECRET_MASTER_KEY and restart first' : 'Save encrypted workspace secret'} disabled={!status.configured || busy || !secretKey.trim() || !secretValue} onClick={saveSecret} className="rounded-md bg-sky-600 px-3 py-2 text-sm font-medium text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50">{status.configured ? 'Save' : 'Set operator key first'}</button>
           </div>
           <div className="space-y-2">
             {status.secrets.length === 0 && <div className="text-sm text-gray-400">No encrypted workspace secrets.</div>}

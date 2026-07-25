@@ -19,6 +19,7 @@ All notable changes to ClawMax are documented here.
 - **Dedicated Plugin Suggestions** — plugin suggestions live in a separate counted tab instead of appearing above active workspace items, with independent search, tag filters, recommendation/name sorting, and a return to Active after use.
 - **Consolidated Tester Review Sets** — Review offers one retained 1.9.9 regression set, one cumulative earlier-2.0 set, and one focused current-RC set; every check separates the action from its pass result and can identify prior tester confirmation without merging browser-local state.
 - **Actionable Review Procedures And Imported Evidence** — every retained release check now includes numbered actions and an objective pass condition; RC4/RC5 exports preserve Max's local navigation, restart, and automated-suite confirmations while keeping untested image, private-plugin, Guardrails, Evals, and RC8 work pending.
+- **Review Release Archiving** — testers can archive or restore an entire selected release from Review, archived releases no longer clutter Active, and starting a new checklist automatically retires fully completed older sets while preserving unfinished work.
 
 ### Fixed
 - **Checklist-First Review UI** — release checks now render as a responsive list with direct completion and note editing. Internal checklist seeds no longer appear as misleading `Recommended` cards with `Use Template` actions.
@@ -29,6 +30,7 @@ All notable changes to ClawMax are documented here.
 - **Mobile Plugin And Export Layout** — plugin routes constrain horizontal overflow and the Review export dialog keeps its header, scrollable content, and actions usable at narrow mobile widths.
 - **Mobile Plugin Toolbar Wrapping** — plugin view controls use their own mobile row so Create and Actions remain visible instead of being clipped offscreen.
 - **Cached Plugin Suggestions** — plugin suggestion files are cached for five minutes, revisited plugin pages retain their rendered data while refreshing in the background, and the explicit Refresh action bypasses the cache.
+- **Encrypted Secret Setup Clarity** — Agent & Skill Access locks credential inputs until the deployment operator key exists, presents short restart-safe setup steps, and labels the unavailable Save action with its exact prerequisite.
 
 ### Planned
 - **2.0 Public Plugin And AI-Scoring Foundation** — complete the generic contribution-based plugin contract for pages, APIs, data, actions, jobs, events, settings, skills, providers, docs, and extension points; then publish scorer contracts and user-facing scoring surfaces on that foundation.

@@ -10,7 +10,7 @@ const checklists = checklistFiles.map((file) => JSON.parse(fs.readFileSync(path.
 const checklistByRelease = new Map(checklists.map((checklist) => [checklist.release, checklist]))
 const stableChecklist = checklistByRelease.get('1.9.9 regression')
 const previousChecklist = checklistByRelease.get('2.0.0 previous RCs')
-const currentChecklist = checklistByRelease.get('2.0.0-test-rc10')
+const currentChecklist = checklistByRelease.get('2.0.0-test-rc11')
 const allItems = checklists.flatMap((checklist) => checklist.items)
 
 function assert(condition: boolean, message: string) {
@@ -23,8 +23,8 @@ assert(manifest.ui.list.groupBy === 'release', 'Review records must be compartme
 assert(manifest.ui.list.checkField === 'completed', 'Review records must declare their completion checkbox')
 assert(manifest.recordSchema.properties.verifiedBy?.type === 'array', 'Review records must support aggregated prior tester confirmation')
 assert(checklistFiles.length === 3, 'Review must expose exactly stable, cumulative, and current release sets')
-assert(JSON.stringify(Array.from(checklistByRelease.keys()).sort()) === JSON.stringify(['1.9.9 regression', '2.0.0 previous RCs', '2.0.0-test-rc10']), 'Review set names must be stable and unambiguous')
-assert(currentChecklist?.items.length === 3, 'Current RC10 must contain only its three focused changes')
+assert(JSON.stringify(Array.from(checklistByRelease.keys()).sort()) === JSON.stringify(['1.9.9 regression', '2.0.0 previous RCs', '2.0.0-test-rc11']), 'Review set names must be stable and unambiguous')
+assert(currentChecklist?.items.length === 5, 'Current RC11 must contain only its five focused changes')
 assert(previousChecklist?.items.length === 10, 'Completed earlier 2.0 checks must be removed from the cumulative set')
 assert(stableChecklist?.items.length === 14, 'The retained 1.9.9 regression set must contain fourteen end-to-end checks')
 assert(new Set(allItems.map((item: any) => item.id)).size === allItems.length, 'Checklist item IDs must not duplicate across review sets')
@@ -37,7 +37,9 @@ assert(checklists.every((checklist) => checklist.defaults.fields.outcome === 'pe
 assert(checklists.every((checklist) => Array.isArray(checklist.defaults.fields.verifiedBy)), 'Every review set must initialize prior verification metadata')
 assert(currentChecklist?.items.some((item: any) => item.id === 'suggested-details'), 'Current RC must verify visible suggestion details')
 assert(currentChecklist?.items.some((item: any) => item.id === 'expanded-suggestion-catalogs'), 'Current RC must verify expanded suggestion catalogs')
-assert(currentChecklist?.items.some((item: any) => item.id === 'rc10-release-smoke'), 'Current RC must verify release startup')
+assert(currentChecklist?.items.some((item: any) => item.id === 'review-release-archive'), 'Current RC must verify release archive and restore')
+assert(currentChecklist?.items.some((item: any) => item.id === 'secret-operator-key-setup'), 'Current RC must verify encrypted secret setup and saving')
+assert(currentChecklist?.items.some((item: any) => item.id === 'rc11-release-smoke'), 'Current RC must verify release startup')
 assert(previousChecklist?.items.some((item: any) => item.id === 'plugin-layout-views'), 'Cumulative 2.0 checks must cover every plugin view')
 assert(previousChecklist?.items.some((item: any) => item.id === 'guardrail-create-target'), 'Cumulative 2.0 checks must cover guardrail targeting')
 assert(previousChecklist?.items.some((item: any) => item.id === 'eval-create-run'), 'Cumulative 2.0 checks must cover eval runs')
@@ -48,7 +50,7 @@ assert(
 )
 assert(
   !currentChecklist?.items.some((item: any) => (item.fields.verifiedBy || []).length > 0),
-  'Earlier RC results must not pre-verify focused RC10 checks',
+  'Earlier RC results must not pre-verify focused RC11 checks',
 )
 assert(stableChecklist?.items.some((item: any) => item.id === 'secret-runtime-redaction'), 'Stable regression checks must retain secret redaction coverage')
 assert(stableChecklist?.items.some((item: any) => item.id === 'openrouter-provider'), 'Stable regression checks must retain OpenRouter coverage')
@@ -70,6 +72,9 @@ assert(pageSource.includes('w-full min-w-0 max-w-full overflow-hidden rounded-lg
 assert(pageSource.includes('grid w-full min-w-0 grid-cols-4'), 'Plugin view controls must use four equal phone-width tracks')
 assert(pageSource.includes('grid w-full min-w-0 grid-cols-3'), 'Plugin collection tabs must use three equal phone-width tracks')
 assert(pageSource.includes('Export release review'), 'Review actions must expose a release report export')
+assert(pageSource.includes('Archive release checklist'), 'Review actions must expose release-level archiving')
+assert(pageSource.includes('Restore release checklist'), 'Review actions must expose release-level restoration')
+assert(pageSource.includes('getCompletedReviewReleaseIdsToArchive'), 'Starting a new checklist must retire fully completed older releases')
 assert(pageSource.includes('collectRecentRuntimeErrors'), 'Review exports must collect recent runtime errors')
 assert(pageSource.includes('Reviewer name'), 'Review export must identify the reviewer')
 assert(pageSource.includes('resolveReviewIdentity(user'), 'Review export must prefill identity from the authenticated user or browser fallback')
@@ -77,6 +82,6 @@ assert(pageSource.includes("kind === 'onprem' ? 'On-prem'"), 'Review export must
 assert(pageSource.includes("item.description.match(/^Test:"), 'Review rows must separate actions from expected pass results')
 assert(pageSource.includes('[overflow-wrap:anywhere]'), 'Review instructions and notes must wrap long evidence safely on narrow screens')
 assert(pageSource.includes('Previously verified by {verifiedBy.join'), 'Review rows must identify aggregated prior confirmations')
-assert(pageSource.includes("return ['1.9.9', '2.0.0', '2.0.0-test-rc10'].filter"), 'Review filters must stay limited to the three release families')
+assert(pageSource.includes("return ['1.9.9', '2.0.0', '2.0.0-test-rc11'].filter"), 'Review filters must stay limited to the three release families')
 
-console.log('PluginReviewChecklist.test.ts: 54 tests passed')
+console.log('PluginReviewChecklist.test.ts: 57 tests passed')

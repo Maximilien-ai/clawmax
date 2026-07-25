@@ -40,6 +40,7 @@ import {
   type ReviewExportInstance,
 } from '../lib/reviewExport'
 import { readStoredReviewIdentity, resolveReviewIdentity, storeReviewIdentity } from '../lib/reviewIdentity'
+import { getCompletedReviewReleaseIdsToArchive, getReviewReleaseGroups } from '../lib/reviewLifecycle'
 
 type Props = {
   plugin: PluginManifest
@@ -1353,6 +1354,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
   const [reviewInstance, setReviewInstance] = useState<ReviewExportInstance>({})
   const [reviewExporting, setReviewExporting] = useState(false)
   const [reviewExportError, setReviewExportError] = useState<string | null>(null)
+  const [reviewLifecycleBusy, setReviewLifecycleBusy] = useState(false)
   const aiReadiness = getAiGenerationReadiness()
   const aiEnabled = hasAiGenerationAccess()
   const grantedCapabilities = getPluginGrantedCapabilities(plugin)
@@ -1401,12 +1403,8 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
   const tags = useMemo(() => collectPluginTags(items), [items])
   const groups = useMemo(() => {
     if (!groupField) return []
-    return Array.from(new Set(items.flatMap((item) => {
-      if (!isGenericPluginRecord(item)) return []
-      const value = item.fields[groupField]
-      return typeof value === 'string' && value.trim() ? [value.trim()] : []
-    }))).sort((a, b) => b.localeCompare(a, undefined, { numeric: true }))
-  }, [items, groupField])
+    return getReviewReleaseGroups(items, groupField, collectionTab === 'archived')
+  }, [items, groupField, collectionTab])
   const activeGroup = selectedGroup && groups.includes(selectedGroup) ? selectedGroup : groups[0] || null
   const groupProgress = useMemo(() => Object.fromEntries(groups.map((group) => {
     const records = items.filter((item) => isGenericPluginRecord(item) && item.fields[groupField!] === group)
@@ -1442,7 +1440,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
   const suggestionTags = useMemo(() => {
     const allTags = collectPluginTemplateTags(recommendedTemplates)
     if (!isChecklist) return allTags
-    return ['1.9.9', '2.0.0', '2.0.0-test-rc10'].filter((tag) => allTags.includes(tag))
+    return ['1.9.9', '2.0.0', '2.0.0-test-rc11'].filter((tag) => allTags.includes(tag))
   }, [recommendedTemplates, isChecklist])
   const filteredSuggestions = useMemo(() => sortPluginTemplates(
     recommendedTemplates.filter((template) => (
@@ -1494,6 +1492,49 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
     setShowModal(false)
     setEditing(null)
     await load()
+  }
+
+  const updateItems = async (records: PluginRecord[], archived: boolean) => {
+    const responses = await Promise.all(records.map((record) => fetch(
+      `/api/plugins/${encodeURIComponent(plugin.slug)}/items/${encodeURIComponent(record.id)}`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...record, archived }),
+      },
+    )))
+    const failed = responses.find((response) => !response.ok)
+    if (failed) {
+      const data = await failed.json().catch(() => ({}))
+      throw new Error(data.error || 'Failed to update release checklist')
+    }
+  }
+
+  const setReleaseArchived = async (release: string, archived: boolean) => {
+    if (!groupField || reviewLifecycleBusy) return
+    const releaseRecords = items.filter((item) => (
+      isGenericPluginRecord(item) && item.fields[groupField] === release
+    ))
+    if (releaseRecords.length === 0) return
+    if (archived && checkField && releaseRecords.some((item) => (
+      isGenericPluginRecord(item) && item.fields[checkField] !== true
+    ))) {
+      const confirmed = window.confirm(`Archive ${release} with unfinished checks? You can restore it from Archived.`)
+      if (!confirmed) return
+    }
+    setReviewLifecycleBusy(true)
+    setError(null)
+    try {
+      await updateItems(releaseRecords, archived)
+      setSelectedGroup(null)
+      setCollectionTab(archived ? 'archived' : 'active')
+      await load()
+    } catch (err: any) {
+      setError(err.message || 'Failed to update release checklist')
+    } finally {
+      setReviewLifecycleBusy(false)
+      setShowActionsMenu(false)
+    }
   }
 
   const toggleCheck = async (item: PluginRecord) => {
@@ -1599,6 +1640,23 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
     if (failed) {
       const data = await failed.json().catch(() => ({}))
       throw new Error(data.error || 'Failed to add release checklist')
+    }
+    if (isChecklist && groupField && checkField) {
+      const templateFields = templatesToApply[0] && 'fields' in templatesToApply[0].payload
+        ? templatesToApply[0].payload.fields
+        : undefined
+      const incomingRelease = templateFields && typeof templateFields[groupField] === 'string'
+        ? String(templateFields[groupField])
+        : null
+      const archiveIds = new Set(getCompletedReviewReleaseIdsToArchive(
+        items,
+        groupField,
+        checkField,
+        incomingRelease,
+      ))
+      const completedOlderRecords = items.filter((item) => archiveIds.has(item.id))
+      if (completedOlderRecords.length > 0) await updateItems(completedOlderRecords, true)
+      setSelectedGroup(incomingRelease)
     }
     await load()
     setCollectionTab('active')
@@ -1797,14 +1855,24 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                     Refresh
                   </button>
                   {isChecklist && (
-                    <button
-                      onClick={() => void openReviewExport()}
-                      disabled={!activeGroup || items.length === 0}
-                      className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-400 dark:text-gray-300 dark:hover:bg-gray-700"
-                    >
-                      <ProductIconCell iconName="export" label="Export review" size="sm" className="border-transparent bg-transparent text-current" />
-                      Export release review
-                    </button>
+                    <>
+                      <button
+                        onClick={() => void openReviewExport()}
+                        disabled={!activeGroup || items.length === 0}
+                        className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-400 dark:text-gray-300 dark:hover:bg-gray-700"
+                      >
+                        <ProductIconCell iconName="export" label="Export review" size="sm" className="border-transparent bg-transparent text-current" />
+                        Export release review
+                      </button>
+                      <button
+                        onClick={() => activeGroup && void setReleaseArchived(activeGroup, collectionTab !== 'archived')}
+                        disabled={!activeGroup || reviewLifecycleBusy}
+                        className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-400 dark:text-gray-300 dark:hover:bg-gray-700"
+                      >
+                        <ProductIconCell iconName={collectionTab === 'archived' ? 'restore' : 'archive'} label={collectionTab === 'archived' ? 'Restore' : 'Archive'} size="sm" className="border-transparent bg-transparent text-current" />
+                        {collectionTab === 'archived' ? 'Restore release checklist' : 'Archive release checklist'}
+                      </button>
+                    </>
                   )}
                 </div>
               </>
