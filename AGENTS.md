@@ -66,8 +66,8 @@
   iterating. Before an RC, run the complete integration, validation, and
   coverage suite.
 - When cutting an RC, align `CLAWMAX_VERSION` in the ignored local
-  `SYSTEM/dashboard/.env` to the exact candidate (for example,
-  `2.0.0-test-rc13`), restart the local dashboard, and verify both the visible
+  `SYSTEM/dashboard/.env` to the exact candidate being built, restart the local
+  dashboard, and verify both the visible
   version and `/api/system`. The test-image workflow supplies this value for
   containers, but local source checkouts otherwise fall back to the latest Git
   tag plus the current short SHA.

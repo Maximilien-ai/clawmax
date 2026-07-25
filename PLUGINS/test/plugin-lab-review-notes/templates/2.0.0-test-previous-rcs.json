@@ -125,6 +125,55 @@
       "description": "Test: Start the earlier public candidate and open Review and Optimize. Start the matching authorized private image and also open Guardrails and Evals. Restart each once and reopen the same workspace. Pass: Both report the expected candidate, stay healthy after restart, preserve workspace state, and show only the plugin inventory intended for that image.",
       "tags": ["identity", "startup", "plugins"],
       "fields": {"area": "regression", "notes": ""}
+    },
+    {
+      "id": "rc13-mail-partner-visibility",
+      "name": "Gmail and Microsoft 365 appear after update",
+      "description": "Test: Update an existing local, cloud, or on-prem instance that previously showed the standard partners. Restart it, open BYOK > Partners, choose All and Communications, and look for Gmail and Microsoft 365. Pass: Both partners appear in both filters without editing an old default partner list, while an intentionally customized shorter list still shows only its chosen partners.",
+      "tags": ["partners", "upgrade", "catalog"],
+      "fields": {"area": "partners", "notes": ""}
+    },
+    {
+      "id": "rc13-mail-readiness",
+      "name": "Mail setup requirements are clear",
+      "description": "Test: Select Gmail, then Microsoft 365, on an instance without mail OAuth configuration. Open each partner page and read the connection panel. Pass: Each page explains the missing operator setup, Connect account is disabled, no password input appears, and a missing CLAWMAX_SECRET_MASTER_KEY is identified without displaying a secret value.",
+      "tags": ["partners", "oauth", "readiness"],
+      "fields": {"area": "partners", "notes": ""}
+    },
+    {
+      "id": "rc13-gmail-oauth",
+      "name": "Gmail connection lifecycle",
+      "description": "Test: On a test instance configured with Google OAuth and the encryption master key, connect a non-production Gmail mailbox, return to ClawMax, refresh, use Refresh, then disconnect it. Pass: The popup returns to ClawMax, only the mailbox address and state are shown, refresh keeps it connected, disconnect removes it, and no OAuth token appears in the page, URL, logs, or review export.",
+      "tags": ["gmail", "oauth", "security"],
+      "fields": {"area": "partners", "notes": ""}
+    },
+    {
+      "id": "rc13-microsoft-oauth",
+      "name": "Microsoft 365 connection lifecycle",
+      "description": "Test: On a test instance configured with Microsoft OAuth and the encryption master key, connect a non-production Microsoft 365 mailbox, return to ClawMax, refresh, use Refresh, then disconnect it. Pass: The popup returns to ClawMax, only the mailbox address and state are shown, refresh keeps it connected, disconnect removes it, and no OAuth token appears in the page, URL, logs, or review export.",
+      "tags": ["microsoft365", "oauth", "security"],
+      "fields": {"area": "partners", "notes": ""}
+    },
+    {
+      "id": "rc13-mail-workspace-isolation",
+      "name": "Connected mailboxes stay workspace-scoped",
+      "description": "Test: Connect a test mailbox in one workspace, switch to a second workspace, restart the dashboard, and return to both workspaces. Pass: The second workspace cannot see the first workspace's mailbox, the first keeps its connection after restart, and disconnecting it does not change unrelated integration settings.",
+      "tags": ["mail", "workspace", "persistence"],
+      "fields": {"area": "security", "notes": ""}
+    },
+    {
+      "id": "rc13-mail-agent-boundary",
+      "name": "Agents cannot bypass unfinished mail grants",
+      "description": "Test: With a test mailbox connected, ask an agent to read messages, reveal credentials, create a draft, and send mail. Cancel if it exceeds normal chat time. Pass: The agent receives no OAuth credential, cannot invoke mail before explicit agent grants are released, never sends mail, and reports that the feature is unavailable instead of claiming success.",
+      "tags": ["mail", "agents", "security"],
+      "fields": {"area": "security", "notes": ""}
+    },
+    {
+      "id": "rc13-release-smoke",
+      "name": "RC13 mail and restart regression",
+      "description": "Test: Start or update through the RC13 behavior, open Review and Optimize, confirm both mail partners are listed, then restart and reopen the workspace on desktop and phone. Pass: Health remains HTTP 200, workspace state survives, intended plugins load, both partners remain visible, and no page is clipped or blocked.",
+      "tags": ["identity", "startup", "partners"],
+      "fields": {"area": "regression", "notes": ""}
     }
   ]
 }

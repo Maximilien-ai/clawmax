@@ -1,0 +1,42 @@
+{
+  "id": "2.0.0-test-rc14",
+  "name": "2.0.0-test-rc14 focused checklist",
+  "description": "Focused checks for restored core navigation order, collapsible plugin navigation, browser persistence, and release identity.",
+  "release": "2.0.0-test-rc14",
+  "recommended": true,
+  "tags": ["release", "current", "2.0.0-test-rc14"],
+  "defaults": {
+    "enabled": true,
+    "tags": ["release", "current", "2.0.0-test-rc14"],
+    "fields": {
+      "completed": false,
+      "outcome": "pending",
+      "owner": "release-tester",
+      "evidence": [],
+      "verifiedBy": []
+    }
+  },
+  "items": [
+    {
+      "id": "rc14-sidebar-order",
+      "name": "Core, Plugins, and System stay in order",
+      "description": "Test: Open the sidebar on desktop and phone. Read the items from top to bottom, then open Agents, Workflows, every plugin, and Documents. Pass: Builder, Organization, Agents, Workflows, Communications, Skills, and Templates appear first; Plugins is next; System is last with Documents inside it; and every item opens on the first selection.",
+      "tags": ["navigation", "plugins", "mobile"],
+      "fields": {"area": "navigation", "notes": ""}
+    },
+    {
+      "id": "rc14-plugin-collapse-persistence",
+      "name": "Plugin section starts open and remembers its state",
+      "description": "Test: Use a browser profile that has not opened RC14 before and confirm Plugins is open. Collapse Plugins, refresh, and confirm it stays closed. Open it, refresh again, and repeat on a phone. Pass: Plugins starts open when available, the arrow and plugin items follow each click, the saved choice survives refresh, and the sidebar remains scrollable with version and Terms of Service reachable.",
+      "tags": ["navigation", "plugins", "persistence"],
+      "fields": {"area": "navigation", "notes": ""}
+    },
+    {
+      "id": "rc14-release-smoke",
+      "name": "RC14 identity, health, and restart",
+      "description": "Test: Start the exact RC14 public or authorized private image, open Review and the available plugins, restart it, and reopen the same workspace. Pass: The dashboard and /api/system report 2.0.0-test-rc14, /api/health returns HTTP 200, intended plugins load, sidebar state and workspace data survive restart, and no page is clipped or blocked on desktop or phone.",
+      "tags": ["identity", "startup", "plugins"],
+      "fields": {"area": "regression", "notes": ""}
+    }
+  ]
+}

@@ -34,7 +34,7 @@
 ### 2.0.0 development
 
 - Branch: `main`
-- Current test candidate: `2.0.0-test-rc13`, focused on upgraded Gmail and Microsoft 365 Partner visibility, OAuth readiness and connection lifecycle, workspace isolation, agent-access boundaries, and release restart/mobile smoke checks. Unconfirmed RC11 checks remain in the cumulative 2.0 Review set.
+- Current test candidate: `2.0.0-test-rc14`, focused on restoring the uninterrupted core sidebar order, placing collapsible Plugins immediately before System/Documents, remembering the browser's expanded state, and release restart/mobile smoke checks. Unconfirmed RC13 mail checks remain in the cumulative 2.0 Review set.
 - Architecture: [Plugin System 2.0](../../PLUGINS/PLUGIN_SYSTEM_2_0.md)
 - Authoring contract: [Plugin Authoring 2.0](../../PLUGINS/PLUGIN_AUTHORING_2_0.md)
 - Generic architecture plan: [PUBLIC_PLUGIN_ARCHITECTURE_2_0.md](planning/PUBLIC_PLUGIN_ARCHITECTURE_2_0.md)
