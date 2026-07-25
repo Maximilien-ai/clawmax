@@ -65,6 +65,12 @@
 - Run TypeScript and the directly affected unit/contract suites while
   iterating. Before an RC, run the complete integration, validation, and
   coverage suite.
+- When cutting an RC, align `CLAWMAX_VERSION` in the ignored local
+  `SYSTEM/dashboard/.env` to the exact candidate (for example,
+  `2.0.0-test-rc13`), restart the local dashboard, and verify both the visible
+  version and `/api/system`. The test-image workflow supplies this value for
+  containers, but local source checkouts otherwise fall back to the latest Git
+  tag plus the current short SHA.
 - Visually audit changed pages, dialogs, pop-ups, cards, lists, and graphical
   views at desktop and mobile widths. Check long text, scrolling, sticky
   actions, progress states, and empty/error states.
