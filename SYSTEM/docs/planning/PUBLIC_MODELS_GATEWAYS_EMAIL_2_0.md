@@ -1,9 +1,9 @@
 # Public Models, Gateways, And Email Partners
 
-> Status: OpenRouter and runtime-gated xAI shipped in `v1.9.9`; public mail capability foundation in progress
+> Status: OpenRouter and runtime-gated xAI shipped in `v1.9.9`; public mail capability and OAuth storage foundations implemented
 > Release target: `2.0.0` public partner plugins
 > Runtime baseline under test: OpenClaw `v2026.6.11`
-> Last updated: July 24, 2026
+> Last updated: July 25, 2026
 
 ## Decision Summary
 
@@ -101,8 +101,14 @@ grant binding, bounded arguments, metadata-only audit events, and a fake provide
 with malicious-message tests. Gmail and Microsoft 365 partner entries are
 visible as preview integrations without accepting passwords or tokens.
 
-Production OAuth, provider adapters, connected-account storage, and mailbox
-actions remain intentionally disabled.
+The next public layer adds provider-neutral OAuth state and PKCE handling,
+encrypted workspace-scoped connected-account storage, metadata-only connection
+status, restart persistence, revoke/disconnect, and fake Google/Microsoft
+authorization exchanges. Authorization codes, PKCE verifiers, access tokens,
+and refresh tokens are never returned by the API or written to routine audit
+records. Production Google/Microsoft endpoints and mailbox actions remain
+intentionally disabled until the real adapters and test-account validation are
+complete.
 
 A provider advertises capabilities instead of receiving unrestricted mailbox access:
 

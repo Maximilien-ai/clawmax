@@ -2,7 +2,7 @@
 
 **Current Version**: v1.9.9
 **Development Line**: 2.0.0
-**Last Updated**: July 24, 2026
+**Last Updated**: July 25, 2026
 **Status**: `v1.9.9` is promoted unchanged from `1.9.9-test-rc6`. `main` now owns the public 2.0 plugin platform, AI scoring, Optimize, Gmail, and Microsoft 365 work. `release-1.9.9` is retained only for release-blocking hotfixes.
 
 ---
@@ -19,7 +19,7 @@
 - Local test runs and test images enable synthetic plugin fixtures. RC7 adds the cumulative public Review checklist, plugin layout parity, mobile navigation containment, and local plugin enablement. Stable image promotion clears non-product test fixtures.
 - The current development tree adds browser-persisted plugin ordering with Review last by default, persistent per-plugin views, and release-review export with reviewer, instance, checklist, evidence, and sanitized recent-error context. These changes passed the full `413/413` local integration, validation, and coverage gate and have not yet been tagged as RC8.
 - Review and Optimize are the public product plugins in the current 2.0 phase. Public and private plugins use the same host contract, but all other plugin source, content, credentials, distribution, and production enablement remain in their owning private repositories and outside the public image. The public `plugin-lab-*` directories are synthetic contract fixtures only.
-- Gmail and Microsoft 365 now have public preview partner definitions plus a versioned host-mediated mail capability foundation for bounded list/search/read/draft operations. Production OAuth and mailbox adapters remain disabled pending test-account and container validation.
+- Gmail and Microsoft 365 now have public preview partner definitions, bounded list/search/read/draft capabilities, and an encrypted OAuth connection lifecycle with PKCE, replay protection, metadata-only status, restart persistence, disconnect, and fake-provider validation. Production provider endpoints and mailbox adapters remain disabled pending setup UI, test-account, and container validation.
 
 ## Active Release Tracks
 

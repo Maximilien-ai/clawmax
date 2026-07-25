@@ -8,6 +8,8 @@ The integration never asks for a normal Microsoft password or exposes OAuth
 tokens to agents. Sending, replying, moving, categorizing, and deleting require
 later, separate capability grants and confirmation policies.
 
-Current state: public preview metadata and capability contract. Production OAuth
-connection and Graph execution remain disabled until fake-provider, test-account,
-local, and container validation are complete.
+Current state: public preview metadata, capability contract, and encrypted OAuth
+connection lifecycle. PKCE, state replay protection, restart persistence, status,
+and disconnect are validated against a fake Microsoft provider. Production
+Microsoft identity endpoints and Graph execution remain disabled until
+real-provider, test-account, local, and container validation are complete.

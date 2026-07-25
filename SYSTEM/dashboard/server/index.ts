@@ -14,6 +14,7 @@ import channelsRouter from './routes/channels'
 import templatesRouter from './routes/templates'
 import skillsRouter from './routes/skills'
 import skillSecretBrokerRouter, { skillSecretBrokerRuntimeRouter } from './routes/skill-secret-broker'
+import mailOAuthRouter from './routes/mail-oauth'
 import workspacesRouter from './routes/workspaces'
 import workspaceDashboardsRouter from './routes/workspace-dashboards'
 import chatRouter from './routes/chat'
@@ -698,6 +699,7 @@ app.use('/api/templates', protect, templatesRouter)
 app.use('/api/template-registry', templateRegistryRouter)
 app.use('/api/skills', protect, skillsRouter)
 app.use('/api/skill-secret-broker', protect, skillSecretBrokerRouter)
+app.use('/api/mail/oauth', protect, mailOAuthRouter)
 app.use('/api/workflows', protect, workflowsRouter)
 app.use('/api/ai', protect, aiRouter)
 app.use('/api/ai-builder', protect, aiBuilderRouter)

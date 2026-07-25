@@ -3077,6 +3077,27 @@ else
   fail "Public mail capability unit tests"
 fi
 
+echo ""
+echo -e "${YELLOW}→ Running Mail OAuth security unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/mail-oauth.test.ts > /tmp/clawmax-mail-oauth.out 2>&1 || true
+if grep -q "Tests failed: 0" /tmp/clawmax-mail-oauth.out; then
+  mail_oauth_count=$(grep "Tests passed:" /tmp/clawmax-mail-oauth.out | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Mail OAuth security unit tests (${mail_oauth_count:-?} tests)"
+else
+  cat /tmp/clawmax-mail-oauth.out
+  fail "Mail OAuth security unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Mail OAuth route tests...${NC}"
+npx ts-node --transpileOnly server/routes/mail-oauth.test.ts > /tmp/clawmax-mail-oauth-routes.out 2>&1 || true
+if grep -q "Tests failed: 0" /tmp/clawmax-mail-oauth-routes.out; then
+  mail_oauth_route_count=$(grep "Tests passed:" /tmp/clawmax-mail-oauth-routes.out | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Mail OAuth route tests (${mail_oauth_route_count:-?} tests)"
+else
+  cat /tmp/clawmax-mail-oauth-routes.out
+  fail "Mail OAuth route tests"
+fi
+
 cd ..
 echo ""
 
