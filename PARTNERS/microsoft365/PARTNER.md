@@ -9,7 +9,9 @@ tokens to agents. Sending, replying, moving, categorizing, and deleting require
 later, separate capability grants and confirmation policies.
 
 Current state: public preview metadata, capability contract, and encrypted OAuth
-connection lifecycle. PKCE, state replay protection, restart persistence, status,
-and disconnect are validated against a fake Microsoft provider. Production
-Microsoft identity endpoints and Graph execution remain disabled until
-real-provider, test-account, local, and container validation are complete.
+connection lifecycle. The production Microsoft identity authorization, token,
+refresh, and Graph account-profile endpoints are implemented behind operator
+environment configuration. Local disconnect removes encrypted credentials;
+Microsoft account or tenant controls own provider-side consent revocation.
+Mailbox actions and the end-user connection UI remain disabled until
+test-account, local, and container validation are complete.

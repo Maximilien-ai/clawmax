@@ -128,11 +128,36 @@ async function run() {
     assert(/already been used/.test(res.body.error))
   })
 
+  await test('refresh route rotates a connected account without exposing tokens', async () => {
+    const res = await invoke('post', '/:provider/connections/:accountId/refresh', {
+      params: { provider: 'gmail', accountId: 'route-google-account' },
+      query: {},
+      body: {},
+      headers: {},
+      cookies: {},
+    })
+    assert.strictEqual(res.statusCode, 200)
+    assert.strictEqual(gmail.refreshedTokens.length, 1)
+    assert(!JSON.stringify(res.body).includes('refreshed-access-token'))
+  })
+
   await test('unsupported provider is a client error', async () => {
     const res = await invoke('post', '/:provider/begin', {
       params: { provider: 'imap' }, query: {}, body: {}, headers: {}, cookies: {},
     })
     assert.strictEqual(res.statusCode, 400)
+  })
+
+  await test('raw provider scopes are rejected before authorization state is created', async () => {
+    const res = await invoke('post', '/:provider/begin', {
+      params: { provider: 'gmail' },
+      query: {},
+      body: { capabilities: ['https://mail.google.com/'] },
+      headers: {},
+      cookies: {},
+    })
+    assert.strictEqual(res.statusCode, 400)
+    assert.match(res.body.error, /Unsupported mail capability/)
   })
 
   await test('disconnect revokes and removes a connection', async () => {

@@ -101,14 +101,16 @@ grant binding, bounded arguments, metadata-only audit events, and a fake provide
 with malicious-message tests. Gmail and Microsoft 365 partner entries are
 visible as preview integrations without accepting passwords or tokens.
 
-The next public layer adds provider-neutral OAuth state and PKCE handling,
+The public OAuth layer now includes provider-neutral state and PKCE handling,
 encrypted workspace-scoped connected-account storage, metadata-only connection
-status, restart persistence, revoke/disconnect, and fake Google/Microsoft
-authorization exchanges. Authorization codes, PKCE verifiers, access tokens,
-and refresh tokens are never returned by the API or written to routine audit
-records. Production Google/Microsoft endpoints and mailbox actions remain
-intentionally disabled until the real adapters and test-account validation are
-complete.
+status, restart persistence, refresh/disconnect, fake exchanges, and production
+Google/Microsoft identity adapters behind operator configuration. Authorization
+codes, PKCE verifiers, client secrets, access tokens, and refresh tokens are
+never returned by the API or written to routine audit records. Callers can
+request only declared ClawMax mail capabilities; the host maps them to provider
+scopes and rejects raw scopes such as `Mail.Send` or full Google mailbox access.
+Mailbox actions and the connection UI remain intentionally disabled until
+test-account validation is complete.
 
 A provider advertises capabilities instead of receiving unrestricted mailbox access:
 

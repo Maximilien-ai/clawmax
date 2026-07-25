@@ -7,6 +7,7 @@ import {
   disconnectMailOAuth,
   getMailOAuthStatus,
   MailOAuthProviderAdapter,
+  refreshMailOAuth,
 } from '../lib/mail-oauth'
 import { MailProviderId } from '../lib/mail-capabilities'
 
@@ -40,10 +41,15 @@ export function createMailOAuthRouter(providers: ProviderMap = createDefaultMail
       const provider = `${req.params.provider || ''}` as MailProviderId
       const adapter = providers[provider]
       if (!adapter) throw new Error('Unsupported mail OAuth provider')
+      const requested = Array.isArray(req.body?.capabilities)
+        ? req.body.capabilities
+        : Array.isArray(req.body?.scopes)
+          ? req.body.scopes
+          : ['mail.read.metadata']
       const result = beginMailOAuth({
         provider,
         actorId: actorId(req),
-        scopes: Array.isArray(req.body?.scopes) ? req.body.scopes : [],
+        scopes: requested.filter((entry: unknown): entry is string => typeof entry === 'string'),
         adapter,
       })
       res.json({ ok: true, provider, ...result })
@@ -84,6 +90,23 @@ export function createMailOAuthRouter(providers: ProviderMap = createDefaultMail
       res.json({ ok: true, status: getMailOAuthStatus(providers) })
     } catch (error: any) {
       res.status(errorStatus(error?.message || '')).json({ error: error?.message || 'Failed to disconnect mail account' })
+    }
+  })
+
+  router.post('/:provider/connections/:accountId/refresh', async (req, res) => {
+    try {
+      const provider = `${req.params.provider || ''}` as MailProviderId
+      const adapter = providers[provider]
+      if (!adapter) throw new Error('Unsupported mail OAuth provider')
+      const connection = await refreshMailOAuth({
+        provider,
+        accountId: `${req.params.accountId || ''}`,
+        actorId: actorId(req),
+        adapter,
+      })
+      res.json({ ok: true, connection })
+    } catch (error: any) {
+      res.status(errorStatus(error?.message || '')).json({ error: error?.message || 'Failed to refresh mail account' })
     }
   })
 

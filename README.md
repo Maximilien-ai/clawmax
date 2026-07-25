@@ -424,6 +424,13 @@ SYSTEM_OPENAI_API_KEY=sk-your-system-key
 | `ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION` | Lets user agents/workflows fall back to system keys | Optional, defaults to `false` |
 | `GITHUB_CLIENT_ID` | GitHub OAuth client ID | Required for GitHub auth |
 | `GITHUB_CLIENT_SECRET` | GitHub OAuth client secret | Required for GitHub auth |
+| `GMAIL_OAUTH_CLIENT_ID` | Google OAuth web client ID for delegated Gmail connections | Optional |
+| `GMAIL_OAUTH_CLIENT_SECRET` | Google OAuth web client secret | Optional |
+| `GMAIL_OAUTH_REDIRECT_URI` | Exact Google callback URI ending in `/api/mail/oauth/gmail/callback` | Optional |
+| `MICROSOFT365_OAUTH_CLIENT_ID` | Microsoft Entra application client ID | Optional |
+| `MICROSOFT365_OAUTH_CLIENT_SECRET` | Microsoft Entra application client secret | Optional |
+| `MICROSOFT365_OAUTH_REDIRECT_URI` | Exact Microsoft callback URI ending in `/api/mail/oauth/microsoft365/callback` | Optional |
+| `MICROSOFT365_OAUTH_TENANT` | Microsoft tenant selector; defaults to `common` | Optional |
 | `CORS_ORIGIN` | Frontend app origin | Required for local/proxied OAuth correctness |
 | `DASHBOARD_APP_URL` | Frontend redirect target after login/logout | Optional but recommended |
 | `DASHBOARD_INSTANCE_LABEL` | Optional top-left instance label like `Cloud`, `On-Prem`, `Prod`, or `Staging` | Optional; local/native runs default to `Dev` |

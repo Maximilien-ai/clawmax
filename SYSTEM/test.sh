@@ -3088,6 +3088,16 @@ else
   fail "Mail OAuth security unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Production mail OAuth provider tests...${NC}"
+npx ts-node --transpileOnly server/lib/mail-oauth-providers.test.ts > /tmp/clawmax-mail-oauth-providers.out 2>&1 || true
+if grep -q "Tests failed: 0" /tmp/clawmax-mail-oauth-providers.out; then
+  mail_oauth_provider_count=$(grep "Tests passed:" /tmp/clawmax-mail-oauth-providers.out | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Production mail OAuth provider tests (${mail_oauth_provider_count:-?} tests)"
+else
+  cat /tmp/clawmax-mail-oauth-providers.out
+  fail "Production mail OAuth provider tests"
+fi
+
 echo -e "${YELLOW}→ Running Mail OAuth route tests...${NC}"
 npx ts-node --transpileOnly server/routes/mail-oauth.test.ts > /tmp/clawmax-mail-oauth-routes.out 2>&1 || true
 if grep -q "Tests failed: 0" /tmp/clawmax-mail-oauth-routes.out; then

@@ -2,7 +2,8 @@ import crypto from 'crypto'
 import fs from 'fs'
 import path from 'path'
 import { getWorkspacePath } from './workspace'
-import { MailProviderId } from './mail-capabilities'
+import { MAIL_CAPABILITIES, MailProviderId } from './mail-capabilities'
+import { createProductionMailOAuthProviders } from './mail-oauth-providers'
 
 const STORE_VERSION = 1
 const FLOW_TTL_MS = 10 * 60 * 1000
@@ -54,6 +55,13 @@ export interface MailOAuthTokens {
   expiresAt?: string
 }
 
+export interface MailOAuthRefreshResult {
+  accessToken: string
+  refreshToken?: string
+  scopes?: string[]
+  expiresAt?: string
+}
+
 export interface MailOAuthProviderAdapter {
   readonly provider: MailProviderId
   readonly redirectUri: string
@@ -69,6 +77,10 @@ export interface MailOAuthProviderAdapter {
     codeVerifier: string
     redirectUri: string
   }): Promise<MailOAuthTokens>
+  refresh?(input: {
+    refreshToken: string
+    scopes: string[]
+  }): Promise<MailOAuthRefreshResult>
   revoke?(tokens: Pick<StoredConnection, 'accessToken' | 'refreshToken'>): Promise<void>
 }
 
@@ -241,6 +253,9 @@ export function beginMailOAuth(input: {
   if (!input.adapter.configured) throw new Error(input.adapter.unavailableReason || 'Mail OAuth provider is not configured')
   const actorId = `${input.actorId || ''}`.trim()
   if (!actorId) throw new Error('Authenticated actor is required')
+  const capabilities = normalizeScopes(input.scopes)
+  const unsupported = capabilities.find((capability) => !MAIL_CAPABILITIES.includes(capability as any))
+  if (unsupported) throw new Error(`Unsupported mail capability '${unsupported}'`)
   const workspacePath = input.workspacePath || getWorkspacePath()
   const now = input.now ?? Date.now()
   const state = base64Url(crypto.randomBytes(32))
@@ -265,7 +280,7 @@ export function beginMailOAuth(input: {
     authorizationUrl: input.adapter.getAuthorizationUrl({
       state,
       codeChallenge: pkce.challenge,
-      scopes: normalizeScopes(input.scopes),
+      scopes: capabilities,
     }),
     expiresAt,
   }
@@ -371,18 +386,71 @@ export async function disconnectMailOAuth(input: {
   }, workspacePath)
 }
 
+export async function refreshMailOAuth(input: {
+  provider: string
+  accountId: string
+  actorId: string
+  adapter: MailOAuthProviderAdapter
+  workspacePath?: string
+  now?: number
+}): Promise<MailOAuthConnectionSummary> {
+  assertProvider(input.provider)
+  if (input.adapter.provider !== input.provider) throw new Error('Mail OAuth adapter provider mismatch')
+  if (!input.adapter.refresh) throw new Error('Mail OAuth provider does not support token refresh')
+  const workspacePath = input.workspacePath || getWorkspacePath()
+  const store = readStore(workspacePath)
+  const connection = store.connections.find((entry) =>
+    entry.provider === input.provider && entry.accountId === input.accountId)
+  if (!connection) throw new Error('Mail OAuth connection not found')
+  if (!connection.refreshToken) throw new Error('Mail OAuth connection requires reconnection')
+  try {
+    const refreshed = await input.adapter.refresh({
+      refreshToken: connection.refreshToken,
+      scopes: [...connection.scopes],
+    })
+    if (!refreshed.accessToken) throw new Error('Mail OAuth provider returned an incomplete refresh response')
+    const now = input.now ?? Date.now()
+    connection.accessToken = refreshed.accessToken
+    connection.refreshToken = refreshed.refreshToken || connection.refreshToken
+    connection.scopes = normalizeScopes(refreshed.scopes || connection.scopes)
+    connection.expiresAt = refreshed.expiresAt
+    connection.updatedAt = new Date(now).toISOString()
+    writeStore(store, workspacePath)
+    appendAudit({
+      event: 'mail.oauth.refreshed',
+      provider: input.provider,
+      actorId: input.actorId,
+      accountId: input.accountId,
+      status: 'success',
+    }, workspacePath)
+    return listMailOAuthConnections(workspacePath, now)
+      .find((entry) => entry.provider === input.provider && entry.accountId === input.accountId)!
+  } catch (error) {
+    appendAudit({
+      event: 'mail.oauth.refresh-failed',
+      provider: input.provider,
+      actorId: input.actorId,
+      accountId: input.accountId,
+      status: 'failed',
+    }, workspacePath)
+    throw error
+  }
+}
+
 export function createFakeMailOAuthProvider(provider: MailProviderId, options: {
   redirectUri?: string
   accountId?: string
   accountEmail?: string
   expiresAt?: string
-} = {}): MailOAuthProviderAdapter & { revokedTokens: string[] } {
+} = {}): MailOAuthProviderAdapter & { revokedTokens: string[]; refreshedTokens: string[] } {
   const revokedTokens: string[] = []
+  const refreshedTokens: string[] = []
   return {
     provider,
     redirectUri: options.redirectUri || `http://localhost/api/mail/oauth/${provider}/callback`,
     configured: true,
     revokedTokens,
+    refreshedTokens,
     getAuthorizationUrl(input) {
       const query = new URLSearchParams({
         state: input.state,
@@ -404,6 +472,15 @@ export function createFakeMailOAuthProvider(provider: MailProviderId, options: {
         expiresAt: options.expiresAt || new Date(Date.now() + 60 * 60 * 1000).toISOString(),
       }
     },
+    async refresh(input) {
+      refreshedTokens.push(input.refreshToken)
+      return {
+        accessToken: `${provider}-refreshed-access-token`,
+        refreshToken: input.refreshToken,
+        scopes: input.scopes,
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+      }
+    },
     async revoke(tokens) {
       revokedTokens.push(tokens.refreshToken || tokens.accessToken)
     },
@@ -417,15 +494,7 @@ export function createDefaultMailOAuthProviders(): Record<MailProviderId, MailOA
       microsoft365: createFakeMailOAuthProvider('microsoft365'),
     }
   }
-  const unavailable = (provider: MailProviderId): MailOAuthProviderAdapter => ({
-    provider,
-    redirectUri: '',
-    configured: false,
-    unavailableReason: 'OAuth connection is not enabled in this build; passwords and app passwords are not accepted',
-    getAuthorizationUrl() { throw new Error(this.unavailableReason) },
-    async exchangeCode() { throw new Error(this.unavailableReason) },
-  })
-  return { gmail: unavailable('gmail'), microsoft365: unavailable('microsoft365') }
+  return createProductionMailOAuthProviders()
 }
 
 export const __test = {

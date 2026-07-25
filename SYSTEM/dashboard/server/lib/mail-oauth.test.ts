@@ -12,6 +12,7 @@ import {
   getMailOAuthStatus,
   listMailOAuthConnections,
   MailOAuthProviderAdapter,
+  refreshMailOAuth,
 } from './mail-oauth'
 
 const originalMasterKey = process.env.CLAWMAX_SECRET_MASTER_KEY
@@ -79,6 +80,16 @@ async function run() {
     assert(raw.includes('"ciphertext"'))
   })
 
+  await test('rejects raw provider scopes before creating OAuth state', () => {
+    assert.throws(() => beginMailOAuth({
+      provider: 'gmail',
+      actorId: 'owner@example.test',
+      scopes: ['https://mail.google.com/'],
+      adapter: gmail,
+      workspacePath: workspace,
+    }), /Unsupported mail capability/)
+  })
+
   await test('rejects completion by a different authenticated actor', async () => {
     const result = beginMailOAuth({
       provider: 'gmail',
@@ -135,6 +146,21 @@ async function run() {
     const second = listMailOAuthConnections(workspace)
     assert.deepStrictEqual(second, first)
     assert.strictEqual(second[0].accountId, 'google-123')
+  })
+
+  await test('refresh rotates encrypted access credentials without exposing them', async () => {
+    const connection = await refreshMailOAuth({
+      provider: 'gmail',
+      accountId: 'google-123',
+      actorId: 'owner@example.test',
+      adapter: gmail,
+      workspacePath: workspace,
+    })
+    assert.strictEqual(connection.status, 'connected')
+    assert.strictEqual(gmail.refreshedTokens.length, 1)
+    assert(!JSON.stringify(connection).includes('refreshed-access-token'))
+    const raw = fs.readFileSync(__test.storePath(workspace), 'utf8')
+    assert(!raw.includes('refreshed-access-token'))
   })
 
   await test('does not persist tokens, codes, or account passwords in plaintext', () => {

@@ -9,7 +9,7 @@ to agents. Sending, replying, moving, archiving, and deleting require later,
 separate capability grants and confirmation policies.
 
 Current state: public preview metadata, capability contract, and encrypted OAuth
-connection lifecycle. PKCE, state replay protection, restart persistence, status,
-and disconnect are validated against a fake Google provider. Production Google
-OAuth endpoints and Gmail API execution remain disabled until real-provider,
-test-account, local, and container validation are complete.
+connection lifecycle. The production Google authorization, token, refresh,
+profile, and revocation endpoints are implemented behind operator environment
+configuration. Gmail mailbox actions and the end-user connection UI remain
+disabled until test-account, local, and container validation are complete.
