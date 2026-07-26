@@ -352,9 +352,8 @@ if ! command -v node &> /dev/null; then
   echo -e "  ${RED}✗${NC} Node.js not found. Install from https://nodejs.org/"
   preflight_ok=false
 else
-  NODE_MAJOR=$(node --version | cut -d'.' -f1 | sed 's/v//')
-  if [ "$NODE_MAJOR" -lt 18 ]; then
-    echo -e "  ${RED}✗${NC} Node.js 18+ required (found v$NODE_MAJOR)"
+  if ! node -e 'const [major, minor] = process.versions.node.split(".").map(Number); process.exit(major > 22 || (major === 22 && minor >= 19) ? 0 : 1)'; then
+    echo -e "  ${RED}✗${NC} Node.js 22.19+ required (found $(node --version))"
     preflight_ok=false
   else
     echo -e "  ${GREEN}✓${NC} Node.js $(node --version)"
@@ -1643,8 +1642,8 @@ fi
 
 echo -e "${YELLOW}→ Running Plugin workspace layout regression tests...${NC}"
 npx ts-node --transpileOnly client/src/PluginWorkspaceLayout.test.ts > /tmp/clawmax-plugin-workspace-layout.out 2>&1 || true
-if grep -q "PluginWorkspaceLayout.test.ts: 34 tests passed" /tmp/clawmax-plugin-workspace-layout.out; then
-  pass "Plugin workspace layout regression tests (34 tests)"
+if grep -q "PluginWorkspaceLayout.test.ts: 35 tests passed" /tmp/clawmax-plugin-workspace-layout.out; then
+  pass "Plugin workspace layout regression tests (35 tests)"
 else
   cat /tmp/clawmax-plugin-workspace-layout.out
   fail "Plugin workspace layout regression tests"
@@ -1963,6 +1962,33 @@ if grep -q "promptAttachmentsEdges.test.ts:" /tmp/clawmax-prompt-attachments-edg
 else
   cat /tmp/clawmax-prompt-attachments-edges.out
   fail "Prompt attachment edge-case unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Prompt quality scoring unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/promptQuality.test.ts > /tmp/clawmax-prompt-quality.out 2>&1 || true
+if grep -q "promptQuality.test.ts: 10 tests passed" /tmp/clawmax-prompt-quality.out; then
+  pass "Prompt quality scoring unit tests (10 tests)"
+else
+  cat /tmp/clawmax-prompt-quality.out
+  fail "Prompt quality scoring unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Prompt quality integration regression tests...${NC}"
+npx ts-node --transpileOnly client/src/PromptQualityIntegration.test.ts > /tmp/clawmax-prompt-quality-integration.out 2>&1 || true
+if grep -q "PromptQualityIntegration.test.ts: 25 tests passed" /tmp/clawmax-prompt-quality-integration.out; then
+  pass "Prompt quality integration regression tests (25 tests)"
+else
+  cat /tmp/clawmax-prompt-quality-integration.out
+  fail "Prompt quality integration regression tests"
+fi
+
+echo -e "${YELLOW}→ Running RC15 security baseline contract tests...${NC}"
+npx ts-node --transpileOnly server/lib/security-baseline.test.ts > /tmp/clawmax-security-baseline.out 2>&1 || true
+if grep -q "security-baseline.test.ts: 8 tests passed" /tmp/clawmax-security-baseline.out; then
+  pass "RC15 security baseline contract tests (8 tests)"
+else
+  cat /tmp/clawmax-security-baseline.out
+  fail "RC15 security baseline contract tests"
 fi
 
 echo -e "${YELLOW}→ Running Keys/secrets inventory unit tests...${NC}"

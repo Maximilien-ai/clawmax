@@ -23,6 +23,7 @@ assert(
   'Every agent card rendering path must receive plugin relationships',
 )
 assert(appSource.includes('h-[100dvh] max-h-[100dvh]'), 'The mobile sidebar must fit the dynamic viewport')
+assert(appSource.includes('h-[100dvh] w-full min-w-0 overflow-hidden'), 'The app shell must not widen past the phone viewport')
 assert(appSource.includes('function ChecklistIcon'), 'Release Review must have a checklist navigation icon')
 assert(appSource.includes("plugin.objectKind === 'optimization-plan'"), 'Optimize must have a distinct activity navigation icon')
 assert(pluginPageSource.includes("viewMode === 'grid' ? ("), 'Plugin content must render a compact grid view')
@@ -55,4 +56,4 @@ assert(pluginPageSource.includes('grid w-full min-w-0 grid-cols-4 overflow-hidde
 assert(manifests.every((manifest) => !/dormant|test plugin|mvp/i.test(`${manifest.name} ${manifest.description} ${manifest.version}`)), 'Enabled plugin UI copy must be product-ready')
 assert(new Set(manifests.map((manifest) => manifest.icon)).size === manifests.length, 'Each first-party plugin must declare a distinct navigation icon')
 
-console.log('PluginWorkspaceLayout.test.ts: 34 tests passed')
+console.log('PluginWorkspaceLayout.test.ts: 35 tests passed')

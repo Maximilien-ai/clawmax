@@ -270,7 +270,7 @@ That script is intended to exercise the same setup/start/test contract inside a 
 ## Pre-flight Checks
 
 `test.sh` validates before running:
-- Node.js 18+
+- Node.js 22.19+
 - Dashboard dependencies installed
 - OpenClaw CLI available
 - OpenClaw config exists

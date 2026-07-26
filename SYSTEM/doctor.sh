@@ -128,10 +128,11 @@ echo -e "${BOLD}1. Node.js${NC}"
 if command -v node &> /dev/null; then
   NODE_VER=$(node -v)
   NODE_MAJOR=$(echo "$NODE_VER" | sed 's/v//' | cut -d. -f1)
-  if [ "$NODE_MAJOR" -ge 18 ]; then
+  NODE_MINOR=$(echo "$NODE_VER" | sed 's/v//' | cut -d. -f2)
+  if [ "$NODE_MAJOR" -gt 22 ] || { [ "$NODE_MAJOR" -eq 22 ] && [ "$NODE_MINOR" -ge 19 ]; }; then
     pass "Node.js $NODE_VER"
   else
-    fail "Node.js $NODE_VER (need 18+)"
+    fail "Node.js $NODE_VER (need 22.19+)"
   fi
 else
   fail "Node.js not installed"

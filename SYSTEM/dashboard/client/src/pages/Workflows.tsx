@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import AIPromptEditorModal from '../components/AIPromptEditorModal'
+import PromptQualityPanel from '../components/PromptQualityPanel'
 import { useToast } from '../components/Toast'
 import WorkflowEditorDialog from '../components/WorkflowEditorDialog'
 import { ConfirmDeleteDialog } from '../components/ConfirmDeleteDialog'
@@ -2925,79 +2926,90 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
       {/* Create Dialog */}
       {/* AI Generate Prompt */}
       {showAiPrompt && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Generate Workflow with AI</h2>
-              <button onClick={() => setShowAiPrompt(false)} className="text-gray-400 hover:text-gray-600 dark:text-gray-400 text-xl">✕</button>
+        <MobileSafeDialog
+          ariaLabelledBy="workflow-ai-create-title"
+          onClose={() => setShowAiPrompt(false)}
+          panelClassName="max-w-lg"
+          header={(
+            <div className="flex items-center justify-between gap-4">
+              <h2 id="workflow-ai-create-title" className="text-lg font-semibold text-gray-900 dark:text-gray-100">Generate Workflow with AI</h2>
+              <button type="button" onClick={() => setShowAiPrompt(false)} className="text-xl text-gray-400 hover:text-gray-600 dark:text-gray-400" aria-label="Close workflow AI Create">✕</button>
             </div>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-              Describe what you want the workflow to do in natural language. The AI will generate a workflow definition you can review and edit.
-            </p>
-            {!aiEnabled && (
-              <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-800 dark:bg-red-900/20 dark:text-red-100">
-                <div className="font-medium">AI workflow generation is disabled because no AI execution path is configured</div>
-                <div className="mt-1 text-xs opacity-90">
-                  This will fail until you add a model key and choose a preferred model in this browser or through a usable shared execution path.
-                </div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => window.dispatchEvent(new CustomEvent('open-workspaces-integrations', { detail: { step: 'models', focus: 'preferred-model' } }))}
-                    className="px-3 py-1.5 text-xs font-medium rounded-md border border-red-300 bg-white text-red-800 hover:bg-red-100 dark:border-red-700 dark:bg-transparent dark:text-red-200 dark:hover:bg-red-900/30"
-                  >
-                    Open BYOK
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => window.dispatchEvent(new CustomEvent('navigate-to-page', { detail: { page: 'keys' } }))}
-                    className="px-3 py-1.5 text-xs font-medium rounded-md border border-red-300 bg-white text-red-800 hover:bg-red-100 dark:border-red-700 dark:bg-transparent dark:text-red-200 dark:hover:bg-red-900/30"
-                  >
-                    Open Keys & Secrets
-                  </button>
-                </div>
-              </div>
-            )}
-            {aiReadiness.warning && (
-              <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-100">
-                <div className="font-medium">AI workflow generation may fail</div>
-                <div className="mt-1 text-xs opacity-90">{aiReadiness.warning}</div>
-              </div>
-            )}
-            <textarea
-              value={aiPromptText}
-              onChange={(e) => setAiPromptText(e.target.value)}
-              placeholder="e.g., Every weekday at 9am, have the engineering team share status updates and the PM summarize blockers"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[100px] resize-y"
-              autoFocus
-              onKeyDown={(e) => { if (e.key === 'Enter' && e.metaKey) handleAiGenerate() }}
-            />
-            <div className="mt-2 flex justify-end">
+          )}
+          footer={(
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <button
                 type="button"
-                onClick={() => setShowAiPromptEditor(true)}
-                className="px-3 py-1.5 text-xs font-medium rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-              >
-                Open AI Editor
-              </button>
-            </div>
-            <div className="flex justify-end gap-2 mt-4">
-              <button
                 onClick={() => setShowAiPrompt(false)}
-                className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md transition-colors"
+                className="w-full rounded-md px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700 sm:w-auto"
               >
                 Cancel
               </button>
               <button
+                type="button"
                 onClick={handleAiGenerate}
                 disabled={aiGenerating || !aiPromptText.trim() || !aiEnabled}
-                className="px-4 py-2 text-sm bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="w-full rounded-md bg-purple-600 px-4 py-2 text-sm text-white transition-colors hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
               >
                 {aiGenerating ? 'Generating...' : !aiEnabled ? 'Generate Workflow (set up keys first)' : 'Generate Workflow'}
               </button>
             </div>
+          )}
+        >
+          <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
+              Describe what you want the workflow to do in natural language. The AI will generate a workflow definition you can review and edit.
+          </p>
+          {!aiEnabled && (
+            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-800 dark:bg-red-900/20 dark:text-red-100">
+              <div className="font-medium">AI workflow generation is disabled because no AI execution path is configured</div>
+              <div className="mt-1 text-xs opacity-90">
+                This will fail until you add a model key and choose a preferred model in this browser or through a usable shared execution path.
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => window.dispatchEvent(new CustomEvent('open-workspaces-integrations', { detail: { step: 'models', focus: 'preferred-model' } }))}
+                  className="rounded-md border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-800 hover:bg-red-100 dark:border-red-700 dark:bg-transparent dark:text-red-200 dark:hover:bg-red-900/30"
+                >
+                  Open BYOK
+                </button>
+                <button
+                  type="button"
+                  onClick={() => window.dispatchEvent(new CustomEvent('navigate-to-page', { detail: { page: 'keys' } }))}
+                  className="rounded-md border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-800 hover:bg-red-100 dark:border-red-700 dark:bg-transparent dark:text-red-200 dark:hover:bg-red-900/30"
+                >
+                  Open Keys & Secrets
+                </button>
+              </div>
+            </div>
+          )}
+          {aiReadiness.warning && (
+            <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-100">
+              <div className="font-medium">AI workflow generation may fail</div>
+              <div className="mt-1 text-xs opacity-90">{aiReadiness.warning}</div>
+            </div>
+          )}
+          <textarea
+            value={aiPromptText}
+            onChange={(e) => setAiPromptText(e.target.value)}
+            placeholder="e.g., Every weekday at 9am, have the engineering team share status updates and the PM summarize blockers"
+            className="min-h-[100px] w-full resize-y rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-purple-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+            autoFocus
+            onKeyDown={(e) => { if (e.key === 'Enter' && e.metaKey) handleAiGenerate() }}
+          />
+          <div className="mt-2">
+            <PromptQualityPanel prompt={aiPromptText} domain="workflow" compact />
           </div>
-        </div>
+          <div className="mt-2 flex justify-end">
+            <button
+              type="button"
+              onClick={() => setShowAiPromptEditor(true)}
+              className="rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700"
+            >
+              Open AI Editor
+            </button>
+          </div>
+        </MobileSafeDialog>
       )}
 
       <AIPromptEditorModal
@@ -3017,6 +3029,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
         saveAndGenerateLabel="Save & Generate"
         savingAndGenerating={aiGenerating}
         generateDisabled={!aiEnabled}
+        qualityDomain="workflow"
       />
 
       <WorkflowEditorDialog

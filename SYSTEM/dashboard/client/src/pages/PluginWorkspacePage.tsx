@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import AIPromptEditorModal from '../components/AIPromptEditorModal'
+import PromptQualityPanel from '../components/PromptQualityPanel'
+import { MobileSafeDialog } from '../components/MobileSafeDialog'
 import { useAuth } from '../contexts/AuthContext'
 import { ProductIconCell } from '../lib/productIcons'
 import { headerPrimaryButtonClass, headerSecondaryButtonClass, headerSecondaryButtonIdleClass } from '../lib/headerControls'
@@ -1440,7 +1442,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
   const suggestionTags = useMemo(() => {
     const allTags = collectPluginTemplateTags(recommendedTemplates)
     if (!isChecklist) return allTags
-    return ['1.9.9', '2.0.0', '2.0.0-test-rc14'].filter((tag) => allTags.includes(tag))
+    return ['1.9.9', '2.0.0', '2.0.0-test-rc15'].filter((tag) => allTags.includes(tag))
   }, [recommendedTemplates, isChecklist])
   const filteredSuggestions = useMemo(() => sortPluginTemplates(
     recommendedTemplates.filter((template) => (
@@ -2491,67 +2493,78 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
       )}
 
       {showAiPrompt && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">AI Create {plugin.labels?.singular || plugin.name}</h2>
-              <button onClick={() => setShowAiPrompt(false)} className="text-gray-400 hover:text-gray-600 dark:text-gray-400 text-xl">✕</button>
+        <MobileSafeDialog
+          ariaLabelledBy="plugin-ai-create-title"
+          onClose={() => setShowAiPrompt(false)}
+          panelClassName="max-w-lg"
+          header={(
+            <div className="flex items-center justify-between gap-4">
+              <h2 id="plugin-ai-create-title" className="text-lg font-semibold text-gray-900 dark:text-gray-100">AI Create {plugin.labels?.singular || plugin.name}</h2>
+              <button type="button" onClick={() => setShowAiPrompt(false)} className="text-xl text-gray-400 hover:text-gray-600 dark:text-gray-400" aria-label="Close plugin AI Create">✕</button>
             </div>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-              Describe what you want this {plugin.labels?.singular?.toLowerCase() || plugin.name.toLowerCase()} to do in natural language. ClawMax will draft a starter you can review and edit before saving.
-            </p>
-            {!aiEnabled && (
-              <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-100">
-                <div className="font-medium">AI expansion is disabled because no AI execution path is configured</div>
-                <div className="mt-1 text-xs opacity-90">
-                  You can still create a local draft from this prompt, or configure BYOK to use the AI Editor expansion flow.
-                </div>
-              </div>
-            )}
-            {aiReadiness.warning && (
-              <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-100">
-                <div className="font-medium">AI-assisted create may be limited</div>
-                <div className="mt-1 text-xs opacity-90">{aiReadiness.warning}</div>
-              </div>
-            )}
-            <textarea
-              value={aiPromptText}
-              onChange={(e) => setAiPromptText(e.target.value)}
-              placeholder={usesLegacyPluginAdapter(plugin, 'guardrail')
-                ? 'e.g., Create a guardrail for research agents that blocks outbound email and external document sharing'
-                : usesLegacyPluginAdapter(plugin, 'eval')
-                  ? 'e.g., Create an eval for a research workflow that judges output quality and compares summaries against expected findings'
-                  : `Describe the ${plugin.labels?.singular?.toLowerCase() || plugin.objectKind} to create`}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[100px] resize-y"
-              autoFocus
-              onKeyDown={(e) => { if (e.key === 'Enter' && e.metaKey) void handleAiGenerate() }}
-            />
-            <div className="mt-2 flex justify-end">
+          )}
+          footer={(
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <button
                 type="button"
-                onClick={() => setShowAiPromptEditor(true)}
-                className="px-3 py-1.5 text-xs font-medium rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-              >
-                Open AI Editor
-              </button>
-            </div>
-            <div className="flex justify-end gap-2 mt-4">
-              <button
                 onClick={() => setShowAiPrompt(false)}
-                className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md transition-colors"
+                className="w-full rounded-md px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700 sm:w-auto"
               >
                 Cancel
               </button>
               <button
+                type="button"
                 onClick={() => void handleAiGenerate()}
                 disabled={aiGenerating || !aiPromptText.trim()}
-                className="px-4 py-2 text-sm bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="w-full rounded-md bg-purple-600 px-4 py-2 text-sm text-white transition-colors hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
               >
                 {aiGenerating ? 'Generating...' : `Generate ${plugin.labels?.singular || plugin.name}`}
               </button>
             </div>
+          )}
+        >
+          <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
+            Describe what you want this {plugin.labels?.singular?.toLowerCase() || plugin.name.toLowerCase()} to do in natural language. ClawMax will draft a starter you can review and edit before saving.
+          </p>
+          {!aiEnabled && (
+            <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-100">
+              <div className="font-medium">AI expansion is disabled because no AI execution path is configured</div>
+              <div className="mt-1 text-xs opacity-90">
+                You can still create a local draft from this prompt, or configure BYOK to use the AI Editor expansion flow.
+              </div>
+            </div>
+          )}
+          {aiReadiness.warning && (
+            <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-100">
+              <div className="font-medium">AI-assisted create may be limited</div>
+              <div className="mt-1 text-xs opacity-90">{aiReadiness.warning}</div>
+            </div>
+          )}
+          <textarea
+            value={aiPromptText}
+            onChange={(e) => setAiPromptText(e.target.value)}
+            placeholder={usesLegacyPluginAdapter(plugin, 'guardrail')
+              ? 'e.g., Create a guardrail for research agents that blocks outbound email and external document sharing'
+              : usesLegacyPluginAdapter(plugin, 'eval')
+                ? 'e.g., Create an eval for a research workflow that judges output quality and compares summaries against expected findings'
+                : `Describe the ${plugin.labels?.singular?.toLowerCase() || plugin.objectKind} to create`}
+            className="min-h-[100px] w-full resize-y rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-purple-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+            autoFocus
+            onKeyDown={(e) => { if (e.key === 'Enter' && e.metaKey) void handleAiGenerate() }}
+          />
+          <div className="mt-2">
+            <PromptQualityPanel prompt={aiPromptText} domain="plugin" compact />
           </div>
-        </div>
+          <div className="mt-2 flex justify-end">
+            <button
+              type="button"
+              onClick={() => setShowAiPromptEditor(true)}
+              className="rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700"
+            >
+              Open AI Editor
+            </button>
+          </div>
+        </MobileSafeDialog>
       )}
 
       <AIPromptEditorModal
@@ -2571,6 +2584,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
         placeholder={`Describe the ${plugin.labels?.singular?.toLowerCase() || plugin.name.toLowerCase()} you want to create...`}
         savingAndGenerating={aiGenerating}
         generateDisabled={!aiPromptText.trim()}
+        qualityDomain="plugin"
       />
     </div>
   )

@@ -1,0 +1,84 @@
+{
+  "id": "2.0.0-test-rc15",
+  "name": "2.0.0-test-rc15 focused checklist",
+  "description": "Focused checks for live prompt-readiness scoring across every AI creation surface, shared editor feedback, the dependency security baseline, and release health.",
+  "release": "2.0.0-test-rc15",
+  "recommended": true,
+  "tags": ["release", "current", "2.0.0-test-rc15"],
+  "defaults": {
+    "enabled": true,
+    "tags": ["release", "current", "2.0.0-test-rc15"],
+    "fields": {
+      "completed": false,
+      "outcome": "pending",
+      "owner": "release-tester",
+      "evidence": [],
+      "verifiedBy": []
+    }
+  },
+  "items": [
+    {
+      "id": "rc15-builder-scoring",
+      "name": "Builder prompt score responds to detail",
+      "description": "Test: In Builder, enter a vague request and note its score. Add the goal, intended users, inputs, output, constraints, and a measurable success result. Pass: The score and missing-detail suggestions update as you type, meaningful detail raises the score toward Ready at 80, resolved suggestions disappear, and Design still works below 80.",
+      "tags": ["builder", "ai", "scoring"],
+      "fields": {"area": "scoring", "notes": ""}
+    },
+    {
+      "id": "rc15-agent-scoring",
+      "name": "Agent AI Create prompt score",
+      "description": "Test: Open Add Agent and choose AI Create. Start with a short role, then add responsibilities, tools, inputs, output format, constraints, and success criteria. Pass: The live score rises for useful detail, suggestions match missing agent information, the AI Editor shows the same agent-focused guidance, and Generate creates the agent.",
+      "tags": ["agents", "ai", "scoring"],
+      "fields": {"area": "scoring", "notes": ""}
+    },
+    {
+      "id": "rc15-skill-scoring",
+      "name": "Skill AI Create prompt score",
+      "description": "Test: Open Skills > AI Create. Enter a skill name only, then add when to use it, required inputs or credentials, step-by-step behavior, failure handling, output, and an example. Pass: The score updates without delay, suggestions identify skill-specific gaps, Ready appears at 80 or higher, and the improved prompt can generate a skill.",
+      "tags": ["skills", "ai", "scoring"],
+      "fields": {"area": "scoring", "notes": ""}
+    },
+    {
+      "id": "rc15-template-scoring",
+      "name": "Template AI Generate prompt score",
+      "description": "Test: Start an organization template with a vague team idea. Add roles, workflows, handoffs, schedule, deliverable, constraints, and success criteria. Pass: The score and guidance respond to those additions, template-specific gaps are clear, the AI Editor keeps the same context, and Generate produces a preview that can be saved.",
+      "tags": ["templates", "ai", "scoring"],
+      "fields": {"area": "scoring", "notes": ""}
+    },
+    {
+      "id": "rc15-workflow-scoring",
+      "name": "Workflow AI Create prompt score",
+      "description": "Test: Open Workflows > AI Create with a one-line task. Add its trigger or schedule, participants, ordered steps, dependencies, expected output, constraints, and success criteria. Pass: Workflow-specific suggestions update, meaningful additions raise the score, the panel fits on desktop and phone, and the generated workflow can be saved and reopened.",
+      "tags": ["workflows", "ai", "scoring", "mobile"],
+      "fields": {"area": "scoring", "notes": ""}
+    },
+    {
+      "id": "rc15-plugin-scoring",
+      "name": "Plugin AI Create prompt score",
+      "description": "Test: In an available plugin, open AI Create with a short request. Add the target record, desired capability, inputs, actions, result fields, constraints, and success criteria. Pass: Plugin-focused suggestions and score update as you type, the dialog stays usable on desktop and phone, and creation follows the plugin's normal save flow in both public and authorized private images.",
+      "tags": ["plugins", "ai", "scoring", "mobile"],
+      "fields": {"area": "scoring", "notes": ""}
+    },
+    {
+      "id": "rc15-editor-feedback-privacy",
+      "name": "Shared AI Editor scoring and feedback",
+      "description": "Test: Open AI Editor from any scored surface, refine the prompt, then mark the guidance Helpful or Not helpful. Reopen it and export the Review report. Pass: The score follows prompt changes, suggestions remain readable on phone, one feedback choice is selected and can change, generation is not blocked below 80, and the prompt text is absent from the Review export and visible logs.",
+      "tags": ["ai", "editor", "feedback", "privacy"],
+      "fields": {"area": "scoring", "notes": ""}
+    },
+    {
+      "id": "rc15-security-export-regression",
+      "name": "Security baseline and ZIP exports",
+      "description": "Test: Confirm the candidate CI dependency-audit step is green, then export one agent or workspace ZIP and open it locally. Pass: CI reports no High or Critical production dependency advisory, the downloaded ZIP opens without repair, expected files are present, no secret value is included, and normal login, API authorization, and Keys & Secrets behavior still work.",
+      "tags": ["security", "dependencies", "export"],
+      "fields": {"area": "security", "notes": ""}
+    },
+    {
+      "id": "rc15-release-smoke",
+      "name": "RC15 identity, plugins, and restart",
+      "description": "Test: Start the exact RC15 public or authorized private image, check /api/health and /api/system, open every AI Create surface and available plugin on desktop and phone, then restart. Pass: Version is 2.0.0-test-rc15, health is HTTP 200, intended plugins and scoring panels load, workspace and navigation state survive restart, and no dialog is clipped or blocks its primary action.",
+      "tags": ["identity", "startup", "plugins", "mobile"],
+      "fields": {"area": "regression", "notes": ""}
+    }
+  ]
+}

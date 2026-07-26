@@ -7,6 +7,7 @@ import { resolveAddAgentWizardDefaultModel, resolveAddAgentWizardSuggestedModel 
 import { formatOpenAiDeprecationNotice, formatOpenAiModelLabel, isSelectableLifecycleModel } from '../lib/openAiModelLifecycle'
 import { useAuth } from '../contexts/AuthContext'
 import AIPromptEditorModal from './AIPromptEditorModal'
+import PromptQualityPanel from './PromptQualityPanel'
 
 const PREDEFINED_TAGS = [
   'assistant',
@@ -847,6 +848,9 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
                   className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-md outline-none focus:border-sky-400 dark:focus:border-sky-600 h-24 resize-none bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
                   disabled={generating || !!generatedFiles}
                 />
+                <div className="mt-2">
+                  <PromptQualityPanel prompt={form.aiDescription} domain="agent" compact />
+                </div>
                 <div className="mt-2 flex justify-end">
                   <button
                     type="button"
@@ -1132,6 +1136,7 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
         saveAndGenerateLabel="Save & Generate"
         savingAndGenerating={generating}
         generateDisabled={!aiEnabled}
+        qualityDomain="agent"
       />
     </div>
   )

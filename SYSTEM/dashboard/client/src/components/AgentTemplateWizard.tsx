@@ -524,8 +524,9 @@ export default function AgentTemplateWizard({
           saveAndGenerateLabel="Save & Regenerate"
           expandLabel="Expand with AI"
           placeholder="Describe what this agent template should optimize for."
-          savingAndGenerating={generatingFiles}
-        />
+        savingAndGenerating={generatingFiles}
+        qualityDomain="agent"
+      />
       </div>
     </div>
   )

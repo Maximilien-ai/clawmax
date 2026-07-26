@@ -5,6 +5,7 @@ import { readSharedSecrets } from '../lib/localSecrets'
 import { useAuth } from '../contexts/AuthContext'
 import { ProductIconCell, resolveCategoryVisual } from '../lib/productIcons'
 import AIPromptEditorModal from './AIPromptEditorModal'
+import PromptQualityPanel from './PromptQualityPanel'
 
 // ============================================================================
 // Types
@@ -1113,6 +1114,9 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
           rows={3}
           className={inputCls + ' resize-y'}
         />
+        <div className="mt-2">
+          <PromptQualityPanel prompt={state.teamDescription} domain="template" compact />
+        </div>
         <div className="mt-2 flex justify-end">
           <button
             type="button"
@@ -2064,6 +2068,7 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
         saveAndGenerateLabel="Save & Regenerate"
         savingAndGenerating={aiGenerating}
         generateDisabled={!aiEnabled}
+        qualityDomain="template"
       />
       {formBuilderWorkflowIndex !== null && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onClick={() => setFormBuilderWorkflowIndex(null)}>

@@ -165,7 +165,7 @@ ClawMax templates and workflows are open source and community-driven:
 
 ### Prerequisites
 
-- **Node.js** 18+ and npm
+- **Node.js** 22.19+ and npm
 - **Git** for cloning the repository
 
 You do **not** need to pre-install OpenClaw or add model API keys before setup.

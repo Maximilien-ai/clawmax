@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import AIPromptEditorModal from '../components/AIPromptEditorModal'
+import PromptQualityPanel from '../components/PromptQualityPanel'
 import { SelectionActionBar } from '../components/SelectionActionBar'
 import { SkillCard } from '../components/skills/SkillCard'
 import { RegistryResultRow } from '../components/skills/RegistryResultRow'
@@ -4447,6 +4448,9 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                         rows={5}
                         className="w-full px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-purple-500 text-sm"
                       />
+                      <div className="mt-2">
+                        <PromptQualityPanel prompt={aiSkillPrompt} domain="skill" compact />
+                      </div>
                       <div className="mt-2 flex justify-end">
                         <button
                           type="button"
@@ -4620,6 +4624,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
           saveAndGenerateLabel="Save & Generate"
           savingAndGenerating={aiSkillGenerating}
           generateDisabled={!aiEnabled}
+          qualityDomain="skill"
         />
       </div>
     </div>

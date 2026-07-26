@@ -3,6 +3,9 @@
 > Status: required before `2.0.0` promotion
 > Scope: public dashboard and runtime integration surfaces, plus the public contracts used by separately packaged plugins
 
+Initial RC15 dependency/configuration evidence:
+[SECURITY_BASELINE_2_0_RC15.md](../security/SECURITY_BASELINE_2_0_RC15.md).
+
 ## Objective
 
 Produce a repeatable, evidence-backed security assessment of the ClawMax

@@ -15,6 +15,7 @@ import { findActiveBuilderMention, insertBuilderMention, type BuilderMentionMatc
 import { buildWorkspaceStarterPrompts, normalizeStarterPromptList, type StarterPromptAgent, type StarterPromptSkill, type StarterPromptTemplate, type StarterPromptWorkflow } from '../lib/builderStarterPrompts'
 import { organizationTemplateCanApplyNow } from '../lib/templateApplyReadiness'
 import AIPromptEditorModal from '../components/AIPromptEditorModal'
+import PromptQualityPanel from '../components/PromptQualityPanel'
 
 type BuilderAction = {
   id: string
@@ -2543,6 +2544,9 @@ export default function Builder({
                   className="min-h-[7rem] max-h-[14rem] w-full resize-y rounded-xl border border-sky-200 bg-white/95 px-3 py-2 text-base text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-sky-400 dark:border-sky-900 dark:bg-gray-900 dark:text-gray-100 dark:focus:border-sky-700 sm:min-h-[56px] sm:max-h-[96px] sm:text-sm"
                 />
               </div>
+              <div className="mt-2">
+                <PromptQualityPanel prompt={prompt} domain="builder" compact />
+              </div>
 
               <div className="mt-2 flex flex-wrap items-center justify-between gap-3 border-t border-sky-200/80 pt-2.5 dark:border-sky-900/60">
                 <div className="flex flex-wrap items-center gap-2">
@@ -2650,6 +2654,7 @@ export default function Builder({
           attachments={attachments}
           onAttachFiles={addAttachments}
           onRemoveAttachment={removeAttachment}
+          qualityDomain="builder"
         />
 
         {!showRightPane && (

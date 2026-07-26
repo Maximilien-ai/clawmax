@@ -24,18 +24,18 @@ echo "=== ClawMax Dashboard Build ==="
 echo ""
 
 # Check Node.js version
-NODE_VERSION=$(node -v 2>/dev/null | sed 's/v//' | cut -d. -f1)
+NODE_VERSION=$(node -v 2>/dev/null || true)
 if [ -z "$NODE_VERSION" ]; then
   echo "ERROR: Node.js is not installed."
-  echo "  Install Node.js 18+ from https://nodejs.org or via:"
+  echo "  Install Node.js 22.19+ from https://nodejs.org or via:"
   echo "    brew install node"
   exit 1
 fi
-if [ "$NODE_VERSION" -lt 18 ]; then
-  echo "ERROR: Node.js 18+ required (found v$(node -v))"
+if ! node -e 'const [major, minor] = process.versions.node.split(".").map(Number); process.exit(major > 22 || (major === 22 && minor >= 19) ? 0 : 1)'; then
+  echo "ERROR: Node.js 22.19+ required (found $NODE_VERSION)"
   exit 1
 fi
-echo "Node.js $(node -v)"
+echo "Node.js $NODE_VERSION"
 
 # Clean if requested
 if [ "$CLEAN" = true ]; then

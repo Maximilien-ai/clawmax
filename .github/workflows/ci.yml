@@ -49,6 +49,10 @@ jobs:
       - name: Run setup
         run: ./setup.sh < /dev/null
 
+      - name: Reject high and critical dependency advisories
+        working-directory: SYSTEM/dashboard
+        run: npm run security:audit
+
       - name: Prepare dashboard env
         run: |
           cat > SYSTEM/dashboard/.env <<EOF

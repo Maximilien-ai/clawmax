@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { appendPromptAttachmentContext, createPromptAttachment, type PromptAttachment } from '../lib/promptAttachments'
+import type { PromptQualityDomain } from '../lib/promptQuality'
+import PromptQualityPanel from './PromptQualityPanel'
 
 type PromptExpandFormat = 'markdown' | 'text'
 
@@ -25,6 +27,7 @@ interface AIPromptEditorModalProps {
   onAttachFiles?: (files: File[]) => void | Promise<void>
   onRemoveAttachment?: (id: string) => void
   defaultExpandFormat?: PromptExpandFormat
+  qualityDomain?: PromptQualityDomain
 }
 
 const EMPTY_ATTACHMENTS: PromptAttachment[] = []
@@ -57,6 +60,7 @@ export default function AIPromptEditorModal({
   onAttachFiles,
   onRemoveAttachment,
   defaultExpandFormat = 'markdown',
+  qualityDomain = 'general',
 }: AIPromptEditorModalProps) {
   const [draft, setDraft] = useState(initialValue)
   const [expanding, setExpanding] = useState(false)
@@ -270,6 +274,7 @@ export default function AIPromptEditorModal({
               </div>
             ) : null}
           </div>
+          <PromptQualityPanel prompt={draft} domain={qualityDomain} />
           {onExpandWithAi ? (
             <div className="space-y-3">
               <div className="space-y-1">

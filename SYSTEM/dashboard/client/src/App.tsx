@@ -786,7 +786,7 @@ export default function App() {
             onClose={() => setShowWorkspaceDialog(false)}
           />
           <TermsOfServiceModal open={showTermsOfService} onClose={() => setShowTermsOfService(false)} />
-          <div className="flex h-[100dvh] bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 dark:bg-gray-900">
+          <div className="flex h-[100dvh] w-full min-w-0 overflow-hidden bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100">
           {/* Mobile nav overlay backdrop */}
           {mobileNavOpen && (
             <div

@@ -1272,6 +1272,7 @@ export default function WorkflowEditorDialog({ isOpen, onClose, onSave, initialD
           ].filter(Boolean).join(' '),
         )}
         saveLabel="Use Description"
+        qualityDomain="workflow"
       />
     </>
   )

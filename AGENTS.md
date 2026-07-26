@@ -30,6 +30,13 @@
 
 ## Product Language And State
 
+- Treat prompt-readiness scores and generated-artifact quality scores as
+  separate claims. Prompt scoring must explain the rubric, update as the user
+  edits, remain advisory rather than blocking generation, and never imply that
+  an untested generated artifact is correct or safe.
+- Keep baseline prompt scoring local and token-free. Do not persist or export
+  raw prompt text as scoring feedback; collect only the minimum disclosed
+  metadata unless the user explicitly opts into a separate data-use contract.
 - Reserve `template` for ClawMax agent, organization, and workflow templates.
   Plugin starter content should be presented as `Suggested`, `Use`, or another
   domain-specific action rather than `Use Template`.
@@ -89,6 +96,9 @@
 - Before handoff, commit and push every owning repository with an approved
   lowercase prefix, record the relevant SHAs and CI links, and verify that no
   task-created changes remain uncommitted.
+- Security claims require reproducible evidence. Record dependency counts,
+  command results, residual severity, owner, and deadline; do not describe an
+  initial dependency/configuration baseline as the complete security audit.
 
 ## Documentation Maintenance
 

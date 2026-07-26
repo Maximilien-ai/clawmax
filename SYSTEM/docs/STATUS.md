@@ -2,7 +2,7 @@
 
 **Current Version**: v1.9.9
 **Development Line**: 2.0.0
-**Last Updated**: July 25, 2026
+**Last Updated**: July 26, 2026
 **Status**: `v1.9.9` is promoted unchanged from `1.9.9-test-rc6`. `main` now owns the public 2.0 plugin platform, AI scoring, Optimize, Gmail, and Microsoft 365 work. `release-1.9.9` is retained only for release-blocking hotfixes.
 
 ---
@@ -34,7 +34,7 @@
 ### 2.0.0 development
 
 - Branch: `main`
-- Current test candidate: `2.0.0-test-rc14`, focused on restoring the uninterrupted core sidebar order, placing collapsible Plugins immediately before System/Documents, remembering the browser's expanded state, and release restart/mobile smoke checks. Unconfirmed RC13 mail checks remain in the cumulative 2.0 Review set.
+- Current test candidate: `2.0.0-test-rc15`, focused on live prompt-readiness scoring across every AI Create/Generate surface and the shared AI Editor, privacy-preserving guidance feedback, the dependency security baseline, ZIP export regression, and release restart/mobile smoke checks. Unconfirmed RC14 and earlier checks remain in the cumulative 2.0 Review set.
 - Architecture: [Plugin System 2.0](../../PLUGINS/PLUGIN_SYSTEM_2_0.md)
 - Authoring contract: [Plugin Authoring 2.0](../../PLUGINS/PLUGIN_AUTHORING_2_0.md)
 - Generic architecture plan: [PUBLIC_PLUGIN_ARCHITECTURE_2_0.md](planning/PUBLIC_PLUGIN_ARCHITECTURE_2_0.md)
@@ -42,6 +42,8 @@
 - Mail/provider plan: [PUBLIC_MODELS_GATEWAYS_EMAIL_2_0.md](planning/PUBLIC_MODELS_GATEWAYS_EMAIL_2_0.md)
 - Activity Export/partner plan: [PUBLIC_ACTIVITY_EXPORT_PARTNERS_2_0.md](planning/PUBLIC_ACTIVITY_EXPORT_PARTNERS_2_0.md)
 - Release security gate: [SECURITY_AUDIT_2_0.md](planning/SECURITY_AUDIT_2_0.md)
+- RC15 security baseline: [SECURITY_BASELINE_2_0_RC15.md](security/SECURITY_BASELINE_2_0_RC15.md)
+- Public prompt-readiness scoring: [PROMPT_READINESS_SCORING.md](features/PROMPT_READINESS_SCORING.md)
 - RC11 validation focus: suggestion catalogs and Details content, Review archive/restore plus automatic retirement of completed older sets, successful encrypted secret setup/save, and clean public/private image startup.
 - Immediate work after RC11 feedback: reconcile the declarative v2 contract with the generic contribution model; add manifest-declared custom actions, error isolation, and external packaging validation on top of the enforced host capabilities.
 - Product work: public AI scoring, public token-first Optimize, curated public Gmail and Microsoft 365/Outlook plugins, and a consent-gated Activity Export contract proven first with ClawMax.ai and then Digo.
