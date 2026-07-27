@@ -531,12 +531,13 @@ router.get('/status', async (req, res) => {
 // POST /api/agents/generate — AI-generate agent files
 // If name is omitted, AI will suggest name, tags, and model
 router.post('/generate', async (req, res) => {
-  const { description, name, tags, suggestMeta, byokKeys, availableModels: requestedModels } = req.body as {
+  const { description, name, tags, suggestMeta, byokKeys, availableModels: requestedModels, modelPreference } = req.body as {
     description?: string
     name?: string
     tags?: string[]
     suggestMeta?: boolean
     availableModels?: string[]
+    modelPreference?: ModelFitPreference
     byokKeys?: { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; xai?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string }
   }
 
@@ -584,7 +585,9 @@ router.post('/generate', async (req, res) => {
     const modelRecommendation = recommendModelsForDescription({
       description,
       availableModels: runtimeModels,
-      preference: 'balanced',
+      preference: ['quality', 'balanced', 'cost'].includes(String(modelPreference))
+        ? modelPreference
+        : 'balanced',
     })
     suggestedModel = modelRecommendation.recommendedModel || suggestedModel
 

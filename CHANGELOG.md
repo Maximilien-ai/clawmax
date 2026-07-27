@@ -24,6 +24,7 @@ All notable changes to ClawMax are documented here.
 - **Encrypted Mail OAuth Foundation** — provider-neutral Gmail and Microsoft 365 connection routes add short-lived actor/workspace-bound state, PKCE S256, replay protection, encrypted restart-persistent token storage, metadata-only readiness, refresh, and disconnect behavior validated through fake provider exchanges.
 - **Production Mail Identity Adapters** — opt-in Google and Microsoft adapters implement authorization-code exchange, PKCE, delegated account identity, offline refresh, safe disconnect behavior, strict callback configuration, sanitized provider errors, and fixed capability-to-scope mapping that rejects raw scopes.
 - **Mail Partner Connections And Draft Adapters** — Gmail and Microsoft Partner panels expose workspace connection, refresh, reconnect, and disconnect states; bounded provider adapters implement inbox list/search, metadata/body read, and unsent draft creation without a send operation, while recipient and subject header injection fails closed.
+- **Explainable Agent Model Suggestions** — agent AI creation and existing-agent editing rank only models visible to the current runtime, expose Quality, Balanced, and Cost priorities, show confidence, reasons, alternatives, and unknown capability assumptions, and require explicit selection plus Save before changing an existing agent.
 
 ### Fixed
 - **Mail Partners Hidden After Upgrade** — the exact legacy five-partner availability default now migrates to include Gmail and Microsoft 365, while genuinely custom partner allowlists remain unchanged.
@@ -36,6 +37,7 @@ All notable changes to ClawMax are documented here.
 - **Mobile Plugin Toolbar Wrapping** — plugin view controls use their own mobile row so Create and Actions remain visible instead of being clipped offscreen.
 - **Cached Plugin Suggestions** — plugin suggestion files are cached for five minutes, revisited plugin pages retain their rendered data while refreshing in the background, and the explicit Refresh action bypasses the cache.
 - **Encrypted Secret Setup Clarity** — Agent & Skill Access locks credential inputs until the deployment operator key exists, presents short restart-safe setup steps, and labels the unavailable Save action with its exact prerequisite.
+- **Mobile Agent Model Editing** — Edit Agent Config now stays within the phone viewport, wraps long provider/model identifiers, keeps all priority controls visible, and preserves reachable Cancel and Save actions.
 
 ### Planned
 - **2.0 Public Plugin And AI-Scoring Foundation** — complete the generic contribution-based plugin contract for pages, APIs, data, actions, jobs, events, settings, skills, providers, docs, and extension points; then publish scorer contracts and user-facing scoring surfaces on that foundation.

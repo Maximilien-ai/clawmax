@@ -33,6 +33,16 @@ The first public implementation:
 - exposes the recommendation during AI agent creation and through a reusable
   server endpoint.
 
+RC16 extends that foundation by:
+
+- exposing Quality, Balanced, and Cost priorities during agent creation;
+- automatically refreshing suggestions from an existing agent's current
+  identity, behavior, and tool instructions;
+- presenting the same reasons, alternatives, caveats, and confidence in a
+  shared responsive panel;
+- requiring the user to select a suggestion and then save before an existing
+  agent model changes.
+
 This baseline intentionally does not claim current pricing, context limits,
 vision support, tool support, or measured quality when the runtime catalog does
 not provide that metadata.
@@ -113,7 +123,7 @@ the budget, work, or schedule assumption needs to change.
 
 - add sourced capability and pricing catalogs with cache/version semantics;
 - support explicit hard requirements in agent and workflow configuration;
-- add quality, balanced, and cost preference controls;
+- add workflow-level quality, balanced, and cost preference controls;
 - include excluded models and missing-evidence details in the UI;
 - integrate representative Eval execution and measured model comparisons;
 - integrate token/cost/latency evidence into Optimize;

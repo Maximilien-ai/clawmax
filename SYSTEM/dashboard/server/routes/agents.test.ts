@@ -402,6 +402,7 @@ async function run() {
       soul: '# SOUL',
       tools: '# TOOLS',
     })
+    process.env.SYSTEM_OPENAI_API_KEY = 'test-openai-key'
 
     try {
       const handler = getRouteHandler('post', '/generate')
@@ -410,6 +411,8 @@ async function run() {
         body: {
           description: 'create a resend agent to test sending emails with resend skills',
           suggestMeta: true,
+          availableModels: ['openai/gpt-5.4-pro', 'openai/gpt-5.4-mini'],
+          modelPreference: 'cost',
         },
       }), res)
 
@@ -417,7 +420,11 @@ async function run() {
       assert.strictEqual(res.jsonBody?.suggestedName, 'resend-agent')
       assert.deepStrictEqual(res.jsonBody?.suggestedTags, ['email', 'assistant'])
       assert.deepStrictEqual(res.jsonBody?.suggestedSkills, ['resend', 'react-email'])
+      assert.strictEqual(res.jsonBody?.suggestedModel, 'openai/gpt-5.4-mini')
+      assert.strictEqual(res.jsonBody?.modelRecommendation?.recommendedModel, 'openai/gpt-5.4-mini')
     } finally {
+      if (typeof originalSystemOpenAiKey === 'undefined') delete process.env.SYSTEM_OPENAI_API_KEY
+      else process.env.SYSTEM_OPENAI_API_KEY = originalSystemOpenAiKey
       aiGenerator.generateAgentMeta = originalGenerateAgentMeta
       aiGenerator.generateAgentFiles = originalGenerateAgentFiles
       delete require.cache[require.resolve('./agents')]

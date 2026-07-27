@@ -10,7 +10,7 @@ const checklists = checklistFiles.map((file) => JSON.parse(fs.readFileSync(path.
 const checklistByRelease = new Map(checklists.map((checklist) => [checklist.release, checklist]))
 const stableChecklist = checklistByRelease.get('1.9.9 regression')
 const previousChecklist = checklistByRelease.get('2.0.0 previous RCs')
-const currentChecklist = checklistByRelease.get('2.0.0-test-rc15')
+const currentChecklist = checklistByRelease.get('2.0.0-test-rc16')
 const allItems = checklists.flatMap((checklist) => checklist.items)
 
 function assert(condition: boolean, message: string) {
@@ -23,9 +23,9 @@ assert(manifest.ui.list.groupBy === 'release', 'Review records must be compartme
 assert(manifest.ui.list.checkField === 'completed', 'Review records must declare their completion checkbox')
 assert(manifest.recordSchema.properties.verifiedBy?.type === 'array', 'Review records must support aggregated prior tester confirmation')
 assert(checklistFiles.length === 3, 'Review must expose exactly stable, cumulative, and current release sets')
-assert(JSON.stringify(Array.from(checklistByRelease.keys()).sort()) === JSON.stringify(['1.9.9 regression', '2.0.0 previous RCs', '2.0.0-test-rc15']), 'Review set names must be stable and unambiguous')
-assert(currentChecklist?.items.length === 9, 'Current RC15 must contain its nine focused scoring, security, and release checks')
-assert(previousChecklist?.items.length === 25, 'Unconfirmed earlier 2.0 checks must remain in the cumulative set')
+assert(JSON.stringify(Array.from(checklistByRelease.keys()).sort()) === JSON.stringify(['1.9.9 regression', '2.0.0 previous RCs', '2.0.0-test-rc16']), 'Review set names must be stable and unambiguous')
+assert(currentChecklist?.items.length === 5, 'Current RC16 must contain its five focused model-fit and release checks')
+assert(previousChecklist?.items.length === 34, 'Unconfirmed earlier 2.0 checks must remain in the cumulative set')
 assert(stableChecklist?.items.length === 14, 'The retained 1.9.9 regression set must contain fourteen end-to-end checks')
 assert(new Set(allItems.map((item: any) => item.id)).size === allItems.length, 'Checklist item IDs must not duplicate across review sets')
 assert(allItems.every((item: any) => /^Test:\s*.+\s+Pass:\s*.+$/i.test(item.description)), 'Every check must provide explicit Test and Pass instructions')
@@ -35,15 +35,15 @@ assert(allItems.every((item: any) => item.fields.notes === ''), 'New checklist n
 assert(checklists.every((checklist) => checklist.defaults.fields.completed === false), 'Every review set must start unchecked')
 assert(checklists.every((checklist) => checklist.defaults.fields.outcome === 'pending'), 'Every review set must start pending')
 assert(checklists.every((checklist) => Array.isArray(checklist.defaults.fields.verifiedBy)), 'Every review set must initialize prior verification metadata')
-assert(currentChecklist?.items.some((item: any) => item.id === 'rc15-builder-scoring'), 'Current RC must verify Builder scoring')
-assert(currentChecklist?.items.some((item: any) => item.id === 'rc15-agent-scoring'), 'Current RC must verify Agent scoring')
-assert(currentChecklist?.items.some((item: any) => item.id === 'rc15-skill-scoring'), 'Current RC must verify Skill scoring')
-assert(currentChecklist?.items.some((item: any) => item.id === 'rc15-template-scoring'), 'Current RC must verify Template scoring')
-assert(currentChecklist?.items.some((item: any) => item.id === 'rc15-workflow-scoring'), 'Current RC must verify Workflow scoring')
-assert(currentChecklist?.items.some((item: any) => item.id === 'rc15-plugin-scoring'), 'Current RC must verify Plugin scoring')
-assert(currentChecklist?.items.some((item: any) => item.id === 'rc15-editor-feedback-privacy'), 'Current RC must verify shared editor feedback privacy')
-assert(currentChecklist?.items.some((item: any) => item.id === 'rc15-security-export-regression'), 'Current RC must verify the security baseline and ZIP exports')
-assert(currentChecklist?.items.some((item: any) => item.id === 'rc15-release-smoke'), 'Current RC must verify release startup')
+assert(currentChecklist?.items.some((item: any) => item.id === 'rc16-agent-create-model-suggestion'), 'Current RC must verify creation-time model suggestions')
+assert(currentChecklist?.items.some((item: any) => item.id === 'rc16-model-priority'), 'Current RC must verify model priority controls')
+assert(currentChecklist?.items.some((item: any) => item.id === 'rc16-existing-agent-model-suggestion'), 'Current RC must verify existing-agent suggestions')
+assert(currentChecklist?.items.some((item: any) => item.id === 'rc16-model-change-confirmation'), 'Current RC must verify explicit model change confirmation')
+assert(currentChecklist?.items.some((item: any) => item.id === 'rc16-release-mobile-smoke'), 'Current RC must verify release startup and mobile layout')
+assert(previousChecklist?.items.some((item: any) => item.id === 'rc15-builder-scoring'), 'Cumulative checks must retain RC15 Builder scoring')
+assert(previousChecklist?.items.some((item: any) => item.id === 'rc15-agent-scoring'), 'Cumulative checks must retain RC15 agent scoring')
+assert(previousChecklist?.items.some((item: any) => item.id === 'rc15-plugin-scoring'), 'Cumulative checks must retain RC15 plugin scoring')
+assert(previousChecklist?.items.some((item: any) => item.id === 'rc15-security-export-regression'), 'Cumulative checks must retain RC15 security coverage')
 assert(previousChecklist?.items.some((item: any) => item.id === 'rc14-sidebar-order'), 'Cumulative checks must retain restored sidebar order coverage')
 assert(previousChecklist?.items.some((item: any) => item.id === 'rc14-plugin-collapse-persistence'), 'Cumulative checks must retain plugin collapse persistence')
 assert(previousChecklist?.items.some((item: any) => item.id === 'rc13-mail-partner-visibility'), 'Cumulative checks must retain upgraded partner visibility')
@@ -59,7 +59,7 @@ assert(
 )
 assert(
   !currentChecklist?.items.some((item: any) => (item.fields.verifiedBy || []).length > 0),
-  'Earlier RC results must not pre-verify focused RC15 checks',
+  'Earlier RC results must not pre-verify focused RC16 checks',
 )
 assert(stableChecklist?.items.some((item: any) => item.id === 'secret-runtime-redaction'), 'Stable regression checks must retain secret redaction coverage')
 assert(stableChecklist?.items.some((item: any) => item.id === 'openrouter-provider'), 'Stable regression checks must retain OpenRouter coverage')
@@ -91,6 +91,6 @@ assert(pageSource.includes("kind === 'onprem' ? 'On-prem'"), 'Review export must
 assert(pageSource.includes("item.description.match(/^Test:"), 'Review rows must separate actions from expected pass results')
 assert(pageSource.includes('[overflow-wrap:anywhere]'), 'Review instructions and notes must wrap long evidence safely on narrow screens')
 assert(pageSource.includes('Previously verified by {verifiedBy.join'), 'Review rows must identify aggregated prior confirmations')
-assert(pageSource.includes("return ['1.9.9', '2.0.0', '2.0.0-test-rc15'].filter"), 'Review filters must stay limited to the three release families')
+assert(pageSource.includes("return ['1.9.9', '2.0.0', '2.0.0-test-rc16'].filter"), 'Review filters must stay limited to the three release families')
 
 console.log('PluginReviewChecklist.test.ts: 69 tests passed')

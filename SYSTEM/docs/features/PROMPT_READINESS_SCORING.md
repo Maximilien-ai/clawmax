@@ -80,4 +80,6 @@ The active model recommendation plan is documented in
 RC15 includes unit coverage for score thresholds, domain rules, feedback
 privacy, every integrated AI creation surface, mobile-safe dialogs, and the
 release Review checklist. Manual checks live in Review under
-`2.0.0-test-rc15`.
+`2.0.0-test-rc15`. Explainable agent model suggestions and their separate
+Quality, Balanced, and Cost priorities are introduced in
+`2.0.0-test-rc16`.

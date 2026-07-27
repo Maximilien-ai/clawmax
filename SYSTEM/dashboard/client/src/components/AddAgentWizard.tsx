@@ -8,6 +8,8 @@ import { formatOpenAiDeprecationNotice, formatOpenAiModelLabel, isSelectableLife
 import { useAuth } from '../contexts/AuthContext'
 import AIPromptEditorModal from './AIPromptEditorModal'
 import PromptQualityPanel from './PromptQualityPanel'
+import ModelFitRecommendationPanel, { ModelFitPreferenceControl } from './ModelFitRecommendationPanel'
+import type { ModelFitPreference, ModelFitRecommendation } from '../lib/modelFit'
 
 const PREDEFINED_TAGS = [
   'assistant',
@@ -48,20 +50,6 @@ interface GeneratedFiles {
   identity: string
   soul: string
   tools: string
-}
-
-interface ModelFitRecommendation {
-  recommendedModel: string | null
-  confidence: 'low' | 'medium'
-  summary: string
-  disclaimer: string
-  candidates: Array<{
-    model: string
-    score: number
-    tier: string
-    reasons: string[]
-    caveats: string[]
-  }>
 }
 
 interface ValidationResult {
@@ -127,6 +115,7 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
   const logRef = useRef<HTMLDivElement>(null)
   const [generatedFiles, setGeneratedFiles] = useState<GeneratedFiles | null>(null)
   const [modelRecommendation, setModelRecommendation] = useState<ModelFitRecommendation | null>(null)
+  const [modelPreference, setModelPreference] = useState<ModelFitPreference>('balanced')
   const [generating, setGenerating] = useState(false)
   const [genError, setGenError] = useState<string | null>(null)
   const [showAiPromptEditor, setShowAiPromptEditor] = useState(false)
@@ -385,6 +374,7 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
           tags: form.tags.length > 0 ? form.tags : undefined,
           suggestMeta: true,
           availableModels,
+          modelPreference,
           byokKeys: (byok.openai || byok.anthropic || byok.gemini || byok.openrouter || byok.xai || byok.ollamaBaseUrl || byok.openaiCompatibleBaseUrl)
             ? {
                 openai: byok.openai,
@@ -884,6 +874,12 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
                 </div>
               </div>
 
+              <ModelFitPreferenceControl
+                value={modelPreference}
+                onChange={setModelPreference}
+                disabled={generating || !!generatedFiles}
+              />
+
               <button
                 onClick={generateWithAI}
                 disabled={!form.aiDescription.trim() || generating || !!generatedFiles || !aiEnabled}
@@ -911,36 +907,13 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
                   </div>
 
                   {modelRecommendation?.recommendedModel && (
-                    <div className="border-y border-sky-200 bg-sky-50 px-3 py-3 text-sm text-sky-950 dark:border-sky-800 dark:bg-sky-900/20 dark:text-sky-100">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="font-medium">Suggested model: {modelRecommendation.recommendedModel}</span>
-                        <span className="text-xs uppercase text-sky-700 dark:text-sky-300">
-                          {modelRecommendation.confidence} confidence
-                        </span>
-                      </div>
-                      <p className="mt-1 text-xs">{modelRecommendation.summary}</p>
-                      {modelRecommendation.candidates[0]?.reasons?.length > 0 && (
-                        <ul className="mt-2 list-disc space-y-1 pl-4 text-xs">
-                          {modelRecommendation.candidates[0].reasons.map(reason => <li key={reason}>{reason}</li>)}
-                        </ul>
-                      )}
-                      {modelRecommendation.candidates.length > 1 && (
-                        <p className="mt-2 text-xs">
-                          Other runtime-visible candidates: {modelRecommendation.candidates.slice(1).map(candidate => candidate.model).join(', ')}
-                        </p>
-                      )}
-                      {modelRecommendation.candidates[0]?.caveats?.length > 0 && (
-                        <details className="mt-2 text-xs">
-                          <summary className="cursor-pointer font-medium">Review capability assumptions</summary>
-                          <ul className="mt-1 list-disc space-y-1 pl-4">
-                            {modelRecommendation.candidates[0].caveats.map(caveat => <li key={caveat}>{caveat}</li>)}
-                          </ul>
-                        </details>
-                      )}
-                      <p className="mt-2 text-xs text-sky-800 dark:text-sky-200">
-                        {modelRecommendation.disclaimer}
-                      </p>
-                    </div>
+                    <ModelFitRecommendationPanel
+                      recommendation={modelRecommendation}
+                      preference={modelPreference}
+                      onPreferenceChange={setModelPreference}
+                      selectedModel={form.model}
+                      onUseSuggestion={(suggestedModel) => set('model', suggestedModel)}
+                    />
                   )}
 
                   <div className="space-y-2">

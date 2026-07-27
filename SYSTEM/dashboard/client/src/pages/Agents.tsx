@@ -34,6 +34,13 @@ import { getSmartDropdownPlacement, getViewportSafeDropdownStyle, type DropdownP
 import { formatOpenAiDeprecationNotice, formatOpenAiModelLabel, isSelectableLifecycleModel } from '../lib/openAiModelLifecycle'
 import { getAttachmentFilename } from '../lib/downloadFilename'
 import { emptyPluginRelationships, fetchPluginRelationships, type PluginRelationship } from '../lib/pluginRelationships'
+import ModelFitRecommendationPanel from '../components/ModelFitRecommendationPanel'
+import {
+  buildAgentModelFitDescription,
+  requestModelFit,
+  type ModelFitPreference,
+  type ModelFitRecommendation,
+} from '../lib/modelFit'
 
 type AgentActionsMenuView = 'main' | 'maintain'
 
@@ -2706,6 +2713,10 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
   const [validationErrors, setValidationErrors] = React.useState<string[]>([])
   const [validating, setValidating] = React.useState(false)
   const [validationRequestError, setValidationRequestError] = React.useState<string | null>(null)
+  const [modelPreference, setModelPreference] = React.useState<ModelFitPreference>('balanced')
+  const [modelRecommendation, setModelRecommendation] = React.useState<ModelFitRecommendation | null>(null)
+  const [modelRecommendationLoading, setModelRecommendationLoading] = React.useState(false)
+  const [modelRecommendationError, setModelRecommendationError] = React.useState<string | null>(null)
   const selectedModelDeprecation = formatOpenAiDeprecationNotice(model)
 
   const syncIdentityModels = React.useCallback((content: string, nextModel: string, nextBackupModel: string) => {
@@ -2822,6 +2833,39 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
     }
   }, [identity, soul, tools, agent.id, loading])
 
+  React.useEffect(() => {
+    if (loading || availableModels.length === 0) return
+    const description = buildAgentModelFitDescription({ identity, soul, tools })
+    if (!description) return
+
+    const controller = new AbortController()
+    const timer = window.setTimeout(async () => {
+      setModelRecommendationLoading(true)
+      setModelRecommendationError(null)
+      try {
+        const recommendation = await requestModelFit({
+          description,
+          availableModels,
+          preference: modelPreference,
+          signal: controller.signal,
+        })
+        setModelRecommendation(recommendation)
+      } catch (err: any) {
+        if (err.name !== 'AbortError') {
+          setModelRecommendation(null)
+          setModelRecommendationError(err.message || 'Could not suggest a model')
+        }
+      } finally {
+        if (!controller.signal.aborted) setModelRecommendationLoading(false)
+      }
+    }, 400)
+
+    return () => {
+      controller.abort()
+      window.clearTimeout(timer)
+    }
+  }, [identity, soul, tools, availableModels, modelPreference, loading])
+
   const handleSave = async () => {
     if (validationErrors.length > 0) {
       setError(validationErrors.join('\n'))
@@ -2867,9 +2911,13 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-3xl mx-4 max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+      <div
+        className="flex max-h-[90vh] min-w-0 flex-col rounded-xl bg-white shadow-2xl dark:bg-gray-800"
+        style={{ width: 'min(48rem, calc(100vw - 2rem))' }}
+        onClick={e => e.stopPropagation()}
+      >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700 shrink-0">
+        <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-4 py-4 sm:px-6 dark:border-gray-700">
           <div>
             <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Edit Agent Config</h3>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{agent.name} <span className="font-mono text-xs">({agent.id})</span></p>
@@ -2880,7 +2928,7 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+        <div className="flex-1 space-y-4 overflow-x-hidden overflow-y-auto px-4 py-4 sm:px-6">
           {loading && (
             <div className="flex items-center justify-center py-12">
               <svg className="animate-spin h-6 w-6 text-sky-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -2929,7 +2977,7 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
           {!loading && (
             <>
               <div>
-                <div className="flex items-center justify-between mb-1">
+                <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Model</label>
                   <button
                     type="button"
@@ -2971,6 +3019,15 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
                   <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">{selectedModelDeprecation}</p>
                 )}
               </div>
+              <ModelFitRecommendationPanel
+                recommendation={modelRecommendation}
+                preference={modelPreference}
+                onPreferenceChange={setModelPreference}
+                loading={modelRecommendationLoading}
+                error={modelRecommendationError}
+                selectedModel={model}
+                onUseSuggestion={setModel}
+              />
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Backup model</label>
                 <select
@@ -3030,7 +3087,7 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-gray-200 dark:border-gray-700 shrink-0">
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-gray-200 px-4 py-4 sm:px-6 dark:border-gray-700">
           <button
             onClick={onClose}
             className="px-4 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
