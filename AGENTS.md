@@ -14,10 +14,11 @@
 
 - Keep public host contracts, generic dashboard components, public plugins, and
   public scoring logic in this repository.
-- Keep proprietary plugin manifests, suggested items, implementation details,
-  and plugin-specific tests in their owning private repositories. Package them
-  through the private aggregator; never copy private source into this repository
-  or the public image.
+- Keep first-party proprietary plugin manifests, suggested items,
+  implementation details, and plugin-specific tests in the private
+  `clawmax-plugins` monorepo. Partner-owned or customer-specific plugins may
+  remain separate when they require different access controls. Never copy
+  private source into this repository or the public image.
 - Review and Optimize are the only public product plugins in the current 2.0
   phase. Treat `PLUGINS/test/plugin-lab-*` as synthetic contract fixtures only;
   they must not contain or become copies of private product implementations.
