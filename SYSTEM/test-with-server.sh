@@ -16,6 +16,7 @@ set -u
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+. "$SCRIPT_DIR/test-run-lock.sh"
 
 BACKEND_PORT="${DASHBOARD_PORT:-3001}"
 FRONTEND_PORT="${DASHBOARD_CLIENT_PORT:-5173}"
@@ -43,6 +44,11 @@ export DASHBOARD_APP_URL="$FRONTEND_URL"
 if [ -z "${CLAWMAX_ENABLED_PLUGINS+x}" ]; then
   export CLAWMAX_ENABLED_PLUGINS="$TEST_PLUGIN_IDS"
 fi
+
+if ! acquire_clawmax_test_lock "$BACKEND_PORT" "$FRONTEND_PORT"; then
+  exit 2
+fi
+trap release_clawmax_test_lock EXIT
 
 port_pids() {
   lsof -ti:"$1" 2>/dev/null || true

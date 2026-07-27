@@ -83,6 +83,23 @@ apicurl_chat() {
   fi
 }
 
+require_dashboard_health() {
+  local response
+  response="$(apicurl -w "\n%{http_code}" "$API_BASE/api/health" 2>/dev/null || true)"
+  local status
+  status="$(printf '%s\n' "$response" | tail -n 1)"
+  if [ "$status" = "200" ]; then
+    return 0
+  fi
+
+  echo ""
+  echo -e "${RED}Dashboard became unavailable before live API tests (expected HTTP 200, got ${status:-000}).${NC}"
+  echo "Another test run may have restarted or stopped backend port $BACKEND_PORT."
+  echo "Run through ./SYSTEM/test-with-server.sh; concurrent runs on the same backend port are rejected."
+  echo "Dashboard log: /tmp/dashboard.log"
+  return 1
+}
+
 now_ms() {
   node -e 'console.log(Date.now())'
 }
@@ -2451,6 +2468,15 @@ else
   fail "Local plugin startup contract tests"
 fi
 
+echo -e "${YELLOW}→ Running dashboard test-run lock contract tests...${NC}"
+bash "$SYSTEM_DIR/test-run-lock.test.sh" > /tmp/clawmax-test-run-lock.out 2>&1 || true
+if grep -q "test-run-lock.test.sh: 9 tests passed" /tmp/clawmax-test-run-lock.out; then
+  pass "Dashboard test-run lock contract tests (9 tests)"
+else
+  cat /tmp/clawmax-test-run-lock.out
+  fail "Dashboard test-run lock contract tests"
+fi
+
 echo -e "${YELLOW}→ Running tested-image promotion contract tests...${NC}"
 sh "$SYSTEM_DIR/promote-tested-image.test.sh" > /tmp/clawmax-promote-tested-image.out 2>&1 || true
 if grep -q "promote tested image tests passed" /tmp/clawmax-promote-tested-image.out; then
@@ -3196,6 +3222,12 @@ fi
 
 cd ..
 echo ""
+
+if ! require_dashboard_health; then
+  echo ""
+  echo "Aborting live API and integration sections to avoid cascading transport failures."
+  exit 1
+fi
 
 # =========================================
 # Section 1: Health & System APIs
