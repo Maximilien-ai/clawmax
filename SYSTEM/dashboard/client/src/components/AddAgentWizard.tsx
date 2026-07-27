@@ -50,6 +50,20 @@ interface GeneratedFiles {
   tools: string
 }
 
+interface ModelFitRecommendation {
+  recommendedModel: string | null
+  confidence: 'low' | 'medium'
+  summary: string
+  disclaimer: string
+  candidates: Array<{
+    model: string
+    score: number
+    tier: string
+    reasons: string[]
+    caveats: string[]
+  }>
+}
+
 interface ValidationResult {
   valid: boolean
   errors: string[]
@@ -112,6 +126,7 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
   const [provError, setProvError] = useState<string | null>(null)
   const logRef = useRef<HTMLDivElement>(null)
   const [generatedFiles, setGeneratedFiles] = useState<GeneratedFiles | null>(null)
+  const [modelRecommendation, setModelRecommendation] = useState<ModelFitRecommendation | null>(null)
   const [generating, setGenerating] = useState(false)
   const [genError, setGenError] = useState<string | null>(null)
   const [showAiPromptEditor, setShowAiPromptEditor] = useState(false)
@@ -355,6 +370,7 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
     }
     setGenerating(true)
     setGenError(null)
+    setModelRecommendation(null)
 
     try {
       // When using AI Generate, let the AI suggest the name (don't send auto-generated "agent0" etc.)
@@ -368,10 +384,15 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
           name: isAutoName ? undefined : form.name,
           tags: form.tags.length > 0 ? form.tags : undefined,
           suggestMeta: true,
-          byokKeys: (byok.openai || byok.anthropic || byok.openaiCompatibleBaseUrl)
+          availableModels,
+          byokKeys: (byok.openai || byok.anthropic || byok.gemini || byok.openrouter || byok.xai || byok.ollamaBaseUrl || byok.openaiCompatibleBaseUrl)
             ? {
                 openai: byok.openai,
                 anthropic: byok.anthropic,
+                gemini: byok.gemini,
+                openrouter: byok.openrouter,
+                xai: byok.xai,
+                ollamaBaseUrl: byok.ollamaBaseUrl,
                 openaiCompatibleApiKey: byok.openaiCompatibleApiKey,
                 openaiCompatibleBaseUrl: byok.openaiCompatibleBaseUrl,
                 openaiCompatibleDefaultModel: byok.openaiCompatibleDefaultModel,
@@ -389,6 +410,7 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
 
       const data = await resp.json()
       let files: GeneratedFiles = { identity: data.identity, soul: data.soul, tools: data.tools }
+      setModelRecommendation(data.modelRecommendation || null)
 
       // Apply AI-suggested name, tags, model — sanitize name to valid agent ID format
       const sanitizeName = (n: string) => n.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/--+/g, '-').replace(/^-|-$/g, '')
@@ -888,6 +910,39 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
                     <span>Files generated successfully</span>
                   </div>
 
+                  {modelRecommendation?.recommendedModel && (
+                    <div className="border-y border-sky-200 bg-sky-50 px-3 py-3 text-sm text-sky-950 dark:border-sky-800 dark:bg-sky-900/20 dark:text-sky-100">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-medium">Suggested model: {modelRecommendation.recommendedModel}</span>
+                        <span className="text-xs uppercase text-sky-700 dark:text-sky-300">
+                          {modelRecommendation.confidence} confidence
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs">{modelRecommendation.summary}</p>
+                      {modelRecommendation.candidates[0]?.reasons?.length > 0 && (
+                        <ul className="mt-2 list-disc space-y-1 pl-4 text-xs">
+                          {modelRecommendation.candidates[0].reasons.map(reason => <li key={reason}>{reason}</li>)}
+                        </ul>
+                      )}
+                      {modelRecommendation.candidates.length > 1 && (
+                        <p className="mt-2 text-xs">
+                          Other runtime-visible candidates: {modelRecommendation.candidates.slice(1).map(candidate => candidate.model).join(', ')}
+                        </p>
+                      )}
+                      {modelRecommendation.candidates[0]?.caveats?.length > 0 && (
+                        <details className="mt-2 text-xs">
+                          <summary className="cursor-pointer font-medium">Review capability assumptions</summary>
+                          <ul className="mt-1 list-disc space-y-1 pl-4">
+                            {modelRecommendation.candidates[0].caveats.map(caveat => <li key={caveat}>{caveat}</li>)}
+                          </ul>
+                        </details>
+                      )}
+                      <p className="mt-2 text-xs text-sky-800 dark:text-sky-200">
+                        {modelRecommendation.disclaimer}
+                      </p>
+                    </div>
+                  )}
+
                   <div className="space-y-2">
                     <details className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg dark:border-gray-700 dark:bg-gray-900">
                       <summary className="px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-300 cursor-pointer hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700">
@@ -920,6 +975,7 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
                   <button
                     onClick={() => {
                       setGeneratedFiles(null)
+                      setModelRecommendation(null)
                       set('useAI', false)
                     }}
                     className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-300 underline dark:text-gray-300"

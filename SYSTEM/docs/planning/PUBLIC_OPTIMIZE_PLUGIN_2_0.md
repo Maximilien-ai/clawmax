@@ -202,6 +202,14 @@ Confidence should reflect sample count, recency, completion ratio, attribution c
 
 ## Recommendation Engine
 
+The initial public name-based model-fit foundation is shared with agent
+creation and documented in
+[Public Model Fit 2.0](PUBLIC_MODEL_FIT_2_0.md). It is advisory and does not
+yet provide the sourced capability, pricing, Eval, token, or latency evidence
+required for an Optimize plan. Optimize must progressively replace heuristic
+signals with the measured and versioned evidence below rather than presenting
+the baseline ranking as a cost or quality result.
+
 ### Candidate Filtering
 
 Only consider models that:

@@ -57,6 +57,9 @@ must never block creation.
 
 - Add a public generated-artifact scoring contract that is separate from
   prompt readiness.
+- Keep model-fit recommendations separate from prompt and artifact scores.
+  Model fit must use runtime availability, capability evidence, representative
+  Evals, tokens, pricing, and latency as those inputs become available.
 - Score saved artifacts against domain rubrics and expose evidence for each
   score.
 - Add explicit opt-in aggregation for feedback used to calibrate rules.
@@ -68,6 +71,9 @@ must never block creation.
   contracts.
 - Keep scoring useful without requiring Optimize, guardrail, evaluation, or
   any other particular plugin.
+
+The active model recommendation plan is documented in
+[Public Model Fit 2.0](../planning/PUBLIC_MODEL_FIT_2_0.md).
 
 ## Tests
 

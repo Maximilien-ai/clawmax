@@ -1085,6 +1085,29 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Model fit recommendation unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/model-fit.test.ts > /tmp/clawmax-model-fit.out 2>&1
+model_fit_status=$?
+if [ "$model_fit_status" -eq 0 ]; then
+  model_fit_count=$(grep "Tests passed:" /tmp/clawmax-model-fit.out | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Model fit recommendation unit tests (${model_fit_count:-?} tests)"
+else
+  cat /tmp/clawmax-model-fit.out
+  fail "Model fit recommendation unit tests"
+fi
+
+echo ""
+echo -e "${YELLOW}→ Running Agent model fit presentation tests...${NC}"
+npx ts-node --transpileOnly client/src/AgentModelFitIntegration.test.ts > /tmp/clawmax-agent-model-fit-ui.out 2>&1
+agent_model_fit_ui_status=$?
+if [ "$agent_model_fit_ui_status" -eq 0 ]; then
+  pass "Agent model fit presentation tests (10 tests)"
+else
+  cat /tmp/clawmax-agent-model-fit-ui.out
+  fail "Agent model fit presentation tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Templates API unit tests...${NC}"
 if [ "$SKIP_CI_QUARANTINED_TESTS" = "true" ]; then
   warn "Skipping Templates API unit tests in required CI lane (still covered locally and in quarantined CI)"

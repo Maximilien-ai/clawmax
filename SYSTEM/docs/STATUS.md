@@ -44,8 +44,9 @@
 - Release security gate: [SECURITY_AUDIT_2_0.md](planning/SECURITY_AUDIT_2_0.md)
 - RC15 security baseline: [SECURITY_BASELINE_2_0_RC15.md](security/SECURITY_BASELINE_2_0_RC15.md)
 - Public prompt-readiness scoring: [PROMPT_READINESS_SCORING.md](features/PROMPT_READINESS_SCORING.md)
+- Public model-fit foundation: [PUBLIC_MODEL_FIT_2_0.md](planning/PUBLIC_MODEL_FIT_2_0.md)
 - RC11 validation focus: suggestion catalogs and Details content, Review archive/restore plus automatic retirement of completed older sets, successful encrypted secret setup/save, and clean public/private image startup.
-- Immediate work after RC11 feedback: reconcile the declarative v2 contract with the generic contribution model; add manifest-declared custom actions, error isolation, and external packaging validation on top of the enforced host capabilities.
+- Immediate work after RC15 feedback: connect the public advisory model-fit foundation to measured Eval comparisons and Optimize token/cost evidence; add sourced capability and pricing catalogs; continue generated-artifact scoring; and reconcile manifest-declared plugin actions with the generic v2 contribution model.
 - Product work: public AI scoring, public token-first Optimize, curated public Gmail and Microsoft 365/Outlook plugins, and a consent-gated Activity Export contract proven first with ClawMax.ai and then Digo.
 - Plugins remain domain-neutral. Guardrails and evaluations are possible implementations, not fixed host-level plugin types.
 

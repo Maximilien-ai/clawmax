@@ -29,6 +29,7 @@ import {
   resolveSystemExecutionProviderKeys,
 } from '../lib/dashboard-env'
 import { discoverModels, getAvailableModelsCached, clearModelCache } from '../lib/model-discovery'
+import { recommendModelsForDescription, type ModelFitPreference } from '../lib/model-fit'
 import { getPausedAgents, pauseAgents, resumeAgents, getAgentCostLimit, setAgentCostLimit, getAllAgentCostLimits } from '../lib/agent-state'
 import { exportAgentToOpenClaw, getAgentTransferMetadata, importAgentFromBundleDirectory, importAgentFromOpenClaw, importAgentFromZipArchive, listImportableOpenClawAgents } from '../lib/openclaw-agent-transfer'
 import { normalizeChatMessage } from '../lib/chat-normalization'
@@ -530,11 +531,12 @@ router.get('/status', async (req, res) => {
 // POST /api/agents/generate — AI-generate agent files
 // If name is omitted, AI will suggest name, tags, and model
 router.post('/generate', async (req, res) => {
-  const { description, name, tags, suggestMeta, byokKeys } = req.body as {
+  const { description, name, tags, suggestMeta, byokKeys, availableModels: requestedModels } = req.body as {
     description?: string
     name?: string
     tags?: string[]
     suggestMeta?: boolean
+    availableModels?: string[]
     byokKeys?: { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; xai?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string }
   }
 
@@ -564,6 +566,28 @@ router.post('/generate', async (req, res) => {
       suggestedSkills = meta.skills || []
     }
 
+    let runtimeModels = getAvailableModels()
+    if (byokKeys && Object.values(byokKeys).some(value => typeof value === 'string' && value.trim())) {
+      try {
+        runtimeModels = (await discoverModels(byokKeys)).models || runtimeModels
+      } catch {
+        // The recommendation remains useful with system-visible models when a provider is temporarily unavailable.
+      }
+    }
+    if (Array.isArray(requestedModels) && requestedModels.length > 0) {
+      const visibleModels = new Set(runtimeModels)
+      const requestedVisibleModels = requestedModels
+        .map(model => String(model || '').trim())
+        .filter(model => visibleModels.has(model))
+      if (requestedVisibleModels.length > 0) runtimeModels = requestedVisibleModels
+    }
+    const modelRecommendation = recommendModelsForDescription({
+      description,
+      availableModels: runtimeModels,
+      preference: 'balanced',
+    })
+    suggestedModel = modelRecommendation.recommendedModel || suggestedModel
+
     const files = await generateAgentFiles({
       description,
       name: suggestedName,
@@ -584,6 +608,7 @@ router.post('/generate', async (req, res) => {
       suggestedTags,
       suggestedModel,
       suggestedSkills,
+      modelRecommendation,
     })
   } catch (err) {
     console.error('AI generation error:', err)
@@ -601,6 +626,43 @@ router.post('/generate', async (req, res) => {
     const { setRequestByokKeys } = require('../lib/ai-generator')
     setRequestByokKeys(undefined)
   }
+})
+
+// POST /api/agents/model-fit — advisory ranking over runtime-visible models.
+router.post('/model-fit', async (req, res) => {
+  const body = (req.body || {}) as {
+    description?: string
+    availableModels?: string[]
+    preference?: ModelFitPreference
+    byokKeys?: { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; xai?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string }
+  }
+  const description = String(body.description || '').trim()
+  if (!description) {
+    res.status(400).json({ error: 'description is required' })
+    return
+  }
+  const preference: ModelFitPreference = ['quality', 'balanced', 'cost'].includes(String(body.preference))
+    ? body.preference as ModelFitPreference
+    : 'balanced'
+  let runtimeModels = getAvailableModels()
+  if (body.byokKeys && Object.values(body.byokKeys).some(value => typeof value === 'string' && value.trim())) {
+    try {
+      runtimeModels = (await discoverModels(body.byokKeys)).models || runtimeModels
+    } catch {
+      // Use system-visible models and return an advisory result rather than failing the request.
+    }
+  }
+  const runtimeModelSet = new Set(runtimeModels)
+  const requestedModels = Array.isArray(body.availableModels)
+    ? body.availableModels
+      .map(model => String(model || '').trim())
+      .filter(model => runtimeModelSet.has(model))
+    : []
+  res.json(recommendModelsForDescription({
+    description,
+    availableModels: requestedModels.length > 0 ? requestedModels : runtimeModels,
+    preference,
+  }))
 })
 
 // POST /api/agents/validate-provision — validate add-agent inputs before provisioning

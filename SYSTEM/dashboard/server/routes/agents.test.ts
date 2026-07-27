@@ -20,6 +20,7 @@ let testsFailed = 0
 const originalHome = process.env.HOME
 const originalWorkspace = process.env.OPENCLAW_WORKSPACE
 const originalOpenClawBin = process.env.OPENCLAW_BIN
+const originalSystemOpenAiKey = process.env.SYSTEM_OPENAI_API_KEY
 const gatewayRpcModulePath = require.resolve('../lib/gateway-rpc')
 
 function test(name: string, fn: () => void | Promise<void>) {
@@ -354,6 +355,33 @@ async function run() {
 
     assert.strictEqual(res.statusCode, 400, 'Expected missing description to return HTTP 400')
     assert(/description is required/i.test(res.jsonBody?.error || ''), 'Expected missing description guidance')
+  })
+
+  await test('model fit ranks only runtime-visible models and explains uncertainty', async () => {
+    process.env.SYSTEM_OPENAI_API_KEY = 'test-openai-key'
+    try {
+      const handler = getRouteHandler('post', '/model-fit')
+      const res = makeRes()
+      await handler(makeReq({
+        body: {
+          description: 'Review a TypeScript repository and write code changes.',
+          availableModels: ['openai/gpt-5.3-codex', 'not-configured/imaginary-model'],
+          preference: 'balanced',
+        },
+      }), res)
+
+      assert.strictEqual(res.statusCode, 200, 'Expected model fit success')
+      assert.strictEqual(res.jsonBody?.recommendedModel, 'openai/gpt-5.3-codex')
+      assert.deepStrictEqual(
+        res.jsonBody?.candidates.map((candidate: any) => candidate.model),
+        ['openai/gpt-5.3-codex'],
+        'Expected unavailable request models to be excluded',
+      )
+      assert(/not a quality or cost measurement/i.test(res.jsonBody?.disclaimer || ''), 'Expected advisory limitation')
+    } finally {
+      if (typeof originalSystemOpenAiKey === 'undefined') delete process.env.SYSTEM_OPENAI_API_KEY
+      else process.env.SYSTEM_OPENAI_API_KEY = originalSystemOpenAiKey
+    }
   })
 
   await test('generate returns AI-suggested names, tags, models, and skills for new agents', async () => {
@@ -1535,6 +1563,8 @@ async function run() {
 
   if (typeof originalOpenClawBin === 'undefined') delete process.env.OPENCLAW_BIN
   else process.env.OPENCLAW_BIN = originalOpenClawBin
+  if (typeof originalSystemOpenAiKey === 'undefined') delete process.env.SYSTEM_OPENAI_API_KEY
+  else process.env.SYSTEM_OPENAI_API_KEY = originalSystemOpenAiKey
 
   console.log('\n========================================')
   console.log(`Tests passed: ${testsPassed}`)
@@ -1556,6 +1586,8 @@ run().catch((err) => {
   else process.env.OPENCLAW_WORKSPACE = originalWorkspace
   if (typeof originalOpenClawBin === 'undefined') delete process.env.OPENCLAW_BIN
   else process.env.OPENCLAW_BIN = originalOpenClawBin
+  if (typeof originalSystemOpenAiKey === 'undefined') delete process.env.SYSTEM_OPENAI_API_KEY
+  else process.env.SYSTEM_OPENAI_API_KEY = originalSystemOpenAiKey
   console.error(err)
   process.exit(1)
 })
