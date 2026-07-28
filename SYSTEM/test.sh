@@ -1055,6 +1055,7 @@ if grep -q "All tests passed" /tmp/clawmax-agent-routes.out; then
   agent_route_count=$(grep "Tests passed:" /tmp/clawmax-agent-routes.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
   pass "Agent doctor route unit tests (${agent_route_count:-?} tests)"
 else
+  cat /tmp/clawmax-agent-routes.out
   fail "Agent doctor route unit tests"
 fi
 

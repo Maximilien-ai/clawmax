@@ -20,7 +20,6 @@ let testsFailed = 0
 const originalHome = process.env.HOME
 const originalWorkspace = process.env.OPENCLAW_WORKSPACE
 const originalOpenClawBin = process.env.OPENCLAW_BIN
-const originalSystemOpenAiKey = process.env.SYSTEM_OPENAI_API_KEY
 const gatewayRpcModulePath = require.resolve('../lib/gateway-rpc')
 
 function test(name: string, fn: () => void | Promise<void>) {
@@ -115,6 +114,19 @@ async function withDashboardEnvStubs<T>(overrides: Record<string, any>, fn: () =
     return await fn()
   } finally {
     Object.assign(dashboardEnv, originals)
+    delete require.cache[require.resolve('./agents')]
+  }
+}
+
+async function withModelDiscoveryStubs<T>(overrides: Record<string, any>, fn: () => Promise<T> | T): Promise<T> {
+  const modelDiscovery = require('../lib/model-discovery')
+  const originals = Object.fromEntries(Object.keys(overrides).map((key) => [key, modelDiscovery[key]]))
+  Object.assign(modelDiscovery, overrides)
+  delete require.cache[require.resolve('./agents')]
+  try {
+    return await fn()
+  } finally {
+    Object.assign(modelDiscovery, originals)
     delete require.cache[require.resolve('./agents')]
   }
 }
@@ -358,8 +370,9 @@ async function run() {
   })
 
   await test('model fit ranks only runtime-visible models and explains uncertainty', async () => {
-    process.env.SYSTEM_OPENAI_API_KEY = 'test-openai-key'
-    try {
+    await withModelDiscoveryStubs({
+      getAvailableModelsCached: () => ['openai/gpt-5.3-codex'],
+    }, async () => {
       const handler = getRouteHandler('post', '/model-fit')
       const res = makeRes()
       await handler(makeReq({
@@ -378,10 +391,7 @@ async function run() {
         'Expected unavailable request models to be excluded',
       )
       assert(/not a quality or cost measurement/i.test(res.jsonBody?.disclaimer || ''), 'Expected advisory limitation')
-    } finally {
-      if (typeof originalSystemOpenAiKey === 'undefined') delete process.env.SYSTEM_OPENAI_API_KEY
-      else process.env.SYSTEM_OPENAI_API_KEY = originalSystemOpenAiKey
-    }
+    })
   })
 
   await test('generate returns AI-suggested names, tags, models, and skills for new agents', async () => {
@@ -402,29 +412,29 @@ async function run() {
       soul: '# SOUL',
       tools: '# TOOLS',
     })
-    process.env.SYSTEM_OPENAI_API_KEY = 'test-openai-key'
-
     try {
-      const handler = getRouteHandler('post', '/generate')
-      const res = makeRes()
-      await handler(makeReq({
-        body: {
-          description: 'create a resend agent to test sending emails with resend skills',
-          suggestMeta: true,
-          availableModels: ['openai/gpt-5.4-pro', 'openai/gpt-5.4-mini'],
-          modelPreference: 'cost',
-        },
-      }), res)
+      await withModelDiscoveryStubs({
+        getAvailableModelsCached: () => ['openai/gpt-5.4-pro', 'openai/gpt-5.4-mini'],
+      }, async () => {
+        const handler = getRouteHandler('post', '/generate')
+        const res = makeRes()
+        await handler(makeReq({
+          body: {
+            description: 'create a resend agent to test sending emails with resend skills',
+            suggestMeta: true,
+            availableModels: ['openai/gpt-5.4-pro', 'openai/gpt-5.4-mini'],
+            modelPreference: 'cost',
+          },
+        }), res)
 
-      assert.strictEqual(res.statusCode, 200, 'Expected generate route success')
-      assert.strictEqual(res.jsonBody?.suggestedName, 'resend-agent')
-      assert.deepStrictEqual(res.jsonBody?.suggestedTags, ['email', 'assistant'])
-      assert.deepStrictEqual(res.jsonBody?.suggestedSkills, ['resend', 'react-email'])
-      assert.strictEqual(res.jsonBody?.suggestedModel, 'openai/gpt-5.4-mini')
-      assert.strictEqual(res.jsonBody?.modelRecommendation?.recommendedModel, 'openai/gpt-5.4-mini')
+        assert.strictEqual(res.statusCode, 200, 'Expected generate route success')
+        assert.strictEqual(res.jsonBody?.suggestedName, 'resend-agent')
+        assert.deepStrictEqual(res.jsonBody?.suggestedTags, ['email', 'assistant'])
+        assert.deepStrictEqual(res.jsonBody?.suggestedSkills, ['resend', 'react-email'])
+        assert.strictEqual(res.jsonBody?.suggestedModel, 'openai/gpt-5.4-mini')
+        assert.strictEqual(res.jsonBody?.modelRecommendation?.recommendedModel, 'openai/gpt-5.4-mini')
+      })
     } finally {
-      if (typeof originalSystemOpenAiKey === 'undefined') delete process.env.SYSTEM_OPENAI_API_KEY
-      else process.env.SYSTEM_OPENAI_API_KEY = originalSystemOpenAiKey
       aiGenerator.generateAgentMeta = originalGenerateAgentMeta
       aiGenerator.generateAgentFiles = originalGenerateAgentFiles
       delete require.cache[require.resolve('./agents')]
@@ -1570,8 +1580,6 @@ async function run() {
 
   if (typeof originalOpenClawBin === 'undefined') delete process.env.OPENCLAW_BIN
   else process.env.OPENCLAW_BIN = originalOpenClawBin
-  if (typeof originalSystemOpenAiKey === 'undefined') delete process.env.SYSTEM_OPENAI_API_KEY
-  else process.env.SYSTEM_OPENAI_API_KEY = originalSystemOpenAiKey
 
   console.log('\n========================================')
   console.log(`Tests passed: ${testsPassed}`)
@@ -1593,8 +1601,6 @@ run().catch((err) => {
   else process.env.OPENCLAW_WORKSPACE = originalWorkspace
   if (typeof originalOpenClawBin === 'undefined') delete process.env.OPENCLAW_BIN
   else process.env.OPENCLAW_BIN = originalOpenClawBin
-  if (typeof originalSystemOpenAiKey === 'undefined') delete process.env.SYSTEM_OPENAI_API_KEY
-  else process.env.SYSTEM_OPENAI_API_KEY = originalSystemOpenAiKey
   console.error(err)
   process.exit(1)
 })
