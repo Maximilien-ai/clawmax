@@ -34,7 +34,7 @@
 ### 2.0.0 development
 
 - Branch: `main`
-- Current test candidate: `2.0.0-test-rc17`, focused on deduplicated cumulative review state, remembered model-suggestion disclosures, opt-in automatic top-suggestion tracking with manual restoration, clear secret-test setup, and mobile/restart smoke checks. All RC16 checks remain in the cumulative 2.0 Review set.
+- Current test candidate: `2.0.0-test-rc18`, focused on per-agent automatic model mode and priority persistence, conservative tool-compatible recommendations, concise chat remediation, and mobile/restart smoke checks. All RC17 checks remain in the cumulative 2.0 Review set.
 - Architecture: [Plugin System 2.0](../../PLUGINS/PLUGIN_SYSTEM_2_0.md)
 - Authoring contract: [Plugin Authoring 2.0](../../PLUGINS/PLUGIN_AUTHORING_2_0.md)
 - Generic architecture plan: [PUBLIC_PLUGIN_ARCHITECTURE_2_0.md](planning/PUBLIC_PLUGIN_ARCHITECTURE_2_0.md)
@@ -46,7 +46,7 @@
 - Public prompt-readiness scoring: [PROMPT_READINESS_SCORING.md](features/PROMPT_READINESS_SCORING.md)
 - Public model-fit foundation: [PUBLIC_MODEL_FIT_2_0.md](planning/PUBLIC_MODEL_FIT_2_0.md)
 - RC11 validation focus: suggestion catalogs and Details content, Review archive/restore plus automatic retirement of completed older sets, successful encrypted secret setup/save, and clean public/private image startup.
-- Immediate work after RC17 feedback: connect the public model-fit foundation to workflows, measured Eval comparisons, and Optimize token/cost evidence; add sourced capability and pricing catalogs; continue generated-artifact scoring; and reconcile manifest-declared plugin actions with the generic v2 contribution model.
+- Immediate work after RC18 feedback: connect the public model-fit foundation to workflows, measured Eval comparisons, and Optimize token/cost evidence; add sourced capability and pricing catalogs; continue generated-artifact scoring; and reconcile manifest-declared plugin actions with the generic v2 contribution model.
 - Product work: public AI scoring, public token-first Optimize, curated public Gmail and Microsoft 365/Outlook plugins, and a consent-gated Activity Export contract proven first with ClawMax.ai and then Digo.
 - Plugins remain domain-neutral. Guardrails and evaluations are possible implementations, not fixed host-level plugin types.
 

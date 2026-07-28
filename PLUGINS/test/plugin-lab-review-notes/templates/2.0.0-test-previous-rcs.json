@@ -293,6 +293,41 @@
       "description": "Test: Start the exact RC16 image, open Add Agent and Edit Agent Config on desktop and a phone-sized screen, switch model priorities, then restart. Pass: Dashboard and /api/system report 2.0.0-test-rc16, health is HTTP 200, controls wrap without horizontal scrolling, Save and Cancel stay reachable, workspace state survives restart, and intended plugins still load.",
       "tags": ["identity", "models", "mobile", "startup"],
       "fields": {"area": "responsive", "notes": ""}
+    },
+    {
+      "id": "rc17-review-consolidation",
+      "name": "Earlier 2.0 review sets consolidate without data loss",
+      "description": "Test: Update an instance where an older RC5, RC10, or RC16 checklist was already started, then open Review. Pass: Release choices are one current set, one 2.0 previous RCs set, and 1.9.9 regression; duplicate checks are removed; and every earlier completion, failure, note, evidence link, and verifier remains on the matching cumulative check.",
+      "tags": ["review", "migration", "regression"],
+      "fields": {"area": "regression", "notes": ""}
+    },
+    {
+      "id": "rc17-model-details-persistence",
+      "name": "Model suggestion details remember their disclosure state",
+      "description": "Test: Open Edit Agent Config, collapse the Suggested model section, close it, and open another agent or Add Agent suggestion. Expand it and repeat once on a phone. Pass: The compact row always shows the top model and confidence, the explanation and alternatives hide or return with the twisty, the last disclosure choice is reused across views, and nothing overflows the viewport.",
+      "tags": ["agents", "models", "persistence", "mobile"],
+      "fields": {"area": "responsive", "notes": ""}
+    },
+    {
+      "id": "rc17-auto-model-selection",
+      "name": "Auto-select tracks suggestions and preserves manual choice",
+      "description": "Test: Note an agent's current model, enable Auto-select top suggestion, and switch Quality, Balanced, and Cost. Turn Auto-select off, choose a manual model, enable it again, then disable it and test both Cancel and Save. Pass: Auto-select follows the current top runtime-visible suggestion, manual selection is locked only while Auto is active, disabling restores the last manual model, Cancel changes nothing, and Save persists only the visible effective model.",
+      "tags": ["agents", "models", "automation", "safety"],
+      "fields": {"area": "regression", "notes": ""}
+    },
+    {
+      "id": "rc17-secret-test-guidance",
+      "name": "Secret test setup clearly separates skill and key",
+      "description": "Test: Open Keys & Secrets > Agent & Skill Access and follow the displayed setup: assign clawmax-secret-test to one agent, save a non-production CLAWMAX_TEST_SECRET, authorize that exact agent/skill/key, and choose Test Access. Pass: The panel explains which name is the skill and which is the key, blocks authorization before assignment, Test Access reports availability or a fingerprint without revealing the value, and revocation immediately denies access.",
+      "tags": ["secrets", "skills", "guidance"],
+      "fields": {"area": "regression", "notes": ""}
+    },
+    {
+      "id": "rc17-release-mobile-smoke",
+      "name": "RC17 identity, responsive layout, and restart",
+      "description": "Test: Start the exact RC17 public or authorized private image, check /api/health and /api/system, exercise Review and both model controls on desktop and phone, then restart. Pass: Version is 2.0.0-test-rc17, health is HTTP 200, intended plugins load, review and workspace state survive restart, and the primary actions remain visible without horizontal scrolling.",
+      "tags": ["identity", "models", "review", "mobile", "startup"],
+      "fields": {"area": "responsive", "notes": ""}
     }
   ]
 }

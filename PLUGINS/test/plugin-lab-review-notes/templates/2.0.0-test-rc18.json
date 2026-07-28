@@ -1,0 +1,49 @@
+{
+  "id": "2.0.0-test-rc18",
+  "name": "2.0.0-test-rc18 focused checklist",
+  "description": "Focused checks for per-agent automatic model settings, compatible suggestions, actionable chat errors, and release health.",
+  "release": "2.0.0-test-rc18",
+  "recommended": true,
+  "tags": ["release", "current", "2.0.0-test-rc18"],
+  "defaults": {
+    "enabled": true,
+    "tags": ["release", "current", "2.0.0-test-rc18"],
+    "fields": {
+      "completed": false,
+      "outcome": "pending",
+      "owner": "release-tester",
+      "evidence": [],
+      "verifiedBy": []
+    }
+  },
+  "items": [
+    {
+      "id": "rc18-auto-model-settings-persist",
+      "name": "Automatic model mode and priority stay with the agent",
+      "description": "Test: Edit one agent, enable Auto-select, choose Cost, save, close the editor, and reopen it. Repeat with Quality, then restart the instance and reopen the agent. Pass: Auto-select and the saved priority return each time for that agent, while a different agent keeps its own settings.",
+      "tags": ["agents", "models", "persistence"],
+      "fields": {"area": "regression", "notes": ""}
+    },
+    {
+      "id": "rc18-compatible-auto-suggestions",
+      "name": "Automatic suggestions avoid known tool-incompatible models",
+      "description": "Test: Edit a tool-using agent and switch Quality, Balanced, and Cost with Auto-select enabled. Open Excluded incompatible models, save each available suggestion, and send a short chat message. Pass: o1, o3, and o3-mini are not auto-selected when this runtime requires web search; exclusions explain why; and each selected suggestion can reply.",
+      "tags": ["agents", "models", "tools", "compatibility"],
+      "fields": {"area": "responsive", "notes": ""}
+    },
+    {
+      "id": "rc18-model-error-remediation",
+      "name": "Model tool failures stay concise and actionable",
+      "description": "Test: Manually choose o3 or o3-mini for an agent that uses web search, save it, and send a chat message on desktop and phone. Pass: The chat shows a short model compatibility error naming the actual model and an Edit agent model link; it does not display raw state-migration, plugin, stack, or gateway logs; and the link opens the correct agent.",
+      "tags": ["agents", "chat", "errors", "mobile"],
+      "fields": {"area": "regression", "notes": ""}
+    },
+    {
+      "id": "rc18-release-mobile-smoke",
+      "name": "RC18 identity, model controls, and restart",
+      "description": "Test: Start the exact RC18 public or authorized private image, check /api/health and /api/system, edit and chat with an agent on desktop and phone, then restart. Pass: Version is 2.0.0-test-rc18, health is HTTP 200, intended plugins load, model settings and workspace state survive restart, and editor and chat actions remain reachable without horizontal scrolling.",
+      "tags": ["identity", "models", "review", "mobile", "startup"],
+      "fields": {"area": "responsive", "notes": ""}
+    }
+  ]
+}

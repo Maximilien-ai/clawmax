@@ -10,7 +10,7 @@ const checklists = checklistFiles.map((file) => JSON.parse(fs.readFileSync(path.
 const checklistByRelease = new Map(checklists.map((checklist) => [checklist.release, checklist]))
 const stableChecklist = checklistByRelease.get('1.9.9 regression')
 const previousChecklist = checklistByRelease.get('2.0.0 previous RCs')
-const currentChecklist = checklistByRelease.get('2.0.0-test-rc17')
+const currentChecklist = checklistByRelease.get('2.0.0-test-rc18')
 const allItems = checklists.flatMap((checklist) => checklist.items)
 
 function assert(condition: boolean, message: string) {
@@ -23,9 +23,9 @@ assert(manifest.ui.list.groupBy === 'release', 'Review records must be compartme
 assert(manifest.ui.list.checkField === 'completed', 'Review records must declare their completion checkbox')
 assert(manifest.recordSchema.properties.verifiedBy?.type === 'array', 'Review records must support aggregated prior tester confirmation')
 assert(checklistFiles.length === 3, 'Review must expose exactly stable, cumulative, and current release sets')
-assert(JSON.stringify(Array.from(checklistByRelease.keys()).sort()) === JSON.stringify(['1.9.9 regression', '2.0.0 previous RCs', '2.0.0-test-rc17']), 'Review set names must be stable and unambiguous')
-assert(currentChecklist?.items.length === 5, 'Current RC17 must contain its five focused review, model, secret, and release checks')
-assert(previousChecklist?.items.length === 39, 'Unconfirmed earlier 2.0 checks, including RC16, must remain in the cumulative set')
+assert(JSON.stringify(Array.from(checklistByRelease.keys()).sort()) === JSON.stringify(['1.9.9 regression', '2.0.0 previous RCs', '2.0.0-test-rc18']), 'Review set names must be stable and unambiguous')
+assert(currentChecklist?.items.length === 4, 'Current RC18 must contain its four focused persistence, compatibility, error, and release checks')
+assert(previousChecklist?.items.length === 44, 'Unconfirmed earlier 2.0 checks, including RC17, must remain in the cumulative set')
 assert(stableChecklist?.items.length === 14, 'The retained 1.9.9 regression set must contain fourteen end-to-end checks')
 assert(new Set(allItems.map((item: any) => item.id)).size === allItems.length, 'Checklist item IDs must not duplicate across review sets')
 assert(new Set(allItems.map((item: any) => item.name.trim().toLowerCase().replace(/\s+/g, ' '))).size === allItems.length, 'Checklist names must not duplicate across review sets')
@@ -36,11 +36,15 @@ assert(allItems.every((item: any) => item.fields.notes === ''), 'New checklist n
 assert(checklists.every((checklist) => checklist.defaults.fields.completed === false), 'Every review set must start unchecked')
 assert(checklists.every((checklist) => checklist.defaults.fields.outcome === 'pending'), 'Every review set must start pending')
 assert(checklists.every((checklist) => Array.isArray(checklist.defaults.fields.verifiedBy)), 'Every review set must initialize prior verification metadata')
-assert(currentChecklist?.items.some((item: any) => item.id === 'rc17-review-consolidation'), 'Current RC must verify legacy review consolidation')
-assert(currentChecklist?.items.some((item: any) => item.id === 'rc17-model-details-persistence'), 'Current RC must verify remembered suggestion disclosure')
-assert(currentChecklist?.items.some((item: any) => item.id === 'rc17-auto-model-selection'), 'Current RC must verify automatic and manual model selection')
-assert(currentChecklist?.items.some((item: any) => item.id === 'rc17-secret-test-guidance'), 'Current RC must verify clarified secret test setup')
-assert(currentChecklist?.items.some((item: any) => item.id === 'rc17-release-mobile-smoke'), 'Current RC must verify release startup and mobile layout')
+assert(currentChecklist?.items.some((item: any) => item.id === 'rc18-auto-model-settings-persist'), 'Current RC must verify per-agent automatic model settings')
+assert(currentChecklist?.items.some((item: any) => item.id === 'rc18-compatible-auto-suggestions'), 'Current RC must verify compatible automatic suggestions')
+assert(currentChecklist?.items.some((item: any) => item.id === 'rc18-model-error-remediation'), 'Current RC must verify concise actionable chat errors')
+assert(currentChecklist?.items.some((item: any) => item.id === 'rc18-release-mobile-smoke'), 'Current RC must verify release startup and mobile layout')
+assert(previousChecklist?.items.some((item: any) => item.id === 'rc17-review-consolidation'), 'Cumulative checks must retain RC17 review consolidation')
+assert(previousChecklist?.items.some((item: any) => item.id === 'rc17-model-details-persistence'), 'Cumulative checks must retain RC17 suggestion disclosure')
+assert(previousChecklist?.items.some((item: any) => item.id === 'rc17-auto-model-selection'), 'Cumulative checks must retain RC17 automatic model selection')
+assert(previousChecklist?.items.some((item: any) => item.id === 'rc17-secret-test-guidance'), 'Cumulative checks must retain RC17 secret test guidance')
+assert(previousChecklist?.items.some((item: any) => item.id === 'rc17-release-mobile-smoke'), 'Cumulative checks must retain RC17 release smoke coverage')
 assert(previousChecklist?.items.some((item: any) => item.id === 'rc16-agent-create-model-suggestion'), 'Cumulative checks must retain RC16 creation-time model suggestions')
 assert(previousChecklist?.items.some((item: any) => item.id === 'rc16-model-priority'), 'Cumulative checks must retain RC16 model priority controls')
 assert(previousChecklist?.items.some((item: any) => item.id === 'rc16-existing-agent-model-suggestion'), 'Cumulative checks must retain RC16 existing-agent suggestions')
@@ -65,7 +69,7 @@ assert(
 )
 assert(
   !currentChecklist?.items.some((item: any) => (item.fields.verifiedBy || []).length > 0),
-  'Earlier RC results must not pre-verify focused RC17 checks',
+  'Earlier RC results must not pre-verify focused RC18 checks',
 )
 assert(stableChecklist?.items.some((item: any) => item.id === 'secret-runtime-redaction'), 'Stable regression checks must retain secret redaction coverage')
 assert(stableChecklist?.items.some((item: any) => item.id === 'openrouter-provider'), 'Stable regression checks must retain OpenRouter coverage')
@@ -98,6 +102,6 @@ assert(pageSource.includes("kind === 'onprem' ? 'On-prem'"), 'Review export must
 assert(pageSource.includes("item.description.match(/^Test:"), 'Review rows must separate actions from expected pass results')
 assert(pageSource.includes('[overflow-wrap:anywhere]'), 'Review instructions and notes must wrap long evidence safely on narrow screens')
 assert(pageSource.includes('Previously verified by {verifiedBy.join'), 'Review rows must identify aggregated prior confirmations')
-assert(pageSource.includes("return ['1.9.9', '2.0.0', '2.0.0-test-rc17'].filter"), 'Review filters must stay limited to the three release families')
+assert(pageSource.includes("return ['1.9.9', '2.0.0', '2.0.0-test-rc18'].filter"), 'Review filters must stay limited to the three release families')
 
-console.log('PluginReviewChecklist.test.ts: 76 tests passed')
+console.log('PluginReviewChecklist.test.ts: 80 tests passed')
