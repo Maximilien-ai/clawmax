@@ -68,8 +68,10 @@ assert(
   'Imported RC4/RC5 navigation verification must retain reviewer and environment provenance',
 )
 assert(
-  !currentChecklist?.items.some((item: any) => (item.fields.verifiedBy || []).length > 0),
-  'Earlier RC results must not pre-verify focused RC18 checks',
+  currentChecklist?.items.every((item: any) => (
+    item.fields.verifiedBy?.some((entry: string) => entry.includes('Max') && entry.includes('local Dev'))
+  )),
+  'Max local RC18 results must appear as prior verification without pre-completing another tester copy',
 )
 assert(stableChecklist?.items.some((item: any) => item.id === 'secret-runtime-redaction'), 'Stable regression checks must retain secret redaction coverage')
 assert(stableChecklist?.items.some((item: any) => item.id === 'openrouter-provider'), 'Stable regression checks must retain OpenRouter coverage')

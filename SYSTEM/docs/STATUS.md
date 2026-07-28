@@ -35,6 +35,7 @@
 
 - Branch: `main`
 - Current test candidate: `2.0.0-test-rc18`, focused on per-agent automatic model mode and priority persistence, conservative tool-compatible recommendations, concise chat remediation, and mobile/restart smoke checks. All RC17 checks remain in the cumulative 2.0 Review set.
+- RC18 local Dev review passed `4/4` with Max on July 28: identity/restart, per-agent mode and priority persistence, compatible automatic suggestions, and concise actionable model-tool errors all passed without notes or blockers. Cloud, on-prem, private-image, and additional tester confirmation remain pending.
 - Architecture: [Plugin System 2.0](../../PLUGINS/PLUGIN_SYSTEM_2_0.md)
 - Authoring contract: [Plugin Authoring 2.0](../../PLUGINS/PLUGIN_AUTHORING_2_0.md)
 - Generic architecture plan: [PUBLIC_PLUGIN_ARCHITECTURE_2_0.md](planning/PUBLIC_PLUGIN_ARCHITECTURE_2_0.md)
