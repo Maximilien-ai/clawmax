@@ -1,0 +1,32 @@
+{
+  "id": "quality-preserving-model",
+  "name": "Quality-preserving model plan",
+  "description": "Reduce an agent's token or model cost without dropping below a verified quality floor.",
+  "recommended": true,
+  "tags": ["agent", "quality", "correctness", "model"],
+  "payload": {
+    "name": "Quality-preserving model plan",
+    "description": "Compare runtime-available models against representative eval results before applying a less expensive choice.",
+    "tags": ["agent", "quality", "correctness", "model"],
+    "enabled": true,
+    "fields": {
+      "scope": "agent",
+      "targetIds": [],
+      "optimizationGoal": "quality",
+      "monthlyTokenBudget": 750000,
+      "monthlyCostBudget": 25,
+      "perRunTokenBudget": 25000,
+      "perRunCostBudget": 1,
+      "maximumRunDurationSeconds": 180,
+      "minimumQualityScore": 85,
+      "currentTokens": 0,
+      "currentCost": 0,
+      "automaticModelSelection": true,
+      "modelPriority": "quality",
+      "recommendedModel": "Use the top compatible quality suggestion after representative evals",
+      "recommendedSchedule": "",
+      "status": "draft",
+      "rationale": "Select an agent, compare available models on correctness and safety evals, and use automatic quality selection only when representative results remain above the quality floor."
+    }
+  }
+}

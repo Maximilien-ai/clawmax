@@ -1703,8 +1703,8 @@ fi
 
 echo -e "${YELLOW}→ Running Optimize plugin skeleton contract tests...${NC}"
 npx ts-node --transpileOnly client/src/PluginOptimizeSkeleton.test.ts > /tmp/clawmax-plugin-optimize.out 2>&1 || true
-if grep -q "PluginOptimizeSkeleton.test.ts: 15 tests passed" /tmp/clawmax-plugin-optimize.out; then
-  pass "Optimize plugin skeleton contract tests (15 tests)"
+if grep -q "PluginOptimizeSkeleton.test.ts: 35 tests passed" /tmp/clawmax-plugin-optimize.out; then
+  pass "Optimize plugin skeleton contract tests (35 tests)"
 else
   cat /tmp/clawmax-plugin-optimize.out
   fail "Optimize plugin skeleton contract tests"

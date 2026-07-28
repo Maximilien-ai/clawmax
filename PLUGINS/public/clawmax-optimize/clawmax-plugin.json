@@ -4,7 +4,7 @@
   "slug": "clawmax-optimize",
   "name": "Optimize",
   "description": "Plan workspace, workflow, and agent token and cost budgets, then compare model and schedule recommendations against current usage.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "icon": "activity",
   "objectKind": "optimization-plan",
   "visibility": "public",
@@ -34,7 +34,7 @@
   "recordSchema": {
     "type": "object",
     "additionalProperties": false,
-    "required": ["scope", "targetIds", "monthlyTokenBudget", "monthlyCostBudget", "status"],
+    "required": ["scope", "targetIds", "optimizationGoal", "monthlyTokenBudget", "monthlyCostBudget", "status"],
     "properties": {
       "scope": {
         "type": "string",
@@ -49,6 +49,12 @@
         "items": { "type": "string" },
         "default": []
       },
+      "optimizationGoal": {
+        "type": "string",
+        "title": "Priority",
+        "enum": ["balanced", "quality", "speed", "tokens", "cost"],
+        "default": "balanced"
+      },
       "monthlyTokenBudget": {
         "type": "integer",
         "title": "Monthly token budget",
@@ -58,6 +64,27 @@
         "type": "number",
         "title": "Monthly cost budget",
         "default": 25
+      },
+      "perRunTokenBudget": {
+        "type": "integer",
+        "title": "Token budget per run",
+        "default": 25000
+      },
+      "perRunCostBudget": {
+        "type": "number",
+        "title": "Cost budget per run",
+        "default": 1
+      },
+      "maximumRunDurationSeconds": {
+        "type": "integer",
+        "title": "Maximum run duration (seconds)",
+        "default": 300
+      },
+      "minimumQualityScore": {
+        "type": "number",
+        "title": "Minimum quality score",
+        "description": "Quality floor from a representative eval; Optimize does not measure or enforce it.",
+        "default": 80
       },
       "currentTokens": {
         "type": "integer",
@@ -72,6 +99,18 @@
       "recommendedModel": {
         "type": "string",
         "title": "Recommended model"
+      },
+      "automaticModelSelection": {
+        "type": "boolean",
+        "title": "Recommend automatic model selection",
+        "description": "Propose the agent's automatic runtime-compatible model selection setting.",
+        "default": false
+      },
+      "modelPriority": {
+        "type": "string",
+        "title": "Automatic model priority",
+        "enum": ["quality", "balanced", "cost"],
+        "default": "balanced"
       },
       "recommendedSchedule": {
         "type": "string",
@@ -92,10 +131,10 @@
   },
   "ui": {
     "form": {
-      "order": ["scope", "targetIds", "monthlyTokenBudget", "monthlyCostBudget", "currentTokens", "currentCost", "recommendedModel", "recommendedSchedule", "status", "rationale"]
+      "order": ["scope", "targetIds", "optimizationGoal", "monthlyTokenBudget", "monthlyCostBudget", "perRunTokenBudget", "perRunCostBudget", "maximumRunDurationSeconds", "minimumQualityScore", "currentTokens", "currentCost", "automaticModelSelection", "modelPriority", "recommendedModel", "recommendedSchedule", "status", "rationale"]
     },
     "list": {
-      "fields": ["scope", "targetIds", "monthlyTokenBudget", "monthlyCostBudget", "recommendedModel", "status"]
+      "fields": ["scope", "targetIds", "optimizationGoal", "monthlyTokenBudget", "monthlyCostBudget", "automaticModelSelection", "modelPriority", "recommendedModel", "status"]
     }
   }
 }

@@ -1,0 +1,32 @@
+{
+  "id": "workflow-latency",
+  "name": "Workflow latency plan",
+  "description": "Reduce workflow completion time while preserving required steps and output quality.",
+  "recommended": true,
+  "tags": ["workflow", "speed", "latency", "quality"],
+  "payload": {
+    "name": "Workflow latency plan",
+    "description": "Compare agent model priorities and schedule changes against a maximum run duration and verified quality floor.",
+    "tags": ["workflow", "speed", "latency", "quality"],
+    "enabled": true,
+    "fields": {
+      "scope": "workflow",
+      "targetIds": [],
+      "optimizationGoal": "speed",
+      "monthlyTokenBudget": 1500000,
+      "monthlyCostBudget": 40,
+      "perRunTokenBudget": 50000,
+      "perRunCostBudget": 2,
+      "maximumRunDurationSeconds": 300,
+      "minimumQualityScore": 80,
+      "currentTokens": 0,
+      "currentCost": 0,
+      "automaticModelSelection": true,
+      "modelPriority": "balanced",
+      "recommendedModel": "Use compatible balanced suggestions for participating agents after timing representative runs",
+      "recommendedSchedule": "Preserve the current schedule unless concurrency causes delay",
+      "status": "draft",
+      "rationale": "Select a workflow, record representative completion times, and compare model priority or schedule changes without removing required steps or falling below the quality floor."
+    }
+  }
+}

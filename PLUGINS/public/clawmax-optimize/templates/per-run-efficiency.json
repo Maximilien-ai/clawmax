@@ -1,0 +1,32 @@
+{
+  "id": "per-run-efficiency",
+  "name": "Per-run efficiency plan",
+  "description": "Keep each workflow execution within token and cost limits instead of relying only on monthly totals.",
+  "recommended": true,
+  "tags": ["workflow", "tokens", "cost", "efficiency"],
+  "payload": {
+    "name": "Per-run efficiency plan",
+    "description": "Tune agent model priority, context, and schedule against explicit per-run token and cost budgets.",
+    "tags": ["workflow", "tokens", "cost", "efficiency"],
+    "enabled": true,
+    "fields": {
+      "scope": "workflow",
+      "targetIds": [],
+      "optimizationGoal": "tokens",
+      "monthlyTokenBudget": 1000000,
+      "monthlyCostBudget": 30,
+      "perRunTokenBudget": 30000,
+      "perRunCostBudget": 1,
+      "maximumRunDurationSeconds": 600,
+      "minimumQualityScore": 80,
+      "currentTokens": 0,
+      "currentCost": 0,
+      "automaticModelSelection": true,
+      "modelPriority": "cost",
+      "recommendedModel": "Use compatible cost suggestions after comparing tokens, cost, and quality",
+      "recommendedSchedule": "",
+      "status": "draft",
+      "rationale": "Select a workflow, measure representative runs, and reduce context or use automatic cost selection only when required output and safety behavior remain intact."
+    }
+  }
+}
