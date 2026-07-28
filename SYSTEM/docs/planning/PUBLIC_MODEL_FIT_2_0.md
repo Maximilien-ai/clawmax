@@ -2,7 +2,7 @@
 
 > Status: active public foundation
 > Target: `2.0.0`
-> Last updated: July 27, 2026
+> Last updated: July 28, 2026
 
 ## Goal
 
@@ -42,6 +42,19 @@ RC16 extends that foundation by:
   shared responsive panel;
 - requiring the user to select a suggestion and then save before an existing
   agent model changes.
+
+RC17 completes the interactive agent foundation by:
+
+- letting users collapse the suggested-model explanation while retaining the
+  top model and confidence in a compact row;
+- remembering the disclosure and Auto-selection preferences across Add Agent
+  and Edit Agent views in the same browser;
+- making Auto-selection explicitly opt-in and tracking the current top
+  recommendation as instructions or Quality/Balanced/Cost priority changes;
+- preserving and restoring the last manual model when Auto-selection is
+  disabled; and
+- persisting one concrete runtime-supported model only when the user chooses
+  Save or Create. `auto` is never written as an abstract agent model ID.
 
 This baseline intentionally does not claim current pricing, context limits,
 vision support, tool support, or measured quality when the runtime catalog does

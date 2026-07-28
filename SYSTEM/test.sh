@@ -1118,7 +1118,7 @@ echo -e "${YELLOW}→ Running Agent model fit presentation tests...${NC}"
 npx ts-node --transpileOnly client/src/AgentModelFitIntegration.test.ts > /tmp/clawmax-agent-model-fit-ui.out 2>&1
 agent_model_fit_ui_status=$?
 if [ "$agent_model_fit_ui_status" -eq 0 ]; then
-  pass "Agent model fit presentation tests (24 tests)"
+  pass "Agent model fit presentation tests (32 tests)"
 else
   cat /tmp/clawmax-agent-model-fit-ui.out
   fail "Agent model fit presentation tests"
@@ -1129,7 +1129,7 @@ echo -e "${YELLOW}→ Running Agent model fit client helper tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/modelFit.test.ts > /tmp/clawmax-agent-model-fit-client.out 2>&1
 agent_model_fit_client_status=$?
 if [ "$agent_model_fit_client_status" -eq 0 ]; then
-  pass "Agent model fit client helper tests (3 tests)"
+  pass "Agent model fit client helper tests (7 tests)"
 else
   cat /tmp/clawmax-agent-model-fit-client.out
   fail "Agent model fit client helper tests"
@@ -1364,8 +1364,8 @@ fi
 
 echo -e "${YELLOW}→ Running Brokered skill secret UI contract tests...${NC}"
 npx ts-node --transpileOnly client/src/components/SkillSecretBrokerPanel.test.ts > /tmp/clawmax-skill-secret-broker-ui.out 2>&1 || true
-if grep -q "12 assertions passed" /tmp/clawmax-skill-secret-broker-ui.out; then
-  pass "Brokered skill secret UI contract tests (12 tests)"
+if grep -q "16 assertions passed" /tmp/clawmax-skill-secret-broker-ui.out; then
+  pass "Brokered skill secret UI contract tests (16 tests)"
 else
   cat /tmp/clawmax-skill-secret-broker-ui.out
   fail "Brokered skill secret UI contract tests"
@@ -1685,7 +1685,7 @@ fi
 
 echo -e "${YELLOW}→ Running Review release lifecycle unit tests...${NC}"
 if npx ts-node --transpileOnly client/src/lib/reviewLifecycle.test.ts > /tmp/clawmax-review-lifecycle.out 2>&1; then
-  pass "Review release lifecycle unit tests (4 tests)"
+  pass "Review release lifecycle unit tests (13 tests)"
 else
   cat /tmp/clawmax-review-lifecycle.out
   fail "Review release lifecycle unit tests"

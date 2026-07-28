@@ -9,7 +9,15 @@ import { useAuth } from '../contexts/AuthContext'
 import AIPromptEditorModal from './AIPromptEditorModal'
 import PromptQualityPanel from './PromptQualityPanel'
 import ModelFitRecommendationPanel, { ModelFitPreferenceControl } from './ModelFitRecommendationPanel'
-import type { ModelFitPreference, ModelFitRecommendation } from '../lib/modelFit'
+import {
+  buildAgentModelFitDescription,
+  MODEL_FIT_AUTO_STORAGE_KEY,
+  readModelFitAutoApply,
+  requestModelFit,
+  storeModelFitPreference,
+  type ModelFitPreference,
+  type ModelFitRecommendation,
+} from '../lib/modelFit'
 
 const PREDEFINED_TAGS = [
   'assistant',
@@ -74,6 +82,7 @@ function friendlyProvisionError(message: string): string {
 }
 
 export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, defaultCloneFrom, startWithAI, initialAiDescription }: WizardProps) {
+  const manualModelRef = useRef('')
   const { config } = useAuth()
   const aiEnabled = hasAiGenerationAccess(config)
   const aiReadiness = getAiGenerationReadiness(config)
@@ -116,6 +125,9 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
   const [generatedFiles, setGeneratedFiles] = useState<GeneratedFiles | null>(null)
   const [modelRecommendation, setModelRecommendation] = useState<ModelFitRecommendation | null>(null)
   const [modelPreference, setModelPreference] = useState<ModelFitPreference>('balanced')
+  const [autoModelSelection, setAutoModelSelection] = useState(() => (
+    readModelFitAutoApply(typeof window === 'undefined' ? undefined : window.localStorage)
+  ))
   const [generating, setGenerating] = useState(false)
   const [genError, setGenError] = useState<string | null>(null)
   const [showAiPromptEditor, setShowAiPromptEditor] = useState(false)
@@ -170,6 +182,7 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
           })
 
           if (defaultModel) {
+            manualModelRef.current = defaultModel
             if (models.length === 0) {
               setAvailableModels([defaultModel])
             }
@@ -177,6 +190,7 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
           }
         }).catch(() => {
           if (models.length > 0) {
+            manualModelRef.current = models[0]
             setForm(f => ({ ...f, model: models[0] }))
           }
         })
@@ -272,6 +286,7 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
 
           // Pre-populate model if it exists in metadata
           if (data.metadata.model && data.metadata.model !== 'default') {
+            manualModelRef.current = data.metadata.model
             set('model', data.metadata.model)
             hasPreFilled = true
           }
@@ -297,6 +312,49 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
   function set<K extends keyof FormState>(k: K, v: FormState[K]) {
     setForm(f => ({ ...f, [k]: v }))
   }
+
+  function useManualModel(nextModel: string) {
+    manualModelRef.current = nextModel
+    set('model', nextModel)
+  }
+
+  function setAutomaticModelSelection(enabled: boolean) {
+    if (enabled) {
+      manualModelRef.current = form.model
+      if (modelRecommendation?.recommendedModel) set('model', modelRecommendation.recommendedModel)
+    } else {
+      set('model', manualModelRef.current || modelRecommendation?.recommendedModel || form.model)
+    }
+    setAutoModelSelection(enabled)
+    storeModelFitPreference(
+      MODEL_FIT_AUTO_STORAGE_KEY,
+      enabled,
+      typeof window === 'undefined' ? undefined : window.localStorage,
+    )
+  }
+
+  useEffect(() => {
+    if (!generatedFiles || availableModels.length === 0) return
+    const description = buildAgentModelFitDescription(generatedFiles)
+    if (!description) return
+    const controller = new AbortController()
+    requestModelFit({
+      description,
+      availableModels,
+      preference: modelPreference,
+      signal: controller.signal,
+    })
+      .then(setModelRecommendation)
+      .catch((error) => {
+        if (error.name !== 'AbortError') setGenError(error.message || 'Could not update model suggestion')
+      })
+    return () => controller.abort()
+  }, [generatedFiles, availableModels, modelPreference])
+
+  useEffect(() => {
+    const suggestedModel = modelRecommendation?.recommendedModel
+    if (autoModelSelection && suggestedModel) set('model', suggestedModel)
+  }, [autoModelSelection, modelRecommendation?.recommendedModel])
 
   const nameOk = /^[a-z][a-z0-9_-]*$/.test(form.name)
   const canNext: Record<Step, boolean> = {
@@ -408,6 +466,7 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
       if (data.suggestedName) set('name', aiName)
       if (data.suggestedTags?.length > 0) set('tags', [...new Set(data.suggestedTags)])
       if (data.suggestedModel) {
+        if (!manualModelRef.current) manualModelRef.current = form.model
         set('model', resolveAddAgentWizardSuggestedModel({
           models: availableModels,
           currentModel: form.model,
@@ -603,9 +662,9 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
                 </div>
                 <select
                   value={form.model}
-                  onChange={e => set('model', e.target.value)}
+                  onChange={e => useManualModel(e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-md outline-none focus:border-sky-400 bg-white dark:bg-gray-800 dark:border-gray-700"
-                  disabled={availableModels.length === 0}
+                  disabled={availableModels.length === 0 || (autoModelSelection && !!modelRecommendation?.recommendedModel)}
                 >
                   {availableModels.length === 0 && (
                     <option value="">{modelsLoaded ? 'No models available — add API keys to .env' : 'Loading models...'}</option>
@@ -912,7 +971,9 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
                       preference={modelPreference}
                       onPreferenceChange={setModelPreference}
                       selectedModel={form.model}
-                      onUseSuggestion={(suggestedModel) => set('model', suggestedModel)}
+                      onUseSuggestion={useManualModel}
+                      autoApply={autoModelSelection}
+                      onAutoApplyChange={setAutomaticModelSelection}
                     />
                   )}
 

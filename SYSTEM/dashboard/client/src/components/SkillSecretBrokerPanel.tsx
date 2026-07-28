@@ -22,6 +22,7 @@ interface BrokerStatus {
 interface AgentSummary {
   id: string
   name?: string
+  skills?: Array<string | { id?: string; name?: string }>
 }
 
 export function SkillSecretBrokerPanel() {
@@ -56,6 +57,13 @@ export function SkillSecretBrokerPanel() {
   }, [refresh])
 
   const activeGrants = useMemo(() => (status?.grants || []).filter((grant) => !grant.revokedAt), [status])
+  const selectedAgent = useMemo(() => agents.find((agent) => agent.id === agentId), [agents, agentId])
+  const selectedSkillAssigned = useMemo(() => {
+    if (!selectedAgent || !skillId) return false
+    return (selectedAgent.skills || []).some((skill) => (
+      typeof skill === 'string' ? skill === skillId : skill.id === skillId || skill.name === skillId
+    ))
+  }, [selectedAgent, skillId])
 
   async function request(url: string, options: RequestInit) {
     setBusy(true)
@@ -165,6 +173,26 @@ export function SkillSecretBrokerPanel() {
         </div>
       )}
 
+      <div className="rounded-md border border-sky-200 bg-sky-50 p-4 text-sm text-sky-950 dark:border-sky-800 dark:bg-sky-900/20 dark:text-sky-100">
+        <div className="font-semibold">Secret access test setup</div>
+        <p className="mt-1 text-xs text-sky-800 dark:text-sky-200">
+          <code>clawmax-secret-test</code> is the packaged test skill. <code>CLAWMAX_TEST_SECRET</code> is the encrypted key that skill is allowed to use.
+        </p>
+        <ol className="mt-2 list-decimal space-y-1 pl-5 text-xs">
+          <li>Open Skills and assign <code>clawmax-secret-test</code> to one test agent.</li>
+          <li>Return here, save a non-production value under <code>CLAWMAX_TEST_SECRET</code>.</li>
+          <li>Select that agent and skill below, then authorize the exact key.</li>
+          <li>Choose Test Access, or ask the agent to run <code>clawmax-skill-run clawmax-secret-test check</code>.</li>
+        </ol>
+        <button
+          type="button"
+          onClick={() => window.dispatchEvent(new CustomEvent('navigate-to-page', { detail: { page: 'skills' } }))}
+          className="mt-3 rounded-md border border-sky-300 bg-white px-3 py-1.5 text-xs font-medium text-sky-800 hover:bg-sky-100 dark:border-sky-700 dark:bg-transparent dark:text-sky-200 dark:hover:bg-sky-900/30"
+        >
+          Open Skills
+        </button>
+      </div>
+
       <div className="grid gap-5 lg:grid-cols-2">
         <div className="space-y-3">
           <div>
@@ -207,7 +235,12 @@ export function SkillSecretBrokerPanel() {
               {status.registeredSkills.map((skill) => <option key={skill} value={skill}>{skill}</option>)}
             </select>
             <input value={grantKeys} onChange={(event) => setGrantKeys(event.target.value.toUpperCase())} placeholder="KEY_ONE, KEY_TWO" className="min-w-0 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-mono dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 sm:col-span-2" />
-            <button type="button" disabled={!status.configured || busy || !agentId || !skillId || !grantKeys.trim()} onClick={authorize} className="rounded-md bg-sky-600 px-3 py-2 text-sm font-medium text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50 sm:col-span-2">Authorize Secret Access</button>
+            {agentId && skillId && !selectedSkillAssigned && (
+              <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200 sm:col-span-2">
+                Assign <code>{skillId}</code> to {selectedAgent?.name || agentId} in Skills before authorizing it.
+              </div>
+            )}
+            <button type="button" disabled={!status.configured || busy || !agentId || !skillId || !grantKeys.trim() || !selectedSkillAssigned} onClick={authorize} className="rounded-md bg-sky-600 px-3 py-2 text-sm font-medium text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50 sm:col-span-2">Authorize Secret Access</button>
           </div>
         </div>
       </div>

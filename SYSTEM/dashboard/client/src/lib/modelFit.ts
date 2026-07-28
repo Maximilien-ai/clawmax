@@ -2,6 +2,9 @@ import { byokForRequest } from './byok'
 
 export type ModelFitPreference = 'quality' | 'balanced' | 'cost'
 
+export const MODEL_FIT_DETAILS_STORAGE_KEY = 'clawmax-model-fit-details-expanded'
+export const MODEL_FIT_AUTO_STORAGE_KEY = 'clawmax-model-fit-auto-apply'
+
 export interface ModelFitCandidate {
   model: string
   score: number
@@ -16,6 +19,30 @@ export interface ModelFitRecommendation {
   confidence: 'low' | 'medium'
   summary: string
   disclaimer: string
+}
+
+function readStoredBoolean(key: string, fallback: boolean, storage?: Pick<Storage, 'getItem'>): boolean {
+  if (!storage) return fallback
+  const value = storage.getItem(key)
+  if (value === 'true') return true
+  if (value === 'false') return false
+  return fallback
+}
+
+export function readModelFitDetailsExpanded(storage?: Pick<Storage, 'getItem'>): boolean {
+  return readStoredBoolean(MODEL_FIT_DETAILS_STORAGE_KEY, true, storage)
+}
+
+export function readModelFitAutoApply(storage?: Pick<Storage, 'getItem'>): boolean {
+  return readStoredBoolean(MODEL_FIT_AUTO_STORAGE_KEY, false, storage)
+}
+
+export function storeModelFitPreference(
+  key: typeof MODEL_FIT_DETAILS_STORAGE_KEY | typeof MODEL_FIT_AUTO_STORAGE_KEY,
+  value: boolean,
+  storage?: Pick<Storage, 'setItem'>,
+): void {
+  storage?.setItem(key, String(value))
 }
 
 export function buildAgentModelFitDescription(input: {

@@ -37,7 +37,10 @@ import { emptyPluginRelationships, fetchPluginRelationships, type PluginRelation
 import ModelFitRecommendationPanel from '../components/ModelFitRecommendationPanel'
 import {
   buildAgentModelFitDescription,
+  MODEL_FIT_AUTO_STORAGE_KEY,
+  readModelFitAutoApply,
   requestModelFit,
+  storeModelFitPreference,
   type ModelFitPreference,
   type ModelFitRecommendation,
 } from '../lib/modelFit'
@@ -2699,6 +2702,7 @@ function ImportOpenClawAgentModal({
 }
 
 function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClose: () => void; onSaved: () => void }) {
+  const manualModelRef = React.useRef('')
   const [identity, setIdentity] = React.useState('')
   const [soul, setSoul] = React.useState('')
   const [tools, setTools] = React.useState('')
@@ -2717,6 +2721,9 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
   const [modelRecommendation, setModelRecommendation] = React.useState<ModelFitRecommendation | null>(null)
   const [modelRecommendationLoading, setModelRecommendationLoading] = React.useState(false)
   const [modelRecommendationError, setModelRecommendationError] = React.useState<string | null>(null)
+  const [autoModelSelection, setAutoModelSelection] = React.useState(() => (
+    readModelFitAutoApply(typeof window === 'undefined' ? undefined : window.localStorage)
+  ))
   const selectedModelDeprecation = formatOpenAiDeprecationNotice(model)
 
   const syncIdentityModels = React.useCallback((content: string, nextModel: string, nextBackupModel: string) => {
@@ -2775,7 +2782,9 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
         setIdentity(configData.identity || '')
         setSoul(configData.soul || '')
         setTools(configData.tools || '')
-        setModel(identityData?.liveConfig?.model || identityData?.metadata?.model || '')
+        const loadedModel = identityData?.liveConfig?.model || identityData?.metadata?.model || ''
+        manualModelRef.current = loadedModel
+        setModel(loadedModel)
         setBackupModel(identityData?.liveConfig?.backupModel || identityData?.metadata?.backupModel || '')
         setAvailableModels(Array.isArray(modelsData.models) ? modelsData.models : [])
         setModelsByProvider(modelsData.modelsByProvider || {})
@@ -2865,6 +2874,32 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
       window.clearTimeout(timer)
     }
   }, [identity, soul, tools, availableModels, modelPreference, loading])
+
+  React.useEffect(() => {
+    const suggestedModel = modelRecommendation?.recommendedModel
+    if (autoModelSelection && suggestedModel) setModel(suggestedModel)
+  }, [autoModelSelection, modelRecommendation?.recommendedModel])
+
+  const useManualModel = React.useCallback((nextModel: string) => {
+    manualModelRef.current = nextModel
+    setModel(nextModel)
+  }, [])
+
+  const setAutomaticModelSelection = React.useCallback((enabled: boolean) => {
+    if (enabled) {
+      manualModelRef.current = model
+      const suggestedModel = modelRecommendation?.recommendedModel
+      if (suggestedModel) setModel(suggestedModel)
+    } else {
+      setModel(manualModelRef.current || modelRecommendation?.recommendedModel || model)
+    }
+    setAutoModelSelection(enabled)
+    storeModelFitPreference(
+      MODEL_FIT_AUTO_STORAGE_KEY,
+      enabled,
+      typeof window === 'undefined' ? undefined : window.localStorage,
+    )
+  }, [model, modelRecommendation?.recommendedModel])
 
   const handleSave = async () => {
     if (validationErrors.length > 0) {
@@ -2996,7 +3031,8 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
                 </div>
                 <select
                   value={model}
-                  onChange={e => setModel(e.target.value)}
+                  disabled={autoModelSelection}
+                  onChange={e => useManualModel(e.target.value)}
                   className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-200 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
                 >
                   {!model && <option value="">Select a model</option>}
@@ -3014,7 +3050,11 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
                     ))
                   )}
                 </select>
-                <p className="mt-1 text-xs text-gray-400">Live models from provider APIs (cached 1hr). Click "Refresh" to update.</p>
+                <p className="mt-1 text-xs text-gray-400">
+                  {autoModelSelection
+                    ? 'Auto-select is using the current top suggestion. Turn it off to choose a model manually.'
+                    : 'Live models from provider APIs (cached 1hr). Click "Refresh" to update.'}
+                </p>
                 {selectedModelDeprecation && (
                   <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">{selectedModelDeprecation}</p>
                 )}
@@ -3026,7 +3066,9 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
                 loading={modelRecommendationLoading}
                 error={modelRecommendationError}
                 selectedModel={model}
-                onUseSuggestion={setModel}
+                onUseSuggestion={useManualModel}
+                autoApply={autoModelSelection}
+                onAutoApplyChange={setAutomaticModelSelection}
               />
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Backup model</label>

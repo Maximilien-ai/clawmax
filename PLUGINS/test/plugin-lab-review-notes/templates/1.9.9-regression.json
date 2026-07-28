@@ -76,7 +76,7 @@
     {
       "id": "secret-grant-boundaries",
       "name": "Explicit secret grant boundaries",
-      "description": "Test: 1) Assign clawmax-secret-test to exactly one agent and grant only its declared CLAWMAX_TEST_SECRET action/key/fingerprint. 2) Click Test Access and retain the reported one-way fingerprint. 3) Try an unassigned agent, wrong skill fingerprint, wildcard key, and undeclared key/action. Pass: Only the exact grant reports availability and the same one-way fingerprint, every mismatch is denied with useful guidance, no wildcard broadening is accepted, and the raw sentinel never appears.",
+      "description": "Test: Open Keys & Secrets > Agent & Skill Access. Assign the packaged clawmax-secret-test skill to one test agent, save a non-production value with the key name CLAWMAX_TEST_SECRET, select the same agent and skill, authorize that exact key, and choose Test Access. Then try an agent without the assignment. Pass: The assigned combination reports availability and a one-way fingerprint, the unassigned agent is denied with setup guidance, and the raw value never appears.",
       "tags": ["secrets", "authorization"],
       "fields": {"area": "regression", "notes": ""}
     },

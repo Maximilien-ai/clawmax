@@ -16,5 +16,9 @@ assert(source.includes('Encrypted saving is locked'), 'unconfigured encrypted sa
 assert(source.includes('Copy setup steps'), 'operators should be able to copy concise setup instructions')
 assert(source.includes("disabled={!status.configured || busy}"), 'secret fields should be disabled until the operator key is configured')
 assert(source.includes('Set operator key first'), 'disabled save action should explain its prerequisite')
+assert(source.includes('clawmax-secret-test</code> is the packaged test skill'), 'test setup should distinguish the skill ID from the secret key')
+assert(source.includes('CLAWMAX_TEST_SECRET</code> is the encrypted key'), 'test setup should name the encrypted sentinel key')
+assert(source.includes("detail: { page: 'skills' }"), 'test setup should link directly to Skills')
+assert(source.includes('!selectedSkillAssigned'), 'authorization should be blocked until the selected skill is assigned')
 
-console.log('SkillSecretBrokerPanel.test.ts: 12 assertions passed')
+console.log('SkillSecretBrokerPanel.test.ts: 16 assertions passed')

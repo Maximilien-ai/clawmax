@@ -1,9 +1,11 @@
 import assert from 'assert'
 import {
+  CUMULATIVE_2_0_REVIEW_RELEASE,
   getCompletedReviewReleaseIdsToArchive,
   getReviewReleaseGroups,
+  planReviewReleaseConsolidation,
 } from './reviewLifecycle'
-import type { PluginRecord } from './plugins'
+import { isGenericPluginRecord, type PluginRecord } from './plugins'
 
 function record(id: string, release: string, completed: boolean, archived = false): PluginRecord {
   return {
@@ -49,4 +51,74 @@ assert.deepStrictEqual(
   'the incoming release should never archive itself',
 )
 
-console.log('reviewLifecycle.test.ts: 4 assertions passed')
+const migrationRecords = [
+  {
+    ...record('cumulative-copy', CUMULATIVE_2_0_REVIEW_RELEASE, false),
+    name: 'Mobile plugin navigation',
+    fields: {
+      release: CUMULATIVE_2_0_REVIEW_RELEASE,
+      completed: false,
+      outcome: 'pending',
+      notes: '',
+      evidence: ['current.png'],
+      verifiedBy: [],
+    },
+  },
+  {
+    ...record('rc5-copy', '2.0.0-test-rc5', true),
+    name: 'Mobile plugin navigation',
+    archived: true,
+    fields: {
+      release: '2.0.0-test-rc5',
+      completed: true,
+      outcome: 'passed',
+      notes: 'Passed on Max test10.',
+      evidence: ['rc5.png'],
+      verifiedBy: ['Max - cloud'],
+    },
+  },
+  {
+    ...record('rc10-only', '2.0.0-test-rc10', false),
+    name: 'Review export identity',
+    fields: {
+      release: '2.0.0-test-rc10',
+      completed: false,
+      outcome: 'failed',
+      notes: 'Email was blank.',
+      evidence: [],
+      verifiedBy: [],
+    },
+  },
+  record('current-rc', '2.0.0-test-rc17', false),
+]
+const consolidation = planReviewReleaseConsolidation(
+  migrationRecords,
+  'release',
+  'completed',
+  '2.0.0-test-rc17',
+)
+assert.deepStrictEqual(
+  consolidation.deleteIds,
+  ['rc5-copy'],
+  'a legacy duplicate should be removed only after merging into its cumulative copy',
+)
+assert.strictEqual(consolidation.updates.length, 2, 'duplicate and unique legacy checks should both produce cumulative updates')
+const mergedDuplicate = consolidation.updates.find((entry) => entry.id === 'cumulative-copy')
+assert.strictEqual(mergedDuplicate && isGenericPluginRecord(mergedDuplicate) && mergedDuplicate.fields.release, CUMULATIVE_2_0_REVIEW_RELEASE)
+assert.strictEqual(mergedDuplicate && isGenericPluginRecord(mergedDuplicate) && mergedDuplicate.fields.completed, true)
+assert.strictEqual(mergedDuplicate && isGenericPluginRecord(mergedDuplicate) && mergedDuplicate.fields.outcome, 'passed')
+assert.strictEqual(mergedDuplicate && isGenericPluginRecord(mergedDuplicate) && mergedDuplicate.fields.notes, 'Passed on Max test10.')
+assert.deepStrictEqual(
+  mergedDuplicate && isGenericPluginRecord(mergedDuplicate) ? mergedDuplicate.fields.evidence : [],
+  ['current.png', 'rc5.png'],
+)
+const migratedUnique = consolidation.updates.find((entry) => entry.id === 'rc10-only')
+assert.strictEqual(migratedUnique && isGenericPluginRecord(migratedUnique) && migratedUnique.fields.release, CUMULATIVE_2_0_REVIEW_RELEASE)
+assert.strictEqual(migratedUnique && isGenericPluginRecord(migratedUnique) && migratedUnique.fields.outcome, 'failed')
+assert.strictEqual(
+  planReviewReleaseConsolidation(migrationRecords, 'release', 'completed', '2.0.0-test-rc10').updates.some((entry) => entry.id === 'rc10-only'),
+  false,
+  'the current focused release must never be migrated',
+)
+
+console.log('reviewLifecycle.test.ts: 13 assertions passed')

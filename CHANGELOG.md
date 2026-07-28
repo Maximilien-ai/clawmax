@@ -25,6 +25,7 @@ All notable changes to ClawMax are documented here.
 - **Production Mail Identity Adapters** — opt-in Google and Microsoft adapters implement authorization-code exchange, PKCE, delegated account identity, offline refresh, safe disconnect behavior, strict callback configuration, sanitized provider errors, and fixed capability-to-scope mapping that rejects raw scopes.
 - **Mail Partner Connections And Draft Adapters** — Gmail and Microsoft Partner panels expose workspace connection, refresh, reconnect, and disconnect states; bounded provider adapters implement inbox list/search, metadata/body read, and unsent draft creation without a send operation, while recipient and subject header injection fails closed.
 - **Explainable Agent Model Suggestions** — agent AI creation and existing-agent editing rank only models visible to the current runtime, expose Quality, Balanced, and Cost priorities, show confidence, reasons, alternatives, and unknown capability assumptions, and require explicit selection plus Save before changing an existing agent.
+- **Opt-In Automatic Model Selection** — Add Agent and Edit Agent can automatically track the current top runtime-visible suggestion while preserving the last manual choice; the shared detail disclosure and Auto preference persist across browser views, and Save/Create still writes one concrete supported model.
 
 ### Fixed
 - **Mail Partners Hidden After Upgrade** — the exact legacy five-partner availability default now migrates to include Gmail and Microsoft 365, while genuinely custom partner allowlists remain unchanged.
@@ -38,6 +39,8 @@ All notable changes to ClawMax are documented here.
 - **Cached Plugin Suggestions** — plugin suggestion files are cached for five minutes, revisited plugin pages retain their rendered data while refreshing in the background, and the explicit Refresh action bypasses the cache.
 - **Encrypted Secret Setup Clarity** — Agent & Skill Access locks credential inputs until the deployment operator key exists, presents short restart-safe setup steps, and labels the unavailable Save action with its exact prerequisite.
 - **Mobile Agent Model Editing** — Edit Agent Config now stays within the phone viewport, wraps long provider/model identifiers, keeps all priority controls visible, and preserves reachable Cancel and Save actions.
+- **Consolidated Persisted Review Sets** — separately started RC5, RC10, RC16, and other earlier 2.0 review records migrate into the cumulative set, merging completions, failures, notes, evidence, and verifier metadata while removing duplicate checks.
+- **Secret Test Setup Guidance** — Agent & Skill Access distinguishes the packaged `clawmax-secret-test` skill from the `CLAWMAX_TEST_SECRET` encrypted key, links to skill assignment, and blocks authorization until the selected agent has the skill.
 
 ### Planned
 - **2.0 Public Plugin And AI-Scoring Foundation** — complete the generic contribution-based plugin contract for pages, APIs, data, actions, jobs, events, settings, skills, providers, docs, and extension points; then publish scorer contracts and user-facing scoring surfaces on that foundation.

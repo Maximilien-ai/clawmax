@@ -82,4 +82,6 @@ privacy, every integrated AI creation surface, mobile-safe dialogs, and the
 release Review checklist. Manual checks live in Review under
 `2.0.0-test-rc15`. Explainable agent model suggestions and their separate
 Quality, Balanced, and Cost priorities are introduced in
-`2.0.0-test-rc16`.
+`2.0.0-test-rc16`; RC17 adds remembered explanation disclosure and opt-in
+automatic top-suggestion tracking without weakening explicit Save/Create
+boundaries.

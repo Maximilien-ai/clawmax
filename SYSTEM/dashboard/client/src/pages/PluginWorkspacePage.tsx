@@ -42,7 +42,11 @@ import {
   type ReviewExportInstance,
 } from '../lib/reviewExport'
 import { readStoredReviewIdentity, resolveReviewIdentity, storeReviewIdentity } from '../lib/reviewIdentity'
-import { getCompletedReviewReleaseIdsToArchive, getReviewReleaseGroups } from '../lib/reviewLifecycle'
+import {
+  getCompletedReviewReleaseIdsToArchive,
+  getReviewReleaseGroups,
+  planReviewReleaseConsolidation,
+} from '../lib/reviewLifecycle'
 
 type Props = {
   plugin: PluginManifest
@@ -1320,6 +1324,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
   const workflowCreateMenuButtonRef = useRef<HTMLButtonElement | null>(null)
   const actionsMenuButtonRef = useRef<HTMLButtonElement | null>(null)
   const hasLoadedRef = useRef(false)
+  const reviewConsolidationRef = useRef('')
   const [context, setContext] = useState<PluginWorkspaceContext>({ agents: [], workflows: [], groups: [], communities: [] })
   const [items, setItems] = useState<PluginRecord[]>([])
   const [templates, setTemplates] = useState<PluginRecordTemplate[]>([])
@@ -1442,7 +1447,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
   const suggestionTags = useMemo(() => {
     const allTags = collectPluginTemplateTags(recommendedTemplates)
     if (!isChecklist) return allTags
-    return ['1.9.9', '2.0.0', '2.0.0-test-rc16'].filter((tag) => allTags.includes(tag))
+    return ['1.9.9', '2.0.0', '2.0.0-test-rc17'].filter((tag) => allTags.includes(tag))
   }, [recommendedTemplates, isChecklist])
   const filteredSuggestions = useMemo(() => sortPluginTemplates(
     recommendedTemplates.filter((template) => (
@@ -1469,6 +1474,13 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
     })
     return Array.from(byRelease.entries()).sort(([a], [b]) => b.localeCompare(a, undefined, { numeric: true }))
   }, [filteredSuggestions, isChecklist, groupField])
+  const currentChecklistRelease = useMemo(() => {
+    if (!isChecklist || !groupField) return null
+    const currentTemplate = templates.find((template) => template.tags.includes('current'))
+    const fields = currentTemplate && 'fields' in currentTemplate.payload ? currentTemplate.payload.fields : undefined
+    const release = fields?.[groupField]
+    return typeof release === 'string' && release.trim() ? release.trim() : null
+  }, [templates, isChecklist, groupField])
   const activeCount = useMemo(() => items.filter((item) => item.archived !== true).length, [items])
   const archivedCount = useMemo(() => items.filter((item) => item.archived === true).length, [items])
   const selectedItem = useMemo(
@@ -1511,6 +1523,64 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
       throw new Error(data.error || 'Failed to update release checklist')
     }
   }
+
+  useEffect(() => {
+    if (!isChecklist || !groupField || !checkField || !currentChecklistRelease || loading || reviewLifecycleBusy) return
+    const plan = planReviewReleaseConsolidation(items, groupField, checkField, currentChecklistRelease)
+    if (plan.updates.length === 0 && plan.deleteIds.length === 0) return
+    const signature = JSON.stringify({
+      updates: plan.updates.map((record) => [record.id, record.updatedAt, record.fields]),
+      deleteIds: plan.deleteIds,
+    })
+    if (reviewConsolidationRef.current === signature) return
+    reviewConsolidationRef.current = signature
+
+    const consolidate = async () => {
+      setReviewLifecycleBusy(true)
+      setError(null)
+      try {
+        const updateResponses = await Promise.all(plan.updates.map((record) => fetch(
+          `/api/plugins/${encodeURIComponent(plugin.slug)}/items/${encodeURIComponent(record.id)}`,
+          {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(record),
+          },
+        )))
+        const failedUpdate = updateResponses.find((response) => !response.ok)
+        if (failedUpdate) {
+          const data = await failedUpdate.json().catch(() => ({}))
+          throw new Error(data.error || 'Failed to consolidate earlier release checks')
+        }
+        const deleteResponses = await Promise.all(plan.deleteIds.map((id) => fetch(
+          `/api/plugins/${encodeURIComponent(plugin.slug)}/items/${encodeURIComponent(id)}`,
+          { method: 'DELETE' },
+        )))
+        const failedDelete = deleteResponses.find((response) => !response.ok)
+        if (failedDelete) {
+          const data = await failedDelete.json().catch(() => ({}))
+          throw new Error(data.error || 'Failed to remove duplicate release checks')
+        }
+        setSelectedGroup(null)
+        await load()
+      } catch (err: any) {
+        reviewConsolidationRef.current = ''
+        setError(err.message || 'Failed to consolidate earlier release checks')
+      } finally {
+        setReviewLifecycleBusy(false)
+      }
+    }
+    void consolidate()
+  }, [
+    items,
+    isChecklist,
+    groupField,
+    checkField,
+    currentChecklistRelease,
+    loading,
+    reviewLifecycleBusy,
+    plugin.slug,
+  ])
 
   const setReleaseArchived = async (release: string, archived: boolean) => {
     if (!groupField || reviewLifecycleBusy) return
