@@ -1119,7 +1119,7 @@ echo -e "${YELLOW}→ Running Agent model fit presentation tests...${NC}"
 npx ts-node --transpileOnly client/src/AgentModelFitIntegration.test.ts > /tmp/clawmax-agent-model-fit-ui.out 2>&1
 agent_model_fit_ui_status=$?
 if [ "$agent_model_fit_ui_status" -eq 0 ]; then
-  pass "Agent model fit presentation tests (32 tests)"
+  pass "Agent model fit presentation tests (38 tests)"
 else
   cat /tmp/clawmax-agent-model-fit-ui.out
   fail "Agent model fit presentation tests"
@@ -1130,7 +1130,7 @@ echo -e "${YELLOW}→ Running Agent model fit client helper tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/modelFit.test.ts > /tmp/clawmax-agent-model-fit-client.out 2>&1
 agent_model_fit_client_status=$?
 if [ "$agent_model_fit_client_status" -eq 0 ]; then
-  pass "Agent model fit client helper tests (7 tests)"
+  pass "Agent model fit client helper tests (13 tests)"
 else
   cat /tmp/clawmax-agent-model-fit-client.out
   fail "Agent model fit client helper tests"

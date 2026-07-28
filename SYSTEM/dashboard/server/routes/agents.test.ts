@@ -1523,6 +1523,47 @@ async function run() {
     assert.strictEqual(res.statusCode, 400, 'Expected missing model to return HTTP 400')
   })
 
+  await test('agent model route persists automatic selection mode and priority per agent', async () => {
+    writeAgent(workspacePath, 'model-fit-agent', [
+      '# IDENTITY.md',
+      '',
+      '- **Name:** Model Fit Agent',
+      '- **Model:** openai/gpt-5.5',
+      '',
+      '## Creation Metadata',
+      '',
+      '- **Model:** original/model',
+    ].join('\n'))
+
+    const patchModelHandler = getRouteHandler('patch', '/:id/model')
+    let res = makeRes()
+    await patchModelHandler(makeReq({
+      params: { id: 'model-fit-agent' },
+      body: {
+        model: 'openai/gpt-5.5',
+        modelSelection: 'auto',
+        modelPreference: 'cost',
+      },
+    }), res)
+    assert.strictEqual(res.statusCode, 200, `Expected model settings update success: ${res.jsonBody?.error || ''}`)
+
+    const identityPath = path.join(workspacePath, 'AGENTS', 'model-fit-agent', 'IDENTITY.md')
+    const persisted = fs.readFileSync(identityPath, 'utf-8')
+    assert(persisted.includes('- **Model Selection:** auto'), 'Expected automatic selection mode in agent identity')
+    assert(persisted.includes('- **Model Priority:** cost'), 'Expected cost priority in agent identity')
+    assert(persisted.indexOf('**Model Selection:**') < persisted.indexOf('## Creation Metadata'), 'Expected settings in runtime section')
+
+    const getIdentityHandler = getRouteHandler('get', '/:id/identity')
+    res = makeRes()
+    await getIdentityHandler(makeReq({ params: { id: 'model-fit-agent' } }), res)
+    assert.strictEqual(res.statusCode, 200, 'Expected identity metadata success')
+    assert.deepStrictEqual(
+      res.jsonBody?.modelFit,
+      { selectionMode: 'auto', preference: 'cost' },
+      'Expected saved agent-specific settings from identity route',
+    )
+  })
+
   await test('agent archive and unarchive routes reject invalid ids and missing agents', async () => {
     const archiveHandler = getRouteHandler('post', '/:id/archive')
     let res = makeRes()

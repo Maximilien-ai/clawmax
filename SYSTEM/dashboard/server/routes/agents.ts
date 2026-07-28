@@ -16,8 +16,11 @@ import {
   resetAgentSessionsForModelChange,
   updateAgentBackupModelInConfigFile,
   upsertAgentBackupModelInIdentityContent,
+  upsertAgentModelFitInIdentityContent,
   upsertAgentModelInConfigFile,
   upsertAgentModelInIdentityContent,
+  type AgentModelPreference,
+  type AgentModelSelectionMode,
 } from '../lib/agent-model'
 import { validateAgentCostLimit } from '../lib/budget'
 import {
@@ -134,11 +137,16 @@ function updateAgentIdentityModel(identityPath: string, model: string) {
   fs.writeFileSync(identityPath, upsertAgentModelInIdentityContent(content, model), 'utf-8')
 }
 
-function syncAgentIdentityModels(identityContent: string, model: string, backupModel?: string): string {
-  return upsertAgentBackupModelInIdentityContent(
+function syncAgentIdentityModels(
+  identityContent: string,
+  model: string,
+  backupModel?: string,
+  modelFit?: { selectionMode?: AgentModelSelectionMode; preference?: AgentModelPreference },
+): string {
+  return upsertAgentModelFitInIdentityContent(upsertAgentBackupModelInIdentityContent(
     upsertAgentModelInIdentityContent(identityContent, model),
     backupModel,
-  )
+  ), modelFit?.selectionMode, modelFit?.preference)
 }
 
 function resetAgentRuntimeForModelChange(agentId: string) {
@@ -755,7 +763,7 @@ router.post('/models/refresh', async (req, res) => {
 
 // POST /api/agents/provision — spawn setup.sh and stream output via SSE
 router.post('/provision', (req, res) => {
-  const { name, model, backupModel, whatsapp, port, profile, cloneFrom, templateSlug, generatedFiles, tags, aiDescription, skills } = req.body as {
+  const { name, model, backupModel, whatsapp, port, profile, cloneFrom, templateSlug, generatedFiles, tags, aiDescription, skills, modelSelection, modelPreference } = req.body as {
     name?: string
     model?: string
     backupModel?: string
@@ -768,7 +776,13 @@ router.post('/provision', (req, res) => {
     tags?: string[]
     aiDescription?: string
     skills?: string[]
+    modelSelection?: AgentModelSelectionMode
+    modelPreference?: AgentModelPreference
   }
+  const validatedModelSelection: AgentModelSelectionMode = modelSelection === 'auto' ? 'auto' : 'manual'
+  const validatedModelPreference: AgentModelPreference = ['quality', 'balanced', 'cost'].includes(String(modelPreference))
+    ? modelPreference as AgentModelPreference
+    : 'balanced'
   const synthesizedAiDescription = synthesizeAgentAiDescription(aiDescription, generatedFiles)
 
   const resolvedModel = resolveDefaultAgentModel({
@@ -827,7 +841,12 @@ router.post('/provision', (req, res) => {
     if (!generatedFiles) return
     const dstPath = path.join(getAgentsDir(), validatedName)
     fs.mkdirSync(dstPath, { recursive: true })
-    fs.writeFileSync(path.join(dstPath, 'IDENTITY.md'), syncAgentIdentityModels(generatedFiles.identity, validatedModel, validatedBackupModel))
+    fs.writeFileSync(path.join(dstPath, 'IDENTITY.md'), syncAgentIdentityModels(
+      generatedFiles.identity,
+      validatedModel,
+      validatedBackupModel,
+      { selectionMode: validatedModelSelection, preference: validatedModelPreference },
+    ))
     fs.writeFileSync(path.join(dstPath, 'SOUL.md'), generatedFiles.soul)
     fs.writeFileSync(path.join(dstPath, 'TOOLS.md'), generatedFiles.tools)
     send('log', `Wrote AI-generated files: IDENTITY.md, SOUL.md, TOOLS.md\n`)
@@ -888,7 +907,12 @@ router.post('/provision', (req, res) => {
     }
     if (fs.existsSync(identityPath)) {
       const identityContent = fs.readFileSync(identityPath, 'utf-8')
-      fs.writeFileSync(identityPath, syncAgentIdentityModels(identityContent, configUpdate.model || validatedModel, backupConfigUpdate.backupModel), 'utf-8')
+      fs.writeFileSync(identityPath, syncAgentIdentityModels(
+        identityContent,
+        configUpdate.model || validatedModel,
+        backupConfigUpdate.backupModel,
+        { selectionMode: validatedModelSelection, preference: validatedModelPreference },
+      ), 'utf-8')
     }
     if (configUpdate.changed || backupConfigUpdate.changed) {
       resetAgentRuntimeForModelChange(validatedName)
@@ -1690,6 +1714,7 @@ router.get('/:id/identity', (req, res) => {
   }
 
   const content = fs.readFileSync(identityPath, 'utf-8')
+  const runtimeIdentity = parseIdentity(content)
 
   // Parse creation metadata if it exists
   const metadata: any = {}
@@ -1747,7 +1772,17 @@ router.get('/:id/identity', (req, res) => {
     // If we can't read live config, fall back to IDENTITY.md metadata
   }
 
-  res.json({ content, metadata, liveConfig })
+  res.json({
+    content,
+    metadata,
+    liveConfig,
+    modelFit: {
+      selectionMode: runtimeIdentity.modelSelection === 'auto' ? 'auto' : 'manual',
+      preference: ['quality', 'balanced', 'cost'].includes(runtimeIdentity.modelPreference)
+        ? runtimeIdentity.modelPreference
+        : 'balanced',
+    },
+  })
 })
 
 // POST /api/agents/:id/restart — restart agent gateway process
@@ -2439,7 +2474,7 @@ router.put('/:id/config', (req, res) => {
 // PATCH /api/agents/:id/model — update agent model in IDENTITY.md
 router.patch('/:id/model', (req, res) => {
   const { id } = req.params
-  const { model, backupModel } = req.body
+  const { model, backupModel, modelSelection, modelPreference } = req.body
 
   if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
     return res.status(400).json({ error: 'Invalid agent id' })
@@ -2451,6 +2486,12 @@ router.patch('/:id/model', (req, res) => {
   const normalizedModel = normalizeAgentModelInput(model)
   if (!normalizedModel) {
     return res.status(400).json({ error: 'model is required' })
+  }
+  if (modelSelection !== undefined && !['auto', 'manual'].includes(String(modelSelection))) {
+    return res.status(400).json({ error: 'modelSelection must be auto or manual' })
+  }
+  if (modelPreference !== undefined && !['quality', 'balanced', 'cost'].includes(String(modelPreference))) {
+    return res.status(400).json({ error: 'modelPreference must be quality, balanced, or cost' })
   }
 
   const agentDir = path.join(getAgentsDir(), id)
@@ -2467,11 +2508,25 @@ router.patch('/:id/model', (req, res) => {
     }
 
     const identityContent = fs.readFileSync(identityPath, 'utf-8')
-    fs.writeFileSync(identityPath, syncAgentIdentityModels(identityContent, configUpdate.model || normalizedModel, backupConfigUpdate.backupModel), 'utf-8')
+    fs.writeFileSync(identityPath, syncAgentIdentityModels(
+      identityContent,
+      configUpdate.model || normalizedModel,
+      backupConfigUpdate.backupModel,
+      {
+        selectionMode: modelSelection as AgentModelSelectionMode | undefined,
+        preference: modelPreference as AgentModelPreference | undefined,
+      },
+    ), 'utf-8')
     if (configUpdate.changed || backupConfigUpdate.changed) {
       resetAgentRuntimeForModelChange(id)
     }
-    res.json({ ok: true, model: configUpdate.model || normalizedModel, backupModel: backupConfigUpdate.backupModel })
+    res.json({
+      ok: true,
+      model: configUpdate.model || normalizedModel,
+      backupModel: backupConfigUpdate.backupModel,
+      modelSelection,
+      modelPreference,
+    })
   } catch (err) {
     console.error('Failed to update model:', err)
     res.status(500).json({ error: 'Failed to update model' })

@@ -1589,6 +1589,16 @@ export function parseIdentity(content: string): any {
   const backupModelMatch = runtimeContent.match(/\*\*Backup Model:\*\*\s*([^\n]+)/i)
   if (backupModelMatch) identity.backupModel = backupModelMatch[1].trim()
 
+  const modelSelectionMatch = runtimeContent.match(/\*\*Model Selection:\*\*\s*([^\n]+)/i)
+  if (modelSelectionMatch && /^(auto|manual)$/i.test(modelSelectionMatch[1].trim())) {
+    identity.modelSelection = modelSelectionMatch[1].trim().toLowerCase()
+  }
+
+  const modelPriorityMatch = runtimeContent.match(/\*\*Model Priority:\*\*\s*([^\n]+)/i)
+  if (modelPriorityMatch && /^(quality|balanced|cost)$/i.test(modelPriorityMatch[1].trim())) {
+    identity.modelPreference = modelPriorityMatch[1].trim().toLowerCase()
+  }
+
   const whatsappMatch = runtimeContent.match(/\*\*WhatsApp:\*\*\s*(\+?[0-9]+)?/i)
   if (whatsappMatch) {
     const value = (whatsappMatch[1] || '').trim()

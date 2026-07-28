@@ -6,13 +6,15 @@ function test(name: string, run: () => void) {
   tests.push({ name, run })
 }
 
-test('ranks only models reported as available', () => {
+test('ranks only compatible models reported as available', () => {
   const result = recommendModelsForDescription({
     description: 'Analyze a complex product strategy and explain the reasoning.',
     availableModels: ['openai/gpt-5.4-mini', 'openai/o3'],
   })
-  assert.equal(result.recommendedModel, 'openai/o3')
-  assert.deepEqual(result.candidates.map(candidate => candidate.model).sort(), ['openai/gpt-5.4-mini', 'openai/o3'])
+  assert.equal(result.recommendedModel, 'openai/gpt-5.4-mini')
+  assert.deepEqual(result.candidates.map(candidate => candidate.model), ['openai/gpt-5.4-mini'])
+  assert.equal(result.excludedModels[0]?.model, 'openai/o3')
+  assert.match(result.excludedModels[0]?.reason || '', /web search/i)
 })
 
 test('prefers an explicit coding model for repository work', () => {
@@ -63,6 +65,17 @@ test('returns an explicit empty recommendation when no model is available', () =
   assert.equal(result.recommendedModel, null)
   assert.equal(result.candidates.length, 0)
   assert.match(result.summary, /No runtime-visible models/)
+})
+
+test('does not auto-select OpenAI reasoning aliases that reject the runtime web-search tool', () => {
+  const result = recommendModelsForDescription({
+    description: 'Research current information with tools and explain the result.',
+    availableModels: ['openai/o1', 'openai/o3-mini'],
+    preference: 'quality',
+  })
+  assert.equal(result.recommendedModel, null)
+  assert.deepEqual(result.excludedModels.map(entry => entry.model), ['openai/o1', 'openai/o3-mini'])
+  assert.match(result.summary, /No known tool-compatible/)
 })
 
 let passed = 0

@@ -13,6 +13,7 @@ import {
   updateAgentBackupModelInConfigFile,
   updateAgentModelInConfigFile,
   upsertAgentBackupModelInIdentityContent,
+  upsertAgentModelFitInIdentityContent,
   upsertAgentModelInConfigFile,
   upsertAgentModelInIdentityContent,
 } from './agent-model'
@@ -238,6 +239,38 @@ test('parseIdentity extracts backup model from markdown', () => {
 `)
 
   assert(identity.backupModel === 'anthropic/claude-sonnet-4-20250514', 'Expected parseIdentity to extract backup model')
+})
+
+test('upsertAgentModelFitInIdentityContent persists and parses automatic model settings', () => {
+  const updated = upsertAgentModelFitInIdentityContent(`# Identity
+
+- **Name:** Double Agent
+- **Model:** openai/gpt-5.5
+
+## Creation Metadata
+
+- **Model:** original/model
+`, 'auto', 'cost')
+
+  const parsed = parseIdentity(updated)
+  assert(parsed.modelSelection === 'auto', 'Expected automatic selection mode to parse')
+  assert(parsed.modelPreference === 'cost', 'Expected cost priority to parse')
+  assert(updated.indexOf('**Model Selection:**') < updated.indexOf('## Creation Metadata'), 'Expected runtime settings before creation metadata')
+})
+
+test('upsertAgentModelFitInIdentityContent replaces model settings without duplicating fields', () => {
+  const updated = upsertAgentModelFitInIdentityContent(`# Identity
+
+- **Model:** openai/gpt-5.5
+- **Model Selection:** auto
+- **Model Priority:** cost
+`, 'manual', 'quality')
+
+  assert((updated.match(/\*\*Model Selection:\*\*/g) || []).length === 1, 'Expected one selection field')
+  assert((updated.match(/\*\*Model Priority:\*\*/g) || []).length === 1, 'Expected one priority field')
+  const parsed = parseIdentity(updated)
+  assert(parsed.modelSelection === 'manual', 'Expected manual selection mode')
+  assert(parsed.modelPreference === 'quality', 'Expected quality priority')
 })
 
 test('parseIdentity extracts model from legacy bullet format and keeps empty WhatsApp null', () => {

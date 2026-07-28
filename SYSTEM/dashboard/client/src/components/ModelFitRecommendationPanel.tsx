@@ -175,6 +175,18 @@ export default function ModelFitRecommendationPanel({
                     </ul>
                   </details>
                 )}
+                {(recommendation.excludedModels?.length || 0) > 0 && (
+                  <details className="mt-3 text-xs">
+                    <summary className="cursor-pointer font-medium">Excluded incompatible models</summary>
+                    <ul className="mt-1 space-y-1.5">
+                      {recommendation.excludedModels?.map(entry => (
+                        <li key={entry.model}>
+                          <span className="font-medium">{entry.model}</span>: {entry.reason}
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
                 <p className="mt-3 text-xs text-sky-800 dark:text-sky-200">{recommendation.disclaimer}</p>
                 {onUseSuggestion && (
                   <p className="mt-2 text-xs font-medium text-sky-900 dark:text-sky-100">

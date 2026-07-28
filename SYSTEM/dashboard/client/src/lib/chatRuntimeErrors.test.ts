@@ -61,6 +61,18 @@ test('summarizeAgentChatFailure explains incomplete tool turns', () => {
   assert(/verify the requested results/i.test(message), `Expected verification guidance: ${message}`)
 })
 
+test('summarizeAgentChatFailure replaces unsupported web-search logs with model remediation', () => {
+  const raw = `[state-migrations] Legacy state migration warnings
+[openai-responses] error provider=openai model=o3-mini status=400
+400 Tool 'web_search_preview' is not supported with o3-mini.
+[diagnostic] lane task error`
+  const message = summarizeAgentChatFailure(raw, { agentId: 'double-agent' })
+  assert(/Model compatibility error/i.test(message), `Unexpected message: ${message}`)
+  assert(message.includes('`openai/o3-mini`'), `Expected exact model: ${message}`)
+  assert(message.includes('/agents?agent=double-agent&action=edit'), `Expected agent edit link: ${message}`)
+  assert(!message.includes('[state-migrations]'), 'Expected raw runtime logs to be hidden')
+})
+
 test('formatAgentWorkStatus distinguishes long tool-enabled requests', () => {
   assert(formatAgentWorkStatus(5_000) === 'Agent is working...', 'Expected concise initial status')
   assert(/45s elapsed/.test(formatAgentWorkStatus(45_000)), 'Expected seconds elapsed')

@@ -37,10 +37,9 @@ import { emptyPluginRelationships, fetchPluginRelationships, type PluginRelation
 import ModelFitRecommendationPanel from '../components/ModelFitRecommendationPanel'
 import {
   buildAgentModelFitDescription,
-  MODEL_FIT_AUTO_STORAGE_KEY,
-  readModelFitAutoApply,
+  normalizeAgentModelFitState,
   requestModelFit,
-  storeModelFitPreference,
+  syncAgentModelFitIdentity,
   type ModelFitPreference,
   type ModelFitRecommendation,
 } from '../lib/modelFit'
@@ -2721,9 +2720,7 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
   const [modelRecommendation, setModelRecommendation] = React.useState<ModelFitRecommendation | null>(null)
   const [modelRecommendationLoading, setModelRecommendationLoading] = React.useState(false)
   const [modelRecommendationError, setModelRecommendationError] = React.useState<string | null>(null)
-  const [autoModelSelection, setAutoModelSelection] = React.useState(() => (
-    readModelFitAutoApply(typeof window === 'undefined' ? undefined : window.localStorage)
-  ))
+  const [autoModelSelection, setAutoModelSelection] = React.useState(false)
   const selectedModelDeprecation = formatOpenAiDeprecationNotice(model)
 
   const syncIdentityModels = React.useCallback((content: string, nextModel: string, nextBackupModel: string) => {
@@ -2779,6 +2776,7 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
       fetchModelsWithByok(),
     ])
       .then(([configData, identityData, modelsData]) => {
+        const persistedModelFit = normalizeAgentModelFitState(identityData?.modelFit)
         setIdentity(configData.identity || '')
         setSoul(configData.soul || '')
         setTools(configData.tools || '')
@@ -2786,6 +2784,8 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
         manualModelRef.current = loadedModel
         setModel(loadedModel)
         setBackupModel(identityData?.liveConfig?.backupModel || identityData?.metadata?.backupModel || '')
+        setModelPreference(persistedModelFit.preference)
+        setAutoModelSelection(persistedModelFit.selectionMode === 'auto')
         setAvailableModels(Array.isArray(modelsData.models) ? modelsData.models : [])
         setModelsByProvider(modelsData.modelsByProvider || {})
         setLoading(false)
@@ -2894,11 +2894,6 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
       setModel(manualModelRef.current || modelRecommendation?.recommendedModel || model)
     }
     setAutoModelSelection(enabled)
-    storeModelFitPreference(
-      MODEL_FIT_AUTO_STORAGE_KEY,
-      enabled,
-      typeof window === 'undefined' ? undefined : window.localStorage,
-    )
   }, [model, modelRecommendation?.recommendedModel])
 
   const handleSave = async () => {
@@ -2910,12 +2905,21 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
     setSaving(true)
     setError(null)
     try {
-      const nextIdentity = model ? syncIdentityModels(identity, model, backupModel) : identity
+      const nextIdentity = syncAgentModelFitIdentity(
+        model ? syncIdentityModels(identity, model, backupModel) : identity,
+        autoModelSelection ? 'auto' : 'manual',
+        modelPreference,
+      )
       if (model) {
         const modelRes = await fetch(`/api/agents/${agent.id}/model`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ model, backupModel }),
+          body: JSON.stringify({
+            model,
+            backupModel,
+            modelSelection: autoModelSelection ? 'auto' : 'manual',
+            modelPreference,
+          }),
         })
         if (!modelRes.ok) {
           const data = await modelRes.json().catch(() => ({}))
@@ -2945,10 +2949,9 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30 p-4" onClick={onClose}>
       <div
-        className="flex max-h-[90vh] min-w-0 flex-col rounded-xl bg-white shadow-2xl dark:bg-gray-800"
-        style={{ width: 'min(48rem, calc(100vw - 2rem))' }}
+        className="flex max-h-[calc(100dvh-2rem)] w-full min-w-0 max-w-3xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl dark:bg-gray-800"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}

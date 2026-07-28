@@ -18,13 +18,27 @@ export interface ModelFitCandidate {
   caveats: string[]
 }
 
+export interface ModelFitExclusion {
+  model: string
+  reason: string
+}
+
 export interface ModelFitRecommendation {
   recommendedModel: string | null
   candidates: ModelFitCandidate[]
+  excludedModels: ModelFitExclusion[]
   confidence: 'low' | 'medium'
   requirements: ModelFitRequirements
   summary: string
   disclaimer: string
+}
+
+function getKnownRuntimeIncompatibility(model: string): string | null {
+  const value = model.toLowerCase()
+  if (/^openai\/(?:o1|o1-mini|o3|o3-mini)$/.test(value)) {
+    return 'Excluded from automatic selection because this OpenClaw runtime attaches web search, which this model alias rejects.'
+  }
+  return null
 }
 
 const REQUIREMENT_PATTERNS: Array<{
@@ -185,32 +199,40 @@ export function recommendModelsForDescription(args: {
       .map(model => String(model || '').trim())
       .filter(Boolean),
   )]
+  const excludedModels = models
+    .map(model => ({ model, reason: getKnownRuntimeIncompatibility(model) }))
+    .filter((entry): entry is ModelFitExclusion => Boolean(entry.reason))
+  const compatibleModels = models.filter(model => !getKnownRuntimeIncompatibility(model))
   const requirements = detectRequirements(description)
-  const candidates = models
+  const candidates = compatibleModels
     .map(model => scoreCandidate(model, requirements, preference))
     .sort((left, right) => right.score - left.score || left.model.localeCompare(right.model))
     .slice(0, Math.max(1, Math.min(args.limit || 3, 10)))
   const requirementCount = Object.values(requirements).filter(Boolean).length
   const confidence = description.split(/\s+/).filter(Boolean).length >= 8
     && requirementCount > 0
-    && models.length > 1
+    && compatibleModels.length > 1
     ? 'medium'
     : 'low'
 
   return {
     recommendedModel: candidates[0]?.model || null,
     candidates,
+    excludedModels,
     confidence,
     requirements,
     summary: candidates[0]
-      ? `${candidates[0].model} is the strongest ${preference} fit among ${models.length} currently available model${models.length === 1 ? '' : 's'}.`
-      : 'No runtime-visible models are available to compare.',
-    disclaimer: 'This is an advisory name-based fit estimate, not a quality or cost measurement. Verify required capabilities and pricing, then evaluate representative work before applying a model change.',
+      ? `${candidates[0].model} is the strongest ${preference} fit among ${compatibleModels.length} compatible runtime-visible model${compatibleModels.length === 1 ? '' : 's'}.`
+      : excludedModels.length > 0
+        ? 'No known tool-compatible runtime-visible models are available for automatic selection.'
+        : 'No runtime-visible models are available to compare.',
+    disclaimer: 'This is an advisory name-based fit estimate with known runtime incompatibilities excluded. It is not a quality or cost measurement. Verify required capabilities and pricing, then evaluate representative work before applying a model change.',
   }
 }
 
 export const __test = {
   classifyTier,
   detectRequirements,
+  getKnownRuntimeIncompatibility,
   isLocalModel,
 }

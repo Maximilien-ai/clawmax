@@ -1,11 +1,11 @@
 import assert from 'assert'
 import {
   buildAgentModelFitDescription,
-  MODEL_FIT_AUTO_STORAGE_KEY,
   MODEL_FIT_DETAILS_STORAGE_KEY,
-  readModelFitAutoApply,
+  normalizeAgentModelFitState,
   readModelFitDetailsExpanded,
   storeModelFitPreference,
+  syncAgentModelFitIdentity,
 } from './modelFit'
 
 const description = buildAgentModelFitDescription({
@@ -36,10 +36,29 @@ const storage = {
   setItem: (key: string, value: string) => values.set(key, value),
 }
 assert.strictEqual(readModelFitDetailsExpanded(storage), true, 'suggestion details should start expanded')
-assert.strictEqual(readModelFitAutoApply(storage), false, 'automatic model application must be opt-in')
 storeModelFitPreference(MODEL_FIT_DETAILS_STORAGE_KEY, false, storage)
-storeModelFitPreference(MODEL_FIT_AUTO_STORAGE_KEY, true, storage)
 assert.strictEqual(readModelFitDetailsExpanded(storage), false, 'detail disclosure should persist across views')
-assert.strictEqual(readModelFitAutoApply(storage), true, 'automatic application preference should persist across views')
+assert.deepStrictEqual(
+  normalizeAgentModelFitState({ selectionMode: 'auto', preference: 'cost' }),
+  { selectionMode: 'auto', preference: 'cost' },
+  'agent-specific automatic selection settings must normalize without losing the priority',
+)
+assert.deepStrictEqual(
+  normalizeAgentModelFitState({ selectionMode: 'invalid', preference: 'invalid' }),
+  { selectionMode: 'manual', preference: 'balanced' },
+  'invalid or missing settings must use conservative defaults',
+)
+const identity = syncAgentModelFitIdentity(
+  '# Identity\n\n- **Model:** openai/gpt-5.5\n\n## Creation Metadata\n\n- **Model:** original/model\n',
+  'auto',
+  'cost',
+)
+assert(identity.includes('- **Model Selection:** auto'), 'selection mode must persist in the runtime identity section')
+assert(identity.includes('- **Model Priority:** cost'), 'selection priority must persist in the runtime identity section')
+assert(identity.indexOf('Model Selection') < identity.indexOf('## Creation Metadata'), 'selection settings must not be stored as creation metadata')
+const updatedIdentity = syncAgentModelFitIdentity(identity, 'manual', 'quality')
+assert.strictEqual((updatedIdentity.match(/\*\*Model Selection:\*\*/g) || []).length, 1, 'selection mode must update without duplication')
+assert(updatedIdentity.includes('- **Model Selection:** manual'), 'selection mode must be replaceable')
+assert(updatedIdentity.includes('- **Model Priority:** quality'), 'selection priority must be replaceable')
 
-console.log('modelFit.test.ts: 7 tests passed')
+console.log('modelFit.test.ts: 13 tests passed')

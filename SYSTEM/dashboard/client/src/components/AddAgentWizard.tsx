@@ -11,10 +11,7 @@ import PromptQualityPanel from './PromptQualityPanel'
 import ModelFitRecommendationPanel, { ModelFitPreferenceControl } from './ModelFitRecommendationPanel'
 import {
   buildAgentModelFitDescription,
-  MODEL_FIT_AUTO_STORAGE_KEY,
-  readModelFitAutoApply,
   requestModelFit,
-  storeModelFitPreference,
   type ModelFitPreference,
   type ModelFitRecommendation,
 } from '../lib/modelFit'
@@ -125,9 +122,7 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
   const [generatedFiles, setGeneratedFiles] = useState<GeneratedFiles | null>(null)
   const [modelRecommendation, setModelRecommendation] = useState<ModelFitRecommendation | null>(null)
   const [modelPreference, setModelPreference] = useState<ModelFitPreference>('balanced')
-  const [autoModelSelection, setAutoModelSelection] = useState(() => (
-    readModelFitAutoApply(typeof window === 'undefined' ? undefined : window.localStorage)
-  ))
+  const [autoModelSelection, setAutoModelSelection] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [genError, setGenError] = useState<string | null>(null)
   const [showAiPromptEditor, setShowAiPromptEditor] = useState(false)
@@ -326,11 +321,6 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
       set('model', manualModelRef.current || modelRecommendation?.recommendedModel || form.model)
     }
     setAutoModelSelection(enabled)
-    storeModelFitPreference(
-      MODEL_FIT_AUTO_STORAGE_KEY,
-      enabled,
-      typeof window === 'undefined' ? undefined : window.localStorage,
-    )
   }
 
   useEffect(() => {
@@ -506,6 +496,8 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
     const body: Record<string, unknown> = {
       name: form.name,
       model: form.model,
+      modelSelection: autoModelSelection ? 'auto' : 'manual',
+      modelPreference,
     }
     if (form.backupModel.trim()) body.backupModel = form.backupModel
     if (form.cloneFrom) body.cloneFrom = form.cloneFrom

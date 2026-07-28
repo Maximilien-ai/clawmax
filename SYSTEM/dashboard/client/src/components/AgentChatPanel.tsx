@@ -640,7 +640,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
               // Notify parent of successful completion
               onSuccess?.()
             } else if (data.type === 'error') {
-              const friendly = summarizeAgentChatFailure(data.data || 'Chat error')
+              const friendly = summarizeAgentChatFailure(data.data || 'Chat error', { agentId })
               setError(friendly)
               setMessages(prev => prev.map(m =>
                 m.id === assistantId
@@ -658,7 +658,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
       if (e.name === 'AbortError') {
         setError('Request cancelled')
       } else {
-        setError(summarizeAgentChatFailure(String(e)))
+        setError(summarizeAgentChatFailure(String(e), { agentId }))
       }
       if (!messageText) {
         setInput(textToSend)
@@ -669,7 +669,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
       if (assistantId) {
         setMessages(prev => prev.map(m =>
           m.id === assistantId
-            ? { ...m, content: summarizeAgentChatFailure(String(e)) }
+            ? { ...m, content: summarizeAgentChatFailure(String(e), { agentId }) }
             : m
         ))
       }

@@ -11,6 +11,9 @@ export interface AgentModelConfigUpdateResult {
   backupModel?: string
 }
 
+export type AgentModelSelectionMode = 'auto' | 'manual'
+export type AgentModelPreference = 'quality' | 'balanced' | 'cost'
+
 export function normalizeAgentModelInput(model: string): string {
   const trimmed = model.trim()
   if (!trimmed) return ''
@@ -438,6 +441,35 @@ export function upsertAgentBackupModelInIdentityContent(content: string, backupM
   }
 
   return joinIdentityRuntimeSection(`${runtime.trimEnd()}\n- **Backup Model:** ${nextBackupModel}\n`, suffix)
+}
+
+export function upsertAgentModelFitInIdentityContent(
+  content: string,
+  selectionMode: AgentModelSelectionMode | undefined,
+  preference: AgentModelPreference | undefined,
+): string {
+  const { runtime, suffix } = splitIdentityRuntimeSection(content)
+  let nextRuntime = runtime
+  const upsertField = (label: 'Model Selection' | 'Model Priority', value: string) => {
+    const pattern = new RegExp(`^[-*]\\s+\\*\\*${label}:\\*\\*\\s*.*$`, 'm')
+    if (pattern.test(nextRuntime)) {
+      nextRuntime = nextRuntime.replace(pattern, `- **${label}:** ${value}`)
+      return
+    }
+    const backupPattern = /^[-*]\s+\*\*Backup Model:\*\*\s*.*$/m
+    const modelPattern = /^[-*]\s+\*\*Model:\*\*\s*.*$/m
+    if (backupPattern.test(nextRuntime)) {
+      nextRuntime = nextRuntime.replace(backupPattern, match => `${match}\n- **${label}:** ${value}`)
+    } else if (modelPattern.test(nextRuntime)) {
+      nextRuntime = nextRuntime.replace(modelPattern, match => `${match}\n- **${label}:** ${value}`)
+    } else {
+      nextRuntime = `${nextRuntime.trimEnd()}\n- **${label}:** ${value}\n`
+    }
+  }
+
+  if (selectionMode) upsertField('Model Selection', selectionMode)
+  if (preference) upsertField('Model Priority', preference)
+  return joinIdentityRuntimeSection(nextRuntime, suffix)
 }
 
 export function resetAgentSessionsForModelChange(homeDir: string, agentId: string): { ok: boolean; error?: string } {

@@ -1,7 +1,18 @@
-export function summarizeAgentChatFailure(message: string): string {
+export function summarizeAgentChatFailure(message: string, options?: { agentId?: string }): string {
   const text = String(message || '').trim()
   if (!text) return 'No reply from agent.'
   if (/\[Edit agent model\]\(\/agents\?agent=/i.test(text)) return text
+  const unsupportedWebSearch = text.match(/Tool ['"]web_search_preview['"] is not supported with ([a-z0-9._-]+)/i)
+  if (unsupportedWebSearch) {
+    const rawModel = unsupportedWebSearch[1].replace(/[.,;:]+$/, '')
+    const model = /\bprovider=openai\b/i.test(text) && !rawModel.includes('/')
+      ? `openai/${rawModel}`
+      : rawModel
+    const editLink = options?.agentId
+      ? `/agents?agent=${encodeURIComponent(options.agentId)}&action=edit`
+      : '/agents'
+    return `Model compatibility error: \`${model}\` cannot use the web-search tool required by this OpenClaw runtime. Choose a different suggested model or a known tool-compatible model, save it, and retry. [Edit agent model](${editLink})`
+  }
   if (/FsSafeError: directory changed during operation/i.test(text)) return 'The agent runtime changed files while this chat was running and the request could not complete. Retry once. If it keeps happening, restart the runtime or disable unstable runtime plugins before retrying.'
   if (/unsupported model|Unknown model:/i.test(text)) return 'This agent is configured with a model that the current runtime does not support. Choose a different model for the agent and try again.'
   if (/No API key found for provider/i.test(text)) return 'No model provider credentials are configured for this chat. Add the missing API key or auth profile in BYOK, runtime settings, or the agent auth store and retry.'
