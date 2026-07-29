@@ -60,6 +60,7 @@ type Props = {
 type PluginCollectionTab = 'active' | 'archived' | 'suggested'
 type PluginViewMode = 'grid' | 'detail' | 'table' | 'graph'
 const OPTIMIZE_AI_TUNING_EXPANDED_STORAGE_KEY = 'clawmax-optimize-ai-tuning-expanded'
+const GUARDRAIL_AI_CONFIG_EXPANDED_STORAGE_KEY = 'clawmax-guardrail-ai-config-expanded'
 
 function collectRecentRuntimeErrors(timeoutMs = 2500): Promise<string[]> {
   return new Promise((resolve) => {
@@ -344,6 +345,11 @@ function PluginFormModal({
     return window.localStorage.getItem(OPTIMIZE_AI_TUNING_EXPANDED_STORAGE_KEY) !== 'false'
   })
   const isOptimize = plugin.objectKind === 'optimization-plan'
+  const isGuardrail = usesLegacyPluginAdapter(plugin, 'guardrail')
+  const [showGuardrailAssistant, setShowGuardrailAssistant] = useState(() => {
+    if (typeof window === 'undefined') return true
+    return window.localStorage.getItem(GUARDRAIL_AI_CONFIG_EXPANDED_STORAGE_KEY) !== 'false'
+  })
 
   useEffect(() => {
     setForm(draft)
@@ -357,6 +363,11 @@ function PluginFormModal({
     if (!isOptimize || typeof window === 'undefined') return
     window.localStorage.setItem(OPTIMIZE_AI_TUNING_EXPANDED_STORAGE_KEY, String(showOptimizeAssistant))
   }, [isOptimize, showOptimizeAssistant])
+
+  useEffect(() => {
+    if (!isGuardrail || typeof window === 'undefined') return
+    window.localStorage.setItem(GUARDRAIL_AI_CONFIG_EXPANDED_STORAGE_KEY, String(showGuardrailAssistant))
+  }, [isGuardrail, showGuardrailAssistant])
 
   const tags = typeof form.tags?.join === 'function' ? form.tags.join(', ') : ''
   const allowedSkills = isGuardrailRecord(form)
@@ -403,6 +414,73 @@ Preserve existing values when the request does not ask to change them.`,
       setAssistantChanges(result.changes)
     } catch (error: any) {
       setAssistantError(error?.message || 'Could not tune this plan with AI.')
+    } finally {
+      setAssistantBusy(false)
+    }
+  }
+  const applyAiGuardrailChanges = async () => {
+    const prompt = assistantPrompt.trim()
+    if (!prompt || !isGuardrail) return
+    setAssistantBusy(true)
+    setAssistantError('')
+    try {
+      const expanded = await expandPromptWithAI(
+        prompt,
+        'agent',
+        'text',
+        `Rewrite this request as one concise Guardrail configuration statement.
+Mention only actions that must be blocked: outbound email, public web access, or external document sharing.
+Include exact agent and workflow names from the request.
+Include explicitly allowed skill IDs when provided.
+Do not mention a blocked action when the user wants it allowed.`,
+      )
+      const generated = buildPluginDraftFromPrompt(plugin, expanded)
+      if (!isGuardrailRecord(generated)) throw new Error('The assistant did not return a Guardrail configuration.')
+      const targetText = `${prompt}\n${expanded}`.toLowerCase()
+      const matchedAgents = context.agents.filter((agent) => (
+        targetText.includes(agent.id.toLowerCase()) || targetText.includes(agent.name.toLowerCase())
+      )).map((agent) => agent.id)
+      const matchedWorkflows = context.workflows.filter((workflow) => (
+        targetText.includes(workflow.id.toLowerCase()) || targetText.includes(workflow.name.toLowerCase())
+      )).map((workflow) => workflow.id)
+      const allowedSkillsMatch = expanded.match(/(?:allowed|approved|permitted)\s+skills?(?:\s+are|\s*:)?\s*([^\n.]+)/i)
+      const matchedSkills = allowedSkillsMatch
+        ? allowedSkillsMatch[1]
+            .split(/,|\band\b/i)
+            .map((skill) => skill.trim().replace(/^[`"' ]+|[`"' ]+$/g, ''))
+            .filter((skill) => /^[a-z0-9][a-z0-9._-]*$/i.test(skill))
+        : []
+      const current = isGuardrailRecord(form) ? form : null
+      const next: Partial<PluginRecord> = {
+        ...form,
+        kind: 'guardrail',
+        description: prompt,
+        enabled: true,
+        tags: Array.from(new Set([...(current?.tags || []), ...generated.tags])),
+        controls: {
+          ...generated.controls,
+          allowedSkills: matchedSkills.length > 0 ? matchedSkills : current?.controls.allowedSkills || [],
+        },
+        appliesTo: {
+          agents: matchedAgents.length > 0 ? matchedAgents : current?.appliesTo.agents || [],
+          workflows: matchedWorkflows.length > 0 ? matchedWorkflows : current?.appliesTo.workflows || [],
+          groups: current?.appliesTo.groups || [],
+          communities: current?.appliesTo.communities || [],
+        },
+      }
+      const changes = [
+        generated.controls.blockEmail ? 'Block outbound email' : 'Allow outbound email',
+        generated.controls.blockWeb ? 'Block public web access' : 'Allow public web access',
+        generated.controls.blockExternalDocs ? 'Block external document sharing' : 'Allow external document sharing',
+        ...(matchedAgents.length > 0 ? [`Assign ${matchedAgents.length} agent${matchedAgents.length === 1 ? '' : 's'}`] : []),
+        ...(matchedWorkflows.length > 0 ? [`Assign ${matchedWorkflows.length} workflow${matchedWorkflows.length === 1 ? '' : 's'}`] : []),
+        ...(matchedSkills.length > 0 ? [`Allow ${matchedSkills.length} approved skill${matchedSkills.length === 1 ? '' : 's'}`] : []),
+      ]
+      setAssistantUndo(form)
+      setForm(next)
+      setAssistantChanges(changes)
+    } catch (error: any) {
+      setAssistantError(error?.message || 'Could not configure this Guardrail with AI.')
     } finally {
       setAssistantBusy(false)
     }
@@ -484,6 +562,68 @@ Preserve existing values when the request does not ask to change them.`,
               )}
             </section>
           )}
+          {isGuardrail && (
+            <section className="rounded-lg border border-amber-200 bg-amber-50/60 dark:border-amber-900/50 dark:bg-amber-950/20 lg:col-span-2">
+              <button
+                type="button"
+                onClick={() => setShowGuardrailAssistant((current) => !current)}
+                className="flex w-full min-w-0 items-center justify-between gap-3 p-4 text-left"
+                aria-expanded={showGuardrailAssistant}
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <ProductIconCell iconName="ai" label="AI configure" size="sm" className="shrink-0 border-amber-200 bg-white text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300" />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold text-amber-950 dark:text-amber-100">Configure with AI</span>
+                    <span className="block text-xs text-amber-800/80 dark:text-amber-200/80">Describe what must be protected and which agents or workflows it covers. Review every change before saving.</span>
+                  </span>
+                </span>
+                <span className="shrink-0 text-sm font-semibold text-amber-700 dark:text-amber-300">{showGuardrailAssistant ? '▾' : '▸'}</span>
+              </button>
+              {showGuardrailAssistant && (
+                <div className="border-t border-amber-200 px-4 pb-4 pt-3 dark:border-amber-900">
+                  <textarea
+                    value={assistantPrompt}
+                    onChange={(event) => setAssistantPrompt(event.target.value)}
+                    rows={4}
+                    placeholder="Keep the Research workflow from sending email or sharing documents externally. Allow public web research and apply it to the Research workflow."
+                    className="w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 dark:border-amber-800 dark:bg-gray-900 dark:text-gray-100"
+                  />
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void applyAiGuardrailChanges()}
+                      disabled={!assistantPrompt.trim() || assistantBusy}
+                      className="inline-flex items-center gap-2 rounded-lg bg-amber-600 px-3 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {assistantBusy ? 'Configuring...' : 'Configure Guardrail'}
+                    </button>
+                    {assistantUndo && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setForm(assistantUndo)
+                          setAssistantUndo(null)
+                          setAssistantChanges([])
+                        }}
+                        className="rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm font-medium text-amber-800 hover:bg-amber-50 dark:border-amber-800 dark:bg-gray-900 dark:text-amber-300"
+                      >
+                        Undo
+                      </button>
+                    )}
+                  </div>
+                  {assistantError && <p className="mt-3 text-xs text-red-700 dark:text-red-300">{assistantError}</p>}
+                  {assistantChanges.length > 0 && (
+                    <div className="mt-3 border-t border-amber-200 pt-3 dark:border-amber-900">
+                      <div className="text-xs font-semibold text-amber-900 dark:text-amber-200">Draft updated</div>
+                      <ul className="mt-1 grid gap-1 text-xs text-amber-800 dark:text-amber-200 sm:grid-cols-2">
+                        {assistantChanges.map((change) => <li key={change}>• {change}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+            </section>
+          )}
           <div className="min-w-0 space-y-4 lg:sticky lg:top-5 lg:self-start">
             <label className="block">
               <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Name</span>
@@ -523,26 +663,17 @@ Preserve existing values when the request does not ask to change them.`,
 
           {usesLegacyPluginAdapter(plugin, 'guardrail') ? (
             <div className="space-y-4">
-              <label className="block">
-                <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Allowed skills</span>
-                <input
-                  value={allowedSkills}
-                  onChange={(e) => setForm((current) => ({
-                    ...current,
-                    kind: 'guardrail',
-                    controls: {
-                      blockEmail: current.kind === 'guardrail' ? current.controls?.blockEmail || false : false,
-                      blockWeb: current.kind === 'guardrail' ? current.controls?.blockWeb || false : false,
-                      blockExternalDocs: current.kind === 'guardrail' ? current.controls?.blockExternalDocs || false : false,
-                      allowedSkills: parseCommaList(e.target.value),
-                    },
-                  }))}
-                  placeholder="github, workspace-ls"
-                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
-                />
-              </label>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                <label className="rounded-lg border border-gray-200 px-3 py-2 text-sm dark:border-gray-700">
+              <section className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+                <div className="mb-3">
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">External action protections</h3>
+                  <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Checked actions are blocked for every assigned target.</p>
+                </div>
+                <div className="grid grid-cols-1 gap-2">
+                <label className={`flex items-start gap-3 rounded-lg border px-3 py-3 text-sm transition-colors ${
+                  form.kind === 'guardrail' && form.controls?.blockEmail
+                    ? 'border-amber-300 bg-amber-50 text-amber-950 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-100'
+                    : 'border-gray-200 text-gray-700 dark:border-gray-700 dark:text-gray-300'
+                }`}>
                   <input
                     type="checkbox"
                     checked={form.kind === 'guardrail' ? !!form.controls?.blockEmail : false}
@@ -556,9 +687,15 @@ Preserve existing values when the request does not ask to change them.`,
                         allowedSkills: current.kind === 'guardrail' ? current.controls?.allowedSkills || [] : [],
                       },
                     }))}
-                  />{' '}Block email
+                    className="mt-0.5"
+                  />
+                  <span><span className="block font-medium">Block outbound email</span><span className="mt-0.5 block text-xs opacity-70">Prevents assigned agents and workflows from sending email.</span></span>
                 </label>
-                <label className="rounded-lg border border-gray-200 px-3 py-2 text-sm dark:border-gray-700">
+                <label className={`flex items-start gap-3 rounded-lg border px-3 py-3 text-sm transition-colors ${
+                  form.kind === 'guardrail' && form.controls?.blockWeb
+                    ? 'border-amber-300 bg-amber-50 text-amber-950 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-100'
+                    : 'border-gray-200 text-gray-700 dark:border-gray-700 dark:text-gray-300'
+                }`}>
                   <input
                     type="checkbox"
                     checked={form.kind === 'guardrail' ? !!form.controls?.blockWeb : false}
@@ -572,9 +709,15 @@ Preserve existing values when the request does not ask to change them.`,
                         allowedSkills: current.kind === 'guardrail' ? current.controls?.allowedSkills || [] : [],
                       },
                     }))}
-                  />{' '}Block web
+                    className="mt-0.5"
+                  />
+                  <span><span className="block font-medium">Block public web access</span><span className="mt-0.5 block text-xs opacity-70">Keeps assigned work from opening public internet resources.</span></span>
                 </label>
-                <label className="rounded-lg border border-gray-200 px-3 py-2 text-sm dark:border-gray-700">
+                <label className={`flex items-start gap-3 rounded-lg border px-3 py-3 text-sm transition-colors ${
+                  form.kind === 'guardrail' && form.controls?.blockExternalDocs
+                    ? 'border-amber-300 bg-amber-50 text-amber-950 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-100'
+                    : 'border-gray-200 text-gray-700 dark:border-gray-700 dark:text-gray-300'
+                }`}>
                   <input
                     type="checkbox"
                     checked={form.kind === 'guardrail' ? !!form.controls?.blockExternalDocs : false}
@@ -588,10 +731,40 @@ Preserve existing values when the request does not ask to change them.`,
                         allowedSkills: current.kind === 'guardrail' ? current.controls?.allowedSkills || [] : [],
                       },
                     }))}
-                  />{' '}Block external docs
+                    className="mt-0.5"
+                  />
+                  <span><span className="block font-medium">Block external document sharing</span><span className="mt-0.5 block text-xs opacity-70">Keeps generated and workspace documents inside ClawMax.</span></span>
                 </label>
-              </div>
-              <label className="block">
+                </div>
+              </section>
+              <section className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+                <h3 className="mb-3 text-sm font-semibold text-gray-900 dark:text-gray-100">Approved skills</h3>
+                <label className="block">
+                <span className="mb-1 block text-xs text-gray-500 dark:text-gray-400">Only list skills that this Guardrail explicitly permits.</span>
+                <input
+                  value={allowedSkills}
+                  onChange={(e) => setForm((current) => ({
+                    ...current,
+                    kind: 'guardrail',
+                    controls: {
+                      blockEmail: current.kind === 'guardrail' ? current.controls?.blockEmail || false : false,
+                      blockWeb: current.kind === 'guardrail' ? current.controls?.blockWeb || false : false,
+                      blockExternalDocs: current.kind === 'guardrail' ? current.controls?.blockExternalDocs || false : false,
+                      allowedSkills: parseCommaList(e.target.value),
+                    },
+                  }))}
+                  placeholder="workspace-ls, web-search"
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                />
+                </label>
+              </section>
+              <section className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+                <div className="mb-3">
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Assignments</h3>
+                  <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Select the actual agents and workflows protected by this Guardrail.</p>
+                </div>
+                <div className="grid gap-4 xl:grid-cols-2">
+                <label className="block">
                 <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Agents</span>
                 <select
                   multiple
@@ -610,6 +783,7 @@ Preserve existing values when the request does not ask to change them.`,
                 >
                   {context.agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name}</option>)}
                 </select>
+                <span className="mt-1 block text-xs text-gray-500">{form.kind === 'guardrail' ? form.appliesTo?.agents.length || 0 : 0} selected</span>
               </label>
               <label className="block">
                 <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Workflows</span>
@@ -630,7 +804,10 @@ Preserve existing values when the request does not ask to change them.`,
                 >
                   {context.workflows.map((workflow) => <option key={workflow.id} value={workflow.id}>{workflow.name}</option>)}
                 </select>
+                <span className="mt-1 block text-xs text-gray-500">{form.kind === 'guardrail' ? form.appliesTo?.workflows.length || 0 : 0} selected</span>
               </label>
+                </div>
+              </section>
             </div>
           ) : usesLegacyPluginAdapter(plugin, 'eval') ? (
             <div className="space-y-4">
@@ -1502,6 +1679,229 @@ function truncateGraphLabel(value: string, maximum = 28): string {
   return value.length > maximum ? `${value.slice(0, maximum - 1)}…` : value
 }
 
+function getGuardrailProtections(item: PluginRecord): string[] {
+  if (!isGuardrailRecord(item)) return []
+  const protections: string[] = []
+  if (item.controls.blockEmail) protections.push('Outbound email')
+  if (item.controls.blockWeb) protections.push('Public web')
+  if (item.controls.blockExternalDocs) protections.push('External documents')
+  if (item.controls.allowedSkills.length > 0) protections.push('Approved skills')
+  return protections.length > 0 ? protections : ['Review required']
+}
+
+function GuardrailRelationshipGraph({
+  items,
+  context,
+  onOpen,
+  selectedId,
+}: {
+  items: PluginRecord[]
+  context: PluginWorkspaceContext
+  onOpen: (id: string) => void
+  selectedId?: string | null
+}) {
+  const [hoveredId, setHoveredId] = useState<string | null>(null)
+  const guardrails = items.filter(isGuardrailRecord)
+  const showingSuggestions = guardrails.length > 0 && guardrails.every((item) => item.id.startsWith('suggested:'))
+  const emphasizedId = hoveredId || selectedId
+  const emphasizedGuardrail = emphasizedId ? guardrails.find((item) => item.id === emphasizedId) || null : null
+  const emphasizedProtections = new Set(emphasizedGuardrail ? getGuardrailProtections(emphasizedGuardrail) : [])
+  const resolveTarget = (kind: string, id: string) => {
+    if (kind === 'agent') return context.agents.find((entry) => entry.id === id)?.name || id
+    if (kind === 'workflow') return context.workflows.find((entry) => entry.id === id)?.name || id
+    return id
+  }
+  const targetsFor = (item: typeof guardrails[number]) => {
+    const assigned = [
+      ...item.appliesTo.agents.map((id) => ({ kind: 'agent', id, pending: false })),
+      ...item.appliesTo.workflows.map((id) => ({ kind: 'workflow', id, pending: false })),
+      ...item.appliesTo.groups.map((id) => ({ kind: 'group', id, pending: false })),
+      ...item.appliesTo.communities.map((id) => ({ kind: 'community', id, pending: false })),
+    ]
+    if (assigned.length > 0) return assigned
+    const supportsAgents = item.tags.includes('agent')
+    const supportsWorkflows = item.tags.includes('workflow')
+    if (supportsAgents && !supportsWorkflows) return [{ kind: 'agent', id: 'Select agent', pending: true }]
+    if (supportsWorkflows && !supportsAgents) return [{ kind: 'workflow', id: 'Select workflow', pending: true }]
+    return [
+      { kind: 'agent', id: 'Select agent', pending: true },
+      { kind: 'workflow', id: 'Select workflow', pending: true },
+    ]
+  }
+  const protectionLabels = Array.from(new Set(guardrails.flatMap(getGuardrailProtections))).sort()
+  const targetEntries = Array.from(new Map(guardrails.flatMap((item) => (
+    targetsFor(item).map((target) => [`${target.kind}:${target.id}`, target] as const)
+  ))).values())
+  const emphasizedTargetKeys = new Set(emphasizedGuardrail
+    ? targetsFor(emphasizedGuardrail).map((target) => `${target.kind}:${target.id}`)
+    : [])
+  const canvasHeight = Math.max(420, guardrails.length * 72 + 80, protectionLabels.length * 62 + 80, targetEntries.length * 62 + 80)
+  const distribute = (count: number) => count <= 1
+    ? [canvasHeight / 2]
+    : Array.from({ length: count }, (_, index) => 54 + (index * (canvasHeight - 108)) / (count - 1))
+  const protectionY = new Map(protectionLabels.map((label, index) => [label, distribute(protectionLabels.length)[index]]))
+  const guardrailY = new Map(guardrails.map((item, index) => [item.id, distribute(guardrails.length)[index]]))
+  const targetY = new Map(targetEntries.map((target, index) => [`${target.kind}:${target.id}`, distribute(targetEntries.length)[index]]))
+  const centerWidth = 250
+  const sideWidth = 190
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900/40">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Guardrail relationships</h3>
+          <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+            {emphasizedGuardrail
+              ? `${emphasizedGuardrail.name} is highlighted with the protections it applies and the people or work it covers.`
+              : showingSuggestions
+                ? `${guardrails.length} suggested Guardrails preview their protections. Hover to inspect one before assigning agents or workflows.`
+                : 'Protections connect to Guardrails and their assigned agents or workflows. Hover to preview; click for full details.'}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-3 text-xs text-gray-500 dark:text-gray-400">
+          <span><span className="mr-1 inline-block h-2 w-2 rounded-full bg-amber-400" />Protects</span>
+          <span><span className="mr-1 inline-block h-2 w-2 rounded-full bg-sky-500" />Guardrail</span>
+          <span><span className="mr-1 inline-block h-2 w-2 rounded-full bg-emerald-500" />Applies to</span>
+        </div>
+      </div>
+      <div className="max-w-full overflow-x-auto">
+        {guardrails.length === 0 ? (
+          <div className="flex min-h-52 items-center justify-center px-6 py-10 text-center text-sm text-gray-500 dark:text-gray-400">
+            No Guardrails match the current search and filters.
+          </div>
+        ) : (
+          <svg
+            role="img"
+            aria-label="Guardrail relationship graph"
+            width="100%"
+            height={canvasHeight}
+            viewBox={`0 0 1000 ${canvasHeight}`}
+            preserveAspectRatio="xMidYMid meet"
+            className="block min-w-[760px]"
+          >
+            <title>Guardrail protections connected to assigned agents and workflows</title>
+            {guardrails.flatMap((item) => {
+              const y = guardrailY.get(item.id) || canvasHeight / 2
+              const isEmphasized = emphasizedGuardrail?.id === item.id
+              const isMuted = Boolean(emphasizedGuardrail) && !isEmphasized
+              return [
+                ...getGuardrailProtections(item).map((label) => (
+                  <path
+                    key={`${item.id}:protection:${label}`}
+                    d={`M ${40 + sideWidth} ${protectionY.get(label) || y} C 300 ${protectionY.get(label) || y}, 300 ${y}, 375 ${y}`}
+                    fill="none"
+                    className={`${isMuted ? 'opacity-10' : ''} stroke-amber-300 transition-opacity dark:stroke-amber-700`}
+                    strokeWidth={isEmphasized ? 4 : 2}
+                  />
+                )),
+                ...targetsFor(item).map((target) => {
+                  const key = `${target.kind}:${target.id}`
+                  return (
+                    <path
+                      key={`${item.id}:target:${key}`}
+                      d={`M ${375 + centerWidth} ${y} C 700 ${y}, 700 ${targetY.get(key) || y}, 770 ${targetY.get(key) || y}`}
+                      fill="none"
+                      className={`${isMuted ? 'opacity-10' : ''} stroke-emerald-300 transition-opacity dark:stroke-emerald-800`}
+                      strokeWidth={isEmphasized ? 4 : 2}
+                    />
+                  )
+                }),
+              ]
+            })}
+            {protectionLabels.map((label) => {
+              const isEmphasized = emphasizedProtections.has(label)
+              return (
+                <g
+                  key={label}
+                  transform={`translate(40 ${Number(protectionY.get(label)) - 21})`}
+                  className={`${emphasizedGuardrail && !isEmphasized ? 'opacity-20' : ''} transition-opacity`}
+                >
+                  <rect
+                    width={sideWidth}
+                    height="42"
+                    rx="6"
+                    className={isEmphasized
+                      ? 'fill-amber-100 stroke-amber-500 dark:fill-amber-900/80 dark:stroke-amber-400'
+                      : 'fill-amber-50 stroke-amber-300 dark:fill-amber-950/60 dark:stroke-amber-700'}
+                    strokeWidth={isEmphasized ? 3 : 1}
+                  />
+                  <text x={sideWidth / 2} y="26" textAnchor="middle" className="fill-amber-800 text-[13px] font-semibold dark:fill-amber-200">{truncateGraphLabel(label)}</text>
+                </g>
+              )
+            })}
+            {guardrails.map((item) => {
+              const y = Number(guardrailY.get(item.id)) - 25
+              const isEmphasized = emphasizedGuardrail?.id === item.id
+              return (
+                <g
+                  key={item.id}
+                  transform={`translate(375 ${y})`}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Open ${item.name}`}
+                  aria-pressed={selectedId === item.id}
+                  className={`${emphasizedGuardrail && !isEmphasized ? 'opacity-25' : ''} cursor-pointer outline-none transition-opacity`}
+                  onMouseEnter={() => setHoveredId(item.id)}
+                  onMouseLeave={() => setHoveredId(null)}
+                  onFocus={() => setHoveredId(item.id)}
+                  onBlur={() => setHoveredId(null)}
+                  onClick={() => onOpen(item.id)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') onOpen(item.id)
+                  }}
+                >
+                  <rect
+                    width={centerWidth}
+                    height="50"
+                    rx="6"
+                    className={isEmphasized
+                      ? 'fill-sky-100 stroke-sky-600 dark:fill-sky-900 dark:stroke-sky-300'
+                      : 'fill-sky-50 stroke-sky-400 hover:fill-sky-100 dark:fill-sky-950/70 dark:stroke-sky-700 dark:hover:fill-sky-900'}
+                    strokeWidth={isEmphasized ? 4 : 2}
+                  />
+                  <text x={centerWidth / 2} y="22" textAnchor="middle" className="fill-sky-900 text-[13px] font-semibold dark:fill-sky-100">{truncateGraphLabel(item.name)}</text>
+                  <text x={centerWidth / 2} y="38" textAnchor="middle" className="fill-sky-600 text-[11px] dark:fill-sky-300">
+                    {item.id.startsWith('suggested:') ? 'Suggested Guardrail' : item.enabled ? 'Active Guardrail' : 'Inactive Guardrail'}
+                  </text>
+                </g>
+              )
+            })}
+            {targetEntries.map((target) => {
+              const key = `${target.kind}:${target.id}`
+              const isEmphasized = emphasizedTargetKeys.has(key)
+              const label = target.pending ? target.id : resolveTarget(target.kind, target.id)
+              return (
+                <g
+                  key={key}
+                  transform={`translate(770 ${Number(targetY.get(key)) - 21})`}
+                  className={`${emphasizedGuardrail && !isEmphasized ? 'opacity-20' : ''} transition-opacity`}
+                >
+                  <rect
+                    width={sideWidth}
+                    height="42"
+                    rx="6"
+                    className={isEmphasized
+                      ? target.pending
+                        ? 'fill-emerald-50 stroke-emerald-500 dark:fill-emerald-950/70 dark:stroke-emerald-400'
+                        : 'fill-emerald-100 stroke-emerald-500 dark:fill-emerald-900/80 dark:stroke-emerald-400'
+                      : target.pending
+                        ? 'fill-gray-50 stroke-gray-300 dark:fill-gray-800 dark:stroke-gray-600'
+                        : 'fill-emerald-50 stroke-emerald-300 dark:fill-emerald-950/60 dark:stroke-emerald-700'}
+                    strokeWidth={isEmphasized ? 3 : 1}
+                    strokeDasharray={target.pending ? '5 4' : undefined}
+                  />
+                  <text x={sideWidth / 2} y="18" textAnchor="middle" className="fill-gray-500 text-[10px] font-semibold uppercase dark:fill-gray-400">{target.kind}</text>
+                  <text x={sideWidth / 2} y="32" textAnchor="middle" className="fill-emerald-800 text-[12px] font-medium dark:fill-emerald-200">{truncateGraphLabel(label, 25)}</text>
+                </g>
+              )
+            })}
+          </svg>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function OptimizeRelationshipGraph({
   items,
   suggestionTemplates,
@@ -1753,6 +2153,9 @@ function PluginRelationshipView({
 }) {
   if (plugin.objectKind === 'optimization-plan') {
     return <OptimizeRelationshipGraph items={items} suggestionTemplates={suggestionTemplates} context={context} onOpen={onOpen} selectedId={selectedId} />
+  }
+  if (usesLegacyPluginAdapter(plugin, 'guardrail')) {
+    return <GuardrailRelationshipGraph items={items} context={context} onOpen={onOpen} selectedId={selectedId} />
   }
 
   const resolveTarget = (kind: 'agent' | 'workflow' | 'group' | 'community', id: string) => {
