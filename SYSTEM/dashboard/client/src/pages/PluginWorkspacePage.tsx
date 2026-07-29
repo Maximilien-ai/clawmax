@@ -36,6 +36,7 @@ import {
   usesLegacyPluginAdapter,
 } from '../lib/plugins'
 import { applyOptimizeAssistantText } from '../lib/optimizeAssistant'
+import { getOptimizationDimensions } from '../lib/optimizeGraph'
 import {
   buildReleaseReviewFilename,
   buildReleaseReviewMarkdown,
@@ -1497,21 +1498,6 @@ function ChecklistItemRow({
   )
 }
 
-function getOptimizationDimensions(item: PluginRecord): string[] {
-  if (!isGenericPluginRecord(item)) return []
-  const fields = item.fields
-  const dimensions = new Set<string>()
-  const goal = typeof fields.optimizationGoal === 'string' ? fields.optimizationGoal : ''
-  if (goal) dimensions.add(goal === 'tokens' ? 'Tokens' : goal.charAt(0).toUpperCase() + goal.slice(1))
-  if (Number(fields.monthlyTokenBudget) > 0 || Number(fields.perRunTokenBudget) > 0) dimensions.add('Tokens')
-  if (Number(fields.monthlyCostBudget) > 0 || Number(fields.perRunCostBudget) > 0) dimensions.add('Cost')
-  if (Number(fields.maximumRunDurationSeconds) > 0) dimensions.add('Speed')
-  if (Number(fields.minimumQualityScore) > 0) dimensions.add('Quality')
-  if (fields.automaticModelSelection === true || fields.recommendedModel) dimensions.add('Models')
-  if (fields.recommendedSchedule) dimensions.add('Schedule')
-  return Array.from(dimensions)
-}
-
 function truncateGraphLabel(value: string, maximum = 28): string {
   return value.length > maximum ? `${value.slice(0, maximum - 1)}…` : value
 }
@@ -1521,11 +1507,13 @@ function OptimizeRelationshipGraph({
   suggestionTemplates,
   context,
   onOpen,
+  selectedId,
 }: {
   items: PluginRecord[]
   suggestionTemplates?: PluginRecordTemplate[]
   context: PluginWorkspaceContext
   onOpen: (id: string) => void
+  selectedId?: string | null
 }) {
   const resolveTarget = (kind: string, id: string) => {
     if (kind === 'agent') return context.agents.find((entry) => entry.id === id)?.name || id
@@ -1546,6 +1534,23 @@ function OptimizeRelationshipGraph({
       }))
     : items.filter(isGenericPluginRecord)
   const showingSuggestions = suggestionTemplates !== undefined
+  const selectedPlan = selectedId ? plans.find((item) => item.id === selectedId) || null : null
+  const selectedDimensions = new Set(selectedPlan ? getOptimizationDimensions(selectedPlan) : [])
+  const selectedScope = selectedPlan?.fields.scope === 'agent'
+    ? 'agent'
+    : selectedPlan?.fields.scope === 'workspace'
+      ? 'workspace'
+      : 'workflow'
+  const selectedIds = selectedPlan && Array.isArray(selectedPlan.fields.targetIds)
+    ? selectedPlan.fields.targetIds.map(String).filter(Boolean)
+    : []
+  const selectedTargetKeys = new Set(selectedPlan
+    ? selectedScope === 'workspace'
+      ? ['workspace:workspace']
+      : selectedIds.length > 0
+        ? selectedIds.map((id) => `${selectedScope}:${id}`)
+        : [`${selectedScope}:Select ${selectedScope}`]
+    : [])
   const dimensionLabels = Array.from(new Set(plans.flatMap(getOptimizationDimensions))).sort()
   const targetEntries = Array.from(new Map(plans.flatMap((item) => {
     const scope = item.fields.scope === 'agent' ? 'agent' : item.fields.scope === 'workspace' ? 'workspace' : 'workflow'
@@ -1573,9 +1578,11 @@ function OptimizeRelationshipGraph({
         <div>
           <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Optimization relationships</h3>
           <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-            {showingSuggestions
-              ? `${plans.length} suggested plans preview their optimization dimensions. Dashed targets are selected after you use a plan.`
-              : 'Dimensions connect to saved plans, which connect to their agent, workflow, or workspace targets.'}
+            {selectedPlan
+              ? `${selectedPlan.name} is highlighted with the attributes and destination it affects.`
+              : showingSuggestions
+                ? `${plans.length} suggested plans preview their optimization dimensions. Select a plan to isolate its attributes and destination.`
+                : 'Dimensions connect to saved plans and their destinations. Select a plan to isolate its relationships.'}
           </p>
         </div>
         <div className="flex flex-wrap gap-3 text-xs text-gray-500 dark:text-gray-400">
@@ -1604,6 +1611,8 @@ function OptimizeRelationshipGraph({
           <title>Optimization dimensions connected to plans and their targets</title>
           {plans.flatMap((item) => {
             const y = planY.get(item.id) || canvasHeight / 2
+            const isSelected = selectedPlan?.id === item.id
+            const isMuted = Boolean(selectedPlan) && !isSelected
             const scope = item.fields.scope === 'agent' ? 'agent' : item.fields.scope === 'workspace' ? 'workspace' : 'workflow'
             const ids = Array.isArray(item.fields.targetIds) ? item.fields.targetIds.map(String).filter(Boolean) : []
             const targetKeys = scope === 'workspace'
@@ -1617,8 +1626,8 @@ function OptimizeRelationshipGraph({
                   key={`${item.id}:dimension:${label}`}
                   d={`M ${40 + sideWidth} ${dimensionY.get(label) || y} C 300 ${dimensionY.get(label) || y}, 300 ${y}, 375 ${y}`}
                   fill="none"
-                  className="stroke-amber-300 dark:stroke-amber-700"
-                  strokeWidth="2"
+                  className={`${isMuted ? 'opacity-10' : ''} stroke-amber-300 transition-opacity dark:stroke-amber-700`}
+                  strokeWidth={isSelected ? 4 : 2}
                 />
               )),
               ...targetKeys.map((key) => (
@@ -1626,20 +1635,33 @@ function OptimizeRelationshipGraph({
                   key={`${item.id}:target:${key}`}
                   d={`M ${375 + planWidth} ${y} C 700 ${y}, 700 ${targetY.get(key) || y}, 770 ${targetY.get(key) || y}`}
                   fill="none"
-                  className="stroke-emerald-300 dark:stroke-emerald-800"
-                  strokeWidth="2"
+                  className={`${isMuted ? 'opacity-10' : ''} stroke-emerald-300 transition-opacity dark:stroke-emerald-800`}
+                  strokeWidth={isSelected ? 4 : 2}
                 />
               )),
             ]
           })}
           {dimensionLabels.map((label) => (
-            <g key={label} transform={`translate(40 ${Number(dimensionY.get(label)) - 21})`}>
-              <rect width={sideWidth} height="42" rx="6" className="fill-amber-50 stroke-amber-300 dark:fill-amber-950/60 dark:stroke-amber-700" />
+            <g
+              key={label}
+              transform={`translate(40 ${Number(dimensionY.get(label)) - 21})`}
+              className={`${selectedPlan && !selectedDimensions.has(label) ? 'opacity-20' : ''} transition-opacity`}
+            >
+              <rect
+                width={sideWidth}
+                height="42"
+                rx="6"
+                className={selectedPlan && selectedDimensions.has(label)
+                  ? 'fill-amber-100 stroke-amber-500 dark:fill-amber-900/80 dark:stroke-amber-400'
+                  : 'fill-amber-50 stroke-amber-300 dark:fill-amber-950/60 dark:stroke-amber-700'}
+                strokeWidth={selectedPlan && selectedDimensions.has(label) ? 3 : 1}
+              />
               <text x={sideWidth / 2} y="26" textAnchor="middle" className="fill-amber-800 text-[13px] font-semibold dark:fill-amber-200">{truncateGraphLabel(label)}</text>
             </g>
           ))}
           {plans.map((item) => {
             const y = Number(planY.get(item.id)) - 25
+            const isSelected = selectedPlan?.id === item.id
             return (
               <g
                 key={item.id}
@@ -1647,13 +1669,22 @@ function OptimizeRelationshipGraph({
                 role="button"
                 tabIndex={0}
                 aria-label={`Open ${item.name}`}
-                className="cursor-pointer outline-none"
+                aria-pressed={isSelected}
+                className={`${selectedPlan && !isSelected ? 'opacity-25' : ''} cursor-pointer outline-none transition-opacity`}
                 onClick={() => onOpen(item.id)}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' || event.key === ' ') onOpen(item.id)
                 }}
               >
-                <rect width={planWidth} height="50" rx="6" className="fill-sky-50 stroke-sky-400 hover:fill-sky-100 dark:fill-sky-950/70 dark:stroke-sky-700 dark:hover:fill-sky-900" strokeWidth="2" />
+                <rect
+                  width={planWidth}
+                  height="50"
+                  rx="6"
+                  className={isSelected
+                    ? 'fill-sky-100 stroke-sky-600 dark:fill-sky-900 dark:stroke-sky-300'
+                    : 'fill-sky-50 stroke-sky-400 hover:fill-sky-100 dark:fill-sky-950/70 dark:stroke-sky-700 dark:hover:fill-sky-900'}
+                  strokeWidth={isSelected ? 4 : 2}
+                />
                 <text x={planWidth / 2} y="22" textAnchor="middle" className="fill-sky-900 text-[13px] font-semibold dark:fill-sky-100">{truncateGraphLabel(item.name)}</text>
                 <text x={planWidth / 2} y="38" textAnchor="middle" className="fill-sky-600 text-[11px] dark:fill-sky-300">
                   {item.id.startsWith('suggested:') ? 'Suggested plan' : item.enabled ? 'Active plan' : 'Inactive plan'}
@@ -1664,15 +1695,25 @@ function OptimizeRelationshipGraph({
           {targetEntries.map((target) => {
             const key = `${target.kind}:${target.id}`
             const label = target.pending ? target.id : resolveTarget(target.kind, target.id)
+            const isSelected = selectedTargetKeys.has(key)
             return (
-              <g key={key} transform={`translate(770 ${Number(targetY.get(key)) - 21})`}>
+              <g
+                key={key}
+                transform={`translate(770 ${Number(targetY.get(key)) - 21})`}
+                className={`${selectedPlan && !isSelected ? 'opacity-20' : ''} transition-opacity`}
+              >
                 <rect
                   width={sideWidth}
                   height="42"
                   rx="6"
-                  className={target.pending
-                    ? 'fill-gray-50 stroke-gray-300 dark:fill-gray-800 dark:stroke-gray-600'
-                    : 'fill-emerald-50 stroke-emerald-300 dark:fill-emerald-950/60 dark:stroke-emerald-700'}
+                  className={isSelected
+                    ? target.pending
+                      ? 'fill-emerald-50 stroke-emerald-500 dark:fill-emerald-950/70 dark:stroke-emerald-400'
+                      : 'fill-emerald-100 stroke-emerald-500 dark:fill-emerald-900/80 dark:stroke-emerald-400'
+                    : target.pending
+                      ? 'fill-gray-50 stroke-gray-300 dark:fill-gray-800 dark:stroke-gray-600'
+                      : 'fill-emerald-50 stroke-emerald-300 dark:fill-emerald-950/60 dark:stroke-emerald-700'}
+                  strokeWidth={isSelected ? 3 : 1}
                   strokeDasharray={target.pending ? '5 4' : undefined}
                 />
                 <text x={sideWidth / 2} y="18" textAnchor="middle" className="fill-gray-500 text-[10px] font-semibold uppercase dark:fill-gray-400">{target.kind}</text>
@@ -1693,6 +1734,7 @@ function PluginRelationshipView({
   suggestionTemplates,
   context,
   onOpen,
+  selectedId,
   heading = 'Selected item',
 }: {
   plugin: PluginManifest
@@ -1700,10 +1742,11 @@ function PluginRelationshipView({
   suggestionTemplates?: PluginRecordTemplate[]
   context: PluginWorkspaceContext
   onOpen: (id: string) => void
+  selectedId?: string | null
   heading?: string
 }) {
   if (plugin.objectKind === 'optimization-plan') {
-    return <OptimizeRelationshipGraph items={items} suggestionTemplates={suggestionTemplates} context={context} onOpen={onOpen} />
+    return <OptimizeRelationshipGraph items={items} suggestionTemplates={suggestionTemplates} context={context} onOpen={onOpen} selectedId={selectedId} />
   }
 
   const resolveTarget = (kind: 'agent' | 'workflow' | 'group' | 'community', id: string) => {
@@ -2670,6 +2713,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                     suggestionTemplates={filteredSuggestions}
                     context={context}
                     onOpen={(id) => setSelectedSuggestedTemplateId(id.replace(/^suggested:/, ''))}
+                    selectedId={selectedSuggestedTemplateId ? `suggested:${selectedSuggestedTemplateId}` : null}
                     heading="Suggested item"
                   />
                   {selectedSuggestedTemplate && (
@@ -2868,6 +2912,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                 items={filtered}
                 context={context}
                 onOpen={setSelectedItemId}
+                selectedId={selectedItemId}
               />
             ) : (
               <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.2
+
+- Highlight a selected plan, its optimization attributes, connecting edges, and
+  its agent, workflow, or workspace destination in relationship graphs.
+- Mute unrelated graph relationships so combined Suggested and Active views
+  remain understandable when several plans are visible.
+- Derive displayed attributes from each plan's stated intent instead of
+  populated schema defaults that made unrelated attributes appear connected.
+- Expose graph selection state to assistive technology.
+
 ## 0.4.1
 
 - Move AI-assisted tuning to a full-width, default-open panel at the top of the
