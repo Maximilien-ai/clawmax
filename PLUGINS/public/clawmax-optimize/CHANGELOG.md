@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.3
+
+- Preview a plan's related attributes, edges, and destination while hovering or
+  keyboard-focusing its graph node.
+- Keep clicked graph selections locked after the pointer leaves the node.
+- Show Active and Archived Optimize details inline below the graph instead of
+  covering the graph with the standard right-side drawer.
+
 ## 0.4.2
 
 - Highlight a selected plan, its optimization attributes, connecting edges, and

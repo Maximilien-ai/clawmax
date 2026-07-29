@@ -1515,6 +1515,7 @@ function OptimizeRelationshipGraph({
   onOpen: (id: string) => void
   selectedId?: string | null
 }) {
+  const [hoveredId, setHoveredId] = useState<string | null>(null)
   const resolveTarget = (kind: string, id: string) => {
     if (kind === 'agent') return context.agents.find((entry) => entry.id === id)?.name || id
     if (kind === 'workflow') return context.workflows.find((entry) => entry.id === id)?.name || id
@@ -1534,7 +1535,8 @@ function OptimizeRelationshipGraph({
       }))
     : items.filter(isGenericPluginRecord)
   const showingSuggestions = suggestionTemplates !== undefined
-  const selectedPlan = selectedId ? plans.find((item) => item.id === selectedId) || null : null
+  const emphasizedId = hoveredId || selectedId
+  const selectedPlan = emphasizedId ? plans.find((item) => item.id === emphasizedId) || null : null
   const selectedDimensions = new Set(selectedPlan ? getOptimizationDimensions(selectedPlan) : [])
   const selectedScope = selectedPlan?.fields.scope === 'agent'
     ? 'agent'
@@ -1669,8 +1671,12 @@ function OptimizeRelationshipGraph({
                 role="button"
                 tabIndex={0}
                 aria-label={`Open ${item.name}`}
-                aria-pressed={isSelected}
+                aria-pressed={selectedId === item.id}
                 className={`${selectedPlan && !isSelected ? 'opacity-25' : ''} cursor-pointer outline-none transition-opacity`}
+                onMouseEnter={() => setHoveredId(item.id)}
+                onMouseLeave={() => setHoveredId(null)}
+                onFocus={() => setHoveredId(item.id)}
+                onBlur={() => setHoveredId(null)}
                 onClick={() => onOpen(item.id)}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' || event.key === ' ') onOpen(item.id)
@@ -1972,6 +1978,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
     () => items.find((item) => item.id === selectedItemId) || null,
     [items, selectedItemId]
   )
+  const useInlineGraphDetails = plugin.objectKind === 'optimization-plan' && viewMode === 'graph'
 
   const saveItem = async (draft: Partial<PluginRecord>) => {
     const isEdit = Boolean(draft.id)
@@ -2800,7 +2807,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
           <EmptyState plugin={plugin} onCreate={() => { setEditing(null); setShowModal(true) }} />
         </div>
       ) : (
-        <div className={`mt-6 ${selectedItem ? 'xl:grid xl:grid-cols-[minmax(0,1fr)_360px] xl:gap-6' : ''}`}>
+        <div className={`mt-6 ${selectedItem && !useInlineGraphDetails ? 'xl:grid xl:grid-cols-[minmax(0,1fr)_360px] xl:gap-6' : ''}`}>
           <div>
             {!isChecklist && (
               <div className="mb-3 flex items-center justify-between gap-3">
@@ -2907,13 +2914,33 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                 ))}
               </div>
             ) : viewMode === 'graph' ? (
-              <PluginRelationshipView
-                plugin={plugin}
-                items={filtered}
-                context={context}
-                onOpen={setSelectedItemId}
-                selectedId={selectedItemId}
-              />
+              <div className="space-y-4">
+                <PluginRelationshipView
+                  plugin={plugin}
+                  items={filtered}
+                  context={context}
+                  onOpen={setSelectedItemId}
+                  selectedId={selectedItemId}
+                />
+                {useInlineGraphDetails && selectedItem && filtered.some((item) => item.id === selectedItem.id) && (
+                  <ItemCard
+                    plugin={plugin}
+                    item={selectedItem}
+                    onEdit={() => { setEditing(selectedItem); setShowModal(true) }}
+                    onDelete={() => void callItemAction(selectedItem.id, 'delete')}
+                    onToggle={() => void callItemAction(selectedItem.id, 'toggle')}
+                    onGenerateDoc={() => void callItemAction(selectedItem.id, 'document')}
+                    onNotify={() => void callItemAction(selectedItem.id, 'notify')}
+                    onRun={isEvalRecord(selectedItem) ? (() => void callItemAction(selectedItem.id, 'run')) : null}
+                    onOpenDoc={onNavigateToDoc || null}
+                    onArchiveToggle={() => void saveItem({ ...selectedItem, archived: selectedItem.archived !== true } as Partial<PluginRecord>)}
+                    canGenerateDocs={canGenerateDocs}
+                    canNotify={canNotify}
+                    onCheckToggle={checkField ? (() => void toggleCheck(selectedItem)) : null}
+                    running={runningItemIds.has(selectedItem.id)}
+                  />
+                )}
+              </div>
             ) : (
               <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
                 <div className="grid grid-cols-[minmax(0,2fr)_120px_minmax(0,2fr)_minmax(0,1.5fr)_140px_120px] gap-3 border-b border-gray-200 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:border-gray-700 dark:text-gray-400">
@@ -2984,7 +3011,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
             )}
           </div>
 
-          {selectedItem && (
+          {selectedItem && !useInlineGraphDetails && (
             <div className="mt-6 xl:mt-0">
               <PluginDetailsPanel
                 plugin={plugin}
