@@ -34,6 +34,14 @@ assert(
 )
 assert(manifest.recordSchema.properties.recommendedModel.type === 'string', 'Optimize must support model recommendations')
 assert(manifest.recordSchema.properties.recommendedSchedule.type === 'string', 'Optimize must support schedule recommendations')
+const sliderFields = ['monthlyTokenBudget', 'monthlyCostBudget', 'perRunTokenBudget', 'perRunCostBudget', 'maximumRunDurationSeconds', 'minimumQualityScore']
+assert(sliderFields.every((field) => manifest.recordSchema.properties[field].control === 'slider'), 'Editable Optimize targets must use the generic slider control')
+assert(sliderFields.every((field) => Number.isFinite(manifest.recordSchema.properties[field].minimum)), 'Optimize sliders must declare a finite minimum')
+assert(sliderFields.every((field) => Number.isFinite(manifest.recordSchema.properties[field].maximum)), 'Optimize sliders must declare a finite maximum')
+assert(sliderFields.every((field) => manifest.recordSchema.properties[field].minimum < manifest.recordSchema.properties[field].maximum), 'Optimize slider ranges must be usable')
+assert(sliderFields.every((field) => manifest.recordSchema.properties[field].step > 0), 'Optimize sliders must declare a positive step')
+assert(manifest.recordSchema.properties.minimumQualityScore.maximum === 100, 'Optimize quality targets must use a percentage ceiling')
+assert(manifest.recordSchema.properties.maximumRunDurationSeconds.minimum > 0, 'Optimize runtime targets must remain positive')
 assert(templateFiles.length >= 8, 'Optimize must provide at least eight distinct workspace, workflow, and agent starting points')
 assert(templates.every((template) => template.recommended === true), 'Optimize starting points must be suggested items')
 assert(new Set(templates.map((template) => template.id)).size === templates.length, 'Optimize starting point IDs must be unique')
@@ -68,4 +76,4 @@ for (const dimension of ['quality', 'speed', 'tokens', 'cost']) {
   assert(templates.some((template) => template.tags.includes(dimension)), `Optimize must include ${dimension} coverage`)
 }
 
-console.log('PluginOptimizeSkeleton.test.ts: 35 tests passed')
+console.log('PluginOptimizeSkeleton.test.ts: 42 tests passed')

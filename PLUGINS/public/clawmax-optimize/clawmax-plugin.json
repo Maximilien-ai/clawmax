@@ -4,7 +4,7 @@
   "slug": "clawmax-optimize",
   "name": "Optimize",
   "description": "Plan workspace, workflow, and agent token and cost budgets, then compare model and schedule recommendations against current usage.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "icon": "activity",
   "objectKind": "optimization-plan",
   "visibility": "public",
@@ -58,32 +58,56 @@
       "monthlyTokenBudget": {
         "type": "integer",
         "title": "Monthly token budget",
+        "control": "slider",
+        "minimum": 0,
+        "maximum": 10000000,
+        "step": 50000,
         "default": 1000000
       },
       "monthlyCostBudget": {
         "type": "number",
         "title": "Monthly cost budget",
+        "control": "slider",
+        "minimum": 0,
+        "maximum": 1000,
+        "step": 1,
         "default": 25
       },
       "perRunTokenBudget": {
         "type": "integer",
         "title": "Token budget per run",
+        "control": "slider",
+        "minimum": 0,
+        "maximum": 1000000,
+        "step": 5000,
         "default": 25000
       },
       "perRunCostBudget": {
         "type": "number",
         "title": "Cost budget per run",
+        "control": "slider",
+        "minimum": 0,
+        "maximum": 100,
+        "step": 0.25,
         "default": 1
       },
       "maximumRunDurationSeconds": {
         "type": "integer",
         "title": "Maximum run duration (seconds)",
+        "control": "slider",
+        "minimum": 1,
+        "maximum": 86400,
+        "step": 30,
         "default": 300
       },
       "minimumQualityScore": {
         "type": "number",
         "title": "Minimum quality score",
         "description": "Quality floor from a representative eval; Optimize does not measure or enforce it.",
+        "control": "slider",
+        "minimum": 0,
+        "maximum": 100,
+        "step": 1,
         "default": 80
       },
       "currentTokens": {

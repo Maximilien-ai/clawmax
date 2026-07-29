@@ -13,6 +13,10 @@ export interface PluginRecordFieldSchema {
   default?: PluginFieldValue
   enum?: string[]
   format?: 'text' | 'textarea' | 'date' | 'uri'
+  control?: 'slider'
+  minimum?: number
+  maximum?: number
+  step?: number
   items?: { type: 'string' }
 }
 
@@ -139,6 +143,14 @@ export function buildGenericPluginFields(plugin: PluginManifest): Record<string,
     if (schema.type === 'array') return [key, []]
     return [key, '']
   }))
+}
+
+export function normalizePluginNumericValue(schema: PluginRecordFieldSchema, value: unknown): number {
+  const fallback = typeof schema.default === 'number' ? schema.default : 0
+  const parsed = Number(value)
+  const finite = Number.isFinite(parsed) ? parsed : fallback
+  const bounded = Math.min(schema.maximum ?? finite, Math.max(schema.minimum ?? finite, finite))
+  return schema.type === 'integer' ? Math.trunc(bounded) : bounded
 }
 
 export function titleCaseWords(value: string): string {

@@ -53,7 +53,10 @@ assert(pluginPageSource.includes('runs: []'), 'Suggested evals must normalize pe
 assert(pluginPageSource.includes('fields: base.fields || {}'), 'Suggested generic plugins must normalize declarative fields before preview')
 assert(pluginPageSource.includes('min-w-0 w-full sm:w-auto'), 'Plugin headers must stack without clipping on phone viewports')
 assert(pluginPageSource.includes('grid w-full min-w-0 grid-cols-4 overflow-hidden rounded-lg border'), 'Plugin view controls must occupy four stable mobile columns')
+assert(pluginPageSource.includes('type="range"'), 'Generic plugin forms must render declared slider controls')
+assert(pluginPageSource.includes('grid-cols-[minmax(0,1fr)_7rem]'), 'Slider controls must reserve stable mobile space for exact values')
+assert(pluginPageSource.includes('normalizePluginNumericValue(schema, event.target.value)'), 'Slider and numeric inputs must share bounded normalization')
 assert(manifests.every((manifest) => !/dormant|test plugin|mvp/i.test(`${manifest.name} ${manifest.description} ${manifest.version}`)), 'Enabled plugin UI copy must be product-ready')
 assert(new Set(manifests.map((manifest) => manifest.icon)).size === manifests.length, 'Each first-party plugin must declare a distinct navigation icon')
 
-console.log('PluginWorkspaceLayout.test.ts: 35 tests passed')
+console.log('PluginWorkspaceLayout.test.ts: 38 tests passed')

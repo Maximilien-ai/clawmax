@@ -16,6 +16,7 @@ import {
   isGenericPluginRecord,
   matchesPluginTemplateSearch,
   matchesPluginSearch,
+  normalizePluginNumericValue,
   normalizePluginNavOrder,
   normalizePluginDiagnosticsReport,
   scorePluginDraft,
@@ -279,6 +280,15 @@ test('generic v2 plugins build defaults and prompt-backed declarative fields', (
   assert(isGenericPluginRecord(draft), 'Expected a generic plugin draft')
   assert(draft.kind === 'review-note', 'Expected generic object kind to persist')
   assert(draft.fields.notes === 'Review the release evidence before promotion', 'Expected prompt to populate the declarative textarea')
+})
+
+test('numeric plugin controls normalize invalid and out-of-range values', () => {
+  const integerSlider = { type: 'integer', title: 'Tokens', default: 100, minimum: 10, maximum: 1000, step: 10 } as const
+  assert(normalizePluginNumericValue(integerSlider, 120.9) === 120, 'Expected integer values to truncate')
+  assert(normalizePluginNumericValue(integerSlider, -1) === 10, 'Expected values below the minimum to clamp')
+  assert(normalizePluginNumericValue(integerSlider, 5000) === 1000, 'Expected values above the maximum to clamp')
+  assert(normalizePluginNumericValue(integerSlider, 'invalid') === 100, 'Expected invalid values to use the manifest default')
+  assert(normalizePluginNumericValue({ type: 'number', title: 'Cost', minimum: 0, maximum: 100 }, '1.25') === 1.25, 'Expected decimal values to persist')
 })
 
 test('generic plugin records participate in search, scope, and declarative detail presentation', () => {

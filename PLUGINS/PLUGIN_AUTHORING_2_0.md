@@ -87,12 +87,16 @@ A v2 plugin repository provides `clawmax-plugin.json` with:
 The first v2 contract intentionally supports a constrained schema subset:
 
 - `string`, optionally with `enum` or `text`, `textarea`, `date`, or `uri` format
-- `number`
-- `integer`
+- `number`, optionally with `minimum`, `maximum`, and a positive `step`
+- `integer`, optionally with `minimum`, `maximum`, and a positive `step`
 - `boolean`
 - arrays of strings
 
 Each property requires a `title` and may provide `description` and `default`.
+Numeric fields may declare `"control": "slider"` when both `minimum` and
+`maximum` are present. The host renders a synchronized range and exact numeric
+input, applies the declared step in the UI, and clamps persisted values to the
+declared bounds.
 Required fields must name declared properties. Form and list field references
 must also name declared properties. Undeclared record fields are discarded by
 the host. `ui.list.groupBy` must reference a string field, while

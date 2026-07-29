@@ -1694,8 +1694,8 @@ fi
 
 echo -e "${YELLOW}→ Running Plugin workspace layout regression tests...${NC}"
 npx ts-node --transpileOnly client/src/PluginWorkspaceLayout.test.ts > /tmp/clawmax-plugin-workspace-layout.out 2>&1 || true
-if grep -q "PluginWorkspaceLayout.test.ts: 35 tests passed" /tmp/clawmax-plugin-workspace-layout.out; then
-  pass "Plugin workspace layout regression tests (35 tests)"
+if grep -q "PluginWorkspaceLayout.test.ts: 38 tests passed" /tmp/clawmax-plugin-workspace-layout.out; then
+  pass "Plugin workspace layout regression tests (38 tests)"
 else
   cat /tmp/clawmax-plugin-workspace-layout.out
   fail "Plugin workspace layout regression tests"
@@ -1703,8 +1703,8 @@ fi
 
 echo -e "${YELLOW}→ Running Optimize plugin skeleton contract tests...${NC}"
 npx ts-node --transpileOnly client/src/PluginOptimizeSkeleton.test.ts > /tmp/clawmax-plugin-optimize.out 2>&1 || true
-if grep -q "PluginOptimizeSkeleton.test.ts: 35 tests passed" /tmp/clawmax-plugin-optimize.out; then
-  pass "Optimize plugin skeleton contract tests (35 tests)"
+if grep -q "PluginOptimizeSkeleton.test.ts: 42 tests passed" /tmp/clawmax-plugin-optimize.out; then
+  pass "Optimize plugin skeleton contract tests (42 tests)"
 else
   cat /tmp/clawmax-plugin-optimize.out
   fail "Optimize plugin skeleton contract tests"

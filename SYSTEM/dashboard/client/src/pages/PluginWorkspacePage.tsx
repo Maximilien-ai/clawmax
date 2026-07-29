@@ -28,6 +28,7 @@ import {
   isGuardrailRecord,
   matchesPluginTemplateSearch,
   matchesPluginSearch,
+  normalizePluginNumericValue,
   scorePluginDraft,
   splitPluginDetailLine,
   sortPluginTemplates,
@@ -185,15 +186,54 @@ function GenericPluginFields({
             </label>
           )
         }
+        if ((schema.type === 'number' || schema.type === 'integer') && schema.control === 'slider') {
+          const numericValue = normalizePluginNumericValue(schema, value)
+          const step = schema.step ?? (schema.type === 'integer' ? 1 : 'any')
+          return (
+            <div key={key} className="block">
+              {label}
+              <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_7rem] items-center gap-3 sm:grid-cols-[minmax(0,1fr)_8rem]">
+                <input
+                  type="range"
+                  aria-label={`${schema.title} slider`}
+                  min={schema.minimum}
+                  max={schema.maximum}
+                  step={step}
+                  value={numericValue}
+                  onChange={(event) => update(key, normalizePluginNumericValue(schema, event.target.value))}
+                  className="h-2 w-full min-w-0 cursor-pointer accent-sky-600"
+                />
+                <input
+                  type="number"
+                  aria-label={`${schema.title} value`}
+                  min={schema.minimum}
+                  max={schema.maximum}
+                  step={step}
+                  value={numericValue}
+                  onChange={(event) => update(key, normalizePluginNumericValue(schema, event.target.value))}
+                  className={className}
+                />
+              </div>
+              {schema.description ? <span className="mt-1 block text-xs text-gray-500">{schema.description}</span> : null}
+            </div>
+          )
+        }
         const inputType = schema.type === 'number' || schema.type === 'integer' ? 'number' : schema.format === 'date' ? 'date' : schema.format === 'uri' ? 'url' : 'text'
         return (
           <label key={key} className="block">
             {label}
             <input
               type={inputType}
-              step={schema.type === 'integer' ? 1 : schema.type === 'number' ? 'any' : undefined}
+              min={schema.minimum}
+              max={schema.maximum}
+              step={schema.step ?? (schema.type === 'integer' ? 1 : schema.type === 'number' ? 'any' : undefined)}
               value={typeof value === 'number' || typeof value === 'string' ? value : ''}
-              onChange={(event) => update(key, schema.type === 'number' || schema.type === 'integer' ? Number(event.target.value) : event.target.value)}
+              onChange={(event) => update(
+                key,
+                schema.type === 'number' || schema.type === 'integer'
+                  ? normalizePluginNumericValue(schema, event.target.value)
+                  : event.target.value,
+              )}
               className={className}
             />
             {schema.description ? <span className="mt-1 block text-xs text-gray-500">{schema.description}</span> : null}
@@ -1447,7 +1487,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
   const suggestionTags = useMemo(() => {
     const allTags = collectPluginTemplateTags(recommendedTemplates)
     if (!isChecklist) return allTags
-    return ['1.9.9', '2.0.0', '2.0.0-test-rc18'].filter((tag) => allTags.includes(tag))
+    return ['1.9.9', '2.0.0', '2.0.0-test-rc19'].filter((tag) => allTags.includes(tag))
   }, [recommendedTemplates, isChecklist])
   const filteredSuggestions = useMemo(() => sortPluginTemplates(
     recommendedTemplates.filter((template) => (

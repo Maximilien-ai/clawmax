@@ -30,6 +30,10 @@ export interface PluginRecordFieldSchema {
   default?: PluginFieldValue
   enum?: string[]
   format?: 'text' | 'textarea' | 'date' | 'uri'
+  control?: 'slider'
+  minimum?: number
+  maximum?: number
+  step?: number
   items?: { type: 'string' }
 }
 
@@ -274,12 +278,23 @@ function isPluginFieldSchema(value: any): value is PluginRecordFieldSchema {
   if (value.enum !== undefined && (!Array.isArray(value.enum) || value.enum.some((entry: unknown) => typeof entry !== 'string'))) return false
   if (value.enum !== undefined && value.type !== 'string') return false
   if (value.format !== undefined && value.type !== 'string') return false
+  const numeric = value.type === 'number' || value.type === 'integer'
+  if (value.control !== undefined && value.control !== 'slider') return false
+  if (value.control === 'slider' && (!numeric || !Number.isFinite(value.minimum) || !Number.isFinite(value.maximum))) return false
+  if (value.minimum !== undefined && (!numeric || !Number.isFinite(value.minimum))) return false
+  if (value.maximum !== undefined && (!numeric || !Number.isFinite(value.maximum))) return false
+  if (value.step !== undefined && (!numeric || !Number.isFinite(value.step) || value.step <= 0)) return false
+  if (value.minimum !== undefined && value.maximum !== undefined && value.minimum > value.maximum) return false
   if (value.type === 'array' && value.items?.type !== 'string') return false
   if (value.default !== undefined) {
     if (value.type === 'string' && typeof value.default !== 'string') return false
     if ((value.type === 'number' || value.type === 'integer') && typeof value.default !== 'number') return false
     if (value.type === 'boolean' && typeof value.default !== 'boolean') return false
     if (value.type === 'array' && (!Array.isArray(value.default) || value.default.some((entry: unknown) => typeof entry !== 'string'))) return false
+  }
+  if (numeric && typeof value.default === 'number') {
+    if (value.minimum !== undefined && value.default < value.minimum) return false
+    if (value.maximum !== undefined && value.default > value.maximum) return false
   }
   return true
 }
@@ -657,7 +672,8 @@ function normalizeGenericFieldValue(schema: PluginRecordFieldSchema, value: unkn
   if (schema.type === 'number' || schema.type === 'integer') {
     const parsed = typeof candidate === 'number' ? candidate : Number(candidate)
     if (!Number.isFinite(parsed)) return typeof schema.default === 'number' ? schema.default : 0
-    return schema.type === 'integer' ? Math.trunc(parsed) : parsed
+    const bounded = Math.min(schema.maximum ?? parsed, Math.max(schema.minimum ?? parsed, parsed))
+    return schema.type === 'integer' ? Math.trunc(bounded) : bounded
   }
   if (schema.type === 'array') {
     const values = Array.isArray(candidate) ? candidate : typeof candidate === 'string' ? candidate.split(',') : []

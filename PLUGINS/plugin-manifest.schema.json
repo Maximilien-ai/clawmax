@@ -200,13 +200,29 @@
           "uniqueItems": true
         },
         "format": { "enum": ["text", "textarea", "date", "uri"] },
+        "control": { "const": "slider" },
+        "minimum": { "type": "number" },
+        "maximum": { "type": "number" },
+        "step": { "type": "number", "exclusiveMinimum": 0 },
         "items": {
           "type": "object",
           "additionalProperties": false,
           "required": ["type"],
-          "properties": { "type": { "const": "string" } }
+            "properties": { "type": { "const": "string" } }
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "control": { "const": "slider" } },
+            "required": ["control"]
+          },
+          "then": {
+            "required": ["minimum", "maximum"],
+            "properties": { "type": { "enum": ["number", "integer"] } }
+          }
+        }
+      ]
     }
   }
 }

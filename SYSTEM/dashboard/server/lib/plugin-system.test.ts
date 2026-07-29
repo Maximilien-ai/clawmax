@@ -259,13 +259,14 @@ async function run() {
       ['future-version-plugin', { apiVersion: 'clawmax.ai/v99', recordSchema: { type: 'object', properties: {} } }],
       ['missing-schema-plugin', { apiVersion: 'clawmax.ai/v2' }],
       ['invalid-capability-plugin', { apiVersion: 'clawmax.ai/v2', capabilities: { shell: true }, recordSchema: { type: 'object', properties: {} } }],
+      ['invalid-slider-plugin', { apiVersion: 'clawmax.ai/v2', recordSchema: { type: 'object', properties: { budget: { type: 'number', title: 'Budget', control: 'slider' } } } }],
     ] as const) {
       const directory = path.join(pluginRoot, slug)
       fs.mkdirSync(directory, { recursive: true })
       fs.writeFileSync(path.join(directory, 'clawmax-plugin.json'), JSON.stringify({ ...baseManifest, ...extra, id: slug, slug }, null, 2), 'utf-8')
     }
     process.env.CLAWMAX_PLUGIN_PATHS = pluginRoot
-    process.env.CLAWMAX_ENABLED_PLUGINS = 'future-version-plugin,missing-schema-plugin'
+    process.env.CLAWMAX_ENABLED_PLUGINS = 'future-version-plugin,missing-schema-plugin,invalid-slider-plugin'
     assert.deepStrictEqual(listConfiguredPlugins(), [], 'Expected incompatible manifests to be excluded')
 
     fs.rmSync(pluginRoot, { recursive: true, force: true })
@@ -439,12 +440,35 @@ async function run() {
     assert(documentContent.includes('**Completed:** yes'), 'Expected generic checkbox formatting in generated document')
 
     const releaseTemplates = listPluginTemplates(plugin!).filter((template) => (
-      'fields' in template.payload && template.payload.fields?.release === '2.0.0-test-rc18'
+      'fields' in template.payload && template.payload.fields?.release === '2.0.0-test-rc19'
     ))
     assert.strictEqual(releaseTemplates.length, 4, 'Expected the focused current release file to expand into four checklist items')
-    assert(releaseTemplates.some((template) => template.id === '2.0.0-test-rc18:rc18-release-mobile-smoke'), 'Expected release-qualified checklist item discovery')
-    const applied = applyPluginTemplate(plugin!, '2.0.0-test-rc18:rc18-release-mobile-smoke')
+    assert(releaseTemplates.some((template) => template.id === '2.0.0-test-rc19:rc19-release-mobile-smoke'), 'Expected release-qualified checklist item discovery')
+    const applied = applyPluginTemplate(plugin!, '2.0.0-test-rc19:rc19-release-mobile-smoke')
     assert(applied && 'fields' in applied && applied.fields.owner === 'release-tester', 'Expected generic template application')
+  })
+
+  await test('generic numeric fields clamp persisted values to manifest bounds', () => {
+    const plugin = getPluginBySlug('clawmax-optimize')
+    assert(plugin, 'Expected Optimize plugin manifest to load')
+    const created = upsertPluginRecord(plugin!, {
+      name: 'Bounded plan',
+      fields: {
+        scope: 'agent',
+        targetIds: ['analyst'],
+        optimizationGoal: 'cost',
+        monthlyTokenBudget: 99999999,
+        monthlyCostBudget: -25,
+        maximumRunDurationSeconds: 0,
+        minimumQualityScore: 120,
+        status: 'draft',
+      },
+    } as any)
+    assert('fields' in created, 'Expected a generic Optimize record')
+    assert.strictEqual(created.fields.monthlyTokenBudget, 10000000, 'Expected token budgets to clamp to the maximum')
+    assert.strictEqual(created.fields.monthlyCostBudget, 0, 'Expected cost budgets to clamp to the minimum')
+    assert.strictEqual(created.fields.maximumRunDurationSeconds, 1, 'Expected duration to clamp to a positive minimum')
+    assert.strictEqual(created.fields.minimumQualityScore, 100, 'Expected quality targets to clamp to 100')
   })
 
   await test('eval plugin runs score experiments and surfaces workspace context', () => {

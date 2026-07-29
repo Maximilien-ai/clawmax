@@ -6,6 +6,10 @@ Optimize includes eight built-in suggestions covering monthly and per-run token
 and cost budgets, workflow latency, schedule efficiency, quality-preserving
 model changes, and automatic model-selection priorities.
 
+Editable token, cost, duration, and quality targets use synchronized sliders
+and exact numeric inputs. Manifest-declared limits are enforced by both the
+browser and server so a plan cannot persist an out-of-range value.
+
 Optimization plans are advisory. Guardrails constrain behavior and Evals
 measure representative results; Optimize records the quality floor and safety
 evidence that should be preserved before a recommendation is applied.
