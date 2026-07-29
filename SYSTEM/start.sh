@@ -36,13 +36,15 @@ if [ -z "$DASHBOARD_AUTH_MODE" ] && [ -z "$BYPASS_OAUTH" ] && [ -z "$DASHBOARD_A
 fi
 
 # Enable the first-party plugin set for local development only. Explicit caller
-# values always win, and production images use their own entrypoint defaults.
+# and ignored .env values always win, and production images use their own
+# entrypoint defaults.
 LOCAL_DEV_PLUGIN_IDS="plugin-lab-guardrails,plugin-lab-evals,plugin-lab-review-notes,clawmax-optimize"
-if [ -z "${CLAWMAX_ENABLED_PLUGINS+x}" ]; then
+dotenv_defines_nonempty() {
+  local key="$1"
+  [ -f ".env" ] && grep -Eq "^${key}=.+$" .env
+}
+if [ -z "${CLAWMAX_ENABLED_PLUGINS+x}" ] && ! dotenv_defines_nonempty "CLAWMAX_ENABLED_PLUGINS"; then
   export CLAWMAX_ENABLED_PLUGINS="$LOCAL_DEV_PLUGIN_IDS"
-fi
-if [ -z "${CLAWMAX_PLUGIN_PATHS+x}" ]; then
-  export CLAWMAX_PLUGIN_PATHS=""
 fi
 
 # Set workspace to WORKSPACES/default if not already set

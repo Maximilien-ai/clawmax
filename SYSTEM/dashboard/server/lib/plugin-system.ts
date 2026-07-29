@@ -177,10 +177,23 @@ export interface EvalRecord extends PluginRecordBase {
     judge: 'ai' | 'human' | 'fixed'
     iterations?: number
     judgeGuidance?: string
+    fixedMatch?: 'exact' | 'contains' | 'regex'
+    fixedCaseSensitive?: boolean
+    humanReviewerName?: string
+    humanReviewerEmail?: string
+    humanReviewPath?: string
     cases?: EvalCase[]
   }
   runs: EvalRunRecord[]
   lastRun?: EvalRunRecord | null
+  humanReview?: {
+    status: 'pending' | 'completed'
+    reviewerName?: string
+    reviewerEmail?: string
+    path: string
+    requestedAt: string
+    completedAt?: string
+  } | null
 }
 
 export interface GenericPluginRecord extends PluginRecordBase {
@@ -834,6 +847,11 @@ function normalizeRecord(plugin: PluginManifest, value: any): PluginRecord | nul
       judge: value.experiment?.judge === 'ai' || value.experiment?.judge === 'human' ? value.experiment.judge : 'fixed',
       iterations: Math.max(1, Math.min(100, Math.round(Number(value.experiment?.iterations) || 1))),
       judgeGuidance: String(value.experiment?.judgeGuidance || '').trim(),
+      fixedMatch: value.experiment?.fixedMatch === 'contains' || value.experiment?.fixedMatch === 'regex' ? value.experiment.fixedMatch : 'exact',
+      fixedCaseSensitive: value.experiment?.fixedCaseSensitive === true,
+      humanReviewerName: String(value.experiment?.humanReviewerName || '').trim(),
+      humanReviewerEmail: String(value.experiment?.humanReviewerEmail || '').trim().toLowerCase(),
+      humanReviewPath: String(value.experiment?.humanReviewPath || '').trim(),
       cases: normalizeEvalCases(
         value.experiment?.cases,
         String(value.experiment?.input || '').trim(),
@@ -842,6 +860,16 @@ function normalizeRecord(plugin: PluginManifest, value: any): PluginRecord | nul
     },
     runs,
     lastRun: value.lastRun || runs[0] || null,
+    humanReview: value.humanReview && typeof value.humanReview === 'object'
+      ? {
+          status: value.humanReview.status === 'completed' ? 'completed' : 'pending',
+          reviewerName: String(value.humanReview.reviewerName || '').trim(),
+          reviewerEmail: String(value.humanReview.reviewerEmail || '').trim().toLowerCase(),
+          path: String(value.humanReview.path || '').trim(),
+          requestedAt: String(value.humanReview.requestedAt || '').trim(),
+          completedAt: String(value.humanReview.completedAt || '').trim() || undefined,
+        }
+      : null,
   }
 }
 
@@ -849,7 +877,35 @@ export function listPluginRecords(plugin: PluginManifest): PluginRecord[] {
   ensurePluginStorage(plugin)
   const raw = readJsonFile<any[]>(getPluginItemsPath(plugin))
   if (!Array.isArray(raw)) return []
-  return raw.map((entry) => normalizeRecord(plugin, entry)).filter((entry): entry is PluginRecord => Boolean(entry))
+  const records = raw.map((entry) => normalizeRecord(plugin, entry)).filter((entry): entry is PluginRecord => Boolean(entry))
+  let recordsChanged = false
+  for (const record of records) {
+    const canonicalItemPath = buildPluginItemPath(plugin, record)
+    const legacyItemPath = `SYSTEM/plugins/${plugin.slug}/items/${record.id}.md`
+    const canonicalItemAbsolute = path.join(getWorkspacePath(), canonicalItemPath)
+    const legacyItemAbsolute = path.join(getWorkspacePath(), legacyItemPath)
+    if (!fs.existsSync(canonicalItemAbsolute) || fs.existsSync(legacyItemAbsolute)) {
+      writePluginItemFile(plugin, record)
+      if (legacyItemPath !== canonicalItemPath) removePluginFile(legacyItemPath)
+    }
+
+    if (record.document?.path) {
+      const canonicalDocPath = buildPluginDocPath(plugin, record)
+      if (record.document.path !== canonicalDocPath) {
+        const previousAbsolute = path.join(getWorkspacePath(), record.document.path)
+        const canonicalAbsolute = path.join(getWorkspacePath(), canonicalDocPath)
+        if (fs.existsSync(previousAbsolute)) {
+          fs.mkdirSync(path.dirname(canonicalAbsolute), { recursive: true })
+          if (fs.existsSync(canonicalAbsolute)) fs.rmSync(canonicalAbsolute, { force: true })
+          fs.renameSync(previousAbsolute, canonicalAbsolute)
+        }
+        record.document = { ...record.document, path: canonicalDocPath }
+        recordsChanged = true
+      }
+    }
+  }
+  if (recordsChanged) writePluginRecords(plugin, records)
+  return records
 }
 
 function normalizeTemplate(plugin: PluginManifest, value: any): PluginRecordTemplate | null {
@@ -958,12 +1014,44 @@ function writePluginRecords(plugin: PluginManifest, records: PluginRecord[]): vo
   fs.writeFileSync(getPluginItemsPath(plugin), JSON.stringify(records, null, 2), 'utf-8')
 }
 
+function pluginRecordFileStem(record: PluginRecord): string {
+  const readable = String(record.name || record.kind || 'plugin-item')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 64)
+    .replace(/-+$/g, '') || 'plugin-item'
+  const unique = String(record.id || '')
+    .replace(/[^a-z0-9]/gi, '')
+    .slice(-8)
+    .toLowerCase() || crypto.createHash('sha256').update(readable).digest('hex').slice(0, 8)
+  return `${readable}-${unique}`
+}
+
 function buildPluginDocPath(plugin: PluginManifest, record: PluginRecord): string {
-  return `SYSTEM/plugins/${plugin.slug}/docs/${record.id}.md`
+  return `SYSTEM/plugins/${plugin.slug}/docs/${pluginRecordFileStem(record)}.md`
 }
 
 function buildPluginItemPath(plugin: PluginManifest, record: PluginRecord): string {
-  return `SYSTEM/plugins/${plugin.slug}/items/${record.id}.md`
+  return `SYSTEM/plugins/${plugin.slug}/items/${pluginRecordFileStem(record)}.md`
+}
+
+function removePluginFile(relativePath: string): void {
+  const absolutePath = path.join(getWorkspacePath(), relativePath)
+  if (fs.existsSync(absolutePath)) fs.rmSync(absolutePath, { force: true })
+}
+
+function removeSupersededPluginItemFiles(plugin: PluginManifest, previous: PluginRecord, next: PluginRecord): void {
+  const nextPath = buildPluginItemPath(plugin, next)
+  const previousPaths = [
+    buildPluginItemPath(plugin, previous),
+    `SYSTEM/plugins/${plugin.slug}/items/${previous.id}.md`,
+  ]
+  for (const previousPath of previousPaths) {
+    if (previousPath !== nextPath) removePluginFile(previousPath)
+  }
 }
 
 function isGuardrailRecord(record: PluginRecord): record is GuardrailRecord {
@@ -993,7 +1081,13 @@ function genericFieldLines(plugin: PluginManifest, record: GenericPluginRecord):
 function writePluginDocument(plugin: PluginManifest, record: PluginRecord): PluginDocument {
   ensurePluginStorage(plugin)
   const generatedAt = new Date().toISOString()
-  const absolutePath = path.join(getWorkspacePath(), buildPluginDocPath(plugin, record))
+  const documentPath = buildPluginDocPath(plugin, record)
+  if (record.document?.path && record.document.path !== documentPath) {
+    removePluginFile(record.document.path)
+  }
+  const legacyPath = `SYSTEM/plugins/${plugin.slug}/docs/${record.id}.md`
+  if (legacyPath !== documentPath) removePluginFile(legacyPath)
+  const absolutePath = path.join(getWorkspacePath(), documentPath)
   fs.mkdirSync(path.dirname(absolutePath), { recursive: true })
 
   let lines: string[]
@@ -1037,6 +1131,17 @@ function writePluginDocument(plugin: PluginManifest, record: PluginRecord): Plug
         `- **Target Type:** ${record.target.type}`,
         `- **Targets:** ${record.target.ids.join(', ') || 'none'}`,
         `- **Evaluator:** ${record.experiment.judge === 'ai' ? 'AI evaluator' : record.experiment.judge === 'human' ? 'Human evaluator' : 'Fixed evaluator'}`,
+        ...(record.experiment.judge === 'fixed'
+          ? [`- **Comparison:** ${record.experiment.fixedMatch || 'exact'}${record.experiment.fixedCaseSensitive ? ' (case sensitive)' : ''}`]
+          : []),
+        ...(record.experiment.judge === 'human'
+          ? [
+              `- **Reviewer:** ${record.experiment.humanReviewerName || 'unassigned'}`,
+              `- **Reviewer Email:** ${record.experiment.humanReviewerEmail || 'none'}`,
+              `- **Review File:** ${record.humanReview?.path || record.experiment.humanReviewPath || 'created when requested'}`,
+              `- **Review Status:** ${record.humanReview?.status || 'not requested'}`,
+            ]
+          : []),
         `- **Planned Trials:** ${record.experiment.iterations}`,
         `- **Trial Cases:** ${record.experiment.cases?.length || 0}`,
         '',
@@ -1087,7 +1192,7 @@ function writePluginDocument(plugin: PluginManifest, record: PluginRecord): Plug
 
   fs.writeFileSync(absolutePath, lines.join('\n'), 'utf-8')
   return {
-    path: buildPluginDocPath(plugin, record),
+    path: documentPath,
     title: `${record.name} ${plugin.labels?.singular?.toLowerCase() || plugin.objectKind} summary`,
     generatedAt,
   }
@@ -1128,9 +1233,17 @@ function writePluginItemFile(plugin: PluginManifest, record: PluginRecord): Plug
         `target_type: ${record.target.type}`,
         `target_ids: [${record.target.ids.map((id) => `"${String(id).replace(/"/g, '\\"')}"`).join(', ')}]`,
         `judge: ${record.experiment.judge}`,
+        `fixed_match: ${record.experiment.fixedMatch || 'exact'}`,
+        `fixed_case_sensitive: ${record.experiment.fixedCaseSensitive === true}`,
         `planned_trials: ${record.experiment.iterations || 1}`,
         `run_count: ${record.runs.length}`,
         `last_score: ${record.lastRun ? record.lastRun.score : 'null'}`,
+        ...(record.experiment.judge === 'human'
+          ? [
+              `human_review_status: ${record.humanReview?.status || 'not-requested'}`,
+              `human_review_path: ${quoteFrontmatter(record.humanReview?.path || record.experiment.humanReviewPath || '')}`,
+            ]
+          : []),
         '---',
       ]
   } else {
@@ -1174,6 +1287,17 @@ function writePluginItemFile(plugin: PluginManifest, record: PluginRecord): Plug
         '## Experiment',
         '',
         `- Evaluator: ${record.experiment.judge}`,
+        ...(record.experiment.judge === 'fixed'
+          ? [`- Comparison: ${record.experiment.fixedMatch || 'exact'}${record.experiment.fixedCaseSensitive ? ' (case sensitive)' : ''}`]
+          : []),
+        ...(record.experiment.judge === 'human'
+          ? [
+              `- Reviewer: ${record.experiment.humanReviewerName || 'unassigned'}`,
+              `- Reviewer email: ${record.experiment.humanReviewerEmail || 'none'}`,
+              `- Review file: ${record.humanReview?.path || record.experiment.humanReviewPath || 'created when requested'}`,
+              `- Review status: ${record.humanReview?.status || 'not requested'}`,
+            ]
+          : []),
         `- Planned trials: ${record.experiment.iterations || 1}`,
         `- Input: ${record.experiment.input || 'none'}`,
         `- Candidate output: ${record.experiment.candidateOutput || 'none'}`,
@@ -1264,12 +1388,46 @@ function createGuardrailRecord(input: Partial<GuardrailRecord>): GuardrailRecord
   }
 }
 
+function normalizeHumanReviewPath(rawPath: string, recordName: string, recordId: string): string {
+  const supplied = rawPath.trim().replace(/\\/g, '/')
+  const fallbackRecord = {
+    id: recordId,
+    kind: 'eval',
+    name: recordName,
+  } as PluginRecord
+  const relativePath = supplied || `SYSTEM/evals/reviews/${pluginRecordFileStem(fallbackRecord)}-review.md`
+  if (path.isAbsolute(relativePath) || !relativePath.toLowerCase().endsWith('.md')) {
+    throw new PluginContractError('Human review path must be a relative workspace Markdown (.md) path.', 400)
+  }
+  const workspacePath = path.resolve(getWorkspacePath())
+  const absolutePath = path.resolve(workspacePath, relativePath)
+  if (absolutePath === workspacePath || !absolutePath.startsWith(`${workspacePath}${path.sep}`)) {
+    throw new PluginContractError('Human review path must stay inside the current workspace.', 400)
+  }
+  return path.relative(workspacePath, absolutePath).split(path.sep).join('/')
+}
+
+function normalizeReviewerEmail(value: string): string {
+  const email = value.trim().toLowerCase()
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new PluginContractError('Reviewer email must be valid.', 400)
+  }
+  return email
+}
+
 function createEvalRecord(input: Partial<EvalRecord>): EvalRecord {
   const now = new Date().toISOString()
+  const id = String(input.id || crypto.randomUUID())
+  const name = String(input.name || '').trim() || 'Untitled eval'
+  const judge = input.experiment?.judge === 'ai' || input.experiment?.judge === 'human' ? input.experiment.judge : 'fixed'
+  const humanReviewerEmail = normalizeReviewerEmail(String(input.experiment?.humanReviewerEmail || ''))
+  const humanReviewPath = judge === 'human'
+    ? normalizeHumanReviewPath(String(input.experiment?.humanReviewPath || ''), name, id)
+    : String(input.experiment?.humanReviewPath || '').trim()
   return {
-    id: String(input.id || crypto.randomUUID()),
+    id,
     kind: 'eval',
-    name: String(input.name || '').trim() || 'Untitled eval',
+    name,
     description: String(input.description || '').trim(),
     tags: uniq(Array.isArray(input.tags) ? input.tags.map(String) : []),
     enabled: input.enabled !== false,
@@ -1285,9 +1443,14 @@ function createEvalRecord(input: Partial<EvalRecord>): EvalRecord {
       input: String(input.experiment?.input || '').trim(),
       candidateOutput: String(input.experiment?.candidateOutput || '').trim(),
       expectedOutput: String(input.experiment?.expectedOutput || '').trim(),
-      judge: input.experiment?.judge === 'ai' || input.experiment?.judge === 'human' ? input.experiment.judge : 'fixed',
+      judge,
       iterations: Math.max(1, Math.min(100, Math.round(Number(input.experiment?.iterations) || 1))),
       judgeGuidance: String(input.experiment?.judgeGuidance || '').trim(),
+      fixedMatch: input.experiment?.fixedMatch === 'contains' || input.experiment?.fixedMatch === 'regex' ? input.experiment.fixedMatch : 'exact',
+      fixedCaseSensitive: input.experiment?.fixedCaseSensitive === true,
+      humanReviewerName: String(input.experiment?.humanReviewerName || '').trim(),
+      humanReviewerEmail,
+      humanReviewPath,
       cases: normalizeEvalCases(
         input.experiment?.cases,
         String(input.experiment?.input || '').trim(),
@@ -1296,6 +1459,7 @@ function createEvalRecord(input: Partial<EvalRecord>): EvalRecord {
     },
     runs: Array.isArray(input.runs) ? input.runs : [],
     lastRun: input.lastRun || null,
+    humanReview: input.humanReview || null,
   }
 }
 
@@ -1367,6 +1531,7 @@ export function upsertPluginRecord(plugin: PluginManifest, input: Partial<Plugin
   if (existingIndex >= 0) records.splice(existingIndex, 1, nextRecord)
   else records.unshift(nextRecord)
   writePluginRecords(plugin, records)
+  if (existing) removeSupersededPluginItemFiles(plugin, existing, nextRecord)
   writePluginItemFile(plugin, nextRecord)
   return nextRecord
 }
@@ -1391,11 +1556,10 @@ export function deletePluginRecord(plugin: PluginManifest, recordId: string): bo
   if (next.length === records.length) return false
   writePluginRecords(plugin, next)
   if (current) {
-    const itemPath = path.join(getWorkspacePath(), buildPluginItemPath(plugin, current))
-    if (fs.existsSync(itemPath)) fs.rmSync(itemPath, { force: true })
+    removePluginFile(buildPluginItemPath(plugin, current))
+    removePluginFile(`SYSTEM/plugins/${plugin.slug}/items/${current.id}.md`)
     if (current.document?.path) {
-      const docPath = path.join(getWorkspacePath(), current.document.path)
-      if (fs.existsSync(docPath)) fs.rmSync(docPath, { force: true })
+      removePluginFile(current.document.path)
     }
   }
   return true
@@ -1430,14 +1594,34 @@ function scoreEval(experiment: EvalRecord['experiment']): EvalRunRecord {
   const expected = normalizeTokens(experiment.expectedOutput)
   const actual = new Set(normalizeTokens(experiment.candidateOutput))
   const matched = expected.filter((token) => actual.has(token)).length
-  const baseScore = expected.length > 0 ? Math.round((matched / expected.length) * 100) : 0
+  const semanticOverlapScore = expected.length > 0 ? Math.round((matched / expected.length) * 100) : 0
+  const fixedMatch = experiment.fixedMatch || 'exact'
+  const normalizeFixedValue = (value: string) => experiment.fixedCaseSensitive ? value : value.toLowerCase()
+  const expectedValue = normalizeFixedValue(experiment.expectedOutput)
+  const candidateValue = normalizeFixedValue(experiment.candidateOutput)
+  let fixedPassed = false
+  let fixedError = ''
+  if (fixedMatch === 'regex') {
+    try {
+      fixedPassed = new RegExp(experiment.expectedOutput, experiment.fixedCaseSensitive ? '' : 'i').test(experiment.candidateOutput)
+    } catch (error: any) {
+      fixedError = `Invalid regular expression: ${error?.message || 'could not compile pattern'}`
+    }
+  } else if (fixedMatch === 'contains') {
+    fixedPassed = expectedValue.length > 0 && candidateValue.includes(expectedValue)
+  } else {
+    fixedPassed = expectedValue.length > 0 && candidateValue === expectedValue
+  }
+  const baseScore = experiment.judge === 'fixed' ? (fixedPassed ? 100 : 0) : semanticOverlapScore
   const judgeMode = experiment.judge === 'ai' ? 'ai-placeholder' : 'fixed'
   const tokensIn = Math.max(1, Math.ceil((experiment.input.length + experiment.expectedOutput.length) / 4))
   const tokensOut = Math.max(1, Math.ceil(experiment.candidateOutput.length / 4))
   const costUsd = Number(((tokensIn * 0.0000025) + (tokensOut * 0.00001)).toFixed(6))
   const summary = experiment.judge === 'ai'
     ? `Placeholder AI judge scored semantic overlap at ${baseScore}/100. Replace with a real model-backed judge in a later pass.`
-    : `Fixed heuristic judge scored token overlap at ${baseScore}/100 against the expected output.`
+    : fixedError
+      ? fixedError
+      : `Fixed ${fixedMatch} comparison ${fixedPassed ? 'passed' : 'failed'}${experiment.fixedCaseSensitive ? ' with case sensitivity' : ''}.`
   return {
     id: crypto.randomUUID(),
     score: Math.max(0, Math.min(100, baseScore)),
@@ -1450,6 +1634,80 @@ function scoreEval(experiment: EvalRecord['experiment']): EvalRunRecord {
   }
 }
 
+function quoteFrontmatter(value: string): string {
+  return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\r?\n/g, ' ')}"`
+}
+
+function writeHumanEvalReviewRequest(plugin: PluginManifest, record: EvalRecord): EvalRecord {
+  const requestedAt = new Date().toISOString()
+  const reviewPath = normalizeHumanReviewPath(
+    record.experiment.humanReviewPath || '',
+    record.name,
+    record.id,
+  )
+  const absolutePath = path.join(getWorkspacePath(), reviewPath)
+  fs.mkdirSync(path.dirname(absolutePath), { recursive: true })
+  const cases = record.experiment.cases?.length
+    ? record.experiment.cases
+    : normalizeEvalCases([], record.experiment.input, record.experiment.expectedOutput)
+  const caseLines = cases.flatMap((entry, index) => [
+    `### ${index + 1}. ${entry.name || `Trial case ${index + 1}`}`,
+    '',
+    `- **Input (${entry.input.type}):** ${entry.input.value || 'none'}`,
+    `- **Expected (${entry.expected.type}):** ${entry.expected.value || 'none'}`,
+    '',
+  ])
+  const lines = [
+    '---',
+    `plugin: ${plugin.slug}`,
+    `eval_id: ${record.id}`,
+    `status: pending`,
+    `reviewer_name: ${quoteFrontmatter(record.experiment.humanReviewerName || '')}`,
+    `reviewer_email: ${quoteFrontmatter(record.experiment.humanReviewerEmail || '')}`,
+    `requested_at: ${requestedAt}`,
+    '---',
+    '',
+    `# Human review: ${record.name}`,
+    '',
+    record.description || 'Review this Eval and record the result below.',
+    '',
+    '## Reviewer instructions',
+    '',
+    record.experiment.judgeGuidance || 'Review the candidate output against the expected outcome and record a score, outcome, and rationale.',
+    '',
+    '## Assignment',
+    '',
+    `- **Reviewer:** ${record.experiment.humanReviewerName || 'Unassigned'}`,
+    `- **Email:** ${record.experiment.humanReviewerEmail || 'Not provided'}`,
+    `- **Target:** ${record.target.type} · ${record.target.ids.join(', ') || 'none selected'}`,
+    `- **Planned trials:** ${record.experiment.iterations || 1}`,
+    '',
+    '## Trial cases',
+    '',
+    ...caseLines,
+    '## Reviewer result',
+    '',
+    '- **Score (0-100):**',
+    '- **Outcome (pass/fail):**',
+    '- **Rationale:**',
+    '',
+    '> Change `status` in the frontmatter to `completed` after recording the result.',
+    '',
+  ]
+  fs.writeFileSync(absolutePath, lines.join('\n'), 'utf-8')
+  return {
+    ...record,
+    humanReview: {
+      status: 'pending',
+      reviewerName: record.experiment.humanReviewerName,
+      reviewerEmail: record.experiment.humanReviewerEmail,
+      path: reviewPath,
+      requestedAt,
+    },
+    updatedAt: requestedAt,
+  }
+}
+
 export function runPluginEval(plugin: PluginManifest, recordId: string): EvalRecord | null {
   if (!usesLegacyAdapter(plugin, 'eval')) return null
   const records = listPluginRecords(plugin)
@@ -1458,7 +1716,21 @@ export function runPluginEval(plugin: PluginManifest, recordId: string): EvalRec
   const current = records[index]
   if (!isEvalRecord(current)) return null
   if (current.experiment.judge === 'human') {
-    throw new PluginContractError('Human evaluation requires a reviewer. Choose AI or Fixed for an automated run.', 409)
+    const updated = writeHumanEvalReviewRequest(plugin, current)
+    records.splice(index, 1, updated)
+    writePluginRecords(plugin, records)
+    writePluginItemFile(plugin, updated)
+    if (plugin.capabilities?.notifications === true) {
+      createNotification({
+        type: 'artifact-update',
+        title: `${plugin.name}: Human review requested`,
+        message: `${updated.name} is ready for human review at ${updated.humanReview!.path}${updated.experiment.humanReviewerEmail ? ` by ${updated.experiment.humanReviewerEmail}` : ''}.`,
+        entityId: updated.id,
+        fingerprint: `plugin-human-review:${plugin.slug}:${updated.id}:${updated.humanReview!.requestedAt}`,
+        artifactPath: updated.humanReview!.path,
+      })
+    }
+    return updated
   }
   const run = scoreEval(current.experiment)
   const updated: EvalRecord = {

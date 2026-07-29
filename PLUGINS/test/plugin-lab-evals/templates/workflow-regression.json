@@ -21,6 +21,8 @@
       "judge": "fixed",
       "iterations": 20,
       "judgeGuidance": "Require every explicit completion marker and handoff field. Report each missing or mismatched value without inferring intent.",
+      "fixedMatch": "exact",
+      "fixedCaseSensitive": false,
       "cases": [
         {
           "id": "known-workflow-output",

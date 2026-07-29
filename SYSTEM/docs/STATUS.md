@@ -34,7 +34,7 @@
 ### 2.0.0 development
 
 - Branch: `main`
-- Current test candidate: `2.0.0-test-rc19`, focused on bounded Optimize controls, permanent public and authorized-private suggestion catalogs, public/private image boundaries, and mobile/restart smoke checks.
+- Current test candidate: `2.0.0-test-rc21`, focused on complete Guardrail, Eval, and Optimize flows; evaluator-specific configuration; suggestion catalogs; public/private image boundaries; review export; and mobile/restart checks.
 - RC18 local Dev review passed `4/4` with Max on July 28. Those checks and their verifier metadata are retained in the cumulative 2.0 Review set; cloud, on-prem, private-image, and additional tester confirmation remain pending.
 - Architecture: [Plugin System 2.0](../../PLUGINS/PLUGIN_SYSTEM_2_0.md)
 - Authoring contract: [Plugin Authoring 2.0](../../PLUGINS/PLUGIN_AUTHORING_2_0.md)

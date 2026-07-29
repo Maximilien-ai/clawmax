@@ -1694,8 +1694,8 @@ fi
 
 echo -e "${YELLOW}→ Running Plugin workspace layout regression tests...${NC}"
 npx ts-node --transpileOnly client/src/PluginWorkspaceLayout.test.ts > /tmp/clawmax-plugin-workspace-layout.out 2>&1 || true
-if grep -q "PluginWorkspaceLayout.test.ts: 118 tests passed" /tmp/clawmax-plugin-workspace-layout.out; then
-  pass "Plugin workspace layout regression tests (118 tests)"
+if grep -q "PluginWorkspaceLayout.test.ts: 128 tests passed" /tmp/clawmax-plugin-workspace-layout.out; then
+  pass "Plugin workspace layout regression tests (128 tests)"
 else
   cat /tmp/clawmax-plugin-workspace-layout.out
   fail "Plugin workspace layout regression tests"
@@ -2500,8 +2500,8 @@ fi
 
 echo -e "${YELLOW}→ Running local plugin startup contract tests...${NC}"
 bash "$SYSTEM_DIR/start-local-plugins.test.sh" > /tmp/clawmax-start-local-plugins.out 2>&1 || true
-if grep -q "start-local-plugins.test.sh: 4 tests passed" /tmp/clawmax-start-local-plugins.out; then
-  pass "Local plugin startup contract tests (4 tests)"
+if grep -q "start-local-plugins.test.sh: 5 tests passed" /tmp/clawmax-start-local-plugins.out; then
+  pass "Local plugin startup contract tests (5 tests)"
 else
   cat /tmp/clawmax-start-local-plugins.out
   fail "Local plugin startup contract tests"

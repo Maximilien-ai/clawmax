@@ -364,7 +364,8 @@ async function run() {
     assert('history' in created && created.history[0]?.action === 'activated', 'Expected initial activation in guardrail history')
     assert(getActiveNotifications().some((notification) => notification.entityId === created.id && notification.title.includes('activated')), 'Expected guardrail activation notification')
     assert.strictEqual(listPluginRecords(plugin!).length, 1, 'Expected created guardrail to persist')
-    assert(fs.existsSync(path.join(tempWorkspace, `SYSTEM/plugins/${plugin!.slug}/items/${created.id}.md`)), 'Expected canonical guardrail item file on disk')
+    const guardrailItemFiles = fs.readdirSync(path.join(tempWorkspace, `SYSTEM/plugins/${plugin!.slug}/items`))
+    assert(guardrailItemFiles.some((file) => /^no-outbound-send-[a-z0-9]{8}\.md$/.test(file)), 'Expected readable unique guardrail item file on disk')
 
     const archived = upsertPluginRecord(plugin!, { ...created, archived: true } as any)
     assert.strictEqual(archived.archived, true, 'Expected archive flag to persist on plugin records')
@@ -373,7 +374,7 @@ async function run() {
     assert(getActiveNotifications().some((notification) => notification.entityId === created.id && notification.title.includes('deactivated')), 'Expected guardrail deactivation notification')
 
     const withDoc = generatePluginRecordDocument(plugin!, created.id)
-    assert(withDoc?.document?.path === `SYSTEM/plugins/${plugin!.slug}/docs/${created.id}.md`, 'Expected generated guardrail doc path')
+    assert(withDoc?.document?.path?.match(new RegExp(`SYSTEM/plugins/${plugin!.slug}/docs/no-outbound-send-[a-z0-9]{8}\\.md$`)), 'Expected readable unique guardrail doc path')
     assert(fs.existsSync(path.join(tempWorkspace, withDoc!.document!.path)), 'Expected generated guardrail doc on disk')
     const generatedDocNotifications = getActiveNotifications().filter((notification) =>
       notification.type === 'artifact-update'
@@ -440,11 +441,11 @@ async function run() {
     assert(documentContent.includes('**Completed:** yes'), 'Expected generic checkbox formatting in generated document')
 
     const releaseTemplates = listPluginTemplates(plugin!).filter((template) => (
-      'fields' in template.payload && template.payload.fields?.release === '2.0.0-test-rc19'
+      'fields' in template.payload && template.payload.fields?.release === '2.0.0-test-rc21'
     ))
-    assert.strictEqual(releaseTemplates.length, 4, 'Expected the focused current release file to expand into four checklist items')
-    assert(releaseTemplates.some((template) => template.id === '2.0.0-test-rc19:rc19-release-mobile-smoke'), 'Expected release-qualified checklist item discovery')
-    const applied = applyPluginTemplate(plugin!, '2.0.0-test-rc19:rc19-release-mobile-smoke')
+    assert.strictEqual(releaseTemplates.length, 10, 'Expected the focused current release file to expand into ten checklist items')
+    assert(releaseTemplates.some((template) => template.id === '2.0.0-test-rc21:rc21-release-health-and-persistence'), 'Expected release-qualified checklist item discovery')
+    const applied = applyPluginTemplate(plugin!, '2.0.0-test-rc21:rc21-release-health-and-persistence')
     assert(applied && 'fields' in applied && applied.fields.owner === 'release-tester', 'Expected generic template application')
   })
 
@@ -491,21 +492,60 @@ async function run() {
       },
       experiment: {
         input: 'Summarize the workspace state.',
-        candidateOutput: 'Workspace findings include research summary and agent notes.',
+        candidateOutput: 'research summary agent notes',
         expectedOutput: 'research summary agent notes',
         judge: 'fixed',
+        fixedMatch: 'exact',
       },
     } as any)
 
     const evaluated = runPluginEval(plugin!, created.id)
     assert(evaluated?.lastRun, 'Expected eval run to create a lastRun record')
-    assert((evaluated?.lastRun?.score || 0) > 0, 'Expected heuristic score to be non-zero for overlapping tokens')
+    assert.strictEqual(evaluated?.lastRun?.score, 100, 'Expected exact fixed comparison to pass')
+    assert(evaluated?.lastRun?.summary.includes('Fixed exact comparison passed'), 'Expected fixed comparison evidence')
     assert((evaluated?.lastRun?.tokensIn || 0) > 0, 'Expected eval run tokensIn to be populated')
     assert((evaluated?.lastRun?.tokensOut || 0) > 0, 'Expected eval run tokensOut to be populated')
     assert((evaluated?.lastRun?.costUsd || 0) > 0, 'Expected eval run costUsd to be populated')
     assert(getActiveNotifications().some((notification) => notification.entityId === created.id && notification.title.includes('Eval completed')), 'Expected eval completion notification')
-    assert(evaluated?.document?.path?.includes(`SYSTEM/plugins/${plugin!.slug}/docs/${created.id}.md`), 'Expected eval run to generate a plugin doc')
-    assert(fs.existsSync(path.join(tempWorkspace, `SYSTEM/plugins/${plugin!.slug}/items/${created.id}.md`)), 'Expected canonical eval item file on disk')
+    assert(evaluated?.document?.path?.match(new RegExp(`SYSTEM/plugins/${plugin!.slug}/docs/analyst-summary-accuracy-[a-z0-9]{8}\\.md$`)), 'Expected a readable unique eval document filename')
+    assert(fs.existsSync(path.join(tempWorkspace, evaluated!.document!.path)), 'Expected readable eval document on disk')
+    const itemFiles = fs.readdirSync(path.join(tempWorkspace, `SYSTEM/plugins/${plugin!.slug}/items`))
+    assert(itemFiles.some((file) => /^analyst-summary-accuracy-[a-z0-9]{8}\.md$/.test(file)), 'Expected a readable unique eval item filename')
+    assert(!itemFiles.includes(`${created.id}.md`), 'Expected no UUID-only legacy eval item filename')
+
+    const renamed = upsertPluginRecord(plugin!, { id: created.id, name: 'Renamed accuracy check' } as any)
+    const renamedItemFiles = fs.readdirSync(path.join(tempWorkspace, `SYSTEM/plugins/${plugin!.slug}/items`))
+    assert(renamedItemFiles.some((file) => /^renamed-accuracy-check-[a-z0-9]{8}\.md$/.test(file)), 'Expected item filename to follow the updated Eval name')
+    assert(!renamedItemFiles.some((file) => /^analyst-summary-accuracy-[a-z0-9]{8}\.md$/.test(file)), 'Expected renamed item to remove its superseded filename')
+    assert.strictEqual(renamed.id, created.id, 'Expected rename to preserve Eval identity')
+
+    if (renamed.kind !== 'eval' || !('experiment' in renamed)) {
+      throw new Error('Expected renamed record to remain an Eval')
+    }
+    const regexRecord = upsertPluginRecord(plugin!, {
+      id: created.id,
+      experiment: {
+        ...renamed.experiment,
+        candidateOutput: 'Approved: release candidate 21',
+        expectedOutput: '^Approved:\\s+release candidate \\d+$',
+        fixedMatch: 'regex',
+        fixedCaseSensitive: true,
+      },
+    } as any)
+    const regexRun = runPluginEval(plugin!, regexRecord.id)
+    assert.strictEqual(regexRun?.lastRun?.score, 100, 'Expected regular-expression fixed comparison to pass')
+    assert(regexRun?.lastRun?.summary.includes('Fixed regex comparison passed with case sensitivity'), 'Expected regular-expression evidence')
+    const currentReadableItem = fs.readdirSync(path.join(tempWorkspace, `SYSTEM/plugins/${plugin!.slug}/items`))
+      .find((file) => /^renamed-accuracy-check-[a-z0-9]{8}\.md$/.test(file))
+    assert(currentReadableItem, 'Expected a readable item before testing legacy migration')
+    fs.renameSync(
+      path.join(tempWorkspace, `SYSTEM/plugins/${plugin!.slug}/items`, currentReadableItem!),
+      path.join(tempWorkspace, `SYSTEM/plugins/${plugin!.slug}/items/${created.id}.md`),
+    )
+    listPluginRecords(plugin!)
+    const migratedItemFiles = fs.readdirSync(path.join(tempWorkspace, `SYSTEM/plugins/${plugin!.slug}/items`))
+    assert(migratedItemFiles.some((file) => /^renamed-accuracy-check-[a-z0-9]{8}\.md$/.test(file)), 'Expected record loading to migrate a legacy UUID-only item filename')
+    assert(!migratedItemFiles.includes(`${created.id}.md`), 'Expected legacy UUID-only item file removal after migration')
 
     const context = getPluginWorkspaceContext(plugin!)
     assert(context.agents.some((agent) => agent.id === 'analyst'), 'Expected plugin context to expose workspace agents')
@@ -531,6 +571,9 @@ async function run() {
         judge: 'human',
         iterations: 5,
         judgeGuidance: 'Review clarity, usefulness, and model fit before approval.',
+        humanReviewerName: 'Mike Reviewer',
+        humanReviewerEmail: 'mike@example.com',
+        humanReviewPath: 'SYSTEM/evals/reviews/model-fit-review.md',
         cases: [
           {
             id: 'case-text',
@@ -553,10 +596,34 @@ async function run() {
     assert('experiment' in created && created.experiment.judgeGuidance?.includes('clarity'), 'Expected evaluator guidance to persist')
     assert('experiment' in created && created.experiment.cases?.length === 2, 'Expected multiple trial cases to persist')
     assert('experiment' in created && created.experiment.cases?.[1]?.input.type === 'file', 'Expected workspace file references to persist')
+    const requested = runPluginEval(plugin!, created.id)
+    assert.strictEqual(requested?.lastRun, null, 'Expected Human evaluation not to create a fake automated score')
+    assert.strictEqual(requested?.humanReview?.status, 'pending', 'Expected a pending Human review request')
+    assert.strictEqual(requested?.humanReview?.reviewerEmail, 'mike@example.com', 'Expected reviewer assignment metadata')
+    assert.strictEqual(requested?.humanReview?.path, 'SYSTEM/evals/reviews/model-fit-review.md', 'Expected configured review path')
+    const reviewPath = path.join(tempWorkspace, requested!.humanReview!.path)
+    assert(fs.existsSync(reviewPath), 'Expected Human review Markdown file')
+    const reviewMarkdown = fs.readFileSync(reviewPath, 'utf-8')
+    assert(reviewMarkdown.includes('status: pending'), 'Expected pending review frontmatter')
+    assert(reviewMarkdown.includes('Reviewer result'), 'Expected reviewer result fields')
+    assert(reviewMarkdown.includes('Representative prompt'), 'Expected trial cases in review request')
+    assert(getActiveNotifications().some((notification) => notification.entityId === created.id && notification.title.includes('Human review requested')), 'Expected Human review notification')
+
     assert.throws(
-      () => runPluginEval(plugin!, created.id),
-      (error: any) => error instanceof PluginContractError && error.statusCode === 409 && error.message.includes('requires a reviewer'),
-      'Expected Human evaluation not to create a fake automated score',
+      () => upsertPluginRecord(plugin!, {
+        name: 'Invalid reviewer',
+        experiment: { judge: 'human', humanReviewerEmail: 'not-an-email' },
+      } as any),
+      (error: any) => error instanceof PluginContractError && error.statusCode === 400 && error.message.includes('email'),
+      'Expected invalid reviewer email to be rejected',
+    )
+    assert.throws(
+      () => upsertPluginRecord(plugin!, {
+        name: 'Unsafe review path',
+        experiment: { judge: 'human', humanReviewPath: '../../outside.md' },
+      } as any),
+      (error: any) => error instanceof PluginContractError && error.statusCode === 400 && error.message.includes('workspace'),
+      'Expected Human review paths outside the workspace to be rejected',
     )
   })
 

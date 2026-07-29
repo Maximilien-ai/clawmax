@@ -19,9 +19,11 @@ import {
   normalizePluginNumericValue,
   normalizePluginNavOrder,
   normalizePluginDiagnosticsReport,
+  extractSuggestedEvalRegex,
   scorePluginDraft,
   splitPluginDetailLine,
   sortPluginTemplates,
+  validateEvalRegex,
   type PluginManifest,
   type PluginRecord,
   type PluginRecordTemplate,
@@ -288,6 +290,14 @@ test('plugin draft scoring exposes actionable guardrail and eval improvements', 
     },
   })
   assert(completedEvalQuality.score > initialEvalQuality.score, 'Expected complete eval configuration to score higher')
+})
+
+test('eval regular expression helpers normalize AI output and report invalid patterns', () => {
+  assert(extractSuggestedEvalRegex('```regex\n^Approved:\\s+RC-\\d+$\n```') === '^Approved:\\s+RC-\\d+$', 'Expected fenced regex output to normalize')
+  assert(extractSuggestedEvalRegex('Regular expression: /success|passed/i') === 'success|passed', 'Expected labeled slash-delimited output to normalize')
+  assert(validateEvalRegex('^Approved:\\s+RC-\\d+$') === null, 'Expected a valid regular expression')
+  assert(validateEvalRegex('[')?.includes('Invalid regular expression') === true, 'Expected an invalid regular expression error')
+  assert(validateEvalRegex('') === 'Enter a regular expression.', 'Expected an empty regular expression error')
 })
 
 test('generic v2 plugins build defaults and prompt-backed declarative fields', () => {

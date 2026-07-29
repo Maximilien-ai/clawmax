@@ -15,6 +15,7 @@ import {
   buildPluginDraftFromPrompt,
   collectPluginTemplateTags,
   collectPluginTags,
+  extractSuggestedEvalRegex,
   formatPluginScopeSummary,
   formatPluginUpdatedAt,
   formatPluginUsageSummary,
@@ -35,6 +36,7 @@ import {
   sortPluginTemplates,
   type PluginTemplateSort,
   usesLegacyPluginAdapter,
+  validateEvalRegex,
 } from '../lib/plugins'
 import { applyOptimizeAssistantText } from '../lib/optimizeAssistant'
 import { getOptimizationDimensions } from '../lib/optimizeGraph'
@@ -351,10 +353,14 @@ function getEvalCasesFromDraft(draft: Partial<PluginRecord>): EvalCase[] {
 
 function EvalCasesDialog({
   initialCases,
+  evaluator,
+  fixedMatch,
   onClose,
   onSave,
 }: {
   initialCases: EvalCase[]
+  evaluator: 'ai' | 'human' | 'fixed'
+  fixedMatch: 'exact' | 'contains' | 'regex'
   onClose: () => void
   onSave: (cases: EvalCase[]) => void
 }) {
@@ -395,7 +401,9 @@ function EvalCasesDialog({
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 id="eval-cases-title" className="text-lg font-semibold text-gray-900 dark:text-gray-100">Trial cases</h2>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Each case can use text or a workspace file for its input and expected outcome.</p>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              Each case can use text or a workspace file for its input and {evaluator === 'fixed' && fixedMatch === 'regex' ? 'expected regular expression' : 'expected outcome'}.
+            </p>
           </div>
           <button type="button" onClick={onClose} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-gray-200 text-xl text-gray-500 dark:border-gray-700" aria-label="Close trial cases">×</button>
         </div>
@@ -431,7 +439,15 @@ function EvalCasesDialog({
             <div className="mt-4 grid gap-4 lg:grid-cols-2">
               {(['input', 'expected'] as const).map((field) => {
                 const value = entry[field]
-                const label = field === 'input' ? 'Input' : 'Expected outcome'
+                const label = field === 'input'
+                  ? 'Input'
+                  : evaluator === 'fixed' && fixedMatch === 'regex'
+                    ? 'Expected regular expression'
+                    : evaluator === 'fixed' && fixedMatch === 'exact'
+                      ? 'Expected exact output'
+                      : evaluator === 'fixed'
+                        ? 'Expected value'
+                        : 'Expected outcome'
                 return (
                   <div key={field} className="min-w-0">
                     <div className="mb-2 flex items-center justify-between gap-2">
@@ -456,7 +472,13 @@ function EvalCasesDialog({
                         onChange={(event) => updateCase(entry.id, (current) => ({ ...current, [field]: { ...current[field], value: event.target.value } }))}
                         rows={5}
                         className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
-                        placeholder={field === 'input' ? 'Prompt or representative input' : 'Expected answer, rubric outcome, or acceptance criteria'}
+                        placeholder={field === 'input'
+                          ? 'Prompt or representative input'
+                          : evaluator === 'fixed' && fixedMatch === 'regex'
+                            ? 'Regular expression, for example: ^Approved:\\s+.+$'
+                            : evaluator === 'fixed'
+                              ? 'Value to compare with the candidate output'
+                              : 'Expected answer, rubric outcome, or acceptance criteria'}
                       />
                     ) : (
                       <div>
@@ -510,6 +532,9 @@ function PluginFormModal({
   const [targetSearch, setTargetSearch] = useState('')
   const [showEvalCases, setShowEvalCases] = useState(false)
   const [evalCaseDrafts, setEvalCaseDrafts] = useState<EvalCase[]>([])
+  const [regexIntent, setRegexIntent] = useState('')
+  const [regexBusy, setRegexBusy] = useState(false)
+  const [regexError, setRegexError] = useState('')
   const [showOptimizeAssistant, setShowOptimizeAssistant] = useState(() => {
     if (typeof window === 'undefined') return true
     return window.localStorage.getItem(OPTIMIZE_AI_TUNING_EXPANDED_STORAGE_KEY) !== 'false'
@@ -535,6 +560,8 @@ function PluginFormModal({
     setTargetSearch('')
     setShowEvalCases(false)
     setEvalCaseDrafts([])
+    setRegexIntent('')
+    setRegexError('')
   }, [draft])
 
   useEffect(() => {
@@ -692,7 +719,9 @@ Do not mention a blocked action when the user wants it allowed.`,
 Name:
 Description:
 Evaluator: AI, Human, or Fixed
-Evaluator guidance:
+Evaluator guidance: AI judge prompt or Human reviewer instructions
+Fixed comparison: Exact, Contains, or Regular expression
+Case sensitive: Yes or No
 Trials: integer from 1 to 100
 Target type: agent or workflow
 Target: exact agent or workflow name from the request
@@ -741,6 +770,18 @@ Preserve existing values when the request does not ask to change them.`,
       const input = readLine('Input') || current?.experiment.input || prompt
       const expectedOutput = readLine('Expected outcome') || current?.experiment.expectedOutput || ''
       const judgeGuidance = readLine('Evaluator guidance') || current?.experiment.judgeGuidance || ''
+      const fixedComparison = readLine('Fixed comparison').toLowerCase()
+      const fixedMatch = /regular|regex/.test(fixedComparison)
+        ? 'regex'
+        : /contains|include/.test(fixedComparison)
+          ? 'contains'
+          : fixedComparison
+            ? 'exact'
+            : current?.experiment.fixedMatch || 'exact'
+      const caseSensitive = readLine('Case sensitive').toLowerCase()
+      const fixedCaseSensitive = caseSensitive
+        ? /yes|true|sensitive/.test(caseSensitive) && !/no|false|insensitive/.test(caseSensitive)
+        : current?.experiment.fixedCaseSensitive || false
       const currentCases = getEvalCasesFromDraft(form)
       const cases = readLine('Input') || readLine('Expected outcome')
         ? [{
@@ -765,6 +806,11 @@ Preserve existing values when the request does not ask to change them.`,
           judge,
           iterations,
           judgeGuidance,
+          fixedMatch,
+          fixedCaseSensitive,
+          humanReviewerName: current?.experiment.humanReviewerName || '',
+          humanReviewerEmail: current?.experiment.humanReviewerEmail || '',
+          humanReviewPath: current?.experiment.humanReviewPath || '',
           cases,
         },
         runs: current?.runs || [],
@@ -776,6 +822,7 @@ Preserve existing values when the request does not ask to change them.`,
         ...(readLine('Input') ? ['Update experiment input'] : []),
         ...(readLine('Expected outcome') ? ['Update expected outcome'] : []),
         ...(readLine('Evaluator guidance') ? ['Update evaluator guidance'] : []),
+        ...(judge === 'fixed' && readLine('Fixed comparison') ? [`Use ${fixedMatch} comparison`] : []),
         ...(attributes.length > 0 ? [`Evaluate ${attributes.join(', ')}`] : []),
       ]
       setAssistantUndo(form)
@@ -785,6 +832,42 @@ Preserve existing values when the request does not ask to change them.`,
       setAssistantError(error?.message || 'Could not configure this Eval with AI.')
     } finally {
       setAssistantBusy(false)
+    }
+  }
+  const suggestEvalRegex = async () => {
+    const intent = regexIntent.trim()
+    if (!intent || !isEval) return
+    setRegexBusy(true)
+    setRegexError('')
+    try {
+      const expanded = await expandPromptWithAI(
+        intent,
+        'workflow',
+        'text',
+        'Return exactly one JavaScript-compatible regular expression pattern. Do not include slash delimiters, flags, prose, or Markdown fences.',
+      )
+      const pattern = extractSuggestedEvalRegex(expanded)
+      const validationError = validateEvalRegex(pattern)
+      if (validationError) throw new Error(validationError)
+      setForm((current) => {
+        if (current.kind !== 'eval') return current
+        const cases = getEvalCasesFromDraft(current)
+        return {
+          ...current,
+          experiment: {
+            ...current.experiment,
+            expectedOutput: pattern,
+            fixedMatch: 'regex',
+            cases: cases.map((entry, index) => index === 0
+              ? { ...entry, expected: { type: 'text', value: pattern } }
+              : entry),
+          },
+        }
+      })
+    } catch (error: any) {
+      setRegexError(error?.message || 'Could not suggest a valid regular expression.')
+    } finally {
+      setRegexBusy(false)
     }
   }
 
@@ -1259,6 +1342,11 @@ Preserve existing values when the request does not ask to change them.`,
                       judge: e.target.value === 'ai' || e.target.value === 'human' ? e.target.value : 'fixed',
                       iterations: current.kind === 'eval' ? current.experiment?.iterations || 1 : 1,
                       judgeGuidance: current.kind === 'eval' ? current.experiment?.judgeGuidance || '' : '',
+                      fixedMatch: current.kind === 'eval' ? current.experiment?.fixedMatch || 'exact' : 'exact',
+                      fixedCaseSensitive: current.kind === 'eval' ? current.experiment?.fixedCaseSensitive || false : false,
+                      humanReviewerName: current.kind === 'eval' ? current.experiment?.humanReviewerName || '' : '',
+                      humanReviewerEmail: current.kind === 'eval' ? current.experiment?.humanReviewerEmail || '' : '',
+                      humanReviewPath: current.kind === 'eval' ? current.experiment?.humanReviewPath || '' : '',
                       cases: current.kind === 'eval' ? current.experiment?.cases || [] : [],
                     },
                   }))}
@@ -1269,32 +1357,191 @@ Preserve existing values when the request does not ask to change them.`,
                   <option value="human">Human evaluator</option>
                 </select>
               </label>
-                <label className="mt-4 block">
-                  <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Evaluator guidance</span>
-                  <textarea
-                    value={form.kind === 'eval' ? form.experiment?.judgeGuidance || '' : ''}
-                    onChange={(event) => setForm((current) => ({
-                      ...current,
-                      kind: 'eval',
-                      experiment: {
-                        input: current.kind === 'eval' ? current.experiment.input : '',
-                        candidateOutput: current.kind === 'eval' ? current.experiment.candidateOutput : '',
-                        expectedOutput: current.kind === 'eval' ? current.experiment.expectedOutput : '',
-                        judge: current.kind === 'eval' ? current.experiment.judge : 'ai',
-                        iterations: current.kind === 'eval' ? current.experiment.iterations || 1 : 1,
-                        judgeGuidance: event.target.value,
-                        cases: current.kind === 'eval' ? current.experiment.cases || [] : [],
-                      },
-                    }))}
-                    rows={4}
-                    placeholder={form.kind === 'eval' && form.experiment?.judge === 'human'
-                      ? 'Tell the reviewer what to prioritize and how to record approval.'
-                      : form.kind === 'eval' && form.experiment?.judge === 'fixed'
-                        ? 'Define the exact measurable checks and pass/fail thresholds.'
-                        : 'Guide the AI evaluator with the rubric, priorities, evidence requirements, and failure conditions.'}
-                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
-                  />
-                </label>
+                {form.kind === 'eval' && form.experiment?.judge === 'fixed' ? (
+                  <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                    <label className="block">
+                      <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Comparison rule</span>
+                      <select
+                        value={form.experiment.fixedMatch || 'exact'}
+                        onChange={(event) => setForm((current) => ({
+                          ...current,
+                          kind: 'eval',
+                          experiment: {
+                            ...(current.kind === 'eval' ? current.experiment : {
+                              input: '',
+                              candidateOutput: '',
+                              expectedOutput: '',
+                              judge: 'fixed' as const,
+                            }),
+                            fixedMatch: event.target.value === 'contains' || event.target.value === 'regex' ? event.target.value : 'exact',
+                          },
+                        }))}
+                        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                      >
+                        <option value="exact">Exact output</option>
+                        <option value="contains">Contains expected value</option>
+                        <option value="regex">Regular expression</option>
+                      </select>
+                    </label>
+                    <label className="flex min-h-10 items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:text-gray-300">
+                      <input
+                        type="checkbox"
+                        checked={form.experiment.fixedCaseSensitive === true}
+                        onChange={(event) => setForm((current) => ({
+                          ...current,
+                          kind: 'eval',
+                          experiment: {
+                            ...(current.kind === 'eval' ? current.experiment : {
+                              input: '',
+                              candidateOutput: '',
+                              expectedOutput: '',
+                              judge: 'fixed' as const,
+                            }),
+                            fixedCaseSensitive: event.target.checked,
+                          },
+                        }))}
+                      />
+                      Case sensitive
+                    </label>
+                    {form.experiment.fixedMatch === 'regex' && (
+                      <div className="space-y-3 sm:col-span-2">
+                        <label className="block">
+                          <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Default regular expression</span>
+                          <input
+                            value={form.experiment.expectedOutput || ''}
+                            onChange={(event) => {
+                              const pattern = event.target.value
+                              setRegexError('')
+                              setForm((current) => {
+                                if (current.kind !== 'eval') return current
+                                const cases = getEvalCasesFromDraft(current)
+                                return {
+                                  ...current,
+                                  experiment: {
+                                    ...current.experiment,
+                                    expectedOutput: pattern,
+                                    cases: cases.map((entry, index) => index === 0
+                                      ? { ...entry, expected: { type: 'text', value: pattern } }
+                                      : entry),
+                                  },
+                                }
+                              })
+                            }}
+                            placeholder="^Approved:\\s+release candidate \\d+$"
+                            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 font-mono text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                          />
+                          <span className={`mt-1 block text-xs ${validateEvalRegex(form.experiment.expectedOutput || '') ? 'text-rose-600 dark:text-rose-300' : 'text-emerald-600 dark:text-emerald-300'}`}>
+                            {validateEvalRegex(form.experiment.expectedOutput || '') || 'Valid regular expression'}
+                          </span>
+                        </label>
+                        <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                          <input
+                            value={regexIntent}
+                            onChange={(event) => {
+                              setRegexIntent(event.target.value)
+                              setRegexError('')
+                            }}
+                            placeholder="Describe what the output should match"
+                            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                          />
+                          <button
+                            type="button"
+                            onClick={suggestEvalRegex}
+                            disabled={!regexIntent.trim() || regexBusy}
+                            className="rounded-lg bg-sky-600 px-3 py-2 text-sm font-medium text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {regexBusy ? 'Suggesting…' : 'Suggest regex'}
+                          </button>
+                        </div>
+                        {regexError && <p className="text-xs text-rose-600 dark:text-rose-300">{regexError}</p>}
+                      </div>
+                    )}
+                    <p className="text-xs text-gray-500 sm:col-span-2 dark:text-gray-400">Set the expected value or regular expression independently for each trial case.</p>
+                  </div>
+                ) : (
+                  <div className="mt-4 space-y-4">
+                  <label className="block">
+                    <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      {form.kind === 'eval' && form.experiment?.judge === 'human' ? 'Human reviewer instructions' : 'AI evaluator prompt'}
+                    </span>
+                    <textarea
+                      value={form.kind === 'eval' ? form.experiment?.judgeGuidance || '' : ''}
+                      onChange={(event) => setForm((current) => ({
+                        ...current,
+                        kind: 'eval',
+                        experiment: {
+                          input: current.kind === 'eval' ? current.experiment.input : '',
+                          candidateOutput: current.kind === 'eval' ? current.experiment.candidateOutput : '',
+                          expectedOutput: current.kind === 'eval' ? current.experiment.expectedOutput : '',
+                          judge: current.kind === 'eval' ? current.experiment.judge : 'ai',
+                          iterations: current.kind === 'eval' ? current.experiment.iterations || 1 : 1,
+                          judgeGuidance: event.target.value,
+                          fixedMatch: current.kind === 'eval' ? current.experiment.fixedMatch || 'exact' : 'exact',
+                      fixedCaseSensitive: current.kind === 'eval' ? current.experiment.fixedCaseSensitive || false : false,
+                      humanReviewerName: current.kind === 'eval' ? current.experiment.humanReviewerName || '' : '',
+                      humanReviewerEmail: current.kind === 'eval' ? current.experiment.humanReviewerEmail || '' : '',
+                      humanReviewPath: current.kind === 'eval' ? current.experiment.humanReviewPath || '' : '',
+                      cases: current.kind === 'eval' ? current.experiment.cases || [] : [],
+                        },
+                      }))}
+                      rows={5}
+                      placeholder={form.kind === 'eval' && form.experiment?.judge === 'human'
+                        ? 'Tell the reviewer what to inspect, what evidence to record, and how to decide pass or fail.'
+                        : 'Write the judge prompt: define the rubric, priorities, evidence requirements, scoring scale, and failure conditions.'}
+                      className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                    />
+                    <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
+                      {form.kind === 'eval' && form.experiment?.judge === 'human'
+                        ? 'These instructions are shown to the assigned reviewer.'
+                        : 'This prompt guides the model that judges each candidate output against its trial case.'}
+                    </span>
+                  </label>
+                  {form.kind === 'eval' && form.experiment?.judge === 'human' && (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <label className="block">
+                        <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Reviewer name</span>
+                        <input
+                          value={form.experiment.humanReviewerName || ''}
+                          onChange={(event) => setForm((current) => current.kind === 'eval' ? ({
+                            ...current,
+                            experiment: { ...current.experiment, humanReviewerName: event.target.value },
+                          }) : current)}
+                          placeholder="Reviewer name"
+                          className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Reviewer email</span>
+                        <input
+                          type="email"
+                          value={form.experiment.humanReviewerEmail || ''}
+                          onChange={(event) => setForm((current) => current.kind === 'eval' ? ({
+                            ...current,
+                            experiment: { ...current.experiment, humanReviewerEmail: event.target.value },
+                          }) : current)}
+                          placeholder="reviewer@example.com"
+                          className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                        />
+                      </label>
+                      <label className="block sm:col-span-2">
+                        <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Review Markdown path</span>
+                        <input
+                          value={form.experiment.humanReviewPath || ''}
+                          onChange={(event) => setForm((current) => current.kind === 'eval' ? ({
+                            ...current,
+                            experiment: { ...current.experiment, humanReviewPath: event.target.value },
+                          }) : current)}
+                          placeholder="SYSTEM/evals/reviews/release-quality-review.md"
+                          className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 font-mono text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                        />
+                        <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
+                          Running this Eval creates a pending workspace review file. Email is assignment metadata only; delivery requires an explicitly configured mail workflow.
+                        </span>
+                      </label>
+                    </div>
+                  )}
+                  </div>
+                )}
               </section>
               <section className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
               <label className="block">
@@ -1314,6 +1561,11 @@ Preserve existing values when the request does not ask to change them.`,
                       judge: current.kind === 'eval' ? current.experiment?.judge || 'ai' : 'ai',
                       iterations: Math.max(1, Math.min(100, Math.round(Number(e.target.value) || 1))),
                       judgeGuidance: current.kind === 'eval' ? current.experiment?.judgeGuidance || '' : '',
+                      fixedMatch: current.kind === 'eval' ? current.experiment?.fixedMatch || 'exact' : 'exact',
+                      fixedCaseSensitive: current.kind === 'eval' ? current.experiment?.fixedCaseSensitive || false : false,
+                      humanReviewerName: current.kind === 'eval' ? current.experiment?.humanReviewerName || '' : '',
+                      humanReviewerEmail: current.kind === 'eval' ? current.experiment?.humanReviewerEmail || '' : '',
+                      humanReviewPath: current.kind === 'eval' ? current.experiment?.humanReviewPath || '' : '',
                       cases: current.kind === 'eval' ? current.experiment?.cases || [] : [],
                     },
                   }))}
@@ -1378,6 +1630,8 @@ Preserve existing values when the request does not ask to change them.`,
     {showEvalCases && (
       <EvalCasesDialog
         initialCases={evalCaseDrafts}
+        evaluator={form.kind === 'eval' ? form.experiment.judge : 'ai'}
+        fixedMatch={form.kind === 'eval' ? form.experiment.fixedMatch || 'exact' : 'exact'}
         onClose={() => setShowEvalCases(false)}
         onSave={(cases) => {
           const firstCase = cases[0]
@@ -1391,6 +1645,11 @@ Preserve existing values when the request does not ask to change them.`,
               judge: current.kind === 'eval' ? current.experiment.judge : 'ai',
               iterations: current.kind === 'eval' ? current.experiment.iterations || Math.max(1, cases.length) : Math.max(1, cases.length),
               judgeGuidance: current.kind === 'eval' ? current.experiment.judgeGuidance || '' : '',
+              fixedMatch: current.kind === 'eval' ? current.experiment.fixedMatch || 'exact' : 'exact',
+              fixedCaseSensitive: current.kind === 'eval' ? current.experiment.fixedCaseSensitive || false : false,
+              humanReviewerName: current.kind === 'eval' ? current.experiment.humanReviewerName || '' : '',
+              humanReviewerEmail: current.kind === 'eval' ? current.experiment.humanReviewerEmail || '' : '',
+              humanReviewPath: current.kind === 'eval' ? current.experiment.humanReviewPath || '' : '',
               cases,
             },
             runs: current.kind === 'eval' ? current.runs : [],
@@ -2024,6 +2283,8 @@ function templateToPreviewRecord(template: PluginRecordTemplate): PluginRecord {
         judge: 'fixed',
         iterations: 1,
         judgeGuidance: '',
+        fixedMatch: 'exact',
+        fixedCaseSensitive: false,
         cases: [],
       },
       runs: [],
@@ -3062,7 +3323,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
   const suggestionTags = useMemo(() => {
     const allTags = collectPluginTemplateTags(recommendedTemplates)
     if (!isChecklist) return allTags
-    return ['1.9.9', '2.0.0', '2.0.0-test-rc19'].filter((tag) => allTags.includes(tag))
+    return ['1.9.9', '2.0.0', '2.0.0-test-rc21'].filter((tag) => allTags.includes(tag))
   }, [recommendedTemplates, isChecklist])
   const filteredSuggestions = useMemo(() => sortPluginTemplates(
     recommendedTemplates.filter((template) => (
@@ -3308,6 +3569,8 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
             judge: 'ai',
             iterations: 1,
             judgeGuidance: '',
+            fixedMatch: 'exact',
+            fixedCaseSensitive: false,
             cases: [createEvalCase(1)],
           },
           runs: [],

@@ -215,6 +215,7 @@ async function run() {
           candidateOutput: 'research summary complete',
           expectedOutput: 'research summary',
           judge: 'fixed',
+          fixedMatch: 'contains',
         },
       },
     }), createRes)

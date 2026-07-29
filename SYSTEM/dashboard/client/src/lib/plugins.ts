@@ -208,6 +208,8 @@ export function buildPluginDraftFromPrompt(plugin: PluginManifest, prompt: strin
             : 'ai',
         iterations: 1,
         judgeGuidance: 'Score the response against the expected outcome and explain the evidence for the result.',
+        fixedMatch: 'exact',
+        fixedCaseSensitive: false,
         cases: [{
           id: 'case-1',
           name: 'Trial case 1',
@@ -263,7 +265,15 @@ export function scorePluginDraft(plugin: PluginManifest, draft: Partial<PluginRe
     award(15, Boolean(experiment?.input.trim()), 'Add the input or task that the eval should exercise.')
     award(15, Boolean(experiment?.expectedOutput.trim()), 'Define the expected output or measurable success criteria.')
     award(10, Boolean(experiment?.cases?.length), 'Add at least one trial case with an input and expected outcome.')
-    award(10, Boolean(experiment?.judgeGuidance?.trim()), 'Guide the evaluator with a rubric, priorities, or pass/fail rules.')
+    award(
+      10,
+      experiment?.judge === 'fixed' ? Boolean(experiment.fixedMatch) : Boolean(experiment?.judgeGuidance?.trim()),
+      experiment?.judge === 'human'
+        ? 'Add clear instructions for the human reviewer.'
+        : experiment?.judge === 'fixed'
+          ? 'Choose an exact, contains, or regular-expression comparison.'
+          : 'Add the prompt and rubric for the AI evaluator.',
+    )
     award(5, Boolean(experiment?.judge), 'Choose a judge mode.')
   } else {
     const fields = isGenericPluginRecord(draft) ? draft.fields : {}
@@ -377,10 +387,23 @@ export interface EvalRecord {
     judge: 'ai' | 'human' | 'fixed'
     iterations?: number
     judgeGuidance?: string
+    fixedMatch?: 'exact' | 'contains' | 'regex'
+    fixedCaseSensitive?: boolean
+    humanReviewerName?: string
+    humanReviewerEmail?: string
+    humanReviewPath?: string
     cases?: EvalCase[]
   }
   runs: EvalRunRecord[]
   lastRun?: EvalRunRecord | null
+  humanReview?: {
+    status: 'pending' | 'completed'
+    reviewerName?: string
+    reviewerEmail?: string
+    path: string
+    requestedAt: string
+    completedAt?: string
+  } | null
 }
 
 export interface GenericPluginRecord {
@@ -411,6 +434,26 @@ export function isGenericPluginRecord(item: PluginRecord | Partial<PluginRecord>
   return !!item.kind && 'fields' in item
 }
 
+export function validateEvalRegex(pattern: string): string | null {
+  if (!pattern.trim()) return 'Enter a regular expression.'
+  try {
+    new RegExp(pattern)
+    return null
+  } catch (error: any) {
+    return `Invalid regular expression: ${error?.message || 'could not compile pattern'}`
+  }
+}
+
+export function extractSuggestedEvalRegex(value: string): string {
+  const withoutFences = value
+    .replace(/```(?:regex|regexp|javascript|js)?\s*/gi, '')
+    .replace(/```/g, '')
+    .trim()
+  const labeled = withoutFences.match(/^(?:regular expression|regex|pattern)\s*:\s*(.+)$/im)?.[1]?.trim()
+  const candidate = labeled || withoutFences.split(/\r?\n/).map((line) => line.trim()).find(Boolean) || ''
+  return candidate.replace(/^\/(.+)\/[a-z]*$/i, '$1').trim()
+}
+
 export function formatPluginFieldValue(value: PluginFieldValue): string {
   if (Array.isArray(value)) return value.join(', ') || 'none'
   if (typeof value === 'boolean') return value ? 'yes' : 'no'
@@ -435,7 +478,16 @@ export function getPluginDetailLines(plugin: PluginManifest, item: PluginRecord)
       `Target type: ${item.target.type}`,
       `Targets: ${item.target.ids.join(', ') || 'none'}`,
       `Evaluator: ${item.experiment.judge === 'ai' ? 'AI evaluator' : item.experiment.judge === 'human' ? 'Human evaluator' : 'Fixed evaluator'}`,
-      `Evaluator guidance: ${item.experiment.judgeGuidance || 'none'}`,
+      item.experiment.judge === 'fixed'
+        ? `Comparison: ${item.experiment.fixedMatch || 'exact'}${item.experiment.fixedCaseSensitive ? ' (case sensitive)' : ''}`
+        : `${item.experiment.judge === 'human' ? 'Reviewer instructions' : 'AI evaluator prompt'}: ${item.experiment.judgeGuidance || 'none'}`,
+      ...(item.experiment.judge === 'human'
+        ? [
+            `Reviewer: ${item.experiment.humanReviewerName || item.experiment.humanReviewerEmail || 'unassigned'}`,
+            `Review file: ${item.humanReview?.path || item.experiment.humanReviewPath || 'created when requested'}`,
+            `Review status: ${item.humanReview?.status || 'not requested'}`,
+          ]
+        : []),
       `Planned trials: ${item.experiment.iterations || 1}`,
       `Trial cases: ${item.experiment.cases?.length || 1}`,
       `Input: ${item.experiment.input || 'none'}`,
@@ -540,6 +592,12 @@ export function matchesPluginSearch(item: PluginRecord, query: string): boolean 
             item.experiment.expectedOutput,
             item.experiment.judge,
             item.experiment.judgeGuidance || '',
+            item.experiment.fixedMatch || '',
+            item.experiment.humanReviewerName || '',
+            item.experiment.humanReviewerEmail || '',
+            item.experiment.humanReviewPath || '',
+            item.humanReview?.status || '',
+            item.humanReview?.path || '',
             ...(item.experiment.cases || []).flatMap((entry) => [entry.name, entry.input.value, entry.expected.value]),
           ]
         : Object.values(item.fields).flatMap((value) => Array.isArray(value) ? value : [String(value ?? '')]),
