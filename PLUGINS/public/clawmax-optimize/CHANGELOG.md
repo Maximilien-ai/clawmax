@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.4
+
+- Keep Suggested plan details below the graph for exploration.
+- Restore the standard right-side detail drawer when an Active or Archived plan
+  is clicked, while retaining non-obstructive relationship previews on hover.
+
 ## 0.4.3
 
 - Preview a plan's related attributes, edges, and destination while hovering or

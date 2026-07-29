@@ -23,8 +23,9 @@ attributes, connecting edges, and destination while muting unrelated
 relationships in the combined graph. Attribute labels come from the plan's
 stated goal, name, description, and tags rather than unrelated default values.
 Hovering or keyboard-focusing a plan previews those relationships; clicking
-locks the selection. Suggested, Active, and Archived graph details appear below
-the graph so the relationship view remains visible.
+locks the selection. Suggested details appear below the graph for exploration.
+Clicking an Active or Archived plan opens its complete details in the standard
+right-side drawer.
 
 The plan editor puts AI-assisted tuning in a full-width panel above the manual
 controls. It is open by default and remembers when the current browser collapses
