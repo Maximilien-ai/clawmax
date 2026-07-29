@@ -144,7 +144,7 @@ export interface EvalRunRecord {
   id: string
   score: number
   summary: string
-  judgeMode: 'fixed' | 'ai-placeholder'
+  judgeMode: 'fixed' | 'ai-placeholder' | 'human'
   tokensIn: number
   tokensOut: number
   costUsd: number
@@ -161,7 +161,8 @@ export interface EvalRecord extends PluginRecordBase {
     input: string
     candidateOutput: string
     expectedOutput: string
-    judge: 'ai' | 'fixed'
+    judge: 'ai' | 'human' | 'fixed'
+    iterations?: number
   }
   runs: EvalRunRecord[]
   lastRun?: EvalRunRecord | null
@@ -763,7 +764,7 @@ function normalizeRecord(plugin: PluginManifest, value: any): PluginRecord | nul
         id: String(run.id || '').trim(),
         score: Number.isFinite(run.score) ? Number(run.score) : 0,
         summary: String(run.summary || '').trim(),
-        judgeMode: run.judgeMode === 'fixed' ? 'fixed' : 'ai-placeholder',
+        judgeMode: run.judgeMode === 'fixed' || run.judgeMode === 'human' ? run.judgeMode : 'ai-placeholder',
         tokensIn: Number.isFinite(run.tokensIn) ? Number(run.tokensIn) : 0,
         tokensOut: Number.isFinite(run.tokensOut) ? Number(run.tokensOut) : 0,
         costUsd: Number.isFinite(run.costUsd) ? Number(run.costUsd) : 0,
@@ -791,7 +792,8 @@ function normalizeRecord(plugin: PluginManifest, value: any): PluginRecord | nul
       input: String(value.experiment?.input || '').trim(),
       candidateOutput: String(value.experiment?.candidateOutput || '').trim(),
       expectedOutput: String(value.experiment?.expectedOutput || '').trim(),
-      judge: value.experiment?.judge === 'ai' ? 'ai' : 'fixed',
+      judge: value.experiment?.judge === 'ai' || value.experiment?.judge === 'human' ? value.experiment.judge : 'fixed',
+      iterations: Math.max(1, Math.min(100, Math.round(Number(value.experiment?.iterations) || 1))),
     },
     runs,
     lastRun: value.lastRun || runs[0] || null,
@@ -989,7 +991,8 @@ function writePluginDocument(plugin: PluginManifest, record: PluginRecord): Plug
         `- **Tags:** ${record.tags.join(', ') || 'none'}`,
         `- **Target Type:** ${record.target.type}`,
         `- **Targets:** ${record.target.ids.join(', ') || 'none'}`,
-        `- **Judge:** ${record.experiment.judge === 'ai' ? 'AI placeholder judge' : 'Fixed heuristic judge'}`,
+        `- **Evaluator:** ${record.experiment.judge === 'ai' ? 'AI evaluator' : record.experiment.judge === 'human' ? 'Human evaluator' : 'Fixed evaluator'}`,
+        `- **Planned Trials:** ${record.experiment.iterations}`,
         '',
         '## Experiment Input',
         '',
@@ -1075,6 +1078,7 @@ function writePluginItemFile(plugin: PluginManifest, record: PluginRecord): Plug
         `target_type: ${record.target.type}`,
         `target_ids: [${record.target.ids.map((id) => `"${String(id).replace(/"/g, '\\"')}"`).join(', ')}]`,
         `judge: ${record.experiment.judge}`,
+        `planned_trials: ${record.experiment.iterations || 1}`,
         `run_count: ${record.runs.length}`,
         `last_score: ${record.lastRun ? record.lastRun.score : 'null'}`,
         '---',
@@ -1119,6 +1123,8 @@ function writePluginItemFile(plugin: PluginManifest, record: PluginRecord): Plug
         '',
         '## Experiment',
         '',
+        `- Evaluator: ${record.experiment.judge}`,
+        `- Planned trials: ${record.experiment.iterations || 1}`,
         `- Input: ${record.experiment.input || 'none'}`,
         `- Candidate output: ${record.experiment.candidateOutput || 'none'}`,
         `- Expected output: ${record.experiment.expectedOutput || 'none'}`,
@@ -1229,7 +1235,8 @@ function createEvalRecord(input: Partial<EvalRecord>): EvalRecord {
       input: String(input.experiment?.input || '').trim(),
       candidateOutput: String(input.experiment?.candidateOutput || '').trim(),
       expectedOutput: String(input.experiment?.expectedOutput || '').trim(),
-      judge: input.experiment?.judge === 'ai' ? 'ai' : 'fixed',
+      judge: input.experiment?.judge === 'ai' || input.experiment?.judge === 'human' ? input.experiment.judge : 'fixed',
+      iterations: Math.max(1, Math.min(100, Math.round(Number(input.experiment?.iterations) || 1))),
     },
     runs: Array.isArray(input.runs) ? input.runs : [],
     lastRun: input.lastRun || null,
@@ -1394,6 +1401,9 @@ export function runPluginEval(plugin: PluginManifest, recordId: string): EvalRec
   if (index < 0) return null
   const current = records[index]
   if (!isEvalRecord(current)) return null
+  if (current.experiment.judge === 'human') {
+    throw new PluginContractError('Human evaluation requires a reviewer. Choose AI or Fixed for an automated run.', 409)
+  }
   const run = scoreEval(current.experiment)
   const updated: EvalRecord = {
     ...current,

@@ -514,6 +514,34 @@ async function run() {
     assert(context.communities.includes('Research'), 'Expected plugin context to expose communities')
   })
 
+  await test('eval evaluator and trial configuration persists without faking human runs', () => {
+    const plugin = getPluginBySlug('plugin-lab-evals')
+    assert(plugin, 'Expected evals test plugin manifest to load')
+    const suggestions = listPluginTemplates(plugin!)
+    assert(suggestions.some((template) => (template.payload as any).experiment?.judge === 'ai'), 'Expected an AI-evaluated suggestion')
+    assert(suggestions.some((template) => (template.payload as any).experiment?.judge === 'fixed'), 'Expected a Fixed-evaluated suggestion')
+
+    const created = upsertPluginRecord(plugin!, {
+      name: 'Human model fit review',
+      target: { type: 'agent', ids: ['analyst'] },
+      experiment: {
+        input: 'Compare the candidate model response.',
+        candidateOutput: '',
+        expectedOutput: 'A reviewer-approved response.',
+        judge: 'human',
+        iterations: 5,
+      },
+    } as any)
+    assert(created.kind === 'eval' && 'experiment' in created, 'Expected an Eval record')
+    assert('experiment' in created && created.experiment.judge === 'human', 'Expected Human evaluator mode to persist')
+    assert('experiment' in created && created.experiment.iterations === 5, 'Expected planned trial count to persist')
+    assert.throws(
+      () => runPluginEval(plugin!, created.id),
+      (error: any) => error instanceof PluginContractError && error.statusCode === 409 && error.message.includes('requires a reviewer'),
+      'Expected Human evaluation not to create a fake automated score',
+    )
+  })
+
   await test('host capabilities deny undeclared actions and filter workspace context', () => {
     const source = getPluginBySlug('plugin-lab-review-notes')
     assert(source, 'Expected generic test plugin manifest to load')

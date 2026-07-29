@@ -18,7 +18,8 @@
       "input": "Summarize the latest workspace status.",
       "candidateOutput": "",
       "expectedOutput": "status summary with clear actions and current state",
-      "judge": "fixed"
+      "judge": "ai",
+      "iterations": 12
     }
   }
 }

@@ -62,6 +62,7 @@ type PluginCollectionTab = 'active' | 'archived' | 'suggested'
 type PluginViewMode = 'grid' | 'detail' | 'table' | 'graph'
 const OPTIMIZE_AI_TUNING_EXPANDED_STORAGE_KEY = 'clawmax-optimize-ai-tuning-expanded'
 const GUARDRAIL_AI_CONFIG_EXPANDED_STORAGE_KEY = 'clawmax-guardrail-ai-config-expanded'
+const EVAL_AI_CONFIG_EXPANDED_STORAGE_KEY = 'clawmax-eval-ai-config-expanded'
 
 function collectRecentRuntimeErrors(timeoutMs = 2500): Promise<string[]> {
   return new Promise((resolve) => {
@@ -347,9 +348,14 @@ function PluginFormModal({
   })
   const isOptimize = plugin.objectKind === 'optimization-plan'
   const isGuardrail = usesLegacyPluginAdapter(plugin, 'guardrail')
+  const isEval = usesLegacyPluginAdapter(plugin, 'eval')
   const [showGuardrailAssistant, setShowGuardrailAssistant] = useState(() => {
     if (typeof window === 'undefined') return true
     return window.localStorage.getItem(GUARDRAIL_AI_CONFIG_EXPANDED_STORAGE_KEY) !== 'false'
+  })
+  const [showEvalAssistant, setShowEvalAssistant] = useState(() => {
+    if (typeof window === 'undefined') return true
+    return window.localStorage.getItem(EVAL_AI_CONFIG_EXPANDED_STORAGE_KEY) !== 'false'
   })
 
   useEffect(() => {
@@ -369,6 +375,11 @@ function PluginFormModal({
     if (!isGuardrail || typeof window === 'undefined') return
     window.localStorage.setItem(GUARDRAIL_AI_CONFIG_EXPANDED_STORAGE_KEY, String(showGuardrailAssistant))
   }, [isGuardrail, showGuardrailAssistant])
+
+  useEffect(() => {
+    if (!isEval || typeof window === 'undefined') return
+    window.localStorage.setItem(EVAL_AI_CONFIG_EXPANDED_STORAGE_KEY, String(showEvalAssistant))
+  }, [isEval, showEvalAssistant])
 
   const tags = typeof form.tags?.join === 'function' ? form.tags.join(', ') : ''
   const allowedSkills = isGuardrailRecord(form)
@@ -482,6 +493,101 @@ Do not mention a blocked action when the user wants it allowed.`,
       setAssistantChanges(changes)
     } catch (error: any) {
       setAssistantError(error?.message || 'Could not configure this Guardrail with AI.')
+    } finally {
+      setAssistantBusy(false)
+    }
+  }
+  const applyAiEvalChanges = async () => {
+    const prompt = assistantPrompt.trim()
+    if (!prompt || !isEval) return
+    setAssistantBusy(true)
+    setAssistantError('')
+    try {
+      const expanded = await expandPromptWithAI(
+        prompt,
+        'workflow',
+        'text',
+        `Turn the request into a concise Eval configuration using these exact labels when relevant:
+Name:
+Description:
+Evaluator: AI, Human, or Fixed
+Trials: integer from 1 to 100
+Target type: agent or workflow
+Target: exact agent or workflow name from the request
+Input:
+Expected outcome:
+Attributes: comma-separated correctness, quality, speed, cost, safety, privacy, grounding, tone, handoff, or instruction fit
+Prefer AI for semantic evaluation, Fixed for exact measurable checks, and Human for subjective review or approval.
+Preserve existing values when the request does not ask to change them.`,
+      )
+      const combined = `${prompt}\n${expanded}`
+      const lower = combined.toLowerCase()
+      const current = isEvalRecord(form) ? form : null
+      const readLine = (label: string) => {
+        const match = expanded.match(new RegExp(`^${label}:\\s*(.+)$`, 'im'))
+        return match?.[1]?.trim() || ''
+      }
+      const matchedAgents = context.agents.filter((agent) => (
+        lower.includes(agent.id.toLowerCase()) || lower.includes(agent.name.toLowerCase())
+      )).map((agent) => agent.id)
+      const matchedWorkflows = context.workflows.filter((workflow) => (
+        lower.includes(workflow.id.toLowerCase()) || lower.includes(workflow.name.toLowerCase())
+      )).map((workflow) => workflow.id)
+      const evaluatorText = readLine('Evaluator').toLowerCase()
+      const judge = /human|reviewer|manual/.test(evaluatorText || lower)
+        ? 'human'
+        : /\bai\b|model|semantic/.test(evaluatorText || lower)
+          ? 'ai'
+          : /fixed|exact|deterministic|heuristic/.test(evaluatorText || lower)
+            ? 'fixed'
+            : current?.experiment.judge || 'ai'
+      const trialsText = readLine('Trials')
+      const trialsMatch = trialsText.match(/\d+/)
+        || combined.match(/(?:trials?|iterations?|prompts?|runs?|samples?)\D{0,12}(\d{1,3})/i)
+      const iterations = Math.max(1, Math.min(100, Number(trialsMatch?.[1] || trialsMatch?.[0]) || current?.experiment.iterations || 1))
+      const targetType = matchedWorkflows.length > 0
+        ? 'workflow'
+        : matchedAgents.length > 0
+          ? 'agent'
+          : /target type:\s*workflow|\bworkflow\b/i.test(expanded)
+            ? 'workflow'
+            : current?.target.type || 'agent'
+      const targetIds = targetType === 'workflow'
+        ? (matchedWorkflows.length > 0 ? matchedWorkflows : current?.target.type === 'workflow' ? current.target.ids : [])
+        : (matchedAgents.length > 0 ? matchedAgents : current?.target.type === 'agent' ? current.target.ids : [])
+      const attributes = parseCommaList(readLine('Attributes').toLowerCase())
+      const input = readLine('Input') || current?.experiment.input || prompt
+      const expectedOutput = readLine('Expected outcome') || current?.experiment.expectedOutput || ''
+      const next: Partial<PluginRecord> = {
+        ...form,
+        kind: 'eval',
+        name: readLine('Name') || form.name,
+        description: readLine('Description') || prompt,
+        enabled: true,
+        tags: Array.from(new Set([...(current?.tags || []), targetType, ...attributes])),
+        target: { type: targetType, ids: targetIds },
+        experiment: {
+          input,
+          candidateOutput: current?.experiment.candidateOutput || '',
+          expectedOutput,
+          judge,
+          iterations,
+        },
+        runs: current?.runs || [],
+      }
+      const changes = [
+        `Use ${judge === 'ai' ? 'AI' : judge === 'human' ? 'Human' : 'Fixed'} evaluation`,
+        `Plan ${iterations} trial${iterations === 1 ? '' : 's'}`,
+        `Target ${targetType}${targetIds.length > 0 ? ` (${targetIds.length} selected)` : ''}`,
+        ...(readLine('Input') ? ['Update experiment input'] : []),
+        ...(readLine('Expected outcome') ? ['Update expected outcome'] : []),
+        ...(attributes.length > 0 ? [`Evaluate ${attributes.join(', ')}`] : []),
+      ]
+      setAssistantUndo(form)
+      setForm(next)
+      setAssistantChanges(changes)
+    } catch (error: any) {
+      setAssistantError(error?.message || 'Could not configure this Eval with AI.')
     } finally {
       setAssistantBusy(false)
     }
@@ -617,6 +723,68 @@ Do not mention a blocked action when the user wants it allowed.`,
                     <div className="mt-3 border-t border-amber-200 pt-3 dark:border-amber-900">
                       <div className="text-xs font-semibold text-amber-900 dark:text-amber-200">Draft updated</div>
                       <ul className="mt-1 grid gap-1 text-xs text-amber-800 dark:text-amber-200 sm:grid-cols-2">
+                        {assistantChanges.map((change) => <li key={change}>• {change}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+            </section>
+          )}
+          {isEval && (
+            <section className="rounded-lg border border-violet-200 bg-violet-50/60 dark:border-violet-900/50 dark:bg-violet-950/20 lg:col-span-2">
+              <button
+                type="button"
+                onClick={() => setShowEvalAssistant((current) => !current)}
+                className="flex w-full min-w-0 items-center justify-between gap-3 p-4 text-left"
+                aria-expanded={showEvalAssistant}
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <ProductIconCell iconName="ai" label="AI configure" size="sm" className="shrink-0 border-violet-200 bg-white text-violet-700 dark:border-violet-800 dark:bg-violet-950 dark:text-violet-300" />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold text-violet-950 dark:text-violet-100">Configure with AI</span>
+                    <span className="block text-xs text-violet-800/80 dark:text-violet-200/80">Describe what to evaluate, how many trials to run, who evaluates it, and the expected outcome. Review every change before saving.</span>
+                  </span>
+                </span>
+                <span className="shrink-0 text-sm font-semibold text-violet-700 dark:text-violet-300">{showEvalAssistant ? '▾' : '▸'}</span>
+              </button>
+              {showEvalAssistant && (
+                <div className="border-t border-violet-200 px-4 pb-4 pt-3 dark:border-violet-900">
+                  <textarea
+                    value={assistantPrompt}
+                    onChange={(event) => setAssistantPrompt(event.target.value)}
+                    rows={4}
+                    placeholder="Evaluate the Research workflow 15 times for correctness, grounding, and safety. Use an AI evaluator and require evidence-backed answers with no exposed secrets."
+                    className="w-full rounded-lg border border-violet-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 dark:border-violet-800 dark:bg-gray-900 dark:text-gray-100"
+                  />
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void applyAiEvalChanges()}
+                      disabled={!assistantPrompt.trim() || assistantBusy}
+                      className="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-3 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {assistantBusy ? 'Configuring...' : 'Configure Eval'}
+                    </button>
+                    {assistantUndo && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setForm(assistantUndo)
+                          setAssistantUndo(null)
+                          setAssistantChanges([])
+                        }}
+                        className="rounded-lg border border-violet-200 bg-white px-3 py-2 text-sm font-medium text-violet-800 hover:bg-violet-50 dark:border-violet-800 dark:bg-gray-900 dark:text-violet-300"
+                      >
+                        Undo
+                      </button>
+                    )}
+                  </div>
+                  {assistantError && <p className="mt-3 text-xs text-red-700 dark:text-red-300">{assistantError}</p>}
+                  {assistantChanges.length > 0 && (
+                    <div className="mt-3 border-t border-violet-200 pt-3 dark:border-violet-900">
+                      <div className="text-xs font-semibold text-violet-900 dark:text-violet-200">Draft updated</div>
+                      <ul className="mt-1 grid gap-1 text-xs text-violet-800 dark:text-violet-200 sm:grid-cols-2">
                         {assistantChanges.map((change) => <li key={change}>• {change}</li>)}
                       </ul>
                     </div>
@@ -858,14 +1026,38 @@ Do not mention a blocked action when the user wants it allowed.`,
                       input: current.kind === 'eval' ? current.experiment?.input || '' : '',
                       candidateOutput: current.kind === 'eval' ? current.experiment?.candidateOutput || '' : '',
                       expectedOutput: current.kind === 'eval' ? current.experiment?.expectedOutput || '' : '',
-                      judge: e.target.value === 'ai' ? 'ai' : 'fixed',
+                      judge: e.target.value === 'ai' || e.target.value === 'human' ? e.target.value : 'fixed',
+                      iterations: current.kind === 'eval' ? current.experiment?.iterations || 1 : 1,
                     },
                   }))}
                   className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
                 >
-                  <option value="fixed">Fixed heuristic</option>
-                  <option value="ai">AI placeholder judge</option>
+                  <option value="ai">AI evaluator</option>
+                  <option value="fixed">Fixed evaluator</option>
+                  <option value="human">Human evaluator</option>
                 </select>
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Planned trials</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={form.kind === 'eval' ? form.experiment?.iterations || 1 : 1}
+                  onChange={(e) => setForm((current) => ({
+                    ...current,
+                    kind: 'eval',
+                    experiment: {
+                      input: current.kind === 'eval' ? current.experiment?.input || '' : '',
+                      candidateOutput: current.kind === 'eval' ? current.experiment?.candidateOutput || '' : '',
+                      expectedOutput: current.kind === 'eval' ? current.experiment?.expectedOutput || '' : '',
+                      judge: current.kind === 'eval' ? current.experiment?.judge || 'ai' : 'ai',
+                      iterations: Math.max(1, Math.min(100, Math.round(Number(e.target.value) || 1))),
+                    },
+                  }))}
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                />
+                <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">Number of prompts or repeated experiment samples planned for this Eval.</span>
               </label>
               <label className="block">
                 <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Input</span>
@@ -879,6 +1071,7 @@ Do not mention a blocked action when the user wants it allowed.`,
                       candidateOutput: current.kind === 'eval' ? current.experiment?.candidateOutput || '' : '',
                       expectedOutput: current.kind === 'eval' ? current.experiment?.expectedOutput || '' : '',
                       judge: current.kind === 'eval' ? current.experiment?.judge || 'fixed' : 'fixed',
+                      iterations: current.kind === 'eval' ? current.experiment?.iterations || 1 : 1,
                     },
                   }))}
                   rows={3}
@@ -897,6 +1090,7 @@ Do not mention a blocked action when the user wants it allowed.`,
                       candidateOutput: e.target.value,
                       expectedOutput: current.kind === 'eval' ? current.experiment?.expectedOutput || '' : '',
                       judge: current.kind === 'eval' ? current.experiment?.judge || 'fixed' : 'fixed',
+                      iterations: current.kind === 'eval' ? current.experiment?.iterations || 1 : 1,
                     },
                   }))}
                   rows={3}
@@ -915,6 +1109,7 @@ Do not mention a blocked action when the user wants it allowed.`,
                       candidateOutput: current.kind === 'eval' ? current.experiment?.candidateOutput || '' : '',
                       expectedOutput: e.target.value,
                       judge: current.kind === 'eval' ? current.experiment?.judge || 'fixed' : 'fixed',
+                      iterations: current.kind === 'eval' ? current.experiment?.iterations || 1 : 1,
                     },
                   }))}
                   rows={3}
@@ -1573,7 +1768,7 @@ function templateToPreviewRecord(template: PluginRecordTemplate): PluginRecord {
     return {
       ...base,
       target: base.target || { type: 'agent', ids: [] },
-      experiment: base.experiment || { input: '', candidateOutput: '', expectedOutput: '', judge: 'fixed' },
+      experiment: base.experiment || { input: '', candidateOutput: '', expectedOutput: '', judge: 'fixed', iterations: 1 },
       runs: [],
     } as PluginRecord
   }

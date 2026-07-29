@@ -18,7 +18,8 @@
       "input": "Run the workflow and inspect the final output.",
       "candidateOutput": "",
       "expectedOutput": "expected workflow output with required handoff and completion markers",
-      "judge": "fixed"
+      "judge": "fixed",
+      "iterations": 20
     }
   }
 }

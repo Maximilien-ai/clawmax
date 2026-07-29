@@ -243,6 +243,16 @@ test('buildPluginDraftFromPrompt creates an eval draft from natural language', (
   assert(draft.kind === 'eval', 'Expected eval draft')
   assert(draft.target?.type === 'workflow', 'Expected workflow target to be inferred')
   assert(draft.experiment?.judge === 'ai', 'Expected AI judge to be inferred')
+  assert(draft.experiment?.iterations === 1, 'Expected a safe default trial count')
+})
+
+test('buildPluginDraftFromPrompt prefers AI while recognizing Human and Fixed evaluation', () => {
+  const preferred = buildPluginDraftFromPrompt(evalPlugin, 'Evaluate whether the response is helpful and grounded')
+  const human = buildPluginDraftFromPrompt(evalPlugin, 'Require a human reviewer for subjective tone approval')
+  const fixed = buildPluginDraftFromPrompt(evalPlugin, 'Use a deterministic fixed exact-match check')
+  assert(preferred.kind === 'eval' && preferred.experiment?.judge === 'ai', 'Expected AI evaluation to be preferred')
+  assert(human.kind === 'eval' && human.experiment?.judge === 'human', 'Expected Human evaluation to be inferred')
+  assert(fixed.kind === 'eval' && fixed.experiment?.judge === 'fixed', 'Expected Fixed evaluation to be inferred')
 })
 
 test('plugin draft scoring exposes actionable guardrail and eval improvements', () => {

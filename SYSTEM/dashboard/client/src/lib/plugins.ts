@@ -201,7 +201,12 @@ export function buildPluginDraftFromPrompt(plugin: PluginManifest, prompt: strin
         input: trimmed,
         candidateOutput: '',
         expectedOutput: `Success criteria for: ${firstSentence}`,
-        judge: /ai judge|model judge|semantic/.test(text) ? 'ai' : 'fixed',
+        judge: /human|reviewer|manual review/.test(text)
+          ? 'human'
+          : /fixed|exact match|deterministic|heuristic/.test(text)
+            ? 'fixed'
+            : 'ai',
+        iterations: 1,
       },
       runs: [],
     }
@@ -322,7 +327,7 @@ export interface EvalRunRecord {
   id: string
   score: number
   summary: string
-  judgeMode: 'fixed' | 'ai-placeholder'
+  judgeMode: 'fixed' | 'ai-placeholder' | 'human'
   tokensIn: number
   tokensOut: number
   costUsd: number
@@ -348,7 +353,8 @@ export interface EvalRecord {
     input: string
     candidateOutput: string
     expectedOutput: string
-    judge: 'ai' | 'fixed'
+    judge: 'ai' | 'human' | 'fixed'
+    iterations?: number
   }
   runs: EvalRunRecord[]
   lastRun?: EvalRunRecord | null
@@ -405,7 +411,8 @@ export function getPluginDetailLines(plugin: PluginManifest, item: PluginRecord)
     return [
       `Target type: ${item.target.type}`,
       `Targets: ${item.target.ids.join(', ') || 'none'}`,
-      `Judge: ${item.experiment.judge === 'ai' ? 'AI placeholder' : 'Fixed heuristic'}`,
+      `Evaluator: ${item.experiment.judge === 'ai' ? 'AI evaluator' : item.experiment.judge === 'human' ? 'Human evaluator' : 'Fixed evaluator'}`,
+      `Planned trials: ${item.experiment.iterations || 1}`,
       `Input: ${item.experiment.input || 'none'}`,
       `Expected: ${item.experiment.expectedOutput || 'none'}`,
     ]
