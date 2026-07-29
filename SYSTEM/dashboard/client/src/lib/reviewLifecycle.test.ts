@@ -89,13 +89,13 @@ const migrationRecords = [
       verifiedBy: [],
     },
   },
-  record('current-rc', '2.0.0-test-rc18', false),
+  record('current-rc', '2.0.0-test-rc19', false),
 ]
 const consolidation = planReviewReleaseConsolidation(
   migrationRecords,
   'release',
   'completed',
-  '2.0.0-test-rc18',
+  '2.0.0-test-rc19',
 )
 assert.deepStrictEqual(
   consolidation.deleteIds,

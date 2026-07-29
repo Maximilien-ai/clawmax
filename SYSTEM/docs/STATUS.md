@@ -2,7 +2,7 @@
 
 **Current Version**: v1.9.9
 **Development Line**: 2.0.0
-**Last Updated**: July 26, 2026
+**Last Updated**: July 29, 2026
 **Status**: `v1.9.9` is promoted unchanged from `1.9.9-test-rc6`. `main` now owns the public 2.0 plugin platform, AI scoring, Optimize, Gmail, and Microsoft 365 work. `release-1.9.9` is retained only for release-blocking hotfixes.
 
 ---
@@ -34,8 +34,8 @@
 ### 2.0.0 development
 
 - Branch: `main`
-- Current test candidate: `2.0.0-test-rc18`, focused on per-agent automatic model mode and priority persistence, conservative tool-compatible recommendations, concise chat remediation, and mobile/restart smoke checks. All RC17 checks remain in the cumulative 2.0 Review set.
-- RC18 local Dev review passed `4/4` with Max on July 28: identity/restart, per-agent mode and priority persistence, compatible automatic suggestions, and concise actionable model-tool errors all passed without notes or blockers. Cloud, on-prem, private-image, and additional tester confirmation remain pending.
+- Current test candidate: `2.0.0-test-rc19`, focused on bounded Optimize controls, permanent public and authorized-private suggestion catalogs, public/private image boundaries, and mobile/restart smoke checks.
+- RC18 local Dev review passed `4/4` with Max on July 28. Those checks and their verifier metadata are retained in the cumulative 2.0 Review set; cloud, on-prem, private-image, and additional tester confirmation remain pending.
 - Architecture: [Plugin System 2.0](../../PLUGINS/PLUGIN_SYSTEM_2_0.md)
 - Authoring contract: [Plugin Authoring 2.0](../../PLUGINS/PLUGIN_AUTHORING_2_0.md)
 - Generic architecture plan: [PUBLIC_PLUGIN_ARCHITECTURE_2_0.md](planning/PUBLIC_PLUGIN_ARCHITECTURE_2_0.md)
@@ -47,7 +47,7 @@
 - Public prompt-readiness scoring: [PROMPT_READINESS_SCORING.md](features/PROMPT_READINESS_SCORING.md)
 - Public model-fit foundation: [PUBLIC_MODEL_FIT_2_0.md](planning/PUBLIC_MODEL_FIT_2_0.md)
 - RC11 validation focus: suggestion catalogs and Details content, Review archive/restore plus automatic retirement of completed older sets, successful encrypted secret setup/save, and clean public/private image startup.
-- Immediate work after RC18 feedback: connect the public model-fit foundation to workflows, measured Eval comparisons, and Optimize token/cost evidence; add sourced capability and pricing catalogs; continue generated-artifact scoring; and reconcile manifest-declared plugin actions with the generic v2 contribution model.
+- Immediate work after RC19 feedback: connect the public model-fit foundation to workflows, measured Eval comparisons, and Optimize token/cost evidence; add sourced capability and pricing catalogs; continue generated-artifact scoring; and reconcile manifest-declared plugin actions with the generic v2 contribution model.
 - Product work: public AI scoring, public token-first Optimize, curated public Gmail and Microsoft 365/Outlook plugins, and a consent-gated Activity Export contract proven first with ClawMax.ai and then Digo.
 - Plugins remain domain-neutral. Guardrails and evaluations are possible implementations, not fixed host-level plugin types.
 

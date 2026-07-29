@@ -1,0 +1,61 @@
+{
+  "id": "2.0.0-test-rc19",
+  "name": "2.0.0-test-rc19 focused checklist",
+  "description": "Focused checks for bounded Optimize controls, permanent suggestion catalogs, and release health.",
+  "release": "2.0.0-test-rc19",
+  "recommended": true,
+  "tags": ["release", "current", "2.0.0-test-rc19"],
+  "defaults": {
+    "enabled": true,
+    "tags": ["release", "current", "2.0.0-test-rc19"],
+    "fields": {
+      "completed": false,
+      "outcome": "pending",
+      "owner": "release-tester",
+      "evidence": [],
+      "verifiedBy": []
+    }
+  },
+  "items": [
+    {
+      "id": "rc19-optimize-slider-persistence",
+      "name": "Optimize sliders and exact values stay synchronized",
+      "description": "Test: Create an Optimize plan, move each budget, token, duration, and quality slider, then enter exact values in the boxes. Save, reopen, and restart the instance. Pass: Each slider and number show the same value, values stay inside the displayed limits, all six settings persist, and controls fit on desktop and phone without horizontal scrolling.",
+      "tags": ["optimize", "controls", "persistence", "mobile"],
+      "fields": {
+        "area": "responsive",
+        "notes": ""
+      }
+    },
+    {
+      "id": "rc19-optimize-suggestion-catalog",
+      "name": "Optimize suggestions cover common planning goals",
+      "description": "Test: Open Optimize > Suggested, confirm eight items are available, and filter for agent, workflow, cost, tokens, speed, and quality. Use one agent and one workflow item, then edit them. Pass: Filters find relevant items, Use creates an editable plan, automatic model selection is visible where proposed, and saving never changes an agent model or workflow schedule by itself.",
+      "tags": ["optimize", "suggestions", "agents", "workflows"],
+      "fields": {
+        "area": "plugins",
+        "notes": ""
+      }
+    },
+    {
+      "id": "rc19-private-suggestion-catalogs",
+      "name": "Authorized private suggestion catalogs are complete",
+      "description": "Test: In the authorized private image, open Guardrails > Suggested and Evals > Suggested, then search and filter representative agent and workflow items across safety, privacy, security, correctness, speed, and cost. Pass: Each catalog shows fifteen distinct usable suggestions, Evals cover both agents and workflows, details are readable, and using one creates an editable workspace item.",
+      "tags": ["plugins", "private-image", "suggestions"],
+      "fields": {
+        "area": "plugins",
+        "notes": ""
+      }
+    },
+    {
+      "id": "rc19-release-mobile-smoke",
+      "name": "RC19 identity, plugin boundaries, mobile layout, and restart",
+      "description": "Test: Start the exact RC19 public image and authorized private image, check /api/health, /api/system, and the plugin sidebar on desktop and phone, then restart. Pass: Version is 2.0.0-test-rc19, health is HTTP 200, only intended plugins appear in each image, Review and Optimize remain usable on phone, and workspace plus plugin state survive restart.",
+      "tags": ["identity", "plugins", "review", "mobile", "startup"],
+      "fields": {
+        "area": "responsive",
+        "notes": ""
+      }
+    }
+  ]
+}
