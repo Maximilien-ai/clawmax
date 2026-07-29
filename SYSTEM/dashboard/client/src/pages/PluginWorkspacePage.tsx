@@ -58,6 +58,7 @@ type Props = {
 
 type PluginCollectionTab = 'active' | 'archived' | 'suggested'
 type PluginViewMode = 'grid' | 'detail' | 'table' | 'graph'
+const OPTIMIZE_AI_TUNING_EXPANDED_STORAGE_KEY = 'clawmax-optimize-ai-tuning-expanded'
 
 function collectRecentRuntimeErrors(timeoutMs = 2500): Promise<string[]> {
   return new Promise((resolve) => {
@@ -296,12 +297,17 @@ function GenericPluginFields({
   }
 
   return (
-    <div className="space-y-4">
+    <div className={isOptimize ? 'grid gap-4 xl:grid-cols-2' : 'space-y-4'}>
       {fieldGroups.map((group) => {
         const groupFields = orderedFields.filter(([key]) => group.keys.includes(key))
         if (groupFields.length === 0) return null
         return (
-          <section key={group.title || 'fields'} className={isOptimize ? 'rounded-lg border border-gray-200 p-4 dark:border-gray-700' : ''}>
+          <section
+            key={group.title || 'fields'}
+            className={isOptimize
+              ? `rounded-lg border border-gray-200 p-4 dark:border-gray-700 ${group.title === 'Recommendation' ? 'xl:col-span-2' : ''}`
+              : ''}
+          >
             {group.title && <h3 className="mb-3 text-sm font-semibold text-gray-900 dark:text-gray-100">{group.title}</h3>}
             <div className="space-y-4">
               {groupFields.map(renderField)}
@@ -332,6 +338,10 @@ function PluginFormModal({
   const [assistantError, setAssistantError] = useState('')
   const [assistantChanges, setAssistantChanges] = useState<string[]>([])
   const [assistantUndo, setAssistantUndo] = useState<Partial<PluginRecord> | null>(null)
+  const [showOptimizeAssistant, setShowOptimizeAssistant] = useState(() => {
+    if (typeof window === 'undefined') return true
+    return window.localStorage.getItem(OPTIMIZE_AI_TUNING_EXPANDED_STORAGE_KEY) !== 'false'
+  })
   const isOptimize = plugin.objectKind === 'optimization-plan'
 
   useEffect(() => {
@@ -341,6 +351,11 @@ function PluginFormModal({
     setAssistantChanges([])
     setAssistantUndo(null)
   }, [draft])
+
+  useEffect(() => {
+    if (!isOptimize || typeof window === 'undefined') return
+    window.localStorage.setItem(OPTIMIZE_AI_TUNING_EXPANDED_STORAGE_KEY, String(showOptimizeAssistant))
+  }, [isOptimize, showOptimizeAssistant])
 
   const tags = typeof form.tags?.join === 'function' ? form.tags.join(', ') : ''
   const allowedSkills = isGuardrailRecord(form)
@@ -406,6 +421,68 @@ Preserve existing values when the request does not ask to change them.`,
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="grid min-w-0 gap-5 p-4 sm:p-5 lg:grid-cols-[minmax(17rem,0.8fr)_minmax(0,1.4fr)]">
+          {isOptimize && (
+            <section className="rounded-lg border border-sky-200 bg-sky-50/60 dark:border-sky-900/50 dark:bg-sky-950/20 lg:col-span-2">
+              <button
+                type="button"
+                onClick={() => setShowOptimizeAssistant((current) => !current)}
+                className="flex w-full min-w-0 items-center justify-between gap-3 p-4 text-left"
+                aria-expanded={showOptimizeAssistant}
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <ProductIconCell iconName="ai" label="AI tune" size="sm" className="shrink-0 border-sky-200 bg-white text-sky-600 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-300" />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold text-sky-950 dark:text-sky-100">Tune with AI</span>
+                    <span className="block text-xs text-sky-800/80 dark:text-sky-200/80">Describe the outcome. The assistant updates this draft; you review and save it.</span>
+                  </span>
+                </span>
+                <span className="shrink-0 text-sm font-semibold text-sky-700 dark:text-sky-300">{showOptimizeAssistant ? '▾' : '▸'}</span>
+              </button>
+              {showOptimizeAssistant && (
+                <div className="border-t border-sky-200 px-4 pb-4 pt-3 dark:border-sky-900">
+                  <textarea
+                    value={assistantPrompt}
+                    onChange={(event) => setAssistantPrompt(event.target.value)}
+                    rows={4}
+                    placeholder="Keep the Daily Report workflow under $20/month and 10k tokens per run, finish within 2 minutes, preserve quality above 88, and use automatic cost-priority model selection."
+                    className="w-full rounded-lg border border-sky-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 dark:border-sky-800 dark:bg-gray-900 dark:text-gray-100"
+                  />
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void applyAiOptimizeChanges()}
+                      disabled={!assistantPrompt.trim() || assistantBusy}
+                      className="inline-flex items-center gap-2 rounded-lg bg-sky-600 px-3 py-2 text-sm font-medium text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {assistantBusy ? 'Tuning...' : 'Tune plan'}
+                    </button>
+                    {assistantUndo && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setForm(assistantUndo)
+                          setAssistantUndo(null)
+                          setAssistantChanges([])
+                        }}
+                        className="rounded-lg border border-sky-200 bg-white px-3 py-2 text-sm font-medium text-sky-700 hover:bg-sky-50 dark:border-sky-800 dark:bg-gray-900 dark:text-sky-300"
+                      >
+                        Undo
+                      </button>
+                    )}
+                  </div>
+                  {assistantError && <p className="mt-3 text-xs text-red-700 dark:text-red-300">{assistantError}</p>}
+                  {assistantChanges.length > 0 && (
+                    <div className="mt-3 border-t border-sky-200 pt-3 dark:border-sky-900">
+                      <div className="text-xs font-semibold text-sky-900 dark:text-sky-200">Draft updated</div>
+                      <ul className="mt-1 space-y-1 text-xs text-sky-800 dark:text-sky-200">
+                        {assistantChanges.map((change) => <li key={change}>• {change}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+            </section>
+          )}
           <div className="min-w-0 space-y-4 lg:sticky lg:top-5 lg:self-start">
             <label className="block">
               <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Name</span>
@@ -441,56 +518,6 @@ Preserve existing values when the request does not ask to change them.`,
               />
               Enabled
             </label>
-            {isOptimize && (
-              <section className="rounded-lg border border-sky-200 bg-sky-50/60 p-4 dark:border-sky-900/50 dark:bg-sky-950/20">
-                <div className="flex items-center gap-2">
-                  <ProductIconCell iconName="ai" label="AI tune" size="sm" className="border-sky-200 bg-white text-sky-600 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-300" />
-                  <div>
-                    <h3 className="text-sm font-semibold text-sky-950 dark:text-sky-100">Tune with AI</h3>
-                    <p className="text-xs text-sky-800/80 dark:text-sky-200/80">Describe the outcome. The assistant updates this draft; you review and save it.</p>
-                  </div>
-                </div>
-                <textarea
-                  value={assistantPrompt}
-                  onChange={(event) => setAssistantPrompt(event.target.value)}
-                  rows={5}
-                  placeholder="Keep the Daily Report workflow under $20/month and 10k tokens per run, finish within 2 minutes, preserve quality above 88, and use automatic cost-priority model selection."
-                  className="mt-3 w-full rounded-lg border border-sky-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 dark:border-sky-800 dark:bg-gray-900 dark:text-gray-100"
-                />
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => void applyAiOptimizeChanges()}
-                    disabled={!assistantPrompt.trim() || assistantBusy}
-                    className="inline-flex items-center gap-2 rounded-lg bg-sky-600 px-3 py-2 text-sm font-medium text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {assistantBusy ? 'Tuning...' : 'Tune plan'}
-                  </button>
-                  {assistantUndo && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setForm(assistantUndo)
-                        setAssistantUndo(null)
-                        setAssistantChanges([])
-                      }}
-                      className="rounded-lg border border-sky-200 bg-white px-3 py-2 text-sm font-medium text-sky-700 hover:bg-sky-50 dark:border-sky-800 dark:bg-gray-900 dark:text-sky-300"
-                    >
-                      Undo
-                    </button>
-                  )}
-                </div>
-                {assistantError && <p className="mt-3 text-xs text-red-700 dark:text-red-300">{assistantError}</p>}
-                {assistantChanges.length > 0 && (
-                  <div className="mt-3 border-t border-sky-200 pt-3 dark:border-sky-900">
-                    <div className="text-xs font-semibold text-sky-900 dark:text-sky-200">Draft updated</div>
-                    <ul className="mt-1 space-y-1 text-xs text-sky-800 dark:text-sky-200">
-                      {assistantChanges.map((change) => <li key={change}>• {change}</li>)}
-                    </ul>
-                  </div>
-                )}
-              </section>
-            )}
           </div>
 
           {usesLegacyPluginAdapter(plugin, 'guardrail') ? (
@@ -1491,10 +1518,12 @@ function truncateGraphLabel(value: string, maximum = 28): string {
 
 function OptimizeRelationshipGraph({
   items,
+  suggestionTemplates,
   context,
   onOpen,
 }: {
   items: PluginRecord[]
+  suggestionTemplates?: PluginRecordTemplate[]
   context: PluginWorkspaceContext
   onOpen: (id: string) => void
 }) {
@@ -1503,8 +1532,20 @@ function OptimizeRelationshipGraph({
     if (kind === 'workflow') return context.workflows.find((entry) => entry.id === id)?.name || id
     return id === 'workspace' ? 'Current workspace' : id
   }
-  const plans = items.filter(isGenericPluginRecord)
-  const showingSuggestions = plans.length > 0 && plans.every((item) => item.id.startsWith('suggested:'))
+  const plans: GenericPluginRecord[] = suggestionTemplates
+    ? suggestionTemplates.map((template) => ({
+        id: `suggested:${template.id}`,
+        kind: 'optimization-plan',
+        name: template.payload.name || template.name,
+        description: template.payload.description || template.description,
+        tags: template.payload.tags || template.tags,
+        enabled: template.payload.enabled !== false,
+        createdAt: '',
+        updatedAt: '',
+        fields: 'fields' in template.payload ? template.payload.fields || {} : {},
+      }))
+    : items.filter(isGenericPluginRecord)
+  const showingSuggestions = suggestionTemplates !== undefined
   const dimensionLabels = Array.from(new Set(plans.flatMap(getOptimizationDimensions))).sort()
   const targetEntries = Array.from(new Map(plans.flatMap((item) => {
     const scope = item.fields.scope === 'agent' ? 'agent' : item.fields.scope === 'workspace' ? 'workspace' : 'workflow'
@@ -1544,15 +1585,22 @@ function OptimizeRelationshipGraph({
         </div>
       </div>
       <div className="max-w-full overflow-x-auto">
-        <svg
-          role="img"
-          aria-label="Optimize relationship graph"
-          width="100%"
-          height={canvasHeight}
-          viewBox={`0 0 1000 ${canvasHeight}`}
-          preserveAspectRatio="xMidYMid meet"
-          className="block min-w-[760px]"
-        >
+        {plans.length === 0 ? (
+          <div className="flex min-h-52 items-center justify-center px-6 py-10 text-center text-sm text-gray-500 dark:text-gray-400">
+            {showingSuggestions
+              ? 'No suggested plans match the current search and filters.'
+              : 'No active plans are available for this relationship graph.'}
+          </div>
+        ) : (
+          <svg
+            role="img"
+            aria-label="Optimize relationship graph"
+            width="100%"
+            height={canvasHeight}
+            viewBox={`0 0 1000 ${canvasHeight}`}
+            preserveAspectRatio="xMidYMid meet"
+            className="block min-w-[760px]"
+          >
           <title>Optimization dimensions connected to plans and their targets</title>
           {plans.flatMap((item) => {
             const y = planY.get(item.id) || canvasHeight / 2
@@ -1632,7 +1680,8 @@ function OptimizeRelationshipGraph({
               </g>
             )
           })}
-        </svg>
+          </svg>
+        )}
       </div>
     </div>
   )
@@ -1641,18 +1690,20 @@ function OptimizeRelationshipGraph({
 function PluginRelationshipView({
   plugin,
   items,
+  suggestionTemplates,
   context,
   onOpen,
   heading = 'Selected item',
 }: {
   plugin: PluginManifest
   items: PluginRecord[]
+  suggestionTemplates?: PluginRecordTemplate[]
   context: PluginWorkspaceContext
   onOpen: (id: string) => void
   heading?: string
 }) {
   if (plugin.objectKind === 'optimization-plan') {
-    return <OptimizeRelationshipGraph items={items} context={context} onOpen={onOpen} />
+    return <OptimizeRelationshipGraph items={items} suggestionTemplates={suggestionTemplates} context={context} onOpen={onOpen} />
   }
 
   const resolveTarget = (kind: 'agent' | 'workflow' | 'group' | 'community', id: string) => {
@@ -1851,10 +1902,6 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
     )),
     suggestionSort,
   ), [recommendedTemplates, suggestionTag, suggestionSearch, suggestionSort])
-  const suggestedPreviewRecords = useMemo(
-    () => filteredSuggestions.map(templateToPreviewRecord),
-    [filteredSuggestions],
-  )
   const selectedSuggestedTemplate = useMemo(
     () => filteredSuggestions.find((template) => template.id === selectedSuggestedTemplateId) || null,
     [filteredSuggestions, selectedSuggestedTemplateId],
@@ -2619,7 +2666,8 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                 <div className="space-y-4">
                   <PluginRelationshipView
                     plugin={plugin}
-                    items={suggestedPreviewRecords}
+                    items={[]}
+                    suggestionTemplates={filteredSuggestions}
                     context={context}
                     onOpen={(id) => setSelectedSuggestedTemplateId(id.replace(/^suggested:/, ''))}
                     heading="Suggested item"

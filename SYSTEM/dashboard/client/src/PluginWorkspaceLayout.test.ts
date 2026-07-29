@@ -68,6 +68,10 @@ assert(pluginPageSource.includes("title: 'Budgets'"), 'Optimize editor must grou
 assert(pluginPageSource.includes("title: 'Quality and speed'"), 'Optimize editor must group semantic quality and duration gauges')
 assert(pluginPageSource.includes('Tune with AI'), 'Optimize editor must expose an AI-assisted tuning panel')
 assert(pluginPageSource.includes('applyOptimizeAssistantText'), 'Optimize AI assistance must apply structured changes to the current draft')
+assert(pluginPageSource.includes('OPTIMIZE_AI_TUNING_EXPANDED_STORAGE_KEY'), 'Optimize AI tuning expansion must persist in the current browser')
+assert(pluginPageSource.includes('lg:col-span-2'), 'Optimize AI tuning must occupy the full editor width above manual controls')
+assert(pluginPageSource.includes('suggestionTemplates={filteredSuggestions}'), 'Suggested Optimize graphs must consume the visible suggestion templates directly')
+assert(pluginPageSource.includes('No suggested plans match the current search and filters.'), 'Suggested Optimize graphs must explain a genuinely empty filtered result')
 assert(pluginPageSource.includes('from-rose-400 via-amber-300 to-emerald-400'), 'Quality controls must expose a low-to-high semantic gauge')
 assert(pluginPageSource.includes('from-emerald-400 via-amber-300 to-rose-400'), 'Duration controls must expose a fast-to-slow semantic gauge')
 assert((agentsSource.match(/const menuWidth = 224/g) || []).length >= 3, 'Agent action menus must reserve enough width for icon and Template labels')
@@ -77,4 +81,4 @@ assert(pluginPageSource.includes("applyingTemplateIds.has(template.id) ? 'Adding
 assert(manifests.every((manifest) => !/dormant|test plugin|mvp/i.test(`${manifest.name} ${manifest.description} ${manifest.version}`)), 'Enabled plugin UI copy must be product-ready')
 assert(new Set(manifests.map((manifest) => manifest.icon)).size === manifests.length, 'Each first-party plugin must declare a distinct navigation icon')
 
-console.log('PluginWorkspaceLayout.test.ts: 56 tests passed')
+console.log('PluginWorkspaceLayout.test.ts: 60 tests passed')

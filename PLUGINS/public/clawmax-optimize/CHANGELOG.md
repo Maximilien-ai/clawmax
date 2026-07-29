@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.1
+
+- Move AI-assisted tuning to a full-width, default-open panel at the top of the
+  plan editor and remember its collapsed state in the current browser.
+- Render Suggested relationship graphs directly from the visible, unapplied
+  plan suggestions instead of requiring persisted Active records.
+- Use the editor width more effectively with a two-column manual control layout
+  on wide screens and a clear filtered-empty graph state.
+
 ## 0.4.0
 
 - Allow built-in suggestions to become editable Active plans before an agent

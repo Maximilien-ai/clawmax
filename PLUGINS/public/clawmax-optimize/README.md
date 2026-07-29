@@ -19,12 +19,14 @@ and then to its workspace, workflow, or agent targets. Plans that still need a
 target show a dashed selection placeholder. Suggested plans render as previews
 with placeholder targets; Active plans render their saved relationships.
 
-The plan editor groups related controls and includes AI-assisted tuning through
-the dashboard's configured model provider. A user can describe a budget,
-target, quality floor, duration, model priority, or schedule, review the fields
-that changed, undo the draft update, and then save. Quality and maximum-duration
-controls use directional gauges; cost and token budgets remain neutral because
-lower values are not inherently better when they make a plan infeasible.
+The plan editor puts AI-assisted tuning in a full-width panel above the manual
+controls. It is open by default and remembers when the current browser collapses
+it. A user can describe a budget, target, quality floor, duration, model
+priority, or schedule, review the fields that changed, undo the draft update,
+and then save. Manual controls use grouped columns on wide screens. Quality and
+maximum-duration controls use directional gauges; cost and token budgets remain
+neutral because lower values are not inherently better when they make a plan
+infeasible.
 
 Optimization plans are advisory. Guardrails constrain behavior and Evals
 measure representative results; Optimize records the quality floor and safety
