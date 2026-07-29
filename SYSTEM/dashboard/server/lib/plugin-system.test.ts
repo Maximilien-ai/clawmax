@@ -451,6 +451,11 @@ async function run() {
   await test('generic numeric fields clamp persisted values to manifest bounds', () => {
     const plugin = getPluginBySlug('clawmax-optimize')
     assert(plugin, 'Expected Optimize plugin manifest to load')
+    const suggestions = listPluginTemplates(plugin!)
+    assert.strictEqual(suggestions.length, 8, 'Expected all permanent Optimize suggestions')
+    const appliedSuggestions = suggestions.map((template) => applyPluginTemplate(plugin!, template.id))
+    assert(appliedSuggestions.every(Boolean), 'Expected every target-free Optimize suggestion to create a customizable plan')
+    assert(appliedSuggestions.every((record) => record && 'fields' in record && Array.isArray(record.fields.targetIds) && record.fields.targetIds.length === 0), 'Expected target selection to remain available in the opened plan editor')
     const created = upsertPluginRecord(plugin!, {
       name: 'Bounded plan',
       fields: {

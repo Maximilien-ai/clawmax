@@ -3378,7 +3378,7 @@ const AgentCard = React.memo(function AgentCard({
   const [actionsMenuView, setActionsMenuView] = React.useState<AgentActionsMenuView>('main')
   const [menuPlacement, setMenuPlacement] = React.useState<DropdownPlacement>('top')
   const actionsButtonRef = React.useRef<HTMLButtonElement | null>(null)
-  const menuWidth = 176
+  const menuWidth = 224
   const { usedPct: budgetUsedPct, barColor: budgetBarColor } = getAgentBudgetPresentation({
     costTrackingEnabled,
     costLimit,
@@ -4000,7 +4000,7 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
   const [actionsMenuView, setActionsMenuView] = React.useState<AgentActionsMenuView>('main')
   const [menuPlacement, setMenuPlacement] = React.useState<DropdownPlacement>('top')
   const actionsButtonRef = React.useRef<HTMLButtonElement | null>(null)
-  const menuWidth = 176
+  const menuWidth = 224
   const totalGroups = (agent.communities || []).length + (agent.groups || []).length
   const groupCountLabel = formatAgentGroupCount(totalGroups)
   const tagPreview = getVisibleAgentTags(agent.tags, 3)
@@ -4452,7 +4452,7 @@ const AgentTableView = React.memo(function AgentTableView({
   const [openDropdown, setOpenDropdown] = React.useState<string | null>(null)
   const [menuPlacement, setMenuPlacement] = React.useState<DropdownPlacement>('bottom')
   const actionsButtonRefs = React.useRef<Record<string, HTMLButtonElement | null>>({})
-  const menuWidth = 176
+  const menuWidth = 224
 
   // Close dropdown when clicking outside
   React.useEffect(() => {

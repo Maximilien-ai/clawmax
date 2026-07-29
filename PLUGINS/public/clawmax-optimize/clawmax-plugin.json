@@ -4,7 +4,7 @@
   "slug": "clawmax-optimize",
   "name": "Optimize",
   "description": "Plan workspace, workflow, and agent token and cost budgets, then compare model and schedule recommendations against current usage.",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "icon": "activity",
   "objectKind": "optimization-plan",
   "visibility": "public",
@@ -34,7 +34,7 @@
   "recordSchema": {
     "type": "object",
     "additionalProperties": false,
-    "required": ["scope", "targetIds", "optimizationGoal", "monthlyTokenBudget", "monthlyCostBudget", "status"],
+    "required": ["scope", "optimizationGoal", "monthlyTokenBudget", "monthlyCostBudget", "status"],
     "properties": {
       "scope": {
         "type": "string",

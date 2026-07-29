@@ -10,6 +10,22 @@ Editable token, cost, duration, and quality targets use synchronized sliders
 and exact numeric inputs. Manifest-declared limits are enforced by both the
 browser and server so a plan cannot persist an out-of-range value.
 
+Using a suggestion immediately creates an Active plan and opens its editor.
+Agent and workflow suggestions can be activated before a target is chosen, so
+the target and slider values can be selected together in that editor.
+
+The relationship view connects each plan's optimization dimensions to the plan
+and then to its workspace, workflow, or agent targets. Plans that still need a
+target show a dashed selection placeholder. Suggested plans render as previews
+with placeholder targets; Active plans render their saved relationships.
+
+The plan editor groups related controls and includes AI-assisted tuning through
+the dashboard's configured model provider. A user can describe a budget,
+target, quality floor, duration, model priority, or schedule, review the fields
+that changed, undo the draft update, and then save. Quality and maximum-duration
+controls use directional gauges; cost and token budgets remain neutral because
+lower values are not inherently better when they make a plan infeasible.
+
 Optimization plans are advisory. Guardrails constrain behavior and Evals
 measure representative results; Optimize records the quality floor and safety
 evidence that should be preserved before a recommendation is applied.

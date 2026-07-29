@@ -35,6 +35,7 @@ import {
   type PluginTemplateSort,
   usesLegacyPluginAdapter,
 } from '../lib/plugins'
+import { applyOptimizeAssistantText } from '../lib/optimizeAssistant'
 import {
   buildReleaseReviewFilename,
   buildReleaseReviewMarkdown,
@@ -134,110 +135,178 @@ function EmptyState({ plugin, onCreate }: { plugin: PluginManifest; onCreate: ()
 function GenericPluginFields({
   plugin,
   fields,
+  context,
   onChange,
 }: {
   plugin: PluginManifest
   fields: Record<string, PluginFieldValue>
+  context: PluginWorkspaceContext
   onChange: (fields: Record<string, PluginFieldValue>) => void
 }) {
   const required = new Set(plugin.recordSchema?.required || [])
   const update = (key: string, value: PluginFieldValue) => onChange({ ...fields, [key]: value })
+  const orderedFields = getOrderedPluginFields(plugin)
+  const isOptimize = plugin.objectKind === 'optimization-plan'
+  const fieldGroups = isOptimize
+    ? [
+        { title: 'Target and priority', keys: ['scope', 'targetIds', 'optimizationGoal', 'status'] },
+        { title: 'Budgets', keys: ['monthlyTokenBudget', 'monthlyCostBudget', 'perRunTokenBudget', 'perRunCostBudget'] },
+        { title: 'Quality and speed', keys: ['maximumRunDurationSeconds', 'minimumQualityScore'] },
+        { title: 'Current usage', keys: ['currentTokens', 'currentCost'] },
+        { title: 'Model and schedule', keys: ['automaticModelSelection', 'modelPriority', 'recommendedModel', 'recommendedSchedule'] },
+        { title: 'Recommendation', keys: ['rationale'] },
+      ]
+    : [{ title: '', keys: orderedFields.map(([key]) => key) }]
 
-  return (
-    <div className="space-y-4">
-      {getOrderedPluginFields(plugin).map(([key, schema]) => {
-        const value = fields[key]
-        const label = <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">{schema.title}{required.has(key) ? ' *' : ''}</span>
-        const className = 'w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100'
-        if (schema.type === 'boolean') {
-          return (
-            <label key={key} className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
-              <input type="checkbox" checked={value === true} onChange={(event) => update(key, event.target.checked)} className="mt-0.5" />
-              <span><span className="font-medium">{schema.title}</span>{schema.description ? <span className="mt-0.5 block text-xs text-gray-500">{schema.description}</span> : null}</span>
-            </label>
-          )
-        }
-        if (schema.enum?.length) {
-          return (
-            <label key={key} className="block">
-              {label}
-              <select value={typeof value === 'string' ? value : ''} onChange={(event) => update(key, event.target.value)} className={className}>
-                {schema.enum.map((option) => <option key={option} value={option}>{option}</option>)}
-              </select>
-              {schema.description ? <span className="mt-1 block text-xs text-gray-500">{schema.description}</span> : null}
-            </label>
-          )
-        }
-        if (schema.type === 'array') {
-          return (
-            <label key={key} className="block">
-              {label}
-              <input value={Array.isArray(value) ? value.join(', ') : ''} onChange={(event) => update(key, event.target.value.split(',').map((entry) => entry.trim()).filter(Boolean))} className={className} placeholder="Comma-separated values" />
-              {schema.description ? <span className="mt-1 block text-xs text-gray-500">{schema.description}</span> : null}
-            </label>
-          )
-        }
-        if (schema.format === 'textarea') {
-          return (
-            <label key={key} className="block">
-              {label}
-              <textarea value={typeof value === 'string' ? value : ''} onChange={(event) => update(key, event.target.value)} rows={5} className={className} />
-              {schema.description ? <span className="mt-1 block text-xs text-gray-500">{schema.description}</span> : null}
-            </label>
-          )
-        }
-        if ((schema.type === 'number' || schema.type === 'integer') && schema.control === 'slider') {
-          const numericValue = normalizePluginNumericValue(schema, value)
-          const step = schema.step ?? (schema.type === 'integer' ? 1 : 'any')
-          return (
-            <div key={key} className="block">
-              {label}
-              <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_7rem] items-center gap-3 sm:grid-cols-[minmax(0,1fr)_8rem]">
-                <input
-                  type="range"
-                  aria-label={`${schema.title} slider`}
-                  min={schema.minimum}
-                  max={schema.maximum}
-                  step={step}
-                  value={numericValue}
-                  onChange={(event) => update(key, normalizePluginNumericValue(schema, event.target.value))}
-                  className="h-2 w-full min-w-0 cursor-pointer accent-sky-600"
-                />
-                <input
-                  type="number"
-                  aria-label={`${schema.title} value`}
-                  min={schema.minimum}
-                  max={schema.maximum}
-                  step={step}
-                  value={numericValue}
-                  onChange={(event) => update(key, normalizePluginNumericValue(schema, event.target.value))}
-                  className={className}
-                />
-              </div>
-              {schema.description ? <span className="mt-1 block text-xs text-gray-500">{schema.description}</span> : null}
-            </div>
-          )
-        }
-        const inputType = schema.type === 'number' || schema.type === 'integer' ? 'number' : schema.format === 'date' ? 'date' : schema.format === 'uri' ? 'url' : 'text'
+  const renderField = ([key, schema]: [string, ReturnType<typeof getOrderedPluginFields>[number][1]]) => {
+    const value = fields[key]
+    const label = <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">{schema.title}{required.has(key) ? ' *' : ''}</span>
+    const className = 'w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100'
+    if (schema.type === 'boolean') {
+      return (
+        <label key={key} className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
+          <input type="checkbox" checked={value === true} onChange={(event) => update(key, event.target.checked)} className="mt-0.5" />
+          <span><span className="font-medium">{schema.title}</span>{schema.description ? <span className="mt-0.5 block text-xs text-gray-500">{schema.description}</span> : null}</span>
+        </label>
+      )
+    }
+    if (schema.enum?.length) {
+      return (
+        <label key={key} className="block">
+          {label}
+          <select value={typeof value === 'string' ? value : ''} onChange={(event) => update(key, event.target.value)} className={className}>
+            {schema.enum.map((option) => <option key={option} value={option}>{option}</option>)}
+          </select>
+          {schema.description ? <span className="mt-1 block text-xs text-gray-500">{schema.description}</span> : null}
+        </label>
+      )
+    }
+    if (schema.type === 'array') {
+      if (isOptimize && key === 'targetIds') {
+        const scope = fields.scope === 'agent' ? 'agent' : fields.scope === 'workflow' ? 'workflow' : 'workspace'
+        const options = scope === 'agent' ? context.agents : scope === 'workflow' ? context.workflows : []
+        const selected = Array.isArray(value) ? value.map(String) : []
         return (
           <label key={key} className="block">
             {label}
+            {scope === 'workspace' ? (
+              <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-800/60 dark:text-gray-300">Current workspace</div>
+            ) : (
+              <select
+                multiple
+                value={selected}
+                size={Math.min(5, Math.max(3, options.length))}
+                onChange={(event) => update(key, Array.from(event.target.selectedOptions).map((option) => option.value))}
+                className={className}
+              >
+                {options.map((option) => <option key={option.id} value={option.id}>{option.name} ({option.id})</option>)}
+              </select>
+            )}
+            <span className="mt-1 block text-xs text-gray-500">
+              {scope === 'workspace' ? 'This plan applies to the complete workspace.' : `Select one or more ${scope}s. Use Cmd/Ctrl to select multiple.`}
+            </span>
+          </label>
+        )
+      }
+      return (
+        <label key={key} className="block">
+          {label}
+          <input value={Array.isArray(value) ? value.join(', ') : ''} onChange={(event) => update(key, event.target.value.split(',').map((entry) => entry.trim()).filter(Boolean))} className={className} placeholder="Comma-separated values" />
+          {schema.description ? <span className="mt-1 block text-xs text-gray-500">{schema.description}</span> : null}
+        </label>
+      )
+    }
+    if (schema.format === 'textarea') {
+      return (
+        <label key={key} className="block">
+          {label}
+          <textarea value={typeof value === 'string' ? value : ''} onChange={(event) => update(key, event.target.value)} rows={5} className={className} />
+          {schema.description ? <span className="mt-1 block text-xs text-gray-500">{schema.description}</span> : null}
+        </label>
+      )
+    }
+    if ((schema.type === 'number' || schema.type === 'integer') && schema.control === 'slider') {
+      const numericValue = normalizePluginNumericValue(schema, value)
+      const step = schema.step ?? (schema.type === 'integer' ? 1 : 'any')
+      const gauge = key === 'minimumQualityScore' ? 'quality' : key === 'maximumRunDurationSeconds' ? 'duration' : null
+      return (
+        <div key={key} className="block">
+          {label}
+          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_7rem] items-center gap-3 sm:grid-cols-[minmax(0,1fr)_8rem]">
+            <div className="min-w-0">
+              <input
+                type="range"
+                aria-label={`${schema.title} slider`}
+                min={schema.minimum}
+                max={schema.maximum}
+                step={step}
+                value={numericValue}
+                onChange={(event) => update(key, normalizePluginNumericValue(schema, event.target.value))}
+                className={`h-2 w-full min-w-0 cursor-pointer rounded-full accent-sky-600 ${
+                  gauge === 'quality'
+                    ? 'appearance-none bg-gradient-to-r from-rose-400 via-amber-300 to-emerald-400 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:bg-sky-600 [&::-webkit-slider-thumb]:shadow'
+                    : gauge === 'duration'
+                      ? 'appearance-none bg-gradient-to-r from-emerald-400 via-amber-300 to-rose-400 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:bg-sky-600 [&::-webkit-slider-thumb]:shadow'
+                      : ''
+                }`}
+              />
+              {gauge && (
+                <div className="mt-1 flex justify-between text-[10px] font-medium text-gray-400 dark:text-gray-500">
+                  <span>{gauge === 'quality' ? 'Lower confidence' : 'Faster'}</span>
+                  <span>{gauge === 'quality' ? 'Higher confidence' : 'Slower'}</span>
+                </div>
+              )}
+            </div>
             <input
-              type={inputType}
+              type="number"
+              aria-label={`${schema.title} value`}
               min={schema.minimum}
               max={schema.maximum}
-              step={schema.step ?? (schema.type === 'integer' ? 1 : schema.type === 'number' ? 'any' : undefined)}
-              value={typeof value === 'number' || typeof value === 'string' ? value : ''}
-              onChange={(event) => update(
-                key,
-                schema.type === 'number' || schema.type === 'integer'
-                  ? normalizePluginNumericValue(schema, event.target.value)
-                  : event.target.value,
-              )}
+              step={step}
+              value={numericValue}
+              onChange={(event) => update(key, normalizePluginNumericValue(schema, event.target.value))}
               className={className}
             />
-            {schema.description ? <span className="mt-1 block text-xs text-gray-500">{schema.description}</span> : null}
-          </label>
+          </div>
+          {schema.description ? <span className="mt-1 block text-xs text-gray-500">{schema.description}</span> : null}
+        </div>
+      )
+    }
+    const inputType = schema.type === 'number' || schema.type === 'integer' ? 'number' : schema.format === 'date' ? 'date' : schema.format === 'uri' ? 'url' : 'text'
+    return (
+      <label key={key} className="block">
+        {label}
+        <input
+          type={inputType}
+          min={schema.minimum}
+          max={schema.maximum}
+          step={schema.step ?? (schema.type === 'integer' ? 1 : schema.type === 'number' ? 'any' : undefined)}
+          value={typeof value === 'number' || typeof value === 'string' ? value : ''}
+          onChange={(event) => update(
+            key,
+            schema.type === 'number' || schema.type === 'integer'
+              ? normalizePluginNumericValue(schema, event.target.value)
+              : event.target.value,
+          )}
+          className={className}
+        />
+        {schema.description ? <span className="mt-1 block text-xs text-gray-500">{schema.description}</span> : null}
+      </label>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      {fieldGroups.map((group) => {
+        const groupFields = orderedFields.filter(([key]) => group.keys.includes(key))
+        if (groupFields.length === 0) return null
+        return (
+          <section key={group.title || 'fields'} className={isOptimize ? 'rounded-lg border border-gray-200 p-4 dark:border-gray-700' : ''}>
+            {group.title && <h3 className="mb-3 text-sm font-semibold text-gray-900 dark:text-gray-100">{group.title}</h3>}
+            <div className="space-y-4">
+              {groupFields.map(renderField)}
+            </div>
+          </section>
         )
       })}
     </div>
@@ -258,9 +327,19 @@ function PluginFormModal({
   onSave: (draft: Partial<PluginRecord>) => void
 }) {
   const [form, setForm] = useState<Partial<PluginRecord>>(draft)
+  const [assistantPrompt, setAssistantPrompt] = useState('')
+  const [assistantBusy, setAssistantBusy] = useState(false)
+  const [assistantError, setAssistantError] = useState('')
+  const [assistantChanges, setAssistantChanges] = useState<string[]>([])
+  const [assistantUndo, setAssistantUndo] = useState<Partial<PluginRecord> | null>(null)
+  const isOptimize = plugin.objectKind === 'optimization-plan'
 
   useEffect(() => {
     setForm(draft)
+    setAssistantPrompt('')
+    setAssistantError('')
+    setAssistantChanges([])
+    setAssistantUndo(null)
   }, [draft])
 
   const tags = typeof form.tags?.join === 'function' ? form.tags.join(', ') : ''
@@ -272,21 +351,62 @@ function PluginFormModal({
   const draftQuality = useMemo(() => scorePluginDraft(plugin, form), [plugin, form])
 
   const parseCommaList = (value: string) => value.split(',').map((item) => item.trim()).filter(Boolean)
+  const applyAiOptimizeChanges = async () => {
+    const prompt = assistantPrompt.trim()
+    if (!prompt || !isOptimize) return
+    setAssistantBusy(true)
+    setAssistantError('')
+    try {
+      const expanded = await expandPromptWithAI(
+        prompt,
+        'workflow',
+        'text',
+        `Turn the request into concise Optimize plan directives. Use only relevant lines from:
+Scope: agent, workflow, or workspace
+Target: name from the request
+Priority: quality, balanced, speed, tokens, or cost
+Monthly token budget:
+Monthly cost budget:
+Per-run token budget:
+Per-run cost budget:
+Maximum run duration:
+Minimum quality score:
+Automatic model selection:
+Model priority: quality, balanced, or cost
+Recommended model:
+Recommended schedule:
+Rationale:
+Preserve existing values when the request does not ask to change them.`,
+      )
+      const result = applyOptimizeAssistantText(form, `${prompt}\n${expanded}`, context)
+      if (result.changes.length === 0) {
+        throw new Error('The assistant did not find a concrete plan change. Include a target, budget, quality floor, duration, model priority, or schedule.')
+      }
+      setAssistantUndo(form)
+      setForm(result.draft)
+      setAssistantChanges(result.changes)
+    } catch (error: any) {
+      setAssistantError(error?.message || 'Could not tune this plan with AI.')
+    } finally {
+      setAssistantBusy(false)
+    }
+  }
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 px-4">
-      <div className="max-h-[90vh] w-full max-w-4xl overflow-auto rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900">
-        <div className="sticky top-0 flex items-center justify-between border-b border-gray-200 bg-white px-5 py-4 dark:border-gray-700 dark:bg-gray-900">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-2 sm:p-4">
+      <div className="flex max-h-[92dvh] w-full max-w-5xl flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900">
+        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-900 sm:px-5 sm:py-4">
           <div>
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
               {form.id ? `Edit ${plugin.labels?.singular || plugin.name}` : `Create ${plugin.labels?.singular || plugin.name}`}
             </h2>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{plugin.description}</p>
+            <p className="mt-1 max-w-3xl break-words text-sm text-gray-500 dark:text-gray-400">{plugin.description}</p>
           </div>
-          <button onClick={onClose} className="rounded-md px-2 py-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-300">×</button>
+          <button onClick={onClose} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-gray-200 text-xl text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:border-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-300" aria-label="Close editor">×</button>
         </div>
-        <div className="grid gap-5 p-5 lg:grid-cols-2">
-          <div className="space-y-4">
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="grid min-w-0 gap-5 p-4 sm:p-5 lg:grid-cols-[minmax(17rem,0.8fr)_minmax(0,1.4fr)]">
+          <div className="min-w-0 space-y-4 lg:sticky lg:top-5 lg:self-start">
             <label className="block">
               <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Name</span>
               <input
@@ -321,6 +441,56 @@ function PluginFormModal({
               />
               Enabled
             </label>
+            {isOptimize && (
+              <section className="rounded-lg border border-sky-200 bg-sky-50/60 p-4 dark:border-sky-900/50 dark:bg-sky-950/20">
+                <div className="flex items-center gap-2">
+                  <ProductIconCell iconName="ai" label="AI tune" size="sm" className="border-sky-200 bg-white text-sky-600 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-300" />
+                  <div>
+                    <h3 className="text-sm font-semibold text-sky-950 dark:text-sky-100">Tune with AI</h3>
+                    <p className="text-xs text-sky-800/80 dark:text-sky-200/80">Describe the outcome. The assistant updates this draft; you review and save it.</p>
+                  </div>
+                </div>
+                <textarea
+                  value={assistantPrompt}
+                  onChange={(event) => setAssistantPrompt(event.target.value)}
+                  rows={5}
+                  placeholder="Keep the Daily Report workflow under $20/month and 10k tokens per run, finish within 2 minutes, preserve quality above 88, and use automatic cost-priority model selection."
+                  className="mt-3 w-full rounded-lg border border-sky-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 dark:border-sky-800 dark:bg-gray-900 dark:text-gray-100"
+                />
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void applyAiOptimizeChanges()}
+                    disabled={!assistantPrompt.trim() || assistantBusy}
+                    className="inline-flex items-center gap-2 rounded-lg bg-sky-600 px-3 py-2 text-sm font-medium text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {assistantBusy ? 'Tuning...' : 'Tune plan'}
+                  </button>
+                  {assistantUndo && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setForm(assistantUndo)
+                        setAssistantUndo(null)
+                        setAssistantChanges([])
+                      }}
+                      className="rounded-lg border border-sky-200 bg-white px-3 py-2 text-sm font-medium text-sky-700 hover:bg-sky-50 dark:border-sky-800 dark:bg-gray-900 dark:text-sky-300"
+                    >
+                      Undo
+                    </button>
+                  )}
+                </div>
+                {assistantError && <p className="mt-3 text-xs text-red-700 dark:text-red-300">{assistantError}</p>}
+                {assistantChanges.length > 0 && (
+                  <div className="mt-3 border-t border-sky-200 pt-3 dark:border-sky-900">
+                    <div className="text-xs font-semibold text-sky-900 dark:text-sky-200">Draft updated</div>
+                    <ul className="mt-1 space-y-1 text-xs text-sky-800 dark:text-sky-200">
+                      {assistantChanges.map((change) => <li key={change}>• {change}</li>)}
+                    </ul>
+                  </div>
+                )}
+              </section>
+            )}
           </div>
 
           {usesLegacyPluginAdapter(plugin, 'guardrail') ? (
@@ -550,11 +720,13 @@ function PluginFormModal({
             <GenericPluginFields
               plugin={plugin}
               fields={genericFields}
+              context={context}
               onChange={(fields) => setForm((current) => ({ ...current, kind: plugin.objectKind, fields } as Partial<GenericPluginRecord>))}
             />
           )}
+          </div>
         </div>
-        <div className="border-t border-gray-200 px-5 py-4 dark:border-gray-700">
+        <div className="shrink-0 border-t border-gray-200 px-4 py-3 dark:border-gray-700 sm:px-5 sm:py-4">
           <div className="mb-4 rounded-lg border border-sky-200 bg-sky-50/70 p-3 dark:border-sky-900/50 dark:bg-sky-950/20">
             <div className="flex items-center justify-between gap-3">
               <div className="text-sm font-semibold text-sky-900 dark:text-sky-200">Draft quality</div>
@@ -1101,12 +1273,14 @@ function TemplateCard({
   plugin,
   template,
   onApply,
+  applying = false,
   detailed = false,
   compact = false,
 }: {
   plugin: PluginManifest
   template: PluginRecordTemplate
   onApply: () => void
+  applying?: boolean
   detailed?: boolean
   compact?: boolean
 }) {
@@ -1144,7 +1318,13 @@ function TemplateCard({
               {showDetails ? 'Hide details' : 'Details'}
             </button>
           )}
-          <button onClick={onApply} className={`${headerPrimaryButtonClass} flex-1 justify-center sm:flex-none`}>Use</button>
+          <button
+            onClick={onApply}
+            disabled={applying}
+            className={`${headerPrimaryButtonClass} flex-1 justify-center disabled:cursor-wait disabled:opacity-60 sm:flex-none`}
+          >
+            {applying ? 'Adding...' : 'Use'}
+          </button>
         </div>
       </div>
       {showDetails && (
@@ -1290,17 +1470,191 @@ function ChecklistItemRow({
   )
 }
 
+function getOptimizationDimensions(item: PluginRecord): string[] {
+  if (!isGenericPluginRecord(item)) return []
+  const fields = item.fields
+  const dimensions = new Set<string>()
+  const goal = typeof fields.optimizationGoal === 'string' ? fields.optimizationGoal : ''
+  if (goal) dimensions.add(goal === 'tokens' ? 'Tokens' : goal.charAt(0).toUpperCase() + goal.slice(1))
+  if (Number(fields.monthlyTokenBudget) > 0 || Number(fields.perRunTokenBudget) > 0) dimensions.add('Tokens')
+  if (Number(fields.monthlyCostBudget) > 0 || Number(fields.perRunCostBudget) > 0) dimensions.add('Cost')
+  if (Number(fields.maximumRunDurationSeconds) > 0) dimensions.add('Speed')
+  if (Number(fields.minimumQualityScore) > 0) dimensions.add('Quality')
+  if (fields.automaticModelSelection === true || fields.recommendedModel) dimensions.add('Models')
+  if (fields.recommendedSchedule) dimensions.add('Schedule')
+  return Array.from(dimensions)
+}
+
+function truncateGraphLabel(value: string, maximum = 28): string {
+  return value.length > maximum ? `${value.slice(0, maximum - 1)}…` : value
+}
+
+function OptimizeRelationshipGraph({
+  items,
+  context,
+  onOpen,
+}: {
+  items: PluginRecord[]
+  context: PluginWorkspaceContext
+  onOpen: (id: string) => void
+}) {
+  const resolveTarget = (kind: string, id: string) => {
+    if (kind === 'agent') return context.agents.find((entry) => entry.id === id)?.name || id
+    if (kind === 'workflow') return context.workflows.find((entry) => entry.id === id)?.name || id
+    return id === 'workspace' ? 'Current workspace' : id
+  }
+  const plans = items.filter(isGenericPluginRecord)
+  const showingSuggestions = plans.length > 0 && plans.every((item) => item.id.startsWith('suggested:'))
+  const dimensionLabels = Array.from(new Set(plans.flatMap(getOptimizationDimensions))).sort()
+  const targetEntries = Array.from(new Map(plans.flatMap((item) => {
+    const scope = item.fields.scope === 'agent' ? 'agent' : item.fields.scope === 'workspace' ? 'workspace' : 'workflow'
+    const ids = Array.isArray(item.fields.targetIds) ? item.fields.targetIds.map(String).filter(Boolean) : []
+    const targets = scope === 'workspace'
+      ? [{ kind: 'workspace', id: 'workspace', pending: false }]
+      : ids.length > 0
+        ? ids.map((id) => ({ kind: scope, id, pending: false }))
+        : [{ kind: scope, id: `Select ${scope}`, pending: true }]
+    return targets.map((target) => [`${target.kind}:${target.id}`, target] as const)
+  })).values())
+  const canvasHeight = Math.max(420, plans.length * 72 + 80, dimensionLabels.length * 62 + 80, targetEntries.length * 62 + 80)
+  const distribute = (count: number) => count <= 1
+    ? [canvasHeight / 2]
+    : Array.from({ length: count }, (_, index) => 54 + (index * (canvasHeight - 108)) / (count - 1))
+  const dimensionY = new Map(dimensionLabels.map((label, index) => [label, distribute(dimensionLabels.length)[index]]))
+  const planY = new Map(plans.map((item, index) => [item.id, distribute(plans.length)[index]]))
+  const targetY = new Map(targetEntries.map((target, index) => [`${target.kind}:${target.id}`, distribute(targetEntries.length)[index]]))
+  const planWidth = 250
+  const sideWidth = 190
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900/40">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Optimization relationships</h3>
+          <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+            {showingSuggestions
+              ? `${plans.length} suggested plans preview their optimization dimensions. Dashed targets are selected after you use a plan.`
+              : 'Dimensions connect to saved plans, which connect to their agent, workflow, or workspace targets.'}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-3 text-xs text-gray-500 dark:text-gray-400">
+          <span><span className="mr-1 inline-block h-2 w-2 rounded-full bg-amber-400" />Optimizes</span>
+          <span><span className="mr-1 inline-block h-2 w-2 rounded-full bg-sky-500" />Plan</span>
+          <span><span className="mr-1 inline-block h-2 w-2 rounded-full bg-emerald-500" />Target</span>
+        </div>
+      </div>
+      <div className="max-w-full overflow-x-auto">
+        <svg
+          role="img"
+          aria-label="Optimize relationship graph"
+          width="100%"
+          height={canvasHeight}
+          viewBox={`0 0 1000 ${canvasHeight}`}
+          preserveAspectRatio="xMidYMid meet"
+          className="block min-w-[760px]"
+        >
+          <title>Optimization dimensions connected to plans and their targets</title>
+          {plans.flatMap((item) => {
+            const y = planY.get(item.id) || canvasHeight / 2
+            const scope = item.fields.scope === 'agent' ? 'agent' : item.fields.scope === 'workspace' ? 'workspace' : 'workflow'
+            const ids = Array.isArray(item.fields.targetIds) ? item.fields.targetIds.map(String).filter(Boolean) : []
+            const targetKeys = scope === 'workspace'
+              ? ['workspace:workspace']
+              : ids.length > 0
+                ? ids.map((id) => `${scope}:${id}`)
+                : [`${scope}:Select ${scope}`]
+            return [
+              ...getOptimizationDimensions(item).map((label) => (
+                <path
+                  key={`${item.id}:dimension:${label}`}
+                  d={`M ${40 + sideWidth} ${dimensionY.get(label) || y} C 300 ${dimensionY.get(label) || y}, 300 ${y}, 375 ${y}`}
+                  fill="none"
+                  className="stroke-amber-300 dark:stroke-amber-700"
+                  strokeWidth="2"
+                />
+              )),
+              ...targetKeys.map((key) => (
+                <path
+                  key={`${item.id}:target:${key}`}
+                  d={`M ${375 + planWidth} ${y} C 700 ${y}, 700 ${targetY.get(key) || y}, 770 ${targetY.get(key) || y}`}
+                  fill="none"
+                  className="stroke-emerald-300 dark:stroke-emerald-800"
+                  strokeWidth="2"
+                />
+              )),
+            ]
+          })}
+          {dimensionLabels.map((label) => (
+            <g key={label} transform={`translate(40 ${Number(dimensionY.get(label)) - 21})`}>
+              <rect width={sideWidth} height="42" rx="6" className="fill-amber-50 stroke-amber-300 dark:fill-amber-950/60 dark:stroke-amber-700" />
+              <text x={sideWidth / 2} y="26" textAnchor="middle" className="fill-amber-800 text-[13px] font-semibold dark:fill-amber-200">{truncateGraphLabel(label)}</text>
+            </g>
+          ))}
+          {plans.map((item) => {
+            const y = Number(planY.get(item.id)) - 25
+            return (
+              <g
+                key={item.id}
+                transform={`translate(375 ${y})`}
+                role="button"
+                tabIndex={0}
+                aria-label={`Open ${item.name}`}
+                className="cursor-pointer outline-none"
+                onClick={() => onOpen(item.id)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') onOpen(item.id)
+                }}
+              >
+                <rect width={planWidth} height="50" rx="6" className="fill-sky-50 stroke-sky-400 hover:fill-sky-100 dark:fill-sky-950/70 dark:stroke-sky-700 dark:hover:fill-sky-900" strokeWidth="2" />
+                <text x={planWidth / 2} y="22" textAnchor="middle" className="fill-sky-900 text-[13px] font-semibold dark:fill-sky-100">{truncateGraphLabel(item.name)}</text>
+                <text x={planWidth / 2} y="38" textAnchor="middle" className="fill-sky-600 text-[11px] dark:fill-sky-300">
+                  {item.id.startsWith('suggested:') ? 'Suggested plan' : item.enabled ? 'Active plan' : 'Inactive plan'}
+                </text>
+              </g>
+            )
+          })}
+          {targetEntries.map((target) => {
+            const key = `${target.kind}:${target.id}`
+            const label = target.pending ? target.id : resolveTarget(target.kind, target.id)
+            return (
+              <g key={key} transform={`translate(770 ${Number(targetY.get(key)) - 21})`}>
+                <rect
+                  width={sideWidth}
+                  height="42"
+                  rx="6"
+                  className={target.pending
+                    ? 'fill-gray-50 stroke-gray-300 dark:fill-gray-800 dark:stroke-gray-600'
+                    : 'fill-emerald-50 stroke-emerald-300 dark:fill-emerald-950/60 dark:stroke-emerald-700'}
+                  strokeDasharray={target.pending ? '5 4' : undefined}
+                />
+                <text x={sideWidth / 2} y="18" textAnchor="middle" className="fill-gray-500 text-[10px] font-semibold uppercase dark:fill-gray-400">{target.kind}</text>
+                <text x={sideWidth / 2} y="32" textAnchor="middle" className="fill-emerald-800 text-[12px] font-medium dark:fill-emerald-200">{truncateGraphLabel(label, 25)}</text>
+              </g>
+            )
+          })}
+        </svg>
+      </div>
+    </div>
+  )
+}
+
 function PluginRelationshipView({
+  plugin,
   items,
   context,
   onOpen,
   heading = 'Selected item',
 }: {
+  plugin: PluginManifest
   items: PluginRecord[]
   context: PluginWorkspaceContext
   onOpen: (id: string) => void
   heading?: string
 }) {
+  if (plugin.objectKind === 'optimization-plan') {
+    return <OptimizeRelationshipGraph items={items} context={context} onOpen={onOpen} />
+  }
+
   const resolveTarget = (kind: 'agent' | 'workflow' | 'group' | 'community', id: string) => {
     if (kind === 'agent') return context.agents.find((entry) => entry.id === id)?.name || id
     if (kind === 'workflow') return context.workflows.find((entry) => entry.id === id)?.name || id
@@ -1393,6 +1747,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
   const [aiGenerating, setAiGenerating] = useState(false)
   const [activeCompactActions, setActiveCompactActions] = useState<string | null>(null)
   const [runningItemIds, setRunningItemIds] = useState<Set<string>>(new Set())
+  const [applyingTemplateIds, setApplyingTemplateIds] = useState<Set<string>>(new Set())
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null)
   const [showReviewExport, setShowReviewExport] = useState(false)
   const [reviewerName, setReviewerName] = useState('')
@@ -1729,17 +2084,30 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
       : { kind: plugin.objectKind, enabled: true, tags: [], fields: buildGenericPluginFields(plugin) }
 
   const applyTemplate = async (templateId: string) => {
-    const res = await fetch(`/api/plugins/${encodeURIComponent(plugin.slug)}/templates/${encodeURIComponent(templateId)}/apply`, { method: 'POST' })
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}))
-      throw new Error(data.error || 'Failed to apply template')
-    }
-    const data = await res.json()
-    await load()
-    setCollectionTab('active')
-    if (data.item) {
-      setEditing(data.item)
-      setShowModal(true)
+    setApplyingTemplateIds((current) => new Set(current).add(templateId))
+    setError(null)
+    try {
+      const res = await fetch(`/api/plugins/${encodeURIComponent(plugin.slug)}/templates/${encodeURIComponent(templateId)}/apply`, { method: 'POST' })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || 'Failed to use suggested item')
+      }
+      const data = await res.json()
+      await load()
+      setCollectionTab('active')
+      if (data.item) {
+        setSelectedItemId(data.item.id)
+        setEditing(data.item)
+        setShowModal(true)
+      }
+    } catch (err: any) {
+      setError(`Could not use this suggestion: ${err.message || 'Unknown error'}`)
+    } finally {
+      setApplyingTemplateIds((current) => {
+        const next = new Set(current)
+        next.delete(templateId)
+        return next
+      })
     }
   }
 
@@ -2229,6 +2597,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                       plugin={plugin}
                       template={template}
                       compact
+                      applying={applyingTemplateIds.has(template.id)}
                       onApply={() => void applyTemplate(template.id)}
                     />
                   ))}
@@ -2241,6 +2610,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                       plugin={plugin}
                       template={template}
                       detailed
+                      applying={applyingTemplateIds.has(template.id)}
                       onApply={() => void applyTemplate(template.id)}
                     />
                   ))}
@@ -2248,6 +2618,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
               ) : viewMode === 'graph' ? (
                 <div className="space-y-4">
                   <PluginRelationshipView
+                    plugin={plugin}
                     items={suggestedPreviewRecords}
                     context={context}
                     onOpen={(id) => setSelectedSuggestedTemplateId(id.replace(/^suggested:/, ''))}
@@ -2258,6 +2629,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                       plugin={plugin}
                       template={selectedSuggestedTemplate}
                       detailed
+                      applying={applyingTemplateIds.has(selectedSuggestedTemplate.id)}
                       onApply={() => void applyTemplate(selectedSuggestedTemplate.id)}
                     />
                   )}
@@ -2286,11 +2658,24 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                         >
                           Details
                         </button>
-                        <button type="button" onClick={() => void applyTemplate(template.id)} className={headerPrimaryButtonClass}>Use</button>
+                        <button
+                          type="button"
+                          onClick={() => void applyTemplate(template.id)}
+                          disabled={applyingTemplateIds.has(template.id)}
+                          className={`${headerPrimaryButtonClass} disabled:cursor-wait disabled:opacity-60`}
+                        >
+                          {applyingTemplateIds.has(template.id) ? 'Adding...' : 'Use'}
+                        </button>
                       </div>
                       {selectedSuggestedTemplateId === template.id && (
                         <div className="sm:col-span-3">
-                          <TemplateCard plugin={plugin} template={template} detailed onApply={() => void applyTemplate(template.id)} />
+                          <TemplateCard
+                            plugin={plugin}
+                            template={template}
+                            detailed
+                            applying={applyingTemplateIds.has(template.id)}
+                            onApply={() => void applyTemplate(template.id)}
+                          />
                         </div>
                       )}
                     </div>
@@ -2431,6 +2816,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
               </div>
             ) : viewMode === 'graph' ? (
               <PluginRelationshipView
+                plugin={plugin}
                 items={filtered}
                 context={context}
                 onOpen={setSelectedItemId}

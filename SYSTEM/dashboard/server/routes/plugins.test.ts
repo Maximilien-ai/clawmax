@@ -114,7 +114,7 @@ async function run() {
 
   await test('plugin index lists configured plugins', async () => {
     const handler = getRouteHandler('get', '/')
-    process.env.CLAWMAX_ENABLED_PLUGINS = 'plugin-lab-guardrails,plugin-lab-evals'
+    process.env.CLAWMAX_ENABLED_PLUGINS = 'plugin-lab-guardrails,plugin-lab-evals,clawmax-optimize'
     process.env.CLAWMAX_PLUGIN_PATHS = ''
     delete process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS
     const res = makeRes()
@@ -124,6 +124,7 @@ async function run() {
     assert(Array.isArray(res.jsonBody?.plugins), 'Expected plugin list array')
     assert(res.jsonBody.plugins.some((plugin: any) => plugin.slug === 'plugin-lab-guardrails'), 'Expected guardrails test plugin in index')
     assert(res.jsonBody.plugins.some((plugin: any) => plugin.slug === 'plugin-lab-evals'), 'Expected evals test plugin in index')
+    assert(res.jsonBody.plugins.some((plugin: any) => plugin.slug === 'clawmax-optimize'), 'Expected public Optimize plugin in index')
   })
 
   await test('plugin diagnostics route reports host compatibility and load status', async () => {
@@ -234,7 +235,7 @@ async function run() {
 
   await test('plugin templates list and apply routes work', async () => {
     const listTemplates = getRouteHandler('get', '/:pluginId/templates', false)
-    process.env.CLAWMAX_ENABLED_PLUGINS = 'plugin-lab-guardrails,plugin-lab-evals'
+    process.env.CLAWMAX_ENABLED_PLUGINS = 'plugin-lab-guardrails,plugin-lab-evals,clawmax-optimize'
     process.env.CLAWMAX_PLUGIN_PATHS = ''
     delete process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS
     const templatesRes = makeRes()
@@ -247,6 +248,16 @@ async function run() {
     await applyTemplate(makeReq({ params: { pluginId: 'plugin-lab-guardrails', templateId: 'no-outbound-email' } }), applyRes)
     assert.strictEqual(applyRes.statusCode, 201, 'Expected template apply success')
     assert.strictEqual(applyRes.jsonBody?.item?.name, 'No outbound email', 'Expected applied template to create a record')
+
+    const optimizeRes = makeRes()
+    await applyTemplate(makeReq({ params: { pluginId: 'clawmax-optimize', templateId: 'workflow-budget' } }), optimizeRes)
+    assert.strictEqual(
+      optimizeRes.statusCode,
+      201,
+      `Expected target-free Optimize suggestion to create an Active plan: ${optimizeRes.jsonBody?.error || 'unknown error'}`,
+    )
+    assert.strictEqual(optimizeRes.jsonBody?.item?.fields?.scope, 'workflow', 'Expected Optimize suggestion fields to persist')
+    assert.deepStrictEqual(optimizeRes.jsonBody?.item?.fields?.targetIds, [], 'Expected target selection to remain available in the editor')
   })
 
   await test('generic v2 plugin routes validate and persist declarative fields', async () => {

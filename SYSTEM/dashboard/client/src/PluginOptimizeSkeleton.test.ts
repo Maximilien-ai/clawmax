@@ -23,6 +23,7 @@ assert(manifest.capabilities.agents === true && manifest.capabilities.workflows 
 assert(manifest.recordSchema.required.includes('monthlyTokenBudget'), 'Optimize must treat tokens as a first-class budget')
 assert(manifest.recordSchema.required.includes('monthlyCostBudget'), 'Optimize must treat cost as a first-class budget')
 assert(manifest.recordSchema.required.includes('optimizationGoal'), 'Optimize must require an explicit optimization priority')
+assert(!manifest.recordSchema.required.includes('targetIds'), 'Optimize suggestions must open for customization before targets are selected')
 assert(manifest.recordSchema.properties.perRunTokenBudget.type === 'integer', 'Optimize must support per-run token budgets')
 assert(manifest.recordSchema.properties.perRunCostBudget.type === 'number', 'Optimize must support per-run cost budgets')
 assert(manifest.recordSchema.properties.maximumRunDurationSeconds.type === 'integer', 'Optimize must support workflow latency limits')
@@ -76,4 +77,4 @@ for (const dimension of ['quality', 'speed', 'tokens', 'cost']) {
   assert(templates.some((template) => template.tags.includes(dimension)), `Optimize must include ${dimension} coverage`)
 }
 
-console.log('PluginOptimizeSkeleton.test.ts: 42 tests passed')
+console.log('PluginOptimizeSkeleton.test.ts: 43 tests passed')
