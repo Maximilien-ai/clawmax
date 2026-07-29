@@ -31,6 +31,7 @@ All notable changes to ClawMax are documented here.
 - **Guardrail Relationship And AI Editing Surfaces** — compatible Guardrail plugins can render protections through each Guardrail to assigned agents and workflows, preview relationships on hover, inspect selected or archived details in the standard drawer, explore suggestions inline, and configure reviewable draft controls and assignments through a full-width AI-assisted editor.
 - **Eval Experiment Relationship Preview** — compatible Eval plugins can visualize evaluated attributes, planned and completed trial counts, AI/Human/Fixed evaluator identity, and assigned agents or workflows; Suggested Evals use dashed target placeholders and inline details while saved records retain standard detail drawers.
 - **AI-Assisted Eval Configuration** — Eval editors add a remembered full-width AI configuration panel that can update evaluator type, bounded trial count, target, input, expected outcome, attributes, and description with a visible change summary and Undo; manual controls persist the same fields.
+- **Eval Targets, Guidance, And Trial Cases** — Eval editors replace raw target IDs with searchable agent, workflow, and group selection; evaluator-specific guidance and a dedicated case editor capture per-run text or workspace-file inputs and expected outcomes.
 
 ### Fixed
 - **Truthful Eval Evaluator Modes** — Eval records preserve AI, Human, and Fixed evaluator choices plus planned trial counts; Human evaluations require an actual reviewer instead of silently producing a fixed automated score.

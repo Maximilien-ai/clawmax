@@ -151,6 +151,19 @@ export interface EvalRunRecord {
   createdAt: string
 }
 
+export interface EvalCase {
+  id: string
+  name: string
+  input: {
+    type: 'text' | 'file'
+    value: string
+  }
+  expected: {
+    type: 'text' | 'file'
+    value: string
+  }
+}
+
 export interface EvalRecord extends PluginRecordBase {
   kind: 'eval'
   target: {
@@ -163,6 +176,8 @@ export interface EvalRecord extends PluginRecordBase {
     expectedOutput: string
     judge: 'ai' | 'human' | 'fixed'
     iterations?: number
+    judgeGuidance?: string
+    cases?: EvalCase[]
   }
   runs: EvalRunRecord[]
   lastRun?: EvalRunRecord | null
@@ -707,6 +722,30 @@ function normalizeGenericFields(plugin: PluginManifest, value: unknown, validate
   return fields
 }
 
+function normalizeEvalCases(value: unknown, legacyInput = '', legacyExpected = ''): EvalCase[] {
+  const cases = Array.isArray(value) ? value : []
+  const normalized = cases.slice(0, 100).map((entry: any, index) => ({
+    id: String(entry?.id || `case-${index + 1}`).trim(),
+    name: String(entry?.name || `Trial case ${index + 1}`).trim(),
+    input: {
+      type: entry?.input?.type === 'file' ? 'file' as const : 'text' as const,
+      value: String(entry?.input?.value || '').trim(),
+    },
+    expected: {
+      type: entry?.expected?.type === 'file' ? 'file' as const : 'text' as const,
+      value: String(entry?.expected?.value || '').trim(),
+    },
+  })).filter((entry) => entry.id && (entry.input.value || entry.expected.value))
+  if (normalized.length > 0) return normalized
+  if (!legacyInput && !legacyExpected) return []
+  return [{
+    id: 'case-1',
+    name: 'Trial case 1',
+    input: { type: 'text', value: legacyInput },
+    expected: { type: 'text', value: legacyExpected },
+  }]
+}
+
 function normalizeRecord(plugin: PluginManifest, value: any): PluginRecord | null {
   if (!value || typeof value !== 'object') return null
   if (usesLegacyAdapter(plugin, 'guardrail')) {
@@ -794,6 +833,12 @@ function normalizeRecord(plugin: PluginManifest, value: any): PluginRecord | nul
       expectedOutput: String(value.experiment?.expectedOutput || '').trim(),
       judge: value.experiment?.judge === 'ai' || value.experiment?.judge === 'human' ? value.experiment.judge : 'fixed',
       iterations: Math.max(1, Math.min(100, Math.round(Number(value.experiment?.iterations) || 1))),
+      judgeGuidance: String(value.experiment?.judgeGuidance || '').trim(),
+      cases: normalizeEvalCases(
+        value.experiment?.cases,
+        String(value.experiment?.input || '').trim(),
+        String(value.experiment?.expectedOutput || '').trim(),
+      ),
     },
     runs,
     lastRun: value.lastRun || runs[0] || null,
@@ -993,6 +1038,7 @@ function writePluginDocument(plugin: PluginManifest, record: PluginRecord): Plug
         `- **Targets:** ${record.target.ids.join(', ') || 'none'}`,
         `- **Evaluator:** ${record.experiment.judge === 'ai' ? 'AI evaluator' : record.experiment.judge === 'human' ? 'Human evaluator' : 'Fixed evaluator'}`,
         `- **Planned Trials:** ${record.experiment.iterations}`,
+        `- **Trial Cases:** ${record.experiment.cases?.length || 0}`,
         '',
         '## Experiment Input',
         '',
@@ -1005,6 +1051,10 @@ function writePluginDocument(plugin: PluginManifest, record: PluginRecord): Plug
         '## Expected Output',
         '',
         record.experiment.expectedOutput || 'No expected output provided.',
+        '',
+        '## Evaluator Guidance',
+        '',
+        record.experiment.judgeGuidance || 'No evaluator guidance provided.',
         '',
         '## Latest Result',
         '',
@@ -1237,6 +1287,12 @@ function createEvalRecord(input: Partial<EvalRecord>): EvalRecord {
       expectedOutput: String(input.experiment?.expectedOutput || '').trim(),
       judge: input.experiment?.judge === 'ai' || input.experiment?.judge === 'human' ? input.experiment.judge : 'fixed',
       iterations: Math.max(1, Math.min(100, Math.round(Number(input.experiment?.iterations) || 1))),
+      judgeGuidance: String(input.experiment?.judgeGuidance || '').trim(),
+      cases: normalizeEvalCases(
+        input.experiment?.cases,
+        String(input.experiment?.input || '').trim(),
+        String(input.experiment?.expectedOutput || '').trim(),
+      ),
     },
     runs: Array.isArray(input.runs) ? input.runs : [],
     lastRun: input.lastRun || null,

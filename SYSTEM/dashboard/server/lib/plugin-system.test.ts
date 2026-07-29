@@ -530,11 +530,29 @@ async function run() {
         expectedOutput: 'A reviewer-approved response.',
         judge: 'human',
         iterations: 5,
+        judgeGuidance: 'Review clarity, usefulness, and model fit before approval.',
+        cases: [
+          {
+            id: 'case-text',
+            name: 'Representative prompt',
+            input: { type: 'text', value: 'Explain the release decision.' },
+            expected: { type: 'text', value: 'A supported decision with next steps.' },
+          },
+          {
+            id: 'case-file',
+            name: 'Workspace fixture',
+            input: { type: 'file', value: 'SYSTEM/evals/model-fit-input.md' },
+            expected: { type: 'file', value: 'SYSTEM/evals/model-fit-expected.md' },
+          },
+        ],
       },
     } as any)
     assert(created.kind === 'eval' && 'experiment' in created, 'Expected an Eval record')
     assert('experiment' in created && created.experiment.judge === 'human', 'Expected Human evaluator mode to persist')
     assert('experiment' in created && created.experiment.iterations === 5, 'Expected planned trial count to persist')
+    assert('experiment' in created && created.experiment.judgeGuidance?.includes('clarity'), 'Expected evaluator guidance to persist')
+    assert('experiment' in created && created.experiment.cases?.length === 2, 'Expected multiple trial cases to persist')
+    assert('experiment' in created && created.experiment.cases?.[1]?.input.type === 'file', 'Expected workspace file references to persist')
     assert.throws(
       () => runPluginEval(plugin!, created.id),
       (error: any) => error instanceof PluginContractError && error.statusCode === 409 && error.message.includes('requires a reviewer'),

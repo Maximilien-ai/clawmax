@@ -7,6 +7,7 @@ interface MobileSafeDialogProps {
   footer: ReactNode
   onClose?: () => void
   panelClassName?: string
+  zIndexClassName?: string
 }
 
 export function MobileSafeDialog({
@@ -16,10 +17,11 @@ export function MobileSafeDialog({
   footer,
   onClose,
   panelClassName = 'max-w-xl',
+  zIndexClassName = 'z-[70]',
 }: MobileSafeDialogProps) {
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-end justify-center bg-black/40 p-2 sm:items-center sm:p-4"
+      className={`fixed inset-0 ${zIndexClassName} flex items-end justify-center bg-black/40 p-2 sm:items-center sm:p-4`}
       onClick={onClose}
     >
       <div

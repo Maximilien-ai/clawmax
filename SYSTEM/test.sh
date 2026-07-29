@@ -1694,8 +1694,8 @@ fi
 
 echo -e "${YELLOW}→ Running Plugin workspace layout regression tests...${NC}"
 npx ts-node --transpileOnly client/src/PluginWorkspaceLayout.test.ts > /tmp/clawmax-plugin-workspace-layout.out 2>&1 || true
-if grep -q "PluginWorkspaceLayout.test.ts: 106 tests passed" /tmp/clawmax-plugin-workspace-layout.out; then
-  pass "Plugin workspace layout regression tests (106 tests)"
+if grep -q "PluginWorkspaceLayout.test.ts: 118 tests passed" /tmp/clawmax-plugin-workspace-layout.out; then
+  pass "Plugin workspace layout regression tests (118 tests)"
 else
   cat /tmp/clawmax-plugin-workspace-layout.out
   fail "Plugin workspace layout regression tests"
@@ -1928,7 +1928,7 @@ echo -e "${YELLOW}→ Running Mobile-safe dialog layout unit tests...${NC}"
 npx ts-node --transpileOnly --compiler-options '{"jsx":"react-jsx"}' client/src/components/MobileSafeDialog.test.tsx > /tmp/clawmax-mobile-safe-dialog.out 2>&1
 mobile_safe_dialog_status=$?
 if [ "$mobile_safe_dialog_status" -eq 0 ]; then
-  pass "Mobile-safe dialog layout unit tests (7 tests)"
+  pass "Mobile-safe dialog layout unit tests (8 tests)"
 else
   cat /tmp/clawmax-mobile-safe-dialog.out
   fail "Mobile-safe dialog layout unit tests"

@@ -207,6 +207,13 @@ export function buildPluginDraftFromPrompt(plugin: PluginManifest, prompt: strin
             ? 'fixed'
             : 'ai',
         iterations: 1,
+        judgeGuidance: 'Score the response against the expected outcome and explain the evidence for the result.',
+        cases: [{
+          id: 'case-1',
+          name: 'Trial case 1',
+          input: { type: 'text', value: trimmed },
+          expected: { type: 'text', value: `Success criteria for: ${firstSentence}` },
+        }],
       },
       runs: [],
     }
@@ -253,9 +260,10 @@ export function scorePluginDraft(plugin: PluginManifest, draft: Partial<PluginRe
     const target = draft.kind === 'eval' ? draft.target : null
     const experiment = draft.kind === 'eval' ? draft.experiment : null
     award(20, Boolean(target?.ids.length), 'Select at least one agent, workflow, or group target.')
-    award(20, Boolean(experiment?.input.trim()), 'Add the input or task that the eval should exercise.')
-    award(20, Boolean(experiment?.expectedOutput.trim()), 'Define the expected output or measurable success criteria.')
-    award(10, Boolean(experiment?.candidateOutput.trim()), 'Add a candidate output now, or populate it before running the eval.')
+    award(15, Boolean(experiment?.input.trim()), 'Add the input or task that the eval should exercise.')
+    award(15, Boolean(experiment?.expectedOutput.trim()), 'Define the expected output or measurable success criteria.')
+    award(10, Boolean(experiment?.cases?.length), 'Add at least one trial case with an input and expected outcome.')
+    award(10, Boolean(experiment?.judgeGuidance?.trim()), 'Guide the evaluator with a rubric, priorities, or pass/fail rules.')
     award(5, Boolean(experiment?.judge), 'Choose a judge mode.')
   } else {
     const fields = isGenericPluginRecord(draft) ? draft.fields : {}
@@ -334,6 +342,19 @@ export interface EvalRunRecord {
   createdAt: string
 }
 
+export interface EvalCase {
+  id: string
+  name: string
+  input: {
+    type: 'text' | 'file'
+    value: string
+  }
+  expected: {
+    type: 'text' | 'file'
+    value: string
+  }
+}
+
 export interface EvalRecord {
   id: string
   kind: 'eval'
@@ -355,6 +376,8 @@ export interface EvalRecord {
     expectedOutput: string
     judge: 'ai' | 'human' | 'fixed'
     iterations?: number
+    judgeGuidance?: string
+    cases?: EvalCase[]
   }
   runs: EvalRunRecord[]
   lastRun?: EvalRunRecord | null
@@ -412,7 +435,9 @@ export function getPluginDetailLines(plugin: PluginManifest, item: PluginRecord)
       `Target type: ${item.target.type}`,
       `Targets: ${item.target.ids.join(', ') || 'none'}`,
       `Evaluator: ${item.experiment.judge === 'ai' ? 'AI evaluator' : item.experiment.judge === 'human' ? 'Human evaluator' : 'Fixed evaluator'}`,
+      `Evaluator guidance: ${item.experiment.judgeGuidance || 'none'}`,
       `Planned trials: ${item.experiment.iterations || 1}`,
+      `Trial cases: ${item.experiment.cases?.length || 1}`,
       `Input: ${item.experiment.input || 'none'}`,
       `Expected: ${item.experiment.expectedOutput || 'none'}`,
     ]
@@ -508,7 +533,15 @@ export function matchesPluginSearch(item: PluginRecord, query: string): boolean 
     isGuardrailRecord(item)
       ? [...item.appliesTo.agents, ...item.appliesTo.workflows, ...item.appliesTo.groups, ...item.appliesTo.communities, ...item.controls.allowedSkills]
       : isEvalRecord(item)
-        ? [...item.target.ids, item.experiment.input, item.experiment.candidateOutput, item.experiment.expectedOutput, item.experiment.judge]
+        ? [
+            ...item.target.ids,
+            item.experiment.input,
+            item.experiment.candidateOutput,
+            item.experiment.expectedOutput,
+            item.experiment.judge,
+            item.experiment.judgeGuidance || '',
+            ...(item.experiment.cases || []).flatMap((entry) => [entry.name, entry.input.value, entry.expected.value]),
+          ]
         : Object.values(item.fields).flatMap((value) => Array.isArray(value) ? value : [String(value ?? '')]),
   ].join(' ').toLowerCase()
   return haystack.includes(normalized)

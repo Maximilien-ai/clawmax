@@ -19,5 +19,16 @@ assert(markup.includes('min-h-0 flex-1 overflow-y-auto overscroll-contain'), 'on
 assert(markup.includes('shrink-0 border-t'), 'the action footer should stay outside the scroll region')
 assert(markup.includes('safe-area-inset-bottom'), 'the footer should clear the mobile safe area')
 assert(markup.indexOf('Long form content') < markup.indexOf('Primary action'), 'the action footer should follow the scrollable body')
+const nestedMarkup = renderToStaticMarkup(
+  <MobileSafeDialog
+    ariaLabelledBy="nested-dialog-title"
+    zIndexClassName="z-[130]"
+    header={<h2 id="nested-dialog-title">Nested dialog</h2>}
+    footer={<button type="button">Save</button>}
+  >
+    Nested content
+  </MobileSafeDialog>
+)
+assert(nestedMarkup.includes('z-[130]'), 'nested editors should be able to render above their parent dialog')
 
-console.log('MobileSafeDialog.test.tsx: 7 assertions passed')
+console.log('MobileSafeDialog.test.tsx: 8 assertions passed')

@@ -268,7 +268,7 @@ test('plugin draft scoring exposes actionable guardrail and eval improvements', 
 
   const evalDraft = buildPluginDraftFromPrompt(evalPlugin, 'Create a workflow eval with ai judge for release quality')
   const initialEvalQuality = scorePluginDraft(evalPlugin, evalDraft)
-  assert(initialEvalQuality.suggestions.some((entry) => /candidate output/i.test(entry)), 'Expected candidate-output guidance')
+  assert(initialEvalQuality.suggestions.some((entry) => /Select at least one/i.test(entry)), 'Expected target guidance')
   const completedEvalQuality = scorePluginDraft(evalPlugin, {
     ...evalDraft,
     target: { type: 'workflow', ids: ['release-check'] },
@@ -277,6 +277,14 @@ test('plugin draft scoring exposes actionable guardrail and eval improvements', 
       candidateOutput: 'All checks passed',
       expectedOutput: 'All checks passed',
       judge: 'ai',
+      iterations: 3,
+      judgeGuidance: 'Score correctness and explain supporting evidence.',
+      cases: [{
+        id: 'case-1',
+        name: 'Release review',
+        input: { type: 'text', value: 'Review the release' },
+        expected: { type: 'text', value: 'All checks passed' },
+      }],
     },
   })
   assert(completedEvalQuality.score > initialEvalQuality.score, 'Expected complete eval configuration to score higher')

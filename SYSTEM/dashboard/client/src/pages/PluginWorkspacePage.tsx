@@ -9,7 +9,7 @@ import { expandPromptWithAI } from '../lib/aiPrompt'
 import { getAiGenerationReadiness, hasAiGenerationAccess } from '../lib/byok'
 import { getViewportSafeDropdownStyle } from '../lib/dropdownPosition'
 import { getEvalAttributes, getEvalJudge, getEvalTrialCount } from '../lib/evalGraph'
-import type { GenericPluginRecord, PluginFieldValue, PluginManifest, PluginRecord, PluginRecordTemplate, PluginWorkspaceContext } from '../lib/plugins'
+import type { EvalCase, GenericPluginRecord, PluginFieldValue, PluginManifest, PluginRecord, PluginRecordTemplate, PluginWorkspaceContext } from '../lib/plugins'
 import {
   buildGenericPluginFields,
   buildPluginDraftFromPrompt,
@@ -323,6 +323,171 @@ function GenericPluginFields({
   )
 }
 
+function createEvalCase(index: number): EvalCase {
+  return {
+    id: typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `case-${Date.now()}-${index}`,
+    name: `Trial case ${index}`,
+    input: { type: 'text', value: '' },
+    expected: { type: 'text', value: '' },
+  }
+}
+
+function getEvalCasesFromDraft(draft: Partial<PluginRecord>): EvalCase[] {
+  if (!isEvalRecord(draft)) return [createEvalCase(1)]
+  if (draft.experiment.cases?.length) return draft.experiment.cases.map((entry) => ({
+    ...entry,
+    input: { ...entry.input },
+    expected: { ...entry.expected },
+  }))
+  return [{
+    id: 'case-1',
+    name: 'Trial case 1',
+    input: { type: 'text', value: draft.experiment.input || '' },
+    expected: { type: 'text', value: draft.experiment.expectedOutput || '' },
+  }]
+}
+
+function EvalCasesDialog({
+  initialCases,
+  onClose,
+  onSave,
+}: {
+  initialCases: EvalCase[]
+  onClose: () => void
+  onSave: (cases: EvalCase[]) => void
+}) {
+  const [cases, setCases] = useState<EvalCase[]>(initialCases)
+  const [workspaceFiles, setWorkspaceFiles] = useState<string[]>([])
+
+  useEffect(() => {
+    let active = true
+    void fetch('/api/docs')
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Could not load workspace files.')))
+      .then((payload) => {
+        if (!active) return
+        setWorkspaceFiles(Array.from(new Set(
+          (Array.isArray(payload?.entries) ? payload.entries : [])
+            .map((entry: any) => String(entry?.path || '').trim())
+            .filter(Boolean),
+        )).sort())
+      })
+      .catch(() => {
+        if (active) setWorkspaceFiles([])
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const updateCase = (id: string, update: (entry: EvalCase) => EvalCase) => {
+    setCases((current) => current.map((entry) => entry.id === id ? update(entry) : entry))
+  }
+
+  return (
+    <MobileSafeDialog
+      ariaLabelledBy="eval-cases-title"
+      onClose={onClose}
+      panelClassName="max-w-4xl"
+      zIndexClassName="z-[130]"
+      header={(
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 id="eval-cases-title" className="text-lg font-semibold text-gray-900 dark:text-gray-100">Trial cases</h2>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Each case can use text or a workspace file for its input and expected outcome.</p>
+          </div>
+          <button type="button" onClick={onClose} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-gray-200 text-xl text-gray-500 dark:border-gray-700" aria-label="Close trial cases">×</button>
+        </div>
+      )}
+      footer={(
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <span className="text-xs text-gray-500">{cases.length} case{cases.length === 1 ? '' : 's'}</span>
+          <div className="flex gap-2">
+            <button type="button" onClick={onClose} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 dark:border-gray-600 dark:text-gray-300">Cancel</button>
+            <button type="button" onClick={() => onSave(cases)} disabled={cases.length === 0} className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700 disabled:opacity-50">Save cases</button>
+          </div>
+        </div>
+      )}
+    >
+      <datalist id="eval-workspace-files">
+        {workspaceFiles.map((file) => <option key={file} value={file} />)}
+      </datalist>
+      <div className="space-y-4">
+        {cases.map((entry, index) => (
+          <section key={entry.id} className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+            <div className="flex items-start justify-between gap-3">
+              <label className="min-w-0 flex-1">
+                <span className="mb-1 block text-xs font-semibold uppercase text-gray-500">Case {index + 1}</span>
+                <input
+                  value={entry.name}
+                  onChange={(event) => updateCase(entry.id, (current) => ({ ...current, name: event.target.value }))}
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                  placeholder={`Trial case ${index + 1}`}
+                />
+              </label>
+              <button type="button" onClick={() => setCases((current) => current.filter((item) => item.id !== entry.id))} className="mt-5 inline-flex h-9 w-9 items-center justify-center rounded-md border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-300" aria-label={`Delete ${entry.name || `case ${index + 1}`}`}>×</button>
+            </div>
+            <div className="mt-4 grid gap-4 lg:grid-cols-2">
+              {(['input', 'expected'] as const).map((field) => {
+                const value = entry[field]
+                const label = field === 'input' ? 'Input' : 'Expected outcome'
+                return (
+                  <div key={field} className="min-w-0">
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{label}</span>
+                      <div className="grid grid-cols-2 overflow-hidden rounded-md border border-gray-300 text-xs dark:border-gray-600">
+                        {(['text', 'file'] as const).map((type) => (
+                          <button
+                            key={type}
+                            type="button"
+                            onClick={() => updateCase(entry.id, (current) => ({ ...current, [field]: { type, value: '' } }))}
+                            className={`px-2 py-1 ${value.type === type ? 'bg-sky-600 text-white' : 'bg-white text-gray-600 dark:bg-gray-800 dark:text-gray-300'}`}
+                            aria-pressed={value.type === type}
+                          >
+                            {type === 'text' ? 'Text' : 'File'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    {value.type === 'text' ? (
+                      <textarea
+                        value={value.value}
+                        onChange={(event) => updateCase(entry.id, (current) => ({ ...current, [field]: { ...current[field], value: event.target.value } }))}
+                        rows={5}
+                        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                        placeholder={field === 'input' ? 'Prompt or representative input' : 'Expected answer, rubric outcome, or acceptance criteria'}
+                      />
+                    ) : (
+                      <div>
+                        <input
+                          list="eval-workspace-files"
+                          value={value.value}
+                          onChange={(event) => updateCase(entry.id, (current) => ({ ...current, [field]: { ...current[field], value: event.target.value } }))}
+                          className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                          placeholder="Search or enter a workspace file path"
+                        />
+                        <span className="mt-1 block text-xs text-gray-500">References an existing workspace file; its contents are not copied into this Eval.</span>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </section>
+        ))}
+        <button
+          type="button"
+          onClick={() => setCases((current) => [...current, createEvalCase(current.length + 1)])}
+          className="w-full rounded-lg border border-dashed border-sky-300 px-4 py-3 text-sm font-medium text-sky-700 hover:bg-sky-50 dark:border-sky-800 dark:text-sky-300 dark:hover:bg-sky-950/30"
+        >
+          + Add trial case
+        </button>
+      </div>
+    </MobileSafeDialog>
+  )
+}
+
 function PluginFormModal({
   plugin,
   context,
@@ -342,6 +507,9 @@ function PluginFormModal({
   const [assistantError, setAssistantError] = useState('')
   const [assistantChanges, setAssistantChanges] = useState<string[]>([])
   const [assistantUndo, setAssistantUndo] = useState<Partial<PluginRecord> | null>(null)
+  const [targetSearch, setTargetSearch] = useState('')
+  const [showEvalCases, setShowEvalCases] = useState(false)
+  const [evalCaseDrafts, setEvalCaseDrafts] = useState<EvalCase[]>([])
   const [showOptimizeAssistant, setShowOptimizeAssistant] = useState(() => {
     if (typeof window === 'undefined') return true
     return window.localStorage.getItem(OPTIMIZE_AI_TUNING_EXPANDED_STORAGE_KEY) !== 'false'
@@ -364,6 +532,9 @@ function PluginFormModal({
     setAssistantError('')
     setAssistantChanges([])
     setAssistantUndo(null)
+    setTargetSearch('')
+    setShowEvalCases(false)
+    setEvalCaseDrafts([])
   }, [draft])
 
   useEffect(() => {
@@ -385,7 +556,17 @@ function PluginFormModal({
   const allowedSkills = isGuardrailRecord(form)
     ? (form.controls?.allowedSkills || []).join(', ')
     : ''
-  const targetIds = isEvalRecord(form) ? (form.target?.ids || []).join(', ') : ''
+  const evalTargetType = isEvalRecord(form) ? form.target.type : 'agent'
+  const evalTargetOptions = evalTargetType === 'workflow'
+    ? context.workflows
+    : evalTargetType === 'group'
+      ? context.groups.map((group) => ({ id: group, name: group }))
+      : context.agents
+  const visibleEvalTargetOptions = evalTargetOptions.filter((entry) => (
+    !targetSearch.trim()
+    || entry.id.toLowerCase().includes(targetSearch.trim().toLowerCase())
+    || entry.name.toLowerCase().includes(targetSearch.trim().toLowerCase())
+  ))
   const genericFields = isGenericPluginRecord(form) ? form.fields : buildGenericPluginFields(plugin)
   const draftQuality = useMemo(() => scorePluginDraft(plugin, form), [plugin, form])
 
@@ -511,6 +692,7 @@ Do not mention a blocked action when the user wants it allowed.`,
 Name:
 Description:
 Evaluator: AI, Human, or Fixed
+Evaluator guidance:
 Trials: integer from 1 to 100
 Target type: agent or workflow
 Target: exact agent or workflow name from the request
@@ -558,6 +740,16 @@ Preserve existing values when the request does not ask to change them.`,
       const attributes = parseCommaList(readLine('Attributes').toLowerCase())
       const input = readLine('Input') || current?.experiment.input || prompt
       const expectedOutput = readLine('Expected outcome') || current?.experiment.expectedOutput || ''
+      const judgeGuidance = readLine('Evaluator guidance') || current?.experiment.judgeGuidance || ''
+      const currentCases = getEvalCasesFromDraft(form)
+      const cases = readLine('Input') || readLine('Expected outcome')
+        ? [{
+            id: currentCases[0]?.id || 'case-1',
+            name: currentCases[0]?.name || 'Trial case 1',
+            input: { type: 'text' as const, value: input },
+            expected: { type: 'text' as const, value: expectedOutput },
+          }, ...currentCases.slice(1)]
+        : currentCases
       const next: Partial<PluginRecord> = {
         ...form,
         kind: 'eval',
@@ -572,6 +764,8 @@ Preserve existing values when the request does not ask to change them.`,
           expectedOutput,
           judge,
           iterations,
+          judgeGuidance,
+          cases,
         },
         runs: current?.runs || [],
       }
@@ -581,6 +775,7 @@ Preserve existing values when the request does not ask to change them.`,
         `Target ${targetType}${targetIds.length > 0 ? ` (${targetIds.length} selected)` : ''}`,
         ...(readLine('Input') ? ['Update experiment input'] : []),
         ...(readLine('Expected outcome') ? ['Update expected outcome'] : []),
+        ...(readLine('Evaluator guidance') ? ['Update evaluator guidance'] : []),
         ...(attributes.length > 0 ? [`Evaluate ${attributes.join(', ')}`] : []),
       ]
       setAssistantUndo(form)
@@ -594,6 +789,7 @@ Preserve existing values when the request does not ask to change them.`,
   }
 
   return (
+    <>
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-2 sm:p-4">
       <div className="flex max-h-[92dvh] w-full max-w-5xl flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900">
         <div className="flex shrink-0 items-start justify-between gap-4 border-b border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-900 sm:px-5 sm:py-4">
@@ -980,43 +1176,77 @@ Preserve existing values when the request does not ask to change them.`,
             </div>
           ) : usesLegacyPluginAdapter(plugin, 'eval') ? (
             <div className="space-y-4">
-              <label className="block">
-                <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Target type</span>
-                <select
-                  value={form.kind === 'eval' ? form.target?.type || 'agent' : 'agent'}
-                  onChange={(e) => setForm((current) => ({
-                    ...current,
-                    kind: 'eval',
-                    target: {
-                      type: e.target.value as 'agent' | 'workflow' | 'group',
-                      ids: [],
-                    },
-                  }))}
-                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
-                >
-                  <option value="agent">Agent</option>
-                  <option value="workflow">Workflow</option>
-                  <option value="group">Group</option>
-                </select>
-              </label>
-              <label className="block">
-                <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Target IDs</span>
-                <input
-                  value={targetIds}
-                  onChange={(e) => setForm((current) => ({
-                    ...current,
-                    kind: 'eval',
-                    target: {
-                      type: current.kind === 'eval' ? current.target?.type || 'agent' : 'agent',
-                      ids: parseCommaList(e.target.value),
-                    },
-                  }))}
-                  placeholder="agent-a, agent-b"
-                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
-                />
-              </label>
-              <label className="block">
-                <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Judge</span>
+              <section className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+                <div className="grid gap-3 sm:grid-cols-[11rem_minmax(0,1fr)]">
+                  <label className="block">
+                    <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Target type</span>
+                    <select
+                      value={evalTargetType}
+                      onChange={(e) => {
+                        setTargetSearch('')
+                        setForm((current) => ({
+                          ...current,
+                          kind: 'eval',
+                          target: {
+                            type: e.target.value as 'agent' | 'workflow' | 'group',
+                            ids: [],
+                          },
+                        }))
+                      }}
+                      className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                    >
+                      <option value="agent">Agents</option>
+                      <option value="workflow">Workflows</option>
+                      <option value="group">Groups</option>
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Search {evalTargetType}s</span>
+                    <input
+                      value={targetSearch}
+                      onChange={(event) => setTargetSearch(event.target.value)}
+                      placeholder={`Find a ${evalTargetType} by name or ID`}
+                      className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                    />
+                  </label>
+                </div>
+                <div className="mt-3 max-h-48 overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-700">
+                  {visibleEvalTargetOptions.length > 0 ? visibleEvalTargetOptions.map((entry) => {
+                    const selected = isEvalRecord(form) && form.target.ids.includes(entry.id)
+                    return (
+                      <label key={entry.id} className="flex cursor-pointer items-center gap-3 border-b border-gray-100 px-3 py-2.5 text-sm last:border-b-0 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-800/70">
+                        <input
+                          type="checkbox"
+                          checked={selected}
+                          onChange={(event) => setForm((current) => {
+                            const currentIds = current.kind === 'eval' ? current.target.ids : []
+                            return {
+                              ...current,
+                              kind: 'eval',
+                              target: {
+                                type: evalTargetType,
+                                ids: event.target.checked
+                                  ? Array.from(new Set([...currentIds, entry.id]))
+                                  : currentIds.filter((id) => id !== entry.id),
+                              },
+                            }
+                          })}
+                        />
+                        <span className="min-w-0">
+                          <span className="block truncate font-medium text-gray-800 dark:text-gray-200">{entry.name}</span>
+                          {entry.id !== entry.name && <span className="block truncate text-xs text-gray-500">{entry.id}</span>}
+                        </span>
+                      </label>
+                    )
+                  }) : (
+                    <div className="px-3 py-6 text-center text-sm text-gray-500">No matching {evalTargetType}s.</div>
+                  )}
+                </div>
+                <p className="mt-2 text-xs text-gray-500">{isEvalRecord(form) ? form.target.ids.length : 0} selected</p>
+              </section>
+              <section className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+                <label className="block">
+                <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Evaluator</span>
                 <select
                   value={form.kind === 'eval' ? form.experiment?.judge || 'fixed' : 'fixed'}
                   onChange={(e) => setForm((current) => ({
@@ -1028,6 +1258,8 @@ Preserve existing values when the request does not ask to change them.`,
                       expectedOutput: current.kind === 'eval' ? current.experiment?.expectedOutput || '' : '',
                       judge: e.target.value === 'ai' || e.target.value === 'human' ? e.target.value : 'fixed',
                       iterations: current.kind === 'eval' ? current.experiment?.iterations || 1 : 1,
+                      judgeGuidance: current.kind === 'eval' ? current.experiment?.judgeGuidance || '' : '',
+                      cases: current.kind === 'eval' ? current.experiment?.cases || [] : [],
                     },
                   }))}
                   className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
@@ -1037,6 +1269,34 @@ Preserve existing values when the request does not ask to change them.`,
                   <option value="human">Human evaluator</option>
                 </select>
               </label>
+                <label className="mt-4 block">
+                  <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Evaluator guidance</span>
+                  <textarea
+                    value={form.kind === 'eval' ? form.experiment?.judgeGuidance || '' : ''}
+                    onChange={(event) => setForm((current) => ({
+                      ...current,
+                      kind: 'eval',
+                      experiment: {
+                        input: current.kind === 'eval' ? current.experiment.input : '',
+                        candidateOutput: current.kind === 'eval' ? current.experiment.candidateOutput : '',
+                        expectedOutput: current.kind === 'eval' ? current.experiment.expectedOutput : '',
+                        judge: current.kind === 'eval' ? current.experiment.judge : 'ai',
+                        iterations: current.kind === 'eval' ? current.experiment.iterations || 1 : 1,
+                        judgeGuidance: event.target.value,
+                        cases: current.kind === 'eval' ? current.experiment.cases || [] : [],
+                      },
+                    }))}
+                    rows={4}
+                    placeholder={form.kind === 'eval' && form.experiment?.judge === 'human'
+                      ? 'Tell the reviewer what to prioritize and how to record approval.'
+                      : form.kind === 'eval' && form.experiment?.judge === 'fixed'
+                        ? 'Define the exact measurable checks and pass/fail thresholds.'
+                        : 'Guide the AI evaluator with the rubric, priorities, evidence requirements, and failure conditions.'}
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                  />
+                </label>
+              </section>
+              <section className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
               <label className="block">
                 <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Planned trials</span>
                 <input
@@ -1053,69 +1313,33 @@ Preserve existing values when the request does not ask to change them.`,
                       expectedOutput: current.kind === 'eval' ? current.experiment?.expectedOutput || '' : '',
                       judge: current.kind === 'eval' ? current.experiment?.judge || 'ai' : 'ai',
                       iterations: Math.max(1, Math.min(100, Math.round(Number(e.target.value) || 1))),
+                      judgeGuidance: current.kind === 'eval' ? current.experiment?.judgeGuidance || '' : '',
+                      cases: current.kind === 'eval' ? current.experiment?.cases || [] : [],
                     },
                   }))}
                   className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
                 />
-                <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">Number of prompts or repeated experiment samples planned for this Eval.</span>
+                <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">Total executions across the configured case set. Cases can be repeated when this is greater than the number of cases.</span>
               </label>
-              <label className="block">
-                <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Input</span>
-                <textarea
-                  value={form.kind === 'eval' ? form.experiment?.input || '' : ''}
-                  onChange={(e) => setForm((current) => ({
-                    ...current,
-                    kind: 'eval',
-                    experiment: {
-                      input: e.target.value,
-                      candidateOutput: current.kind === 'eval' ? current.experiment?.candidateOutput || '' : '',
-                      expectedOutput: current.kind === 'eval' ? current.experiment?.expectedOutput || '' : '',
-                      judge: current.kind === 'eval' ? current.experiment?.judge || 'fixed' : 'fixed',
-                      iterations: current.kind === 'eval' ? current.experiment?.iterations || 1 : 1,
-                    },
-                  }))}
-                  rows={3}
-                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
-                />
-              </label>
-              <label className="block">
-                <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Candidate output</span>
-                <textarea
-                  value={form.kind === 'eval' ? form.experiment?.candidateOutput || '' : ''}
-                  onChange={(e) => setForm((current) => ({
-                    ...current,
-                    kind: 'eval',
-                    experiment: {
-                      input: current.kind === 'eval' ? current.experiment?.input || '' : '',
-                      candidateOutput: e.target.value,
-                      expectedOutput: current.kind === 'eval' ? current.experiment?.expectedOutput || '' : '',
-                      judge: current.kind === 'eval' ? current.experiment?.judge || 'fixed' : 'fixed',
-                      iterations: current.kind === 'eval' ? current.experiment?.iterations || 1 : 1,
-                    },
-                  }))}
-                  rows={3}
-                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
-                />
-              </label>
-              <label className="block">
-                <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Expected output</span>
-                <textarea
-                  value={form.kind === 'eval' ? form.experiment?.expectedOutput || '' : ''}
-                  onChange={(e) => setForm((current) => ({
-                    ...current,
-                    kind: 'eval',
-                    experiment: {
-                      input: current.kind === 'eval' ? current.experiment?.input || '' : '',
-                      candidateOutput: current.kind === 'eval' ? current.experiment?.candidateOutput || '' : '',
-                      expectedOutput: e.target.value,
-                      judge: current.kind === 'eval' ? current.experiment?.judge || 'fixed' : 'fixed',
-                      iterations: current.kind === 'eval' ? current.experiment?.iterations || 1 : 1,
-                    },
-                  }))}
-                  rows={3}
-                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
-                />
-              </label>
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-violet-200 bg-violet-50/60 p-3 dark:border-violet-900/50 dark:bg-violet-950/20">
+                  <div>
+                    <div className="text-sm font-semibold text-violet-950 dark:text-violet-100">Trial cases</div>
+                    <p className="mt-0.5 text-xs text-violet-800/80 dark:text-violet-200/80">
+                      {getEvalCasesFromDraft(form).length} configured · each case has its own text or workspace-file input and expected outcome
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEvalCaseDrafts(getEvalCasesFromDraft(form))
+                      setShowEvalCases(true)
+                    }}
+                    className="rounded-lg bg-violet-600 px-3 py-2 text-sm font-medium text-white hover:bg-violet-700"
+                  >
+                    Manage cases
+                  </button>
+                </div>
+              </section>
             </div>
           ) : (
             <GenericPluginFields
@@ -1151,6 +1375,31 @@ Preserve existing values when the request does not ask to change them.`,
         </div>
       </div>
     </div>
+    {showEvalCases && (
+      <EvalCasesDialog
+        initialCases={evalCaseDrafts}
+        onClose={() => setShowEvalCases(false)}
+        onSave={(cases) => {
+          const firstCase = cases[0]
+          setForm((current) => ({
+            ...current,
+            kind: 'eval',
+            experiment: {
+              input: firstCase?.input.type === 'text' ? firstCase.input.value : current.kind === 'eval' ? current.experiment.input : '',
+              candidateOutput: current.kind === 'eval' ? current.experiment.candidateOutput : '',
+              expectedOutput: firstCase?.expected.type === 'text' ? firstCase.expected.value : current.kind === 'eval' ? current.experiment.expectedOutput : '',
+              judge: current.kind === 'eval' ? current.experiment.judge : 'ai',
+              iterations: current.kind === 'eval' ? current.experiment.iterations || Math.max(1, cases.length) : Math.max(1, cases.length),
+              judgeGuidance: current.kind === 'eval' ? current.experiment.judgeGuidance || '' : '',
+              cases,
+            },
+            runs: current.kind === 'eval' ? current.runs : [],
+          }))
+          setShowEvalCases(false)
+        }}
+      />
+    )}
+    </>
   )
 }
 
@@ -1768,7 +2017,15 @@ function templateToPreviewRecord(template: PluginRecordTemplate): PluginRecord {
     return {
       ...base,
       target: base.target || { type: 'agent', ids: [] },
-      experiment: base.experiment || { input: '', candidateOutput: '', expectedOutput: '', judge: 'fixed', iterations: 1 },
+      experiment: base.experiment || {
+        input: '',
+        candidateOutput: '',
+        expectedOutput: '',
+        judge: 'fixed',
+        iterations: 1,
+        judgeGuidance: '',
+        cases: [],
+      },
       runs: [],
     } as PluginRecord
   }
@@ -3039,7 +3296,22 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
   const createDraft: Partial<PluginRecord> = usesLegacyPluginAdapter(plugin, 'guardrail')
     ? { kind: 'guardrail', enabled: true, tags: [], appliesTo: { agents: [], workflows: [], groups: [], communities: [] }, controls: { blockEmail: false, blockWeb: false, blockExternalDocs: false, allowedSkills: [] } }
     : usesLegacyPluginAdapter(plugin, 'eval')
-      ? { kind: 'eval', enabled: true, tags: [], target: { type: 'agent', ids: [] }, experiment: { input: '', candidateOutput: '', expectedOutput: '', judge: 'fixed' }, runs: [] }
+      ? {
+          kind: 'eval',
+          enabled: true,
+          tags: [],
+          target: { type: 'agent', ids: [] },
+          experiment: {
+            input: '',
+            candidateOutput: '',
+            expectedOutput: '',
+            judge: 'ai',
+            iterations: 1,
+            judgeGuidance: '',
+            cases: [createEvalCase(1)],
+          },
+          runs: [],
+        }
       : { kind: plugin.objectKind, enabled: true, tags: [], fields: buildGenericPluginFields(plugin) }
 
   const applyTemplate = async (templateId: string) => {

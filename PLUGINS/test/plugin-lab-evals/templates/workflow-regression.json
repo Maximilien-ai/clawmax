@@ -19,7 +19,22 @@
       "candidateOutput": "",
       "expectedOutput": "expected workflow output with required handoff and completion markers",
       "judge": "fixed",
-      "iterations": 20
+      "iterations": 20,
+      "judgeGuidance": "Require every explicit completion marker and handoff field. Report each missing or mismatched value without inferring intent.",
+      "cases": [
+        {
+          "id": "known-workflow-output",
+          "name": "Known workflow output",
+          "input": {
+            "type": "text",
+            "value": "Run the workflow and inspect the final output."
+          },
+          "expected": {
+            "type": "text",
+            "value": "expected workflow output with required handoff and completion markers"
+          }
+        }
+      ]
     }
   }
 }
