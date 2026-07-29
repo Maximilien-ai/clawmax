@@ -8,6 +8,7 @@ import { headerPrimaryButtonClass, headerSecondaryButtonClass, headerSecondaryBu
 import { expandPromptWithAI } from '../lib/aiPrompt'
 import { getAiGenerationReadiness, hasAiGenerationAccess } from '../lib/byok'
 import { getViewportSafeDropdownStyle } from '../lib/dropdownPosition'
+import { getEvalAttributes, getEvalJudge, getEvalTrialCount } from '../lib/evalGraph'
 import type { GenericPluginRecord, PluginFieldValue, PluginManifest, PluginRecord, PluginRecordTemplate, PluginWorkspaceContext } from '../lib/plugins'
 import {
   buildGenericPluginFields,
@@ -1904,6 +1905,249 @@ function GuardrailRelationshipGraph({
   )
 }
 
+function EvalRelationshipGraph({
+  items,
+  suggestionTemplates,
+  context,
+  onOpen,
+  selectedId,
+}: {
+  items: PluginRecord[]
+  suggestionTemplates?: PluginRecordTemplate[]
+  context: PluginWorkspaceContext
+  onOpen: (id: string) => void
+  selectedId?: string | null
+}) {
+  const [hoveredId, setHoveredId] = useState<string | null>(null)
+  const evals = suggestionTemplates
+    ? suggestionTemplates.map(templateToPreviewRecord).filter(isEvalRecord)
+    : items.filter(isEvalRecord)
+  const showingSuggestions = suggestionTemplates !== undefined
+  const emphasizedId = hoveredId || selectedId
+  const emphasizedEval = emphasizedId ? evals.find((item) => item.id === emphasizedId) || null : null
+  const emphasizedAttributes = new Set(emphasizedEval ? getEvalAttributes(emphasizedEval) : [])
+  const emphasizedJudgeId = emphasizedEval ? getEvalJudge(emphasizedEval).id : null
+  const resolveTarget = (kind: string, id: string) => {
+    if (kind === 'agent') return context.agents.find((entry) => entry.id === id)?.name || id
+    if (kind === 'workflow') return context.workflows.find((entry) => entry.id === id)?.name || id
+    return id
+  }
+  const targetsFor = (item: typeof evals[number]) => item.target.ids.length > 0
+    ? item.target.ids.map((id) => ({ kind: item.target.type, id, pending: false }))
+    : [{ kind: item.target.type, id: `Select ${item.target.type}`, pending: true }]
+  const attributeLabels = Array.from(new Set(evals.flatMap(getEvalAttributes))).sort()
+  const judgeEntries = Array.from(new Map(evals.map((item) => {
+    const judge = getEvalJudge(item)
+    return [judge.id, judge] as const
+  })).values())
+  const targetEntries = Array.from(new Map(evals.flatMap((item) => (
+    targetsFor(item).map((target) => [`${target.kind}:${target.id}`, target] as const)
+  ))).values())
+  const emphasizedTargetKeys = new Set(emphasizedEval
+    ? targetsFor(emphasizedEval).map((target) => `${target.kind}:${target.id}`)
+    : [])
+  const canvasHeight = Math.max(
+    440,
+    evals.length * 76 + 80,
+    attributeLabels.length * 62 + 80,
+    judgeEntries.length * 62 + 80,
+    targetEntries.length * 62 + 80,
+  )
+  const distribute = (count: number) => count <= 1
+    ? [canvasHeight / 2]
+    : Array.from({ length: count }, (_, index) => 54 + (index * (canvasHeight - 108)) / (count - 1))
+  const attributeY = new Map(attributeLabels.map((label, index) => [label, distribute(attributeLabels.length)[index]]))
+  const evalY = new Map(evals.map((item, index) => [item.id, distribute(evals.length)[index]]))
+  const judgeY = new Map(judgeEntries.map((judge, index) => [judge.id, distribute(judgeEntries.length)[index]]))
+  const targetY = new Map(targetEntries.map((target, index) => [`${target.kind}:${target.id}`, distribute(targetEntries.length)[index]]))
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900/40">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Eval relationships</h3>
+          <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+            {showingSuggestions
+              ? `${evals.length} suggested Evals preview their attributes, trial set, evaluator, and unassigned target. Hover to inspect one.`
+              : 'Attributes connect through each repeatable Eval to its evaluator and assigned agent or workflow. Hover to preview; click for full details.'}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-3 text-xs text-gray-500 dark:text-gray-400">
+          <span><span className="mr-1 inline-block h-2 w-2 rounded-full bg-violet-500" />Measures</span>
+          <span><span className="mr-1 inline-block h-2 w-2 rounded-full bg-sky-500" />Experiment</span>
+          <span><span className="mr-1 inline-block h-2 w-2 rounded-full bg-amber-400" />Evaluated by</span>
+          <span><span className="mr-1 inline-block h-2 w-2 rounded-full bg-emerald-500" />Applies to</span>
+        </div>
+      </div>
+      <div className="max-w-full overflow-x-auto">
+        {evals.length === 0 ? (
+          <div className="flex min-h-52 items-center justify-center px-6 py-10 text-center text-sm text-gray-500 dark:text-gray-400">
+            No Evals match the current search and filters.
+          </div>
+        ) : (
+          <svg
+            role="img"
+            aria-label="Eval relationship graph"
+            width="100%"
+            height={canvasHeight}
+            viewBox={`0 0 1120 ${canvasHeight}`}
+            preserveAspectRatio="xMidYMid meet"
+            className="block min-w-[900px]"
+          >
+            <title>Evaluation attributes connected to experiments, evaluators, and assigned targets</title>
+            {evals.flatMap((item) => {
+              const y = evalY.get(item.id) || canvasHeight / 2
+              const judge = getEvalJudge(item)
+              const isEmphasized = emphasizedEval?.id === item.id
+              const isMuted = Boolean(emphasizedEval) && !isEmphasized
+              return [
+                ...getEvalAttributes(item).map((label) => (
+                  <path
+                    key={`${item.id}:attribute:${label}`}
+                    d={`M 190 ${attributeY.get(label) || y} C 245 ${attributeY.get(label) || y}, 245 ${y}, 300 ${y}`}
+                    fill="none"
+                    className={`${isMuted ? 'opacity-10' : ''} stroke-violet-300 transition-opacity dark:stroke-violet-700`}
+                    strokeWidth={isEmphasized ? 4 : 2}
+                  />
+                )),
+                <path
+                  key={`${item.id}:judge:${judge.id}`}
+                  d={`M 540 ${y} C 585 ${y}, 585 ${judgeY.get(judge.id) || y}, 625 ${judgeY.get(judge.id) || y}`}
+                  fill="none"
+                  className={`${isMuted ? 'opacity-10' : ''} stroke-amber-300 transition-opacity dark:stroke-amber-700`}
+                  strokeWidth={isEmphasized ? 4 : 2}
+                />,
+                ...targetsFor(item).map((target) => {
+                  const key = `${target.kind}:${target.id}`
+                  return (
+                    <path
+                      key={`${item.id}:target:${key}`}
+                      d={`M 805 ${judgeY.get(judge.id) || y} C 850 ${judgeY.get(judge.id) || y}, 850 ${targetY.get(key) || y}, 900 ${targetY.get(key) || y}`}
+                      fill="none"
+                      className={`${isMuted ? 'opacity-10' : ''} stroke-emerald-300 transition-opacity dark:stroke-emerald-800`}
+                      strokeWidth={isEmphasized ? 4 : 2}
+                    />
+                  )
+                }),
+              ]
+            })}
+            {attributeLabels.map((label) => {
+              const isEmphasized = emphasizedAttributes.has(label)
+              return (
+                <g
+                  key={label}
+                  transform={`translate(25 ${Number(attributeY.get(label)) - 21})`}
+                  className={`${emphasizedEval && !isEmphasized ? 'opacity-20' : ''} transition-opacity`}
+                >
+                  <rect
+                    width="165"
+                    height="42"
+                    rx="6"
+                    className={isEmphasized
+                      ? 'fill-violet-100 stroke-violet-500 dark:fill-violet-900/80 dark:stroke-violet-400'
+                      : 'fill-violet-50 stroke-violet-300 dark:fill-violet-950/60 dark:stroke-violet-700'}
+                    strokeWidth={isEmphasized ? 3 : 1}
+                  />
+                  <text x="82.5" y="26" textAnchor="middle" className="fill-violet-800 text-[13px] font-semibold dark:fill-violet-200">{truncateGraphLabel(label, 22)}</text>
+                </g>
+              )
+            })}
+            {evals.map((item) => {
+              const y = Number(evalY.get(item.id)) - 30
+              const isEmphasized = emphasizedEval?.id === item.id
+              const trials = getEvalTrialCount(item)
+              return (
+                <g
+                  key={item.id}
+                  transform={`translate(300 ${y})`}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Open ${item.name}`}
+                  aria-pressed={selectedId === item.id}
+                  className={`${emphasizedEval && !isEmphasized ? 'opacity-25' : ''} cursor-pointer outline-none transition-opacity`}
+                  onMouseEnter={() => setHoveredId(item.id)}
+                  onMouseLeave={() => setHoveredId(null)}
+                  onFocus={() => setHoveredId(item.id)}
+                  onBlur={() => setHoveredId(null)}
+                  onClick={() => onOpen(item.id)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') onOpen(item.id)
+                  }}
+                >
+                  <rect
+                    width="240"
+                    height="60"
+                    rx="6"
+                    className={isEmphasized
+                      ? 'fill-sky-100 stroke-sky-600 dark:fill-sky-900 dark:stroke-sky-300'
+                      : 'fill-sky-50 stroke-sky-400 hover:fill-sky-100 dark:fill-sky-950/70 dark:stroke-sky-700 dark:hover:fill-sky-900'}
+                    strokeWidth={isEmphasized ? 4 : 2}
+                  />
+                  <text x="120" y="23" textAnchor="middle" className="fill-sky-900 text-[13px] font-semibold dark:fill-sky-100">{truncateGraphLabel(item.name)}</text>
+                  <text x="120" y="41" textAnchor="middle" className="fill-sky-600 text-[11px] dark:fill-sky-300">
+                    {trials} planned trial{trials === 1 ? '' : 's'} · {item.runs.length} completed
+                  </text>
+                </g>
+              )
+            })}
+            {judgeEntries.map((judge) => {
+              const isEmphasized = emphasizedJudgeId === judge.id
+              return (
+                <g
+                  key={judge.id}
+                  transform={`translate(625 ${Number(judgeY.get(judge.id)) - 21})`}
+                  className={`${emphasizedEval && !isEmphasized ? 'opacity-20' : ''} transition-opacity`}
+                >
+                  <rect
+                    width="180"
+                    height="42"
+                    rx="6"
+                    className={isEmphasized
+                      ? 'fill-amber-100 stroke-amber-500 dark:fill-amber-900/80 dark:stroke-amber-400'
+                      : 'fill-amber-50 stroke-amber-300 dark:fill-amber-950/60 dark:stroke-amber-700'}
+                    strokeWidth={isEmphasized ? 3 : 1}
+                  />
+                  <text x="90" y="17" textAnchor="middle" className="fill-gray-500 text-[10px] font-semibold uppercase dark:fill-gray-400">evaluated by</text>
+                  <text x="90" y="32" textAnchor="middle" className="fill-amber-800 text-[12px] font-medium dark:fill-amber-200">{judge.label}</text>
+                </g>
+              )
+            })}
+            {targetEntries.map((target) => {
+              const key = `${target.kind}:${target.id}`
+              const isEmphasized = emphasizedTargetKeys.has(key)
+              const label = target.pending ? target.id : resolveTarget(target.kind, target.id)
+              return (
+                <g
+                  key={key}
+                  transform={`translate(900 ${Number(targetY.get(key)) - 21})`}
+                  className={`${emphasizedEval && !isEmphasized ? 'opacity-20' : ''} transition-opacity`}
+                >
+                  <rect
+                    width="190"
+                    height="42"
+                    rx="6"
+                    className={isEmphasized
+                      ? target.pending
+                        ? 'fill-emerald-50 stroke-emerald-500 dark:fill-emerald-950/70 dark:stroke-emerald-400'
+                        : 'fill-emerald-100 stroke-emerald-500 dark:fill-emerald-900/80 dark:stroke-emerald-400'
+                      : target.pending
+                        ? 'fill-gray-50 stroke-gray-300 dark:fill-gray-800 dark:stroke-gray-600'
+                        : 'fill-emerald-50 stroke-emerald-300 dark:fill-emerald-950/60 dark:stroke-emerald-700'}
+                    strokeWidth={isEmphasized ? 3 : 1}
+                    strokeDasharray={target.pending ? '5 4' : undefined}
+                  />
+                  <text x="95" y="18" textAnchor="middle" className="fill-gray-500 text-[10px] font-semibold uppercase dark:fill-gray-400">{target.kind}</text>
+                  <text x="95" y="32" textAnchor="middle" className="fill-emerald-800 text-[12px] font-medium dark:fill-emerald-200">{truncateGraphLabel(label, 25)}</text>
+                </g>
+              )
+            })}
+          </svg>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function OptimizeRelationshipGraph({
   items,
   suggestionTemplates,
@@ -2159,6 +2403,17 @@ function PluginRelationshipView({
   if (usesLegacyPluginAdapter(plugin, 'guardrail')) {
     return (
       <GuardrailRelationshipGraph
+        items={items}
+        suggestionTemplates={suggestionTemplates}
+        context={context}
+        onOpen={onOpen}
+        selectedId={selectedId}
+      />
+    )
+  }
+  if (usesLegacyPluginAdapter(plugin, 'eval')) {
+    return (
+      <EvalRelationshipGraph
         items={items}
         suggestionTemplates={suggestionTemplates}
         context={context}

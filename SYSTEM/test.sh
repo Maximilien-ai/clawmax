@@ -1694,11 +1694,20 @@ fi
 
 echo -e "${YELLOW}→ Running Plugin workspace layout regression tests...${NC}"
 npx ts-node --transpileOnly client/src/PluginWorkspaceLayout.test.ts > /tmp/clawmax-plugin-workspace-layout.out 2>&1 || true
-if grep -q "PluginWorkspaceLayout.test.ts: 85 tests passed" /tmp/clawmax-plugin-workspace-layout.out; then
-  pass "Plugin workspace layout regression tests (85 tests)"
+if grep -q "PluginWorkspaceLayout.test.ts: 97 tests passed" /tmp/clawmax-plugin-workspace-layout.out; then
+  pass "Plugin workspace layout regression tests (97 tests)"
 else
   cat /tmp/clawmax-plugin-workspace-layout.out
   fail "Plugin workspace layout regression tests"
+fi
+
+echo -e "${YELLOW}→ Running Eval relationship graph unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/evalGraph.test.ts > /tmp/clawmax-eval-graph.out 2>&1 || true
+if grep -q "evalGraph.test.ts: 7 tests passed" /tmp/clawmax-eval-graph.out; then
+  pass "Eval relationship graph unit tests (7 tests)"
+else
+  cat /tmp/clawmax-eval-graph.out
+  fail "Eval relationship graph unit tests"
 fi
 
 echo -e "${YELLOW}→ Running Optimize plugin skeleton contract tests...${NC}"
