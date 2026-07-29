@@ -1691,18 +1691,22 @@ function getGuardrailProtections(item: PluginRecord): string[] {
 
 function GuardrailRelationshipGraph({
   items,
+  suggestionTemplates,
   context,
   onOpen,
   selectedId,
 }: {
   items: PluginRecord[]
+  suggestionTemplates?: PluginRecordTemplate[]
   context: PluginWorkspaceContext
   onOpen: (id: string) => void
   selectedId?: string | null
 }) {
   const [hoveredId, setHoveredId] = useState<string | null>(null)
-  const guardrails = items.filter(isGuardrailRecord)
-  const showingSuggestions = guardrails.length > 0 && guardrails.every((item) => item.id.startsWith('suggested:'))
+  const guardrails = suggestionTemplates
+    ? suggestionTemplates.map(templateToPreviewRecord).filter(isGuardrailRecord)
+    : items.filter(isGuardrailRecord)
+  const showingSuggestions = suggestionTemplates !== undefined
   const emphasizedId = hoveredId || selectedId
   const emphasizedGuardrail = emphasizedId ? guardrails.find((item) => item.id === emphasizedId) || null : null
   const emphasizedProtections = new Set(emphasizedGuardrail ? getGuardrailProtections(emphasizedGuardrail) : [])
@@ -1751,11 +1755,9 @@ function GuardrailRelationshipGraph({
         <div>
           <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Guardrail relationships</h3>
           <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-            {emphasizedGuardrail
-              ? `${emphasizedGuardrail.name} is highlighted with the protections it applies and the people or work it covers.`
-              : showingSuggestions
-                ? `${guardrails.length} suggested Guardrails preview their protections. Hover to inspect one before assigning agents or workflows.`
-                : 'Protections connect to Guardrails and their assigned agents or workflows. Hover to preview; click for full details.'}
+            {showingSuggestions
+              ? `${guardrails.length} suggested Guardrails preview their protections. Hover to inspect one before assigning agents or workflows.`
+              : 'Protections connect to Guardrails and their assigned agents or workflows. Hover to preview; click for full details.'}
           </p>
         </div>
         <div className="flex flex-wrap gap-3 text-xs text-gray-500 dark:text-gray-400">
@@ -2155,7 +2157,15 @@ function PluginRelationshipView({
     return <OptimizeRelationshipGraph items={items} suggestionTemplates={suggestionTemplates} context={context} onOpen={onOpen} selectedId={selectedId} />
   }
   if (usesLegacyPluginAdapter(plugin, 'guardrail')) {
-    return <GuardrailRelationshipGraph items={items} context={context} onOpen={onOpen} selectedId={selectedId} />
+    return (
+      <GuardrailRelationshipGraph
+        items={items}
+        suggestionTemplates={suggestionTemplates}
+        context={context}
+        onOpen={onOpen}
+        selectedId={selectedId}
+      />
+    )
   }
 
   const resolveTarget = (kind: 'agent' | 'workflow' | 'group' | 'community', id: string) => {

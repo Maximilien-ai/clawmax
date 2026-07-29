@@ -31,6 +31,7 @@ All notable changes to ClawMax are documented here.
 - **Guardrail Relationship And AI Editing Surfaces** — compatible Guardrail plugins can render protections through each Guardrail to assigned agents and workflows, preview relationships on hover, inspect selected or archived details in the standard drawer, explore suggestions inline, and configure reviewable draft controls and assignments through a full-width AI-assisted editor.
 
 ### Fixed
+- **Suggested Guardrail Relationship Preview** — Suggested Guardrails now render directly from the filtered suggestion catalog with dashed unassigned agent and workflow targets, inline selected details, and a stable graph header that does not shift its legend during hover or selection.
 - **Mail Partners Hidden After Upgrade** — the exact legacy five-partner availability default now migrates to include Gmail and Microsoft 365, while genuinely custom partner allowlists remain unchanged.
 - **Checklist-First Review UI** — release checks now render as a responsive list with direct completion and note editing. Internal checklist seeds no longer appear as misleading `Recommended` cards with `Use Template` actions.
 - **Review Outcome Visibility** — passed checks remain green and crossed out, failed checks have a direct fail action and red treatment, and checks with user notes use an amber treatment without pre-populated guidance making untouched checks look commented.

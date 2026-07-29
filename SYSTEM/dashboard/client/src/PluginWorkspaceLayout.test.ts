@@ -87,6 +87,10 @@ assert(pluginPageSource.includes('getGuardrailProtections'), 'Guardrail graphs m
 assert(pluginPageSource.includes('targetsFor(emphasizedGuardrail)'), 'Guardrail graph selection must emphasize assigned targets')
 assert(pluginPageSource.includes('Hover to preview; click for full details.'), 'Active Guardrail graphs must explain hover and detail behavior')
 assert(pluginPageSource.includes('Hover to inspect one before assigning agents or workflows.'), 'Suggested Guardrail graphs must explain assignment placeholders')
+assert(pluginPageSource.includes('suggestionTemplates.map(templateToPreviewRecord).filter(isGuardrailRecord)'), 'Suggested Guardrail graphs must consume visible templates directly')
+assert(pluginPageSource.includes('suggestionTemplates={suggestionTemplates}'), 'Guardrail relationship views must forward suggested templates to the graph')
+assert(pluginPageSource.includes("const showingSuggestions = suggestionTemplates !== undefined"), 'Empty filtered Guardrail suggestions must retain suggested-graph semantics')
+assert(!pluginPageSource.includes('is highlighted with the protections it applies'), 'Guardrail graph descriptions and legends must not move when selection changes')
 assert(pluginPageSource.includes('GUARDRAIL_AI_CONFIG_EXPANDED_STORAGE_KEY'), 'Guardrail AI editor expansion must persist in the current browser')
 assert(pluginPageSource.includes('Configure with AI'), 'Guardrail editors must expose AI-assisted draft configuration')
 assert(pluginPageSource.includes('applyAiGuardrailChanges'), 'Guardrail AI assistance must update the current draft')
@@ -102,4 +106,4 @@ assert(pluginPageSource.includes("applyingTemplateIds.has(template.id) ? 'Adding
 assert(manifests.every((manifest) => !/dormant|test plugin|mvp/i.test(`${manifest.name} ${manifest.description} ${manifest.version}`)), 'Enabled plugin UI copy must be product-ready')
 assert(new Set(manifests.map((manifest) => manifest.icon)).size === manifests.length, 'Each first-party plugin must declare a distinct navigation icon')
 
-console.log('PluginWorkspaceLayout.test.ts: 81 tests passed')
+console.log('PluginWorkspaceLayout.test.ts: 85 tests passed')
