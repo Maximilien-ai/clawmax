@@ -441,11 +441,11 @@ async function run() {
     assert(documentContent.includes('**Completed:** yes'), 'Expected generic checkbox formatting in generated document')
 
     const releaseTemplates = listPluginTemplates(plugin!).filter((template) => (
-      'fields' in template.payload && template.payload.fields?.release === '2.0.0-test-rc22'
+      'fields' in template.payload && template.payload.fields?.release === '2.0.0-test-rc23'
     ))
-    assert.strictEqual(releaseTemplates.length, 6, 'Expected the focused current release file to expand into six checklist items')
-    assert(releaseTemplates.some((template) => template.id === '2.0.0-test-rc22:rc22-release-identity-and-catalogs'), 'Expected release-qualified checklist item discovery')
-    const applied = applyPluginTemplate(plugin!, '2.0.0-test-rc22:rc22-release-identity-and-catalogs')
+    assert.strictEqual(releaseTemplates.length, 3, 'Expected the focused current RC23 file to expand into three checklist items')
+    assert(releaseTemplates.some((template) => template.id === '2.0.0-test-rc23:rc23-private-catalog-upgrade'), 'Expected release-qualified checklist item discovery')
+    const applied = applyPluginTemplate(plugin!, '2.0.0-test-rc23:rc23-private-catalog-upgrade')
     assert(applied && 'fields' in applied && applied.fields.owner === 'release-tester', 'Expected generic template application')
   })
 

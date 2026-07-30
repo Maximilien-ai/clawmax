@@ -61,6 +61,7 @@ assert(pluginPageSource.includes('grid-cols-[minmax(0,1fr)_7rem]'), 'Slider cont
 assert(pluginPageSource.includes('normalizePluginNumericValue(schema, event.target.value)'), 'Slider and numeric inputs must share bounded normalization')
 assert(pluginPageSource.includes('function OptimizeRelationshipGraph'), 'Optimize must render a purpose-built relationship graph')
 assert(pluginPageSource.includes('Optimization relationships'), 'Optimize graph must explain its plan relationships')
+assert(pluginPageSource.includes('mt-2 flex min-h-5 flex-wrap gap-3 text-xs'), 'Optimize relationship legend must remain on a stable second row')
 assert(pluginPageSource.includes('Dimensions connect to saved plans'), 'Active Optimize graph must distinguish dimensions, saved plans, and targets')
 assert(pluginPageSource.includes('aria-label="Optimize relationship graph"'), 'Optimize graph must expose an accessible label')
 assert(pluginPageSource.includes("item.id.startsWith('suggested:') ? 'Suggested plan'"), 'Optimize graph must distinguish suggested plans from Active plans')

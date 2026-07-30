@@ -2467,7 +2467,7 @@ function GuardrailRelationshipGraph({
 
   return (
     <div className="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900/40">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+      <div className="border-b border-gray-200 px-4 py-3 dark:border-gray-700">
         <div>
           <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Guardrail relationships</h3>
           <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
@@ -2476,7 +2476,7 @@ function GuardrailRelationshipGraph({
               : 'Protections connect to Guardrails and their assigned agents or workflows. Hover to preview; click for full details.'}
           </p>
         </div>
-        <div className="flex flex-wrap gap-3 text-xs text-gray-500 dark:text-gray-400">
+        <div className="mt-2 flex min-h-5 flex-wrap gap-3 text-xs text-gray-500 dark:text-gray-400">
           <span><span className="mr-1 inline-block h-2 w-2 rounded-full bg-amber-400" />Protects</span>
           <span><span className="mr-1 inline-block h-2 w-2 rounded-full bg-sky-500" />Guardrail</span>
           <span><span className="mr-1 inline-block h-2 w-2 rounded-full bg-emerald-500" />Applies to</span>
@@ -3382,7 +3382,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
   const suggestionTags = useMemo(() => {
     const allTags = collectPluginTemplateTags(recommendedTemplates)
     if (!isChecklist) return allTags
-    return ['1.9.9', '2.0.0', '2.0.0-test-rc22'].filter((tag) => allTags.includes(tag))
+    return ['1.9.9', '2.0.0', '2.0.0-test-rc23'].filter((tag) => allTags.includes(tag))
   }, [recommendedTemplates, isChecklist])
   const filteredSuggestions = useMemo(() => sortPluginTemplates(
     recommendedTemplates.filter((template) => (
