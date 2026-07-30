@@ -38,6 +38,13 @@ function withAiBuilderTimeout<T>(promise: Promise<T>, timeoutMs: number): Promis
   })
 }
 
+function fallbackBuilderQuestionAnswer(question: string, recommendationSummary?: string): string {
+  const currentRecommendation = recommendationSummary?.trim()
+    ? ` The current recommendation is: ${recommendationSummary.trim().slice(0, 320)}`
+    : ''
+  return `I can help turn a goal into an organization, agents, workflows, skills, and reusable templates. I can also explain the current recommendation, compare tradeoffs, and suggest the next safe step for this workspace.${currentRecommendation} You asked: “${question}” Describe the outcome you want, the people or systems involved, and any constraints, and I will help you shape it.`
+}
+
 router.post('/recommend', async (req, res) => {
   const prompt = `${req.body?.prompt || ''}`.trim()
   const byokKeys = req.body?.byokKeys && typeof req.body.byokKeys === 'object'
@@ -106,28 +113,38 @@ router.post('/question', async (req, res) => {
 
   try {
     setRequestByokKeys(byokKeys)
-    const answer = await withAiBuilderTimeout(
-      answerBuilderQuestionWithAI({
-        question,
-        messages: Array.isArray(req.body?.messages) ? req.body.messages : [],
-        recommendationSummary: typeof req.body?.recommendationSummary === 'string'
-          ? req.body.recommendationSummary
-          : undefined,
-      }),
-      AI_BUILDER_QUESTION_TIMEOUT_MS,
-    )
-    if (!answer) throw new Error('Builder returned an empty answer')
+    const recommendationSummary = typeof req.body?.recommendationSummary === 'string'
+      ? req.body.recommendationSummary
+      : undefined
+    let answer = ''
+    let usedDeterministicFallback = false
+    try {
+      answer = await withAiBuilderTimeout(
+        answerBuilderQuestionWithAI({
+          question,
+          messages: Array.isArray(req.body?.messages) ? req.body.messages : [],
+          recommendationSummary,
+        }),
+        AI_BUILDER_QUESTION_TIMEOUT_MS,
+      )
+    } catch {
+      usedDeterministicFallback = true
+    }
+    if (!answer.trim()) {
+      answer = fallbackBuilderQuestionAnswer(question, recommendationSummary)
+      usedDeterministicFallback = true
+    }
     const session = getAuthenticatedSession(req)
     traceAgentChat('builder-agent-question', question, answer, {
-      model: 'builder-question',
-      provider: 'system',
+      model: usedDeterministicFallback ? 'builder-routing' : 'builder-question',
+      provider: usedDeterministicFallback ? 'local' : 'system',
       sessionId: `builder-question:${Date.now()}`,
       actorUserId: session?.userId,
       actorLogin: session?.login,
       actorEmail: session?.email || null,
       dashboardInstanceId: getRequestDashboardInstanceId(req),
     })
-    res.json({ ok: true, answer })
+    res.json({ ok: true, answer, fallback: usedDeterministicFallback })
   } catch (error: any) {
     const message = error?.message || 'Failed to answer Builder question'
     res.status(/No API key configured/i.test(message) ? 400 : 500).json({ error: message })

@@ -131,6 +131,36 @@ async function run() {
     assert.strictEqual(received?.recommendationSummary, 'Use a two-agent workflow')
   })
 
+  await test('question route falls back to deterministic Builder guidance for an empty model answer', async () => {
+    const router = loadRouterWithOverrides({
+      aiGenerator: {
+        answerBuilderQuestionWithAI: async () => '',
+      },
+    })
+    const handler = getRouteHandler(router, 'post', '/question')
+    const res = makeRes()
+    await handler(makeReq({ body: { question: 'Tell me what you can do?' } }), res)
+
+    assert.strictEqual(res.statusCode, 200, 'Expected a local fallback answer instead of an empty-answer error')
+    assert.strictEqual(res.jsonBody?.fallback, true, 'Expected the response to identify deterministic fallback guidance')
+    assert.match(res.jsonBody?.answer || '', /I can help turn a goal into an organization/i)
+  })
+
+  await test('question route falls back to deterministic Builder guidance when AI is unavailable', async () => {
+    const router = loadRouterWithOverrides({
+      aiGenerator: {
+        answerBuilderQuestionWithAI: async () => { throw new Error('No API key configured') },
+      },
+    })
+    const handler = getRouteHandler(router, 'post', '/question')
+    const res = makeRes()
+    await handler(makeReq({ body: { question: 'What should I build?', recommendationSummary: 'Create a research team' } }), res)
+
+    assert.strictEqual(res.statusCode, 200, 'Expected deterministic question mode to work without AI credentials')
+    assert.strictEqual(res.jsonBody?.fallback, true)
+    assert.match(res.jsonBody?.answer || '', /Create a research team/)
+  })
+
   await test('recommend route returns deterministic recommendation when fallback is skipped', async () => {
     const router = loadRouterWithOverrides({
       aiBuilder: {
