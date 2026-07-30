@@ -99,7 +99,7 @@ const evalPlugin: PluginManifest = {
   icon: 'beaker',
   objectKind: 'eval',
   visibility: 'private',
-  nav: { section: 'plugins', order: 20, label: 'Evals' },
+  nav: { section: 'plugins', order: 10, label: 'Evals' },
   source: {
     type: 'github',
     owner: 'example',
@@ -117,7 +117,7 @@ const guardrailPlugin: PluginManifest = {
   icon: 'shield',
   objectKind: 'guardrail',
   visibility: 'private',
-  nav: { section: 'plugins', order: 10, label: 'Guardrails' },
+  nav: { section: 'plugins', order: 20, label: 'Guardrails' },
   labels: {
     singular: 'Guardrail',
     plural: 'Guardrails',
@@ -384,26 +384,32 @@ test('getPluginGrantedCapabilities reports only enabled grants in stable order',
   assert(getPluginGrantedCapabilities(plugin).join(',') === 'docs,communications', 'Expected enabled capability grants only')
 })
 
-test('normalizePluginNavOrder keeps Review last by default and preserves browser order', () => {
+test('normalizePluginNavOrder keeps release order, resets stale inventory, and preserves complete browser order', () => {
   const optimizePlugin = {
     ...reviewPlugin,
     id: 'clawmax-optimize',
     slug: 'clawmax-optimize',
     name: 'Optimize',
     objectKind: 'optimization-plan',
-    nav: { order: 40, section: 'plugins' as const, label: 'Optimize' },
+    nav: { order: 30, section: 'plugins' as const, label: 'Optimize' },
   }
   const defaults = normalizePluginNavOrder(
     [reviewPlugin, evalPlugin, optimizePlugin, guardrailPlugin],
     null,
   )
-  assert(defaults.map((plugin) => plugin.slug).join(',') === 'plugin-lab-guardrails,plugin-lab-evals,clawmax-optimize,plugin-lab-review-notes', 'Expected Review to be the final default plugin')
+  assert(defaults.map((plugin) => plugin.slug).join(',') === 'plugin-lab-evals,plugin-lab-guardrails,clawmax-optimize,plugin-lab-review-notes', 'Expected Evals, Guardrails, Optimize, and Review default order')
 
-  const saved = normalizePluginNavOrder(
+  const stale = normalizePluginNavOrder(
     [reviewPlugin, evalPlugin, optimizePlugin, guardrailPlugin],
     ['clawmax-optimize', 'plugin-lab-review-notes', 'missing', 'clawmax-optimize'],
   )
-  assert(saved[0].slug === 'clawmax-optimize' && saved[1].slug === 'plugin-lab-review-notes', 'Expected valid saved browser order to win')
+  assert(stale.map((plugin) => plugin.slug).join(',') === defaults.map((plugin) => plugin.slug).join(','), 'Expected a stale partial inventory to reset to release order')
+
+  const saved = normalizePluginNavOrder(
+    [reviewPlugin, evalPlugin, optimizePlugin, guardrailPlugin],
+    ['clawmax-optimize', 'plugin-lab-evals', 'plugin-lab-review-notes', 'plugin-lab-guardrails'],
+  )
+  assert(saved[0].slug === 'clawmax-optimize' && saved[1].slug === 'plugin-lab-evals', 'Expected a complete saved browser order to win')
   assert(new Set(saved.map((plugin) => plugin.slug)).size === 4, 'Expected duplicate and missing saved entries to be normalized')
 })
 

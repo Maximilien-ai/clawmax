@@ -83,14 +83,19 @@ export function normalizePluginNavOrder(
   const savedSlugs = Array.isArray(savedOrder)
     ? savedOrder.filter((slug): slug is string => typeof slug === 'string')
     : []
+  const savedInventory = new Set(savedSlugs.filter((slug) => bySlug.has(slug)))
+  const canRestoreSavedOrder = savedInventory.size === plugins.length
+    && plugins.every((plugin) => savedInventory.has(plugin.slug))
   const seen = new Set<string>()
   const ordered: PluginManifest[] = []
 
-  for (const slug of savedSlugs) {
-    const plugin = bySlug.get(slug)
-    if (!plugin || seen.has(slug)) continue
-    seen.add(slug)
-    ordered.push(plugin)
+  if (canRestoreSavedOrder) {
+    for (const slug of savedSlugs) {
+      const plugin = bySlug.get(slug)
+      if (!plugin || seen.has(slug)) continue
+      seen.add(slug)
+      ordered.push(plugin)
+    }
   }
 
   const remaining = plugins
@@ -346,6 +351,8 @@ export interface EvalRunRecord {
   score: number
   summary: string
   judgeMode: 'fixed' | 'ai-placeholder' | 'human'
+  casesCompleted?: number
+  totalCases?: number
   tokensIn: number
   tokensOut: number
   costUsd: number

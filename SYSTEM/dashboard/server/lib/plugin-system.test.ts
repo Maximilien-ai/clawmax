@@ -142,13 +142,13 @@ async function run() {
   await test('configured plugins expose manifests in sidebar order', () => {
     const plugins = listConfiguredPlugins()
     assert(plugins.length >= 4, 'Expected the three synthetic plugins and public Optimize plugin to be configured')
-    assert.strictEqual(plugins[0]?.slug, 'plugin-lab-guardrails', 'Expected guardrails test plugin to sort before evals')
-    assert.strictEqual(plugins[1]?.slug, 'plugin-lab-evals', 'Expected evals test plugin to appear second')
+    assert.strictEqual(plugins[0]?.slug, 'plugin-lab-evals', 'Expected Evals to be the first default plugin')
+    assert.strictEqual(plugins[1]?.slug, 'plugin-lab-guardrails', 'Expected Guardrails to appear second')
     assert.strictEqual(plugins[2]?.slug, 'clawmax-optimize', 'Expected public Optimize plugin to appear before Review')
     assert.strictEqual(plugins[3]?.slug, 'plugin-lab-review-notes', 'Expected Review to be the final default plugin')
     assert.strictEqual(plugins[3]?.apiVersion, 'clawmax.ai/v2', 'Expected generic plugin to declare the v2 host API')
     assert.strictEqual(plugins[3]?.objectKind, 'review-note', 'Expected a non-core object kind to load')
-    assert.deepStrictEqual(plugins.map((plugin) => plugin.nav?.label), ['Guardrails', 'Evals', 'Optimize', 'Review'], 'Expected compact one-word plugin navigation labels')
+    assert.deepStrictEqual(plugins.map((plugin) => plugin.nav?.label), ['Evals', 'Guardrails', 'Optimize', 'Review'], 'Expected compact one-word plugin navigation labels')
     assert.strictEqual(plugins[3]?.ui?.list?.groupBy, 'release', 'Expected release checklist grouping metadata')
     assert.strictEqual(plugins[3]?.ui?.list?.checkField, 'completed', 'Expected release checklist completion metadata')
     assert([plugins[0], plugins[1], plugins[3]].every((plugin) => plugin.visibility === 'private'), 'Expected synthetic plugins to be private')
@@ -441,11 +441,11 @@ async function run() {
     assert(documentContent.includes('**Completed:** yes'), 'Expected generic checkbox formatting in generated document')
 
     const releaseTemplates = listPluginTemplates(plugin!).filter((template) => (
-      'fields' in template.payload && template.payload.fields?.release === '2.0.0-test-rc21'
+      'fields' in template.payload && template.payload.fields?.release === '2.0.0-test-rc22'
     ))
-    assert.strictEqual(releaseTemplates.length, 10, 'Expected the focused current release file to expand into ten checklist items')
-    assert(releaseTemplates.some((template) => template.id === '2.0.0-test-rc21:rc21-release-health-and-persistence'), 'Expected release-qualified checklist item discovery')
-    const applied = applyPluginTemplate(plugin!, '2.0.0-test-rc21:rc21-release-health-and-persistence')
+    assert.strictEqual(releaseTemplates.length, 6, 'Expected the focused current release file to expand into six checklist items')
+    assert(releaseTemplates.some((template) => template.id === '2.0.0-test-rc22:rc22-release-identity-and-catalogs'), 'Expected release-qualified checklist item discovery')
+    const applied = applyPluginTemplate(plugin!, '2.0.0-test-rc22:rc22-release-identity-and-catalogs')
     assert(applied && 'fields' in applied && applied.fields.owner === 'release-tester', 'Expected generic template application')
   })
 
@@ -503,6 +503,8 @@ async function run() {
     assert(evaluated?.lastRun, 'Expected eval run to create a lastRun record')
     assert.strictEqual(evaluated?.lastRun?.score, 100, 'Expected exact fixed comparison to pass')
     assert(evaluated?.lastRun?.summary.includes('Fixed exact comparison passed'), 'Expected fixed comparison evidence')
+    assert.strictEqual(evaluated?.lastRun?.casesCompleted, 1, 'Expected the run to report completed case progress')
+    assert.strictEqual(evaluated?.lastRun?.totalCases, 1, 'Expected the run to report its total case count')
     assert((evaluated?.lastRun?.tokensIn || 0) > 0, 'Expected eval run tokensIn to be populated')
     assert((evaluated?.lastRun?.tokensOut || 0) > 0, 'Expected eval run tokensOut to be populated')
     assert((evaluated?.lastRun?.costUsd || 0) > 0, 'Expected eval run costUsd to be populated')

@@ -4,10 +4,18 @@
   "description": "Cumulative checks introduced across earlier 2.0.0 test candidates, including clearly labeled prior tester confirmations.",
   "release": "2.0.0 previous RCs",
   "recommended": true,
-  "tags": ["release", "regression", "2.0.0"],
+  "tags": [
+    "release",
+    "regression",
+    "2.0.0"
+  ],
   "defaults": {
     "enabled": true,
-    "tags": ["release", "regression", "2.0.0"],
+    "tags": [
+      "release",
+      "regression",
+      "2.0.0"
+    ],
     "fields": {
       "completed": false,
       "outcome": "pending",
@@ -18,359 +26,850 @@
   },
   "items": [
     {
+      "id": "eval-ai-quality",
+      "name": "Eval AI Create quality score",
+      "description": "Test: 1) Choose Evals > AI Create and enter an incomplete request such as 'evaluate my support agent'. 2) Record the initial score and every missing-field suggestion. 3) Add a target, representative input, candidate output, expected output or rubric, and judge details, then rescore and save. Pass: Suggestions name the actual missing eval fields, the score rises as testability improves, resolved suggestions disappear or change, and the saved eval contains the same complete experiment definition shown before save.",
+      "tags": [
+        "evals",
+        "ai",
+        "scoring"
+      ],
+      "fields": {
+        "area": "evals",
+        "notes": ""
+      }
+    },
+    {
+      "id": "eval-create-run",
+      "name": "Eval creation, run, and results",
+      "description": "Test: 1) In Evals > Suggested, Use one item. 2) Select a real agent or workflow and enter a distinct input, candidate output, expected output, and judge mode; save and refresh. 3) Start the eval and watch it until completion, then reopen it and inspect history. Pass: Customized values and target persist, running progress/status is visible, the finished card and detail show a prominent score plus input/output tokens, derived cost or explicit unavailable pricing, timestamp, result summary, and a retained run-history entry.",
+      "tags": [
+        "evals",
+        "runs",
+        "scoring"
+      ],
+      "fields": {
+        "area": "evals",
+        "notes": ""
+      }
+    },
+    {
+      "id": "expanded-suggestion-catalogs",
+      "name": "Expanded starter suggestions",
+      "description": "Test: In the private image, confirm Suggested contains at least nine Guardrails and nine Evals. Confirm Optimize contains five suggestions. Search or filter each list, then choose Use on one new item from each plugin and save it. Pass: The expected suggestions are easy to distinguish, search and filters find them, and each selected item becomes one editable Active record with its settings preserved.",
+      "tags": [
+        "plugins",
+        "suggested",
+        "catalog"
+      ],
+      "fields": {
+        "area": "plugins",
+        "notes": ""
+      }
+    },
+    {
+      "id": "guardrail-ai-quality",
+      "name": "Guardrail AI Create quality score",
+      "description": "Test: 1) Choose AI Create and enter a deliberately incomplete prompt such as 'prevent unsafe behavior'. 2) Record the initial quality score and suggestions. 3) Add a concrete behavior, response/control, and agent or workflow target based on those suggestions, regenerate or rescore, then save. Pass: The initial score calls out the missing concrete fields, the score increases only after meaningful additions, the suggestions update as gaps are resolved, and the saved Active item preserves the improved rule, controls, and targets.",
+      "tags": [
+        "guardrails",
+        "ai",
+        "scoring"
+      ],
+      "fields": {
+        "area": "guardrails",
+        "notes": ""
+      }
+    },
+    {
+      "id": "guardrail-create-target",
+      "name": "Guardrail creation and targeting",
+      "description": "Test: 1) In Guardrails > Suggested, open one suggestion and choose Use. 2) Change its name or rule, select one existing agent and one existing workflow as targets, and save. 3) Refresh, inspect Relationships plus the targeted Agent and Workflow cards, then disable and re-enable the item. Pass: The customized item appears only in Active, both targets survive refresh, both target surfaces identify the guardrail, enabled state changes immediately, and history records activation and deactivation with item, action, result, and time.",
+      "tags": [
+        "guardrails",
+        "agents",
+        "workflows"
+      ],
+      "fields": {
+        "area": "guardrails",
+        "notes": ""
+      }
+    },
+    {
+      "id": "optimize-skeleton",
+      "name": "Public Optimize planning",
+      "description": "Test: 1) In Optimize > Suggested, Use one workflow-budget suggestion and one agent-model suggestion. 2) Select real workflow/agent targets, change token and cost values, recommendation text, rationale, and status, then save and refresh. 3) Inspect both records in Grid, List, Detail, and Relationships. Pass: Both records remain editable public plugin data, all changed fields persist, workflow and agent scopes point to the selected targets, unknown pricing is not shown as zero cost, and every view presents the same plan without losing budget or rationale.",
+      "tags": [
+        "optimize",
+        "public",
+        "budget"
+      ],
+      "fields": {
+        "area": "plugins",
+        "notes": ""
+      }
+    },
+    {
+      "id": "plugin-image-regression",
+      "name": "Plugin image and architecture regression",
+      "description": "Test: 1) Fresh-install the exact candidate image on one supported architecture, record its digest, and check /api/health, /api/system, and /api/plugins before and after restart. 2) Update an existing instance to the same tag and confirm its workspace/plugin state. 3) Inspect the CI build, manifest, and smoke jobs for amd64 and arm64 and verify both digests are in the published manifest. Pass: Health is HTTP 200, dashboard/package/image versions match the candidate, intended plugins load before and after restart, the update preserves state, both architectures are published, and every required build/manifest/smoke job is green.",
+      "tags": [
+        "plugins",
+        "container",
+        "ci"
+      ],
+      "fields": {
+        "area": "regression",
+        "notes": ""
+      }
+    },
+    {
       "id": "plugin-inventory-diagnostics",
       "name": "Public and private plugin inventory",
       "description": "Test: 1) Start the public candidate and record the plugin names shown in the sidebar. 2) Compare them with GET /api/plugins and System & Logs > Plugin diagnostics, including loaded, disabled, missing, invalid, and incompatible sections. 3) Repeat with the authorized combined private image and record its image tag. Pass: The public image exposes only Review, Optimize, and explicitly enabled synthetic test fixtures; the authorized image adds only its intended private plugins; all three inventories agree; and every unavailable plugin has a reason and remediation instead of disappearing silently.",
-      "tags": ["plugins", "diagnostics"],
-      "fields": {"area": "plugins", "notes": ""}
-    },
-    {
-      "id": "plugin-sidebar-mobile",
-      "name": "Plugin sidebar and mobile navigation",
-      "description": "Test: 1) At desktop width, expand System and open every plugin from the sidebar. 2) Collapse and reopen the sidebar, then repeat at 390x844 or on a phone with System expanded. 3) Scroll to the bottom, open version/TOS, and switch from each plugin to Agents and back. Pass: Every plugin has a readable one- or two-word label and distinct icon, the navigation scrolls inside the viewport without covering content, version/TOS remain reachable, and every page switch works on the first selection.",
-      "tags": ["plugins", "navigation", "mobile"],
+      "tags": [
+        "plugins",
+        "diagnostics"
+      ],
       "fields": {
-        "area": "navigation",
-        "notes": "",
-        "verifiedBy": ["Max <mmaximilien@gmail.com> - local Dev - 2026-07-24 (RC4 and RC5 exports)"]
+        "area": "plugins",
+        "notes": ""
       }
     },
     {
       "id": "plugin-layout-views",
       "name": "Plugin layout and all view modes",
       "description": "Test: 1) Seed or create at least two active items in Guardrails, Evals, Optimize, and Review. 2) In each plugin switch Grid, Detail, List, and Relationships, selecting a specific item in Detail. 3) Repeat the switches at desktop and 390px width and use search/filter once in each view. Pass: Grid is card-based, List is compact rows, Detail shows the selected record's complete fields, Relationships visualizes targets/links, search/filter affects the visible collection, controls match the Agents-page placement, and no view is merely the same cards relabeled or clipped.",
-      "tags": ["plugins", "views", "responsive"],
-      "fields": {"area": "navigation", "notes": ""}
-    },
-    {
-      "id": "guardrail-create-target",
-      "name": "Guardrail creation and targeting",
-      "description": "Test: 1) In Guardrails > Suggested, open one suggestion and choose Use. 2) Change its name or rule, select one existing agent and one existing workflow as targets, and save. 3) Refresh, inspect Relationships plus the targeted Agent and Workflow cards, then disable and re-enable the item. Pass: The customized item appears only in Active, both targets survive refresh, both target surfaces identify the guardrail, enabled state changes immediately, and history records activation and deactivation with item, action, result, and time.",
-      "tags": ["guardrails", "agents", "workflows"],
-      "fields": {"area": "guardrails", "notes": ""}
-    },
-    {
-      "id": "guardrail-ai-quality",
-      "name": "Guardrail AI Create quality score",
-      "description": "Test: 1) Choose AI Create and enter a deliberately incomplete prompt such as 'prevent unsafe behavior'. 2) Record the initial quality score and suggestions. 3) Add a concrete behavior, response/control, and agent or workflow target based on those suggestions, regenerate or rescore, then save. Pass: The initial score calls out the missing concrete fields, the score increases only after meaningful additions, the suggestions update as gaps are resolved, and the saved Active item preserves the improved rule, controls, and targets.",
-      "tags": ["guardrails", "ai", "scoring"],
-      "fields": {"area": "guardrails", "notes": ""}
-    },
-    {
-      "id": "eval-create-run",
-      "name": "Eval creation, run, and results",
-      "description": "Test: 1) In Evals > Suggested, Use one item. 2) Select a real agent or workflow and enter a distinct input, candidate output, expected output, and judge mode; save and refresh. 3) Start the eval and watch it until completion, then reopen it and inspect history. Pass: Customized values and target persist, running progress/status is visible, the finished card and detail show a prominent score plus input/output tokens, derived cost or explicit unavailable pricing, timestamp, result summary, and a retained run-history entry.",
-      "tags": ["evals", "runs", "scoring"],
-      "fields": {"area": "evals", "notes": ""}
-    },
-    {
-      "id": "eval-ai-quality",
-      "name": "Eval AI Create quality score",
-      "description": "Test: 1) Choose Evals > AI Create and enter an incomplete request such as 'evaluate my support agent'. 2) Record the initial score and every missing-field suggestion. 3) Add a target, representative input, candidate output, expected output or rubric, and judge details, then rescore and save. Pass: Suggestions name the actual missing eval fields, the score rises as testability improves, resolved suggestions disappear or change, and the saved eval contains the same complete experiment definition shown before save.",
-      "tags": ["evals", "ai", "scoring"],
-      "fields": {"area": "evals", "notes": ""}
+      "tags": [
+        "plugins",
+        "views",
+        "responsive"
+      ],
+      "fields": {
+        "area": "navigation",
+        "notes": ""
+      }
     },
     {
       "id": "plugin-notifications-history",
       "name": "Plugin notifications and lifecycle evidence",
       "description": "Test: 1) Clear or note the current notification count. 2) Activate and deactivate one guardrail once each, then run one eval to completion. 3) Open Notifications and each item's history, following any notification deep link. Pass: Each operation creates one useful notification rather than duplicates, deep links open the correct item, and notification/history text identifies the plugin item, action, success/failure result, score where applicable, and timestamp.",
-      "tags": ["plugins", "notifications", "history"],
-      "fields": {"area": "plugins", "notes": ""}
+      "tags": [
+        "plugins",
+        "notifications",
+        "history"
+      ],
+      "fields": {
+        "area": "plugins",
+        "notes": ""
+      }
     },
     {
-      "id": "optimize-skeleton",
-      "name": "Public Optimize planning",
-      "description": "Test: 1) In Optimize > Suggested, Use one workflow-budget suggestion and one agent-model suggestion. 2) Select real workflow/agent targets, change token and cost values, recommendation text, rationale, and status, then save and refresh. 3) Inspect both records in Grid, List, Detail, and Relationships. Pass: Both records remain editable public plugin data, all changed fields persist, workflow and agent scopes point to the selected targets, unknown pricing is not shown as zero cost, and every view presents the same plan without losing budget or rationale.",
-      "tags": ["optimize", "public", "budget"],
-      "fields": {"area": "plugins", "notes": ""}
-    },
-    {
-      "id": "plugin-image-regression",
-      "name": "Plugin image and architecture regression",
-      "description": "Test: 1) Fresh-install the exact candidate image on one supported architecture, record its digest, and check /api/health, /api/system, and /api/plugins before and after restart. 2) Update an existing instance to the same tag and confirm its workspace/plugin state. 3) Inspect the CI build, manifest, and smoke jobs for amd64 and arm64 and verify both digests are in the published manifest. Pass: Health is HTTP 200, dashboard/package/image versions match the candidate, intended plugins load before and after restart, the update preserves state, both architectures are published, and every required build/manifest/smoke job is green.",
-      "tags": ["plugins", "container", "ci"],
-      "fields": {"area": "regression", "notes": ""}
-    },
-    {
-      "id": "suggested-details",
-      "name": "Suggested Details show useful information",
-      "description": "Test: Open Suggested in Guardrails, Evals, and Optimize. Choose Details on one card in each tab, read the added information, then choose Hide details. Pass: Details adds labeled values below the card, Hide details removes them, no blank panel appears, and cards without extra information do not show a Details button.",
-      "tags": ["plugins", "suggested", "details"],
-      "fields": {"area": "plugins", "notes": ""}
-    },
-    {
-      "id": "expanded-suggestion-catalogs",
-      "name": "Expanded starter suggestions",
-      "description": "Test: In the private image, confirm Suggested contains at least nine Guardrails and nine Evals. Confirm Optimize contains five suggestions. Search or filter each list, then choose Use on one new item from each plugin and save it. Pass: The expected suggestions are easy to distinguish, search and filters find them, and each selected item becomes one editable Active record with its settings preserved.",
-      "tags": ["plugins", "suggested", "catalog"],
-      "fields": {"area": "plugins", "notes": ""}
-    },
-    {
-      "id": "review-release-archive",
-      "name": "Review release sets archive and restore",
-      "description": "Test: Open Review, choose an older release, then use Actions > Archive release checklist. Open Archived and restore it. Complete every check in that older release, then start the current checklist from Suggested. Pass: The manual archive disappears from Active and can be restored, while a fully completed older release archives automatically when the current checklist starts. Releases with unfinished checks stay Active.",
-      "tags": ["review", "archive", "lifecycle"],
-      "fields": {"area": "plugins", "notes": ""}
-    },
-    {
-      "id": "secret-operator-key-setup",
-      "name": "Encrypted secret setup and save are clear",
-      "description": "Test: On an instance without CLAWMAX_SECRET_MASTER_KEY, open Keys & Secrets > Agent & Skill Access. Confirm secret inputs are locked and copy the setup steps. Configure the operator key, restart, return to the page, and save a test secret. Pass: No credential can be entered while locked, the copied steps explain setup without exposing a secret, and after restart Save succeeds with only a masked preview shown.",
-      "tags": ["secrets", "onprem", "setup"],
-      "fields": {"area": "security", "notes": ""}
+      "id": "plugin-sidebar-mobile",
+      "name": "Plugin sidebar and mobile navigation",
+      "description": "Test: 1) At desktop width, expand System and open every plugin from the sidebar. 2) Collapse and reopen the sidebar, then repeat at 390x844 or on a phone with System expanded. 3) Scroll to the bottom, open version/TOS, and switch from each plugin to Agents and back. Pass: Every plugin has a readable one- or two-word label and distinct icon, the navigation scrolls inside the viewport without covering content, version/TOS remain reachable, and every page switch works on the first selection.",
+      "tags": [
+        "plugins",
+        "navigation",
+        "mobile"
+      ],
+      "fields": {
+        "area": "navigation",
+        "notes": "",
+        "verifiedBy": [
+          "Max <mmaximilien@gmail.com> - local Dev - 2026-07-24 (RC4 and RC5 exports)"
+        ]
+      }
     },
     {
       "id": "rc11-release-smoke",
       "name": "Earlier public and private images start cleanly",
       "description": "Test: Start the earlier public candidate and open Review and Optimize. Start the matching authorized private image and also open Guardrails and Evals. Restart each once and reopen the same workspace. Pass: Both report the expected candidate, stay healthy after restart, preserve workspace state, and show only the plugin inventory intended for that image.",
-      "tags": ["identity", "startup", "plugins"],
-      "fields": {"area": "regression", "notes": ""}
-    },
-    {
-      "id": "rc13-mail-partner-visibility",
-      "name": "Gmail and Microsoft 365 appear after update",
-      "description": "Test: Update an existing local, cloud, or on-prem instance that previously showed the standard partners. Restart it, open BYOK > Partners, choose All and Communications, and look for Gmail and Microsoft 365. Pass: Both partners appear in both filters without editing an old default partner list, while an intentionally customized shorter list still shows only its chosen partners.",
-      "tags": ["partners", "upgrade", "catalog"],
-      "fields": {"area": "partners", "notes": ""}
-    },
-    {
-      "id": "rc13-mail-readiness",
-      "name": "Mail setup requirements are clear",
-      "description": "Test: Select Gmail, then Microsoft 365, on an instance without mail OAuth configuration. Open each partner page and read the connection panel. Pass: Each page explains the missing operator setup, Connect account is disabled, no password input appears, and a missing CLAWMAX_SECRET_MASTER_KEY is identified without displaying a secret value.",
-      "tags": ["partners", "oauth", "readiness"],
-      "fields": {"area": "partners", "notes": ""}
+      "tags": [
+        "identity",
+        "startup",
+        "plugins"
+      ],
+      "fields": {
+        "area": "regression",
+        "notes": ""
+      }
     },
     {
       "id": "rc13-gmail-oauth",
       "name": "Gmail connection lifecycle",
       "description": "Test: On a test instance configured with Google OAuth and the encryption master key, connect a non-production Gmail mailbox, return to ClawMax, refresh, use Refresh, then disconnect it. Pass: The popup returns to ClawMax, only the mailbox address and state are shown, refresh keeps it connected, disconnect removes it, and no OAuth token appears in the page, URL, logs, or review export.",
-      "tags": ["gmail", "oauth", "security"],
-      "fields": {"area": "partners", "notes": ""}
-    },
-    {
-      "id": "rc13-microsoft-oauth",
-      "name": "Microsoft 365 connection lifecycle",
-      "description": "Test: On a test instance configured with Microsoft OAuth and the encryption master key, connect a non-production Microsoft 365 mailbox, return to ClawMax, refresh, use Refresh, then disconnect it. Pass: The popup returns to ClawMax, only the mailbox address and state are shown, refresh keeps it connected, disconnect removes it, and no OAuth token appears in the page, URL, logs, or review export.",
-      "tags": ["microsoft365", "oauth", "security"],
-      "fields": {"area": "partners", "notes": ""}
-    },
-    {
-      "id": "rc13-mail-workspace-isolation",
-      "name": "Connected mailboxes stay workspace-scoped",
-      "description": "Test: Connect a test mailbox in one workspace, switch to a second workspace, restart the dashboard, and return to both workspaces. Pass: The second workspace cannot see the first workspace's mailbox, the first keeps its connection after restart, and disconnecting it does not change unrelated integration settings.",
-      "tags": ["mail", "workspace", "persistence"],
-      "fields": {"area": "security", "notes": ""}
+      "tags": [
+        "gmail",
+        "oauth",
+        "security"
+      ],
+      "fields": {
+        "area": "partners",
+        "notes": ""
+      }
     },
     {
       "id": "rc13-mail-agent-boundary",
       "name": "Agents cannot bypass unfinished mail grants",
       "description": "Test: With a test mailbox connected, ask an agent to read messages, reveal credentials, create a draft, and send mail. Cancel if it exceeds normal chat time. Pass: The agent receives no OAuth credential, cannot invoke mail before explicit agent grants are released, never sends mail, and reports that the feature is unavailable instead of claiming success.",
-      "tags": ["mail", "agents", "security"],
-      "fields": {"area": "security", "notes": ""}
+      "tags": [
+        "mail",
+        "agents",
+        "security"
+      ],
+      "fields": {
+        "area": "security",
+        "notes": ""
+      }
+    },
+    {
+      "id": "rc13-mail-partner-visibility",
+      "name": "Gmail and Microsoft 365 appear after update",
+      "description": "Test: Update an existing local, cloud, or on-prem instance that previously showed the standard partners. Restart it, open BYOK > Partners, choose All and Communications, and look for Gmail and Microsoft 365. Pass: Both partners appear in both filters without editing an old default partner list, while an intentionally customized shorter list still shows only its chosen partners.",
+      "tags": [
+        "partners",
+        "upgrade",
+        "catalog"
+      ],
+      "fields": {
+        "area": "partners",
+        "notes": ""
+      }
+    },
+    {
+      "id": "rc13-mail-readiness",
+      "name": "Mail setup requirements are clear",
+      "description": "Test: Select Gmail, then Microsoft 365, on an instance without mail OAuth configuration. Open each partner page and read the connection panel. Pass: Each page explains the missing operator setup, Connect account is disabled, no password input appears, and a missing CLAWMAX_SECRET_MASTER_KEY is identified without displaying a secret value.",
+      "tags": [
+        "partners",
+        "oauth",
+        "readiness"
+      ],
+      "fields": {
+        "area": "partners",
+        "notes": ""
+      }
+    },
+    {
+      "id": "rc13-mail-workspace-isolation",
+      "name": "Connected mailboxes stay workspace-scoped",
+      "description": "Test: Connect a test mailbox in one workspace, switch to a second workspace, restart the dashboard, and return to both workspaces. Pass: The second workspace cannot see the first workspace's mailbox, the first keeps its connection after restart, and disconnecting it does not change unrelated integration settings.",
+      "tags": [
+        "mail",
+        "workspace",
+        "persistence"
+      ],
+      "fields": {
+        "area": "security",
+        "notes": ""
+      }
+    },
+    {
+      "id": "rc13-microsoft-oauth",
+      "name": "Microsoft 365 connection lifecycle",
+      "description": "Test: On a test instance configured with Microsoft OAuth and the encryption master key, connect a non-production Microsoft 365 mailbox, return to ClawMax, refresh, use Refresh, then disconnect it. Pass: The popup returns to ClawMax, only the mailbox address and state are shown, refresh keeps it connected, disconnect removes it, and no OAuth token appears in the page, URL, logs, or review export.",
+      "tags": [
+        "microsoft365",
+        "oauth",
+        "security"
+      ],
+      "fields": {
+        "area": "partners",
+        "notes": ""
+      }
     },
     {
       "id": "rc13-release-smoke",
       "name": "RC13 mail and restart regression",
       "description": "Test: Start or update through the RC13 behavior, open Review and Optimize, confirm both mail partners are listed, then restart and reopen the workspace on desktop and phone. Pass: Health remains HTTP 200, workspace state survives, intended plugins load, both partners remain visible, and no page is clipped or blocked.",
-      "tags": ["identity", "startup", "partners"],
-      "fields": {"area": "regression", "notes": ""}
-    },
-    {
-      "id": "rc14-sidebar-order",
-      "name": "Core, Plugins, and System stay in order",
-      "description": "Test: Open the sidebar on desktop and phone. Read the items from top to bottom, then open Agents, Workflows, every plugin, and Documents. Pass: Builder, Organization, Agents, Workflows, Communications, Skills, and Templates appear first; Plugins is next; System is last with Documents inside it; and every item opens on the first selection.",
-      "tags": ["navigation", "plugins", "mobile"],
-      "fields": {"area": "navigation", "notes": ""}
+      "tags": [
+        "identity",
+        "startup",
+        "partners"
+      ],
+      "fields": {
+        "area": "regression",
+        "notes": ""
+      }
     },
     {
       "id": "rc14-plugin-collapse-persistence",
       "name": "Plugin section starts open and remembers its state",
       "description": "Test: Use a browser profile that has not opened RC14 before and confirm Plugins is open. Collapse Plugins, refresh, and confirm it stays closed. Open it, refresh again, and repeat on a phone. Pass: Plugins starts open when available, the arrow and plugin items follow each click, the saved choice survives refresh, and the sidebar remains scrollable with version and Terms of Service reachable.",
-      "tags": ["navigation", "plugins", "persistence"],
-      "fields": {"area": "navigation", "notes": ""}
+      "tags": [
+        "navigation",
+        "plugins",
+        "persistence"
+      ],
+      "fields": {
+        "area": "navigation",
+        "notes": ""
+      }
     },
     {
       "id": "rc14-release-smoke",
       "name": "RC14 identity, health, and restart",
       "description": "Test: Start the exact RC14 public or authorized private image, open Review and the available plugins, restart it, and reopen the same workspace. Pass: The dashboard and /api/system report 2.0.0-test-rc14, /api/health returns HTTP 200, intended plugins load, sidebar state and workspace data survive restart, and no page is clipped or blocked on desktop or phone.",
-      "tags": ["identity", "startup", "plugins"],
-      "fields": {"area": "regression", "notes": ""}
+      "tags": [
+        "identity",
+        "startup",
+        "plugins"
+      ],
+      "fields": {
+        "area": "regression",
+        "notes": ""
+      }
     },
     {
-      "id": "rc15-builder-scoring",
-      "name": "Builder prompt score responds to detail",
-      "description": "Test: In Builder, enter a vague request and note its score. Add the goal, intended users, inputs, output, constraints, and a measurable success result. Pass: The score and missing-detail suggestions update as you type, meaningful detail raises the score toward Ready at 80, resolved suggestions disappear, and Design still works below 80.",
-      "tags": ["builder", "ai", "scoring"],
-      "fields": {"area": "regression", "notes": ""}
+      "id": "rc14-sidebar-order",
+      "name": "Core, Plugins, and System stay in order",
+      "description": "Test: Open the sidebar on desktop and phone. Read the items from top to bottom, then open Agents, Workflows, every plugin, and Documents. Pass: Builder, Organization, Agents, Workflows, Communications, Skills, and Templates appear first; Plugins is next; System is last with Documents inside it; and every item opens on the first selection.",
+      "tags": [
+        "navigation",
+        "plugins",
+        "mobile"
+      ],
+      "fields": {
+        "area": "navigation",
+        "notes": ""
+      }
     },
     {
       "id": "rc15-agent-scoring",
       "name": "Agent AI Create prompt score",
       "description": "Test: Open Add Agent and choose AI Create. Start with a short role, then add responsibilities, tools, inputs, output format, constraints, and success criteria. Pass: The live score rises for useful detail, suggestions match missing agent information, the AI Editor shows the same agent-focused guidance, and Generate creates the agent.",
-      "tags": ["agents", "ai", "scoring"],
-      "fields": {"area": "regression", "notes": ""}
+      "tags": [
+        "agents",
+        "ai",
+        "scoring"
+      ],
+      "fields": {
+        "area": "regression",
+        "notes": ""
+      }
     },
     {
-      "id": "rc15-skill-scoring",
-      "name": "Skill AI Create prompt score",
-      "description": "Test: Open Skills > AI Create. Enter a skill name only, then add when to use it, required inputs or credentials, step-by-step behavior, failure handling, output, and an example. Pass: The score updates without delay, suggestions identify skill-specific gaps, Ready appears at 80 or higher, and the improved prompt can generate a skill.",
-      "tags": ["skills", "ai", "scoring"],
-      "fields": {"area": "regression", "notes": ""}
-    },
-    {
-      "id": "rc15-template-scoring",
-      "name": "Template AI Generate prompt score",
-      "description": "Test: Start an organization template with a vague team idea. Add roles, workflows, handoffs, schedule, deliverable, constraints, and success criteria. Pass: The score and guidance respond to those additions, template-specific gaps are clear, the AI Editor keeps the same context, and Generate produces a preview that can be saved.",
-      "tags": ["templates", "ai", "scoring"],
-      "fields": {"area": "regression", "notes": ""}
-    },
-    {
-      "id": "rc15-workflow-scoring",
-      "name": "Workflow AI Create prompt score",
-      "description": "Test: Open Workflows > AI Create with a one-line task. Add its trigger or schedule, participants, ordered steps, dependencies, expected output, constraints, and success criteria. Pass: Workflow-specific suggestions update, meaningful additions raise the score, the panel fits on desktop and phone, and the generated workflow can be saved and reopened.",
-      "tags": ["workflows", "ai", "scoring", "mobile"],
-      "fields": {"area": "responsive", "notes": ""}
-    },
-    {
-      "id": "rc15-plugin-scoring",
-      "name": "Plugin AI Create prompt score",
-      "description": "Test: In an available plugin, open AI Create with a short request. Add the target record, desired capability, inputs, actions, result fields, constraints, and success criteria. Pass: Plugin-focused suggestions and score update as you type, the dialog stays usable on desktop and phone, and creation follows the plugin's normal save flow in both public and authorized private images.",
-      "tags": ["plugins", "ai", "scoring", "mobile"],
-      "fields": {"area": "responsive", "notes": ""}
+      "id": "rc15-builder-scoring",
+      "name": "Builder prompt score responds to detail",
+      "description": "Test: In Builder, enter a vague request and note its score. Add the goal, intended users, inputs, output, constraints, and a measurable success result. Pass: The score and missing-detail suggestions update as you type, meaningful detail raises the score toward Ready at 80, resolved suggestions disappear, and Design still works below 80.",
+      "tags": [
+        "builder",
+        "ai",
+        "scoring"
+      ],
+      "fields": {
+        "area": "regression",
+        "notes": ""
+      }
     },
     {
       "id": "rc15-editor-feedback-privacy",
       "name": "Shared AI Editor scoring and feedback",
       "description": "Test: Open AI Editor from any scored surface, refine the prompt, then mark the guidance Helpful or Not helpful. Reopen it and export the Review report. Pass: The score follows prompt changes, suggestions remain readable on phone, one feedback choice is selected and can change, generation is not blocked below 80, and the prompt text is absent from the Review export and visible logs.",
-      "tags": ["ai", "editor", "feedback", "privacy"],
-      "fields": {"area": "regression", "notes": ""}
+      "tags": [
+        "ai",
+        "editor",
+        "feedback",
+        "privacy"
+      ],
+      "fields": {
+        "area": "regression",
+        "notes": ""
+      }
     },
     {
-      "id": "rc15-security-export-regression",
-      "name": "Security baseline and ZIP exports",
-      "description": "Test: Confirm the candidate CI dependency-audit step is green, then export one agent or workspace ZIP and open it locally. Pass: CI reports no High or Critical production dependency advisory, the downloaded ZIP opens without repair, expected files are present, no secret value is included, and normal login, API authorization, and Keys & Secrets behavior still work.",
-      "tags": ["security", "dependencies", "export"],
-      "fields": {"area": "regression", "notes": ""}
+      "id": "rc15-plugin-scoring",
+      "name": "Plugin AI Create prompt score",
+      "description": "Test: In an available plugin, open AI Create with a short request. Add the target record, desired capability, inputs, actions, result fields, constraints, and success criteria. Pass: Plugin-focused suggestions and score update as you type, the dialog stays usable on desktop and phone, and creation follows the plugin's normal save flow in both public and authorized private images.",
+      "tags": [
+        "plugins",
+        "ai",
+        "scoring",
+        "mobile"
+      ],
+      "fields": {
+        "area": "responsive",
+        "notes": ""
+      }
     },
     {
       "id": "rc15-release-smoke",
       "name": "RC15 identity, plugins, and restart",
       "description": "Test: Start the exact RC15 public or authorized private image, check /api/health and /api/system, open every AI Create surface and available plugin on desktop and phone, then restart. Pass: Version is 2.0.0-test-rc15, health is HTTP 200, intended plugins and scoring panels load, workspace and navigation state survive restart, and no dialog is clipped or blocks its primary action.",
-      "tags": ["identity", "startup", "plugins", "mobile"],
-      "fields": {"area": "regression", "notes": ""}
+      "tags": [
+        "identity",
+        "startup",
+        "plugins",
+        "mobile"
+      ],
+      "fields": {
+        "area": "regression",
+        "notes": ""
+      }
+    },
+    {
+      "id": "rc15-security-export-regression",
+      "name": "Security baseline and ZIP exports",
+      "description": "Test: Confirm the candidate CI dependency-audit step is green, then export one agent or workspace ZIP and open it locally. Pass: CI reports no High or Critical production dependency advisory, the downloaded ZIP opens without repair, expected files are present, no secret value is included, and normal login, API authorization, and Keys & Secrets behavior still work.",
+      "tags": [
+        "security",
+        "dependencies",
+        "export"
+      ],
+      "fields": {
+        "area": "regression",
+        "notes": ""
+      }
+    },
+    {
+      "id": "rc15-skill-scoring",
+      "name": "Skill AI Create prompt score",
+      "description": "Test: Open Skills > AI Create. Enter a skill name only, then add when to use it, required inputs or credentials, step-by-step behavior, failure handling, output, and an example. Pass: The score updates without delay, suggestions identify skill-specific gaps, Ready appears at 80 or higher, and the improved prompt can generate a skill.",
+      "tags": [
+        "skills",
+        "ai",
+        "scoring"
+      ],
+      "fields": {
+        "area": "regression",
+        "notes": ""
+      }
+    },
+    {
+      "id": "rc15-template-scoring",
+      "name": "Template AI Generate prompt score",
+      "description": "Test: Start an organization template with a vague team idea. Add roles, workflows, handoffs, schedule, deliverable, constraints, and success criteria. Pass: The score and guidance respond to those additions, template-specific gaps are clear, the AI Editor keeps the same context, and Generate produces a preview that can be saved.",
+      "tags": [
+        "templates",
+        "ai",
+        "scoring"
+      ],
+      "fields": {
+        "area": "regression",
+        "notes": ""
+      }
+    },
+    {
+      "id": "rc15-workflow-scoring",
+      "name": "Workflow AI Create prompt score",
+      "description": "Test: Open Workflows > AI Create with a one-line task. Add its trigger or schedule, participants, ordered steps, dependencies, expected output, constraints, and success criteria. Pass: Workflow-specific suggestions update, meaningful additions raise the score, the panel fits on desktop and phone, and the generated workflow can be saved and reopened.",
+      "tags": [
+        "workflows",
+        "ai",
+        "scoring",
+        "mobile"
+      ],
+      "fields": {
+        "area": "responsive",
+        "notes": ""
+      }
     },
     {
       "id": "rc16-agent-create-model-suggestion",
       "name": "AI-created agent gets a model suggestion",
       "description": "Test: Open Agents > Add Agent > AI Create. Describe a specific role with its work, tools, and output, choose Balanced, and generate. Pass: A runtime-available model is suggested, confidence, reasons, alternatives, and assumptions are visible, the suggested model is selected in the draft, and another available model can still be chosen before creation.",
-      "tags": ["agents", "models", "ai"],
-      "fields": {"area": "regression", "notes": ""}
-    },
-    {
-      "id": "rc16-model-priority",
-      "name": "Quality, Balanced, and Cost change ranking",
-      "description": "Test: Use an agent description that involves frequent structured classification. Generate once with Cost, then start over and generate with Quality using the same text. Pass: The selected priority is clear, both results contain only models available to this runtime, an efficient model is favored for Cost when available, and the explanation never claims measured price or quality.",
-      "tags": ["agents", "models", "cost"],
-      "fields": {"area": "regression", "notes": ""}
+      "tags": [
+        "agents",
+        "models",
+        "ai"
+      ],
+      "fields": {
+        "area": "regression",
+        "notes": ""
+      }
     },
     {
       "id": "rc16-existing-agent-model-suggestion",
       "name": "Existing agent suggestion follows its instructions",
       "description": "Test: Open an existing agent's Actions > Edit. Wait for the automatic suggestion, then add a clear coding, vision, privacy, or tool requirement to its identity or tools text. Pass: The suggestion refreshes after the edit, shows alternatives and unknown capability warnings, and long model names remain readable.",
-      "tags": ["agents", "models", "editing"],
-      "fields": {"area": "regression", "notes": ""}
+      "tags": [
+        "agents",
+        "models",
+        "editing"
+      ],
+      "fields": {
+        "area": "regression",
+        "notes": ""
+      }
     },
     {
       "id": "rc16-model-change-confirmation",
       "name": "Suggestion never silently changes an agent",
       "description": "Test: In Edit Agent Config, note the current model, choose Use suggestion or an alternative, then cancel and reopen. Repeat, save, and reopen again. Pass: Cancel preserves the original model, selecting a suggestion only changes the draft, Save applies the chosen model, and the runtime still reports it as supported.",
-      "tags": ["agents", "models", "safety"],
-      "fields": {"area": "regression", "notes": ""}
+      "tags": [
+        "agents",
+        "models",
+        "safety"
+      ],
+      "fields": {
+        "area": "regression",
+        "notes": ""
+      }
+    },
+    {
+      "id": "rc16-model-priority",
+      "name": "Quality, Balanced, and Cost change ranking",
+      "description": "Test: Use an agent description that involves frequent structured classification. Generate once with Cost, then start over and generate with Quality using the same text. Pass: The selected priority is clear, both results contain only models available to this runtime, an efficient model is favored for Cost when available, and the explanation never claims measured price or quality.",
+      "tags": [
+        "agents",
+        "models",
+        "cost"
+      ],
+      "fields": {
+        "area": "regression",
+        "notes": ""
+      }
     },
     {
       "id": "rc16-release-mobile-smoke",
       "name": "RC16 identity, mobile layout, and restart",
       "description": "Test: Start the exact RC16 image, open Add Agent and Edit Agent Config on desktop and a phone-sized screen, switch model priorities, then restart. Pass: Dashboard and /api/system report 2.0.0-test-rc16, health is HTTP 200, controls wrap without horizontal scrolling, Save and Cancel stay reachable, workspace state survives restart, and intended plugins still load.",
-      "tags": ["identity", "models", "mobile", "startup"],
-      "fields": {"area": "responsive", "notes": ""}
-    },
-    {
-      "id": "rc17-review-consolidation",
-      "name": "Earlier 2.0 review sets consolidate without data loss",
-      "description": "Test: Update an instance where an older RC5, RC10, or RC16 checklist was already started, then open Review. Pass: Release choices are one current set, one 2.0 previous RCs set, and 1.9.9 regression; duplicate checks are removed; and every earlier completion, failure, note, evidence link, and verifier remains on the matching cumulative check.",
-      "tags": ["review", "migration", "regression"],
-      "fields": {"area": "regression", "notes": ""}
-    },
-    {
-      "id": "rc17-model-details-persistence",
-      "name": "Model suggestion details remember their disclosure state",
-      "description": "Test: Open Edit Agent Config, collapse the Suggested model section, close it, and open another agent or Add Agent suggestion. Expand it and repeat once on a phone. Pass: The compact row always shows the top model and confidence, the explanation and alternatives hide or return with the twisty, the last disclosure choice is reused across views, and nothing overflows the viewport.",
-      "tags": ["agents", "models", "persistence", "mobile"],
-      "fields": {"area": "responsive", "notes": ""}
+      "tags": [
+        "identity",
+        "models",
+        "mobile",
+        "startup"
+      ],
+      "fields": {
+        "area": "responsive",
+        "notes": ""
+      }
     },
     {
       "id": "rc17-auto-model-selection",
       "name": "Auto-select tracks suggestions and preserves manual choice",
       "description": "Test: Note an agent's current model, enable Auto-select top suggestion, and switch Quality, Balanced, and Cost. Turn Auto-select off, choose a manual model, enable it again, then disable it and test both Cancel and Save. Pass: Auto-select follows the current top runtime-visible suggestion, manual selection is locked only while Auto is active, disabling restores the last manual model, Cancel changes nothing, and Save persists only the visible effective model.",
-      "tags": ["agents", "models", "automation", "safety"],
-      "fields": {"area": "regression", "notes": ""}
+      "tags": [
+        "agents",
+        "models",
+        "automation",
+        "safety"
+      ],
+      "fields": {
+        "area": "regression",
+        "notes": ""
+      }
     },
     {
-      "id": "rc17-secret-test-guidance",
-      "name": "Secret test setup clearly separates skill and key",
-      "description": "Test: Open Keys & Secrets > Agent & Skill Access and follow the displayed setup: assign clawmax-secret-test to one agent, save a non-production CLAWMAX_TEST_SECRET, authorize that exact agent/skill/key, and choose Test Access. Pass: The panel explains which name is the skill and which is the key, blocks authorization before assignment, Test Access reports availability or a fingerprint without revealing the value, and revocation immediately denies access.",
-      "tags": ["secrets", "skills", "guidance"],
-      "fields": {"area": "regression", "notes": ""}
+      "id": "rc17-model-details-persistence",
+      "name": "Model suggestion details remember their disclosure state",
+      "description": "Test: Open Edit Agent Config, collapse the Suggested model section, close it, and open another agent or Add Agent suggestion. Expand it and repeat once on a phone. Pass: The compact row always shows the top model and confidence, the explanation and alternatives hide or return with the twisty, the last disclosure choice is reused across views, and nothing overflows the viewport.",
+      "tags": [
+        "agents",
+        "models",
+        "persistence",
+        "mobile"
+      ],
+      "fields": {
+        "area": "responsive",
+        "notes": ""
+      }
     },
     {
       "id": "rc17-release-mobile-smoke",
       "name": "RC17 identity, responsive layout, and restart",
       "description": "Test: Start the exact RC17 public or authorized private image, check /api/health and /api/system, exercise Review and both model controls on desktop and phone, then restart. Pass: Version is 2.0.0-test-rc17, health is HTTP 200, intended plugins load, review and workspace state survive restart, and the primary actions remain visible without horizontal scrolling.",
-      "tags": ["identity", "models", "review", "mobile", "startup"],
-      "fields": {"area": "responsive", "notes": ""}
+      "tags": [
+        "identity",
+        "models",
+        "review",
+        "mobile",
+        "startup"
+      ],
+      "fields": {
+        "area": "responsive",
+        "notes": ""
+      }
+    },
+    {
+      "id": "rc17-review-consolidation",
+      "name": "Earlier 2.0 review sets consolidate without data loss",
+      "description": "Test: Update an instance where an older RC5, RC10, or RC16 checklist was already started, then open Review. Pass: Release choices are one current set, one 2.0 previous RCs set, and 1.9.9 regression; duplicate checks are removed; and every earlier completion, failure, note, evidence link, and verifier remains on the matching cumulative check.",
+      "tags": [
+        "review",
+        "migration",
+        "regression"
+      ],
+      "fields": {
+        "area": "regression",
+        "notes": ""
+      }
+    },
+    {
+      "id": "rc17-secret-test-guidance",
+      "name": "Secret test setup clearly separates skill and key",
+      "description": "Test: Open Keys & Secrets > Agent & Skill Access and follow the displayed setup: assign clawmax-secret-test to one agent, save a non-production CLAWMAX_TEST_SECRET, authorize that exact agent/skill/key, and choose Test Access. Pass: The panel explains which name is the skill and which is the key, blocks authorization before assignment, Test Access reports availability or a fingerprint without revealing the value, and revocation immediately denies access.",
+      "tags": [
+        "secrets",
+        "skills",
+        "guidance"
+      ],
+      "fields": {
+        "area": "regression",
+        "notes": ""
+      }
     },
     {
       "id": "rc18-auto-model-settings-persist",
       "name": "Automatic model mode and priority stay with the agent",
       "description": "Test: Edit one agent, enable Auto-select, choose Cost, save, close the editor, and reopen it. Repeat with Quality, then restart the instance and reopen the agent. Pass: Auto-select and the saved priority return each time for that agent, while a different agent keeps its own settings.",
-      "tags": ["agents", "models", "persistence"],
+      "tags": [
+        "agents",
+        "models",
+        "persistence"
+      ],
       "fields": {
         "area": "regression",
         "notes": "",
-        "verifiedBy": ["Max <mmaximilien@gmail.com> - local Dev - 2026-07-28"]
+        "verifiedBy": [
+          "Max <mmaximilien@gmail.com> - local Dev - 2026-07-28"
+        ]
       }
     },
     {
       "id": "rc18-compatible-auto-suggestions",
       "name": "Automatic suggestions avoid known tool-incompatible models",
       "description": "Test: Edit a tool-using agent and switch Quality, Balanced, and Cost with Auto-select enabled. Open Excluded incompatible models, save each available suggestion, and send a short chat message. Pass: o1, o3, and o3-mini are not auto-selected when this runtime requires web search; exclusions explain why; and each selected suggestion can reply.",
-      "tags": ["agents", "models", "tools", "compatibility"],
+      "tags": [
+        "agents",
+        "models",
+        "tools",
+        "compatibility"
+      ],
       "fields": {
         "area": "responsive",
         "notes": "",
-        "verifiedBy": ["Max <mmaximilien@gmail.com> - local Dev - 2026-07-28"]
+        "verifiedBy": [
+          "Max <mmaximilien@gmail.com> - local Dev - 2026-07-28"
+        ]
       }
     },
     {
       "id": "rc18-model-error-remediation",
       "name": "Model tool failures stay concise and actionable",
       "description": "Test: Manually choose o3 or o3-mini for an agent that uses web search, save it, and send a chat message on desktop and phone. Pass: The chat shows a short model compatibility error naming the actual model and an Edit agent model link; it does not display raw state-migration, plugin, stack, or gateway logs; and the link opens the correct agent.",
-      "tags": ["agents", "chat", "errors", "mobile"],
+      "tags": [
+        "agents",
+        "chat",
+        "errors",
+        "mobile"
+      ],
       "fields": {
         "area": "regression",
         "notes": "",
-        "verifiedBy": ["Max <mmaximilien@gmail.com> - local Dev - 2026-07-28"]
+        "verifiedBy": [
+          "Max <mmaximilien@gmail.com> - local Dev - 2026-07-28"
+        ]
       }
     },
     {
       "id": "rc18-release-mobile-smoke",
       "name": "RC18 identity, model controls, and restart",
       "description": "Test: Start the exact RC18 public or authorized private image, check /api/health and /api/system, edit and chat with an agent on desktop and phone, then restart. Pass: Version is 2.0.0-test-rc18, health is HTTP 200, intended plugins load, model settings and workspace state survive restart, and editor and chat actions remain reachable without horizontal scrolling.",
-      "tags": ["identity", "models", "review", "mobile", "startup"],
+      "tags": [
+        "identity",
+        "models",
+        "review",
+        "mobile",
+        "startup"
+      ],
       "fields": {
         "area": "responsive",
         "notes": "",
-        "verifiedBy": ["Max <mmaximilien@gmail.com> - local Dev - 2026-07-28"]
+        "verifiedBy": [
+          "Max <mmaximilien@gmail.com> - local Dev - 2026-07-28"
+        ]
+      }
+    },
+    {
+      "id": "rc21-authorized-suggestion-catalogs",
+      "name": "Every authorized plugin suggestion loads and can be used",
+      "description": "Test: In an authorized combined image, open Suggested for each mounted plugin, compare the displayed counts with that package's private release checklist, then search, filter, inspect details, and Use representative items. Pass: Optimize shows its eight public suggestions, every expected external suggestion loads from its owning private package, no item is duplicated or missing, details and cases are readable, and each selected suggestion creates an editable Active item.",
+      "tags": [
+        "plugins",
+        "suggestions",
+        "private-image"
+      ],
+      "fields": {
+        "area": "plugins",
+        "notes": ""
+      }
+    },
+    {
+      "id": "rc21-eval-cases-and-artifacts",
+      "name": "Eval cases and generated files remain readable",
+      "description": "Test: Configure at least three trial cases using both text and workspace-file inputs, save, reopen, and generate or run the item. Rename it and repeat. Pass: Every case persists, item and document filenames start with a readable form of the Eval name plus a short unique suffix, renamed files replace old names, and no UUID-only duplicate is left behind.",
+      "tags": [
+        "plugins",
+        "evals",
+        "files",
+        "persistence"
+      ],
+      "fields": {
+        "area": "plugins",
+        "notes": ""
+      }
+    },
+    {
+      "id": "rc21-eval-complete-flow",
+      "name": "Eval suggestions, graph, runs, scores, and progress work together",
+      "description": "Test: Open Evals > Suggested, search and filter the authorized catalog, inspect graph highlights, and Use representative agent and workflow items. Assign targets, configure cases and evaluator settings, save, and run automated items. Pass: Suggested selection stays inline, Active and Archived open details, attributes, trials, evaluator, and target highlight correctly, run progress is visible, completed scores and evidence appear in history, and completion creates a notification.",
+      "tags": [
+        "plugins",
+        "evals",
+        "graph",
+        "runs"
+      ],
+      "fields": {
+        "area": "plugins",
+        "notes": ""
+      }
+    },
+    {
+      "id": "rc21-eval-evaluator-modes",
+      "name": "Eval evaluator modes keep the right settings",
+      "description": "Test: Edit an Eval and switch among AI, Fixed, and Human evaluators. For AI, enter a judge prompt. For Fixed, choose Exact, Contains, and Regular expression and toggle case sensitivity. For Human, enter reviewer instructions. Save and reopen after each mode. Pass: The selected mode and its settings persist, unrelated settings are not lost, and no Human run receives an automatic score.",
+      "tags": [
+        "plugins",
+        "evals",
+        "persistence"
+      ],
+      "fields": {
+        "area": "plugins",
+        "notes": ""
+      }
+    },
+    {
+      "id": "rc21-eval-human-review",
+      "name": "Human Eval creates a review handoff without hidden email",
+      "description": "Test: Choose Human, enter reviewer instructions, name, email, and a relative .md review path, then save and run the Eval. Pass: A pending Markdown review file appears inside the workspace with the assignment, cases, score/outcome/rationale fields, and a notification; no fake score is recorded and no email is sent unless a separate mail workflow is explicitly configured. Also confirm invalid email and ../ paths are rejected.",
+      "tags": [
+        "plugins",
+        "evals",
+        "review",
+        "security"
+      ],
+      "fields": {
+        "area": "plugins",
+        "notes": ""
+      }
+    },
+    {
+      "id": "rc21-eval-regex-assistant",
+      "name": "Fixed Eval regular expressions are understandable and valid",
+      "description": "Test: Choose Fixed > Regular expression, first enter an invalid pattern such as [, then describe a desired match in plain language and select Suggest regex. Pass: The invalid pattern shows a clear error, the suggested pattern is shown directly without slash wrappers or code fences, it reports as valid, and it remains editable before saving.",
+      "tags": [
+        "plugins",
+        "evals",
+        "ai",
+        "validation"
+      ],
+      "fields": {
+        "area": "plugins",
+        "notes": ""
+      }
+    },
+    {
+      "id": "rc21-guardrail-complete-flow",
+      "name": "Guardrail suggestions, editing, graph, and history work together",
+      "description": "Test: In Guardrails > Suggested, search, filter, inspect graph highlights, and Use one item. Assign agents and workflows, adjust protections and skills manually and with AI, then save, disable, enable, archive, and restore. Pass: Actions persist; Suggested details stay inline; Active and Archived open details; applicable protections and targets highlight without layout movement; history and activation notifications are accurate.",
+      "tags": [
+        "plugins",
+        "guardrails",
+        "graph",
+        "history"
+      ],
+      "fields": {
+        "area": "plugins",
+        "notes": ""
+      }
+    },
+    {
+      "id": "rc21-optimize-complete-flow",
+      "name": "Optimize suggestions, budgets, AI tuning, and graph work together",
+      "description": "Test: In Optimize > Suggested, confirm eight items, filter agent and workflow goals, inspect the graph, and Use one. Select targets, tune with AI, adjust token, cost, speed, quality, and automatic model settings, then save, reopen, archive, and restore. Pass: Values stay bounded and persist; sliders and inputs agree; graph relationships highlight; saved views show details; saving never silently changes a model or schedule.",
+      "tags": [
+        "plugins",
+        "optimize",
+        "graph",
+        "budgets"
+      ],
+      "fields": {
+        "area": "plugins",
+        "notes": ""
+      }
+    },
+    {
+      "id": "rc21-plugin-boundary-and-responsive",
+      "name": "Plugin ownership, discovery, and mobile layout remain correct",
+      "description": "Test: Start the public image and then an authorized combined image. Check plugin navigation and the Eval editor at desktop and phone widths. Pass: The public image includes only public plugins and synthetic test fixtures are not product navigation; externally mounted private plugins appear only in the authorized image; dialogs scroll without horizontal clipping and all Save, Run, and case-management actions remain reachable.",
+      "tags": [
+        "plugins",
+        "security",
+        "mobile",
+        "startup"
+      ],
+      "fields": {
+        "area": "responsive",
+        "notes": ""
+      }
+    },
+    {
+      "id": "rc21-release-health-and-persistence",
+      "name": "RC21 identity, health, persistence, and review export are complete",
+      "description": "Test: Start exact public and authorized combined RC21 images, check /api/health and /api/system, use Review on desktop and phone, restart, and export this checklist with notes. Pass: Version is 2.0.0-test-rc21, health is HTTP 200, intended plugins load, state survives restart, prior review sets have no duplicates, and the export includes checks, notes, reviewer, instance, and recent error details.",
+      "tags": [
+        "release",
+        "health",
+        "review",
+        "persistence"
+      ],
+      "fields": {
+        "area": "responsive",
+        "notes": ""
+      }
+    },
+    {
+      "id": "review-release-archive",
+      "name": "Review release sets archive and restore",
+      "description": "Test: Open Review, choose an older release, then use Actions > Archive release checklist. Open Archived and restore it. Complete every check in that older release, then start the current checklist from Suggested. Pass: The manual archive disappears from Active and can be restored, while a fully completed older release archives automatically when the current checklist starts. Releases with unfinished checks stay Active.",
+      "tags": [
+        "review",
+        "archive",
+        "lifecycle"
+      ],
+      "fields": {
+        "area": "plugins",
+        "notes": ""
+      }
+    },
+    {
+      "id": "secret-operator-key-setup",
+      "name": "Encrypted secret setup and save are clear",
+      "description": "Test: On an instance without CLAWMAX_SECRET_MASTER_KEY, open Keys & Secrets > Agent & Skill Access. Confirm secret inputs are locked and copy the setup steps. Configure the operator key, restart, return to the page, and save a test secret. Pass: No credential can be entered while locked, the copied steps explain setup without exposing a secret, and after restart Save succeeds with only a masked preview shown.",
+      "tags": [
+        "secrets",
+        "onprem",
+        "setup"
+      ],
+      "fields": {
+        "area": "security",
+        "notes": ""
+      }
+    },
+    {
+      "id": "suggested-details",
+      "name": "Suggested Details show useful information",
+      "description": "Test: Open Suggested in Guardrails, Evals, and Optimize. Choose Details on one card in each tab, read the added information, then choose Hide details. Pass: Details adds labeled values below the card, Hide details removes them, no blank panel appears, and cards without extra information do not show a Details button.",
+      "tags": [
+        "plugins",
+        "suggested",
+        "details"
+      ],
+      "fields": {
+        "area": "plugins",
+        "notes": ""
       }
     }
   ]

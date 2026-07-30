@@ -18,7 +18,7 @@
   },
   "nav": {
     "section": "plugins",
-    "order": 40,
+    "order": 30,
     "label": "Optimize"
   },
   "capabilities": {

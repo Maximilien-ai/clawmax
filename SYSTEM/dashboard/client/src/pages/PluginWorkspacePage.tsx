@@ -2183,6 +2183,7 @@ function TemplateCard({
   template,
   onApply,
   applying = false,
+  inUse = false,
   detailed = false,
   compact = false,
 }: {
@@ -2190,6 +2191,7 @@ function TemplateCard({
   template: PluginRecordTemplate
   onApply: () => void
   applying?: boolean
+  inUse?: boolean
   detailed?: boolean
   compact?: boolean
 }) {
@@ -2229,10 +2231,10 @@ function TemplateCard({
           )}
           <button
             onClick={onApply}
-            disabled={applying}
-            className={`${headerPrimaryButtonClass} flex-1 justify-center disabled:cursor-wait disabled:opacity-60 sm:flex-none`}
+            disabled={applying || inUse}
+            className={`${headerPrimaryButtonClass} flex-1 justify-center disabled:cursor-default disabled:opacity-60 sm:flex-none`}
           >
-            {applying ? 'Adding...' : 'Use'}
+            {applying ? 'Adding...' : inUse ? 'In use' : 'Use'}
           </button>
         </div>
       </div>
@@ -2570,14 +2572,16 @@ function GuardrailRelationshipGraph({
                     width={centerWidth}
                     height="50"
                     rx="6"
-                    className={isEmphasized
-                      ? 'fill-sky-100 stroke-sky-600 dark:fill-sky-900 dark:stroke-sky-300'
-                      : 'fill-sky-50 stroke-sky-400 hover:fill-sky-100 dark:fill-sky-950/70 dark:stroke-sky-700 dark:hover:fill-sky-900'}
+                    className={!item.enabled && !item.id.startsWith('suggested:')
+                      ? 'fill-gray-100 stroke-gray-400 dark:fill-gray-800 dark:stroke-gray-600'
+                      : isEmphasized
+                        ? 'fill-sky-100 stroke-sky-600 dark:fill-sky-900 dark:stroke-sky-300'
+                        : 'fill-sky-50 stroke-sky-400 hover:fill-sky-100 dark:fill-sky-950/70 dark:stroke-sky-700 dark:hover:fill-sky-900'}
                     strokeWidth={isEmphasized ? 4 : 2}
                   />
                   <text x={centerWidth / 2} y="22" textAnchor="middle" className="fill-sky-900 text-[13px] font-semibold dark:fill-sky-100">{truncateGraphLabel(item.name)}</text>
                   <text x={centerWidth / 2} y="38" textAnchor="middle" className="fill-sky-600 text-[11px] dark:fill-sky-300">
-                    {item.id.startsWith('suggested:') ? 'Suggested Guardrail' : item.enabled ? 'Active Guardrail' : 'Inactive Guardrail'}
+                    {item.id.startsWith('suggested:') ? 'Suggested Guardrail' : item.enabled ? 'Enabled Guardrail' : 'Disabled Guardrail'}
                   </text>
                 </g>
               )
@@ -2623,12 +2627,18 @@ function EvalRelationshipGraph({
   suggestionTemplates,
   context,
   onOpen,
+  onRun,
+  runningItemIds,
+  runningCaseProgress,
   selectedId,
 }: {
   items: PluginRecord[]
   suggestionTemplates?: PluginRecordTemplate[]
   context: PluginWorkspaceContext
   onOpen: (id: string) => void
+  onRun?: (id: string) => void
+  runningItemIds?: Set<string>
+  runningCaseProgress?: Map<string, { completed: number; total: number }>
   selectedId?: string | null
 }) {
   const [hoveredId, setHoveredId] = useState<string | null>(null)
@@ -2766,9 +2776,14 @@ function EvalRelationshipGraph({
               )
             })}
             {evals.map((item) => {
-              const y = Number(evalY.get(item.id)) - 30
+              const y = Number(evalY.get(item.id)) - 34
               const isEmphasized = emphasizedEval?.id === item.id
               const trials = getEvalTrialCount(item)
+              const running = runningItemIds?.has(item.id) === true
+              const progress = runningCaseProgress?.get(item.id)
+              const progressTotal = progress?.total || Math.max(1, item.experiment.cases?.length || trials)
+              const progressCompleted = Math.min(progressTotal, progress?.completed || 0)
+              const progressWidth = running ? Math.max(6, (progressCompleted / progressTotal) * 202) : 0
               return (
                 <g
                   key={item.id}
@@ -2789,17 +2804,44 @@ function EvalRelationshipGraph({
                 >
                   <rect
                     width="240"
-                    height="60"
+                    height="68"
                     rx="6"
-                    className={isEmphasized
-                      ? 'fill-sky-100 stroke-sky-600 dark:fill-sky-900 dark:stroke-sky-300'
-                      : 'fill-sky-50 stroke-sky-400 hover:fill-sky-100 dark:fill-sky-950/70 dark:stroke-sky-700 dark:hover:fill-sky-900'}
+                    className={!item.enabled && !item.id.startsWith('suggested:')
+                      ? 'fill-gray-100 stroke-gray-400 dark:fill-gray-800 dark:stroke-gray-600'
+                      : isEmphasized
+                        ? 'fill-sky-100 stroke-sky-600 dark:fill-sky-900 dark:stroke-sky-300'
+                        : 'fill-sky-50 stroke-sky-400 hover:fill-sky-100 dark:fill-sky-950/70 dark:stroke-sky-700 dark:hover:fill-sky-900'}
                     strokeWidth={isEmphasized ? 4 : 2}
                   />
-                  <text x="120" y="23" textAnchor="middle" className="fill-sky-900 text-[13px] font-semibold dark:fill-sky-100">{truncateGraphLabel(item.name)}</text>
-                  <text x="120" y="41" textAnchor="middle" className="fill-sky-600 text-[11px] dark:fill-sky-300">
-                    {trials} planned trial{trials === 1 ? '' : 's'} · {item.runs.length} completed
+                  <text x="120" y="20" textAnchor="middle" className="fill-sky-900 text-[13px] font-semibold dark:fill-sky-100">{truncateGraphLabel(item.name, 24)}</text>
+                  <text x="120" y="37" textAnchor="middle" className="fill-sky-600 text-[11px] dark:fill-sky-300">
+                    {item.id.startsWith('suggested:')
+                      ? `${trials} planned trial${trials === 1 ? '' : 's'}`
+                      : running
+                        ? `Running ${progressCompleted}/${progressTotal} cases`
+                        : item.lastRun?.totalCases
+                          ? `${item.enabled ? 'Enabled' : 'Disabled'} · ${item.lastRun.casesCompleted || 0}/${item.lastRun.totalCases} cases`
+                          : `${item.enabled ? 'Enabled' : 'Disabled'} · not run`}
                   </text>
+                  {running ? (
+                    <>
+                      <rect x="19" y="49" width="202" height="7" rx="3.5" className="fill-sky-200 dark:fill-sky-950" />
+                      <rect x="19" y="49" width={progressWidth} height="7" rx="3.5" className="fill-emerald-500" />
+                    </>
+                  ) : !showingSuggestions && item.enabled && onRun ? (
+                    <g
+                      role="button"
+                      aria-label={`Run ${item.name}`}
+                      className="cursor-pointer"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        onRun(item.id)
+                      }}
+                    >
+                      <circle cx="120" cy="54" r="10" className="fill-emerald-500 hover:fill-emerald-600" />
+                      <path d="M 117 49 L 117 59 L 124 54 Z" className="fill-white" />
+                    </g>
+                  ) : null}
                 </g>
               )
             })}
@@ -3045,14 +3087,16 @@ function OptimizeRelationshipGraph({
                   width={planWidth}
                   height="50"
                   rx="6"
-                  className={isSelected
-                    ? 'fill-sky-100 stroke-sky-600 dark:fill-sky-900 dark:stroke-sky-300'
-                    : 'fill-sky-50 stroke-sky-400 hover:fill-sky-100 dark:fill-sky-950/70 dark:stroke-sky-700 dark:hover:fill-sky-900'}
+                  className={!item.enabled && !item.id.startsWith('suggested:')
+                    ? 'fill-gray-100 stroke-gray-400 dark:fill-gray-800 dark:stroke-gray-600'
+                    : isSelected
+                      ? 'fill-sky-100 stroke-sky-600 dark:fill-sky-900 dark:stroke-sky-300'
+                      : 'fill-sky-50 stroke-sky-400 hover:fill-sky-100 dark:fill-sky-950/70 dark:stroke-sky-700 dark:hover:fill-sky-900'}
                   strokeWidth={isSelected ? 4 : 2}
                 />
                 <text x={planWidth / 2} y="22" textAnchor="middle" className="fill-sky-900 text-[13px] font-semibold dark:fill-sky-100">{truncateGraphLabel(item.name)}</text>
                 <text x={planWidth / 2} y="38" textAnchor="middle" className="fill-sky-600 text-[11px] dark:fill-sky-300">
-                  {item.id.startsWith('suggested:') ? 'Suggested plan' : item.enabled ? 'Active plan' : 'Inactive plan'}
+                  {item.id.startsWith('suggested:') ? 'Suggested plan' : item.enabled ? 'Enabled plan' : 'Disabled plan'}
                 </text>
               </g>
             )
@@ -3099,6 +3143,9 @@ function PluginRelationshipView({
   suggestionTemplates,
   context,
   onOpen,
+  onRun,
+  runningItemIds,
+  runningCaseProgress,
   selectedId,
   heading = 'Selected item',
 }: {
@@ -3107,6 +3154,9 @@ function PluginRelationshipView({
   suggestionTemplates?: PluginRecordTemplate[]
   context: PluginWorkspaceContext
   onOpen: (id: string) => void
+  onRun?: (id: string) => void
+  runningItemIds?: Set<string>
+  runningCaseProgress?: Map<string, { completed: number; total: number }>
   selectedId?: string | null
   heading?: string
 }) {
@@ -3131,6 +3181,9 @@ function PluginRelationshipView({
         suggestionTemplates={suggestionTemplates}
         context={context}
         onOpen={onOpen}
+        onRun={onRun}
+        runningItemIds={runningItemIds}
+        runningCaseProgress={runningCaseProgress}
         selectedId={selectedId}
       />
     )
@@ -3228,6 +3281,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
   const [aiGenerating, setAiGenerating] = useState(false)
   const [activeCompactActions, setActiveCompactActions] = useState<string | null>(null)
   const [runningItemIds, setRunningItemIds] = useState<Set<string>>(new Set())
+  const [runningCaseProgress, setRunningCaseProgress] = useState<Map<string, { completed: number; total: number }>>(new Map())
   const [applyingTemplateIds, setApplyingTemplateIds] = useState<Set<string>>(new Set())
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null)
   const [showReviewExport, setShowReviewExport] = useState(false)
@@ -3312,6 +3366,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
   )
   const recommendedTemplates = useMemo(() => templates.filter((entry) => {
     if (entry.recommended === false) return false
+    if (!isChecklist) return true
     const templateFields = 'fields' in entry.payload ? entry.payload.fields : undefined
     const templateGroup = groupField && templateFields ? templateFields[groupField] : null
     return !items.some((item) => {
@@ -3319,11 +3374,15 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
       if (!groupField || typeof templateGroup !== 'string') return true
       return isGenericPluginRecord(item) && item.fields[groupField] === templateGroup
     })
-  }), [templates, items, groupField])
+  }), [templates, items, groupField, isChecklist])
+  const usedTemplateIds = useMemo(() => new Set(templates.filter((template) => {
+    const templateName = String(template.payload.name || template.name).trim()
+    return items.some((item) => item.archived !== true && item.name === templateName)
+  }).map((template) => template.id)), [templates, items])
   const suggestionTags = useMemo(() => {
     const allTags = collectPluginTemplateTags(recommendedTemplates)
     if (!isChecklist) return allTags
-    return ['1.9.9', '2.0.0', '2.0.0-test-rc21'].filter((tag) => allTags.includes(tag))
+    return ['1.9.9', '2.0.0', '2.0.0-test-rc22'].filter((tag) => allTags.includes(tag))
   }, [recommendedTemplates, isChecklist])
   const filteredSuggestions = useMemo(() => sortPluginTemplates(
     recommendedTemplates.filter((template) => (
@@ -3524,8 +3583,20 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
       return
     }
 
+    let progressTimer: number | null = null
     if (action === 'run') {
+      const record = items.find((entry) => entry.id === itemId)
+      if (!record || !isEvalRecord(record) || !record.enabled) return
+      const total = Math.max(1, record.experiment.cases?.length || getEvalTrialCount(record))
       setRunningItemIds((current) => new Set(current).add(itemId))
+      setRunningCaseProgress((current) => new Map(current).set(itemId, { completed: 0, total }))
+      progressTimer = window.setInterval(() => {
+        setRunningCaseProgress((current) => {
+          const progress = current.get(itemId)
+          if (!progress || progress.completed >= progress.total - 1) return current
+          return new Map(current).set(itemId, { ...progress, completed: progress.completed + 1 })
+        })
+      }, 600)
     }
     const route = action === 'delete'
       ? `/api/plugins/${encodeURIComponent(plugin.slug)}/items/${encodeURIComponent(itemId)}`
@@ -3539,8 +3610,14 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
       await load()
     } finally {
       if (action === 'run') {
+        if (progressTimer !== null) window.clearInterval(progressTimer)
         setRunningItemIds((current) => {
           const next = new Set(current)
+          next.delete(itemId)
+          return next
+        })
+        setRunningCaseProgress((current) => {
+          const next = new Map(current)
           next.delete(itemId)
           return next
         })
@@ -4091,6 +4168,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                       plugin={plugin}
                       template={template}
                       compact
+                      inUse={usedTemplateIds.has(template.id)}
                       applying={applyingTemplateIds.has(template.id)}
                       onApply={() => void applyTemplate(template.id)}
                     />
@@ -4104,6 +4182,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                       plugin={plugin}
                       template={template}
                       detailed
+                      inUse={usedTemplateIds.has(template.id)}
                       applying={applyingTemplateIds.has(template.id)}
                       onApply={() => void applyTemplate(template.id)}
                     />
@@ -4125,6 +4204,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                       plugin={plugin}
                       template={selectedSuggestedTemplate}
                       detailed
+                      inUse={usedTemplateIds.has(selectedSuggestedTemplate.id)}
                       applying={applyingTemplateIds.has(selectedSuggestedTemplate.id)}
                       onApply={() => void applyTemplate(selectedSuggestedTemplate.id)}
                     />
@@ -4157,10 +4237,10 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                         <button
                           type="button"
                           onClick={() => void applyTemplate(template.id)}
-                          disabled={applyingTemplateIds.has(template.id)}
-                          className={`${headerPrimaryButtonClass} disabled:cursor-wait disabled:opacity-60`}
+                          disabled={applyingTemplateIds.has(template.id) || usedTemplateIds.has(template.id)}
+                          className={`${headerPrimaryButtonClass} disabled:cursor-default disabled:opacity-60`}
                         >
-                          {applyingTemplateIds.has(template.id) ? 'Adding...' : 'Use'}
+                          {applyingTemplateIds.has(template.id) ? 'Adding...' : usedTemplateIds.has(template.id) ? 'In use' : 'Use'}
                         </button>
                       </div>
                       {selectedSuggestedTemplateId === template.id && (
@@ -4169,6 +4249,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                             plugin={plugin}
                             template={template}
                             detailed
+                            inUse={usedTemplateIds.has(template.id)}
                             applying={applyingTemplateIds.has(template.id)}
                             onApply={() => void applyTemplate(template.id)}
                           />
@@ -4266,7 +4347,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                             <ProductIconCell iconName="communication" label="Notify" size="sm" className="border-transparent bg-transparent text-current" />
                             Notify
                           </button>}
-                          {isEvalRecord(item) && (
+                          {isEvalRecord(item) && item.enabled && (
                             <button onClick={() => { setActiveCompactActions(null); void callItemAction(item.id, 'run') }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800">
                               <ProductIconCell iconName="play" label="Run Eval" size="sm" className="border-transparent bg-transparent text-current" />
                               Run Eval
@@ -4299,7 +4380,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                       onToggle={() => void callItemAction(item.id, 'toggle')}
                       onGenerateDoc={() => void callItemAction(item.id, 'document')}
                       onNotify={() => void callItemAction(item.id, 'notify')}
-                      onRun={isEvalRecord(item) ? (() => void callItemAction(item.id, 'run')) : null}
+                      onRun={isEvalRecord(item) && item.enabled ? (() => void callItemAction(item.id, 'run')) : null}
                       onOpenDoc={onNavigateToDoc || null}
                       onArchiveToggle={() => void saveItem({ ...item, archived: item.archived !== true } as Partial<PluginRecord>)}
                       canGenerateDocs={canGenerateDocs}
@@ -4316,6 +4397,9 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                 items={filtered}
                 context={context}
                 onOpen={setSelectedItemId}
+                onRun={(itemId) => void callItemAction(itemId, 'run')}
+                runningItemIds={runningItemIds}
+                runningCaseProgress={runningCaseProgress}
                 selectedId={selectedItemId}
               />
             ) : (
@@ -4401,7 +4485,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                 onToggle={() => void callItemAction(selectedItem.id, 'toggle')}
                 onArchiveToggle={() => void saveItem({ ...selectedItem, archived: selectedItem.archived !== true } as Partial<PluginRecord>)}
                 onDelete={() => void callItemAction(selectedItem.id, 'delete')}
-                onRun={isEvalRecord(selectedItem) ? (() => void callItemAction(selectedItem.id, 'run')) : null}
+                onRun={isEvalRecord(selectedItem) && selectedItem.enabled ? (() => void callItemAction(selectedItem.id, 'run')) : null}
                 canGenerateDocs={canGenerateDocs}
                 canNotify={canNotify}
               />
