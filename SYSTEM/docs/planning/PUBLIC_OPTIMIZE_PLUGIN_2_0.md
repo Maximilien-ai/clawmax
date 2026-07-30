@@ -433,6 +433,17 @@ Recommendation responses must include inputs, assumptions, excluded candidates, 
 - quality-aware optimization using public AI scoring;
 - recommendation confidence improvements without opaque autonomous changes.
 
+### Active Plan Health Score
+
+Active plans expose a 0-100 health score only when sufficient observed data is
+available. It combines budget adherence, token efficiency, latency, quality
+floor, schedule reliability, and configuration drift. The UI must distinguish
+projected and observed values, show sample size and confidence, and open the
+shared score-review surface described in
+[PUBLIC_SCORE_ACTIONS_2_0.md](PUBLIC_SCORE_ACTIONS_2_0.md). A high score means the
+plan is meeting its declared objectives; it is not a general quality or safety
+certification.
+
 ## 2.0 Release Gate
 
 - token totals reconcile against controlled provider fixtures;

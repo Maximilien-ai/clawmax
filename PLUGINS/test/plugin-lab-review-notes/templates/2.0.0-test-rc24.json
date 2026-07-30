@@ -1,0 +1,56 @@
+{
+  "id": "2.0.0-test-rc24",
+  "name": "2.0.0-test-rc24 focused checklist",
+  "description": "Focused checks for private bundle deployment, relationship zoom, compound plugin discovery, and Builder question mode.",
+  "release": "2.0.0-test-rc24",
+  "recommended": true,
+  "tags": ["release", "current", "2.0.0-test-rc24"],
+  "defaults": {
+    "enabled": true,
+    "tags": ["release", "current", "2.0.0-test-rc24"],
+    "fields": {
+      "completed": false,
+      "outcome": "pending",
+      "owner": "release-tester",
+      "evidence": [],
+      "verifiedBy": []
+    }
+  },
+  "items": [
+    {
+      "id": "rc24-private-cloud-bundle",
+      "name": "Cloud uses the authenticated product plugin bundle",
+      "description": "Test: Ask the operator to deploy the RC24 clawmax-plugins image with a GHCR token that has read:packages and access to the private package, then open Evals and Guardrails > Suggested. Pass: No Test fixture catalog warning appears, the URLs do not contain plugin-lab-evals or plugin-lab-guardrails, and both complete suggestion catalogs load. If the warning or two items appear, record the running image name and stop this check.",
+      "tags": ["cloud", "plugins", "deployment", "security"],
+      "fields": {"area": "plugins", "notes": ""}
+    },
+    {
+      "id": "rc24-relationship-zoom",
+      "name": "All relationship graphs zoom without clipping",
+      "description": "Test: In Evals, Guardrails, and Optimize open Relationship view on desktop and mobile. Use minus to reach 50%, plus to reach 200%, and Reset to return to 100%; scroll the enlarged graph. Pass: The percentage updates, every graph scales, controls remain usable, labels and nodes are not clipped, and horizontal scrolling works when the graph is wider than the screen.",
+      "tags": ["plugins", "graph", "zoom", "mobile"],
+      "fields": {"area": "plugins", "notes": ""}
+    },
+    {
+      "id": "rc24-plugin-compound-discovery",
+      "name": "Plugin search and filters combine multiple criteria",
+      "description": "Test: Enter two words that appear in different parts of a plugin item, then toggle two tag filters. Repeat in Active and Suggested. Pass: Every shown item contains all entered words and all selected tags, selected pills remain highlighted, toggling one pill removes only that condition, All clears tag conditions, and zero matches shows a useful empty state.",
+      "tags": ["plugins", "search", "filters"],
+      "fields": {"area": "plugins", "notes": ""}
+    },
+    {
+      "id": "rc24-builder-question",
+      "name": "Builder question mode preserves the recommendation",
+      "description": "Test: Generate a Builder recommendation, then enter '/question Which option is cheaper and why?'. Pass: Builder answers in the transcript, does not generate or replace the recommendation, does not change workspace state, clears the submitted command from the composer, and the prior recommendation actions remain available.",
+      "tags": ["builder", "question", "ai"],
+      "fields": {"area": "builder", "notes": ""}
+    },
+    {
+      "id": "rc24-mobile-plugin-controls",
+      "name": "New plugin controls remain usable on mobile",
+      "description": "Test: At an iPhone-width viewport, use multi-term search, select several filter pills, and operate relationship zoom in light and dark modes. Pass: Search text remains visible, filters wrap without covering content, zoom buttons meet comfortable tap sizing, no page-wide horizontal overflow appears outside the graph scroller, and the fixture warning is readable when present.",
+      "tags": ["plugins", "mobile", "responsive"],
+      "fields": {"area": "plugins", "notes": ""}
+    }
+  ]
+}

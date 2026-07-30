@@ -34,7 +34,7 @@
 ### 2.0.0 development
 
 - Branch: `main`
-- Current test candidate: `2.0.0-test-rc21`, focused on complete Guardrail, Eval, and Optimize flows; evaluator-specific configuration; suggestion catalogs; public/private image boundaries; review export; and mobile/restart checks.
+- Current source candidate: `2.0.0-test-rc24`, focused on authenticated private image selection, complete suggestion catalogs, relationship graph zoom, compound plugin discovery, Builder question mode, and mobile/restart checks. Do not publish the image until the local RC24 pass is accepted.
 - RC18 local Dev review passed `4/4` with Max on July 28. Those checks and their verifier metadata are retained in the cumulative 2.0 Review set; cloud, on-prem, private-image, and additional tester confirmation remain pending.
 - Architecture: [Plugin System 2.0](../../PLUGINS/PLUGIN_SYSTEM_2_0.md)
 - Authoring contract: [Plugin Authoring 2.0](../../PLUGINS/PLUGIN_AUTHORING_2_0.md)
@@ -46,6 +46,7 @@
 - RC15 security baseline: [SECURITY_BASELINE_2_0_RC15.md](security/SECURITY_BASELINE_2_0_RC15.md)
 - Public prompt-readiness scoring: [PROMPT_READINESS_SCORING.md](features/PROMPT_READINESS_SCORING.md)
 - Public model-fit foundation: [PUBLIC_MODEL_FIT_2_0.md](planning/PUBLIC_MODEL_FIT_2_0.md)
+- Score review and confirmed improvement actions: [PUBLIC_SCORE_ACTIONS_2_0.md](planning/PUBLIC_SCORE_ACTIONS_2_0.md)
 - RC11 validation focus: suggestion catalogs and Details content, Review archive/restore plus automatic retirement of completed older sets, successful encrypted secret setup/save, and clean public/private image startup.
 - Immediate work after RC19 feedback: connect the public model-fit foundation to workflows, measured Eval comparisons, and Optimize token/cost evidence; add sourced capability and pricing catalogs; continue generated-artifact scoring; and reconcile manifest-declared plugin actions with the generic v2 contribution model.
 - Product work: public AI scoring, public token-first Optimize, curated public Gmail and Microsoft 365/Outlook plugins, and a consent-gated Activity Export contract proven first with ClawMax.ai and then Digo.
