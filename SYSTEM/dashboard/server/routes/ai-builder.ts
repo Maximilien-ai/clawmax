@@ -6,6 +6,7 @@ import {
 } from '../lib/ai-builder'
 import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
 import {
+  answerBuilderQuestionWithAI,
   generateBuilderStarterPromptsWithAI,
   inferBuilderGroupingWithAI,
   setRequestByokKeys,
@@ -19,6 +20,7 @@ import {
 
 const router = Router()
 const AI_BUILDER_LLM_FALLBACK_TIMEOUT_MS = 8000
+const AI_BUILDER_QUESTION_TIMEOUT_MS = 20000
 
 function withAiBuilderTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -90,6 +92,45 @@ router.post('/recommend', async (req, res) => {
     res.json({ ok: true, recommendation })
   } catch (error: any) {
     res.status(500).json({ error: error?.message || 'Failed to build recommendation' })
+  } finally {
+    setRequestByokKeys(undefined)
+  }
+})
+
+router.post('/question', async (req, res) => {
+  const question = `${req.body?.question || ''}`.trim()
+  const byokKeys = req.body?.byokKeys && typeof req.body.byokKeys === 'object'
+    ? req.body.byokKeys
+    : undefined
+  if (!question) return res.status(400).json({ error: 'Question is required' })
+
+  try {
+    setRequestByokKeys(byokKeys)
+    const answer = await withAiBuilderTimeout(
+      answerBuilderQuestionWithAI({
+        question,
+        messages: Array.isArray(req.body?.messages) ? req.body.messages : [],
+        recommendationSummary: typeof req.body?.recommendationSummary === 'string'
+          ? req.body.recommendationSummary
+          : undefined,
+      }),
+      AI_BUILDER_QUESTION_TIMEOUT_MS,
+    )
+    if (!answer) throw new Error('Builder returned an empty answer')
+    const session = getAuthenticatedSession(req)
+    traceAgentChat('builder-agent-question', question, answer, {
+      model: 'builder-question',
+      provider: 'system',
+      sessionId: `builder-question:${Date.now()}`,
+      actorUserId: session?.userId,
+      actorLogin: session?.login,
+      actorEmail: session?.email || null,
+      dashboardInstanceId: getRequestDashboardInstanceId(req),
+    })
+    res.json({ ok: true, answer })
+  } catch (error: any) {
+    const message = error?.message || 'Failed to answer Builder question'
+    res.status(/No API key configured/i.test(message) ? 400 : 500).json({ error: message })
   } finally {
     setRequestByokKeys(undefined)
   }

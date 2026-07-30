@@ -204,6 +204,8 @@ test('suggested plugin entries support independent tags, search, and sorting', (
   ]
   assert(JSON.stringify(collectPluginTemplateTags(suggestions)) === JSON.stringify(['docs', 'email', 'safety']), 'Expected sorted unique suggestion tags')
   assert(matchesPluginTemplateSearch(suggestions[0], 'external mail'))
+  assert(matchesPluginTemplateSearch(suggestions[0], 'email external'), 'Expected every search term to match across suggestion metadata')
+  assert(!matchesPluginTemplateSearch(suggestions[0], 'email private'), 'Expected a missing search term to exclude the suggestion')
   assert(!matchesPluginTemplateSearch(suggestions[0], 'private files'))
   assert(JSON.stringify(sortPluginTemplates(suggestions, 'name-asc').map((entry) => entry.id)) === JSON.stringify(['docs', 'email']), 'Expected ascending suggestion sort')
   assert(JSON.stringify(sortPluginTemplates(suggestions, 'name-desc').map((entry) => entry.id)) === JSON.stringify(['email', 'docs']), 'Expected descending suggestion sort')
@@ -214,6 +216,8 @@ test('matchesPluginSearch finds guardrail targets and controls', () => {
   assert(matchesPluginSearch(guardrail, 'research ops'), 'Expected search to match group name')
   assert(matchesPluginSearch(guardrail, 'workspace-ls'), 'Expected search to match allowed skill')
   assert(matchesPluginSearch(guardrail, 'email'), 'Expected search to match tags and description')
+  assert(matchesPluginSearch(guardrail, 'email research'), 'Expected multi-term search across record metadata')
+  assert(!matchesPluginSearch(guardrail, 'email zzznotfound'), 'Expected all search terms to be required')
 })
 
 test('matchesPluginSearch finds eval experiment fields and rejects nonsense', () => {

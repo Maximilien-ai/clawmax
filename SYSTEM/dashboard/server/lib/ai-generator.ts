@@ -479,6 +479,37 @@ function currentClient(): { client: OpenAI; model: string } {
   return getAIClient(_requestByokKeys)
 }
 
+export async function answerBuilderQuestionWithAI(input: {
+  question: string
+  messages?: Array<{ role: 'user' | 'assistant'; content: string }>
+  recommendationSummary?: string
+}): Promise<string> {
+  const { client, model } = currentClient()
+  const recentMessages = (input.messages || [])
+    .filter((message) => (message.role === 'user' || message.role === 'assistant') && message.content.trim())
+    .slice(-8)
+    .map((message) => ({ role: message.role, content: message.content.trim().slice(0, 4000) }))
+  const recommendationContext = input.recommendationSummary?.trim()
+    ? `\nCurrent Builder recommendation summary:\n${input.recommendationSummary.trim().slice(0, 4000)}`
+    : ''
+  const completion = await createChatCompletionWithCompatibilityRetry(client, {
+    model,
+    messages: [
+      {
+        role: 'system',
+        content: `You are the ClawMax Builder agent answering a question about the current design conversation.
+Answer directly and concisely. Explain tradeoffs and concrete next steps when useful.
+Do not create, apply, or replace a Builder recommendation. Do not claim that you changed workspace state.${recommendationContext}`,
+      },
+      ...recentMessages,
+      { role: 'user', content: input.question.trim() },
+    ],
+    temperature: 0.3,
+    ...completionTokenLimit(model, 600),
+  })
+  return (completion.choices[0].message.content || '').trim()
+}
+
 export function resolveSystemGenerationModelForProvider(
   provider: AIProvider,
   configuredModel: string | undefined,

@@ -94,6 +94,43 @@ async function run() {
     assert.strictEqual(res.jsonBody?.error, 'Prompt is required', 'Expected missing prompt guidance')
   })
 
+  await test('question route requires a non-empty question', async () => {
+    const router = loadRouterWithOverrides()
+    const handler = getRouteHandler(router, 'post', '/question')
+    const res = makeRes()
+    await handler(makeReq({ body: {} }), res)
+
+    assert.strictEqual(res.statusCode, 400, 'Expected missing question to return HTTP 400')
+    assert.strictEqual(res.jsonBody?.error, 'Question is required', 'Expected missing question guidance')
+  })
+
+  await test('question route answers without producing a Builder recommendation', async () => {
+    let received: any = null
+    const router = loadRouterWithOverrides({
+      aiGenerator: {
+        answerBuilderQuestionWithAI: async (input: any) => {
+          received = input
+          return 'Keep the existing recommendation and compare the two workflow options.'
+        },
+      },
+    })
+    const handler = getRouteHandler(router, 'post', '/question')
+    const res = makeRes()
+    await handler(makeReq({
+      body: {
+        question: 'Which option is cheaper?',
+        messages: [{ role: 'assistant', content: 'Current recommendation' }],
+        recommendationSummary: 'Use a two-agent workflow',
+      },
+    }), res)
+
+    assert.strictEqual(res.statusCode, 200, 'Expected Builder question success')
+    assert.strictEqual(res.jsonBody?.answer, 'Keep the existing recommendation and compare the two workflow options.')
+    assert.strictEqual(res.jsonBody?.recommendation, undefined, 'Question mode must not replace the recommendation')
+    assert.strictEqual(received?.question, 'Which option is cheaper?')
+    assert.strictEqual(received?.recommendationSummary, 'Use a two-agent workflow')
+  })
+
   await test('recommend route returns deterministic recommendation when fallback is skipped', async () => {
     const router = loadRouterWithOverrides({
       aiBuilder: {

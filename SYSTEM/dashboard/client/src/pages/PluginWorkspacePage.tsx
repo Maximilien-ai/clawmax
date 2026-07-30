@@ -2395,6 +2395,46 @@ function truncateGraphLabel(value: string, maximum = 28): string {
   return value.length > maximum ? `${value.slice(0, maximum - 1)}…` : value
 }
 
+function RelationshipZoomControls({
+  zoom,
+  onChange,
+}: {
+  zoom: number
+  onChange: (zoom: number) => void
+}) {
+  const update = (next: number) => onChange(Math.max(0.5, Math.min(2, next)))
+  return (
+    <div className="flex shrink-0 items-center gap-1" aria-label="Relationship graph zoom controls">
+      <button
+        type="button"
+        onClick={() => update(zoom - 0.25)}
+        disabled={zoom <= 0.5}
+        title="Zoom out"
+        aria-label="Zoom out"
+        className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 bg-white text-lg text-gray-600 hover:border-sky-300 hover:text-sky-600 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+      >
+        −
+      </button>
+      <span className="w-12 text-center text-xs tabular-nums text-gray-500 dark:text-gray-400">{Math.round(zoom * 100)}%</span>
+      <button
+        type="button"
+        onClick={() => update(zoom + 0.25)}
+        disabled={zoom >= 2}
+        title="Zoom in"
+        aria-label="Zoom in"
+        className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 bg-white text-lg text-gray-600 hover:border-sky-300 hover:text-sky-600 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+      >
+        +
+      </button>
+      {zoom !== 1 && (
+        <button type="button" onClick={() => onChange(1)} className="px-1 text-xs font-medium text-sky-600 hover:text-sky-700 dark:text-sky-400">
+          Reset
+        </button>
+      )}
+    </div>
+  )
+}
+
 function getGuardrailProtections(item: PluginRecord): string[] {
   if (!isGuardrailRecord(item)) return []
   const protections: string[] = []
@@ -2419,6 +2459,7 @@ function GuardrailRelationshipGraph({
   selectedId?: string | null
 }) {
   const [hoveredId, setHoveredId] = useState<string | null>(null)
+  const [zoom, setZoom] = useState(1)
   const guardrails = suggestionTemplates
     ? suggestionTemplates.map(templateToPreviewRecord).filter(isGuardrailRecord)
     : items.filter(isGuardrailRecord)
@@ -2468,13 +2509,16 @@ function GuardrailRelationshipGraph({
   return (
     <div className="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900/40">
       <div className="border-b border-gray-200 px-4 py-3 dark:border-gray-700">
-        <div>
-          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Guardrail relationships</h3>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Guardrail relationships</h3>
           <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
             {showingSuggestions
               ? `${guardrails.length} suggested Guardrails preview their protections. Hover to inspect one before assigning agents or workflows.`
               : 'Protections connect to Guardrails and their assigned agents or workflows. Hover to preview; click for full details.'}
           </p>
+          </div>
+          <RelationshipZoomControls zoom={zoom} onChange={setZoom} />
         </div>
         <div className="mt-2 flex min-h-5 flex-wrap gap-3 text-xs text-gray-500 dark:text-gray-400">
           <span><span className="mr-1 inline-block h-2 w-2 rounded-full bg-amber-400" />Protects</span>
@@ -2491,11 +2535,12 @@ function GuardrailRelationshipGraph({
           <svg
             role="img"
             aria-label="Guardrail relationship graph"
-            width="100%"
-            height={canvasHeight}
+            width={`${zoom * 100}%`}
+            height={canvasHeight * zoom}
             viewBox={`0 0 1000 ${canvasHeight}`}
             preserveAspectRatio="xMidYMid meet"
-            className="block min-w-[760px]"
+            className="block"
+            style={{ minWidth: `${Math.round(760 * zoom)}px` }}
           >
             <title>Guardrail protections connected to assigned agents and workflows</title>
             {guardrails.flatMap((item) => {
@@ -2642,6 +2687,7 @@ function EvalRelationshipGraph({
   selectedId?: string | null
 }) {
   const [hoveredId, setHoveredId] = useState<string | null>(null)
+  const [zoom, setZoom] = useState(1)
   const evals = suggestionTemplates
     ? suggestionTemplates.map(templateToPreviewRecord).filter(isEvalRecord)
     : items.filter(isEvalRecord)
@@ -2686,16 +2732,19 @@ function EvalRelationshipGraph({
 
   return (
     <div className="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900/40">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 px-4 py-3 dark:border-gray-700">
-        <div>
+      <div className="border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+        <div className="flex items-start justify-between gap-3">
+          <div>
           <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Eval relationships</h3>
           <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
             {showingSuggestions
               ? `${evals.length} suggested Evals preview their attributes, trial set, evaluator, and unassigned target. Hover to inspect one.`
               : 'Attributes connect through each repeatable Eval to its evaluator and assigned agent or workflow. Hover to preview; click for full details.'}
           </p>
+          </div>
+          <RelationshipZoomControls zoom={zoom} onChange={setZoom} />
         </div>
-        <div className="flex flex-wrap gap-3 text-xs text-gray-500 dark:text-gray-400">
+        <div className="mt-2 flex min-h-5 flex-wrap gap-3 text-xs text-gray-500 dark:text-gray-400">
           <span><span className="mr-1 inline-block h-2 w-2 rounded-full bg-violet-500" />Measures</span>
           <span><span className="mr-1 inline-block h-2 w-2 rounded-full bg-sky-500" />Experiment</span>
           <span><span className="mr-1 inline-block h-2 w-2 rounded-full bg-amber-400" />Evaluated by</span>
@@ -2711,11 +2760,12 @@ function EvalRelationshipGraph({
           <svg
             role="img"
             aria-label="Eval relationship graph"
-            width="100%"
-            height={canvasHeight}
+            width={`${zoom * 100}%`}
+            height={canvasHeight * zoom}
             viewBox={`0 0 1120 ${canvasHeight}`}
             preserveAspectRatio="xMidYMid meet"
-            className="block min-w-[900px]"
+            className="block"
+            style={{ minWidth: `${Math.round(900 * zoom)}px` }}
           >
             <title>Evaluation attributes connected to experiments, evaluators, and assigned targets</title>
             {evals.flatMap((item) => {
@@ -2917,6 +2967,7 @@ function OptimizeRelationshipGraph({
   selectedId?: string | null
 }) {
   const [hoveredId, setHoveredId] = useState<string | null>(null)
+  const [zoom, setZoom] = useState(1)
   const resolveTarget = (kind: string, id: string) => {
     if (kind === 'agent') return context.agents.find((entry) => entry.id === id)?.name || id
     if (kind === 'workflow') return context.workflows.find((entry) => entry.id === id)?.name || id
@@ -2977,8 +3028,9 @@ function OptimizeRelationshipGraph({
 
   return (
     <div className="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900/40">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 px-4 py-3 dark:border-gray-700">
-        <div>
+      <div className="border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+        <div className="flex items-start justify-between gap-3">
+          <div>
           <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Optimization relationships</h3>
           <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
             {selectedPlan
@@ -2987,8 +3039,10 @@ function OptimizeRelationshipGraph({
                 ? `${plans.length} suggested plans preview their optimization dimensions. Select a plan to isolate its attributes and destination.`
                 : 'Dimensions connect to saved plans and their destinations. Select a plan to isolate its relationships.'}
           </p>
+          </div>
+          <RelationshipZoomControls zoom={zoom} onChange={setZoom} />
         </div>
-        <div className="flex flex-wrap gap-3 text-xs text-gray-500 dark:text-gray-400">
+        <div className="mt-2 flex min-h-5 flex-wrap gap-3 text-xs text-gray-500 dark:text-gray-400">
           <span><span className="mr-1 inline-block h-2 w-2 rounded-full bg-amber-400" />Optimizes</span>
           <span><span className="mr-1 inline-block h-2 w-2 rounded-full bg-sky-500" />Plan</span>
           <span><span className="mr-1 inline-block h-2 w-2 rounded-full bg-emerald-500" />Target</span>
@@ -3005,11 +3059,12 @@ function OptimizeRelationshipGraph({
           <svg
             role="img"
             aria-label="Optimize relationship graph"
-            width="100%"
-            height={canvasHeight}
+            width={`${zoom * 100}%`}
+            height={canvasHeight * zoom}
             viewBox={`0 0 1000 ${canvasHeight}`}
             preserveAspectRatio="xMidYMid meet"
-            className="block min-w-[760px]"
+            className="block"
+            style={{ minWidth: `${Math.round(760 * zoom)}px` }}
           >
           <title>Optimization dimensions connected to plans and their targets</title>
           {plans.flatMap((item) => {
@@ -3259,10 +3314,10 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
-  const [selectedTag, setSelectedTag] = useState<string>('all')
+  const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [statusFilter, setStatusFilter] = useState<'all' | 'enabled' | 'disabled'>('all')
   const [suggestionSearch, setSuggestionSearch] = useState('')
-  const [suggestionTag, setSuggestionTag] = useState<string>('all')
+  const [suggestionTags, setSuggestionTags] = useState<string[]>([])
   const [collectionTab, setCollectionTab] = useState<PluginCollectionTab>('active')
   const [suggestionSort, setSuggestionSort] = useState<PluginTemplateSort>('recommended')
   const [viewMode, setViewMode] = useState<PluginViewMode>(() => {
@@ -3354,7 +3409,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
       if (collectionTab === 'active' && archived) return false
       if (collectionTab === 'archived' && !archived) return false
       if (collectionTab === 'suggested') return false
-      if (selectedTag !== 'all' && !item.tags.includes(selectedTag)) return false
+      if (selectedTags.some((tag) => !item.tags.includes(tag))) return false
       if (statusFilter === 'enabled' && !item.enabled) return false
       if (statusFilter === 'disabled' && item.enabled) return false
       if (groupField && activeGroup) {
@@ -3362,7 +3417,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
       }
       return matchesPluginSearch(item, search)
     }),
-    [items, search, selectedTag, statusFilter, collectionTab, groupField, activeGroup]
+    [items, search, selectedTags, statusFilter, collectionTab, groupField, activeGroup]
   )
   const recommendedTemplates = useMemo(() => templates.filter((entry) => {
     if (entry.recommended === false) return false
@@ -3379,18 +3434,18 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
     const templateName = String(template.payload.name || template.name).trim()
     return items.some((item) => item.archived !== true && item.name === templateName)
   }).map((template) => template.id)), [templates, items])
-  const suggestionTags = useMemo(() => {
+  const availableSuggestionTags = useMemo(() => {
     const allTags = collectPluginTemplateTags(recommendedTemplates)
     if (!isChecklist) return allTags
-    return ['1.9.9', '2.0.0', '2.0.0-test-rc23'].filter((tag) => allTags.includes(tag))
+    return ['1.9.9', '2.0.0', '2.0.0-test-rc24'].filter((tag) => allTags.includes(tag))
   }, [recommendedTemplates, isChecklist])
   const filteredSuggestions = useMemo(() => sortPluginTemplates(
     recommendedTemplates.filter((template) => (
-      (suggestionTag === 'all' || template.tags.includes(suggestionTag))
+      (suggestionTags.length === 0 || suggestionTags.every((tag) => template.tags.includes(tag)))
       && matchesPluginTemplateSearch(template, suggestionSearch)
     )),
     suggestionSort,
-  ), [recommendedTemplates, suggestionTag, suggestionSearch, suggestionSort])
+  ), [recommendedTemplates, suggestionTags, suggestionSearch, suggestionSort])
   const selectedSuggestedTemplate = useMemo(
     () => filteredSuggestions.find((template) => template.id === selectedSuggestedTemplateId) || null,
     [filteredSuggestions, selectedSuggestedTemplateId],
@@ -3770,6 +3825,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
   }
 
   const shownCount = collectionTab === 'suggested' ? filteredSuggestions.length : filtered.length
+  const isSyntheticProductFixture = plugin.slug === 'plugin-lab-evals' || plugin.slug === 'plugin-lab-guardrails'
 
   return (
     <div className="mx-auto w-full min-w-0 max-w-7xl overflow-x-hidden px-3 py-5 sm:px-6 sm:py-6">
@@ -3931,6 +3987,14 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
           </div>
         </div>
       </div>
+      {isSyntheticProductFixture && (
+        <div className="mb-5 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+          <div className="font-semibold">Test fixture catalog</div>
+          <p className="mt-0.5">
+            This instance loaded the public two-item contract fixture. Deploy the configured product plugin bundle to test its complete catalog.
+          </p>
+        </div>
+      )}
 
       {(groups.length > 0 || !isChecklist || items.length > 0 || recommendedTemplates.length > 0) && <div className="mb-4">
         {collectionTab !== 'suggested' && groupField && groups.length > 0 && (
@@ -4022,9 +4086,9 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs text-gray-400 font-medium">Filter:</span>
           <button
-            onClick={() => setSelectedTag('all')}
+            onClick={() => setSelectedTags([])}
             className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
-              selectedTag === 'all'
+              selectedTags.length === 0
                 ? 'bg-sky-600 text-white border border-sky-600'
                 : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:border-sky-300 hover:text-sky-600'
             }`}
@@ -4064,9 +4128,12 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
           {tags.map((tag) => (
             <button
               key={tag}
-              onClick={() => setSelectedTag(tag)}
+              onClick={() => setSelectedTags((current) => (
+                current.includes(tag) ? current.filter((entry) => entry !== tag) : [...current, tag]
+              ))}
+              aria-pressed={selectedTags.includes(tag)}
               className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
-                selectedTag === tag
+                selectedTags.includes(tag)
                   ? 'bg-sky-600 text-white border border-sky-600'
                   : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:border-sky-300 hover:text-sky-600'
               }`}
@@ -4084,7 +4151,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
               <input
                 value={suggestionSearch}
                 onChange={(event) => setSuggestionSearch(event.target.value)}
-                placeholder={`Search suggested ${plugin.labels?.plural?.toLowerCase() || 'items'} by name, description, tags, or configuration`}
+                placeholder={`Search suggested ${plugin.labels?.plural?.toLowerCase() || 'items'} using one or more terms`}
                 className="w-full rounded-md border border-gray-200 bg-white px-4 py-2 pr-10 text-sm text-gray-900 placeholder-gray-400 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-sky-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
               />
               {suggestionSearch && (
@@ -4114,13 +4181,19 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs font-medium text-gray-400">Filter:</span>
-            {['all', ...suggestionTags].map((tag) => (
+            {['all', ...availableSuggestionTags].map((tag) => (
               <button
                 key={tag}
                 type="button"
-                onClick={() => setSuggestionTag(tag)}
+                onClick={() => {
+                  if (tag === 'all') setSuggestionTags([])
+                  else setSuggestionTags((current) => (
+                    current.includes(tag) ? current.filter((entry) => entry !== tag) : [...current, tag]
+                  ))
+                }}
+                aria-pressed={tag === 'all' ? suggestionTags.length === 0 : suggestionTags.includes(tag)}
                 className={`rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
-                  suggestionTag === tag
+                  (tag === 'all' ? suggestionTags.length === 0 : suggestionTags.includes(tag))
                     ? 'border-sky-600 bg-sky-600 text-white'
                     : 'border-gray-200 bg-white text-gray-600 hover:border-sky-300 hover:text-sky-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400'
                 }`}

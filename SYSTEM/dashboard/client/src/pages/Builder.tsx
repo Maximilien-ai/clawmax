@@ -8,6 +8,7 @@ import {
   createBuilderSessionDocPath,
   createBuilderSessionMarkdown,
 } from '../lib/builderSession'
+import { parseBuilderQuestionCommand } from '../lib/builderQuestion'
 import { shouldReserveBuilderTranscriptSpace } from '../lib/builderMobileLayout'
 import { expandPromptWithAI } from '../lib/aiPrompt'
 import { appendPromptAttachmentContext, createPromptAttachment, type PromptAttachment } from '../lib/promptAttachments'
@@ -1847,6 +1848,43 @@ export default function Builder({
   async function submitPrompt(nextPrompt?: string) {
     const value = (nextPrompt ?? prompt).trim()
     if (!value) return
+    const question = parseBuilderQuestionCommand(value)
+    if (question) {
+      setLoading(true)
+      setError(null)
+      setMessages((prev) => [...prev, { id: `user-${Date.now()}`, role: 'user', label: 'You', content: value }])
+      try {
+        const response = await fetch('/api/ai-builder/question', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            question,
+            messages: messages.map(({ role, content }) => ({ role, content })),
+            recommendationSummary: recommendation?.summary,
+            byokKeys: getBuilderByokKeys(),
+          }),
+        })
+        const data = await response.json().catch(() => ({}))
+        if (!response.ok || !data?.answer) {
+          throw new Error(data?.error || `Builder question failed with HTTP ${response.status}`)
+        }
+        setMessages((prev) => [...prev, {
+          id: `assistant-${Date.now()}`,
+          role: 'assistant',
+          label: 'Builder agent',
+          content: data.answer,
+        }])
+        setPrompt('')
+        setAttachments([])
+        setActiveMention(null)
+        setSelectedMentionIndex(0)
+      } catch (err: any) {
+        setError(err?.message || 'Failed to answer Builder question')
+      } finally {
+        setLoading(false)
+      }
+      return
+    }
 
     const effectivePrompt = appendAttachmentContext(value)
 
@@ -2540,7 +2578,7 @@ export default function Builder({
                   onClick={(event) => updatePromptMentionState(event.currentTarget.value, event.currentTarget.selectionStart ?? event.currentTarget.value.length)}
                   onKeyUp={(event) => updatePromptMentionState(event.currentTarget.value, event.currentTarget.selectionStart ?? event.currentTarget.value.length)}
                   onKeyDown={handlePromptKeyDown}
-                  placeholder="Example: I want a small team that watches competitor launches, writes concise summaries, and posts a final brief every Friday. Use @ to mention an existing agent."
+                  placeholder="Describe what to build, use @ to mention an agent, or enter /question followed by a question."
                   className="min-h-[7rem] max-h-[14rem] w-full resize-y rounded-xl border border-sky-200 bg-white/95 px-3 py-2 text-base text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-sky-400 dark:border-sky-900 dark:bg-gray-900 dark:text-gray-100 dark:focus:border-sky-700 sm:min-h-[56px] sm:max-h-[96px] sm:text-sm"
                 />
               </div>

@@ -555,17 +555,18 @@ export function collectPluginTemplateTags(templates: PluginRecordTemplate[]): st
 }
 
 export function matchesPluginTemplateSearch(template: PluginRecordTemplate, query: string): boolean {
-  const normalized = query.trim().toLowerCase()
-  if (!normalized) return true
+  const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
+  if (terms.length === 0) return true
   const payloadValues = 'fields' in template.payload
     ? Object.values(template.payload.fields || {}).flatMap((value) => Array.isArray(value) ? value : [String(value ?? '')])
     : []
-  return [
+  const haystack = [
     template.name,
     template.description,
     ...template.tags,
     ...payloadValues,
-  ].join(' ').toLowerCase().includes(normalized)
+  ].join(' ').toLowerCase()
+  return terms.every((term) => haystack.includes(term))
 }
 
 export type PluginTemplateSort = 'recommended' | 'name-asc' | 'name-desc'
@@ -583,8 +584,8 @@ export function sortPluginTemplates(
 }
 
 export function matchesPluginSearch(item: PluginRecord, query: string): boolean {
-  const normalized = query.trim().toLowerCase()
-  if (!normalized) return true
+  const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
+  if (terms.length === 0) return true
   const haystack = [
     item.name,
     item.description,
@@ -609,7 +610,7 @@ export function matchesPluginSearch(item: PluginRecord, query: string): boolean 
           ]
         : Object.values(item.fields).flatMap((value) => Array.isArray(value) ? value : [String(value ?? '')]),
   ].join(' ').toLowerCase()
-  return haystack.includes(normalized)
+  return terms.every((term) => haystack.includes(term))
 }
 
 export function formatPluginScopeSummary(item: PluginRecord): string {

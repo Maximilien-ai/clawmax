@@ -1924,6 +1924,15 @@ else
   fail "Builder mobile layout helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Builder question command unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/builderQuestion.test.ts > /tmp/clawmax-builder-question.out 2>&1 || true
+if grep -q "builderQuestion.test.ts: ok" /tmp/clawmax-builder-question.out; then
+  pass "Builder question command unit tests (4 tests)"
+else
+  cat /tmp/clawmax-builder-question.out
+  fail "Builder question command unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Mobile-safe dialog layout unit tests...${NC}"
 npx ts-node --transpileOnly --compiler-options '{"jsx":"react-jsx"}' client/src/components/MobileSafeDialog.test.tsx > /tmp/clawmax-mobile-safe-dialog.out 2>&1
 mobile_safe_dialog_status=$?
