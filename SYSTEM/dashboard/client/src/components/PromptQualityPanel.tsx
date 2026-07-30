@@ -9,16 +9,20 @@ interface PromptQualityPanelProps {
   prompt: string
   domain?: PromptQualityDomain
   compact?: boolean
+  collapsible?: boolean
 }
 
 export default function PromptQualityPanel({
   prompt,
   domain = 'general',
   compact = false,
+  collapsible = false,
 }: PromptQualityPanelProps) {
   const quality = useMemo(() => scorePromptQuality(prompt, domain), [prompt, domain])
   const [feedback, setFeedback] = useState<'up' | 'down' | null>(null)
+  const [expanded, setExpanded] = useState(!collapsible)
   useEffect(() => setFeedback(null), [domain, quality.score])
+  useEffect(() => setExpanded(!collapsible), [collapsible])
   const tone = quality.score >= 80
     ? 'border-emerald-200 bg-emerald-50/70 dark:border-emerald-800 dark:bg-emerald-950/20'
     : quality.score >= 60
@@ -42,13 +46,29 @@ export default function PromptQualityPanel({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-baseline gap-2">
           <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">Prompt readiness</span>
-          <span className="text-xs font-medium text-gray-500 dark:text-gray-400">{quality.level}</span>
+          <span className={`inline-flex items-center gap-1 text-xs font-medium ${quality.score >= 80 ? 'text-emerald-700 dark:text-emerald-300' : quality.score >= 60 ? 'text-amber-700 dark:text-amber-300' : 'text-sky-700 dark:text-sky-300'}`}>
+            <span className={`h-2 w-2 rounded-full ${bar}`} />
+            {quality.level}
+          </span>
         </div>
-        <div className="text-sm font-semibold tabular-nums text-gray-900 dark:text-gray-100">{quality.score}/100</div>
+        <div className="flex items-center gap-2">
+          <div className="text-sm font-semibold tabular-nums text-gray-900 dark:text-gray-100">{quality.score}/100</div>
+          {collapsible && (
+            <button
+              type="button"
+              onClick={() => setExpanded((current) => !current)}
+              aria-expanded={expanded}
+              className="text-xs font-medium text-sky-700 hover:text-sky-900 dark:text-sky-300 dark:hover:text-sky-100"
+            >
+              {expanded ? 'Hide details' : 'Show readiness details'}
+            </button>
+          )}
+        </div>
       </div>
-      <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/80 dark:bg-gray-800" aria-label={`Prompt readiness ${quality.score} out of 100`}>
-        <div className={`h-full rounded-full transition-[width] duration-200 ${bar}`} style={{ width: `${quality.score}%` }} />
-      </div>
+      {expanded && <>
+        <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/80 dark:bg-gray-800" aria-label={`Prompt readiness ${quality.score} out of 100`}>
+          <div className={`h-full rounded-full transition-[width] duration-200 ${bar}`} style={{ width: `${quality.score}%` }} />
+        </div>
       {!compact && (
         <div className="mt-2 flex flex-wrap gap-1.5">
           {quality.facets.map((facet) => (
@@ -99,6 +119,7 @@ export default function PromptQualityPanel({
           </div>
         )}
       </div>
+      </>}
     </div>
   )
 }

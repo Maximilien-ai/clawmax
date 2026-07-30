@@ -1361,6 +1361,7 @@ export default function Builder({
 
   const historyItems = useMemo(() => messages.filter((message) => message.role === 'user').slice().reverse(), [messages])
   const hasConversation = historyItems.length > 0
+  const builderQuestion = parseBuilderQuestionCommand(prompt)
   const secondarySuggestedActions = useMemo(() => getSecondarySuggestedActions(recommendation), [recommendation])
   const editorInitialPrompt = useMemo(() => {
     if (prompt.trim()) return prompt
@@ -2583,8 +2584,14 @@ export default function Builder({
                 />
               </div>
               <div className="mt-2">
-                <PromptQualityPanel prompt={prompt} domain="builder" compact />
+                <PromptQualityPanel prompt={prompt} domain="builder" compact collapsible />
               </div>
+
+              {builderQuestion && (
+                <div className="mt-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-800 dark:border-sky-900/60 dark:bg-sky-950/30 dark:text-sky-200">
+                  This asks the Builder about the current workspace and does not generate or change a recommendation.
+                </div>
+              )}
 
               <div className="mt-2 flex flex-wrap items-center justify-between gap-3 border-t border-sky-200/80 pt-2.5 dark:border-sky-900/60">
                 <div className="flex flex-wrap items-center gap-2">
@@ -2641,12 +2648,12 @@ export default function Builder({
                   disabled={loading || !prompt.trim()}
                   className="rounded-full bg-sky-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-sky-700 disabled:cursor-not-allowed disabled:bg-gray-300 dark:disabled:bg-gray-700"
                 >
-                  {loading ? 'Designing…' : 'Design This'}
+                  {loading ? (builderQuestion ? 'Asking…' : 'Designing…') : (builderQuestion ? 'Ask Builder' : 'Design This')}
                 </button>
               </div>
 
               <div className="mt-2 text-[11px] text-gray-500 dark:text-gray-400">
-                <span className="font-medium text-gray-700 dark:text-gray-200">Enter</span> sends. <span className="font-medium text-gray-700 dark:text-gray-200">Shift + Enter</span> adds a line. <span className="font-medium text-gray-700 dark:text-gray-200">↑ / ↓</span> revisits recent prompts.
+                <span className="font-medium text-gray-700 dark:text-gray-200">Enter</span> {builderQuestion ? 'asks Builder' : 'sends'}. <span className="font-medium text-gray-700 dark:text-gray-200">Shift + Enter</span> adds a line. <span className="font-medium text-gray-700 dark:text-gray-200">↑ / ↓</span> revisits recent prompts.
               </div>
             </div>
 

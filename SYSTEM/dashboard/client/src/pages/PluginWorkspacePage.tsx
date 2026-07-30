@@ -1676,6 +1676,7 @@ function ItemCard({
   canGenerateDocs,
   canNotify,
   onCheckToggle,
+  onOpenScore,
   running = false,
 }: {
   plugin: PluginManifest
@@ -1691,6 +1692,7 @@ function ItemCard({
   canGenerateDocs: boolean
   canNotify: boolean
   onCheckToggle: (() => void) | null
+  onOpenScore: (() => void) | null
   running?: boolean
 }) {
   const commonSummary = formatPluginScopeSummary(item)
@@ -1843,13 +1845,22 @@ function ItemCard({
         )}
       </div>
       {isEvalRecord(item) && item.lastRun && (
-        <div className="mt-4 rounded-xl border border-violet-200 bg-violet-50 px-3 py-3 dark:border-violet-900/40 dark:bg-violet-900/10">
+        <button
+          type="button"
+          onClick={onOpenScore || undefined}
+          disabled={!onOpenScore}
+          className="mt-4 w-full rounded-xl border border-violet-200 bg-violet-50 px-3 py-3 text-left transition-colors hover:border-violet-300 hover:bg-violet-100 disabled:cursor-default disabled:hover:border-violet-200 disabled:hover:bg-violet-50 dark:border-violet-900/40 dark:bg-violet-900/10 dark:hover:border-violet-700 dark:hover:bg-violet-900/20"
+          aria-label={`Open score review for ${item.name}`}
+        >
           <div className="flex items-center justify-between gap-3">
             <div className="text-sm font-medium text-violet-800 dark:text-violet-300">Latest score</div>
-            <div className="text-lg font-semibold text-violet-700 dark:text-violet-200">{item.lastRun.score}/100</div>
+            <div className="flex items-center gap-2">
+              <div className="text-lg font-semibold text-violet-700 dark:text-violet-200">{item.lastRun.score}/100</div>
+              <span className="text-xs font-medium text-violet-700 dark:text-violet-300">Review</span>
+            </div>
           </div>
           <p className="mt-1 text-sm text-violet-700/80 dark:text-violet-300/80">{item.lastRun.summary}</p>
-        </div>
+        </button>
       )}
     </div>
   )
@@ -1862,6 +1873,7 @@ function CompactItemCard({
   onOpen,
   onToggleActions,
   onCheckToggle,
+  onOpenScore,
   running = false,
 }: {
   plugin: PluginManifest
@@ -1870,6 +1882,7 @@ function CompactItemCard({
   onOpen: () => void
   onToggleActions: () => void
   onCheckToggle: (() => void) | null
+  onOpenScore: (() => void) | null
   running?: boolean
 }) {
   const archived = item.archived === true
@@ -1931,16 +1944,22 @@ function CompactItemCard({
         </label>
       )}
       {isEvalRecord(item) && (
-        <div className={`mt-3 rounded-lg border px-3 py-2 text-xs ${running
+        <button
+          type="button"
+          onClick={(event) => { event.stopPropagation(); onOpenScore?.() }}
+          disabled={running || !item.lastRun || !onOpenScore}
+          className={`mt-3 w-full rounded-lg border px-3 py-2 text-left text-xs transition-colors ${running
           ? 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-300'
-          : 'border-violet-200 bg-violet-50 text-violet-800 dark:border-violet-900/40 dark:bg-violet-950/20 dark:text-violet-300'
-        }`}>
+          : 'border-violet-200 bg-violet-50 text-violet-800 hover:bg-violet-100 disabled:cursor-default disabled:hover:bg-violet-50 dark:border-violet-900/40 dark:bg-violet-950/20 dark:text-violet-300 dark:hover:bg-violet-950/35'
+        }`}
+          aria-label={item.lastRun ? `Open score review for ${item.name}` : undefined}
+        >
           {running
             ? 'Running eval…'
             : item.lastRun
-              ? `Score ${item.lastRun.score}/100 · ${usageSummary}`
+              ? `Score ${item.lastRun.score}/100 · Review results`
               : `Not run · ${usageSummary}`}
-        </div>
+        </button>
       )}
       <div className="mt-3 flex items-center gap-4 text-gray-300 dark:text-gray-500">
         <ProductIconCell iconName={isEvalRecord(item) ? 'play' : 'status'} label="Type" size="sm" className="border-transparent bg-transparent text-current" />
@@ -1973,6 +1992,7 @@ function PluginDetailsPanel({
   onArchiveToggle,
   onDelete,
   onRun,
+  onOpenScore,
   canGenerateDocs,
   canNotify,
 }: {
@@ -1987,6 +2007,7 @@ function PluginDetailsPanel({
   onArchiveToggle: () => void
   onDelete: () => void
   onRun: (() => void) | null
+  onOpenScore: (() => void) | null
   canGenerateDocs: boolean
   canNotify: boolean
 }) {
@@ -2054,6 +2075,16 @@ function PluginDetailsPanel({
               title="Run eval"
             >
               <ProductIconCell iconName="play" label="Run eval" size="sm" className="border-transparent bg-transparent text-current" />
+            </button>
+          )}
+          {isEvalRecord(item) && item.lastRun && onOpenScore && (
+            <button
+              onClick={onOpenScore}
+              className="h-9 w-9 inline-flex items-center justify-center rounded-full text-violet-500 hover:text-violet-700 hover:bg-violet-50 dark:hover:bg-violet-900/30 transition-colors"
+              aria-label="Open score review"
+              title="Open score review"
+            >
+              <ProductIconCell iconName="details" label="Open score review" size="sm" className="border-transparent bg-transparent text-current" />
             </button>
           )}
           <button
@@ -2164,17 +2195,116 @@ function PluginDetailsPanel({
         </div>
 
         {isEvalRecord(item) && item.lastRun && (
-          <div className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-3 dark:border-violet-900/40 dark:bg-violet-900/10">
+          <button
+            type="button"
+            onClick={onOpenScore || undefined}
+            disabled={!onOpenScore}
+            className="w-full rounded-xl border border-violet-200 bg-violet-50 px-3 py-3 text-left transition-colors hover:border-violet-300 hover:bg-violet-100 disabled:cursor-default disabled:hover:border-violet-200 disabled:hover:bg-violet-50 dark:border-violet-900/40 dark:bg-violet-900/10 dark:hover:border-violet-700 dark:hover:bg-violet-900/20"
+            aria-label={`Open score review for ${item.name}`}
+          >
             <div className="flex items-center justify-between gap-3">
               <div className="text-sm font-medium text-violet-800 dark:text-violet-300">Latest score</div>
-              <div className="text-lg font-semibold text-violet-700 dark:text-violet-200">{item.lastRun.score}/100</div>
+              <div className="flex items-center gap-2">
+                <div className="text-lg font-semibold text-violet-700 dark:text-violet-200">{item.lastRun.score}/100</div>
+                <span className="text-xs font-medium text-violet-700 dark:text-violet-300">Review</span>
+              </div>
             </div>
             <p className="mt-1 text-sm text-violet-700/80 dark:text-violet-300/80">{item.lastRun.summary}</p>
-          </div>
+          </button>
         )}
       </div>
       </aside>
     </div>
+  )
+}
+
+function EvalScoreReviewDialog({
+  item,
+  onClose,
+  onEdit,
+  onRun,
+}: {
+  item: Extract<PluginRecord, { kind: 'eval' }>
+  onClose: () => void
+  onEdit: () => void
+  onRun: (() => void) | null
+}) {
+  const run = item.lastRun
+  if (!run) return null
+  const cases = item.experiment.cases || []
+  const completed = run.casesCompleted ?? Math.min(cases.length || 1, run.totalCases || cases.length || 1)
+  const total = run.totalCases ?? cases.length
+  const recommendations = run.score < 80
+    ? [
+        item.experiment.judge === 'ai'
+          ? 'Strengthen the AI judge guidance with a concrete rubric, required evidence, and examples of acceptable output.'
+          : item.experiment.judge === 'fixed'
+            ? 'Review the comparison rule and expected outputs to ensure the Eval measures the intended acceptance criteria.'
+            : 'Give the reviewer a concise rubric and evidence requirements before collecting the next review.',
+        'Add representative cases that cover a clear success path, an edge case, and a known failure mode before relying on this score.',
+        'Review the target agent or workflow instruction when failures are consistent across cases; improve its task boundaries before changing models.',
+      ]
+    : [
+        'Run this Eval against a broader mix of representative cases before relying on the score for a production change.',
+        'Keep the current judge guidance and add an edge case whenever the target agent or workflow changes materially.',
+      ]
+
+  return (
+    <MobileSafeDialog
+      ariaLabelledBy="eval-score-review-title"
+      onClose={onClose}
+      panelClassName="max-w-2xl"
+      header={(
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 id="eval-score-review-title" className="text-lg font-semibold text-gray-900 dark:text-gray-100">Eval score review</h2>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{item.name}</p>
+          </div>
+          <button type="button" onClick={onClose} className="text-xl text-gray-400 hover:text-gray-600 dark:hover:text-gray-200" aria-label="Close score review">✕</button>
+        </div>
+      )}
+      footer={(
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <button type="button" onClick={onClose} className={`${headerSecondaryButtonClass} ${headerSecondaryButtonIdleClass}`}>Close</button>
+          <button type="button" onClick={onEdit} className={headerSecondaryButtonClass}>Edit Eval</button>
+          {onRun && <button type="button" onClick={onRun} className={headerPrimaryButtonClass}>Run again</button>}
+        </div>
+      )}
+    >
+      <div className="space-y-5">
+        <div className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-4 dark:border-violet-900/40 dark:bg-violet-950/20">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-violet-700 dark:text-violet-300">Latest aggregate score</div>
+              <div className="mt-1 text-4xl font-semibold tabular-nums text-violet-800 dark:text-violet-100">{run.score}<span className="text-lg font-medium">/100</span></div>
+            </div>
+            <div className="text-sm text-violet-800 dark:text-violet-200">{completed}/{total || Math.max(cases.length, 1)} cases completed</div>
+          </div>
+          <p className="mt-3 text-sm text-violet-800/85 dark:text-violet-200/85">{run.summary}</p>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded-lg border border-gray-200 px-3 py-3 dark:border-gray-700"><div className="text-xs uppercase tracking-wide text-gray-400">Evaluator</div><div className="mt-1 text-sm font-medium text-gray-900 dark:text-gray-100">{getEvalJudge(item).label}</div></div>
+          <div className="rounded-lg border border-gray-200 px-3 py-3 dark:border-gray-700"><div className="text-xs uppercase tracking-wide text-gray-400">Tokens</div><div className="mt-1 text-sm font-medium text-gray-900 dark:text-gray-100">{((run.tokensIn || 0) + (run.tokensOut || 0)).toLocaleString()}</div></div>
+          <div className="rounded-lg border border-gray-200 px-3 py-3 dark:border-gray-700"><div className="text-xs uppercase tracking-wide text-gray-400">Run cost</div><div className="mt-1 text-sm font-medium text-gray-900 dark:text-gray-100">${(run.costUsd || 0).toFixed(4)}</div></div>
+        </div>
+
+        <div>
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Experiment cases</h3>
+          {cases.length > 0 ? <div className="mt-2 space-y-2">
+            {cases.map((entry, index) => <div key={entry.id} className="rounded-lg border border-gray-200 px-3 py-2 text-sm dark:border-gray-700"><span className="font-medium text-gray-900 dark:text-gray-100">{entry.name || `Case ${index + 1}`}</span><span className="ml-2 text-xs text-gray-500 dark:text-gray-400">Input and expected output configured</span></div>)}
+          </div> : <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">This Eval has no saved individual cases yet.</p>}
+          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">This runtime stores the aggregate score and completion count. Per-case scores will appear here when the evaluator runtime records them.</p>
+        </div>
+
+        <div>
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Improve the next run</h3>
+          <ul className="mt-2 space-y-2 text-sm text-gray-600 dark:text-gray-300">
+            {recommendations.map((recommendation) => <li key={recommendation} className="rounded-lg border border-sky-100 bg-sky-50/60 px-3 py-2 dark:border-sky-900/40 dark:bg-sky-950/20">{recommendation}</li>)}
+          </ul>
+        </div>
+      </div>
+    </MobileSafeDialog>
   )
 }
 
@@ -2673,6 +2803,7 @@ function EvalRelationshipGraph({
   context,
   onOpen,
   onRun,
+  onOpenScore,
   runningItemIds,
   runningCaseProgress,
   selectedId,
@@ -2682,6 +2813,7 @@ function EvalRelationshipGraph({
   context: PluginWorkspaceContext
   onOpen: (id: string) => void
   onRun?: (id: string) => void
+  onOpenScore?: (id: string) => void
   runningItemIds?: Set<string>
   runningCaseProgress?: Map<string, { completed: number; total: number }>
   selectedId?: string | null
@@ -2892,6 +3024,20 @@ function EvalRelationshipGraph({
                       <path d="M 117 49 L 117 59 L 124 54 Z" className="fill-white" />
                     </g>
                   ) : null}
+                  {!showingSuggestions && !running && item.lastRun && onOpenScore && (
+                    <g
+                      role="button"
+                      aria-label={`Open ${item.name} score review`}
+                      className="cursor-pointer"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        onOpenScore(item.id)
+                      }}
+                    >
+                      <rect x="150" y="46" width="74" height="18" rx="5" className="fill-violet-100 stroke-violet-400 hover:fill-violet-200 dark:fill-violet-900/70 dark:stroke-violet-500" />
+                      <text x="187" y="59" textAnchor="middle" className="fill-violet-800 text-[10px] font-semibold dark:fill-violet-100">Score {item.lastRun.score}</text>
+                    </g>
+                  )}
                 </g>
               )
             })}
@@ -3199,6 +3345,7 @@ function PluginRelationshipView({
   context,
   onOpen,
   onRun,
+  onOpenScore,
   runningItemIds,
   runningCaseProgress,
   selectedId,
@@ -3210,6 +3357,7 @@ function PluginRelationshipView({
   context: PluginWorkspaceContext
   onOpen: (id: string) => void
   onRun?: (id: string) => void
+  onOpenScore?: (id: string) => void
   runningItemIds?: Set<string>
   runningCaseProgress?: Map<string, { completed: number; total: number }>
   selectedId?: string | null
@@ -3237,6 +3385,7 @@ function PluginRelationshipView({
         context={context}
         onOpen={onOpen}
         onRun={onRun}
+        onOpenScore={onOpenScore}
         runningItemIds={runningItemIds}
         runningCaseProgress={runningCaseProgress}
         selectedId={selectedId}
@@ -3327,6 +3476,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<PluginRecord | null>(null)
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null)
+  const [scoreReviewItemId, setScoreReviewItemId] = useState<string | null>(null)
   const [selectedSuggestedTemplateId, setSelectedSuggestedTemplateId] = useState<string | null>(null)
   const [showCreateMenu, setShowCreateMenu] = useState(false)
   const [showActionsMenu, setShowActionsMenu] = useState(false)
@@ -3419,6 +3569,10 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
     }),
     [items, search, selectedTags, statusFilter, collectionTab, groupField, activeGroup]
   )
+  const scoreReviewItem = useMemo(() => {
+    const candidate = items.find((item) => item.id === scoreReviewItemId)
+    return candidate && isEvalRecord(candidate) && candidate.lastRun ? candidate : null
+  }, [items, scoreReviewItemId])
   const recommendedTemplates = useMemo(() => templates.filter((entry) => {
     if (entry.recommended === false) return false
     if (!isChecklist) return true
@@ -4392,6 +4546,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                       onOpen={() => setSelectedItemId(item.id)}
                       onToggleActions={() => setActiveCompactActions((current) => current === item.id ? null : item.id)}
                       onCheckToggle={checkField ? (() => void toggleCheck(item)) : null}
+                      onOpenScore={isEvalRecord(item) && item.lastRun ? (() => setScoreReviewItemId(item.id)) : null}
                       running={runningItemIds.has(item.id)}
                     />
                     {activeCompactActions === item.id && (
@@ -4459,6 +4614,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                       canGenerateDocs={canGenerateDocs}
                       canNotify={canNotify}
                       onCheckToggle={checkField ? (() => void toggleCheck(item)) : null}
+                      onOpenScore={isEvalRecord(item) && item.lastRun ? (() => setScoreReviewItemId(item.id)) : null}
                       running={runningItemIds.has(item.id)}
                     />
                   </div>
@@ -4471,6 +4627,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                 context={context}
                 onOpen={setSelectedItemId}
                 onRun={(itemId) => void callItemAction(itemId, 'run')}
+                onOpenScore={setScoreReviewItemId}
                 runningItemIds={runningItemIds}
                 runningCaseProgress={runningCaseProgress}
                 selectedId={selectedItemId}
@@ -4559,6 +4716,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                 onArchiveToggle={() => void saveItem({ ...selectedItem, archived: selectedItem.archived !== true } as Partial<PluginRecord>)}
                 onDelete={() => void callItemAction(selectedItem.id, 'delete')}
                 onRun={isEvalRecord(selectedItem) && selectedItem.enabled ? (() => void callItemAction(selectedItem.id, 'run')) : null}
+                onOpenScore={isEvalRecord(selectedItem) && selectedItem.lastRun ? (() => setScoreReviewItemId(selectedItem.id)) : null}
                 canGenerateDocs={canGenerateDocs}
                 canNotify={canNotify}
               />
@@ -4574,6 +4732,22 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
           draft={editing || createDraft}
           onClose={() => { setShowModal(false); setEditing(null) }}
           onSave={(draft) => { void saveItem(draft) }}
+        />
+      )}
+
+      {scoreReviewItem && (
+        <EvalScoreReviewDialog
+          item={scoreReviewItem}
+          onClose={() => setScoreReviewItemId(null)}
+          onEdit={() => {
+            setScoreReviewItemId(null)
+            setEditing(scoreReviewItem)
+            setShowModal(true)
+          }}
+          onRun={scoreReviewItem.enabled ? (() => {
+            setScoreReviewItemId(null)
+            void callItemAction(scoreReviewItem.id, 'run')
+          }) : null}
         />
       )}
 

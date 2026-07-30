@@ -1694,8 +1694,8 @@ fi
 
 echo -e "${YELLOW}→ Running Plugin workspace layout regression tests...${NC}"
 npx ts-node --transpileOnly client/src/PluginWorkspaceLayout.test.ts > /tmp/clawmax-plugin-workspace-layout.out 2>&1 || true
-if grep -q "PluginWorkspaceLayout.test.ts: 128 tests passed" /tmp/clawmax-plugin-workspace-layout.out; then
-  pass "Plugin workspace layout regression tests (128 tests)"
+if grep -q "PluginWorkspaceLayout.test.ts: 133 tests passed" /tmp/clawmax-plugin-workspace-layout.out; then
+  pass "Plugin workspace layout regression tests (133 tests)"
 else
   cat /tmp/clawmax-plugin-workspace-layout.out
   fail "Plugin workspace layout regression tests"
@@ -2063,8 +2063,8 @@ fi
 
 echo -e "${YELLOW}→ Running Prompt quality integration regression tests...${NC}"
 npx ts-node --transpileOnly client/src/PromptQualityIntegration.test.ts > /tmp/clawmax-prompt-quality-integration.out 2>&1 || true
-if grep -q "PromptQualityIntegration.test.ts: 25 tests passed" /tmp/clawmax-prompt-quality-integration.out; then
-  pass "Prompt quality integration regression tests (25 tests)"
+if grep -q "PromptQualityIntegration.test.ts: 32 tests passed" /tmp/clawmax-prompt-quality-integration.out; then
+  pass "Prompt quality integration regression tests (32 tests)"
 else
   cat /tmp/clawmax-prompt-quality-integration.out
   fail "Prompt quality integration regression tests"

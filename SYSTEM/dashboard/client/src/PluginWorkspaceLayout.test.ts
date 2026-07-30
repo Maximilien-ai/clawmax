@@ -112,6 +112,11 @@ assert(pluginPageSource.includes('planned trial'), 'Eval graph nodes must expose
 assert(pluginPageSource.includes('aria-label={`Run ${item.name}`}'), 'Enabled Eval graph nodes must expose a direct run action')
 assert(pluginPageSource.includes('Running ${progressCompleted}/${progressTotal} cases'), 'Running Eval graph nodes must expose case progress')
 assert(pluginPageSource.includes('item.lastRun.casesCompleted'), 'Completed Eval graph nodes must retain case completion evidence')
+assert(pluginPageSource.includes('function EvalScoreReviewDialog'), 'Completed Evals must expose a dedicated score review dialog')
+assert(pluginPageSource.includes('aria-label={`Open ${item.name} score review`}'), 'Eval cards and graph nodes must expose the score review action')
+assert(pluginPageSource.includes('Latest aggregate score'), 'Score review must distinguish the stored aggregate score')
+assert(pluginPageSource.includes('Per-case scores will appear here when the evaluator runtime records them.'), 'Score review must not invent unavailable per-case evidence')
+assert(pluginPageSource.includes('onOpenScore={setScoreReviewItemId}'), 'Eval relationship views must wire score review actions')
 assert(pluginPageSource.includes("'Enabled' : 'Disabled'"), 'Plugin graph nodes must distinguish enabled and disabled records')
 assert(evalGraphSource.includes('AI evaluator'), 'Eval graphs must identify AI evaluation')
 assert(evalGraphSource.includes('Human evaluator'), 'Eval graphs must recognize human evaluation')
@@ -161,4 +166,4 @@ assert(pluginPageSource.includes("applyingTemplateIds.has(template.id) ? 'Adding
 assert(manifests.every((manifest) => !/dormant|test plugin|mvp/i.test(`${manifest.name} ${manifest.description} ${manifest.version}`)), 'Enabled plugin UI copy must be product-ready')
 assert(new Set(manifests.map((manifest) => manifest.icon)).size === manifests.length, 'Each first-party plugin must declare a distinct navigation icon')
 
-console.log('PluginWorkspaceLayout.test.ts: 128 tests passed')
+console.log('PluginWorkspaceLayout.test.ts: 133 tests passed')
