@@ -556,6 +556,51 @@ async function run() {
     assert(context.communities.includes('Research'), 'Expected plugin context to expose communities')
   })
 
+  await test('eval runs reject incomplete or disabled configurations', async () => {
+    const plugin = getPluginBySlug('plugin-lab-evals')
+    assert(plugin, 'Expected evals test plugin manifest to load')
+    const incomplete = upsertPluginRecord(plugin!, {
+      name: 'Incomplete Eval',
+      enabled: true,
+      target: { type: 'agent', ids: [] },
+      experiment: {
+        input: '',
+        candidateOutput: '',
+        expectedOutput: '',
+        judge: 'ai',
+        judgeGuidance: '',
+        iterations: 0,
+        cases: [],
+      },
+    } as any)
+    assert.throws(
+      () => runPluginEval(plugin!, incomplete.id),
+      (error: any) => error instanceof PluginContractError
+        && error.statusCode === 400
+        && error.message.includes('select at least one agent target')
+        && error.message.includes('trial case')
+        && error.message.includes('AI evaluator'),
+      'Expected an actionable readiness error for incomplete Evals',
+    )
+    const disabled = upsertPluginRecord(plugin!, {
+      id: incomplete.id,
+      enabled: false,
+      target: { type: 'agent', ids: ['analyst'] },
+      experiment: {
+        input: 'Summarize findings',
+        candidateOutput: 'Summary',
+        expectedOutput: 'Summary',
+        judge: 'fixed',
+        iterations: 1,
+      },
+    } as any)
+    assert.throws(
+      () => runPluginEval(plugin!, disabled.id),
+      (error: any) => error instanceof PluginContractError && error.message.includes('enable this Eval'),
+      'Expected disabled Evals to remain non-runnable',
+    )
+  })
+
   await test('eval evaluator and trial configuration persists without faking human runs', () => {
     const plugin = getPluginBySlug('plugin-lab-evals')
     assert(plugin, 'Expected evals test plugin manifest to load')

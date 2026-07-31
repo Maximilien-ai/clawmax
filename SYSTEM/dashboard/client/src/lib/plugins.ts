@@ -441,6 +441,37 @@ export function isGenericPluginRecord(item: PluginRecord | Partial<PluginRecord>
   return !!item.kind && 'fields' in item
 }
 
+export interface EvalReadiness {
+  ready: boolean
+  issues: string[]
+}
+
+export function getEvalReadiness(item: EvalRecord): EvalReadiness {
+  const issues: string[] = []
+  const cases = item.experiment.cases || []
+  const hasLegacyCase = item.experiment.input.trim().length > 0 && item.experiment.expectedOutput.trim().length > 0
+  const hasCompleteCase = cases.some((entry) => entry.input.value.trim().length > 0 && entry.expected.value.trim().length > 0)
+
+  if (!item.enabled) issues.push('Enable this Eval')
+  if (item.archived) issues.push('Restore this Eval from the archive')
+  if (item.target.ids.length === 0) issues.push(`Select at least one ${item.target.type} target`)
+  if (!Number.isFinite(item.experiment.iterations) || Number(item.experiment.iterations) < 1) issues.push('Set at least one planned trial')
+  if (!hasLegacyCase && !hasCompleteCase) issues.push('Add a trial case with input and expected output')
+  if (item.experiment.judge === 'ai' && !item.experiment.judgeGuidance?.trim()) {
+    issues.push('Add guidance for the AI evaluator')
+  }
+  if (item.experiment.judge === 'human') {
+    if (!item.experiment.judgeGuidance?.trim()) issues.push('Add instructions for the human reviewer')
+    if (!item.experiment.humanReviewerEmail?.trim()) issues.push('Assign a reviewer email')
+  }
+  if (item.experiment.judge === 'fixed' && item.experiment.fixedMatch === 'regex') {
+    const pattern = cases.find((entry) => entry.expected.value.trim())?.expected.value || item.experiment.expectedOutput
+    if (validateEvalRegex(pattern)) issues.push('Provide a valid expected regular expression')
+  }
+
+  return { ready: issues.length === 0, issues }
+}
+
 export function validateEvalRegex(pattern: string): string | null {
   if (!pattern.trim()) return 'Enter a regular expression.'
   try {

@@ -20,6 +20,7 @@ import {
   formatPluginUpdatedAt,
   formatPluginUsageSummary,
   getOrderedPluginFields,
+  getEvalReadiness,
   getPluginCheckField,
   getPluginGrantedCapabilities,
   getPluginGroupField,
@@ -514,12 +515,14 @@ function PluginFormModal({
   plugin,
   context,
   draft,
+  focusEvalTargets = false,
   onClose,
   onSave,
 }: {
   plugin: PluginManifest
   context: PluginWorkspaceContext
   draft: Partial<PluginRecord>
+  focusEvalTargets?: boolean
   onClose: () => void
   onSave: (draft: Partial<PluginRecord>) => void
 }) {
@@ -535,6 +538,7 @@ function PluginFormModal({
   const [regexIntent, setRegexIntent] = useState('')
   const [regexBusy, setRegexBusy] = useState(false)
   const [regexError, setRegexError] = useState('')
+  const evalTargetsRef = useRef<HTMLElement | null>(null)
   const [showOptimizeAssistant, setShowOptimizeAssistant] = useState(() => {
     if (typeof window === 'undefined') return true
     return window.localStorage.getItem(OPTIMIZE_AI_TUNING_EXPANDED_STORAGE_KEY) !== 'false'
@@ -563,6 +567,11 @@ function PluginFormModal({
     setRegexIntent('')
     setRegexError('')
   }, [draft])
+
+  useEffect(() => {
+    if (!focusEvalTargets || !isEval) return
+    window.requestAnimationFrame(() => evalTargetsRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' }))
+  }, [focusEvalTargets, isEval, draft])
 
   useEffect(() => {
     if (!isOptimize || typeof window === 'undefined') return
@@ -1259,7 +1268,8 @@ Preserve existing values when the request does not ask to change them.`,
             </div>
           ) : usesLegacyPluginAdapter(plugin, 'eval') ? (
             <div className="space-y-4">
-              <section className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+              <section ref={evalTargetsRef} className={`scroll-mt-4 rounded-lg border p-4 ${focusEvalTargets ? 'border-sky-400 ring-2 ring-sky-100 dark:border-sky-600 dark:ring-sky-900/30' : 'border-gray-200 dark:border-gray-700'}`}>
+                <h3 className="mb-3 text-sm font-semibold text-gray-900 dark:text-gray-100">Assign targets</h3>
                 <div className="grid gap-3 sm:grid-cols-[11rem_minmax(0,1fr)]">
                   <label className="block">
                     <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Target type</span>
@@ -1700,6 +1710,7 @@ function ItemCard({
   const usageSummary = formatPluginUsageSummary(item)
   const [showActions, setShowActions] = useState(false)
   const detailLines = getPluginDetailLines(plugin, item)
+  const evalReadiness = isEvalRecord(item) ? getEvalReadiness(item) : null
   const checkField = getPluginCheckField(plugin)
   const checked = checkField && isGenericPluginRecord(item) ? item.fields[checkField] === true : false
 
@@ -1751,12 +1762,12 @@ function ItemCard({
                 </button>
                 <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
                 {canGenerateDocs && <button onClick={() => { setShowActions(false); onGenerateDoc() }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800">
-                  <ProductIconCell iconName="docs" label="Generate Doc" size="sm" className="border-transparent bg-transparent text-current" />
-                  Generate Doc
+                  <ProductIconCell iconName="docs" label={isEvalRecord(item) ? 'Create or refresh Eval report' : 'Generate document'} size="sm" className="border-transparent bg-transparent text-current" />
+                  {isEvalRecord(item) ? 'Create or refresh report' : 'Generate document'}
                 </button>}
                 {canNotify && <button onClick={() => { setShowActions(false); onNotify() }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800">
-                  <ProductIconCell iconName="communication" label="Notify" size="sm" className="border-transparent bg-transparent text-current" />
-                  Notify
+                  <ProductIconCell iconName="notification" label="Send status notification" size="sm" className="border-transparent bg-transparent text-current" />
+                  Send status notification
                 </button>}
                 {onRun && (
                   <button onClick={() => { setShowActions(false); onRun() }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800">
@@ -1810,27 +1821,32 @@ function ItemCard({
           {running ? 'Running eval…' : usageSummary}
         </div>
       )}
+      {evalReadiness && !evalReadiness.ready && (
+        <button type="button" onClick={onEdit} className="mt-3 w-full rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-left text-xs text-amber-800 hover:bg-amber-100 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-200">
+          Needs setup: {evalReadiness.issues.join('; ')}. Open to configure.
+        </button>
+      )}
       <div className="mt-4 flex flex-wrap items-center gap-2">
         <button
-          onClick={onOpenDoc ? (() => onOpenDoc(`SYSTEM/plugins/${plugin.slug}/items/${item.id}.md`)) : undefined}
-          disabled={!onOpenDoc}
+          onClick={onOpenDoc && item.document?.path ? (() => onOpenDoc(item.document!.path)) : undefined}
+          disabled={!onOpenDoc || !item.document?.path}
           className={`inline-flex h-9 w-9 items-center justify-center rounded-full transition-colors ${
-            onOpenDoc
+            onOpenDoc && item.document?.path
               ? 'text-sky-500 hover:bg-sky-50 hover:text-sky-700 dark:hover:bg-sky-900/30'
               : 'cursor-not-allowed text-gray-300 dark:text-gray-600'
           }`}
-          title="Open doc"
-          aria-label="Open doc"
+          title={item.document?.path ? 'Open generated report' : 'Create a report first'}
+          aria-label={item.document?.path ? 'Open generated report' : 'No generated report'}
         >
-          <ProductIconCell iconName="docs" label="Open Doc" size="sm" className="border-transparent bg-transparent text-current" />
+          <ProductIconCell iconName="docs" label={item.document?.path ? 'Open generated report' : 'No generated report'} size="sm" className="border-transparent bg-transparent text-current" />
         </button>
         {canGenerateDocs && <button
           onClick={onGenerateDoc}
           className="inline-flex h-9 w-9 items-center justify-center rounded-full text-purple-500 transition-colors hover:bg-purple-50 hover:text-purple-700 dark:hover:bg-purple-900/30"
-          title="Generate doc"
-          aria-label="Generate doc"
+          title={isEvalRecord(item) ? 'Create or refresh Eval report' : 'Generate document'}
+          aria-label={isEvalRecord(item) ? 'Create or refresh Eval report' : 'Generate document'}
         >
-          <ProductIconCell iconName="docs" label="Generate Doc" size="sm" className="border-transparent bg-transparent text-current" />
+          <ProductIconCell iconName="docs" label={isEvalRecord(item) ? 'Create or refresh Eval report' : 'Generate document'} size="sm" className="border-transparent bg-transparent text-current" />
         </button>}
         {onRun && (
           <button
@@ -1843,6 +1859,25 @@ function ItemCard({
             <ProductIconCell iconName={running ? 'refresh' : 'play'} label={running ? 'Running eval' : 'Run Eval'} size="sm" className="border-transparent bg-transparent text-current" />
           </button>
         )}
+        {isEvalRecord(item) && !onRun && (
+          <button
+            type="button"
+            disabled
+            className="inline-flex h-9 w-9 cursor-not-allowed items-center justify-center rounded-full text-gray-300 dark:text-gray-600"
+            title={evalReadiness?.issues.join('; ')}
+            aria-label={`Eval is not ready: ${evalReadiness?.issues.join('; ')}`}
+          >
+            <ProductIconCell iconName="play" label="Eval is not ready" size="sm" className="border-transparent bg-transparent text-current" />
+          </button>
+        )}
+        <button
+          onClick={onToggle}
+          className="inline-flex h-9 w-9 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+          title={item.enabled ? 'Disable' : 'Enable'}
+          aria-label={item.enabled ? 'Disable' : 'Enable'}
+        >
+          <ProductIconCell iconName={item.enabled ? 'pause' : 'restart'} label={item.enabled ? 'Disable' : 'Enable'} size="sm" className="border-transparent bg-transparent text-current" />
+        </button>
       </div>
       {isEvalRecord(item) && item.lastRun && (
         <button
@@ -1874,6 +1909,12 @@ function CompactItemCard({
   onToggleActions,
   onCheckToggle,
   onOpenScore,
+  onRun,
+  onReport,
+  onNotify,
+  onToggle,
+  canGenerateDocs,
+  canNotify,
   running = false,
 }: {
   plugin: PluginManifest
@@ -1883,12 +1924,19 @@ function CompactItemCard({
   onToggleActions: () => void
   onCheckToggle: (() => void) | null
   onOpenScore: (() => void) | null
+  onRun: (() => void) | null
+  onReport: (() => void) | null
+  onNotify: (() => void) | null
+  onToggle: () => void
+  canGenerateDocs: boolean
+  canNotify: boolean
   running?: boolean
 }) {
   const archived = item.archived === true
   const usageSummary = formatPluginUsageSummary(item)
   const checkField = getPluginCheckField(plugin)
   const checked = checkField && isGenericPluginRecord(item) ? item.fields[checkField] === true : false
+  const evalReadiness = isEvalRecord(item) ? getEvalReadiness(item) : null
   return (
     <div
       className={`rounded-xl border bg-white p-4 shadow-sm transition-all hover:shadow-md dark:bg-gray-800 ${
@@ -1961,10 +2009,41 @@ function CompactItemCard({
               : `Not run · ${usageSummary}`}
         </button>
       )}
-      <div className="mt-3 flex items-center gap-4 text-gray-300 dark:text-gray-500">
-        <ProductIconCell iconName={isEvalRecord(item) ? 'play' : 'status'} label="Type" size="sm" className="border-transparent bg-transparent text-current" />
-        <ProductIconCell iconName="docs" label="Docs" size="sm" className="border-transparent bg-transparent text-current" />
-        <ProductIconCell iconName="communication" label="Notifications" size="sm" className="border-transparent bg-transparent text-current" />
+      {isEvalRecord(item) && evalReadiness && !evalReadiness.ready && (
+        <button
+          type="button"
+          onClick={(event) => { event.stopPropagation(); onOpen() }}
+          className="mt-3 w-full rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-left text-xs text-amber-800 hover:bg-amber-100 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-200"
+        >
+          Needs setup: {evalReadiness.issues[0]}{evalReadiness.issues.length > 1 ? ` +${evalReadiness.issues.length - 1} more` : ''}
+        </button>
+      )}
+      <div className="mt-3 flex items-center gap-2">
+        {isEvalRecord(item) && (
+          <button
+            type="button"
+            onClick={(event) => { event.stopPropagation(); onRun?.() }}
+            disabled={!onRun || running}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-emerald-600 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:text-gray-300 dark:hover:bg-emerald-950/30 dark:disabled:text-gray-600"
+            title={evalReadiness?.ready ? 'Run Eval' : evalReadiness?.issues.join('; ')}
+            aria-label={evalReadiness?.ready ? 'Run Eval' : `Eval is not ready: ${evalReadiness?.issues.join('; ')}`}
+          >
+            <ProductIconCell iconName={running ? 'refresh' : 'play'} label={running ? 'Running Eval' : 'Run Eval'} size="sm" className="border-transparent bg-transparent text-current" />
+          </button>
+        )}
+        {canGenerateDocs && onReport && (
+          <button type="button" onClick={(event) => { event.stopPropagation(); onReport() }} className="inline-flex h-9 w-9 items-center justify-center rounded-full text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-950/30" title={isEvalRecord(item) ? 'Create or refresh Eval report' : 'Generate document'} aria-label={isEvalRecord(item) ? 'Create or refresh Eval report' : 'Generate document'}>
+            <ProductIconCell iconName="docs" label={isEvalRecord(item) ? 'Create or refresh Eval report' : 'Generate document'} size="sm" className="border-transparent bg-transparent text-current" />
+          </button>
+        )}
+        {canNotify && onNotify && (
+          <button type="button" onClick={(event) => { event.stopPropagation(); onNotify() }} className="inline-flex h-9 w-9 items-center justify-center rounded-full text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30" title="Send status notification" aria-label="Send status notification">
+            <ProductIconCell iconName="notification" label="Send status notification" size="sm" className="border-transparent bg-transparent text-current" />
+          </button>
+        )}
+        <button type="button" onClick={(event) => { event.stopPropagation(); onToggle() }} className="inline-flex h-9 w-9 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700" title={item.enabled ? 'Disable' : 'Enable'} aria-label={item.enabled ? 'Disable' : 'Enable'}>
+          <ProductIconCell iconName={item.enabled ? 'pause' : 'restart'} label={item.enabled ? 'Disable' : 'Enable'} size="sm" className="border-transparent bg-transparent text-current" />
+        </button>
       </div>
       <div className="mt-3 text-sm text-gray-500 dark:text-gray-400">{formatPluginUpdatedAt(item)}</div>
       <div className="mt-3 flex flex-wrap gap-1.5">
@@ -2012,12 +2091,10 @@ function PluginDetailsPanel({
   canNotify: boolean
 }) {
   const archived = item.archived === true
-  const files = Array.from(new Set([
-    `SYSTEM/plugins/${plugin.slug}/items/${item.id}.md`,
-    ...(item.document?.path ? [item.document.path] : []),
-  ]))
+  const files = item.document?.path ? [item.document.path] : []
   const usageTotals = getPluginUsageTotals(item)
   const detailLines = getPluginDetailLines(plugin, item)
+  const evalReadiness = isEvalRecord(item) ? getEvalReadiness(item) : null
 
   return (
     <div className="fixed inset-0 bg-black/30 z-40 md:bg-black/20" onClick={onClose}>
@@ -2046,10 +2123,10 @@ function PluginDetailsPanel({
           {canNotify && <button
             onClick={onNotify}
             className="h-9 w-9 inline-flex items-center justify-center rounded-full text-sky-500 hover:text-sky-700 hover:bg-sky-50 dark:hover:bg-sky-900/30 transition-colors"
-            aria-label="Notify"
-            title="Notify"
+            aria-label="Send status notification"
+            title="Send status notification"
           >
-            <ProductIconCell iconName="communication" label="Notify" size="sm" className="border-transparent bg-transparent text-current" />
+            <ProductIconCell iconName="notification" label="Send status notification" size="sm" className="border-transparent bg-transparent text-current" />
           </button>}
           <button
             onClick={onEdit}
@@ -2062,10 +2139,10 @@ function PluginDetailsPanel({
           {canGenerateDocs && <button
             onClick={onGenerateDoc}
             className="h-9 w-9 inline-flex items-center justify-center rounded-full text-purple-500 hover:text-purple-700 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors"
-            aria-label="Generate document"
-            title="Generate document"
+            aria-label={isEvalRecord(item) ? 'Create or refresh Eval report' : 'Generate document'}
+            title={isEvalRecord(item) ? 'Create or refresh Eval report' : 'Generate document'}
           >
-            <ProductIconCell iconName="docs" label="Generate document" size="sm" className="border-transparent bg-transparent text-current" />
+            <ProductIconCell iconName="docs" label={isEvalRecord(item) ? 'Create or refresh Eval report' : 'Generate document'} size="sm" className="border-transparent bg-transparent text-current" />
           </button>}
           {onRun && (
             <button
@@ -2077,6 +2154,25 @@ function PluginDetailsPanel({
               <ProductIconCell iconName="play" label="Run eval" size="sm" className="border-transparent bg-transparent text-current" />
             </button>
           )}
+          {isEvalRecord(item) && !onRun && (
+            <button
+              type="button"
+              disabled
+              className="h-9 w-9 inline-flex cursor-not-allowed items-center justify-center rounded-full text-gray-300 dark:text-gray-600"
+              aria-label={`Eval is not ready: ${evalReadiness?.issues.join('; ')}`}
+              title={evalReadiness?.issues.join('; ')}
+            >
+              <ProductIconCell iconName="play" label="Eval is not ready" size="sm" className="border-transparent bg-transparent text-current" />
+            </button>
+          )}
+          <button
+            onClick={onToggle}
+            className="h-9 w-9 inline-flex items-center justify-center rounded-full text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            aria-label={item.enabled ? 'Disable' : 'Enable'}
+            title={item.enabled ? 'Disable' : 'Enable'}
+          >
+            <ProductIconCell iconName={item.enabled ? 'pause' : 'restart'} label={item.enabled ? 'Disable' : 'Enable'} size="sm" className="border-transparent bg-transparent text-current" />
+          </button>
           {isEvalRecord(item) && item.lastRun && onOpenScore && (
             <button
               onClick={onOpenScore}
@@ -2115,6 +2211,12 @@ function PluginDetailsPanel({
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5 sm:px-5">
+        {evalReadiness && !evalReadiness.ready && (
+          <button type="button" onClick={onEdit} className="w-full rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-left text-sm text-amber-800 hover:bg-amber-100 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-200">
+            <span className="font-medium">Needs setup before it can run.</span>
+            <span className="mt-1 block text-xs">{evalReadiness.issues.join('; ')}. Open Edit to complete the configuration.</span>
+          </button>
+        )}
         {isEvalRecord(item) && (
           <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-3 dark:border-emerald-900/40 dark:bg-emerald-950/20">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -2804,6 +2906,8 @@ function EvalRelationshipGraph({
   onOpen,
   onRun,
   onOpenScore,
+  onAssignTarget,
+  onToggle,
   runningItemIds,
   runningCaseProgress,
   selectedId,
@@ -2814,6 +2918,8 @@ function EvalRelationshipGraph({
   onOpen: (id: string) => void
   onRun?: (id: string) => void
   onOpenScore?: (id: string) => void
+  onAssignTarget?: (id: string) => void
+  onToggle?: (id: string) => void
   runningItemIds?: Set<string>
   runningCaseProgress?: Map<string, { completed: number; total: number }>
   selectedId?: string | null
@@ -2834,8 +2940,8 @@ function EvalRelationshipGraph({
     return id
   }
   const targetsFor = (item: typeof evals[number]) => item.target.ids.length > 0
-    ? item.target.ids.map((id) => ({ kind: item.target.type, id, pending: false }))
-    : [{ kind: item.target.type, id: `Select ${item.target.type}`, pending: true }]
+    ? item.target.ids.map((id) => ({ kind: item.target.type, id, label: id, pending: false }))
+    : [{ kind: item.target.type, id: item.id, label: `Select ${item.target.type}`, pending: true }]
   const attributeLabels = Array.from(new Set(evals.flatMap(getEvalAttributes))).sort()
   const judgeEntries = Array.from(new Map(evals.map((item) => {
     const judge = getEvalJudge(item)
@@ -2962,6 +3068,7 @@ function EvalRelationshipGraph({
               const isEmphasized = emphasizedEval?.id === item.id
               const trials = getEvalTrialCount(item)
               const running = runningItemIds?.has(item.id) === true
+              const readiness = getEvalReadiness(item)
               const progress = runningCaseProgress?.get(item.id)
               const progressTotal = progress?.total || Math.max(1, item.experiment.cases?.length || trials)
               const progressCompleted = Math.min(progressTotal, progress?.completed || 0)
@@ -3001,6 +3108,8 @@ function EvalRelationshipGraph({
                       ? `${trials} planned trial${trials === 1 ? '' : 's'}`
                       : running
                         ? `Running ${progressCompleted}/${progressTotal} cases`
+                        : !readiness.ready
+                          ? `Needs setup · ${readiness.issues.length} item${readiness.issues.length === 1 ? '' : 's'}`
                         : item.lastRun?.totalCases
                           ? `${item.enabled ? 'Enabled' : 'Disabled'} · ${item.lastRun.casesCompleted || 0}/${item.lastRun.totalCases} cases`
                           : `${item.enabled ? 'Enabled' : 'Disabled'} · not run`}
@@ -3010,7 +3119,7 @@ function EvalRelationshipGraph({
                       <rect x="19" y="49" width="202" height="7" rx="3.5" className="fill-sky-200 dark:fill-sky-950" />
                       <rect x="19" y="49" width={progressWidth} height="7" rx="3.5" className="fill-emerald-500" />
                     </>
-                  ) : !showingSuggestions && item.enabled && onRun ? (
+                  ) : !showingSuggestions && readiness.ready && onRun ? (
                     <g
                       role="button"
                       aria-label={`Run ${item.name}`}
@@ -3022,6 +3131,11 @@ function EvalRelationshipGraph({
                     >
                       <circle cx="120" cy="54" r="10" className="fill-emerald-500 hover:fill-emerald-600" />
                       <path d="M 117 49 L 117 59 L 124 54 Z" className="fill-white" />
+                    </g>
+                  ) : !showingSuggestions ? (
+                    <g aria-label={`Eval is not ready: ${readiness.issues.join('; ')}`}>
+                      <circle cx="120" cy="54" r="10" className="fill-gray-200 dark:fill-gray-700" />
+                      <path d="M 117 49 L 117 59 L 124 54 Z" className="fill-gray-400 dark:fill-gray-500" />
                     </g>
                   ) : null}
                   {!showingSuggestions && !running && item.lastRun && onOpenScore && (
@@ -3036,6 +3150,22 @@ function EvalRelationshipGraph({
                     >
                       <rect x="150" y="46" width="74" height="18" rx="5" className="fill-violet-100 stroke-violet-400 hover:fill-violet-200 dark:fill-violet-900/70 dark:stroke-violet-500" />
                       <text x="187" y="59" textAnchor="middle" className="fill-violet-800 text-[10px] font-semibold dark:fill-violet-100">Score {item.lastRun.score}</text>
+                    </g>
+                  )}
+                  {!showingSuggestions && onToggle && (
+                    <g
+                      role="button"
+                      aria-label={`${item.enabled ? 'Disable' : 'Enable'} ${item.name}`}
+                      className="cursor-pointer"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        onToggle(item.id)
+                      }}
+                    >
+                      <circle cx="18" cy="54" r="10" className="fill-gray-200 hover:fill-gray-300 dark:fill-gray-700 dark:hover:fill-gray-600" />
+                      {item.enabled
+                        ? <><path d="M 15 50 V 58" className="stroke-gray-700 dark:stroke-gray-100" strokeWidth="2" /><path d="M 21 50 V 58" className="stroke-gray-700 dark:stroke-gray-100" strokeWidth="2" /></>
+                        : <path d="M 15 49 L 15 59 L 22 54 Z" className="fill-gray-700 dark:fill-gray-100" />}
                     </g>
                   )}
                 </g>
@@ -3066,12 +3196,19 @@ function EvalRelationshipGraph({
             {targetEntries.map((target) => {
               const key = `${target.kind}:${target.id}`
               const isEmphasized = emphasizedTargetKeys.has(key)
-              const label = target.pending ? target.id : resolveTarget(target.kind, target.id)
+              const label = target.pending ? target.label : resolveTarget(target.kind, target.id)
               return (
                 <g
                   key={key}
                   transform={`translate(900 ${Number(targetY.get(key)) - 21})`}
-                  className={`${emphasizedEval && !isEmphasized ? 'opacity-20' : ''} transition-opacity`}
+                  role={target.pending && !showingSuggestions && onAssignTarget ? 'button' : undefined}
+                  tabIndex={target.pending && !showingSuggestions && onAssignTarget ? 0 : undefined}
+                  aria-label={target.pending ? `${target.label} for this Eval` : undefined}
+                  className={`${emphasizedEval && !isEmphasized ? 'opacity-20' : ''} ${target.pending && !showingSuggestions && onAssignTarget ? 'cursor-pointer' : ''} transition-opacity`}
+                  onClick={target.pending && !showingSuggestions && onAssignTarget ? (() => onAssignTarget(target.id)) : undefined}
+                  onKeyDown={target.pending && !showingSuggestions && onAssignTarget ? ((event) => {
+                    if (event.key === 'Enter' || event.key === ' ') onAssignTarget(target.id)
+                  }) : undefined}
                 >
                   <rect
                     width="190"
@@ -3346,6 +3483,8 @@ function PluginRelationshipView({
   onOpen,
   onRun,
   onOpenScore,
+  onAssignTarget,
+  onToggle,
   runningItemIds,
   runningCaseProgress,
   selectedId,
@@ -3358,6 +3497,8 @@ function PluginRelationshipView({
   onOpen: (id: string) => void
   onRun?: (id: string) => void
   onOpenScore?: (id: string) => void
+  onAssignTarget?: (id: string) => void
+  onToggle?: (id: string) => void
   runningItemIds?: Set<string>
   runningCaseProgress?: Map<string, { completed: number; total: number }>
   selectedId?: string | null
@@ -3386,6 +3527,8 @@ function PluginRelationshipView({
         onOpen={onOpen}
         onRun={onRun}
         onOpenScore={onOpenScore}
+        onAssignTarget={onAssignTarget}
+        onToggle={onToggle}
         runningItemIds={runningItemIds}
         runningCaseProgress={runningCaseProgress}
         selectedId={selectedId}
@@ -3475,6 +3618,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
   })
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<PluginRecord | null>(null)
+  const [focusEvalTargets, setFocusEvalTargets] = useState(false)
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null)
   const [scoreReviewItemId, setScoreReviewItemId] = useState<string | null>(null)
   const [selectedSuggestedTemplateId, setSelectedSuggestedTemplateId] = useState<string | null>(null)
@@ -3795,7 +3939,12 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
     let progressTimer: number | null = null
     if (action === 'run') {
       const record = items.find((entry) => entry.id === itemId)
-      if (!record || !isEvalRecord(record) || !record.enabled) return
+      if (!record || !isEvalRecord(record)) return
+      const readiness = getEvalReadiness(record)
+      if (!readiness.ready) {
+        setError(`Eval is not ready to run: ${readiness.issues.join('; ')}.`)
+        return
+      }
       const total = Math.max(1, record.experiment.cases?.length || getEvalTrialCount(record))
       setRunningItemIds((current) => new Set(current).add(itemId))
       setRunningCaseProgress((current) => new Map(current).set(itemId, { completed: 0, total }))
@@ -3812,11 +3961,17 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
       : `/api/plugins/${encodeURIComponent(plugin.slug)}/items/${encodeURIComponent(itemId)}/${action === 'document' ? 'document' : action}`
     try {
       const res = await fetch(route, { method: action === 'delete' ? 'DELETE' : 'POST' })
+      const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
         throw new Error(data.error || 'Plugin action failed')
       }
       await load()
+      if (action === 'document' && data.item?.document?.path && onNavigateToDoc) {
+        onNavigateToDoc(data.item.document.path)
+      }
+      setError(null)
+    } catch (actionError: any) {
+      setError(actionError?.message || 'Plugin action failed')
     } finally {
       if (action === 'run') {
         if (progressTimer !== null) window.clearInterval(progressTimer)
@@ -4547,6 +4702,12 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                       onToggleActions={() => setActiveCompactActions((current) => current === item.id ? null : item.id)}
                       onCheckToggle={checkField ? (() => void toggleCheck(item)) : null}
                       onOpenScore={isEvalRecord(item) && item.lastRun ? (() => setScoreReviewItemId(item.id)) : null}
+                      onRun={isEvalRecord(item) && getEvalReadiness(item).ready ? (() => void callItemAction(item.id, 'run')) : null}
+                      onReport={canGenerateDocs ? (() => void callItemAction(item.id, 'document')) : null}
+                      onNotify={canNotify ? (() => void callItemAction(item.id, 'notify')) : null}
+                      onToggle={() => void callItemAction(item.id, 'toggle')}
+                      canGenerateDocs={canGenerateDocs}
+                      canNotify={canNotify}
                       running={runningItemIds.has(item.id)}
                     />
                     {activeCompactActions === item.id && (
@@ -4568,14 +4729,14 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                           </button>
                           <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
                           {canGenerateDocs && <button onClick={() => { setActiveCompactActions(null); void callItemAction(item.id, 'document') }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800">
-                            <ProductIconCell iconName="docs" label="Generate Doc" size="sm" className="border-transparent bg-transparent text-current" />
-                            Generate Doc
+                            <ProductIconCell iconName="docs" label={isEvalRecord(item) ? 'Create or refresh Eval report' : 'Generate document'} size="sm" className="border-transparent bg-transparent text-current" />
+                            {isEvalRecord(item) ? 'Create or refresh report' : 'Generate document'}
                           </button>}
                           {canNotify && <button onClick={() => { setActiveCompactActions(null); void callItemAction(item.id, 'notify') }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800">
-                            <ProductIconCell iconName="communication" label="Notify" size="sm" className="border-transparent bg-transparent text-current" />
-                            Notify
+                            <ProductIconCell iconName="notification" label="Send status notification" size="sm" className="border-transparent bg-transparent text-current" />
+                            Send status notification
                           </button>}
-                          {isEvalRecord(item) && item.enabled && (
+                          {isEvalRecord(item) && getEvalReadiness(item).ready && (
                             <button onClick={() => { setActiveCompactActions(null); void callItemAction(item.id, 'run') }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800">
                               <ProductIconCell iconName="play" label="Run Eval" size="sm" className="border-transparent bg-transparent text-current" />
                               Run Eval
@@ -4608,7 +4769,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                       onToggle={() => void callItemAction(item.id, 'toggle')}
                       onGenerateDoc={() => void callItemAction(item.id, 'document')}
                       onNotify={() => void callItemAction(item.id, 'notify')}
-                      onRun={isEvalRecord(item) && item.enabled ? (() => void callItemAction(item.id, 'run')) : null}
+                      onRun={isEvalRecord(item) && getEvalReadiness(item).ready ? (() => void callItemAction(item.id, 'run')) : null}
                       onOpenDoc={onNavigateToDoc || null}
                       onArchiveToggle={() => void saveItem({ ...item, archived: item.archived !== true } as Partial<PluginRecord>)}
                       canGenerateDocs={canGenerateDocs}
@@ -4628,6 +4789,15 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                 onOpen={setSelectedItemId}
                 onRun={(itemId) => void callItemAction(itemId, 'run')}
                 onOpenScore={setScoreReviewItemId}
+                onAssignTarget={(itemId) => {
+                  const item = items.find((entry) => entry.id === itemId)
+                  if (!item) return
+                  setSelectedItemId(itemId)
+                  setEditing(item)
+                  setFocusEvalTargets(true)
+                  setShowModal(true)
+                }}
+                onToggle={(itemId) => void callItemAction(itemId, 'toggle')}
                 runningItemIds={runningItemIds}
                 runningCaseProgress={runningCaseProgress}
                 selectedId={selectedItemId}
@@ -4684,17 +4854,24 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                       {canGenerateDocs && <button
                         onClick={(event) => { event.stopPropagation(); void callItemAction(item.id, 'document') }}
                         className="text-gray-300 hover:text-purple-500 transition-colors text-xs p-1 rounded hover:bg-purple-50 dark:hover:bg-purple-900/30"
-                        title="Generate document"
+                        title={isEvalRecord(item) ? 'Create or refresh Eval report' : 'Generate document'}
                       >
-                        <ProductIconCell iconName="docs" label="Generate document" size="sm" className="border-transparent bg-transparent text-current" />
+                        <ProductIconCell iconName="docs" label={isEvalRecord(item) ? 'Create or refresh Eval report' : 'Generate document'} size="sm" className="border-transparent bg-transparent text-current" />
                       </button>}
                       {canNotify && <button
                         onClick={(event) => { event.stopPropagation(); void callItemAction(item.id, 'notify') }}
                         className="text-gray-300 hover:text-emerald-500 transition-colors text-xs p-1 rounded hover:bg-emerald-50 dark:hover:bg-emerald-900/30"
-                        title="Notify"
+                        title="Send status notification"
                       >
-                        <ProductIconCell iconName="communication" label="Notify" size="sm" className="border-transparent bg-transparent text-current" />
+                        <ProductIconCell iconName="notification" label="Send status notification" size="sm" className="border-transparent bg-transparent text-current" />
                       </button>}
+                      <button
+                        onClick={(event) => { event.stopPropagation(); void callItemAction(item.id, 'toggle') }}
+                        className="text-gray-300 hover:text-gray-600 transition-colors text-xs p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+                        title={item.enabled ? 'Disable' : 'Enable'}
+                      >
+                        <ProductIconCell iconName={item.enabled ? 'pause' : 'restart'} label={item.enabled ? 'Disable' : 'Enable'} size="sm" className="border-transparent bg-transparent text-current" />
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -4715,7 +4892,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                 onToggle={() => void callItemAction(selectedItem.id, 'toggle')}
                 onArchiveToggle={() => void saveItem({ ...selectedItem, archived: selectedItem.archived !== true } as Partial<PluginRecord>)}
                 onDelete={() => void callItemAction(selectedItem.id, 'delete')}
-                onRun={isEvalRecord(selectedItem) && selectedItem.enabled ? (() => void callItemAction(selectedItem.id, 'run')) : null}
+                onRun={isEvalRecord(selectedItem) && getEvalReadiness(selectedItem).ready ? (() => void callItemAction(selectedItem.id, 'run')) : null}
                 onOpenScore={isEvalRecord(selectedItem) && selectedItem.lastRun ? (() => setScoreReviewItemId(selectedItem.id)) : null}
                 canGenerateDocs={canGenerateDocs}
                 canNotify={canNotify}
@@ -4730,8 +4907,9 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
           plugin={plugin}
           context={context}
           draft={editing || createDraft}
-          onClose={() => { setShowModal(false); setEditing(null) }}
-          onSave={(draft) => { void saveItem(draft) }}
+          focusEvalTargets={focusEvalTargets}
+          onClose={() => { setShowModal(false); setEditing(null); setFocusEvalTargets(false) }}
+          onSave={(draft) => { setFocusEvalTargets(false); void saveItem(draft) }}
         />
       )}
 

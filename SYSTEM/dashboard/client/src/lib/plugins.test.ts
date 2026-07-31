@@ -11,6 +11,7 @@ import {
   getPluginNavLabel,
   formatPluginUpdatedAt,
   formatPluginUsageSummary,
+  getEvalReadiness,
   getPluginUsageTotals,
   getPluginDetailLines,
   isGenericPluginRecord,
@@ -179,6 +180,45 @@ test('plugin navigation and checklist metadata resolve valid compact fields', ()
 test('collectPluginTags returns sorted unique tags', () => {
   const tags = collectPluginTags([guardrail, evalRecord])
   assert(JSON.stringify(tags) === JSON.stringify(['email', 'quality', 'research', 'security']), 'Expected sorted unique tags')
+})
+
+test('Eval readiness requires enabled state, targets, trials, cases, and evaluator configuration', () => {
+  const readyEval = {
+    ...evalRecord,
+    experiment: {
+      ...evalRecord.experiment,
+      iterations: 2,
+      cases: [{
+        id: 'case-1',
+        name: 'Representative case',
+        input: { type: 'text' as const, value: 'Summarize the findings' },
+        expected: { type: 'text' as const, value: 'A grounded summary' },
+      }],
+    },
+  }
+  assert(getEvalReadiness(readyEval).ready, 'Expected configured fixed Eval to be runnable')
+  const incomplete = getEvalReadiness({
+    ...readyEval,
+    enabled: false,
+    target: { ...readyEval.target, ids: [] },
+    experiment: { ...readyEval.experiment, iterations: 0, input: '', expectedOutput: '', cases: [] },
+  })
+  assert(!incomplete.ready, 'Expected incomplete Eval to remain blocked')
+  assert(incomplete.issues.some((issue) => issue.includes('Enable')), 'Expected enabled-state guidance')
+  assert(incomplete.issues.some((issue) => issue.includes('target')), 'Expected target guidance')
+  assert(incomplete.issues.some((issue) => issue.includes('planned trial')), 'Expected trial guidance')
+  assert(incomplete.issues.some((issue) => issue.includes('trial case')), 'Expected case guidance')
+})
+
+test('Eval readiness validates AI and human evaluator assignments', () => {
+  const configured = {
+    ...evalRecord,
+    experiment: { ...evalRecord.experiment, iterations: 1 },
+  }
+  const ai = getEvalReadiness({ ...configured, experiment: { ...configured.experiment, judge: 'ai', judgeGuidance: '' } })
+  assert(ai.issues.some((issue) => issue.includes('AI evaluator')), 'Expected AI evaluator guidance')
+  const human = getEvalReadiness({ ...configured, experiment: { ...configured.experiment, judge: 'human', judgeGuidance: '', humanReviewerEmail: '' } })
+  assert(human.issues.some((issue) => issue.includes('reviewer email')), 'Expected human reviewer assignment')
 })
 
 test('suggested plugin entries support independent tags, search, and sorting', () => {

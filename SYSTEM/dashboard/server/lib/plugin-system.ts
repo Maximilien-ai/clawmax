@@ -1066,6 +1066,35 @@ function isEvalRecord(record: PluginRecord): record is EvalRecord {
   return record.kind === 'eval' && 'experiment' in record && 'runs' in record
 }
 
+function getEvalRunReadinessIssues(record: EvalRecord): string[] {
+  const issues: string[] = []
+  const cases = record.experiment.cases || []
+  const hasLegacyCase = record.experiment.input.trim().length > 0 && record.experiment.expectedOutput.trim().length > 0
+  const hasCompleteCase = cases.some((entry) => entry.input.value.trim().length > 0 && entry.expected.value.trim().length > 0)
+  if (!record.enabled) issues.push('enable this Eval')
+  if (record.archived) issues.push('restore this Eval')
+  if (record.target.ids.length === 0) issues.push(`select at least one ${record.target.type} target`)
+  if (!Number.isFinite(record.experiment.iterations) || Number(record.experiment.iterations) < 1) issues.push('set at least one planned trial')
+  if (!hasLegacyCase && !hasCompleteCase) issues.push('add a trial case with input and expected output')
+  if (record.experiment.judge === 'ai' && !record.experiment.judgeGuidance?.trim()) {
+    issues.push('add guidance for the AI evaluator')
+  }
+  if (record.experiment.judge === 'human') {
+    if (!record.experiment.judgeGuidance?.trim()) issues.push('add instructions for the human reviewer')
+    if (!record.experiment.humanReviewerEmail?.trim()) issues.push('assign a reviewer email')
+  }
+  if (record.experiment.judge === 'fixed' && record.experiment.fixedMatch === 'regex') {
+    const pattern = cases.find((entry) => entry.expected.value.trim())?.expected.value || record.experiment.expectedOutput
+    try {
+      if (!pattern.trim()) throw new Error('empty pattern')
+      new RegExp(pattern)
+    } catch {
+      issues.push('provide a valid expected regular expression')
+    }
+  }
+  return issues
+}
+
 function formatPluginFieldValue(value: PluginFieldValue): string {
   if (Array.isArray(value)) return value.join(', ') || 'none'
   if (typeof value === 'boolean') return value ? 'yes' : 'no'
@@ -1352,10 +1381,15 @@ export function emitPluginRecordNotification(plugin: PluginManifest, recordId: s
   assertPluginCapability(plugin, 'notifications')
   const record = listPluginRecords(plugin).find((entry) => entry.id === recordId) || null
   if (!record) return null
+  const evalStatus = isEvalRecord(record)
+    ? record.lastRun
+      ? `${record.name} latest score is ${record.lastRun.score}/100 after ${record.runs.length} run${record.runs.length === 1 ? '' : 's'}.`
+      : `${record.name} has not run yet and targets ${record.target.ids.length} ${record.target.type}${record.target.ids.length === 1 ? '' : 's'}.`
+    : null
   createNotification({
     type: 'artifact-update',
     title: `${plugin.name}: ${record.name}`,
-    message: `${plugin.name} emitted a plugin notification for ${record.name}.`,
+    message: evalStatus || `${plugin.name} emitted a status notification for ${record.name}.`,
     entityId: record.id,
     fingerprint: `plugin-notification:${plugin.slug}:${record.id}:${Date.now()}`,
     artifactPath: record.document?.path,
@@ -1722,6 +1756,10 @@ export function runPluginEval(plugin: PluginManifest, recordId: string): EvalRec
   if (index < 0) return null
   const current = records[index]
   if (!isEvalRecord(current)) return null
+  const readinessIssues = getEvalRunReadinessIssues(current)
+  if (readinessIssues.length > 0) {
+    throw new PluginContractError(`Eval is not ready to run: ${readinessIssues.join('; ')}.`, 400)
+  }
   if (current.experiment.judge === 'human') {
     const updated = writeHumanEvalReviewRequest(plugin, current)
     records.splice(index, 1, updated)
