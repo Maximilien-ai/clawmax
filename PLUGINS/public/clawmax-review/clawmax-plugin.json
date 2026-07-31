@@ -1,19 +1,19 @@
 {
   "apiVersion": "clawmax.ai/v2",
-  "id": "plugin-lab-review-notes",
-  "slug": "plugin-lab-review-notes",
+  "id": "plugin-review-notes",
+  "slug": "plugin-review-notes",
   "name": "Release Review",
   "description": "Run acceptance checklists independently for each release, capture reviewer evidence and notes, and export a complete report for follow-up.",
   "version": "0.3.0-test",
   "icon": "checklist",
   "objectKind": "review-note",
-  "visibility": "private",
-  "enabledByDefault": false,
+  "visibility": "public",
+  "enabledByDefault": true,
   "source": {
     "type": "github",
     "owner": "Maximilien-ai",
     "repo": "clawmax",
-    "url": "https://github.com/Maximilien-ai/clawmax/tree/main/PLUGINS/test/plugin-lab-review-notes",
+    "url": "https://github.com/Maximilien-ai/clawmax/tree/main/PLUGINS/public/clawmax-review",
     "branch": "main"
   },
   "nav": {

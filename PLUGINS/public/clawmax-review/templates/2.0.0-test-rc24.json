@@ -20,7 +20,7 @@
     {
       "id": "rc24-private-cloud-bundle",
       "name": "Cloud uses the authenticated product plugin bundle",
-      "description": "Test: Ask the operator to deploy the RC24 clawmax-plugins image with a GHCR token that has read:packages and access to the private package, then open Evals and Guardrails > Suggested. Pass: No Test fixture catalog warning appears, the URLs do not contain plugin-lab-evals or plugin-lab-guardrails, and both complete suggestion catalogs load. If the warning or two items appear, record the running image name and stop this check.",
+      "description": "Test: Ask the operator to deploy the RC24 clawmax-plugins image with a GHCR token that has read:packages and access to the private package, then open Evals and Guardrails > Suggested. Pass: No Test fixture catalog warning appears, the URLs do not contain plugin-evals or plugin-guardrails, and both complete suggestion catalogs load. If the warning or two items appear, record the running image name and stop this check.",
       "tags": ["cloud", "plugins", "deployment", "security"],
       "fields": {"area": "plugins", "notes": ""}
     },

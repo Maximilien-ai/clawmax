@@ -1,6 +1,6 @@
 {
-  "id": "plugin-lab-guardrails",
-  "slug": "plugin-lab-guardrails",
+  "id": "plugin-guardrails",
+  "slug": "plugin-guardrails",
   "name": "Guardrails",
   "description": "Create, apply, and review workspace-scoped controls that constrain agent and workflow behavior while preserving clear ownership and activation history.",
   "version": "0.2.0-test",
@@ -12,7 +12,7 @@
     "type": "github",
     "owner": "Maximilien-ai",
     "repo": "clawmax",
-    "url": "https://github.com/Maximilien-ai/clawmax/tree/main/PLUGINS/test/plugin-lab-guardrails",
+    "url": "https://github.com/Maximilien-ai/clawmax/tree/main/PLUGINS/test/plugin-guardrails",
     "branch": "main"
   },
   "nav": {

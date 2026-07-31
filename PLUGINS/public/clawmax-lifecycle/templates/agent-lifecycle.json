@@ -1,0 +1,21 @@
+{
+  "id": "agent-lifecycle",
+  "name": "Agent lifecycle",
+  "description": "Inspect one agent's recent configuration, activity, files, and output in one place.",
+  "recommended": true,
+  "tags": ["agent", "activity", "history"],
+  "payload": {
+    "name": "Agent lifecycle",
+    "description": "Follow one agent from configuration through recent activity and artifacts.",
+    "tags": ["agent", "activity", "history"],
+    "enabled": true,
+    "fields": {
+      "subjectType": "agent",
+      "targetIds": [],
+      "focus": "overview",
+      "timeWindow": "7-days",
+      "includeArchived": false,
+      "notes": ""
+    }
+  }
+}

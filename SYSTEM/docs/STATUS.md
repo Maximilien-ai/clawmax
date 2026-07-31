@@ -2,8 +2,8 @@
 
 **Current Version**: v1.9.9
 **Development Line**: 2.0.0
-**Last Updated**: July 29, 2026
-**Status**: `v1.9.9` is promoted unchanged from `1.9.9-test-rc6`. `main` now owns the public 2.0 plugin platform, AI scoring, Optimize, Gmail, and Microsoft 365 work. `release-1.9.9` is retained only for release-blocking hotfixes.
+**Last Updated**: July 31, 2026
+**Status**: `v1.9.9` is promoted unchanged from `1.9.9-test-rc6`. `main` now owns the public 2.0 plugin platform, AI scoring, Lifecycle, Review, Gmail, and Microsoft 365 work. `release-1.9.9` is retained only for release-blocking hotfixes.
 
 ---
 
@@ -18,7 +18,7 @@
 - Plugin host capabilities are now deny-by-default: explicit document and notification operations return actionable `403` responses without a grant, and plugin workspace context is filtered across agent, workflow, group, and community access.
 - Local test runs and test images enable synthetic plugin fixtures. RC7 adds the cumulative public Review checklist, plugin layout parity, mobile navigation containment, and local plugin enablement. Stable image promotion clears non-product test fixtures.
 - The current development tree adds browser-persisted plugin ordering with Review last by default, persistent per-plugin views, and release-review export with reviewer, instance, checklist, evidence, and sanitized recent-error context. These changes passed the full `413/413` local integration, validation, and coverage gate and have not yet been tagged as RC8.
-- Review and Optimize are the public product plugins in the current 2.0 phase. Public and private plugins use the same host contract. First-party private plugin source and combined-image packaging are consolidated in the private `clawmax-plugins` monorepo; partner or customer plugins may remain separately owned. Private source remains outside the public repository and image. The public `plugin-lab-*` directories are synthetic contract fixtures only.
+- Lifecycle and Review are the public product plugins in the current 2.0 phase. Evals, Guardrails, and Optimize are private enterprise plugins. Public and private plugins use the same host contract. First-party private plugin source and combined-image packaging are consolidated in the private `clawmax-plugins` monorepo; partner or customer plugins may remain separately owned. Private source remains outside the public repository and image. The public `plugin-*` directories are synthetic contract fixtures only.
 - Gmail and Microsoft 365 now have bounded list/search/read/draft capabilities, encrypted OAuth persistence, production identity adapters, a Partner connect/manage surface, and draft-only Gmail/Graph mailbox adapters. Raw scopes and header injection fail closed; no send operation is exposed. Persisted agent/plugin grants, runtime invocation, and test-account/container validation remain pending.
 
 ## Active Release Tracks
@@ -39,7 +39,7 @@
 - Architecture: [Plugin System 2.0](../../PLUGINS/PLUGIN_SYSTEM_2_0.md)
 - Authoring contract: [Plugin Authoring 2.0](../../PLUGINS/PLUGIN_AUTHORING_2_0.md)
 - Generic architecture plan: [PUBLIC_PLUGIN_ARCHITECTURE_2_0.md](planning/PUBLIC_PLUGIN_ARCHITECTURE_2_0.md)
-- Optimize plan: [PUBLIC_OPTIMIZE_PLUGIN_2_0.md](planning/PUBLIC_OPTIMIZE_PLUGIN_2_0.md)
+- Lifecycle plan: [PUBLIC_LIFECYCLE_PLUGIN_2_0.md](planning/PUBLIC_LIFECYCLE_PLUGIN_2_0.md)
 - Mail/provider plan: [PUBLIC_MODELS_GATEWAYS_EMAIL_2_0.md](planning/PUBLIC_MODELS_GATEWAYS_EMAIL_2_0.md)
 - Activity Export/partner plan: [PUBLIC_ACTIVITY_EXPORT_PARTNERS_2_0.md](planning/PUBLIC_ACTIVITY_EXPORT_PARTNERS_2_0.md)
 - Release security gate: [SECURITY_AUDIT_2_0.md](planning/SECURITY_AUDIT_2_0.md)
@@ -48,8 +48,8 @@
 - Public model-fit foundation: [PUBLIC_MODEL_FIT_2_0.md](planning/PUBLIC_MODEL_FIT_2_0.md)
 - Score review and confirmed improvement actions: [PUBLIC_SCORE_ACTIONS_2_0.md](planning/PUBLIC_SCORE_ACTIONS_2_0.md)
 - RC11 validation focus: suggestion catalogs and Details content, Review archive/restore plus automatic retirement of completed older sets, successful encrypted secret setup/save, and clean public/private image startup.
-- Immediate work after RC19 feedback: connect the public model-fit foundation to workflows, measured Eval comparisons, and Optimize token/cost evidence; add sourced capability and pricing catalogs; continue generated-artifact scoring; and reconcile manifest-declared plugin actions with the generic v2 contribution model.
-- Product work: public AI scoring, public token-first Optimize, curated public Gmail and Microsoft 365/Outlook plugins, and a consent-gated Activity Export contract proven first with ClawMax.ai and then Digo.
+- Immediate public work: expand Lifecycle from its read-only skeleton, add a clear plugin manager, continue generated-artifact scoring, and reconcile manifest-declared plugin actions with the generic v2 contribution model.
+- Product work: public AI scoring, Lifecycle, Review, curated public Gmail and Microsoft 365/Outlook integrations, and a consent-gated Activity Export contract proven first with ClawMax.ai and then Digo. Evals, Guardrails, and Optimize continue in the private enterprise suite.
 - Plugins remain domain-neutral. Guardrails and evaluations are possible implementations, not fixed host-level plugin types.
 
 ## Release References

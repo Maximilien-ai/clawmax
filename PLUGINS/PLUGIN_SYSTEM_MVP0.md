@@ -1,6 +1,6 @@
 # ClawMax Plugin System MVP0
 
-Status: historical compatibility contract. The in-repo plugin-lab names and
+Status: historical compatibility contract. The in-repo plugin fixture names and
 files are synthetic regression fixtures; they are not private plugin source or
 production enablement. New integrations should use
 [PLUGIN_SYSTEM_2_0.md](PLUGIN_SYSTEM_2_0.md).
@@ -31,7 +31,7 @@ The dashboard host loads plugin manifests from:
 
 Optional filtering:
 
-- Set `CLAWMAX_ENABLED_PLUGINS=plugin-lab-guardrails,plugin-lab-evals` in local `SYSTEM/dashboard/.env`
+- Set `CLAWMAX_ENABLED_PLUGINS=plugin-guardrails,plugin-evals` in local `SYSTEM/dashboard/.env`
 - Set `CLAWMAX_DISABLE_DEFAULT_PLUGINS=true` in local `SYSTEM/dashboard/.env` to force a zero-plugin runtime for regression checks
 - Set `CLAWMAX_PLUGIN_PATHS=/absolute/path/to/plugin-repo-a:/absolute/path/to/plugin-repo-b` to load private plugins directly from local repo roots during development
 
@@ -218,7 +218,7 @@ Those belong in MVP1+ after the contract holds up under test plugins and real im
 Use local `SYSTEM/dashboard/.env` to force-enable or force-disable test plugins during development:
 
 ```bash
-CLAWMAX_ENABLED_PLUGINS=plugin-lab-guardrails,plugin-lab-evals
+CLAWMAX_ENABLED_PLUGINS=plugin-guardrails,plugin-evals
 # CLAWMAX_PLUGIN_PATHS=/absolute/path/to/plugin-repo-a:/absolute/path/to/plugin-repo-b
 # CLAWMAX_DISABLE_DEFAULT_PLUGINS=true
 ```

@@ -82,8 +82,8 @@ Before promotion, 2.0 still needs:
 - a full zero-plugin and synthetic external-plugin release gate
 
 Private plugins remain external to this repository and are never enabled by
-default in the public image. Review and Optimize are the current public product
-plugins; similarly named `plugin-lab-*` content is synthetic test coverage and
+default in the public image. Lifecycle and Review are the current public product
+plugins; similarly named `plugin-*` content is synthetic test coverage and
 does not contain private product source.
 
 ## Tracking

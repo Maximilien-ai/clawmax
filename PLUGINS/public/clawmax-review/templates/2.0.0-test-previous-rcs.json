@@ -917,7 +917,7 @@
     {
       "id": "rc23-private-catalog-upgrade",
       "name": "Combined image replaces legacy fallback catalogs",
-      "description": "Test: Upgrade an existing on-prem RC22 instance to the authorized combined RC23 image without deleting its workspace or runtime configuration, then open Suggested in Evals and Guardrails. Pass: Evals shows 15 and Guardrails shows 15, their URLs use the private plugin identities instead of plugin-lab fallback identities, every Eval includes at least three cases, and prior Active items remain available.",
+      "description": "Test: Upgrade an existing on-prem RC22 instance to the authorized combined RC23 image without deleting its workspace or runtime configuration, then open Suggested in Evals and Guardrails. Pass: Evals shows 15 and Guardrails shows 15, their URLs use the private product identities instead of legacy fixture identities, every Eval includes at least three cases, and prior Active items remain available.",
       "tags": ["release", "plugins", "onprem", "upgrade"],
       "fields": {"area": "plugins", "notes": ""}
     },

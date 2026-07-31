@@ -93,7 +93,7 @@ const evalRecord: PluginRecord = {
 
 const evalPlugin: PluginManifest = {
   id: 'evals',
-  slug: 'plugin-lab-evals',
+  slug: 'plugin-evals',
   name: 'Evals',
   description: 'Workspace eval plugin',
   version: '0.1.0',
@@ -104,14 +104,14 @@ const evalPlugin: PluginManifest = {
   source: {
     type: 'github',
     owner: 'example',
-    repo: 'plugin-lab-evals',
-    url: 'https://example.invalid/plugin-lab-evals',
+    repo: 'plugin-evals',
+    url: 'https://example.invalid/plugin-evals',
   },
 }
 
 const guardrailPlugin: PluginManifest = {
   id: 'guardrails',
-  slug: 'plugin-lab-guardrails',
+  slug: 'plugin-guardrails',
   name: 'Guardrails',
   description: 'Workspace guardrail plugin',
   version: '0.1.0',
@@ -126,23 +126,23 @@ const guardrailPlugin: PluginManifest = {
   source: {
     type: 'github',
     owner: 'example',
-    repo: 'plugin-lab-guardrails',
-    url: 'https://example.invalid/plugin-lab-guardrails',
+    repo: 'plugin-guardrails',
+    url: 'https://example.invalid/plugin-guardrails',
   },
 }
 
 const reviewPlugin: PluginManifest = {
   apiVersion: 'clawmax.ai/v2',
   id: 'review-notes',
-  slug: 'plugin-lab-review-notes',
+  slug: 'plugin-review-notes',
   name: 'Review Notes',
   description: 'Generic review notes',
   version: '0.2.0',
   icon: 'docs',
   objectKind: 'review-note',
-  visibility: 'private',
+  visibility: 'public',
   source: { type: 'github', owner: 'example', repo: 'review-notes', url: 'https://example.invalid/review-notes' },
-  nav: { section: 'plugins', order: 30, label: 'Review' },
+  nav: { section: 'plugins', order: 1000, label: 'Review' },
   labels: { singular: 'Review Note', plural: 'Review Notes' },
   recordSchema: {
     type: 'object',
@@ -225,7 +225,7 @@ test('suggested plugin entries support independent tags, search, and sorting', (
   const suggestions: PluginRecordTemplate[] = [
     {
       id: 'email',
-      pluginId: 'plugin-lab-guardrails',
+      pluginId: 'plugin-guardrails',
       name: 'No outbound email',
       description: 'Block external mail',
       objectKind: 'guardrail',
@@ -234,7 +234,7 @@ test('suggested plugin entries support independent tags, search, and sorting', (
     },
     {
       id: 'docs',
-      pluginId: 'plugin-lab-guardrails',
+      pluginId: 'plugin-guardrails',
       name: 'Internal docs',
       description: 'Keep files private',
       objectKind: 'guardrail',
@@ -429,32 +429,41 @@ test('getPluginGrantedCapabilities reports only enabled grants in stable order',
 })
 
 test('normalizePluginNavOrder keeps release order, resets stale inventory, and preserves complete browser order', () => {
-  const optimizePlugin = {
+  const resourcePlugin = {
     ...reviewPlugin,
-    id: 'clawmax-optimize',
-    slug: 'clawmax-optimize',
-    name: 'Optimize',
+    id: 'plugin-resource-plans',
+    slug: 'plugin-resource-plans',
+    name: 'Resource Plans',
     objectKind: 'optimization-plan',
-    nav: { order: 30, section: 'plugins' as const, label: 'Optimize' },
+    visibility: 'private' as const,
+    nav: { order: 30, section: 'plugins' as const, label: 'Resources' },
+  }
+  const lifecyclePlugin = {
+    ...reviewPlugin,
+    id: 'clawmax-lifecycle',
+    slug: 'clawmax-lifecycle',
+    name: 'Lifecycle',
+    objectKind: 'lifecycle-view',
+    nav: { order: 40, section: 'plugins' as const, label: 'Lifecycle' },
   }
   const defaults = normalizePluginNavOrder(
-    [reviewPlugin, evalPlugin, optimizePlugin, guardrailPlugin],
+    [reviewPlugin, evalPlugin, resourcePlugin, lifecyclePlugin, guardrailPlugin],
     null,
   )
-  assert(defaults.map((plugin) => plugin.slug).join(',') === 'plugin-lab-evals,plugin-lab-guardrails,clawmax-optimize,plugin-lab-review-notes', 'Expected Evals, Guardrails, Optimize, and Review default order')
+  assert(defaults.map((plugin) => plugin.slug).join(',') === 'plugin-evals,plugin-guardrails,plugin-resource-plans,clawmax-lifecycle,plugin-review-notes', 'Expected fixture and public product release order')
 
   const stale = normalizePluginNavOrder(
-    [reviewPlugin, evalPlugin, optimizePlugin, guardrailPlugin],
-    ['clawmax-optimize', 'plugin-lab-review-notes', 'missing', 'clawmax-optimize'],
+    [reviewPlugin, evalPlugin, resourcePlugin, lifecyclePlugin, guardrailPlugin],
+    ['clawmax-lifecycle', 'plugin-review-notes', 'missing', 'clawmax-lifecycle'],
   )
   assert(stale.map((plugin) => plugin.slug).join(',') === defaults.map((plugin) => plugin.slug).join(','), 'Expected a stale partial inventory to reset to release order')
 
   const saved = normalizePluginNavOrder(
-    [reviewPlugin, evalPlugin, optimizePlugin, guardrailPlugin],
-    ['clawmax-optimize', 'plugin-lab-evals', 'plugin-lab-review-notes', 'plugin-lab-guardrails'],
+    [reviewPlugin, evalPlugin, resourcePlugin, lifecyclePlugin, guardrailPlugin],
+    ['clawmax-lifecycle', 'plugin-evals', 'plugin-review-notes', 'plugin-guardrails', 'plugin-resource-plans'],
   )
-  assert(saved[0].slug === 'clawmax-optimize' && saved[1].slug === 'plugin-lab-evals', 'Expected a complete saved browser order to win')
-  assert(new Set(saved.map((plugin) => plugin.slug)).size === 4, 'Expected duplicate and missing saved entries to be normalized')
+  assert(saved[0].slug === 'clawmax-lifecycle' && saved[1].slug === 'plugin-evals', 'Expected a complete saved browser order to win')
+  assert(new Set(saved.map((plugin) => plugin.slug)).size === 5, 'Expected duplicate and missing saved entries to be normalized')
 })
 
 test('formatPluginDiagnosticsSummary distinguishes healthy, unhealthy, and empty hosts', () => {

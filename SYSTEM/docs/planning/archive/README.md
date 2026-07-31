@@ -7,7 +7,6 @@ Active 2.0 plans and contracts are maintained one directory above this archive
 and in:
 
 - [`PUBLIC_PLUGIN_ARCHITECTURE_2_0.md`](../PUBLIC_PLUGIN_ARCHITECTURE_2_0.md)
-- [`PUBLIC_OPTIMIZE_PLUGIN_2_0.md`](../PUBLIC_OPTIMIZE_PLUGIN_2_0.md)
 - [`PUBLIC_MODELS_GATEWAYS_EMAIL_2_0.md`](../PUBLIC_MODELS_GATEWAYS_EMAIL_2_0.md)
 - [`PLUGINS/PLUGIN_SYSTEM_2_0.md`](../../../../PLUGINS/PLUGIN_SYSTEM_2_0.md)
 - [`PLUGINS/PLUGIN_AUTHORING_2_0.md`](../../../../PLUGINS/PLUGIN_AUTHORING_2_0.md)

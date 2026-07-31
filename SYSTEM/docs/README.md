@@ -1,6 +1,6 @@
 # ClawMax Documentation
 
-> Last updated: July 24, 2026
+> Last updated: July 31, 2026
 
 ## Active Documents
 
@@ -15,7 +15,7 @@
 | [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) | Pre-release verification steps |
 | [DEMO_VIDEOS.md](DEMO_VIDEOS.md) | Local demo video inventory and when to use it |
 | [planning/PUBLIC_PLUGIN_ARCHITECTURE_2_0.md](planning/PUBLIC_PLUGIN_ARCHITECTURE_2_0.md) | Active public 2.0 plugin and AI-scoring plan |
-| [planning/PUBLIC_OPTIMIZE_PLUGIN_2_0.md](planning/PUBLIC_OPTIMIZE_PLUGIN_2_0.md) | Active public token-first Optimize plugin plan |
+| [planning/PUBLIC_LIFECYCLE_PLUGIN_2_0.md](planning/PUBLIC_LIFECYCLE_PLUGIN_2_0.md) | Active public Lifecycle plugin plan for deep agent/workflow inspection |
 | [planning/PUBLIC_MODEL_FIT_2_0.md](planning/PUBLIC_MODEL_FIT_2_0.md) | Active public explainable model-fit and Eval/Optimize integration plan |
 | [planning/PUBLIC_SCORE_ACTIONS_2_0.md](planning/PUBLIC_SCORE_ACTIONS_2_0.md) | Shared score details, improvement suggestions, confirmed actions, audit, and undo |
 | [planning/PUBLIC_MODELS_GATEWAYS_EMAIL_2_0.md](planning/PUBLIC_MODELS_GATEWAYS_EMAIL_2_0.md) | Active public Gmail and Microsoft 365 partner plan; records shipped model-provider decisions |

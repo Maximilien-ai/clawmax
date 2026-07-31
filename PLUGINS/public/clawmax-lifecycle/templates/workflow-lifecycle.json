@@ -1,0 +1,21 @@
+{
+  "id": "workflow-lifecycle",
+  "name": "Workflow lifecycle",
+  "description": "Inspect one workflow's configuration, executions, participants, and artifacts in one place.",
+  "recommended": true,
+  "tags": ["workflow", "runs", "history"],
+  "payload": {
+    "name": "Workflow lifecycle",
+    "description": "Follow one workflow from configuration through recent runs and artifacts.",
+    "tags": ["workflow", "runs", "history"],
+    "enabled": true,
+    "fields": {
+      "subjectType": "workflow",
+      "targetIds": [],
+      "focus": "overview",
+      "timeWindow": "7-days",
+      "includeArchived": false,
+      "notes": ""
+    }
+  }
+}

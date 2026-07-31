@@ -1,0 +1,53 @@
+{
+  "apiVersion": "clawmax.ai/v2",
+  "id": "plugin-resource-plans",
+  "slug": "plugin-resource-plans",
+  "name": "Resource Plans",
+  "description": "Synthetic resource-plan fixture for generic numeric controls and relationship host contracts.",
+  "version": "0.1.0-test",
+  "icon": "plugin",
+  "objectKind": "optimization-plan",
+  "visibility": "private",
+  "enabledByDefault": false,
+  "source": {
+    "type": "github",
+    "owner": "Maximilien-ai",
+    "repo": "clawmax",
+    "url": "https://github.com/Maximilien-ai/clawmax/tree/main/PLUGINS/test/plugin-resource-plans",
+    "branch": "main"
+  },
+  "nav": {
+    "section": "plugins",
+    "order": 30,
+    "label": "Resources"
+  },
+  "capabilities": {
+    "docs": true,
+    "notifications": true,
+    "agents": true,
+    "workflows": true
+  },
+  "labels": {
+    "singular": "Plan",
+    "plural": "Plans"
+  },
+  "recordSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["scope", "optimizationGoal", "monthlyTokenBudget", "monthlyCostBudget", "status"],
+    "properties": {
+      "scope": { "type": "string", "title": "Scope", "enum": ["workflow", "agent", "workspace"], "default": "workflow" },
+      "targetIds": { "type": "array", "title": "Targets", "items": { "type": "string" }, "default": [] },
+      "optimizationGoal": { "type": "string", "title": "Priority", "enum": ["balanced", "quality", "speed", "tokens", "cost"], "default": "balanced" },
+      "monthlyTokenBudget": { "type": "integer", "title": "Monthly tokens", "control": "slider", "minimum": 0, "maximum": 10000000, "step": 50000, "default": 1000000 },
+      "monthlyCostBudget": { "type": "number", "title": "Monthly cost", "control": "slider", "minimum": 0, "maximum": 1000, "step": 1, "default": 25 },
+      "maximumRunDurationSeconds": { "type": "integer", "title": "Maximum duration", "control": "slider", "minimum": 1, "maximum": 86400, "step": 30, "default": 300 },
+      "minimumQualityScore": { "type": "number", "title": "Quality floor", "control": "slider", "minimum": 0, "maximum": 100, "step": 1, "default": 80 },
+      "status": { "type": "string", "title": "Status", "enum": ["draft", "recommended", "applied"], "default": "draft" }
+    }
+  },
+  "ui": {
+    "form": { "order": ["scope", "targetIds", "optimizationGoal", "monthlyTokenBudget", "monthlyCostBudget", "maximumRunDurationSeconds", "minimumQualityScore", "status"] },
+    "list": { "fields": ["scope", "targetIds", "optimizationGoal", "monthlyTokenBudget", "monthlyCostBudget", "status"] }
+  }
+}

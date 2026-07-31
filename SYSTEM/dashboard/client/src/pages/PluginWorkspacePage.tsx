@@ -155,6 +155,7 @@ function GenericPluginFields({
   const update = (key: string, value: PluginFieldValue) => onChange({ ...fields, [key]: value })
   const orderedFields = getOrderedPluginFields(plugin)
   const isOptimize = plugin.objectKind === 'optimization-plan'
+  const isLifecycle = plugin.objectKind === 'lifecycle-view'
   const fieldGroups = isOptimize
     ? [
         { title: 'Target and priority', keys: ['scope', 'targetIds', 'optimizationGoal', 'status'] },
@@ -190,8 +191,9 @@ function GenericPluginFields({
       )
     }
     if (schema.type === 'array') {
-      if (isOptimize && key === 'targetIds') {
-        const scope = fields.scope === 'agent' ? 'agent' : fields.scope === 'workflow' ? 'workflow' : 'workspace'
+      if ((isOptimize || isLifecycle) && key === 'targetIds') {
+        const scopeValue = isLifecycle ? fields.subjectType : fields.scope
+        const scope = scopeValue === 'agent' ? 'agent' : scopeValue === 'workflow' ? 'workflow' : 'workspace'
         const options = scope === 'agent' ? context.agents : scope === 'workflow' ? context.workflows : []
         const selected = Array.isArray(value) ? value.map(String) : []
         return (
@@ -201,17 +203,24 @@ function GenericPluginFields({
               <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-800/60 dark:text-gray-300">Current workspace</div>
             ) : (
               <select
-                multiple
-                value={selected}
-                size={Math.min(5, Math.max(3, options.length))}
-                onChange={(event) => update(key, Array.from(event.target.selectedOptions).map((option) => option.value))}
+                multiple={!isLifecycle}
+                value={isLifecycle ? selected[0] || '' : selected}
+                size={isLifecycle ? undefined : Math.min(5, Math.max(3, options.length))}
+                onChange={(event) => update(key, isLifecycle
+                  ? (event.target.value ? [event.target.value] : [])
+                  : Array.from(event.target.selectedOptions).map((option) => option.value))}
                 className={className}
               >
+                {isLifecycle && <option value="">Select {scope}</option>}
                 {options.map((option) => <option key={option.id} value={option.id}>{option.name} ({option.id})</option>)}
               </select>
             )}
             <span className="mt-1 block text-xs text-gray-500">
-              {scope === 'workspace' ? 'This plan applies to the complete workspace.' : `Select one or more ${scope}s. Use Cmd/Ctrl to select multiple.`}
+              {scope === 'workspace'
+                ? 'This plan applies to the complete workspace.'
+                : isLifecycle
+                  ? `Select one ${scope} to inspect.`
+                  : `Select one or more ${scope}s. Use Cmd/Ctrl to select multiple.`}
             </span>
           </label>
         )
@@ -3553,16 +3562,17 @@ function PluginRelationshipView({
     }
     if (isEvalRecord(item)) return item.target.ids.map((id) => ({ kind: item.target.type, id }))
     const ids = Array.isArray(item.fields.targetIds) ? item.fields.targetIds.map(String) : []
-    const scope = item.fields.scope === 'agent' ? 'agent' : 'workflow'
+    const scope = item.fields.subjectType === 'agent' || item.fields.scope === 'agent' ? 'agent' : 'workflow'
     return ids.map((id) => ({ kind: scope, id }))
   }
+  const relationshipLabel = plugin.objectKind === 'lifecycle-view' ? 'Inspects' : 'Applies to'
 
   return (
     <div className="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900/40">
       <div className="grid grid-cols-[minmax(0,1fr)_28px_minmax(0,1.2fr)] border-b border-gray-200 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:border-gray-700 dark:text-gray-400">
         <div>{heading}</div>
         <div />
-        <div>Applies to</div>
+        <div>{relationshipLabel}</div>
       </div>
       {items.map((item) => {
         const targets = relationships(item)
@@ -4134,10 +4144,10 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
   }
 
   const shownCount = collectionTab === 'suggested' ? filteredSuggestions.length : filtered.length
-  const isSyntheticProductFixture = plugin.slug === 'plugin-lab-evals' || plugin.slug === 'plugin-lab-guardrails'
+  const isSyntheticProductFixture = plugin.slug === 'plugin-evals' || plugin.slug === 'plugin-guardrails'
 
   return (
-    <div className="mx-auto w-full min-w-0 max-w-7xl overflow-x-hidden px-3 py-5 sm:px-6 sm:py-6">
+    <div className="mx-auto box-border w-full min-w-0 max-w-7xl overflow-x-hidden px-3 py-5 sm:px-6 sm:py-6">
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
           <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">{plugin.name}</h1>
@@ -4329,11 +4339,11 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
             </div>
           </div>
         )}
-        <div className="grid w-full min-w-0 grid-cols-3 overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700 sm:inline-flex sm:w-auto">
+        <div className="grid w-full min-w-0 max-w-full grid-cols-3 overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700 sm:inline-flex sm:w-auto">
           <button
             onClick={() => setCollectionTab('active')}
             aria-pressed={collectionTab === 'active'}
-            className={`min-w-0 px-2 py-2 text-sm font-medium transition-colors sm:px-4 ${
+            className={`min-w-0 whitespace-nowrap px-1.5 py-2 text-xs font-medium transition-colors sm:px-4 sm:text-sm ${
               collectionTab === 'active'
                 ? 'bg-sky-600 text-white'
                 : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
@@ -4344,7 +4354,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
           <button
             onClick={() => setCollectionTab('archived')}
             aria-pressed={collectionTab === 'archived'}
-            className={`min-w-0 px-2 py-2 text-sm font-medium transition-colors sm:px-4 ${
+            className={`min-w-0 whitespace-nowrap px-1.5 py-2 text-xs font-medium transition-colors sm:px-4 sm:text-sm ${
               collectionTab === 'archived'
                 ? 'bg-sky-600 text-white'
                 : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
@@ -4355,7 +4365,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
           <button
             onClick={() => setCollectionTab('suggested')}
             aria-pressed={collectionTab === 'suggested'}
-            className={`min-w-0 border-l border-gray-200 px-2 py-2 text-sm font-medium transition-colors dark:border-gray-700 sm:px-4 ${
+            className={`min-w-0 whitespace-nowrap border-l border-gray-200 px-1.5 py-2 text-xs font-medium transition-colors dark:border-gray-700 sm:px-4 sm:text-sm ${
               collectionTab === 'suggested'
                 ? 'bg-sky-600 text-white'
                 : 'bg-white text-gray-700 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'

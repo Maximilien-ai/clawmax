@@ -87,7 +87,7 @@ async function run() {
   process.env.OPENCLAW_WORKSPACE = tempWorkspace
   process.env.CLAWMAX_TEST_WORKSPACE = tempWorkspace
   process.env.HOME = tempHome
-  process.env.CLAWMAX_ENABLED_PLUGINS = 'plugin-lab-guardrails,plugin-lab-evals,plugin-lab-review-notes'
+  process.env.CLAWMAX_ENABLED_PLUGINS = 'plugin-guardrails,plugin-evals,plugin-review-notes'
   process.env.CLAWMAX_PLUGIN_PATHS = ''
   delete process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS
   resetWorkspaceManagerForTests()
@@ -114,7 +114,7 @@ async function run() {
 
   await test('plugin index lists configured plugins', async () => {
     const handler = getRouteHandler('get', '/')
-    process.env.CLAWMAX_ENABLED_PLUGINS = 'plugin-lab-guardrails,plugin-lab-evals,clawmax-optimize'
+    process.env.CLAWMAX_ENABLED_PLUGINS = 'plugin-guardrails,plugin-evals,plugin-resource-plans,clawmax-lifecycle,plugin-review-notes'
     process.env.CLAWMAX_PLUGIN_PATHS = ''
     delete process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS
     const res = makeRes()
@@ -122,14 +122,16 @@ async function run() {
 
     assert.strictEqual(res.statusCode, 200, 'Expected plugin index route success')
     assert(Array.isArray(res.jsonBody?.plugins), 'Expected plugin list array')
-    assert(res.jsonBody.plugins.some((plugin: any) => plugin.slug === 'plugin-lab-guardrails'), 'Expected guardrails test plugin in index')
-    assert(res.jsonBody.plugins.some((plugin: any) => plugin.slug === 'plugin-lab-evals'), 'Expected evals test plugin in index')
-    assert(res.jsonBody.plugins.some((plugin: any) => plugin.slug === 'clawmax-optimize'), 'Expected public Optimize plugin in index')
+    assert(res.jsonBody.plugins.some((plugin: any) => plugin.slug === 'plugin-guardrails'), 'Expected guardrails test plugin in index')
+    assert(res.jsonBody.plugins.some((plugin: any) => plugin.slug === 'plugin-evals'), 'Expected evals test plugin in index')
+    assert(res.jsonBody.plugins.some((plugin: any) => plugin.slug === 'plugin-resource-plans'), 'Expected resource-plan fixture in index')
+    assert(res.jsonBody.plugins.some((plugin: any) => plugin.slug === 'clawmax-lifecycle'), 'Expected public Lifecycle plugin in index')
+    assert(res.jsonBody.plugins.some((plugin: any) => plugin.slug === 'plugin-review-notes'), 'Expected public Review plugin in index')
   })
 
   await test('plugin diagnostics route reports host compatibility and load status', async () => {
     const handler = getRouteHandler('get', '/diagnostics')
-    process.env.CLAWMAX_ENABLED_PLUGINS = 'plugin-lab-review-notes,missing-route-plugin'
+    process.env.CLAWMAX_ENABLED_PLUGINS = 'plugin-review-notes,missing-route-plugin'
     process.env.CLAWMAX_PLUGIN_PATHS = ''
     delete process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS
     const res = makeRes()
@@ -138,9 +140,9 @@ async function run() {
     assert.strictEqual(res.statusCode, 200, 'Expected plugin diagnostics route success')
     assert.strictEqual(res.jsonBody?.hostApiVersion, 'clawmax.ai/v2', 'Expected host API version')
     assert.strictEqual(res.jsonBody?.healthy, false, 'Expected missing enabled plugin to make diagnostics unhealthy')
-    assert(res.jsonBody?.diagnostics?.some((entry: any) => entry.pluginId === 'plugin-lab-review-notes' && entry.status === 'loaded'), 'Expected loaded plugin diagnostic')
+    assert(res.jsonBody?.diagnostics?.some((entry: any) => entry.pluginId === 'plugin-review-notes' && entry.status === 'loaded'), 'Expected loaded plugin diagnostic')
     assert.deepStrictEqual(
-      res.jsonBody?.diagnostics?.find((entry: any) => entry.pluginId === 'plugin-lab-review-notes')?.capabilities,
+      res.jsonBody?.diagnostics?.find((entry: any) => entry.pluginId === 'plugin-review-notes')?.capabilities,
       ['docs', 'notifications'],
       'Expected diagnostics to expose granted host capabilities',
     )
@@ -149,12 +151,12 @@ async function run() {
 
   await test('plugin CRUD and document routes work for guardrails', async () => {
     const createHandler = getRouteHandler('post', '/:pluginId/items')
-    process.env.CLAWMAX_ENABLED_PLUGINS = 'plugin-lab-guardrails,plugin-lab-evals'
+    process.env.CLAWMAX_ENABLED_PLUGINS = 'plugin-guardrails,plugin-evals'
     process.env.CLAWMAX_PLUGIN_PATHS = ''
     delete process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS
     const createRes = makeRes()
     await createHandler(makeReq({
-      params: { pluginId: 'plugin-lab-guardrails' },
+      params: { pluginId: 'plugin-guardrails' },
       body: {
         name: 'No outbound send',
         description: 'Prevent external sends',
@@ -177,7 +179,7 @@ async function run() {
     const updateHandler = getRouteHandler('put', '/:pluginId/items/:itemId', false)
     const updateRes = makeRes()
     await updateHandler(makeReq({
-      params: { pluginId: 'plugin-lab-guardrails', itemId },
+      params: { pluginId: 'plugin-guardrails', itemId },
       body: {
         archived: true,
       },
@@ -187,12 +189,12 @@ async function run() {
 
     const listHandler = getRouteHandler('get', '/:pluginId/items', false)
     const listRes = makeRes()
-    await listHandler(makeReq({ params: { pluginId: 'plugin-lab-guardrails' } }), listRes)
+    await listHandler(makeReq({ params: { pluginId: 'plugin-guardrails' } }), listRes)
     assert.strictEqual(listRes.jsonBody?.items?.length, 1, 'Expected created plugin item to appear in list')
 
     const docHandler = getRouteHandler('post', '/:pluginId/items/:itemId/document', false)
     const docRes = makeRes()
-    await docHandler(makeReq({ params: { pluginId: 'plugin-lab-guardrails', itemId } }), docRes)
+    await docHandler(makeReq({ params: { pluginId: 'plugin-guardrails', itemId } }), docRes)
     assert.strictEqual(docRes.statusCode, 200, 'Expected plugin document route success')
     assert(docRes.jsonBody?.item?.document?.path, 'Expected document path in response')
     assert(fs.existsSync(path.join(tempWorkspace, docRes.jsonBody.item.document.path)), 'Expected plugin document written in workspace')
@@ -200,12 +202,12 @@ async function run() {
 
   await test('plugin run route executes eval items and rejects unknown plugins', async () => {
     const createHandler = getRouteHandler('post', '/:pluginId/items')
-    process.env.CLAWMAX_ENABLED_PLUGINS = 'plugin-lab-guardrails,plugin-lab-evals'
+    process.env.CLAWMAX_ENABLED_PLUGINS = 'plugin-guardrails,plugin-evals'
     process.env.CLAWMAX_PLUGIN_PATHS = ''
     delete process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS
     const createRes = makeRes()
     await createHandler(makeReq({
-      params: { pluginId: 'plugin-lab-evals' },
+      params: { pluginId: 'plugin-evals' },
       body: {
         name: 'Summary eval',
         description: 'Basic overlap score',
@@ -225,7 +227,7 @@ async function run() {
 
     const runHandler = getRouteHandler('post', '/:pluginId/items/:itemId/run', false)
     const runRes = makeRes()
-    await runHandler(makeReq({ params: { pluginId: 'plugin-lab-evals', itemId } }), runRes)
+    await runHandler(makeReq({ params: { pluginId: 'plugin-evals', itemId } }), runRes)
     assert.strictEqual(runRes.statusCode, 200, 'Expected eval run route success')
     assert((runRes.jsonBody?.item?.lastRun?.score || 0) > 0, 'Expected eval run score in route response')
 
@@ -236,37 +238,37 @@ async function run() {
 
   await test('plugin templates list and apply routes work', async () => {
     const listTemplates = getRouteHandler('get', '/:pluginId/templates', false)
-    process.env.CLAWMAX_ENABLED_PLUGINS = 'plugin-lab-guardrails,plugin-lab-evals,clawmax-optimize'
+    process.env.CLAWMAX_ENABLED_PLUGINS = 'plugin-guardrails,plugin-evals,plugin-resource-plans'
     process.env.CLAWMAX_PLUGIN_PATHS = ''
     delete process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS
     const templatesRes = makeRes()
-    await listTemplates(makeReq({ params: { pluginId: 'plugin-lab-guardrails' } }), templatesRes)
+    await listTemplates(makeReq({ params: { pluginId: 'plugin-guardrails' } }), templatesRes)
     assert.strictEqual(templatesRes.statusCode, 200, 'Expected template list success')
     assert((templatesRes.jsonBody?.templates || []).length >= 1, 'Expected at least one guardrail template')
 
     const applyTemplate = getRouteHandler('post', '/:pluginId/templates/:templateId/apply', false)
     const applyRes = makeRes()
-    await applyTemplate(makeReq({ params: { pluginId: 'plugin-lab-guardrails', templateId: 'no-outbound-email' } }), applyRes)
+    await applyTemplate(makeReq({ params: { pluginId: 'plugin-guardrails', templateId: 'no-outbound-email' } }), applyRes)
     assert.strictEqual(applyRes.statusCode, 201, 'Expected template apply success')
     assert.strictEqual(applyRes.jsonBody?.item?.name, 'No outbound email', 'Expected applied template to create a record')
 
-    const optimizeRes = makeRes()
-    await applyTemplate(makeReq({ params: { pluginId: 'clawmax-optimize', templateId: 'workflow-budget' } }), optimizeRes)
+    const resourcePlanRes = makeRes()
+    await applyTemplate(makeReq({ params: { pluginId: 'plugin-resource-plans', templateId: 'workflow-budget' } }), resourcePlanRes)
     assert.strictEqual(
-      optimizeRes.statusCode,
+      resourcePlanRes.statusCode,
       201,
-      `Expected target-free Optimize suggestion to create an Active plan: ${optimizeRes.jsonBody?.error || 'unknown error'}`,
+      `Expected target-free resource-plan fixture to create an Active plan: ${resourcePlanRes.jsonBody?.error || 'unknown error'}`,
     )
-    assert.strictEqual(optimizeRes.jsonBody?.item?.fields?.scope, 'workflow', 'Expected Optimize suggestion fields to persist')
-    assert.deepStrictEqual(optimizeRes.jsonBody?.item?.fields?.targetIds, [], 'Expected target selection to remain available in the editor')
+    assert.strictEqual(resourcePlanRes.jsonBody?.item?.fields?.scope, 'workflow', 'Expected resource-plan fields to persist')
+    assert.deepStrictEqual(resourcePlanRes.jsonBody?.item?.fields?.targetIds, [], 'Expected target selection to remain available in the editor')
   })
 
   await test('generic v2 plugin routes validate and persist declarative fields', async () => {
-    process.env.CLAWMAX_ENABLED_PLUGINS = 'plugin-lab-review-notes'
+    process.env.CLAWMAX_ENABLED_PLUGINS = 'plugin-review-notes'
     const createHandler = getRouteHandler('post', '/:pluginId/items')
     const invalidRes = makeRes()
     await createHandler(makeReq({
-      params: { pluginId: 'plugin-lab-review-notes' },
+      params: { pluginId: 'plugin-review-notes' },
       body: { name: 'Incomplete', fields: { release: '', area: 'regression', outcome: 'pending' } },
     }), invalidRes)
     assert.strictEqual(invalidRes.statusCode, 400, 'Expected missing required generic field to return HTTP 400')
@@ -274,7 +276,7 @@ async function run() {
 
     const createRes = makeRes()
     await createHandler(makeReq({
-      params: { pluginId: 'plugin-lab-review-notes' },
+      params: { pluginId: 'plugin-review-notes' },
       body: {
         name: 'Release review',
         fields: {

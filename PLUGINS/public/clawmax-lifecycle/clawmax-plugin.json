@@ -1,0 +1,84 @@
+{
+  "apiVersion": "clawmax.ai/v2",
+  "id": "clawmax-lifecycle",
+  "slug": "clawmax-lifecycle",
+  "name": "Lifecycle",
+  "description": "Get an X-ray view of one agent or workflow across its configuration, activity, artifacts, and history.",
+  "version": "0.1.0",
+  "icon": "activity",
+  "objectKind": "lifecycle-view",
+  "visibility": "public",
+  "enabledByDefault": true,
+  "source": {
+    "type": "github",
+    "owner": "Maximilien-ai",
+    "repo": "clawmax",
+    "url": "https://github.com/Maximilien-ai/clawmax/tree/main/PLUGINS/public/clawmax-lifecycle",
+    "branch": "main"
+  },
+  "nav": {
+    "section": "plugins",
+    "order": 40,
+    "label": "Lifecycle"
+  },
+  "capabilities": {
+    "docs": true,
+    "agents": true,
+    "workflows": true,
+    "communications": true
+  },
+  "labels": {
+    "singular": "Inspection",
+    "plural": "Inspections"
+  },
+  "recordSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["subjectType", "focus", "timeWindow"],
+    "properties": {
+      "subjectType": {
+        "type": "string",
+        "title": "Inspect",
+        "enum": ["agent", "workflow"],
+        "default": "agent"
+      },
+      "targetIds": {
+        "type": "array",
+        "title": "Targets",
+        "description": "Select one agent or workflow for this inspection.",
+        "items": { "type": "string" },
+        "default": []
+      },
+      "focus": {
+        "type": "string",
+        "title": "Focus",
+        "enum": ["overview", "activity", "artifacts", "configuration"],
+        "default": "overview"
+      },
+      "timeWindow": {
+        "type": "string",
+        "title": "Time window",
+        "enum": ["24-hours", "7-days", "30-days", "all"],
+        "default": "7-days"
+      },
+      "includeArchived": {
+        "type": "boolean",
+        "title": "Include archived history",
+        "default": false
+      },
+      "notes": {
+        "type": "string",
+        "title": "Inspection notes",
+        "format": "textarea"
+      }
+    }
+  },
+  "ui": {
+    "form": {
+      "order": ["subjectType", "targetIds", "focus", "timeWindow", "includeArchived", "notes"]
+    },
+    "list": {
+      "fields": ["subjectType", "targetIds", "focus", "timeWindow", "includeArchived"]
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "id": "workflow-budget",
+  "name": "Workflow resource fixture",
+  "description": "Synthetic target-free plan used to verify generic plugin persistence.",
+  "recommended": true,
+  "tags": ["workflow", "tokens"],
+  "payload": {
+    "name": "Workflow resource fixture",
+    "description": "Exercise generic resource-plan host controls.",
+    "tags": ["workflow", "tokens"],
+    "enabled": true,
+    "fields": {
+      "scope": "workflow",
+      "targetIds": [],
+      "optimizationGoal": "tokens",
+      "monthlyTokenBudget": 1000000,
+      "monthlyCostBudget": 25,
+      "maximumRunDurationSeconds": 300,
+      "minimumQualityScore": 80,
+      "status": "draft"
+    }
+  }
+}

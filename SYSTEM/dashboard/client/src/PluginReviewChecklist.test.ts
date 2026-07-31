@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 
 const repoRoot = path.resolve(__dirname, '../../../..')
-const pluginRoot = path.join(repoRoot, 'PLUGINS/test/plugin-lab-review-notes')
+const pluginRoot = path.join(repoRoot, 'PLUGINS/public/clawmax-review')
 const manifest = JSON.parse(fs.readFileSync(path.join(pluginRoot, 'clawmax-plugin.json'), 'utf-8'))
 const pageSource = fs.readFileSync(path.join(__dirname, 'pages/PluginWorkspacePage.tsx'), 'utf-8')
 const checklistFiles = fs.readdirSync(path.join(pluginRoot, 'templates')).filter((file) => file.endsWith('.json')).sort()
@@ -18,6 +18,8 @@ function assert(condition: boolean, message: string) {
 }
 
 assert(manifest.nav.label === 'Review', 'Review plugin must use a compact navigation label')
+assert(manifest.visibility === 'public', 'Review must remain a public product plugin')
+assert(manifest.enabledByDefault === true, 'Review must load in the public image by default')
 assert(manifest.nav.order === 1000, 'Review must be the last plugin in the default navigation order')
 assert(manifest.ui.list.groupBy === 'release', 'Review records must be compartmentalized by release')
 assert(manifest.ui.list.checkField === 'completed', 'Review records must declare their completion checkbox')
@@ -72,7 +74,7 @@ assert(previousChecklist?.items.some((item: any) => item.id === 'rc13-microsoft-
 assert(previousChecklist?.items.some((item: any) => item.id === 'plugin-layout-views'), 'Cumulative 2.0 checks must cover every plugin view')
 assert(previousChecklist?.items.some((item: any) => item.id === 'guardrail-create-target'), 'Cumulative 2.0 checks must cover guardrail targeting')
 assert(previousChecklist?.items.some((item: any) => item.id === 'eval-create-run'), 'Cumulative 2.0 checks must cover eval runs')
-assert(previousChecklist?.items.some((item: any) => item.id === 'optimize-skeleton'), 'Cumulative 2.0 checks must cover public Optimize')
+assert(previousChecklist?.items.some((item: any) => item.id === 'optimize-skeleton'), 'Cumulative 2.0 checks must retain historical Optimize coverage')
 assert(
   previousChecklist?.items.find((item: any) => item.id === 'plugin-sidebar-mobile')?.fields.verifiedBy?.some((entry: string) => entry.includes('Max') && entry.includes('local Dev')),
   'Imported RC4/RC5 navigation verification must retain reviewer and environment provenance',

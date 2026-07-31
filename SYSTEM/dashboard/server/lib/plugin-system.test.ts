@@ -117,7 +117,7 @@ async function run() {
   process.env.OPENCLAW_WORKSPACE = tempWorkspace
   process.env.CLAWMAX_TEST_WORKSPACE = tempWorkspace
   process.env.HOME = tempHome
-  process.env.CLAWMAX_ENABLED_PLUGINS = 'plugin-lab-guardrails,plugin-lab-evals,plugin-lab-review-notes,clawmax-optimize'
+  process.env.CLAWMAX_ENABLED_PLUGINS = 'plugin-evals,plugin-guardrails,plugin-resource-plans,clawmax-lifecycle,plugin-review-notes'
   process.env.CLAWMAX_PLUGIN_PATHS = ''
   delete process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS
   resetWorkspaceManagerForTests()
@@ -141,24 +141,26 @@ async function run() {
 
   await test('configured plugins expose manifests in sidebar order', () => {
     const plugins = listConfiguredPlugins()
-    assert(plugins.length >= 4, 'Expected the three synthetic plugins and public Optimize plugin to be configured')
-    assert.strictEqual(plugins[0]?.slug, 'plugin-lab-evals', 'Expected Evals to be the first default plugin')
-    assert.strictEqual(plugins[1]?.slug, 'plugin-lab-guardrails', 'Expected Guardrails to appear second')
-    assert.strictEqual(plugins[2]?.slug, 'clawmax-optimize', 'Expected public Optimize plugin to appear before Review')
-    assert.strictEqual(plugins[3]?.slug, 'plugin-lab-review-notes', 'Expected Review to be the final default plugin')
-    assert.strictEqual(plugins[3]?.apiVersion, 'clawmax.ai/v2', 'Expected generic plugin to declare the v2 host API')
-    assert.strictEqual(plugins[3]?.objectKind, 'review-note', 'Expected a non-core object kind to load')
-    assert.deepStrictEqual(plugins.map((plugin) => plugin.nav?.label), ['Evals', 'Guardrails', 'Optimize', 'Review'], 'Expected compact one-word plugin navigation labels')
-    assert.strictEqual(plugins[3]?.ui?.list?.groupBy, 'release', 'Expected release checklist grouping metadata')
-    assert.strictEqual(plugins[3]?.ui?.list?.checkField, 'completed', 'Expected release checklist completion metadata')
-    assert([plugins[0], plugins[1], plugins[3]].every((plugin) => plugin.visibility === 'private'), 'Expected synthetic plugins to be private')
-    assert.strictEqual(plugins[2]?.visibility, 'public', 'Expected Optimize to remain public')
+    assert(plugins.length >= 5, 'Expected synthetic host fixtures plus public Lifecycle and Review plugins')
+    assert.strictEqual(plugins[0]?.slug, 'plugin-evals', 'Expected Evals to be the first default plugin')
+    assert.strictEqual(plugins[1]?.slug, 'plugin-guardrails', 'Expected Guardrails to appear second')
+    assert.strictEqual(plugins[2]?.slug, 'plugin-resource-plans', 'Expected the synthetic resource-plan adapter fixture')
+    assert.strictEqual(plugins[3]?.slug, 'clawmax-lifecycle', 'Expected public Lifecycle before Review')
+    assert.strictEqual(plugins[4]?.slug, 'plugin-review-notes', 'Expected Review to be the final default plugin')
+    assert.strictEqual(plugins[4]?.apiVersion, 'clawmax.ai/v2', 'Expected generic plugin to declare the v2 host API')
+    assert.strictEqual(plugins[4]?.objectKind, 'review-note', 'Expected a non-core object kind to load')
+    assert.deepStrictEqual(plugins.map((plugin) => plugin.nav?.label), ['Evals', 'Guardrails', 'Resources', 'Lifecycle', 'Review'], 'Expected compact plugin navigation labels')
+    assert.strictEqual(plugins[4]?.ui?.list?.groupBy, 'release', 'Expected release checklist grouping metadata')
+    assert.strictEqual(plugins[4]?.ui?.list?.checkField, 'completed', 'Expected release checklist completion metadata')
+    assert([plugins[0], plugins[1], plugins[2]].every((plugin) => plugin.visibility === 'private'), 'Expected synthetic fixtures to remain private')
+    assert([plugins[3], plugins[4]].every((plugin) => plugin.visibility === 'public'), 'Expected Lifecycle and Review to remain public')
     assert(plugins.every((plugin) => plugin.nav?.section === 'plugins'), 'Expected plugins to target the plugin nav section')
-    assert(plugins.every((plugin) => plugin.capabilities?.notifications && plugin.capabilities?.docs), 'Expected plugins to declare core host capabilities')
+    assert(plugins.every((plugin) => plugin.capabilities?.docs), 'Expected every configured plugin to declare document access')
+    assert.strictEqual(plugins[3]?.capabilities?.notifications, undefined, 'Expected Lifecycle to remain read-only and notification-free')
   })
 
   await test('plugin suggestions are cached until an explicit refresh', () => {
-    const plugin = getPluginBySlug('plugin-lab-guardrails')
+    const plugin = getPluginBySlug('plugin-guardrails')
     assert(plugin, 'Expected guardrails test plugin manifest to load')
     clearPluginTemplateCache(plugin!)
 
@@ -338,7 +340,7 @@ async function run() {
   })
 
   await test('guardrail plugin records persist, generate docs, and emit notifications', () => {
-    const plugin = getPluginBySlug('plugin-lab-guardrails')
+    const plugin = getPluginBySlug('plugin-guardrails')
     assert(plugin, 'Expected guardrails test plugin manifest to load')
 
     const created = upsertPluginRecord(plugin!, {
@@ -398,8 +400,35 @@ async function run() {
     assert.strictEqual(listPluginRecords(plugin!).length, 0, 'Expected no guardrail records after delete')
   })
 
+  await test('renamed plugin storage migrates without losing Review records', () => {
+    const plugin = getPluginBySlug('plugin-review-notes')
+    assert(plugin, 'Expected public Review plugin manifest to load')
+    const pluginsRoot = path.join(tempWorkspace, 'SYSTEM', 'plugins')
+    const legacyDir = path.join(pluginsRoot, 'plugin-lab-review-notes')
+    const currentDir = path.join(pluginsRoot, 'plugin-review-notes')
+    fs.rmSync(currentDir, { recursive: true, force: true })
+    fs.mkdirSync(legacyDir, { recursive: true })
+    fs.writeFileSync(path.join(legacyDir, 'items.json'), JSON.stringify([{
+      id: 'legacy-review',
+      kind: 'review-note',
+      name: 'Legacy review',
+      description: 'Preserve reviewer state',
+      tags: ['release'],
+      enabled: true,
+      createdAt: '2026-07-01T00:00:00.000Z',
+      updatedAt: '2026-07-01T00:00:00.000Z',
+      fields: { release: '2.0.0-test', area: 'regression', completed: true, outcome: 'passed', notes: '', owner: '', evidence: [], verifiedBy: [] },
+    }], null, 2), 'utf-8')
+
+    const records = listPluginRecords(plugin!)
+    assert(records.some((record) => record.id === 'legacy-review'), 'Expected legacy Review data to remain readable')
+    assert(fs.existsSync(currentDir), 'Expected legacy Review storage to move to the canonical slug')
+    assert(!fs.existsSync(legacyDir), 'Expected the legacy storage directory to be retired')
+    fs.rmSync(currentDir, { recursive: true, force: true })
+  })
+
   await test('generic v2 plugin validates schema, persists fields, and applies templates', () => {
-    const plugin = getPluginBySlug('plugin-lab-review-notes')
+    const plugin = getPluginBySlug('plugin-review-notes')
     assert(plugin, 'Expected generic review-note plugin manifest to load')
 
     assert.throws(
@@ -450,10 +479,10 @@ async function run() {
   })
 
   await test('generic numeric fields clamp persisted values to manifest bounds', () => {
-    const plugin = getPluginBySlug('clawmax-optimize')
-    assert(plugin, 'Expected Optimize plugin manifest to load')
+    const plugin = getPluginBySlug('plugin-resource-plans')
+    assert(plugin, 'Expected resource-plan fixture manifest to load')
     const suggestions = listPluginTemplates(plugin!)
-    assert.strictEqual(suggestions.length, 8, 'Expected all permanent Optimize suggestions')
+    assert.strictEqual(suggestions.length, 1, 'Expected one bounded synthetic resource-plan suggestion')
     const appliedSuggestions = suggestions.map((template) => applyPluginTemplate(plugin!, template.id))
     assert(appliedSuggestions.every(Boolean), 'Expected every target-free Optimize suggestion to create a customizable plan')
     assert(appliedSuggestions.every((record) => record && 'fields' in record && Array.isArray(record.fields.targetIds) && record.fields.targetIds.length === 0), 'Expected target selection to remain available in the opened plan editor')
@@ -470,7 +499,7 @@ async function run() {
         status: 'draft',
       },
     } as any)
-    assert('fields' in created, 'Expected a generic Optimize record')
+    assert('fields' in created, 'Expected a generic resource-plan record')
     assert.strictEqual(created.fields.monthlyTokenBudget, 10000000, 'Expected token budgets to clamp to the maximum')
     assert.strictEqual(created.fields.monthlyCostBudget, 0, 'Expected cost budgets to clamp to the minimum')
     assert.strictEqual(created.fields.maximumRunDurationSeconds, 1, 'Expected duration to clamp to a positive minimum')
@@ -478,7 +507,7 @@ async function run() {
   })
 
   await test('eval plugin runs score experiments and surfaces workspace context', () => {
-    const plugin = getPluginBySlug('plugin-lab-evals')
+    const plugin = getPluginBySlug('plugin-evals')
     assert(plugin, 'Expected evals test plugin manifest to load')
 
     const created = upsertPluginRecord(plugin!, {
@@ -557,7 +586,7 @@ async function run() {
   })
 
   await test('eval runs reject incomplete or disabled configurations', async () => {
-    const plugin = getPluginBySlug('plugin-lab-evals')
+    const plugin = getPluginBySlug('plugin-evals')
     assert(plugin, 'Expected evals test plugin manifest to load')
     const incomplete = upsertPluginRecord(plugin!, {
       name: 'Incomplete Eval',
@@ -602,7 +631,7 @@ async function run() {
   })
 
   await test('eval evaluator and trial configuration persists without faking human runs', () => {
-    const plugin = getPluginBySlug('plugin-lab-evals')
+    const plugin = getPluginBySlug('plugin-evals')
     assert(plugin, 'Expected evals test plugin manifest to load')
     const suggestions = listPluginTemplates(plugin!)
     assert(suggestions.some((template) => (template.payload as any).experiment?.judge === 'ai'), 'Expected an AI-evaluated suggestion')
@@ -675,7 +704,7 @@ async function run() {
   })
 
   await test('host capabilities deny undeclared actions and filter workspace context', () => {
-    const source = getPluginBySlug('plugin-lab-review-notes')
+    const source = getPluginBySlug('plugin-review-notes')
     assert(source, 'Expected generic test plugin manifest to load')
     const plugin = { ...source!, id: 'no-grants', slug: 'no-grants', capabilities: {} }
     const created = upsertPluginRecord(plugin, {

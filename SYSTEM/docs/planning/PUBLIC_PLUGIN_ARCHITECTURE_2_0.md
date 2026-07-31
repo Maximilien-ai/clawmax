@@ -2,7 +2,7 @@
 
 > Status: foundational redesign planned
 > Target: `2.0.0`
-> Last updated: July 20, 2026
+> Last updated: July 31, 2026
 
 ## Core Rule
 
@@ -32,10 +32,10 @@ The manifest describes identity, compatibility, permissions, and contributions. 
 ```json
 {
   "apiVersion": "clawmax.ai/v2",
-  "id": "clawmax.optimize",
-  "slug": "optimize",
-  "name": "Optimize",
-  "description": "Token and cost optimization for workflows and agents.",
+  "id": "clawmax.lifecycle",
+  "slug": "lifecycle",
+  "name": "Lifecycle",
+  "description": "Read-only history and artifact inspection for agents and workflows.",
   "version": "0.1.0",
   "visibility": "public",
   "compatibility": {
@@ -44,34 +44,29 @@ The manifest describes identity, compatibility, permissions, and contributions. 
   },
   "source": {
     "type": "github",
-    "url": "https://github.com/Maximilien-ai/clawmax-optimize"
+    "url": "https://github.com/Maximilien-ai/clawmax/tree/main/PLUGINS/public/clawmax-lifecycle"
   },
   "permissions": [
-    "metering.read",
-    "budgets.read",
-    "budgets.write",
     "agents.read",
     "workflows.read",
-    "workflows.policy.write",
-    "workflows.schedule.write",
-    "models.read",
-    "pricing.read"
+    "docs.read",
+    "communications.read"
   ],
   "contributes": {
     "navigation": [
-      { "id": "optimize", "label": "Optimize", "location": "plugins", "order": 20, "page": "optimize.workspace" }
+      { "id": "lifecycle", "label": "Lifecycle", "location": "plugins", "order": 40, "page": "lifecycle.workspace" }
     ],
     "pages": [
-      { "id": "optimize.workspace", "module": "client/workspace-page" }
+      { "id": "lifecycle.workspace", "module": "client/workspace-page" }
     ],
     "api": [
-      { "id": "optimize.api", "module": "server/routes" }
+      { "id": "lifecycle.api", "module": "server/routes" }
     ],
     "dataStores": [
-      { "id": "optimize.workspace", "scope": "workspace", "version": 1 }
+      { "id": "lifecycle.workspace", "scope": "workspace", "version": 1 }
     ],
     "settings": [
-      { "id": "optimize.settings", "scope": "workspace", "module": "client/settings" }
+      { "id": "lifecycle.settings", "scope": "user", "module": "client/settings" }
     ],
     "jobs": [],
     "events": [],
@@ -238,7 +233,7 @@ The current MVP0 contract includes `objectKind: 'guardrail' | 'eval'`, hardcoded
 4. Convert guardrail and evaluation implementations into independent plugins that register their own pages, APIs, stores, and schemas.
 5. Remove `PluginObjectKind`, `PluginRecord`, and product-specific template logic from the host.
 6. Keep a bounded compatibility adapter only for the migration window.
-7. Use the public Optimize plugin as the first substantial proof that the host has no guardrail/eval assumptions.
+7. Use the public Lifecycle and Review plugins as proofs that the host supports useful products without guardrail/eval/optimization assumptions.
 
 ## Test Contract
 
@@ -252,7 +247,7 @@ The current MVP0 contract includes `objectKind: 'guardrail' | 'eval'`, hardcoded
 - verify public and private plugins execute through the same host contracts;
 - ensure one plugin cannot access another plugin's state, routes, secrets, or events without a declared shared contract;
 - run desktop/mobile/accessibility checks for contributed pages and dialogs;
-- prove Optimize, mail, guardrail, and evaluation plugins require no product-specific branches in the host.
+- prove Lifecycle, Review, mail, and private enterprise plugins require no product-specific branches in the host.
 
 ## 2.0 Release Gate
 
@@ -262,6 +257,6 @@ The current MVP0 contract includes `objectKind: 'guardrail' | 'eval'`, hardcoded
 - plugin migrations and lifecycle survive restart and workspace operations;
 - optional plugin failures remain isolated;
 - public/private distribution uses the same technical contract;
-- Optimize runs as a public plugin without core Optimize domain types;
+- Lifecycle and Review run as public plugins without core product-domain types;
 - guardrail and evaluation products run as plugins without core guardrail/eval domain types;
 - the public SDK, schema, examples, tests, and author documentation ship together.

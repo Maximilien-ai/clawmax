@@ -9,10 +9,11 @@ const pluginPageSource = fs.readFileSync(path.join(sourceRoot, 'pages/PluginWork
 const evalGraphSource = fs.readFileSync(path.join(sourceRoot, 'lib/evalGraph.ts'), 'utf8')
 const repoRoot = path.resolve(sourceRoot, '../../../..')
 const manifests = [
-  'PLUGINS/test/plugin-lab-guardrails/clawmax-plugin.json',
-  'PLUGINS/test/plugin-lab-evals/clawmax-plugin.json',
-  'PLUGINS/test/plugin-lab-review-notes/clawmax-plugin.json',
-  'PLUGINS/public/clawmax-optimize/clawmax-plugin.json',
+  'PLUGINS/test/plugin-guardrails/clawmax-plugin.json',
+  'PLUGINS/test/plugin-evals/clawmax-plugin.json',
+  'PLUGINS/test/plugin-resource-plans/clawmax-plugin.json',
+  'PLUGINS/public/clawmax-lifecycle/clawmax-plugin.json',
+  'PLUGINS/public/clawmax-review/clawmax-plugin.json',
 ].map((relativePath) => JSON.parse(fs.readFileSync(path.join(repoRoot, relativePath), 'utf8')))
 
 assert(
@@ -56,6 +57,8 @@ assert(pluginPageSource.includes('runs: []'), 'Suggested evals must normalize pe
 assert(pluginPageSource.includes('fields: base.fields || {}'), 'Suggested generic plugins must normalize declarative fields before preview')
 assert(pluginPageSource.includes('min-w-0 w-full sm:w-auto'), 'Plugin headers must stack without clipping on phone viewports')
 assert(pluginPageSource.includes('grid w-full min-w-0 grid-cols-4 overflow-hidden rounded-lg border'), 'Plugin view controls must occupy four stable mobile columns')
+assert(pluginPageSource.includes('max-w-full grid-cols-3 overflow-hidden'), 'Plugin collection tabs must remain within the mobile viewport')
+assert(pluginPageSource.includes('whitespace-nowrap px-1.5 py-2 text-xs'), 'Plugin collection labels must stay compact and unbroken on mobile')
 assert(pluginPageSource.includes('type="range"'), 'Generic plugin forms must render declared slider controls')
 assert(pluginPageSource.includes('grid-cols-[minmax(0,1fr)_7rem]'), 'Slider controls must reserve stable mobile space for exact values')
 assert(pluginPageSource.includes('normalizePluginNumericValue(schema, event.target.value)'), 'Slider and numeric inputs must share bounded normalization')

@@ -19,8 +19,9 @@
   `clawmax-plugins` monorepo. Partner-owned or customer-specific plugins may
   remain separate when they require different access controls. Never copy
   private source into this repository or the public image.
-- Review and Optimize are the only public product plugins in the current 2.0
-  phase. Treat `PLUGINS/test/plugin-lab-*` as synthetic contract fixtures only;
+- Lifecycle and Review are the public product plugins in the current 2.0
+  phase. Evals, Guardrails, and Optimize are private enterprise plugins. Treat
+  `PLUGINS/test/plugin-*` as synthetic contract fixtures only;
   they must not contain or become copies of private product implementations.
 - Keep every other plugin private unless its ownership is explicitly changed.
   Public documentation may describe the generic host boundary, but must not

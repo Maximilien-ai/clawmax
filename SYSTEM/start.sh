@@ -35,14 +35,26 @@ if [ -z "$DASHBOARD_AUTH_MODE" ] && [ -z "$BYPASS_OAUTH" ] && [ -z "$DASHBOARD_A
   export BYPASS_OAUTH="true"
 fi
 
-# Enable the first-party plugin set for local development only. Explicit caller
-# and ignored .env values always win, and production images use their own
-# entrypoint defaults.
-LOCAL_DEV_PLUGIN_IDS="plugin-lab-guardrails,plugin-lab-evals,plugin-lab-review-notes,clawmax-optimize"
 dotenv_defines_nonempty() {
   local key="$1"
   [ -f ".env" ] && grep -Eq "^${key}=.+$" .env
 }
+
+# Public development always exposes the public product plugins. When the
+# private monorepo is checked out beside this repository, discover and enable
+# its complete enterprise suite as well. Explicit shell and ignored .env
+# settings continue to win.
+PUBLIC_DEV_PLUGIN_IDS="clawmax-lifecycle,plugin-review-notes"
+PRIVATE_DEV_PLUGIN_ROOT="$REPO_ROOT/../clawmax-plugins/plugins"
+LOCAL_DEV_PLUGIN_IDS="$PUBLIC_DEV_PLUGIN_IDS"
+if [ -f "$PRIVATE_DEV_PLUGIN_ROOT/evals/clawmax-plugin.json" ] \
+  && [ -f "$PRIVATE_DEV_PLUGIN_ROOT/guardrails/clawmax-plugin.json" ] \
+  && [ -f "$PRIVATE_DEV_PLUGIN_ROOT/optimize/clawmax-plugin.json" ] \
+  && [ -z "${CLAWMAX_PLUGIN_PATHS+x}" ] \
+  && ! dotenv_defines_nonempty "CLAWMAX_PLUGIN_PATHS"; then
+  export CLAWMAX_PLUGIN_PATHS="$PRIVATE_DEV_PLUGIN_ROOT/evals:$PRIVATE_DEV_PLUGIN_ROOT/guardrails:$PRIVATE_DEV_PLUGIN_ROOT/optimize"
+  LOCAL_DEV_PLUGIN_IDS="clawmax-evals-plugin,clawmax-guardrails-plugin,clawmax-optimize,$PUBLIC_DEV_PLUGIN_IDS"
+fi
 if [ -z "${CLAWMAX_ENABLED_PLUGINS+x}" ] && ! dotenv_defines_nonempty "CLAWMAX_ENABLED_PLUGINS"; then
   export CLAWMAX_ENABLED_PLUGINS="$LOCAL_DEV_PLUGIN_IDS"
 fi

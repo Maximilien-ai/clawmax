@@ -1710,13 +1710,22 @@ else
   fail "Eval relationship graph unit tests"
 fi
 
-echo -e "${YELLOW}→ Running Optimize plugin skeleton contract tests...${NC}"
-npx ts-node --transpileOnly client/src/PluginOptimizeSkeleton.test.ts > /tmp/clawmax-plugin-optimize.out 2>&1 || true
-if grep -q "PluginOptimizeSkeleton.test.ts: 43 tests passed" /tmp/clawmax-plugin-optimize.out; then
-  pass "Optimize plugin skeleton contract tests (43 tests)"
+echo -e "${YELLOW}→ Running Lifecycle plugin skeleton contract tests...${NC}"
+npx ts-node --transpileOnly client/src/PluginLifecycleSkeleton.test.ts > /tmp/clawmax-plugin-lifecycle.out 2>&1 || true
+if grep -q "PluginLifecycleSkeleton.test.ts: 19 tests passed" /tmp/clawmax-plugin-lifecycle.out; then
+  pass "Lifecycle plugin skeleton contract tests (19 tests)"
 else
-  cat /tmp/clawmax-plugin-optimize.out
-  fail "Optimize plugin skeleton contract tests"
+  cat /tmp/clawmax-plugin-lifecycle.out
+  fail "Lifecycle plugin skeleton contract tests"
+fi
+
+echo -e "${YELLOW}→ Running Public plugin boundary contract tests...${NC}"
+npx ts-node --transpileOnly client/src/PluginPublicBoundary.test.ts > /tmp/clawmax-plugin-public-boundary.out 2>&1 || true
+if grep -q "PluginPublicBoundary.test.ts: 10 tests passed" /tmp/clawmax-plugin-public-boundary.out; then
+  pass "Public plugin boundary contract tests (10 tests)"
+else
+  cat /tmp/clawmax-plugin-public-boundary.out
+  fail "Public plugin boundary contract tests"
 fi
 
 echo -e "${YELLOW}→ Running Optimize relationship graph unit tests...${NC}"
@@ -2509,8 +2518,8 @@ fi
 
 echo -e "${YELLOW}→ Running local plugin startup contract tests...${NC}"
 bash "$SYSTEM_DIR/start-local-plugins.test.sh" > /tmp/clawmax-start-local-plugins.out 2>&1 || true
-if grep -q "start-local-plugins.test.sh: 5 tests passed" /tmp/clawmax-start-local-plugins.out; then
-  pass "Local plugin startup contract tests (5 tests)"
+if grep -q "start-local-plugins.test.sh: 8 tests passed" /tmp/clawmax-start-local-plugins.out; then
+  pass "Local plugin startup contract tests (8 tests)"
 else
   cat /tmp/clawmax-start-local-plugins.out
   fail "Local plugin startup contract tests"

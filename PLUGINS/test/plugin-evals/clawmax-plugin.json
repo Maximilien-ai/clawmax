@@ -1,6 +1,6 @@
 {
-  "id": "plugin-lab-evals",
-  "slug": "plugin-lab-evals",
+  "id": "plugin-evals",
+  "slug": "plugin-evals",
   "name": "Evals",
   "description": "Create and run repeatable workspace-scoped evaluations that measure agent and workflow output quality, scores, progress, and execution history.",
   "version": "0.2.0-test",
@@ -12,7 +12,7 @@
     "type": "github",
     "owner": "Maximilien-ai",
     "repo": "clawmax",
-    "url": "https://github.com/Maximilien-ai/clawmax/tree/main/PLUGINS/test/plugin-lab-evals",
+    "url": "https://github.com/Maximilien-ai/clawmax/tree/main/PLUGINS/test/plugin-evals",
     "branch": "main"
   },
   "nav": {

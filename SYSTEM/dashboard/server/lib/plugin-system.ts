@@ -677,7 +677,27 @@ function findPluginDirectory(plugin: PluginManifest): string | null {
 }
 
 function getPluginStorageDir(plugin: PluginManifest): string {
-  return path.join(getWorkspacePath(), 'SYSTEM', 'plugins', plugin.slug)
+  const pluginsRoot = path.join(getWorkspacePath(), 'SYSTEM', 'plugins')
+  const current = path.join(pluginsRoot, plugin.slug)
+  if (fs.existsSync(current)) return current
+
+  const legacySlugs: Record<string, string[]> = {
+    'plugin-review-notes': ['plugin-lab-review-notes'],
+    'plugin-evals': ['plugin-lab-evals'],
+    'plugin-guardrails': ['plugin-lab-guardrails'],
+  }
+  for (const legacySlug of legacySlugs[plugin.slug] || []) {
+    const legacy = path.join(pluginsRoot, legacySlug)
+    if (!fs.existsSync(legacy)) continue
+    try {
+      fs.mkdirSync(pluginsRoot, { recursive: true })
+      fs.renameSync(legacy, current)
+      return current
+    } catch {
+      return legacy
+    }
+  }
+  return current
 }
 
 function getPluginItemsPath(plugin: PluginManifest): string {
