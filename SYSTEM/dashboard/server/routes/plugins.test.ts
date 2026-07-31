@@ -24,6 +24,7 @@ const originalTestWorkspace = process.env.CLAWMAX_TEST_WORKSPACE
 const originalEnabledPlugins = process.env.CLAWMAX_ENABLED_PLUGINS
 const originalDisableDefaultPlugins = process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS
 const originalPluginPaths = process.env.CLAWMAX_PLUGIN_PATHS
+const originalPluginSettingsPath = process.env.CLAWMAX_PLUGIN_SETTINGS_PATH
 
 function test(name: string, fn: () => void | Promise<void>) {
   return Promise.resolve()
@@ -89,8 +90,33 @@ async function run() {
   process.env.HOME = tempHome
   process.env.CLAWMAX_ENABLED_PLUGINS = 'plugin-guardrails,plugin-evals,plugin-review-notes'
   process.env.CLAWMAX_PLUGIN_PATHS = ''
+  process.env.CLAWMAX_PLUGIN_SETTINGS_PATH = path.join(tempHome, 'plugin-settings.json')
   delete process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS
   resetWorkspaceManagerForTests()
+
+  await test('plugin settings routes list and persist the enabled selection', async () => {
+    const getHandler = getRouteHandler('get', '/settings')
+    const getRes = makeRes()
+    await getHandler(makeReq(), getRes)
+    assert.strictEqual(getRes.statusCode, 200)
+    assert(getRes.jsonBody?.plugins?.some((plugin: any) => plugin.slug === 'clawmax-lifecycle'))
+
+    const putHandler = getRouteHandler('put', '/settings')
+    const putRes = makeRes()
+    await putHandler(makeReq({ body: { enabledPluginIds: ['clawmax-lifecycle', 'plugin-review-notes'] } }), putRes)
+    assert.strictEqual(putRes.statusCode, 200)
+    assert.deepStrictEqual(putRes.jsonBody?.plugins?.map((plugin: any) => plugin.slug), ['clawmax-lifecycle', 'plugin-review-notes'])
+    assert(fs.existsSync(process.env.CLAWMAX_PLUGIN_SETTINGS_PATH!))
+    fs.unlinkSync(process.env.CLAWMAX_PLUGIN_SETTINGS_PATH!)
+  })
+
+  await test('plugin settings route rejects unknown plugins', async () => {
+    const handler = getRouteHandler('put', '/settings')
+    const res = makeRes()
+    await handler(makeReq({ body: { enabledPluginIds: ['not-installed'] } }), res)
+    assert.strictEqual(res.statusCode, 400)
+    assert(String(res.jsonBody?.error).includes('not-installed'))
+  })
 
   await test('plugin index returns empty when default plugins are disabled', async () => {
     const previousEnabled = process.env.CLAWMAX_ENABLED_PLUGINS
@@ -349,6 +375,8 @@ async function run() {
   else process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS = originalDisableDefaultPlugins
   if (typeof originalPluginPaths === 'undefined') delete process.env.CLAWMAX_PLUGIN_PATHS
   else process.env.CLAWMAX_PLUGIN_PATHS = originalPluginPaths
+  if (typeof originalPluginSettingsPath === 'undefined') delete process.env.CLAWMAX_PLUGIN_SETTINGS_PATH
+  else process.env.CLAWMAX_PLUGIN_SETTINGS_PATH = originalPluginSettingsPath
   resetWorkspaceManagerForTests()
   fs.rmSync(tempWorkspace, { recursive: true, force: true })
   fs.rmSync(tempHome, { recursive: true, force: true })
@@ -379,6 +407,8 @@ run().catch((err) => {
   else process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS = originalDisableDefaultPlugins
   if (typeof originalPluginPaths === 'undefined') delete process.env.CLAWMAX_PLUGIN_PATHS
   else process.env.CLAWMAX_PLUGIN_PATHS = originalPluginPaths
+  if (typeof originalPluginSettingsPath === 'undefined') delete process.env.CLAWMAX_PLUGIN_SETTINGS_PATH
+  else process.env.CLAWMAX_PLUGIN_SETTINGS_PATH = originalPluginSettingsPath
   resetWorkspaceManagerForTests()
   console.error(err)
   process.exit(1)

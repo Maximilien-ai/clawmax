@@ -1038,6 +1038,13 @@ else
   fail "Plugin routes contract unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Plugin manager UI contract tests...${NC}"
+if npx ts-node --transpileOnly client/src/PluginManagerDialog.test.ts; then
+  pass "Plugin manager UI contract tests (7 tests)"
+else
+  fail "Plugin manager UI contract tests"
+fi
+
 echo ""
 echo -e "${YELLOW}→ Running Plugin relationship helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/pluginRelationships.test.ts > /tmp/clawmax-plugin-relationships.out 2>&1 || true
@@ -1660,8 +1667,8 @@ fi
 
 echo -e "${YELLOW}→ Running App sidebar layout regression tests...${NC}"
 npx ts-node --transpileOnly client/src/AppSidebar.test.ts > /tmp/clawmax-app-sidebar.out 2>&1 || true
-if grep -q "AppSidebar.test.ts: 12 tests passed" /tmp/clawmax-app-sidebar.out; then
-  pass "App sidebar layout regression tests (12 tests)"
+if grep -q "AppSidebar.test.ts: 15 tests passed" /tmp/clawmax-app-sidebar.out; then
+  pass "App sidebar layout regression tests (15 tests)"
 else
   cat /tmp/clawmax-app-sidebar.out
   fail "App sidebar layout regression tests"

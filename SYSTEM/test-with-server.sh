@@ -41,9 +41,18 @@ done
 export DASHBOARD_PORT="$BACKEND_PORT"
 export DASHBOARD_CLIENT_PORT="$FRONTEND_PORT"
 export DASHBOARD_APP_URL="$FRONTEND_URL"
+USE_DEFAULT_TEST_PLUGINS=false
 if [ -z "${CLAWMAX_ENABLED_PLUGINS+x}" ]; then
-  export CLAWMAX_ENABLED_PLUGINS="$TEST_PLUGIN_IDS"
+  USE_DEFAULT_TEST_PLUGINS=true
 fi
+
+configure_default_test_plugins() {
+  if [ "$USE_DEFAULT_TEST_PLUGINS" != "true" ]; then
+    return
+  fi
+  export CLAWMAX_ENABLED_PLUGINS="$TEST_PLUGIN_IDS"
+  export CLAWMAX_PLUGIN_SETTINGS_PATH="${TMPDIR:-/tmp}/clawmax-test-plugin-settings-${BACKEND_PORT}-${FRONTEND_PORT}.json"
+}
 
 if ! acquire_clawmax_test_lock "$BACKEND_PORT" "$FRONTEND_PORT"; then
   exit 2
@@ -262,6 +271,7 @@ echo ""
 
 if ! health_ready; then
   echo "Dashboard health check is not ready; starting dashboard..."
+  configure_default_test_plugins
   if [ -n "$INITIAL_BACKEND_PIDS$INITIAL_FRONTEND_PIDS" ]; then
     echo "Ports are occupied but health is failing; restarting dashboard ports before testing."
     START_WITH_RESTART=true
@@ -281,6 +291,7 @@ if ! health_ready; then
   fi
 elif [ "$RUN_INTEGRATION" = true ] && [ "${CLAWMAX_TEST_REUSE_SERVER:-}" != "true" ]; then
   echo "Integration mode detected; restarting dashboard to test the current source tree."
+  configure_default_test_plugins
   STARTED_SERVER=true
   CLAWMAX_SKIP_GATEWAY_BOOTSTRAP=true "$SCRIPT_DIR/start.sh" --restart
   if ! wait_for_health 60; then

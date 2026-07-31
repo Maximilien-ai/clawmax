@@ -24,6 +24,10 @@
   `PLUGINS/test/plugin-*` as synthetic contract fixtures only;
   they must not contain or become copies of private product implementations.
 - Keep every other plugin private unless its ownership is explicitly changed.
+- Plugin enablement must be manageable from the PLUGINS sidebar as well as
+  deployment configuration. Persist an explicit instance selection, including
+  the valid empty selection, and never expose synthetic contract fixtures in
+  the manager.
   Public documentation may describe the generic host boundary, but must not
   enumerate private plugin items, rules, prompts, schemas, or implementation
   details.

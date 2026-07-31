@@ -153,7 +153,7 @@ async function run() {
     assert.strictEqual(linuxSupport.available, false, 'Expected non-macOS runtimes to disable browse')
     assert.strictEqual(linuxSupport.status, 501, 'Expected unsupported browse to return HTTP 501')
     assert(/instead of a path on your laptop/i.test(linuxSupport.error || ''), 'Expected laptop-vs-runtime guidance for unsupported runtimes')
-    assert(/WORKSPACES\/.*\/SKILLS\/custom/i.test(linuxSupport.error || ''), 'Expected managed-skills directory guidance for unsupported runtimes')
+    assert(/Managed custom skills live under .*\/SKILLS\/custom/i.test(linuxSupport.error || ''), 'Expected managed-skills directory guidance for unsupported runtimes')
     assert(/SKILLS\/custom/i.test(linuxSupport.suggestedPath || ''), 'Expected suggested managed-skills path')
 
     const darwinMissingBinary = skillsRouteTestHooks.getNativeDirectoryPickerSupportForRuntime('darwin', false)

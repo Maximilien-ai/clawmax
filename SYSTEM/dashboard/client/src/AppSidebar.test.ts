@@ -19,5 +19,8 @@ assert(source.includes('aria-expanded={pluginNavExpanded}'), 'Plugin navigation 
 assert(source.includes('pluginNavExpanded && orderedPlugins.map'), 'Collapsed plugin navigation must hide plugin entries')
 assert(source.indexOf('{coreUserNav.map((item, index) => (') < source.indexOf('aria-expanded={pluginNavExpanded}'), 'Plugins must render after all core navigation')
 assert(source.indexOf('aria-expanded={pluginNavExpanded}') < source.indexOf('onClick={() => setSystemNavExpanded'), 'Plugins must render immediately before the System section')
+assert(source.includes("plugin.objectKind === 'optimization-plan') return BarChartIcon"), 'Optimize must use a distinct bar chart icon')
+assert(source.includes("plugin.objectKind === 'lifecycle-view' || plugin.icon === 'activity') return ActivityIcon"), 'Lifecycle must retain the activity history icon')
+assert(source.includes('aria-label="Manage plugins"'), 'Plugin section must expose the plugin manager')
 
-console.log('AppSidebar.test.ts: 12 tests passed')
+console.log('AppSidebar.test.ts: 15 tests passed')

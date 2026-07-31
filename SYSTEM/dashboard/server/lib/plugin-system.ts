@@ -87,6 +87,21 @@ export interface PluginManifest {
   ui?: PluginUiContract
 }
 
+export interface PluginSettingsEntry {
+  id: string
+  slug: string
+  name: string
+  description: string
+  version: string
+  visibility: PluginVisibility
+  enabled: boolean
+}
+
+interface PersistedPluginSettings {
+  version: 1
+  enabledPluginIds: string[]
+}
+
 export interface PluginRecordTemplate {
   id: string
   pluginId: string
@@ -491,19 +506,51 @@ function listDiscoveredPluginEntries(): PluginManifestEntry[] {
     .map(({ directory, manifest }) => ({ directory, manifest }))
 }
 
-function getEnabledPluginFilter(): Set<string> {
-  return new Set(uniq(String(process.env.CLAWMAX_ENABLED_PLUGINS || '').split(',')))
+function getPluginSettingsPath(): string {
+  const configured = String(process.env.CLAWMAX_PLUGIN_SETTINGS_PATH || '').trim()
+  if (configured) return path.resolve(configured)
+  const home = String(process.env.OPENCLAW_HOME || '').trim()
+    || path.join(String(process.env.HOME || '').trim() || process.cwd(), '.openclaw')
+  return path.join(home, 'clawmax-plugin-settings.json')
 }
 
-function isPluginEnabled(manifest: PluginManifest, enabledFilter: Set<string>, disableDefaults: boolean): boolean {
-  if (enabledFilter.size > 0) return enabledFilter.has(manifest.slug) || enabledFilter.has(manifest.id)
+function readPersistedPluginSettings(): PersistedPluginSettings | null {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(getPluginSettingsPath(), 'utf-8')) as Partial<PersistedPluginSettings>
+    if (parsed.version !== 1 || !Array.isArray(parsed.enabledPluginIds)) return null
+    return {
+      version: 1,
+      enabledPluginIds: uniq(parsed.enabledPluginIds.filter((entry): entry is string => typeof entry === 'string')),
+    }
+  } catch {
+    return null
+  }
+}
+
+function getEnabledPluginSelection(): { filter: Set<string>; explicit: boolean } {
+  const persisted = readPersistedPluginSettings()
+  if (persisted) return { filter: new Set(persisted.enabledPluginIds), explicit: true }
+  const configured = String(process.env.CLAWMAX_ENABLED_PLUGINS || '').trim()
+  return {
+    filter: new Set(uniq(configured.split(','))),
+    explicit: configured.length > 0,
+  }
+}
+
+function isPluginEnabled(
+  manifest: PluginManifest,
+  enabledFilter: Set<string>,
+  disableDefaults: boolean,
+  hasExplicitSelection: boolean,
+): boolean {
+  if (hasExplicitSelection) return enabledFilter.has(manifest.slug) || enabledFilter.has(manifest.id)
   if (disableDefaults) return false
   return manifest.enabledByDefault === true
 }
 
 export function listConfiguredPlugins(): PluginManifest[] {
   const disableDefaults = String(process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS || '').trim().toLowerCase() === 'true'
-  const enabledFilter = getEnabledPluginFilter()
+  const { filter: enabledFilter, explicit: hasExplicitSelection } = getEnabledPluginSelection()
   const manifests: PluginManifest[] = []
   const seenIdentities = new Set<string>()
 
@@ -512,16 +559,67 @@ export function listConfiguredPlugins(): PluginManifest[] {
     if (seenIdentities.has(manifest.id) || seenIdentities.has(manifest.slug)) continue
     seenIdentities.add(manifest.id)
     seenIdentities.add(manifest.slug)
-    if (!isPluginEnabled(manifest, enabledFilter, disableDefaults)) continue
+    if (!isPluginEnabled(manifest, enabledFilter, disableDefaults, hasExplicitSelection)) continue
     manifests.push(manifest)
   }
 
   return manifests.sort(sortPlugins)
 }
 
+export function getPluginSettingsInventory(): PluginSettingsEntry[] {
+  const enabled = new Set(listConfiguredPlugins().flatMap((plugin) => [plugin.id, plugin.slug]))
+  const seen = new Set<string>()
+  const manageable: PluginManifest[] = []
+
+  for (const { directory, manifest } of listDiscoveredPluginEntries()) {
+    if (directory.startsWith(path.join(DEFAULT_PLUGIN_ROOT, 'test') + path.sep)) continue
+    if (seen.has(manifest.id) || seen.has(manifest.slug)) continue
+    seen.add(manifest.id)
+    seen.add(manifest.slug)
+    manageable.push(manifest)
+  }
+
+  return manageable.sort(sortPlugins).map((manifest) => ({
+    id: manifest.id,
+    slug: manifest.slug,
+    name: manifest.name,
+    description: manifest.description,
+    version: manifest.version,
+    visibility: manifest.visibility,
+    enabled: enabled.has(manifest.id) || enabled.has(manifest.slug),
+  }))
+}
+
+export function updatePluginSettings(enabledPluginIds: unknown): PluginSettingsEntry[] {
+  if (!Array.isArray(enabledPluginIds) || enabledPluginIds.some((entry) => typeof entry !== 'string')) {
+    throw new PluginContractError('enabledPluginIds must be an array of plugin IDs.', 400)
+  }
+
+  const entries = listDiscoveredPluginEntries()
+    .filter(({ directory }) => !directory.startsWith(path.join(DEFAULT_PLUGIN_ROOT, 'test') + path.sep))
+  const byIdentity = new Map<string, PluginManifest>()
+  for (const { manifest } of entries) {
+    byIdentity.set(manifest.id, manifest)
+    byIdentity.set(manifest.slug, manifest)
+  }
+  const requested = uniq(enabledPluginIds.map((entry) => entry.trim()).filter(Boolean))
+  const unknown = requested.filter((entry) => !byIdentity.has(entry))
+  if (unknown.length > 0) {
+    throw new PluginContractError(`Unknown plugin${unknown.length === 1 ? '' : 's'}: ${unknown.join(', ')}`, 400)
+  }
+  const canonical = uniq(requested.map((entry) => byIdentity.get(entry)!.slug))
+  const settings: PersistedPluginSettings = { version: 1, enabledPluginIds: canonical }
+  const settingsPath = getPluginSettingsPath()
+  fs.mkdirSync(path.dirname(settingsPath), { recursive: true })
+  const temporaryPath = `${settingsPath}.${process.pid}.tmp`
+  fs.writeFileSync(temporaryPath, JSON.stringify(settings, null, 2) + '\n', { mode: 0o600 })
+  fs.renameSync(temporaryPath, settingsPath)
+  return getPluginSettingsInventory()
+}
+
 export function getPluginDiagnosticsReport(): PluginDiagnosticsReport {
   const roots = getPluginRoots()
-  const enabledFilter = getEnabledPluginFilter()
+  const { filter: enabledFilter, explicit: hasExplicitSelection } = getEnabledPluginSelection()
   const disableDefaults = String(process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS || '').trim().toLowerCase() === 'true'
   const diagnostics: PluginDiagnostic[] = []
   const seenIdentities = new Map<string, string>()
@@ -603,7 +701,7 @@ export function getPluginDiagnosticsReport(): PluginDiagnosticsReport {
 
     seenIdentities.set(manifest.id, candidate.directory)
     seenIdentities.set(manifest.slug, candidate.directory)
-    const enabled = isPluginEnabled(manifest, enabledFilter, disableDefaults)
+    const enabled = isPluginEnabled(manifest, enabledFilter, disableDefaults, hasExplicitSelection)
     diagnostics.push({
       status: enabled ? 'loaded' : 'disabled',
       pluginId: manifest.slug,

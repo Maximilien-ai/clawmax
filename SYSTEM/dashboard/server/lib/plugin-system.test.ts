@@ -18,6 +18,7 @@ import {
   generatePluginRecordDocument,
   getPluginBySlug,
   getPluginDiagnosticsReport,
+  getPluginSettingsInventory,
   getPluginWorkspaceContext,
   listConfiguredPlugins,
   listPluginRecords,
@@ -25,6 +26,7 @@ import {
   PluginContractError,
   runPluginEval,
   upsertPluginRecord,
+  updatePluginSettings,
 } from './plugin-system'
 import { resetWorkspaceManagerForTests } from './workspace-manager'
 
@@ -42,6 +44,7 @@ const originalTestWorkspace = process.env.CLAWMAX_TEST_WORKSPACE
 const originalEnabledPlugins = process.env.CLAWMAX_ENABLED_PLUGINS
 const originalDisableDefaultPlugins = process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS
 const originalPluginPaths = process.env.CLAWMAX_PLUGIN_PATHS
+const originalPluginSettingsPath = process.env.CLAWMAX_PLUGIN_SETTINGS_PATH
 
 function test(name: string, fn: () => void | Promise<void>) {
   return Promise.resolve()
@@ -119,9 +122,37 @@ async function run() {
   process.env.HOME = tempHome
   process.env.CLAWMAX_ENABLED_PLUGINS = 'plugin-evals,plugin-guardrails,plugin-resource-plans,clawmax-lifecycle,plugin-review-notes'
   process.env.CLAWMAX_PLUGIN_PATHS = ''
+  process.env.CLAWMAX_PLUGIN_SETTINGS_PATH = path.join(tempHome, 'plugin-settings.json')
   delete process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS
   resetWorkspaceManagerForTests()
   seedWorkspaceFiles(tempWorkspace, tempHome)
+
+  await test('plugin settings inventory lists manageable plugins but excludes test fixtures', () => {
+    const inventory = getPluginSettingsInventory()
+    assert(inventory.some((plugin) => plugin.slug === 'clawmax-lifecycle'), 'Expected Lifecycle in settings inventory')
+    assert(inventory.some((plugin) => plugin.slug === 'plugin-review-notes'), 'Expected Review in settings inventory')
+    assert(!inventory.some((plugin) => plugin.slug === 'plugin-evals'), 'Expected synthetic fixtures to be excluded')
+  })
+
+  await test('plugin settings persist an explicit selection including no enabled plugins', () => {
+    let inventory = updatePluginSettings(['clawmax-lifecycle'])
+    assert.strictEqual(inventory.find((plugin) => plugin.slug === 'clawmax-lifecycle')?.enabled, true)
+    assert.deepStrictEqual(listConfiguredPlugins().map((plugin) => plugin.slug), ['clawmax-lifecycle'])
+    const saved = JSON.parse(fs.readFileSync(process.env.CLAWMAX_PLUGIN_SETTINGS_PATH!, 'utf-8'))
+    assert.deepStrictEqual(saved.enabledPluginIds, ['clawmax-lifecycle'])
+
+    inventory = updatePluginSettings([])
+    assert(inventory.every((plugin) => !plugin.enabled), 'Expected empty explicit selection to disable every plugin')
+    assert.deepStrictEqual(listConfiguredPlugins(), [])
+    fs.unlinkSync(process.env.CLAWMAX_PLUGIN_SETTINGS_PATH!)
+  })
+
+  await test('plugin settings reject unknown plugin identifiers', () => {
+    assert.throws(
+      () => updatePluginSettings(['not-installed']),
+      (error: any) => error instanceof PluginContractError && error.statusCode === 400 && error.message.includes('not-installed'),
+    )
+  })
 
   await test('host supports zero-plugin mode when default plugins are disabled', () => {
     const previousEnabled = process.env.CLAWMAX_ENABLED_PLUGINS
@@ -748,6 +779,8 @@ async function run() {
   else process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS = originalDisableDefaultPlugins
   if (typeof originalPluginPaths === 'undefined') delete process.env.CLAWMAX_PLUGIN_PATHS
   else process.env.CLAWMAX_PLUGIN_PATHS = originalPluginPaths
+  if (typeof originalPluginSettingsPath === 'undefined') delete process.env.CLAWMAX_PLUGIN_SETTINGS_PATH
+  else process.env.CLAWMAX_PLUGIN_SETTINGS_PATH = originalPluginSettingsPath
   resetWorkspaceManagerForTests()
   fs.rmSync(tempWorkspace, { recursive: true, force: true })
   fs.rmSync(tempHome, { recursive: true, force: true })
@@ -778,6 +811,8 @@ run().catch((err) => {
   else process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS = originalDisableDefaultPlugins
   if (typeof originalPluginPaths === 'undefined') delete process.env.CLAWMAX_PLUGIN_PATHS
   else process.env.CLAWMAX_PLUGIN_PATHS = originalPluginPaths
+  if (typeof originalPluginSettingsPath === 'undefined') delete process.env.CLAWMAX_PLUGIN_SETTINGS_PATH
+  else process.env.CLAWMAX_PLUGIN_SETTINGS_PATH = originalPluginSettingsPath
   resetWorkspaceManagerForTests()
   console.error(err)
   process.exit(1)

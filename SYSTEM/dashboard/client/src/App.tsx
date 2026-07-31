@@ -26,6 +26,7 @@ import { MaintenanceBanner } from './components/MaintenanceBanner'
 import { NotificationCenter } from './components/NotificationCenter'
 import { OnboardingWizard } from './components/OnboardingWizard'
 import { TermsOfServiceModal } from './components/TermsOfServiceModal'
+import { PluginManagerDialog } from './components/PluginManagerDialog'
 import { WorkspaceFirstRunTour } from './components/WorkspaceFirstRunTour'
 import { useWorkspace } from './contexts/WorkspaceContext'
 import { CHANNEL_API_ENDPOINTS } from './lib/channelApi'
@@ -218,11 +219,23 @@ function ChecklistIcon({ className }: { className?: string }) {
   )
 }
 
+function BarChartIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={iconClassName(className)}>
+      <path d="M4 20V10" />
+      <path d="M10 20V4" />
+      <path d="M16 20v-7" />
+      <path d="M22 20H2" />
+    </svg>
+  )
+}
+
 function getPluginNavIcon(plugin: PluginManifest): React.ComponentType<{ className?: string }> {
   if (usesLegacyPluginAdapter(plugin, 'guardrail')) return ShieldIcon
   if (usesLegacyPluginAdapter(plugin, 'eval')) return BeakerIcon
   if (plugin.objectKind === 'review-note' || plugin.icon === 'checklist') return ChecklistIcon
-  if (plugin.objectKind === 'optimization-plan' || plugin.icon === 'activity') return ActivityIcon
+  if (plugin.objectKind === 'optimization-plan') return BarChartIcon
+  if (plugin.objectKind === 'lifecycle-view' || plugin.icon === 'activity') return ActivityIcon
   return PluginIcon
 }
 
@@ -271,6 +284,15 @@ function ChevronRightSmallIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={iconClassName(className)}>
       <path d="m9 18 6-6-6-6" />
+    </svg>
+  )
+}
+
+function EditIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={iconClassName(className)}>
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
     </svg>
   )
 }
@@ -492,6 +514,7 @@ export default function App() {
   })
   const [dismissedMaintenanceKey, setDismissedMaintenanceKey] = useState<string | null>(null)
   const [showTermsOfService, setShowTermsOfService] = useState(false)
+  const [showPluginManager, setShowPluginManager] = useState(false)
 
   const coreUserNav = navOrder.slice(0, USER_TABS_COUNT)
   const navIndexById = new Map(navOrder.map((item, index) => [item.id, index]))
@@ -786,6 +809,11 @@ export default function App() {
             onClose={() => setShowWorkspaceDialog(false)}
           />
           <TermsOfServiceModal open={showTermsOfService} onClose={() => setShowTermsOfService(false)} />
+          <PluginManagerDialog
+            open={showPluginManager}
+            onClose={() => setShowPluginManager(false)}
+            onSaved={(nextPlugins) => setPlugins(nextPlugins)}
+          />
           <div className="flex h-[100dvh] w-full min-w-0 overflow-hidden bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100">
           {/* Mobile nav overlay backdrop */}
           {mobileNavOpen && (
@@ -859,25 +887,35 @@ export default function App() {
                   )}
                 </React.Fragment>
               ))}
-              {plugins.length > 0 && (
-                <>
+              <>
                   <div className="my-2 mx-3 border-t border-gray-700"></div>
-                  <button
-                    type="button"
-                    onClick={() => setPluginNavExpanded((current) => !current)}
-                    aria-expanded={pluginNavExpanded}
-                    className={`flex w-full items-center rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-300 transition-colors hover:bg-gray-800 hover:text-white ${navCollapsed ? 'justify-center' : 'justify-between'}`}
-                    title={navCollapsed ? 'Toggle plugin navigation' : undefined}
-                  >
-                    {navCollapsed ? (
-                      pluginNavExpanded ? <ChevronDownIcon className="h-4 w-4" /> : <ChevronRightSmallIcon className="h-4 w-4" />
-                    ) : (
-                      <>
+                  <div className={`flex items-center rounded-lg text-gray-300 transition-colors hover:bg-gray-800 hover:text-white ${navCollapsed ? 'flex-col' : ''}`}>
+                    <button
+                      type="button"
+                      onClick={() => setPluginNavExpanded((current) => !current)}
+                      aria-expanded={pluginNavExpanded}
+                      className={`flex min-w-0 flex-1 items-center px-3 py-2 text-left text-sm font-medium ${navCollapsed ? 'justify-center' : 'justify-between'}`}
+                      title={navCollapsed ? 'Toggle plugin navigation' : undefined}
+                    >
+                      {navCollapsed ? (
+                        pluginNavExpanded ? <ChevronDownIcon className="h-4 w-4" /> : <ChevronRightSmallIcon className="h-4 w-4" />
+                      ) : (
+                        <>
                         <span className="uppercase tracking-[0.18em] text-[11px] text-gray-400">Plugins</span>
                         {pluginNavExpanded ? <ChevronDownIcon className="h-4 w-4" /> : <ChevronRightSmallIcon className="h-4 w-4" />}
-                      </>
-                    )}
-                  </button>
+                        </>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowPluginManager(true)}
+                      className="mr-1 rounded-md p-2 text-gray-400 hover:bg-gray-700 hover:text-white"
+                      title="Manage plugins"
+                      aria-label="Manage plugins"
+                    >
+                      <EditIcon className="h-4 w-4" />
+                    </button>
+                  </div>
                   {pluginNavExpanded && orderedPlugins.map((plugin, pluginIndex) => {
                     const pluginPage = pluginPageBySlug.get(plugin.slug) || buildPluginPage(plugin.slug)
                     const PluginIconComponent = getPluginNavIcon(plugin)
@@ -899,7 +937,6 @@ export default function App() {
                     )
                   })}
                 </>
-              )}
               <div className="my-2 mx-3 border-t border-gray-700"></div>
               <button
                 type="button"

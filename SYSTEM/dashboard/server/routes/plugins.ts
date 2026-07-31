@@ -5,6 +5,7 @@ import {
   generatePluginRecordDocument,
   getPluginBySlug,
   getPluginDiagnosticsReport,
+  getPluginSettingsInventory,
   getPluginWorkspaceContext,
   listConfiguredPlugins,
   listPluginRecords,
@@ -13,6 +14,7 @@ import {
   emitPluginRecordNotification,
   PluginContractError,
   runPluginEval,
+  updatePluginSettings,
   upsertPluginRecord,
 } from '../lib/plugin-system'
 
@@ -33,6 +35,23 @@ router.get('/', (_req, res) => {
 
 router.get('/diagnostics', (_req, res) => {
   res.json(getPluginDiagnosticsReport())
+})
+
+router.get('/settings', (_req, res) => {
+  res.json({ plugins: getPluginSettingsInventory() })
+})
+
+router.put('/settings', (req, res) => {
+  try {
+    const availablePlugins = updatePluginSettings(req.body?.enabledPluginIds)
+    res.json({
+      ok: true,
+      availablePlugins,
+      plugins: listConfiguredPlugins(),
+    })
+  } catch (error) {
+    return sendPluginError(res, error)
+  }
 })
 
 router.get('/relationships', (_req, res) => {

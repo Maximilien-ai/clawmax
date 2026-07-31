@@ -103,7 +103,7 @@ assert(pageSource.includes(": notes\n          ? 'bg-yellow"), 'Commented pendin
 assert(pageSource.includes('w-full min-w-0 max-w-7xl overflow-x-hidden'), 'Plugin pages must constrain narrow-screen horizontal overflow')
 assert(pageSource.includes('w-full min-w-0 max-w-full overflow-hidden rounded-lg border border-sky-200'), 'Suggested cards must shrink within phone viewports')
 assert(pageSource.includes('grid w-full min-w-0 grid-cols-4'), 'Plugin view controls must use four equal phone-width tracks')
-assert(pageSource.includes('grid w-full min-w-0 grid-cols-3'), 'Plugin collection tabs must use three equal phone-width tracks')
+assert(/grid w-full min-w-0[^"']*grid-cols-3/.test(pageSource), 'Plugin collection tabs must use three equal phone-width tracks')
 assert(pageSource.includes('Export release review'), 'Review actions must expose a release report export')
 assert(pageSource.includes('Archive release checklist'), 'Review actions must expose release-level archiving')
 assert(pageSource.includes('Restore release checklist'), 'Review actions must expose release-level restoration')
