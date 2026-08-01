@@ -57,6 +57,22 @@ export default function AgentLifecycleEvidence({
   const [evidence, setEvidence] = useState<AgentLifecycleEvidenceData | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [expanded, setExpanded] = useState(() => {
+    if (typeof window === 'undefined') return true
+    return localStorage.getItem(`clawmax-lifecycle-xray-expanded:${agentId}`) !== 'false'
+  })
+
+  useEffect(() => {
+    setExpanded(localStorage.getItem(`clawmax-lifecycle-xray-expanded:${agentId}`) !== 'false')
+  }, [agentId])
+
+  const toggleExpanded = () => {
+    setExpanded((current) => {
+      const next = !current
+      localStorage.setItem(`clawmax-lifecycle-xray-expanded:${agentId}`, String(next))
+      return next
+    })
+  }
 
   useEffect(() => {
     const controller = new AbortController()
@@ -102,11 +118,24 @@ export default function AgentLifecycleEvidence({
 
   return (
     <section className="space-y-4" aria-label={`${evidence.subject.name} lifecycle evidence`}>
-      <div>
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{evidence.subject.name} X-ray</h2>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Observed configuration, files, conversations, and model history for this agent.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-900/40">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{evidence.subject.name} X-ray</h2>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Observed configuration, files, conversations, and model history for this agent.</p>
+        </div>
+        <button
+          type="button"
+          onClick={toggleExpanded}
+          aria-expanded={expanded}
+          aria-label={`${expanded ? 'Collapse' : 'Expand'} ${evidence.subject.name} X-ray`}
+          title={expanded ? 'Hide X-ray details' : 'Show X-ray details'}
+          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-gray-200 bg-white text-lg text-gray-600 hover:border-sky-300 hover:text-sky-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+        >
+          <span className={`transition-transform ${expanded ? 'rotate-90' : ''}`}>›</span>
+        </button>
       </div>
 
+      {expanded && <>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {summary.map((entry) => (
           <div key={entry.label} className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900/40">
@@ -180,6 +209,7 @@ export default function AgentLifecycleEvidence({
         <summary className="cursor-pointer font-medium text-gray-700 dark:text-gray-300">Evidence limitations</summary>
         <ul className="mt-2 list-disc space-y-1 pl-5">{evidence.limitations.map((entry) => <li key={entry}>{entry}</li>)}</ul>
       </details>
+      </>}
     </section>
   )
 }

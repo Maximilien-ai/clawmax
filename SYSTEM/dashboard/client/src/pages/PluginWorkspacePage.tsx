@@ -2677,6 +2677,13 @@ function truncateGraphLabel(value: string, maximum = 28): string {
   return value.length > maximum ? `${value.slice(0, maximum - 1)}…` : value
 }
 
+function formatLifecycleGap(milliseconds: number): string {
+  const days = Math.max(1, Math.round(milliseconds / (24 * 60 * 60 * 1000)))
+  if (days >= 365) return `${Math.round(days / 365)}y gap`
+  if (days >= 60) return `${Math.round(days / 30)}mo gap`
+  return `${days}d gap`
+}
+
 function RelationshipZoomControls({
   zoom,
   onChange,
@@ -3635,7 +3642,7 @@ function LifecycleRelationshipGraph({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Agent lifecycle timelines</h3>
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Compare {agentIds.length} agent{agentIds.length === 1 ? '' : 's'} from creation to now. Select an event for its evidence.</p>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Compare {agentIds.length} agent{agentIds.length === 1 ? '' : 's'} from creation to now. Events are spaced for readability; elapsed-time breaks are labeled.</p>
           </div>
           <RelationshipZoomControls zoom={zoom} onChange={setZoom} />
         </div>
@@ -3656,11 +3663,10 @@ function LifecycleRelationshipGraph({
               const evidence = evidenceByAgent[agentId]
               if (!evidence) return null
               const events = filterEvents(agentId, evidence)
-              const times = events.map((event) => new Date(event.at).getTime()).filter(Number.isFinite)
-              const createdAt = evidence.subject.createdAt ? new Date(evidence.subject.createdAt).getTime() : Math.min(...times)
-              const startAt = Number.isFinite(createdAt) ? createdAt : Date.now()
-              const endAt = Math.max(Date.now(), ...times)
-              const span = Math.max(1, endAt - startAt)
+              const eventTimes = events.map((event) => new Date(event.at).getTime())
+              const gaps = eventTimes.slice(1).map((time, index) => Math.max(0, time - eventTimes[index]))
+              const largestGap = gaps.length > 0 ? Math.max(...gaps) : 0
+              const breakAfterIndex = largestGap >= 7 * 24 * 60 * 60 * 1000 ? gaps.indexOf(largestGap) : -1
               const y = 75 + laneIndex * laneHeight
               return (
                 <g key={agentId}>
@@ -3669,9 +3675,22 @@ function LifecycleRelationshipGraph({
                   <line x1={lineStart} y1={y} x2={lineEnd} y2={y} className="stroke-sky-300 dark:stroke-sky-700" strokeWidth="3" />
                   <text x={lineStart} y={y + 52} textAnchor="start" className="fill-gray-400 text-[10px]">Created</text>
                   <text x={lineEnd} y={y + 52} textAnchor="end" className="fill-gray-400 text-[10px]">Now</text>
+                  {breakAfterIndex >= 0 && events.length > 1 && (() => {
+                    const firstX = lineStart + (breakAfterIndex / (events.length - 1)) * (lineEnd - lineStart)
+                    const nextX = lineStart + ((breakAfterIndex + 1) / (events.length - 1)) * (lineEnd - lineStart)
+                    const breakX = (firstX + nextX) / 2
+                    return (
+                      <g aria-label={formatLifecycleGap(largestGap)}>
+                        <rect x={breakX - 34} y={y - 13} width="68" height="26" rx="5" className="fill-white dark:fill-gray-900" />
+                        <text x={breakX} y={y - 1} textAnchor="middle" className="fill-gray-500 text-[14px] font-bold dark:fill-gray-400">···</text>
+                        <text x={breakX} y={y + 11} textAnchor="middle" className="fill-gray-400 text-[8px] dark:fill-gray-500">{formatLifecycleGap(largestGap)}</text>
+                      </g>
+                    )
+                  })()}
                   {events.map((event, eventIndex) => {
-                    const eventAt = new Date(event.at).getTime()
-                    const x = lineStart + Math.max(0, Math.min(1, (eventAt - startAt) / span)) * (lineEnd - lineStart)
+                    const x = events.length === 1
+                      ? lineStart
+                      : lineStart + (eventIndex / (events.length - 1)) * (lineEnd - lineStart)
                     const direction = eventIndex % 2 === 0 ? -1 : 1
                     const branchEnd = y + direction * 30
                     const eventKey = `${agentId}:${event.id}`
