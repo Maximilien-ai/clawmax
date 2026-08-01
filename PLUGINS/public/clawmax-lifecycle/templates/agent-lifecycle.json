@@ -1,7 +1,7 @@
 {
   "id": "agent-lifecycle",
   "name": "Agent lifecycle",
-  "description": "Inspect one agent's recent configuration, activity, files, and output in one place.",
+  "description": "Inspect selected agents' recent configuration, activity, files, conversations, and model history in one place.",
   "recommended": true,
   "tags": ["agent", "activity", "history"],
   "payload": {

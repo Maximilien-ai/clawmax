@@ -4,7 +4,7 @@
   "slug": "clawmax-lifecycle",
   "name": "Lifecycle",
   "description": "Get an X-ray view of one agent or workflow across its configuration, activity, artifacts, and history.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "icon": "activity",
   "objectKind": "lifecycle-view",
   "visibility": "public",
@@ -45,7 +45,7 @@
       "targetIds": {
         "type": "array",
         "title": "Targets",
-        "description": "Select one agent or workflow for this inspection.",
+        "description": "Select one or more agents or workflows for this inspection.",
         "items": { "type": "string" },
         "default": []
       },

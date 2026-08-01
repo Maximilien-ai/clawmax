@@ -7,6 +7,7 @@ const manifest = JSON.parse(fs.readFileSync(path.join(pluginRoot, 'clawmax-plugi
 const readme = fs.readFileSync(path.join(pluginRoot, 'README.md'), 'utf-8')
 const changelog = fs.readFileSync(path.join(pluginRoot, 'CHANGELOG.md'), 'utf-8')
 const pluginPage = fs.readFileSync(path.join(__dirname, 'pages', 'PluginWorkspacePage.tsx'), 'utf-8')
+const lifecycleEvidence = fs.readFileSync(path.join(__dirname, 'components', 'AgentLifecycleEvidence.tsx'), 'utf-8')
 const templates = fs.readdirSync(path.join(pluginRoot, 'templates'))
   .filter((file) => file.endsWith('.json'))
   .map((file) => JSON.parse(fs.readFileSync(path.join(pluginRoot, 'templates', file), 'utf-8')))
@@ -34,5 +35,8 @@ assert(readme.includes('does not enforce policy, score quality, or change runtim
 assert(changelog.includes(manifest.version), 'Lifecycle changelog must cover its manifest version')
 assert(pluginPage.includes("const isLifecycle = plugin.objectKind === 'lifecycle-view'"), 'Lifecycle must use workspace-aware target selection')
 assert(pluginPage.includes("plugin.objectKind === 'lifecycle-view' ? 'Inspects' : 'Applies to'"), 'Lifecycle relationships must use inspection language')
+assert(pluginPage.includes('<AgentLifecycleEvidence'), 'Selected agent inspections must render lifecycle evidence')
+assert(lifecycleEvidence.includes('Lifecycle timeline'), 'Lifecycle must render a chronological graphical timeline')
+assert(lifecycleEvidence.includes('Evidence limitations'), 'Lifecycle must explain historical evidence limitations')
 
-console.log('PluginLifecycleSkeleton.test.ts: 19 tests passed')
+console.log('PluginLifecycleSkeleton.test.ts: 22 tests passed')

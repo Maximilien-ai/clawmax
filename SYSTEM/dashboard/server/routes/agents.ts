@@ -44,6 +44,7 @@ import { getAuthenticatedSession } from '../lib/github-auth'
 import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
 import { resolveOpenClawCliPath } from '../lib/openclaw-cli'
 import { buildNamedExportFilename } from '../lib/export-filename'
+import { recordAgentLifecycleAuditEvent } from '../lib/agent-lifecycle-audit'
 import { listAvailableSkills, setAgentSkills } from '../lib/skills'
 import {
   getArchiveTitleMessages,
@@ -2293,6 +2294,12 @@ router.post('/bulk-model', async (req, res) => {
 
       if (configUpdate.changed) {
         resetAgentRuntimeForModelChange(agentId)
+        recordAgentLifecycleAuditEvent(agentId, {
+          type: 'model',
+          title: 'Model changed',
+          detail: `Primary model changed to ${configUpdate.model || normalizedModel}`,
+          model: configUpdate.model || normalizedModel,
+        })
       }
 
       results.push({ id: agentId, ok: true })
@@ -2464,6 +2471,26 @@ router.put('/:id/config', (req, res) => {
     if (configUpdate?.changed || backupConfigUpdate?.changed) {
       resetAgentRuntimeForModelChange(id)
     }
+    const modifiedSections = [
+      typeof identity === 'string' ? 'IDENTITY.md' : '',
+      typeof soul === 'string' ? 'SOUL.md' : '',
+      typeof tools === 'string' ? 'TOOLS.md' : '',
+    ].filter(Boolean)
+    if (modifiedSections.length > 0) {
+      recordAgentLifecycleAuditEvent(id, {
+        type: 'modified',
+        title: 'Agent configuration changed',
+        detail: modifiedSections.join(', '),
+      })
+    }
+    if (configUpdate?.changed && configUpdate.model) {
+      recordAgentLifecycleAuditEvent(id, {
+        type: 'model',
+        title: 'Model changed',
+        detail: `Primary model changed to ${configUpdate.model}`,
+        model: configUpdate.model,
+      })
+    }
     res.json({ ok: true, warnings: validation.warnings, model: configUpdate?.model, backupModel: backupConfigUpdate?.backupModel })
   } catch (err) {
     console.error('Failed to update agent config:', err)
@@ -2519,6 +2546,14 @@ router.patch('/:id/model', (req, res) => {
     ), 'utf-8')
     if (configUpdate.changed || backupConfigUpdate.changed) {
       resetAgentRuntimeForModelChange(id)
+    }
+    if (configUpdate.changed) {
+      recordAgentLifecycleAuditEvent(id, {
+        type: 'model',
+        title: 'Model changed',
+        detail: `Primary model changed to ${configUpdate.model || normalizedModel}`,
+        model: configUpdate.model || normalizedModel,
+      })
     }
     res.json({
       ok: true,

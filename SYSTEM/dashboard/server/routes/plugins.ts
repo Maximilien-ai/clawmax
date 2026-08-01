@@ -6,6 +6,7 @@ import {
   getPluginBySlug,
   getPluginDiagnosticsReport,
   getPluginSettingsInventory,
+  getAgentLifecycleEvidence,
   getPluginWorkspaceContext,
   listConfiguredPlugins,
   listPluginRecords,
@@ -65,6 +66,16 @@ router.get('/:pluginId/context', (req, res) => {
     plugin,
     context: getPluginWorkspaceContext(plugin),
   })
+})
+
+router.get('/:pluginId/lifecycle/agents/:agentId', (req, res) => {
+  const plugin = getPluginBySlug(req.params.pluginId)
+  if (!plugin) return res.status(404).json({ error: 'Plugin not found' })
+  try {
+    res.json({ evidence: getAgentLifecycleEvidence(plugin, req.params.agentId) })
+  } catch (error) {
+    return sendPluginError(res, error)
+  }
 })
 
 router.get('/:pluginId/items', (req, res) => {

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import AIPromptEditorModal from '../components/AIPromptEditorModal'
+import AgentLifecycleEvidence from '../components/AgentLifecycleEvidence'
 import PromptQualityPanel from '../components/PromptQualityPanel'
 import { MobileSafeDialog } from '../components/MobileSafeDialog'
 import { useAuth } from '../contexts/AuthContext'
@@ -203,15 +204,12 @@ function GenericPluginFields({
               <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-800/60 dark:text-gray-300">Current workspace</div>
             ) : (
               <select
-                multiple={!isLifecycle}
-                value={isLifecycle ? selected[0] || '' : selected}
-                size={isLifecycle ? undefined : Math.min(5, Math.max(3, options.length))}
-                onChange={(event) => update(key, isLifecycle
-                  ? (event.target.value ? [event.target.value] : [])
-                  : Array.from(event.target.selectedOptions).map((option) => option.value))}
+                multiple
+                value={selected}
+                size={Math.min(6, Math.max(3, options.length))}
+                onChange={(event) => update(key, Array.from(event.target.selectedOptions).map((option) => option.value))}
                 className={className}
               >
-                {isLifecycle && <option value="">Select {scope}</option>}
                 {options.map((option) => <option key={option.id} value={option.id}>{option.name} ({option.id})</option>)}
               </select>
             )}
@@ -219,7 +217,7 @@ function GenericPluginFields({
               {scope === 'workspace'
                 ? 'This plan applies to the complete workspace.'
                 : isLifecycle
-                  ? `Select one ${scope} to inspect.`
+                  ? `Select one or more ${scope}s. Use Cmd/Ctrl to select multiple.`
                   : `Select one or more ${scope}s. Use Cmd/Ctrl to select multiple.`}
             </span>
           </label>
@@ -4909,6 +4907,20 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
               />
             </div>
           )}
+        </div>
+      )}
+
+      {!loading && !error && plugin.objectKind === 'lifecycle-view' && selectedItem && isGenericPluginRecord(selectedItem) && selectedItem.fields.subjectType === 'agent' && Array.isArray(selectedItem.fields.targetIds) && selectedItem.fields.targetIds.length > 0 && (
+        <div className="mt-6 space-y-8">
+          {selectedItem.fields.targetIds.map((agentId) => (
+            <AgentLifecycleEvidence
+              key={String(agentId)}
+              pluginSlug={plugin.slug}
+              agentId={String(agentId)}
+              focus={String(selectedItem.fields.focus || 'overview')}
+              timeWindow={String(selectedItem.fields.timeWindow || '7-days')}
+            />
+          ))}
         </div>
       )}
 

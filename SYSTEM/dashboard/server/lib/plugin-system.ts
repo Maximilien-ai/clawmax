@@ -5,6 +5,7 @@ import { REPO_ROOT } from './paths'
 import { createNotification } from './notifications'
 import { listAgents, getWorkspacePath, parseGroups } from './workspace'
 import { listWorkflows } from './workflows'
+import { readAgentLifecycleAuditEvents } from './agent-lifecycle-audit'
 
 export const PLUGIN_HOST_API_VERSION = 'clawmax.ai/v2' as const
 
@@ -249,6 +250,34 @@ export interface PluginWorkspaceContext {
   communities: string[]
 }
 
+export interface AgentLifecycleEvidence {
+  subject: {
+    id: string
+    name: string
+    createdAt: string | null
+    lastModifiedAt: string | null
+    currentModel: string | null
+  }
+  summary: {
+    fileCount: number
+    conversationCount: number
+    messageCount: number
+    observedModelCount: number
+    observedChangeCount: number
+  }
+  files: Array<{ path: string; size: number; modifiedAt: string }>
+  conversations: Array<{ id: string; active: boolean; messageCount: number; modifiedAt: string }>
+  modelHistory: Array<{ model: string; observedAt: string | null; current: boolean }>
+  events: Array<{
+    id: string
+    type: 'created' | 'modified' | 'file' | 'conversation' | 'model'
+    at: string
+    title: string
+    detail: string
+  }>
+  limitations: string[]
+}
+
 const DEFAULT_PLUGIN_ROOT = path.join(REPO_ROOT, 'PLUGINS')
 const PLUGIN_MANIFEST_FILE = 'clawmax-plugin.json'
 const PLUGIN_TEMPLATE_DIR = 'templates'
@@ -269,7 +298,7 @@ function getPluginRoots(): string[] {
     .split(path.delimiter)
     .map((entry) => entry.trim())
     .filter(Boolean)
-  return uniq([DEFAULT_PLUGIN_ROOT, ...configured])
+  return uniq([DEFAULT_PLUGIN_ROOT, ...configured].map((entry) => path.resolve(entry)))
 }
 
 function readJsonFile<T>(filePath: string): T | null {
@@ -595,19 +624,27 @@ export function updatePluginSettings(enabledPluginIds: unknown): PluginSettingsE
     throw new PluginContractError('enabledPluginIds must be an array of plugin IDs.', 400)
   }
 
-  const entries = listDiscoveredPluginEntries()
+  const discoveredEntries = listDiscoveredPluginEntries()
+  const entries = discoveredEntries
     .filter(({ directory }) => !directory.startsWith(path.join(DEFAULT_PLUGIN_ROOT, 'test') + path.sep))
   const byIdentity = new Map<string, PluginManifest>()
   for (const { manifest } of entries) {
     byIdentity.set(manifest.id, manifest)
     byIdentity.set(manifest.slug, manifest)
   }
+  const allDiscoveredIdentities = new Set(discoveredEntries.flatMap(({ manifest }) => [manifest.id, manifest.slug]))
   const requested = uniq(enabledPluginIds.map((entry) => entry.trim()).filter(Boolean))
   const unknown = requested.filter((entry) => !byIdentity.has(entry))
   if (unknown.length > 0) {
     throw new PluginContractError(`Unknown plugin${unknown.length === 1 ? '' : 's'}: ${unknown.join(', ')}`, 400)
   }
-  const canonical = uniq(requested.map((entry) => byIdentity.get(entry)!.slug))
+  const currentSelection = getEnabledPluginSelection().filter
+  const temporarilyUnavailable = Array.from(currentSelection)
+    .filter((entry) => !allDiscoveredIdentities.has(entry))
+  const canonical = uniq([
+    ...requested.map((entry) => byIdentity.get(entry)!.slug),
+    ...temporarilyUnavailable,
+  ])
   const settings: PersistedPluginSettings = { version: 1, enabledPluginIds: canonical }
   const settingsPath = getPluginSettingsPath()
   fs.mkdirSync(path.dirname(settingsPath), { recursive: true })
@@ -1956,4 +1993,168 @@ export function getPluginWorkspaceContext(plugin: PluginManifest): PluginWorkspa
     : []
 
   return { agents, workflows, groups, communities }
+}
+
+function isoTimestamp(value: number): string {
+  return new Date(value).toISOString()
+}
+
+function countVisibleSessionMessages(filePath: string): number {
+  try {
+    return fs.readFileSync(filePath, 'utf-8').split('\n').reduce((count, line) => {
+      if (!line.trim()) return count
+      try {
+        const entry = JSON.parse(line)
+        const role = entry?.message?.role
+        return role === 'user' || role === 'assistant' ? count + 1 : count
+      } catch {
+        return count
+      }
+    }, 0)
+  } catch {
+    return 0
+  }
+}
+
+function listAgentLifecycleFiles(agentId: string): AgentLifecycleEvidence['files'] {
+  const root = path.join(getWorkspacePath(), 'AGENTS', agentId)
+  if (!fs.existsSync(root)) return []
+  const files: AgentLifecycleEvidence['files'] = []
+  const pending = [root]
+  while (pending.length > 0 && files.length < 250) {
+    const directory = pending.shift()!
+    let entries: fs.Dirent[] = []
+    try { entries = fs.readdirSync(directory, { withFileTypes: true }) } catch { continue }
+    for (const entry of entries) {
+      if (entry.name.startsWith('.')) continue
+      const fullPath = path.join(directory, entry.name)
+      if (entry.isDirectory()) {
+        pending.push(fullPath)
+        continue
+      }
+      if (!entry.isFile()) continue
+      try {
+        const stats = fs.statSync(fullPath)
+        files.push({
+          path: path.relative(getWorkspacePath(), fullPath),
+          size: stats.size,
+          modifiedAt: isoTimestamp(stats.mtimeMs),
+        })
+      } catch {}
+      if (files.length >= 250) break
+    }
+  }
+  return files.sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt))
+}
+
+function readAgentLifecycleSessions(agentId: string): {
+  conversations: AgentLifecycleEvidence['conversations']
+  observedModels: Array<{ model: string; observedAt: string | null }>
+} {
+  const sessionsRoot = path.join(String(process.env.HOME || ''), '.openclaw', 'agents', agentId, 'sessions')
+  const sessionFiles: string[] = []
+  for (const directory of [sessionsRoot, path.join(sessionsRoot, 'archive')]) {
+    if (!fs.existsSync(directory)) continue
+    try {
+      for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+        if (entry.isFile() && entry.name.endsWith('.jsonl')) sessionFiles.push(path.join(directory, entry.name))
+      }
+    } catch {}
+  }
+  const conversations = sessionFiles.slice(0, 100).map((filePath) => {
+    const stats = fs.statSync(filePath)
+    return {
+      id: path.basename(filePath, '.jsonl'),
+      active: path.dirname(filePath) === sessionsRoot,
+      messageCount: countVisibleSessionMessages(filePath),
+      modifiedAt: isoTimestamp(stats.mtimeMs),
+    }
+  }).filter((entry) => entry.messageCount > 0).sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt))
+
+  const observedModels: Array<{ model: string; observedAt: string | null }> = []
+  try {
+    const index = JSON.parse(fs.readFileSync(path.join(sessionsRoot, 'sessions.json'), 'utf-8'))
+    for (const value of Object.values(index || {}) as any[]) {
+      const model = typeof value?.model === 'string' ? value.model : typeof value?.modelOverride === 'string' ? value.modelOverride : ''
+      if (!model) continue
+      const timestamp = Number(value?.updatedAt)
+      observedModels.push({ model, observedAt: Number.isFinite(timestamp) ? isoTimestamp(timestamp) : null })
+    }
+  } catch {}
+  return { conversations, observedModels }
+}
+
+export function getAgentLifecycleEvidence(plugin: PluginManifest, agentId: string): AgentLifecycleEvidence {
+  if (plugin.objectKind !== 'lifecycle-view') throw new PluginContractError('Lifecycle evidence is only available to Lifecycle plugins.', 400)
+  assertPluginCapability(plugin, 'agents')
+  if (!/^[a-z][a-z0-9_-]*$/.test(agentId)) throw new PluginContractError('Invalid agent ID.', 400)
+  const agent = listAgents().find((entry) => entry.id === agentId && !entry.archived)
+  if (!agent) throw new PluginContractError('Agent not found.', 404)
+
+  const agentRoot = path.join(getWorkspacePath(), 'AGENTS', agentId)
+  let createdAt: string | null = null
+  try {
+    const stats = fs.statSync(agentRoot)
+    const createdMs = stats.birthtimeMs > 0 ? stats.birthtimeMs : stats.ctimeMs
+    createdAt = isoTimestamp(createdMs)
+  } catch {}
+  try {
+    const identity = fs.readFileSync(path.join(agentRoot, 'IDENTITY.md'), 'utf-8')
+    const declaredCreatedAt = identity.match(/^[-*]\s+\*\*Created:\*\*\s+(.+)$/mi)?.[1]?.trim()
+    if (declaredCreatedAt && !Number.isNaN(new Date(declaredCreatedAt).getTime())) createdAt = new Date(declaredCreatedAt).toISOString()
+  } catch {}
+  const files = listAgentLifecycleFiles(agentId)
+  const { conversations, observedModels } = readAgentLifecycleSessions(agentId)
+  let currentModel: string | null = null
+  try {
+    const config = JSON.parse(fs.readFileSync(path.join(String(process.env.HOME || ''), '.openclaw', 'openclaw.json'), 'utf-8'))
+    const configured = (config?.agents?.list || []).find((entry: any) => entry?.id === agentId)
+    currentModel = typeof configured?.model === 'string'
+      ? configured.model
+      : typeof configured?.model?.primary === 'string'
+        ? configured.model.primary
+        : null
+  } catch {}
+
+  const modelHistory = Array.from(new Map([
+    ...(currentModel ? [{ model: currentModel, observedAt: null }] : []),
+    ...observedModels,
+  ].map((entry) => [entry.model, entry])).values()).map((entry) => ({
+    ...entry,
+    current: entry.model === currentModel,
+  }))
+  const events: AgentLifecycleEvidence['events'] = []
+  if (createdAt) events.push({ id: 'created', type: 'created', at: createdAt, title: 'Agent created', detail: agent.name || agent.id })
+  for (const file of files) events.push({ id: `file:${file.path}`, type: 'file', at: file.modifiedAt, title: 'File observed', detail: file.path })
+  for (const conversation of conversations) events.push({ id: `conversation:${conversation.id}`, type: 'conversation', at: conversation.modifiedAt, title: conversation.active ? 'Active conversation' : 'Archived conversation', detail: `${conversation.messageCount} visible messages` })
+  for (const model of modelHistory) {
+    if (!model.observedAt) continue
+    events.push({ id: `model:${model.model}:${model.observedAt}`, type: 'model', at: model.observedAt, title: 'Model observed', detail: model.model })
+  }
+  for (const audit of readAgentLifecycleAuditEvents(agentId)) {
+    events.push({ id: `audit:${audit.id}`, type: audit.type, at: audit.at, title: audit.title, detail: audit.detail })
+    if (audit.type === 'model' && audit.model && !modelHistory.some((entry) => entry.model === audit.model)) {
+      modelHistory.push({ model: audit.model, observedAt: audit.at, current: audit.model === currentModel })
+    }
+  }
+  events.sort((a, b) => a.at.localeCompare(b.at))
+  const lastModifiedAt = events.length > 0 ? events[events.length - 1].at : createdAt
+  return {
+    subject: { id: agent.id, name: agent.name || agent.id, createdAt, lastModifiedAt, currentModel },
+    summary: {
+      fileCount: files.length,
+      conversationCount: conversations.length,
+      messageCount: conversations.reduce((sum, entry) => sum + entry.messageCount, 0),
+      observedModelCount: modelHistory.length,
+      observedChangeCount: events.filter((entry) => entry.type === 'modified' || entry.type === 'model' || entry.type === 'file').length,
+    },
+    files,
+    conversations,
+    modelHistory,
+    events,
+    limitations: [
+      'File events use current filesystem timestamps; edits made before lifecycle auditing was enabled may not have a complete history. Dashboard edits made now are recorded explicitly.',
+      'Model history includes the current configuration and models retained in available session metadata.',
+    ],
+  }
 }

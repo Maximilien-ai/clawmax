@@ -40,24 +40,60 @@ dotenv_defines_nonempty() {
   [ -f ".env" ] && grep -Eq "^${key}=.+$" .env
 }
 
+read_dotenv_var() {
+  local key="$1"
+  if [ ! -f ".env" ]; then
+    return 0
+  fi
+  local raw
+  raw=$(grep -E "^${key}=" .env 2>/dev/null | tail -n 1 | cut -d= -f2-)
+  raw="${raw%\"}"
+  raw="${raw#\"}"
+  raw="${raw%\'}"
+  raw="${raw#\'}"
+  printf '%s' "$raw"
+}
+
+append_delimited_value() {
+  local current="$1"
+  local value="$2"
+  local delimiter="$3"
+  if [ -z "$current" ]; then
+    printf '%s' "$value"
+  elif [[ "${delimiter}${current}${delimiter}" == *"${delimiter}${value}${delimiter}"* ]]; then
+    printf '%s' "$current"
+  else
+    printf '%s%s%s' "$current" "$delimiter" "$value"
+  fi
+}
+
 # Public development always exposes the public product plugins. When the
 # private monorepo is checked out beside this repository, discover and enable
-# its complete enterprise suite as well. Explicit shell and ignored .env
-# settings continue to win.
+# its complete enterprise suite as well. Local explicit settings are merged
+# with the installed suite so an older two-plugin launch does not hide a newly
+# installed plugin. Set CLAWMAX_DISABLE_LOCAL_PRIVATE_PLUGINS=true to opt out.
 PUBLIC_DEV_PLUGIN_IDS="clawmax-lifecycle,plugin-review-notes"
-PRIVATE_DEV_PLUGIN_ROOT="$REPO_ROOT/../clawmax-plugins/plugins"
-LOCAL_DEV_PLUGIN_IDS="$PUBLIC_DEV_PLUGIN_IDS"
-if [ -f "$PRIVATE_DEV_PLUGIN_ROOT/evals/clawmax-plugin.json" ] \
-  && [ -f "$PRIVATE_DEV_PLUGIN_ROOT/guardrails/clawmax-plugin.json" ] \
-  && [ -f "$PRIVATE_DEV_PLUGIN_ROOT/optimize/clawmax-plugin.json" ] \
-  && [ -z "${CLAWMAX_PLUGIN_PATHS+x}" ] \
-  && ! dotenv_defines_nonempty "CLAWMAX_PLUGIN_PATHS"; then
-  export CLAWMAX_PLUGIN_PATHS="$PRIVATE_DEV_PLUGIN_ROOT/evals:$PRIVATE_DEV_PLUGIN_ROOT/guardrails:$PRIVATE_DEV_PLUGIN_ROOT/optimize"
-  LOCAL_DEV_PLUGIN_IDS="clawmax-evals-plugin,clawmax-guardrails-plugin,clawmax-optimize,$PUBLIC_DEV_PLUGIN_IDS"
+PRIVATE_DEV_PLUGIN_ROOT="$(cd "$REPO_ROOT/../clawmax-plugins/plugins" 2>/dev/null && pwd || printf '%s' "$REPO_ROOT/../clawmax-plugins/plugins")"
+LOCAL_PLUGIN_PATHS="${CLAWMAX_PLUGIN_PATHS:-$(read_dotenv_var CLAWMAX_PLUGIN_PATHS)}"
+LOCAL_DEV_PLUGIN_IDS="${CLAWMAX_ENABLED_PLUGINS:-$(read_dotenv_var CLAWMAX_ENABLED_PLUGINS)}"
+[ -n "$LOCAL_DEV_PLUGIN_IDS" ] || LOCAL_DEV_PLUGIN_IDS="$PUBLIC_DEV_PLUGIN_IDS"
+
+if [ "${CLAWMAX_DISABLE_LOCAL_PRIVATE_PLUGINS:-false}" != "true" ]; then
+  for plugin_spec in \
+    "evals:clawmax-evals-plugin" \
+    "guardrails:clawmax-guardrails-plugin" \
+    "optimize:clawmax-optimize"; do
+    plugin_dir="${plugin_spec%%:*}"
+    plugin_id="${plugin_spec#*:}"
+    plugin_path="$PRIVATE_DEV_PLUGIN_ROOT/$plugin_dir"
+    if [ -f "$plugin_path/clawmax-plugin.json" ]; then
+      LOCAL_PLUGIN_PATHS="$(append_delimited_value "$LOCAL_PLUGIN_PATHS" "$plugin_path" ":")"
+      LOCAL_DEV_PLUGIN_IDS="$(append_delimited_value "$LOCAL_DEV_PLUGIN_IDS" "$plugin_id" ",")"
+    fi
+  done
 fi
-if [ -z "${CLAWMAX_ENABLED_PLUGINS+x}" ] && ! dotenv_defines_nonempty "CLAWMAX_ENABLED_PLUGINS"; then
-  export CLAWMAX_ENABLED_PLUGINS="$LOCAL_DEV_PLUGIN_IDS"
-fi
+export CLAWMAX_PLUGIN_PATHS="$LOCAL_PLUGIN_PATHS"
+export CLAWMAX_ENABLED_PLUGINS="$LOCAL_DEV_PLUGIN_IDS"
 
 # Set workspace to WORKSPACES/default if not already set
 if [ -z "$OPENCLAW_WORKSPACE" ]; then
@@ -100,20 +136,6 @@ restart_port_if_needed() {
     lsof -ti:"$port" | xargs kill -9 2>/dev/null || true
     sleep 1
   fi
-}
-
-read_dotenv_var() {
-  local key="$1"
-  if [ ! -f ".env" ]; then
-    return 0
-  fi
-  local raw
-  raw=$(grep -E "^${key}=" .env 2>/dev/null | tail -n 1 | cut -d= -f2-)
-  raw="${raw%\"}"
-  raw="${raw#\"}"
-  raw="${raw%\'}"
-  raw="${raw#\'}"
-  printf '%s' "$raw"
 }
 
 ensure_local_gateway_ready() {

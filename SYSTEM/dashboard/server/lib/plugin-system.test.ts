@@ -19,6 +19,7 @@ import {
   getPluginBySlug,
   getPluginDiagnosticsReport,
   getPluginSettingsInventory,
+  getAgentLifecycleEvidence,
   getPluginWorkspaceContext,
   listConfiguredPlugins,
   listPluginRecords,
@@ -29,6 +30,7 @@ import {
   updatePluginSettings,
 } from './plugin-system'
 import { resetWorkspaceManagerForTests } from './workspace-manager'
+import { recordAgentLifecycleAuditEvent } from './agent-lifecycle-audit'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -65,6 +67,7 @@ function seedWorkspaceFiles(workspaceRoot: string, homeRoot: string) {
   fs.mkdirSync(path.join(workspaceRoot, 'WORKFLOWS'), { recursive: true })
   fs.mkdirSync(path.join(workspaceRoot, 'ORG'), { recursive: true })
   fs.mkdirSync(path.join(homeRoot, '.openclaw', 'agents', 'analyst', 'agent'), { recursive: true })
+  fs.mkdirSync(path.join(homeRoot, '.openclaw', 'agents', 'analyst', 'sessions'), { recursive: true })
   fs.mkdirSync(path.join(homeRoot, '.openclaw'), { recursive: true })
 
   fs.writeFileSync(path.join(workspaceRoot, 'AGENTS', 'analyst', 'IDENTITY.md'), [
@@ -96,9 +99,19 @@ function seedWorkspaceFiles(workspaceRoot: string, homeRoot: string) {
         {
           id: 'analyst',
           workspace: path.join(workspaceRoot, 'AGENTS', 'analyst'),
+          model: 'openai/gpt-5.4-mini',
         },
       ],
     },
+  }, null, 2), 'utf-8')
+
+  fs.writeFileSync(path.join(workspaceRoot, 'AGENTS', 'analyst', 'NOTES.md'), '# Notes\nLifecycle evidence.\n', 'utf-8')
+  fs.writeFileSync(path.join(homeRoot, '.openclaw', 'agents', 'analyst', 'sessions', 'dashboard-chat.jsonl'), [
+    JSON.stringify({ type: 'message', message: { role: 'user', content: 'Hello' } }),
+    JSON.stringify({ type: 'message', message: { role: 'assistant', content: 'Hi' } }),
+  ].join('\n'), 'utf-8')
+  fs.writeFileSync(path.join(homeRoot, '.openclaw', 'agents', 'analyst', 'sessions', 'sessions.json'), JSON.stringify({
+    'agent:analyst:dashboard-chat': { sessionId: 'dashboard-chat', model: 'openai/gpt-4o-mini', updatedAt: Date.now() },
   }, null, 2), 'utf-8')
 
   createWorkflow({
@@ -135,6 +148,7 @@ async function run() {
   })
 
   await test('plugin settings persist an explicit selection including no enabled plugins', () => {
+    process.env.CLAWMAX_ENABLED_PLUGINS = 'clawmax-lifecycle,plugin-review-notes'
     let inventory = updatePluginSettings(['clawmax-lifecycle'])
     assert.strictEqual(inventory.find((plugin) => plugin.slug === 'clawmax-lifecycle')?.enabled, true)
     assert.deepStrictEqual(listConfiguredPlugins().map((plugin) => plugin.slug), ['clawmax-lifecycle'])
@@ -145,6 +159,17 @@ async function run() {
     assert(inventory.every((plugin) => !plugin.enabled), 'Expected empty explicit selection to disable every plugin')
     assert.deepStrictEqual(listConfiguredPlugins(), [])
     fs.unlinkSync(process.env.CLAWMAX_PLUGIN_SETTINGS_PATH!)
+    process.env.CLAWMAX_ENABLED_PLUGINS = 'plugin-evals,plugin-guardrails,plugin-resource-plans,clawmax-lifecycle,plugin-review-notes'
+  })
+
+  await test('plugin settings preserve configured plugins that are temporarily unavailable', () => {
+    process.env.CLAWMAX_ENABLED_PLUGINS = 'clawmax-lifecycle,clawmax-optimize'
+    const inventory = updatePluginSettings(['clawmax-lifecycle'])
+    assert.strictEqual(inventory.find((plugin) => plugin.slug === 'clawmax-lifecycle')?.enabled, true)
+    const saved = JSON.parse(fs.readFileSync(process.env.CLAWMAX_PLUGIN_SETTINGS_PATH!, 'utf-8'))
+    assert.deepStrictEqual(saved.enabledPluginIds, ['clawmax-lifecycle', 'clawmax-optimize'])
+    fs.unlinkSync(process.env.CLAWMAX_PLUGIN_SETTINGS_PATH!)
+    process.env.CLAWMAX_ENABLED_PLUGINS = 'plugin-evals,plugin-guardrails,plugin-resource-plans,clawmax-lifecycle,plugin-review-notes'
   })
 
   await test('plugin settings reject unknown plugin identifiers', () => {
@@ -152,6 +177,24 @@ async function run() {
       () => updatePluginSettings(['not-installed']),
       (error: any) => error instanceof PluginContractError && error.statusCode === 400 && error.message.includes('not-installed'),
     )
+  })
+
+  await test('Lifecycle exposes agent files, conversations, models, and chronological evidence', () => {
+    const plugin = getPluginBySlug('clawmax-lifecycle')
+    assert(plugin, 'Expected public Lifecycle plugin')
+    recordAgentLifecycleAuditEvent('analyst', {
+      type: 'modified',
+      title: 'Agent configuration changed',
+      detail: 'SOUL.md',
+    })
+    const evidence = getAgentLifecycleEvidence(plugin!, 'analyst')
+    assert.strictEqual(evidence.subject.currentModel, 'openai/gpt-5.4-mini')
+    assert(evidence.files.some((entry) => entry.path === 'AGENTS/analyst/NOTES.md'), 'Expected associated file metadata')
+    assert.strictEqual(evidence.summary.conversationCount, 1)
+    assert.strictEqual(evidence.summary.messageCount, 2)
+    assert(evidence.modelHistory.some((entry) => entry.model === 'openai/gpt-4o-mini'), 'Expected model observed in session metadata')
+    assert(evidence.events.some((entry) => entry.type === 'modified' && entry.detail === 'SOUL.md'), 'Expected explicit dashboard audit history')
+    assert(evidence.events.every((entry, index, events) => index === 0 || events[index - 1].at <= entry.at), 'Expected chronological lifecycle events')
   })
 
   await test('host supports zero-plugin mode when default plugins are disabled', () => {

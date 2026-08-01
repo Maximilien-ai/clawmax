@@ -1,17 +1,18 @@
 # Lifecycle
 
-Lifecycle is a public ClawMax plugin that gives users an X-ray view of one agent
-or workflow in a single focused surface.
+Lifecycle is a public ClawMax plugin that gives users an X-ray view of selected
+agents or workflows in a single focused surface.
 
-The initial skeleton persists an inspection subject, focus, time window, and
-review notes through the generic `clawmax.ai/v2` plugin contract. It requests
-read-only agent, workflow, document, and communication context from the host.
+Agent inspections show creation metadata, current and observed models,
+associated file metadata, conversation counts, observed configuration changes,
+and a chronological fishbone timeline. Users can inspect multiple agents and
+limit the timeline by focus and time window. Conversation and file contents are
+not exposed to the plugin.
 
-Planned increments will add a unified timeline, configuration changes, files
-and artifacts, workflow executions, agent output, and links back to the owning
-dashboard surfaces. The plugin must preserve source links and timestamps, avoid
-copying secret values, and clearly distinguish observed facts from inferred
-summaries.
+Dashboard-driven agent configuration and model changes are recorded for future
+history. Older history is reconstructed from available workspace timestamps and
+OpenClaw session metadata and is labeled with its limitations. Workflow X-ray
+parity and links back to owning dashboard surfaces are planned next.
 
 Lifecycle is intentionally diagnostic rather than an enterprise control. It
 does not enforce policy, score quality, or change runtime configuration.

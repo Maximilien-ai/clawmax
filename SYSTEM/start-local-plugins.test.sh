@@ -20,17 +20,17 @@ require_text "$START_SCRIPT" \
   'PUBLIC_DEV_PLUGIN_IDS="clawmax-lifecycle,plugin-review-notes"' \
   "local start must always enable the public product plugins"
 require_text "$START_SCRIPT" \
-  'PRIVATE_DEV_PLUGIN_ROOT="$REPO_ROOT/../clawmax-plugins/plugins"' \
+  'PRIVATE_DEV_PLUGIN_ROOT="$(cd "$REPO_ROOT/../clawmax-plugins/plugins"' \
   "local start must discover a sibling private plugin checkout"
 require_text "$START_SCRIPT" \
-  'LOCAL_DEV_PLUGIN_IDS="clawmax-evals-plugin,clawmax-guardrails-plugin,clawmax-optimize,$PUBLIC_DEV_PLUGIN_IDS"' \
-  "local start must enable every product plugin when the private checkout is available"
+  '"optimize:clawmax-optimize"' \
+  "local start must include Optimize in the complete private product suite"
 require_text "$START_SCRIPT" \
-  'export CLAWMAX_PLUGIN_PATHS="$PRIVATE_DEV_PLUGIN_ROOT/evals:$PRIVATE_DEV_PLUGIN_ROOT/guardrails:$PRIVATE_DEV_PLUGIN_ROOT/optimize"' \
-  "local start must mount all private product plugin paths"
+  'LOCAL_PLUGIN_PATHS="$(append_delimited_value "$LOCAL_PLUGIN_PATHS" "$plugin_path" ":")"' \
+  "local start must merge every installed private product plugin path"
 require_text "$START_SCRIPT" \
-  'if [ -z "${CLAWMAX_ENABLED_PLUGINS+x}" ] && ! dotenv_defines_nonempty "CLAWMAX_ENABLED_PLUGINS"; then' \
-  "local defaults must not override shell or ignored .env plugin selections"
+  'CLAWMAX_DISABLE_LOCAL_PRIVATE_PLUGINS' \
+  "local startup must provide an explicit private-plugin opt-out"
 require_text "$START_SCRIPT" \
   'dotenv_defines_nonempty()' \
   "local startup must recognize non-empty ignored .env values"
