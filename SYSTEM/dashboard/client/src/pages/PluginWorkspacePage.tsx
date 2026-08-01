@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import AIPromptEditorModal from '../components/AIPromptEditorModal'
-import AgentLifecycleEvidence from '../components/AgentLifecycleEvidence'
+import AgentLifecycleEvidence, { type AgentLifecycleEvidenceData } from '../components/AgentLifecycleEvidence'
 import PromptQualityPanel from '../components/PromptQualityPanel'
 import { MobileSafeDialog } from '../components/MobileSafeDialog'
 import { useAuth } from '../contexts/AuthContext'
@@ -141,6 +141,47 @@ function EmptyState({ plugin, onCreate }: { plugin: PluginManifest; onCreate: ()
   )
 }
 
+function LifecycleTargetPicker({
+  options,
+  selected,
+  onChange,
+}: {
+  options: Array<{ id: string; name: string }>
+  selected: string[]
+  onChange: (ids: string[]) => void
+}) {
+  const [search, setSearch] = useState('')
+  const normalizedSearch = search.trim().toLowerCase()
+  const visible = options.filter((option) => !normalizedSearch || `${option.name} ${option.id}`.toLowerCase().includes(normalizedSearch))
+  const selectedSet = new Set(selected)
+  const toggle = (id: string) => onChange(selectedSet.has(id) ? selected.filter((entry) => entry !== id) : [...selected, id])
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-gray-300 bg-white dark:border-gray-600 dark:bg-gray-800">
+      <div className="flex flex-wrap items-center gap-2 border-b border-gray-200 p-2 dark:border-gray-700">
+        <input
+          type="search"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Search agents"
+          aria-label="Search lifecycle agents"
+          className="min-w-0 flex-1 rounded-md border border-gray-200 bg-white px-2.5 py-1.5 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+        />
+        <span className="text-xs font-medium text-gray-500 dark:text-gray-400">{selected.length} selected</span>
+      </div>
+      <div className="max-h-56 overflow-y-auto p-2" aria-label="Lifecycle agent selection">
+        {visible.map((option) => (
+          <label key={option.id} className="flex cursor-pointer items-start gap-2 rounded-md px-2 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700/60">
+            <input type="checkbox" checked={selectedSet.has(option.id)} onChange={() => toggle(option.id)} className="mt-0.5 h-4 w-4 rounded border-gray-300 text-sky-600 focus:ring-sky-500" />
+            <span className="min-w-0"><span className="block font-medium text-gray-800 dark:text-gray-200">{option.name}</span><span className="block truncate text-xs text-gray-500">{option.id}</span></span>
+          </label>
+        ))}
+        {visible.length === 0 && <div className="px-2 py-5 text-center text-sm text-gray-500">No matching agents.</div>}
+      </div>
+    </div>
+  )
+}
+
 function GenericPluginFields({
   plugin,
   fields,
@@ -202,6 +243,8 @@ function GenericPluginFields({
             {label}
             {scope === 'workspace' ? (
               <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-800/60 dark:text-gray-300">Current workspace</div>
+            ) : isLifecycle && scope === 'agent' ? (
+              <LifecycleTargetPicker options={options} selected={selected} onChange={(ids) => update(key, ids)} />
             ) : (
               <select
                 multiple
@@ -217,7 +260,7 @@ function GenericPluginFields({
               {scope === 'workspace'
                 ? 'This plan applies to the complete workspace.'
                 : isLifecycle
-                  ? `Select one or more ${scope}s. Use Cmd/Ctrl to select multiple.`
+                  ? `Select one or more ${scope}s to compare their histories in separate timeline lanes.`
                   : `Select one or more ${scope}s. Use Cmd/Ctrl to select multiple.`}
             </span>
           </label>
@@ -3482,6 +3525,199 @@ function OptimizeRelationshipGraph({
   )
 }
 
+type SelectedLifecycleEvent = {
+  agentId: string
+  agentName: string
+  event: AgentLifecycleEvidenceData['events'][number]
+}
+
+function LifecycleRelationshipGraph({
+  plugin,
+  items,
+  suggestionTemplates,
+  context,
+}: {
+  plugin: PluginManifest
+  items: PluginRecord[]
+  suggestionTemplates?: PluginRecordTemplate[]
+  context: PluginWorkspaceContext
+}) {
+  const [zoom, setZoom] = useState(1)
+  const [evidenceByAgent, setEvidenceByAgent] = useState<Record<string, AgentLifecycleEvidenceData>>({})
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [selectedEvent, setSelectedEvent] = useState<SelectedLifecycleEvent | null>(null)
+  const lifecycleItems = items.filter(isGenericPluginRecord).filter((item) => item.fields.subjectType === 'agent')
+  const agentSettings = new Map<string, { focus: string; timeWindow: string }>()
+  lifecycleItems.forEach((item) => {
+    const targetIds = Array.isArray(item.fields.targetIds) ? item.fields.targetIds.map(String) : []
+    targetIds.forEach((agentId) => {
+      if (!agentSettings.has(agentId)) {
+        agentSettings.set(agentId, {
+          focus: String(item.fields.focus || 'overview'),
+          timeWindow: String(item.fields.timeWindow || 'all'),
+        })
+      }
+    })
+  })
+  const agentIds = Array.from(agentSettings.keys())
+
+  useEffect(() => {
+    if (agentIds.length === 0) {
+      setEvidenceByAgent({})
+      setError(null)
+      return
+    }
+    const controller = new AbortController()
+    setLoading(true)
+    setError(null)
+    Promise.all(agentIds.map(async (agentId) => {
+      const response = await fetch(`/api/plugins/${encodeURIComponent(plugin.slug)}/lifecycle/agents/${encodeURIComponent(agentId)}`, { signal: controller.signal })
+      const payload = await response.json()
+      if (!response.ok) throw new Error(payload?.error || `Failed to load ${agentId}`)
+      return [agentId, payload.evidence as AgentLifecycleEvidenceData] as const
+    }))
+      .then((entries) => setEvidenceByAgent(Object.fromEntries(entries)))
+      .catch((reason) => {
+        if (reason?.name !== 'AbortError') setError(reason?.message || 'Failed to load lifecycle histories')
+      })
+      .finally(() => setLoading(false))
+    return () => controller.abort()
+  }, [plugin.slug, agentIds.join('|')])
+
+  const filterEvents = (agentId: string, evidence: AgentLifecycleEvidenceData) => {
+    const settings = agentSettings.get(agentId) || { focus: 'overview', timeWindow: 'all' }
+    const windowDays = settings.timeWindow === '24-hours' ? 1 : settings.timeWindow === '7-days' ? 7 : settings.timeWindow === '30-days' ? 30 : null
+    const cutoff = windowDays ? Date.now() - windowDays * 24 * 60 * 60 * 1000 : null
+    const focusTypes = settings.focus === 'activity'
+      ? new Set(['conversation'])
+      : settings.focus === 'artifacts'
+        ? new Set(['file'])
+        : settings.focus === 'configuration'
+          ? new Set(['created', 'modified', 'model'])
+          : null
+    const filtered = evidence.events
+      .filter((event) => cutoff === null || new Date(event.at).getTime() >= cutoff || event.type === 'created')
+      .filter((event) => focusTypes === null || focusTypes.has(event.type) || event.type === 'created')
+    if (filtered.length <= 16) return filtered
+    const created = filtered.find((event) => event.type === 'created')
+    return created ? [created, ...filtered.filter((event) => event.id !== created.id).slice(-15)] : filtered.slice(-16)
+  }
+  const laneHeight = 150
+  const canvasWidth = 1040
+  const lineStart = 180
+  const lineEnd = 990
+  const canvasHeight = Math.max(230, 70 + agentIds.length * laneHeight)
+  const eventColor = (type: AgentLifecycleEvidenceData['events'][number]['type']) => {
+    if (type === 'created') return '#10b981'
+    if (type === 'model') return '#8b5cf6'
+    if (type === 'conversation') return '#0ea5e9'
+    if (type === 'modified') return '#f59e0b'
+    return '#64748b'
+  }
+
+  if (suggestionTemplates !== undefined || agentIds.length === 0) {
+    return (
+      <div className="rounded-lg border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-900/40">
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Lifecycle timelines</h3>
+        <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+          {suggestionTemplates !== undefined
+            ? 'Suggested inspections have no workspace targets yet. Use one, then select one or more agents to build a real creation-to-now timeline.'
+            : 'Edit a Lifecycle inspection and select one or more agents. Each agent will appear in its own comparable timeline lane.'}
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900/40">
+      <div className="border-b border-gray-200 p-4 dark:border-gray-700">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Agent lifecycle timelines</h3>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Compare {agentIds.length} agent{agentIds.length === 1 ? '' : 's'} from creation to now. Select an event for its evidence.</p>
+          </div>
+          <RelationshipZoomControls zoom={zoom} onChange={setZoom} />
+        </div>
+        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs text-gray-500 dark:text-gray-400" aria-label="Lifecycle timeline legend">
+          {[['Created', '#10b981'], ['Configuration', '#f59e0b'], ['Model', '#8b5cf6'], ['Conversation', '#0ea5e9'], ['File', '#64748b']].map(([label, color]) => (
+            <span key={label} className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color }} />{label}</span>
+          ))}
+        </div>
+      </div>
+      {loading ? (
+        <div className="p-8 text-center text-sm text-gray-500">Loading lifecycle histories...</div>
+      ) : error ? (
+        <div className="m-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-900/10 dark:text-red-300">{error}</div>
+      ) : (
+        <div className="overflow-auto" aria-label="Lifecycle relationship timeline">
+          <svg viewBox={`0 0 ${canvasWidth} ${canvasHeight}`} style={{ width: `${canvasWidth * zoom}px`, minWidth: `${canvasWidth * zoom}px`, height: `${canvasHeight * zoom}px` }} role="img">
+            {agentIds.map((agentId, laneIndex) => {
+              const evidence = evidenceByAgent[agentId]
+              if (!evidence) return null
+              const events = filterEvents(agentId, evidence)
+              const times = events.map((event) => new Date(event.at).getTime()).filter(Number.isFinite)
+              const createdAt = evidence.subject.createdAt ? new Date(evidence.subject.createdAt).getTime() : Math.min(...times)
+              const startAt = Number.isFinite(createdAt) ? createdAt : Date.now()
+              const endAt = Math.max(Date.now(), ...times)
+              const span = Math.max(1, endAt - startAt)
+              const y = 75 + laneIndex * laneHeight
+              return (
+                <g key={agentId}>
+                  <text x="22" y={y - 9} className="fill-gray-900 text-[14px] font-semibold dark:fill-gray-100">{truncateGraphLabel(evidence.subject.name, 20)}</text>
+                  <text x="22" y={y + 12} className="fill-gray-500 text-[11px] dark:fill-gray-400">{truncateGraphLabel(evidence.subject.currentModel || 'No model', 22)}</text>
+                  <line x1={lineStart} y1={y} x2={lineEnd} y2={y} className="stroke-sky-300 dark:stroke-sky-700" strokeWidth="3" />
+                  <text x={lineStart} y={y + 52} textAnchor="start" className="fill-gray-400 text-[10px]">Created</text>
+                  <text x={lineEnd} y={y + 52} textAnchor="end" className="fill-gray-400 text-[10px]">Now</text>
+                  {events.map((event, eventIndex) => {
+                    const eventAt = new Date(event.at).getTime()
+                    const x = lineStart + Math.max(0, Math.min(1, (eventAt - startAt) / span)) * (lineEnd - lineStart)
+                    const direction = eventIndex % 2 === 0 ? -1 : 1
+                    const branchEnd = y + direction * 30
+                    const eventKey = `${agentId}:${event.id}`
+                    const active = selectedEvent ? `${selectedEvent.agentId}:${selectedEvent.event.id}` === eventKey : false
+                    return (
+                      <g
+                        key={eventKey}
+                        role="button"
+                        tabIndex={0}
+                        aria-label={`${evidence.subject.name}: ${event.title}`}
+                        className="cursor-pointer outline-none"
+                        onClick={() => setSelectedEvent({ agentId, agentName: evidence.subject.name, event })}
+                        onKeyDown={(keyboardEvent) => {
+                          if (keyboardEvent.key === 'Enter' || keyboardEvent.key === ' ') setSelectedEvent({ agentId, agentName: evidence.subject.name, event })
+                        }}
+                      >
+                        <title>{event.title}: {event.detail}</title>
+                        <line x1={x} y1={y} x2={x} y2={branchEnd} stroke={eventColor(event.type)} strokeWidth={active ? 3 : 2} />
+                        <circle cx={x} cy={y} r={active ? 7 : 5} fill={eventColor(event.type)} className="stroke-white dark:stroke-gray-900" strokeWidth="2" />
+                        <text x={x} y={branchEnd + (direction < 0 ? -5 : 13)} textAnchor="middle" className="fill-gray-600 text-[9px] font-medium dark:fill-gray-300">{truncateGraphLabel(event.title, 18)}</text>
+                      </g>
+                    )
+                  })}
+                </g>
+              )
+            })}
+          </svg>
+        </div>
+      )}
+      {selectedEvent && (
+        <div className="border-t border-gray-200 bg-sky-50/60 p-4 dark:border-gray-700 dark:bg-sky-950/20" aria-live="polite">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <div className="text-xs font-semibold uppercase text-sky-700 dark:text-sky-300">{selectedEvent.agentName} · {selectedEvent.event.type}</div>
+              <div className="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100">{selectedEvent.event.title}</div>
+              <div className="mt-1 break-words text-sm text-gray-600 dark:text-gray-300">{selectedEvent.event.detail}</div>
+              <time className="mt-2 block text-xs text-gray-500">{new Date(selectedEvent.event.at).toLocaleString()}</time>
+            </div>
+            <button type="button" onClick={() => setSelectedEvent(null)} className="text-xs font-medium text-sky-700 hover:text-sky-800 dark:text-sky-300">Close</button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function PluginRelationshipView({
   plugin,
   items,
@@ -3511,6 +3747,9 @@ function PluginRelationshipView({
   selectedId?: string | null
   heading?: string
 }) {
+  if (plugin.objectKind === 'lifecycle-view') {
+    return <LifecycleRelationshipGraph plugin={plugin} items={items} suggestionTemplates={suggestionTemplates} context={context} />
+  }
   if (plugin.objectKind === 'optimization-plan') {
     return <OptimizeRelationshipGraph items={items} suggestionTemplates={suggestionTemplates} context={context} onOpen={onOpen} selectedId={selectedId} />
   }
@@ -4675,7 +4914,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
           <EmptyState plugin={plugin} onCreate={() => { setEditing(null); setShowModal(true) }} />
         </div>
       ) : (
-        <div className={`mt-6 ${selectedItem ? 'xl:grid xl:grid-cols-[minmax(0,1fr)_360px] xl:gap-6' : ''}`}>
+        <div className={`mt-6 ${selectedItem && plugin.objectKind !== 'lifecycle-view' ? 'xl:grid xl:grid-cols-[minmax(0,1fr)_360px] xl:gap-6' : ''}`}>
           <div>
             {!isChecklist && (
               <div className="mb-3 flex items-center justify-between gap-3">
@@ -4887,7 +5126,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
             )}
           </div>
 
-          {selectedItem && (
+          {selectedItem && plugin.objectKind !== 'lifecycle-view' && (
             <div className="mt-6 xl:mt-0">
               <PluginDetailsPanel
                 plugin={plugin}
@@ -4910,7 +5149,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
         </div>
       )}
 
-      {!loading && !error && plugin.objectKind === 'lifecycle-view' && selectedItem && isGenericPluginRecord(selectedItem) && selectedItem.fields.subjectType === 'agent' && Array.isArray(selectedItem.fields.targetIds) && selectedItem.fields.targetIds.length > 0 && (
+      {!loading && !error && viewMode !== 'graph' && plugin.objectKind === 'lifecycle-view' && selectedItem && isGenericPluginRecord(selectedItem) && selectedItem.fields.subjectType === 'agent' && Array.isArray(selectedItem.fields.targetIds) && selectedItem.fields.targetIds.length > 0 && (
         <div className="mt-6 space-y-8">
           {selectedItem.fields.targetIds.map((agentId) => (
             <AgentLifecycleEvidence
