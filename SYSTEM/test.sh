@@ -1728,8 +1728,8 @@ fi
 
 echo -e "${YELLOW}→ Running Lifecycle plugin skeleton contract tests...${NC}"
 npx ts-node --transpileOnly client/src/PluginLifecycleSkeleton.test.ts > /tmp/clawmax-plugin-lifecycle.out 2>&1 || true
-if grep -q "PluginLifecycleSkeleton.test.ts: 36 tests passed" /tmp/clawmax-plugin-lifecycle.out; then
-  pass "Lifecycle plugin contract tests (36 tests)"
+if grep -q "PluginLifecycleSkeleton.test.ts: 39 tests passed" /tmp/clawmax-plugin-lifecycle.out; then
+  pass "Lifecycle plugin contract tests (39 tests)"
 else
   cat /tmp/clawmax-plugin-lifecycle.out
   fail "Lifecycle plugin skeleton contract tests"

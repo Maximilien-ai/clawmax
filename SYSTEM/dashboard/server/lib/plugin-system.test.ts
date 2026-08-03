@@ -21,6 +21,7 @@ import {
   getPluginSettingsInventory,
   getAgentLifecycleEvidence,
   getWorkflowLifecycleEvidence,
+  getCommunicationLifecycleEvidence,
   getPluginWorkspaceContext,
   listConfiguredPlugins,
   listPluginRecords,
@@ -32,6 +33,7 @@ import {
 } from './plugin-system'
 import { resetWorkspaceManagerForTests } from './workspace-manager'
 import { recordAgentLifecycleAuditEvent } from './agent-lifecycle-audit'
+import { addMessage } from './messages'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -235,6 +237,20 @@ async function run() {
     assert(evidence.files.some((entry) => entry.path.endsWith(`${workflowId}.md`)), 'Expected workflow definition metadata')
     assert(evidence.events.some((entry) => entry.type === 'execution'), 'Expected workflow execution events')
     assert(evidence.events.every((entry, index, events) => index === 0 || events[index - 1].at <= entry.at), 'Expected chronological workflow events')
+  })
+
+  await test('Lifecycle exposes group and community communication evidence', async () => {
+    const plugin = getPluginBySlug('clawmax-lifecycle')
+    addMessage('group', 'Research Ops', { from: 'analyst', content: 'Research update', mentions: [] })
+    addMessage('community', 'Research', { from: 'User', content: 'Community update', mentions: [] })
+    const groupEvidence = await getCommunicationLifecycleEvidence(plugin!, 'group', 'Research Ops')
+    const communityEvidence = await getCommunicationLifecycleEvidence(plugin!, 'community', 'Research')
+    assert.strictEqual(groupEvidence.subject.kind, 'group')
+    assert.strictEqual(groupEvidence.summary.messageCount, 1)
+    assert.strictEqual(communityEvidence.subject.kind, 'community')
+    assert.strictEqual(communityEvidence.summary.messageCount, 1)
+    assert(groupEvidence.events.some((entry) => entry.type === 'conversation'), 'Expected group message timeline event')
+    assert(communityEvidence.events.some((entry) => entry.type === 'conversation'), 'Expected community message timeline event')
   })
 
   await test('host supports zero-plugin mode when default plugins are disabled', () => {

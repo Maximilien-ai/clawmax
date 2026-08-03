@@ -1,0 +1,21 @@
+{
+  "id": "group-communication-history",
+  "name": "Group communication history",
+  "description": "Review selected group activity, message counts, and archived conversations over time.",
+  "recommended": true,
+  "tags": ["group", "communications", "history"],
+  "payload": {
+    "name": "Group communication history",
+    "description": "Follow a group from its first retained message through current activity.",
+    "tags": ["group", "communications", "history"],
+    "enabled": true,
+    "fields": {
+      "subjectType": "group",
+      "targetIds": [],
+      "focus": "activity",
+      "timeWindow": "30-days",
+      "includeArchived": true,
+      "notes": ""
+    }
+  }
+}

@@ -3,7 +3,7 @@ import { ProductIconCell } from '../lib/productIcons'
 
 export interface AgentLifecycleEvidenceData {
   subject: {
-    kind?: 'agent' | 'workflow'
+    kind?: 'agent' | 'workflow' | 'group' | 'community'
     id: string
     name: string
     createdAt: string | null
@@ -19,6 +19,7 @@ export interface AgentLifecycleEvidenceData {
     observedChangeCount: number
     executionCount?: number
     participantCount?: number
+    archiveCount?: number
   }
   files: Array<{ path: string; size: number; modifiedAt: string }>
   conversations: Array<{ id: string; active: boolean; messageCount: number; modifiedAt: string }>
@@ -58,7 +59,7 @@ export default function AgentLifecycleEvidence({
 }: {
   pluginSlug: string
   agentId: string
-  subjectType?: 'agent' | 'workflow'
+  subjectType?: 'agent' | 'workflow' | 'group' | 'community'
   focus: string
   timeWindow: string
 }) {
@@ -86,7 +87,10 @@ export default function AgentLifecycleEvidence({
     const controller = new AbortController()
     setLoading(true)
     setError(null)
-    fetch(`/api/plugins/${encodeURIComponent(pluginSlug)}/lifecycle/${subjectType === 'workflow' ? 'workflows' : 'agents'}/${encodeURIComponent(agentId)}`, { signal: controller.signal })
+    const resource = subjectType === 'workflow' ? `workflows/${encodeURIComponent(agentId)}`
+      : subjectType === 'agent' ? `agents/${encodeURIComponent(agentId)}`
+        : `communications/${subjectType}/${encodeURIComponent(agentId)}`
+    fetch(`/api/plugins/${encodeURIComponent(pluginSlug)}/lifecycle/${resource}`, { signal: controller.signal })
       .then(async (response) => {
         const payload = await response.json()
         if (!response.ok) throw new Error(payload?.error || 'Failed to load lifecycle evidence')
@@ -104,12 +108,18 @@ export default function AgentLifecycleEvidence({
   if (!evidence) return null
 
   const isWorkflow = evidence.subject.kind === 'workflow' || subjectType === 'workflow'
+  const isCommunication = evidence.subject.kind === 'group' || evidence.subject.kind === 'community' || subjectType === 'group' || subjectType === 'community'
   const summary = isWorkflow ? [
     { label: 'Created', value: formatDate(evidence.subject.createdAt), icon: 'calendar' },
     { label: 'Status', value: evidence.subject.currentStatus || 'unknown', icon: 'activity' },
     { label: 'Runs', value: String(evidence.summary.executionCount || 0), icon: 'workflow' },
     { label: 'Participants', value: String(evidence.summary.participantCount || 0), icon: 'agents' },
     { label: 'Artifacts', value: String(evidence.summary.fileCount), icon: 'document' },
+  ] : isCommunication ? [
+    { label: 'Started', value: formatDate(evidence.subject.createdAt), icon: 'calendar' },
+    { label: 'Messages', value: String(evidence.summary.messageCount), icon: 'communications' },
+    { label: 'Archives', value: String(evidence.summary.archiveCount || 0), icon: 'archive' },
+    { label: 'Events', value: String(evidence.summary.observedChangeCount), icon: 'activity' },
   ] : [
     { label: 'Created', value: formatDate(evidence.subject.createdAt), icon: 'calendar' },
     { label: 'Current model', value: evidence.subject.currentModel || 'Not configured', icon: 'cpu' },
@@ -136,7 +146,7 @@ export default function AgentLifecycleEvidence({
       <div className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-900/40">
         <div>
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{evidence.subject.name} X-ray</h2>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{isWorkflow ? 'Observed configuration, executions, participants, and artifacts for this workflow.' : 'Observed configuration, files, conversations, and model history for this agent.'}</p>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{isWorkflow ? 'Observed configuration, executions, participants, and artifacts for this workflow.' : isCommunication ? 'Observed messages and archived conversations for this communication space.' : 'Observed configuration, files, conversations, and model history for this agent.'}</p>
         </div>
         <button
           type="button"
@@ -194,33 +204,40 @@ export default function AgentLifecycleEvidence({
 
       <div className="grid gap-4 xl:grid-cols-3">
         <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900/40">
-          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{isWorkflow ? 'Recent runs' : 'Models'}</h3>
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{isWorkflow ? 'Recent runs' : isCommunication ? 'Recent messages' : 'Models'}</h3>
           <div className="mt-3 space-y-2">
             {isWorkflow ? (evidence.executions || []).slice(0, 8).map((entry) => (
               <div key={entry.id} className="rounded-md bg-gray-50 px-3 py-2 text-sm dark:bg-gray-800/60">
                 <div className="break-all font-medium text-gray-800 dark:text-gray-200">{entry.status} · {entry.participantCount} participants</div>
                 <div className="mt-1 text-xs text-gray-500">{formatDate(entry.startedAt)}</div>
               </div>
-            )) : evidence.modelHistory.length > 0 ? evidence.modelHistory.map((entry) => (
+            )) : isCommunication ? evidence.events.filter((entry) => entry.type === 'conversation').slice(-8).reverse().map((entry) => (
+              <div key={entry.id} className="rounded-md bg-gray-50 px-3 py-2 text-sm dark:bg-gray-800/60">
+                <div className="break-words font-medium text-gray-800 dark:text-gray-200">{entry.detail}</div>
+                <div className="mt-1 text-xs text-gray-500">{formatDate(entry.at)}</div>
+              </div>
+            ) : evidence.modelHistory.length > 0 ? evidence.modelHistory.map((entry) => (
               <div key={entry.model} className="rounded-md bg-gray-50 px-3 py-2 text-sm dark:bg-gray-800/60">
                 <div className="break-all font-medium text-gray-800 dark:text-gray-200">{entry.model}</div>
                 <div className="mt-1 text-xs text-gray-500">{entry.current ? 'Current model' : `Observed ${formatDate(entry.observedAt)}`}</div>
               </div>
-            )) : <div className="text-sm text-gray-500">{isWorkflow ? 'No workflow runs observed.' : 'No model metadata observed.'}</div>}
+            )) : <div className="text-sm text-gray-500">{isWorkflow ? 'No workflow runs observed.' : isCommunication ? 'No retained messages observed.' : 'No model metadata observed.'}</div>}
           </div>
         </div>
         <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900/40">
-          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{isWorkflow ? 'Definition and artifacts' : 'Recent files'}</h3>
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{isWorkflow ? 'Definition and artifacts' : isCommunication ? 'Archived history' : 'Recent files'}</h3>
           <div className="mt-3 space-y-2">
             {evidence.files.slice(0, 8).map((file) => <div key={file.path} className="min-w-0 text-sm"><div className="break-words font-medium text-gray-800 dark:text-gray-200">{file.path}</div><div className="text-xs text-gray-500">{formatDate(file.modifiedAt)}</div></div>)}
-            {evidence.files.length === 0 && <div className="text-sm text-gray-500">No associated files observed.</div>}
+            {isCommunication ? evidence.events.filter((entry) => entry.type === 'file').slice(-8).reverse().map((entry) => <div key={entry.id} className="text-sm"><div className="font-medium text-gray-800 dark:text-gray-200">{entry.title}</div><div className="text-xs text-gray-500">{entry.detail} · {formatDate(entry.at)}</div></div>) : null}
+            {evidence.files.length === 0 && !isCommunication && <div className="text-sm text-gray-500">No associated files observed.</div>}
+            {isCommunication && evidence.summary.archiveCount === 0 && <div className="text-sm text-gray-500">No archived conversations observed.</div>}
           </div>
         </div>
         <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900/40">
-          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{isWorkflow ? 'Execution coverage' : 'Recent conversations'}</h3>
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{isWorkflow ? 'Execution coverage' : isCommunication ? 'Scope' : 'Recent conversations'}</h3>
           <div className="mt-3 space-y-2">
-            {isWorkflow ? <div className="text-sm text-gray-600 dark:text-gray-300">{evidence.summary.executionCount || 0} retained runs across {evidence.summary.participantCount || 0} unique agents.</div> : evidence.conversations.slice(0, 8).map((entry) => <div key={entry.id} className="text-sm"><div className="break-all font-medium text-gray-800 dark:text-gray-200">{entry.active ? 'Current session' : entry.id}</div><div className="text-xs text-gray-500">{entry.messageCount} messages · {formatDate(entry.modifiedAt)}</div></div>)}
-            {!isWorkflow && evidence.conversations.length === 0 && <div className="text-sm text-gray-500">No user conversations observed.</div>}
+            {isWorkflow ? <div className="text-sm text-gray-600 dark:text-gray-300">{evidence.summary.executionCount || 0} retained runs across {evidence.summary.participantCount || 0} unique agents.</div> : isCommunication ? <div className="text-sm text-gray-600 dark:text-gray-300">This {evidence.subject.kind || subjectType} is tracked as a shared communication space. Open Communications for members and full message content.</div> : evidence.conversations.slice(0, 8).map((entry) => <div key={entry.id} className="text-sm"><div className="break-all font-medium text-gray-800 dark:text-gray-200">{entry.active ? 'Current session' : entry.id}</div><div className="text-xs text-gray-500">{entry.messageCount} messages · {formatDate(entry.modifiedAt)}</div></div>)}
+            {!isWorkflow && !isCommunication && evidence.conversations.length === 0 && <div className="text-sm text-gray-500">No user conversations observed.</div>}
           </div>
         </div>
       </div>

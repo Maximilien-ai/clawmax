@@ -6,6 +6,7 @@ import { createNotification } from './notifications'
 import { listAgents, getWorkspacePath, parseGroups } from './workspace'
 import { listExecutions, listWorkflows } from './workflows'
 import { readAgentLifecycleAuditEvents } from './agent-lifecycle-audit'
+import { getMessages } from './messages'
 
 export const PLUGIN_HOST_API_VERSION = 'clawmax.ai/v2' as const
 
@@ -252,7 +253,7 @@ export interface PluginWorkspaceContext {
 
 export interface AgentLifecycleEvidence {
   subject: {
-    kind?: 'agent' | 'workflow'
+    kind?: 'agent' | 'workflow' | 'group' | 'community'
     id: string
     name: string
     createdAt: string | null
@@ -268,6 +269,7 @@ export interface AgentLifecycleEvidence {
     observedChangeCount: number
     executionCount?: number
     participantCount?: number
+    archiveCount?: number
   }
   files: Array<{ path: string; size: number; modifiedAt: string }>
   conversations: Array<{ id: string; active: boolean; messageCount: number; modifiedAt: string }>
@@ -2255,5 +2257,63 @@ export function getWorkflowLifecycleEvidence(plugin: PluginManifest, workflowId:
       'Workflow history includes the current definition and execution records retained in this workspace.',
       'Configuration changes made before explicit lifecycle auditing may only expose the current file timestamps.',
     ],
+  }
+}
+
+function listCommunicationArchiveMetadata(subjectType: 'group' | 'community', name: string): Array<{ filename: string; timestamp: number; messageCount: number }> {
+  const archiveDir = path.join(getWorkspacePath(), 'SYSTEM', 'messages', subjectType === 'group' ? 'groups' : 'communities', 'archive')
+  if (!fs.existsSync(archiveDir)) return []
+  const safeName = name.replace(/[^a-z0-9_-]/gi, '_').toLowerCase()
+  try {
+    return fs.readdirSync(archiveDir)
+      .filter((filename) => filename.startsWith(`${safeName}_`) && filename.endsWith('.json'))
+      .map((filename) => {
+        const timestamp = Number(filename.match(/_(\d+)\.json$/)?.[1] || 0)
+        let messageCount = 0
+        try {
+          const parsed = JSON.parse(fs.readFileSync(path.join(archiveDir, filename), 'utf-8'))
+          messageCount = Array.isArray(parsed) ? parsed.length : 0
+        } catch {}
+        return { filename, timestamp, messageCount }
+      })
+      .sort((a, b) => b.timestamp - a.timestamp)
+  } catch {
+    return []
+  }
+}
+
+export function getCommunicationLifecycleEvidence(
+  plugin: PluginManifest,
+  subjectType: 'group' | 'community',
+  name: string,
+): AgentLifecycleEvidence {
+  if (plugin.objectKind !== 'lifecycle-view') throw new PluginContractError('Lifecycle evidence is only available to Lifecycle plugins.', 400)
+  assertPluginCapability(plugin, 'communications')
+  if (!name.trim() || name.length > 240) throw new PluginContractError('Invalid communication name.', 400)
+  const context = getPluginWorkspaceContext(plugin)
+  const names = subjectType === 'group' ? context.groups : context.communities
+  if (!names.includes(name)) throw new PluginContractError(`${subjectType} not found.`, 404)
+  const messages = getMessages(subjectType, name)
+  const archives = listCommunicationArchiveMetadata(subjectType, name)
+  const firstTimestamp = messages[0]?.timestamp || archives.at(-1)?.timestamp || null
+  const lastTimestamp = messages.at(-1)?.timestamp || archives[0]?.timestamp || firstTimestamp
+  const files: AgentLifecycleEvidence['files'] = []
+  const events: AgentLifecycleEvidence['events'] = []
+  if (firstTimestamp) events.push({ id: 'created', type: 'created', at: isoTimestamp(firstTimestamp), title: `${subjectType === 'group' ? 'Group' : 'Community'} activity observed`, detail: name })
+  for (const message of messages) {
+    events.push({ id: `message:${message.id}`, type: 'conversation', at: isoTimestamp(message.timestamp), title: 'Message sent', detail: `${message.from}: ${message.content.slice(0, 120)}` })
+  }
+  for (const archive of archives) {
+    if (archive.timestamp) events.push({ id: `archive:${archive.filename}`, type: 'file', at: isoTimestamp(archive.timestamp), title: 'Conversation archived', detail: `${archive.messageCount} messages` })
+  }
+  events.sort((a, b) => a.at.localeCompare(b.at))
+  return {
+    subject: { kind: subjectType, id: name, name, createdAt: firstTimestamp ? isoTimestamp(firstTimestamp) : null, lastModifiedAt: lastTimestamp ? isoTimestamp(lastTimestamp) : null, currentModel: null },
+    summary: { fileCount: files.length, conversationCount: messages.length + archives.length, messageCount: messages.length, observedModelCount: 0, observedChangeCount: events.length, archiveCount: archives.length },
+    files,
+    conversations: messages.length > 0 ? [{ id: `${subjectType}:${name}`, active: true, messageCount: messages.length, modifiedAt: isoTimestamp(lastTimestamp || Date.now()) }] : [],
+    modelHistory: [],
+    events,
+    limitations: ['Communication history includes messages and archived conversations retained in this workspace.', 'Messages are summarized in the timeline; open Communications for full content and member details.'],
   }
 }

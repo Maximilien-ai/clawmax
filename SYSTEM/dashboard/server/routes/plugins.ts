@@ -8,6 +8,7 @@ import {
   getPluginSettingsInventory,
   getAgentLifecycleEvidence,
   getWorkflowLifecycleEvidence,
+  getCommunicationLifecycleEvidence,
   getPluginWorkspaceContext,
   listConfiguredPlugins,
   listPluginRecords,
@@ -84,6 +85,17 @@ router.get('/:pluginId/lifecycle/workflows/:workflowId', (req, res) => {
   if (!plugin) return res.status(404).json({ error: 'Plugin not found' })
   try {
     res.json({ evidence: getWorkflowLifecycleEvidence(plugin, req.params.workflowId) })
+  } catch (error) {
+    return sendPluginError(res, error)
+  }
+})
+
+router.get('/:pluginId/lifecycle/communications/:subjectType/:name', async (req, res) => {
+  const plugin = getPluginBySlug(req.params.pluginId)
+  if (!plugin) return res.status(404).json({ error: 'Plugin not found' })
+  if (req.params.subjectType !== 'group' && req.params.subjectType !== 'community') return res.status(400).json({ error: 'Communication type must be group or community.' })
+  try {
+    res.json({ evidence: await getCommunicationLifecycleEvidence(plugin, req.params.subjectType, decodeURIComponent(req.params.name)) })
   } catch (error) {
     return sendPluginError(res, error)
   }
