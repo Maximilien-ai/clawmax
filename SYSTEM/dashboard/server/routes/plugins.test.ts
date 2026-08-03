@@ -24,6 +24,7 @@ const originalTestWorkspace = process.env.CLAWMAX_TEST_WORKSPACE
 const originalEnabledPlugins = process.env.CLAWMAX_ENABLED_PLUGINS
 const originalDisableDefaultPlugins = process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS
 const originalPluginPaths = process.env.CLAWMAX_PLUGIN_PATHS
+process.env.CLAWMAX_ENABLE_TEST_PLUGINS = 'true'
 const originalPluginSettingsPath = process.env.CLAWMAX_PLUGIN_SETTINGS_PATH
 
 function test(name: string, fn: () => void | Promise<void>) {

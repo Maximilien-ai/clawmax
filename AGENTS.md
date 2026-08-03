@@ -64,6 +64,15 @@
 
 ## Tests And Release Validation
 
+- Treat 2,000 tokens per local calendar day as the user-notification threshold
+  for repository work. When session-visible usage reaches that threshold, tell
+  the user once and continue only as directed. This cannot include usage from
+  unrelated threads or tools that do not expose token accounting.
+- Minimize token overhead by using focused file reads, bounded command output,
+  sparse CI polling, long waits for known-duration jobs, and concise progress
+  summaries. Do not trade away required implementation or test coverage merely
+  to reduce reported usage.
+
 - Treat transcript, prompt, conversation, and user-activity export as sensitive
   data egress. It must be disabled by default, explicitly consented per affected
   user, scoped to a named destination and purpose, visibly indicated while

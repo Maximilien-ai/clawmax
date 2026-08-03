@@ -10,6 +10,7 @@ import { expandPromptWithAI } from '../lib/aiPrompt'
 import { getAiGenerationReadiness, hasAiGenerationAccess } from '../lib/byok'
 import { getViewportSafeDropdownStyle } from '../lib/dropdownPosition'
 import { getEvalAttributes, getEvalJudge, getEvalTrialCount } from '../lib/evalGraph'
+import { buildCompressedTimelineLayout } from '../lib/lifecycleGraph'
 import type { EvalCase, GenericPluginRecord, PluginFieldValue, PluginManifest, PluginRecord, PluginRecordTemplate, PluginWorkspaceContext } from '../lib/plugins'
 import {
   buildGenericPluginFields,
@@ -144,10 +145,12 @@ function EmptyState({ plugin, onCreate }: { plugin: PluginManifest; onCreate: ()
 function LifecycleTargetPicker({
   options,
   selected,
+  subjectLabel,
   onChange,
 }: {
   options: Array<{ id: string; name: string }>
   selected: string[]
+  subjectLabel: string
   onChange: (ids: string[]) => void
 }) {
   const [search, setSearch] = useState('')
@@ -163,13 +166,13 @@ function LifecycleTargetPicker({
           type="search"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search agents"
-          aria-label="Search lifecycle agents"
+          placeholder={`Search ${subjectLabel}s`}
+          aria-label={`Search lifecycle ${subjectLabel}s`}
           className="min-w-0 flex-1 rounded-md border border-gray-200 bg-white px-2.5 py-1.5 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
         />
         <span className="text-xs font-medium text-gray-500 dark:text-gray-400">{selected.length} selected</span>
       </div>
-      <div className="max-h-56 overflow-y-auto p-2" aria-label="Lifecycle agent selection">
+      <div className="max-h-56 overflow-y-auto p-2" aria-label={`Lifecycle ${subjectLabel} selection`}>
         {visible.map((option) => (
           <label key={option.id} className="flex cursor-pointer items-start gap-2 rounded-md px-2 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700/60">
             <input type="checkbox" checked={selectedSet.has(option.id)} onChange={() => toggle(option.id)} className="mt-0.5 h-4 w-4 rounded border-gray-300 text-sky-600 focus:ring-sky-500" />
@@ -243,8 +246,8 @@ function GenericPluginFields({
             {label}
             {scope === 'workspace' ? (
               <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-800/60 dark:text-gray-300">Current workspace</div>
-            ) : isLifecycle && scope === 'agent' ? (
-              <LifecycleTargetPicker options={options} selected={selected} onChange={(ids) => update(key, ids)} />
+            ) : isLifecycle && (scope === 'agent' || scope === 'workflow') ? (
+              <LifecycleTargetPicker options={options} selected={selected} subjectLabel={scope} onChange={(ids) => update(key, ids)} />
             ) : (
               <select
                 multiple
@@ -3533,8 +3536,8 @@ function OptimizeRelationshipGraph({
 }
 
 type SelectedLifecycleEvent = {
-  agentId: string
-  agentName: string
+  targetKey: string
+  targetName: string
   event: AgentLifecycleEvidenceData['events'][number]
 }
 
@@ -3543,61 +3546,71 @@ function LifecycleRelationshipGraph({
   items,
   suggestionTemplates,
   context,
+  onOpen,
+  selectedId,
 }: {
   plugin: PluginManifest
   items: PluginRecord[]
   suggestionTemplates?: PluginRecordTemplate[]
   context: PluginWorkspaceContext
+  onOpen: (id: string) => void
+  selectedId?: string | null
 }) {
   const [zoom, setZoom] = useState(1)
-  const [evidenceByAgent, setEvidenceByAgent] = useState<Record<string, AgentLifecycleEvidenceData>>({})
+  const [evidenceByTarget, setEvidenceByTarget] = useState<Record<string, AgentLifecycleEvidenceData>>({})
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedEvent, setSelectedEvent] = useState<SelectedLifecycleEvent | null>(null)
-  const lifecycleItems = items.filter(isGenericPluginRecord).filter((item) => item.fields.subjectType === 'agent')
-  const agentSettings = new Map<string, { focus: string; timeWindow: string }>()
+  const lifecycleItems = items.filter(isGenericPluginRecord).filter((item) => item.fields.subjectType === 'agent' || item.fields.subjectType === 'workflow')
+  const targetSettings = new Map<string, { id: string; subjectType: 'agent' | 'workflow'; focus: string; timeWindow: string }>()
   lifecycleItems.forEach((item) => {
+    const subjectType = item.fields.subjectType === 'workflow' ? 'workflow' : 'agent'
     const targetIds = Array.isArray(item.fields.targetIds) ? item.fields.targetIds.map(String) : []
-    targetIds.forEach((agentId) => {
-      if (!agentSettings.has(agentId)) {
-        agentSettings.set(agentId, {
+    targetIds.forEach((targetId) => {
+      const key = `${subjectType}:${targetId}`
+      if (!targetSettings.has(key)) {
+        targetSettings.set(key, {
+          id: targetId,
+          subjectType,
           focus: String(item.fields.focus || 'overview'),
           timeWindow: String(item.fields.timeWindow || 'all'),
         })
       }
     })
   })
-  const agentIds = Array.from(agentSettings.keys())
+  const targetKeys = Array.from(targetSettings.keys())
 
   useEffect(() => {
-    if (agentIds.length === 0) {
-      setEvidenceByAgent({})
+    if (targetKeys.length === 0) {
+      setEvidenceByTarget({})
       setError(null)
       return
     }
     const controller = new AbortController()
     setLoading(true)
     setError(null)
-    Promise.all(agentIds.map(async (agentId) => {
-      const response = await fetch(`/api/plugins/${encodeURIComponent(plugin.slug)}/lifecycle/agents/${encodeURIComponent(agentId)}`, { signal: controller.signal })
+    Promise.all(targetKeys.map(async (targetKey) => {
+      const target = targetSettings.get(targetKey)!
+      const resource = target.subjectType === 'workflow' ? 'workflows' : 'agents'
+      const response = await fetch(`/api/plugins/${encodeURIComponent(plugin.slug)}/lifecycle/${resource}/${encodeURIComponent(target.id)}`, { signal: controller.signal })
       const payload = await response.json()
-      if (!response.ok) throw new Error(payload?.error || `Failed to load ${agentId}`)
-      return [agentId, payload.evidence as AgentLifecycleEvidenceData] as const
+      if (!response.ok) throw new Error(payload?.error || `Failed to load ${target.id}`)
+      return [targetKey, payload.evidence as AgentLifecycleEvidenceData] as const
     }))
-      .then((entries) => setEvidenceByAgent(Object.fromEntries(entries)))
+      .then((entries) => setEvidenceByTarget(Object.fromEntries(entries)))
       .catch((reason) => {
         if (reason?.name !== 'AbortError') setError(reason?.message || 'Failed to load lifecycle histories')
       })
       .finally(() => setLoading(false))
     return () => controller.abort()
-  }, [plugin.slug, agentIds.join('|')])
+  }, [plugin.slug, targetKeys.join('|')])
 
-  const filterEvents = (agentId: string, evidence: AgentLifecycleEvidenceData) => {
-    const settings = agentSettings.get(agentId) || { focus: 'overview', timeWindow: 'all' }
+  const filterEvents = (targetKey: string, evidence: AgentLifecycleEvidenceData) => {
+    const settings = targetSettings.get(targetKey) || { id: '', subjectType: 'agent' as const, focus: 'overview', timeWindow: 'all' }
     const windowDays = settings.timeWindow === '24-hours' ? 1 : settings.timeWindow === '7-days' ? 7 : settings.timeWindow === '30-days' ? 30 : null
     const cutoff = windowDays ? Date.now() - windowDays * 24 * 60 * 60 * 1000 : null
     const focusTypes = settings.focus === 'activity'
-      ? new Set(['conversation'])
+      ? new Set(['conversation', 'execution'])
       : settings.focus === 'artifacts'
         ? new Set(['file'])
         : settings.focus === 'configuration'
@@ -3614,23 +3627,70 @@ function LifecycleRelationshipGraph({
   const canvasWidth = 1040
   const lineStart = 180
   const lineEnd = 990
-  const canvasHeight = Math.max(230, 70 + agentIds.length * laneHeight)
+  const canvasHeight = Math.max(230, 70 + targetKeys.length * laneHeight)
   const eventColor = (type: AgentLifecycleEvidenceData['events'][number]['type']) => {
     if (type === 'created') return '#10b981'
     if (type === 'model') return '#8b5cf6'
     if (type === 'conversation') return '#0ea5e9'
+    if (type === 'execution') return '#ec4899'
     if (type === 'modified') return '#f59e0b'
     return '#64748b'
   }
 
-  if (suggestionTemplates !== undefined || agentIds.length === 0) {
+  if (suggestionTemplates !== undefined) {
+    const suggestions = suggestionTemplates.map(templateToPreviewRecord).filter(isGenericPluginRecord)
+    return (
+      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900/40">
+        <div className="border-b border-gray-200 p-4 dark:border-gray-700">
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Suggested lifecycle relationships</h3>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Each suggestion connects an object type to an inspection focus and time window. Select one to review and choose workspace targets.</p>
+          <div className="mt-3 flex flex-wrap gap-3 text-xs text-gray-500 dark:text-gray-400">
+            <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />Object type</span>
+            <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-sky-500" />Inspection</span>
+            <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-violet-500" />Focus</span>
+            <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full border border-dashed border-gray-500" />Targets required</span>
+          </div>
+        </div>
+        <div className="grid gap-4 p-4 lg:grid-cols-2" aria-label="Suggested lifecycle relationship graph">
+          {suggestions.map((suggestion) => {
+            const subjectType = String(suggestion.fields.subjectType || 'agent')
+            const focus = String(suggestion.fields.focus || 'overview')
+            const timeWindow = String(suggestion.fields.timeWindow || '7-days')
+            const selected = selectedId === suggestion.id
+            return (
+              <button
+                key={suggestion.id}
+                type="button"
+                onClick={() => onOpen(suggestion.id)}
+                aria-pressed={selected}
+                className={`rounded-lg border p-4 text-left transition-colors ${selected ? 'border-sky-500 bg-sky-50 ring-2 ring-sky-100 dark:bg-sky-950/30 dark:ring-sky-900/40' : 'border-gray-200 hover:border-sky-300 dark:border-gray-700 dark:hover:border-sky-700'}`}
+              >
+                <div className="mb-4 truncate text-sm font-semibold text-gray-900 dark:text-gray-100">{suggestion.name}</div>
+                <div className="flex min-w-0 items-center gap-2 overflow-x-auto pb-1">
+                  <span className="shrink-0 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-medium capitalize text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300">{subjectType}</span>
+                  <span className="h-px min-w-5 flex-1 bg-gray-300 dark:bg-gray-700" />
+                  <span className="max-w-40 shrink-0 truncate rounded-md border border-sky-200 bg-sky-50 px-2.5 py-1.5 text-xs font-medium text-sky-700 dark:border-sky-800 dark:bg-sky-950/30 dark:text-sky-300">{suggestion.name}</span>
+                  <span className="h-px min-w-5 flex-1 bg-gray-300 dark:bg-gray-700" />
+                  <span className="shrink-0 rounded-md border border-violet-200 bg-violet-50 px-2.5 py-1.5 text-xs font-medium capitalize text-violet-700 dark:border-violet-800 dark:bg-violet-950/30 dark:text-violet-300">{focus}</span>
+                </div>
+                <div className="mt-3 flex items-center justify-between gap-3 text-xs text-gray-500 dark:text-gray-400">
+                  <span>{timeWindow.replaceAll('-', ' ')}</span>
+                  <span className="rounded-md border border-dashed border-gray-300 px-2 py-1 dark:border-gray-600">Select {subjectType}s</span>
+                </div>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
+  if (targetKeys.length === 0) {
     return (
       <div className="rounded-lg border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-900/40">
         <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Lifecycle timelines</h3>
         <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-          {suggestionTemplates !== undefined
-            ? 'Suggested inspections have no workspace targets yet. Use one, then select one or more agents to build a real creation-to-now timeline.'
-            : 'Edit a Lifecycle inspection and select one or more agents. Each agent will appear in its own comparable timeline lane.'}
+          Edit a Lifecycle inspection and select one or more agents or workflows. Each object will appear in its own comparable timeline lane.
         </p>
       </div>
     )
@@ -3641,13 +3701,13 @@ function LifecycleRelationshipGraph({
       <div className="border-b border-gray-200 p-4 dark:border-gray-700">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Agent lifecycle timelines</h3>
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Compare {agentIds.length} agent{agentIds.length === 1 ? '' : 's'} from creation to now. Events are spaced for readability; elapsed-time breaks are labeled.</p>
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Lifecycle timelines</h3>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Compare {targetKeys.length} selected object{targetKeys.length === 1 ? '' : 's'} from creation to now. Relative time is preserved while long gaps are compressed.</p>
           </div>
           <RelationshipZoomControls zoom={zoom} onChange={setZoom} />
         </div>
         <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs text-gray-500 dark:text-gray-400" aria-label="Lifecycle timeline legend">
-          {[['Created', '#10b981'], ['Configuration', '#f59e0b'], ['Model', '#8b5cf6'], ['Conversation', '#0ea5e9'], ['File', '#64748b']].map(([label, color]) => (
+          {[['Created', '#10b981'], ['Configuration', '#f59e0b'], ['Model', '#8b5cf6'], ['Conversation', '#0ea5e9'], ['Run', '#ec4899'], ['File', '#64748b']].map(([label, color]) => (
             <span key={label} className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color }} />{label}</span>
           ))}
         </div>
@@ -3659,42 +3719,33 @@ function LifecycleRelationshipGraph({
       ) : (
         <div className="overflow-auto" aria-label="Lifecycle relationship timeline">
           <svg viewBox={`0 0 ${canvasWidth} ${canvasHeight}`} style={{ width: `${canvasWidth * zoom}px`, minWidth: `${canvasWidth * zoom}px`, height: `${canvasHeight * zoom}px` }} role="img">
-            {agentIds.map((agentId, laneIndex) => {
-              const evidence = evidenceByAgent[agentId]
+            {targetKeys.map((targetKey, laneIndex) => {
+              const evidence = evidenceByTarget[targetKey]
               if (!evidence) return null
-              const events = filterEvents(agentId, evidence)
+              const events = filterEvents(targetKey, evidence)
               const eventTimes = events.map((event) => new Date(event.at).getTime())
-              const gaps = eventTimes.slice(1).map((time, index) => Math.max(0, time - eventTimes[index]))
-              const largestGap = gaps.length > 0 ? Math.max(...gaps) : 0
-              const breakAfterIndex = largestGap >= 7 * 24 * 60 * 60 * 1000 ? gaps.indexOf(largestGap) : -1
+              const timeline = buildCompressedTimelineLayout(eventTimes, lineStart, lineEnd)
               const y = 75 + laneIndex * laneHeight
               return (
-                <g key={agentId}>
+                <g key={targetKey}>
                   <text x="22" y={y - 9} className="fill-gray-900 text-[14px] font-semibold dark:fill-gray-100">{truncateGraphLabel(evidence.subject.name, 20)}</text>
-                  <text x="22" y={y + 12} className="fill-gray-500 text-[11px] dark:fill-gray-400">{truncateGraphLabel(evidence.subject.currentModel || 'No model', 22)}</text>
+                  <text x="22" y={y + 12} className="fill-gray-500 text-[11px] dark:fill-gray-400">{truncateGraphLabel(evidence.subject.kind === 'workflow' ? `Workflow · ${evidence.subject.currentStatus || 'unknown'}` : evidence.subject.currentModel || 'No model', 22)}</text>
                   <line x1={lineStart} y1={y} x2={lineEnd} y2={y} className="stroke-sky-300 dark:stroke-sky-700" strokeWidth="3" />
                   <text x={lineStart} y={y + 52} textAnchor="start" className="fill-gray-400 text-[10px]">Created</text>
                   <text x={lineEnd} y={y + 52} textAnchor="end" className="fill-gray-400 text-[10px]">Now</text>
-                  {breakAfterIndex >= 0 && events.length > 1 && (() => {
-                    const firstX = lineStart + (breakAfterIndex / (events.length - 1)) * (lineEnd - lineStart)
-                    const nextX = lineStart + ((breakAfterIndex + 1) / (events.length - 1)) * (lineEnd - lineStart)
-                    const breakX = (firstX + nextX) / 2
-                    return (
-                      <g aria-label={formatLifecycleGap(largestGap)}>
-                        <rect x={breakX - 34} y={y - 13} width="68" height="26" rx="5" className="fill-white dark:fill-gray-900" />
-                        <text x={breakX} y={y - 1} textAnchor="middle" className="fill-gray-500 text-[14px] font-bold dark:fill-gray-400">···</text>
-                        <text x={breakX} y={y + 11} textAnchor="middle" className="fill-gray-400 text-[8px] dark:fill-gray-500">{formatLifecycleGap(largestGap)}</text>
-                      </g>
-                    )
-                  })()}
+                  {timeline.breaks.map((gap) => (
+                    <g key={`gap:${gap.afterIndex}`} aria-label={formatLifecycleGap(gap.gapMs)}>
+                      <rect x={gap.x - 34} y={y - 13} width="68" height="26" rx="5" className="fill-white dark:fill-gray-900" />
+                      <text x={gap.x} y={y - 1} textAnchor="middle" className="fill-gray-500 text-[14px] font-bold dark:fill-gray-400">···</text>
+                      <text x={gap.x} y={y + 11} textAnchor="middle" className="fill-gray-400 text-[8px] dark:fill-gray-500">{formatLifecycleGap(gap.gapMs)}</text>
+                    </g>
+                  ))}
                   {events.map((event, eventIndex) => {
-                    const x = events.length === 1
-                      ? lineStart
-                      : lineStart + (eventIndex / (events.length - 1)) * (lineEnd - lineStart)
+                    const x = timeline.positions[eventIndex] ?? lineStart
                     const direction = eventIndex % 2 === 0 ? -1 : 1
                     const branchEnd = y + direction * 30
-                    const eventKey = `${agentId}:${event.id}`
-                    const active = selectedEvent ? `${selectedEvent.agentId}:${selectedEvent.event.id}` === eventKey : false
+                    const eventKey = `${targetKey}:${event.id}`
+                    const active = selectedEvent ? `${selectedEvent.targetKey}:${selectedEvent.event.id}` === eventKey : false
                     return (
                       <g
                         key={eventKey}
@@ -3702,9 +3753,9 @@ function LifecycleRelationshipGraph({
                         tabIndex={0}
                         aria-label={`${evidence.subject.name}: ${event.title}`}
                         className="cursor-pointer outline-none"
-                        onClick={() => setSelectedEvent({ agentId, agentName: evidence.subject.name, event })}
+                        onClick={() => setSelectedEvent({ targetKey, targetName: evidence.subject.name, event })}
                         onKeyDown={(keyboardEvent) => {
-                          if (keyboardEvent.key === 'Enter' || keyboardEvent.key === ' ') setSelectedEvent({ agentId, agentName: evidence.subject.name, event })
+                          if (keyboardEvent.key === 'Enter' || keyboardEvent.key === ' ') setSelectedEvent({ targetKey, targetName: evidence.subject.name, event })
                         }}
                       >
                         <title>{event.title}: {event.detail}</title>
@@ -3724,7 +3775,7 @@ function LifecycleRelationshipGraph({
         <div className="border-t border-gray-200 bg-sky-50/60 p-4 dark:border-gray-700 dark:bg-sky-950/20" aria-live="polite">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
-              <div className="text-xs font-semibold uppercase text-sky-700 dark:text-sky-300">{selectedEvent.agentName} · {selectedEvent.event.type}</div>
+              <div className="text-xs font-semibold uppercase text-sky-700 dark:text-sky-300">{selectedEvent.targetName} · {selectedEvent.event.type}</div>
               <div className="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100">{selectedEvent.event.title}</div>
               <div className="mt-1 break-words text-sm text-gray-600 dark:text-gray-300">{selectedEvent.event.detail}</div>
               <time className="mt-2 block text-xs text-gray-500">{new Date(selectedEvent.event.at).toLocaleString()}</time>
@@ -3767,7 +3818,7 @@ function PluginRelationshipView({
   heading?: string
 }) {
   if (plugin.objectKind === 'lifecycle-view') {
-    return <LifecycleRelationshipGraph plugin={plugin} items={items} suggestionTemplates={suggestionTemplates} context={context} />
+    return <LifecycleRelationshipGraph plugin={plugin} items={items} suggestionTemplates={suggestionTemplates} context={context} onOpen={onOpen} selectedId={selectedId} />
   }
   if (plugin.objectKind === 'optimization-plan') {
     return <OptimizeRelationshipGraph items={items} suggestionTemplates={suggestionTemplates} context={context} onOpen={onOpen} selectedId={selectedId} />
@@ -5168,13 +5219,14 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
         </div>
       )}
 
-      {!loading && !error && viewMode !== 'graph' && plugin.objectKind === 'lifecycle-view' && selectedItem && isGenericPluginRecord(selectedItem) && selectedItem.fields.subjectType === 'agent' && Array.isArray(selectedItem.fields.targetIds) && selectedItem.fields.targetIds.length > 0 && (
+      {!loading && !error && viewMode !== 'graph' && plugin.objectKind === 'lifecycle-view' && selectedItem && isGenericPluginRecord(selectedItem) && (selectedItem.fields.subjectType === 'agent' || selectedItem.fields.subjectType === 'workflow') && Array.isArray(selectedItem.fields.targetIds) && selectedItem.fields.targetIds.length > 0 && (
         <div className="mt-6 space-y-8">
           {selectedItem.fields.targetIds.map((agentId) => (
             <AgentLifecycleEvidence
               key={String(agentId)}
               pluginSlug={plugin.slug}
               agentId={String(agentId)}
+              subjectType={selectedItem.fields.subjectType === 'workflow' ? 'workflow' : 'agent'}
               focus={String(selectedItem.fields.focus || 'overview')}
               timeWindow={String(selectedItem.fields.timeWindow || '7-days')}
             />

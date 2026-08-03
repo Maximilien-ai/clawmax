@@ -4,7 +4,7 @@ import crypto from 'crypto'
 import { REPO_ROOT } from './paths'
 import { createNotification } from './notifications'
 import { listAgents, getWorkspacePath, parseGroups } from './workspace'
-import { listWorkflows } from './workflows'
+import { listExecutions, listWorkflows } from './workflows'
 import { readAgentLifecycleAuditEvents } from './agent-lifecycle-audit'
 
 export const PLUGIN_HOST_API_VERSION = 'clawmax.ai/v2' as const
@@ -252,11 +252,13 @@ export interface PluginWorkspaceContext {
 
 export interface AgentLifecycleEvidence {
   subject: {
+    kind?: 'agent' | 'workflow'
     id: string
     name: string
     createdAt: string | null
     lastModifiedAt: string | null
     currentModel: string | null
+    currentStatus?: string | null
   }
   summary: {
     fileCount: number
@@ -264,18 +266,21 @@ export interface AgentLifecycleEvidence {
     messageCount: number
     observedModelCount: number
     observedChangeCount: number
+    executionCount?: number
+    participantCount?: number
   }
   files: Array<{ path: string; size: number; modifiedAt: string }>
   conversations: Array<{ id: string; active: boolean; messageCount: number; modifiedAt: string }>
   modelHistory: Array<{ model: string; observedAt: string | null; current: boolean }>
   events: Array<{
     id: string
-    type: 'created' | 'modified' | 'file' | 'conversation' | 'model'
+    type: 'created' | 'modified' | 'file' | 'conversation' | 'model' | 'execution'
     at: string
     title: string
     detail: string
   }>
   limitations: string[]
+  executions?: Array<{ id: string; status: string; startedAt: string; completedAt: string | null; participantCount: number }>
 }
 
 const DEFAULT_PLUGIN_ROOT = path.join(REPO_ROOT, 'PLUGINS')
@@ -299,6 +304,14 @@ function getPluginRoots(): string[] {
     .map((entry) => entry.trim())
     .filter(Boolean)
   return uniq([DEFAULT_PLUGIN_ROOT, ...configured].map((entry) => path.resolve(entry)))
+}
+
+function isTestPluginDirectory(directory: string): boolean {
+  return directory.startsWith(path.join(DEFAULT_PLUGIN_ROOT, 'test') + path.sep)
+}
+
+function testPluginFixturesEnabled(): boolean {
+  return String(process.env.CLAWMAX_ENABLE_TEST_PLUGINS || '').trim().toLowerCase() === 'true'
 }
 
 function readJsonFile<T>(filePath: string): T | null {
@@ -584,6 +597,7 @@ export function listConfiguredPlugins(): PluginManifest[] {
   const seenIdentities = new Set<string>()
 
   for (const entry of listDiscoveredPluginEntries()) {
+    if (isTestPluginDirectory(entry.directory) && !testPluginFixturesEnabled()) continue
     const manifest = entry.manifest
     if (seenIdentities.has(manifest.id) || seenIdentities.has(manifest.slug)) continue
     seenIdentities.add(manifest.id)
@@ -601,7 +615,7 @@ export function getPluginSettingsInventory(): PluginSettingsEntry[] {
   const manageable: PluginManifest[] = []
 
   for (const { directory, manifest } of listDiscoveredPluginEntries()) {
-    if (directory.startsWith(path.join(DEFAULT_PLUGIN_ROOT, 'test') + path.sep)) continue
+    if (isTestPluginDirectory(directory)) continue
     if (seen.has(manifest.id) || seen.has(manifest.slug)) continue
     seen.add(manifest.id)
     seen.add(manifest.slug)
@@ -686,6 +700,7 @@ export function getPluginDiagnosticsReport(): PluginDiagnosticsReport {
   }
 
   for (const candidate of listDiscoveredPluginCandidates()) {
+    if (isTestPluginDirectory(candidate.directory) && !testPluginFixturesEnabled()) continue
     const raw = candidate.rawManifest || {}
     const pluginId = typeof raw.slug === 'string' && raw.slug.trim()
       ? raw.slug.trim()
@@ -2140,7 +2155,7 @@ export function getAgentLifecycleEvidence(plugin: PluginManifest, agentId: strin
   events.sort((a, b) => a.at.localeCompare(b.at))
   const lastModifiedAt = events.length > 0 ? events[events.length - 1].at : createdAt
   return {
-    subject: { id: agent.id, name: agent.name || agent.id, createdAt, lastModifiedAt, currentModel },
+    subject: { kind: 'agent', id: agent.id, name: agent.name || agent.id, createdAt, lastModifiedAt, currentModel },
     summary: {
       fileCount: files.length,
       conversationCount: conversations.length,
@@ -2155,6 +2170,90 @@ export function getAgentLifecycleEvidence(plugin: PluginManifest, agentId: strin
     limitations: [
       'File events use current filesystem timestamps; edits made before lifecycle auditing was enabled may not have a complete history. Dashboard edits made now are recorded explicitly.',
       'Model history includes the current configuration and models retained in available session metadata.',
+    ],
+  }
+}
+
+export function getWorkflowLifecycleEvidence(plugin: PluginManifest, workflowId: string): AgentLifecycleEvidence {
+  if (plugin.objectKind !== 'lifecycle-view') throw new PluginContractError('Lifecycle evidence is only available to Lifecycle plugins.', 400)
+  assertPluginCapability(plugin, 'workflows')
+  if (!/^[a-z0-9][a-z0-9_-]*$/.test(workflowId)) throw new PluginContractError('Invalid workflow ID.', 400)
+  const workflow = listWorkflows().find((entry) => entry.id === workflowId)
+  if (!workflow) throw new PluginContractError('Workflow not found.', 404)
+
+  const workspaceRoot = getWorkspacePath()
+  const definitionPath = path.join(workspaceRoot, 'WORKFLOWS', `${workflowId}.md`)
+  let definitionStats: fs.Stats | null = null
+  try { definitionStats = fs.statSync(definitionPath) } catch {}
+  const parseTimestamp = (value: unknown): string | null => {
+    if (typeof value !== 'string' || Number.isNaN(new Date(value).getTime())) return null
+    return new Date(value).toISOString()
+  }
+  const createdAt = parseTimestamp(workflow.created)
+    || (definitionStats ? isoTimestamp(definitionStats.birthtimeMs > 0 ? definitionStats.birthtimeMs : definitionStats.ctimeMs) : null)
+  const modifiedAt = parseTimestamp(workflow.modified) || (definitionStats ? isoTimestamp(definitionStats.mtimeMs) : createdAt)
+  const executions = listExecutions(workflowId, 100)
+  const participants = new Set(executions.flatMap((execution) => execution.participants.map((participant) => participant.agentId)))
+  const files: AgentLifecycleEvidence['files'] = []
+  if (definitionStats) {
+    files.push({ path: path.relative(workspaceRoot, definitionPath), size: definitionStats.size, modifiedAt: isoTimestamp(definitionStats.mtimeMs) })
+  }
+  for (const execution of executions) {
+    for (const output of Object.values(execution.outputs || {})) {
+      if (!output?.artifactPath) continue
+      const artifactPath = path.resolve(workspaceRoot, output.artifactPath)
+      if (artifactPath !== workspaceRoot && !artifactPath.startsWith(workspaceRoot + path.sep)) continue
+      try {
+        const stats = fs.statSync(artifactPath)
+        if (stats.isFile() && !files.some((entry) => entry.path === path.relative(workspaceRoot, artifactPath))) {
+          files.push({ path: path.relative(workspaceRoot, artifactPath), size: stats.size, modifiedAt: isoTimestamp(stats.mtimeMs) })
+        }
+      } catch {}
+    }
+  }
+  const events: AgentLifecycleEvidence['events'] = []
+  if (createdAt) events.push({ id: 'created', type: 'created', at: createdAt, title: 'Workflow created', detail: workflow.name || workflow.id })
+  if (modifiedAt && modifiedAt !== createdAt) events.push({ id: 'modified', type: 'modified', at: modifiedAt, title: 'Workflow configuration observed', detail: `Schedule: ${workflow.schedule || 'manual'}` })
+  for (const execution of executions) {
+    events.push({ id: `execution:${execution.id}`, type: 'execution', at: execution.startedAt, title: 'Workflow run started', detail: `${execution.status} · ${execution.participants.length} participants` })
+    if (execution.completedAt) events.push({ id: `execution:${execution.id}:completed`, type: 'execution', at: execution.completedAt, title: `Workflow run ${execution.status}`, detail: execution.id })
+  }
+  for (const file of files) events.push({ id: `file:${file.path}`, type: 'file', at: file.modifiedAt, title: 'Artifact observed', detail: file.path })
+  events.sort((a, b) => a.at.localeCompare(b.at))
+  const lastModifiedAt = events.at(-1)?.at || modifiedAt || createdAt
+  return {
+    subject: {
+      kind: 'workflow',
+      id: workflow.id,
+      name: workflow.name || workflow.id,
+      createdAt,
+      lastModifiedAt,
+      currentModel: null,
+      currentStatus: workflow.status || (workflow.enabled ? 'enabled' : 'disabled'),
+    },
+    summary: {
+      fileCount: files.length,
+      conversationCount: 0,
+      messageCount: 0,
+      observedModelCount: 0,
+      observedChangeCount: events.filter((entry) => entry.type === 'modified' || entry.type === 'file').length,
+      executionCount: executions.length,
+      participantCount: participants.size,
+    },
+    files: files.sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt)),
+    conversations: [],
+    modelHistory: [],
+    executions: executions.slice().reverse().map((execution) => ({
+      id: execution.id,
+      status: execution.status,
+      startedAt: execution.startedAt,
+      completedAt: execution.completedAt || null,
+      participantCount: execution.participants.length,
+    })),
+    events,
+    limitations: [
+      'Workflow history includes the current definition and execution records retained in this workspace.',
+      'Configuration changes made before explicit lifecycle auditing may only expose the current file timestamps.',
     ],
   }
 }

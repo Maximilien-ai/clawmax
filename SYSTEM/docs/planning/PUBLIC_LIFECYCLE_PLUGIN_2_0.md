@@ -1,8 +1,8 @@
 # Public Lifecycle Plugin 2.0
 
-> Status: initial public skeleton implemented
+> Status: V1 agent/workflow X-rays implemented; follow-through remains
 > Target: `2.0.0`
-> Last updated: July 31, 2026
+> Last updated: August 3, 2026
 
 ## Purpose
 
@@ -16,12 +16,11 @@ enterprise policy, evaluation, or optimization product.
 
 ## V1 Scope
 
-- Select one agent or workflow from the current workspace.
+- Select and compare one or more agents or workflows from the current workspace.
 - Switch between overview, activity, artifacts, and configuration focus areas.
 - Choose a bounded time window and optionally include archived evidence.
 - Present identity, current status, recent runs or conversations, files,
-  outputs, model/configuration changes, and links back to the owning dashboard
-  surface.
+  outputs, model/configuration changes, and compressed proportional timelines.
 - Clearly label missing, unavailable, or permission-restricted evidence.
 - Support desktop, mobile, light/dark themes, empty states, and export of a
   redacted inspection summary.
@@ -39,12 +38,14 @@ enterprise policy, evaluation, or optimization product.
 
 ## Delivery
 
-1. Ship the public manifest, two starter views, and generic host rendering.
-2. Add unified read-only agent/workflow timeline adapters with stable event
-   types and links to source records.
-3. Add artifact and output inventory with ownership, timestamps, MIME/type, and
-   safe DocHub navigation.
-4. Add configuration-change evidence and a redacted summary export.
+1. Completed: public manifest, five focused suggestions, multi-object selection,
+   and dedicated relationship/X-ray rendering.
+2. Completed: read-only agent/workflow timeline adapters with stable event
+   types, clickable evidence, and long-gap compression.
+3. Follow through: add source links plus richer artifact/output ownership,
+   MIME/type metadata, and safe DocHub navigation.
+4. Follow through: add redacted summary export and evidence-backed adapters for
+   skills, templates, and communication surfaces.
 5. Validate large histories, missing/deleted targets, workspace switching,
    restart persistence, and responsive layout before the 2.0 release gate.
 

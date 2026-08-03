@@ -1717,10 +1717,19 @@ else
   fail "Eval relationship graph unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Lifecycle timeline compression unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/lifecycleGraph.test.ts > /tmp/clawmax-lifecycle-graph.out 2>&1 || true
+if grep -q "lifecycleGraph.test.ts: 11 tests passed" /tmp/clawmax-lifecycle-graph.out; then
+  pass "Lifecycle timeline compression unit tests (11 tests)"
+else
+  cat /tmp/clawmax-lifecycle-graph.out
+  fail "Lifecycle timeline compression unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Lifecycle plugin skeleton contract tests...${NC}"
 npx ts-node --transpileOnly client/src/PluginLifecycleSkeleton.test.ts > /tmp/clawmax-plugin-lifecycle.out 2>&1 || true
-if grep -q "PluginLifecycleSkeleton.test.ts: 33 tests passed" /tmp/clawmax-plugin-lifecycle.out; then
-  pass "Lifecycle plugin contract tests (33 tests)"
+if grep -q "PluginLifecycleSkeleton.test.ts: 36 tests passed" /tmp/clawmax-plugin-lifecycle.out; then
+  pass "Lifecycle plugin contract tests (36 tests)"
 else
   cat /tmp/clawmax-plugin-lifecycle.out
   fail "Lifecycle plugin skeleton contract tests"

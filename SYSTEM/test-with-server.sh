@@ -23,6 +23,7 @@ FRONTEND_PORT="${DASHBOARD_CLIENT_PORT:-5173}"
 FRONTEND_URL="${DASHBOARD_APP_URL:-http://localhost:${FRONTEND_PORT}}"
 API_BASE="http://localhost:${BACKEND_PORT}"
 TEST_PLUGIN_IDS="plugin-evals,plugin-guardrails,plugin-resource-plans,clawmax-lifecycle,plugin-review-notes"
+export CLAWMAX_ENABLE_TEST_PLUGINS=true
 RUN_INTEGRATION=false
 RUN_COVERAGE=false
 FORWARDED_ARGS=()

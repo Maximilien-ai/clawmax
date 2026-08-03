@@ -1,0 +1,21 @@
+{
+  "id": "workflow-run-history",
+  "name": "Workflow run history",
+  "description": "Review selected workflows' configuration, run status, participants, and recent execution history.",
+  "recommended": true,
+  "tags": ["workflow", "activity", "runs"],
+  "payload": {
+    "name": "Workflow run history",
+    "description": "Follow recent execution activity for selected workflows.",
+    "tags": ["workflow", "activity", "runs"],
+    "enabled": true,
+    "fields": {
+      "subjectType": "workflow",
+      "targetIds": [],
+      "focus": "activity",
+      "timeWindow": "30-days",
+      "includeArchived": true,
+      "notes": ""
+    }
+  }
+}

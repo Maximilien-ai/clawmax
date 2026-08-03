@@ -3,11 +3,13 @@ import { ProductIconCell } from '../lib/productIcons'
 
 export interface AgentLifecycleEvidenceData {
   subject: {
+    kind?: 'agent' | 'workflow'
     id: string
     name: string
     createdAt: string | null
     lastModifiedAt: string | null
     currentModel: string | null
+    currentStatus?: string | null
   }
   summary: {
     fileCount: number
@@ -15,18 +17,21 @@ export interface AgentLifecycleEvidenceData {
     messageCount: number
     observedModelCount: number
     observedChangeCount: number
+    executionCount?: number
+    participantCount?: number
   }
   files: Array<{ path: string; size: number; modifiedAt: string }>
   conversations: Array<{ id: string; active: boolean; messageCount: number; modifiedAt: string }>
   modelHistory: Array<{ model: string; observedAt: string | null; current: boolean }>
   events: Array<{
     id: string
-    type: 'created' | 'modified' | 'file' | 'conversation' | 'model'
+    type: 'created' | 'modified' | 'file' | 'conversation' | 'model' | 'execution'
     at: string
     title: string
     detail: string
   }>
   limitations: string[]
+  executions?: Array<{ id: string; status: string; startedAt: string; completedAt: string | null; participantCount: number }>
 }
 
 function formatDate(value: string | null): string {
@@ -40,17 +45,20 @@ function eventIcon(type: AgentLifecycleEvidenceData['events'][number]['type']): 
   if (type === 'conversation') return 'communications'
   if (type === 'model') return 'cpu'
   if (type === 'modified') return 'edit'
+  if (type === 'execution') return 'workflow'
   return 'document'
 }
 
 export default function AgentLifecycleEvidence({
   pluginSlug,
   agentId,
+  subjectType = 'agent',
   focus,
   timeWindow,
 }: {
   pluginSlug: string
   agentId: string
+  subjectType?: 'agent' | 'workflow'
   focus: string
   timeWindow: string
 }) {
@@ -59,17 +67,17 @@ export default function AgentLifecycleEvidence({
   const [loading, setLoading] = useState(true)
   const [expanded, setExpanded] = useState(() => {
     if (typeof window === 'undefined') return true
-    return localStorage.getItem(`clawmax-lifecycle-xray-expanded:${agentId}`) !== 'false'
+    return localStorage.getItem(`clawmax-lifecycle-xray-expanded:${subjectType}:${agentId}`) !== 'false'
   })
 
   useEffect(() => {
-    setExpanded(localStorage.getItem(`clawmax-lifecycle-xray-expanded:${agentId}`) !== 'false')
-  }, [agentId])
+    setExpanded(localStorage.getItem(`clawmax-lifecycle-xray-expanded:${subjectType}:${agentId}`) !== 'false')
+  }, [agentId, subjectType])
 
   const toggleExpanded = () => {
     setExpanded((current) => {
       const next = !current
-      localStorage.setItem(`clawmax-lifecycle-xray-expanded:${agentId}`, String(next))
+      localStorage.setItem(`clawmax-lifecycle-xray-expanded:${subjectType}:${agentId}`, String(next))
       return next
     })
   }
@@ -78,7 +86,7 @@ export default function AgentLifecycleEvidence({
     const controller = new AbortController()
     setLoading(true)
     setError(null)
-    fetch(`/api/plugins/${encodeURIComponent(pluginSlug)}/lifecycle/agents/${encodeURIComponent(agentId)}`, { signal: controller.signal })
+    fetch(`/api/plugins/${encodeURIComponent(pluginSlug)}/lifecycle/${subjectType === 'workflow' ? 'workflows' : 'agents'}/${encodeURIComponent(agentId)}`, { signal: controller.signal })
       .then(async (response) => {
         const payload = await response.json()
         if (!response.ok) throw new Error(payload?.error || 'Failed to load lifecycle evidence')
@@ -89,13 +97,20 @@ export default function AgentLifecycleEvidence({
       })
       .finally(() => setLoading(false))
     return () => controller.abort()
-  }, [agentId, pluginSlug])
+  }, [agentId, pluginSlug, subjectType])
 
   if (loading) return <div className="rounded-lg border border-gray-200 bg-white p-5 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900/40">Loading agent lifecycle...</div>
   if (error) return <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-900/10 dark:text-red-300">{error}</div>
   if (!evidence) return null
 
-  const summary = [
+  const isWorkflow = evidence.subject.kind === 'workflow' || subjectType === 'workflow'
+  const summary = isWorkflow ? [
+    { label: 'Created', value: formatDate(evidence.subject.createdAt), icon: 'calendar' },
+    { label: 'Status', value: evidence.subject.currentStatus || 'unknown', icon: 'activity' },
+    { label: 'Runs', value: String(evidence.summary.executionCount || 0), icon: 'workflow' },
+    { label: 'Participants', value: String(evidence.summary.participantCount || 0), icon: 'agents' },
+    { label: 'Artifacts', value: String(evidence.summary.fileCount), icon: 'document' },
+  ] : [
     { label: 'Created', value: formatDate(evidence.subject.createdAt), icon: 'calendar' },
     { label: 'Current model', value: evidence.subject.currentModel || 'Not configured', icon: 'cpu' },
     { label: 'Files', value: String(evidence.summary.fileCount), icon: 'document' },
@@ -121,7 +136,7 @@ export default function AgentLifecycleEvidence({
       <div className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-900/40">
         <div>
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{evidence.subject.name} X-ray</h2>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Observed configuration, files, conversations, and model history for this agent.</p>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{isWorkflow ? 'Observed configuration, executions, participants, and artifacts for this workflow.' : 'Observed configuration, files, conversations, and model history for this agent.'}</p>
         </div>
         <button
           type="button"
@@ -179,28 +194,33 @@ export default function AgentLifecycleEvidence({
 
       <div className="grid gap-4 xl:grid-cols-3">
         <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900/40">
-          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Models</h3>
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{isWorkflow ? 'Recent runs' : 'Models'}</h3>
           <div className="mt-3 space-y-2">
-            {evidence.modelHistory.length > 0 ? evidence.modelHistory.map((entry) => (
+            {isWorkflow ? (evidence.executions || []).slice(0, 8).map((entry) => (
+              <div key={entry.id} className="rounded-md bg-gray-50 px-3 py-2 text-sm dark:bg-gray-800/60">
+                <div className="break-all font-medium text-gray-800 dark:text-gray-200">{entry.status} · {entry.participantCount} participants</div>
+                <div className="mt-1 text-xs text-gray-500">{formatDate(entry.startedAt)}</div>
+              </div>
+            )) : evidence.modelHistory.length > 0 ? evidence.modelHistory.map((entry) => (
               <div key={entry.model} className="rounded-md bg-gray-50 px-3 py-2 text-sm dark:bg-gray-800/60">
                 <div className="break-all font-medium text-gray-800 dark:text-gray-200">{entry.model}</div>
                 <div className="mt-1 text-xs text-gray-500">{entry.current ? 'Current model' : `Observed ${formatDate(entry.observedAt)}`}</div>
               </div>
-            )) : <div className="text-sm text-gray-500">No model metadata observed.</div>}
+            )) : <div className="text-sm text-gray-500">{isWorkflow ? 'No workflow runs observed.' : 'No model metadata observed.'}</div>}
           </div>
         </div>
         <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900/40">
-          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Recent files</h3>
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{isWorkflow ? 'Definition and artifacts' : 'Recent files'}</h3>
           <div className="mt-3 space-y-2">
             {evidence.files.slice(0, 8).map((file) => <div key={file.path} className="min-w-0 text-sm"><div className="break-words font-medium text-gray-800 dark:text-gray-200">{file.path}</div><div className="text-xs text-gray-500">{formatDate(file.modifiedAt)}</div></div>)}
             {evidence.files.length === 0 && <div className="text-sm text-gray-500">No associated files observed.</div>}
           </div>
         </div>
         <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900/40">
-          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Recent conversations</h3>
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{isWorkflow ? 'Execution coverage' : 'Recent conversations'}</h3>
           <div className="mt-3 space-y-2">
-            {evidence.conversations.slice(0, 8).map((entry) => <div key={entry.id} className="text-sm"><div className="break-all font-medium text-gray-800 dark:text-gray-200">{entry.active ? 'Current session' : entry.id}</div><div className="text-xs text-gray-500">{entry.messageCount} messages · {formatDate(entry.modifiedAt)}</div></div>)}
-            {evidence.conversations.length === 0 && <div className="text-sm text-gray-500">No user conversations observed.</div>}
+            {isWorkflow ? <div className="text-sm text-gray-600 dark:text-gray-300">{evidence.summary.executionCount || 0} retained runs across {evidence.summary.participantCount || 0} unique agents.</div> : evidence.conversations.slice(0, 8).map((entry) => <div key={entry.id} className="text-sm"><div className="break-all font-medium text-gray-800 dark:text-gray-200">{entry.active ? 'Current session' : entry.id}</div><div className="text-xs text-gray-500">{entry.messageCount} messages · {formatDate(entry.modifiedAt)}</div></div>)}
+            {!isWorkflow && evidence.conversations.length === 0 && <div className="text-sm text-gray-500">No user conversations observed.</div>}
           </div>
         </div>
       </div>

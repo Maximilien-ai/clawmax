@@ -20,6 +20,7 @@ import {
   getPluginDiagnosticsReport,
   getPluginSettingsInventory,
   getAgentLifecycleEvidence,
+  getWorkflowLifecycleEvidence,
   getPluginWorkspaceContext,
   listConfiguredPlugins,
   listPluginRecords,
@@ -47,6 +48,7 @@ const originalEnabledPlugins = process.env.CLAWMAX_ENABLED_PLUGINS
 const originalDisableDefaultPlugins = process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS
 const originalPluginPaths = process.env.CLAWMAX_PLUGIN_PATHS
 const originalPluginSettingsPath = process.env.CLAWMAX_PLUGIN_SETTINGS_PATH
+const originalEnableTestPlugins = process.env.CLAWMAX_ENABLE_TEST_PLUGINS
 
 function test(name: string, fn: () => void | Promise<void>) {
   return Promise.resolve()
@@ -114,7 +116,7 @@ function seedWorkspaceFiles(workspaceRoot: string, homeRoot: string) {
     'agent:analyst:dashboard-chat': { sessionId: 'dashboard-chat', model: 'openai/gpt-4o-mini', updatedAt: Date.now() },
   }, null, 2), 'utf-8')
 
-  createWorkflow({
+  const createdWorkflow = createWorkflow({
     name: 'Research Sweep',
     description: 'Collect and summarize workspace findings',
     schedule: 'manual',
@@ -122,6 +124,20 @@ function seedWorkspaceFiles(workspaceRoot: string, homeRoot: string) {
     executionMode: 'automated',
     targeting: { agents: ['analyst'], groups: ['Research Ops'], tags: [], communities: ['Research'] },
   })
+  if (createdWorkflow.id) {
+    const executionDir = path.join(workspaceRoot, 'WORKFLOWS', 'executions', createdWorkflow.id)
+    fs.mkdirSync(executionDir, { recursive: true })
+    fs.writeFileSync(path.join(executionDir, 'run-1.json'), JSON.stringify({
+      id: 'run-1',
+      workflowId: createdWorkflow.id,
+      startedAt: '2026-08-01T10:00:00.000Z',
+      completedAt: '2026-08-01T10:05:00.000Z',
+      status: 'completed',
+      triggerType: 'manual',
+      participants: [{ agentId: 'analyst', agentName: 'Analyst', status: 'completed' }],
+      logs: [],
+    }, null, 2), 'utf-8')
+  }
 }
 
 async function run() {
@@ -136,6 +152,7 @@ async function run() {
   process.env.CLAWMAX_ENABLED_PLUGINS = 'plugin-evals,plugin-guardrails,plugin-resource-plans,clawmax-lifecycle,plugin-review-notes'
   process.env.CLAWMAX_PLUGIN_PATHS = ''
   process.env.CLAWMAX_PLUGIN_SETTINGS_PATH = path.join(tempHome, 'plugin-settings.json')
+  process.env.CLAWMAX_ENABLE_TEST_PLUGINS = 'true'
   delete process.env.CLAWMAX_DISABLE_DEFAULT_PLUGINS
   resetWorkspaceManagerForTests()
   seedWorkspaceFiles(tempWorkspace, tempHome)
@@ -145,6 +162,16 @@ async function run() {
     assert(inventory.some((plugin) => plugin.slug === 'clawmax-lifecycle'), 'Expected Lifecycle in settings inventory')
     assert(inventory.some((plugin) => plugin.slug === 'plugin-review-notes'), 'Expected Review in settings inventory')
     assert(!inventory.some((plugin) => plugin.slug === 'plugin-evals'), 'Expected synthetic fixtures to be excluded')
+  })
+
+  await test('normal development discovery excludes synthetic plugins even when stale settings request them', () => {
+    process.env.CLAWMAX_ENABLE_TEST_PLUGINS = 'false'
+    process.env.CLAWMAX_ENABLED_PLUGINS = 'plugin-evals,plugin-guardrails,clawmax-lifecycle,plugin-review-notes'
+    const slugs = listConfiguredPlugins().map((plugin) => plugin.slug)
+    assert(!slugs.includes('plugin-evals') && !slugs.includes('plugin-guardrails'), 'Expected synthetic Evals and Guardrails to stay hidden')
+    assert(slugs.includes('clawmax-lifecycle'), 'Expected public Lifecycle to remain available')
+    process.env.CLAWMAX_ENABLE_TEST_PLUGINS = 'true'
+    process.env.CLAWMAX_ENABLED_PLUGINS = 'plugin-evals,plugin-guardrails,plugin-resource-plans,clawmax-lifecycle,plugin-review-notes'
   })
 
   await test('plugin settings persist an explicit selection including no enabled plugins', () => {
@@ -195,6 +222,19 @@ async function run() {
     assert(evidence.modelHistory.some((entry) => entry.model === 'openai/gpt-4o-mini'), 'Expected model observed in session metadata')
     assert(evidence.events.some((entry) => entry.type === 'modified' && entry.detail === 'SOUL.md'), 'Expected explicit dashboard audit history')
     assert(evidence.events.every((entry, index, events) => index === 0 || events[index - 1].at <= entry.at), 'Expected chronological lifecycle events')
+  })
+
+  await test('Lifecycle exposes workflow definition, execution, participant, and chronological evidence', () => {
+    const plugin = getPluginBySlug('clawmax-lifecycle')
+    const workflowId = getPluginWorkspaceContext(plugin!).workflows[0]?.id
+    assert(workflowId, 'Expected a seeded workflow')
+    const evidence = getWorkflowLifecycleEvidence(plugin!, workflowId)
+    assert.strictEqual(evidence.subject.kind, 'workflow')
+    assert.strictEqual(evidence.summary.executionCount, 1)
+    assert.strictEqual(evidence.summary.participantCount, 1)
+    assert(evidence.files.some((entry) => entry.path.endsWith(`${workflowId}.md`)), 'Expected workflow definition metadata')
+    assert(evidence.events.some((entry) => entry.type === 'execution'), 'Expected workflow execution events')
+    assert(evidence.events.every((entry, index, events) => index === 0 || events[index - 1].at <= entry.at), 'Expected chronological workflow events')
   })
 
   await test('host supports zero-plugin mode when default plugins are disabled', () => {
@@ -824,6 +864,8 @@ async function run() {
   else process.env.CLAWMAX_PLUGIN_PATHS = originalPluginPaths
   if (typeof originalPluginSettingsPath === 'undefined') delete process.env.CLAWMAX_PLUGIN_SETTINGS_PATH
   else process.env.CLAWMAX_PLUGIN_SETTINGS_PATH = originalPluginSettingsPath
+  if (typeof originalEnableTestPlugins === 'undefined') delete process.env.CLAWMAX_ENABLE_TEST_PLUGINS
+  else process.env.CLAWMAX_ENABLE_TEST_PLUGINS = originalEnableTestPlugins
   resetWorkspaceManagerForTests()
   fs.rmSync(tempWorkspace, { recursive: true, force: true })
   fs.rmSync(tempHome, { recursive: true, force: true })
@@ -856,6 +898,8 @@ run().catch((err) => {
   else process.env.CLAWMAX_PLUGIN_PATHS = originalPluginPaths
   if (typeof originalPluginSettingsPath === 'undefined') delete process.env.CLAWMAX_PLUGIN_SETTINGS_PATH
   else process.env.CLAWMAX_PLUGIN_SETTINGS_PATH = originalPluginSettingsPath
+  if (typeof originalEnableTestPlugins === 'undefined') delete process.env.CLAWMAX_ENABLE_TEST_PLUGINS
+  else process.env.CLAWMAX_ENABLE_TEST_PLUGINS = originalEnableTestPlugins
   resetWorkspaceManagerForTests()
   console.error(err)
   process.exit(1)

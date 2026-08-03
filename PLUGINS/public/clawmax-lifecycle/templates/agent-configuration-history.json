@@ -1,0 +1,21 @@
+{
+  "id": "agent-configuration-history",
+  "name": "Agent configuration history",
+  "description": "Review agent creation, configuration edits, and observed model changes over available history.",
+  "recommended": true,
+  "tags": ["agent", "configuration", "model"],
+  "payload": {
+    "name": "Agent configuration history",
+    "description": "Follow configuration and model changes for selected agents.",
+    "tags": ["agent", "configuration", "model"],
+    "enabled": true,
+    "fields": {
+      "subjectType": "agent",
+      "targetIds": [],
+      "focus": "configuration",
+      "timeWindow": "all",
+      "includeArchived": false,
+      "notes": ""
+    }
+  }
+}

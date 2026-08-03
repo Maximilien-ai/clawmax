@@ -1,0 +1,21 @@
+{
+  "id": "agent-conversation-history",
+  "name": "Agent conversation history",
+  "description": "Review selected agents' recent user conversations and message activity without exposing message contents.",
+  "recommended": true,
+  "tags": ["agent", "activity", "communications"],
+  "payload": {
+    "name": "Agent conversation history",
+    "description": "Follow user conversation activity for selected agents.",
+    "tags": ["agent", "activity", "communications"],
+    "enabled": true,
+    "fields": {
+      "subjectType": "agent",
+      "targetIds": [],
+      "focus": "activity",
+      "timeWindow": "30-days",
+      "includeArchived": true,
+      "notes": ""
+    }
+  }
+}
