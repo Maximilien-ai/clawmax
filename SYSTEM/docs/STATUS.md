@@ -34,7 +34,7 @@
 ### 2.0.0 development
 
 - Branch: `main`
-- Current source candidate: `2.0.0-test-rc24`, focused on authenticated private image selection, complete suggestion catalogs, relationship graph zoom, compound plugin discovery, Builder question mode, and mobile/restart checks. Do not publish the image until the local RC24 pass is accepted.
+- Current source candidate: `2.0.0-test-rc25`, focused on Lifecycle suggested relationship graphs, suggested-list isolation, agent/workflow/communication X-rays, compressed timelines, and mobile/restart checks. Do not publish the image until the local RC25 pass is accepted.
 - RC18 local Dev review passed `4/4` with Max on July 28. Those checks and their verifier metadata are retained in the cumulative 2.0 Review set; cloud, on-prem, private-image, and additional tester confirmation remain pending.
 - Architecture: [Plugin System 2.0](../../PLUGINS/PLUGIN_SYSTEM_2_0.md)
 - Authoring contract: [Plugin Authoring 2.0](../../PLUGINS/PLUGIN_AUTHORING_2_0.md)

@@ -4,6 +4,9 @@ All notable changes to ClawMax are documented here.
 
 ## [Unreleased]
 
+### RC25
+- **Lifecycle review checklist** — RC25 adds a focused, non-duplicated tester set covering suggested relationship graphs, suggested-list isolation, agent/workflow/group/community X-rays, proportional compressed timelines, mobile behavior, and restart persistence. Earlier RC checks remain available in the cumulative Review set.
+
 ### Added
 - **2.0 Declarative Plugin Contract** — the `clawmax.ai/v2` manifest adds generic record schemas and defaults, declarative list/form presentation, generic templates, workspace storage, and compatibility validation without requiring a new core page or route for every plugin domain.
 - **External Plugin Boundary** — plugin discovery supports deployment-mounted roots plus explicit enablement while preserving a zero-plugin runtime. Public and private plugins use the same contract; private source and production enablement remain outside the public repository and default image.
