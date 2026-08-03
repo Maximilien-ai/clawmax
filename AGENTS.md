@@ -99,6 +99,11 @@
 - For public/private combined RCs, verify amd64 and arm64 image builds, registry
   smoke tests, packaged version identity, plugin discovery, restart persistence,
   and the public/private source boundary before reporting the release ready.
+- When creating an RC image, dispatch the public `Test Container Image`
+  workflow from the candidate ref first, then dispatch `Private ClawMax Plugins
+  Image` in `clawmax-plugins` with the exact same public `base_tag` and private
+  `image_tag`. Record both CI links and do not call the public image complete
+  until the matching combined image has passed its validation and smoke jobs.
 - Record the observed or documented duration before starting a long-running CI,
   image, deployment, or test job. Do not continuously poll it.
 - Check once near half the expected duration to catch an early failure. If the
