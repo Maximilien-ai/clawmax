@@ -216,7 +216,7 @@ export default function AgentLifecycleEvidence({
                 <div className="break-words font-medium text-gray-800 dark:text-gray-200">{entry.detail}</div>
                 <div className="mt-1 text-xs text-gray-500">{formatDate(entry.at)}</div>
               </div>
-            ) : evidence.modelHistory.length > 0 ? evidence.modelHistory.map((entry) => (
+            )) : evidence.modelHistory.length > 0 ? evidence.modelHistory.map((entry) => (
               <div key={entry.model} className="rounded-md bg-gray-50 px-3 py-2 text-sm dark:bg-gray-800/60">
                 <div className="break-all font-medium text-gray-800 dark:text-gray-200">{entry.model}</div>
                 <div className="mt-1 text-xs text-gray-500">{entry.current ? 'Current model' : `Observed ${formatDate(entry.observedAt)}`}</div>
