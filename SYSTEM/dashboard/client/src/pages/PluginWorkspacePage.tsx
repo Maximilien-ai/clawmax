@@ -3648,7 +3648,11 @@ function LifecycleRelationshipGraph({
   }
 
   if (suggestionTemplates !== undefined) {
-    const suggestions = suggestionTemplates.map(templateToPreviewRecord).filter(isGenericPluginRecord)
+    // Generic v2 templates do not have the legacy `kind` discriminator, so
+    // keep them based on their declared fields rather than the core record guard.
+    const suggestions = suggestionTemplates
+      .map(templateToPreviewRecord)
+      .filter((item): item is GenericPluginRecord => 'fields' in item && !!item.fields && typeof item.fields === 'object')
     return (
       <div className="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900/40">
         <div className="border-b border-gray-200 p-4 dark:border-gray-700">
@@ -5229,7 +5233,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
         </div>
       )}
 
-      {!loading && !error && viewMode !== 'graph' && plugin.objectKind === 'lifecycle-view' && selectedItem && isGenericPluginRecord(selectedItem) && ['agent', 'workflow', 'group', 'community'].includes(String(selectedItem.fields.subjectType)) && Array.isArray(selectedItem.fields.targetIds) && selectedItem.fields.targetIds.length > 0 && (
+      {!loading && !error && (collectionTab === 'active' || collectionTab === 'archived') && viewMode !== 'graph' && plugin.objectKind === 'lifecycle-view' && selectedItem && isGenericPluginRecord(selectedItem) && ['agent', 'workflow', 'group', 'community'].includes(String(selectedItem.fields.subjectType)) && Array.isArray(selectedItem.fields.targetIds) && selectedItem.fields.targetIds.length > 0 && (
         <div className="mt-6 space-y-8">
           {selectedItem.fields.targetIds.map((agentId) => (
             <AgentLifecycleEvidence
