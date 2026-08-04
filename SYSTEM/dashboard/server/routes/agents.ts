@@ -23,7 +23,7 @@ import {
   type AgentModelSelectionMode,
   upsertAgentRuntimeInIdentityContent,
 } from '../lib/agent-model'
-import { AGENT_RUNTIME_IDS, buildRuntimePlan, detectRuntimeStatuses, normalizeAgentRuntime, readAgentIdentitySystemPrompt, resolveWorkspaceRuntime, runRuntimeCli } from '../lib/agent-runtime'
+import { AGENT_RUNTIME_IDS, detectRuntimeStatuses, executeAgentRuntimeTurn, normalizeAgentRuntime, resolveWorkspaceRuntime } from '../lib/agent-runtime'
 import { hasRuntimeSession } from '../lib/runtime-sessions'
 import { appendRuntimeTranscriptExchange, clearRuntimeTranscript, getLatestRuntimeTranscriptSessionId, hasRuntimeTranscripts, readRuntimeTranscript, readRuntimeTranscriptAsArchiveLines } from '../lib/runtime-transcripts'
 import { validateAgentCostLimit } from '../lib/budget'
@@ -2236,34 +2236,25 @@ router.post('/:id/chat/messages', async (req, res) => {
       // openclaw CLI. No --local flag, no openclaw sessions.json bookkeeping — session
       // continuity is tracked by runtime-sessions.ts (see agent-runtime.ts).
       runExclusiveAgentExecution(id, () => new Promise<void>((resolve, reject) => {
-        const agentDir = resolvedAgent.workspace || path.join(getWorkspacePath(), 'AGENTS', id)
-        const systemPrompt = readAgentIdentitySystemPrompt(agentDir)
-        const rebuildPlan = (resume: boolean) => buildRuntimePlan({
+        executeAgentRuntimeTurn({
           runtime: resolvedAgent.runtime,
-          mode: 'json',
           agentId: id,
-          scopedSessionId: sessionId,
+          agentDir: resolvedAgent.workspace || path.join(getWorkspacePath(), 'AGENTS', id),
           message,
+          scopedSessionId: sessionId,
           model: resolvedAgent.model,
-          agentDir,
-          systemPrompt,
-          resume,
-        })
-        const plan = rebuildPlan(hasRuntimeSession(resolvedAgent.runtime, id, sessionId))
-        runRuntimeCli({
-          plan,
+          mode: 'json',
           // User-initiated agent execution: use userExecutionEnv() to honor the Separated Key Policy
           // exactly like the sibling chat.ts/channels.ts paths (BYOK/USER_* keys, and SYSTEM_* only
           // when ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION=true). This route carries no BYOK payload
           // (ChatPanel posts { message } only), so there are no request-level overrides to layer on.
           env: userExecutionEnv({}),
           timeoutMs: 600000, // 10 min timeout, matches the openclaw path below
-          rebuildPlan,
-          runtime: resolvedAgent.runtime,
-          mode: 'json',
-          agentId: id,
-          scopedSessionId: sessionId,
-        }).then(({ text, errorText }) => {
+        }).then(({ text, errorText, missingCliError }) => {
+          if (missingCliError) {
+            reject(new Error(missingCliError))
+            return
+          }
           if (errorText) {
             reject(new Error(errorText === 'timeout' ? 'Agent timeout' : errorText))
             return

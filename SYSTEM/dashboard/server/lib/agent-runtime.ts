@@ -14,7 +14,7 @@ import { execFileSync, spawn } from 'child_process'
 import { resolveOpenClawCliPath } from './openclaw-cli'
 import { readWorkspaceIntegrationConfig } from './workspace-integrations'
 import { safeEnv } from './safe-env'
-import { markRuntimeSession } from './runtime-sessions'
+import { hasRuntimeSession, markRuntimeSession } from './runtime-sessions'
 
 export type AgentRuntimeId = 'openclaw' | 'claude' | 'droid'
 
@@ -453,4 +453,71 @@ export async function runRuntimeCli(o: {
   }
 
   return { text: first.text, errorText: first.errorText }
+}
+
+// ── Single entry point for running one non-openclaw agent turn ──
+//
+// Every execution surface (direct chat, group/channel chat, workflows, dashboard agent chat)
+// previously repeated the same sequence: read the identity system prompt, build a plan, decide
+// whether to resume, check the CLI exists, then call runRuntimeCli. Four copies meant four
+// chances to drift, and every release that touched chat/workflow plumbing conflicted with all
+// of them. Adding a runtime should only touch buildRuntimePlan() and the tables above.
+//
+// Note: the call sites used to wrap this in withTemporaryAgentAuthProfiles(). That wrapper
+// returns fn() immediately for any non-openclaw runtime (see agent-execution.ts), so the
+// provider-key mapping it was given was dead code on these paths. If that ever changes, this
+// is the one place to reinstate it.
+export interface AgentRuntimeTurnOptions {
+  runtime: AgentRuntimeId
+  agentId: string
+  agentDir: string
+  message: string
+  scopedSessionId: string
+  model?: string
+  mode: 'chat' | 'json'
+  env: NodeJS.ProcessEnv
+  timeoutMs: number
+  /** Streamed incremental text, when the runtime and mode support it. */
+  onDelta?: (text: string) => void
+  /** Called once the spawn plan is resolved and the CLI is known to exist (for logging). */
+  onPlan?: (plan: RuntimePlan) => void
+}
+
+export interface AgentRuntimeTurnResult {
+  text: string
+  errorText?: string
+  /** Set when the runtime's CLI is not installed; callers surface this instead of a reply. */
+  missingCliError?: string
+}
+
+export async function executeAgentRuntimeTurn(o: AgentRuntimeTurnOptions): Promise<AgentRuntimeTurnResult> {
+  const systemPrompt = readAgentIdentitySystemPrompt(o.agentDir)
+  const rebuildPlan = (resume: boolean) => buildRuntimePlan({
+    runtime: o.runtime,
+    mode: o.mode,
+    agentId: o.agentId,
+    scopedSessionId: o.scopedSessionId,
+    message: o.message,
+    model: o.model,
+    agentDir: o.agentDir,
+    systemPrompt,
+    resume,
+  })
+
+  const plan = rebuildPlan(hasRuntimeSession(o.runtime, o.agentId, o.scopedSessionId))
+  if (!plan.cliPath) return { text: '', missingCliError: plan.missingCliError }
+  o.onPlan?.(plan)
+
+  const { text, errorText } = await runRuntimeCli({
+    plan,
+    env: o.env,
+    timeoutMs: o.timeoutMs,
+    rebuildPlan,
+    runtime: o.runtime,
+    mode: o.mode,
+    agentId: o.agentId,
+    scopedSessionId: o.scopedSessionId,
+    onDelta: o.onDelta,
+  })
+  return { text, errorText }
 }

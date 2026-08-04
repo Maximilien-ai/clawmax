@@ -77,7 +77,11 @@ type IntegrationStatus = {
   visiblePartners: string[]
   partnerDefinitions: PartnerDefinition[]
 }
-type AgentRuntimeId = 'openclaw' | 'claude' | 'droid'
+// Runtime ids come from the server registry (/api/integrations/runtimes). 'openclaw' is the
+// always-available default and is never listed as a selectable CLI.
+type AgentRuntimeId = string
+const isSelectableRuntimeId = (id: unknown): id is AgentRuntimeId =>
+  typeof id === 'string' && id.length > 0 && id !== 'openclaw'
 type RuntimeStatus = {
   id: AgentRuntimeId
   label: string
@@ -889,6 +893,9 @@ export function ByokWizard({
     } catch (error: any) {
       setMailOAuthStatus(null)
       setMailOAuthError(error?.message || 'Failed to load mail connection status')
+    }
+  }, [])
+
   const loadRuntimeStatuses = React.useCallback(async () => {
     setRuntimeStatusesLoading(true)
     setRuntimeStatusesError(null)
@@ -906,7 +913,7 @@ export function ByokWizard({
       // (dirty is reset on open, before this runs). Otherwise we'd erase an edit made mid-load.
       if (!enabledRuntimesDirtyRef.current) {
         setEnabledRuntimes(Array.isArray(data?.enabledRuntimes)
-          ? data.enabledRuntimes.filter((rt: unknown): rt is AgentRuntimeId => rt === 'claude' || rt === 'droid')
+          ? data.enabledRuntimes.filter(isSelectableRuntimeId)
           : [])
       }
     } catch {
@@ -1504,7 +1511,7 @@ export function ByokWizard({
         const latest = await fetch('/api/integrations/runtimes').then((r) => (r.ok ? r.json() : null))
         const serverList = latest?.enabledRuntimes
         if (Array.isArray(serverList)) {
-          enabledRuntimesToSave = serverList.filter((rt: unknown): rt is AgentRuntimeId => rt === 'claude' || rt === 'droid')
+          enabledRuntimesToSave = serverList.filter(isSelectableRuntimeId)
         }
       } catch { /* keep local value on fetch failure */ }
     }
@@ -2673,7 +2680,7 @@ export function ByokWizard({
                     <div className="text-xs text-gray-500 dark:text-gray-400">Detecting installed CLIs…</div>
                   ) : (
                     <div className="grid gap-2 sm:grid-cols-2">
-                      {runtimeStatuses.filter((status) => status.id === 'claude' || status.id === 'droid').map((status) => {
+                      {runtimeStatuses.filter((status) => isSelectableRuntimeId(status.id)).map((status) => {
                         const runtimeEnabled = enabledRuntimes.includes(status.id)
                         return (
                           <button
@@ -2885,7 +2892,7 @@ export function ByokWizard({
                     </div>
                   )}
                   <div className="grid gap-2 sm:grid-cols-2">
-                    {runtimeStatuses.filter((status) => status.id === 'claude' || status.id === 'droid').map((status) => {
+                    {runtimeStatuses.filter((status) => isSelectableRuntimeId(status.id)).map((status) => {
                       const runtimeEnabled = enabledRuntimes.includes(status.id)
                       return (
                         <button

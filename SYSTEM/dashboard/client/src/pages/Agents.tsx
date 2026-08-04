@@ -2707,6 +2707,9 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
   const [tools, setTools] = React.useState('')
   const [model, setModel] = React.useState('')
   const [runtime, setRuntime] = React.useState('default')
+  // Driven off the server's runtime registry (id + label) rather than hardcoded ids, so adding a
+  // CLI runtime needs no change here.
+  const [runtimeCatalog, setRuntimeCatalog] = React.useState<Array<{ id: string; label: string }>>([])
   const [enabledRuntimes, setEnabledRuntimes] = React.useState<string[]>([])
   React.useEffect(() => {
     let cancelled = false
@@ -2717,10 +2720,15 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (cancelled) return
-        const list = data?.enabledRuntimes
-        setEnabledRuntimes(Array.isArray(list) ? list.filter((rt: string) => rt === 'claude' || rt === 'droid') : [])
+        // openclaw is the always-available default and is listed separately below.
+        const selectable = (Array.isArray(data?.runtimes) ? data.runtimes : [])
+          .filter((status: any) => status?.id && status.id !== 'openclaw')
+          .map((status: any) => ({ id: String(status.id), label: String(status.label || status.id) }))
+        setRuntimeCatalog(selectable)
+        const list = Array.isArray(data?.enabledRuntimes) ? data.enabledRuntimes : []
+        setEnabledRuntimes(selectable.filter((rt: { id: string }) => list.includes(rt.id)).map((rt: { id: string }) => rt.id))
       })
-      .catch(() => { if (!cancelled) setEnabledRuntimes([]) })
+      .catch(() => { if (!cancelled) { setRuntimeCatalog([]); setEnabledRuntimes([]) } })
     return () => { cancelled = true }
   }, [])
   const [backupModel, setBackupModel] = React.useState('')
@@ -3142,18 +3150,19 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
                 >
                   <option value="default">OpenClaw (model-provider keys) — default</option>
                   <option value="openclaw">OpenClaw (model-provider keys)</option>
-                  {enabledRuntimes.includes('claude') && <option value="claude">Claude Code (its own login)</option>}
-                  {enabledRuntimes.includes('droid') && <option value="droid">Factory Droid (its own login)</option>}
-                  {(runtime === 'claude' || runtime === 'droid') && !enabledRuntimes.includes(runtime) && (
+                  {runtimeCatalog
+                    .filter((rt) => enabledRuntimes.includes(rt.id))
+                    .map((rt) => <option key={rt.id} value={rt.id}>{rt.label} (its own login)</option>)}
+                  {runtime !== 'default' && runtime !== 'openclaw' && !enabledRuntimes.includes(runtime) && (
                     <option value={runtime}>
-                      {runtime === 'claude' ? 'Claude Code' : 'Factory Droid'} — pinned, but disabled for this workspace
+                      {runtimeCatalog.find((rt) => rt.id === runtime)?.label || runtime} — pinned, but disabled for this workspace
                     </option>
                   )}
                 </select>
                 <p className="mt-1 text-xs text-sky-800/80 dark:text-sky-200/70">
                   {enabledRuntimes.length > 0
-                    ? <>Run this agent on Claude or Droid using the CLI’s own login. Default keeps it on the model-provider keys.</>
-                    : <>Enable Claude Code or Factory Droid first in BYOK &rarr; “Run via CLI” to make them selectable here.</>}
+                    ? <>Run this agent on {runtimeCatalog.filter((rt) => enabledRuntimes.includes(rt.id)).map((rt) => rt.label).join(' or ')} using the CLI’s own login. Default keeps it on the model-provider keys.</>
+                    : <>Enable a CLI runtime first in BYOK &rarr; “Run via CLI” to make it selectable here.</>}
                 </p>
               </div>
               <div>

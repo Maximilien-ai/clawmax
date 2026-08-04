@@ -1419,7 +1419,7 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
         />
         <ByokWizard
           triggerLabel="Runtime"
-          triggerTitle="Choose the agent runtime CLI (OpenClaw, Claude Code, or Droid)"
+          triggerTitle="Choose which CLI runs your agents"
           initialStep="runtime"
           openEventName="open-runtime-wizard"
           suppressAutoOpen={onboardingVisible}

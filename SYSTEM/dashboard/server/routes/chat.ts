@@ -26,7 +26,7 @@ import {
   toExecutionModelOverride,
   withTemporaryAgentAuthProfiles,
 } from '../lib/agent-execution'
-import { buildRuntimePlan, runRuntimeCli, readAgentIdentitySystemPrompt, RuntimeModelError } from '../lib/agent-runtime'
+import { buildRuntimePlan, executeAgentRuntimeTurn, readAgentIdentitySystemPrompt, RuntimeModelError } from '../lib/agent-runtime'
 import { hasRuntimeSession } from '../lib/runtime-sessions'
 import { appendRuntimeTranscriptExchange } from '../lib/runtime-transcripts'
 import { getAuthenticatedSession } from '../lib/github-auth'
@@ -876,55 +876,34 @@ router.post('/:id/chat', async (req, res) => {
     // This branch never retries against a backup model, so the session id is fixed to the
     // already-resolved primary model computed above.
     const executionSessionId = currentSessionId
-    const rebuildRuntimePlan = (resume: boolean) => buildRuntimePlan({
-      runtime,
-      mode: 'chat',
-      agentId: id,
-      scopedSessionId: executionSessionId,
-      message: executionMessage,
-      model: resolvedAgent.model,
-      agentDir: currentAgentWorkspaceDir,
-      systemPrompt: readAgentIdentitySystemPrompt(currentAgentWorkspaceDir),
-      resume,
-    })
-    const initialPlan = rebuildRuntimePlan(hasRuntimeSession(runtime, id, executionSessionId))
-    console.log(`[Chat Route] Spawning: ${initialPlan.cliPath || runtime} ${initialPlan.args.join(' ')}`)
 
-    runExclusiveAgentExecution(id, () => withTemporaryAgentAuthProfiles(id, {
-      openai: executionEnv.OPENAI_API_KEY,
-      anthropic: executionEnv.ANTHROPIC_API_KEY,
-      gemini: executionEnv.GEMINI_API_KEY,
-      openrouter: executionEnv.OPENROUTER_API_KEY,
-      xai: executionEnv.XAI_API_KEY,
-      ollamaBaseUrl: executionEnv.OLLAMA_BASE_URL,
-      openaiCompatibleApiKey: useOpenAiCompatible ? executionEnv.OPENAI_API_KEY : undefined,
-      openaiCompatibleBaseUrl: useOpenAiCompatible ? executionEnv.OPENAI_BASE_URL : undefined,
-      openaiCompatibleDefaultModel: useOpenAiCompatible ? (byok?.openaiCompatibleDefaultModel || integrationConfig.openaiCompatibleDefaultModel) : undefined,
-    }, resolvedAgent.model, resolvedAgent.provider, async () => {
-      if (!initialPlan.cliPath) {
+    runExclusiveAgentExecution(id, async () => {
+      const { text, errorText, missingCliError } = await executeAgentRuntimeTurn({
+        runtime,
+        agentId: id,
+        agentDir: currentAgentWorkspaceDir,
+        message: executionMessage,
+        scopedSessionId: executionSessionId,
+        model: resolvedAgent.model,
+        mode: 'chat',
+        env: executionEnv,
+        timeoutMs: 180000,
+        onDelta: (delta) => send('delta', { text: delta }),
+        onPlan: (plan) => {
+          console.log(`[Chat Route] Spawning: ${plan.cliPath || runtime} ${plan.args.join(' ')}`)
+          send('start', { sessionId: executionSessionId })
+          invalidateAgentStatusCache(id)
+          armChatTimeoutWatchdog()
+        },
+      })
+      if (missingCliError) {
         procExited = true
         clearInterval(keepalive)
-        send('error', initialPlan.missingCliError)
+        send('error', missingCliError)
         send('complete', { text: '' })
         if (!res.writableEnded) res.end()
         return
       }
-
-      send('start', { sessionId: executionSessionId })
-      invalidateAgentStatusCache(id)
-      armChatTimeoutWatchdog()
-
-      const { text, errorText } = await runRuntimeCli({
-        plan: initialPlan,
-        env: executionEnv,
-        timeoutMs: 180000,
-        rebuildPlan: rebuildRuntimePlan,
-        runtime,
-        mode: 'chat',
-        agentId: id,
-        scopedSessionId: executionSessionId,
-        onDelta: (delta) => send('delta', { text: delta }),
-      })
       procExited = true
       clearInterval(keepalive)
       clearChatTimeoutWatchdog()
@@ -944,7 +923,7 @@ router.post('/:id/chat', async (req, res) => {
       if (!res.writableEnded) {
         res.end()
       }
-    }, { persistAuthProfiles: true, runtime })).catch((err) => {
+    }).catch((err) => {
       console.error(`[Chat Route] Auth profile prep error for ${id}:`, err)
       clearChatTimeoutWatchdog()
       clearInterval(keepalive)
