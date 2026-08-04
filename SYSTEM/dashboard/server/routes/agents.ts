@@ -795,7 +795,7 @@ router.post('/models/refresh', async (req, res) => {
 
 // POST /api/agents/provision — spawn setup.sh and stream output via SSE
 router.post('/provision', (req, res) => {
-  const { name, model, backupModel, whatsapp, port, profile, cloneFrom, templateSlug, generatedFiles, tags, aiDescription, skills, modelSelection, modelPreference } = req.body as {
+  const { name, model, backupModel, whatsapp, port, profile, cloneFrom, templateSlug, generatedFiles, tags, aiDescription, skills, modelSelection, modelPreference, runtime } = req.body as {
     name?: string
     model?: string
     backupModel?: string
@@ -810,6 +810,7 @@ router.post('/provision', (req, res) => {
     skills?: string[]
     modelSelection?: AgentModelSelectionMode
     modelPreference?: AgentModelPreference
+    runtime?: string
   }
   const validatedModelSelection: AgentModelSelectionMode = modelSelection === 'auto' ? 'auto' : 'manual'
   const validatedModelPreference: AgentModelPreference = ['quality', 'balanced', 'cost'].includes(String(modelPreference))
@@ -945,6 +946,10 @@ router.post('/provision', (req, res) => {
         backupConfigUpdate.backupModel,
         { selectionMode: validatedModelSelection, preference: validatedModelPreference },
       ), 'utf-8')
+      // Persist the runtime pin chosen at creation. Without this the Add Agent wizard could not
+      // set a runtime at all and every new agent silently started on OpenClaw.
+      const provisionedRuntime = normalizeAgentRuntime(runtime)
+      if (provisionedRuntime) updateAgentIdentityRuntime(identityPath, provisionedRuntime)
     }
     if (configUpdate.changed || backupConfigUpdate.changed) {
       resetAgentRuntimeForModelChange(validatedName)
