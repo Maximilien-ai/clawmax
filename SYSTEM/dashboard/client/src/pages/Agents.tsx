@@ -2745,6 +2745,14 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
       : []),
     [runtime, runtimeCatalog],
   )
+  // The model-fit suggester reasons over the provider catalog, whose ids a pinned runtime may
+  // not accept (droid takes claude-sonnet-4-5-20250929, not anthropic/claude-sonnet-4-5).
+  // Never let an automatic suggestion move a runtime-pinned agent onto a model its CLI rejects.
+  const isModelAllowedForRuntime = React.useCallback((candidate: string) => (
+    runtimeModelOptions.length === 0
+      || runtimeModelOptions.includes(candidate)
+      || runtimeModelOptions.includes(stripModelProvider(candidate))
+  ), [runtimeModelOptions])
   const [backupModel, setBackupModel] = React.useState('')
   const [availableModels, setAvailableModels] = React.useState<string[]>([])
   const [modelsByProvider, setModelsByProvider] = React.useState<Record<string, { name: string; models: string[] }>>({})
@@ -2948,8 +2956,8 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
 
   React.useEffect(() => {
     const suggestedModel = modelRecommendation?.recommendedModel
-    if (autoModelSelection && suggestedModel) setModel(suggestedModel)
-  }, [autoModelSelection, modelRecommendation?.recommendedModel])
+    if (autoModelSelection && suggestedModel && isModelAllowedForRuntime(suggestedModel)) setModel(suggestedModel)
+  }, [autoModelSelection, modelRecommendation?.recommendedModel, isModelAllowedForRuntime])
 
   const useManualModel = React.useCallback((nextModel: string) => {
     manualModelRef.current = nextModel
@@ -2960,12 +2968,13 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
     if (enabled) {
       manualModelRef.current = model
       const suggestedModel = modelRecommendation?.recommendedModel
-      if (suggestedModel) setModel(suggestedModel)
+      if (suggestedModel && isModelAllowedForRuntime(suggestedModel)) setModel(suggestedModel)
     } else {
-      setModel(manualModelRef.current || modelRecommendation?.recommendedModel || model)
+      const restored = manualModelRef.current || modelRecommendation?.recommendedModel || model
+      setModel(isModelAllowedForRuntime(restored) ? restored : model)
     }
     setAutoModelSelection(enabled)
-  }, [model, modelRecommendation?.recommendedModel])
+  }, [model, modelRecommendation?.recommendedModel, isModelAllowedForRuntime])
 
   const handleSave = async () => {
     if (validationErrors.length > 0) {
@@ -3156,6 +3165,12 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
                     ))
                   )}
                 </select>
+                {autoModelSelection && runtimeModelOptions.length > 0 && (
+                  <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                    Automatic suggestions come from the model providers, so they are only applied
+                    when the pinned runtime also offers that model.
+                  </p>
+                )}
                 <p className="mt-1 text-xs text-gray-400">
                   {autoModelSelection
                     ? 'Auto-select is using the current top suggestion. Turn it off to choose a model manually.'

@@ -10,7 +10,7 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import crypto from 'crypto'
-import { execFileSync, spawn } from 'child_process'
+import { execFile, execFileSync, spawn } from 'child_process'
 import { resolveOpenClawCliPath } from './openclaw-cli'
 import { readWorkspaceIntegrationConfig } from './workspace-integrations'
 import { safeEnv } from './safe-env'
@@ -535,21 +535,22 @@ export async function executeAgentRuntimeTurn(o: AgentRuntimeTurnOptions): Promi
 // anything" rather than "no models exist".
 const RUNTIME_MODEL_CACHE_TTL_MS = 10 * 60 * 1000
 const runtimeModelCache = new Map<AgentRuntimeId, { models: string[]; expiresAt: number }>()
+const runtimeModelProbes = new Map<AgentRuntimeId, Promise<string[]>>()
 
-function probeDroidModels(cliPath: string): string[] {
-  let output = ''
-  try {
-    output = String(execFileSync(cliPath, ['exec', 'x', '-m', '__clawmax_model_probe__'], {
+async function probeDroidModels(cliPath: string): Promise<string[]> {
+  // Async on purpose: the dashboard is single-threaded, and execFileSync here would block every
+  // other request (including SSE chat streams) for the whole timeout if the CLI hangs.
+  const output = await new Promise<string>((resolve) => {
+    execFile(cliPath, ['exec', 'x', '-m', '__clawmax_model_probe__'], {
       encoding: 'utf-8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-      timeout: 20000,
+      timeout: 10000,
       windowsHide: true,
       env: safeEnv(),
-    }) || '')
-  } catch (err: any) {
-    // Naming an unknown model is an error exit; the catalog is on stdout/stderr.
-    output = String(err?.stdout || '') + String(err?.stderr || '')
-  }
+    }, (err: any, stdout, stderr) => {
+      // Naming an unknown model is an error exit; the catalog is on stdout/stderr either way.
+      resolve(String(stdout || '') + String(stderr || '') + String(err?.stdout || '') + String(err?.stderr || ''))
+    })
+  })
   const marker = output.indexOf('Available built-in models:')
   if (marker === -1) return []
   return output
@@ -563,17 +564,25 @@ function probeDroidModels(cliPath: string): string[] {
 }
 
 /** Models a runtime CLI accepts, or [] when the catalog cannot be enumerated. */
-export function listRuntimeModels(runtime: AgentRuntimeId): string[] {
+export async function listRuntimeModels(runtime: AgentRuntimeId): Promise<string[]> {
   if (runtime === 'openclaw') return []
   const cached = runtimeModelCache.get(runtime)
   if (cached && cached.expiresAt > Date.now()) return cached.models
+  // Collapse concurrent misses onto one probe instead of spawning a CLI per request.
+  const inFlight = runtimeModelProbes.get(runtime)
+  if (inFlight) return await inFlight
 
-  const cliPath = resolveRuntimeCliPath(runtime)
-  let models: string[] = []
-  if (cliPath && runtime === 'droid') models = probeDroidModels(cliPath)
+  const probe = (async () => {
+    const cliPath = resolveRuntimeCliPath(runtime)
+    let models: string[] = []
+    if (cliPath && runtime === 'droid') models = await probeDroidModels(cliPath)
   // Claude Code takes any Anthropic model id and has no enumerable catalog; runtimeModelArg()
   // already rejects non-Anthropic models, so leave this empty and let the provider list stand.
 
-  runtimeModelCache.set(runtime, { models, expiresAt: Date.now() + RUNTIME_MODEL_CACHE_TTL_MS })
-  return models
+    runtimeModelCache.set(runtime, { models, expiresAt: Date.now() + RUNTIME_MODEL_CACHE_TTL_MS })
+    return models
+  })().finally(() => { runtimeModelProbes.delete(runtime) })
+
+  runtimeModelProbes.set(runtime, probe)
+  return await probe
 }
