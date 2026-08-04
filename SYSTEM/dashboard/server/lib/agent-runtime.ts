@@ -156,6 +156,22 @@ export function resolveEnabledRuntimes(): AgentRuntimeId[] {
     .filter((rt): rt is AgentRuntimeId => rt === 'claude' || rt === 'droid')
 }
 
+/**
+ * The runtime an agent is pinned to in IDENTITY.md, whether or not it is currently enabled.
+ * resolveAgentRuntime() deliberately falls back to openclaw for a disabled pin; callers use this
+ * to tell "runs on openclaw by choice" apart from "pin silently ignored", which otherwise
+ * surfaces as a confusing provider-credential error.
+ */
+export function pinnedAgentRuntime(identityRuntime?: string): AgentRuntimeId | undefined {
+  const pinned = normalizeAgentRuntime(identityRuntime)
+  return pinned && pinned !== 'openclaw' ? pinned : undefined
+}
+
+export function isPinnedRuntimeDisabled(identityRuntime?: string): AgentRuntimeId | undefined {
+  const pinned = pinnedAgentRuntime(identityRuntime)
+  return pinned && !resolveEnabledRuntimes().includes(pinned) ? pinned : undefined
+}
+
 export function resolveAgentRuntime(agentId: string, identityRuntime?: string): AgentRuntimeId {
   // agentId is accepted (not just identityRuntime) so future per-agent overrides beyond
   // IDENTITY.md parsing can slot in here without changing every call site's signature.

@@ -559,7 +559,11 @@ function evaluateChatExecutionReadiness(
     if (!hasResolvedExecutionPath(resolvedAgent.backupProvider)) {
       return {
         available: false,
-        error: `Agent ${agentId} is configured for ${resolvedAgent.model}, but no ${resolvedAgent.provider} credential is available. Add the matching key in BYOK or choose a configured model provider.`,
+        error: resolvedAgent.disabledPinnedRuntime
+          // The agent asked for a CLI runtime that is switched off, so it silently fell back to
+          // OpenClaw and then failed on provider keys. Report the real cause, not the symptom.
+          ? `Agent ${agentId} is pinned to the ${(RUNTIME_CHAT_LABELS as Record<string, string>)[resolvedAgent.disabledPinnedRuntime] || resolvedAgent.disabledPinnedRuntime} CLI, which is not enabled for this workspace, so it fell back to OpenClaw — which has no ${resolvedAgent.provider} credential. Enable that CLI in BYOK → “Run via CLI”, or give the agent a model whose provider key is configured.`
+          : `Agent ${agentId} is configured for ${resolvedAgent.model}, but no ${resolvedAgent.provider} credential is available. Add the matching key in BYOK or choose a configured model provider.`,
         resolvedAgent,
       }
     }

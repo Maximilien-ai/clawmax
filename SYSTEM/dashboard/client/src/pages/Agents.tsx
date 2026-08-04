@@ -3174,7 +3174,11 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
                 <p className="mt-1 text-xs text-gray-400">
                   {autoModelSelection
                     ? 'Auto-select is using the current top suggestion. Turn it off to choose a model manually.'
-                    : 'Live models from provider APIs (cached 1hr). Click "Refresh" to update.'}
+                    : runtimeModelOptions.length > 0
+                      // Don't claim these came from the provider APIs — this agent is pinned to a
+                      // CLI runtime, so the list above is that CLI's own catalog.
+                      ? `Models offered by the ${runtimeCatalog.find((rt) => rt.id === runtime)?.label || runtime} CLI, because this agent is pinned to it below.`
+                      : 'Live models from provider APIs (cached 1hr). Click "Refresh" to update.'}
                 </p>
                 {selectedModelDeprecation && (
                   <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">{selectedModelDeprecation}</p>
