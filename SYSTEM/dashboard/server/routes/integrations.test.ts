@@ -359,6 +359,49 @@ async function run() {
     assert(/RESEND_API_KEY is not configured/i.test(res.jsonBody?.error || ''), 'Expected clear missing-key message')
   })
 
+  await test('config round-trip persists a valid agentRuntime and omits invalid values', async () => {
+    const putHandler = getRouteHandler('put', '/config')
+
+    const validRes = makeRes()
+    await putHandler(makeReq({ body: { agentRuntime: 'claude' } }), validRes)
+    assert.strictEqual(validRes.statusCode, 200, 'Expected config update success')
+    assert.strictEqual(validRes.jsonBody?.config?.agentRuntime, 'claude', 'Expected agentRuntime to persist')
+
+    const getHandler = getRouteHandler('get', '/config')
+    const getRes = makeRes()
+    await getHandler(makeReq(), getRes)
+    assert.strictEqual(getRes.jsonBody?.config?.agentRuntime, 'claude', 'Expected persisted agentRuntime on reload')
+
+    const invalidRes = makeRes()
+    await putHandler(makeReq({ body: { agentRuntime: 'not-a-runtime' } }), invalidRes)
+    assert.strictEqual(invalidRes.statusCode, 200, 'Expected config update success even with invalid agentRuntime')
+    assert.strictEqual(invalidRes.jsonBody?.config?.agentRuntime, undefined, 'Expected invalid agentRuntime to be omitted, not stored')
+  })
+
+  await test('GET /runtimes reports detected runtimes and the workspace default', async () => {
+    const putHandler = getRouteHandler('put', '/config')
+    await putHandler(makeReq({ body: { agentRuntime: 'droid' } }), makeRes())
+
+    const handler = getRouteHandler('get', '/runtimes')
+    const res = makeRes()
+    await handler(makeReq(), res)
+
+    assert.strictEqual(res.statusCode, 200, 'Expected runtimes route success')
+    assert.strictEqual(res.jsonBody?.workspaceDefault, 'droid', 'Expected workspace default to reflect persisted agentRuntime')
+    assert(Array.isArray(res.jsonBody?.runtimes) && res.jsonBody.runtimes.length === 3, 'Expected three runtime statuses')
+    const ids = res.jsonBody.runtimes.map((r: any) => r.id).sort()
+    assert.deepStrictEqual(ids, ['claude', 'droid', 'openclaw'], 'Expected all three runtime ids')
+    const droidStatus = res.jsonBody.runtimes.find((r: any) => r.id === 'droid')
+    assert.strictEqual(droidStatus?.active, true, 'Expected droid to be marked active')
+    const claudeStatus = res.jsonBody.runtimes.find((r: any) => r.id === 'claude')
+    assert.strictEqual(claudeStatus?.active, false, 'Expected claude to be marked inactive')
+    for (const status of res.jsonBody.runtimes) {
+      assert(typeof status.installed === 'boolean', 'Expected installed boolean on each runtime status')
+      assert(typeof status.label === 'string' && status.label.length > 0, 'Expected label on each runtime status')
+      assert(typeof status.installHint === 'string' && status.installHint.length > 0, 'Expected installHint on each runtime status')
+    }
+  })
+
   if (typeof originalHome === 'undefined') delete process.env.HOME
   else process.env.HOME = originalHome
   if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE

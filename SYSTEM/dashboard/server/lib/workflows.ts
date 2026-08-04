@@ -24,6 +24,8 @@ import { readWorkspaceIntegrationConfig } from './workspace-integrations'
 import { hasWorkspaceManagedPartnerSecrets } from './workspace-integrations'
 import { resolveOpenClawCliPath } from './openclaw-cli'
 import { createBrokerCapabilityToken } from './skill-secret-broker'
+import { buildRuntimePlan, readAgentIdentitySystemPrompt, runRuntimeCli } from './agent-runtime'
+import { hasRuntimeSession } from './runtime-sessions'
 
 // Use dynamic workspace path to support multi-workspace
 function getWorkflowsDir(): string {
@@ -1183,15 +1185,26 @@ export function syncWorkflowToCron(workflow: Workflow, participants: string[]): 
   // Use first participant as the cron agent (OpenClaw cron targets one agent per job)
   // For multiagent workflows, we create one cron job per agent
   const results: string[] = []
+  let skippedNonOpenClaw = 0
 
   for (const agentId of participants) {
     const jobName = `clawmax-${workflow.id}-${agentId}`
 
-    // Remove existing job if any
+    // Remove existing job if any (e.g. a stale registration from before the agent's runtime was
+    // switched away from openclaw)
     const existingJobs = listCronJobs()
     const existing = existingJobs.find(j => j.name === jobName)
     if (existing) {
       removeCronJob(existing.id)
+    }
+
+    // openclaw cron only knows how to invoke the openclaw CLI — claude/droid participants are
+    // scheduled entirely by the in-process node-cron scheduler in lib/scheduler.ts instead.
+    const agentRuntime = resolveAgentExecutionConfig(agentId).runtime
+    if (agentRuntime !== 'openclaw') {
+      skippedNonOpenClaw++
+      console.log(`[Cron] cron: skipped openclaw cron registration for ${agentId} (runtime ${agentRuntime}); in-process scheduler covers it`)
+      continue
     }
 
     // Try to get agent's model from IDENTITY.md
@@ -1227,7 +1240,13 @@ export function syncWorkflowToCron(workflow: Workflow, participants: string[]): 
     }
   }
 
-  return { ok: results.length > 0, cronJobId: results.join(',') }
+  // Every participant was a non-openclaw runtime — nothing was attempted, so this isn't a
+  // failure, there's simply no openclaw cron registration for the in-process scheduler to need.
+  const attemptedOpenClawRegistration = participants.length > skippedNonOpenClaw
+  return {
+    ok: attemptedOpenClawRegistration ? results.length > 0 : true,
+    cronJobId: results.length > 0 ? results.join(',') : undefined,
+  }
 }
 
 export function removeCronJob(jobId: string): void {
@@ -2022,6 +2041,83 @@ export function triggerWorkflow(workflowId: string, options?: {
           let workflowSessionRetryAttempt = 0
           const agentResponse = await runExclusiveAgentExecution(participant.agentId, async () => {
             const resolvedAgent = resolveAgentExecutionConfig(participant.agentId)
+            if (resolvedAgent.runtime !== 'openclaw') {
+              // 2.0 builds executionEnv per attempt inside executeAttempt(), so the runtime path
+              // builds its own provider-isolated env instead of reusing an outer binding that no
+              // longer exists. Mirrors executeAttempt() so claude/droid agents get the same
+              // provider isolation and brokered skill-secret access as the openclaw path.
+              const useRuntimeOpenAiCompatible = resolvedAgent.provider === 'openai-compatible'
+              const runtimeExecutionEnv = workflowExecutionEnv({
+                openai: resolvedAgent.provider === 'openai' ? options?.byok?.openai : undefined,
+                anthropic: resolvedAgent.provider === 'anthropic' ? options?.byok?.anthropic : undefined,
+                gemini: resolvedAgent.provider === 'gemini' ? options?.byok?.gemini : undefined,
+                openrouter: resolvedAgent.provider === 'openrouter' ? options?.byok?.openrouter : undefined,
+                xai: resolvedAgent.provider === 'xai' ? options?.byok?.xai : undefined,
+                ollamaBaseUrl: resolvedAgent.provider === 'ollama'
+                  ? (options?.byok?.ollamaBaseUrl || integrationDefaults.ollamaBaseUrl)
+                  : undefined,
+                openaiCompatibleApiKey: useRuntimeOpenAiCompatible ? options?.byok?.openaiCompatibleApiKey : undefined,
+                openaiCompatibleBaseUrl: useRuntimeOpenAiCompatible
+                  ? (options?.byok?.openaiCompatibleBaseUrl || integrationDefaults.openaiCompatibleBaseUrl)
+                  : undefined,
+                openaiCompatibleDefaultModel: useRuntimeOpenAiCompatible
+                  ? (options?.byok?.openaiCompatibleDefaultModel || integrationDefaults.openaiCompatibleDefaultModel)
+                  : undefined,
+              }, resolvedAgent.provider || undefined)
+              runtimeExecutionEnv.CLAWMAX_AGENT_ID = participant.agentId
+              const runtimeBrokerCapability = createBrokerCapabilityToken(participant.agentId)
+              if (runtimeBrokerCapability) {
+                runtimeExecutionEnv.CLAWMAX_SECRET_BROKER_TOKEN = runtimeBrokerCapability
+                runtimeExecutionEnv.CLAWMAX_SECRET_BROKER_URL = `http://127.0.0.1:${process.env.DASHBOARD_PORT || '3001'}/api/runtime/skill-broker/execute`
+              }
+
+              const runtimeSessionId = buildWorkflowSessionId(executionId, participant.agentId)
+              return await new Promise<string>((resolve, reject) => {
+                withTemporaryAgentAuthProfiles(participant.agentId, {
+                  openai: useRuntimeOpenAiCompatible ? undefined : runtimeExecutionEnv.OPENAI_API_KEY,
+                  anthropic: runtimeExecutionEnv.ANTHROPIC_API_KEY,
+                  gemini: runtimeExecutionEnv.GEMINI_API_KEY,
+                  openaiCompatibleApiKey: useRuntimeOpenAiCompatible ? runtimeExecutionEnv.OPENAI_API_KEY : undefined,
+                  openaiCompatibleBaseUrl: useRuntimeOpenAiCompatible ? runtimeExecutionEnv.OPENAI_BASE_URL : undefined,
+                  openaiCompatibleDefaultModel: useRuntimeOpenAiCompatible
+                    ? (options?.byok?.openaiCompatibleDefaultModel || integrationDefaults.openaiCompatibleDefaultModel || resolvedAgent.model)
+                    : undefined,
+                }, resolvedAgent.model, resolvedAgent.provider, async () => {
+                  const agentDir = resolvedAgent.workspace || path.join(getWorkspacePath(), 'AGENTS', participant.agentId)
+                  const systemPrompt = readAgentIdentitySystemPrompt(agentDir)
+                  const timeoutMs = getWorkflowAgentTimeoutMs()
+                  const startedAt = Date.now()
+                  const rebuildPlan = (resume: boolean) => buildRuntimePlan({
+                    runtime: resolvedAgent.runtime,
+                    mode: 'json',
+                    agentId: participant.agentId,
+                    scopedSessionId: runtimeSessionId,
+                    message: executionMessage,
+                    model: resolvedAgent.model,
+                    agentDir,
+                    systemPrompt,
+                    resume,
+                  })
+                  const plan = rebuildPlan(hasRuntimeSession(resolvedAgent.runtime, participant.agentId, runtimeSessionId))
+                  const { text, errorText } = await runRuntimeCli({
+                    plan,
+                    env: runtimeExecutionEnv,
+                    timeoutMs,
+                    rebuildPlan,
+                    runtime: resolvedAgent.runtime,
+                    mode: 'json',
+                    agentId: participant.agentId,
+                    scopedSessionId: runtimeSessionId,
+                  })
+                  if (errorText) {
+                    reject(new Error(errorText === 'timeout' ? formatWorkflowAgentTimeoutMessage(timeoutMs) : errorText))
+                    return
+                  }
+                  resolve({ text, meta: {}, durationMs: Date.now() - startedAt } as any)
+                }, { persistAuthProfiles: true, runtime: resolvedAgent.runtime }).catch(reject)
+              })
+            }
+
             const openclawCliPath = resolveWorkflowOpenClawCliPath()
             const executeAttempt = async (attemptModel: string | undefined, attemptProvider: typeof resolvedAgent.provider) => {
               const useOpenAiCompatible = attemptProvider === 'openai-compatible'

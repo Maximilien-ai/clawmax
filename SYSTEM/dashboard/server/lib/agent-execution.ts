@@ -10,6 +10,7 @@ import { normalizeAgentModelInput, readAgentModelFromConfigFile, restoreAgentMod
 import { resetAgentSessionsForModelChange } from './agent-model'
 import { resolveDefaultAgentModel } from './agent-default-model'
 import { getAvailableModelsCached } from './model-discovery'
+import { resolveAgentRuntime, type AgentRuntimeId } from './agent-runtime'
 
 interface OpenClawAgentRecord {
   id: string
@@ -46,6 +47,7 @@ interface OpenClawConfigFile {
 type ExecutionProvider = 'openai' | 'openai-compatible' | 'anthropic' | 'gemini' | 'openrouter' | 'xai' | 'ollama' | null
 interface AgentAuthProfileOptions {
   persistAuthProfiles?: boolean
+  runtime?: AgentRuntimeId
   skipModelConfigMutation?: boolean
 }
 const LMSTUDIO_DEFAULT_CONTEXT_TOKENS = 64_000
@@ -269,6 +271,7 @@ export function resolveAgentExecutionConfig(agentId: string): {
   agentDir?: string
   provider?: ExecutionProvider
   backupProvider?: ExecutionProvider
+  runtime: AgentRuntimeId
 } {
   const activeWorkspaceAgentDir = path.join(getWorkspacePath(), 'AGENTS', agentId)
   const record = readOpenClawAgentRecord(agentId, activeWorkspaceAgentDir)
@@ -287,12 +290,14 @@ export function resolveAgentExecutionConfig(agentId: string): {
   let identityModel: string | undefined
   let identityBackupModel: string | undefined
   let identityTags: string[] = []
+  let identityRuntime: string | undefined
   try {
     const identity = fs.readFileSync(identityPath, 'utf-8')
     const parsedIdentity = parseIdentity(identity)
     identityModel = normalizeMissingModel(parsedIdentity.model || undefined)
     identityBackupModel = normalizeMissingModel(parsedIdentity.backupModel || undefined)
     identityTags = Array.isArray(parsedIdentity.tags) ? parsedIdentity.tags : []
+    identityRuntime = parsedIdentity.runtime || undefined
   } catch {}
 
   // If the active workspace contains this agent, trust its local identity first.
@@ -320,6 +325,7 @@ export function resolveAgentExecutionConfig(agentId: string): {
     agentDir: record?.agentDir,
     provider: providerFromModel(model),
     backupProvider: providerFromModel(backupModel),
+    runtime: resolveAgentRuntime(agentId, identityRuntime),
   }
 }
 
@@ -896,6 +902,10 @@ export async function withTemporaryAgentAuthProfiles<T>(
   fn: () => Promise<T>,
   options: AgentAuthProfileOptions = {}
 ): Promise<T> {
+  // Non-openclaw runtimes don't use ~/.openclaw's auth-profiles.json / openclaw.json / session
+  // stores at all — everything below this line is openclaw-CLI-specific plumbing.
+  if (options.runtime && options.runtime !== 'openclaw') return await fn()
+
   const execution = resolveAgentExecutionConfig(agentId)
   const configPath = path.join(process.env.HOME || '', '.openclaw', 'openclaw.json')
   const hadConfig = fs.existsSync(configPath)

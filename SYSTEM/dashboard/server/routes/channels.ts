@@ -21,10 +21,16 @@ import {
 import { readWorkspaceIntegrationConfig } from '../lib/workspace-integrations'
 import { hasWorkspaceManagedPartnerSecrets } from '../lib/workspace-integrations'
 import { getAuthenticatedSession } from '../lib/github-auth'
+import { buildRuntimePlan, readAgentIdentitySystemPrompt, runRuntimeCli } from '../lib/agent-runtime'
+import { hasRuntimeSession } from '../lib/runtime-sessions'
 import { deriveChatError } from './chat'
 import { createBrokerCapabilityToken } from '../lib/skill-secret-broker'
 
 const router = Router()
+
+// claude/droid CLI turnaround runs noticeably slower than openclaw's local gateway path
+// (droid-probe.md: single-turn calls observed at 5.6s-33s even for trivial replies).
+const NON_OPENCLAW_CALL_AGENT_TIMEOUT_MS = 120000
 
 const CHANNEL_RUNTIME_ERROR_PATTERN = /FsSafeError: directory changed during operation|(?:Unknown|Unsupported) model:|No API key found for provider|Incorrect API key provided|has auth issue \(skipping all models\)|insufficient_quota|quota exceeded|rate limit|too many requests|429\b|is in cooldown \(suspending lanes\)|EmbeddedAttemptSessionTakeoverError|session file changed while embedded prompt lock was released|All models failed|No API keys available|No execution path configured|gateway|timeout|n_keep:\s*\d+\s*>=\s*n_ctx:\s*\d+/i
 
@@ -331,7 +337,7 @@ router.delete('/groups/:name', (req, res) => {
 })
 
 /** Call an agent with a message and return the response */
-async function callAgent(
+export async function callAgent(
   agentId: string,
   message: string,
   sessionId: string,
@@ -360,6 +366,59 @@ async function callAgent(
     executionEnv.CLAWMAX_SECRET_BROKER_URL = `http://127.0.0.1:${process.env.DASHBOARD_PORT || '3001'}/api/runtime/skill-broker/execute`
   }
   const effectiveSessionId = scopeSessionIdToModel(sessionId, resolvedAgent.model)
+
+  if (resolvedAgent.runtime !== 'openclaw') {
+    return runExclusiveAgentExecution(agentId, () => withTemporaryAgentAuthProfiles(agentId, {
+      openai: executionEnv.OPENAI_API_KEY,
+      anthropic: executionEnv.ANTHROPIC_API_KEY,
+      gemini: executionEnv.GEMINI_API_KEY,
+      ollamaBaseUrl: executionEnv.OLLAMA_BASE_URL,
+      openaiCompatibleApiKey: useOpenAiCompatible ? executionEnv.OPENAI_API_KEY : undefined,
+      openaiCompatibleBaseUrl: useOpenAiCompatible ? executionEnv.OPENAI_BASE_URL : undefined,
+      openaiCompatibleDefaultModel: useOpenAiCompatible ? (byokKeys?.openaiCompatibleDefaultModel || integrationConfig.openaiCompatibleDefaultModel) : undefined,
+    }, resolvedAgent.model, resolvedAgent.provider, async () => {
+      const agentDir = resolvedAgent.workspace || path.join(getWorkspacePath(), 'AGENTS', agentId)
+      const systemPrompt = readAgentIdentitySystemPrompt(agentDir)
+      const rebuildPlan = (resume: boolean) => buildRuntimePlan({
+        runtime: resolvedAgent.runtime,
+        mode: 'json',
+        agentId,
+        scopedSessionId: effectiveSessionId,
+        message,
+        model: resolvedAgent.model,
+        agentDir,
+        systemPrompt,
+        resume,
+      })
+      const plan = rebuildPlan(hasRuntimeSession(resolvedAgent.runtime, agentId, effectiveSessionId))
+      const { text, errorText } = await runRuntimeCli({
+        plan,
+        env: executionEnv,
+        timeoutMs: NON_OPENCLAW_CALL_AGENT_TIMEOUT_MS,
+        rebuildPlan,
+        runtime: resolvedAgent.runtime,
+        mode: 'json',
+        agentId,
+        scopedSessionId: effectiveSessionId,
+      })
+      if (errorText) {
+        throw new Error(errorText === 'timeout' ? 'Agent timeout' : errorText)
+      }
+      const responseText = normalizeChatMessage(text)
+      if (responseText) {
+        traceAgentChat(agentId, message, responseText, {
+          model: resolvedAgent.model,
+          provider: resolvedAgent.provider || undefined,
+          actorUserId: actor?.userId,
+          actorLogin: actor?.login,
+          actorEmail: actor?.email,
+          dashboardInstanceId: getConfiguredDashboardInstanceId(),
+        })
+      }
+      return responseText
+    }, { persistAuthProfiles: true, runtime: resolvedAgent.runtime }))
+  }
+
   const gatewayRunning = (
     resolvedAgent.provider === 'ollama' || resolvedAgent.provider === 'openai-compatible'
   )
