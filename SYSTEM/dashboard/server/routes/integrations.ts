@@ -16,7 +16,7 @@ import { safeEnv } from '../lib/safe-env'
 import { getDashboardDeploymentKind, getDashboardEnvRaw, isOllamaUiEnabled } from '../lib/dashboard-env'
 import { getAuthenticatedSession } from '../lib/github-auth'
 import { getWorkspaceResendApiKey, resolveResendTestRecipient, sendResendTestEmail } from '../lib/resend-partner'
-import { detectRuntimeStatuses, normalizeAgentRuntime, resolveEnabledRuntimes, resolveWorkspaceRuntime } from '../lib/agent-runtime'
+import { detectRuntimeStatuses, listRuntimeModels, normalizeAgentRuntime, resolveEnabledRuntimes, resolveWorkspaceRuntime } from '../lib/agent-runtime'
 
 const router = Router()
 
@@ -53,8 +53,14 @@ router.get('/github-status', (_req, res) => {
 
 router.get('/runtimes', (_req, res) => {
   const workspaceDefault = resolveWorkspaceRuntime()
+  const statuses = detectRuntimeStatuses(workspaceDefault)
   res.json({
-    runtimes: detectRuntimeStatuses(workspaceDefault),
+    // models[] is the runtime CLI's own catalog, empty when it cannot be enumerated. The agent
+    // editor uses it so a runtime-pinned agent picks a name that runtime actually accepts.
+    runtimes: statuses.map((status) => ({
+      ...status,
+      models: status.installed ? listRuntimeModels(status.id) : [],
+    })),
     workspaceDefault,
     // Resolved (effective) enabled set — workspace config, or the WORKSPACES_INTEGRATIONS_RUNTIMES
     // env default when the workspace has no config. The client uses this so its checkboxes and its

@@ -521,3 +521,59 @@ export async function executeAgentRuntimeTurn(o: AgentRuntimeTurnOptions): Promi
   })
   return { text, errorText }
 }
+
+// ── Model catalog per runtime ──
+//
+// The agent editor's Model dropdown is populated from provider APIs (OpenAI, Anthropic, ...),
+// whose identifiers do not always match what a runtime CLI accepts. Droid, for example, rejects
+// `claude-sonnet-4-5` but accepts `claude-sonnet-4-5-20250929` for the same model. Pinning an
+// agent to a runtime should therefore offer that runtime's own catalog, not the provider list.
+//
+// Droid has no "list models" command, but naming an unknown model makes it print its built-in
+// catalog and exit immediately (~1s), so that is the probe. Results are cached; an unavailable
+// or unparseable CLI yields an empty list, which callers treat as "cannot enumerate — allow
+// anything" rather than "no models exist".
+const RUNTIME_MODEL_CACHE_TTL_MS = 10 * 60 * 1000
+const runtimeModelCache = new Map<AgentRuntimeId, { models: string[]; expiresAt: number }>()
+
+function probeDroidModels(cliPath: string): string[] {
+  let output = ''
+  try {
+    output = String(execFileSync(cliPath, ['exec', 'x', '-m', '__clawmax_model_probe__'], {
+      encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      timeout: 20000,
+      windowsHide: true,
+      env: safeEnv(),
+    }) || '')
+  } catch (err: any) {
+    // Naming an unknown model is an error exit; the catalog is on stdout/stderr.
+    output = String(err?.stdout || '') + String(err?.stderr || '')
+  }
+  const marker = output.indexOf('Available built-in models:')
+  if (marker === -1) return []
+  return output
+    .slice(marker + 'Available built-in models:'.length)
+    .split('\n')
+    .slice(0, 2)
+    .join(' ')
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter((entry) => /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(entry))
+}
+
+/** Models a runtime CLI accepts, or [] when the catalog cannot be enumerated. */
+export function listRuntimeModels(runtime: AgentRuntimeId): string[] {
+  if (runtime === 'openclaw') return []
+  const cached = runtimeModelCache.get(runtime)
+  if (cached && cached.expiresAt > Date.now()) return cached.models
+
+  const cliPath = resolveRuntimeCliPath(runtime)
+  let models: string[] = []
+  if (cliPath && runtime === 'droid') models = probeDroidModels(cliPath)
+  // Claude Code takes any Anthropic model id and has no enumerable catalog; runtimeModelArg()
+  // already rejects non-Anthropic models, so leave this empty and let the provider list stand.
+
+  runtimeModelCache.set(runtime, { models, expiresAt: Date.now() + RUNTIME_MODEL_CACHE_TTL_MS })
+  return models
+}
