@@ -10,7 +10,7 @@ import { normalizeAgentModelInput, readAgentModelFromConfigFile, restoreAgentMod
 import { resetAgentSessionsForModelChange } from './agent-model'
 import { resolveDefaultAgentModel } from './agent-default-model'
 import { getAvailableModelsCached } from './model-discovery'
-import { resolveAgentRuntime, type AgentRuntimeId } from './agent-runtime'
+import { isPinnedRuntimeDisabled, resolveAgentRuntime, type AgentRuntimeId } from './agent-runtime'
 
 interface OpenClawAgentRecord {
   id: string
@@ -272,6 +272,8 @@ export function resolveAgentExecutionConfig(agentId: string): {
   provider?: ExecutionProvider
   backupProvider?: ExecutionProvider
   runtime: AgentRuntimeId
+  /** Set when IDENTITY.md pins a CLI runtime that is not currently enabled. */
+  disabledPinnedRuntime?: AgentRuntimeId
 } {
   const activeWorkspaceAgentDir = path.join(getWorkspacePath(), 'AGENTS', agentId)
   const record = readOpenClawAgentRecord(agentId, activeWorkspaceAgentDir)
@@ -326,6 +328,9 @@ export function resolveAgentExecutionConfig(agentId: string): {
     provider: providerFromModel(model),
     backupProvider: providerFromModel(backupModel),
     runtime: resolveAgentRuntime(agentId, identityRuntime),
+    // Pin as written in IDENTITY.md, even when it is not currently enabled — lets callers
+    // explain a silent fallback to openclaw instead of reporting a provider-key problem.
+    disabledPinnedRuntime: isPinnedRuntimeDisabled(identityRuntime),
   }
 }
 
