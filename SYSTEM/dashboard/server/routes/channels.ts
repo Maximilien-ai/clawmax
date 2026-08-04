@@ -21,7 +21,7 @@ import {
 import { readWorkspaceIntegrationConfig } from '../lib/workspace-integrations'
 import { hasWorkspaceManagedPartnerSecrets } from '../lib/workspace-integrations'
 import { getAuthenticatedSession } from '../lib/github-auth'
-import { buildRuntimePlan, readAgentIdentitySystemPrompt, runRuntimeCli } from '../lib/agent-runtime'
+import { executeAgentRuntimeTurn } from '../lib/agent-runtime'
 import { hasRuntimeSession } from '../lib/runtime-sessions'
 import { deriveChatError } from './chat'
 import { createBrokerCapabilityToken } from '../lib/skill-secret-broker'
@@ -368,39 +368,19 @@ export async function callAgent(
   const effectiveSessionId = scopeSessionIdToModel(sessionId, resolvedAgent.model)
 
   if (resolvedAgent.runtime !== 'openclaw') {
-    return runExclusiveAgentExecution(agentId, () => withTemporaryAgentAuthProfiles(agentId, {
-      openai: executionEnv.OPENAI_API_KEY,
-      anthropic: executionEnv.ANTHROPIC_API_KEY,
-      gemini: executionEnv.GEMINI_API_KEY,
-      ollamaBaseUrl: executionEnv.OLLAMA_BASE_URL,
-      openaiCompatibleApiKey: useOpenAiCompatible ? executionEnv.OPENAI_API_KEY : undefined,
-      openaiCompatibleBaseUrl: useOpenAiCompatible ? executionEnv.OPENAI_BASE_URL : undefined,
-      openaiCompatibleDefaultModel: useOpenAiCompatible ? (byokKeys?.openaiCompatibleDefaultModel || integrationConfig.openaiCompatibleDefaultModel) : undefined,
-    }, resolvedAgent.model, resolvedAgent.provider, async () => {
-      const agentDir = resolvedAgent.workspace || path.join(getWorkspacePath(), 'AGENTS', agentId)
-      const systemPrompt = readAgentIdentitySystemPrompt(agentDir)
-      const rebuildPlan = (resume: boolean) => buildRuntimePlan({
+    return runExclusiveAgentExecution(agentId, async () => {
+      const { text, errorText, missingCliError } = await executeAgentRuntimeTurn({
         runtime: resolvedAgent.runtime,
-        mode: 'json',
         agentId,
-        scopedSessionId: effectiveSessionId,
+        agentDir: resolvedAgent.workspace || path.join(getWorkspacePath(), 'AGENTS', agentId),
         message,
+        scopedSessionId: effectiveSessionId,
         model: resolvedAgent.model,
-        agentDir,
-        systemPrompt,
-        resume,
-      })
-      const plan = rebuildPlan(hasRuntimeSession(resolvedAgent.runtime, agentId, effectiveSessionId))
-      const { text, errorText } = await runRuntimeCli({
-        plan,
+        mode: 'json',
         env: executionEnv,
         timeoutMs: NON_OPENCLAW_CALL_AGENT_TIMEOUT_MS,
-        rebuildPlan,
-        runtime: resolvedAgent.runtime,
-        mode: 'json',
-        agentId,
-        scopedSessionId: effectiveSessionId,
       })
+      if (missingCliError) throw new Error(missingCliError)
       if (errorText) {
         throw new Error(errorText === 'timeout' ? 'Agent timeout' : errorText)
       }
@@ -416,7 +396,7 @@ export async function callAgent(
         })
       }
       return responseText
-    }, { persistAuthProfiles: true, runtime: resolvedAgent.runtime }))
+    })
   }
 
   const gatewayRunning = (

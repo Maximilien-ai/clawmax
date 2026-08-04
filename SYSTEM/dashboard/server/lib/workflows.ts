@@ -24,7 +24,7 @@ import { readWorkspaceIntegrationConfig } from './workspace-integrations'
 import { hasWorkspaceManagedPartnerSecrets } from './workspace-integrations'
 import { resolveOpenClawCliPath } from './openclaw-cli'
 import { createBrokerCapabilityToken } from './skill-secret-broker'
-import { buildRuntimePlan, readAgentIdentitySystemPrompt, runRuntimeCli } from './agent-runtime'
+import { executeAgentRuntimeTurn } from './agent-runtime'
 import { hasRuntimeSession } from './runtime-sessions'
 
 // Use dynamic workspace path to support multi-workspace
@@ -2072,50 +2072,24 @@ export function triggerWorkflow(workflowId: string, options?: {
               }
 
               const runtimeSessionId = buildWorkflowSessionId(executionId, participant.agentId)
-              return await new Promise<string>((resolve, reject) => {
-                withTemporaryAgentAuthProfiles(participant.agentId, {
-                  openai: useRuntimeOpenAiCompatible ? undefined : runtimeExecutionEnv.OPENAI_API_KEY,
-                  anthropic: runtimeExecutionEnv.ANTHROPIC_API_KEY,
-                  gemini: runtimeExecutionEnv.GEMINI_API_KEY,
-                  openaiCompatibleApiKey: useRuntimeOpenAiCompatible ? runtimeExecutionEnv.OPENAI_API_KEY : undefined,
-                  openaiCompatibleBaseUrl: useRuntimeOpenAiCompatible ? runtimeExecutionEnv.OPENAI_BASE_URL : undefined,
-                  openaiCompatibleDefaultModel: useRuntimeOpenAiCompatible
-                    ? (options?.byok?.openaiCompatibleDefaultModel || integrationDefaults.openaiCompatibleDefaultModel || resolvedAgent.model)
-                    : undefined,
-                }, resolvedAgent.model, resolvedAgent.provider, async () => {
-                  const agentDir = resolvedAgent.workspace || path.join(getWorkspacePath(), 'AGENTS', participant.agentId)
-                  const systemPrompt = readAgentIdentitySystemPrompt(agentDir)
-                  const timeoutMs = getWorkflowAgentTimeoutMs()
-                  const startedAt = Date.now()
-                  const rebuildPlan = (resume: boolean) => buildRuntimePlan({
-                    runtime: resolvedAgent.runtime,
-                    mode: 'json',
-                    agentId: participant.agentId,
-                    scopedSessionId: runtimeSessionId,
-                    message: executionMessage,
-                    model: resolvedAgent.model,
-                    agentDir,
-                    systemPrompt,
-                    resume,
-                  })
-                  const plan = rebuildPlan(hasRuntimeSession(resolvedAgent.runtime, participant.agentId, runtimeSessionId))
-                  const { text, errorText } = await runRuntimeCli({
-                    plan,
-                    env: runtimeExecutionEnv,
-                    timeoutMs,
-                    rebuildPlan,
-                    runtime: resolvedAgent.runtime,
-                    mode: 'json',
-                    agentId: participant.agentId,
-                    scopedSessionId: runtimeSessionId,
-                  })
-                  if (errorText) {
-                    reject(new Error(errorText === 'timeout' ? formatWorkflowAgentTimeoutMessage(timeoutMs) : errorText))
-                    return
-                  }
-                  resolve({ text, meta: {}, durationMs: Date.now() - startedAt } as any)
-                }, { persistAuthProfiles: true, runtime: resolvedAgent.runtime }).catch(reject)
+              const timeoutMs = getWorkflowAgentTimeoutMs()
+              const startedAt = Date.now()
+              const { text, errorText, missingCliError } = await executeAgentRuntimeTurn({
+                runtime: resolvedAgent.runtime,
+                agentId: participant.agentId,
+                agentDir: resolvedAgent.workspace || path.join(getWorkspacePath(), 'AGENTS', participant.agentId),
+                message: executionMessage,
+                scopedSessionId: runtimeSessionId,
+                model: resolvedAgent.model,
+                mode: 'json',
+                env: runtimeExecutionEnv,
+                timeoutMs,
               })
+              if (missingCliError) throw new Error(missingCliError)
+              if (errorText) {
+                throw new Error(errorText === 'timeout' ? formatWorkflowAgentTimeoutMessage(timeoutMs) : errorText)
+              }
+              return { text, meta: {}, durationMs: Date.now() - startedAt } as any
             }
 
             const openclawCliPath = resolveWorkflowOpenClawCliPath()
