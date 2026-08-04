@@ -23,7 +23,7 @@ import {
   type AgentModelSelectionMode,
   upsertAgentRuntimeInIdentityContent,
 } from '../lib/agent-model'
-import { AGENT_RUNTIME_IDS, detectRuntimeStatuses, executeAgentRuntimeTurn, normalizeAgentRuntime, resolveWorkspaceRuntime } from '../lib/agent-runtime'
+import { AGENT_RUNTIME_IDS, detectRuntimeStatuses, executeAgentRuntimeTurn, listRuntimeModels, normalizeAgentRuntime, resolveWorkspaceRuntime } from '../lib/agent-runtime'
 import { hasRuntimeSession } from '../lib/runtime-sessions'
 import { appendRuntimeTranscriptExchange, clearRuntimeTranscript, getLatestRuntimeTranscriptSessionId, hasRuntimeTranscripts, readRuntimeTranscript, readRuntimeTranscriptAsArchiveLines } from '../lib/runtime-transcripts'
 import { validateAgentCostLimit } from '../lib/budget'
@@ -732,9 +732,14 @@ router.post('/validate-provision', async (req, res) => {
     }
   }
 
+  // A runtime-pinned agent draws its model from that CLI's catalog, not the provider APIs.
+  // Without this the review step warns that a perfectly valid droid model "is not currently
+  // advertised" and may fall back — which is wrong and alarming.
+  const pinnedRuntime = normalizeAgentRuntime(typeof body.runtime === 'string' ? body.runtime : undefined)
+  const runtimeModels = pinnedRuntime ? await listRuntimeModels(pinnedRuntime) : []
   const result = validateProvisionInput(body || {}, {
     existingAgentIds: listAgents().map(agent => agent.id),
-    availableModels,
+    availableModels: runtimeModels.length > 0 ? [...availableModels, ...runtimeModels] : availableModels,
   })
   res.json(result)
 })
@@ -794,7 +799,7 @@ router.post('/models/refresh', async (req, res) => {
 })
 
 // POST /api/agents/provision — spawn setup.sh and stream output via SSE
-router.post('/provision', (req, res) => {
+router.post('/provision', async (req, res) => {
   const { name, model, backupModel, whatsapp, port, profile, cloneFrom, templateSlug, generatedFiles, tags, aiDescription, skills, modelSelection, modelPreference, runtime } = req.body as {
     name?: string
     model?: string
@@ -832,9 +837,11 @@ router.post('/provision', (req, res) => {
     return
   }
 
+  const provisionRuntime = normalizeAgentRuntime(runtime)
+  const provisionRuntimeModels = provisionRuntime ? await listRuntimeModels(provisionRuntime) : []
   const inputValidation = validateProvisionInput({ ...(req.body || {}), model: resolvedModel }, {
     existingAgentIds: listAgents().map(agent => agent.id),
-    availableModels: getAvailableModels(),
+    availableModels: [...getAvailableModels(), ...provisionRuntimeModels],
   })
 
   if (!inputValidation.valid) {
