@@ -166,7 +166,16 @@ export default function AgentDetailPanel({
   const fetchActivity = useCallback(() => {
     fetch(`/api/agents/${agent.id}/activity`)
       .then(r => r.json())
-      .then(d => { setActivity(d); setLoading(false); setLastRefreshed(Date.now()) })
+      .then(d => {
+        // The route answers errors with { error } (e.g. "Agent not found" right after a failed
+        // provision, or when the workspace path moves). Storing that shape crashed the panel on
+        // the first activity.recentFiles.map() below and white-screened the whole page.
+        setActivity(d && typeof d === 'object' && !d.error
+          ? { ...d, recentFiles: Array.isArray(d.recentFiles) ? d.recentFiles : [] }
+          : null)
+        setLoading(false)
+        setLastRefreshed(Date.now())
+      })
       .catch(() => setLoading(false))
   }, [agent.id])
 
@@ -466,7 +475,7 @@ export default function AgentDetailPanel({
               {/* Recent file activity */}
               <Section title="Recent activity" source={relDir + '/'}>
                 <ul className="space-y-1">
-                  {activity.recentFiles.map(f => (
+                  {(activity.recentFiles || []).map(f => (
                     <li key={f.name} className="flex items-center justify-between text-sm">
                       <button
                         type="button"
