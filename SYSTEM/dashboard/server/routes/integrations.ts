@@ -51,16 +51,16 @@ router.get('/github-status', (_req, res) => {
   res.json({ ready, checks, mode: getGitHubAuthMode() })
 })
 
-router.get('/runtimes', (_req, res) => {
+router.get('/runtimes', async (_req, res) => {
   const workspaceDefault = resolveWorkspaceRuntime()
   const statuses = detectRuntimeStatuses(workspaceDefault)
   res.json({
     // models[] is the runtime CLI's own catalog, empty when it cannot be enumerated. The agent
     // editor uses it so a runtime-pinned agent picks a name that runtime actually accepts.
-    runtimes: statuses.map((status) => ({
+    runtimes: await Promise.all(statuses.map(async (status) => ({
       ...status,
-      models: status.installed ? listRuntimeModels(status.id) : [],
-    })),
+      models: status.installed ? await listRuntimeModels(status.id) : [],
+    }))),
     workspaceDefault,
     // Resolved (effective) enabled set — workspace config, or the WORKSPACES_INTEGRATIONS_RUNTIMES
     // env default when the workspace has no config. The client uses this so its checkboxes and its
