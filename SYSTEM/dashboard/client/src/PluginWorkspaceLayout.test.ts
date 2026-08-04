@@ -82,6 +82,8 @@ assert(pluginPageSource.includes('applyOptimizeAssistantText'), 'Optimize AI ass
 assert(pluginPageSource.includes('OPTIMIZE_AI_TUNING_EXPANDED_STORAGE_KEY'), 'Optimize AI tuning expansion must persist in the current browser')
 assert(pluginPageSource.includes('lg:col-span-2'), 'Optimize AI tuning must occupy the full editor width above manual controls')
 assert(pluginPageSource.includes('suggestionTemplates={filteredSuggestions}'), 'Suggested Optimize graphs must consume the visible suggestion templates directly')
+assert(pluginPageSource.includes('Select {subjectType}'), 'Suggested Lifecycle relationships must expose a direct target-selection action')
+assert(pluginPageSource.includes('onClick={(event) => {\n                      event.stopPropagation()\n                      onOpen(suggestion.id)\n                    }}'), 'Lifecycle target-selection action must open the selected suggestion without submitting it')
 assert(pluginPageSource.includes('No suggested plans match the current search and filters.'), 'Suggested Optimize graphs must explain a genuinely empty filtered result')
 assert(pluginPageSource.includes('aria-pressed={selectedId === item.id}'), 'Optimize graph plans must expose their locked selected state')
 assert(pluginPageSource.includes("isMuted ? 'opacity-10'"), 'Optimize graph edges unrelated to the selected plan must be muted')

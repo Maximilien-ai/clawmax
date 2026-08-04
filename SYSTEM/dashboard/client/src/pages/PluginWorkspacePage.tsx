@@ -3672,10 +3672,14 @@ function LifecycleRelationshipGraph({
             const timeWindow = String(suggestion.fields.timeWindow || '7-days')
             const selected = selectedId === suggestion.id
             return (
-              <button
+              <div
                 key={suggestion.id}
-                type="button"
                 onClick={() => onOpen(suggestion.id)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') onOpen(suggestion.id)
+                }}
+                role="button"
+                tabIndex={0}
                 aria-pressed={selected}
                 className={`rounded-lg border p-4 text-left transition-colors ${selected ? 'border-sky-500 bg-sky-50 ring-2 ring-sky-100 dark:bg-sky-950/30 dark:ring-sky-900/40' : 'border-gray-200 hover:border-sky-300 dark:border-gray-700 dark:hover:border-sky-700'}`}
               >
@@ -3689,9 +3693,18 @@ function LifecycleRelationshipGraph({
                 </div>
                 <div className="mt-3 flex items-center justify-between gap-3 text-xs text-gray-500 dark:text-gray-400">
                   <span>{timeWindow.replaceAll('-', ' ')}</span>
-                  <span className="rounded-md border border-dashed border-gray-300 px-2 py-1 dark:border-gray-600">Select {subjectType}s</span>
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      onOpen(suggestion.id)
+                    }}
+                    className={`${headerPrimaryButtonClass} px-2.5 py-1 text-xs`}
+                  >
+                    Select {subjectType}
+                  </button>
                 </div>
-              </button>
+              </div>
             )
           })}
         </div>
