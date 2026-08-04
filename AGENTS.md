@@ -9,6 +9,10 @@
 - Keep the subject concise and describe the user-visible or engineering outcome.
 - Do not publish an unprefixed commit subject. Check the proposed subject before
   committing, especially for release-candidate work pushed directly to `main`.
+- Keep commits focused by concern: separate dependency/security remediation,
+  product behavior, tests, documentation, and release metadata when they can
+  be reviewed or reverted independently. Push each focused commit so CI
+  identifies the exact change that introduced or fixed a failure.
 
 ## Repository Ownership
 
