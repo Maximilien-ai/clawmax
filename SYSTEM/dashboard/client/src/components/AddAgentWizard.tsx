@@ -401,6 +401,9 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
           ...byokForRequest(),
           name: form.name,
           model: form.model,
+          // Tell the validator which CLI will run this agent, so a model from that CLI's own
+          // catalog isn't reported as "not currently advertised" by the provider APIs.
+          runtime: runtime !== 'default' && runtime !== 'openclaw' ? runtime : undefined,
           cloneFrom: form.cloneFrom || undefined,
           templateSlug: form.templateSlug || undefined,
           whatsapp: form.whatsapp || undefined,
@@ -607,6 +610,9 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
   const preview = {
     name: form.name || suggested?.id || '…',
     model: form.model,
+    ...(runtime !== 'default' && runtime !== 'openclaw'
+      ? { runtime: runtimeCatalog.find((rt) => rt.id === runtime)?.label || runtime }
+      : {}),
     ...(form.cloneFrom ? { clone_from: form.cloneFrom } : {}),
     ...(form.whatsapp ? { whatsapp: form.whatsapp } : {}),
     port: form.port !== '' ? form.port : suggested?.port ?? '…',
