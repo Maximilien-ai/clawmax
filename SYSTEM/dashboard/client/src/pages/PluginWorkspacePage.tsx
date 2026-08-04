@@ -3555,6 +3555,7 @@ function LifecycleRelationshipGraph({
   suggestionTemplates,
   context,
   onOpen,
+  onApplySuggestion,
   selectedId,
 }: {
   plugin: PluginManifest
@@ -3562,6 +3563,7 @@ function LifecycleRelationshipGraph({
   suggestionTemplates?: PluginRecordTemplate[]
   context: PluginWorkspaceContext
   onOpen: (id: string) => void
+  onApplySuggestion?: (templateId: string) => void
   selectedId?: string | null
 }) {
   const [zoom, setZoom] = useState(1)
@@ -3697,9 +3699,10 @@ function LifecycleRelationshipGraph({
                     type="button"
                     onClick={(event) => {
                       event.stopPropagation()
-                      onOpen(suggestion.id)
+                      if (onApplySuggestion) onApplySuggestion(suggestion.id.replace(/^suggested:/, ''))
+                      else onOpen(suggestion.id)
                     }}
-                    className={`${headerPrimaryButtonClass} px-2.5 py-1 text-xs`}
+                    className={`${headerSecondaryButtonClass} ${headerSecondaryButtonIdleClass} !px-2 !py-1 text-xs`}
                   >
                     Select {subjectType}
                   </button>
@@ -3821,6 +3824,7 @@ function PluginRelationshipView({
   suggestionTemplates,
   context,
   onOpen,
+  onApplySuggestion,
   onRun,
   onOpenScore,
   onAssignTarget,
@@ -3835,6 +3839,7 @@ function PluginRelationshipView({
   suggestionTemplates?: PluginRecordTemplate[]
   context: PluginWorkspaceContext
   onOpen: (id: string) => void
+  onApplySuggestion?: (templateId: string) => void
   onRun?: (id: string) => void
   onOpenScore?: (id: string) => void
   onAssignTarget?: (id: string) => void
@@ -3845,7 +3850,7 @@ function PluginRelationshipView({
   heading?: string
 }) {
   if (plugin.objectKind === 'lifecycle-view') {
-    return <LifecycleRelationshipGraph plugin={plugin} items={items} suggestionTemplates={suggestionTemplates} context={context} onOpen={onOpen} selectedId={selectedId} />
+    return <LifecycleRelationshipGraph plugin={plugin} items={items} suggestionTemplates={suggestionTemplates} context={context} onOpen={onOpen} onApplySuggestion={onApplySuggestion} selectedId={selectedId} />
   }
   if (plugin.objectKind === 'optimization-plan') {
     return <OptimizeRelationshipGraph items={items} suggestionTemplates={suggestionTemplates} context={context} onOpen={onOpen} selectedId={selectedId} />
@@ -5131,6 +5136,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                 items={filtered}
                 context={context}
                 onOpen={setSelectedItemId}
+                onApplySuggestion={(templateId) => void applyTemplate(templateId)}
                 onRun={(itemId) => void callItemAction(itemId, 'run')}
                 onOpenScore={setScoreReviewItemId}
                 onAssignTarget={(itemId) => {
