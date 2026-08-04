@@ -44,6 +44,7 @@ const originalEnv = {
   OPENCLAW_WORKSPACE: process.env.OPENCLAW_WORKSPACE,
   CLAWMAX_TEST_WORKSPACE: process.env.CLAWMAX_TEST_WORKSPACE,
   RESEND_API_KEY: process.env.RESEND_API_KEY,
+  FACTORY_API_KEY: process.env.FACTORY_API_KEY,
 }
 
 function restoreEnv() {
@@ -307,6 +308,12 @@ test('safeEnv forwards runtime-managed Resend key to agent tool processes', () =
 
   const env = safeEnv()
   assert(env.RESEND_API_KEY === 're_runtime_1234567890', 'Expected runtime Resend API key to reach child env')
+})
+
+test('safeEnv forwards FACTORY_API_KEY to agent tool processes (droid runtime auth)', () => {
+  process.env.FACTORY_API_KEY = 'factory_test_1234567890'
+  const env = safeEnv()
+  assert(env.FACTORY_API_KEY === 'factory_test_1234567890', 'Expected FACTORY_API_KEY to reach child env')
 })
 
 setTimeout(() => {

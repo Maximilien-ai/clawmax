@@ -11,6 +11,7 @@ import { getConfiguredGatewayPort, isGatewayConfigured, isGatewayRunning } from 
 import { getDashboardEnvRaw, getSystemProviderKeys, getUserDefaultProviderKeys, isManagedRuntime } from './dashboard-env'
 import { getWorkspaceGitHubToken, readWorkspaceIntegrationConfig } from './workspace-integrations'
 import { getSkillById, listAvailableSkills } from './skills'
+import { detectRuntimeStatuses, resolveWorkspaceRuntime } from './agent-runtime'
 
 export interface PrereqCheck {
   id: string
@@ -281,6 +282,22 @@ export function checkTemplatePrereqs(template: {
     }
   } else {
     checks.push({ id: 'gateway', label: 'Gateway', status: 'warn', message: 'Not configured — agents will chat but cannot use skills', fixHint: 'Run: openclaw config set gateway.mode local && openclaw gateway restart', category: 'infrastructure' })
+  }
+
+  // Non-openclaw agent runtimes (claude / droid) — informational only. OpenClaw remains the
+  // default runtime and the check above already gates readiness for it.
+  for (const status of detectRuntimeStatuses(resolveWorkspaceRuntime())) {
+    if (status.id === 'openclaw') continue
+    checks.push({
+      id: `${status.id}-cli`,
+      label: status.label,
+      status: status.installed ? 'pass' : 'warn',
+      message: status.installed
+        ? `Installed${status.version ? ` (${status.version})` : ''}`
+        : 'Not installed — only needed if agents are pinned to this runtime',
+      fixHint: status.installed ? undefined : status.installHint,
+      category: 'infrastructure',
+    })
   }
 
   // ── API Keys ──

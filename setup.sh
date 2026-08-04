@@ -540,6 +540,36 @@ fi
 echo ""
 
 # ============================================================================
+# Agent Runtimes (Claude Code / Factory Droid) — optional, non-fatal
+# ============================================================================
+
+print_header "Agent Runtimes (Claude Code / Factory Droid)"
+
+echo "  OpenClaw is ClawMax's default agent runtime. Claude Code and Factory"
+echo "  Droid are optional per-agent runtimes — pin one per agent later in the"
+echo "  agent editor, or set a workspace default in Integrations > Runtime."
+echo "  setup.sh only reports what's detected here; it does not install them."
+echo ""
+
+if command -v claude &> /dev/null; then
+  print_success "Claude Code CLI: $(claude --version 2>&1 | head -1)"
+else
+  print_info "Claude Code CLI not found (optional)"
+  echo "    Install later: npm install -g @anthropic-ai/claude-code"
+  echo "    Or set CLAUDE_BIN to an existing installation's path"
+fi
+
+if command -v droid &> /dev/null; then
+  print_success "Factory Droid CLI: $(droid --version 2>&1 | head -1)"
+else
+  print_info "Factory Droid CLI not found (optional)"
+  echo "    Install later: curl -fsSL https://app.factory.ai/cli | sh"
+  echo "    Or set DROID_BIN to an existing installation's path"
+fi
+
+echo ""
+
+# ============================================================================
 # 3. Mode Selection
 # ============================================================================
 
@@ -1018,6 +1048,7 @@ fi
 
 echo -e "  ${BOLD}Documentation:${NC}"
 echo "    README:           ./README.md"
+echo "    Agent Runtimes:   ./README.md (see \"Agent Runtimes\" section)"
 echo "    Known Issues:     ./SYSTEM/docs/KNOWN_ISSUES.md"
 echo "    Testing Guide:    ./SYSTEM/docs/TESTING_GUIDE.md"
 echo "    OAuth Setup:      ./SYSTEM/docs/OAUTH_SETUP.md"

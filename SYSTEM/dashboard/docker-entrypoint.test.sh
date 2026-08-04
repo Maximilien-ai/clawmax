@@ -68,6 +68,23 @@ chmod +x "$TMP_DIR/fake-node/node"
 cp "$TMP_DIR/fake-node/node" "$NODE_ONLY_BIN_DIR/node"
 chmod +x "$NODE_ONLY_BIN_DIR/node"
 
+CLAUDE_ONLY_BIN_DIR="$TMP_DIR/claude-only-bin"
+EMPTY_BIN_DIR="$TMP_DIR/empty-bin"
+mkdir -p "$CLAUDE_ONLY_BIN_DIR" "$EMPTY_BIN_DIR"
+cat > "$CLAUDE_ONLY_BIN_DIR/claude" <<'EOF'
+#!/bin/sh
+echo "claude-test"
+EOF
+chmod +x "$CLAUDE_ONLY_BIN_DIR/claude"
+
+DROID_BIN_OVERRIDE="$TMP_DIR/droid-override/droid"
+mkdir -p "$(dirname "$DROID_BIN_OVERRIDE")"
+cat > "$DROID_BIN_OVERRIDE" <<'EOF'
+#!/bin/sh
+echo "droid-test"
+EOF
+chmod +x "$DROID_BIN_OVERRIDE"
+
 assert_contains() {
   needle="$1"
   file="$2"
@@ -152,6 +169,36 @@ if CLAWMAX_RUNTIME_PACKAGE_JSON="$TMP_DIR/package-old.json" CLAWMAX_VERSION="v1.
   echo "Expected mismatched runtime package version to fail verification" >&2
   exit 1
 fi
+
+# ensure_openclaw_cli: openclaw is optional as long as another agent runtime
+# CLI (claude/droid, on PATH or via CLAUDE_BIN/DROID_BIN) is available — warn,
+# don't hard-fail.
+WARN_LOG="$TMP_DIR/ensure-openclaw-warn.log"
+if ! PATH="$CLAUDE_ONLY_BIN_DIR" HOME="$TMP_DIR/home" OPENCLAW_WORKSPACE="$TMP_DIR/workspace" CLAWMAX_ENTRYPOINT_TEST_MODE=true /bin/sh -c '. "$1"; ensure_openclaw_cli' _ "$SCRIPT" 2>"$WARN_LOG"; then
+  echo "Expected ensure_openclaw_cli to succeed (not exit) when a claude CLI is on PATH" >&2
+  cat "$WARN_LOG" >&2
+  exit 1
+fi
+assert_contains "WARNING" "$WARN_LOG"
+
+: > "$WARN_LOG"
+if ! PATH="$EMPTY_BIN_DIR" HOME="$TMP_DIR/home" OPENCLAW_WORKSPACE="$TMP_DIR/workspace" CLAWMAX_ENTRYPOINT_TEST_MODE=true DROID_BIN="$DROID_BIN_OVERRIDE" /bin/sh -c '. "$1"; ensure_openclaw_cli' _ "$SCRIPT" 2>"$WARN_LOG"; then
+  echo "Expected ensure_openclaw_cli to succeed (not exit) when DROID_BIN points at an executable" >&2
+  cat "$WARN_LOG" >&2
+  exit 1
+fi
+assert_contains "WARNING" "$WARN_LOG"
+
+# ensure_openclaw_cli: hard-fail when no runtime CLI is available at all.
+if PATH="$EMPTY_BIN_DIR" HOME="$TMP_DIR/home" OPENCLAW_WORKSPACE="$TMP_DIR/workspace" CLAWMAX_ENTRYPOINT_TEST_MODE=true /bin/sh -c '. "$1"; ensure_openclaw_cli' _ "$SCRIPT" >/dev/null 2>&1; then
+  echo "Expected ensure_openclaw_cli to exit non-zero when no runtime CLI is available" >&2
+  exit 1
+fi
+
+# ensure_openclaw_cli: unaffected when openclaw itself is present.
+: > "$LOG_FILE"
+PATH="$BIN_DIR" HOME="$TMP_DIR/home" OPENCLAW_WORKSPACE="$TMP_DIR/workspace" CLAWMAX_ENTRYPOINT_TEST_MODE=true OPENCLAW_LOG="$LOG_FILE" /bin/sh -c '. "$1"; ensure_openclaw_cli' _ "$SCRIPT"
+assert_contains "--version" "$LOG_FILE"
 
 cat > "$TMP_DIR/host-openclaw.json" <<'EOF'
 {

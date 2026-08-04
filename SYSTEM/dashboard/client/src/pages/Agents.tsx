@@ -2706,6 +2706,23 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
   const [soul, setSoul] = React.useState('')
   const [tools, setTools] = React.useState('')
   const [model, setModel] = React.useState('')
+  const [runtime, setRuntime] = React.useState('default')
+  const [enabledRuntimes, setEnabledRuntimes] = React.useState<string[]>([])
+  React.useEffect(() => {
+    let cancelled = false
+    // Use the RESOLVED enabled set (workspace config OR the WORKSPACES_INTEGRATIONS_RUNTIMES env
+    // default) so this dropdown matches the BYOK wizard — /api/integrations/config is config-only
+    // and would hide an env-enabled runtime.
+    fetch('/api/integrations/runtimes')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled) return
+        const list = data?.enabledRuntimes
+        setEnabledRuntimes(Array.isArray(list) ? list.filter((rt: string) => rt === 'claude' || rt === 'droid') : [])
+      })
+      .catch(() => { if (!cancelled) setEnabledRuntimes([]) })
+    return () => { cancelled = true }
+  }, [])
   const [backupModel, setBackupModel] = React.useState('')
   const [availableModels, setAvailableModels] = React.useState<string[]>([])
   const [modelsByProvider, setModelsByProvider] = React.useState<Record<string, { name: string; models: string[] }>>({})
@@ -2758,6 +2775,37 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
     return joinSections(nextRuntime)
   }, [])
 
+  // Mirrors server's upsertAgentRuntimeInIdentityContent (agent-model.ts) so the config PUT below
+  // (which overwrites IDENTITY.md wholesale) doesn't clobber the Runtime line the PATCH /runtime
+  // call just wrote — same reasoning as syncIdentityModel above.
+  const syncIdentityRuntime = React.useCallback((content: string, nextRuntime: string) => {
+    const metadataIndex = content.search(/^##\s+Creation Metadata\b/im)
+    const runtimeSection = metadataIndex === -1 ? content : content.slice(0, metadataIndex)
+    const suffix = metadataIndex === -1 ? '' : content.slice(metadataIndex)
+    const joinSections = (nextRuntimeSection: string) => suffix
+      ? `${nextRuntimeSection.trimEnd()}\n\n${suffix.trimStart()}`
+      : nextRuntimeSection
+    const hasExistingLine = /^[-*]\s+\*\*Runtime:\*\*\s*.*$/m.test(runtimeSection)
+
+    if (nextRuntime === 'default') {
+      if (!hasExistingLine) return content
+      return joinSections(runtimeSection.replace(/^[-*]\s+\*\*Runtime:\*\*\s*.*$\n?/m, ''))
+    }
+    if (hasExistingLine) {
+      return joinSections(runtimeSection.replace(/^[-*]\s+\*\*Runtime:\*\*\s*.*$/m, `- **Runtime:** ${nextRuntime}`))
+    }
+    if (/^[-*]\s+\*\*Model:\*\*\s*.*$/m.test(runtimeSection)) {
+      return joinSections(runtimeSection.replace(/^[-*]\s+\*\*Model:\*\*\s*.*$/m, match => `${match}\n- **Runtime:** ${nextRuntime}`))
+    }
+    if (/^[-*]\s+\*\*Tags:\*\*\s+.+$/m.test(runtimeSection)) {
+      return joinSections(runtimeSection.replace(/^[-*]\s+\*\*Tags:\*\*\s+.+$/m, `- **Runtime:** ${nextRuntime}\n$&`))
+    }
+    if (/^[-*]\s+\*\*Role:\*\*\s+.+$/m.test(runtimeSection)) {
+      return joinSections(runtimeSection.replace(/^[-*]\s+\*\*Role:\*\*\s+.+$/m, `$&\n- **Runtime:** ${nextRuntime}`))
+    }
+    return joinSections(`${runtimeSection.trimEnd()}\n\n- **Runtime:** ${nextRuntime}\n`)
+  }, [])
+
   React.useEffect(() => {
     setLoading(true)
     setError(null)
@@ -2783,6 +2831,7 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
         const loadedModel = identityData?.liveConfig?.model || identityData?.metadata?.model || ''
         manualModelRef.current = loadedModel
         setModel(loadedModel)
+        setRuntime(identityData?.metadata?.runtime || 'default')
         setBackupModel(identityData?.liveConfig?.backupModel || identityData?.metadata?.backupModel || '')
         setModelPreference(persistedModelFit.preference)
         setAutoModelSelection(persistedModelFit.selectionMode === 'auto')
@@ -2910,6 +2959,7 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
         autoModelSelection ? 'auto' : 'manual',
         modelPreference,
       )
+      const nextIdentityWithRuntime = syncIdentityRuntime(nextIdentity, runtime)
       if (model) {
         const modelRes = await fetch(`/api/agents/${agent.id}/model`, {
           method: 'PATCH',
@@ -2927,10 +2977,20 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
         }
       }
 
+      const runtimeRes = await fetch(`/api/agents/${agent.id}/runtime`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ runtime }),
+      })
+      if (!runtimeRes.ok) {
+        const data = await runtimeRes.json().catch(() => ({}))
+        throw new Error(data.error || 'Failed to save runtime')
+      }
+
       const res = await fetch(`/api/agents/${agent.id}/config`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identity: nextIdentity, soul, tools }),
+        body: JSON.stringify({ identity: nextIdentityWithRuntime, soul, tools }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -2940,7 +3000,7 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
         throw new Error(data.error || 'Failed to save config')
       }
       setWarnings(Array.isArray(data.warnings) ? data.warnings : [])
-      setIdentity(nextIdentity)
+      setIdentity(nextIdentityWithRuntime)
       onSaved()
     } catch (err: any) {
       setError(err.message || 'Failed to save config')
@@ -3073,6 +3133,29 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
                 autoApply={autoModelSelection}
                 onAutoApplyChange={setAutomaticModelSelection}
               />
+              <div className="rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-900/20 p-3">
+                <label className="block text-sm font-semibold text-sky-900 dark:text-sky-100 mb-1">Runtime — which CLI runs this agent</label>
+                <select
+                  value={runtime}
+                  onChange={e => setRuntime(e.target.value)}
+                  className="w-full rounded-lg border border-sky-300 dark:border-sky-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-200 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+                >
+                  <option value="default">OpenClaw (model-provider keys) — default</option>
+                  <option value="openclaw">OpenClaw (model-provider keys)</option>
+                  {enabledRuntimes.includes('claude') && <option value="claude">Claude Code (its own login)</option>}
+                  {enabledRuntimes.includes('droid') && <option value="droid">Factory Droid (its own login)</option>}
+                  {(runtime === 'claude' || runtime === 'droid') && !enabledRuntimes.includes(runtime) && (
+                    <option value={runtime}>
+                      {runtime === 'claude' ? 'Claude Code' : 'Factory Droid'} — pinned, but disabled for this workspace
+                    </option>
+                  )}
+                </select>
+                <p className="mt-1 text-xs text-sky-800/80 dark:text-sky-200/70">
+                  {enabledRuntimes.length > 0
+                    ? <>Run this agent on Claude or Droid using the CLI’s own login. Default keeps it on the model-provider keys.</>
+                    : <>Enable Claude Code or Factory Droid first in BYOK &rarr; “Run via CLI” to make them selectable here.</>}
+                </p>
+              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Backup model</label>
                 <select

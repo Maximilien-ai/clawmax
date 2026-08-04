@@ -105,6 +105,8 @@ export function safeEnv(extras?: Record<string, string | undefined>): NodeJS.Pro
     XDG_CONFIG_HOME: process.env.XDG_CONFIG_HOME,
     // Runtime-managed partner integrations that agent tools may call directly.
     RESEND_API_KEY: process.env.RESEND_API_KEY,
+    // Factory Droid CLI auth (agent-runtime: droid)
+    FACTORY_API_KEY: process.env.FACTORY_API_KEY,
     // Cognee OpenClaw plugin / MCP integration
     COGNEE_API_KEY: process.env.COGNEE_API_KEY,
     COGNEE_BASE_URL: process.env.COGNEE_BASE_URL,
