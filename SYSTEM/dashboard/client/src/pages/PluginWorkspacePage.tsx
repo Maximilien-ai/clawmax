@@ -3702,7 +3702,7 @@ function LifecycleRelationshipGraph({
                       if (onApplySuggestion) onApplySuggestion(suggestion.id.replace(/^suggested:/, ''))
                       else onOpen(suggestion.id)
                     }}
-                    className={`${headerSecondaryButtonClass} ${headerSecondaryButtonIdleClass} !px-2 !py-1 text-xs`}
+                    className={`${headerPrimaryButtonClass} px-2.5 py-1 text-xs`}
                   >
                     Select {subjectType}
                   </button>

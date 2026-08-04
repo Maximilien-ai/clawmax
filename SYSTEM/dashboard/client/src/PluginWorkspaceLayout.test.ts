@@ -86,7 +86,7 @@ assert(pluginPageSource.includes('Select {subjectType}'), 'Suggested Lifecycle r
 assert(pluginPageSource.includes('onApplySuggestion(suggestion.id.replace(/^suggested:/, \'\'))'), 'Lifecycle target-selection action must open the edit inspection flow')
 assert(pluginPageSource.includes('onApplySuggestion={(templateId) => void applyTemplate(templateId)}'), 'Lifecycle relationship suggestions must use the existing template apply and edit flow')
 assert((pluginPageSource.match(/onApplySuggestion=\{\(templateId\) => void applyTemplate\(templateId\)\}/g) || []).length >= 2, 'Suggested and active Lifecycle relationship views must both wire the edit flow')
-assert(pluginPageSource.includes('!px-2 !py-1 text-xs'), 'Lifecycle target-selection action must remain compact')
+assert(pluginPageSource.includes('headerPrimaryButtonClass} px-2.5 py-1 text-xs'), 'Lifecycle target-selection action must retain the primary shortcut styling')
 assert(pluginPageSource.includes('No suggested plans match the current search and filters.'), 'Suggested Optimize graphs must explain a genuinely empty filtered result')
 assert(pluginPageSource.includes('aria-pressed={selectedId === item.id}'), 'Optimize graph plans must expose their locked selected state')
 assert(pluginPageSource.includes("isMuted ? 'opacity-10'"), 'Optimize graph edges unrelated to the selected plan must be muted')
