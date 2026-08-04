@@ -4927,6 +4927,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                     suggestionTemplates={filteredSuggestions}
                     context={context}
                     onOpen={(id) => setSelectedSuggestedTemplateId(id.replace(/^suggested:/, ''))}
+                    onApplySuggestion={(templateId) => void applyTemplate(templateId)}
                     selectedId={selectedSuggestedTemplateId ? `suggested:${selectedSuggestedTemplateId}` : null}
                     heading="Suggested item"
                   />
