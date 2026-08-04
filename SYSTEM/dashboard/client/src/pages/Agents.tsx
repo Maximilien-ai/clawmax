@@ -2709,7 +2709,7 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
   const [runtime, setRuntime] = React.useState('default')
   // Driven off the server's runtime registry (id + label) rather than hardcoded ids, so adding a
   // CLI runtime needs no change here.
-  const [runtimeCatalog, setRuntimeCatalog] = React.useState<Array<{ id: string; label: string }>>([])
+  const [runtimeCatalog, setRuntimeCatalog] = React.useState<Array<{ id: string; label: string; models: string[] }>>([])
   const [enabledRuntimes, setEnabledRuntimes] = React.useState<string[]>([])
   React.useEffect(() => {
     let cancelled = false
@@ -2723,7 +2723,11 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
         // openclaw is the always-available default and is listed separately below.
         const selectable = (Array.isArray(data?.runtimes) ? data.runtimes : [])
           .filter((status: any) => status?.id && status.id !== 'openclaw')
-          .map((status: any) => ({ id: String(status.id), label: String(status.label || status.id) }))
+          .map((status: any) => ({
+            id: String(status.id),
+            label: String(status.label || status.id),
+            models: Array.isArray(status.models) ? status.models.map(String) : [],
+          }))
         setRuntimeCatalog(selectable)
         const list = Array.isArray(data?.enabledRuntimes) ? data.enabledRuntimes : []
         setEnabledRuntimes(selectable.filter((rt: { id: string }) => list.includes(rt.id)).map((rt: { id: string }) => rt.id))
@@ -2731,6 +2735,16 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
       .catch(() => { if (!cancelled) { setRuntimeCatalog([]); setEnabledRuntimes([]) } })
     return () => { cancelled = true }
   }, [])
+  // Runtime CLIs take a bare model id; ClawMax stores `provider/model`.
+  const stripModelProvider = (value: string) => (value.includes('/') ? value.slice(value.indexOf('/') + 1) : value)
+  // Models the pinned runtime accepts. Empty when the agent is on OpenClaw/default or the
+  // runtime cannot enumerate a catalog, in which case the provider lists are used.
+  const runtimeModelOptions = React.useMemo(
+    () => (runtime && runtime !== 'default' && runtime !== 'openclaw'
+      ? (runtimeCatalog.find((rt) => rt.id === runtime)?.models || [])
+      : []),
+    [runtime, runtimeCatalog],
+  )
   const [backupModel, setBackupModel] = React.useState('')
   const [availableModels, setAvailableModels] = React.useState<string[]>([])
   const [modelsByProvider, setModelsByProvider] = React.useState<Record<string, { name: string; models: string[] }>>({})
@@ -3107,7 +3121,28 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
                   className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-200 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
                 >
                   {!model && <option value="">Select a model</option>}
-                  {Object.keys(modelsByProvider).length > 0 ? (
+                  {runtimeModelOptions.length > 0 ? (
+                    // Agent is pinned to a CLI runtime that can enumerate its own models, so offer
+                    // that catalog instead of the provider lists — the identifiers differ (droid
+                    // wants claude-sonnet-4-5-20250929, not claude-sonnet-4-5).
+                    <>
+                      {/* The stored model may carry a provider prefix, or be one this runtime does
+                          not accept. Keep it selectable either way so simply opening the editor
+                          never silently rewrites the agent to the first entry in the list. */}
+                      {model && !runtimeModelOptions.includes(model) && (
+                        <option value={model}>
+                          {model}{runtimeModelOptions.includes(stripModelProvider(model))
+                            ? ' — stored with a provider prefix'
+                            : ' — not offered by this runtime'}
+                        </option>
+                      )}
+                      <optgroup label={`${runtimeCatalog.find((rt) => rt.id === runtime)?.label || runtime} models`}>
+                        {runtimeModelOptions.map((option) => (
+                          <option key={option} value={option}>{option}</option>
+                        ))}
+                      </optgroup>
+                    </>
+                  ) : Object.keys(modelsByProvider).length > 0 ? (
                     Object.entries(modelsByProvider).map(([providerId, provider]) => (
                       <optgroup key={providerId} label={provider.name || providerId}>
                         {provider.models.filter((option) => isSelectableLifecycleModel(option, model)).map(option => (
