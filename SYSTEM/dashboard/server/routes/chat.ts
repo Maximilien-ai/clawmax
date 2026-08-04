@@ -237,6 +237,10 @@ export function shouldUseManagedSecretStatelessChatSession(_input: {
   return false
 }
 
+export function shouldRecoverPersistedAssistant(normalizedText: string): boolean {
+  return normalizedText.trim().length === 0
+}
+
 export function buildManagedSecretStatelessChatMessage(
   message: string,
   contextMessages: ChatContextMessage[] = [],
@@ -853,7 +857,7 @@ router.post('/:id/chat', async (req, res) => {
           }
 
           const normalizedText = normalizeChatMessage(fullOutput.trim())
-          const persistedAssistant = !normalizedText
+          const persistedAssistant = shouldRecoverPersistedAssistant(normalizedText)
             ? await readLatestAssistantTextWithRetry(id, dashboardSessionKey, executionSessionId)
             : null
           const completionText = normalizedText || normalizeChatMessage(persistedAssistant?.content || '') || ''
