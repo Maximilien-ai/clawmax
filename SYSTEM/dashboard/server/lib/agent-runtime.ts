@@ -310,6 +310,16 @@ export function buildRuntimePlan(o: {
 
 // ── Result parsing ──
 
+/**
+ * These CLIs can fail with no output at all — droid does exactly that when it is unauthenticated
+ * and given a session id. "droid exited with code 1" leaves an operator with nowhere to go, so
+ * name the most likely cause instead.
+ */
+function silentExitMessage(rt: AgentRuntimeId, exitCode: number | null): string {
+  const label = RUNTIME_LABELS[rt] || rt
+  return `The ${label} CLI exited with code ${exitCode} and produced no output. It is most likely not authenticated in this environment — set ANTHROPIC_API_KEY / FACTORY_API_KEY, or log the CLI in.`
+}
+
 export function parseRuntimeResult(
   rt: AgentRuntimeId,
   mode: 'chat' | 'json',
@@ -330,13 +340,20 @@ export function parseRuntimeResult(
     if (parsed && parsed.is_error === false && typeof parsed.result === 'string' && exitCode === 0) {
       return { text: parsed.result }
     }
-    const errorText = (stderr || stdout).trim() || `${rt} exited with code ${exitCode}`
+    // These CLIs report real failures inside their own JSON envelope (auth, unknown model, quota)
+    // with a human-readable `result`. Surface that rather than a raw JSON blob or a bare exit
+    // code — "droid exited with code 1" tells an operator nothing, while the envelope says
+    // exactly what to fix.
+    const envelopeMessage = parsed && typeof parsed.result === 'string' ? parsed.result.trim() : ''
+    const errorText = envelopeMessage
+      || (stderr || stdout).trim()
+      || silentExitMessage(rt, exitCode)
     return { text: '', errorText }
   }
 
   // claude plain-text chat mode (also the fallback for any other non-json case)
   if (exitCode !== 0) {
-    return { text: '', errorText: (stderr || stdout).trim() || `${rt} exited with code ${exitCode}` }
+    return { text: '', errorText: (stderr || stdout).trim() || silentExitMessage(rt, exitCode) }
   }
   return { text: stdout.trim() }
 }
