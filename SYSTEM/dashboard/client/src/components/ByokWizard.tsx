@@ -2615,7 +2615,7 @@ export function ByokWizard({
                     <label htmlFor="activity-export-destination" className="font-medium">Destination</label>
                     <select id="activity-export-destination" value={activityDestination} onChange={(event) => setActivityDestination(event.target.value === 'digo' ? 'digo' : 'clawmax-ai')} className="rounded border border-amber-300 bg-white px-2 py-1 text-xs dark:bg-gray-900">
                       <option value="clawmax-ai">ClawMax.ai reference receiver</option>
-                      {digoConfigured && <option value="digo">Digo</option>}
+                      {digoConfigured && activityConsents.some((entry) => entry.destinationId === 'clawmax-ai') && <option value="digo">Digo</option>}
                     </select>
                   </div>}
                   {!activeActivityConsent && <div className="mt-3 flex flex-wrap gap-3 text-xs">

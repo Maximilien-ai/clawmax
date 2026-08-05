@@ -40,6 +40,9 @@ router.post('/consent', (req, res) => {
   const destinationId = String(req.body?.destinationId || '').trim()
   const scopes = Array.isArray(req.body?.scopes) ? req.body.scopes.filter((scope: unknown): scope is ActivityExportScope => typeof scope === 'string' && ALLOWED_SCOPES.has(scope as ActivityExportScope)) : []
   if (!ALLOWED_DESTINATIONS.has(destinationId)) return res.status(400).json({ error: 'Unsupported Activity Export destination.' })
+  if (destinationId === 'digo' && !listActivityExportConsents(userId, workspaceId).some((entry) => entry.destinationId === 'clawmax-ai')) {
+    return res.status(400).json({ error: 'Enable ClawMax.ai Activity Export sharing before adding Digo as a destination.' })
+  }
   if (destinationId === 'digo') {
     const config = getResolvedWorkspaceIntegrationConfig()
     const apiUrl = config.partners?.digo?.apiUrl
