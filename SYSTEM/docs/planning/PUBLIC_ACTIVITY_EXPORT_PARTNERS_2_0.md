@@ -30,6 +30,11 @@ The service will:
 - use a versioned, authenticated, idempotent API contract that ClawMax.ai can
   implement first and Digo can implement later.
 
+Capture consent and destination consent are separate gates. A user may enable
+generic capture and independently consent to multiple configured destinations
+(for example, ClawMax.ai and Digo); each destination has its own receipt,
+queue fan-out, status, and revoke action.
+
 The ClawMax.ai receiver is a reference implementation and test destination. It
 must be displayed as `ClawMax.ai`, not presented as Digo and not silently
 repointed to Digo after a user has consented.
