@@ -1259,13 +1259,15 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
 
   useEffect(() => {
     let cancelled = false
-    fetch('/api/activity-export/status')
+    const refresh = () => fetch('/api/activity-export/status')
       .then((response) => response.ok ? response.json() : null)
       .then((payload) => {
         if (!cancelled) setActivitySharing(payload?.sharing ? { destinationId: String(payload.sharing.destinationId || 'reference'), queuedEvents: Number(payload.queuedEvents || 0) } : null)
       })
       .catch(() => { if (!cancelled) setActivitySharing(null) })
-    return () => { cancelled = true }
+    void refresh()
+    window.addEventListener('activity-export-updated', refresh)
+    return () => { cancelled = true; window.removeEventListener('activity-export-updated', refresh) }
   }, [activeWorkspaceKey])
 
   useEffect(() => {

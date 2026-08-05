@@ -225,6 +225,7 @@ export function ByokWizard({
   const [partnerCategoryTab, setPartnerCategoryTab] = useState<string>('all')
   const [activityConsent, setActivityConsent] = useState<{ destinationId: string; scopes: string[] } | null>(null)
   const [activityScopes, setActivityScopes] = useState<string[]>(['agent-chat', 'workflow'])
+  const [activityConfirmOpen, setActivityConfirmOpen] = useState(false)
   const [validating, setValidating] = useState(false)
   const [resendTestSending, setResendTestSending] = useState(false)
   const [resendTestTo, setResendTestTo] = useState('')
@@ -284,12 +285,19 @@ export function ByokWizard({
     if (activityConsent) {
       await fetch('/api/activity-export/consent', { method: 'DELETE' })
       setActivityConsent(null)
+      window.dispatchEvent(new CustomEvent('activity-export-updated'))
+      return
+    }
+    if (!activityConfirmOpen) {
+      setActivityConfirmOpen(true)
       return
     }
     const response = await fetch('/api/activity-export/consent', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ destinationId: 'clawmax-ai', scopes: activityScopes }) })
     const payload = await response.json().catch(() => ({}))
     if (!response.ok) { showWarning(payload?.error || 'Unable to enable activity sharing'); return }
     setActivityConsent({ destinationId: 'clawmax-ai', scopes: activityScopes })
+    setActivityConfirmOpen(false)
+    window.dispatchEvent(new CustomEvent('activity-export-updated'))
     showSuccess('Activity sharing enabled for ClawMax.ai')
   }
   const ollamaEnabled = isOllamaUiAvailable(config)
@@ -2594,13 +2602,18 @@ export function ByokWizard({
                       <div className="mt-1 text-xs opacity-80">Share selected activity with ClawMax.ai for the Digo-compatible demo contract. This is opt-in and can be revoked immediately.</div>
                     </div>
                     <button type="button" onClick={() => void toggleActivitySharing()} className={`rounded-md px-3 py-2 text-xs font-medium ${activityConsent ? 'border border-amber-300 bg-transparent' : 'bg-amber-600 text-white hover:bg-amber-700'}`}>
-                      {activityConsent ? 'Revoke sharing' : 'Review and enable'}
+                      {activityConsent ? 'Revoke sharing' : activityConfirmOpen ? 'Confirm sharing' : 'Review and enable'}
                     </button>
                   </div>
                   {!activityConsent && <div className="mt-3 flex flex-wrap gap-3 text-xs">
                     {['agent-chat', 'workflow', 'group-chat', 'community-chat', 'builder'].map((scope) => (
                       <label key={scope} className="inline-flex items-center gap-1.5"><input type="checkbox" checked={activityScopes.includes(scope)} onChange={(event) => setActivityScopes((current) => event.target.checked ? [...new Set([...current, scope])] : current.filter((entry) => entry !== scope))} />{scope.replaceAll('-', ' ')}</label>
                     ))}
+                  </div>}
+                  {activityConfirmOpen && !activityConsent && <div className="mt-3 rounded-lg border border-amber-300 bg-white/70 p-3 text-xs dark:border-amber-700 dark:bg-black/20">
+                    <div className="font-medium">Confirm activity sharing with ClawMax.ai</div>
+                    <p className="mt-1">ClawMax will queue redacted activity from this browser user and workspace for the selected scopes. Delivery is asynchronous; revoke sharing at any time.</p>
+                    <div className="mt-2 flex gap-2"><button type="button" onClick={() => setActivityConfirmOpen(false)} className="rounded border border-gray-300 px-2 py-1">Cancel</button><button type="button" onClick={() => void toggleActivitySharing()} className="rounded bg-amber-600 px-2 py-1 font-medium text-white">I consent</button></div>
                   </div>}
                   {activityConsent && <div className="mt-2 text-xs">Sharing with ClawMax.ai · {activityConsent.scopes.join(', ')}</div>}
                 </div>
