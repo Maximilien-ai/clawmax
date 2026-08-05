@@ -223,6 +223,8 @@ export function ByokWizard({
   const [partnerValues, setPartnerValues] = useState<PartnerValueMap>({})
   const [selectedPartners, setSelectedPartners] = useState<string[]>([])
   const [partnerCategoryTab, setPartnerCategoryTab] = useState<string>('all')
+  const [activityConsent, setActivityConsent] = useState<{ destinationId: string; scopes: string[] } | null>(null)
+  const [activityScopes, setActivityScopes] = useState<string[]>(['agent-chat', 'workflow'])
   const [validating, setValidating] = useState(false)
   const [resendTestSending, setResendTestSending] = useState(false)
   const [resendTestTo, setResendTestTo] = useState('')
@@ -267,6 +269,29 @@ export function ByokWizard({
   const [modelTab, setModelTab] = useState<ModelTab>('openai')
   const [onboardingOpen, setOnboardingOpen] = useState(false)
   const deploymentKind = config?.deploymentKind || 'local'
+
+  useEffect(() => {
+    if (!open || step !== 'partners') return
+    fetch('/api/activity-export/status')
+      .then((response) => response.ok ? response.json() : null)
+      .then((payload) => {
+        if (payload?.sharing) setActivityConsent({ destinationId: String(payload.sharing.destinationId), scopes: Array.isArray(payload.sharing.scopes) ? payload.sharing.scopes : [] })
+      })
+      .catch(() => undefined)
+  }, [open, step])
+
+  async function toggleActivitySharing() {
+    if (activityConsent) {
+      await fetch('/api/activity-export/consent', { method: 'DELETE' })
+      setActivityConsent(null)
+      return
+    }
+    const response = await fetch('/api/activity-export/consent', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ destinationId: 'clawmax-ai', scopes: activityScopes }) })
+    const payload = await response.json().catch(() => ({}))
+    if (!response.ok) { showWarning(payload?.error || 'Unable to enable activity sharing'); return }
+    setActivityConsent({ destinationId: 'clawmax-ai', scopes: activityScopes })
+    showSuccess('Activity sharing enabled for ClawMax.ai')
+  }
   const ollamaEnabled = isOllamaUiAvailable(config)
   const managedRuntime = config?.managedRuntime === true || deploymentKind !== 'local'
   const defaultOllamaBaseUrl = config?.defaultOllamaBaseUrl || localDevOllamaBaseUrl
@@ -2562,6 +2587,23 @@ export function ByokWizard({
 
             {step === 'partners' && (
               <>
+                <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-100">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <div className="font-medium">Activity Export preview</div>
+                      <div className="mt-1 text-xs opacity-80">Share selected activity with ClawMax.ai for the Digo-compatible demo contract. This is opt-in and can be revoked immediately.</div>
+                    </div>
+                    <button type="button" onClick={() => void toggleActivitySharing()} className={`rounded-md px-3 py-2 text-xs font-medium ${activityConsent ? 'border border-amber-300 bg-transparent' : 'bg-amber-600 text-white hover:bg-amber-700'}`}>
+                      {activityConsent ? 'Revoke sharing' : 'Review and enable'}
+                    </button>
+                  </div>
+                  {!activityConsent && <div className="mt-3 flex flex-wrap gap-3 text-xs">
+                    {['agent-chat', 'workflow', 'group-chat', 'community-chat', 'builder'].map((scope) => (
+                      <label key={scope} className="inline-flex items-center gap-1.5"><input type="checkbox" checked={activityScopes.includes(scope)} onChange={(event) => setActivityScopes((current) => event.target.checked ? [...new Set([...current, scope])] : current.filter((entry) => entry !== scope))} />{scope.replaceAll('-', ' ')}</label>
+                    ))}
+                  </div>}
+                  {activityConsent && <div className="mt-2 text-xs">Sharing with ClawMax.ai · {activityConsent.scopes.join(', ')}</div>}
+                </div>
                 <div className="mt-4 rounded-xl border border-cyan-200 dark:border-cyan-800 bg-cyan-50 dark:bg-cyan-900/20 p-4 text-sm text-cyan-900 dark:text-cyan-100">
                   <div className="font-medium">Optional partner integrations</div>
                   <div className="mt-1">
