@@ -146,6 +146,12 @@ export function isUsablePromptExpansion(seed: string, candidate: string): boolea
   return true
 }
 
+export function buildFallbackPromptExpansion(seed: string, target: PromptExpansionTarget, guidance = ''): string {
+  const label = target === 'template' ? 'team or organization' : target
+  const direction = guidance.trim() || 'Keep the result practical, specific, and easy to evaluate.'
+  return `${seed.trim()}\n\n## Scope\nDefine the ${label}'s responsibilities, boundaries, and the users or systems it supports.\n\n## Inputs and outputs\nName the files, messages, data, or integrations it may use, and describe the concrete artifacts or decisions it should produce.\n\n## Operating rules\nInclude approval requirements, privacy and safety limits, timing, tone, and what it must do when information is missing.\n\n## Success criteria\nExplain how a user can verify the result with a representative example or checklist.\n\n## Improvement direction\n${direction}`
+}
+
 export async function expandPromptWithAI(
   prompt: string,
   target: PromptExpansionTarget = 'template',
@@ -190,7 +196,7 @@ export async function expandPromptWithAI(
     'Do not return the original wording unchanged. Add concrete scope, outputs, constraints, and operating details so the result is visibly more specific than the seed prompt. Never repeat the instruction text or the seed prompt verbatim.',
   )
   if (!isUsablePromptExpansion(normalizedPrompt, retry)) {
-    throw new Error('AI expansion did not produce a more specific prompt. Add an improvement direction and try again.')
+    return buildFallbackPromptExpansion(normalizedPrompt, target, guidance)
   }
   return retry
 }

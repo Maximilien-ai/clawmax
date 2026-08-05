@@ -8,6 +8,7 @@ import {
   applyGeneratedWorkflowHandoffs,
   buildPromptExpansionSystemPrompt,
   isUsablePromptExpansion,
+  buildFallbackPromptExpansion,
   TEMPLATE_GENERATION_TIMEOUT_MS,
   buildResolvedModelRequestOptions,
   createChatCompletionWithCompatibilityRetry,
@@ -114,6 +115,13 @@ test('prompt expansion rejects echoed retry instructions and accepts substantive
     isUsablePromptExpansion(seed, 'Create an accounting team with reconciliation, approvals, monthly close, and audit-ready reports.'),
     true,
   )
+})
+
+test('prompt expansion provides an editable fallback when the provider echoes the seed', () => {
+  const fallback = buildFallbackPromptExpansion('Create a team to manage my books.', 'template', 'Prefer monthly close workflows.')
+  assert(fallback.startsWith('Create a team to manage my books.'))
+  assert.match(fallback, /Inputs and outputs/i)
+  assert.match(fallback, /Prefer monthly close workflows/i)
 })
 
 test('template generation uses the longer bounded AI timeout', () => {
