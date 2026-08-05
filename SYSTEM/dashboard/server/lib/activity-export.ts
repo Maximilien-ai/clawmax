@@ -60,6 +60,13 @@ interface ActivityExportState {
   received: Record<string, ActivityExportEvent>
 }
 
+let activityExportQueueListener: (() => void) | null = null
+
+/** Register a best-effort wake-up for the background delivery worker. */
+export function setActivityExportQueueListener(listener: (() => void) | null): void {
+  activityExportQueueListener = listener
+}
+
 export interface ActivityExportQueueEntry extends ActivityExportEvent {
   attempts: number
   lastError?: string
@@ -137,6 +144,7 @@ export function appendActivityExportEvent(input: ActivityExportEventInput, conse
   if (state.outbox.some((entry) => entry.eventId === event.eventId)) return null
   state.outbox.push({ ...event, attempts: 0 })
   writeState(state)
+  activityExportQueueListener?.()
   return event
 }
 

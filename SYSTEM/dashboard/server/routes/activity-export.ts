@@ -17,6 +17,7 @@ import {
   saveActivityExportConsent,
   type ActivityExportScope,
 } from '../lib/activity-export'
+import { flushActivityExportWorker, getActivityExportWorkerStatus } from '../lib/activity-export-worker'
 
 const router = Router()
 const ALLOWED_DESTINATIONS = new Set(['clawmax-ai', 'digo'])
@@ -32,7 +33,13 @@ router.get('/status', (req, res) => {
   const consent = getActivityExportConsent(userId, workspaceId)
   const destinations = listActivityExportConsents(userId, workspaceId)
   const outbox = listActivityExportOutbox(userId, workspaceId)
-  res.json({ version: ACTIVITY_EXPORT_VERSION, sharing: consent ? { destinationId: consent.destinationId, scopes: consent.scopes, consentedAt: consent.consentedAt } : null, destinations: destinations.map((entry) => ({ destinationId: entry.destinationId, scopes: entry.scopes, consentedAt: entry.consentedAt })), queuedEvents: outbox.length })
+  const worker = getActivityExportWorkerStatus()
+  const retrySummary = outbox.reduce((summary, entry: any) => {
+    if (entry.attempts > 0) summary.attempts += entry.attempts
+    if (entry.lastError && !summary.lastError) summary.lastError = entry.lastError
+    return summary
+  }, { attempts: 0, lastError: undefined as string | undefined })
+  res.json({ version: ACTIVITY_EXPORT_VERSION, sharing: consent ? { destinationId: consent.destinationId, scopes: consent.scopes, consentedAt: consent.consentedAt } : null, destinations: destinations.map((entry) => ({ destinationId: entry.destinationId, scopes: entry.scopes, consentedAt: entry.consentedAt })), queuedEvents: outbox.length, delivery: { worker: { running: worker.running, startedAt: worker.startedAt, lastAttemptAt: worker.lastAttemptAt, lastResult: worker.lastResult, lastError: worker.lastError, intervalMs: worker.intervalMs, configured: worker.configured }, retry: retrySummary } })
 })
 
 router.post('/consent', (req, res) => {
@@ -72,6 +79,10 @@ router.post('/events', (req, res) => {
   if (!ALLOWED_SCOPES.has(source)) return res.status(400).json({ error: 'Unsupported activity scope.' })
   const events = appendActivityExportEventsForActiveConsents({ source, workspaceId, userId, sessionId: typeof req.body?.sessionId === 'string' ? req.body.sessionId : undefined, subjectId: typeof req.body?.subjectId === 'string' ? req.body.subjectId : undefined, content: typeof req.body?.content === 'string' ? req.body.content : undefined, metadata: req.body?.metadata && typeof req.body.metadata === 'object' ? req.body.metadata : undefined })
   if (events.length === 0) return res.status(400).json({ error: 'Event was rejected by consent or validation.' })
+  // Do not make the activity-producing request wait on a remote receiver. The
+  // worker keeps retrying, while this best-effort trigger avoids a five-minute
+  // delay for newly consented deployments.
+  void flushActivityExportWorker().catch(() => {})
   res.status(202).json({ ok: true, queued: true, eventIds: events.map((event) => event.eventId) })
 })
 

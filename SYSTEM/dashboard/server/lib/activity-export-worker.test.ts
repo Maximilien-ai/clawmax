@@ -1,5 +1,5 @@
 import assert from 'assert'
-import { flushActivityExportWorker, startActivityExportWorker, stopActivityExportWorker } from './activity-export-worker'
+import { flushActivityExportWorker, getActivityExportWorkerStatus, startActivityExportWorker, stopActivityExportWorker } from './activity-export-worker'
 
 const endpoint = process.env.CLAWMAX_ACTIVITY_EXPORT_ENDPOINT
 const token = process.env.CLAWMAX_ACTIVITY_EXPORT_TOKEN
@@ -8,7 +8,9 @@ delete process.env.CLAWMAX_ACTIVITY_EXPORT_TOKEN
 
 ;(async () => {
   assert.strictEqual(await flushActivityExportWorker(), null, 'worker must stay disabled without delivery configuration')
+  assert.strictEqual(getActivityExportWorkerStatus().running, false, 'worker status must report disabled when credentials are absent')
   startActivityExportWorker(() => {})
+  assert.strictEqual(getActivityExportWorkerStatus().running, false, 'worker must not start without credentials')
   stopActivityExportWorker()
   if (endpoint === undefined) delete process.env.CLAWMAX_ACTIVITY_EXPORT_ENDPOINT
   else process.env.CLAWMAX_ACTIVITY_EXPORT_ENDPOINT = endpoint
@@ -19,4 +21,3 @@ delete process.env.CLAWMAX_ACTIVITY_EXPORT_TOKEN
   console.error(error)
   process.exitCode = 1
 })
-
