@@ -3,7 +3,9 @@ import { resolveSystemExecutionProviderKeys, resolveUserExecutionProviderKeys, P
 import { getPreferredAnthropicModel } from './model-discovery'
 import { getBestAvailableModel } from './dashboard-env'
 import { readWorkspaceIntegrationConfig } from './workspace-integrations'
-import { executeAgentRuntimeTurn, resolveEnabledRuntimes, type AgentRuntimeId } from './agent-runtime'
+import { executeAgentRuntimeTurn, resolveEnabledRuntimes, resolveRuntimeCliPath, type AgentRuntimeId } from './agent-runtime'
+import { getModelLifecycleEntry } from './openAiModelLifecycle'
+import { randomUUID } from 'crypto'
 import { getWorkspacePath } from './workspace'
 
 type AIProvider = 'openai' | 'openai-compatible' | 'anthropic' | 'cli-runtime'
@@ -460,17 +462,40 @@ function getAvailableProvider(byokKeys?: ProviderKeys): { provider: AIProvider; 
  * exists for. Droid supplies its own default model, so prefer whichever is usable instead of
  * failing on the first one in the list.
  */
-function pickGenerationRuntime(): AgentRuntimeId | undefined {
-  const enabled = resolveEnabledRuntimes()
-  // Prefer a runtime that brings its own current default model. Claude Code must be given an
-  // explicit Anthropic model id, and the one we can resolve without provider keys comes from a
-  // static preference list that goes stale — it resolved to a retired model here, which the CLI
-  // rejects outright. Runtimes like droid pick their own supported default, so try those first.
-  const selfDefaulting = enabled.find((rt) => rt !== 'claude')
+export function pickGenerationRuntime(): AgentRuntimeId | undefined {
+  // Only consider runtimes whose CLI is actually present — an enabled-but-uninstalled runtime
+  // would otherwise be selected and fail with a missing-CLI error while an installed one sat
+  // unused.
+  const installed = resolveEnabledRuntimes().filter((rt) => !!resolveRuntimeCliPath(rt))
+  // Prefer a runtime that supplies its own current default model. Claude Code must be handed an
+  // explicit Anthropic model id, and the id resolvable without provider keys comes from a static
+  // preference list that goes stale.
+  const selfDefaulting = installed.find((rt) => rt !== 'claude')
   if (selfDefaulting) return selfDefaulting
-  if (enabled.includes('claude') && getPreferredAnthropicGenerationModel().trim()) return 'claude'
+  if (installed.includes('claude') && resolveClaudeGenerationModel()) return 'claude'
   return undefined
 }
+
+/**
+ * Anthropic model id for Claude Code generation, or '' when none is usable.
+ *
+ * The preference list can name a model that has since been retired, which the CLI rejects
+ * outright. Prefer the lifecycle table's replacement when that happens rather than sending a
+ * dead model id.
+ */
+export function resolveClaudeGenerationModel(): string {
+  const preferred = getPreferredAnthropicGenerationModel().trim()
+  if (!preferred) return ''
+  // Every lifecycle key is provider-qualified, so only the prefixed lookup can hit.
+  const lifecycle = getModelLifecycleEntry(`anthropic/${preferred}`)
+  if (lifecycle?.replacementModel) return String(lifecycle.replacementModel).replace(/^anthropic\//, '')
+  if (lifecycle?.shutdownDate && new Date(lifecycle.shutdownDate).getTime() < Date.now()) return ''
+  return preferred
+}
+
+// Kept under the 45s Promise.race in createChatCompletionWithCompatibilityRetry so the child
+// process is killed by us rather than orphaned when that race rejects.
+const CLI_GENERATION_TIMEOUT_MS = 40000
 
 function buildCliRuntimeClient(runtime: AgentRuntimeId): { client: OpenAI; model: string } {
   const client = {
@@ -489,16 +514,20 @@ function buildCliRuntimeClient(runtime: AgentRuntimeId): { client: OpenAI; model
             runtime,
             // Claude Code only accepts Anthropic model ids and rejects an unset model; droid has
             // its own default, so leave it alone there.
-            model: runtime === 'claude' ? `anthropic/${getPreferredAnthropicGenerationModel()}` : undefined,
+            model: runtime === 'claude' ? `anthropic/${resolveClaudeGenerationModel()}` : undefined,
             // Generation is not an agent turn; use a stable synthetic id so the CLI keeps one
             // scratch session rather than accumulating one per request.
             agentId: 'clawmax-ai-generation',
             agentDir: getWorkspacePath(),
             message: prompt,
-            scopedSessionId: 'clawmax-ai-generation',
+            // One session per request. A fixed id let unrelated generations resume each other's
+            // conversation, and made concurrent requests collide on the same CLI session.
+            scopedSessionId: `clawmax-ai-generation-${randomUUID()}`,
             mode: 'json',
             env: process.env,
-            timeoutMs: 180000,
+            // Must expire before createChatCompletionWithCompatibilityRetry's own race (45s),
+            // otherwise that race rejects first and leaves this CLI child running unattended.
+            timeoutMs: CLI_GENERATION_TIMEOUT_MS,
           })
           if (missingCliError) throw new Error(missingCliError)
           if (errorText) throw new Error(errorText === 'timeout' ? 'AI generation timed out' : errorText)

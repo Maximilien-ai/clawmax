@@ -35,6 +35,7 @@ import { formatOpenAiDeprecationNotice, formatOpenAiModelLabel, isSelectableLife
 import { getAttachmentFilename } from '../lib/downloadFilename'
 import { emptyPluginRelationships, fetchPluginRelationships, type PluginRelationship } from '../lib/pluginRelationships'
 import ModelFitRecommendationPanel from '../components/ModelFitRecommendationPanel'
+import { enabledRuntimeIds, modelAfterRuntimeChange, parseRuntimeCatalog, runtimeAcceptsModel, runtimeLabelFor, runtimeModelsFor, stripModelProvider, type RuntimeCatalogEntry } from '../lib/runtimeCatalog'
 import {
   buildAgentModelFitDescription,
   normalizeAgentModelFitState,
@@ -2707,52 +2708,36 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
   const [tools, setTools] = React.useState('')
   const [model, setModel] = React.useState('')
   const [runtime, setRuntime] = React.useState('default')
-  // Driven off the server's runtime registry (id + label) rather than hardcoded ids, so adding a
-  // CLI runtime needs no change here.
-  const [runtimeCatalog, setRuntimeCatalog] = React.useState<Array<{ id: string; label: string; models: string[] }>>([])
-  const [enabledRuntimes, setEnabledRuntimes] = React.useState<string[]>([])
+  // Driven off the server's runtime registry (id + label + models) rather than hardcoded ids, so
+  // adding a CLI runtime needs no change here.
+  const [runtimeCatalog, setRuntimeCatalog] = React.useState<RuntimeCatalogEntry[]>([])
   React.useEffect(() => {
     let cancelled = false
-    // Use the RESOLVED enabled set (workspace config OR the WORKSPACES_INTEGRATIONS_RUNTIMES env
-    // default) so this dropdown matches the BYOK wizard — /api/integrations/config is config-only
+    // The RESOLVED enabled set (workspace config OR the WORKSPACES_INTEGRATIONS_RUNTIMES env
+    // default), so this dropdown matches the BYOK wizard — /api/integrations/config is config-only
     // and would hide an env-enabled runtime.
     fetch('/api/integrations/runtimes')
       .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (cancelled) return
-        // openclaw is the always-available default and is listed separately below.
-        const selectable = (Array.isArray(data?.runtimes) ? data.runtimes : [])
-          .filter((status: any) => status?.id && status.id !== 'openclaw')
-          .map((status: any) => ({
-            id: String(status.id),
-            label: String(status.label || status.id),
-            models: Array.isArray(status.models) ? status.models.map(String) : [],
-          }))
-        setRuntimeCatalog(selectable)
-        const list = Array.isArray(data?.enabledRuntimes) ? data.enabledRuntimes : []
-        setEnabledRuntimes(selectable.filter((rt: { id: string }) => list.includes(rt.id)).map((rt: { id: string }) => rt.id))
-      })
-      .catch(() => { if (!cancelled) { setRuntimeCatalog([]); setEnabledRuntimes([]) } })
+      .then((data) => { if (!cancelled) setRuntimeCatalog(parseRuntimeCatalog(data)) })
+      .catch(() => { if (!cancelled) setRuntimeCatalog([]) })
     return () => { cancelled = true }
   }, [])
-  // Runtime CLIs take a bare model id; ClawMax stores `provider/model`.
-  const stripModelProvider = (value: string) => (value.includes('/') ? value.slice(value.indexOf('/') + 1) : value)
-  // Models the pinned runtime accepts. Empty when the agent is on OpenClaw/default or the
-  // runtime cannot enumerate a catalog, in which case the provider lists are used.
-  const runtimeModelOptions = React.useMemo(
-    () => (runtime && runtime !== 'default' && runtime !== 'openclaw'
-      ? (runtimeCatalog.find((rt) => rt.id === runtime)?.models || [])
-      : []),
-    [runtime, runtimeCatalog],
+  const enabledRuntimes = enabledRuntimeIds(runtimeCatalog)
+  const runtimeModelOptions = runtimeModelsFor(runtimeCatalog, runtime)
+
+  // Switching runtime must not leave a model the new runtime rejects.
+  const selectAgentRuntime = (next: string) => {
+    setRuntime(next)
+    useManualModel(modelAfterRuntimeChange(runtimeCatalog, next, model))
+  }
+
+  // Automatic suggestions come from the provider catalog, whose ids a pinned runtime may not
+  // accept. Never let one move a runtime-pinned agent onto a model its CLI rejects.
+  const isModelAllowedForRuntime = React.useCallback(
+    (candidate: string) => runtimeAcceptsModel(runtimeModelOptions, candidate),
+    [runtimeModelOptions],
   )
-  // The model-fit suggester reasons over the provider catalog, whose ids a pinned runtime may
-  // not accept (droid takes claude-sonnet-4-5-20250929, not anthropic/claude-sonnet-4-5).
-  // Never let an automatic suggestion move a runtime-pinned agent onto a model its CLI rejects.
-  const isModelAllowedForRuntime = React.useCallback((candidate: string) => (
-    runtimeModelOptions.length === 0
-      || runtimeModelOptions.includes(candidate)
-      || runtimeModelOptions.includes(stripModelProvider(candidate))
-  ), [runtimeModelOptions])
+
   const [backupModel, setBackupModel] = React.useState('')
   const [availableModels, setAvailableModels] = React.useState<string[]>([])
   const [modelsByProvider, setModelsByProvider] = React.useState<Record<string, { name: string; models: string[] }>>({})
@@ -3145,7 +3130,7 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
                             : ' — not offered by this runtime'}
                         </option>
                       )}
-                      <optgroup label={`${runtimeCatalog.find((rt) => rt.id === runtime)?.label || runtime} models`}>
+                      <optgroup label={`${runtimeLabelFor(runtimeCatalog, runtime)} models`}>
                         {runtimeModelOptions.map((option) => (
                           <option key={option} value={option}>{option}</option>
                         ))}
@@ -3177,7 +3162,7 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
                     : runtimeModelOptions.length > 0
                       // Don't claim these came from the provider APIs — this agent is pinned to a
                       // CLI runtime, so the list above is that CLI's own catalog.
-                      ? `Models offered by the ${runtimeCatalog.find((rt) => rt.id === runtime)?.label || runtime} CLI, because this agent is pinned to it below.`
+                      ? `Models offered by the ${runtimeLabelFor(runtimeCatalog, runtime)} CLI, because this agent is pinned to it below.`
                       : 'Live models from provider APIs (cached 1hr). Click "Refresh" to update.'}
                 </p>
                 {selectedModelDeprecation && (
@@ -3199,17 +3184,16 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
                 <label className="block text-sm font-semibold text-sky-900 dark:text-sky-100 mb-1">Runtime — which CLI runs this agent</label>
                 <select
                   value={runtime}
-                  onChange={e => setRuntime(e.target.value)}
+                  onChange={e => selectAgentRuntime(e.target.value)}
                   className="w-full rounded-lg border border-sky-300 dark:border-sky-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-200 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
                 >
                   <option value="default">OpenClaw (model-provider keys) — default</option>
                   <option value="openclaw">OpenClaw (model-provider keys)</option>
-                  {runtimeCatalog
-                    .filter((rt) => enabledRuntimes.includes(rt.id))
+                  {runtimeCatalog.filter((rt) => rt.enabled)
                     .map((rt) => <option key={rt.id} value={rt.id}>{rt.label} (its own login)</option>)}
                   {runtime !== 'default' && runtime !== 'openclaw' && !enabledRuntimes.includes(runtime) && (
                     <option value={runtime}>
-                      {runtimeCatalog.find((rt) => rt.id === runtime)?.label || runtime} — pinned, but disabled for this workspace
+                      {runtimeLabelFor(runtimeCatalog, runtime)} — pinned, but disabled for this workspace
                     </option>
                   )}
                 </select>

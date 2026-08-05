@@ -81,7 +81,7 @@ function friendlyProvisionError(message: string): string {
 export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, defaultCloneFrom, startWithAI, initialAiDescription }: WizardProps) {
   const manualModelRef = useRef('')
   const { config } = useAuth()
-  const aiEnabled = hasAiGenerationAccess(config)
+  const aiEnabledFromKeys = hasAiGenerationAccess(config)
   const aiReadiness = getAiGenerationReadiness(config)
   const ollamaEnabled = isOllamaUiAvailable(config)
   const launchState = resolveAddAgentWizardLaunchState({ startWithAI, initialAiDescription })
@@ -105,31 +105,24 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
   // Runtime pin chosen at creation. Without this, every new agent started on OpenClaw and the
   // only way to move it was to create it, then edit it.
   const [runtime, setRuntime] = useState('default')
-  const [runtimeCatalog, setRuntimeCatalog] = useState<Array<{ id: string; label: string; models: string[] }>>([])
-  const [enabledRuntimes, setEnabledRuntimes] = useState<string[]>([])
+  const [runtimeCatalog, setRuntimeCatalog] = useState<RuntimeCatalogEntry[]>([])
   useEffect(() => {
     let cancelled = false
     fetch('/api/integrations/runtimes')
       .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (cancelled) return
-        const selectable = (Array.isArray(data?.runtimes) ? data.runtimes : [])
-          .filter((status: any) => status?.id && status.id !== 'openclaw')
-          .map((status: any) => ({
-            id: String(status.id),
-            label: String(status.label || status.id),
-            models: Array.isArray(status.models) ? status.models.map(String) : [],
-          }))
-        setRuntimeCatalog(selectable)
-        const list = Array.isArray(data?.enabledRuntimes) ? data.enabledRuntimes : []
-        setEnabledRuntimes(selectable.filter((rt: { id: string }) => list.includes(rt.id)).map((rt: { id: string }) => rt.id))
-      })
-      .catch(() => { if (!cancelled) { setRuntimeCatalog([]); setEnabledRuntimes([]) } })
+      .then((data) => { if (!cancelled) setRuntimeCatalog(parseRuntimeCatalog(data)) })
+      .catch(() => { if (!cancelled) setRuntimeCatalog([]) })
     return () => { cancelled = true }
   }, [])
-  const runtimeModelOptions = runtime !== 'default' && runtime !== 'openclaw'
-    ? (runtimeCatalog.find((rt) => rt.id === runtime)?.models || [])
-    : []
+  const enabledRuntimes = enabledRuntimeIds(runtimeCatalog)
+  const runtimeModelOptions = runtimeModelsFor(runtimeCatalog, runtime)
+
+  // Switching runtime must not leave a model the new runtime rejects — provider ids and CLI
+  // catalogs do not overlap, so a stale selection provisions an agent that fails on its first turn.
+  const selectRuntime = (next: string) => {
+    setRuntime(next)
+    setForm(f => ({ ...f, model: modelAfterRuntimeChange(runtimeCatalog, next, f.model) }))
+  }
   const [availableModels, setAvailableModels] = useState<string[]>([])
   const [modelsLoaded, setModelsLoaded] = useState(false)
   const [modelsByProvider, setModelsByProvider] = useState<Record<string, { name: string; models: string[] }>>({})
@@ -611,7 +604,7 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
     name: form.name || suggested?.id || '…',
     model: form.model,
     ...(runtime !== 'default' && runtime !== 'openclaw'
-      ? { runtime: runtimeCatalog.find((rt) => rt.id === runtime)?.label || runtime }
+      ? { runtime: runtimeLabelFor(runtimeCatalog, runtime) }
       : {}),
     ...(form.cloneFrom ? { clone_from: form.cloneFrom } : {}),
     ...(form.whatsapp ? { whatsapp: form.whatsapp } : {}),
@@ -680,12 +673,11 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
                 <label className="block text-xs font-semibold text-sky-900 dark:text-sky-100 mb-1">Runtime — which CLI runs this agent</label>
                 <select
                   value={runtime}
-                  onChange={e => setRuntime(e.target.value)}
+                  onChange={e => selectRuntime(e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-sky-300 dark:border-sky-700 rounded-md outline-none focus:border-sky-400 bg-white dark:bg-gray-900"
                 >
                   <option value="default">OpenClaw (model-provider keys) — default</option>
-                  {runtimeCatalog
-                    .filter((rt) => enabledRuntimes.includes(rt.id))
+                  {runtimeCatalog.filter((rt) => rt.enabled)
                     .map((rt) => <option key={rt.id} value={rt.id}>{rt.label} (its own login)</option>)}
                 </select>
                 <p className="mt-1 text-xs text-sky-800/80 dark:text-sky-200/70">
@@ -715,7 +707,7 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
                     <option value="">{modelsLoaded ? 'No models available — add API keys to .env' : 'Loading models...'}</option>
                   )}
                   {runtimeModelOptions.length > 0 ? (
-                    <optgroup label={`${runtimeCatalog.find((rt) => rt.id === runtime)?.label || runtime} models`}>
+                    <optgroup label={`${runtimeLabelFor(runtimeCatalog, runtime)} models`}>
                       {runtimeModelOptions.map(m => <option key={m} value={m}>{m}</option>)}
                     </optgroup>
                   ) : Object.keys(modelsByProvider).length > 0 ? (
