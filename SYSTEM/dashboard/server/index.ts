@@ -27,6 +27,7 @@ import aiRouter from './routes/ai'
 import aiBuilderRouter from './routes/ai-builder'
 import templateRegistryRouter from './routes/template-registry'
 import activityExportRouter from './routes/activity-export'
+import { startActivityExportWorker, stopActivityExportWorker } from './lib/activity-export-worker'
 import { isTemplateRegistryWriteEnabled } from './lib/template-registry'
 import { WORKSPACE, getWorkspacePath, listAgents, getWorkspaceActivity, getDashboardVersion, writeWorkspaceFile, getOrgName, parseGroups, parseIdentity, isManagedAgentWorkspaceDir } from './lib/workspace'
 import { startScheduler, stopScheduler } from './lib/scheduler'
@@ -145,6 +146,12 @@ function startBackgroundServices() {
       startNotificationMonitor()
     } catch (err) {
       logToFile(`Notification monitor start failed: ${err instanceof Error ? err.stack || err.message : String(err)}`)
+    }
+
+    try {
+      startActivityExportWorker((message) => logToFile(message))
+    } catch (err) {
+      logToFile(`Activity Export worker start failed: ${err instanceof Error ? err.stack || err.message : String(err)}`)
     }
 
     try {
@@ -752,5 +759,5 @@ app.listen(PORT, HOST, () => {
 })
 
 // Graceful shutdown
-process.on('SIGTERM', () => { stopScheduler(); stopNotificationMonitor(); shutdownOpik() })
-process.on('SIGINT', () => { stopScheduler(); stopNotificationMonitor(); shutdownOpik() })
+process.on('SIGTERM', () => { stopScheduler(); stopNotificationMonitor(); stopActivityExportWorker(); shutdownOpik() })
+process.on('SIGINT', () => { stopScheduler(); stopNotificationMonitor(); stopActivityExportWorker(); shutdownOpik() })

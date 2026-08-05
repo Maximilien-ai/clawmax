@@ -1025,6 +1025,14 @@ else
   cat /tmp/clawmax-activity-export.out
   fail "Activity Export contract unit tests"
 fi
+echo -e "${YELLOW}→ Running Activity Export worker tests...${NC}"
+npx ts-node --transpileOnly server/lib/activity-export-worker.test.ts > /tmp/clawmax-activity-export-worker.out 2>&1 || true
+if grep -q "Activity export worker tests: 2 passed" /tmp/clawmax-activity-export-worker.out; then
+  pass "Activity Export worker tests (2 tests)"
+else
+  cat /tmp/clawmax-activity-export-worker.out
+  fail "Activity Export worker tests"
+fi
 
 echo ""
 echo -e "${YELLOW}→ Running Plugin system contract unit tests...${NC}"
