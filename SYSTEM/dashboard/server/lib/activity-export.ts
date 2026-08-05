@@ -53,6 +53,7 @@ export interface ActivityExportEvent extends ActivityExportEventInput {
 interface ActivityExportState {
   consents: Record<string, ActivityExportConsent>
   outbox: ActivityExportQueueEntry[]
+  received: Record<string, ActivityExportEvent>
 }
 
 export interface ActivityExportQueueEntry extends ActivityExportEvent {
@@ -74,9 +75,10 @@ function readState(): ActivityExportState {
         ...entry,
         attempts: typeof entry.attempts === 'number' ? entry.attempts : 0,
       })) : [],
+      received: parsed?.received && typeof parsed.received === 'object' ? parsed.received : {},
     }
   } catch {
-    return { consents: {}, outbox: [] }
+    return { consents: {}, outbox: [], received: {} }
   }
 }
 
@@ -121,6 +123,33 @@ export function appendActivityExportEvent(input: ActivityExportEventInput, conse
 
 export function listActivityExportOutbox(userId: string, workspaceId: string): ActivityExportEvent[] {
   return readState().outbox.filter((event) => event.userId === userId && event.workspaceId === workspaceId)
+}
+
+export interface ActivityExportReceiveResult {
+  accepted: number
+  duplicates: number
+}
+
+/** Store an authenticated receiver batch idempotently for the local reference destination. */
+export function receiveActivityExportBatch(events: ActivityExportEvent[]): ActivityExportReceiveResult {
+  const validation = validateActivityExportBatch(events)
+  if (!validation.ok) throw new Error(validation.error)
+  const state = readState()
+  let accepted = 0
+  let duplicates = 0
+  for (const event of events) {
+    if (state.received[event.eventId]) duplicates += 1
+    else {
+      state.received[event.eventId] = event
+      accepted += 1
+    }
+  }
+  writeState(state)
+  return { accepted, duplicates }
+}
+
+export function listReceivedActivityExportEvents(userId: string, workspaceId: string): ActivityExportEvent[] {
+  return Object.values(readState().received).filter((event) => event.userId === userId && event.workspaceId === workspaceId)
 }
 
 export interface ActivityExportFlushResult {

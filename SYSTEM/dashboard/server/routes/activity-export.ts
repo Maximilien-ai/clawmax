@@ -8,6 +8,8 @@ import {
   flushActivityExportOutbox,
   getActivityExportConsent,
   listActivityExportOutbox,
+  listReceivedActivityExportEvents,
+  receiveActivityExportBatch,
   revokeActivityExportConsent,
   saveActivityExportConsent,
   type ActivityExportScope,
@@ -62,10 +64,26 @@ router.post('/flush', async (req, res) => {
   res.status(result.error && result.delivered === 0 ? 502 : 200).json({ ok: !result.error, ...result })
 })
 
+router.post('/reference/ingest', (req, res) => {
+  const expected = process.env.CLAWMAX_ACTIVITY_EXPORT_REFERENCE_TOKEN?.trim()
+  const supplied = typeof req.headers.authorization === 'string' && req.headers.authorization.startsWith('Bearer ')
+    ? req.headers.authorization.slice('Bearer '.length).trim()
+    : ''
+  if (!expected) return res.status(503).json({ error: 'Reference receiver is not configured.' })
+  if (!supplied || supplied !== expected) return res.status(401).json({ error: 'Invalid reference receiver credential.' })
+  const events = Array.isArray(req.body?.events) ? req.body.events : []
+  try {
+    const result = receiveActivityExportBatch(events)
+    res.status(202).json({ ok: true, version: ACTIVITY_EXPORT_VERSION, ...result })
+  } catch (error: any) {
+    res.status(400).json({ error: error?.message || 'Invalid activity export batch.' })
+  }
+})
+
 // Protected local receiver view for the ClawMax.ai demo; no external delivery yet.
 router.get('/reference/events', (req, res) => {
   const { userId, workspaceId } = actor(req)
-  res.json({ destinationId: 'clawmax-ai', events: listActivityExportOutbox(userId, workspaceId) })
+  res.json({ destinationId: 'clawmax-ai', events: listReceivedActivityExportEvents(userId, workspaceId), queuedEvents: listActivityExportOutbox(userId, workspaceId).length })
 })
 
 export default router

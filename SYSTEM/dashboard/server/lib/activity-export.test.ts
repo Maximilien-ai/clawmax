@@ -8,6 +8,7 @@ import {
   deliverActivityExportBatch,
   appendActivityExportEvent,
   flushActivityExportOutbox,
+  receiveActivityExportBatch,
   getActivityExportConsent,
   listActivityExportOutbox,
   redactActivityText,
@@ -73,6 +74,8 @@ else process.env.CLAWMAX_ACTIVITY_EXPORT_STATE_PATH = previousStatePath
   assert.strictEqual(delivery.delivered, true)
   assert.strictEqual(deliveredRequest.headers.Authorization, 'Bearer demo-token')
   assert.strictEqual((await deliverActivityExportBatch([event!], { fetchImpl: async () => new Response('{}', { status: 503 }) })).delivered, false)
+  assert.deepStrictEqual(receiveActivityExportBatch([event!]), { accepted: 1, duplicates: 0 })
+  assert.deepStrictEqual(receiveActivityExportBatch([event!]), { accepted: 0, duplicates: 1 })
   saveActivityExportConsent({ ...consent, active: true })
   const queuedEvent = appendActivityExportEvent({ source: 'workflow', workspaceId: 'workspace_demo', userId: 'user_demo', content: 'deliver me' }, consent)
   assert(queuedEvent)
@@ -83,7 +86,7 @@ else process.env.CLAWMAX_ACTIVITY_EXPORT_STATE_PATH = previousStatePath
   const failedFlush = await flushActivityExportOutbox({ endpoint: 'https://receiver.example/activity', token: 'demo-token', fetchImpl: async () => new Response('{}', { status: 503 }) })
   assert.strictEqual(failedFlush.delivered, 0)
   assert.strictEqual(JSON.parse(fs.readFileSync(statePath, 'utf8')).outbox[0].attempts, 1)
-  console.log('Activity export tests: 21 passed')
+  console.log('Activity export tests: 23 passed')
 })().catch((error) => {
   console.error(error)
   process.exitCode = 1
