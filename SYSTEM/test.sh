@@ -1017,6 +1017,16 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Activity Export contract unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/activity-export.test.ts > /tmp/clawmax-activity-export.out 2>&1 || true
+if grep -q "Activity export tests: 10 passed" /tmp/clawmax-activity-export.out; then
+  pass "Activity Export contract unit tests (10 tests)"
+else
+  cat /tmp/clawmax-activity-export.out
+  fail "Activity Export contract unit tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Plugin system contract unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/plugin-system.test.ts > /tmp/clawmax-plugin-system.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-plugin-system.out; then
