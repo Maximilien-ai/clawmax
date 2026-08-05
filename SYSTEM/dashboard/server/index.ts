@@ -47,6 +47,7 @@ import { resolveOpenClawCliPath } from './lib/openclaw-cli'
 import { buildSystemInfoPayload } from './lib/system-info'
 import { detectRuntimeStatuses, resolveWorkspaceRuntime } from './lib/agent-runtime'
 import { healDashboardManagedOpenClawConfig } from './lib/openclaw-config'
+import { resolveEnabledRuntimes } from './lib/agent-runtime'
 
 // ============================================================================
 // Crash Protection & Error Logging
@@ -306,6 +307,10 @@ app.get('/api/auth/config', (_req, res) => {
     ollamaEnabled: isOllamaUiEnabled(rawEnv),
     defaultOllamaBaseUrl: getDefaultOllamaBaseUrl(rawEnv),
     defaultOpenAiCompatibleBaseUrl: getDefaultOpenAICompatibleBaseUrl(rawEnv),
+    // CLI runtimes enabled in BYOK sign in with their own login, so their presence is enough to
+    // make AI generation available even with no provider keys at all. Published here so every
+    // generation surface can gate on it, not just the agent wizard.
+    enabledRuntimes: resolveEnabledRuntimes(),
     systemKeyDefaults: {
       openai: !!systemKeys.openai,
       anthropic: !!systemKeys.anthropic,
