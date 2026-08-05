@@ -6,6 +6,8 @@
  * event; the durable outbox will be added on top of this contract.
  */
 
+import { randomUUID } from 'crypto'
+
 export const ACTIVITY_EXPORT_VERSION = 'activity-export/v1'
 export const ACTIVITY_EXPORT_EVENT_LIMIT = 256 * 1024
 export const ACTIVITY_EXPORT_BATCH_LIMIT = 50
@@ -74,7 +76,7 @@ export function createActivityExportEvent(input: ActivityExportEventInput, conse
   if (Number.isNaN(Date.parse(occurredAt))) return null
   return {
     ...input,
-    eventId: input.eventId || `activity_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
+    eventId: input.eventId || `activity_${randomUUID()}`,
     version: ACTIVITY_EXPORT_VERSION,
     destinationId: consent.destinationId,
     consentReceiptId: consent.receiptId,
