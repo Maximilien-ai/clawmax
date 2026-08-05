@@ -6,7 +6,7 @@
  * event; the durable outbox will be added on top of this contract.
  */
 
-import { randomUUID } from 'crypto'
+import { createHash, randomUUID } from 'crypto'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
@@ -14,6 +14,10 @@ import path from 'path'
 export const ACTIVITY_EXPORT_VERSION = 'activity-export/v1'
 export const ACTIVITY_EXPORT_EVENT_LIMIT = 256 * 1024
 export const ACTIVITY_EXPORT_BATCH_LIMIT = 50
+
+export function getOpaqueActivityWorkspaceId(workspaceId: string): string {
+  return `ws_${createHash('sha256').update(String(workspaceId)).digest('hex').slice(0, 24)}`
+}
 
 export type ActivityExportScope = 'agent-chat' | 'group-chat' | 'community-chat' | 'workflow' | 'builder'
 
@@ -143,7 +147,8 @@ export function appendActivityExportEventsForActiveConsents(input: ActivityExpor
 }
 
 export function listActivityExportOutbox(userId: string, workspaceId: string): ActivityExportEvent[] {
-  return readState().outbox.filter((event) => event.userId === userId && event.workspaceId === workspaceId)
+  const opaqueWorkspaceId = getOpaqueActivityWorkspaceId(workspaceId)
+  return readState().outbox.filter((event) => event.userId === userId && event.workspaceId === opaqueWorkspaceId)
 }
 
 export function listAllActivityExportOutbox(): ActivityExportEvent[] {
@@ -174,7 +179,8 @@ export function receiveActivityExportBatch(events: ActivityExportEvent[]): Activ
 }
 
 export function listReceivedActivityExportEvents(userId: string, workspaceId: string): ActivityExportEvent[] {
-  return Object.values(readState().received).filter((event) => event.userId === userId && event.workspaceId === workspaceId)
+  const opaqueWorkspaceId = getOpaqueActivityWorkspaceId(workspaceId)
+  return Object.values(readState().received).filter((event) => event.userId === userId && event.workspaceId === opaqueWorkspaceId)
 }
 
 export interface ActivityExportFlushResult {
@@ -201,7 +207,7 @@ export async function flushActivityExportOutbox(
   const candidates = state.outbox.filter((entry) =>
     !entry.deliveredAt &&
     (!options.userId || entry.userId === options.userId) &&
-    (!options.workspaceId || entry.workspaceId === options.workspaceId) &&
+    (!options.workspaceId || entry.workspaceId === getOpaqueActivityWorkspaceId(options.workspaceId)) &&
     (!options.destinationId || entry.destinationId === options.destinationId),
   ).slice(0, maxEvents)
   if (candidates.length === 0) return { attempted: 0, delivered: 0, remaining: state.outbox.filter((entry) => !entry.deliveredAt).length }
@@ -272,8 +278,13 @@ export function createActivityExportEvent(input: ActivityExportEventInput, conse
     destinationId: consent.destinationId,
     consentReceiptId: consent.receiptId,
     occurredAt,
+    workspaceId: getOpaqueActivityWorkspaceId(input.workspaceId),
     content: redactActivityText(input.content),
-    metadata: redactActivityMetadata(input.metadata),
+    metadata: redactActivityMetadata({
+      ...(input.metadata || {}),
+      ...(process.env.DASHBOARD_DEPLOYMENT_KIND ? { deploymentKind: process.env.DASHBOARD_DEPLOYMENT_KIND } : {}),
+      ...(process.env.CLAWMAX_INSTANCE_KEY ? { instanceKey: process.env.CLAWMAX_INSTANCE_KEY } : {}),
+    }),
   }
 }
 
@@ -307,11 +318,17 @@ export async function deliverActivityExportBatch(
   const endpoint = (options.endpoint || process.env.CLAWMAX_ACTIVITY_EXPORT_ENDPOINT || '').trim()
   const token = (options.token || process.env.CLAWMAX_ACTIVITY_EXPORT_TOKEN || '').trim()
   if (!endpoint || !token) return { delivered: false, error: 'Activity Export delivery is not configured.' }
+  const batchId = `batch_${events[0].eventId}_${events[events.length - 1].eventId}`
   try {
     const response = await (options.fetchImpl || fetch)(endpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, 'Idempotency-Key': `activity-batch-${events[0].eventId}-${events[events.length - 1].eventId}` },
-      body: JSON.stringify({ version: ACTIVITY_EXPORT_VERSION, events }),
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        'Idempotency-Key': batchId,
+        'X-ClawMax-Schema-Version': ACTIVITY_EXPORT_VERSION,
+      },
+      body: JSON.stringify({ batchId, destinationId: events[0].destinationId, sentAt: new Date().toISOString(), events }),
     })
     if (!response.ok) return { delivered: false, status: response.status, error: `Reference receiver rejected the batch (${response.status}).` }
     return { delivered: true, status: response.status }

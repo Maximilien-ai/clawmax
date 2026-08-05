@@ -4,6 +4,7 @@ import os from 'os'
 import path from 'path'
 import {
   ACTIVITY_EXPORT_VERSION,
+  getOpaqueActivityWorkspaceId,
   createActivityExportEvent,
   deliverActivityExportBatch,
   appendActivityExportEvent,
@@ -39,10 +40,12 @@ const event = createActivityExportEvent({
 
 assert(event, 'active matching consent should create an event')
 assert.strictEqual(event?.version, ACTIVITY_EXPORT_VERSION)
+assert.strictEqual(event?.workspaceId, getOpaqueActivityWorkspaceId('workspace_demo'))
+assert(!event?.workspaceId.includes('/'), 'exported workspace id must not contain a filesystem path')
 assert(event?.content?.includes('[REDACTED]'), 'event content must redact credentials')
 assert(!event?.content?.includes('sk-secret-value'), 'raw API keys must not survive redaction')
 assert.strictEqual(redactActivityText('Contact max@example.com or +1 (415) 555-0199'), 'Contact [REDACTED] or [REDACTED]')
-assert.strictEqual(createActivityExportEvent({ ...event!, metadata: { email: 'max@example.com', safe: true } }, consent)?.metadata?.email, '[REDACTED]')
+assert.strictEqual(createActivityExportEvent({ source: 'agent-chat', workspaceId: 'workspace_demo', userId: 'user_demo', metadata: { email: 'max@example.com', safe: true } }, consent)?.metadata?.email, '[REDACTED]')
 assert.strictEqual(createActivityExportEvent({ ...event!, source: 'builder' }, consent), null, 'unconsented scope must be rejected')
 assert.strictEqual(createActivityExportEvent({ ...event!, userId: 'other-user' }, consent), null, 'another user cannot use this consent')
 assert.strictEqual(createActivityExportEvent({ ...event!, workspaceId: 'other-workspace' }, consent), null, 'another workspace cannot use this consent')
@@ -76,6 +79,9 @@ else process.env.CLAWMAX_ACTIVITY_EXPORT_STATE_PATH = previousStatePath
   })
   assert.strictEqual(delivery.delivered, true)
   assert.strictEqual(deliveredRequest.headers.Authorization, 'Bearer demo-token')
+  assert.strictEqual(deliveredRequest.headers['X-ClawMax-Schema-Version'], ACTIVITY_EXPORT_VERSION)
+  const deliveredBody = JSON.parse(deliveredRequest.body)
+  assert(deliveredBody.batchId && deliveredBody.destinationId === 'clawmax-ai' && deliveredBody.sentAt && Array.isArray(deliveredBody.events), 'delivery must use the canonical batch envelope')
   assert.strictEqual((await deliverActivityExportBatch([event!], { fetchImpl: async () => new Response('{}', { status: 503 }) })).delivered, false)
   assert.deepStrictEqual(receiveActivityExportBatch([event!]), { accepted: 1, duplicates: 0 })
   assert.deepStrictEqual(receiveActivityExportBatch([event!]), { accepted: 0, duplicates: 1 })
