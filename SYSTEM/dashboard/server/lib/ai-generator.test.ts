@@ -125,7 +125,7 @@ test('prompt expansion provides an editable fallback when the provider echoes th
 })
 
 test('template generation uses the longer bounded AI timeout', () => {
-  assert.strictEqual(TEMPLATE_GENERATION_TIMEOUT_MS, 90000)
+  assert.strictEqual(TEMPLATE_GENERATION_TIMEOUT_MS, 180000)
 })
 
 test('validateAiGenerationProviderKeys rejects OpenAI subscription or session-style credentials', () => {
@@ -313,6 +313,11 @@ test('shouldGenerateCompanyTemplate infers company from prompt unless agent is e
   assert.strictEqual(
     shouldGenerateCompanyTemplate('A leadership specialist that writes project briefs.', 'team'),
     false
+  )
+  assert.strictEqual(
+    shouldGenerateCompanyTemplate('Create a team of agents to manage my startup books.', 'team'),
+    false,
+    'An explicit team target must not be upgraded to a company because the prompt mentions startup.',
   )
 })
 

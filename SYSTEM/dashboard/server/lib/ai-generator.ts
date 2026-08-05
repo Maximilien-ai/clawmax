@@ -9,7 +9,7 @@ export type TemplateGenerationTarget = 'agent' | 'team' | 'company'
 export type PromptExpansionTarget = 'agent' | 'workflow' | 'skill' | 'template'
 export type PromptExpansionFormat = 'markdown' | 'text'
 export type PromptExpansionGuidance = string
-export const TEMPLATE_GENERATION_TIMEOUT_MS = 90000
+export const TEMPLATE_GENERATION_TIMEOUT_MS = 180000
 export type BuilderStarterPromptInput = {
   workspaceName?: string
   workspaceTags?: string[]
@@ -341,9 +341,12 @@ export function shouldGenerateCompanyTemplate(description: string, generationTar
   const normalizedTarget = normalizeTemplateGenerationTarget(generationTarget)
   if (normalizedTarget === 'company') return true
   if (normalizedTarget === 'agent') return false
+  const lower = description.toLowerCase()
+  const explicitlyTeamScoped = /\bteam of agents\b|\bteam template\b|\bcreate a team\b/i.test(lower)
+  const explicitlyCompanyScoped = /\bcompany template\b|\borganization template\b|\bteam of teams\b|\bmultiple teams\b/i.test(lower)
+  if (explicitlyTeamScoped && !explicitlyCompanyScoped) return false
   if (promptImpliesCompany(description)) return true
 
-  const lower = description.toLowerCase()
   const functionalHits = [
     /\bleadership\b/,
     /\bresearch\b/,
