@@ -1,8 +1,16 @@
 import assert from 'assert'
+import fs from 'fs'
+import os from 'os'
+import path from 'path'
 import {
   ACTIVITY_EXPORT_VERSION,
   createActivityExportEvent,
+  appendActivityExportEvent,
+  getActivityExportConsent,
+  listActivityExportOutbox,
   redactActivityText,
+  saveActivityExportConsent,
+  revokeActivityExportConsent,
   validateActivityExportBatch,
   type ActivityExportConsent,
 } from './activity-export'
@@ -38,4 +46,17 @@ assert.deepStrictEqual(validateActivityExportBatch([event!]), { ok: true })
 assert.strictEqual(validateActivityExportBatch([event!, { ...event!, eventId: event!.eventId }]).ok, false, 'duplicate events must be rejected')
 assert.strictEqual(validateActivityExportBatch([]).ok, false, 'empty batches must be rejected')
 
-console.log('Activity export tests: 10 passed')
+const previousStatePath = process.env.CLAWMAX_ACTIVITY_EXPORT_STATE_PATH
+const statePath = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-activity-export-')), 'state.json')
+process.env.CLAWMAX_ACTIVITY_EXPORT_STATE_PATH = statePath
+saveActivityExportConsent(consent)
+assert.strictEqual(getActivityExportConsent('user_demo', 'workspace_demo')?.receiptId, 'consent_demo')
+const persisted = appendActivityExportEvent({ source: 'workflow', workspaceId: 'workspace_demo', userId: 'user_demo', content: 'workflow output' }, consent)
+assert(persisted, 'consented event should be persisted to the outbox')
+assert.strictEqual(listActivityExportOutbox('user_demo', 'workspace_demo').length, 1)
+assert.strictEqual(revokeActivityExportConsent('user_demo', 'workspace_demo'), true)
+assert.strictEqual(getActivityExportConsent('user_demo', 'workspace_demo'), null)
+if (previousStatePath === undefined) delete process.env.CLAWMAX_ACTIVITY_EXPORT_STATE_PATH
+else process.env.CLAWMAX_ACTIVITY_EXPORT_STATE_PATH = previousStatePath
+
+console.log('Activity export tests: 16 passed')

@@ -26,6 +26,7 @@ import pluginsRouter from './routes/plugins'
 import aiRouter from './routes/ai'
 import aiBuilderRouter from './routes/ai-builder'
 import templateRegistryRouter from './routes/template-registry'
+import activityExportRouter from './routes/activity-export'
 import { isTemplateRegistryWriteEnabled } from './lib/template-registry'
 import { WORKSPACE, getWorkspacePath, listAgents, getWorkspaceActivity, getDashboardVersion, writeWorkspaceFile, getOrgName, parseGroups, parseIdentity, isManagedAgentWorkspaceDir } from './lib/workspace'
 import { startScheduler, stopScheduler } from './lib/scheduler'
@@ -697,6 +698,7 @@ app.use('/api/agents', protect, chatRouter)
 app.use('/api/agents', protect, logsRouter)
 app.use('/api/templates', protect, templatesRouter)
 app.use('/api/template-registry', templateRegistryRouter)
+app.use('/api/activity-export', protect, activityExportRouter)
 app.use('/api/skills', protect, skillsRouter)
 app.use('/api/skill-secret-broker', protect, skillSecretBrokerRouter)
 app.use('/api/mail/oauth', protect, mailOAuthRouter)

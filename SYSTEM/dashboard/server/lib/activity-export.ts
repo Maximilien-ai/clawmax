@@ -7,6 +7,9 @@
  */
 
 import { randomUUID } from 'crypto'
+import fs from 'fs'
+import os from 'os'
+import path from 'path'
 
 export const ACTIVITY_EXPORT_VERSION = 'activity-export/v1'
 export const ACTIVITY_EXPORT_EVENT_LIMIT = 256 * 1024
@@ -45,6 +48,69 @@ export interface ActivityExportEvent extends ActivityExportEventInput {
   consentReceiptId: string
   occurredAt: string
   content?: string
+}
+
+interface ActivityExportState {
+  consents: Record<string, ActivityExportConsent>
+  outbox: ActivityExportEvent[]
+}
+
+export function getActivityExportStatePath(): string {
+  return process.env.CLAWMAX_ACTIVITY_EXPORT_STATE_PATH?.trim() || path.join(os.homedir(), '.openclaw', 'activity-export.json')
+}
+
+function readState(): ActivityExportState {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(getActivityExportStatePath(), 'utf8'))
+    return {
+      consents: parsed?.consents && typeof parsed.consents === 'object' ? parsed.consents : {},
+      outbox: Array.isArray(parsed?.outbox) ? parsed.outbox : [],
+    }
+  } catch {
+    return { consents: {}, outbox: [] }
+  }
+}
+
+function writeState(state: ActivityExportState): void {
+  const filePath = getActivityExportStatePath()
+  fs.mkdirSync(path.dirname(filePath), { recursive: true })
+  fs.writeFileSync(filePath, JSON.stringify(state, null, 2), { encoding: 'utf8', mode: 0o600 })
+  try { fs.chmodSync(filePath, 0o600) } catch {}
+}
+
+export function getActivityExportConsent(userId: string, workspaceId: string): ActivityExportConsent | null {
+  const state = readState()
+  return Object.values(state.consents).find((consent) => consent.userId === userId && consent.workspaceId === workspaceId && consent.active) || null
+}
+
+export function saveActivityExportConsent(consent: ActivityExportConsent): ActivityExportConsent {
+  const state = readState()
+  state.consents[consent.receiptId] = consent
+  writeState(state)
+  return consent
+}
+
+export function revokeActivityExportConsent(userId: string, workspaceId: string): boolean {
+  const state = readState()
+  const consent = Object.values(state.consents).find((entry) => entry.userId === userId && entry.workspaceId === workspaceId && entry.active)
+  if (!consent) return false
+  consent.active = false
+  writeState(state)
+  return true
+}
+
+export function appendActivityExportEvent(input: ActivityExportEventInput, consent: ActivityExportConsent): ActivityExportEvent | null {
+  const event = createActivityExportEvent(input, consent)
+  if (!event) return null
+  const state = readState()
+  if (state.outbox.some((entry) => entry.eventId === event.eventId)) return null
+  state.outbox.push(event)
+  writeState(state)
+  return event
+}
+
+export function listActivityExportOutbox(userId: string, workspaceId: string): ActivityExportEvent[] {
+  return readState().outbox.filter((event) => event.userId === userId && event.workspaceId === workspaceId)
 }
 
 const SECRET_PATTERNS = [
