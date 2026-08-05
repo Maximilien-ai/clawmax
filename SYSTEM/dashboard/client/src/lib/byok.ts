@@ -40,6 +40,7 @@ export interface ByokRequestPayload {
 
 interface AiExecutionConfig {
   deploymentKind?: 'local' | 'onprem' | 'cloud'
+  enabledRuntimes?: string[]
   allowSystemKeysForUserExecution?: boolean
   managedRuntime?: boolean
   ollamaEnabled?: boolean
@@ -297,6 +298,10 @@ export function hasAnyLLMKeys(config?: Pick<AiExecutionConfig, 'systemKeyDefault
 export function hasAiGenerationAccess(config?: AiExecutionConfig | null): boolean {
   const byok = readStoredByokKeys()
   if (byok.openai || byok.anthropic || byok.openaiCompatibleBaseUrl) return true
+  // A CLI runtime enabled in BYOK ("Run via CLI") signs in with its own login and can drive
+  // generation without any provider key. Without this the Generate button stayed disabled as
+  // "set up keys first" even though the server could service the request.
+  if (Array.isArray(config?.enabledRuntimes) && config.enabledRuntimes.length > 0) return true
   if (config?.userKeyDefaults?.openai || config?.userKeyDefaults?.anthropic || (config as any)?.userKeyDefaults?.openaiCompatible) return true
   if (
     config?.allowSystemKeysForUserExecution &&
@@ -312,7 +317,7 @@ export function getAiGenerationReadiness(config?: AiExecutionConfig | null): AiG
   if (!enabled) {
     return {
       enabled: false,
-      warning: 'AI generation will fail until you add and verify an OpenAI, Anthropic, or OpenAI-compatible setup, or use a usable shared hosted execution path.',
+      warning: 'AI generation will fail until you add and verify an OpenAI, Anthropic, or OpenAI-compatible setup, enable a CLI runtime in BYOK, or use a usable shared hosted execution path.',
     }
   }
 
