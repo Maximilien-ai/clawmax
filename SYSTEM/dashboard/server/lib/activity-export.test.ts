@@ -58,6 +58,7 @@ assert(persisted, 'consented event should be persisted to the outbox')
 assert.strictEqual(listActivityExportOutbox('user_demo', 'workspace_demo').length, 1)
 assert.strictEqual(revokeActivityExportConsent('user_demo', 'workspace_demo'), true)
 assert.strictEqual(getActivityExportConsent('user_demo', 'workspace_demo'), null)
+assert.strictEqual(listActivityExportOutbox('user_demo', 'workspace_demo').length, 0, 'revoking consent purges unsent events')
 if (previousStatePath === undefined) delete process.env.CLAWMAX_ACTIVITY_EXPORT_STATE_PATH
 else process.env.CLAWMAX_ACTIVITY_EXPORT_STATE_PATH = previousStatePath
 
@@ -72,9 +73,11 @@ else process.env.CLAWMAX_ACTIVITY_EXPORT_STATE_PATH = previousStatePath
   assert.strictEqual(delivery.delivered, true)
   assert.strictEqual(deliveredRequest.headers.Authorization, 'Bearer demo-token')
   assert.strictEqual((await deliverActivityExportBatch([event!], { fetchImpl: async () => new Response('{}', { status: 503 }) })).delivered, false)
+  saveActivityExportConsent({ ...consent, active: true })
+  const queuedEvent = appendActivityExportEvent({ source: 'workflow', workspaceId: 'workspace_demo', userId: 'user_demo', content: 'deliver me' }, consent)
+  assert(queuedEvent)
   const flushed = await flushActivityExportOutbox({ endpoint: 'https://receiver.example/activity', token: 'demo-token', fetchImpl: async () => new Response('{}', { status: 202 }) })
   assert.deepStrictEqual(flushed, { attempted: 1, delivered: 1, remaining: 0 })
-  saveActivityExportConsent({ ...consent, active: true })
   const retryEvent = appendActivityExportEvent({ source: 'workflow', workspaceId: 'workspace_demo', userId: 'user_demo', content: 'retry me' }, consent)
   assert(retryEvent)
   const failedFlush = await flushActivityExportOutbox({ endpoint: 'https://receiver.example/activity', token: 'demo-token', fetchImpl: async () => new Response('{}', { status: 503 }) })

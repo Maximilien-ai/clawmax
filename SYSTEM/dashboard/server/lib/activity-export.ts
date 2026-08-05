@@ -104,6 +104,7 @@ export function revokeActivityExportConsent(userId: string, workspaceId: string)
   const consent = Object.values(state.consents).find((entry) => entry.userId === userId && entry.workspaceId === workspaceId && entry.active)
   if (!consent) return false
   consent.active = false
+  state.outbox = state.outbox.filter((event) => event.consentReceiptId !== consent.receiptId)
   writeState(state)
   return true
 }
