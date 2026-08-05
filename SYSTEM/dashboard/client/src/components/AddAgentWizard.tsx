@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { byokForRequest, readStoredByokKeys, fetchModelsWithByok, getAiGenerationReadiness, hasAiGenerationAccess, isOllamaUiAvailable } from '../lib/byok'
+import { enabledRuntimeIds, modelAfterRuntimeChange, parseRuntimeCatalog, runtimeLabelFor, runtimeModelsFor, type RuntimeCatalogEntry } from '../lib/runtimeCatalog'
 import { expandPromptWithAI } from '../lib/aiPrompt'
 import { normalizeAgentTemplateOption } from '../lib/agentTemplateOptions'
 import { normalizePromptInput, resolveAddAgentWizardLaunchState } from '../lib/addAgentWizardFlow'
@@ -116,6 +117,10 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
   }, [])
   const enabledRuntimes = enabledRuntimeIds(runtimeCatalog)
   const runtimeModelOptions = runtimeModelsFor(runtimeCatalog, runtime)
+  // AuthContext fetches /api/auth/config once at mount, so enabling a runtime mid-session
+  // would otherwise leave Generate disabled until a reload. This component already polls the
+  // runtimes endpoint, so trust that too.
+  const aiEnabled = aiEnabledFromKeys || enabledRuntimes.length > 0
 
   // Switching runtime must not leave a model the new runtime rejects — provider ids and CLI
   // catalogs do not overlap, so a stale selection provisions an agent that fails on its first turn.

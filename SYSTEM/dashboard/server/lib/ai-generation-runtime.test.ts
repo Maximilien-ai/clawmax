@@ -36,6 +36,27 @@ function withWorkspace(enabled: string[], env: Record<string, string | undefined
   }
 }
 
+async function withWorkspaceAsync(enabled: string[], env: Record<string, string | undefined>, fn: () => Promise<void>) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-genrt-'))
+  fs.mkdirSync(path.join(root, 'SYSTEM'), { recursive: true })
+  fs.writeFileSync(path.join(root, 'SYSTEM', 'integrations.json'), JSON.stringify({ enabledRuntimes: enabled }))
+  const prev: Record<string, string | undefined> = { OPENCLAW_WORKSPACE: process.env.OPENCLAW_WORKSPACE }
+  process.env.OPENCLAW_WORKSPACE = root
+  for (const [k, v] of Object.entries(env)) {
+    prev[k] = process.env[k]
+    if (v === undefined) delete process.env[k]; else process.env[k] = v
+  }
+  try {
+    for (const k of Object.keys(require.cache)) if (k.includes('/server/lib/')) delete require.cache[k]
+    await fn()
+  } finally {
+    for (const [k, v] of Object.entries(prev)) {
+      if (v === undefined) delete process.env[k]; else process.env[k] = v
+    }
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+}
+
 // A real file stands in for an installed CLI; resolveRuntimeCliPath only needs an executable path.
 const realBinary = process.execPath
 const missingBinary = path.join(os.tmpdir(), 'clawmax-not-installed-cli')
@@ -87,5 +108,70 @@ test('claude generation never uses a model past its shutdown date', () => {
   })
 })
 
-console.log(`\n${passed} passed, ${failed} failed\n`)
-if (failed > 0) process.exit(1)
+
+// ── Session isolation and timeout ordering for CLI-backed generation ──
+
+const agentRuntimeModulePath = require.resolve('./agent-runtime')
+
+async function withRuntimeTurnSpy(fn: (calls: any[]) => Promise<void>): Promise<void> {
+  delete require.cache[agentRuntimeModulePath]
+  const mod = require(agentRuntimeModulePath)
+  const original = mod.executeAgentRuntimeTurn
+  const calls: any[] = []
+  mod.executeAgentRuntimeTurn = async (opts: any) => {
+    calls.push(opts)
+    return { text: '{"identity":"x"}' }
+  }
+  delete require.cache[require.resolve('./ai-generator')]
+  try { await fn(calls) }
+  finally {
+    mod.executeAgentRuntimeTurn = original
+    delete require.cache[require.resolve('./ai-generator')]
+  }
+}
+
+async function asyncTest(name: string, fn: () => Promise<void>) {
+  try { await fn(); console.log(`${GREEN}✓${RESET} ${name}`); passed++ }
+  catch (err: any) { console.log(`${RED}✗${RESET} ${name}`); console.log(`  ${err.message}`); failed++ }
+}
+
+async function runAsyncCases() {
+  await asyncTest('each CLI generation request gets its own session instead of sharing one', async () => {
+    await withWorkspaceAsync(['droid'], { DROID_BIN: realBinary }, async () => {
+      await withRuntimeTurnSpy(async (calls) => {
+        const { buildCliRuntimeClient } = require('./ai-generator')
+        const { client } = buildCliRuntimeClient('droid')
+        const payload = { model: 'x', messages: [{ role: 'user', content: 'hi' }] }
+        await client.chat.completions.create(payload)
+        await client.chat.completions.create(payload)
+        assert.strictEqual(calls.length, 2, 'Expected both requests to reach the runtime')
+        const [a, b] = calls.map((c: any) => c.scopedSessionId)
+        assert(a && b, 'Expected a session id on each request')
+        assert.notStrictEqual(a, b, `Both generations shared the session id ${a}`)
+        assert(/^clawmax-ai-generation-/.test(a), `Unexpected session id shape: ${a}`)
+      })
+    })
+  })
+
+  await asyncTest('the CLI timeout expires before the caller stops waiting, so no child is orphaned', async () => {
+    await withWorkspaceAsync(['droid'], { DROID_BIN: realBinary }, async () => {
+      await withRuntimeTurnSpy(async (calls) => {
+        const { buildCliRuntimeClient } = require('./ai-generator')
+        const { client } = buildCliRuntimeClient('droid')
+        await client.chat.completions.create({ messages: [{ role: 'user', content: 'hi' }] })
+        // Every request is raced against 45s in createChatCompletionWithCompatibilityRetry. A
+        // longer CLI timeout means that race rejects first and the child keeps running.
+        const OUTER_RACE_MS = 45000
+        assert(
+          calls[0].timeoutMs < OUTER_RACE_MS,
+          `CLI timeout ${calls[0].timeoutMs}ms must be under the caller's ${OUTER_RACE_MS}ms race`,
+        )
+      })
+    })
+  })
+}
+
+runAsyncCases().then(() => {
+  console.log(`\n${passed} passed, ${failed} failed\n`)
+  if (failed > 0) process.exit(1)
+})
