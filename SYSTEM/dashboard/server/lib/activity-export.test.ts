@@ -7,6 +7,7 @@ import {
   createActivityExportEvent,
   deliverActivityExportBatch,
   appendActivityExportEvent,
+  appendActivityExportEventsForActiveConsents,
   flushActivityExportOutbox,
   receiveActivityExportBatch,
   getActivityExportConsent,
@@ -86,7 +87,14 @@ else process.env.CLAWMAX_ACTIVITY_EXPORT_STATE_PATH = previousStatePath
   const failedFlush = await flushActivityExportOutbox({ endpoint: 'https://receiver.example/activity', token: 'demo-token', fetchImpl: async () => new Response('{}', { status: 503 }) })
   assert.strictEqual(failedFlush.delivered, 0)
   assert.strictEqual(JSON.parse(fs.readFileSync(statePath, 'utf8')).outbox[0].attempts, 1)
-  console.log('Activity export tests: 23 passed')
+  revokeActivityExportConsent('user_demo', 'workspace_demo')
+  saveActivityExportConsent({ ...consent, active: true })
+  saveActivityExportConsent({ ...consent, receiptId: 'consent_digo', destinationId: 'digo', active: true })
+  const fanout = appendActivityExportEventsForActiveConsents({ source: 'workflow', workspaceId: 'workspace_demo', userId: 'user_demo', content: 'fan out' })
+  assert.strictEqual(fanout.length, 2)
+  assert.strictEqual((await flushActivityExportOutbox({ destinationId: 'clawmax-ai', endpoint: 'https://receiver.example/activity', token: 'demo-token', fetchImpl: async () => new Response('{}', { status: 202 }) })).delivered, 1)
+  assert.strictEqual((await flushActivityExportOutbox({ destinationId: 'digo', endpoint: 'https://digo.example/activity', token: 'digo-token', fetchImpl: async () => new Response('{}', { status: 202 }) })).delivered, 1)
+  console.log('Activity export tests: 26 passed')
 })().catch((error) => {
   console.error(error)
   process.exitCode = 1

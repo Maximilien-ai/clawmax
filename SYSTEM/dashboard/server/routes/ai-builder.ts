@@ -13,7 +13,7 @@ import {
 } from '../lib/ai-generator'
 import { getAuthenticatedSession } from '../lib/github-auth'
 import { getWorkspacePath } from '../lib/workspace'
-import { appendActivityExportEvent, getActivityExportConsent } from '../lib/activity-export'
+import { appendActivityExportEventsForActiveConsents } from '../lib/activity-export'
 import {
   isAiBuilderShareEnabled,
   shareAiBuilderFeedback,
@@ -28,9 +28,7 @@ function captureBuilderActivity(req: any, content: string, subjectId: string): v
   const session = getAuthenticatedSession(req)
   const userId = session?.userId || session?.login || 'dashboard-user'
   const workspaceId = getWorkspacePath()
-  const consent = getActivityExportConsent(userId, workspaceId)
-  if (!consent?.scopes.includes('builder')) return
-  appendActivityExportEvent({ source: 'builder', workspaceId, userId, subjectId, content }, consent)
+  appendActivityExportEventsForActiveConsents({ source: 'builder', workspaceId, userId, subjectId, content })
 }
 
 function withAiBuilderTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {

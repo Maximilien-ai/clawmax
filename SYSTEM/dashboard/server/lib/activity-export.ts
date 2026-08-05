@@ -90,8 +90,11 @@ function writeState(state: ActivityExportState): void {
 }
 
 export function getActivityExportConsent(userId: string, workspaceId: string): ActivityExportConsent | null {
-  const state = readState()
-  return Object.values(state.consents).find((consent) => consent.userId === userId && consent.workspaceId === workspaceId && consent.active) || null
+  return listActivityExportConsents(userId, workspaceId)[0] || null
+}
+
+export function listActivityExportConsents(userId: string, workspaceId: string): ActivityExportConsent[] {
+  return Object.values(readState().consents).filter((consent) => consent.userId === userId && consent.workspaceId === workspaceId && consent.active)
 }
 
 export function saveActivityExportConsent(consent: ActivityExportConsent): ActivityExportConsent {
@@ -103,10 +106,22 @@ export function saveActivityExportConsent(consent: ActivityExportConsent): Activ
 
 export function revokeActivityExportConsent(userId: string, workspaceId: string): boolean {
   const state = readState()
-  const consent = Object.values(state.consents).find((entry) => entry.userId === userId && entry.workspaceId === workspaceId && entry.active)
-  if (!consent) return false
-  consent.active = false
-  state.outbox = state.outbox.filter((event) => event.consentReceiptId !== consent.receiptId)
+  const receipts = Object.values(state.consents).filter((entry) => entry.userId === userId && entry.workspaceId === workspaceId && entry.active)
+  if (receipts.length === 0) return false
+  const receiptIds = new Set(receipts.map((consent) => consent.receiptId))
+  receipts.forEach((consent) => { consent.active = false })
+  state.outbox = state.outbox.filter((event) => !receiptIds.has(event.consentReceiptId))
+  writeState(state)
+  return true
+}
+
+export function revokeActivityExportDestinationConsent(userId: string, workspaceId: string, destinationId: string): boolean {
+  const state = readState()
+  const receipts = Object.values(state.consents).filter((entry) => entry.userId === userId && entry.workspaceId === workspaceId && entry.destinationId === destinationId && entry.active)
+  if (receipts.length === 0) return false
+  const receiptIds = new Set(receipts.map((consent) => consent.receiptId))
+  receipts.forEach((consent) => { consent.active = false })
+  state.outbox = state.outbox.filter((event) => !receiptIds.has(event.consentReceiptId))
   writeState(state)
   return true
 }
@@ -119,6 +134,12 @@ export function appendActivityExportEvent(input: ActivityExportEventInput, conse
   state.outbox.push({ ...event, attempts: 0 })
   writeState(state)
   return event
+}
+
+export function appendActivityExportEventsForActiveConsents(input: ActivityExportEventInput): ActivityExportEvent[] {
+  return listActivityExportConsents(input.userId, input.workspaceId)
+    .map((consent) => appendActivityExportEvent(input, consent))
+    .filter((event): event is ActivityExportEvent => event !== null)
 }
 
 export function listActivityExportOutbox(userId: string, workspaceId: string): ActivityExportEvent[] {

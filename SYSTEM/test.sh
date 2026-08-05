@@ -1019,8 +1019,8 @@ fi
 echo ""
 echo -e "${YELLOW}→ Running Activity Export contract unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/activity-export.test.ts > /tmp/clawmax-activity-export.out 2>&1 || true
-if grep -q "Activity export tests: 23 passed" /tmp/clawmax-activity-export.out; then
-  pass "Activity Export contract unit tests (23 tests)"
+if grep -q "Activity export tests: 26 passed" /tmp/clawmax-activity-export.out; then
+  pass "Activity Export contract unit tests (26 tests)"
 else
   cat /tmp/clawmax-activity-export.out
   fail "Activity Export contract unit tests"

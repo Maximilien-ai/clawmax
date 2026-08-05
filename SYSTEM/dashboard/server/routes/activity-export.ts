@@ -5,13 +5,15 @@ import { getWorkspacePath } from '../lib/workspace'
 import { getResolvedWorkspaceIntegrationConfig, readWorkspaceIntegrationSecrets } from '../lib/workspace-integrations'
 import {
   ACTIVITY_EXPORT_VERSION,
-  appendActivityExportEvent,
-  flushActivityExportOutbox,
+  appendActivityExportEventsForActiveConsents,
   getActivityExportConsent,
+  flushActivityExportOutbox,
+  listActivityExportConsents,
   listActivityExportOutbox,
   listReceivedActivityExportEvents,
   receiveActivityExportBatch,
   revokeActivityExportConsent,
+  revokeActivityExportDestinationConsent,
   saveActivityExportConsent,
   type ActivityExportScope,
 } from '../lib/activity-export'
@@ -28,8 +30,9 @@ function actor(req: any): { userId: string; workspaceId: string } {
 router.get('/status', (req, res) => {
   const { userId, workspaceId } = actor(req)
   const consent = getActivityExportConsent(userId, workspaceId)
+  const destinations = listActivityExportConsents(userId, workspaceId)
   const outbox = listActivityExportOutbox(userId, workspaceId)
-  res.json({ version: ACTIVITY_EXPORT_VERSION, sharing: consent ? { destinationId: consent.destinationId, scopes: consent.scopes, consentedAt: consent.consentedAt } : null, queuedEvents: outbox.length })
+  res.json({ version: ACTIVITY_EXPORT_VERSION, sharing: consent ? { destinationId: consent.destinationId, scopes: consent.scopes, consentedAt: consent.consentedAt } : null, destinations: destinations.map((entry) => ({ destinationId: entry.destinationId, scopes: entry.scopes, consentedAt: entry.consentedAt })), queuedEvents: outbox.length })
 })
 
 router.post('/consent', (req, res) => {
@@ -52,19 +55,21 @@ router.post('/consent', (req, res) => {
 
 router.delete('/consent', (req, res) => {
   const { userId, workspaceId } = actor(req)
-  const revoked = revokeActivityExportConsent(userId, workspaceId)
+  const destinationId = typeof req.body?.destinationId === 'string' ? req.body.destinationId.trim() : ''
+  const revoked = destinationId
+    ? revokeActivityExportDestinationConsent(userId, workspaceId, destinationId)
+    : revokeActivityExportConsent(userId, workspaceId)
   res.json({ ok: true, revoked })
 })
 
 router.post('/events', (req, res) => {
   const { userId, workspaceId } = actor(req)
-  const consent = getActivityExportConsent(userId, workspaceId)
-  if (!consent) return res.status(403).json({ error: 'Activity sharing is not enabled for this user and workspace.' })
+  if (listActivityExportConsents(userId, workspaceId).length === 0) return res.status(403).json({ error: 'Activity sharing is not enabled for this user and workspace.' })
   const source = req.body?.source as ActivityExportScope
   if (!ALLOWED_SCOPES.has(source)) return res.status(400).json({ error: 'Unsupported activity scope.' })
-  const event = appendActivityExportEvent({ source, workspaceId, userId, sessionId: typeof req.body?.sessionId === 'string' ? req.body.sessionId : undefined, subjectId: typeof req.body?.subjectId === 'string' ? req.body.subjectId : undefined, content: typeof req.body?.content === 'string' ? req.body.content : undefined, metadata: req.body?.metadata && typeof req.body.metadata === 'object' ? req.body.metadata : undefined }, consent)
-  if (!event) return res.status(400).json({ error: 'Event was rejected by consent or validation.' })
-  res.status(202).json({ ok: true, queued: true, eventId: event.eventId })
+  const events = appendActivityExportEventsForActiveConsents({ source, workspaceId, userId, sessionId: typeof req.body?.sessionId === 'string' ? req.body.sessionId : undefined, subjectId: typeof req.body?.subjectId === 'string' ? req.body.subjectId : undefined, content: typeof req.body?.content === 'string' ? req.body.content : undefined, metadata: req.body?.metadata && typeof req.body.metadata === 'object' ? req.body.metadata : undefined })
+  if (events.length === 0) return res.status(400).json({ error: 'Event was rejected by consent or validation.' })
+  res.status(202).json({ ok: true, queued: true, eventIds: events.map((event) => event.eventId) })
 })
 
 router.post('/flush', async (req, res) => {

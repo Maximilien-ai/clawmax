@@ -22,7 +22,7 @@ import { explainOneTimeCronLimitation, generateCronFromText, generateWorkflowFro
 import { syncAllWorkflows } from '../lib/scheduler'
 import { getAuthenticatedSession } from '../lib/github-auth'
 import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
-import { appendActivityExportEvent, getActivityExportConsent } from '../lib/activity-export'
+import { appendActivityExportEventsForActiveConsents } from '../lib/activity-export'
 
 const router = Router()
 
@@ -725,16 +725,13 @@ router.post('/:id/complete', (req, res) => {
     const session = getAuthenticatedSession(req)
     const activityUserId = session?.userId || session?.login || 'dashboard-user'
     const activityWorkspaceId = getWorkspacePath()
-    const activityConsent = getActivityExportConsent(activityUserId, activityWorkspaceId)
-    if (activityConsent?.scopes.includes('workflow')) {
-      appendActivityExportEvent({
-        source: 'workflow',
-        workspaceId: activityWorkspaceId,
-        userId: activityUserId,
-        subjectId: workflow.id,
-        metadata: { workflowId: workflow.id, status: 'completed', triggered: readyToRun.length },
-      }, activityConsent)
-    }
+    appendActivityExportEventsForActiveConsents({
+      source: 'workflow',
+      workspaceId: activityWorkspaceId,
+      userId: activityUserId,
+      subjectId: workflow.id,
+      metadata: { workflowId: workflow.id, status: 'completed', triggered: readyToRun.length },
+    })
 
     // Auto-trigger ready workflows if they're enabled
     const triggered: string[] = []

@@ -23,7 +23,7 @@ import { hasWorkspaceManagedPartnerSecrets } from '../lib/workspace-integrations
 import { getAuthenticatedSession } from '../lib/github-auth'
 import { deriveChatError } from './chat'
 import { createBrokerCapabilityToken } from '../lib/skill-secret-broker'
-import { appendActivityExportEvent, getActivityExportConsent } from '../lib/activity-export'
+import { appendActivityExportEventsForActiveConsents } from '../lib/activity-export'
 
 const router = Router()
 
@@ -785,8 +785,7 @@ router.post('/communities/:name/messages', async (req, res) => {
   })
   const activityUserId = session?.userId || session?.login || 'dashboard-user'
   const activityWorkspaceId = getWorkspacePath()
-  const activityConsent = getActivityExportConsent(activityUserId, activityWorkspaceId)
-  if (activityConsent?.scopes.includes('community-chat')) appendActivityExportEvent({ source: 'community-chat', workspaceId: activityWorkspaceId, userId: activityUserId, subjectId: decodedName, content }, activityConsent)
+  appendActivityExportEventsForActiveConsents({ source: 'community-chat', workspaceId: activityWorkspaceId, userId: activityUserId, subjectId: decodedName, content })
 
   res.json({ ok: true, message })
 
@@ -870,8 +869,7 @@ router.post('/groups/:name/messages', async (req, res) => {
   })
   const activityUserId = session?.userId || session?.login || 'dashboard-user'
   const activityWorkspaceId = getWorkspacePath()
-  const activityConsent = getActivityExportConsent(activityUserId, activityWorkspaceId)
-  if (activityConsent?.scopes.includes('group-chat')) appendActivityExportEvent({ source: 'group-chat', workspaceId: activityWorkspaceId, userId: activityUserId, subjectId: decodedName, content }, activityConsent)
+  appendActivityExportEventsForActiveConsents({ source: 'group-chat', workspaceId: activityWorkspaceId, userId: activityUserId, subjectId: decodedName, content })
 
   res.json({ ok: true, message })
 
