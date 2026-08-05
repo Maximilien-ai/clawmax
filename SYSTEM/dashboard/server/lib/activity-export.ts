@@ -165,3 +165,31 @@ export function validateActivityExportBatch(events: ActivityExportEvent[]): { ok
   }
   return { ok: true }
 }
+
+export interface ActivityExportDeliveryResult {
+  delivered: boolean
+  status?: number
+  error?: string
+}
+
+export async function deliverActivityExportBatch(
+  events: ActivityExportEvent[],
+  options: { endpoint?: string; token?: string; fetchImpl?: typeof fetch } = {},
+): Promise<ActivityExportDeliveryResult> {
+  const validation = validateActivityExportBatch(events)
+  if (!validation.ok) return { delivered: false, error: validation.error }
+  const endpoint = (options.endpoint || process.env.CLAWMAX_ACTIVITY_EXPORT_ENDPOINT || '').trim()
+  const token = (options.token || process.env.CLAWMAX_ACTIVITY_EXPORT_TOKEN || '').trim()
+  if (!endpoint || !token) return { delivered: false, error: 'Activity Export delivery is not configured.' }
+  try {
+    const response = await (options.fetchImpl || fetch)(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, 'Idempotency-Key': `activity-batch-${events[0].eventId}-${events[events.length - 1].eventId}` },
+      body: JSON.stringify({ version: ACTIVITY_EXPORT_VERSION, events }),
+    })
+    if (!response.ok) return { delivered: false, status: response.status, error: `Reference receiver rejected the batch (${response.status}).` }
+    return { delivered: true, status: response.status }
+  } catch (error: any) {
+    return { delivered: false, error: error?.message || 'Activity Export delivery failed.' }
+  }
+}

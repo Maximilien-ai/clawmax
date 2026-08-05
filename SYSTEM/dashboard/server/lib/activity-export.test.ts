@@ -5,6 +5,7 @@ import path from 'path'
 import {
   ACTIVITY_EXPORT_VERSION,
   createActivityExportEvent,
+  deliverActivityExportBatch,
   appendActivityExportEvent,
   getActivityExportConsent,
   listActivityExportOutbox,
@@ -59,4 +60,18 @@ assert.strictEqual(getActivityExportConsent('user_demo', 'workspace_demo'), null
 if (previousStatePath === undefined) delete process.env.CLAWMAX_ACTIVITY_EXPORT_STATE_PATH
 else process.env.CLAWMAX_ACTIVITY_EXPORT_STATE_PATH = previousStatePath
 
-console.log('Activity export tests: 16 passed')
+;(async () => {
+  let deliveredRequest: any = null
+  const delivery = await deliverActivityExportBatch([event!], {
+    endpoint: 'https://receiver.example/activity',
+    token: 'demo-token',
+    fetchImpl: async (_url, init) => { deliveredRequest = init; return new Response('{}', { status: 202 }) },
+  })
+  assert.strictEqual(delivery.delivered, true)
+  assert.strictEqual(deliveredRequest.headers.Authorization, 'Bearer demo-token')
+  assert.strictEqual((await deliverActivityExportBatch([event!], { fetchImpl: async () => new Response('{}', { status: 503 }) })).delivered, false)
+  console.log('Activity export tests: 18 passed')
+})().catch((error) => {
+  console.error(error)
+  process.exitCode = 1
+})
