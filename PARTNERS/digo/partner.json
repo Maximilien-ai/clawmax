@@ -1,6 +1,7 @@
 {
   "slug": "digo",
   "name": "Digo",
+  "logoUrl": "https://digo.com/favicon.ico",
   "website": "https://digo.com",
   "description": "Opt-in event activity export for Digo-managed agent experiences and script feedback.",
   "category": "communications",

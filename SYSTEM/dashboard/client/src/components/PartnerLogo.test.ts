@@ -28,4 +28,11 @@ test('partner logo renders remote image inside a dark-mode-safe white chip', () 
   assert(markup.includes('max-h-full'), 'Expected image to fit the chip instead of owning the background')
 })
 
+test('partner logo has a compact icon fallback when a remote logo is unavailable', () => {
+  const markup = renderToStaticMarkup(React.createElement(PartnerLogo, { slug: 'digo', name: 'Digo' }))
+  assert(markup.includes('aria-label="Digo logo"'), 'Expected accessible Digo fallback label')
+  assert(markup.includes('>D</span>'), 'Expected Digo icon fallback')
+  assert(!markup.includes('>Digo</span>'), 'Fallback should not consume the full partner name')
+})
+
 console.log('PartnerLogo.test.ts: ok')

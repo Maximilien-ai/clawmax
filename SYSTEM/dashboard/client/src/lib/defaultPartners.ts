@@ -142,6 +142,7 @@ export const DEFAULT_PARTNER_DEFINITIONS: DefaultPartnerDefinition[] = [
   {
     slug: 'cognee',
     name: 'Cognee',
+    logoUrl: 'https://www.cognee.ai/favicon.ico',
     website: 'https://www.cognee.ai/',
     docsUrl: 'https://docs.cognee.ai/',
     description: 'Memory, recall, and semantic context layer for agents and agent teams.',
@@ -183,6 +184,7 @@ export const DEFAULT_PARTNER_DEFINITIONS: DefaultPartnerDefinition[] = [
   {
     slug: 'gmail',
     name: 'Gmail',
+    logoUrl: 'https://www.gstatic.com/images/branding/product/1x/gmail_2020q4_32dp.png',
     website: 'https://workspace.google.com/products/gmail/',
     docsUrl: 'https://developers.google.com/workspace/gmail/api/guides',
     description: 'Delegated Gmail access for bounded inbox search, reading, and draft creation.',
@@ -202,6 +204,7 @@ export const DEFAULT_PARTNER_DEFINITIONS: DefaultPartnerDefinition[] = [
   {
     slug: 'microsoft365',
     name: 'Microsoft 365',
+    logoUrl: 'https://img.icons8.com/color/48/microsoft-365.png',
     website: 'https://www.microsoft.com/microsoft-365',
     docsUrl: 'https://learn.microsoft.com/graph/api/resources/mail-api-overview',
     description: 'Delegated Outlook and Microsoft 365 mail access for bounded inbox search, reading, and draft creation.',

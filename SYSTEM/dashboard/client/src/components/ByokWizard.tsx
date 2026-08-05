@@ -1200,6 +1200,20 @@ export function ByokWizard({
         return false
       }
     }
+    if (scope === 'current-partner' && currentPartnerSlug === 'digo') {
+      const apiUrl = getPartnerValue('digo', 'apiUrl').trim()
+      const hasApiKey = Boolean(getPartnerSecret('digo', 'apiKey').trim() || hasServerPartnerSecret('digo', 'apiKey'))
+      const message = !/^https:\/\//i.test(apiUrl)
+        ? 'Enter an HTTPS Digo ingestion API URL before checking Digo.'
+        : !hasApiKey
+          ? 'Enter a Digo API key before checking Digo.'
+          : 'Digo endpoint and server-managed API key are configured. A user consent is still required before delivery.'
+      const status = /^https:\/\//i.test(apiUrl) && hasApiKey ? 'valid' : 'invalid'
+      setValidation((current) => ({ ...current, digo: { status, message } }))
+      if (status === 'valid') showSuccess('Digo connection settings are ready')
+      else showWarning(message)
+      return status === 'valid'
+    }
 
     setValidating(true)
     try {
@@ -1221,6 +1235,7 @@ export function ByokWizard({
           opik: { status: 'skipped', message: 'Validation unavailable from the current server build' },
           senso: { status: 'skipped', message: 'Validation unavailable from the current server build' },
           cognee: { status: 'skipped', message: 'Validation unavailable from the current server build' },
+          digo: { status: 'skipped', message: 'Validation unavailable from the current server build' },
         })
         showInfo('Integration validation is unavailable on the current server build. Saving local settings without blocking.')
         return true
@@ -1240,6 +1255,7 @@ export function ByokWizard({
         opik: { status: data.opik?.status || 'idle', message: data.opik?.message || '' },
         senso: { status: data.senso?.status || 'idle', message: data.senso?.message || '' },
         cognee: { status: data.cognee?.status || 'idle', message: data.cognee?.message || '' },
+        digo: { status: data.digo?.status || 'idle', message: data.digo?.message || '' },
       }
       setValidation(nextState)
       updateStoredVerification((current) => {
@@ -1578,7 +1594,7 @@ export function ByokWizard({
 
   const renderValidation = (key: keyof ValidationState) => {
     const entry = validation[key]
-    if (entry.status === 'idle') return null
+    if (!entry || entry.status === 'idle') return null
     const className =
       entry.status === 'valid'
         ? 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-100'
