@@ -3005,8 +3005,18 @@ export function ByokWizard({
                       <div className="mt-1">Enable ClawMax.ai Activity Export first, then explicitly authorize Digo here. Direct PII and known secrets are removed before delivery.</div>
                       <button
                         type="button"
-                        onClick={() => { setActivityDestination('digo'); setActivityConfirmOpen(true) }}
-                        disabled={!digoConfigured && !activeActivityConsent}
+                        onClick={() => {
+                          if (!digoConfigured) {
+                            showWarning('Save the Digo API key and HTTPS ingestion URL before reviewing Digo sharing.')
+                            return
+                          }
+                          if (!activityConsents.some((entry) => entry.destinationId === 'clawmax-ai')) {
+                            showWarning('Enable ClawMax.ai Activity Export sharing before adding Digo as a destination.')
+                            return
+                          }
+                          setActivityDestination('digo')
+                          setActivityConfirmOpen(true)
+                        }}
                         className="mt-2 rounded-md border border-amber-400 px-3 py-1.5 font-medium hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-amber-700 dark:hover:bg-amber-900/30"
                       >
                         {activeActivityConsent?.destinationId === 'digo' ? 'Digo sharing enabled' : 'Review Digo sharing'}
