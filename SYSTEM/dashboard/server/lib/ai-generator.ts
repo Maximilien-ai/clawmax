@@ -497,7 +497,7 @@ export function resolveClaudeGenerationModel(): string {
 // process is killed by us rather than orphaned when that race rejects.
 const CLI_GENERATION_TIMEOUT_MS = 40000
 
-function buildCliRuntimeClient(runtime: AgentRuntimeId): { client: OpenAI; model: string } {
+export function buildCliRuntimeClient(runtime: AgentRuntimeId): { client: OpenAI; model: string } {
   const client = {
     chat: {
       completions: {

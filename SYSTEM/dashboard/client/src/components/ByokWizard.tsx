@@ -26,8 +26,8 @@ function maskKey(value: string) {
 }
 
 type Step = 'models' | 'partners' | 'runtime' | `partner:${string}`
-type ModelTab = 'openai' | 'anthropic' | 'gemini' | 'ollama' | 'openaiCompatible'
-type ProviderKey = 'openai' | 'anthropic' | 'gemini' | 'ollama'
+type ModelTab = 'openai' | 'anthropic' | 'gemini' | 'openrouter' | 'xai' | 'ollama' | 'openaiCompatible'
+type ProviderKey = 'openai' | 'anthropic' | 'gemini' | 'openrouter' | 'xai' | 'ollama'
 type ValidationEntry = { status: 'idle' | 'valid' | 'invalid' | 'error' | 'skipped'; message: string }
 type ValidationState = Record<string, ValidationEntry>
 type ModelsByProvider = Record<string, { name: string; models: string[] }>
