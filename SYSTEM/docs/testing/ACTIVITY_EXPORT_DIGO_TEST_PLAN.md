@@ -62,7 +62,9 @@ release Review export.
 
 ## Reference Receiver Checks
 
-1. Verify the ClawMax.ai receiver accepts a valid authenticated batch.
+1. Set `CLAWMAX_ACTIVITY_EXPORT_REFERENCE_TOKEN` and point
+   `CLAWMAX_ACTIVITY_EXPORT_ENDPOINT` at `/api/activity-export/reference/ingest`.
+   Verify the ClawMax.ai receiver accepts a valid authenticated batch.
 2. Verify invalid versions, missing consent receipts, duplicate event IDs,
    oversized events, and oversized batches are rejected with actionable errors.
 3. Verify accepted, duplicate, rejected, and purge results are visible to an
