@@ -9,6 +9,7 @@ export type TemplateGenerationTarget = 'agent' | 'team' | 'company'
 export type PromptExpansionTarget = 'agent' | 'workflow' | 'skill' | 'template'
 export type PromptExpansionFormat = 'markdown' | 'text'
 export type PromptExpansionGuidance = string
+export const TEMPLATE_GENERATION_TIMEOUT_MS = 90000
 export type BuilderStarterPromptInput = {
   workspaceName?: string
   workspaceTags?: string[]
@@ -137,6 +138,14 @@ Rules:
 ${formatInstruction}${guidanceInstruction}`
 }
 
+export function isUsablePromptExpansion(seed: string, candidate: string): boolean {
+  const normalizedSeed = seed.trim()
+  const normalizedCandidate = candidate.trim()
+  if (!normalizedCandidate || normalizedCandidate === normalizedSeed) return false
+  if (/^expand and rewrite this seed prompt\b/i.test(normalizedCandidate)) return false
+  return true
+}
+
 export async function expandPromptWithAI(
   prompt: string,
   target: PromptExpansionTarget = 'template',
@@ -169,7 +178,7 @@ export async function expandPromptWithAI(
 
   const normalizedPrompt = prompt.trim()
   const firstPass = await runExpansion(normalizedPrompt)
-  if (firstPass && firstPass !== normalizedPrompt) {
+  if (isUsablePromptExpansion(normalizedPrompt, firstPass)) {
     return firstPass
   }
 
@@ -180,7 +189,7 @@ export async function expandPromptWithAI(
     normalizedPrompt,
     'Do not return the original wording unchanged. Add concrete scope, outputs, constraints, and operating details so the result is visibly more specific than the seed prompt. Never repeat the instruction text or the seed prompt verbatim.',
   )
-  if (!retry || retry === normalizedPrompt) {
+  if (!isUsablePromptExpansion(normalizedPrompt, retry)) {
     throw new Error('AI expansion did not produce a more specific prompt. Add an improvement direction and try again.')
   }
   return retry
@@ -1889,7 +1898,7 @@ Respond with ONLY valid JSON, no markdown fences or explanation.`
       }
     ],
     temperature: 0.7,
-  }, 90000)
+  }, TEMPLATE_GENERATION_TIMEOUT_MS)
 
   const raw = completion.choices[0].message.content?.trim() || ''
   const jsonStr = extractJsonResponseText(raw)

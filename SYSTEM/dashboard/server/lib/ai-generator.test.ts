@@ -7,6 +7,8 @@ import {
   buildGeneratedExecutionSubteam,
   applyGeneratedWorkflowHandoffs,
   buildPromptExpansionSystemPrompt,
+  isUsablePromptExpansion,
+  TEMPLATE_GENERATION_TIMEOUT_MS,
   buildResolvedModelRequestOptions,
   createChatCompletionWithCompatibilityRetry,
   ensureGeneratedCompanyRoot,
@@ -99,6 +101,23 @@ test('prompt expansion instructions prevent echoing the seed or retry meta-instr
   const prompt = buildPromptExpansionSystemPrompt('template', 'markdown', 'Do not return the original wording unchanged.')
   assert.match(prompt, /Do not mention that you are expanding or rewriting/i)
   assert.match(prompt, /directly edit and submit/i)
+})
+
+test('prompt expansion rejects echoed retry instructions and accepts substantive output', () => {
+  const seed = 'Create a team to manage my books.'
+  assert.strictEqual(
+    isUsablePromptExpansion(seed, `Expand and rewrite this seed prompt into a more specific version while preserving intent:\n\n${seed}`),
+    false,
+  )
+  assert.strictEqual(isUsablePromptExpansion(seed, seed), false)
+  assert.strictEqual(
+    isUsablePromptExpansion(seed, 'Create an accounting team with reconciliation, approvals, monthly close, and audit-ready reports.'),
+    true,
+  )
+})
+
+test('template generation uses the longer bounded AI timeout', () => {
+  assert.strictEqual(TEMPLATE_GENERATION_TIMEOUT_MS, 90000)
 })
 
 test('validateAiGenerationProviderKeys rejects OpenAI subscription or session-style credentials', () => {
