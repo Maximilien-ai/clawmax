@@ -13,6 +13,10 @@ release Review export.
 - Public image exposes Lifecycle and Review only.
 - Private image exposes Evals, Guardrails, Optimize, Lifecycle, and Review.
 - Start from a fresh browser profile or clear prior Activity Export state.
+- For automatic delivery checks, configure `CLAWMAX_ACTIVITY_EXPORT_ENDPOINT`
+  and `CLAWMAX_ACTIVITY_EXPORT_TOKEN`. The worker runs every five minutes by
+  default; use `CLAWMAX_ACTIVITY_EXPORT_INTERVAL_MS` (minimum 1000 ms) only in
+  a test deployment to shorten that interval.
 
 ## Plugin and Image Checks
 
@@ -59,6 +63,9 @@ release Review export.
 5. Call `POST /api/activity-export/flush` while authenticated. A successful
    delivery should remove the batch; a receiver `5xx` should return `502` and
    leave events queued for retry.
+6. With the endpoint and token configured, restart the dashboard and confirm
+   the background worker delivers queued events without delaying chat or
+   workflow requests.
 
 ## Reference Receiver Checks
 
