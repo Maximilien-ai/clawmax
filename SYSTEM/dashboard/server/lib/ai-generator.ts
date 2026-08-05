@@ -173,10 +173,17 @@ export async function expandPromptWithAI(
     return firstPass
   }
 
-  return runExpansion(
-    `Expand and rewrite this seed prompt into a more specific version while preserving intent:\n\n${normalizedPrompt}`,
-    'Do not return the original wording unchanged. Add concrete scope, outputs, constraints, and operating details so the result is visibly more specific than the seed prompt.',
+  // Keep the seed prompt as the user message on retry. Putting the instruction
+  // in the user content makes echo-prone providers return the instruction
+  // itself instead of an expanded prompt.
+  const retry = await runExpansion(
+    normalizedPrompt,
+    'Do not return the original wording unchanged. Add concrete scope, outputs, constraints, and operating details so the result is visibly more specific than the seed prompt. Never repeat the instruction text or the seed prompt verbatim.',
   )
+  if (!retry || retry === normalizedPrompt) {
+    throw new Error('AI expansion did not produce a more specific prompt. Add an improvement direction and try again.')
+  }
+  return retry
 }
 
 function buildBuilderStarterPromptSystemPrompt(): string {
@@ -1882,7 +1889,7 @@ Respond with ONLY valid JSON, no markdown fences or explanation.`
       }
     ],
     temperature: 0.7,
-  })
+  }, 90000)
 
   const raw = completion.choices[0].message.content?.trim() || ''
   const jsonStr = extractJsonResponseText(raw)

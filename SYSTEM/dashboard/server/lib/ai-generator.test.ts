@@ -95,6 +95,12 @@ test('buildPromptExpansionSystemPrompt includes target, format, and optional gui
   assert.match(prompt, /Prefer step-by-step output/i)
 })
 
+test('prompt expansion instructions prevent echoing the seed or retry meta-instruction', () => {
+  const prompt = buildPromptExpansionSystemPrompt('template', 'markdown', 'Do not return the original wording unchanged.')
+  assert.match(prompt, /Do not mention that you are expanding or rewriting/i)
+  assert.match(prompt, /directly edit and submit/i)
+})
+
 test('validateAiGenerationProviderKeys rejects OpenAI subscription or session-style credentials', () => {
   assert.throws(
     () => validateAiGenerationProviderKeys({ openai: 'sess_demo_subscription_key' } as any),
