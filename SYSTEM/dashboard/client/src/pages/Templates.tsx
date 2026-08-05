@@ -2460,7 +2460,8 @@ export default function Templates() {
                 setBuilderTemplateDraft(null)
                 fetchTemplates()
               } else {
-                showError('Failed to save template')
+                const data = await resp.json().catch(() => ({}))
+                showError(data.error || 'Failed to save template')
               }
             } catch {
               showError('Failed to save template')

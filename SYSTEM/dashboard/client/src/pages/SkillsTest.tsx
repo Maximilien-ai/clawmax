@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import AIPromptEditorModal from '../components/AIPromptEditorModal'
 import PromptQualityPanel from '../components/PromptQualityPanel'
+import AIGenerationProgress from '../components/AIGenerationProgress'
 import { SelectionActionBar } from '../components/SelectionActionBar'
 import { SkillCard } from '../components/skills/SkillCard'
 import { RegistryResultRow } from '../components/skills/RegistryResultRow'
@@ -4473,6 +4474,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                         )}
                         {aiSkillGenerating ? 'Generating...' : !aiEnabled ? 'Generate Skill Draft (set up keys first)' : 'Generate Skill Draft'}
                       </button>
+                      <AIGenerationProgress active={aiSkillGenerating} label="Generating skill draft…" />
                     </div>
 
                     {generatedSkillDraft && (
