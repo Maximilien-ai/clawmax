@@ -29,7 +29,7 @@ export type DefaultPartnerDefinition = {
   }
 }
 
-export const DEFAULT_VISIBLE_PARTNERS = ['senso', 'opik', 'github', 'resend', 'cognee', 'gmail', 'microsoft365'] as const
+export const DEFAULT_VISIBLE_PARTNERS = ['senso', 'opik', 'github', 'resend', 'cognee', 'gmail', 'microsoft365', 'digo'] as const
 
 export const DEFAULT_PARTNER_DEFINITIONS: DefaultPartnerDefinition[] = [
   {
@@ -216,6 +216,24 @@ export const DEFAULT_PARTNER_DEFINITIONS: DefaultPartnerDefinition[] = [
       mode: 'status',
       label: 'Connection status',
       helperText: 'Delegated OAuth is available when the operator configures the Entra client ID, secret, callback URI, and encryption master key. Passwords and app passwords are not accepted.',
+    },
+  },
+  {
+    slug: 'digo',
+    name: 'Digo',
+    website: 'https://digo.com',
+    description: 'Opt-in event activity export for Digo-managed agent experiences and script feedback.',
+    category: 'communications',
+    categories: ['communications', 'monitoring'],
+    enabledByDefault: true,
+    fields: [
+      { key: 'apiKey', label: 'API key', type: 'password', required: false, secret: true, storage: 'server' },
+      { key: 'apiUrl', label: 'Ingestion API URL', type: 'text', required: false, secret: false, storage: 'server' },
+    ],
+    validation: {
+      mode: 'status',
+      label: 'Connection status',
+      helperText: 'Digo activity export is available when the operator configures an HTTPS ingestion URL and server-managed API key. User consent is still required before any activity is sent.',
     },
   },
 ]

@@ -125,6 +125,10 @@ export function listActivityExportOutbox(userId: string, workspaceId: string): A
   return readState().outbox.filter((event) => event.userId === userId && event.workspaceId === workspaceId)
 }
 
+export function listAllActivityExportOutbox(): ActivityExportEvent[] {
+  return readState().outbox
+}
+
 export interface ActivityExportReceiveResult {
   accepted: number
   duplicates: number
@@ -164,6 +168,7 @@ export async function flushActivityExportOutbox(
   options: {
     userId?: string
     workspaceId?: string
+    destinationId?: string
     maxEvents?: number
     endpoint?: string
     token?: string
@@ -175,7 +180,8 @@ export async function flushActivityExportOutbox(
   const candidates = state.outbox.filter((entry) =>
     !entry.deliveredAt &&
     (!options.userId || entry.userId === options.userId) &&
-    (!options.workspaceId || entry.workspaceId === options.workspaceId),
+    (!options.workspaceId || entry.workspaceId === options.workspaceId) &&
+    (!options.destinationId || entry.destinationId === options.destinationId),
   ).slice(0, maxEvents)
   if (candidates.length === 0) return { attempted: 0, delivered: 0, remaining: state.outbox.filter((entry) => !entry.deliveredAt).length }
 

@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { randomUUID } from 'crypto'
 import { getAuthenticatedSession } from '../lib/github-auth'
 import { getWorkspacePath } from '../lib/workspace'
+import { getResolvedWorkspaceIntegrationConfig, readWorkspaceIntegrationSecrets } from '../lib/workspace-integrations'
 import {
   ACTIVITY_EXPORT_VERSION,
   appendActivityExportEvent,
@@ -16,7 +17,7 @@ import {
 } from '../lib/activity-export'
 
 const router = Router()
-const ALLOWED_DESTINATIONS = new Set(['clawmax-ai'])
+const ALLOWED_DESTINATIONS = new Set(['clawmax-ai', 'digo'])
 const ALLOWED_SCOPES = new Set<ActivityExportScope>(['agent-chat', 'group-chat', 'community-chat', 'workflow', 'builder'])
 
 function actor(req: any): { userId: string; workspaceId: string } {
@@ -35,7 +36,15 @@ router.post('/consent', (req, res) => {
   const { userId, workspaceId } = actor(req)
   const destinationId = String(req.body?.destinationId || '').trim()
   const scopes = Array.isArray(req.body?.scopes) ? req.body.scopes.filter((scope: unknown): scope is ActivityExportScope => typeof scope === 'string' && ALLOWED_SCOPES.has(scope as ActivityExportScope)) : []
-  if (!ALLOWED_DESTINATIONS.has(destinationId)) return res.status(400).json({ error: 'Only the ClawMax.ai reference destination is available in this preview.' })
+  if (!ALLOWED_DESTINATIONS.has(destinationId)) return res.status(400).json({ error: 'Unsupported Activity Export destination.' })
+  if (destinationId === 'digo') {
+    const config = getResolvedWorkspaceIntegrationConfig()
+    const apiUrl = config.partners?.digo?.apiUrl
+    const apiKey = readWorkspaceIntegrationSecrets().partners?.digo?.apiKey
+    if (typeof apiUrl !== 'string' || !/^https:\/\//i.test(apiUrl) || typeof apiKey !== 'string' || !apiKey.trim()) {
+      return res.status(400).json({ error: 'Configure the Digo HTTPS ingestion URL and server-managed API key before enabling activity sharing.' })
+    }
+  }
   if (scopes.length === 0) return res.status(400).json({ error: 'Select at least one activity scope.' })
   const consent = saveActivityExportConsent({ receiptId: `consent_${randomUUID()}`, version: ACTIVITY_EXPORT_VERSION, destinationId, workspaceId, userId, scopes: [...new Set(scopes)] as ActivityExportScope[], active: true, consentedAt: new Date().toISOString() })
   res.status(201).json({ ok: true, consent: { receiptId: consent.receiptId, destinationId: consent.destinationId, scopes: consent.scopes, consentedAt: consent.consentedAt } })

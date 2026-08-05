@@ -1,0 +1,32 @@
+{
+  "slug": "digo",
+  "name": "Digo",
+  "website": "https://digo.com",
+  "description": "Opt-in event activity export for Digo-managed agent experiences and script feedback.",
+  "category": "communications",
+  "categories": ["communications", "monitoring"],
+  "enabledByDefault": true,
+  "fields": [
+    {
+      "key": "apiKey",
+      "label": "API key",
+      "type": "password",
+      "required": false,
+      "secret": true,
+      "storage": "server"
+    },
+    {
+      "key": "apiUrl",
+      "label": "Ingestion API URL",
+      "type": "text",
+      "required": false,
+      "secret": false,
+      "storage": "server"
+    }
+  ],
+  "validation": {
+    "mode": "status",
+    "label": "Connection status",
+    "helperText": "Configure an HTTPS Digo ingestion URL and server-managed API key. User consent is still required before activity is sent."
+  }
+}

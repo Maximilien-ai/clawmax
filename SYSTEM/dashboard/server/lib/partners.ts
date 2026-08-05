@@ -44,7 +44,7 @@ export interface PartnerDefinition {
   sourceRoot?: string
 }
 
-export const DEFAULT_PARTNERS = ['senso', 'opik', 'github', 'resend', 'cognee', 'gmail', 'microsoft365'] as const
+export const DEFAULT_PARTNERS = ['senso', 'opik', 'github', 'resend', 'cognee', 'gmail', 'microsoft365', 'digo'] as const
 const LEGACY_DEFAULT_PARTNERS = ['senso', 'opik', 'github', 'resend', 'cognee'] as const
 
 function splitList(raw: string | undefined): string[] {

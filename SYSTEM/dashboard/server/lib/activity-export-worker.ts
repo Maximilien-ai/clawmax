@@ -1,4 +1,5 @@
-import { flushActivityExportOutbox, type ActivityExportFlushResult } from './activity-export'
+import { flushActivityExportOutbox, listAllActivityExportOutbox, type ActivityExportFlushResult } from './activity-export'
+import { getResolvedWorkspaceIntegrationConfig, readWorkspaceIntegrationSecrets } from './workspace-integrations'
 
 const DEFAULT_INTERVAL_MS = 5 * 60 * 1000
 let timer: ReturnType<typeof setInterval> | null = null
@@ -10,18 +11,47 @@ function intervalMs(): number {
 }
 
 export async function flushActivityExportWorker(): Promise<ActivityExportFlushResult | null> {
-  if (!process.env.CLAWMAX_ACTIVITY_EXPORT_ENDPOINT?.trim() || !process.env.CLAWMAX_ACTIVITY_EXPORT_TOKEN?.trim()) return null
   if (running) return null
   running = true
   try {
-    return await flushActivityExportOutbox()
+    const destinations = new Set(listAllActivityExportOutbox().map((event) => event.destinationId))
+    let combined: ActivityExportFlushResult | null = null
+    for (const destinationId of destinations) {
+      const delivery = destinationCredentials(destinationId)
+      if (!delivery) continue
+      const result = await flushActivityExportOutbox({ destinationId, endpoint: delivery.endpoint, token: delivery.token })
+      combined = combined ? {
+        attempted: combined.attempted + result.attempted,
+        delivered: combined.delivered + result.delivered,
+        remaining: result.remaining,
+        error: combined.error || result.error,
+      } : result
+    }
+    return combined
   } finally {
     running = false
   }
 }
 
+function destinationCredentials(destinationId: string): { endpoint: string; token: string } | null {
+  if (destinationId === 'clawmax-ai') {
+    const endpoint = process.env.CLAWMAX_ACTIVITY_EXPORT_ENDPOINT?.trim()
+    const token = process.env.CLAWMAX_ACTIVITY_EXPORT_TOKEN?.trim()
+    return endpoint && token ? { endpoint, token } : null
+  }
+  if (destinationId === 'digo') {
+    const config = getResolvedWorkspaceIntegrationConfig()
+    const endpoint = config.partners?.digo?.apiUrl
+    const token = readWorkspaceIntegrationSecrets().partners?.digo?.apiKey
+    return typeof endpoint === 'string' && /^https:\/\//i.test(endpoint) && typeof token === 'string' && token.trim()
+      ? { endpoint, token: token.trim() }
+      : null
+  }
+  return null
+}
+
 export function startActivityExportWorker(log: (message: string) => void = console.log): void {
-  if (timer || !process.env.CLAWMAX_ACTIVITY_EXPORT_ENDPOINT?.trim() || !process.env.CLAWMAX_ACTIVITY_EXPORT_TOKEN?.trim()) return
+  if (timer || !hasConfiguredDestination()) return
   const run = () => {
     void flushActivityExportWorker().then((result) => {
       if (!result || result.attempted === 0) return
@@ -34,9 +64,15 @@ export function startActivityExportWorker(log: (message: string) => void = conso
   run()
 }
 
+function hasConfiguredDestination(): boolean {
+  return Boolean(
+    (process.env.CLAWMAX_ACTIVITY_EXPORT_ENDPOINT?.trim() && process.env.CLAWMAX_ACTIVITY_EXPORT_TOKEN?.trim()) ||
+    destinationCredentials('digo'),
+  )
+}
+
 export function stopActivityExportWorker(): void {
   if (!timer) return
   clearInterval(timer)
   timer = null
 }
-
