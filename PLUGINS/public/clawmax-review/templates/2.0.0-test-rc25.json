@@ -1,9 +1,9 @@
 {
-  "release": "2.0.0-test-rc25",
-  "description": "Focused checks for Lifecycle relationship previews, active X-rays, communication history, compressed timelines, and responsive graph behavior.",
+  "release": "2.0.0-test-rc27",
+  "description": "Focused checks for Lifecycle plus long-running AI generation progress, explicit team targeting, and actionable template-save errors.",
   "defaults": {
     "enabled": true,
-    "tags": ["release", "current", "2.0.0-test-rc25"],
+    "tags": ["release", "current", "2.0.0-test-rc27"],
     "fields": {
       "completed": false,
       "outcome": "pending",
@@ -61,6 +61,34 @@
       "description": "Test: Use one Lifecycle inspection for each supported target type, refresh the browser, restart the instance, and return to Lifecycle. Pass: Active records, selected targets, graph/list view choice, collapsed X-ray state, and available evidence remain consistent after restart; missing targets show a clear error instead of a blank page.",
       "tags": ["lifecycle", "persistence", "restart"],
       "fields": {"area": "persistence", "notes": ""}
+    },
+    {
+      "id": "rc27-ai-generation-progress",
+      "name": "Long AI generation shows visible progress",
+      "description": "Test: Start AI generation for a team template, single agent, agent template files, and a skill draft. Pass: A progress bar and stage text appear beside or in the sticky action area for the button you used, remain visible while scrolling, and disappear after success or failure.",
+      "tags": ["ai", "generation", "progress", "responsive"],
+      "fields": {"area": "ai-editor", "notes": ""}
+    },
+    {
+      "id": "rc27-team-target",
+      "name": "Team generation stays a team",
+      "description": "Test: In Builder, choose AI Create Team Template and use a prompt mentioning a startup or business. Pass: The generated result remains one focused team, not a company or team-of-teams; the selected target is preserved after generation and regeneration.",
+      "tags": ["ai", "builder", "templates", "team"],
+      "fields": {"area": "templates", "notes": ""}
+    },
+    {
+      "id": "rc27-template-save-error",
+      "name": "Template save errors explain the server failure",
+      "description": "Test: Generate or edit a template with a duplicate name or invalid field, then click Save Template. Pass: The UI shows the server-provided validation or conflict message instead of only 'Failed to save template'; a valid template still saves normally.",
+      "tags": ["templates", "errors", "validation"],
+      "fields": {"area": "templates", "notes": ""}
+    },
+    {
+      "id": "rc27-ai-generation-timeout",
+      "name": "Long generation has a bounded timeout and recovery",
+      "description": "Test: Start a full team generation and wait. Pass: The progress remains active during the request, the request has enough time for a full response, and if it still times out the UI shows a clear retryable error without losing the prompt.",
+      "tags": ["ai", "generation", "timeout", "recovery"],
+      "fields": {"area": "ai-editor", "notes": ""}
     }
   ]
 }

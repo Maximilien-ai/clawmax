@@ -10,7 +10,7 @@ const checklists = checklistFiles.map((file) => JSON.parse(fs.readFileSync(path.
 const checklistByRelease = new Map(checklists.map((checklist) => [checklist.release, checklist]))
 const stableChecklist = checklistByRelease.get('1.9.9 regression')
 const previousChecklist = checklistByRelease.get('2.0.0 previous RCs')
-const currentChecklist = checklistByRelease.get('2.0.0-test-rc25')
+const currentChecklist = checklistByRelease.get('2.0.0-test-rc27')
 const allItems = checklists.flatMap((checklist) => checklist.items)
 
 function assert(condition: boolean, message: string) {
@@ -25,8 +25,8 @@ assert(manifest.ui.list.groupBy === 'release', 'Review records must be compartme
 assert(manifest.ui.list.checkField === 'completed', 'Review records must declare their completion checkbox')
 assert(manifest.recordSchema.properties.verifiedBy?.type === 'array', 'Review records must support aggregated prior tester confirmation')
 assert(checklistFiles.length === 3, 'Review must expose stable, cumulative, and current release sets')
-assert(JSON.stringify(Array.from(checklistByRelease.keys()).sort()) === JSON.stringify(['1.9.9 regression', '2.0.0 previous RCs', '2.0.0-test-rc25']), 'Review set names must be stable and unambiguous')
-assert(currentChecklist?.items.length === 7, 'Current RC25 must contain seven focused Lifecycle checks')
+assert(JSON.stringify(Array.from(checklistByRelease.keys()).sort()) === JSON.stringify(['1.9.9 regression', '2.0.0 previous RCs', '2.0.0-test-rc27']), 'Review set names must be stable and unambiguous')
+assert(currentChecklist?.items.length === 11, 'Current RC27 must contain Lifecycle and AI generation checks')
 assert(previousChecklist?.items.length === 72, 'Unconfirmed earlier 2.0 checks through RC24 must remain in the cumulative set')
 assert(stableChecklist?.items.length === 14, 'The retained 1.9.9 regression set must contain fourteen end-to-end checks')
 assert(new Set(allItems.map((item: any) => item.id)).size === allItems.length, 'Checklist item IDs must not duplicate across review sets')
@@ -120,6 +120,6 @@ assert(pageSource.includes("kind === 'onprem' ? 'On-prem'"), 'Review export must
 assert(pageSource.includes("item.description.match(/^Test:"), 'Review rows must separate actions from expected pass results')
 assert(pageSource.includes('[overflow-wrap:anywhere]'), 'Review instructions and notes must wrap long evidence safely on narrow screens')
 assert(pageSource.includes('Previously verified by {verifiedBy.join'), 'Review rows must identify aggregated prior confirmations')
-assert(pageSource.includes("return ['1.9.9', '2.0.0', '2.0.0-test-rc25'].filter"), 'Review filters must stay limited to the three release families')
+assert(pageSource.includes("return ['1.9.9', '2.0.0', '2.0.0-test-rc27'].filter"), 'Review filters must stay limited to the three release families')
 
 console.log('PluginReviewChecklist.test.ts: 84 tests passed')
