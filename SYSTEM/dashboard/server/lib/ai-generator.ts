@@ -3,8 +3,10 @@ import { resolveSystemExecutionProviderKeys, resolveUserExecutionProviderKeys, P
 import { getPreferredAnthropicModel } from './model-discovery'
 import { getBestAvailableModel } from './dashboard-env'
 import { readWorkspaceIntegrationConfig } from './workspace-integrations'
+import { executeAgentRuntimeTurn, resolveEnabledRuntimes, type AgentRuntimeId } from './agent-runtime'
+import { getWorkspacePath } from './workspace'
 
-type AIProvider = 'openai' | 'openai-compatible' | 'anthropic'
+type AIProvider = 'openai' | 'openai-compatible' | 'anthropic' | 'cli-runtime'
 export type TemplateGenerationTarget = 'agent' | 'team' | 'company'
 export type PromptExpansionTarget = 'agent' | 'workflow' | 'skill' | 'template'
 export type PromptExpansionFormat = 'markdown' | 'text'
@@ -433,11 +435,86 @@ function getAvailableProvider(byokKeys?: ProviderKeys): { provider: AIProvider; 
     }
   }
   if (keys.anthropic) return { provider: 'anthropic', key: keys.anthropic }
-  throw new Error('No API key configured. Set SYSTEM_OPENAI_API_KEY or SYSTEM_ANTHROPIC_API_KEY in .env, or provide a BYOK key.')
+  // Nothing hosted is configured. If the workspace enabled a CLI runtime in BYOK ("Run via CLI"),
+  // generation should use it — those CLIs authenticate with their own login and need no key, and
+  // it is what the operator explicitly turned on.
+  const enabledRuntime = pickGenerationRuntime()
+  if (enabledRuntime) return { provider: 'cli-runtime', key: enabledRuntime }
+  throw new Error('No API key configured. Set SYSTEM_OPENAI_API_KEY or SYSTEM_ANTHROPIC_API_KEY in .env, enable a CLI runtime in BYOK, or provide a BYOK key.')
+}
+
+
+/**
+ * Minimal OpenAI-shaped client backed by an agent runtime CLI (claude / droid).
+ *
+ * AI generation funnels through a single chat.completions.create() call, so presenting the CLI
+ * behind that shape lets every generator use it unchanged. The CLIs sign in with their own
+ * login, so this works on deployments with no provider keys at all.
+ */
+
+/**
+ * First enabled CLI runtime that can actually run a generation request.
+ *
+ * Claude Code refuses to start without a concrete Anthropic model id, and model discovery returns
+ * nothing when no provider keys are configured — which is exactly the situation this fallback
+ * exists for. Droid supplies its own default model, so prefer whichever is usable instead of
+ * failing on the first one in the list.
+ */
+function pickGenerationRuntime(): AgentRuntimeId | undefined {
+  const enabled = resolveEnabledRuntimes()
+  // Prefer a runtime that brings its own current default model. Claude Code must be given an
+  // explicit Anthropic model id, and the one we can resolve without provider keys comes from a
+  // static preference list that goes stale — it resolved to a retired model here, which the CLI
+  // rejects outright. Runtimes like droid pick their own supported default, so try those first.
+  const selfDefaulting = enabled.find((rt) => rt !== 'claude')
+  if (selfDefaulting) return selfDefaulting
+  if (enabled.includes('claude') && getPreferredAnthropicGenerationModel().trim()) return 'claude'
+  return undefined
+}
+
+function buildCliRuntimeClient(runtime: AgentRuntimeId): { client: OpenAI; model: string } {
+  const client = {
+    chat: {
+      completions: {
+        create: async (payload: any) => {
+          const messages = Array.isArray(payload?.messages) ? payload.messages : []
+          const prompt = messages
+            .map((m: any) => {
+              const content = typeof m?.content === 'string' ? m.content : JSON.stringify(m?.content ?? '')
+              return m?.role === 'system' ? content : `${m?.role || 'user'}:\n${content}`
+            })
+            .filter(Boolean)
+            .join('\n\n')
+          const { text, errorText, missingCliError } = await executeAgentRuntimeTurn({
+            runtime,
+            // Claude Code only accepts Anthropic model ids and rejects an unset model; droid has
+            // its own default, so leave it alone there.
+            model: runtime === 'claude' ? `anthropic/${getPreferredAnthropicGenerationModel()}` : undefined,
+            // Generation is not an agent turn; use a stable synthetic id so the CLI keeps one
+            // scratch session rather than accumulating one per request.
+            agentId: 'clawmax-ai-generation',
+            agentDir: getWorkspacePath(),
+            message: prompt,
+            scopedSessionId: 'clawmax-ai-generation',
+            mode: 'json',
+            env: process.env,
+            timeoutMs: 180000,
+          })
+          if (missingCliError) throw new Error(missingCliError)
+          if (errorText) throw new Error(errorText === 'timeout' ? 'AI generation timed out' : errorText)
+          return { choices: [{ message: { role: 'assistant', content: text }, finish_reason: 'stop' }] }
+        },
+      },
+    },
+  }
+  return { client: client as unknown as OpenAI, model: `${runtime}-cli` }
 }
 
 function getAIClient(byokKeys?: ProviderKeys): { client: OpenAI; model: string } {
   const { provider, key, baseUrl, defaultModel } = getAvailableProvider(byokKeys)
+  if (provider === 'cli-runtime') {
+    return buildCliRuntimeClient(key as AgentRuntimeId)
+  }
   if (provider === 'anthropic') {
     // Use Anthropic's OpenAI-compatible endpoint
     return {
@@ -455,7 +532,11 @@ function getAIClient(byokKeys?: ProviderKeys): { client: OpenAI; model: string }
       throw new Error('OpenAI-compatible Base URL is required for AI generation.')
     }
     if (!String(defaultModel || '').trim()) {
-      throw new Error('OpenAI-compatible AI generation requires a default model. Set one in BYOK first.')
+      // A base URL with no default model cannot generate. Rather than dead-ending, use a CLI
+      // runtime if the workspace enabled one.
+      const fallbackRuntime = pickGenerationRuntime()
+      if (fallbackRuntime) return buildCliRuntimeClient(fallbackRuntime)
+      throw new Error('OpenAI-compatible AI generation requires a default model. Set one in BYOK first, or enable a CLI runtime in BYOK.')
     }
     return {
       client: new OpenAI({ apiKey: key, baseURL: normalizedBaseUrl }),
