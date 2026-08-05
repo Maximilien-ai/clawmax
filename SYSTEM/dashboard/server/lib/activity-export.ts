@@ -52,7 +52,13 @@ export interface ActivityExportEvent extends ActivityExportEventInput {
 
 interface ActivityExportState {
   consents: Record<string, ActivityExportConsent>
-  outbox: ActivityExportEvent[]
+  outbox: ActivityExportQueueEntry[]
+}
+
+export interface ActivityExportQueueEntry extends ActivityExportEvent {
+  attempts: number
+  lastError?: string
+  deliveredAt?: string
 }
 
 export function getActivityExportStatePath(): string {
@@ -64,7 +70,10 @@ function readState(): ActivityExportState {
     const parsed = JSON.parse(fs.readFileSync(getActivityExportStatePath(), 'utf8'))
     return {
       consents: parsed?.consents && typeof parsed.consents === 'object' ? parsed.consents : {},
-      outbox: Array.isArray(parsed?.outbox) ? parsed.outbox : [],
+      outbox: Array.isArray(parsed?.outbox) ? parsed.outbox.map((entry: ActivityExportEvent & Partial<ActivityExportQueueEntry>) => ({
+        ...entry,
+        attempts: typeof entry.attempts === 'number' ? entry.attempts : 0,
+      })) : [],
     }
   } catch {
     return { consents: {}, outbox: [] }
@@ -104,13 +113,61 @@ export function appendActivityExportEvent(input: ActivityExportEventInput, conse
   if (!event) return null
   const state = readState()
   if (state.outbox.some((entry) => entry.eventId === event.eventId)) return null
-  state.outbox.push(event)
+  state.outbox.push({ ...event, attempts: 0 })
   writeState(state)
   return event
 }
 
 export function listActivityExportOutbox(userId: string, workspaceId: string): ActivityExportEvent[] {
   return readState().outbox.filter((event) => event.userId === userId && event.workspaceId === workspaceId)
+}
+
+export interface ActivityExportFlushResult {
+  attempted: number
+  delivered: number
+  remaining: number
+  error?: string
+}
+
+/** Deliver at most one bounded batch and retain failed entries for retry. */
+export async function flushActivityExportOutbox(
+  options: {
+    userId?: string
+    workspaceId?: string
+    maxEvents?: number
+    endpoint?: string
+    token?: string
+    fetchImpl?: typeof fetch
+  } = {},
+): Promise<ActivityExportFlushResult> {
+  const state = readState()
+  const maxEvents = Math.max(1, Math.min(options.maxEvents || ACTIVITY_EXPORT_BATCH_LIMIT, ACTIVITY_EXPORT_BATCH_LIMIT))
+  const candidates = state.outbox.filter((entry) =>
+    !entry.deliveredAt &&
+    (!options.userId || entry.userId === options.userId) &&
+    (!options.workspaceId || entry.workspaceId === options.workspaceId),
+  ).slice(0, maxEvents)
+  if (candidates.length === 0) return { attempted: 0, delivered: 0, remaining: state.outbox.filter((entry) => !entry.deliveredAt).length }
+
+  const result = await deliverActivityExportBatch(candidates, options)
+  if (result.delivered) {
+    const deliveredIds = new Set(candidates.map((entry) => entry.eventId))
+    state.outbox = state.outbox.filter((entry) => !deliveredIds.has(entry.eventId))
+    writeState(state)
+    return { attempted: candidates.length, delivered: candidates.length, remaining: state.outbox.length }
+  }
+
+  const failedIds = new Set(candidates.map((entry) => entry.eventId))
+  state.outbox = state.outbox.map((entry) => failedIds.has(entry.eventId)
+    ? { ...entry, attempts: entry.attempts + 1, lastError: result.error || `HTTP ${result.status || 'unknown'}` }
+    : entry)
+  writeState(state)
+  return {
+    attempted: candidates.length,
+    delivered: 0,
+    remaining: state.outbox.filter((entry) => !entry.deliveredAt).length,
+    error: result.error || `HTTP ${result.status || 'unknown'}`,
+  }
 }
 
 const SECRET_PATTERNS = [
