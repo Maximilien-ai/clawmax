@@ -573,7 +573,7 @@ export function ByokWizard({
     (slug: string, key: string) => !!serverPartnerSecretPresence[slug]?.[key],
     [serverPartnerSecretPresence]
   )
-  const digoConfigured = Boolean(getPartnerValue('digo', 'apiUrl').trim() && (getPartnerSecret('digo', 'apiKey').trim() || hasServerPartnerSecret('digo', 'apiKey')))
+  const digoConfigured = selectedPartners.includes('digo') && Boolean(getPartnerValue('digo', 'apiUrl').trim() && (getPartnerSecret('digo', 'apiKey').trim() || hasServerPartnerSecret('digo', 'apiKey')))
 
   const visiblePartnerDefinitions = useMemo(
     () => {
