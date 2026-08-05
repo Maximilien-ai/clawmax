@@ -224,6 +224,7 @@ export const DEFAULT_PARTNER_DEFINITIONS: DefaultPartnerDefinition[] = [
   {
     slug: 'digo',
     name: 'Digo',
+    logoUrl: 'https://www.google.com/s2/favicons?domain=digo.com&sz=64',
     website: 'https://digo.com',
     description: 'Opt-in event activity export for Digo-managed agent experiences and script feedback.',
     category: 'communications',

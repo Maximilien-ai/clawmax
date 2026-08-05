@@ -2631,7 +2631,6 @@ export function ByokWizard({
                     <label htmlFor="activity-export-destination" className="font-medium">Destination</label>
                     <select id="activity-export-destination" value={activityDestination} onChange={(event) => setActivityDestination(event.target.value === 'digo' ? 'digo' : 'clawmax-ai')} className="rounded border border-amber-300 bg-white px-2 py-1 text-xs dark:bg-gray-900">
                       <option value="clawmax-ai">ClawMax.ai reference receiver</option>
-                      {digoConfigured && activityConsents.some((entry) => entry.destinationId === 'clawmax-ai') && <option value="digo">Digo</option>}
                     </select>
                   </div>}
                   {!activeActivityConsent && <div className="mt-3 flex flex-wrap gap-3 text-xs">
@@ -2641,7 +2640,7 @@ export function ByokWizard({
                   </div>}
                   {activityConfirmOpen && !activeActivityConsent && <div className="mt-3 rounded-lg border border-amber-300 bg-white/70 p-3 text-xs dark:border-amber-700 dark:bg-black/20">
                     <div className="font-medium">Confirm activity sharing with {activityDestination === 'digo' ? 'Digo' : 'ClawMax.ai'}</div>
-                    <p className="mt-1">ClawMax will queue redacted activity from this browser user and workspace for the selected scopes. Delivery is asynchronous; revoke sharing at any time.</p>
+                    <p className="mt-1">ClawMax removes direct PII (such as email addresses and phone numbers) and known secrets, credentials, tokens, and private keys before queueing selected activity. Delivery is asynchronous; revoke sharing at any time.</p>
                     <div className="mt-2 flex gap-2"><button type="button" onClick={() => setActivityConfirmOpen(false)} className="rounded border border-gray-300 px-2 py-1">Cancel</button><button type="button" onClick={() => void toggleActivitySharing()} className="rounded bg-amber-600 px-2 py-1 font-medium text-white">I consent</button></div>
                   </div>}
                   {activityConsents.length > 0 && <div className="mt-2 space-y-1 text-xs">{activityConsents.map((entry) => <div key={entry.destinationId}>Sharing with {entry.destinationId === 'digo' ? 'Digo' : 'ClawMax.ai'} · {entry.scopes.join(', ')}</div>)}</div>}
@@ -3000,6 +2999,20 @@ export function ByokWizard({
 
                 <div className="mt-5 space-y-4">
                   {(currentPartner.fields || []).map((field) => renderPartnerField(currentPartner, field))}
+                  {currentPartner.slug === 'digo' && (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-100">
+                      <div className="font-medium">Activity sharing with Digo</div>
+                      <div className="mt-1">Enable ClawMax.ai Activity Export first, then explicitly authorize Digo here. Direct PII and known secrets are removed before delivery.</div>
+                      <button
+                        type="button"
+                        onClick={() => { setActivityDestination('digo'); setActivityConfirmOpen(true) }}
+                        disabled={!digoConfigured && !activeActivityConsent}
+                        className="mt-2 rounded-md border border-amber-400 px-3 py-1.5 font-medium hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-amber-700 dark:hover:bg-amber-900/30"
+                      >
+                        {activeActivityConsent?.destinationId === 'digo' ? 'Digo sharing enabled' : 'Review Digo sharing'}
+                      </button>
+                    </div>
+                  )}
                   {currentPartner.slug === 'resend' && renderResendTestEmailPanel()}
                   {currentPartner.validation && currentPartner.slug !== 'github' && !isMailOAuthProvider(currentPartner.slug) && renderPartnerValidation(currentPartner)}
                   {currentPartner.slug === 'opik' && (

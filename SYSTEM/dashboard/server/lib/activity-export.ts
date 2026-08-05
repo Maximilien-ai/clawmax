@@ -234,11 +234,22 @@ const SECRET_PATTERNS = [
   /\b(?:authorization|proxy-authorization)\s*:\s*[^\s,;]+/gi,
 ]
 
+const DIRECT_PII_PATTERNS = [
+  /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi,
+  /(?<!\w)\+?\d[\d .()/-]{7,}\d(?!\w)/g,
+]
+
 export function redactActivityText(value: string | undefined): string | undefined {
   if (typeof value !== 'string') return value
   let redacted = value
   for (const pattern of SECRET_PATTERNS) redacted = redacted.replace(pattern, '[REDACTED]')
+  for (const pattern of DIRECT_PII_PATTERNS) redacted = redacted.replace(pattern, '[REDACTED]')
   return redacted.length > 12000 ? `${redacted.slice(0, 12000)}… [TRUNCATED]` : redacted
+}
+
+function redactActivityMetadata(metadata: ActivityExportEventInput['metadata']): ActivityExportEventInput['metadata'] {
+  if (!metadata) return metadata
+  return Object.fromEntries(Object.entries(metadata).map(([key, value]) => [key, typeof value === 'string' ? (redactActivityText(value) || '') : value])) as ActivityExportEventInput['metadata']
 }
 
 function hasActiveConsent(consent: ActivityExportConsent, input: ActivityExportEventInput): boolean {
@@ -262,6 +273,7 @@ export function createActivityExportEvent(input: ActivityExportEventInput, conse
     consentReceiptId: consent.receiptId,
     occurredAt,
     content: redactActivityText(input.content),
+    metadata: redactActivityMetadata(input.metadata),
   }
 }
 
