@@ -2046,7 +2046,7 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
         </div>
 
         {aiGenerating && (
-          <div className="mx-6 mt-4 rounded-lg border border-purple-200 bg-purple-50 px-4 py-3 dark:border-purple-800 dark:bg-purple-900/20" role="status" aria-live="polite">
+          <div className="sticky bottom-0 z-20 -mx-6 mt-4 border-y border-purple-200 bg-purple-50 px-6 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.08)] dark:border-purple-800 dark:bg-purple-950/95" role="status" aria-live="polite">
             <div className="flex items-center justify-between gap-3 text-sm font-medium text-purple-900 dark:text-purple-100">
               <span>{aiGenerationStage}</span>
               <span>{aiGenerationProgress}%</span>

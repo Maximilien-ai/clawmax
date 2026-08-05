@@ -1821,6 +1821,11 @@ export async function generateTemplateFromNL(
   const shouldScaleMiddleWork = promptImpliesScaling(description)
   const normalizedTarget = normalizeTemplateGenerationTarget(generationTarget)
   const shouldGenerateCompany = shouldGenerateCompanyTemplate(description, normalizedTarget)
+  const targetStructureInstruction = normalizedTarget === 'team'
+    ? '- This request is explicitly for one team. Do not turn it into a company or team-of-teams because the prompt mentions a startup, business, or revenue; keep one focused team with a leader and a few members.'
+    : normalizedTarget === 'company'
+      ? '- This request is explicitly for a company/team-of-teams structure with leadership and functional teams.'
+      : '- This request is for a single agent; do not generate a team or company structure.'
   const shouldBiasRevenue = promptImpliesRevenue(description)
   const explicitMultiCommunityRequest = promptExplicitlyRequestsMultipleCommunities(description)
   let availableSkills: string[] = []
@@ -1874,7 +1879,8 @@ Important structure rules:
 - Only create 2 communities when the prompt clearly implies two genuinely separate umbrellas.
 - Do not create a community and a group that represent the same concept with different names.
 - If unsure, create 1 community and 3-6 groups.
-- If the prompt describes a company, startup, agency, studio, operator, or revenue engine, generate a company-style template rather than a generic team.
+- ${targetStructureInstruction}
+- Only generate a company-style template when the requested target is company or the user explicitly asks for a company/team-of-teams structure.
 - For company-style templates, include a teams array with leadership plus 2-4 functional teams and at least one nested sub-team when appropriate.
 - Keep company structures legible and demo-friendly: leadership, delivery/product, go-to-market, and operations only when justified.
 - For company-style templates, prefer a sober descriptive company name. Avoid gimmicky agency names like "ConversionMax", "Growthify", or "RevenueGenius".
