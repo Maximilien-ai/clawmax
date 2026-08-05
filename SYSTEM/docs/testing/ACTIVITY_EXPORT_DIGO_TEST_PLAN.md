@@ -56,6 +56,9 @@ release Review export.
    healthy delivery.
 4. Restore the receiver and verify retries are bounded, ordered per session,
    and idempotent; duplicate acknowledgements must not duplicate events.
+5. Call `POST /api/activity-export/flush` while authenticated. A successful
+   delivery should remove the batch; a receiver `5xx` should return `502` and
+   leave events queued for retry.
 
 ## Reference Receiver Checks
 
@@ -74,4 +77,3 @@ shape, and the open decisions for Digo: identifiers, participant identity,
 retention, authentication, rate limits, batch limits, acknowledgements, privacy
 URL, and offline behavior. Do not describe the ClawMax.ai reference receiver as
 the Digo integration.
-

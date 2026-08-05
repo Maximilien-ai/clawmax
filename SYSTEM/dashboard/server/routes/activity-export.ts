@@ -5,6 +5,7 @@ import { getWorkspacePath } from '../lib/workspace'
 import {
   ACTIVITY_EXPORT_VERSION,
   appendActivityExportEvent,
+  flushActivityExportOutbox,
   getActivityExportConsent,
   listActivityExportOutbox,
   revokeActivityExportConsent,
@@ -53,6 +54,12 @@ router.post('/events', (req, res) => {
   const event = appendActivityExportEvent({ source, workspaceId, userId, sessionId: typeof req.body?.sessionId === 'string' ? req.body.sessionId : undefined, subjectId: typeof req.body?.subjectId === 'string' ? req.body.subjectId : undefined, content: typeof req.body?.content === 'string' ? req.body.content : undefined, metadata: req.body?.metadata && typeof req.body.metadata === 'object' ? req.body.metadata : undefined }, consent)
   if (!event) return res.status(400).json({ error: 'Event was rejected by consent or validation.' })
   res.status(202).json({ ok: true, queued: true, eventId: event.eventId })
+})
+
+router.post('/flush', async (req, res) => {
+  const { userId, workspaceId } = actor(req)
+  const result = await flushActivityExportOutbox({ userId, workspaceId, maxEvents: Number(req.body?.maxEvents) || undefined })
+  res.status(result.error && result.delivered === 0 ? 502 : 200).json({ ok: !result.error, ...result })
 })
 
 // Protected local receiver view for the ClawMax.ai demo; no external delivery yet.
