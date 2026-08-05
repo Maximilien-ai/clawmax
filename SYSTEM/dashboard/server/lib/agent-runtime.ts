@@ -55,9 +55,26 @@ const RUNTIME_BIN_ENV: Record<'claude' | 'droid', string> = {
   droid: 'DROID_BIN',
 }
 
+// CLI locations do not change while the process runs, but resolution shells out to `which`.
+// Four paths added by the runtime feature call this per request (spawn plan, status detection,
+// model catalog, generation runtime pick), so memoize with a short TTL.
+const CLI_PATH_TTL_MS = 60 * 1000
+const cliPathCache = new Map<string, { path: string | null; expiresAt: number }>()
+
 export function resolveRuntimeCliPath(rt: AgentRuntimeId): string | null {
   if (rt === 'openclaw') return resolveOpenClawCliPath()
+  // Keyed on every input the lookup reads, so changing an override, PATH or HOME resolves afresh
+  // rather than serving a stale hit.
+  const key = [rt, process.env[RUNTIME_BIN_ENV[rt]] || '', process.env.PATH || '', process.env.HOME || ''].join('\u0000')
+  const cached = cliPathCache.get(key)
+  if (cached && cached.expiresAt > Date.now()) return cached.path
+  const resolved = resolveRuntimeCliPathUncached(rt)
+  if (cliPathCache.size > 64) cliPathCache.clear()
+  cliPathCache.set(key, { path: resolved, expiresAt: Date.now() + CLI_PATH_TTL_MS })
+  return resolved
+}
 
+function resolveRuntimeCliPathUncached(rt: Exclude<AgentRuntimeId, 'openclaw'>): string | null {
   const bin = rt
   const envVar = RUNTIME_BIN_ENV[rt]
   const override = String(process.env[envVar] || '').trim()
@@ -88,6 +105,10 @@ const RUNTIME_LABELS: Record<AgentRuntimeId, string> = {
   openclaw: 'OpenClaw',
   claude: 'Claude Code',
   droid: 'Factory Droid',
+}
+
+export function runtimeLabel(rt: AgentRuntimeId): string {
+  return RUNTIME_LABELS[rt] || rt
 }
 
 const RUNTIME_INSTALL_HINTS: Record<AgentRuntimeId, string> = {
@@ -316,7 +337,7 @@ export function buildRuntimePlan(o: {
  * name the most likely cause instead.
  */
 function silentExitMessage(rt: AgentRuntimeId, exitCode: number | null): string {
-  const label = RUNTIME_LABELS[rt] || rt
+  const label = runtimeLabel(rt)
   return `The ${label} CLI exited with code ${exitCode} and produced no output. It is most likely not authenticated in this environment — set ANTHROPIC_API_KEY / FACTORY_API_KEY, or log the CLI in.`
 }
 
@@ -327,6 +348,8 @@ export function parseRuntimeResult(
   stderr: string,
   exitCode: number | null
 ): { text: string; errorText?: string } {
+  const rawFailureText = () => (stderr || stdout).trim() || silentExitMessage(rt, exitCode)
+
   // droid always emits its `-o json` envelope regardless of mode; claude only in json mode.
   const usesJson = rt === 'droid' || (rt === 'claude' && mode === 'json')
 
@@ -345,15 +368,12 @@ export function parseRuntimeResult(
     // code — "droid exited with code 1" tells an operator nothing, while the envelope says
     // exactly what to fix.
     const envelopeMessage = parsed && typeof parsed.result === 'string' ? parsed.result.trim() : ''
-    const errorText = envelopeMessage
-      || (stderr || stdout).trim()
-      || silentExitMessage(rt, exitCode)
-    return { text: '', errorText }
+    return { text: '', errorText: envelopeMessage || rawFailureText() }
   }
 
   // claude plain-text chat mode (also the fallback for any other non-json case)
   if (exitCode !== 0) {
-    return { text: '', errorText: (stderr || stdout).trim() || silentExitMessage(rt, exitCode) }
+    return { text: '', errorText: rawFailureText() }
   }
   return { text: stdout.trim() }
 }
@@ -606,9 +626,9 @@ export async function listRuntimeModels(runtime: AgentRuntimeId): Promise<string
   if (inFlight) return await inFlight
 
   const probe = (async () => {
-    const cliPath = resolveRuntimeCliPath(runtime)
-    let models: string[] = []
-    if (cliPath && runtime === 'droid') models = await probeDroidModels(cliPath)
+    // Only droid can enumerate a catalog; resolving a path for anything else is a wasted spawn.
+    const cliPath = runtime === 'droid' ? resolveRuntimeCliPath(runtime) : null
+    const models = cliPath ? await probeDroidModels(cliPath) : []
   // Claude Code takes any Anthropic model id and has no enumerable catalog; runtimeModelArg()
   // already rejects non-Anthropic models, so leave this empty and let the provider list stand.
 

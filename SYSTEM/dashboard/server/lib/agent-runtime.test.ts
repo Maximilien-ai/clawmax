@@ -925,3 +925,33 @@ run().then(() => {
     console.log(`${GREEN}All tests passed${RESET}`)
   }
 })
+
+// ── Regression cover for droid-review findings on CLI-backed AI generation ──
+
+test('parseRuntimeResult surfaces the CLI envelope message instead of a raw blob', () => {
+  const envelope = JSON.stringify({
+    type: 'result', is_error: true, subtype: 'failure',
+    result: 'Authentication failed. Please log in using /login or set a valid FACTORY_API_KEY environment variable.',
+  })
+  const { text, errorText } = parseRuntimeResult('droid', 'json', envelope, '', 1)
+  assert.strictEqual(text, '')
+  assert(
+    errorText === 'Authentication failed. Please log in using /login or set a valid FACTORY_API_KEY environment variable.',
+    `Expected the CLI's own message, got: ${errorText}`,
+  )
+  assert(!String(errorText).includes('is_error'), 'Expected the raw JSON envelope not to leak into the error')
+})
+
+test('parseRuntimeResult explains a silent non-zero exit rather than repeating the code', () => {
+  const { errorText } = parseRuntimeResult('droid', 'json', '', '', 1)
+  assert(/not authenticated/i.test(String(errorText)), `Expected an actionable cause, got: ${errorText}`)
+  assert(/FACTORY_API_KEY/.test(String(errorText)), `Expected the remediation env var, got: ${errorText}`)
+  assert(String(errorText) !== 'droid exited with code 1', 'Expected more than a bare exit code')
+})
+
+test('parseRuntimeResult still returns a successful envelope payload', () => {
+  const ok = JSON.stringify({ type: 'result', is_error: false, result: 'generated text' })
+  const { text, errorText } = parseRuntimeResult('droid', 'json', ok, '', 0)
+  assert.strictEqual(text, 'generated text')
+  assert.strictEqual(errorText, undefined)
+})
