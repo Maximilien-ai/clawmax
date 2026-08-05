@@ -1255,6 +1255,18 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
   const [stickyOnboardingWorkspaceKey, setStickyOnboardingWorkspaceKey] = useState<string | null>(null)
   const [workspaceTourVisible, setWorkspaceTourVisible] = useState(false)
   const [workspaceTourStateVersion, setWorkspaceTourStateVersion] = useState(0)
+  const [activitySharing, setActivitySharing] = useState<{ destinationId: string; queuedEvents: number } | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/activity-export/status')
+      .then((response) => response.ok ? response.json() : null)
+      .then((payload) => {
+        if (!cancelled) setActivitySharing(payload?.sharing ? { destinationId: String(payload.sharing.destinationId || 'reference'), queuedEvents: Number(payload.queuedEvents || 0) } : null)
+      })
+      .catch(() => { if (!cancelled) setActivitySharing(null) })
+    return () => { cancelled = true }
+  }, [activeWorkspaceKey])
 
   useEffect(() => {
     if (!activeWorkspaceKey) return
@@ -1380,6 +1392,17 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
             onAgentRestarted={() => window.dispatchEvent(new CustomEvent('agents-updated'))}
           />
         </div>
+        {activitySharing && (
+          <button
+            type="button"
+            onClick={() => onNavigateToPage?.('activity')}
+            className="hidden rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-200 sm:inline-flex"
+            title="Activity sharing is enabled"
+          >
+            Sharing with {activitySharing.destinationId === 'clawmax-ai' ? 'ClawMax.ai' : activitySharing.destinationId}
+            {activitySharing.queuedEvents > 0 ? ` · ${activitySharing.queuedEvents} queued` : ''}
+          </button>
+        )}
         <OnboardingWizard
           visible={onboardingVisible}
           suppressAutoOpen={workspaceTourVisible}
