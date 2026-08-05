@@ -2045,8 +2045,16 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
           </div>
         </div>
 
+        {/* Step content */}
+        <div className="p-6">
+          {step === 0 && renderStep0()}
+          {step === 1 && renderStep1()}
+          {step === 2 && renderStep2()}
+          {step === 3 && renderStep3()}
+          {step === 4 && renderStep4()}
+        </div>
         {aiGenerating && (
-          <div className="sticky bottom-0 z-20 -mx-6 mt-4 border-y border-purple-200 bg-purple-50 px-6 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.08)] dark:border-purple-800 dark:bg-purple-950/95" role="status" aria-live="polite">
+          <div className="sticky bottom-0 z-20 border-t border-purple-200 bg-purple-50 px-6 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.08)] dark:border-purple-800 dark:bg-purple-950/95" role="status" aria-live="polite">
             <div className="flex items-center justify-between gap-3 text-sm font-medium text-purple-900 dark:text-purple-100">
               <span>{aiGenerationStage}</span>
               <span>{aiGenerationProgress}%</span>
@@ -2057,15 +2065,6 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
             <p className="mt-2 text-xs text-purple-700 dark:text-purple-300">This can take a few minutes for a complete team. Keep this window open.</p>
           </div>
         )}
-
-        {/* Step content */}
-        <div className="p-6">
-          {step === 0 && renderStep0()}
-          {step === 1 && renderStep1()}
-          {step === 2 && renderStep2()}
-          {step === 3 && renderStep3()}
-          {step === 4 && renderStep4()}
-        </div>
       </div>
       {showFullPrompt && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onClick={() => setShowFullPrompt(false)}>
