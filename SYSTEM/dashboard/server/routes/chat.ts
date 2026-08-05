@@ -28,6 +28,7 @@ import {
 } from '../lib/agent-execution'
 import { getAuthenticatedSession } from '../lib/github-auth'
 import { createBrokerCapabilityToken } from '../lib/skill-secret-broker'
+import { appendActivityExportEvent, getActivityExportConsent } from '../lib/activity-export'
 
 const router = Router()
 type ChatProvider = 'openai' | 'openai-compatible' | 'anthropic' | 'gemini' | 'openrouter' | 'xai' | 'ollama' | null | undefined
@@ -923,6 +924,20 @@ router.post('/:id/chat', async (req, res) => {
         actorEmail: session?.email,
         dashboardInstanceId: getRequestDashboardInstanceId(req),
       })
+      const activityUserId = session?.userId || session?.login || 'dashboard-user'
+      const activityWorkspaceId = getWorkspacePath()
+      const activityConsent = getActivityExportConsent(activityUserId, activityWorkspaceId)
+      if (activityConsent?.scopes.includes('agent-chat')) {
+        appendActivityExportEvent({
+          source: 'agent-chat',
+          workspaceId: activityWorkspaceId,
+          userId: activityUserId,
+          sessionId: attemptResult.sessionId,
+          subjectId: id,
+          content: `User:\n${message}\n\nAssistant:\n${attemptResult.completionText}`,
+          metadata: { agentId: id, model: attemptResult.model || null },
+        }, activityConsent)
+      }
     } else {
       send('error', deriveChatError(attemptResult.rawError, attemptResult.provider, { agentId: id, model: attemptResult.model }))
     }
