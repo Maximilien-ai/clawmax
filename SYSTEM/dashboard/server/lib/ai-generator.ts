@@ -342,7 +342,7 @@ export function shouldGenerateCompanyTemplate(description: string, generationTar
   if (normalizedTarget === 'company') return true
   if (normalizedTarget === 'agent') return false
   const lower = description.toLowerCase()
-  const explicitlyTeamScoped = /\bteam of agents\b|\bteam template\b|\bcreate a team\b/i.test(lower)
+  const explicitlyTeamScoped = /\bteam of agents\b|\bteam template\b|\bcreate\s+(?:a\s+)?team\b/i.test(lower)
   const explicitlyCompanyScoped = /\bcompany template\b|\borganization template\b|\bteam of teams\b|\bmultiple teams\b/i.test(lower)
   if (explicitlyTeamScoped && !explicitlyCompanyScoped) return false
   if (promptImpliesCompany(description)) return true

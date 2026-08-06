@@ -319,6 +319,11 @@ test('shouldGenerateCompanyTemplate infers company from prompt unless agent is e
     false,
     'An explicit team target must not be upgraded to a company because the prompt mentions startup.',
   )
+  assert.strictEqual(
+    shouldGenerateCompanyTemplate('create team of agents to help me manage my startup books', 'team'),
+    false,
+    'Natural-language create team phrasing must remain a team even when startup is mentioned.',
+  )
 })
 
 test('ensureGeneratedCompanyRoot inserts a root team and parents leadership when missing', () => {
