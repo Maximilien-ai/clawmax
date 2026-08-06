@@ -417,6 +417,11 @@ function getAvailableProvider(byokKeys?: ProviderKeys): { provider: AIProvider; 
   // Try BYOK keys first (passed from client request)
   if (byokKeys?.openai) return { provider: 'openai', key: byokKeys.openai }
   if (byokKeys?.openaiCompatibleBaseUrl) {
+    // A base URL without a default model cannot generate. Prefer an enabled CLI runtime over
+    // dead-ending, rather than letting the unusable endpoint win just because it is configured.
+    const compatibleModel = String(byokKeys.openaiCompatibleDefaultModel || '').trim()
+    const cliInstead = compatibleModel ? undefined : pickGenerationRuntime()
+    if (cliInstead) return { provider: 'cli-runtime', key: cliInstead }
     return {
       provider: 'openai-compatible',
       key: byokKeys.openaiCompatibleApiKey || 'openai-compatible',
@@ -429,6 +434,8 @@ function getAvailableProvider(byokKeys?: ProviderKeys): { provider: AIProvider; 
   const keys = resolveSystemExecutionProviderKeys()
   if (keys.openai) return { provider: 'openai', key: keys.openai }
   if (compatibleDefaults.baseUrl) {
+    const cliInstead = String(compatibleDefaults.defaultModel || '').trim() ? undefined : pickGenerationRuntime()
+    if (cliInstead) return { provider: 'cli-runtime', key: cliInstead }
     return {
       provider: 'openai-compatible',
       key: keys.openaiCompatibleApiKey || 'openai-compatible',
