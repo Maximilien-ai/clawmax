@@ -624,7 +624,7 @@ async function probeDroidModels(cliPath: string): Promise<string[]> {
  * command to enumerate a catalog, and dated ids go stale and get rejected, so the aliases are both
  * the only list we can offer and the safest thing to send.
  */
-const CLAUDE_MODEL_ALIASES = ['sonnet', 'opus', 'haiku', 'fable']
+export const CLAUDE_MODEL_ALIASES = ['sonnet', 'opus', 'haiku', 'fable']
 
 /** Models a runtime CLI accepts, or [] when the catalog cannot be enumerated. */
 export async function listRuntimeModels(runtime: AgentRuntimeId): Promise<string[]> {
