@@ -470,32 +470,30 @@ export function pickGenerationRuntime(): AgentRuntimeId | undefined {
   // Prefer a runtime that supplies its own current default model. Claude Code must be handed an
   // explicit Anthropic model id, and the id resolvable without provider keys comes from a static
   // preference list that goes stale.
-  const selfDefaulting = installed.find((rt) => rt !== 'claude')
-  if (selfDefaulting) return selfDefaulting
-  if (installed.includes('claude') && resolveClaudeGenerationModel()) return 'claude'
-  return undefined
+  // Every installed CLI now supplies a usable default (droid picks its own; claude takes an alias
+  // that tracks the current model), so first-installed is enough.
+  return installed[0]
 }
 
 /**
- * Anthropic model id for Claude Code generation, or '' when none is usable.
+ * Model to hand Claude Code for generation.
  *
- * The preference list can name a model that has since been retired, which the CLI rejects
- * outright. Prefer the lifecycle table's replacement when that happens rather than sending a
- * dead model id.
+ * Always an alias rather than a dated id: aliases track the newest model in their tier, while the
+ * id resolvable without provider keys comes from a static preference list that goes stale and gets
+ * rejected by the CLI.
  */
 export function resolveClaudeGenerationModel(): string {
-  const preferred = getPreferredAnthropicGenerationModel().trim()
-  if (!preferred) return ''
-  // Every lifecycle key is provider-qualified, so only the prefixed lookup can hit.
-  const lifecycle = getModelLifecycleEntry(`anthropic/${preferred}`)
-  if (lifecycle?.replacementModel) return String(lifecycle.replacementModel).replace(/^anthropic\//, '')
-  if (lifecycle?.shutdownDate && new Date(lifecycle.shutdownDate).getTime() < Date.now()) return ''
-  return preferred
+  const override = process.env.CLAWMAX_ANTHROPIC_GENERATION_MODEL?.trim()
+  return override ? override.replace(/^anthropic\//, '') : 'sonnet'
 }
 
 // Kept under the 45s Promise.race in createChatCompletionWithCompatibilityRetry so the child
 // process is killed by us rather than orphaned when that race rejects.
 const CLI_GENERATION_TIMEOUT_MS = 40000
+
+// Placeholder model for CLI-backed generation: the CLI selects its own, but callers still
+// read a model off the request.
+const CLI_RUNTIME_MODEL_SENTINEL = 'cli-runtime'
 
 export function buildCliRuntimeClient(runtime: AgentRuntimeId): { client: OpenAI; model: string } {
   const client = {
@@ -514,7 +512,7 @@ export function buildCliRuntimeClient(runtime: AgentRuntimeId): { client: OpenAI
             runtime,
             // Claude Code only accepts Anthropic model ids and rejects an unset model; droid has
             // its own default, so leave it alone there.
-            model: runtime === 'claude' ? `anthropic/${resolveClaudeGenerationModel()}` : undefined,
+            model: runtime === 'claude' ? resolveClaudeGenerationModel() : undefined,
             // Generation is not an agent turn; use a stable synthetic id so the CLI keeps one
             // scratch session rather than accumulating one per request.
             agentId: 'clawmax-ai-generation',
@@ -650,10 +648,13 @@ export function resolveSystemGenerationModelForProvider(
 function resolveModel(requestedModel: string): string {
   const { provider } = getAvailableProvider(_requestByokKeys)
   const systemPreferredModel = readWorkspaceIntegrationConfig().systemPreferredModel?.trim()
+  // A CLI-backed client ignores this value — it drives the runtime's own model — but every caller
+  // still asks for one, so answer without reaching the provider branches below.
+  if (provider === 'cli-runtime') return CLI_RUNTIME_MODEL_SENTINEL
   if (provider === 'openai-compatible') {
     const model = resolveOpenAiCompatibleGenerationDefaults(_requestByokKeys).defaultModel
     if (model) return model
-    throw new Error('OpenAI-compatible AI generation requires a default model. Set one in BYOK first.')
+    throw new Error('OpenAI-compatible AI generation requires a default model. Set one in BYOK first, or enable a CLI runtime in BYOK.')
   }
   const anthropicModel = getPreferredAnthropicGenerationModel()
   const preferredForProvider = resolveSystemGenerationModelForProvider(provider, systemPreferredModel, anthropicModel)
@@ -674,6 +675,7 @@ function stripProviderPrefix(model: string): string {
 }
 
 export function shouldUseMaxCompletionTokens(model: string): boolean {
+  if (model === CLI_RUNTIME_MODEL_SENTINEL) return false
   const { provider } = getAvailableProvider(_requestByokKeys)
   return provider === 'openai' && /^gpt-5(?:-|$)/i.test(stripProviderPrefix(model))
 }

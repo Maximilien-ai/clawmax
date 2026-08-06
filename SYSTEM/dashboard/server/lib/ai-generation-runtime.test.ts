@@ -82,10 +82,21 @@ test('never selects a runtime whose CLI is absent', () => {
   })
 })
 
-test('prefers a self-defaulting runtime when both CLIs are installed', () => {
+test('uses an enabled, installed runtime when both CLIs are present', () => {
+  // Both now supply a usable default — droid picks its own, claude takes an alias that tracks the
+  // current model — so either is acceptable; what matters is that one is chosen.
   withWorkspace(['claude', 'droid'], { DROID_BIN: realBinary, CLAUDE_BIN: realBinary }, () => {
     const { pickGenerationRuntime } = require('./ai-generator')
-    assert.strictEqual(pickGenerationRuntime(), 'droid', 'Expected droid, which brings its own current default model')
+    assert(['claude', 'droid'].includes(pickGenerationRuntime()), 'Expected one of the enabled runtimes')
+  })
+})
+
+test('claude generation uses an alias, never a dated id that can retire', () => {
+  withWorkspace(['claude'], { CLAUDE_BIN: realBinary, CLAWMAX_ANTHROPIC_GENERATION_MODEL: undefined }, () => {
+    const { resolveClaudeGenerationModel } = require('./ai-generator')
+    const model = resolveClaudeGenerationModel()
+    assert(model, 'Expected a model for claude generation')
+    assert(!/\d{8}/.test(model), `Expected an alias, got a dated id: ${model}`)
   })
 })
 
@@ -93,18 +104,6 @@ test('returns nothing when no runtime is enabled', () => {
   withWorkspace([], { DROID_BIN: realBinary, CLAUDE_BIN: realBinary }, () => {
     const { pickGenerationRuntime } = require('./ai-generator')
     assert.strictEqual(pickGenerationRuntime(), undefined)
-  })
-})
-
-test('claude generation never uses a model past its shutdown date', () => {
-  withWorkspace(['claude'], { CLAUDE_BIN: realBinary, CLAWMAX_ANTHROPIC_GENERATION_MODEL: undefined }, () => {
-    const { resolveClaudeGenerationModel } = require('./ai-generator')
-    const { getModelLifecycleEntry } = require('./openAiModelLifecycle')
-    const resolved = resolveClaudeGenerationModel()
-    if (!resolved) return // nothing resolvable is an acceptable outcome; the runtime is then skipped
-    const entry = getModelLifecycleEntry(`anthropic/${resolved}`) || getModelLifecycleEntry(resolved)
-    const shutdown = entry?.shutdownDate ? new Date(entry.shutdownDate).getTime() : undefined
-    assert(!shutdown || shutdown > Date.now(), `Resolved a retired model for claude generation: ${resolved}`)
   })
 })
 
