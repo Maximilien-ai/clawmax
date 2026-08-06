@@ -96,11 +96,40 @@ droid   exec <message> [-m <model>] -s <session-id> --auto high -o json --cwd <a
 
 ## 🔑 Auth & CLI discovery
 
-Both CLIs run non-interactively with full autonomy, so they need headless credentials rather than a login prompt:
+Both CLIs run non-interactively with full autonomy, so they need credentials already in place before an agent turn starts. There are two independent ways to supply them, and **neither requires an API key** — a CLI subscription login works on its own.
+
+### Option A — log the CLI in (no API key)
+
+Each CLI stores its login in its own config directory under `HOME` (`/app` in this image): `claude` → `/app/.claude`, `droid` → `/app/.factory`. Persist those directories and the login survives container recreation. `docker-compose.yml` mounts both by default (named volumes), and either can be pointed at a host directory:
+
+```bash
+# reuse a droid login you already have on the host
+CLAWMAX_FACTORY_DIR=~/.factory docker compose up -d
+
+# keep the claude login in a host directory of your choosing
+CLAWMAX_CLAUDE_DIR=~/.clawmax/claude docker compose up -d
+```
+
+Then log in against the mounted directory, once:
+
+```bash
+docker compose exec clawmax claude auth login   # --claudeai (subscription) is the default
+docker compose exec clawmax claude auth status  # expect: "loggedIn": true
+docker compose exec -it clawmax droid           # then /login
+```
+
+`claude setup-token` is the non-interactive alternative for a Claude subscription.
+
+> **macOS note:** Claude Code stores its *host* login in the macOS Keychain, not on disk, so there is nothing to bind-mount from a host `claude login`. Log in against the mounted directory instead — inside the Linux container the CLI falls back to a file, which is what makes the mount work. Droid keeps its credentials in files (`~/.factory/auth.v2.*`) on both platforms, so its host login can be mounted directly.
+>
+> Mount the container's config dir **read-write**. Droid writes session and background-task state on every run, so a read-only mount authenticates but then fails mid-turn.
+
+### Option B — headless API keys
 
 - **Claude Code** reads `ANTHROPIC_API_KEY` directly — `SYSTEM_ANTHROPIC_API_KEY` / `USER_ANTHROPIC_API_KEY` / in-app BYOK all resolve into it for agent execution (subject to the existing Separated Key Policy).
 - **Factory Droid** reads `FACTORY_API_KEY` (passed through by `safeEnv()`).
-- Local dev can still use interactive `claude login` / `droid login`.
+
+A key and a login are interchangeable; supply either. Use keys for CI and unattended deploys, a login for a subscription you already pay for.
 
 **CLI path discovery** (`resolveRuntimeCliPath()`), in order: `CLAUDE_BIN` / `DROID_BIN` env override → `which <cli>` on `PATH` → `~/.local/bin/<cli>`.
 
