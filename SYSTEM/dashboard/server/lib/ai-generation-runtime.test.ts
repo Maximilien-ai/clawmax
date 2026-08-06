@@ -10,6 +10,7 @@ import path from 'path'
 
 const GREEN = '\x1b[32m', RED = '\x1b[31m', RESET = '\x1b[0m'
 let passed = 0, failed = 0
+const asyncCases: Array<[string, () => Promise<void>]> = []
 function test(name: string, fn: () => void) {
   try { fn(); console.log(`${GREEN}✓${RESET} ${name}`); passed++ }
   catch (err: any) { console.log(`${RED}✗${RESET} ${name}`); console.log(`  ${err.message}`); failed++ }
@@ -176,12 +177,55 @@ test('claude advertises aliases only when its CLI is present', () => {
   })
 })
 
+
+asyncCases.push(['a completed CLI request clears its timeout instead of leaking it', async () => {
+  await withWorkspaceAsync(['droid'], { DROID_BIN: realBinary }, async () => {
+  const { createChatCompletionWithCompatibilityRetry } = require('./ai-generator')
+  // Count timers created and cleared across the call. A leaked 245s timer would show as an
+  // unmatched creation and, in the server, keep a closure alive per request.
+  const realSet = global.setTimeout, realClear = global.clearTimeout
+  let created = 0, cleared = 0
+  ;(global as any).setTimeout = (...args: any[]) => { created++; return (realSet as any)(...args) }
+  ;(global as any).clearTimeout = (...args: any[]) => { cleared++; return (realClear as any)(...args) }
+  try {
+    const fast: any = { chat: { completions: { create: async () => ({ choices: [{ message: { content: 'x' } }] }) } } }
+    fast.__clawmaxCliRuntime = true
+    await createChatCompletionWithCompatibilityRetry(fast, { messages: [] })
+  } finally {
+    ;(global as any).setTimeout = realSet
+    ;(global as any).clearTimeout = realClear
+  }
+  assert(created > 0, 'Expected the request to arm a timeout')
+  assert.strictEqual(cleared, created, `Armed ${created} timers but cleared ${cleared}`)
+  })
+}])
+
+asyncCases.push(['a CLI that ignores SIGTERM is escalated to SIGKILL', async () => {
+  const { runRuntimeCli } = require('./agent-runtime')
+  // A shell that traps SIGTERM and keeps running — exactly the case SIGTERM alone cannot end.
+  const plan = {
+    cliPath: '/bin/sh',
+    args: ['-c', 'trap "" TERM; while true; do sleep 0.2; done'],
+    missingCliError: 'unused',
+    streamsDeltas: false,
+  }
+  const started = Date.now()
+  const { errorText } = await runRuntimeCli({
+    plan, env: process.env, timeoutMs: 1000, rebuildPlan: () => plan,
+    runtime: 'droid', mode: 'json', agentId: 'kill-test', scopedSessionId: 'kill-test',
+  })
+  const elapsed = Date.now() - started
+  assert.strictEqual(errorText, 'timeout', `Expected a timeout result, got: ${errorText}`)
+  assert(elapsed < 8000, `Expected escalation to end it quickly, took ${elapsed}ms`)
+}])
+
 async function asyncTest(name: string, fn: () => Promise<void>) {
   try { await fn(); console.log(`${GREEN}✓${RESET} ${name}`); passed++ }
   catch (err: any) { console.log(`${RED}✗${RESET} ${name}`); console.log(`  ${err.message}`); failed++ }
 }
 
 async function runAsyncCases() {
+  for (const [name, fn] of asyncCases) await asyncTest(name, fn)
   await asyncTest('each CLI generation request gets its own session instead of sharing one', async () => {
     await withWorkspaceAsync(['droid'], { DROID_BIN: realBinary }, async () => {
       await withRuntimeTurnSpy(async (calls) => {

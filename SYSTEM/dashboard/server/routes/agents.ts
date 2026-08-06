@@ -1039,7 +1039,10 @@ router.post('/provision', async (req, res) => {
   }
 
   // Validate model is available - if not, use a sensible fallback
-  if (normalizedModel && availableModels.length > 0 && !availableModels.includes(normalizedModel) && !availableModels.includes(normalizedModel.replace(/^(anthropic|openai|gemini|google|ollama)\//, ''))) {
+  // A model from the pinned runtime's own catalog is available by definition — it just is not a
+  // hosted provider model. Without this guard the fallback below swaps it for a hosted one and
+  // the agent is provisioned against a model its CLI cannot run.
+  if (!isRuntimeCatalogModel && normalizedModel && availableModels.length > 0 && !availableModels.includes(normalizedModel) && !availableModels.includes(normalizedModel.replace(/^(anthropic|openai|gemini|google|ollama)\//, ''))) {
     const fallbackModel = availableModels.find(m => m.includes('/')) || availableModels[0]
     const availableHostedModels = availableModels.filter((candidate) => isHostedModel(candidate))
     if (isHostedModel(normalizedModel) && availableHostedModels.length === 0) {

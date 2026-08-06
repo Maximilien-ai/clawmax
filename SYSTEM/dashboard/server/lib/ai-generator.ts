@@ -756,12 +756,21 @@ export async function createChatCompletionWithCompatibilityRetry(
     ? CLI_GENERATION_TIMEOUT_MS + 5000
     : timeoutMs
   const runRequest = async (payload: Record<string, any>) => {
-    return await Promise.race([
-      client.chat.completions.create(payload as any),
-      new Promise((_, reject) => {
-        setTimeout(() => reject(new Error(`AI request timed out after ${effectiveTimeoutMs}ms`)), effectiveTimeoutMs)
-      }),
-    ])
+    // The timer must be cleared once the request settles. Left pending it keeps a closure — and
+    // with CLI clients a four-minute handle — alive per request, which piles up under concurrency
+    // and holds the process open.
+    let timer: NodeJS.Timeout | undefined
+    try {
+      return await Promise.race([
+        client.chat.completions.create(payload as any),
+        new Promise((_, reject) => {
+          timer = setTimeout(() => reject(new Error(`AI request timed out after ${effectiveTimeoutMs}ms`)), effectiveTimeoutMs)
+          timer.unref?.()
+        }),
+      ])
+    } finally {
+      if (timer) clearTimeout(timer)
+    }
   }
   try {
     return await runRequest(preparedRequest)

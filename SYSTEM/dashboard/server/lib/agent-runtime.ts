@@ -432,9 +432,16 @@ function runOnce(
     let stderr = ''
     let timedOut = false
 
+    // SIGTERM alone is a request, not a guarantee — a CLI that traps or ignores it keeps running
+    // and outlives the caller. Escalate to SIGKILL if it has not exited shortly after.
+    let killEscalation: NodeJS.Timeout | undefined
     const timer = setTimeout(() => {
       timedOut = true
       child.kill()
+      killEscalation = setTimeout(() => {
+        if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL')
+      }, 2000)
+      killEscalation.unref?.()
     }, timeoutMs)
 
     child.stdout.on('data', (chunk: Buffer) => {
@@ -447,10 +454,12 @@ function runOnce(
     })
     child.on('error', (err) => {
       clearTimeout(timer)
+      if (killEscalation) clearTimeout(killEscalation)
       resolve({ stdout, stderr: stderr || err.message || String(err), exitCode: null, timedOut })
     })
     child.on('close', (code) => {
       clearTimeout(timer)
+      if (killEscalation) clearTimeout(killEscalation)
       resolve({ stdout, stderr, exitCode: code, timedOut })
     })
   })
