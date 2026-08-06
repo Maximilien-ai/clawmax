@@ -929,7 +929,11 @@ router.post('/:id/chat', async (req, res) => {
         // drop it out of activity export.
         appendActivityExportEventsForActiveConsents({
           source: 'agent-chat',
-          workspaceId: getWorkspacePath(),
+          // The turn ran against effectiveWorkspaceRoot (see agentDir / OPENCLAW_WORKSPACE above),
+          // which is not always the active workspace when the agent resolves elsewhere. Consent is
+          // matched on exact userId + workspaceId, so recording the active workspace here would
+          // check consent against a workspace that did not run the turn.
+          workspaceId: effectiveWorkspaceRoot,
           userId: session?.userId || session?.login || 'dashboard-user',
           sessionId: executionSessionId,
           subjectId: id,
