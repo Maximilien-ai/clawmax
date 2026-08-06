@@ -93,10 +93,11 @@
   coverage suite.
 - When cutting an RC, align `CLAWMAX_VERSION` in the ignored local
   `SYSTEM/dashboard/.env` to the exact candidate being built, restart the local
-  dashboard, and verify both the visible
-  version and `/api/system`. The test-image workflow supplies this value for
-  containers, but local source checkouts otherwise fall back to the latest Git
-  tag plus the current short SHA.
+  dashboard, and verify both the visible version and `/api/system`. For example:
+  `perl -0pi -e 's/^CLAWMAX_VERSION=.*/CLAWMAX_VERSION=2.0.0-test-rcN/m' SYSTEM/dashboard/.env`.
+  Never carry an older RC value into a new RC or stable release. The test-image
+  workflow supplies this value for containers, but local source checkouts
+  otherwise fall back to the latest Git tag plus the current short SHA.
 - Visually audit changed pages, dialogs, pop-ups, cards, lists, and graphical
   views at desktop and mobile widths. Check long text, scrolling, sticky
   actions, progress states, and empty/error states.
