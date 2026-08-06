@@ -1015,7 +1015,11 @@ router.post('/provision', async (req, res) => {
 
   // Normalize model name - ensure it has a provider prefix
   let normalizedModel = validatedModel
-  if (validatedModel && !validatedModel.includes('/')) {
+  // A CLI runtime's own catalog holds bare ids (droid's `glm-5.2`, Claude Code's `sonnet`) that
+  // are not provider-qualified and must not be. Prefixing them would send `openai/sonnet` to the
+  // CLI, which rejects it. Only normalise models destined for a provider.
+  const isRuntimeCatalogModel = !!validatedModel && provisionRuntimeModels.includes(validatedModel)
+  if (validatedModel && !validatedModel.includes('/') && !isRuntimeCatalogModel) {
     // Detect provider based on model name
     if (validatedModel.startsWith('claude-') || validatedModel.startsWith('anthropic-')) {
       normalizedModel = `anthropic/${validatedModel}`

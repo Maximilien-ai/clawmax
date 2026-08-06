@@ -129,6 +129,53 @@ async function withRuntimeTurnSpy(fn: (calls: any[]) => Promise<void>): Promise<
   }
 }
 
+
+test('a stale CLAUDE override yields to a runtime that picks its own model', () => {
+  withWorkspace(['claude', 'droid'], {
+    CLAUDE_BIN: realBinary, DROID_BIN: realBinary,
+    // A dated id the CLI rejects — the exact shape that used to strand generation.
+    CLAWMAX_ANTHROPIC_GENERATION_MODEL: 'claude-sonnet-4-20250514',
+  }, () => {
+    const { pickGenerationRuntime } = require('./ai-generator')
+    assert.strictEqual(pickGenerationRuntime(), 'droid', 'Expected droid rather than claude with an untrusted override')
+  })
+})
+
+test('claude is chosen on its built-in alias even when listed first', () => {
+  withWorkspace(['claude', 'droid'], {
+    CLAUDE_BIN: realBinary, DROID_BIN: realBinary, CLAWMAX_ANTHROPIC_GENERATION_MODEL: undefined,
+  }, () => {
+    const { pickGenerationRuntime, resolveClaudeGenerationModel } = require('./ai-generator')
+    const { CLAUDE_MODEL_ALIASES } = require('./agent-runtime')
+    assert(CLAUDE_MODEL_ALIASES.includes(resolveClaudeGenerationModel()), 'Expected an alias by default')
+    assert.strictEqual(pickGenerationRuntime(), 'claude')
+  })
+})
+
+test('an alias reaches the claude CLI unchanged and a foreign model still throws', () => {
+  const { runtimeModelArg, buildRuntimePlan, CLAUDE_MODEL_ALIASES } = require('./agent-runtime')
+  for (const alias of CLAUDE_MODEL_ALIASES) {
+    assert.strictEqual(runtimeModelArg('claude', alias), alias, `Alias ${alias} should pass through`)
+  }
+  assert.throws(() => runtimeModelArg('claude', 'openai/sonnet'), /Anthropic models only/,
+    'A provider-qualified non-Anthropic model must still be rejected')
+  assert.throws(() => runtimeModelArg('claude', 'openai/gpt-5'), /Anthropic models only/)
+  const plan = buildRuntimePlan({
+    runtime: 'claude', mode: 'json', agentId: 'a', scopedSessionId: 's',
+    message: 'hi', model: 'sonnet', agentDir: '/tmp', resume: false,
+  })
+  const at = plan.args.indexOf('--model')
+  assert(at !== -1 && plan.args[at + 1] === 'sonnet', `Expected --model sonnet, got ${plan.args.join(' ')}`)
+})
+
+test('claude advertises aliases only when its CLI is present', () => {
+  withWorkspace(['claude'], { CLAUDE_BIN: realBinary }, async () => {
+    const { listRuntimeModels, CLAUDE_MODEL_ALIASES } = require('./agent-runtime')
+    const models = await listRuntimeModels('claude')
+    assert.deepStrictEqual(models, CLAUDE_MODEL_ALIASES, 'Expected the alias list when installed')
+  })
+})
+
 async function asyncTest(name: string, fn: () => Promise<void>) {
   try { await fn(); console.log(`${GREEN}✓${RESET} ${name}`); passed++ }
   catch (err: any) { console.log(`${RED}✗${RESET} ${name}`); console.log(`  ${err.message}`); failed++ }

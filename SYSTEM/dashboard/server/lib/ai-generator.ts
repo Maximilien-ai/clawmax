@@ -3,7 +3,7 @@ import { resolveSystemExecutionProviderKeys, resolveUserExecutionProviderKeys, P
 import { getPreferredAnthropicModel } from './model-discovery'
 import { getBestAvailableModel } from './dashboard-env'
 import { readWorkspaceIntegrationConfig } from './workspace-integrations'
-import { executeAgentRuntimeTurn, resolveEnabledRuntimes, resolveRuntimeCliPath, type AgentRuntimeId } from './agent-runtime'
+import { CLAUDE_MODEL_ALIASES, executeAgentRuntimeTurn, resolveEnabledRuntimes, resolveRuntimeCliPath, type AgentRuntimeId } from './agent-runtime'
 import { getModelLifecycleEntry } from './openAiModelLifecycle'
 import { randomUUID } from 'crypto'
 import { getWorkspacePath } from './workspace'
@@ -470,8 +470,14 @@ export function pickGenerationRuntime(): AgentRuntimeId | undefined {
   // Prefer a runtime that supplies its own current default model. Claude Code must be handed an
   // explicit Anthropic model id, and the id resolvable without provider keys comes from a static
   // preference list that goes stale.
-  // Every installed CLI now supplies a usable default (droid picks its own; claude takes an alias
-  // that tracks the current model), so first-installed is enough.
+  // Prefer a runtime whose model we can vouch for. Claude Code is safe on its built-in alias, but
+  // an operator can override that with CLAWMAX_ANTHROPIC_GENERATION_MODEL, and a stale or invalid
+  // override makes it fail — so fall behind a runtime that picks its own current default.
+  const claudeModelIsTrusted = CLAUDE_MODEL_ALIASES.includes(resolveClaudeGenerationModel())
+  if (!claudeModelIsTrusted) {
+    const selfDefaulting = installed.find((rt) => rt !== 'claude')
+    if (selfDefaulting) return selfDefaulting
+  }
   return installed[0]
 }
 
