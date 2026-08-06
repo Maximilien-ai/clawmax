@@ -500,9 +500,11 @@ export function resolveClaudeGenerationModel(): string {
   return override ? override.replace(/^anthropic\//, '') : 'sonnet'
 }
 
-// Kept under the 45s Promise.race in createChatCompletionWithCompatibilityRetry so the child
-// process is killed by us rather than orphaned when that race rejects.
-const CLI_GENERATION_TIMEOUT_MS = 40000
+// CLI turnaround is far slower than a hosted API — template generation alone exceeded 40s — so
+// give it real headroom. createChatCompletionWithCompatibilityRetry extends its own race to match
+// for CLI-backed clients, so the child is still killed by us rather than orphaned.
+const CLI_GENERATION_TIMEOUT_MS = 240000
+const CLI_CLIENT_MARKER = '__clawmaxCliRuntime'
 
 // Placeholder model for CLI-backed generation: the CLI selects its own, but callers still
 // read a model off the request.
@@ -547,6 +549,7 @@ export function buildCliRuntimeClient(runtime: AgentRuntimeId): { client: OpenAI
       },
     },
   }
+  ;(client as any)[CLI_CLIENT_MARKER] = true
   return { client: client as unknown as OpenAI, model: `${runtime}-cli` }
 }
 
@@ -747,11 +750,16 @@ export async function createChatCompletionWithCompatibilityRetry(
   timeoutMs: number = 45000,
 ): Promise<any> {
   const preparedRequest = sanitizeCompatibilityRequest(request)
+  // A CLI-backed client enforces its own, longer deadline and kills the child process; racing it
+  // against the hosted-API default would reject first and orphan that process.
+  const effectiveTimeoutMs = (client as any)?.[CLI_CLIENT_MARKER]
+    ? CLI_GENERATION_TIMEOUT_MS + 5000
+    : timeoutMs
   const runRequest = async (payload: Record<string, any>) => {
     return await Promise.race([
       client.chat.completions.create(payload as any),
       new Promise((_, reject) => {
-        setTimeout(() => reject(new Error(`AI request timed out after ${timeoutMs}ms`)), timeoutMs)
+        setTimeout(() => reject(new Error(`AI request timed out after ${effectiveTimeoutMs}ms`)), effectiveTimeoutMs)
       }),
     ])
   }
@@ -2472,9 +2480,11 @@ export async function generateCronFromText(text: string, timezone?: string): Pro
     }
   }
 
+  // This gate predates CLI runtimes and checked only for an OpenAI key, so cron generation stayed
+  // unavailable on a keyless workspace even with a CLI enabled. Accept either execution path.
   const apiKey = resolveSystemExecutionProviderKeys().openai
-  if (!apiKey || apiKey.trim() === '') {
-    return { cron: '', explanation: '', error: 'No OpenAI API key configured' }
+  if ((!apiKey || apiKey.trim() === '') && !pickGenerationRuntime()) {
+    return { cron: '', explanation: '', error: 'No OpenAI API key or CLI runtime configured' }
   }
 
   try {
