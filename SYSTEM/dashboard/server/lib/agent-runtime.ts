@@ -221,6 +221,8 @@ function splitModelProvider(model: string): { provider: string; rest: string } {
 
 export function runtimeModelArg(rt: AgentRuntimeId, model?: string): string | undefined {
   if (rt === 'claude') {
+    // Aliases carry no provider prefix and are what the picker now offers.
+    if (model && CLAUDE_MODEL_ALIASES.includes(model.trim())) return model.trim()
     const { provider, rest } = model ? splitModelProvider(model) : { provider: '', rest: '' }
     if (provider !== 'anthropic' || !rest) {
       throw new RuntimeModelError(
@@ -616,6 +618,14 @@ async function probeDroidModels(cliPath: string): Promise<string[]> {
     .filter((entry) => /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(entry))
 }
 
+/**
+ * Claude Code accepts aliases that always resolve to the newest model in each tier ("Provide an
+ * alias for the latest model (e.g. 'fable', 'opus', or 'sonnet')" — `claude --help`). It has no
+ * command to enumerate a catalog, and dated ids go stale and get rejected, so the aliases are both
+ * the only list we can offer and the safest thing to send.
+ */
+const CLAUDE_MODEL_ALIASES = ['sonnet', 'opus', 'haiku', 'fable']
+
 /** Models a runtime CLI accepts, or [] when the catalog cannot be enumerated. */
 export async function listRuntimeModels(runtime: AgentRuntimeId): Promise<string[]> {
   if (runtime === 'openclaw') return []
@@ -626,9 +636,15 @@ export async function listRuntimeModels(runtime: AgentRuntimeId): Promise<string
   if (inFlight) return await inFlight
 
   const probe = (async () => {
-    // Only droid can enumerate a catalog; resolving a path for anything else is a wasted spawn.
-    const cliPath = runtime === 'droid' ? resolveRuntimeCliPath(runtime) : null
-    const models = cliPath ? await probeDroidModels(cliPath) : []
+    // droid prints its catalog when handed an unknown model; claude has no such command but
+    // accepts stable aliases. Anything else cannot be enumerated.
+    let models: string[] = []
+    if (runtime === 'droid') {
+      const cliPath = resolveRuntimeCliPath(runtime)
+      models = cliPath ? await probeDroidModels(cliPath) : []
+    } else if (runtime === 'claude') {
+      models = resolveRuntimeCliPath(runtime) ? [...CLAUDE_MODEL_ALIASES] : []
+    }
   // Claude Code takes any Anthropic model id and has no enumerable catalog; runtimeModelArg()
   // already rejects non-Anthropic models, so leave this empty and let the provider list stand.
 
