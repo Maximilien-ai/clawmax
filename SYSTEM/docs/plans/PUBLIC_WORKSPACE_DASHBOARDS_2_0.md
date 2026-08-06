@@ -7,6 +7,8 @@ Workspace dashboards remain shareable snapshots, with explicit controls for fres
 - Owners can choose an optional human-readable URL slug. Existing token links continue to work.
 - Owners can enable auto-refresh and choose a bounded refresh interval (10 seconds to 1 hour).
 - Owners can opt in to an interaction section. The shared page then exposes only the selected workspace's agents, workflows, and groups, and sends the visitor's input through the existing runtime APIs.
+- Owners can apply Operations Pulse, Cost & Reliability, or Communication Desk presets, then edit the resulting title, slug, sections, and ordering without recreating the dashboard.
+- The interaction card has a resizable transcript area and timestamped browser-local history for the current shared-dashboard session.
 - Interaction controls are disabled by default so an existing read-only dashboard does not become writable after upgrade.
 
 ## Follow-up

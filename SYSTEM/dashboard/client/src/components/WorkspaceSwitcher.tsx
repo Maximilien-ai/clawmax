@@ -4,6 +4,7 @@ import { ConfirmDeleteDialog } from './ConfirmDeleteDialog'
 import { WorkspaceEditDialog } from './WorkspaceEditDialog'
 import { useToast } from './Toast'
 import { getViewportSafeDropdownStyle } from '../lib/dropdownPosition'
+import { WORKSPACE_DASHBOARD_PRESETS } from '../lib/workspaceDashboardPresets'
 
 interface WorkspaceDashboard {
   id: string
@@ -89,6 +90,7 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
   } | null>(null)
   const [editingWorkspace, setEditingWorkspace] = useState<Workspace | null>(null)
   const [dashboardWorkspace, setDashboardWorkspace] = useState<Workspace | null>(null)
+  const [editingDashboardId, setEditingDashboardId] = useState<string | null>(null)
   const [dashboards, setDashboards] = useState<WorkspaceDashboard[]>([])
   const [dashboardTitle, setDashboardTitle] = useState('')
   const [dashboardDescription, setDashboardDescription] = useState('')
@@ -153,9 +155,11 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
       kickoff: true,
       results: true,
       groupChats: true,
+      interactions: false,
     })
     setDashboardSectionOrder([...DEFAULT_SECTION_ORDER])
     setDashboardCompactColumns({ ...DEFAULT_COMPACT_COLUMNS })
+    setEditingDashboardId(null)
     try {
       await loadDashboards(workspace.id)
       await loadDashboardContext(workspace.id)
@@ -181,8 +185,9 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
     if (!dashboardWorkspace || !dashboardTitle.trim()) return
     const selectedCompany = dashboardCompanies.find((option) => `${option.kind}:${option.value || ''}` === dashboardCompanySelection)
     try {
-      const res = await fetch(`/api/workspaces/${dashboardWorkspace.id}/dashboards`, {
-        method: 'POST',
+      const editing = editingDashboardId !== null
+      const res = await fetch(`/api/workspaces/${dashboardWorkspace.id}/dashboards${editing ? `/${editingDashboardId}` : ''}`, {
+        method: editing ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: dashboardTitle.trim(),
@@ -202,10 +207,36 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to create workspace dashboard')
       await loadDashboards(dashboardWorkspace.id)
-      showSuccess('Workspace dashboard created')
+      showSuccess(editing ? 'Workspace dashboard updated' : 'Workspace dashboard created')
+      setEditingDashboardId(null)
     } catch (err: any) {
       showError(err.message || 'Failed to create workspace dashboard')
     }
+  }
+
+  const editDashboard = (dashboard: WorkspaceDashboard) => {
+    setEditingDashboardId(dashboard.id)
+    setDashboardTitle(dashboard.title)
+    setDashboardDescription(dashboard.description || '')
+    setDashboardSlug(dashboard.slug || '')
+    setDashboardRefreshEnabled(dashboard.refreshEnabled === true)
+    setDashboardRefreshInterval(dashboard.refreshIntervalSeconds || 30)
+    setDashboardDisplayMode(dashboard.displayMode)
+    setDashboardCompanySelection(`${dashboard.companyFocusKind}:${dashboard.companyFocusValue || ''}`)
+    setDashboardSections({ overview: true, costs: true, agents: true, notifications: true, workflows: true, kickoff: true, results: true, groupChats: true, interactions: false, ...dashboard.sections })
+    setDashboardSectionOrder(dashboard.sectionOrder?.length ? [...dashboard.sectionOrder] : [...DEFAULT_SECTION_ORDER])
+    setDashboardCompactColumns({ ...DEFAULT_COMPACT_COLUMNS, ...(dashboard.compactColumns || {}) })
+  }
+
+  const applyDashboardPreset = (preset: 'operations' | 'costs' | 'communications') => {
+    const presets = WORKSPACE_DASHBOARD_PRESETS[preset]
+    setEditingDashboardId(null)
+    setDashboardTitle(presets.title)
+    setDashboardDescription(presets.description)
+    setDashboardSlug('')
+    setDashboardSections(presets.sections)
+    setDashboardSectionOrder(presets.order)
+    setDashboardCompactColumns({ ...DEFAULT_COMPACT_COLUMNS })
   }
 
   const exportWorkspace = async (workspace: Workspace) => {
@@ -303,9 +334,9 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
   }
 
   const moveSectionToCompactColumn = (
-    section: 'overview' | 'costs' | 'agents' | 'notifications' | 'workflows' | 'kickoff' | 'results' | 'groupChats',
+    section: 'overview' | 'costs' | 'agents' | 'notifications' | 'workflows' | 'kickoff' | 'results' | 'groupChats' | 'interactions',
     column: 'left' | 'right',
-    beforeKey?: 'overview' | 'costs' | 'agents' | 'notifications' | 'workflows' | 'kickoff' | 'results' | 'groupChats'
+    beforeKey?: 'overview' | 'costs' | 'agents' | 'notifications' | 'workflows' | 'kickoff' | 'results' | 'groupChats' | 'interactions'
   ) => {
     setDashboardSectionOrder((prev) => {
       const without = prev.filter((key) => key !== section)
@@ -331,9 +362,9 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
 
   const handleCompactTileDrop = (
     e: React.DragEvent<HTMLDivElement>,
-    key: 'overview' | 'costs' | 'agents' | 'notifications' | 'workflows' | 'kickoff' | 'results' | 'groupChats',
+    key: 'overview' | 'costs' | 'agents' | 'notifications' | 'workflows' | 'kickoff' | 'results' | 'groupChats' | 'interactions',
     column: 'left' | 'right',
-    sections: Array<'overview' | 'costs' | 'agents' | 'notifications' | 'workflows' | 'kickoff' | 'results' | 'groupChats'>
+    sections: Array<'overview' | 'costs' | 'agents' | 'notifications' | 'workflows' | 'kickoff' | 'results' | 'groupChats' | 'interactions'>
   ) => {
     e.preventDefault()
     e.stopPropagation()
@@ -701,8 +732,18 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
 
             <div className="space-y-5 overflow-y-auto px-5 py-5">
               <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
-                <h3 className="mb-3 text-sm font-semibold text-gray-800 dark:text-gray-200">Generate Dashboard</h3>
+                <h3 className="mb-3 text-sm font-semibold text-gray-800 dark:text-gray-200">{editingDashboardId ? 'Edit Dashboard' : 'Generate Dashboard'}</h3>
                 <div className="space-y-3">
+                  {!editingDashboardId && (
+                    <div className="rounded-md bg-sky-50 p-3 text-sm dark:bg-sky-950/30">
+                      <div className="mb-2 font-medium text-sky-900 dark:text-sky-200">Suggested dashboards</div>
+                      <div className="flex flex-wrap gap-2">
+                        <button type="button" onClick={() => applyDashboardPreset('operations')} className="rounded-full border border-sky-200 px-3 py-1 text-xs text-sky-700 hover:bg-sky-100 dark:border-sky-800 dark:text-sky-200">Operations Pulse</button>
+                        <button type="button" onClick={() => applyDashboardPreset('costs')} className="rounded-full border border-sky-200 px-3 py-1 text-xs text-sky-700 hover:bg-sky-100 dark:border-sky-800 dark:text-sky-200">Cost & Reliability</button>
+                        <button type="button" onClick={() => applyDashboardPreset('communications')} className="rounded-full border border-sky-200 px-3 py-1 text-xs text-sky-700 hover:bg-sky-100 dark:border-sky-800 dark:text-sky-200">Communication Desk</button>
+                      </div>
+                    </div>
+                  )}
                   <input
                     type="text"
                     value={dashboardTitle}
@@ -885,8 +926,9 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
                       onClick={createDashboard}
                       className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
                     >
-                      Generate Dashboard
+                      {editingDashboardId ? 'Save Dashboard' : 'Generate Dashboard'}
                     </button>
+                    {editingDashboardId && <button type="button" onClick={() => setEditingDashboardId(null)} className="ml-2 rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 dark:border-gray-600 dark:text-gray-300">Cancel Edit</button>}
                   </div>
                 </div>
               </div>
@@ -921,6 +963,12 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
                           </div>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            onClick={() => editDashboard(dashboard)}
+                            className="text-xs text-violet-600 hover:text-violet-700"
+                          >
+                            Edit
+                          </button>
                           <button
                             onClick={() => window.open(getDashboardUrl(dashboard), '_blank')}
                             className="text-xs text-sky-600 hover:text-sky-700"

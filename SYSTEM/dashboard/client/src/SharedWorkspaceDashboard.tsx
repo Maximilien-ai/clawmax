@@ -387,6 +387,8 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
   const [interactionTarget, setInteractionTarget] = useState('')
   const [interactionMessage, setInteractionMessage] = useState('')
   const [interactionStatus, setInteractionStatus] = useState<string | null>(null)
+  const [interactionHeight, setInteractionHeight] = useState(260)
+  const [interactionHistory, setInteractionHistory] = useState<Array<{ kind: string; target: string; message: string; response: string; at: string }>>([])
   const [darkMode, setDarkMode] = useState<boolean>(() => {
     const saved = localStorage.getItem('dark-mode')
     if (saved !== null) return saved === 'true'
@@ -498,13 +500,16 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
         const data = await response.json().catch(() => null)
         throw new Error(data?.error || 'Interaction failed')
       }
+      let resultText = ''
       if (interactionKind === 'agent') {
         const text = await response.text()
         const replies = Array.from(text.matchAll(/"text"\s*:\s*"((?:\\.|[^"\\])*)"/g)).map((match) => match[1])
-        setInteractionStatus(replies.length > 0 ? replies[replies.length - 1].replace(/\\n/g, '\n') : 'Agent accepted the message.')
+        resultText = replies.length > 0 ? replies[replies.length - 1].replace(/\\n/g, '\n') : 'Agent accepted the message.'
       } else {
-        setInteractionStatus(interactionKind === 'workflow' ? 'Workflow started.' : 'Message sent.')
+        resultText = interactionKind === 'workflow' ? 'Workflow started.' : 'Message sent.'
       }
+      setInteractionStatus(resultText)
+      setInteractionHistory((previous) => [...previous, { kind: interactionKind, target: interactionTarget, message: interactionMessage.trim(), response: resultText, at: new Date().toISOString() }].slice(-100))
       setInteractionMessage('')
     } catch (err: any) {
       setInteractionStatus(err.message || 'Interaction failed')
@@ -1392,6 +1397,10 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
               <select value={interactionTarget} onChange={(event) => setInteractionTarget(event.target.value)} className="rounded-lg border border-gray-300 bg-transparent px-3 py-2 text-sm dark:border-white/10">
                 {interactionTargets.map((target) => <option key={target.id} value={target.id}>{target.label}</option>)}
               </select>
+            </div>
+            <div className="mt-3 flex items-center justify-between text-xs text-gray-500 dark:text-slate-400"><span>Chat size</span><input type="range" min={180} max={620} step={20} value={interactionHeight} onChange={(event) => setInteractionHeight(Number(event.target.value))} className="w-40" /></div>
+            <div className="mt-2 overflow-y-auto rounded-lg border border-gray-200 p-3 dark:border-white/10" style={{ minHeight: interactionHeight, maxHeight: interactionHeight }}>
+              {interactionHistory.length === 0 ? <div className="text-sm text-gray-500 dark:text-slate-500">No interaction history yet.</div> : interactionHistory.map((entry, index) => <div key={`${entry.at}-${index}`} className="mb-3 last:mb-0"><div className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-slate-500">{new Date(entry.at).toLocaleDateString()} · {new Date(entry.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} · {entry.kind} · {entry.target}</div><div className="mt-1 text-sm text-gray-700 dark:text-slate-300"><strong>You:</strong> {entry.message}</div><div className="mt-1 whitespace-pre-wrap text-sm text-gray-600 dark:text-slate-400"><strong>Response:</strong> {entry.response}</div></div>)}
             </div>
             <textarea value={interactionMessage} onChange={(event) => setInteractionMessage(event.target.value)} placeholder={interactionKind === 'workflow' ? 'Describe what this run should do…' : 'Write a message…'} rows={3} className="mt-3 w-full rounded-lg border border-gray-300 bg-transparent px-3 py-2 text-sm dark:border-white/10" />
             <div className="mt-3 flex flex-wrap items-center gap-3">
