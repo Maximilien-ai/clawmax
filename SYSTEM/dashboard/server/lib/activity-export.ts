@@ -11,7 +11,7 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 
-export const ACTIVITY_EXPORT_VERSION = 'activity-export/v1'
+export const ACTIVITY_EXPORT_VERSION = 'clawmax.activity-export/v1'
 export const ACTIVITY_EXPORT_EVENT_LIMIT = 256 * 1024
 export const ACTIVITY_EXPORT_BATCH_LIMIT = 50
 

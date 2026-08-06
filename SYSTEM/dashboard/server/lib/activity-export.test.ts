@@ -20,6 +20,8 @@ import {
   type ActivityExportConsent,
 } from './activity-export'
 
+assert.strictEqual(ACTIVITY_EXPORT_VERSION, 'clawmax.activity-export/v1', 'dashboard must use the canonical activity export schema version')
+
 const consent: ActivityExportConsent = {
   receiptId: 'consent_demo',
   version: ACTIVITY_EXPORT_VERSION,
