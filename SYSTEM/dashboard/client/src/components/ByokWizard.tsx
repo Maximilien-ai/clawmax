@@ -227,6 +227,11 @@ export function ByokWizard({
   const [activityDestination, setActivityDestination] = useState<'clawmax-ai' | 'digo'>('clawmax-ai')
   const [activityScopes, setActivityScopes] = useState<string[]>(['agent-chat', 'workflow'])
   const [activityConfirmOpen, setActivityConfirmOpen] = useState(false)
+  const [activityDelivery, setActivityDelivery] = useState<{
+    queuedEvents: number
+    worker?: { running?: boolean; lastAttemptAt?: string; lastError?: string; configured?: { clawmaxAi?: boolean; digo?: boolean } }
+    retry?: { attempts?: number; lastError?: string }
+  } | null>(null)
   const [validating, setValidating] = useState(false)
   const [resendTestSending, setResendTestSending] = useState(false)
   const [resendTestTo, setResendTestTo] = useState('')
@@ -274,15 +279,21 @@ export function ByokWizard({
 
   useEffect(() => {
     if (!open || step !== 'partners') return
-    fetch('/api/activity-export/status')
+    let cancelled = false
+    const refreshActivityStatus = () => fetch('/api/activity-export/status')
       .then((response) => response.ok ? response.json() : null)
       .then((payload) => {
+        if (cancelled) return
         const destinations = Array.isArray(payload?.destinations) ? payload.destinations : (payload?.sharing ? [payload.sharing] : [])
         const normalized = destinations.map((entry: any) => ({ destinationId: String(entry.destinationId) === 'digo' ? 'digo' : 'clawmax-ai', scopes: Array.isArray(entry.scopes) ? entry.scopes : [] }))
         setActivityConsents(normalized)
         if (normalized.length > 0) setActivityDestination(normalized[0].destinationId)
+        setActivityDelivery({ queuedEvents: Number(payload?.queuedEvents) || 0, worker: payload?.delivery?.worker, retry: payload?.delivery?.retry })
       })
       .catch(() => undefined)
+    refreshActivityStatus()
+    const refreshTimer = window.setInterval(refreshActivityStatus, 15000)
+    return () => { cancelled = true; window.clearInterval(refreshTimer) }
   }, [open, step])
 
   async function toggleActivitySharing() {
@@ -2644,6 +2655,19 @@ export function ByokWizard({
                     <div className="mt-2 flex gap-2"><button type="button" onClick={() => setActivityConfirmOpen(false)} className="rounded border border-gray-300 px-2 py-1">Cancel</button><button type="button" onClick={() => void toggleActivitySharing()} className="rounded bg-amber-600 px-2 py-1 font-medium text-white">I consent</button></div>
                   </div>}
                   {activityConsents.length > 0 && <div className="mt-2 space-y-1 text-xs">{activityConsents.map((entry) => <div key={entry.destinationId}>Sharing with {entry.destinationId === 'digo' ? 'Digo' : 'ClawMax.ai'} · {entry.scopes.join(', ')}</div>)}</div>}
+                  {activityConsents.length > 0 && activityDelivery && (
+                    <div className={`mt-3 rounded-md border px-3 py-2 text-xs ${activityDelivery.queuedEvents > 0 || activityDelivery.worker?.lastError || activityDelivery.retry?.lastError ? 'border-amber-300 bg-amber-50 text-amber-950 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-100' : 'border-emerald-300 bg-emerald-50 text-emerald-950 dark:border-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-100'}`}>
+                      <div className="font-medium">Activity delivery: {activityDelivery.queuedEvents === 0 ? 'up to date' : `${activityDelivery.queuedEvents} queued`}</div>
+                      <div className="mt-1 opacity-80">
+                        {activityDelivery.queuedEvents === 0
+                          ? 'No pending activity is waiting in this runtime.'
+                          : activityDelivery.worker?.configured?.clawmaxAi || activityDelivery.worker?.configured?.digo
+                            ? 'The runtime will retry delivery automatically.'
+                            : 'Delivery credentials are not configured in this dashboard runtime.'}
+                      </div>
+                      {(activityDelivery.worker?.lastError || activityDelivery.retry?.lastError) && <div className="mt-1 break-words">Latest delivery error: {activityDelivery.worker.lastError || activityDelivery.retry?.lastError}</div>}
+                    </div>
+                  )}
                 </div>
                 <div className="mt-4 rounded-xl border border-cyan-200 dark:border-cyan-800 bg-cyan-50 dark:bg-cyan-900/20 p-4 text-sm text-cyan-900 dark:text-cyan-100">
                   <div className="font-medium">Optional partner integrations</div>
