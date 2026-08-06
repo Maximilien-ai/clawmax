@@ -199,22 +199,29 @@ async function runAsyncCases() {
     })
   })
 
-  await asyncTest('the CLI timeout expires before the caller stops waiting, so no child is orphaned', async () => {
+  await asyncTest('the CLI kills its own child before the caller stops waiting', async () => {
     await withWorkspaceAsync(['droid'], { DROID_BIN: realBinary }, async () => {
       await withRuntimeTurnSpy(async (calls) => {
-        const { buildCliRuntimeClient } = require('./ai-generator')
+        const { buildCliRuntimeClient, createChatCompletionWithCompatibilityRetry } = require('./ai-generator')
         const { client } = buildCliRuntimeClient('droid')
         await client.chat.completions.create({ messages: [{ role: 'user', content: 'hi' }] })
-        // Every request is raced against 45s in createChatCompletionWithCompatibilityRetry. A
-        // longer CLI timeout means that race rejects first and the child keeps running.
-        const OUTER_RACE_MS = 45000
-        assert(
-          calls[0].timeoutMs < OUTER_RACE_MS,
-          `CLI timeout ${calls[0].timeoutMs}ms must be under the caller's ${OUTER_RACE_MS}ms race`,
-        )
+        assert(calls[0].timeoutMs > 45000, `CLI needs more than the hosted default; got ${calls[0].timeoutMs}ms`)
+
+        // The retry helper must extend its own race past that deadline for a CLI-backed client;
+        // otherwise it rejects first and leaves the child process running.
+        let issued = 0
+        const slowClient: any = { chat: { completions: { create: () => { issued++; return new Promise(() => {}) } } } }
+        slowClient.__clawmaxCliRuntime = true
+        const outcome = await Promise.race([
+          createChatCompletionWithCompatibilityRetry(slowClient, { messages: [] }).catch(() => 'rejected'),
+          new Promise((r) => setTimeout(() => r('still-waiting'), 1500)),
+        ])
+        assert.strictEqual(outcome, 'still-waiting', 'Race settled before the CLI deadline')
+        assert.strictEqual(issued, 1, 'Expected the request to have been issued')
       })
     })
   })
+
 }
 
 runAsyncCases().then(() => {
