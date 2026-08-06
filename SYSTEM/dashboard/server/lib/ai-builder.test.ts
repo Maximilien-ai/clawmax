@@ -113,6 +113,12 @@ test('llm fallback triggers for low-confidence team template recommendations', (
   assert.equal(shouldUseAiBuilderLlmFallback(result), true)
 })
 
+test('startup bookkeeping prompt does not recommend an unrelated event template', () => {
+  const result = buildAiBuilderRecommendation('create team of agents to help me manage my startup books')
+  assert.notEqual(result.matchedAssets.organizationTemplates[0]?.name, 'Conference Ops Hub')
+  assert.notEqual(result.matchedAssets.organizationTemplates[0]?.family, 'event_ops')
+})
+
 test('llm fallback can steer a team recommendation to create-new while preserving refine as an alternative', () => {
   const base = buildAiBuilderRecommendation('create a team of agents to help me manage monthly shows at incline gallery https://www.inclinegallerysf.com/')
   const next = applyAiBuilderLlmFallback(base, 'create a team of agents to help me manage monthly shows at incline gallery https://www.inclinegallerysf.com/', {

@@ -1,6 +1,7 @@
 {
   "slug": "gmail",
   "name": "Gmail",
+  "logoUrl": "https://www.gstatic.com/images/branding/product/1x/gmail_2020q4_32dp.png",
   "website": "https://workspace.google.com/products/gmail/",
   "docsUrl": "https://developers.google.com/workspace/gmail/api/guides",
   "description": "Delegated Gmail access for bounded inbox search, reading, and draft creation.",

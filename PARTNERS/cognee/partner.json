@@ -1,6 +1,7 @@
 {
   "slug": "cognee",
   "name": "Cognee",
+  "logoUrl": "https://www.cognee.ai/favicon.ico",
   "website": "https://www.cognee.ai/",
   "docsUrl": "https://docs.cognee.ai/",
   "description": "Memory, recall, and semantic context layer for agents and agent teams.",

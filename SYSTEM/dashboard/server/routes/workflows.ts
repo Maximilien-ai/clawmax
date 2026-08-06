@@ -22,6 +22,7 @@ import { explainOneTimeCronLimitation, generateCronFromText, generateWorkflowFro
 import { syncAllWorkflows } from '../lib/scheduler'
 import { getAuthenticatedSession } from '../lib/github-auth'
 import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
+import { appendActivityExportEventsForActiveConsents } from '../lib/activity-export'
 
 const router = Router()
 
@@ -720,6 +721,17 @@ router.post('/:id/complete', (req, res) => {
     if (!workflow) return res.status(404).json({ error: 'Workflow not found' })
 
     const { readyToRun } = completeWorkflow(req.params.id)
+
+    const session = getAuthenticatedSession(req)
+    const activityUserId = session?.userId || session?.login || 'dashboard-user'
+    const activityWorkspaceId = getWorkspacePath()
+    appendActivityExportEventsForActiveConsents({
+      source: 'workflow',
+      workspaceId: activityWorkspaceId,
+      userId: activityUserId,
+      subjectId: workflow.id,
+      metadata: { workflowId: workflow.id, status: 'completed', triggered: readyToRun.length },
+    })
 
     // Auto-trigger ready workflows if they're enabled
     const triggered: string[] = []

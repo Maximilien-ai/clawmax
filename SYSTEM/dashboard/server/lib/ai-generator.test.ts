@@ -7,6 +7,9 @@ import {
   buildGeneratedExecutionSubteam,
   applyGeneratedWorkflowHandoffs,
   buildPromptExpansionSystemPrompt,
+  isUsablePromptExpansion,
+  buildFallbackPromptExpansion,
+  TEMPLATE_GENERATION_TIMEOUT_MS,
   buildResolvedModelRequestOptions,
   createChatCompletionWithCompatibilityRetry,
   ensureGeneratedCompanyRoot,
@@ -93,6 +96,36 @@ test('buildPromptExpansionSystemPrompt includes target, format, and optional gui
   assert.match(prompt, /workflow generation wizard/i)
   assert.match(prompt, /plain text paragraphs/i)
   assert.match(prompt, /Prefer step-by-step output/i)
+})
+
+test('prompt expansion instructions prevent echoing the seed or retry meta-instruction', () => {
+  const prompt = buildPromptExpansionSystemPrompt('template', 'markdown', 'Do not return the original wording unchanged.')
+  assert.match(prompt, /Do not mention that you are expanding or rewriting/i)
+  assert.match(prompt, /directly edit and submit/i)
+})
+
+test('prompt expansion rejects echoed retry instructions and accepts substantive output', () => {
+  const seed = 'Create a team to manage my books.'
+  assert.strictEqual(
+    isUsablePromptExpansion(seed, `Expand and rewrite this seed prompt into a more specific version while preserving intent:\n\n${seed}`),
+    false,
+  )
+  assert.strictEqual(isUsablePromptExpansion(seed, seed), false)
+  assert.strictEqual(
+    isUsablePromptExpansion(seed, 'Create an accounting team with reconciliation, approvals, monthly close, and audit-ready reports.'),
+    true,
+  )
+})
+
+test('prompt expansion provides an editable fallback when the provider echoes the seed', () => {
+  const fallback = buildFallbackPromptExpansion('Create a team to manage my books.', 'template', 'Prefer monthly close workflows.')
+  assert(fallback.startsWith('Create a team to manage my books.'))
+  assert.match(fallback, /Inputs and outputs/i)
+  assert.match(fallback, /Prefer monthly close workflows/i)
+})
+
+test('template generation uses the longer bounded AI timeout', () => {
+  assert.strictEqual(TEMPLATE_GENERATION_TIMEOUT_MS, 180000)
 })
 
 test('validateAiGenerationProviderKeys rejects OpenAI subscription or session-style credentials', () => {
@@ -280,6 +313,16 @@ test('shouldGenerateCompanyTemplate infers company from prompt unless agent is e
   assert.strictEqual(
     shouldGenerateCompanyTemplate('A leadership specialist that writes project briefs.', 'team'),
     false
+  )
+  assert.strictEqual(
+    shouldGenerateCompanyTemplate('Create a team of agents to manage my startup books.', 'team'),
+    false,
+    'An explicit team target must not be upgraded to a company because the prompt mentions startup.',
+  )
+  assert.strictEqual(
+    shouldGenerateCompanyTemplate('create team of agents to help me manage my startup books', 'team'),
+    false,
+    'Natural-language create team phrasing must remain a team even when startup is mentioned.',
   )
 })
 

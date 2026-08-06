@@ -135,6 +135,24 @@ Useful agent response.`
   assert(normalized === 'Useful agent response.', `Unexpected normalized output: ${normalized}`)
 })
 
+test('strips plugin deny warnings from chat output without treating them as a reply', () => {
+  const warning = '| - plugins.deny: plugin not found: cognee-openclaw (stale config entry | | ignored; remove it from plugins config) |'
+  const normalized = normalizeChatMessage(warning)
+  assert(normalized === '', `Expected plugin deny warning to normalize to empty, got: ${normalized}`)
+})
+
+test('keeps the real answer when a plugin warning precedes it', () => {
+  const raw = '| - plugins.deny: plugin not found: cognee-openclaw (stale config entry | | ignored; remove it from plugins config) |\n\nHello! How can I help?'
+  const normalized = normalizeChatMessage(raw)
+  assert(normalized === 'Hello! How can I help?', `Expected warning removed while preserving answer, got: ${normalized}`)
+})
+
+test('returns empty for runtime status-only output so persisted-answer fallback can run', () => {
+  const raw = '🕒 status line\n🧠 another status line'
+  const normalized = normalizeChatMessage(raw)
+  assert(normalized === '', `Expected status-only output to normalize to empty, got: ${normalized}`)
+})
+
 test('strips stale plugin allowlist config warning blocks from chat output', () => {
   const raw = `◇ Config warnings ───────────────────────────────────────────────────────╮ │ - plugins.allow: plugin not found: clawmax_no_non_bundled_plugins │ │ (stale config entry ignored; remove it from plugins config) │
 

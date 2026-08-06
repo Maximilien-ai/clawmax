@@ -163,6 +163,7 @@ const EVENT_PROMPT_KEYWORDS = ['event', 'events', 'show', 'shows', 'gallery', 'a
 const EVENT_TEMPLATE_KEYWORDS = ['speaker', 'conference', 'venue', 'attendees', 'run-of-show', 'guest', 'guests', 'program', 'logistics', 'rsvp', 'check-in', 'event-day', 'sponsor', 'agenda']
 const CULTURAL_EVENT_PROMPT_KEYWORDS = ['gallery', 'show', 'shows', 'opening', 'artist', 'artists', 'exhibit', 'exhibition', 'monthly']
 const NON_EVENT_DOMAIN_KEYWORDS = ['astronomy', 'telescope', 'meteor', 'physics', 'mathematics', 'biology', 'research lab', 'research group']
+const NON_EVENT_PROMPT_KEYWORDS = ['book', 'books', 'bookkeeping', 'accounting', 'finance', 'financial', 'engineering', 'software', 'legal', 'healthcare', 'medical']
 const OPERATIONAL_PROMPT_KEYWORDS = ['manage', 'planning', 'plan', 'organize', 'coordinate', 'coordination', 'host', 'run', 'monthly']
 const OPERATIONAL_TEMPLATE_KEYWORDS = ['logistics', 'run-of-show', 'guest', 'guests', 'host', 'check-in', 'readiness', 'operations', 'ops', 'agenda', 'speaker', 'venue', 'follow-up']
 const ANALYTICAL_TEMPLATE_KEYWORDS = ['analysis', 'analyzing', 'research', 'eval', 'evaluation', 'digest', 'signals']
@@ -213,6 +214,11 @@ function topScore(items: AiBuilderMatchedAsset[]): number {
 
 function normalizeText(value: unknown): string {
   return String(value || '').trim()
+}
+
+function promptIncludesKeyword(prompt: string, keyword: string): boolean {
+  if (keyword.length > 3) return prompt.includes(keyword)
+  return new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}\\b`, 'i').test(prompt)
 }
 
 function tokenize(prompt: string): string[] {
@@ -577,13 +583,23 @@ function templateDomainScoreBoost(prompt: string, record: SearchableRecord, type
   const promptFamily = detectPromptFamily(normalizedPrompt)
   boost += familyCompatibilityBoost(promptFamily, record.family || 'other')
 
-  const eventPromptMatches = EVENT_PROMPT_KEYWORDS.filter((keyword) => normalizedPrompt.includes(keyword))
+  const eventPromptMatches = EVENT_PROMPT_KEYWORDS.filter((keyword) => promptIncludesKeyword(normalizedPrompt, keyword))
   const eventTemplateMatches = EVENT_TEMPLATE_KEYWORDS.filter((keyword) => haystack.includes(keyword))
   if (eventPromptMatches.length > 0 && eventTemplateMatches.length > 0) {
     boost += 8 + Math.min(eventPromptMatches.length, 3) * 2 + Math.min(eventTemplateMatches.length, 3)
   }
+  // Operational verbs such as "manage" are common across domains. Do not
+  // let an event template win on generic operations overlap when the prompt
+  // contains no event signal of its own.
+  const hasStrongNonEventPrompt = NON_EVENT_PROMPT_KEYWORDS.some((keyword) => normalizedPrompt.includes(keyword))
+  if (hasStrongNonEventPrompt && eventPromptMatches.length === 0 && record.family === 'event_ops') {
+    return -100
+  }
+  if (eventPromptMatches.length === 0 && eventTemplateMatches.length > 0 && hasStrongNonEventPrompt) {
+    boost -= 100
+  }
 
-  const culturalEventPromptMatches = CULTURAL_EVENT_PROMPT_KEYWORDS.filter((keyword) => normalizedPrompt.includes(keyword))
+  const culturalEventPromptMatches = CULTURAL_EVENT_PROMPT_KEYWORDS.filter((keyword) => promptIncludesKeyword(normalizedPrompt, keyword))
   if (culturalEventPromptMatches.length > 0 && eventTemplateMatches.length > 0) {
     boost += 6 + Math.min(culturalEventPromptMatches.length, 3) * 2
   }

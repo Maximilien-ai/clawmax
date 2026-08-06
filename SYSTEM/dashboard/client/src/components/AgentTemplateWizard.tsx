@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { expandPromptWithAI } from '../lib/aiPrompt'
 import AIPromptEditorModal from './AIPromptEditorModal'
+import AIGenerationProgress from './AIGenerationProgress'
 
 type FocusableField = HTMLInputElement | HTMLTextAreaElement
 
@@ -456,6 +457,7 @@ export default function AgentTemplateWizard({
                     >
                       {generatingFiles ? 'Generating…' : 'Generate Files from Description'}
                     </button>
+                    <AIGenerationProgress active={generatingFiles} label="Generating agent files…" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">IDENTITY.md</label>

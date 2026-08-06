@@ -449,6 +449,9 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
   const [step, setStep] = useState(0)
   const [state, setState] = useState<WizardState>(INITIAL_STATE)
   const [aiGenerating, setAiGenerating] = useState(false)
+  const [aiGenerationProgress, setAiGenerationProgress] = useState(0)
+  const [aiGenerationStage, setAiGenerationStage] = useState('Preparing the generation request…')
+  const aiGenerationTimer = useRef<number | null>(null)
   const [editingJson, setEditingJson] = useState(false)
   const [jsonDraft, setJsonDraft] = useState('')
   const [focusedAgentField, setFocusedAgentField] = useState<string | null>(null)
@@ -592,6 +595,16 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
       return
     }
     setAiGenerating(true)
+    setAiGenerationProgress(8)
+    setAiGenerationStage('Preparing the generation request…')
+    if (aiGenerationTimer.current !== null) window.clearInterval(aiGenerationTimer.current)
+    aiGenerationTimer.current = window.setInterval(() => {
+      setAiGenerationProgress((current) => {
+        const next = Math.min(92, current + (current < 45 ? 7 : current < 75 ? 3 : 1))
+        setAiGenerationStage(next < 30 ? 'Preparing the generation request…' : next < 65 ? 'Designing agents and workflows…' : 'Validating the generated template…')
+        return next
+      })
+    }, 1200)
     try {
       const byok = readStoredByokKeys()
       const shared = {
@@ -619,6 +632,8 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
       })
       const data = await resp.json()
       if (resp.ok && data.template) {
+        setAiGenerationProgress(100)
+        setAiGenerationStage('Template ready')
         const t = data.template
         const preservedTeamName = state.teamName.trim()
         const preservedInputs: string[] = []
@@ -705,6 +720,10 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
     } catch {
       showError('Network error generating template')
     } finally {
+      if (aiGenerationTimer.current !== null) {
+        window.clearInterval(aiGenerationTimer.current)
+        aiGenerationTimer.current = null
+      }
       setAiGenerating(false)
     }
   }
@@ -2034,6 +2053,18 @@ export default function TemplateWizard({ onClose, onSave, onApply, showSuccess, 
           {step === 3 && renderStep3()}
           {step === 4 && renderStep4()}
         </div>
+        {aiGenerating && (
+          <div className="sticky bottom-0 z-20 border-t border-purple-200 bg-purple-50 px-6 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.08)] dark:border-purple-800 dark:bg-purple-950/95" role="status" aria-live="polite">
+            <div className="flex items-center justify-between gap-3 text-sm font-medium text-purple-900 dark:text-purple-100">
+              <span>{aiGenerationStage}</span>
+              <span>{aiGenerationProgress}%</span>
+            </div>
+            <div className="mt-2 h-2 overflow-hidden rounded-full bg-purple-100 dark:bg-purple-950">
+              <div className="h-full rounded-full bg-purple-600 transition-[width] duration-500" style={{ width: `${aiGenerationProgress}%` }} />
+            </div>
+            <p className="mt-2 text-xs text-purple-700 dark:text-purple-300">This can take a few minutes for a complete team. Keep this window open.</p>
+          </div>
+        )}
       </div>
       {showFullPrompt && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onClick={() => setShowFullPrompt(false)}>

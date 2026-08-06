@@ -9,6 +9,10 @@
 - Keep the subject concise and describe the user-visible or engineering outcome.
 - Do not publish an unprefixed commit subject. Check the proposed subject before
   committing, especially for release-candidate work pushed directly to `main`.
+- Keep commits focused by concern: separate dependency/security remediation,
+  product behavior, tests, documentation, and release metadata when they can
+  be reviewed or reverted independently. Push each focused commit so CI
+  identifies the exact change that introduced or fixed a failure.
 
 ## Repository Ownership
 
@@ -89,16 +93,22 @@
   coverage suite.
 - When cutting an RC, align `CLAWMAX_VERSION` in the ignored local
   `SYSTEM/dashboard/.env` to the exact candidate being built, restart the local
-  dashboard, and verify both the visible
-  version and `/api/system`. The test-image workflow supplies this value for
-  containers, but local source checkouts otherwise fall back to the latest Git
-  tag plus the current short SHA.
+  dashboard, and verify both the visible version and `/api/system`. For example:
+  `perl -0pi -e 's/^CLAWMAX_VERSION=.*/CLAWMAX_VERSION=2.0.0-test-rcN/m' SYSTEM/dashboard/.env`.
+  Never carry an older RC value into a new RC or stable release. The test-image
+  workflow supplies this value for containers, but local source checkouts
+  otherwise fall back to the latest Git tag plus the current short SHA.
 - Visually audit changed pages, dialogs, pop-ups, cards, lists, and graphical
   views at desktop and mobile widths. Check long text, scrolling, sticky
   actions, progress states, and empty/error states.
 - For public/private combined RCs, verify amd64 and arm64 image builds, registry
   smoke tests, packaged version identity, plugin discovery, restart persistence,
   and the public/private source boundary before reporting the release ready.
+- When creating an RC image, dispatch the public `Test Container Image`
+  workflow from the candidate ref first, then dispatch `Private ClawMax Plugins
+  Image` in `clawmax-plugins` with the exact same public `base_tag` and private
+  `image_tag`. Record both CI links and do not call the public image complete
+  until the matching combined image has passed its validation and smoke jobs.
 - Record the observed or documented duration before starting a long-running CI,
   image, deployment, or test job. Do not continuously poll it.
 - Check once near half the expected duration to catch an early failure. If the

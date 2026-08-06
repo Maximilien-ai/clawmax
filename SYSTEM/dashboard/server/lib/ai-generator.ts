@@ -13,6 +13,7 @@ export type TemplateGenerationTarget = 'agent' | 'team' | 'company'
 export type PromptExpansionTarget = 'agent' | 'workflow' | 'skill' | 'template'
 export type PromptExpansionFormat = 'markdown' | 'text'
 export type PromptExpansionGuidance = string
+export const TEMPLATE_GENERATION_TIMEOUT_MS = 180000
 export type BuilderStarterPromptInput = {
   workspaceName?: string
   workspaceTags?: string[]
@@ -141,6 +142,20 @@ Rules:
 ${formatInstruction}${guidanceInstruction}`
 }
 
+export function isUsablePromptExpansion(seed: string, candidate: string): boolean {
+  const normalizedSeed = seed.trim()
+  const normalizedCandidate = candidate.trim()
+  if (!normalizedCandidate || normalizedCandidate === normalizedSeed) return false
+  if (/^expand and rewrite this seed prompt\b/i.test(normalizedCandidate)) return false
+  return true
+}
+
+export function buildFallbackPromptExpansion(seed: string, target: PromptExpansionTarget, guidance = ''): string {
+  const label = target === 'template' ? 'team or organization' : target
+  const direction = guidance.trim() || 'Keep the result practical, specific, and easy to evaluate.'
+  return `${seed.trim()}\n\n## Scope\nDefine the ${label}'s responsibilities, boundaries, and the users or systems it supports.\n\n## Inputs and outputs\nName the files, messages, data, or integrations it may use, and describe the concrete artifacts or decisions it should produce.\n\n## Operating rules\nInclude approval requirements, privacy and safety limits, timing, tone, and what it must do when information is missing.\n\n## Success criteria\nExplain how a user can verify the result with a representative example or checklist.\n\n## Improvement direction\n${direction}`
+}
+
 export async function expandPromptWithAI(
   prompt: string,
   target: PromptExpansionTarget = 'template',
@@ -173,14 +188,21 @@ export async function expandPromptWithAI(
 
   const normalizedPrompt = prompt.trim()
   const firstPass = await runExpansion(normalizedPrompt)
-  if (firstPass && firstPass !== normalizedPrompt) {
+  if (isUsablePromptExpansion(normalizedPrompt, firstPass)) {
     return firstPass
   }
 
-  return runExpansion(
-    `Expand and rewrite this seed prompt into a more specific version while preserving intent:\n\n${normalizedPrompt}`,
-    'Do not return the original wording unchanged. Add concrete scope, outputs, constraints, and operating details so the result is visibly more specific than the seed prompt.',
+  // Keep the seed prompt as the user message on retry. Putting the instruction
+  // in the user content makes echo-prone providers return the instruction
+  // itself instead of an expanded prompt.
+  const retry = await runExpansion(
+    normalizedPrompt,
+    'Do not return the original wording unchanged. Add concrete scope, outputs, constraints, and operating details so the result is visibly more specific than the seed prompt. Never repeat the instruction text or the seed prompt verbatim.',
   )
+  if (!isUsablePromptExpansion(normalizedPrompt, retry)) {
+    return buildFallbackPromptExpansion(normalizedPrompt, target, guidance)
+  }
+  return retry
 }
 
 function buildBuilderStarterPromptSystemPrompt(): string {
@@ -323,9 +345,12 @@ export function shouldGenerateCompanyTemplate(description: string, generationTar
   const normalizedTarget = normalizeTemplateGenerationTarget(generationTarget)
   if (normalizedTarget === 'company') return true
   if (normalizedTarget === 'agent') return false
+  const lower = description.toLowerCase()
+  const explicitlyTeamScoped = /\bteam of agents\b|\bteam template\b|\bcreate\s+(?:a\s+)?team\b/i.test(lower)
+  const explicitlyCompanyScoped = /\bcompany template\b|\borganization template\b|\bteam of teams\b|\bmultiple teams\b/i.test(lower)
+  if (explicitlyTeamScoped && !explicitlyCompanyScoped) return false
   if (promptImpliesCompany(description)) return true
 
-  const lower = description.toLowerCase()
   const functionalHits = [
     /\bleadership\b/,
     /\bresearch\b/,
@@ -1938,6 +1963,11 @@ export async function generateTemplateFromNL(
   const shouldScaleMiddleWork = promptImpliesScaling(description)
   const normalizedTarget = normalizeTemplateGenerationTarget(generationTarget)
   const shouldGenerateCompany = shouldGenerateCompanyTemplate(description, normalizedTarget)
+  const targetStructureInstruction = normalizedTarget === 'team'
+    ? '- This request is explicitly for one team. Do not turn it into a company or team-of-teams because the prompt mentions a startup, business, or revenue; keep one focused team with a leader and a few members.'
+    : normalizedTarget === 'company'
+      ? '- This request is explicitly for a company/team-of-teams structure with leadership and functional teams.'
+      : '- This request is for a single agent; do not generate a team or company structure.'
   const shouldBiasRevenue = promptImpliesRevenue(description)
   const explicitMultiCommunityRequest = promptExplicitlyRequestsMultipleCommunities(description)
   let availableSkills: string[] = []
@@ -1991,7 +2021,8 @@ Important structure rules:
 - Only create 2 communities when the prompt clearly implies two genuinely separate umbrellas.
 - Do not create a community and a group that represent the same concept with different names.
 - If unsure, create 1 community and 3-6 groups.
-- If the prompt describes a company, startup, agency, studio, operator, or revenue engine, generate a company-style template rather than a generic team.
+- ${targetStructureInstruction}
+- Only generate a company-style template when the requested target is company or the user explicitly asks for a company/team-of-teams structure.
 - For company-style templates, include a teams array with leadership plus 2-4 functional teams and at least one nested sub-team when appropriate.
 - Keep company structures legible and demo-friendly: leadership, delivery/product, go-to-market, and operations only when justified.
 - For company-style templates, prefer a sober descriptive company name. Avoid gimmicky agency names like "ConversionMax", "Growthify", or "RevenueGenius".
@@ -2024,7 +2055,7 @@ Respond with ONLY valid JSON, no markdown fences or explanation.`
       }
     ],
     temperature: 0.7,
-  })
+  }, TEMPLATE_GENERATION_TIMEOUT_MS)
 
   const raw = completion.choices[0].message.content?.trim() || ''
   const jsonStr = extractJsonResponseText(raw)

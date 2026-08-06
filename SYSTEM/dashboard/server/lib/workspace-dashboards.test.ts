@@ -88,7 +88,19 @@ test('createWorkspaceDashboard persists a dashboard with default sections', () =
   assert(dashboard.sections.overview === true, 'Expected default overview section')
   assert(dashboard.sections.groupChats === true, 'Expected default group chats section')
   assert(dashboard.createdBy === 'tester', 'Expected createdBy to persist')
+  assert(dashboard.slug === 'marketing-summary', 'Expected a readable slug derived from title')
+  assert(dashboard.refreshEnabled === false, 'Expected refresh to be opt-in')
+  assert(dashboard.refreshIntervalSeconds === 30, 'Expected the default refresh interval')
+  assert(dashboard.sections.interactions === false, 'Expected interactions to be opt-in')
   assert(listWorkspaceDashboards('workspace-a').length === 1, 'Expected one dashboard to be listed')
+})
+
+test('dashboard slugs are unique and token lookup accepts the slug', () => {
+  const first = createWorkspaceDashboard('workspace-a', { title: 'Shared Board', slug: 'team-board' })
+  const second = createWorkspaceDashboard('workspace-b', { title: 'Another Board', slug: 'team-board' })
+  assert(first.slug === 'team-board', 'Expected requested slug to be preserved')
+  assert(second.slug === 'team-board-2', 'Expected a collision-safe suffix')
+  assert(getWorkspaceDashboardByToken(second.slug)?.id === second.id, 'Expected slug lookup to find dashboard')
 })
 
 test('createWorkspaceDashboard merges provided section overrides', () => {
@@ -125,6 +137,9 @@ test('updateWorkspaceDashboard updates metadata and sections', () => {
     companyFocusValue: 'b2b',
     companyFocusLabel: 'B2B',
     sections: { notifications: false },
+    slug: 'updated-board',
+    refreshEnabled: true,
+    refreshIntervalSeconds: 90,
   })
   assert(updated?.title === 'Updated', 'Expected title update')
   assert(updated?.description === 'Sharable summary', 'Expected description update')
@@ -133,6 +148,8 @@ test('updateWorkspaceDashboard updates metadata and sections', () => {
   assert(updated?.companyFocusValue === 'b2b', 'Expected company focus value update')
   assert(updated?.companyFocusLabel === 'B2B', 'Expected company focus label update')
   assert(updated?.sections.notifications === false, 'Expected sections update')
+  assert(updated?.slug === 'updated-board', 'Expected slug update')
+  assert(updated?.refreshEnabled === true && updated.refreshIntervalSeconds === 90, 'Expected refresh settings update')
 })
 
 test('regenerateWorkspaceDashboardToken replaces the existing token', () => {

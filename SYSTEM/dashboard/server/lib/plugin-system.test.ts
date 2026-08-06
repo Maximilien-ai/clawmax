@@ -21,6 +21,7 @@ import {
   getPluginSettingsInventory,
   getAgentLifecycleEvidence,
   getWorkflowLifecycleEvidence,
+  getCommunicationLifecycleEvidence,
   getPluginWorkspaceContext,
   listConfiguredPlugins,
   listPluginRecords,
@@ -32,6 +33,7 @@ import {
 } from './plugin-system'
 import { resetWorkspaceManagerForTests } from './workspace-manager'
 import { recordAgentLifecycleAuditEvent } from './agent-lifecycle-audit'
+import { addMessage } from './messages'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -235,6 +237,20 @@ async function run() {
     assert(evidence.files.some((entry) => entry.path.endsWith(`${workflowId}.md`)), 'Expected workflow definition metadata')
     assert(evidence.events.some((entry) => entry.type === 'execution'), 'Expected workflow execution events')
     assert(evidence.events.every((entry, index, events) => index === 0 || events[index - 1].at <= entry.at), 'Expected chronological workflow events')
+  })
+
+  await test('Lifecycle exposes group and community communication evidence', async () => {
+    const plugin = getPluginBySlug('clawmax-lifecycle')
+    addMessage('group', 'Research Ops', { from: 'analyst', content: 'Research update', mentions: [] })
+    addMessage('community', 'Research', { from: 'User', content: 'Community update', mentions: [] })
+    const groupEvidence = await getCommunicationLifecycleEvidence(plugin!, 'group', 'Research Ops')
+    const communityEvidence = await getCommunicationLifecycleEvidence(plugin!, 'community', 'Research')
+    assert.strictEqual(groupEvidence.subject.kind, 'group')
+    assert.strictEqual(groupEvidence.summary.messageCount, 1)
+    assert.strictEqual(communityEvidence.subject.kind, 'community')
+    assert.strictEqual(communityEvidence.summary.messageCount, 1)
+    assert(groupEvidence.events.some((entry) => entry.type === 'conversation'), 'Expected group message timeline event')
+    assert(communityEvidence.events.some((entry) => entry.type === 'conversation'), 'Expected community message timeline event')
   })
 
   await test('host supports zero-plugin mode when default plugins are disabled', () => {
@@ -584,11 +600,11 @@ async function run() {
     assert(documentContent.includes('**Completed:** yes'), 'Expected generic checkbox formatting in generated document')
 
     const releaseTemplates = listPluginTemplates(plugin!).filter((template) => (
-      'fields' in template.payload && template.payload.fields?.release === '2.0.0-test-rc24'
+      'fields' in template.payload && template.payload.fields?.release === '2.0.0-test-rc27'
     ))
-    assert.strictEqual(releaseTemplates.length, 5, 'Expected the focused current RC24 file to expand into five checklist items')
-    assert(releaseTemplates.some((template) => template.id === '2.0.0-test-rc24:rc24-private-cloud-bundle'), 'Expected release-qualified checklist item discovery')
-    const applied = applyPluginTemplate(plugin!, '2.0.0-test-rc24:rc24-private-cloud-bundle')
+    assert.strictEqual(releaseTemplates.length, 11, 'Expected the focused current RC27 file to expand into eleven checklist items')
+    assert(releaseTemplates.some((template) => template.id === '2.0.0-test-rc27:rc25-lifecycle-suggested-relationship'), 'Expected release-qualified checklist item discovery')
+    const applied = applyPluginTemplate(plugin!, '2.0.0-test-rc27:rc25-lifecycle-suggested-relationship')
     assert(applied && 'fields' in applied && applied.fields.owner === 'release-tester', 'Expected generic template application')
   })
 

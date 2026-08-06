@@ -9,6 +9,7 @@ import { formatOpenAiDeprecationNotice, formatOpenAiModelLabel, isSelectableLife
 import { useAuth } from '../contexts/AuthContext'
 import AIPromptEditorModal from './AIPromptEditorModal'
 import PromptQualityPanel from './PromptQualityPanel'
+import AIGenerationProgress from './AIGenerationProgress'
 import ModelFitRecommendationPanel, { ModelFitPreferenceControl } from './ModelFitRecommendationPanel'
 import {
   buildAgentModelFitDescription,
@@ -999,6 +1000,7 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
               >
                 {generating ? 'Generating...' : generatedFiles ? '✓ Generated' : !aiEnabled ? 'Generate with AI (set up keys first)' : 'Generate with AI'}
               </button>
+              <AIGenerationProgress active={generating} label="Generating agent files…" />
 
               {genError && (
                 <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-400">{genError}</div>

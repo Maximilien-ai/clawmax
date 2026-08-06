@@ -12,6 +12,7 @@ import {
   retryAssistantTextLookup,
   resolveByokChatFallbackModel,
   shouldUseManagedSecretStatelessChatSession,
+  shouldRecoverPersistedAssistant,
   shouldAttemptManagedResendDispatch,
   shouldUseLocalChatExecution,
 } from './chat'
@@ -113,6 +114,12 @@ test('shouldUseManagedSecretStatelessChatSession stays disabled for normal dashb
     useLocal: false,
     hasWorkspaceManagedSecrets: false,
   }), 'Expected hosted dashboard chat not to switch to stateless prompt mode')
+})
+
+test('shouldRecoverPersistedAssistant enables recovery when stdout normalized to runtime noise only', () => {
+  assert(shouldRecoverPersistedAssistant(''), 'Expected empty normalized stdout to recover persisted assistant text')
+  assert(shouldRecoverPersistedAssistant('   '), 'Expected whitespace-only normalized stdout to recover persisted assistant text')
+  assert(!shouldRecoverPersistedAssistant('Hello from the agent.'), 'Expected real assistant text to skip persisted fallback')
 })
 
 test('shouldUseLocalChatExecution always uses direct mode for local providers', () => {

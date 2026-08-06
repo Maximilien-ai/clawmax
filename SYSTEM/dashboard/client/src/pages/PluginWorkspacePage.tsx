@@ -238,15 +238,23 @@ function GenericPluginFields({
     if (schema.type === 'array') {
       if ((isOptimize || isLifecycle) && key === 'targetIds') {
         const scopeValue = isLifecycle ? fields.subjectType : fields.scope
-        const scope = scopeValue === 'agent' ? 'agent' : scopeValue === 'workflow' ? 'workflow' : 'workspace'
-        const options = scope === 'agent' ? context.agents : scope === 'workflow' ? context.workflows : []
+        const scope = scopeValue === 'agent' ? 'agent'
+          : scopeValue === 'workflow' ? 'workflow'
+            : scopeValue === 'group' ? 'group'
+              : scopeValue === 'community' ? 'community'
+                : 'workspace'
+              const options = scope === 'agent' ? context.agents
+                : scope === 'workflow' ? context.workflows
+                  : scope === 'group' ? context.groups.map((name) => ({ id: name, name }))
+                    : scope === 'community' ? context.communities.map((name) => ({ id: name, name }))
+                      : []
         const selected = Array.isArray(value) ? value.map(String) : []
         return (
           <label key={key} className="block">
             {label}
             {scope === 'workspace' ? (
               <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-800/60 dark:text-gray-300">Current workspace</div>
-            ) : isLifecycle && (scope === 'agent' || scope === 'workflow') ? (
+            ) : isLifecycle && (scope === 'agent' || scope === 'workflow' || scope === 'group' || scope === 'community') ? (
               <LifecycleTargetPicker options={options} selected={selected} subjectLabel={scope} onChange={(ids) => update(key, ids)} />
             ) : (
               <select
@@ -3547,6 +3555,7 @@ function LifecycleRelationshipGraph({
   suggestionTemplates,
   context,
   onOpen,
+  onApplySuggestion,
   selectedId,
 }: {
   plugin: PluginManifest
@@ -3554,6 +3563,7 @@ function LifecycleRelationshipGraph({
   suggestionTemplates?: PluginRecordTemplate[]
   context: PluginWorkspaceContext
   onOpen: (id: string) => void
+  onApplySuggestion?: (templateId: string) => void
   selectedId?: string | null
 }) {
   const [zoom, setZoom] = useState(1)
@@ -3561,10 +3571,10 @@ function LifecycleRelationshipGraph({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedEvent, setSelectedEvent] = useState<SelectedLifecycleEvent | null>(null)
-  const lifecycleItems = items.filter(isGenericPluginRecord).filter((item) => item.fields.subjectType === 'agent' || item.fields.subjectType === 'workflow')
-  const targetSettings = new Map<string, { id: string; subjectType: 'agent' | 'workflow'; focus: string; timeWindow: string }>()
+  const lifecycleItems = items.filter(isGenericPluginRecord).filter((item) => ['agent', 'workflow', 'group', 'community'].includes(String(item.fields.subjectType)))
+  const targetSettings = new Map<string, { id: string; subjectType: 'agent' | 'workflow' | 'group' | 'community'; focus: string; timeWindow: string }>()
   lifecycleItems.forEach((item) => {
-    const subjectType = item.fields.subjectType === 'workflow' ? 'workflow' : 'agent'
+    const subjectType = ['agent', 'workflow', 'group', 'community'].includes(String(item.fields.subjectType)) ? item.fields.subjectType as 'agent' | 'workflow' | 'group' | 'community' : 'agent'
     const targetIds = Array.isArray(item.fields.targetIds) ? item.fields.targetIds.map(String) : []
     targetIds.forEach((targetId) => {
       const key = `${subjectType}:${targetId}`
@@ -3591,8 +3601,10 @@ function LifecycleRelationshipGraph({
     setError(null)
     Promise.all(targetKeys.map(async (targetKey) => {
       const target = targetSettings.get(targetKey)!
-      const resource = target.subjectType === 'workflow' ? 'workflows' : 'agents'
-      const response = await fetch(`/api/plugins/${encodeURIComponent(plugin.slug)}/lifecycle/${resource}/${encodeURIComponent(target.id)}`, { signal: controller.signal })
+      const resource = target.subjectType === 'workflow' ? `workflows/${encodeURIComponent(target.id)}`
+        : target.subjectType === 'agent' ? `agents/${encodeURIComponent(target.id)}`
+          : `communications/${target.subjectType}/${encodeURIComponent(target.id)}`
+      const response = await fetch(`/api/plugins/${encodeURIComponent(plugin.slug)}/lifecycle/${resource}`, { signal: controller.signal })
       const payload = await response.json()
       if (!response.ok) throw new Error(payload?.error || `Failed to load ${target.id}`)
       return [targetKey, payload.evidence as AgentLifecycleEvidenceData] as const
@@ -3638,7 +3650,11 @@ function LifecycleRelationshipGraph({
   }
 
   if (suggestionTemplates !== undefined) {
-    const suggestions = suggestionTemplates.map(templateToPreviewRecord).filter(isGenericPluginRecord)
+    // Generic v2 templates do not have the legacy `kind` discriminator, so
+    // keep them based on their declared fields rather than the core record guard.
+    const suggestions = suggestionTemplates
+      .map(templateToPreviewRecord)
+      .filter((item): item is GenericPluginRecord => 'fields' in item && !!item.fields && typeof item.fields === 'object')
     return (
       <div className="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900/40">
         <div className="border-b border-gray-200 p-4 dark:border-gray-700">
@@ -3658,10 +3674,14 @@ function LifecycleRelationshipGraph({
             const timeWindow = String(suggestion.fields.timeWindow || '7-days')
             const selected = selectedId === suggestion.id
             return (
-              <button
+              <div
                 key={suggestion.id}
-                type="button"
                 onClick={() => onOpen(suggestion.id)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') onOpen(suggestion.id)
+                }}
+                role="button"
+                tabIndex={0}
                 aria-pressed={selected}
                 className={`rounded-lg border p-4 text-left transition-colors ${selected ? 'border-sky-500 bg-sky-50 ring-2 ring-sky-100 dark:bg-sky-950/30 dark:ring-sky-900/40' : 'border-gray-200 hover:border-sky-300 dark:border-gray-700 dark:hover:border-sky-700'}`}
               >
@@ -3675,9 +3695,19 @@ function LifecycleRelationshipGraph({
                 </div>
                 <div className="mt-3 flex items-center justify-between gap-3 text-xs text-gray-500 dark:text-gray-400">
                   <span>{timeWindow.replaceAll('-', ' ')}</span>
-                  <span className="rounded-md border border-dashed border-gray-300 px-2 py-1 dark:border-gray-600">Select {subjectType}s</span>
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      if (onApplySuggestion) onApplySuggestion(suggestion.id.replace(/^suggested:/, ''))
+                      else onOpen(suggestion.id)
+                    }}
+                    className={`${headerPrimaryButtonClass} px-2.5 py-1 text-xs`}
+                  >
+                    Select {subjectType}
+                  </button>
                 </div>
-              </button>
+              </div>
             )
           })}
         </div>
@@ -3729,7 +3759,7 @@ function LifecycleRelationshipGraph({
               return (
                 <g key={targetKey}>
                   <text x="22" y={y - 9} className="fill-gray-900 text-[14px] font-semibold dark:fill-gray-100">{truncateGraphLabel(evidence.subject.name, 20)}</text>
-                  <text x="22" y={y + 12} className="fill-gray-500 text-[11px] dark:fill-gray-400">{truncateGraphLabel(evidence.subject.kind === 'workflow' ? `Workflow · ${evidence.subject.currentStatus || 'unknown'}` : evidence.subject.currentModel || 'No model', 22)}</text>
+                  <text x="22" y={y + 12} className="fill-gray-500 text-[11px] dark:fill-gray-400">{truncateGraphLabel(evidence.subject.kind === 'workflow' ? `Workflow · ${evidence.subject.currentStatus || 'unknown'}` : evidence.subject.kind === 'group' || evidence.subject.kind === 'community' ? `${evidence.subject.kind} · ${evidence.summary.messageCount} messages` : evidence.subject.currentModel || 'No model', 22)}</text>
                   <line x1={lineStart} y1={y} x2={lineEnd} y2={y} className="stroke-sky-300 dark:stroke-sky-700" strokeWidth="3" />
                   <text x={lineStart} y={y + 52} textAnchor="start" className="fill-gray-400 text-[10px]">Created</text>
                   <text x={lineEnd} y={y + 52} textAnchor="end" className="fill-gray-400 text-[10px]">Now</text>
@@ -3794,6 +3824,7 @@ function PluginRelationshipView({
   suggestionTemplates,
   context,
   onOpen,
+  onApplySuggestion,
   onRun,
   onOpenScore,
   onAssignTarget,
@@ -3808,6 +3839,7 @@ function PluginRelationshipView({
   suggestionTemplates?: PluginRecordTemplate[]
   context: PluginWorkspaceContext
   onOpen: (id: string) => void
+  onApplySuggestion?: (templateId: string) => void
   onRun?: (id: string) => void
   onOpenScore?: (id: string) => void
   onAssignTarget?: (id: string) => void
@@ -3818,7 +3850,7 @@ function PluginRelationshipView({
   heading?: string
 }) {
   if (plugin.objectKind === 'lifecycle-view') {
-    return <LifecycleRelationshipGraph plugin={plugin} items={items} suggestionTemplates={suggestionTemplates} context={context} onOpen={onOpen} selectedId={selectedId} />
+    return <LifecycleRelationshipGraph plugin={plugin} items={items} suggestionTemplates={suggestionTemplates} context={context} onOpen={onOpen} onApplySuggestion={onApplySuggestion} selectedId={selectedId} />
   }
   if (plugin.objectKind === 'optimization-plan') {
     return <OptimizeRelationshipGraph items={items} suggestionTemplates={suggestionTemplates} context={context} onOpen={onOpen} selectedId={selectedId} />
@@ -4052,7 +4084,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
   const availableSuggestionTags = useMemo(() => {
     const allTags = collectPluginTemplateTags(recommendedTemplates)
     if (!isChecklist) return allTags
-    return ['1.9.9', '2.0.0', '2.0.0-test-rc24'].filter((tag) => allTags.includes(tag))
+    return ['1.9.9', '2.0.0', '2.0.0-test-rc27'].filter((tag) => allTags.includes(tag))
   }, [recommendedTemplates, isChecklist])
   const filteredSuggestions = useMemo(() => sortPluginTemplates(
     recommendedTemplates.filter((template) => (
@@ -4895,6 +4927,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                     suggestionTemplates={filteredSuggestions}
                     context={context}
                     onOpen={(id) => setSelectedSuggestedTemplateId(id.replace(/^suggested:/, ''))}
+                    onApplySuggestion={(templateId) => void applyTemplate(templateId)}
                     selectedId={selectedSuggestedTemplateId ? `suggested:${selectedSuggestedTemplateId}` : null}
                     heading="Suggested item"
                   />
@@ -5104,6 +5137,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                 items={filtered}
                 context={context}
                 onOpen={setSelectedItemId}
+                onApplySuggestion={(templateId) => void applyTemplate(templateId)}
                 onRun={(itemId) => void callItemAction(itemId, 'run')}
                 onOpenScore={setScoreReviewItemId}
                 onAssignTarget={(itemId) => {
@@ -5219,14 +5253,14 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
         </div>
       )}
 
-      {!loading && !error && viewMode !== 'graph' && plugin.objectKind === 'lifecycle-view' && selectedItem && isGenericPluginRecord(selectedItem) && (selectedItem.fields.subjectType === 'agent' || selectedItem.fields.subjectType === 'workflow') && Array.isArray(selectedItem.fields.targetIds) && selectedItem.fields.targetIds.length > 0 && (
+      {!loading && !error && (collectionTab === 'active' || collectionTab === 'archived') && viewMode !== 'graph' && plugin.objectKind === 'lifecycle-view' && selectedItem && isGenericPluginRecord(selectedItem) && ['agent', 'workflow', 'group', 'community'].includes(String(selectedItem.fields.subjectType)) && Array.isArray(selectedItem.fields.targetIds) && selectedItem.fields.targetIds.length > 0 && (
         <div className="mt-6 space-y-8">
           {selectedItem.fields.targetIds.map((agentId) => (
             <AgentLifecycleEvidence
               key={String(agentId)}
               pluginSlug={plugin.slug}
               agentId={String(agentId)}
-              subjectType={selectedItem.fields.subjectType === 'workflow' ? 'workflow' : 'agent'}
+              subjectType={selectedItem.fields.subjectType === 'workflow' ? 'workflow' : selectedItem.fields.subjectType === 'group' ? 'group' : selectedItem.fields.subjectType === 'community' ? 'community' : 'agent'}
               focus={String(selectedItem.fields.focus || 'overview')}
               timeWindow={String(selectedItem.fields.timeWindow || '7-days')}
             />

@@ -1017,6 +1017,24 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Activity Export contract unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/activity-export.test.ts > /tmp/clawmax-activity-export.out 2>&1 || true
+if grep -q "Activity export tests: 26 passed" /tmp/clawmax-activity-export.out; then
+  pass "Activity Export contract unit tests (26 tests)"
+else
+  cat /tmp/clawmax-activity-export.out
+  fail "Activity Export contract unit tests"
+fi
+echo -e "${YELLOW}→ Running Activity Export worker tests...${NC}"
+npx ts-node --transpileOnly server/lib/activity-export-worker.test.ts > /tmp/clawmax-activity-export-worker.out 2>&1 || true
+if grep -q "Activity export worker tests: 2 passed" /tmp/clawmax-activity-export-worker.out; then
+  pass "Activity Export worker tests (2 tests)"
+else
+  cat /tmp/clawmax-activity-export-worker.out
+  fail "Activity Export worker tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Plugin system contract unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/plugin-system.test.ts > /tmp/clawmax-plugin-system.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-plugin-system.out; then
@@ -1737,8 +1755,8 @@ fi
 
 echo -e "${YELLOW}→ Running Lifecycle plugin skeleton contract tests...${NC}"
 npx ts-node --transpileOnly client/src/PluginLifecycleSkeleton.test.ts > /tmp/clawmax-plugin-lifecycle.out 2>&1 || true
-if grep -q "PluginLifecycleSkeleton.test.ts: 36 tests passed" /tmp/clawmax-plugin-lifecycle.out; then
-  pass "Lifecycle plugin contract tests (36 tests)"
+if grep -q "PluginLifecycleSkeleton.test.ts: 39 tests passed" /tmp/clawmax-plugin-lifecycle.out; then
+  pass "Lifecycle plugin contract tests (39 tests)"
 else
   cat /tmp/clawmax-plugin-lifecycle.out
   fail "Lifecycle plugin skeleton contract tests"
