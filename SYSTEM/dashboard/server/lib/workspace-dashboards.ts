@@ -12,6 +12,7 @@ export interface WorkspaceDashboardSections {
   kickoff: boolean
   results: boolean
   groupChats: boolean
+  interactions: boolean
 }
 
 export type WorkspaceDashboardDisplayMode = 'standard' | 'compact' | 'detail'
@@ -36,6 +37,7 @@ export const DEFAULT_COMPACT_COLUMNS: Record<WorkspaceDashboardSectionKey, Works
   kickoff: 'left',
   results: 'left',
   groupChats: 'right',
+  interactions: 'right',
 }
 
 export interface WorkspaceDashboard {
@@ -44,6 +46,9 @@ export interface WorkspaceDashboard {
   title: string
   description: string | null
   token: string
+  slug: string
+  refreshEnabled: boolean
+  refreshIntervalSeconds: number
   companyFocusKind: 'workspace' | 'team' | 'prefix'
   companyFocusValue: string | null
   companyFocusLabel: string | null
@@ -70,6 +75,7 @@ const DEFAULT_SECTIONS: WorkspaceDashboardSections = {
   kickoff: true,
   results: true,
   groupChats: true,
+  interactions: false,
 }
 
 function getWorkspaceDashboardsPath(workspaceId: string): string {
@@ -83,7 +89,13 @@ function loadStore(workspaceId: string): WorkspaceDashboardStore {
     const parsed = JSON.parse(fs.readFileSync(filePath, 'utf-8'))
     return {
       version: typeof parsed.version === 'string' ? parsed.version : '1.0.0',
-      dashboards: Array.isArray(parsed.dashboards) ? parsed.dashboards : [],
+      dashboards: Array.isArray(parsed.dashboards) ? parsed.dashboards.map((dashboard: WorkspaceDashboard) => ({
+        ...dashboard,
+        slug: dashboard.slug || normalizeWorkspaceDashboardSlug(dashboard.title || dashboard.id),
+        refreshEnabled: dashboard.refreshEnabled === true,
+        refreshIntervalSeconds: Number.isFinite(dashboard.refreshIntervalSeconds) ? dashboard.refreshIntervalSeconds : 30,
+        sections: { ...DEFAULT_SECTIONS, ...(dashboard.sections || {}) },
+      })) : [],
     }
   } catch {
     return { version: '1.0.0', dashboards: [] }
@@ -100,6 +112,26 @@ function generateToken(): string {
   return crypto.randomBytes(24).toString('hex')
 }
 
+export function normalizeWorkspaceDashboardSlug(value: string): string {
+  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80)
+}
+
+function uniqueDashboardSlug(workspaceId: string, requested: string, excludeId?: string): string {
+  const base = normalizeWorkspaceDashboardSlug(requested) || `dashboard-${workspaceId}`
+  const used = new Set<string>()
+  for (const workspace of getWorkspaceManager().listWorkspaces()) {
+    for (const dashboard of loadStore(workspace.id).dashboards) {
+      if (dashboard.id !== excludeId && dashboard.slug) used.add(normalizeWorkspaceDashboardSlug(dashboard.slug))
+    }
+  }
+  if (!used.has(base)) return base
+  for (let index = 2; index < 1000; index += 1) {
+    const candidate = `${base}-${index}`.slice(0, 80)
+    if (!used.has(candidate)) return candidate
+  }
+  return `${base}-${crypto.randomBytes(3).toString('hex')}`.slice(0, 80)
+}
+
 export function listWorkspaceDashboards(workspaceId: string): WorkspaceDashboard[] {
   return loadStore(workspaceId).dashboards.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
 }
@@ -109,7 +141,8 @@ export function getWorkspaceDashboardByToken(token: string): WorkspaceDashboard 
   const workspaces = workspaceManager.listWorkspaces()
   for (const workspace of workspaces) {
     const store = loadStore(workspace.id)
-    const dashboard = store.dashboards.find((entry) => entry.token === token)
+    const normalized = normalizeWorkspaceDashboardSlug(token)
+    const dashboard = store.dashboards.find((entry) => entry.token === token || (entry.slug && normalizeWorkspaceDashboardSlug(entry.slug) === normalized))
     if (dashboard) return dashboard
   }
   return null
@@ -119,6 +152,9 @@ export function createWorkspaceDashboard(
   workspaceId: string,
   input: {
     title: string
+    slug?: string
+    refreshEnabled?: boolean
+    refreshIntervalSeconds?: number
     description?: string | null
     displayMode?: WorkspaceDashboardDisplayMode
     companyFocusKind?: 'workspace' | 'team' | 'prefix'
@@ -137,6 +173,9 @@ export function createWorkspaceDashboard(
     title: input.title.trim(),
     description: input.description?.trim() || null,
     token: generateToken(),
+    slug: uniqueDashboardSlug(workspaceId, input.slug || input.title),
+    refreshEnabled: input.refreshEnabled === true,
+    refreshIntervalSeconds: Math.max(10, Math.min(3600, Number(input.refreshIntervalSeconds || 30))),
     companyFocusKind: input.companyFocusKind || 'workspace',
     companyFocusValue: input.companyFocusValue?.trim() || null,
     companyFocusLabel: input.companyFocusLabel?.trim() || null,
@@ -178,6 +217,9 @@ export function updateWorkspaceDashboard(
   workspaceId: string,
   dashboardId: string,
   updates: {
+    slug?: string
+    refreshEnabled?: boolean
+    refreshIntervalSeconds?: number
     title?: string
     description?: string | null
     displayMode?: WorkspaceDashboardDisplayMode
@@ -192,6 +234,14 @@ export function updateWorkspaceDashboard(
   const store = loadStore(workspaceId)
   const dashboard = store.dashboards.find((entry) => entry.id === dashboardId)
   if (!dashboard) return null
+
+  if (typeof updates.slug === 'string' && updates.slug.trim()) {
+    dashboard.slug = uniqueDashboardSlug(workspaceId, updates.slug, dashboard.id)
+  }
+  if (typeof updates.refreshEnabled === 'boolean') dashboard.refreshEnabled = updates.refreshEnabled
+  if (typeof updates.refreshIntervalSeconds === 'number' && Number.isFinite(updates.refreshIntervalSeconds)) {
+    dashboard.refreshIntervalSeconds = Math.max(10, Math.min(3600, Math.round(updates.refreshIntervalSeconds)))
+  }
 
   if (typeof updates.title === 'string' && updates.title.trim()) {
     dashboard.title = updates.title.trim()

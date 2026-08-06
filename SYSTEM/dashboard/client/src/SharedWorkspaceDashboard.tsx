@@ -11,6 +11,9 @@ interface SharedDashboardPayload {
   dashboard: {
     title: string
     description: string | null
+    slug: string
+    refreshEnabled: boolean
+    refreshIntervalSeconds: number
     companyFocusKind: 'workspace' | 'team' | 'prefix'
     companyFocusValue: string | null
     companyFocusLabel: string | null
@@ -26,6 +29,7 @@ interface SharedDashboardPayload {
       kickoff: boolean
       results: boolean
       groupChats: boolean
+      interactions: boolean
     }
   }
   workspace: {
@@ -202,6 +206,9 @@ function normalizePayload(input: any): SharedDashboardPayload {
     dashboard: {
       title: typeof input?.dashboard?.title === 'string' ? input.dashboard.title : 'Workspace Summary',
       description: typeof input?.dashboard?.description === 'string' ? input.dashboard.description : null,
+      slug: typeof input?.dashboard?.slug === 'string' ? input.dashboard.slug : '',
+      refreshEnabled: input?.dashboard?.refreshEnabled === true,
+      refreshIntervalSeconds: Number.isFinite(input?.dashboard?.refreshIntervalSeconds) ? Math.max(10, input.dashboard.refreshIntervalSeconds) : 30,
       companyFocusKind: input?.dashboard?.companyFocusKind === 'team' || input?.dashboard?.companyFocusKind === 'prefix' ? input.dashboard.companyFocusKind : 'workspace',
       companyFocusValue: typeof input?.dashboard?.companyFocusValue === 'string' ? input.dashboard.companyFocusValue : null,
       companyFocusLabel: typeof input?.dashboard?.companyFocusLabel === 'string' ? input.dashboard.companyFocusLabel : null,
@@ -216,6 +223,7 @@ function normalizePayload(input: any): SharedDashboardPayload {
         kickoff: input?.dashboard?.compactColumns?.kickoff === 'right' ? 'right' : 'left',
         results: input?.dashboard?.compactColumns?.results === 'left' ? 'left' : 'right',
         groupChats: input?.dashboard?.compactColumns?.groupChats === 'right' ? 'right' : 'left',
+        interactions: input?.dashboard?.compactColumns?.interactions === 'left' ? 'left' : 'right',
       },
       sections: {
         overview: input?.dashboard?.sections?.overview !== false,
@@ -226,6 +234,7 @@ function normalizePayload(input: any): SharedDashboardPayload {
         kickoff: input?.dashboard?.sections?.kickoff !== false,
         results: input?.dashboard?.sections?.results !== false,
         groupChats: input?.dashboard?.sections?.groupChats !== false,
+        interactions: input?.dashboard?.sections?.interactions === true,
       },
     },
     workspace: {
@@ -368,12 +377,16 @@ function MarkdownBlock({ content, className = '', onOpenDoc }: { content: string
 export default function SharedWorkspaceDashboard({ token }: { token: string }) {
   const [payload, setPayload] = useState<SharedDashboardPayload | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [autoRefresh, setAutoRefresh] = useState(true)
+  const [autoRefresh, setAutoRefresh] = useState(false)
   const [docEntries, setDocEntries] = useState<Array<{ path: string }>>([])
   const [docPath, setDocPath] = useState<string | null>(null)
   const [docContent, setDocContent] = useState('')
   const [docLoading, setDocLoading] = useState(false)
   const [docError, setDocError] = useState<string | null>(null)
+  const [interactionKind, setInteractionKind] = useState<'agent' | 'workflow' | 'group'>('agent')
+  const [interactionTarget, setInteractionTarget] = useState('')
+  const [interactionMessage, setInteractionMessage] = useState('')
+  const [interactionStatus, setInteractionStatus] = useState<string | null>(null)
   const [darkMode, setDarkMode] = useState<boolean>(() => {
     const saved = localStorage.getItem('dark-mode')
     if (saved !== null) return saved === 'true'
@@ -397,7 +410,11 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
         const data = await res.json()
         if (!res.ok) throw new Error(data.error || 'Failed to load workspace dashboard')
         if (!cancelled) {
-          setPayload(normalizePayload(data))
+          const normalized = normalizePayload(data)
+          setPayload((previous) => {
+            if (!previous) setAutoRefresh(normalized.dashboard.refreshEnabled)
+            return normalized
+          })
           setError(null)
         }
       } catch (err: any) {
@@ -408,9 +425,9 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
     if (!autoRefresh) {
       return () => { cancelled = true }
     }
-    const interval = setInterval(load, 30000)
+    const interval = setInterval(load, (payload?.dashboard.refreshIntervalSeconds || 30) * 1000)
     return () => { cancelled = true; clearInterval(interval) }
-  }, [token, autoRefresh])
+  }, [token, autoRefresh, payload?.dashboard.refreshIntervalSeconds])
 
   useEffect(() => {
     let cancelled = false
@@ -445,6 +462,54 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
   }, [payload])
 
   const companyFocus = payload?.company || null
+  const interactionTargets = useMemo(() => {
+    if (!payload) return []
+    if (interactionKind === 'agent') return payload.agents.map((agent) => ({ id: agent.id, label: agent.name }))
+    if (interactionKind === 'workflow') return payload.workflows.map((workflow) => ({ id: workflow.id, label: workflow.name }))
+    return payload.groupChats.filter((chat) => chat.type === 'group').map((chat) => ({ id: chat.name, label: chat.name }))
+  }, [interactionKind, payload])
+
+  useEffect(() => {
+    if (!interactionTargets.some((target) => target.id === interactionTarget)) setInteractionTarget(interactionTargets[0]?.id || '')
+  }, [interactionTargets, interactionTarget])
+
+  async function submitInteraction() {
+    if (!interactionTarget || !interactionMessage.trim()) return
+    setInteractionStatus('Sending…')
+    try {
+      let response: Response
+      if (interactionKind === 'workflow') {
+        response = await fetch(`/api/workflows/${encodeURIComponent(interactionTarget)}/trigger`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ inputs: { prompt: interactionMessage.trim() } }),
+        })
+      } else if (interactionKind === 'group') {
+        response = await fetch(`/api/groups/${encodeURIComponent(interactionTarget)}/messages`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: interactionMessage.trim(), from: 'Dashboard visitor' }),
+        })
+      } else {
+        response = await fetch(`/api/agents/${encodeURIComponent(interactionTarget)}/chat`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: interactionMessage.trim() }),
+        })
+      }
+      if (!response.ok) {
+        const data = await response.json().catch(() => null)
+        throw new Error(data?.error || 'Interaction failed')
+      }
+      if (interactionKind === 'agent') {
+        const text = await response.text()
+        const replies = Array.from(text.matchAll(/"text"\s*:\s*"((?:\\.|[^"\\])*)"/g)).map((match) => match[1])
+        setInteractionStatus(replies.length > 0 ? replies[replies.length - 1].replace(/\\n/g, '\n') : 'Agent accepted the message.')
+      } else {
+        setInteractionStatus(interactionKind === 'workflow' ? 'Workflow started.' : 'Message sent.')
+      }
+      setInteractionMessage('')
+    } catch (err: any) {
+      setInteractionStatus(err.message || 'Interaction failed')
+    }
+  }
   const companyInputWorkflow = useMemo(() => {
     if (!payload || payload.workflows.length === 0) return null
     return payload.workflows.find((workflow) => Array.isArray(workflow.kickoffItems) && workflow.kickoffItems.length > 0)
@@ -587,20 +652,20 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
   const warningNotifications = payload.notifications.filter(notification => notification.severity === 'warning').length
   const infoNotifications = Math.max(payload.notifications.length - criticalNotifications - warningNotifications, 0)
   const orderedTopLevelSections = payload.dashboard.sectionOrder
-    .filter((key): key is 'overview' | 'costs' | 'agents' | 'notifications' | 'workflows' | 'groupChats' =>
-      ['overview', 'costs', 'agents', 'notifications', 'workflows', 'groupChats'].includes(key)
+    .filter((key): key is 'overview' | 'costs' | 'agents' | 'notifications' | 'workflows' | 'groupChats' | 'interactions' =>
+      ['overview', 'costs', 'agents', 'notifications', 'workflows', 'groupChats', 'interactions'].includes(key)
     )
     .filter((key, index, arr) => arr.indexOf(key) === index)
-  for (const key of ['overview', 'costs', 'agents', 'notifications', 'workflows', 'groupChats'] as const) {
+  for (const key of ['overview', 'costs', 'agents', 'notifications', 'workflows', 'groupChats', 'interactions'] as const) {
     if (!orderedTopLevelSections.includes(key)) orderedTopLevelSections.push(key)
   }
-  const hasCustomSectionOrder = orderedTopLevelSections.join('|') !== ['overview', 'costs', 'agents', 'notifications', 'workflows', 'groupChats'].join('|')
+  const hasCustomSectionOrder = orderedTopLevelSections.join('|') !== ['overview', 'costs', 'agents', 'notifications', 'workflows', 'groupChats', 'interactions'].join('|')
   const compactOrderedSections = orderedTopLevelSections.filter((key) => key !== 'overview')
   const compactLeftSections = compactOrderedSections.filter((key) => payload.dashboard.compactColumns[key] === 'left')
   const compactRightSections = compactOrderedSections.filter((key) => payload.dashboard.compactColumns[key] === 'right')
   const standardUpperSections = orderedTopLevelSections.filter((key) => key === 'costs' || key === 'notifications')
   const standardMiddleSections = orderedTopLevelSections.filter((key) => key === 'agents')
-  const standardLowerSections = orderedTopLevelSections.filter((key) => key === 'workflows' || key === 'groupChats')
+  const standardLowerSections = orderedTopLevelSections.filter((key) => key === 'workflows' || key === 'groupChats' || key === 'interactions')
   const shellClass = 'min-h-screen bg-gray-50 text-gray-900 dark:bg-slate-950 dark:text-slate-100'
   const headerClass = 'rounded-2xl border border-gray-200 bg-gradient-to-br from-white to-gray-100 shadow-xl dark:border-white/10 dark:from-slate-900 dark:to-slate-800 dark:shadow-2xl'
   const cardClass = `rounded-2xl border border-gray-200 bg-white/95 shadow-sm dark:border-white/10 dark:bg-slate-900/80 ${cardPadding}`
@@ -1017,7 +1082,7 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
     </div>
   )
 
-  const renderOrderedSection = (key: 'overview' | 'costs' | 'agents' | 'notifications' | 'workflows' | 'groupChats') => {
+  const renderOrderedSection = (key: 'overview' | 'costs' | 'agents' | 'notifications' | 'workflows' | 'groupChats' | 'interactions') => {
     switch (key) {
       case 'overview':
         if (!payload.dashboard.sections.overview) return null
@@ -1306,6 +1371,32 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
                   )}
                 </div>
               ))}
+            </div>
+          </section>
+        )
+      case 'interactions':
+        if (!payload.dashboard.sections.interactions) return null
+        return (
+          <section className={cardClass}>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <h2 className={`${compact ? 'text-base' : 'text-lg'} font-semibold`}>Interact</h2>
+                <p className="text-sm text-gray-500 dark:text-slate-400">Send a prompt to an agent, start a workflow, or post to a group.</p>
+              </div>
+              <span className="rounded-full bg-sky-500/10 px-2 py-1 text-xs text-sky-600 dark:text-sky-300">Enabled by owner</span>
+            </div>
+            <div className="grid gap-3 md:grid-cols-[9rem_1fr]">
+              <select value={interactionKind} onChange={(event) => setInteractionKind(event.target.value as typeof interactionKind)} className="rounded-lg border border-gray-300 bg-transparent px-3 py-2 text-sm dark:border-white/10">
+                <option value="agent">Agent</option><option value="workflow">Workflow</option><option value="group">Group</option>
+              </select>
+              <select value={interactionTarget} onChange={(event) => setInteractionTarget(event.target.value)} className="rounded-lg border border-gray-300 bg-transparent px-3 py-2 text-sm dark:border-white/10">
+                {interactionTargets.map((target) => <option key={target.id} value={target.id}>{target.label}</option>)}
+              </select>
+            </div>
+            <textarea value={interactionMessage} onChange={(event) => setInteractionMessage(event.target.value)} placeholder={interactionKind === 'workflow' ? 'Describe what this run should do…' : 'Write a message…'} rows={3} className="mt-3 w-full rounded-lg border border-gray-300 bg-transparent px-3 py-2 text-sm dark:border-white/10" />
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <button type="button" onClick={submitInteraction} disabled={!interactionTarget || !interactionMessage.trim()} className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50">Send</button>
+              {interactionStatus && <div className="max-w-full whitespace-pre-wrap text-sm text-gray-600 dark:text-slate-300">{interactionStatus}</div>}
             </div>
           </section>
         )
