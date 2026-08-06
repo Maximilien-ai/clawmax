@@ -9,14 +9,19 @@ type PartnerLogoProps = {
 }
 
 function fallbackLogo(className: string, name: string) {
+  const glyphs: Record<string, string> = {
+    cognee: 'C', digo: 'D', gmail: 'G', microsoft365: 'M', opik: 'O', resend: 'R', senso: 'S',
+  }
+  const glyph = glyphs[name.toLowerCase()] || name.trim().slice(0, 1).toUpperCase() || '?'
   return React.createElement(
     'span',
     {
       role: 'img',
       'aria-label': `${name} logo`,
-      className: `${className} inline-flex min-w-[3.25rem] items-center justify-center overflow-hidden text-[10px] font-semibold leading-none tracking-tight text-gray-950 dark:text-gray-950`,
+      title: `${name} icon`,
+      className: `${className} inline-flex min-w-[2rem] items-center justify-center overflow-hidden text-sm font-semibold leading-none text-gray-950 dark:text-gray-950`,
     },
-    name,
+    glyph,
   )
 }
 

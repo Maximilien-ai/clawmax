@@ -1,9 +1,9 @@
 # Public Activity Export And Partner Ingestion
 
-> Status: design approved; implementation not started
+> Status: public capture, consent, durable outbox, batch delivery, and flush route implemented; reference receiver and partner adapter pending
 > Release target: `2.0.0` public platform contract and ClawMax.ai reference receiver
 > First external adapter: Digo, after the partner implements the agreed contract
-> Last updated: July 24, 2026
+> Last updated: August 5, 2026
 
 ## Decision Summary
 
@@ -29,6 +29,11 @@ The service will:
 - provide immediate opt-out and purge unsent data for that user by default; and
 - use a versioned, authenticated, idempotent API contract that ClawMax.ai can
   implement first and Digo can implement later.
+
+Capture consent and destination consent are separate gates. A user may enable
+generic capture and independently consent to multiple configured destinations
+(for example, ClawMax.ai and Digo); each destination has its own receipt,
+queue fan-out, status, and revoke action.
 
 The ClawMax.ai receiver is a reference implementation and test destination. It
 must be displayed as `ClawMax.ai`, not presented as Digo and not silently
@@ -566,4 +571,3 @@ Before the Digo adapter can move beyond a fixture:
 - Blocking agent execution until a partner acknowledges a transcript.
 - Backfilling activity created before consent.
 - Treating ClawMax.ai consent as permission to send the same data to Digo.
-

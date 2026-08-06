@@ -12,6 +12,8 @@ import {
   setRequestByokKeys,
 } from '../lib/ai-generator'
 import { getAuthenticatedSession } from '../lib/github-auth'
+import { getWorkspacePath } from '../lib/workspace'
+import { appendActivityExportEventsForActiveConsents } from '../lib/activity-export'
 import {
   isAiBuilderShareEnabled,
   shareAiBuilderFeedback,
@@ -21,6 +23,13 @@ import {
 const router = Router()
 const AI_BUILDER_LLM_FALLBACK_TIMEOUT_MS = 8000
 const AI_BUILDER_QUESTION_TIMEOUT_MS = 20000
+
+function captureBuilderActivity(req: any, content: string, subjectId: string): void {
+  const session = getAuthenticatedSession(req)
+  const userId = session?.userId || session?.login || 'dashboard-user'
+  const workspaceId = getWorkspacePath()
+  appendActivityExportEventsForActiveConsents({ source: 'builder', workspaceId, userId, subjectId, content })
+}
 
 function withAiBuilderTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -96,6 +105,7 @@ router.post('/recommend', async (req, res) => {
       actorEmail: session?.email || null,
       dashboardInstanceId: getRequestDashboardInstanceId(req),
     })
+    captureBuilderActivity(req, `Prompt:\n${prompt}\n\nRecommendation:\n${recommendation.summary}`, 'recommend')
     res.json({ ok: true, recommendation })
   } catch (error: any) {
     res.status(500).json({ error: error?.message || 'Failed to build recommendation' })
@@ -144,6 +154,7 @@ router.post('/question', async (req, res) => {
       actorEmail: session?.email || null,
       dashboardInstanceId: getRequestDashboardInstanceId(req),
     })
+    captureBuilderActivity(req, `Question:\n${question}\n\nAnswer:\n${answer}`, 'question')
     res.json({ ok: true, answer, fallback: usedDeterministicFallback })
   } catch (error: any) {
     const message = error?.message || 'Failed to answer Builder question'

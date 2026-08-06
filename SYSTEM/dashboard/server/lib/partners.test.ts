@@ -37,14 +37,14 @@ const previous = process.env.WORKSPACES_INTEGRATIONS_THIRD_PARTIES
 test('getEnabledPartnerSlugs defaults to current partner parity set', () => {
   delete process.env.WORKSPACES_INTEGRATIONS_THIRD_PARTIES
   const slugs = getEnabledPartnerSlugs()
-  assert(slugs.join(',') === 'senso,opik,github,resend,cognee,gmail,microsoft365', `Unexpected default partner slugs: ${slugs.join(',')}`)
+  assert(slugs.join(',') === 'senso,opik,github,resend,cognee,gmail,microsoft365,digo', `Unexpected default partner slugs: ${slugs.join(',')}`)
 })
 
 test('legacy default allowlist gains newly shipped default partners', () => {
   process.env.WORKSPACES_INTEGRATIONS_THIRD_PARTIES = 'github,senso,opik,resend,cognee'
   const partners = listPartnerDefinitions()
   const slugs = partners.map((partner) => partner.slug)
-  assert(slugs.join(',') === 'senso,opik,github,resend,cognee,gmail,microsoft365', `Unexpected migrated partners: ${slugs.join(',')}`)
+  assert(slugs.join(',') === 'senso,opik,github,resend,cognee,gmail,microsoft365,digo', `Unexpected migrated partners: ${slugs.join(',')}`)
 })
 
 test('custom partner allowlist remains explicit', () => {
@@ -87,6 +87,15 @@ test('mail partners expose delegated OAuth metadata without password or token fi
     assert(/OAuth/i.test(partner.skills?.label || ''), `Expected ${partner.slug} to explain delegated OAuth`)
     assert(/delegated OAuth is available when the operator configures/i.test(partner.validation?.helperText || ''), `Expected ${partner.slug} to describe readiness honestly`)
   }
+})
+
+test('digo partner exposes server API key and HTTPS ingestion URL fields', () => {
+  process.env.WORKSPACES_INTEGRATIONS_THIRD_PARTIES = 'digo'
+  const partner = listPartnerDefinitions()[0]
+  assert(partner.slug === 'digo', 'Expected digo partner')
+  assert(partner.fields?.some((field) => field.key === 'apiKey' && field.secret === true && field.storage === 'server') === true, 'Expected Digo server-stored API key field')
+  assert(partner.fields?.some((field) => field.key === 'apiUrl' && field.secret !== true) === true, 'Expected Digo ingestion URL field')
+  assert(/consent/i.test(partner.validation?.helperText || ''), 'Expected Digo readiness copy to mention consent')
 })
 
 if (typeof previous === 'undefined') delete process.env.WORKSPACES_INTEGRATIONS_THIRD_PARTIES

@@ -1,12 +1,13 @@
 # Public Lifecycle Plugin 2.0
 
-> Status: V1 agent/workflow X-rays implemented; follow-through remains
+> Status: V1 agent/workflow/group/community X-rays implemented; follow-through remains
 > Target: `2.0.0`
 > Last updated: August 3, 2026
 
 ## Purpose
 
-Lifecycle gives a user one read-only X-ray view of an agent or workflow over
+Lifecycle gives a user one read-only X-ray view of an agent, workflow, group,
+or community over
 time. It should answer what the object is, how it is configured, what it did,
 which files and outputs it produced, and what changed without requiring the user
 to assemble that history from several dashboard tabs.
@@ -16,7 +17,8 @@ enterprise policy, evaluation, or optimization product.
 
 ## V1 Scope
 
-- Select and compare one or more agents or workflows from the current workspace.
+- Select and compare one or more agents, workflows, groups, or communities from
+  the current workspace.
 - Switch between overview, activity, artifacts, and configuration focus areas.
 - Choose a bounded time window and optionally include archived evidence.
 - Present identity, current status, recent runs or conversations, files,
@@ -38,14 +40,15 @@ enterprise policy, evaluation, or optimization product.
 
 ## Delivery
 
-1. Completed: public manifest, five focused suggestions, multi-object selection,
+1. Completed: public manifest, seven focused suggestions, multi-object selection,
    and dedicated relationship/X-ray rendering.
-2. Completed: read-only agent/workflow timeline adapters with stable event
-   types, clickable evidence, and long-gap compression.
+2. Completed: read-only agent/workflow/group/community timeline adapters with
+   stable event types, clickable evidence, and long-gap compression.
 3. Follow through: add source links plus richer artifact/output ownership,
    MIME/type metadata, and safe DocHub navigation.
 4. Follow through: add redacted summary export and evidence-backed adapters for
-   skills, templates, and communication surfaces.
+   skills and templates. Communication evidence is included in V1 for groups
+   and communities.
 5. Validate large histories, missing/deleted targets, workspace switching,
    restart persistence, and responsive layout before the 2.0 release gate.
 

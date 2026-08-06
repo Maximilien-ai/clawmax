@@ -29,7 +29,7 @@ export type DefaultPartnerDefinition = {
   }
 }
 
-export const DEFAULT_VISIBLE_PARTNERS = ['senso', 'opik', 'github', 'resend', 'cognee', 'gmail', 'microsoft365'] as const
+export const DEFAULT_VISIBLE_PARTNERS = ['senso', 'opik', 'github', 'resend', 'cognee', 'gmail', 'microsoft365', 'digo'] as const
 
 export const DEFAULT_PARTNER_DEFINITIONS: DefaultPartnerDefinition[] = [
   {
@@ -142,6 +142,7 @@ export const DEFAULT_PARTNER_DEFINITIONS: DefaultPartnerDefinition[] = [
   {
     slug: 'cognee',
     name: 'Cognee',
+    logoUrl: 'https://www.cognee.ai/favicon.ico',
     website: 'https://www.cognee.ai/',
     docsUrl: 'https://docs.cognee.ai/',
     description: 'Memory, recall, and semantic context layer for agents and agent teams.',
@@ -183,6 +184,7 @@ export const DEFAULT_PARTNER_DEFINITIONS: DefaultPartnerDefinition[] = [
   {
     slug: 'gmail',
     name: 'Gmail',
+    logoUrl: 'https://www.gstatic.com/images/branding/product/1x/gmail_2020q4_32dp.png',
     website: 'https://workspace.google.com/products/gmail/',
     docsUrl: 'https://developers.google.com/workspace/gmail/api/guides',
     description: 'Delegated Gmail access for bounded inbox search, reading, and draft creation.',
@@ -202,6 +204,7 @@ export const DEFAULT_PARTNER_DEFINITIONS: DefaultPartnerDefinition[] = [
   {
     slug: 'microsoft365',
     name: 'Microsoft 365',
+    logoUrl: 'https://img.icons8.com/color/48/microsoft-365.png',
     website: 'https://www.microsoft.com/microsoft-365',
     docsUrl: 'https://learn.microsoft.com/graph/api/resources/mail-api-overview',
     description: 'Delegated Outlook and Microsoft 365 mail access for bounded inbox search, reading, and draft creation.',
@@ -216,6 +219,25 @@ export const DEFAULT_PARTNER_DEFINITIONS: DefaultPartnerDefinition[] = [
       mode: 'status',
       label: 'Connection status',
       helperText: 'Delegated OAuth is available when the operator configures the Entra client ID, secret, callback URI, and encryption master key. Passwords and app passwords are not accepted.',
+    },
+  },
+  {
+    slug: 'digo',
+    name: 'Digo',
+    logoUrl: 'https://www.google.com/s2/favicons?domain=digo.com&sz=64',
+    website: 'https://digo.com',
+    description: 'Opt-in event activity export for Digo-managed agent experiences and script feedback.',
+    category: 'communications',
+    categories: ['communications', 'monitoring'],
+    enabledByDefault: true,
+    fields: [
+      { key: 'apiKey', label: 'API key', type: 'password', required: false, secret: true, storage: 'server' },
+      { key: 'apiUrl', label: 'Ingestion API URL', type: 'text', required: false, secret: false, storage: 'server' },
+    ],
+    validation: {
+      mode: 'status',
+      label: 'Connection status',
+      helperText: 'Digo activity export is available when the operator configures an HTTPS ingestion URL and server-managed API key. User consent is still required before any activity is sent.',
     },
   },
 ]

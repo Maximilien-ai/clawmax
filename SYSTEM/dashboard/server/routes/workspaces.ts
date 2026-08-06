@@ -262,13 +262,16 @@ router.post('/:id/dashboards', (req, res) => {
       return res.status(404).json({ error: `Workspace '${id}' not found` })
     }
 
-    const { title, description, displayMode, companyFocusKind, companyFocusValue, companyFocusLabel, sections, sectionOrder, compactColumns, createdBy } = req.body || {}
+    const { title, description, slug, refreshEnabled, refreshIntervalSeconds, displayMode, companyFocusKind, companyFocusValue, companyFocusLabel, sections, sectionOrder, compactColumns, createdBy } = req.body || {}
     if (!title || typeof title !== 'string') {
       return res.status(400).json({ error: 'title is required' })
     }
 
     const dashboard = createWorkspaceDashboard(id, {
       title,
+      slug: typeof slug === 'string' ? slug : undefined,
+      refreshEnabled: refreshEnabled === true,
+      refreshIntervalSeconds: typeof refreshIntervalSeconds === 'number' ? refreshIntervalSeconds : undefined,
       description: typeof description === 'string' ? description : null,
       displayMode: displayMode === 'compact' || displayMode === 'detail' ? displayMode : 'standard',
       companyFocusKind: companyFocusKind === 'team' || companyFocusKind === 'prefix' ? companyFocusKind : 'workspace',
@@ -296,6 +299,9 @@ router.patch('/:id/dashboards/:dashboardId', (req, res) => {
     }
 
     const dashboard = updateWorkspaceDashboard(id, dashboardId, {
+      slug: typeof req.body?.slug === 'string' ? req.body.slug : undefined,
+      refreshEnabled: typeof req.body?.refreshEnabled === 'boolean' ? req.body.refreshEnabled : undefined,
+      refreshIntervalSeconds: typeof req.body?.refreshIntervalSeconds === 'number' ? req.body.refreshIntervalSeconds : undefined,
       title: typeof req.body?.title === 'string' ? req.body.title : undefined,
       description: req.body?.description,
       displayMode: req.body?.displayMode === 'compact' || req.body?.displayMode === 'detail' ? req.body.displayMode : req.body?.displayMode === 'standard' ? 'standard' : undefined,

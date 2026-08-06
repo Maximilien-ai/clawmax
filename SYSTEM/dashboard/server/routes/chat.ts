@@ -31,6 +31,7 @@ import { hasRuntimeSession } from '../lib/runtime-sessions'
 import { appendRuntimeTranscriptExchange } from '../lib/runtime-transcripts'
 import { getAuthenticatedSession } from '../lib/github-auth'
 import { createBrokerCapabilityToken } from '../lib/skill-secret-broker'
+import { appendActivityExportEventsForActiveConsents } from '../lib/activity-export'
 
 const router = Router()
 type ChatProvider = 'openai' | 'openai-compatible' | 'anthropic' | 'gemini' | 'openrouter' | 'xai' | 'ollama' | null | undefined
@@ -238,6 +239,10 @@ export function shouldUseManagedSecretStatelessChatSession(_input: {
   // Normal dashboard chat must preserve a stable session so replies and history
   // can be recovered consistently from the same explicit/local session path.
   return false
+}
+
+export function shouldRecoverPersistedAssistant(normalizedText: string): boolean {
+  return normalizedText.trim().length === 0
 }
 
 export function buildManagedSecretStatelessChatMessage(
@@ -918,6 +923,20 @@ router.post('/:id/chat', async (req, res) => {
       // record, so this is the only place a non-openclaw dashboard chat turn gets persisted for
       // refresh / archive / clear-history to find later.
       appendRuntimeTranscriptExchange(id, executionSessionId, message, completionText)
+      if (completionText) {
+        // Mirror the openclaw branch's consented activity export so a chat is captured the same way
+        // whichever runtime answered it; otherwise pinning an agent to claude/droid would silently
+        // drop it out of activity export.
+        appendActivityExportEventsForActiveConsents({
+          source: 'agent-chat',
+          workspaceId: getWorkspacePath(),
+          userId: session?.userId || session?.login || 'dashboard-user',
+          sessionId: executionSessionId,
+          subjectId: id,
+          content: `User:\n${message}\n\nAssistant:\n${completionText}`,
+          metadata: { agentId: id, model: resolvedAgent.model || null },
+        })
+      }
       if (!completionText) {
         send('error', errorText === 'timeout'
           ? 'Agent timeout (3 minutes)'
@@ -958,6 +977,8 @@ router.post('/:id/chat', async (req, res) => {
         openai: attemptUseOpenAiCompatible ? undefined : executionEnv.OPENAI_API_KEY,
         anthropic: executionEnv.ANTHROPIC_API_KEY,
         gemini: executionEnv.GEMINI_API_KEY,
+        openrouter: executionEnv.OPENROUTER_API_KEY,
+        xai: executionEnv.XAI_API_KEY,
         ollamaBaseUrl: executionEnv.OLLAMA_BASE_URL,
         openaiCompatibleApiKey: attemptUseOpenAiCompatible ? executionEnv.OPENAI_API_KEY : undefined,
         openaiCompatibleBaseUrl: attemptUseOpenAiCompatible ? executionEnv.OPENAI_BASE_URL : undefined,
@@ -1022,7 +1043,7 @@ router.post('/:id/chat', async (req, res) => {
             }
 
             const normalizedText = normalizeChatMessage(fullOutput.trim())
-            const persistedAssistant = !normalizedText
+            const persistedAssistant = shouldRecoverPersistedAssistant(normalizedText)
               ? await readLatestAssistantTextWithRetry(id, dashboardSessionKey, executionSessionId)
               : null
             const completionText = normalizedText || normalizeChatMessage(persistedAssistant?.content || '') || ''
@@ -1087,6 +1108,17 @@ router.post('/:id/chat', async (req, res) => {
           actorLogin: session?.login,
           actorEmail: session?.email,
           dashboardInstanceId: getRequestDashboardInstanceId(req),
+        })
+        const activityUserId = session?.userId || session?.login || 'dashboard-user'
+        const activityWorkspaceId = getWorkspacePath()
+        appendActivityExportEventsForActiveConsents({
+          source: 'agent-chat',
+          workspaceId: activityWorkspaceId,
+          userId: activityUserId,
+          sessionId: attemptResult.sessionId,
+          subjectId: id,
+          content: `User:\n${message}\n\nAssistant:\n${attemptResult.completionText}`,
+          metadata: { agentId: id, model: attemptResult.model || null },
         })
       } else {
         send('error', deriveChatError(attemptResult.rawError, attemptResult.provider, { agentId: id, model: attemptResult.model }))

@@ -116,6 +116,10 @@ function isToolArtifactLine(trimmed: string): boolean {
 
 function isBenignPluginRuntimeWarningLine(trimmed: string): boolean {
   if (trimmed === 'plugin runtime config.loadConfig() is deprecated (runtime-config-load-write); use config.current().') return true
+  if (/\bplugins\.(?:allow|deny):\s*plugin not found:/i.test(trimmed)) return true
+  if (/\bplugin not found:\s*[^\s)]+/i.test(trimmed) && /(?:stale config entry|remove it from plugins config)/i.test(trimmed)) return true
+  if (/\b(?:plugin|runtime)\s+(?:config|load|startup)\s+(?:warning|error)\b/i.test(trimmed)) return true
+  if (/^\s*[|│].*(?:plugins\.(?:allow|deny)|plugin not found|stale config entry|deprecated).*[|│]\s*$/i.test(trimmed)) return true
   if (/^\[provider-transport-fetch\]\s+\[model-fetch\]\s+(start|response)\s+provider=/i.test(trimmed)) return true
   if (/\[plugins\]\s+plugins\.allow is empty; discovered non-bundled plugins may auto-load:/i.test(trimmed)) return true
   if (/discovered non-bundled plugins may auto-load:/i.test(trimmed)) return true
@@ -218,5 +222,8 @@ export function normalizeChatMessage(content: string): string {
   }
 
   const normalized = cleanedLines.join('\n').replace(/\n{3,}/g, '\n\n').trim()
-  return normalized || withoutAnsi.trim()
+  // If the runtime emitted only diagnostics, return empty so the route can
+  // recover the real assistant reply from the persisted session. Re-emitting
+  // the raw input here turns filtered warnings back into chat content.
+  return normalized
 }

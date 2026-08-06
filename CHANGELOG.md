@@ -4,6 +4,9 @@ All notable changes to ClawMax are documented here.
 
 ## [Unreleased]
 
+### RC25
+- **Lifecycle review checklist** — RC25 adds a focused, non-duplicated tester set covering suggested relationship graphs, suggested-list isolation, agent/workflow/group/community X-rays, proportional compressed timelines, mobile behavior, and restart persistence. Earlier RC checks remain available in the cumulative Review set.
+
 ### Added
 - **Agent Runtimes (Claude Code / Factory Droid)** — agents can now execute via the Claude Code or Factory Droid CLI instead of OpenClaw, selectable as a workspace default (Integrations → Runtime) or pinned per agent (agent editor), consistently across direct chat, group/channel chat, workflows, and scheduled/cron runs. Both CLIs run with full autonomy (`claude --dangerously-skip-permissions`, `droid --auto high`) and authenticate headlessly via `ANTHROPIC_API_KEY` / `FACTORY_API_KEY`. Ships across every deployment path: Docker image (pinned `@anthropic-ai/claude-code` + Droid installer versions), `setup.sh`/`doctor.sh` non-fatal CLI detection, and `.env.example`/README/SETUP docs.
 - **2.0 Declarative Plugin Contract** — the `clawmax.ai/v2` manifest adds generic record schemas and defaults, declarative list/form presentation, generic templates, workspace storage, and compatibility validation without requiring a new core page or route for every plugin domain.

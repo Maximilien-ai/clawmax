@@ -1,0 +1,21 @@
+{
+  "id": "community-communication-history",
+  "name": "Community communication history",
+  "description": "Review selected community activity, message counts, and archived conversations over time.",
+  "recommended": true,
+  "tags": ["community", "communications", "history"],
+  "payload": {
+    "name": "Community communication history",
+    "description": "Follow a community from its first retained message through current activity.",
+    "tags": ["community", "communications", "history"],
+    "enabled": true,
+    "fields": {
+      "subjectType": "community",
+      "targetIds": [],
+      "focus": "activity",
+      "timeWindow": "30-days",
+      "includeArchived": true,
+      "notes": ""
+    }
+  }
+}

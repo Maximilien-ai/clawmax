@@ -25,6 +25,7 @@ import { executeAgentRuntimeTurn } from '../lib/agent-runtime'
 import { hasRuntimeSession } from '../lib/runtime-sessions'
 import { deriveChatError } from './chat'
 import { createBrokerCapabilityToken } from '../lib/skill-secret-broker'
+import { appendActivityExportEventsForActiveConsents } from '../lib/activity-export'
 
 const router = Router()
 
@@ -821,6 +822,9 @@ router.post('/communities/:name/messages', async (req, res) => {
     content,
     mentions: mentions || []
   })
+  const activityUserId = session?.userId || session?.login || 'dashboard-user'
+  const activityWorkspaceId = getWorkspacePath()
+  appendActivityExportEventsForActiveConsents({ source: 'community-chat', workspaceId: activityWorkspaceId, userId: activityUserId, subjectId: decodedName, content })
 
   res.json({ ok: true, message })
 
@@ -902,6 +906,9 @@ router.post('/groups/:name/messages', async (req, res) => {
     content,
     mentions: mentions || []
   })
+  const activityUserId = session?.userId || session?.login || 'dashboard-user'
+  const activityWorkspaceId = getWorkspacePath()
+  appendActivityExportEventsForActiveConsents({ source: 'group-chat', workspaceId: activityWorkspaceId, userId: activityUserId, subjectId: decodedName, content })
 
   res.json({ ok: true, message })
 

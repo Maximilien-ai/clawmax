@@ -251,6 +251,15 @@ export function ByokWizard({
   const [partnerValues, setPartnerValues] = useState<PartnerValueMap>({})
   const [selectedPartners, setSelectedPartners] = useState<string[]>([])
   const [partnerCategoryTab, setPartnerCategoryTab] = useState<string>('all')
+  const [activityConsents, setActivityConsents] = useState<Array<{ destinationId: string; scopes: string[] }>>([])
+  const [activityDestination, setActivityDestination] = useState<'clawmax-ai' | 'digo'>('clawmax-ai')
+  const [activityScopes, setActivityScopes] = useState<string[]>(['agent-chat', 'workflow'])
+  const [activityConfirmOpen, setActivityConfirmOpen] = useState(false)
+  const [activityDelivery, setActivityDelivery] = useState<{
+    queuedEvents: number
+    worker?: { running?: boolean; lastAttemptAt?: string; lastError?: string; configured?: { clawmaxAi?: boolean; digo?: boolean } }
+    retry?: { attempts?: number; lastError?: string }
+  } | null>(null)
   const [validating, setValidating] = useState(false)
   const [resendTestSending, setResendTestSending] = useState(false)
   const [resendTestTo, setResendTestTo] = useState('')
@@ -295,6 +304,45 @@ export function ByokWizard({
   const [modelTab, setModelTab] = useState<ModelTab>('openai')
   const [onboardingOpen, setOnboardingOpen] = useState(false)
   const deploymentKind = config?.deploymentKind || 'local'
+
+  useEffect(() => {
+    if (!open || step !== 'partners') return
+    let cancelled = false
+    const refreshActivityStatus = () => fetch('/api/activity-export/status')
+      .then((response) => response.ok ? response.json() : null)
+      .then((payload) => {
+        if (cancelled) return
+        const destinations = Array.isArray(payload?.destinations) ? payload.destinations : (payload?.sharing ? [payload.sharing] : [])
+        const normalized = destinations.map((entry: any) => ({ destinationId: String(entry.destinationId) === 'digo' ? 'digo' : 'clawmax-ai', scopes: Array.isArray(entry.scopes) ? entry.scopes : [] }))
+        setActivityConsents(normalized)
+        if (normalized.length > 0) setActivityDestination(normalized[0].destinationId)
+        setActivityDelivery({ queuedEvents: Number(payload?.queuedEvents) || 0, worker: payload?.delivery?.worker, retry: payload?.delivery?.retry })
+      })
+      .catch(() => undefined)
+    refreshActivityStatus()
+    const refreshTimer = window.setInterval(refreshActivityStatus, 15000)
+    return () => { cancelled = true; window.clearInterval(refreshTimer) }
+  }, [open, step])
+
+  async function toggleActivitySharing() {
+    if (activityConsents.some((entry) => entry.destinationId === activityDestination)) {
+      await fetch('/api/activity-export/consent', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ destinationId: activityDestination }) })
+      setActivityConsents((current) => current.filter((entry) => entry.destinationId !== activityDestination))
+      window.dispatchEvent(new CustomEvent('activity-export-updated'))
+      return
+    }
+    if (!activityConfirmOpen) {
+      setActivityConfirmOpen(true)
+      return
+    }
+    const response = await fetch('/api/activity-export/consent', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ destinationId: activityDestination, scopes: activityScopes }) })
+    const payload = await response.json().catch(() => ({}))
+    if (!response.ok) { showWarning(payload?.error || 'Unable to enable activity sharing'); return }
+    setActivityConsents((current) => [...current.filter((entry) => entry.destinationId !== activityDestination), { destinationId: activityDestination, scopes: activityScopes }])
+    setActivityConfirmOpen(false)
+    window.dispatchEvent(new CustomEvent('activity-export-updated'))
+    showSuccess(`Activity sharing enabled for ${activityDestination === 'digo' ? 'Digo' : 'ClawMax.ai'}`)
+  }
   const ollamaEnabled = isOllamaUiAvailable(config)
   const managedRuntime = config?.managedRuntime === true || deploymentKind !== 'local'
   const defaultOllamaBaseUrl = config?.defaultOllamaBaseUrl || localDevOllamaBaseUrl
@@ -573,6 +621,8 @@ export function ByokWizard({
     (slug: string, key: string) => !!serverPartnerSecretPresence[slug]?.[key],
     [serverPartnerSecretPresence]
   )
+  const digoConfigured = selectedPartners.includes('digo') && Boolean(getPartnerValue('digo', 'apiUrl').trim() && (getPartnerSecret('digo', 'apiKey').trim() || hasServerPartnerSecret('digo', 'apiKey')))
+  const activeActivityConsent = activityConsents.find((entry) => entry.destinationId === activityDestination) || null
 
   const visiblePartnerDefinitions = useMemo(
     () => {
@@ -1246,6 +1296,20 @@ export function ByokWizard({
         return false
       }
     }
+    if (scope === 'current-partner' && currentPartnerSlug === 'digo') {
+      const apiUrl = getPartnerValue('digo', 'apiUrl').trim()
+      const hasApiKey = Boolean(getPartnerSecret('digo', 'apiKey').trim() || hasServerPartnerSecret('digo', 'apiKey'))
+      const message = !/^https:\/\//i.test(apiUrl)
+        ? 'Enter an HTTPS Digo ingestion API URL before checking Digo.'
+        : !hasApiKey
+          ? 'Enter a Digo API key before checking Digo.'
+          : 'Digo endpoint and server-managed API key are configured. A user consent is still required before delivery.'
+      const status = /^https:\/\//i.test(apiUrl) && hasApiKey ? 'valid' : 'invalid'
+      setValidation((current) => ({ ...current, digo: { status, message } }))
+      if (status === 'valid') showSuccess('Digo connection settings are ready')
+      else showWarning(message)
+      return status === 'valid'
+    }
 
     setValidating(true)
     try {
@@ -1267,6 +1331,7 @@ export function ByokWizard({
           opik: { status: 'skipped', message: 'Validation unavailable from the current server build' },
           senso: { status: 'skipped', message: 'Validation unavailable from the current server build' },
           cognee: { status: 'skipped', message: 'Validation unavailable from the current server build' },
+          digo: { status: 'skipped', message: 'Validation unavailable from the current server build' },
         })
         showInfo('Integration validation is unavailable on the current server build. Saving local settings without blocking.')
         return true
@@ -1286,6 +1351,7 @@ export function ByokWizard({
         opik: { status: data.opik?.status || 'idle', message: data.opik?.message || '' },
         senso: { status: data.senso?.status || 'idle', message: data.senso?.message || '' },
         cognee: { status: data.cognee?.status || 'idle', message: data.cognee?.message || '' },
+        digo: { status: data.digo?.status || 'idle', message: data.digo?.message || '' },
       }
       setValidation(nextState)
       updateStoredVerification((current) => {
@@ -1652,7 +1718,7 @@ export function ByokWizard({
 
   const renderValidation = (key: keyof ValidationState) => {
     const entry = validation[key]
-    if (entry.status === 'idle') return null
+    if (!entry || entry.status === 'idle') return null
     const className =
       entry.status === 'valid'
         ? 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-100'
@@ -2737,6 +2803,47 @@ export function ByokWizard({
 
             {step === 'partners' && (
               <>
+                <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-100">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <div className="font-medium">Activity Export preview</div>
+                      <div className="mt-1 text-xs opacity-80">Share selected activity through ClawMax Activity Export. This is opt-in and can be revoked immediately. Choose a configured destination below.</div>
+                    </div>
+                    <button type="button" onClick={() => void toggleActivitySharing()} className={`rounded-md px-3 py-2 text-xs font-medium ${activeActivityConsent ? 'border border-amber-300 bg-transparent' : 'bg-amber-600 text-white hover:bg-amber-700'}`}>
+                      {activeActivityConsent ? `Revoke ${activityDestination === 'digo' ? 'Digo' : 'ClawMax.ai'}` : activityConfirmOpen ? 'Confirm sharing' : 'Review and enable'}
+                    </button>
+                  </div>
+                  {!activeActivityConsent && <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+                    <label htmlFor="activity-export-destination" className="font-medium">Destination</label>
+                    <select id="activity-export-destination" value={activityDestination} onChange={(event) => setActivityDestination(event.target.value === 'digo' ? 'digo' : 'clawmax-ai')} className="rounded border border-amber-300 bg-white px-2 py-1 text-xs dark:bg-gray-900">
+                      <option value="clawmax-ai">ClawMax.ai reference receiver</option>
+                    </select>
+                  </div>}
+                  {!activeActivityConsent && <div className="mt-3 flex flex-wrap gap-3 text-xs">
+                    {['agent-chat', 'workflow', 'group-chat', 'community-chat', 'builder'].map((scope) => (
+                      <label key={scope} className="inline-flex items-center gap-1.5"><input type="checkbox" checked={activityScopes.includes(scope)} onChange={(event) => setActivityScopes((current) => event.target.checked ? [...new Set([...current, scope])] : current.filter((entry) => entry !== scope))} />{scope.replaceAll('-', ' ')}</label>
+                    ))}
+                  </div>}
+                  {activityConfirmOpen && !activeActivityConsent && <div className="mt-3 rounded-lg border border-amber-300 bg-white/70 p-3 text-xs dark:border-amber-700 dark:bg-black/20">
+                    <div className="font-medium">Confirm activity sharing with {activityDestination === 'digo' ? 'Digo' : 'ClawMax.ai'}</div>
+                    <p className="mt-1">ClawMax removes direct PII (such as email addresses and phone numbers) and known secrets, credentials, tokens, and private keys before queueing selected activity. Delivery is asynchronous; revoke sharing at any time.</p>
+                    <div className="mt-2 flex gap-2"><button type="button" onClick={() => setActivityConfirmOpen(false)} className="rounded border border-gray-300 px-2 py-1">Cancel</button><button type="button" onClick={() => void toggleActivitySharing()} className="rounded bg-amber-600 px-2 py-1 font-medium text-white">I consent</button></div>
+                  </div>}
+                  {activityConsents.length > 0 && <div className="mt-2 space-y-1 text-xs">{activityConsents.map((entry) => <div key={entry.destinationId}>Sharing with {entry.destinationId === 'digo' ? 'Digo' : 'ClawMax.ai'} · {entry.scopes.join(', ')}</div>)}</div>}
+                  {activityConsents.length > 0 && activityDelivery && (
+                    <div className={`mt-3 rounded-md border px-3 py-2 text-xs ${activityDelivery.queuedEvents > 0 || activityDelivery.worker?.lastError || activityDelivery.retry?.lastError ? 'border-amber-300 bg-amber-50 text-amber-950 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-100' : 'border-emerald-300 bg-emerald-50 text-emerald-950 dark:border-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-100'}`}>
+                      <div className="font-medium">Activity delivery: {activityDelivery.queuedEvents === 0 ? 'up to date' : `${activityDelivery.queuedEvents} queued`}</div>
+                      <div className="mt-1 opacity-80">
+                        {activityDelivery.queuedEvents === 0
+                          ? 'No pending activity is waiting in this runtime.'
+                          : activityDelivery.worker?.configured?.clawmaxAi || activityDelivery.worker?.configured?.digo
+                            ? 'The runtime will retry delivery automatically.'
+                            : 'Delivery credentials are not configured in this dashboard runtime.'}
+                      </div>
+                      {(activityDelivery.worker?.lastError || activityDelivery.retry?.lastError) && <div className="mt-1 break-words">Latest delivery error: {activityDelivery.worker.lastError || activityDelivery.retry?.lastError}</div>}
+                    </div>
+                  )}
+                </div>
                 <div className="mt-4 rounded-xl border border-cyan-200 dark:border-cyan-800 bg-cyan-50 dark:bg-cyan-900/20 p-4 text-sm text-cyan-900 dark:text-cyan-100">
                   <div className="font-medium">Optional partner integrations</div>
                   <div className="mt-1">
@@ -3167,6 +3274,30 @@ export function ByokWizard({
 
                 <div className="mt-5 space-y-4">
                   {(currentPartner.fields || []).map((field) => renderPartnerField(currentPartner, field))}
+                  {currentPartner.slug === 'digo' && (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-100">
+                      <div className="font-medium">Activity sharing with Digo</div>
+                      <div className="mt-1">Enable ClawMax.ai Activity Export first, then explicitly authorize Digo here. Direct PII and known secrets are removed before delivery.</div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!digoConfigured) {
+                            showWarning('Save the Digo API key and HTTPS ingestion URL before reviewing Digo sharing.')
+                            return
+                          }
+                          if (!activityConsents.some((entry) => entry.destinationId === 'clawmax-ai')) {
+                            showWarning('Enable ClawMax.ai Activity Export sharing before adding Digo as a destination.')
+                            return
+                          }
+                          setActivityDestination('digo')
+                          setActivityConfirmOpen(true)
+                        }}
+                        className="mt-2 rounded-md border border-amber-400 px-3 py-1.5 font-medium hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-amber-700 dark:hover:bg-amber-900/30"
+                      >
+                        {activeActivityConsent?.destinationId === 'digo' ? 'Digo sharing enabled' : 'Review Digo sharing'}
+                      </button>
+                    </div>
+                  )}
                   {currentPartner.slug === 'resend' && renderResendTestEmailPanel()}
                   {currentPartner.validation && currentPartner.slug !== 'github' && !isMailOAuthProvider(currentPartner.slug) && renderPartnerValidation(currentPartner)}
                   {currentPartner.slug === 'opik' && (
