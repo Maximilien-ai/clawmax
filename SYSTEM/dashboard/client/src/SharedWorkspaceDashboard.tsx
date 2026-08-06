@@ -388,7 +388,14 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
   const [interactionMessage, setInteractionMessage] = useState('')
   const [interactionStatus, setInteractionStatus] = useState<string | null>(null)
   const [interactionHeight, setInteractionHeight] = useState(260)
-  const [interactionHistory, setInteractionHistory] = useState<Array<{ kind: string; target: string; message: string; response: string; at: string }>>([])
+  const [interactionHistory, setInteractionHistory] = useState<Array<{ kind: string; target: string; message: string; response: string; at: string }>>(() => {
+    try {
+      const saved = localStorage.getItem(`clawmax-dashboard-interactions:${token}`)
+      return saved ? JSON.parse(saved) : []
+    } catch {
+      return []
+    }
+  })
   const [darkMode, setDarkMode] = useState<boolean>(() => {
     const saved = localStorage.getItem('dark-mode')
     if (saved !== null) return saved === 'true'
@@ -430,6 +437,14 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
     const interval = setInterval(load, (payload?.dashboard.refreshIntervalSeconds || 30) * 1000)
     return () => { cancelled = true; clearInterval(interval) }
   }, [token, autoRefresh, payload?.dashboard.refreshIntervalSeconds])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(`clawmax-dashboard-interactions:${token}`, JSON.stringify(interactionHistory.slice(-100)))
+    } catch {
+      // Browser storage is a convenience; interaction delivery should not depend on it.
+    }
+  }, [interactionHistory, token])
 
   useEffect(() => {
     let cancelled = false
