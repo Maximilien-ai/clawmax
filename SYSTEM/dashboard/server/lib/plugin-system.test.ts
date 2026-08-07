@@ -648,7 +648,7 @@ async function run() {
       [guardrails, 'no-outbound-email'],
       [evals, 'single-agent-quality'],
       [optimize, 'workflow-budget'],
-      [lifecycle, listPluginTemplates(lifecycle!).find((template) => template.payload.fields?.subjectType === 'agent')?.id],
+      [lifecycle, listPluginTemplates(lifecycle!).find((template) => (template.payload as any).fields?.subjectType === 'agent')?.id],
     ] as const
     for (const [plugin, templateId] of suggestions) {
       assert(templateId, `Expected a suggested template for ${plugin!.slug}`)
@@ -675,13 +675,15 @@ async function run() {
       name: 'Smoke workflow plan', description: 'Optimize workflow cost', enabled: true, tags: ['smoke'],
       fields: { scope: 'workflow', targetIds: ['research-sweep'], optimizationGoal: 'cost', monthlyTokenBudget: 100000, monthlyCostBudget: 10, maximumRunDurationSeconds: 300, minimumQualityScore: 80, status: 'applied' },
     } as any)
-    assert('fields' in plan && plan.fields.targetIds.includes('research-sweep'), 'Expected Optimize target to persist on workflow')
+    const planFields = 'fields' in plan ? (plan.fields as Record<string, any>) : null
+    assert(Array.isArray(planFields?.targetIds) && planFields.targetIds.includes('research-sweep'), 'Expected Optimize target to persist on workflow')
 
     const inspection = upsertPluginRecord(lifecycle!, {
       name: 'Smoke agent lifecycle', description: 'Inspect agent history', enabled: true, tags: ['smoke'],
       fields: { subjectType: 'agent', targetIds: ['analyst'], focus: 'activity', timeWindow: '7-days', includeArchived: false, notes: 'Smoke test' },
     } as any)
-    assert('fields' in inspection && inspection.fields.targetIds.includes('analyst'), 'Expected Lifecycle target to persist on agent')
+    const inspectionFields = 'fields' in inspection ? (inspection.fields as Record<string, any>) : null
+    assert(Array.isArray(inspectionFields?.targetIds) && inspectionFields.targetIds.includes('analyst'), 'Expected Lifecycle target to persist on agent')
     assert(getAgentLifecycleEvidence(lifecycle!, 'analyst').subject.id === 'analyst', 'Expected Lifecycle evidence to resolve the selected agent')
   })
 
