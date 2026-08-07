@@ -785,7 +785,8 @@ echo ""
 echo -e "${YELLOW}→ Running TypeScript type check...${NC}"
 cd dashboard
 npm run typecheck > /tmp/clawmax-typecheck.out 2>&1
-if grep -q "error TS" /tmp/clawmax-typecheck.out; then
+typecheck_rc=$?
+if [ "$typecheck_rc" -ne 0 ]; then
   fail "TypeScript type check"
 else
   pass "TypeScript type check"
