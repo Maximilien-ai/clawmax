@@ -42,6 +42,7 @@ import {
   validateEvalRegex,
 } from '../lib/plugins'
 import { applyOptimizeAssistantText } from '../lib/optimizeAssistant'
+import { getPluginAiCreateCopy } from '../lib/pluginAiCreateCopy'
 import { getOptimizationDimensions } from '../lib/optimizeGraph'
 import {
   buildReleaseReviewFilename,
@@ -3994,6 +3995,11 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
   const [reviewLifecycleBusy, setReviewLifecycleBusy] = useState(false)
   const aiReadiness = getAiGenerationReadiness()
   const aiEnabled = hasAiGenerationAccess()
+  const aiCreateCopy = getPluginAiCreateCopy({
+    objectKind: plugin.objectKind,
+    name: plugin.name,
+    singular: plugin.labels?.singular,
+  })
   const grantedCapabilities = getPluginGrantedCapabilities(plugin)
   const canGenerateDocs = grantedCapabilities.includes('docs')
   const canNotify = grantedCapabilities.includes('notifications')
@@ -5393,7 +5399,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
           panelClassName="max-w-lg"
           header={(
             <div className="flex items-center justify-between gap-4">
-              <h2 id="plugin-ai-create-title" className="text-lg font-semibold text-gray-900 dark:text-gray-100">AI Create {plugin.labels?.singular || plugin.name}</h2>
+              <h2 id="plugin-ai-create-title" className="text-lg font-semibold text-gray-900 dark:text-gray-100">{aiCreateCopy.title}</h2>
               <button type="button" onClick={() => setShowAiPrompt(false)} className="text-xl text-gray-400 hover:text-gray-600 dark:text-gray-400" aria-label="Close plugin AI Create">✕</button>
             </div>
           )}
@@ -5419,7 +5425,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
         >
           <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
             {aiCreateStage === 'prompt'
-              ? `Describe what you want this ${plugin.labels?.singular?.toLowerCase() || plugin.name.toLowerCase()} to do. Next will score the prompt and prepare a reviewable specification.`
+              ? aiCreateCopy.intro
               : 'Review the generated specification below. Go back to refine the prompt, or build the editable draft with AI.'}
           </p>
           {!aiEnabled && (
@@ -5443,7 +5449,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
               ? 'e.g., Create a guardrail for research agents that blocks outbound email and external document sharing'
               : usesLegacyPluginAdapter(plugin, 'eval')
                 ? 'e.g., Create an eval for a research workflow that judges output quality and compares summaries against expected findings'
-                : `Describe the ${plugin.labels?.singular?.toLowerCase() || plugin.objectKind} to create`}
+                : aiCreateCopy.placeholder}
             className="min-h-[100px] w-full resize-y rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-purple-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
             autoFocus
             onKeyDown={(e) => { if (e.key === 'Enter' && e.metaKey) aiCreateStage === 'prompt' ? handleAiNext() : void handleAiGenerate() }}
@@ -5492,7 +5498,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
         onExpandWithAi={(value, format, guidance) => expandPromptWithAI(value, 'workflow', format, guidance)}
         saveLabel="Save Prompt"
         saveAndGenerateLabel={`Save & Generate ${plugin.labels?.singular || plugin.name}`}
-        placeholder={`Describe the ${plugin.labels?.singular?.toLowerCase() || plugin.name.toLowerCase()} you want to create...`}
+        placeholder={aiCreateCopy.editorPlaceholder}
         savingAndGenerating={aiGenerating}
         generateDisabled={!aiPromptText.trim()}
         qualityDomain="plugin"
