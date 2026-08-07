@@ -1,15 +1,16 @@
 # Public Activity Export And Partner Ingestion
 
-> Status: public capture, consent, durable outbox, batch delivery, and flush route implemented; reference receiver and partner adapter pending
+> Status: public capture, consent, durable outbox, batch delivery, and flush route implemented; partner receiver and adapter conformance in progress
 > Release target: `2.0.0` public platform contract and ClawMax.ai reference receiver
-> First external adapter: Digo, after the partner implements the agreed contract
-> Last updated: August 5, 2026
+> Audience: partner backend teams and contributors implementing a ClawMax partner integration
+> Last updated: August 7, 2026
 
 ## Decision Summary
 
-ClawMax will provide a public, vendor-neutral **Activity Export** service. Digo
-is the first intended external partner, but transcript capture must not be
-implemented as Digo-specific code inside chat or workflow routes.
+ClawMax will provide a public, vendor-neutral **Activity Export** service. Any
+partner can implement the receiver and contribute a small adapter; transcript
+capture must not be implemented as partner-specific code inside chat or
+workflow routes.
 
 The service will:
 
@@ -292,14 +293,42 @@ Every `eventId` is globally unique and every `batchId` is stable across retries.
 This gives at-least-once transport and effectively-once ingestion when the
 receiver enforces event and batch idempotency.
 
+### Purge API
+
+When a user revokes consent, ClawMax calls the partner's authenticated purge
+endpoint if delivered-data deletion is supported:
+
+```http
+POST /v1/clawmax/activity-events:purge
+Authorization: Bearer <server-managed-ingestion-token>
+Content-Type: application/json
+X-ClawMax-Schema-Version: clawmax.activity-export/v1
+Idempotency-Key: purge_01...
+```
+
+```json
+{
+  "purgeId": "purge_01...",
+  "destinationId": "acme-events",
+  "workspaceId": "opaque-workspace-id",
+  "receiptId": "consent_01...",
+  "requestedAt": "2026-08-07T18:03:20.000Z"
+}
+```
+
+Return `202 Accepted` with the stable `purgeId` and a status that can be
+polled or audited. A partner that cannot delete delivered data must say so in
+its consent disclosure and document its deletion-request process. Local
+unsent events are purged immediately regardless.
+
 ### Authentication
 
 The reference receiver can start with the same deployment-managed bearer-token
 pattern used by current ClawMax.ai template/Builder sharing, but uses a distinct,
 least-privilege token:
 
-- `ACTIVITY_EXPORT_CLAWMAX_AI_URL`
-- `ACTIVITY_EXPORT_CLAWMAX_AI_TOKEN`
+- `CLAWMAX_ACTIVITY_EXPORT_ENDPOINT`
+- `CLAWMAX_ACTIVITY_EXPORT_TOKEN`
 
 The token is server-managed, encrypted or supplied by infrastructure, never
 returned to the browser, never injected into an agent, and never included in
@@ -309,6 +338,79 @@ For Digo, use a distinct destination credential and endpoint. OAuth 2 client
 credentials or a scoped, rotating ingestion token is preferred once Digo
 defines its identity system. Normal UI must use an allowlisted HTTPS destination;
 an arbitrary webhook URL is not a supported end-user feature.
+
+## Partner Implementation Quickstart
+
+This is the minimum contract for any partner. A partner may implement the
+receiver first and contribute the ClawMax adapter afterward; neither step
+requires Digo-specific behavior.
+
+### 1. Implement the receiver
+
+Provide an HTTPS endpoint that accepts the batch request above and:
+
+1. authenticates the server-managed credential and rejects missing, expired, or
+   incorrectly scoped credentials with `401` or `403`;
+2. validates `schemaVersion`, `destinationId`, required event fields, consent
+   scope, maximum batch bytes, and maximum event bytes;
+3. treats `batchId` and `eventId` as idempotency keys and returns duplicates as
+   accepted rather than creating a second record;
+4. returns the documented acknowledgement shape, including per-event permanent
+   rejections; and
+5. provides an authenticated purge endpoint for revoked consent when the
+   partner stores delivered activity.
+
+The receiver must not require browser CORS, cookies, or a user-facing API key.
+It must not log bearer tokens or raw event bodies. Publish the endpoint URL,
+credential scope/rotation process, size and rate limits, retention/deletion
+policy, privacy URL, and exact consent purpose before requesting integration.
+
+### 2. Provide partner metadata
+
+Submit these values to the ClawMax integration owner:
+
+| Field | Required | Meaning |
+|---|---:|---|
+| `destinationId` | yes | Stable lowercase identifier, e.g. `acme-events` |
+| display name and logo | yes | User-facing partner identity |
+| ingestion endpoint | yes | HTTPS batch URL; no arbitrary user URL |
+| credential owner and rotation | yes | Deployment secret name and expiry process |
+| supported scopes | yes | Subset of the canonical scopes above |
+| privacy URL and purpose | yes | Shown before consent |
+| retention and purge behavior | yes | What revoke/delete guarantees |
+| enrollment fields | optional | Event, script, participant, or campaign ids |
+| reviewer authorization | optional | How partner operators access delivered data |
+
+### 3. Add the ClawMax partner integration
+
+The partner integration is a small public adapter/metadata change in the
+ClawMax repository. It must:
+
+- add a partner catalog entry with display name, logo, scopes, privacy URL, and
+  setup instructions;
+- store endpoint credentials only through deployment-managed secrets (never in
+  browser storage, workspace files, prompts, or agent-visible keys);
+- use the host Activity Export adapter and consent APIs rather than modifying
+  chat, workflow, group, or Builder routes;
+- keep destination configuration separate from user consent, with two explicit
+  gates in the UI;
+- show the standard healthy, delayed, needs-attention, and revoked states; and
+- add unit, route, redaction, consent, retry, purge, mobile, and receiver
+  conformance tests.
+
+Partners should open a PR against `Maximilien-ai/clawmax` containing the catalog
+entry, adapter configuration, tests, privacy/copy review, and a link to their
+receiver conformance results. Do not include production credentials or private
+partner server code in that PR. Private implementation code belongs in the
+partner's own repository.
+
+### 4. Pass the conformance checklist
+
+Run the shared fixtures against the partner receiver and attach results for:
+valid batch, duplicate batch/event, malformed event, unsupported scope, `401/403`,
+`413`, `429` with `Retry-After`, `5xx`, timeout, partial rejection, purge after
+revoke, and a redaction sentinel containing a fake API key and password. Then
+test one cloud and one on-prem deployment with consenting synthetic activity.
 
 ## Capture And Delivery Architecture
 
@@ -422,9 +524,9 @@ store, retention policy, and audit log.
 
 ## Partner Configuration
 
-A Digo partner definition should eventually collect:
+A partner definition should collect:
 
-- Digo event id;
+- partner event or enrollment id;
 - optional script id;
 - participant enrollment method or invite code;
 - ingestion credential, stored server-side;
@@ -434,9 +536,11 @@ A Digo partner definition should eventually collect:
 - connection verification status.
 
 The connection can be tested before user consent without sending transcript
-content. `Enable Digo` means the destination is available for enrollment; it
-does not begin capture. The user-facing action should be `Share activity with
-Digo`, followed by the consent review.
+content. `Enable <Partner>` means the destination is available for enrollment;
+it does not begin capture. The user-facing action should be `Share activity
+with <Partner>`, followed by the consent review. A partner may provide a
+branded label such as `Share activity with Digo`, but the generic two-gate
+behavior is unchanged.
 
 ## Failure And Revocation Rules
 
