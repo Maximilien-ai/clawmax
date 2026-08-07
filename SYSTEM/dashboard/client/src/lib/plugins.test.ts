@@ -131,6 +131,53 @@ const guardrailPlugin: PluginManifest = {
   },
 }
 
+const optimizePlugin: PluginManifest = {
+  id: 'optimize',
+  slug: 'clawmax-optimize',
+  name: 'Optimize',
+  description: 'Workspace optimization plans',
+  version: '0.1.0',
+  icon: 'bar-chart',
+  objectKind: 'optimization-plan',
+  visibility: 'private',
+  labels: { singular: 'Optimization Plan', plural: 'Optimization Plans' },
+  recordSchema: {
+    type: 'object',
+    required: ['scope', 'optimizationGoal', 'monthlyTokenBudget', 'monthlyCostBudget', 'status'],
+    properties: {
+      scope: { type: 'string', title: 'Scope', enum: ['workflow', 'agent', 'workspace'], default: 'workflow' },
+      targetIds: { type: 'array', title: 'Targets', items: { type: 'string' }, default: [] },
+      optimizationGoal: { type: 'string', title: 'Priority', enum: ['balanced', 'quality', 'speed', 'tokens', 'cost'], default: 'balanced' },
+      monthlyTokenBudget: { type: 'integer', title: 'Monthly tokens', default: 1_000_000 },
+      monthlyCostBudget: { type: 'number', title: 'Monthly cost', default: 25 },
+      status: { type: 'string', title: 'Status', enum: ['draft', 'recommended', 'applied'], default: 'draft' },
+    },
+  },
+}
+
+const lifecyclePlugin: PluginManifest = {
+  id: 'lifecycle',
+  slug: 'clawmax-lifecycle',
+  name: 'Lifecycle',
+  description: 'Workspace lifecycle inspections',
+  version: '0.4.0',
+  icon: 'activity',
+  objectKind: 'lifecycle-view',
+  visibility: 'public',
+  labels: { singular: 'Inspection', plural: 'Inspections' },
+  recordSchema: {
+    type: 'object',
+    required: ['subjectType', 'focus', 'timeWindow'],
+    properties: {
+      subjectType: { type: 'string', title: 'Inspect', enum: ['agent', 'workflow', 'group', 'community'], default: 'agent' },
+      targetIds: { type: 'array', title: 'Targets', items: { type: 'string' }, default: [] },
+      focus: { type: 'string', title: 'Focus', enum: ['overview', 'activity', 'artifacts', 'configuration'], default: 'overview' },
+      timeWindow: { type: 'string', title: 'Time window', enum: ['24-hours', '7-days', '30-days', 'all'], default: '7-days' },
+      notes: { type: 'string', title: 'Inspection notes', format: 'textarea' },
+    },
+  },
+}
+
 const reviewPlugin: PluginManifest = {
   apiVersion: 'clawmax.ai/v2',
   id: 'review-notes',
@@ -290,6 +337,21 @@ test('buildPluginDraftFromPrompt creates an eval draft from natural language', (
   assert(draft.target?.type === 'workflow', 'Expected workflow target to be inferred')
   assert(draft.experiment?.judge === 'ai', 'Expected AI judge to be inferred')
   assert(draft.experiment?.iterations === 1, 'Expected a safe default trial count')
+})
+
+test('buildPluginDraftFromPrompt creates usable Optimize and Lifecycle drafts', () => {
+  const optimize = buildPluginDraftFromPrompt(optimizePlugin, 'Reduce the research workflow cost by 30 percent while keeping quality above 85')
+  assert(isGenericPluginRecord(optimize), 'Expected an Optimize generic draft')
+  assert(optimize.kind === 'optimization-plan', 'Expected Optimize object kind')
+  assert(optimize.fields.optimizationGoal === 'balanced', 'Expected a valid Optimize priority default')
+  assert(Array.isArray(optimize.fields.targetIds), 'Expected Optimize targets to remain selectable')
+
+  const lifecycle = buildPluginDraftFromPrompt(lifecyclePlugin, 'Inspect the research agent lifecycle for model changes and recent files over 30 days')
+  assert(isGenericPluginRecord(lifecycle), 'Expected a Lifecycle generic draft')
+  assert(lifecycle.kind === 'lifecycle-view', 'Expected Lifecycle object kind')
+  assert(lifecycle.fields.subjectType === 'agent', 'Expected Lifecycle agent default')
+  assert(lifecycle.fields.timeWindow === '7-days', 'Expected Lifecycle time-window default')
+  assert(String(lifecycle.fields.notes).includes('model changes'), 'Expected Lifecycle prompt evidence to be retained')
 })
 
 test('buildPluginDraftFromPrompt prefers AI while recognizing Human and Fixed evaluation', () => {

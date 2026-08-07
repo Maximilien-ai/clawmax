@@ -24,6 +24,7 @@ import {
   getCommunicationLifecycleEvidence,
   getPluginWorkspaceContext,
   listConfiguredPlugins,
+  listPluginRelationships,
   listPluginRecords,
   listPluginTemplates,
   PluginContractError,
@@ -634,6 +635,54 @@ async function run() {
     assert.strictEqual(created.fields.monthlyCostBudget, 0, 'Expected cost budgets to clamp to the minimum')
     assert.strictEqual(created.fields.maximumRunDurationSeconds, 1, 'Expected duration to clamp to a positive minimum')
     assert.strictEqual(created.fields.minimumQualityScore, 100, 'Expected quality targets to clamp to 100')
+  })
+
+  await test('plugin smoke matrix creates and applies targeted records across agents and workflows', () => {
+    const guardrails = getPluginBySlug('plugin-guardrails')
+    const evals = getPluginBySlug('plugin-evals')
+    const optimize = getPluginBySlug('plugin-resource-plans')
+    const lifecycle = getPluginBySlug('clawmax-lifecycle')
+    assert(guardrails && evals && optimize && lifecycle, 'Expected all plugin smoke fixtures to be available')
+
+    const suggestions = [
+      [guardrails, 'no-outbound-email'],
+      [evals, 'single-agent-quality'],
+      [optimize, 'workflow-budget'],
+      [lifecycle, listPluginTemplates(lifecycle!).find((template) => template.payload.fields?.subjectType === 'agent')?.id],
+    ] as const
+    for (const [plugin, templateId] of suggestions) {
+      assert(templateId, `Expected a suggested template for ${plugin!.slug}`)
+      const applied = applyPluginTemplate(plugin!, templateId!)
+      assert(applied, `Expected suggested ${plugin!.slug} item to apply`)
+    }
+
+    const guardrail = upsertPluginRecord(guardrails!, {
+      name: 'Smoke guardrail', description: 'Block outbound email during smoke tests', enabled: true,
+      appliesTo: { agents: ['analyst'], workflows: ['research-sweep'], groups: [], communities: [] },
+      controls: { blockEmail: true, blockWeb: false, blockExternalDocs: false, allowedSkills: [] }, tags: ['smoke'],
+    } as any)
+    assert(listPluginRelationships().agents.analyst?.some((entry) => entry.itemId === guardrail.id), 'Expected guardrail relationship on agent')
+    assert(listPluginRelationships().workflows['research-sweep']?.some((entry) => entry.itemId === guardrail.id), 'Expected guardrail relationship on workflow')
+
+    const evalRecord = upsertPluginRecord(evals!, {
+      name: 'Smoke eval', description: 'Check a fixed workflow result', enabled: true, tags: ['smoke'],
+      target: { type: 'workflow', ids: ['research-sweep'] },
+      experiment: { input: 'Summarize the research', candidateOutput: 'research summary', expectedOutput: 'research summary', judge: 'fixed', fixedMatch: 'exact', iterations: 1 },
+    } as any)
+    assert(runPluginEval(evals!, evalRecord.id)?.lastRun?.score === 100, 'Expected targeted Eval smoke run to pass')
+
+    const plan = upsertPluginRecord(optimize!, {
+      name: 'Smoke workflow plan', description: 'Optimize workflow cost', enabled: true, tags: ['smoke'],
+      fields: { scope: 'workflow', targetIds: ['research-sweep'], optimizationGoal: 'cost', monthlyTokenBudget: 100000, monthlyCostBudget: 10, maximumRunDurationSeconds: 300, minimumQualityScore: 80, status: 'applied' },
+    } as any)
+    assert('fields' in plan && plan.fields.targetIds.includes('research-sweep'), 'Expected Optimize target to persist on workflow')
+
+    const inspection = upsertPluginRecord(lifecycle!, {
+      name: 'Smoke agent lifecycle', description: 'Inspect agent history', enabled: true, tags: ['smoke'],
+      fields: { subjectType: 'agent', targetIds: ['analyst'], focus: 'activity', timeWindow: '7-days', includeArchived: false, notes: 'Smoke test' },
+    } as any)
+    assert('fields' in inspection && inspection.fields.targetIds.includes('analyst'), 'Expected Lifecycle target to persist on agent')
+    assert(getAgentLifecycleEvidence(lifecycle!, 'analyst').subject.id === 'analyst', 'Expected Lifecycle evidence to resolve the selected agent')
   })
 
   await test('eval plugin runs score experiments and surfaces workspace context', () => {
