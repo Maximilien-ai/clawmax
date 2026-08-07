@@ -11,7 +11,7 @@
     "dev:server": "ts-node server/index.ts",
     "dev:client": "vite",
     "build": "tsc -p tsconfig.server.json && vite build",
-    "security:audit": "npm audit --audit-level=high",
+    "security:audit": "node scripts/security-audit.js",
     "start": "node dist/server/index.js",
     "typecheck": "tsc --noEmit"
   },
