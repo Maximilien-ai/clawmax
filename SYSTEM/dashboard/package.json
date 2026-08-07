@@ -3,9 +3,6 @@
   "version": "2.0.0",
   "description": "ClawMax.ai owner dashboard",
   "private": true,
-  "overrides": {
-    "js-yaml": "^4.1.1"
-  },
   "engines": {
     "node": ">=22.19.0"
   },
