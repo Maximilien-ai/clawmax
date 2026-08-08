@@ -1255,14 +1255,20 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
   const [stickyOnboardingWorkspaceKey, setStickyOnboardingWorkspaceKey] = useState<string | null>(null)
   const [workspaceTourVisible, setWorkspaceTourVisible] = useState(false)
   const [workspaceTourStateVersion, setWorkspaceTourStateVersion] = useState(0)
-  const [activitySharing, setActivitySharing] = useState<{ destinationId: string; queuedEvents: number } | null>(null)
+  const [activitySharing, setActivitySharing] = useState<{ destinationId: string; queuedEvents: number; destinations: Array<{ destinationId: string; scopes: string[] }> } | null>(null)
+  const [activitySharingOpen, setActivitySharingOpen] = useState(false)
+  const [activitySharingRevoking, setActivitySharingRevoking] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
     const refresh = () => fetch('/api/activity-export/status')
       .then((response) => response.ok ? response.json() : null)
       .then((payload) => {
-        if (!cancelled) setActivitySharing(payload?.sharing ? { destinationId: String(payload.sharing.destinationId || 'reference'), queuedEvents: Number(payload.queuedEvents || 0) } : null)
+        if (!cancelled) setActivitySharing(payload?.sharing ? {
+          destinationId: String(payload.sharing.destinationId || 'reference'),
+          queuedEvents: Number(payload.queuedEvents || 0),
+          destinations: Array.isArray(payload.destinations) ? payload.destinations.map((entry: any) => ({ destinationId: String(entry.destinationId || 'reference'), scopes: Array.isArray(entry.scopes) ? entry.scopes.map(String) : [] })) : [],
+        } : null)
       })
       .catch(() => { if (!cancelled) setActivitySharing(null) })
     void refresh()
@@ -1395,15 +1401,52 @@ function TopBar({ system, onMobileMenuToggle, onOpenWorkspaceDialog, runningWork
           />
         </div>
         {activitySharing && (
-          <button
-            type="button"
-            onClick={() => onNavigateToPage?.('activity')}
-            className="hidden rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-200 sm:inline-flex"
-            title="Activity sharing is enabled"
-          >
-            Sharing with {activitySharing.destinationId === 'clawmax-ai' ? 'ClawMax.ai' : activitySharing.destinationId}
-            {activitySharing.queuedEvents > 0 ? ` · ${activitySharing.queuedEvents} queued` : ''}
-          </button>
+          <div className="relative hidden sm:block">
+            <button
+              type="button"
+              onClick={() => setActivitySharingOpen((current) => !current)}
+              className="inline-flex rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-200"
+              title="Review or revoke activity sharing"
+              aria-expanded={activitySharingOpen}
+            >
+              Sharing with {activitySharing.destinationId === 'clawmax-ai' ? 'ClawMax.ai' : activitySharing.destinationId}
+              {activitySharing.queuedEvents > 0 ? ` · ${activitySharing.queuedEvents} queued` : ''}
+            </button>
+            {activitySharingOpen && (
+              <div className="absolute right-0 top-full z-[80] mt-2 w-80 rounded-xl border border-gray-200 bg-white p-4 text-left shadow-xl dark:border-gray-700 dark:bg-gray-900">
+                <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">Activity sharing</div>
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Review destinations and revoke sharing without leaving the dashboard.</p>
+                <div className="mt-3 space-y-2">
+                  {(activitySharing.destinations.length > 0 ? activitySharing.destinations : [{ destinationId: activitySharing.destinationId, scopes: [] }]).map((destination) => (
+                    <div key={destination.destinationId} className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 px-3 py-2 dark:border-gray-700">
+                      <div className="min-w-0">
+                        <div className="truncate text-xs font-medium text-gray-900 dark:text-gray-100">{destination.destinationId === 'clawmax-ai' ? 'ClawMax.ai' : destination.destinationId}</div>
+                        <div className="truncate text-[11px] text-gray-500">{destination.scopes.length > 0 ? destination.scopes.join(', ') : 'Configured destination'}</div>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={activitySharingRevoking === destination.destinationId}
+                        onClick={async () => {
+                          setActivitySharingRevoking(destination.destinationId)
+                          try {
+                            const response = await fetch('/api/activity-export/consent', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ destinationId: destination.destinationId }) })
+                            if (!response.ok) throw new Error('Unable to revoke activity sharing')
+                            window.dispatchEvent(new CustomEvent('activity-export-updated'))
+                          } finally {
+                            setActivitySharingRevoking(null)
+                          }
+                        }}
+                        className="shrink-0 rounded-md border border-red-200 px-2 py-1 text-[11px] font-medium text-red-700 hover:bg-red-50 disabled:opacity-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/30"
+                      >
+                        {activitySharingRevoking === destination.destinationId ? 'Revoking…' : 'Revoke'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <button type="button" onClick={() => { setActivitySharingOpen(false); onOpenPartners?.() }} className="mt-3 text-xs font-medium text-sky-700 hover:underline dark:text-sky-300">Open sharing settings</button>
+              </div>
+            )}
+          </div>
         )}
         <OnboardingWizard
           visible={onboardingVisible}

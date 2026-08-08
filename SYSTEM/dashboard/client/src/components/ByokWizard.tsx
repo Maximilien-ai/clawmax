@@ -315,6 +315,16 @@ export function ByokWizard({
     window.dispatchEvent(new CustomEvent('activity-export-updated'))
     showSuccess(`Activity sharing enabled for ${activityDestination === 'digo' ? 'Digo' : 'ClawMax.ai'}`)
   }
+  async function revokeActivityDestination(destinationId: string) {
+    const response = await fetch('/api/activity-export/consent', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ destinationId }) })
+    if (!response.ok) {
+      showWarning('Unable to revoke activity sharing')
+      return
+    }
+    setActivityConsents((current) => current.filter((entry) => entry.destinationId !== destinationId))
+    window.dispatchEvent(new CustomEvent('activity-export-updated'))
+    showSuccess(`Activity sharing revoked for ${destinationId === 'digo' ? 'Digo' : 'ClawMax.ai'}`)
+  }
   const ollamaEnabled = isOllamaUiAvailable(config)
   const managedRuntime = config?.managedRuntime === true || deploymentKind !== 'local'
   const defaultOllamaBaseUrl = config?.defaultOllamaBaseUrl || localDevOllamaBaseUrl
@@ -2654,7 +2664,7 @@ export function ByokWizard({
                     <p className="mt-1">ClawMax removes direct PII (such as email addresses and phone numbers) and known secrets, credentials, tokens, and private keys before queueing selected activity. Delivery is asynchronous; revoke sharing at any time.</p>
                     <div className="mt-2 flex gap-2"><button type="button" onClick={() => setActivityConfirmOpen(false)} className="rounded border border-gray-300 px-2 py-1">Cancel</button><button type="button" onClick={() => void toggleActivitySharing()} className="rounded bg-amber-600 px-2 py-1 font-medium text-white">I consent</button></div>
                   </div>}
-                  {activityConsents.length > 0 && <div className="mt-2 space-y-1 text-xs">{activityConsents.map((entry) => <div key={entry.destinationId}>Sharing with {entry.destinationId === 'digo' ? 'Digo' : 'ClawMax.ai'} · {entry.scopes.join(', ')}</div>)}</div>}
+                  {activityConsents.length > 0 && <div className="mt-2 space-y-1 text-xs">{activityConsents.map((entry) => <div key={entry.destinationId} className="flex flex-wrap items-center justify-between gap-2 rounded border border-amber-200/70 px-2 py-1.5 dark:border-amber-800/50"><span>Sharing with {entry.destinationId === 'digo' ? 'Digo' : 'ClawMax.ai'} · {entry.scopes.join(', ')}</span><button type="button" onClick={() => void revokeActivityDestination(entry.destinationId)} className="font-medium text-red-700 hover:underline dark:text-red-300">Revoke</button></div>)}</div>}
                   {activityConsents.length > 0 && activityDelivery && (
                     <div className={`mt-3 rounded-md border px-3 py-2 text-xs ${activityDelivery.queuedEvents > 0 || activityDelivery.worker?.lastError || activityDelivery.retry?.lastError ? 'border-amber-300 bg-amber-50 text-amber-950 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-100' : 'border-emerald-300 bg-emerald-50 text-emerald-950 dark:border-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-100'}`}>
                       <div className="font-medium">Activity delivery: {activityDelivery.queuedEvents === 0 ? 'up to date' : `${activityDelivery.queuedEvents} queued`}</div>
