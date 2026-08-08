@@ -109,6 +109,12 @@
   Image` in `clawmax-plugins` with the exact same public `base_tag` and private
   `image_tag`. Record both CI links and do not call the public image complete
   until the matching combined image has passed its validation and smoke jobs.
+- If a combined-image smoke job fails after the image build and plugin contract
+  checks pass, inspect the failed step and distinguish a dashboard readiness
+  probe/connection-reset flake from a packaging or plugin failure. The image
+  may be usable, but report the smoke result as unresolved and do not silently
+  mark the combined RC fully green; rerun the failed smoke jobs once before
+  deferring readiness-test hardening.
 - Record the observed or documented duration before starting a long-running CI,
   image, deployment, or test job. Do not continuously poll it.
 - Check once near half the expected duration to catch an early failure. If the
