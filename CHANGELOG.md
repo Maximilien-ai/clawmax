@@ -4,8 +4,9 @@ All notable changes to ClawMax are documented here.
 
 ## [Unreleased]
 
-### RC25
-- **Lifecycle review checklist** — RC25 adds a focused, non-duplicated tester set covering suggested relationship graphs, suggested-list isolation, agent/workflow/group/community X-rays, proportional compressed timelines, mobile behavior, and restart persistence. Earlier RC checks remain available in the cumulative Review set.
+### RC34
+- **Release candidate validation** — RC34 passed the accepted `441/441` local integration, validation, and coverage gate plus public and authorized combined amd64/arm64 image publication and registry smoke.
+- **RC35 review preparation** — the current Review set covers explicit AI Create handoffs, shared AI editor expansion, Lifecycle target/X-ray loading, plugin target visibility, and activity-sharing revocation. Earlier RC checks remain in the cumulative Review set, while RC34 remains the green starting evidence.
 
 ### Added
 - **2.0 Declarative Plugin Contract** — the `clawmax.ai/v2` manifest adds generic record schemas and defaults, declarative list/form presentation, generic templates, workspace storage, and compatibility validation without requiring a new core page or route for every plugin domain.
@@ -61,10 +62,8 @@ All notable changes to ClawMax are documented here.
 - **Compatible Automatic Model Choices** — automatic recommendations exclude known OpenClaw web-search incompatibilities such as `o1`, `o3`, and `o3-mini`, explain the exclusion, and leave those runtime-visible models available for deliberate manual selection.
 - **Actionable Model Tool Errors** — unsupported web-search failures now name the actual model, link directly to the affected agent editor, and hide unrelated state-migration, plugin, stack, and gateway log output from chat.
 
-### Planned
-- **2.0 Public Plugin And AI-Scoring Foundation** — complete the generic contribution-based plugin contract for pages, APIs, data, actions, jobs, events, settings, skills, providers, docs, and extension points; then publish scorer contracts and user-facing scoring surfaces on that foundation.
-- **Public Gmail And Microsoft 365 Partners** — ship curated public Gmail and Outlook plugins beginning with read/search/draft; sending and destructive actions require separate grants and confirmation.
-- **Public Activity Export And Digo Partner** — define a destination-neutral, per-user opt-in contract for scoped conversation/workflow export with visible sharing state, secret redaction, durable asynchronous batching, immediate opt-out, and authenticated/idempotent delivery. Validate it first with a dedicated ClawMax.ai reference receiver before enabling Digo against the same contract.
+### Remaining Before Promotion
+- **2.0 release gates** — complete the security findings record, final plugin/runtime acceptance, cloud and on-prem restart checks, immutable multi-architecture candidate, version reconciliation, and exported Review sign-off described in the [release-week plan](SYSTEM/docs/planning/RELEASE_2_0_0_WEEK_2026-08-10.md).
 
 ## [v1.9.9] - 2026-07-21
 

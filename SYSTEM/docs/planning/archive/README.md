@@ -18,3 +18,5 @@ Archived categories include:
 - completed Builder and client-simplification passes
 - superseded plugin MVP planning
 - historical release preparation and partner-integration plans
+- the completed 2.0 workspace-dashboard baseline, with remaining permissions,
+  streaming, rate-limit, and approval work tracked in the active backlog

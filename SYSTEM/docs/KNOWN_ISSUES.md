@@ -1,6 +1,6 @@
 # ClawMax Known Issues And Limitations
 
-**Last Updated**: July 29, 2026
+**Last Updated**: August 9, 2026
 **Stable Version**: v1.9.9
 **Development Track**: 2.0.0 on `main`
 
@@ -75,11 +75,15 @@ arbitrary frontend bundles or unrestricted server code.
 
 Before promotion, 2.0 still needs:
 
-- manifest-declared custom actions with action-specific grants
-- external plugin packaging validation across local, cloud, and on-prem
-- performance validation for plugin page and data loading
-- removal of remaining product-specific MVP0 adapters
-- a full zero-plugin and synthetic external-plugin release gate
+- a documented decision and test for the supported manifest-action boundary;
+- final zero-plugin, synthetic external-plugin, Lifecycle, and Review gates;
+- local, managed/cloud, and on-prem restart/persistence validation;
+- final plugin page/data loading and responsive checks;
+- an exported release review plus completed security findings record.
+
+The plugin manager and public/private multi-architecture packaging baseline are
+implemented. RC34 passed public and authorized combined image smoke; the final
+candidate must repeat those gates after the last release change.
 
 Private plugins remain external to this repository and are never enabled by
 default in the public image. Lifecycle and Review are the current public product
@@ -91,4 +95,5 @@ does not contain private product source.
 - Active work: [BACKLOG.md](BACKLOG.md)
 - Release state: [STATUS.md](STATUS.md)
 - 2.0 architecture: [PLUGIN_SYSTEM_2_0.md](../../PLUGINS/PLUGIN_SYSTEM_2_0.md)
+- Release week: [RELEASE_2_0_0_WEEK_2026-08-10.md](planning/RELEASE_2_0_0_WEEK_2026-08-10.md)
 - GitHub issues: [Maximilien-ai/clawmax/issues](https://github.com/Maximilien-ai/clawmax/issues)

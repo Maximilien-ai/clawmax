@@ -1,6 +1,6 @@
 # ClawMax Documentation
 
-> Last updated: July 31, 2026
+> Last updated: August 9, 2026
 
 ## Active Documents
 
@@ -13,6 +13,7 @@
 | [OAUTH_SETUP.md](OAUTH_SETUP.md) | GitHub OAuth configuration guide |
 | [SECURITY.md](SECURITY.md) | Security architecture and policies |
 | [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) | Pre-release verification steps |
+| [planning/RELEASE_2_0_0_WEEK_2026-08-10.md](planning/RELEASE_2_0_0_WEEK_2026-08-10.md) | Active August 10-14 execution and go/no-go plan for `2.0.0` |
 | [DEMO_VIDEOS.md](DEMO_VIDEOS.md) | Local demo video inventory and when to use it |
 | [planning/PUBLIC_PLUGIN_ARCHITECTURE_2_0.md](planning/PUBLIC_PLUGIN_ARCHITECTURE_2_0.md) | Active public 2.0 plugin and AI-scoring plan |
 | [planning/PUBLIC_LIFECYCLE_PLUGIN_2_0.md](planning/PUBLIC_LIFECYCLE_PLUGIN_2_0.md) | Active public Lifecycle plugin plan for deep agent/workflow inspection |

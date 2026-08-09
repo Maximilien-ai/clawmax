@@ -1,9 +1,9 @@
 {
-  "release": "2.0.0-test-rc27",
-  "description": "Focused checks for Lifecycle plus long-running AI generation progress, explicit team targeting, and actionable template-save errors.",
+  "release": "2.0.0-test-rc35",
+  "description": "Focused hands-on review for RC35, retaining outstanding Lifecycle and AI generation checks and adding explicit AI Create handoffs, shared AI editing, target visibility, and activity-sharing revocation.",
   "defaults": {
     "enabled": true,
-    "tags": ["release", "current", "2.0.0-test-rc27"],
+    "tags": ["release", "current", "2.0.0-test-rc35"],
     "fields": {
       "completed": false,
       "outcome": "pending",
@@ -67,28 +67,77 @@
       "name": "Long AI generation shows visible progress",
       "description": "Test: Start AI generation for a team template, single agent, agent template files, and a skill draft. Pass: A progress bar and stage text appear beside or in the sticky action area for the button you used, remain visible while scrolling, and disappear after success or failure.",
       "tags": ["ai", "generation", "progress", "responsive"],
-      "fields": {"area": "ai-editor", "notes": ""}
+      "fields": {"area": "regression", "notes": ""}
     },
     {
       "id": "rc27-team-target",
       "name": "Team generation stays a team",
       "description": "Test: In Builder, choose AI Create Team Template and use a prompt mentioning a startup or business. Pass: The generated result remains one focused team, not a company or team-of-teams; the selected target is preserved after generation and regeneration.",
       "tags": ["ai", "builder", "templates", "team"],
-      "fields": {"area": "templates", "notes": ""}
+      "fields": {"area": "regression", "notes": ""}
     },
     {
       "id": "rc27-template-save-error",
       "name": "Template save errors explain the server failure",
       "description": "Test: Generate or edit a template with a duplicate name or invalid field, then click Save Template. Pass: The UI shows the server-provided validation or conflict message instead of only 'Failed to save template'; a valid template still saves normally.",
       "tags": ["templates", "errors", "validation"],
-      "fields": {"area": "templates", "notes": ""}
+      "fields": {"area": "regression", "notes": ""}
     },
     {
       "id": "rc27-ai-generation-timeout",
       "name": "Long generation has a bounded timeout and recovery",
       "description": "Test: Start a full team generation and wait. Pass: The progress remains active during the request, the request has enough time for a full response, and if it still times out the UI shows a clear retryable error without losing the prompt.",
       "tags": ["ai", "generation", "timeout", "recovery"],
-      "fields": {"area": "ai-editor", "notes": ""}
+      "fields": {"area": "regression", "notes": ""}
+    },
+    {
+      "id": "rc35-builder-explicit-create-handoffs",
+      "name": "Specific Builder intent always offers a matching AI Create action",
+      "description": "Test: Submit separate Builder prompts to create and update an agent, skill, and workflow. Pass: Every result offers AI Create Agent, AI Create Skill, or AI Create Workflow as appropriate even when an update action is also available; create actions open the correct surface with the prompt preserved.",
+      "tags": ["builder", "ai", "create", "handoff"],
+      "fields": {"area": "regression", "notes": ""}
+    },
+    {
+      "id": "rc35-ai-editor-expand-surfaces",
+      "name": "Shared AI editor and Expand with AI work from real surfaces",
+      "description": "Test: Open the shared AI editor from one agent, skill, and workflow create/edit surface, run Expand with AI, then apply the result. Pass: Each request shows progress, returns editable content, preserves unrelated fields, applies to the originating editor, and reports a retryable error without losing the draft if generation fails.",
+      "tags": ["ai", "editor", "expand", "agents", "skills", "workflows"],
+      "fields": {"area": "regression", "notes": ""}
+    },
+    {
+      "id": "rc35-lifecycle-targets-loading-xray",
+      "name": "Lifecycle identifies targets and loads their X-rays",
+      "description": "Test: Open an Active Lifecycle record that targets several agents or workflows, then select each target from grid, detail, list, and relationship views. Pass: The record visibly names every target, selection shows a retrieval/loading state when needed, and the completed X-ray shows target-specific evidence or an actionable empty/error state rather than a blank panel.",
+      "tags": ["lifecycle", "targets", "loading", "xray"],
+      "fields": {"area": "plugins", "notes": ""}
+    },
+    {
+      "id": "rc35-plugin-target-summary",
+      "name": "Active plugin records identify affected agents and workflows",
+      "description": "Test: In every enabled record-based product plugin, inspect an Active card and its detail/list view for a record assigned to several targets. Pass: The card identifies affected agents and workflows without opening the editor, long target lists remain readable, and stale or missing targets are labeled instead of silently omitted.",
+      "tags": ["plugins", "targets", "agents", "workflows"],
+      "fields": {"area": "plugins", "notes": ""}
+    },
+    {
+      "id": "rc35-activity-sharing-pill-revoke",
+      "name": "Activity-sharing status opens consent details and revocation",
+      "description": "Test: Enable activity sharing, produce a queued event, and select the queued/sharing pill from the dashboard. Pass: A dialog identifies the destination and enabled scopes, links to the governing sharing settings, and offers a clear revoke action while preserving a leave-enabled path.",
+      "tags": ["activity", "sharing", "consent", "revoke"],
+      "fields": {"area": "regression", "notes": ""}
+    },
+    {
+      "id": "rc35-partner-sharing-revoke",
+      "name": "Partner sharing can be revoked from the Partner surface",
+      "description": "Test: Enable two activity-sharing destinations, open Partners, and revoke one destination. Pass: Each destination has its own visible sharing state and revoke control, revoking one stops and purges its queued delivery according to policy without disabling the other destination, and the dashboard pill updates immediately.",
+      "tags": ["partners", "activity", "sharing", "revoke"],
+      "fields": {"area": "regression", "notes": ""}
+    },
+    {
+      "id": "rc35-runtime-identity-and-restart",
+      "name": "RC35 identity and state survive restart",
+      "description": "Test: Start the exact RC35 image, check the dashboard and /api/system, create representative plugin and Builder state, restart the instance, and reopen the workspace. Pass: Both version surfaces report 2.0.0-test-rc35, health returns HTTP 200, intended public plugins load, state survives restart, and unavailable external plugins do not break core navigation.",
+      "tags": ["release", "identity", "restart", "persistence"],
+      "fields": {"area": "identity", "notes": ""}
     }
   ]
 }
