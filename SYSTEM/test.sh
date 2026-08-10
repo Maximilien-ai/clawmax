@@ -1382,11 +1382,20 @@ fi
 
 echo -e "${YELLOW}→ Running Brokered skill runtime wiring tests...${NC}"
 npx ts-node --transpileOnly server/lib/skill-secret-runtime-wiring.test.ts > /tmp/clawmax-skill-secret-runtime-wiring.out 2>&1 || true
-if grep -q "13 assertions passed" /tmp/clawmax-skill-secret-runtime-wiring.out; then
-  pass "Brokered skill runtime wiring tests (13 tests)"
+if grep -q "20 assertions passed" /tmp/clawmax-skill-secret-runtime-wiring.out; then
+  pass "Brokered skill runtime wiring tests (20 tests)"
 else
   cat /tmp/clawmax-skill-secret-runtime-wiring.out
   fail "Brokered skill runtime wiring tests"
+fi
+
+echo -e "${YELLOW}→ Running Brokered mail command wrapper tests...${NC}"
+sh "$SYSTEM_DIR/clawmax-mail-run-wrapper.test.sh" > /tmp/clawmax-mail-run-wrapper.out 2>&1 || true
+if grep -q "clawmax-mail-run wrapper tests passed" /tmp/clawmax-mail-run-wrapper.out; then
+  pass "Brokered mail command wrapper tests (1 tests)"
+else
+  cat /tmp/clawmax-mail-run-wrapper.out
+  fail "Brokered mail command wrapper tests"
 fi
 
 echo -e "${YELLOW}→ Running Brokered skill secret UI contract tests...${NC}"
@@ -3272,6 +3281,16 @@ if grep -q "Tests failed: 0" /tmp/clawmax-mail-oauth-providers.out; then
 else
   cat /tmp/clawmax-mail-oauth-providers.out
   fail "Production mail OAuth provider tests"
+fi
+
+echo -e "${YELLOW}→ Running Persisted mail grant and runtime tests...${NC}"
+npx ts-node --transpileOnly server/lib/mail-grants.test.ts > /tmp/clawmax-mail-grants.out 2>&1 || true
+if grep -q "Tests failed: 0" /tmp/clawmax-mail-grants.out; then
+  mail_grants_count=$(grep "Tests passed:" /tmp/clawmax-mail-grants.out | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Persisted mail grant and runtime tests (${mail_grants_count:-?} tests)"
+else
+  cat /tmp/clawmax-mail-grants.out
+  fail "Persisted mail grant and runtime tests"
 fi
 
 echo -e "${YELLOW}→ Running Production mail capability adapter tests...${NC}"

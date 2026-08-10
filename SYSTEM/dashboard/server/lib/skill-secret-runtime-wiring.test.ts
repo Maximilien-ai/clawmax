@@ -13,12 +13,15 @@ const compose = fs.readFileSync(path.resolve(root, '../..', 'docker-compose.yml'
 for (const [surface, source] of [['direct chat', chat], ['group/community chat', channels], ['workflow', workflows]] as const) {
   assert(source.includes('createBrokerCapabilityToken'), `${surface} should create a scoped broker capability`)
   assert(source.includes('CLAWMAX_SECRET_BROKER_TOKEN'), `${surface} should pass the capability to the agent child environment`)
+  assert(source.includes('CLAWMAX_MAIL_BROKER_TOKEN'), `${surface} should pass the same scoped capability to the mail runtime`)
+  assert(source.includes('CLAWMAX_MAIL_BROKER_URL'), `${surface} should expose the bounded mail runtime endpoint`)
   assert(source.includes('CLAWMAX_AGENT_ID'), `${surface} should bind execution to the current agent`)
 }
 
 assert(!safeEnv.match(/CLAWMAX_SECRET_MASTER_KEY\s*:/), 'safeEnv must never forward the encryption master key')
 assert(index.includes("app.use('/api/runtime/skill-broker', skillSecretBrokerRuntimeRouter)"), 'runtime broker route should be mounted separately from dashboard authentication')
 assert(index.includes("app.use('/api/skill-secret-broker', protect, skillSecretBrokerRouter)"), 'operator broker routes should require dashboard authentication')
+assert(index.includes("app.use('/api/runtime/mail', createMailRuntimeRouter())"), 'runtime mail route should use capability authentication separately from dashboard authentication')
 assert(compose.includes('CLAWMAX_SECRET_MASTER_KEY: ${CLAWMAX_SECRET_MASTER_KEY:-}'), 'compose should forward the operator master key explicitly')
 
-console.log('skill-secret-runtime-wiring.test.ts: 13 assertions passed')
+console.log('skill-secret-runtime-wiring.test.ts: 20 assertions passed')

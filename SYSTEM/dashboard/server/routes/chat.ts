@@ -662,6 +662,8 @@ router.post('/:id/chat', async (req, res) => {
   if (brokerCapability) {
     executionEnv.CLAWMAX_SECRET_BROKER_TOKEN = brokerCapability
     executionEnv.CLAWMAX_SECRET_BROKER_URL = `http://127.0.0.1:${process.env.DASHBOARD_PORT || '3001'}/api/runtime/skill-broker/execute`
+    executionEnv.CLAWMAX_MAIL_BROKER_TOKEN = brokerCapability
+    executionEnv.CLAWMAX_MAIL_BROKER_URL = `http://127.0.0.1:${process.env.DASHBOARD_PORT || '3001'}/api/runtime/mail`
   }
   const sessionSeed = sessionId || buildDashboardChatSeed(id, resolvedAgent.workspace)
 
