@@ -16,5 +16,11 @@ assert(source.includes('refreshMailOAuthConnection(provider, accountId)'), 'conn
 assert(source.includes('disconnectMailOAuthConnection(provider, accountId)'), 'connected accounts should support disconnect')
 assert(source.includes('CLAWMAX_SECRET_MASTER_KEY'), 'missing encrypted storage should identify the operator prerequisite')
 assert(source.includes('No account connected to this workspace.'), 'empty connected-account state should be explicit')
+assert(source.includes('loadMailGrantStatus()'), 'mail partner status should include persisted agent grants')
+assert(source.includes('createMailGrant({ agentId, provider, accountId, capabilities })'), 'operators should be able to authorize an agent for a connected account')
+assert(source.includes('revokeMailGrant(grantId)'), 'operators should be able to revoke agent mail access immediately')
+assert(source.includes('Assign the clawmax-mail skill'), 'mail authorization should explain the required agent skill')
+assert(source.includes('Read message bodies'), 'body access should be an explicit grant checkbox')
+assert(source.includes('Create unsent drafts'), 'draft creation should be an explicit grant checkbox')
 
-console.log('MailPartnerPanel.test.ts: 12 assertions passed')
+console.log('MailPartnerPanel.test.ts: 18 assertions passed')

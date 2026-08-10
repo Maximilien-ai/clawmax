@@ -11,11 +11,16 @@ import { formatOpenAiDeprecationNotice, formatOpenAiModelLabel, isSelectableLife
 import { PartnerLogo } from './PartnerLogo'
 import {
   beginMailOAuthConnection,
+  createMailGrant,
   disconnectMailOAuthConnection,
   isMailOAuthProvider,
+  loadMailGrantStatus,
   loadMailOAuthStatus,
+  MailCapability,
+  MailGrantStatus,
   MailOAuthStatus,
   refreshMailOAuthConnection,
+  revokeMailGrant,
 } from '../lib/mailOAuth'
 
 function maskKey(value: string) {
@@ -119,6 +124,14 @@ const CLOSE_INTEGRATIONS_WIZARDS_EVENT = 'clawmax-close-integrations-wizards'
 const DEFAULT_RESEND_TEST_FROM = 'agent@send.clawmax.ai'
 const DEFAULT_RESEND_TEST_FROM_NAME = 'ClawMax Agent'
 const DEFAULT_RESEND_TEST_SENDER = `${DEFAULT_RESEND_TEST_FROM_NAME} <${DEFAULT_RESEND_TEST_FROM}>`
+const DEFAULT_MAIL_GRANT_CAPABILITIES: MailCapability[] = ['mail.list', 'mail.search', 'mail.read.metadata']
+const MAIL_GRANT_CAPABILITY_OPTIONS: Array<{ id: MailCapability; label: string }> = [
+  { id: 'mail.list', label: 'List inbox' },
+  { id: 'mail.search', label: 'Search mail' },
+  { id: 'mail.read.metadata', label: 'Read metadata' },
+  { id: 'mail.read.body', label: 'Read message bodies' },
+  { id: 'mail.draft.create', label: 'Create unsent drafts' },
+]
 
 function mergePartnerMaps(base: PartnerValueMap, extra: PartnerValueMap): PartnerValueMap {
   const next: PartnerValueMap = { ...base }
@@ -268,6 +281,9 @@ export function ByokWizard({
   const [partnerPluginStatuses, setPartnerPluginStatuses] = useState<Record<string, PartnerPluginStatus>>({})
   const [partnerPluginRun, setPartnerPluginRun] = useState<PartnerPluginRun | null>(null)
   const [mailOAuthStatus, setMailOAuthStatus] = useState<MailOAuthStatus | null>(null)
+  const [mailGrantStatus, setMailGrantStatus] = useState<MailGrantStatus>({ grants: [], agents: [] })
+  const [mailGrantAgents, setMailGrantAgents] = useState<Record<string, string>>({})
+  const [mailGrantCapabilities, setMailGrantCapabilities] = useState<Record<string, MailCapability[]>>({})
   const [mailOAuthBusy, setMailOAuthBusy] = useState<string | null>(null)
   const [mailOAuthError, setMailOAuthError] = useState<string | null>(null)
   const mailOAuthPopupRef = useRef<Window | null>(null)
@@ -901,7 +917,9 @@ export function ByokWizard({
   const refreshMailStatus = React.useCallback(async () => {
     try {
       setMailOAuthError(null)
-      setMailOAuthStatus(await loadMailOAuthStatus())
+      const [oauthStatus, grantStatus] = await Promise.all([loadMailOAuthStatus(), loadMailGrantStatus()])
+      setMailOAuthStatus(oauthStatus)
+      setMailGrantStatus(grantStatus)
     } catch (error: any) {
       setMailOAuthStatus(null)
       setMailOAuthError(error?.message || 'Failed to load mail connection status')
@@ -975,6 +993,46 @@ export function ByokWizard({
       showSuccess('Mail account disconnected')
     } catch (error: any) {
       const message = error?.message || 'Failed to disconnect mail account'
+      setMailOAuthError(message)
+      showWarning(message)
+    } finally {
+      setMailOAuthBusy(null)
+    }
+  }
+
+  async function authorizeMailAgent(provider: 'gmail' | 'microsoft365', accountId: string) {
+    const key = `${provider}:${accountId}`
+    const eligibleAgents = mailGrantStatus.agents.filter((agent) => agent.skills.includes('clawmax-mail'))
+    const agentId = mailGrantAgents[key] || eligibleAgents[0]?.id || ''
+    const capabilities = mailGrantCapabilities[key] || DEFAULT_MAIL_GRANT_CAPABILITIES
+    if (!agentId) {
+      showWarning('Assign the clawmax-mail skill to an agent before authorizing mailbox access.')
+      return
+    }
+    setMailOAuthBusy(`${key}:grant`)
+    setMailOAuthError(null)
+    try {
+      await createMailGrant({ agentId, provider, accountId, capabilities })
+      await refreshMailStatus()
+      showSuccess('Agent mail access authorized')
+    } catch (error: any) {
+      const message = error?.message || 'Failed to authorize agent mail access'
+      setMailOAuthError(message)
+      showWarning(message)
+    } finally {
+      setMailOAuthBusy(null)
+    }
+  }
+
+  async function revokeAgentMailGrant(grantId: string) {
+    setMailOAuthBusy(`grant:${grantId}:revoke`)
+    setMailOAuthError(null)
+    try {
+      await revokeMailGrant(grantId)
+      await refreshMailStatus()
+      showSuccess('Agent mail access revoked')
+    } catch (error: any) {
+      const message = error?.message || 'Failed to revoke agent mail access'
       setMailOAuthError(message)
       showWarning(message)
     } finally {
@@ -2872,9 +2930,15 @@ export function ByokWizard({
                     )}
 
                     <div className="mt-3 space-y-2">
-                      {(currentMailProviderStatus?.connections || []).map((connection) => (
+                      {(currentMailProviderStatus?.connections || []).map((connection) => {
+                        const grantKey = `${currentPartner.slug}:${connection.accountId}`
+                        const eligibleAgents = mailGrantStatus.agents.filter((agent) => agent.skills.includes('clawmax-mail'))
+                        const activeGrants = mailGrantStatus.grants.filter((grant) =>
+                          !grant.revokedAt && grant.provider === currentPartner.slug && grant.accountId === connection.accountId)
+                        const selectedCapabilities = mailGrantCapabilities[grantKey] || DEFAULT_MAIL_GRANT_CAPABILITIES
+                        return (
                         <div key={connection.accountId} className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-gray-200 px-3 py-3 dark:border-gray-700">
-                          <div className="min-w-0">
+                          <div className="min-w-0 flex-1">
                             <div className="truncate font-medium text-gray-900 dark:text-gray-100">
                               {connection.accountEmail || 'Connected mail account'}
                             </div>
@@ -2886,7 +2950,7 @@ export function ByokWizard({
                               }`}>
                                 {connection.status === 'connected' ? 'Connected' : 'Reconnect required'}
                               </span>
-                              <span>{connection.scopes.length} delegated scopes</span>
+                              <span>{connection.capabilities.length} delegated capabilities</span>
                             </div>
                           </div>
                           <div className="flex flex-wrap gap-2">
@@ -2907,8 +2971,81 @@ export function ByokWizard({
                               {mailOAuthBusy === `${currentPartner.slug}:${connection.accountId}:disconnect` ? 'Disconnecting…' : 'Disconnect'}
                             </button>
                           </div>
+
+                          <div className="basis-full border-t border-gray-200 pt-3 dark:border-gray-700">
+                            <div className="font-medium text-gray-900 dark:text-gray-100">Agent access</div>
+                            {activeGrants.length > 0 ? (
+                              <div className="mt-2 space-y-2">
+                                {activeGrants.map((grant) => {
+                                  const agent = mailGrantStatus.agents.find((candidate) => candidate.id === grant.agentId)
+                                  return (
+                                    <div key={grant.id} className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                                      <div>
+                                        <span className="font-medium text-gray-800 dark:text-gray-200">{agent?.name || grant.agentId}</span>
+                                        <span className="ml-2 text-gray-500 dark:text-gray-400">{grant.capabilities.join(', ')}</span>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => void revokeAgentMailGrant(grant.id)}
+                                        disabled={mailOAuthBusy !== null}
+                                        className="rounded-md border border-red-300 px-3 py-1.5 font-medium text-red-700 hover:bg-red-50 disabled:opacity-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-900/20"
+                                      >
+                                        {mailOAuthBusy === `grant:${grant.id}:revoke` ? 'Revoking…' : 'Revoke'}
+                                      </button>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            ) : (
+                              <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">No agent is authorized for this account.</div>
+                            )}
+
+                            <div className="mt-3 flex flex-wrap items-end gap-3">
+                              <label className="min-w-48 flex-1 text-xs font-medium text-gray-700 dark:text-gray-300">
+                                Agent
+                                <select
+                                  value={mailGrantAgents[grantKey] || eligibleAgents[0]?.id || ''}
+                                  onChange={(event) => setMailGrantAgents((current) => ({ ...current, [grantKey]: event.target.value }))}
+                                  disabled={eligibleAgents.length === 0 || mailOAuthBusy !== null}
+                                  className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                                >
+                                  {eligibleAgents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name}</option>)}
+                                </select>
+                              </label>
+                              <button
+                                type="button"
+                                onClick={() => void authorizeMailAgent(currentPartner.slug, connection.accountId)}
+                                disabled={eligibleAgents.length === 0 || selectedCapabilities.length === 0 || mailOAuthBusy !== null}
+                                className="rounded-md bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                {mailOAuthBusy === `${grantKey}:grant` ? 'Authorizing…' : 'Authorize agent'}
+                              </button>
+                            </div>
+                            {eligibleAgents.length === 0 && (
+                              <div className="mt-2 text-xs text-amber-700 dark:text-amber-300">Assign the clawmax-mail skill from the agent Skills editor first.</div>
+                            )}
+                            <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2">
+                              {MAIL_GRANT_CAPABILITY_OPTIONS.filter((option) => connection.capabilities.includes(option.id)).map((option) => (
+                                <label key={option.id} className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedCapabilities.includes(option.id)}
+                                    onChange={(event) => setMailGrantCapabilities((current) => {
+                                      const prior = current[grantKey] || DEFAULT_MAIL_GRANT_CAPABILITIES
+                                      const next = event.target.checked
+                                        ? Array.from(new Set([...prior, option.id]))
+                                        : prior.filter((capability) => capability !== option.id)
+                                      return { ...current, [grantKey]: next }
+                                    })}
+                                  />
+                                  {option.label}
+                                </label>
+                              ))}
+                            </div>
+                          </div>
                         </div>
-                      ))}
+                        )
+                      })}
                       {currentMailProviderStatus?.configured && (currentMailProviderStatus.connections || []).length === 0 && (
                         <div className="rounded-md border border-dashed border-gray-300 px-3 py-4 text-center text-gray-500 dark:border-gray-700 dark:text-gray-400">
                           No account connected to this workspace.

@@ -3315,8 +3315,8 @@ fi
 
 echo -e "${YELLOW}→ Running Mail OAuth client helper tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/mailOAuth.test.ts > /tmp/clawmax-mail-oauth-client.out 2>&1 || true
-if grep -q "10 assertions passed" /tmp/clawmax-mail-oauth-client.out; then
-  pass "Mail OAuth client helper tests (10 tests)"
+if grep -q "16 assertions passed" /tmp/clawmax-mail-oauth-client.out; then
+  pass "Mail OAuth client helper tests (16 tests)"
 else
   cat /tmp/clawmax-mail-oauth-client.out
   fail "Mail OAuth client helper tests"
@@ -3324,8 +3324,8 @@ fi
 
 echo -e "${YELLOW}→ Running Mail partner panel regression tests...${NC}"
 npx ts-node --transpileOnly client/src/components/MailPartnerPanel.test.ts > /tmp/clawmax-mail-partner-panel.out 2>&1 || true
-if grep -q "12 assertions passed" /tmp/clawmax-mail-partner-panel.out; then
-  pass "Mail partner panel regression tests (12 tests)"
+if grep -q "18 assertions passed" /tmp/clawmax-mail-partner-panel.out; then
+  pass "Mail partner panel regression tests (18 tests)"
 else
   cat /tmp/clawmax-mail-partner-panel.out
   fail "Mail partner panel regression tests"

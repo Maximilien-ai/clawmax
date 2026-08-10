@@ -1,10 +1,13 @@
 import assert from 'assert'
 import {
   beginMailOAuthConnection,
+  createMailGrant,
   disconnectMailOAuthConnection,
   isMailOAuthProvider,
+  loadMailGrantStatus,
   loadMailOAuthStatus,
   refreshMailOAuthConnection,
+  revokeMailGrant,
 } from './mailOAuth'
 
 const originalFetch = globalThis.fetch
@@ -41,7 +44,23 @@ async function run() {
   assert(calls[3].url.includes('ms%3Aaccount'))
   assert.strictEqual(calls[3].init?.method, 'DELETE')
 
-  console.log('mailOAuth.test.ts: 10 assertions passed')
+  await loadMailGrantStatus()
+  assert.strictEqual(calls[4].url, '/api/mail/oauth/grants')
+
+  await createMailGrant({
+    agentId: 'mail-agent', provider: 'gmail', accountId: 'gmail-account', capabilities: ['mail.list'],
+  })
+  assert.strictEqual(calls[5].url, '/api/mail/oauth/grants')
+  assert.strictEqual(calls[5].init?.method, 'POST')
+  assert.deepStrictEqual(JSON.parse(`${calls[5].init?.body}`), {
+    agentId: 'mail-agent', provider: 'gmail', accountId: 'gmail-account', capabilities: ['mail.list'],
+  })
+
+  await revokeMailGrant('grant/id with spaces')
+  assert(calls[6].url.endsWith('/grant%2Fid%20with%20spaces'))
+  assert.strictEqual(calls[6].init?.method, 'DELETE')
+
+  console.log('mailOAuth.test.ts: 16 assertions passed')
 }
 
 run().finally(() => {
