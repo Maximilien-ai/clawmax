@@ -13,6 +13,11 @@
   product behavior, tests, documentation, and release metadata when they can
   be reviewed or reverted independently. Push each focused commit so CI
   identifies the exact change that introduced or fixed a failure.
+- Commit and push as soon as one coherent, directly tested concern is complete.
+  Do not accumulate multiple independently reviewable concerns in the working
+  tree, and do not start the full suite, an image build, or release CI with
+  completed implementation work still uncommitted. If later validation finds a
+  defect, fix it in a new focused commit and push that checkpoint separately.
 
 ## Repository Ownership
 
