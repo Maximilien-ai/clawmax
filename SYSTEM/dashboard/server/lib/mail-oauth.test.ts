@@ -10,6 +10,7 @@ import {
   createPkcePair,
   disconnectMailOAuth,
   getMailOAuthStatus,
+  getMailOAuthAccessToken,
   listMailOAuthConnections,
   MailOAuthProviderAdapter,
   refreshMailOAuth,
@@ -256,6 +257,27 @@ async function run() {
       .find((entry) => entry.accountId === 'expired-account')
     assert.strictEqual(connection?.status, 'expired')
     assert.strictEqual(connection?.reconnectRequired, true)
+  })
+
+  await test('runtime access refreshes a near-expiry token without returning it in status', async () => {
+    const now = Date.parse('2026-07-25T12:00:00.000Z')
+    const nearExpiry = createFakeMailOAuthProvider('gmail', {
+      accountId: 'near-expiry-account',
+      expiresAt: new Date(now + 30_000).toISOString(),
+    })
+    const result = beginMailOAuth({
+      provider: 'gmail', actorId: 'owner@example.test', scopes: ['mail.list'], adapter: nearExpiry, workspacePath: workspace, now,
+    })
+    await completeMailOAuth({
+      provider: 'gmail', actorId: 'owner@example.test', state: flowState(result.authorizationUrl), code: 'near-expiry-code',
+      adapter: nearExpiry, workspacePath: workspace, now,
+    })
+    const accessToken = await getMailOAuthAccessToken({
+      provider: 'gmail', accountId: 'near-expiry-account', actorId: 'agent:mail-agent', adapter: nearExpiry, workspacePath: workspace, now,
+    })
+    assert.strictEqual(accessToken, 'gmail-refreshed-access-token')
+    assert.strictEqual(nearExpiry.refreshedTokens.length, 1)
+    assert(!JSON.stringify(listMailOAuthConnections(workspace, now)).includes(accessToken))
   })
 
   await test('disconnect revokes provider credentials before deleting metadata', async () => {
