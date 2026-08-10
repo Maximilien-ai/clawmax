@@ -2,8 +2,8 @@
 
 **Current Version**: v1.9.9
 **Development Line**: 2.0.0
-**Last Updated**: August 9, 2026
-**Status**: `v1.9.9` remains stable. `main` is in the August 10-14 release window for `2.0.0`, starting from the accepted RC34 source and image evidence.
+**Last Updated**: August 10, 2026
+**Status**: `v1.9.9` remains stable. `main` has a green RC35 source, CI, and multi-architecture image candidate for the August 10-14 `2.0.0` release window.
 
 ---
 
@@ -19,7 +19,7 @@
 - Local test runs and test images enable synthetic plugin fixtures. RC7 adds the cumulative public Review checklist, plugin layout parity, mobile navigation containment, and local plugin enablement. Stable image promotion clears non-product test fixtures.
 - The current development tree includes browser-persisted plugin ordering, an instance plugin manager, persistent per-plugin views, release-review export, richer Lifecycle X-rays, AI creation handoffs, shared AI editor regression coverage, workspace dashboard editing, and consent-aware activity-sharing controls.
 - Lifecycle and Review are the public product plugins in the current 2.0 phase. Evals, Guardrails, and Optimize are private enterprise plugins. Public and private plugins use the same host contract. First-party private plugin source and combined-image packaging are consolidated in the private `clawmax-plugins` monorepo; partner or customer plugins may remain separately owned. Private source remains outside the public repository and image. The public `plugin-*` directories are synthetic contract fixtures only.
-- Gmail and Microsoft 365 now have bounded list/search/read/draft capabilities, encrypted OAuth persistence, production identity adapters, a Partner connect/manage surface, and draft-only Gmail/Graph mailbox adapters. Raw scopes and header injection fail closed; no send operation is exposed. Persisted agent/plugin grants, runtime invocation, and test-account/container validation remain pending.
+- Gmail and Microsoft 365 now have bounded list/search/read/draft capabilities, encrypted OAuth persistence, production identity adapters, persisted agent/plugin grants, runtime invocation, a Partner connect/manage surface, and draft-only Gmail/Graph mailbox adapters. Raw scopes and header injection fail closed; no send operation is exposed. Automated fake-OAuth, runtime, UI, and container validation is green; real-provider test-account validation remains pending.
 
 ## Active Release Tracks
 
@@ -34,9 +34,9 @@
 ### 2.0.0 development
 
 - Branch: `main`
-- Current source candidate: `2.0.0-test-rc34` at public source `8ace060c`. Public CI and the public amd64/arm64 image gate are green. The authorized combined amd64/arm64 image gate is also green against the exact RC34 public base.
-- Next hands-on review candidate: `2.0.0-test-rc35`. Its focused Review set is prepared for the August 10 product-completion pass; RC35 must be built from the post-cleanup source and earn its own local and image evidence before promotion.
-- The latest accepted local integration, validation, and coverage gate passed `441/441`. Retained coverage is `80.16%` statements/lines, `68.67%` branches, and `90.38%` functions.
+- Current source candidate: `2.0.0-test-rc35` at public source `83c01002`. Public CI and the public amd64/arm64 build, version, manifest, and registry-smoke gates are green. The authorized combined amd64/arm64 image gate is also green against the exact RC35 public base.
+- Hands-on review candidate: `2.0.0-test-rc35`. Its focused Review set is ready for the August 10 product-completion pass. Promotion still requires the completed hands-on Review record and the remaining release-week runtime/security evidence.
+- The latest accepted local integration, validation, and coverage gate passed `443/443`. Retained coverage is `80.23%` statements/lines, `68.62%` branches, and `90.49%` functions.
 - Release week plan: [RELEASE_2_0_0_WEEK_2026-08-10.md](planning/RELEASE_2_0_0_WEEK_2026-08-10.md). Final promotion still requires the security exit criteria, product-plugin acceptance, cloud/on-prem restart/runtime checks, a final immutable multi-architecture candidate, and a completed Review export.
 - Architecture: [Plugin System 2.0](../../PLUGINS/PLUGIN_SYSTEM_2_0.md)
 - Authoring contract: [Plugin Authoring 2.0](../../PLUGINS/PLUGIN_AUTHORING_2_0.md)
