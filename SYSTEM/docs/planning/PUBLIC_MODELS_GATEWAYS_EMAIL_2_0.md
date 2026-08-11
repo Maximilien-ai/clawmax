@@ -2,8 +2,8 @@
 
 > Status: OpenRouter and runtime-gated xAI shipped in `v1.9.9`; public mail capability and OAuth storage foundations implemented
 > Release target: `2.0.0` public partner plugins
-> Runtime baseline under test: OpenClaw `v2026.6.11`
-> Last updated: July 25, 2026
+> Runtime baseline under test: OpenClaw `v2026.6.34`
+> Last updated: August 11, 2026
 
 ## Decision Summary
 
@@ -22,7 +22,7 @@ All work in this plan is public.
 
 xAI exposes an API-key-authenticated API at `https://api.x.ai/v1`, an authenticated model catalog, Chat Completions and Responses APIs, function calling, structured output, and current Grok models. OpenClaw also documents a native `xai/<model>` provider and `XAI_API_KEY`/OAuth authentication.
 
-Grok 4.5 was published after the pinned OpenClaw baseline. A direct `v2026.6.11` catalog probe confirms native xAI provider support but does not advertise `xai/grok-4.5`. ClawMax therefore ships the native provider with a runtime-proven fallback catalog and hides Grok 4.5 until a separately validated OpenClaw update can resolve and execute it. The RC does not silently change the runtime baseline.
+Grok 4.5 was published after the original OpenClaw baseline. A direct `v2026.6.34` catalog probe confirms native xAI provider support but still does not advertise `xai/grok-4.5`. ClawMax therefore ships the native provider with a runtime-proven fallback catalog and hides Grok 4.5 until a separately validated OpenClaw update can resolve and execute it.
 
 Primary references:
 
