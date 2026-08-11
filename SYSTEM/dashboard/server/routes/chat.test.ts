@@ -6,6 +6,7 @@
 
 import {
   buildManagedResendDispatch,
+  buildDashboardChatRetrySeed,
   buildManagedSecretStatelessChatMessage,
   deriveChatError,
   hasByokExecutionPathForProvider,
@@ -15,6 +16,7 @@ import {
   shouldRecoverPersistedAssistant,
   shouldAttemptManagedResendDispatch,
   shouldUseLocalChatExecution,
+  throwIfChatAttemptNeedsSessionRetry,
 } from './chat'
 import fs from 'fs'
 import os from 'os'
@@ -156,7 +158,51 @@ test('deriveChatError hides embedded session takeover internals', () => {
     'openai'
   )
   assert(/embedded session conflict/i.test(message), 'Expected friendly embedded-session conflict summary')
+  assert(/already retried once with a fresh chat session/i.test(message), 'Expected automatic recovery guidance')
   assert(!message.includes('/Users/maximilien'), 'Expected local session path to be hidden')
+})
+
+test('chat session conflicts retry with a fresh session only before visible output', () => {
+  const sessionSeed = 'agent:ceo:dashboard-chat'
+  assert(buildDashboardChatRetrySeed(sessionSeed, 0) === sessionSeed, 'Expected initial chat session to remain stable')
+  assert(
+    buildDashboardChatRetrySeed(sessionSeed, 1) === 'agent-ceo-dashboard-chat-recovery-1',
+    'Expected recovery attempt to use a fresh chat session',
+  )
+  assert(
+    buildDashboardChatRetrySeed(`${sessionSeed}-recovery-1`, 1).length <= 48,
+    'Expected repeated recovery seeds to stay within OpenClaw session key limits',
+  )
+
+  let retryRequested = false
+  try {
+    throwIfChatAttemptNeedsSessionRetry({
+      completionText: '',
+      hadVisibleOutput: false,
+      rawError: 'EmbeddedAttemptSessionTakeoverError: session file changed while embedded prompt lock was released',
+    })
+  } catch {
+    retryRequested = true
+  }
+  assert(retryRequested, 'Expected an empty session-conflict attempt to request automatic recovery')
+
+  throwIfChatAttemptNeedsSessionRetry({
+    completionText: 'Partial answer already shown',
+    hadVisibleOutput: true,
+    rawError: 'EmbeddedAttemptSessionTakeoverError: session file changed while embedded prompt lock was released',
+  })
+
+  let stalePersistedReplyRetried = false
+  try {
+    throwIfChatAttemptNeedsSessionRetry({
+      completionText: 'Reply recovered from an earlier persisted turn',
+      hadVisibleOutput: false,
+      rawError: 'EmbeddedAttemptSessionTakeoverError: session file changed while embedded prompt lock was released',
+    })
+  } catch {
+    stalePersistedReplyRetried = true
+  }
+  assert(stalePersistedReplyRetried, 'Expected persisted text not to mask a current session conflict')
 })
 
 test('deriveChatError explains incomplete tool turns without implying no work occurred', () => {

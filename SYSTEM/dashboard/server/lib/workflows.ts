@@ -2136,6 +2136,7 @@ export function triggerWorkflow(workflowId: string, options?: {
               return await executeAttempt(fallbackModel, fallbackProvider)
             }
           }, {
+            maxSessionLockRetries: 1,
             onSessionLockRetry: (attempt) => {
               workflowSessionRetryAttempt = attempt + 1
               const sessionId = buildWorkflowRetrySessionId(executionId, participant.agentId, workflowSessionRetryAttempt)

@@ -2,7 +2,7 @@ import { useEffect, useState, useRef, useCallback, type ChangeEvent } from 'reac
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { byokForRequest, hasChatExecutionAccess, readStoredByokKeys } from '../lib/byok'
-import { buildPersistentDashboardChatSessionId } from '../lib/agentChatSession'
+import { buildPersistentDashboardChatSessionId, resolveDashboardChatSessionId } from '../lib/agentChatSession'
 import { buildAgentChatTimelineRows, shouldShowCalendarDate } from '../lib/agentChatTimeline'
 import { getAgentChatCodeBlockClassName, getAgentChatInlineCodeClassName, getAgentChatLinkClassName, type AgentChatMarkdownRole } from '../lib/agentChatMarkdown'
 import { ProductIconCell } from '../lib/productIcons'
@@ -623,7 +623,9 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
           try {
             const data = JSON.parse(line.slice(6))
 
-            if (data.type === 'delta') {
+            if (data.type === 'start') {
+              setSessionId(current => resolveDashboardChatSessionId(current, data))
+            } else if (data.type === 'delta') {
               // Append delta to assistant message
               setMessages(prev => prev.map(m =>
                 m.id === assistantId
