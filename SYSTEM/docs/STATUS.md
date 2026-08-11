@@ -35,6 +35,7 @@
 
 - Branch: `main`
 - Current source candidate: `2.0.0-test-rc36` at public source `c806cec1`. PR and post-merge CI passed; the public amd64/arm64 build, packaged identity, manifest, and registry smoke are green. The authorized combined amd64/arm64 validation, privacy, discovery, and live-smoke gates are also green against the exact RC36 public base.
+- Post-RC36 on-prem finding: public source `6be670b5` adds one bounded fresh-session retry for OpenClaw embedded session conflicts in chat and workflows, plus client retention of the recovered chat session. Focused chat, agent-execution, workflow, route, TypeScript, and production-build checks pass. This commit is not in the published RC36 image and must be carried into and revalidated in the next candidate.
 - Hands-on review candidate: `2.0.0-test-rc36`. Its 19-check focused Review set retains RC35 product-completion coverage and adds explicit OpenClaw runtime and plugin-owned skill validation. Promotion still requires the completed hands-on Review record and the remaining release-week runtime/security evidence.
 - RC36 runtime: OpenClaw `v2026.6.34` is integrated on `main`. The full local integration, validation, coverage, and live-execution gate passed `443/443`, and the source plus image gates passed on both architectures.
 - The latest RC36 local gate retained `80.25%` statements/lines, `68.64%` branches, and `90.50%` functions.
