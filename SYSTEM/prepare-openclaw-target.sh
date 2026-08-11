@@ -48,6 +48,28 @@ run_pnpm() {
   exit 1
 }
 
+ensure_pnpm_on_path() {
+  local shim_dir="$1"
+
+  if command -v pnpm >/dev/null 2>&1; then
+    return 0
+  fi
+
+  if ! command -v corepack >/dev/null 2>&1; then
+    echo "pnpm or corepack is required to prepare OpenClaw ${CLAWMAX_OPENCLAW_TARGET}" >&2
+    exit 1
+  fi
+
+  mkdir -p "$shim_dir"
+  cat >"${shim_dir}/pnpm" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+exec corepack pnpm "$@"
+EOF
+  chmod +x "${shim_dir}/pnpm"
+  export PATH="${shim_dir}:${PATH}"
+}
+
 sanitize_ref() {
   printf '%s' "$1" | tr '/:@' '---'
 }
@@ -89,6 +111,7 @@ prepare_checkout() {
   if [ ! -f "${src_dir}/dist/index.js" ] || [ ! -f "$prepared_stamp" ] || [ "$(cat "$prepared_stamp" 2>/dev/null || true)" != "$current_commit" ]; then
     (
       cd "$src_dir"
+      ensure_pnpm_on_path "${work_root}/bin"
       run_pnpm install --frozen-lockfile --ignore-scripts >&2
       run_pnpm run build:docker >&2
       node "$SCRIPT_DIR/patch-openclaw-fs-safe.mjs" "$src_dir" >&2

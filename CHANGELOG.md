@@ -7,7 +7,7 @@ All notable changes to ClawMax are documented here.
 ### RC36
 - **OpenClaw `v2026.6.34` candidate** — the 2.0 development line now pins OpenClaw's extended-stable security and reliability release. The isolated source gate passed `443/443`, including live chat, workflow execution, DAG progression, skills, Gateway compatibility, validation, and coverage; CI and image promotion remain the final release gates.
 - **Plugin-owned OpenClaw skills** — bundled skill discovery now follows skill roots declared by OpenClaw extension manifests, preserving Slack, Discord, Canvas, Voice Call, and WhatsApp after their upstream package move while rejecting manifest path traversal and symlink escape.
-- **Fail-closed OpenClaw preparation** — target preparation no longer reports success after a failed clone or build, and a regression test covers the failure path.
+- **Portable OpenClaw preparation** — target preparation no longer reports success after a failed clone or build, and corepack-only CI environments expose a scoped `pnpm` shim to nested upstream build steps. Dynamic regressions cover both paths.
 
 ### RC34
 - **Release candidate validation** — RC34 passed the accepted `441/441` local integration, validation, and coverage gate plus public and authorized combined amd64/arm64 image publication and registry smoke.
