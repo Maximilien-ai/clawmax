@@ -2,14 +2,14 @@
 
 **Current Version**: v1.9.9
 **Development Line**: 2.0.0
-**Last Updated**: August 10, 2026
-**Status**: `v1.9.9` remains stable. `main` has a green RC35 source, CI, and multi-architecture image candidate for the August 10-14 `2.0.0` release window.
+**Last Updated**: August 11, 2026
+**Status**: `v1.9.9` remains stable. The RC36 test branch has passed the complete local gate with OpenClaw `v2026.6.34`; CI and image validation remain before integration and promotion.
 
 ---
 
 ## Current State
 
-- Dashboard, CI, container images, cloud, and on-prem paths use the tested OpenClaw `v2026.6.11` baseline.
+- Stable `v1.9.9` deployments use OpenClaw `v2026.6.11`. The 2.0 RC36 source candidate uses the isolated and locally validated OpenClaw `v2026.6.34` baseline.
 - `v1.9.9` includes native OpenRouter and xAI/Grok, brokered agent-skill secrets, scoped Keys & Secrets navigation, mobile-safe workflow runs, pinned OpenAI model compatibility, and clearer long-running tool feedback.
 - The latest 1.9.9 local integration/validation run passed `401/401`, with `78.29%` statements/lines, `68.15%` branches, and `89.15%` functions. Direct chat and workflow execution completed through `openai/gpt-5.4-mini`.
 - The promoted image passed amd64 and arm64 verification, manifest publication, and registry smoke.
@@ -36,7 +36,8 @@
 - Branch: `main`
 - Current source candidate: `2.0.0-test-rc35` at public source `83c01002`. Public CI and the public amd64/arm64 build, version, manifest, and registry-smoke gates are green. The authorized combined amd64/arm64 image gate is also green against the exact RC35 public base.
 - Hands-on review candidate: `2.0.0-test-rc35`. Its focused Review set is ready for the August 10 product-completion pass. Promotion still requires the completed hands-on Review record and the remaining release-week runtime/security evidence.
-- The latest accepted local integration, validation, and coverage gate passed `443/443`. Retained coverage is `80.23%` statements/lines, `68.62%` branches, and `90.49%` functions.
+- RC36 runtime candidate: branch `test/openclaw-v2026.6.34-rc36` pins OpenClaw `v2026.6.34`. Its full local integration, validation, coverage, and live-execution gate passed `443/443`; CI and immutable image gates remain pending.
+- The latest RC36 local gate retained `80.25%` statements/lines, `68.64%` branches, and `90.50%` functions.
 - Release week plan: [RELEASE_2_0_0_WEEK_2026-08-10.md](planning/RELEASE_2_0_0_WEEK_2026-08-10.md). Final promotion still requires the security exit criteria, product-plugin acceptance, cloud/on-prem restart/runtime checks, a final immutable multi-architecture candidate, and a completed Review export.
 - Architecture: [Plugin System 2.0](../../PLUGINS/PLUGIN_SYSTEM_2_0.md)
 - Authoring contract: [Plugin Authoring 2.0](../../PLUGINS/PLUGIN_AUTHORING_2_0.md)

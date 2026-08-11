@@ -13,7 +13,7 @@ partners, plugins, schemas, and the OpenClaw patch alongside the dashboard.
 ```sh
 docker build -f Dockerfile \
   --build-arg CLAWMAX_VERSION=2.0.0-test-rcN \
-  --build-arg OPENCLAW_GIT_REF=v2026.6.11 \
+  --build-arg OPENCLAW_GIT_REF=v2026.6.34 \
   --build-arg CLAWMAX_ENABLED_PLUGINS= \
   -t clawmax-dashboard:local .
 ```
@@ -87,4 +87,3 @@ from the root `Dockerfile`, then checking:
 4. The entrypoint starts the dashboard and gateway without a generated
    replacement entrypoint.
 5. The expected plugin payload is discoverable under `/app/PLUGINS`.
-

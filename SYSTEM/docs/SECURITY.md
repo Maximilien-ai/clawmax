@@ -255,8 +255,8 @@ ClawMax Dashboard implements OpenClaw Gateway Protocol Version 4:
 ## Upgrading OpenClaw for Security
 
 ### Current Status
-- **Dashboard:** v1.9.9
-- **OpenClaw:** Pinned release baseline `v2026.6.11`
+- **Stable dashboard:** v1.9.9 with OpenClaw `v2026.6.11`
+- **2.0 development candidate:** OpenClaw `v2026.6.34`
 - **Gateway Protocol:** v4
 
 ### Upgrade Process
