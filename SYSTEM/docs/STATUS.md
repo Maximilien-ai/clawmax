@@ -34,11 +34,11 @@
 ### 2.0.0 development
 
 - Branch: `main`
-- Current source candidate: `2.0.0-test-rc37`. Public source selection, full local validation, and public/private image gates are in progress.
+- Current source candidate: `2.0.0-test-rc37` at public source `156a82ab`. Main CI and the full local integration, validation, coverage, and live-execution gate passed `443/443`. The public amd64/arm64 build, packaged identity, manifest, and registry smoke passed in [run 31532184904](https://github.com/Maximilien-ai/clawmax/actions/runs/31532184904). The authorized combined image also passed its private multi-architecture acceptance gates; detailed evidence remains in the private repository.
 - RC37 recovery: public source `6be670b5` adds one bounded fresh-session retry for OpenClaw embedded session conflicts in chat and workflows, plus client retention of the recovered chat session. Focused chat, agent-execution, workflow, route, TypeScript, and production-build checks pass.
 - Hands-on review candidate: `2.0.0-test-rc37`. Its 20-check focused Review set retains RC36 coverage and adds explicit upgrade-session recovery validation. Promotion still requires the completed hands-on Review record and the remaining release-week runtime/security evidence.
-- RC36 runtime: OpenClaw `v2026.6.34` is integrated on `main`. The full local integration, validation, coverage, and live-execution gate passed `443/443`, and the source plus image gates passed on both architectures.
-- The latest RC36 local gate retained `80.25%` statements/lines, `68.64%` branches, and `90.50%` functions.
+- RC37 runtime: OpenClaw `v2026.6.34` remains integrated on `main`. The source and image gates passed on both architectures with automatic embedded-session recovery enabled.
+- The RC37 local gate retained `80.24%` statements/lines, `68.65%` branches, and `90.41%` functions.
 - Release week plan: [RELEASE_2_0_0_WEEK_2026-08-10.md](planning/RELEASE_2_0_0_WEEK_2026-08-10.md). Final promotion still requires the security exit criteria, product-plugin acceptance, cloud/on-prem restart/runtime checks, a final immutable multi-architecture candidate, and a completed Review export.
 - Architecture: [Plugin System 2.0](../../PLUGINS/PLUGIN_SYSTEM_2_0.md)
 - Authoring contract: [Plugin Authoring 2.0](../../PLUGINS/PLUGIN_AUTHORING_2_0.md)
