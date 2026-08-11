@@ -7,6 +7,8 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 . "$SCRIPT_DIR/openclaw-version.sh"
 
+PREPARED_WORK_ROOT=""
+
 usage() {
   cat <<'EOF'
 Usage: ./SYSTEM/prepare-openclaw-target.sh [--print-bin|--print-skills-dir]
@@ -105,7 +107,7 @@ exec node "$src_dir/openclaw.mjs" "\$@"
 EOF
   chmod +x "${work_root}/bin/openclaw"
 
-  printf '%s\n' "$work_root"
+  PREPARED_WORK_ROOT="$work_root"
 }
 
 main() {
@@ -117,7 +119,8 @@ main() {
       ;;
   esac
 
-  work_root="$(prepare_checkout)"
+  prepare_checkout
+  work_root="$PREPARED_WORK_ROOT"
 
   case "${1:-}" in
     --print-bin)
