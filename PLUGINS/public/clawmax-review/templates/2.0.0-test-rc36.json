@@ -1,9 +1,9 @@
 {
-  "release": "2.0.0-test-rc35",
-  "description": "Focused hands-on review for RC35, retaining outstanding Lifecycle and AI generation checks and adding explicit AI Create handoffs, shared AI editing, target visibility, and activity-sharing revocation.",
+  "release": "2.0.0-test-rc36",
+  "description": "Focused hands-on review for RC36, retaining outstanding Lifecycle, AI generation, target visibility, and activity-sharing checks while adding the OpenClaw v2026.6.34 runtime upgrade.",
   "defaults": {
     "enabled": true,
-    "tags": ["release", "current", "2.0.0-test-rc35"],
+    "tags": ["release", "current", "2.0.0-test-rc36"],
     "fields": {
       "completed": false,
       "outcome": "pending",
@@ -133,11 +133,18 @@
       "fields": {"area": "regression", "notes": ""}
     },
     {
-      "id": "rc35-runtime-identity-and-restart",
-      "name": "RC35 identity and state survive restart",
-      "description": "Test: Start the exact RC35 image, check the dashboard and /api/system, create representative plugin and Builder state, restart the instance, and reopen the workspace. Pass: Both version surfaces report 2.0.0-test-rc35, health returns HTTP 200, intended public plugins load, state survives restart, and unavailable external plugins do not break core navigation.",
+      "id": "rc36-runtime-identity-and-restart",
+      "name": "RC36 identity and state survive restart",
+      "description": "Test: Start the exact RC36 image, check the dashboard and /api/system, create representative plugin and Builder state, restart the instance, and reopen the workspace. Pass: Both version surfaces report 2.0.0-test-rc36, health returns HTTP 200, intended public plugins load, state survives restart, and unavailable external plugins do not break core navigation.",
       "tags": ["release", "identity", "restart", "persistence"],
       "fields": {"area": "identity", "notes": ""}
+    },
+    {
+      "id": "rc36-openclaw-runtime-and-skills",
+      "name": "OpenClaw runtime and plugin-owned skills match RC36",
+      "description": "Test: In the exact RC36 image, run openclaw --version, open Skills, validate github, slack, and notion, then complete one agent chat and workflow. Pass: OpenClaw reports 2026.6.34, the catalog contains more than 40 skills including plugin-owned Slack, Discord, Canvas, Voice Call, and WhatsApp entries, validation succeeds, and chat plus workflow execution complete.",
+      "tags": ["release", "openclaw", "skills", "chat", "workflows"],
+      "fields": {"area": "runtime", "notes": ""}
     }
   ]
 }

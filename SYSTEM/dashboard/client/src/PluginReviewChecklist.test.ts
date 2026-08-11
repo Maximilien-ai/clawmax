@@ -10,7 +10,7 @@ const checklists = checklistFiles.map((file) => JSON.parse(fs.readFileSync(path.
 const checklistByRelease = new Map(checklists.map((checklist) => [checklist.release, checklist]))
 const stableChecklist = checklistByRelease.get('1.9.9 regression')
 const previousChecklist = checklistByRelease.get('2.0.0 previous RCs')
-const currentChecklist = checklistByRelease.get('2.0.0-test-rc35')
+const currentChecklist = checklistByRelease.get('2.0.0-test-rc36')
 const allItems = checklists.flatMap((checklist) => checklist.items)
 
 function assert(condition: boolean, message: string) {
@@ -25,8 +25,8 @@ assert(manifest.ui.list.groupBy === 'release', 'Review records must be compartme
 assert(manifest.ui.list.checkField === 'completed', 'Review records must declare their completion checkbox')
 assert(manifest.recordSchema.properties.verifiedBy?.type === 'array', 'Review records must support aggregated prior tester confirmation')
 assert(checklistFiles.length === 3, 'Review must expose stable, cumulative, and current release sets')
-assert(JSON.stringify(Array.from(checklistByRelease.keys()).sort()) === JSON.stringify(['1.9.9 regression', '2.0.0 previous RCs', '2.0.0-test-rc35']), 'Review set names must be stable and unambiguous')
-assert(currentChecklist?.items.length === 18, 'Current RC35 must retain outstanding Lifecycle and AI generation checks plus focused RC35 checks')
+assert(JSON.stringify(Array.from(checklistByRelease.keys()).sort()) === JSON.stringify(['1.9.9 regression', '2.0.0 previous RCs', '2.0.0-test-rc36']), 'Review set names must be stable and unambiguous')
+assert(currentChecklist?.items.length === 19, 'Current RC36 must retain outstanding RC35 checks and add OpenClaw upgrade coverage')
 assert(previousChecklist?.items.length === 72, 'Unconfirmed earlier 2.0 checks through RC24 must remain in the cumulative set')
 assert(stableChecklist?.items.length === 14, 'The retained 1.9.9 regression set must contain fourteen end-to-end checks')
 assert(new Set(allItems.map((item: any) => item.id)).size === allItems.length, 'Checklist item IDs must not duplicate across review sets')
@@ -48,7 +48,8 @@ assert(currentChecklist?.items.some((item: any) => item.id === 'rc35-lifecycle-t
 assert(currentChecklist?.items.some((item: any) => item.id === 'rc35-plugin-target-summary'), 'Current RC must verify target summaries for active plugin records')
 assert(currentChecklist?.items.some((item: any) => item.id === 'rc35-activity-sharing-pill-revoke'), 'Current RC must verify activity-sharing pill revocation')
 assert(currentChecklist?.items.some((item: any) => item.id === 'rc35-partner-sharing-revoke'), 'Current RC must verify per-destination Partner revocation')
-assert(currentChecklist?.items.some((item: any) => item.id === 'rc35-runtime-identity-and-restart'), 'Current RC must verify RC35 identity and restart persistence')
+assert(currentChecklist?.items.some((item: any) => item.id === 'rc36-runtime-identity-and-restart'), 'Current RC must verify RC36 identity and restart persistence')
+assert(currentChecklist?.items.some((item: any) => item.id === 'rc36-openclaw-runtime-and-skills'), 'Current RC must verify the OpenClaw runtime and plugin-owned skill catalog')
 assert(previousChecklist?.items.some((item: any) => item.id === 'rc24-private-cloud-bundle'), 'Cumulative checks must retain RC24 private bundle coverage')
 assert(previousChecklist?.items.some((item: any) => item.id === 'rc24-relationship-zoom'), 'Cumulative checks must retain RC24 relationship zoom')
 assert(previousChecklist?.items.some((item: any) => item.id === 'rc24-plugin-compound-discovery'), 'Cumulative checks must retain RC24 compound discovery')
@@ -127,6 +128,6 @@ assert(pageSource.includes("kind === 'onprem' ? 'On-prem'"), 'Review export must
 assert(pageSource.includes("item.description.match(/^Test:"), 'Review rows must separate actions from expected pass results')
 assert(pageSource.includes('[overflow-wrap:anywhere]'), 'Review instructions and notes must wrap long evidence safely on narrow screens')
 assert(pageSource.includes('Previously verified by {verifiedBy.join'), 'Review rows must identify aggregated prior confirmations')
-assert(pageSource.includes("return ['1.9.9', '2.0.0', '2.0.0-test-rc35'].filter"), 'Review filters must stay limited to the three release families')
+assert(pageSource.includes("return ['1.9.9', '2.0.0', '2.0.0-test-rc36'].filter"), 'Review filters must stay limited to the three release families')
 
-console.log('PluginReviewChecklist.test.ts: 91 tests passed')
+console.log('PluginReviewChecklist.test.ts: 92 tests passed')
