@@ -3,7 +3,7 @@
 **Current Version**: v1.9.9
 **Development Line**: 2.0.0
 **Last Updated**: August 11, 2026
-**Status**: `v1.9.9` remains stable. The RC36 test branch has passed the complete local gate with OpenClaw `v2026.6.34`; CI and image validation remain before integration and promotion.
+**Status**: `v1.9.9` remains stable. `2.0.0-test-rc36` is the green source, public image, and authorized combined-image candidate with OpenClaw `v2026.6.34`.
 
 ---
 
@@ -34,9 +34,9 @@
 ### 2.0.0 development
 
 - Branch: `main`
-- Current source candidate: `2.0.0-test-rc35` at public source `83c01002`. Public CI and the public amd64/arm64 build, version, manifest, and registry-smoke gates are green. The authorized combined amd64/arm64 image gate is also green against the exact RC35 public base.
-- Hands-on review candidate: `2.0.0-test-rc35`. Its focused Review set is ready for the August 10 product-completion pass. Promotion still requires the completed hands-on Review record and the remaining release-week runtime/security evidence.
-- RC36 runtime candidate: branch `test/openclaw-v2026.6.34-rc36` pins OpenClaw `v2026.6.34`. Its full local integration, validation, coverage, and live-execution gate passed `443/443`; CI and immutable image gates remain pending.
+- Current source candidate: `2.0.0-test-rc36` at public source `c806cec1`. PR and post-merge CI passed; the public amd64/arm64 build, packaged identity, manifest, and registry smoke are green. The authorized combined amd64/arm64 validation, privacy, discovery, and live-smoke gates are also green against the exact RC36 public base.
+- Hands-on review candidate: `2.0.0-test-rc36`. Its 19-check focused Review set retains RC35 product-completion coverage and adds explicit OpenClaw runtime and plugin-owned skill validation. Promotion still requires the completed hands-on Review record and the remaining release-week runtime/security evidence.
+- RC36 runtime: OpenClaw `v2026.6.34` is integrated on `main`. The full local integration, validation, coverage, and live-execution gate passed `443/443`, and the source plus image gates passed on both architectures.
 - The latest RC36 local gate retained `80.25%` statements/lines, `68.64%` branches, and `90.50%` functions.
 - Release week plan: [RELEASE_2_0_0_WEEK_2026-08-10.md](planning/RELEASE_2_0_0_WEEK_2026-08-10.md). Final promotion still requires the security exit criteria, product-plugin acceptance, cloud/on-prem restart/runtime checks, a final immutable multi-architecture candidate, and a completed Review export.
 - Architecture: [Plugin System 2.0](../../PLUGINS/PLUGIN_SYSTEM_2_0.md)
