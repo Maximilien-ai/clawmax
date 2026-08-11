@@ -601,11 +601,11 @@ async function run() {
     assert(documentContent.includes('**Completed:** yes'), 'Expected generic checkbox formatting in generated document')
 
     const releaseTemplates = listPluginTemplates(plugin!).filter((template) => (
-      'fields' in template.payload && template.payload.fields?.release === '2.0.0-test-rc36'
+      'fields' in template.payload && template.payload.fields?.release === '2.0.0-test-rc37'
     ))
-    assert.strictEqual(releaseTemplates.length, 19, 'Expected the current RC36 file to expand into nineteen checklist items')
-    assert(releaseTemplates.some((template) => template.id === '2.0.0-test-rc36:rc36-openclaw-runtime-and-skills'), 'Expected release-qualified checklist item discovery')
-    const applied = applyPluginTemplate(plugin!, '2.0.0-test-rc36:rc36-openclaw-runtime-and-skills')
+    assert.strictEqual(releaseTemplates.length, 20, 'Expected the current RC37 file to expand into twenty checklist items')
+    assert(releaseTemplates.some((template) => template.id === '2.0.0-test-rc37:rc37-openclaw-session-recovery'), 'Expected release-qualified session-recovery checklist discovery')
+    const applied = applyPluginTemplate(plugin!, '2.0.0-test-rc37:rc37-openclaw-session-recovery')
     assert(applied && 'fields' in applied && applied.fields.owner === 'release-tester', 'Expected generic template application')
   })
 
