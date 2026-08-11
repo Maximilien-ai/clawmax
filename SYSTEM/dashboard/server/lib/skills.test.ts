@@ -67,7 +67,8 @@ const {
   normalizeSkillInstallOptions,
   getVisibleSkillInstallOptions,
   isSkillSupportedOnPlatform,
-  stampImportedRegistrySkillMetadata
+  stampImportedRegistrySkillMetadata,
+  findBundledPluginSkillFiles
 } = require('./skills')
 
 // ANSI color codes
@@ -1257,6 +1258,28 @@ test('All skills have unique names', () => {
 
   assertEqual(names.length, uniqueNames.size, 'All skill names should be unique')
   console.log(`  ${uniqueNames.size} unique skills`)
+})
+
+test('bundled plugin skill roots are discovered without allowing manifest traversal', () => {
+  const packageRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-plugin-skills-'))
+  const skillsRoot = path.join(packageRoot, 'skills')
+  const pluginRoot = path.join(packageRoot, 'extensions', 'slack')
+  const pluginSkill = path.join(pluginRoot, 'skills', 'slack', 'SKILL.md')
+  const escapedSkill = path.join(packageRoot, 'escaped', 'unsafe', 'SKILL.md')
+
+  fs.mkdirSync(path.dirname(pluginSkill), { recursive: true })
+  fs.mkdirSync(path.dirname(escapedSkill), { recursive: true })
+  fs.mkdirSync(skillsRoot, { recursive: true })
+  fs.writeFileSync(pluginSkill, '---\nname: slack\ndescription: Slack\n---\n')
+  fs.writeFileSync(escapedSkill, '---\nname: unsafe\ndescription: Unsafe\n---\n')
+  fs.writeFileSync(path.join(pluginRoot, 'openclaw.plugin.json'), JSON.stringify({
+    id: 'slack',
+    skills: ['./skills', '../../escaped'],
+  }))
+
+  const discovered = findBundledPluginSkillFiles(skillsRoot)
+  assertEqual(JSON.stringify(discovered), JSON.stringify([fs.realpathSync(pluginSkill)]), 'Expected only the in-plugin declared skill root')
+  fs.rmSync(packageRoot, { recursive: true, force: true })
 })
 
 // Test 14: Bundled skills resolve to packaged skill roots
