@@ -165,8 +165,9 @@ function getOrganizationTemplateConflicts(template: any, options?: {
 }
 
 function commandExists(command: string): boolean {
+  if (!/^[a-zA-Z0-9._+-]+$/.test(command)) return false
   try {
-    execFileSync('/bin/bash', ['-lc', `command -v ${command}`], { stdio: 'pipe' })
+    execFileSync('which', [command], { stdio: 'pipe' })
     return true
   } catch {
     return false

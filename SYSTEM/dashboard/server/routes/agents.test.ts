@@ -283,7 +283,7 @@ async function run() {
         getConfiguredGatewayPort: () => 18789,
       }, async () => {
         await withChildProcessStubs({
-          execSync: () => 'Gateway restarted',
+          execFileSync: () => 'Gateway restarted',
         }, async () => {
           const handler = getRouteHandler('post', '/doctor')
           const res = makeRes()
@@ -338,7 +338,8 @@ async function run() {
         getConfiguredGatewayPort: () => 18789,
       }, async () => {
         await withChildProcessStubs({
-          execSync: () => {
+          execFileSync: (_command: string, args: string[]) => {
+            if (args.includes('--version')) return 'openclaw 2026.5.26'
             const err: any = new Error('restart exploded')
             err.stderr = 'gateway restart failed hard'
             throw err
@@ -355,6 +356,43 @@ async function run() {
         })
       })
     } finally {
+      if (typeof previousOpenClawBin === 'undefined') delete process.env.OPENCLAW_BIN
+      else process.env.OPENCLAW_BIN = previousOpenClawBin
+    }
+  })
+
+  await test('doctor health probe passes agent ids as literal subprocess arguments', async () => {
+    const previousOpenClawBin = process.env.OPENCLAW_BIN
+    process.env.OPENCLAW_BIN = writeFakeOpenClawCli(tmpHome)
+    const adversarialId = 'probe-agent;touch-pwned'
+    const markerPath = path.join(tmpHome, 'pwned')
+    writeAgent(workspacePath, adversarialId, '# IDENTITY.md\nName: Probe')
+    const configPath = path.join(tmpHome, '.openclaw', 'openclaw.json')
+    const previousConfig = fs.readFileSync(configPath, 'utf-8')
+    fs.writeFileSync(configPath, JSON.stringify({ agents: { list: [{ id: adversarialId }] } }))
+    const calls: string[][] = []
+
+    try {
+      await withChildProcessStubs({
+        execFileSync: (_command: string, args: string[]) => {
+          calls.push([...args])
+          if (args.includes('--version')) return 'openclaw 2026.5.26'
+          return '{"payloads":[{"text":"OK"}]}'
+        },
+      }, async () => {
+        const handler = getRouteHandler('post', '/doctor')
+        const res = makeRes()
+        await handler(makeReq({ body: { probe: true } }), res)
+        assert.strictEqual(res.statusCode, 200)
+      })
+
+      const probeCall = calls.find((args) => args[0] === 'agent' && args.includes('--agent'))
+      assert(probeCall, 'Expected doctor to invoke the agent health probe')
+      assert(probeCall.includes(adversarialId), 'Expected the complete id to remain one argv entry')
+      assert(!fs.existsSync(markerPath), 'Agent id must not be evaluated by a shell')
+    } finally {
+      fs.writeFileSync(configPath, previousConfig)
+      fs.rmSync(path.join(workspacePath, 'AGENTS', adversarialId), { recursive: true, force: true })
       if (typeof previousOpenClawBin === 'undefined') delete process.env.OPENCLAW_BIN
       else process.env.OPENCLAW_BIN = previousOpenClawBin
     }
