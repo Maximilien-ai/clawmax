@@ -1,9 +1,9 @@
 # Public Activity Export And Partner Ingestion
 
-> Status: public capture, consent, durable outbox, batch delivery, and flush route implemented; partner receiver and adapter conformance in progress
+> Status: public capture, per-destination consent/revoke UI, redaction, durable outbox, batch delivery, and adapters implemented; ClawMax.ai receiver pilot pending
 > Release target: `2.0.0` public platform contract and ClawMax.ai reference receiver
 > Audience: partner backend teams and contributors implementing a ClawMax partner integration
-> Last updated: August 7, 2026
+> Last updated: August 12, 2026
 
 ## Decision Summary
 
@@ -628,9 +628,9 @@ behavior is unchanged.
 
 ### Phase 1: Generic Host And Fake Receiver
 
-- Add consent receipts, scope evaluation, redaction, durable outbox, worker,
-  destination adapter interface, status API, and header indicator.
-- Add a local fake receiver and all failure/security tests.
+- Complete: consent receipts, scope evaluation, redaction, durable outbox,
+  worker, destination adapters, status API, header indicator/popover, partner
+  controls, per-destination revocation, and local failure/security tests.
 
 ### Phase 2: ClawMax.ai Reference Integration
 

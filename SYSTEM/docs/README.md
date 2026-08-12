@@ -1,6 +1,6 @@
 # ClawMax Documentation
 
-> Last updated: August 9, 2026
+> Last updated: August 12, 2026
 
 ## Active Documents
 
@@ -12,6 +12,8 @@
 | [KNOWN_ISSUES.md](KNOWN_ISSUES.md) | Active bugs and limitations |
 | [OAUTH_SETUP.md](OAUTH_SETUP.md) | GitHub OAuth configuration guide |
 | [SECURITY.md](SECURITY.md) | Security architecture and policies |
+| [security/SECURITY_REVIEW_2_0_RC38.md](security/SECURITY_REVIEW_2_0_RC38.md) | 2.0 source security sign-off and pending final-candidate appendix |
+| [security/SECURITY_FINDINGS_2_0.md](security/SECURITY_FINDINGS_2_0.md) | Remediated and accepted 2.0 security findings |
 | [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) | Pre-release verification steps |
 | [planning/RELEASE_2_0_0_WEEK_2026-08-10.md](planning/RELEASE_2_0_0_WEEK_2026-08-10.md) | Active August 10-14 execution and go/no-go plan for `2.0.0` |
 | [DEMO_VIDEOS.md](DEMO_VIDEOS.md) | Local demo video inventory and when to use it |

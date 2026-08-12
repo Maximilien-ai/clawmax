@@ -4,9 +4,13 @@
 
 ClawMax Dashboard provides a web-based interface for managing OpenClaw agents. Security is paramount as the dashboard enables direct interaction with agent gateways that can execute commands and access sensitive data.
 
-**Last Updated:** 2026-07-15
-**Dashboard Version:** v1.9.9
+**Last Updated:** 2026-08-12
+**Dashboard Version:** stable v1.9.9; 2.0 development on `main`
 **OpenClaw Protocol:** Version 4
+
+The completed 2.0 threat model, endpoint matrix, findings, scans, and source
+sign-off are under [`security/`](security/SECURITY_REVIEW_2_0_RC38.md). This page
+is the reusable architecture overview, not the release evidence record.
 
 ---
 
@@ -14,19 +18,22 @@ ClawMax Dashboard provides a web-based interface for managing OpenClaw agents. S
 
 ### 1. Authentication & Authorization
 
-#### Gateway Token Authentication
-- **Implementation:** Each agent gateway requires a token stored in `~/.openclaw/agents/<agent-id>/gateway.token`
-- **Token Format:** Random UUIDs generated during gateway setup
-- **Transmission:** Tokens are sent via WebSocket auth frames during the challenge-response handshake
-- **Storage:** Tokens are read server-side only; never exposed to the frontend
+#### Dashboard And Gateway Authentication
+- Dashboard API and SSE routes require a GitHub OAuth, Email OTP, or configured
+  legacy dashboard-token session.
+- Cloud deployments reject local bypass flags. Explicit local/on-prem bypass is
+  a single-user operator mode and emits a visible startup warning.
+- OpenClaw gateway credentials are read server-side and never exposed to the
+  frontend. The CLI/gateway handles device identity, challenge-response, and
+  agent routing.
 
 **Location:** `server/lib/workspace.ts:getAgentGatewayConfig()`
 
-#### Control UI Client Mode
-- **Client ID:** `openclaw-control-ui` (special privileged client)
-- **Mode:** `ui` (distinguishes from CLI clients)
-- **Scopes:** `['operator.admin', 'operator.write', 'operator.read']`
-- **Rationale:** Control UI clients receive full operator scopes for dashboard operations
+#### Gateway Administrative Client
+- **Client ID:** `openclaw-control-ui`
+- **Mode:** `ui`
+- **Scopes:** bounded administrative/read/write scopes required by the server-side gateway client
+- **Rationale:** only authenticated dashboard routes can ask the server-side client to perform these operations
 
 **Locations:**
 - `server/routes/chat.ts:146-155`
@@ -38,17 +45,20 @@ OpenClaw Gateway implements scope-based access control:
 - `operator.write` - Can send commands and modify state
 - `operator.read` - Read-only access to status and logs
 
-**Known Issue:** Gateway clears scopes when no device identity is provided. We currently use the `allowInsecureAuth` workaround for localhost development.
+The primary chat path uses the OpenClaw CLI, which owns gateway authentication
+and device identity. Direct gateway clients remain server-side.
 
 ### 2. Network Security
 
 #### WebSocket Security
-- **Protocol:** WSS not yet implemented - currently using WS over localhost
+- **Protocol:** WS is restricted to local/container gateway networking; remote dashboard traffic terminates TLS at the ingress/reverse proxy
 - **Origin Validation:** Gateway requires proper Origin headers
 - **Binding:** Gateway binds to `127.0.0.1` only (localhost)
 - **Port Assignment:** Dynamic port per agent (stored in gateway config)
 
-**Security Gap:** No TLS encryption on WebSocket connections. Acceptable for localhost-only binding, but prevents remote access.
+Do not expose a local gateway port directly to an untrusted network. Remote
+deployment support is through the authenticated dashboard behind TLS, not a
+public gateway socket.
 
 **Locations:**
 - `server/routes/chat.ts:111-115`
@@ -71,32 +81,40 @@ OpenClaw Gateway Protocol v4 implements challenge-response:
 - **Completion Detection:** 2-second inactivity timeout to detect stream completion
 - **Cleanup:** Proper resource cleanup on disconnect
 
-**Security Consideration:** SSE responses are not authenticated independently. Authentication happens at the WebSocket level.
+**Security control:** the parent `/api/agents` router requires dashboard auth
+before the SSE handler runs. The downstream CLI/gateway then performs its own
+runtime authentication.
 
 **Location:** `server/routes/chat.ts:87-105`
 
 #### Log Streaming
-- **Protocol:** SSE over HTTP
-- **Filtering:** No server-side log filtering currently implemented
-- **Volume:** Limited to last 100 lines by default
+- **Protocol:** authenticated SSE over HTTP
+- **Volume:** bounded tail output
+- **Audit:** access is recorded without storing raw bearer tokens
 
-**Security Gap:** Logs may contain sensitive information. No PII redaction currently implemented.
+Logs can still contain sensitive content emitted by third-party runtimes or
+skills. Treat access to System & Logs as operator-level and avoid logging
+credentials or message bodies in integrations.
 
 **Location:** `server/routes/logs.ts:153-331`
 
 ### 4. Data Protection
 
 #### Session Management
-- **Session IDs:** Generated client-side: `dashboard-${agentId}-${Date.now()}`
-- **Idempotency:** Each chat request includes unique idempotency key
-- **Storage:** No persistent session storage; sessions exist only during active connections
+- Dashboard authentication cookies are HTTP-only, `SameSite=Lax`, and secure
+  when the request is HTTPS.
+- Chat uses explicit OpenClaw session ids and persisted runtime history; a
+  bounded fresh-session retry recovers embedded-session conflicts without
+  replaying visible partial output.
+- Logout clears dashboard session state.
 
 **Location:** `client/src/components/AgentChatPanel.tsx:22, 194`
 
 #### Message Validation
 - **Agent ID Validation:** Regex: `/^[a-z][a-z0-9_-]*$/`
 - **Input Sanitization:** Basic validation, no XSS protection needed (React handles escaping)
-- **Length Limits:** No explicit length limits on messages
+- **Body limits:** Express JSON parsing uses its bounded default; runtime and
+  provider adapters apply operation-specific result and timeout bounds
 
 **Locations:**
 - `server/routes/chat.ts:72-74`
@@ -109,10 +127,12 @@ OpenClaw Gateway Protocol v4 implements challenge-response:
 - **User Input:** All chat messages rendered as text, not HTML
 - **Markdown:** No markdown rendering that could enable XSS
 
-#### CSRF Protection
-- **Not Implemented:** No CSRF tokens currently
-- **Risk:** Low - API only accessible from localhost
-- **Mitigation:** Origin header validation at gateway level
+#### Cross-Site Request Protection
+- Credentialed CORS accepts only explicitly configured dashboard origins.
+- Authentication cookies use `SameSite=Lax` and production secure attributes.
+- APIs return `no-store`; the dashboard denies framing and suppresses referrers.
+- There is no separate synchronizer CSRF token. Any future cross-site embedding
+  or third-party cookie mode requires revisiting this decision.
 
 #### Sensitive Data Exposure
 - **Gateway Tokens:** Never sent to frontend
@@ -123,56 +143,21 @@ OpenClaw Gateway Protocol v4 implements challenge-response:
 
 ## Known Security Issues & Limitations
 
-### Critical Issues
-None currently identified.
+The 2.0 review found no Critical issue and closed all eight High findings. Three
+Medium deployment/supply-chain risks are accepted with September 30, 2026
+follow-ups: root container execution, major-tag GitHub Actions, and disabled OCI
+provenance. See the
+[`2.0 findings register`](security/SECURITY_FINDINGS_2_0.md) for owners,
+controls, and evidence.
 
-### High Priority
+Reusable limitations remain:
 
-#### 1. allowInsecureAuth Workaround
-- **Issue:** Required `allowInsecureAuth: true` in gateway config for localhost without device pairing
-- **Impact:** Bypasses device identity validation
-- **Mitigation:** Only enabled for localhost; gateway still requires token auth
-- **Status:** Acceptable for local development; should be addressed for production
-- **Tracking:** [Issue #1](https://github.com/OpenClaw/clawmax-dashboard/issues/1) (to be created)
-
-#### 2. No TLS on WebSocket Connections
-- **Issue:** WebSocket connections use WS not WSS
-- **Impact:** Unencrypted communication
-- **Mitigation:** Localhost-only binding prevents remote eavesdropping
-- **Status:** Blocks remote dashboard access
-- **Tracking:** [Issue #2](https://github.com/OpenClaw/clawmax-dashboard/issues/2) (to be created)
-
-### Medium Priority
-
-#### 3. Log PII Exposure
-- **Issue:** Logs streamed without PII redaction
-- **Impact:** Sensitive data may be exposed in logs
-- **Mitigation:** Logs only accessible via authenticated gateway connection
-- **Status:** Should implement redaction for production use
-- **Tracking:** [Issue #3](https://github.com/OpenClaw/clawmax-dashboard/issues/3) (to be created)
-
-#### 4. Rate Limiting Coverage
-- **Issue:** Basic dashboard rate limiting exists, but production-style coverage should still be reviewed as auth and deployment paths expand
-- **Impact:** Gaps could still allow overly aggressive request patterns
-- **Mitigation:** Dashboard already enforces global and auth-specific limits
-- **Status:** Needs follow-through review, not greenfield implementation
-- **Tracking:** backlog security follow-through
-
-#### 5. Stream Completion Detection
-- **Issue:** Using 2-second timeout to detect stream completion
-- **Impact:** May prematurely close slow responses or leave fast responses hanging
-- **Mitigation:** 2s is reasonable for typical chat responses
-- **Status:** Works in practice; should monitor for edge cases
-- **Tracking:** See chat.ts:245
-
-### Low Priority
-
-#### 6. No CSRF Tokens
-- **Issue:** No CSRF protection on API endpoints
-- **Impact:** Potential CSRF attacks
-- **Mitigation:** API only accessible from localhost; low risk
-- **Status:** Consider for future remote access
-- **Tracking:** [Issue #5](https://github.com/OpenClaw/clawmax-dashboard/issues/5) (to be created)
+- third-party/runtime logs can contain sensitive content and are operator-only;
+- direct local gateway WS must not be exposed outside trusted host/container
+  networking;
+- imported executable skills and plugins require explicit operator trust; and
+- the dashboard does not use synchronizer CSRF tokens, so its strict origin and
+  cookie assumptions must remain intact.
 
 
 ---
@@ -301,14 +286,14 @@ Dashboard currently requires Protocol v4. If OpenClaw upgrades again:
 ## Security Checklist for Deployment
 
 ### Pre-Production
-- [ ] Implement TLS for WebSocket connections (WSS)
-- [ ] Add CSRF token validation
-- [ ] Implement rate limiting
-- [ ] Add PII redaction in log streaming
-- [ ] Remove `allowInsecureAuth` workaround
-- [ ] Add authentication layer for dashboard access
-- [ ] Implement proper device pairing
-- [ ] Add audit logging for security events
+- [ ] Terminate dashboard HTTP/WebSocket traffic with TLS at the ingress
+- [ ] Configure the exact dashboard origin allowlist
+- [x] Enforce dashboard authentication and cloud bypass rejection
+- [x] Enforce global and auth-specific rate limits
+- [x] Record API audit metadata without raw bearer tokens
+- [x] Apply response security and no-store API headers
+- [ ] Review operator/runtime logs for deployment-specific sensitive output
+- [ ] Confirm local gateway ports are not publicly exposed
 - [ ] Security penetration testing
 
 ### Production Monitoring
