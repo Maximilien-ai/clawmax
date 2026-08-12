@@ -2949,6 +2949,15 @@ else
   fail "Workflow execution env regression tests"
 fi
 
+echo -e "${YELLOW}→ Running Workflow cron command security tests...${NC}"
+npx ts-node --transpileOnly server/lib/workflow-cron-security.test.ts > /tmp/clawmax-workflow-cron-security.out 2>&1 || true
+if grep -q "workflow-cron-security.test.ts: 8 tests passed" /tmp/clawmax-workflow-cron-security.out; then
+  pass "Workflow cron command security tests (8 tests)"
+else
+  cat /tmp/clawmax-workflow-cron-security.out
+  fail "Workflow cron command security tests"
+fi
+
 echo ""
 echo -e "${YELLOW}→ Running Auth / OTP unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/github-auth.test.ts > /tmp/clawmax-github-auth.out 2>&1 || true
