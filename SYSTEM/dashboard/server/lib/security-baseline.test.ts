@@ -16,9 +16,10 @@ assert.equal(dashboardPackage.dependencies.archiver, '^8.0.0', 'Archive exports 
 assert.equal(dashboardPackage.devDependencies.vite, '^8.1.5', 'Builds must use the remediated Vite line')
 assert.equal(dashboardPackage.scripts['security:audit'], 'node scripts/security-audit.js', 'Package scripts must expose the release dependency gate')
 assert(auditSource.includes("spawnSync('npm', ['audit', '--audit-level=high', '--json']"), 'Security audit wrapper must execute the high-severity npm audit')
-assert(auditSource.includes('GHSA-5p4m-2wfm-xmqj'), 'Any temporary audit exception must be explicit and identifiable')
+assert(!auditSource.includes('GHSA-5p4m-2wfm-xmqj'), 'Security audit must not allowlist the resolved js-yaml advisory')
+assert.equal(dashboardLock.packages['node_modules/js-yaml'].version, '3.15.1', 'gray-matter must resolve to the fixed js-yaml 3.x release')
 assert(ciSource.includes('npm run security:audit'), 'Main CI must reject High and Critical dependency advisories')
 assert(baselineSource.includes('- 0 Critical') && baselineSource.includes('- 0 High'), 'Security evidence must record the achieved release threshold')
 assert(baselineSource.includes('Initial RC15 dependency/configuration evidence') || baselineSource.includes('initial baseline, not the complete'), 'Security evidence must not claim to be the complete 2.0 audit')
 
-console.log('security-baseline.test.ts: 8 tests passed')
+console.log('security-baseline.test.ts: 9 tests passed')
