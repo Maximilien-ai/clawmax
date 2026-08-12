@@ -48,6 +48,7 @@ import { readWorkspaceIntegrationConfig } from './lib/workspace-integrations'
 import { resolveOpenClawCliPath } from './lib/openclaw-cli'
 import { buildSystemInfoPayload } from './lib/system-info'
 import { healDashboardManagedOpenClawConfig } from './lib/openclaw-config'
+import { isCorsOriginAllowed, isDashboardAuthBypassAllowed, parseCorsOrigins } from './lib/http-security'
 
 // ============================================================================
 // Crash Protection & Error Logging
@@ -202,10 +203,7 @@ const PORT = parseInt(process.env.DASHBOARD_PORT || '3001', 10)
 const HOST = process.env.DASHBOARD_HOST || (process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1')
 app.set('trust proxy', process.env.DASHBOARD_TRUST_PROXY === 'true' ? 1 : false)
 
-const allowedCorsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173')
-  .split(',')
-  .map(origin => origin.trim())
-  .filter(Boolean)
+const allowedCorsOrigins = parseCorsOrigins(process.env.CORS_ORIGIN, 'http://localhost:5173')
 const primaryAppOrigin = allowedCorsOrigins[0] || `http://localhost:${PORT}`
 
 const shouldServeBuiltClient = process.env.NODE_ENV === 'production'
@@ -221,19 +219,16 @@ if (earlyClientDist) {
   }))
 }
 
-// CORS — allow configured origins, self-origins, and don't error on unknown
+// Credentialed browser access is restricted to explicitly configured origins.
 app.use(cors({
-  origin: true, // Reflect the request origin — safe because auth middleware protects API routes
+  origin: (origin, callback) => callback(null, isCorsOriginAllowed(origin, allowedCorsOrigins)),
   credentials: true,
 }))
 app.use(express.json())
 app.use(cookieParser())
 
 // Rate limiting — global: 1000 req/min, auth: 20 req/min
-const authBypassMode =
-  process.env.BYPASS_OAUTH === 'true'
-  || process.env.DASHBOARD_AUTH_DISABLED === 'true'
-  || process.env.DASHBOARD_AUTH_MODE === 'bypass'
+const authBypassMode = isDashboardAuthBypassAllowed(process.env)
 
 const globalLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -291,7 +286,7 @@ app.get('/api/auth/config', (_req, res) => {
     githubEnabled: isGitHubAuthConfigured(),
     otpEnabled: isOtpAuthConfigured(),
     authMode: process.env.DASHBOARD_AUTH_MODE || 'github_oauth',
-    authDisabled: process.env.BYPASS_OAUTH === 'true' || process.env.DASHBOARD_AUTH_DISABLED === 'true' || process.env.DASHBOARD_AUTH_MODE === 'bypass',
+    authDisabled: isDashboardAuthBypassAllowed(process.env),
     deploymentKind,
     managedRuntime,
     ollamaEnabled: isOllamaUiEnabled(rawEnv),
@@ -705,7 +700,7 @@ app.use('/api/agents', protect, agentsRouter)
 app.use('/api/agents', protect, chatRouter)
 app.use('/api/agents', protect, logsRouter)
 app.use('/api/templates', protect, templatesRouter)
-app.use('/api/template-registry', templateRegistryRouter)
+app.use('/api/template-registry', protect, templateRegistryRouter)
 app.use('/api/activity-export', protect, activityExportRouter)
 app.use('/api/skills', protect, skillsRouter)
 app.use('/api/skill-secret-broker', protect, skillSecretBrokerRouter)

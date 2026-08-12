@@ -2132,6 +2132,24 @@ else
   fail "RC15 security baseline contract tests"
 fi
 
+echo -e "${YELLOW}→ Running API security boundary tests...${NC}"
+npx ts-node --transpileOnly server/lib/security-boundaries.test.ts > /tmp/clawmax-security-boundaries.out 2>&1 || true
+if grep -q "security-boundaries.test.ts: 35 tests passed" /tmp/clawmax-security-boundaries.out; then
+  pass "API security boundary tests (35 tests)"
+else
+  cat /tmp/clawmax-security-boundaries.out
+  fail "API security boundary tests"
+fi
+
+echo -e "${YELLOW}→ Running dynamic API security boundary tests...${NC}"
+npx ts-node --transpileOnly server/lib/security-boundaries-dynamic.test.ts > /tmp/clawmax-security-boundaries-dynamic.out 2>&1 || true
+if grep -q "security-boundaries-dynamic.test.ts: 8 tests passed" /tmp/clawmax-security-boundaries-dynamic.out; then
+  pass "Dynamic API security boundary tests (8 tests)"
+else
+  cat /tmp/clawmax-security-boundaries-dynamic.out
+  fail "Dynamic API security boundary tests"
+fi
+
 echo -e "${YELLOW}→ Running Keys/secrets inventory unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/keysSecretsInventory.test.ts > /tmp/clawmax-keys-secrets-inventory.out 2>&1 || true
 if grep -q "keysSecretsInventory.test.ts: ok" /tmp/clawmax-keys-secrets-inventory.out; then
