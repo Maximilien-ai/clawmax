@@ -1,10 +1,18 @@
 # ClawMax 2.0 Dashboard Security Audit
 
-> Status: required before `2.0.0` promotion
+> Status: source review complete August 12, 2026; final RC38 image/runtime appendix pending
 > Scope: public dashboard and runtime integration surfaces, plus the public contracts used by separately packaged plugins
 
 Initial RC15 dependency/configuration evidence:
 [SECURITY_BASELINE_2_0_RC15.md](../security/SECURITY_BASELINE_2_0_RC15.md).
+
+Completed deliverables:
+
+- [Threat model](../security/THREAT_MODEL_2_0.md)
+- [Endpoint authorization matrix](../security/ENDPOINT_AUTHORIZATION_MATRIX_2_0.md)
+- [Findings register](../security/SECURITY_FINDINGS_2_0.md)
+- [RC38 source security report](../security/SECURITY_REVIEW_2_0_RC38.md)
+- [Machine-readable artifacts](../security/artifacts/README.md)
 
 ## Objective
 
