@@ -2135,7 +2135,7 @@ fi
 echo -e "${YELLOW}→ Running API security boundary tests...${NC}"
 npx ts-node --transpileOnly server/lib/security-boundaries.test.ts > /tmp/clawmax-security-boundaries.out 2>&1 || true
 if grep -q "security-boundaries.test.ts: 42 tests passed" /tmp/clawmax-security-boundaries.out; then
-  pass "API security boundary tests (35 tests)"
+  pass "API security boundary tests (42 tests)"
 else
   cat /tmp/clawmax-security-boundaries.out
   fail "API security boundary tests"
@@ -2144,7 +2144,7 @@ fi
 echo -e "${YELLOW}→ Running dynamic API security boundary tests...${NC}"
 npx ts-node --transpileOnly server/lib/security-boundaries-dynamic.test.ts > /tmp/clawmax-security-boundaries-dynamic.out 2>&1 || true
 if grep -q "security-boundaries-dynamic.test.ts: 14 tests passed" /tmp/clawmax-security-boundaries-dynamic.out; then
-  pass "Dynamic API security boundary tests (8 tests)"
+  pass "Dynamic API security boundary tests (14 tests)"
 else
   cat /tmp/clawmax-security-boundaries-dynamic.out
   fail "Dynamic API security boundary tests"

@@ -148,7 +148,11 @@ async function run() {
       },
       getConfiguredGatewayPort: () => 18789,
     }, async () => {
-      await withChildProcessStubs({ execSync: () => 'Gateway restarted' }, async () => {
+      await withChildProcessStubs({
+        execFileSync: (_command: string, args: string[]) => args.includes('--version')
+          ? 'openclaw 2026.5.26'
+          : 'Gateway restarted',
+      }, async () => {
         const res = makeRes()
         await getDoctorHandler()(makeReq({ fix: true }), res)
 
@@ -183,7 +187,8 @@ async function run() {
       getConfiguredGatewayPort: () => 18789,
     }, async () => {
       await withChildProcessStubs({
-        execSync: () => {
+        execFileSync: (_command: string, args: string[]) => {
+          if (args.includes('--version')) return 'openclaw 2026.5.26'
           const err: any = new Error('restart exploded')
           err.stderr = 'gateway restart failed hard'
           throw err
