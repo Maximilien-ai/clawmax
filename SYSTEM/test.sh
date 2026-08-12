@@ -2763,6 +2763,15 @@ else
   fail "Workspace upload edge-case unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Archive security unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/archive-security.test.ts > /tmp/clawmax-archive-security.out 2>&1 || true
+if grep -q "archive-security.test.ts: 8 tests passed" /tmp/clawmax-archive-security.out; then
+  pass "Archive security unit tests (8 tests)"
+else
+  cat /tmp/clawmax-archive-security.out
+  fail "Archive security unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Workspace upload ownership unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/workspace-upload.test.ts > /tmp/clawmax-workspace-upload.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-workspace-upload.out; then

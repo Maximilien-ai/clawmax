@@ -4,6 +4,7 @@ import net from 'net'
 import os from 'os'
 import { createHash, randomUUID } from 'crypto'
 import { execFileSync } from 'child_process'
+import { extractZipSecurely } from './archive-security'
 import { getWorkspaceManager } from './workspace-manager'
 import { getPausedAgents } from './agent-state'
 import { getBestAvailableModel, getDashboardEnvRaw, getDefaultOllamaBaseUrl, getSystemProviderKeys, getUserDefaultProviderKeys, isOllamaUiEnabled } from './dashboard-env'
@@ -776,57 +777,6 @@ export function moveDocHubUploads(
   }
 }
 
-function validateZipEntryPath(entryPath: string): boolean {
-  const normalized = entryPath.replace(/\\/g, '/').trim()
-  if (!normalized) return true
-  if (normalized.startsWith('/')) return false
-  return !normalized.split('/').some((segment) => segment === '..')
-}
-
-function isIgnoredZipEntry(entryPath: string): boolean {
-  const normalized = entryPath.replace(/\\/g, '/').trim()
-  return normalized.startsWith('__MACOSX/') || normalized === '__MACOSX' || normalized.endsWith('/.DS_Store') || normalized === '.DS_Store'
-}
-
-function listZipEntries(zipPath: string): string[] {
-  try {
-    return execFileSync('unzip', ['-Z1', zipPath], { encoding: 'utf-8' })
-      .split(/\r?\n/)
-      .filter(Boolean)
-  } catch (error: any) {
-    if (error?.code !== 'ENOENT') throw error
-  }
-
-  return execFileSync('python3', ['-c', [
-    'import sys, zipfile',
-    'with zipfile.ZipFile(sys.argv[1]) as zf:',
-    '    for name in zf.namelist():',
-    '        print(name)',
-  ].join('\n'), zipPath], { encoding: 'utf-8' })
-    .split(/\r?\n/)
-    .filter(Boolean)
-}
-
-function extractZipToDirectory(zipPath: string, targetDir: string) {
-  try {
-    execFileSync('unzip', ['-oq', zipPath, '-d', targetDir], { stdio: 'pipe' })
-    return
-  } catch (error: any) {
-    if (error?.code !== 'ENOENT') throw error
-  }
-
-  execFileSync('python3', ['-c', [
-    'import os, sys, zipfile',
-    'zip_path, target_dir = sys.argv[1], sys.argv[2]',
-    'with zipfile.ZipFile(zip_path) as zf:',
-    '    for member in zf.infolist():',
-    '        name = member.filename',
-    '        if not name or name.startswith("__MACOSX/") or name == "__MACOSX" or name.endswith("/.DS_Store") or name == ".DS_Store":',
-    '            continue',
-    '        zf.extract(member, target_dir)',
-  ].join('\n'), zipPath, targetDir], { stdio: 'pipe' })
-}
-
 export function extractZipBufferToWorkspace(relDir: string, zipContent: Buffer, workspacePath = getWorkspacePath()): { ok: boolean; files?: string[]; error?: string } {
   const targetDir = resolveWorkspacePath(relDir, workspacePath)
   if (!targetDir) {
@@ -840,15 +790,13 @@ export function extractZipBufferToWorkspace(relDir: string, zipContent: Buffer, 
     fs.mkdirSync(targetDir, { recursive: true })
     fs.writeFileSync(zipPath, zipContent)
 
-    const listing = listZipEntries(zipPath)
-      .filter(Boolean)
-      .filter((entry) => !isIgnoredZipEntry(entry))
-
-    for (const entry of listing) {
-      if (!validateZipEntryPath(entry)) {
-        return { ok: false, error: `ZIP contains an unsafe path: ${entry}` }
-      }
-    }
+    const stagingDir = path.join(tempRoot, 'extracted')
+    const extraction = extractZipSecurely(zipPath, stagingDir, {
+      maxEntries: 5_000,
+      maxEntryBytes: 50 * 1024 * 1024,
+      maxTotalBytes: 250 * 1024 * 1024,
+    })
+    const listing = extraction.files
 
     const conflicts = listing
       .filter(Boolean)
@@ -863,7 +811,7 @@ export function extractZipBufferToWorkspace(relDir: string, zipContent: Buffer, 
       }
     }
 
-    extractZipToDirectory(zipPath, targetDir)
+    fs.cpSync(stagingDir, targetDir, { recursive: true, errorOnExist: true, force: false })
 
     const files = listing
       .filter((entry) => !entry.endsWith('/'))
