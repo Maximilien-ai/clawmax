@@ -52,11 +52,15 @@ image boundary are in scope; private feature evidence remains private.
 | Command regression | Workflow cron, skill import, and literal agent-id argv tests passed |
 | Agent route regression | 41 tests passed |
 | TypeScript | Passed after all remediations |
+| Full local gate at `976c3c83` | 447/447 passed; live agent chat and workflow DAG passed |
+| Coverage at `976c3c83` | 80.51% statements/lines; 68.65% branches; 90.58% functions |
+| Main CI at `976c3c83` | Passed in run `31615940283` |
 
 Machine-readable artifacts are retained under
-[`artifacts/`](artifacts/README.md). CI run `31614002176` covers the reviewed code
-commit and was still in progress when this source report was written; its final
-result and the full local gate must be recorded before cutting RC38.
+[`artifacts/`](artifacts/README.md). The final source-tree gate passed locally
+at `976c3c83`, and [main CI run `31615940283`](https://github.com/Maximilien-ai/clawmax/actions/runs/31615940283)
+passed on the same commit. The intervening CI runs were superseded and canceled
+as focused commits landed; the final run covers the complete source tree.
 
 ## Findings And Residual Risk
 
@@ -77,11 +81,10 @@ Complete before promotion:
 
 | Required evidence | Status |
 |---|---|
-| Full integration, validation, coverage, and live execution at final source | Pending final run |
+| Full integration, validation, coverage, and live execution at final source | Passed 447/447 at `976c3c83`; coverage 80.51% statements/lines, 68.65% branches, 90.58% functions |
 | Public amd64 digest and smoke | Pending RC38 image |
 | Public arm64 digest and smoke | Pending RC38 image |
 | Authorized combined image against exact public digest | Pending; record privately |
 | Managed/cloud health, restart, chat, workflow, plugin persistence | Pending final candidate |
 | On-prem health, restart, chat, workflow, plugin persistence | Pending final candidate |
 | Completed sanitized Release Review export and approver | Pending hands-on review |
-
