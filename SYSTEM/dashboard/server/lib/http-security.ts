@@ -21,3 +21,15 @@ export function isDashboardAuthBypassAllowed(env: NodeJS.ProcessEnv = process.en
     .toLowerCase()
   return deploymentKind !== 'cloud'
 }
+
+interface HeaderResponse {
+  setHeader(name: string, value: string): unknown
+}
+
+export function applyDashboardSecurityHeaders(response: HeaderResponse, noStore = false): void {
+  response.setHeader('Content-Security-Policy', "base-uri 'self'; frame-ancestors 'none'; object-src 'none'")
+  response.setHeader('Referrer-Policy', 'no-referrer')
+  response.setHeader('X-Content-Type-Options', 'nosniff')
+  response.setHeader('X-Frame-Options', 'DENY')
+  if (noStore) response.setHeader('Cache-Control', 'no-store')
+}

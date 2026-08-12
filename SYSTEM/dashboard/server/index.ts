@@ -48,7 +48,7 @@ import { readWorkspaceIntegrationConfig } from './lib/workspace-integrations'
 import { resolveOpenClawCliPath } from './lib/openclaw-cli'
 import { buildSystemInfoPayload } from './lib/system-info'
 import { healDashboardManagedOpenClawConfig } from './lib/openclaw-config'
-import { isCorsOriginAllowed, isDashboardAuthBypassAllowed, parseCorsOrigins } from './lib/http-security'
+import { applyDashboardSecurityHeaders, isCorsOriginAllowed, isDashboardAuthBypassAllowed, parseCorsOrigins } from './lib/http-security'
 
 // ============================================================================
 // Crash Protection & Error Logging
@@ -202,21 +202,23 @@ const app = express()
 const PORT = parseInt(process.env.DASHBOARD_PORT || '3001', 10)
 const HOST = process.env.DASHBOARD_HOST || (process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1')
 app.set('trust proxy', process.env.DASHBOARD_TRUST_PROXY === 'true' ? 1 : false)
+app.disable('x-powered-by')
 
 const allowedCorsOrigins = parseCorsOrigins(process.env.CORS_ORIGIN, 'http://localhost:5173')
 const primaryAppOrigin = allowedCorsOrigins[0] || `http://localhost:${PORT}`
 
 const shouldServeBuiltClient = process.env.NODE_ENV === 'production'
 
-// Serve static assets BEFORE any other middleware — no CORS/auth needed for files
+// Apply the browser security baseline before static files or API routes respond.
+app.use((req, res, next) => {
+  applyDashboardSecurityHeaders(res, req.path === '/api' || req.path.startsWith('/api/'))
+  next()
+})
+
+// Serve static assets before request parsing and authenticated API middleware.
 const earlyClientDist = shouldServeBuiltClient ? resolveClientDist() : null
 if (earlyClientDist) {
-  app.use(express.static(earlyClientDist, {
-    // Set proper MIME types and cache headers
-    setHeaders: (res) => {
-      res.removeHeader('X-Content-Type-Options') // Let browser sniff static files
-    }
-  }))
+  app.use(express.static(earlyClientDist))
 }
 
 // Credentialed browser access is restricted to explicitly configured origins.

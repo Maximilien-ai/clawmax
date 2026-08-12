@@ -3,7 +3,7 @@ import http from 'http'
 import express from 'express'
 import cors from 'cors'
 import { requireGitHubAuth } from './github-auth'
-import { isCorsOriginAllowed } from './http-security'
+import { applyDashboardSecurityHeaders, isCorsOriginAllowed } from './http-security'
 
 const originalEnv = { ...process.env }
 
@@ -15,6 +15,11 @@ async function run() {
 
   const allowedOrigins = ['https://dashboard.example.com']
   const app = express()
+  app.disable('x-powered-by')
+  app.use((req, res, next) => {
+    applyDashboardSecurityHeaders(res, req.path.startsWith('/api/'))
+    next()
+  })
   app.use(cors({
     origin: (origin, callback) => callback(null, isCorsOriginAllowed(origin, allowedOrigins)),
     credentials: true,
@@ -31,6 +36,12 @@ async function run() {
   try {
     const publicResponse = await fetch(`${baseUrl}/api/health`)
     assert.equal(publicResponse.status, 200, 'Public health request should succeed')
+    assert.equal(publicResponse.headers.get('x-powered-by'), null)
+    assert.equal(publicResponse.headers.get('x-content-type-options'), 'nosniff')
+    assert.equal(publicResponse.headers.get('x-frame-options'), 'DENY')
+    assert.equal(publicResponse.headers.get('referrer-policy'), 'no-referrer')
+    assert.equal(publicResponse.headers.get('cache-control'), 'no-store')
+    assert(publicResponse.headers.get('content-security-policy')?.includes("frame-ancestors 'none'"))
 
     const protectedResponse = await fetch(`${baseUrl}/api/protected`)
     assert.equal(protectedResponse.status, 401, 'Cloud bypass flag must not authorize protected request')
@@ -55,7 +66,8 @@ async function run() {
     Object.assign(process.env, originalEnv)
   }
 
-  console.log('security-boundaries-dynamic.test.ts: 8 tests passed')
+  console.log('security-boundaries-dynamic.test.ts: 14 tests passed')
+  process.exit(0)
 }
 
 run().catch((error) => {

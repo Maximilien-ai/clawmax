@@ -2,7 +2,7 @@ import assert from 'assert'
 import fs from 'fs'
 import path from 'path'
 import { API_AUTHORIZATION_MATRIX } from './api-authorization-matrix'
-import { isCorsOriginAllowed, isDashboardAuthBypassAllowed, parseCorsOrigins } from './http-security'
+import { applyDashboardSecurityHeaders, isCorsOriginAllowed, isDashboardAuthBypassAllowed, parseCorsOrigins } from './http-security'
 import { requireGitHubAuth } from './github-auth'
 
 const indexSource = fs.readFileSync(path.resolve(__dirname, '..', 'index.ts'), 'utf8')
@@ -37,6 +37,8 @@ assert(indexSource.includes("app.use('/api/runtime/skill-broker', skillSecretBro
 assert(indexSource.includes("app.use('/api/runtime/mail', createMailRuntimeRouter())"))
 assert(indexSource.includes("app.use('/api/workspace-dashboards', workspaceDashboardsRouter)"))
 assert(!indexSource.includes('origin: true'), 'Credentialed CORS must never reflect arbitrary origins')
+assert(indexSource.includes("app.disable('x-powered-by')"), 'Express framework disclosure must be disabled')
+assert(!indexSource.includes("removeHeader('X-Content-Type-Options')"), 'Static responses must retain nosniff protection')
 
 const matrixKeys = API_AUTHORIZATION_MATRIX.map((entry) => `${entry.methods} ${entry.path}`)
 assert.equal(new Set(matrixKeys).size, matrixKeys.length, 'Authorization matrix entries must be unique')
@@ -52,6 +54,16 @@ assert(!isCorsOriginAllowed('https://attacker.example', origins), 'Unconfigured 
 
 assert(isDashboardAuthBypassAllowed({ BYPASS_OAUTH: 'true', DASHBOARD_DEPLOYMENT_KIND: 'onprem' } as NodeJS.ProcessEnv))
 assert(!isDashboardAuthBypassAllowed({ BYPASS_OAUTH: 'true', DASHBOARD_DEPLOYMENT_KIND: 'cloud' } as NodeJS.ProcessEnv))
+
+const securityHeaders: Record<string, string> = {}
+applyDashboardSecurityHeaders({
+  setHeader(name: string, value: string) { securityHeaders[name] = value },
+}, true)
+assert.equal(securityHeaders['X-Content-Type-Options'], 'nosniff')
+assert.equal(securityHeaders['X-Frame-Options'], 'DENY')
+assert.equal(securityHeaders['Referrer-Policy'], 'no-referrer')
+assert.equal(securityHeaders['Cache-Control'], 'no-store')
+assert(securityHeaders['Content-Security-Policy'].includes("frame-ancestors 'none'"))
 
 const originalEnv = { ...process.env }
 try {
@@ -76,4 +88,4 @@ try {
   Object.assign(process.env, originalEnv)
 }
 
-console.log('security-boundaries.test.ts: 35 tests passed')
+console.log('security-boundaries.test.ts: 42 tests passed')
