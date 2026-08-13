@@ -42,6 +42,7 @@ import {
   validateEvalRegex,
 } from '../lib/plugins'
 import { applyOptimizeAssistantText } from '../lib/optimizeAssistant'
+import { getPluginAiCreateCopy } from '../lib/pluginAiCreateCopy'
 import { getOptimizationDimensions } from '../lib/optimizeGraph'
 import {
   buildReleaseReviewFilename,
@@ -3976,6 +3977,8 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
   const [showAiPrompt, setShowAiPrompt] = useState(false)
   const [showAiPromptEditor, setShowAiPromptEditor] = useState(false)
   const [aiPromptText, setAiPromptText] = useState('')
+  const [aiCreateStage, setAiCreateStage] = useState<'prompt' | 'review'>('prompt')
+  const [aiDraftPreview, setAiDraftPreview] = useState<Partial<PluginRecord> | null>(null)
   const [aiGenerating, setAiGenerating] = useState(false)
   const [activeCompactActions, setActiveCompactActions] = useState<string | null>(null)
   const [runningItemIds, setRunningItemIds] = useState<Set<string>>(new Set())
@@ -3992,6 +3995,11 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
   const [reviewLifecycleBusy, setReviewLifecycleBusy] = useState(false)
   const aiReadiness = getAiGenerationReadiness()
   const aiEnabled = hasAiGenerationAccess()
+  const aiCreateCopy = getPluginAiCreateCopy({
+    objectKind: plugin.objectKind,
+    name: plugin.name,
+    singular: plugin.labels?.singular,
+  })
   const grantedCapabilities = getPluginGrantedCapabilities(plugin)
   const canGenerateDocs = grantedCapabilities.includes('docs')
   const canNotify = grantedCapabilities.includes('notifications')
@@ -4262,14 +4270,36 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
     } as Partial<PluginRecord>)
   }
 
+  const buildAiPreview = (promptText: string): Partial<PluginRecord> => {
+    const draft = buildPluginDraftFromPrompt(plugin, promptText)
+    setAiDraftPreview(draft as Partial<PluginRecord>)
+    setAiCreateStage('review')
+    return draft as Partial<PluginRecord>
+  }
+
+  const handleAiNext = () => {
+    const promptText = aiPromptText.trim()
+    if (!promptText) return
+    try {
+      buildAiPreview(promptText)
+    } catch (error: any) {
+      setError(error?.message || 'Could not prepare the AI draft.')
+    }
+  }
+
   const handleAiGenerate = async (promptOverride?: string) => {
     const promptText = typeof promptOverride === 'string' ? promptOverride.trim() : aiPromptText.trim()
     if (!promptText) return
     setAiGenerating(true)
     try {
-      const draft = buildPluginDraftFromPrompt(plugin, promptText)
+      const draft = aiDraftPreview || buildPluginDraftFromPrompt(plugin, promptText)
+      // Keep the build state visible long enough for the user to understand that
+      // the prompt is being turned into an editable plugin draft.
+      await new Promise((resolve) => window.setTimeout(resolve, 250))
       setEditing(draft as PluginRecord)
       setShowAiPrompt(false)
+      setAiCreateStage('prompt')
+      setAiDraftPreview(null)
       setShowModal(true)
       setAiPromptText('')
     } finally {
@@ -4558,6 +4588,8 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                   <button
                     onClick={() => {
                       setShowCreateMenu(false)
+                      setAiCreateStage('prompt')
+                      setAiDraftPreview(null)
                       setShowAiPrompt(true)
                     }}
                     className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 transition-colors ${
@@ -5367,7 +5399,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
           panelClassName="max-w-lg"
           header={(
             <div className="flex items-center justify-between gap-4">
-              <h2 id="plugin-ai-create-title" className="text-lg font-semibold text-gray-900 dark:text-gray-100">AI Create {plugin.labels?.singular || plugin.name}</h2>
+              <h2 id="plugin-ai-create-title" className="text-lg font-semibold text-gray-900 dark:text-gray-100">{aiCreateCopy.title}</h2>
               <button type="button" onClick={() => setShowAiPrompt(false)} className="text-xl text-gray-400 hover:text-gray-600 dark:text-gray-400" aria-label="Close plugin AI Create">✕</button>
             </div>
           )}
@@ -5382,17 +5414,19 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
               </button>
               <button
                 type="button"
-                onClick={() => void handleAiGenerate()}
+                onClick={() => aiCreateStage === 'prompt' ? handleAiNext() : void handleAiGenerate()}
                 disabled={aiGenerating || !aiPromptText.trim()}
                 className="w-full rounded-md bg-purple-600 px-4 py-2 text-sm text-white transition-colors hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
               >
-                {aiGenerating ? 'Generating...' : `Generate ${plugin.labels?.singular || plugin.name}`}
+                {aiGenerating ? 'Building with AI…' : aiCreateStage === 'prompt' ? 'Next' : `Build ${plugin.labels?.singular || plugin.name} with AI`}
               </button>
             </div>
           )}
         >
           <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
-            Describe what you want this {plugin.labels?.singular?.toLowerCase() || plugin.name.toLowerCase()} to do in natural language. ClawMax will draft a starter you can review and edit before saving.
+            {aiCreateStage === 'prompt'
+              ? aiCreateCopy.intro
+              : 'Review the generated specification below. Go back to refine the prompt, or build the editable draft with AI.'}
           </p>
           {!aiEnabled && (
             <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-100">
@@ -5415,14 +5449,29 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
               ? 'e.g., Create a guardrail for research agents that blocks outbound email and external document sharing'
               : usesLegacyPluginAdapter(plugin, 'eval')
                 ? 'e.g., Create an eval for a research workflow that judges output quality and compares summaries against expected findings'
-                : `Describe the ${plugin.labels?.singular?.toLowerCase() || plugin.objectKind} to create`}
+                : aiCreateCopy.placeholder}
             className="min-h-[100px] w-full resize-y rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-purple-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
             autoFocus
-            onKeyDown={(e) => { if (e.key === 'Enter' && e.metaKey) void handleAiGenerate() }}
+            onKeyDown={(e) => { if (e.key === 'Enter' && e.metaKey) aiCreateStage === 'prompt' ? handleAiNext() : void handleAiGenerate() }}
           />
           <div className="mt-2">
             <PromptQualityPanel prompt={aiPromptText} domain="plugin" compact />
           </div>
+          {aiCreateStage === 'review' && aiDraftPreview && (
+            <div className="mt-4 rounded-lg border border-sky-200 bg-sky-50/70 px-3 py-3 dark:border-sky-800 dark:bg-sky-950/30">
+              <div className="text-sm font-semibold text-sky-900 dark:text-sky-100">Prompt details</div>
+              <div className="mt-2 space-y-1 text-xs text-sky-900/80 dark:text-sky-100/80">
+                {(() => {
+                  try {
+                    return getPluginDetailLines(plugin, aiDraftPreview as PluginRecord).map((line) => <div key={line}>{line}</div>)
+                  } catch {
+                    return <div>Draft details are ready to review in the next editor.</div>
+                  }
+                })()}
+              </div>
+              <button type="button" onClick={() => setAiCreateStage('prompt')} className="mt-3 text-xs font-medium text-sky-700 underline underline-offset-2 dark:text-sky-300">Edit prompt</button>
+            </div>
+          )}
           <div className="mt-2 flex justify-end">
             <button
               type="button"
@@ -5449,7 +5498,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
         onExpandWithAi={(value, format, guidance) => expandPromptWithAI(value, 'workflow', format, guidance)}
         saveLabel="Save Prompt"
         saveAndGenerateLabel={`Save & Generate ${plugin.labels?.singular || plugin.name}`}
-        placeholder={`Describe the ${plugin.labels?.singular?.toLowerCase() || plugin.name.toLowerCase()} you want to create...`}
+        placeholder={aiCreateCopy.editorPlaceholder}
         savingAndGenerating={aiGenerating}
         generateDisabled={!aiPromptText.trim()}
         qualityDomain="plugin"
