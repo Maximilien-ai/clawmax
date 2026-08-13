@@ -268,6 +268,39 @@ async function runAsyncCases() {
 
 }
 
+test('an enabled CLI runtime outranks a hosted provider key', () => {
+  // The reported symptom: two enabled CLIs, a stale OpenAI key, and generation still went to
+  // OpenAI and died on a 401 naming a key the operator had already replaced with a CLI.
+  withWorkspace(['claude', 'droid'], { DROID_BIN: realBinary, CLAUDE_BIN: realBinary }, () => {
+    const { resolveGenerationProvider } = require('./ai-generator')
+    const chosen = resolveGenerationProvider({ openai: 'sk-test-key-not-used' })
+    assert.strictEqual(chosen.provider, 'cli-runtime', `Expected a CLI to win, got ${chosen.provider}`)
+    assert(['claude', 'droid'].includes(String(chosen.runtime)), `Unexpected runtime ${chosen.runtime}`)
+  })
+})
+
+test('a hosted key is still used when no CLI runtime is enabled', () => {
+  withWorkspace([], { DROID_BIN: realBinary, CLAUDE_BIN: realBinary }, () => {
+    const { resolveGenerationProvider } = require('./ai-generator')
+    const chosen = resolveGenerationProvider({ openai: 'sk-test-key-not-used' })
+    assert.strictEqual(chosen.provider, 'openai')
+    assert.strictEqual(chosen.runtime, undefined)
+  })
+})
+
+test('a CLI that cannot run falls back, but a timeout does not', () => {
+  withWorkspace(['droid'], { DROID_BIN: realBinary }, () => {
+    const { isCliRecoverableFailure } = require('./ai-generator')
+    // "not logged in" is the common case: these CLIs authenticate with their own login, so it
+    // cannot be checked before the call and must not dead-end generation.
+    assert.strictEqual(isCliRecoverableFailure('Not logged in \u00b7 Please run /login'), true)
+    assert.strictEqual(isCliRecoverableFailure('droid: command not found'), true)
+    // The CLI did run; stacking a hosted attempt after a 240s wait only doubles the spinner.
+    assert.strictEqual(isCliRecoverableFailure('AI generation timed out'), false)
+    assert.strictEqual(isCliRecoverableFailure('request timeout after 45000ms'), false)
+  })
+})
+
 runAsyncCases().then(() => {
   console.log(`\n${passed} passed, ${failed} failed\n`)
   if (failed > 0) process.exit(1)
