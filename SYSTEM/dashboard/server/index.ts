@@ -14,7 +14,7 @@ import channelsRouter from './routes/channels'
 import templatesRouter from './routes/templates'
 import skillsRouter from './routes/skills'
 import skillSecretBrokerRouter, { skillSecretBrokerRuntimeRouter } from './routes/skill-secret-broker'
-import mailOAuthRouter from './routes/mail-oauth'
+import mailOAuthRouter, { createMailRuntimeRouter } from './routes/mail-oauth'
 import workspacesRouter from './routes/workspaces'
 import workspaceDashboardsRouter from './routes/workspace-dashboards'
 import chatRouter from './routes/chat'
@@ -47,9 +47,9 @@ import { getHostAgentStatus } from './lib/host-agent-status'
 import { readWorkspaceIntegrationConfig } from './lib/workspace-integrations'
 import { resolveOpenClawCliPath } from './lib/openclaw-cli'
 import { buildSystemInfoPayload } from './lib/system-info'
-import { detectRuntimeStatuses, resolveWorkspaceRuntime } from './lib/agent-runtime'
+import { detectRuntimeStatuses, resolveEnabledRuntimes, resolveWorkspaceRuntime } from './lib/agent-runtime'
 import { healDashboardManagedOpenClawConfig } from './lib/openclaw-config'
-import { resolveEnabledRuntimes } from './lib/agent-runtime'
+import { applyDashboardSecurityHeaders, isCorsOriginAllowed, isDashboardAuthBypassAllowed, parseCorsOrigins } from './lib/http-security'
 
 // ============================================================================
 // Crash Protection & Error Logging
@@ -220,39 +220,35 @@ const app = express()
 const PORT = parseInt(process.env.DASHBOARD_PORT || '3001', 10)
 const HOST = process.env.DASHBOARD_HOST || (process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1')
 app.set('trust proxy', process.env.DASHBOARD_TRUST_PROXY === 'true' ? 1 : false)
+app.disable('x-powered-by')
 
-const allowedCorsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173')
-  .split(',')
-  .map(origin => origin.trim())
-  .filter(Boolean)
+const allowedCorsOrigins = parseCorsOrigins(process.env.CORS_ORIGIN, 'http://localhost:5173')
 const primaryAppOrigin = allowedCorsOrigins[0] || `http://localhost:${PORT}`
 
 const shouldServeBuiltClient = process.env.NODE_ENV === 'production'
 
-// Serve static assets BEFORE any other middleware — no CORS/auth needed for files
+// Apply the browser security baseline before static files or API routes respond.
+app.use((req, res, next) => {
+  applyDashboardSecurityHeaders(res, req.path === '/api' || req.path.startsWith('/api/'))
+  next()
+})
+
+// Serve static assets before request parsing and authenticated API middleware.
 const earlyClientDist = shouldServeBuiltClient ? resolveClientDist() : null
 if (earlyClientDist) {
-  app.use(express.static(earlyClientDist, {
-    // Set proper MIME types and cache headers
-    setHeaders: (res) => {
-      res.removeHeader('X-Content-Type-Options') // Let browser sniff static files
-    }
-  }))
+  app.use(express.static(earlyClientDist))
 }
 
-// CORS — allow configured origins, self-origins, and don't error on unknown
+// Credentialed browser access is restricted to explicitly configured origins.
 app.use(cors({
-  origin: true, // Reflect the request origin — safe because auth middleware protects API routes
+  origin: (origin, callback) => callback(null, isCorsOriginAllowed(origin, allowedCorsOrigins)),
   credentials: true,
 }))
 app.use(express.json())
 app.use(cookieParser())
 
 // Rate limiting — global: 1000 req/min, auth: 20 req/min
-const authBypassMode =
-  process.env.BYPASS_OAUTH === 'true'
-  || process.env.DASHBOARD_AUTH_DISABLED === 'true'
-  || process.env.DASHBOARD_AUTH_MODE === 'bypass'
+const authBypassMode = isDashboardAuthBypassAllowed(process.env)
 
 const globalLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -293,6 +289,7 @@ app.post('/api/auth/verify', verifyToken)
 // GitHub OAuth routes (public)
 app.use('/api/auth', createAuthRouter())
 app.use('/api/runtime/skill-broker', skillSecretBrokerRuntimeRouter)
+app.use('/api/runtime/mail', createMailRuntimeRouter())
 
 // Auth config info (public — so login page knows what's available)
 app.get('/api/auth/config', (_req, res) => {
@@ -309,7 +306,7 @@ app.get('/api/auth/config', (_req, res) => {
     githubEnabled: isGitHubAuthConfigured(),
     otpEnabled: isOtpAuthConfigured(),
     authMode: process.env.DASHBOARD_AUTH_MODE || 'github_oauth',
-    authDisabled: process.env.BYPASS_OAUTH === 'true' || process.env.DASHBOARD_AUTH_DISABLED === 'true' || process.env.DASHBOARD_AUTH_MODE === 'bypass',
+    authDisabled: isDashboardAuthBypassAllowed(process.env),
     deploymentKind,
     managedRuntime,
     ollamaEnabled: isOllamaUiEnabled(rawEnv),
@@ -727,7 +724,7 @@ app.use('/api/agents', protect, agentsRouter)
 app.use('/api/agents', protect, chatRouter)
 app.use('/api/agents', protect, logsRouter)
 app.use('/api/templates', protect, templatesRouter)
-app.use('/api/template-registry', templateRegistryRouter)
+app.use('/api/template-registry', protect, templateRegistryRouter)
 app.use('/api/activity-export', protect, activityExportRouter)
 app.use('/api/skills', protect, skillsRouter)
 app.use('/api/skill-secret-broker', protect, skillSecretBrokerRouter)

@@ -82,9 +82,10 @@ test('mail partners expose delegated OAuth metadata without password or token fi
   const partners = listPartnerDefinitions()
   assert(partners.map((partner) => partner.slug).join(',') === 'gmail,microsoft365', 'Expected both public mail partners')
   for (const partner of partners) {
-    assert(partner.skills?.mode === 'planned', `Expected ${partner.slug} to remain preview-only`)
+    assert(partner.skills?.mode === 'catalog', `Expected ${partner.slug} to expose the shipped mail skill`)
+    assert((partner.skills?.items || []).includes('clawmax-mail'), `Expected ${partner.slug} to link clawmax-mail`)
     assert((partner.fields || []).length === 0, `Expected ${partner.slug} to avoid unusable password/token fields`)
-    assert(/OAuth/i.test(partner.skills?.label || ''), `Expected ${partner.slug} to explain delegated OAuth`)
+    assert(/bounded mail skill/i.test(partner.skills?.label || ''), `Expected ${partner.slug} to explain the bounded skill`)
     assert(/delegated OAuth is available when the operator configures/i.test(partner.validation?.helperText || ''), `Expected ${partner.slug} to describe readiness honestly`)
   }
 })

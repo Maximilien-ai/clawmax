@@ -109,15 +109,18 @@ async function withModuleOverrides<T>(
   }
 }
 
-async function withChildProcessExecSync<T>(stub: (command: string, options: any) => string, fn: () => Promise<T> | T): Promise<T> {
+async function withChildProcessExecFileSync<T>(
+  stub: (command: string, args: string[], options: any) => string,
+  fn: () => Promise<T> | T,
+): Promise<T> {
   const childProcess = require('child_process')
-  const original = childProcess.execSync
-  childProcess.execSync = stub
+  const original = childProcess.execFileSync
+  childProcess.execFileSync = stub
   delete require.cache[require.resolve('./agents')]
   try {
     return await fn()
   } finally {
-    childProcess.execSync = original
+    childProcess.execFileSync = original
     delete require.cache[require.resolve('./agents')]
   }
 }
@@ -145,8 +148,9 @@ async function run() {
     await withModuleOverrides(workspaceModulePath, {
       listAgents: () => [baseAgent],
     }, async () => {
-      await withChildProcessExecSync((command) => {
-        assert(command.includes('openclaw --profile runtime-agent health --json'), `Expected profile health command, got ${command}`)
+      await withChildProcessExecFileSync((command, args) => {
+        assert.strictEqual(command, 'openclaw')
+        assert.deepStrictEqual(args, ['--profile', 'runtime-agent', 'health', '--json'])
         return JSON.stringify({ ok: true, agent: 'runtime-agent' })
       }, async () => {
         const handler = getRouteHandler('get', '/:id/health')
@@ -162,7 +166,7 @@ async function run() {
     await withModuleOverrides(workspaceModulePath, {
       listAgents: () => [baseAgent],
     }, async () => {
-      await withChildProcessExecSync(() => {
+      await withChildProcessExecFileSync(() => {
         throw new Error('health check failed')
       }, async () => {
         const handler = getRouteHandler('get', '/:id/health')
@@ -178,8 +182,9 @@ async function run() {
     await withModuleOverrides(workspaceModulePath, {
       listAgents: () => [baseAgent],
     }, async () => {
-      await withChildProcessExecSync((command) => {
-        assert(command.includes('gateway status'), `Expected gateway status command, got ${command}`)
+      await withChildProcessExecFileSync((command, args) => {
+        assert.strictEqual(command, 'openclaw')
+        assert.deepStrictEqual(args, ['--profile', 'runtime-agent', 'gateway', 'status'])
         return 'Gateway is healthy'
       }, async () => {
         const handler = getRouteHandler('get', '/:id/gateway-status')

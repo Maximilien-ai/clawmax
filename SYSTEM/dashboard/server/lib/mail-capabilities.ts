@@ -21,6 +21,9 @@ export interface MailCapabilityGrant extends MailInvocationContext {
   provider: MailProviderId
   accountId: string
   capabilities: MailCapability[]
+  createdAt?: string
+  updatedAt?: string
+  expiresAt?: string
   revokedAt?: string
 }
 
@@ -92,6 +95,7 @@ export function validateMailInvocation(grant: MailCapabilityGrant, request: Mail
   if (!MAIL_CAPABILITIES.includes(request.capability)) throw new Error('Unsupported mail capability')
   if (request.provider !== 'gmail' && request.provider !== 'microsoft365') throw new Error('Unsupported mail provider')
   if (grant.revokedAt) throw new Error('Mail grant is revoked')
+  if (grant.expiresAt && Date.parse(grant.expiresAt) <= Date.now()) throw new Error('Mail grant has expired')
   if (grant.provider !== request.provider) throw new Error('Mail grant provider mismatch')
   if (grant.accountId !== request.accountId) throw new Error('Mail grant account mismatch')
   assertContextMatches(grant, request)

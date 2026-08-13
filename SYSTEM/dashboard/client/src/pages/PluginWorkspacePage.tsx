@@ -19,6 +19,7 @@ import {
   collectPluginTags,
   extractSuggestedEvalRegex,
   formatPluginScopeSummary,
+  formatPluginTargetNames,
   formatPluginUpdatedAt,
   formatPluginUsageSummary,
   getOrderedPluginFields,
@@ -53,7 +54,7 @@ import {
 } from '../lib/reviewExport'
 import { readStoredReviewIdentity, resolveReviewIdentity, storeReviewIdentity } from '../lib/reviewIdentity'
 import {
-  getCompletedReviewReleaseIdsToArchive,
+  getSupersededReviewReleaseIdsToArchive,
   getReviewReleaseGroups,
   planReviewReleaseConsolidation,
 } from '../lib/reviewLifecycle'
@@ -1737,6 +1738,7 @@ Preserve existing values when the request does not ask to change them.`,
 function ItemCard({
   plugin,
   item,
+  context,
   onEdit,
   onDelete,
   onToggle,
@@ -1753,6 +1755,7 @@ function ItemCard({
 }: {
   plugin: PluginManifest
   item: PluginRecord
+  context: PluginWorkspaceContext
   onEdit: () => void
   onDelete: () => void
   onToggle: () => void
@@ -1768,6 +1771,7 @@ function ItemCard({
   running?: boolean
 }) {
   const commonSummary = formatPluginScopeSummary(item)
+  const targetNames = formatPluginTargetNames(item, context)
   const archived = item.archived === true
   const usageSummary = formatPluginUsageSummary(item)
   const [showActions, setShowActions] = useState(false)
@@ -1854,6 +1858,15 @@ function ItemCard({
           <span className="text-xs text-gray-400">No tags</span>
         )}
       </div>
+      {targetNames.length > 0 && (
+        <div className="mt-3 rounded-lg border border-sky-100 bg-sky-50/70 px-3 py-2 dark:border-sky-900/40 dark:bg-sky-950/20">
+          <div className="text-[10px] font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-300">Acts on</div>
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            {targetNames.map((target) => <span key={target} className="rounded-md border border-sky-200 bg-white px-2 py-0.5 text-xs text-sky-700 dark:border-sky-800 dark:bg-gray-900 dark:text-sky-300">{target}</span>)}
+          </div>
+        </div>
+      )}
+      {plugin.objectKind === 'lifecycle-view' && targetNames.length > 0 && <div className="mt-2 text-xs font-medium text-sky-700 dark:text-sky-300">Select this card to open the target X-ray below.</div>}
       {checkField && onCheckToggle && (
         <label className="mt-4 flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
           <input
@@ -1966,6 +1979,7 @@ function ItemCard({
 function CompactItemCard({
   plugin,
   item,
+  context,
   selected,
   onOpen,
   onToggleActions,
@@ -1981,6 +1995,7 @@ function CompactItemCard({
 }: {
   plugin: PluginManifest
   item: PluginRecord
+  context: PluginWorkspaceContext
   selected: boolean
   onOpen: () => void
   onToggleActions: () => void
@@ -1995,6 +2010,7 @@ function CompactItemCard({
   running?: boolean
 }) {
   const archived = item.archived === true
+  const targetNames = formatPluginTargetNames(item, context)
   const usageSummary = formatPluginUsageSummary(item)
   const checkField = getPluginCheckField(plugin)
   const checked = checkField && isGenericPluginRecord(item) ? item.fields[checkField] === true : false
@@ -2036,6 +2052,8 @@ function CompactItemCard({
       <div className="mt-3 flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
         <span>{formatPluginScopeSummary(item)}</span>
       </div>
+      {targetNames.length > 0 && <div className="mt-2 flex flex-wrap gap-1.5" aria-label="Plugin targets">{targetNames.map((target) => <span key={target} className="rounded-md border border-sky-200 bg-sky-50 px-2 py-0.5 text-xs text-sky-700 dark:border-sky-800 dark:bg-sky-900/20 dark:text-sky-300">{target}</span>)}</div>}
+      {plugin.objectKind === 'lifecycle-view' && targetNames.length > 0 && <div className="mt-2 text-xs font-medium text-sky-700 dark:text-sky-300">Select this card to open the target X-ray below.</div>}
       {checkField && onCheckToggle && (
         <label
           className="mt-3 flex cursor-pointer items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-200"
@@ -4092,7 +4110,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
   const availableSuggestionTags = useMemo(() => {
     const allTags = collectPluginTemplateTags(recommendedTemplates)
     if (!isChecklist) return allTags
-    return ['1.9.9', '2.0.0', '2.0.0-test-rc27'].filter((tag) => allTags.includes(tag))
+    return ['1.9.9', '2.0.0', '2.0.0-test-rc38'].filter((tag) => allTags.includes(tag))
   }, [recommendedTemplates, isChecklist])
   const filteredSuggestions = useMemo(() => sortPluginTemplates(
     recommendedTemplates.filter((template) => (
@@ -4442,14 +4460,13 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
       const incomingRelease = templateFields && typeof templateFields[groupField] === 'string'
         ? String(templateFields[groupField])
         : null
-      const archiveIds = new Set(getCompletedReviewReleaseIdsToArchive(
+      const archiveIds = new Set(getSupersededReviewReleaseIdsToArchive(
         items,
         groupField,
-        checkField,
         incomingRelease,
       ))
-      const completedOlderRecords = items.filter((item) => archiveIds.has(item.id))
-      if (completedOlderRecords.length > 0) await updateItems(completedOlderRecords, true)
+      const supersededRecords = items.filter((item) => archiveIds.has(item.id))
+      if (supersededRecords.length > 0) await updateItems(supersededRecords, true)
       setSelectedGroup(incomingRelease)
     }
     await load()
@@ -5079,6 +5096,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                     <CompactItemCard
                       plugin={plugin}
                       item={item}
+                      context={context}
                       selected={selectedItemId === item.id}
                       onOpen={() => setSelectedItemId(item.id)}
                       onToggleActions={() => setActiveCompactActions((current) => current === item.id ? null : item.id)}
@@ -5146,6 +5164,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
                     <ItemCard
                       plugin={plugin}
                       item={item}
+                      context={context}
                       onEdit={() => { setEditing(item); setShowModal(true) }}
                       onDelete={() => void callItemAction(item.id, 'delete')}
                       onToggle={() => void callItemAction(item.id, 'toggle')}

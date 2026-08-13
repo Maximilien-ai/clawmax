@@ -1,9 +1,9 @@
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import { execFileSync } from 'child_process'
 import { getWorkspaceManager, type Workspace } from './workspace-manager'
 import { sanitizeWorkspaceExportName, type WorkspaceExportManifest } from './workspace-export'
+import { extractZipSecurely } from './archive-security'
 
 function resolveSingleExtractedRoot(extractDir: string): string {
   const entries = fs.readdirSync(extractDir, { withFileTypes: true })
@@ -81,7 +81,11 @@ export function importWorkspaceFromZipArchive(zipPath: string, options?: {
   }
 
   const extractDir = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-workspace-zip-'))
-  execFileSync('unzip', ['-oq', resolvedZip, '-d', extractDir])
+  extractZipSecurely(resolvedZip, extractDir, {
+    maxEntries: 25_000,
+    maxEntryBytes: 200 * 1024 * 1024,
+    maxTotalBytes: 1024 * 1024 * 1024,
+  })
 
   const extractedRoot = resolveSingleExtractedRoot(extractDir)
   const manifest = loadManifestFromExtractedRoot(extractedRoot)

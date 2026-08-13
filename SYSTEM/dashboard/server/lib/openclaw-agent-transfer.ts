@@ -1,10 +1,10 @@
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import { execFileSync } from 'child_process'
 import { getAgentsDir, getWorkspacePath, listAgents, updateGroupMembers, parseGroupsWithMembers } from './workspace'
 import { getAgentSkills } from './skills'
 import { writeDashboardManagedOpenClawConfig } from './openclaw-config'
+import { extractZipSecurely } from './archive-security'
 
 interface TransferGroupEntry {
   name: string
@@ -279,6 +279,9 @@ export function importAgentFromBundleDirectory(sourcePath: string, targetId?: st
   const inferredId = path.basename(bundleDir)
   const sourceId = targetId ? inferredId : inferredId
   const importedId = targetId || inferredId
+  if (!/^[a-zA-Z][a-zA-Z0-9_-]*$/.test(importedId)) {
+    throw new Error(`Invalid imported agent ID: ${importedId}`)
+  }
   const targetDir = path.join(getAgentsDir(), importedId)
 
   if (fs.existsSync(targetDir)) {
@@ -325,7 +328,11 @@ export function importAgentFromZipArchive(zipPath: string, targetId?: string): {
   }
 
   const extractDir = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-agent-zip-'))
-  execFileSync('unzip', ['-oq', resolvedZip, '-d', extractDir])
+  extractZipSecurely(resolvedZip, extractDir, {
+    maxEntries: 2_000,
+    maxEntryBytes: 25 * 1024 * 1024,
+    maxTotalBytes: 100 * 1024 * 1024,
+  })
   return importAgentFromBundleDirectory(extractDir, targetId)
 }
 

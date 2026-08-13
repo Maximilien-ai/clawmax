@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import matter from 'gray-matter'
 import cronstrue from 'cronstrue'
-import { spawn } from 'child_process'
+import { execFileSync, spawn } from 'child_process'
 import { safeEnv, workflowExecutionEnv } from './safe-env'
 import { createHash, randomUUID } from 'crypto'
 import { getWorkspacePath, listAgents, parseGroups } from './workspace'
@@ -1149,18 +1149,16 @@ export function validateCron(cronExpression: string): { valid: boolean; error?: 
 
 // ========== OpenClaw Cron Integration ==========
 
-import { execSync } from 'child_process'
-
 function runCronCmd(args: string[]): { ok: boolean; output: string; error?: string } {
   try {
-    const output = execSync(`openclaw cron ${args.join(' ')}`, {
+    const output = execFileSync('openclaw', ['cron', ...args], {
       encoding: 'utf-8',
       timeout: 15000,
       env: safeEnv()
     }).trim()
     return { ok: true, output }
   } catch (err: any) {
-    console.error(`[Cron] Failed: openclaw cron ${args.join(' ')}`, err.message)
+    console.error('[Cron] OpenClaw command failed', err.message)
     return { ok: false, output: '', error: err.message }
   }
 }
@@ -2117,6 +2115,8 @@ export function triggerWorkflow(workflowId: string, options?: {
               if (brokerCapability) {
                 executionEnv.CLAWMAX_SECRET_BROKER_TOKEN = brokerCapability
                 executionEnv.CLAWMAX_SECRET_BROKER_URL = `http://127.0.0.1:${process.env.DASHBOARD_PORT || '3001'}/api/runtime/skill-broker/execute`
+                executionEnv.CLAWMAX_MAIL_BROKER_TOKEN = brokerCapability
+                executionEnv.CLAWMAX_MAIL_BROKER_URL = `http://127.0.0.1:${process.env.DASHBOARD_PORT || '3001'}/api/runtime/mail`
               }
               const hasOllamaPath = !!(executionEnv.OLLAMA_BASE_URL || integrationDefaults.ollamaDefaultModel)
               if (attemptProvider === 'ollama' && !hasOllamaPath) {
@@ -2204,6 +2204,7 @@ export function triggerWorkflow(workflowId: string, options?: {
               return await executeAttempt(fallbackModel, fallbackProvider)
             }
           }, {
+            maxSessionLockRetries: 1,
             onSessionLockRetry: (attempt) => {
               workflowSessionRetryAttempt = attempt + 1
               const sessionId = buildWorkflowRetrySessionId(executionId, participant.agentId, workflowSessionRetryAttempt)

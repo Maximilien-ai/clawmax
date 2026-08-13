@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { buildPersistentDashboardChatSessionId } from './agentChatSession'
+import { buildPersistentDashboardChatSessionId, resolveDashboardChatSessionId } from './agentChatSession'
 
 function test(name: string, fn: () => void) {
   try {
@@ -17,5 +17,19 @@ test('buildPersistentDashboardChatSessionId uses a stable agent-scoped key', () 
   assert.equal(
     buildPersistentDashboardChatSessionId('astro-guide'),
     'agent:astro-guide:dashboard-chat'
+  )
+})
+
+test('resolveDashboardChatSessionId adopts automatic recovery sessions from start events', () => {
+  assert.equal(
+    resolveDashboardChatSessionId('stale-session', {
+      type: 'start',
+      data: { resumeSessionId: 'fresh-recovery-session' },
+    }),
+    'fresh-recovery-session',
+  )
+  assert.equal(
+    resolveDashboardChatSessionId('current-session', { type: 'delta', data: { resumeSessionId: 'ignored' } }),
+    'current-session',
   )
 })

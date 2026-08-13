@@ -750,6 +750,23 @@ test('runExclusiveAgentExecution invokes retry hook for embedded session takeove
   assert(retryHookCalls === 1, `Expected retry hook to run once, got ${retryHookCalls}`)
 })
 
+test('runExclusiveAgentExecution supports a single bounded session recovery attempt', async () => {
+  let attempts = 0
+  let caught = false
+
+  try {
+    await runExclusiveAgentExecution('bounded-retry-agent', async () => {
+      attempts++
+      throw new Error('EmbeddedAttemptSessionTakeoverError: session file changed while embedded prompt lock was released')
+    }, { maxSessionLockRetries: 1 })
+  } catch {
+    caught = true
+  }
+
+  assert(caught, 'Expected repeated session conflict to escape after bounded recovery')
+  assert(attempts === 2, `Expected one recovery retry, got ${attempts - 1}`)
+})
+
 test('withTemporaryAgentAuthProfiles overrides stale auth profiles for the duration of execution', async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
   const agentDir = path.join(home, '.openclaw', 'agents', 'test1', 'agent')

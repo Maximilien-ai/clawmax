@@ -141,8 +141,7 @@ export function getWorkspaceDashboardByToken(token: string): WorkspaceDashboard 
   const workspaces = workspaceManager.listWorkspaces()
   for (const workspace of workspaces) {
     const store = loadStore(workspace.id)
-    const normalized = normalizeWorkspaceDashboardSlug(token)
-    const dashboard = store.dashboards.find((entry) => entry.token === token || (entry.slug && normalizeWorkspaceDashboardSlug(entry.slug) === normalized))
+    const dashboard = store.dashboards.find((entry) => entry.token === token)
     if (dashboard) return dashboard
   }
   return null

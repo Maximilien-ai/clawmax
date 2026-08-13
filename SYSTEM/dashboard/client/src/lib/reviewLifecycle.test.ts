@@ -1,7 +1,7 @@
 import assert from 'assert'
 import {
   CUMULATIVE_2_0_REVIEW_RELEASE,
-  getCompletedReviewReleaseIdsToArchive,
+  getSupersededReviewReleaseIdsToArchive,
   getReviewReleaseGroups,
   planReviewReleaseConsolidation,
 } from './reviewLifecycle'
@@ -41,13 +41,13 @@ assert.deepStrictEqual(
   'archived release groups should be isolated from active releases',
 )
 assert.deepStrictEqual(
-  getCompletedReviewReleaseIdsToArchive(records, 'release', 'completed', '2.0.0-test-rc10').sort(),
-  ['old-1', 'old-2'],
-  'only fully completed older releases should be archived',
+  getSupersededReviewReleaseIdsToArchive(records, 'release', '2.0.0-test-rc10').sort(),
+  ['old-1', 'old-2', 'pending'],
+  'starting a focused checklist should archive every superseded active release record',
 )
 assert.deepStrictEqual(
-  getCompletedReviewReleaseIdsToArchive(records, 'release', 'completed', '2.0.0-test-rc9'),
-  ['current'],
+  getSupersededReviewReleaseIdsToArchive(records, 'release', '2.0.0-test-rc9').sort(),
+  ['current', 'pending'],
   'the incoming release should never archive itself',
 )
 

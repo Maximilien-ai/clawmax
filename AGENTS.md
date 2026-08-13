@@ -13,6 +13,11 @@
   product behavior, tests, documentation, and release metadata when they can
   be reviewed or reverted independently. Push each focused commit so CI
   identifies the exact change that introduced or fixed a failure.
+- Commit and push as soon as one coherent, directly tested concern is complete.
+  Do not accumulate multiple independently reviewable concerns in the working
+  tree, and do not start the full suite, an image build, or release CI with
+  completed implementation work still uncommitted. If later validation finds a
+  defect, fix it in a new focused commit and push that checkpoint separately.
 
 ## Repository Ownership
 
@@ -62,9 +67,14 @@
   responsive stacking, and distinct grid, detail, list, and relationship
   presentations. View controls must affect every visible collection they imply,
   including suggested items, and each item must expose inspectable details.
-- Keep release review files separated by release while carrying forward all
-  still-relevant prior checks. New RC coverage should accumulate without
-  silently removing earlier acceptance criteria.
+- Keep release review files separated by release, but put only checks requiring
+  independent human judgment or an external environment in the active reviewer
+  queue. Unit, integration, browser, source-contract, CI, version, health,
+  architecture, and catalog checks are engineering-owned release evidence, not
+  reviewer tasks. Every current Review item must state `reviewReason` as either
+  `human-judgment` or `external-environment`. Preserve superseded criteria,
+  results, notes, evidence, and verifier history in Archived; do not carry
+  unfinished old-RC checklists forward as tester work.
 
 ## Tests And Release Validation
 
@@ -109,6 +119,12 @@
   Image` in `clawmax-plugins` with the exact same public `base_tag` and private
   `image_tag`. Record both CI links and do not call the public image complete
   until the matching combined image has passed its validation and smoke jobs.
+- If a combined-image smoke job fails after the image build and plugin contract
+  checks pass, inspect the failed step and distinguish a dashboard readiness
+  probe/connection-reset flake from a packaging or plugin failure. The image
+  may be usable, but report the smoke result as unresolved and do not silently
+  mark the combined RC fully green; rerun the failed smoke jobs once before
+  deferring readiness-test hardening.
 - Record the observed or documented duration before starting a long-running CI,
   image, deployment, or test job. Do not continuously poll it.
 - Check once near half the expected duration to catch an early failure. If the

@@ -24,6 +24,7 @@ interface PendingAuthorization {
   actorId: string
   verifier: string
   redirectUri: string
+  capabilities: string[]
   createdAt: string
   expiresAt: string
 }
@@ -33,6 +34,7 @@ interface StoredConnection {
   accountId: string
   accountEmail?: string
   scopes: string[]
+  capabilities?: string[]
   accessToken: string
   refreshToken?: string
   expiresAt?: string
@@ -89,6 +91,7 @@ export interface MailOAuthConnectionSummary {
   accountId: string
   accountEmail?: string
   scopes: string[]
+  capabilities: string[]
   connectedAt: string
   updatedAt: string
   expiresAt?: string
@@ -199,6 +202,29 @@ function normalizeScopes(scopes: string[]): string[] {
   return Array.from(new Set(scopes.map((scope) => `${scope}`.trim()).filter(Boolean))).sort()
 }
 
+function inferCapabilities(provider: MailProviderId, scopes: string[]): string[] {
+  const normalized = new Set(scopes.map((scope) => scope.toLowerCase()))
+  const capabilities = new Set<string>()
+  if (provider === 'gmail') {
+    if ([...normalized].some((scope) => scope.includes('/gmail.metadata') || scope.includes('/gmail.readonly'))) {
+      capabilities.add('mail.list')
+      capabilities.add('mail.search')
+      capabilities.add('mail.read.metadata')
+    }
+    if ([...normalized].some((scope) => scope.includes('/gmail.readonly'))) capabilities.add('mail.read.body')
+    if ([...normalized].some((scope) => scope.includes('/gmail.compose'))) capabilities.add('mail.draft.create')
+  } else {
+    if (normalized.has('mail.read') || normalized.has('mail.readwrite')) {
+      capabilities.add('mail.list')
+      capabilities.add('mail.search')
+      capabilities.add('mail.read.metadata')
+      capabilities.add('mail.read.body')
+    }
+    if (normalized.has('mail.readwrite')) capabilities.add('mail.draft.create')
+  }
+  return Array.from(capabilities).sort()
+}
+
 function assertProvider(provider: string): asserts provider is MailProviderId {
   if (provider !== 'gmail' && provider !== 'microsoft365') throw new Error('Unsupported mail OAuth provider')
 }
@@ -231,6 +257,7 @@ export function listMailOAuthConnections(
       accountId: connection.accountId,
       accountEmail: connection.accountEmail,
       scopes: [...connection.scopes],
+      capabilities: normalizeScopes(connection.capabilities || inferCapabilities(connection.provider, connection.scopes)),
       connectedAt: connection.connectedAt,
       updatedAt: connection.updatedAt,
       expiresAt: connection.expiresAt,
@@ -271,6 +298,7 @@ export function beginMailOAuth(input: {
       actorId,
       verifier: pkce.verifier,
       redirectUri: input.adapter.redirectUri,
+      capabilities,
       createdAt: new Date(now).toISOString(),
       expiresAt,
     })
@@ -333,6 +361,7 @@ export async function completeMailOAuth(input: {
         accountId: tokens.accountId,
         accountEmail: tokens.accountEmail,
         scopes: normalizeScopes(tokens.scopes),
+        capabilities: normalizeScopes(pending.capabilities || []),
         accessToken: tokens.accessToken,
         refreshToken: tokens.refreshToken,
         expiresAt: tokens.expiresAt,
@@ -435,6 +464,30 @@ export async function refreshMailOAuth(input: {
     }, workspacePath)
     throw error
   }
+}
+
+export async function getMailOAuthAccessToken(input: {
+  provider: string
+  accountId: string
+  actorId: string
+  adapter: MailOAuthProviderAdapter
+  workspacePath?: string
+  now?: number
+}): Promise<string> {
+  assertProvider(input.provider)
+  const workspacePath = input.workspacePath || getWorkspacePath()
+  const now = input.now ?? Date.now()
+  let connection = readStore(workspacePath).connections.find((entry) =>
+    entry.provider === input.provider && entry.accountId === input.accountId)
+  if (!connection) throw new Error('Mail OAuth connection not found')
+  if (connection.expiresAt && Date.parse(connection.expiresAt) <= now + 60_000) {
+    if (!connection.refreshToken || !input.adapter.refresh) throw new Error('Mail OAuth connection requires reconnection')
+    await refreshMailOAuth({ ...input, provider: input.provider, workspacePath, now })
+    connection = readStore(workspacePath).connections.find((entry) =>
+      entry.provider === input.provider && entry.accountId === input.accountId)
+  }
+  if (!connection?.accessToken) throw new Error('Mail OAuth connection requires reconnection')
+  return connection.accessToken
 }
 
 export function createFakeMailOAuthProvider(provider: MailProviderId, options: {

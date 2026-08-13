@@ -494,6 +494,55 @@ const REPO_CUSTOM_SKILLS_DIR = path.join(REPO_ROOT, 'SKILLS', 'custom')
 const TOOLS_SKILL_SECTION_START = '<!-- CLAWMAX_ASSIGNED_SKILLS_START -->'
 const TOOLS_SKILL_SECTION_END = '<!-- CLAWMAX_ASSIGNED_SKILLS_END -->'
 
+export function findBundledPluginSkillFiles(
+  bundledSkillsDir: string = BUNDLED_SKILLS_DIR,
+): string[] {
+  const extensionsDir = path.join(path.dirname(bundledSkillsDir), 'extensions')
+  if (!fs.existsSync(extensionsDir)) return []
+
+  const skillFiles = new Set<string>()
+  try {
+    const pluginEntries = fs.readdirSync(extensionsDir, { withFileTypes: true })
+    for (const pluginEntry of pluginEntries) {
+      if (!pluginEntry.isDirectory()) continue
+
+      const pluginDir = path.join(extensionsDir, pluginEntry.name)
+      const manifestPath = path.join(pluginDir, 'openclaw.plugin.json')
+      if (!fs.existsSync(manifestPath)) continue
+
+      try {
+        const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'))
+        const declaredRoots = Array.isArray(manifest?.skills) ? manifest.skills : []
+        const realPluginDir = fs.realpathSync(pluginDir)
+
+        for (const declaredRoot of declaredRoots) {
+          if (typeof declaredRoot !== 'string' || declaredRoot.trim().length === 0) continue
+
+          const candidateRoot = path.resolve(pluginDir, declaredRoot)
+          if (candidateRoot !== pluginDir && !candidateRoot.startsWith(`${pluginDir}${path.sep}`)) continue
+          if (!fs.existsSync(candidateRoot) || !fs.statSync(candidateRoot).isDirectory()) continue
+
+          const realCandidateRoot = fs.realpathSync(candidateRoot)
+          if (realCandidateRoot !== realPluginDir && !realCandidateRoot.startsWith(`${realPluginDir}${path.sep}`)) continue
+
+          const skillEntries = fs.readdirSync(realCandidateRoot, { withFileTypes: true })
+          for (const skillEntry of skillEntries) {
+            if (!skillEntry.isDirectory()) continue
+            const skillPath = path.join(realCandidateRoot, skillEntry.name, 'SKILL.md')
+            if (fs.existsSync(skillPath)) skillFiles.add(skillPath)
+          }
+        }
+      } catch (err) {
+        console.error(`Error loading bundled plugin skills from ${pluginEntry.name}:`, err)
+      }
+    }
+  } catch (err) {
+    console.error('Error loading bundled plugin skill roots:', err)
+  }
+
+  return Array.from(skillFiles).sort()
+}
+
 function buildBinarySearchPaths(): string[] {
   const pathEntries = String(process.env.PATH || '')
     .split(path.delimiter)
@@ -844,6 +893,12 @@ export function listAvailableSkills(): OpenClawSkill[] {
     } catch (err) {
       console.error('Error loading bundled skills:', err)
     }
+  }
+
+  // Newer OpenClaw releases colocate channel-specific skills with their
+  // bundled plugins and declare those roots in openclaw.plugin.json.
+  for (const skillPath of findBundledPluginSkillFiles()) {
+    pushSkill(parseSkillFile(skillPath, 'bundled'))
   }
 
   // Load ClawMax repo-level packaged custom skills

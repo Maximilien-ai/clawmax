@@ -785,7 +785,8 @@ echo ""
 echo -e "${YELLOW}→ Running TypeScript type check...${NC}"
 cd dashboard
 npm run typecheck > /tmp/clawmax-typecheck.out 2>&1
-if grep -q "error TS" /tmp/clawmax-typecheck.out; then
+typecheck_rc=$?
+if [ "$typecheck_rc" -ne 0 ]; then
   fail "TypeScript type check"
 else
   pass "TypeScript type check"
@@ -1381,11 +1382,20 @@ fi
 
 echo -e "${YELLOW}→ Running Brokered skill runtime wiring tests...${NC}"
 npx ts-node --transpileOnly server/lib/skill-secret-runtime-wiring.test.ts > /tmp/clawmax-skill-secret-runtime-wiring.out 2>&1 || true
-if grep -q "13 assertions passed" /tmp/clawmax-skill-secret-runtime-wiring.out; then
-  pass "Brokered skill runtime wiring tests (13 tests)"
+if grep -q "20 assertions passed" /tmp/clawmax-skill-secret-runtime-wiring.out; then
+  pass "Brokered skill runtime wiring tests (20 tests)"
 else
   cat /tmp/clawmax-skill-secret-runtime-wiring.out
   fail "Brokered skill runtime wiring tests"
+fi
+
+echo -e "${YELLOW}→ Running Brokered mail command wrapper tests...${NC}"
+sh "$SYSTEM_DIR/clawmax-mail-run-wrapper.test.sh" > /tmp/clawmax-mail-run-wrapper.out 2>&1 || true
+if grep -q "clawmax-mail-run wrapper tests passed" /tmp/clawmax-mail-run-wrapper.out; then
+  pass "Brokered mail command wrapper tests (1 tests)"
+else
+  cat /tmp/clawmax-mail-run-wrapper.out
+  fail "Brokered mail command wrapper tests"
 fi
 
 echo -e "${YELLOW}→ Running Brokered skill secret UI contract tests...${NC}"
@@ -2124,11 +2134,29 @@ fi
 
 echo -e "${YELLOW}→ Running RC15 security baseline contract tests...${NC}"
 npx ts-node --transpileOnly server/lib/security-baseline.test.ts > /tmp/clawmax-security-baseline.out 2>&1 || true
-if grep -q "security-baseline.test.ts: 8 tests passed" /tmp/clawmax-security-baseline.out; then
-  pass "RC15 security baseline contract tests (8 tests)"
+if grep -q "security-baseline.test.ts: 9 tests passed" /tmp/clawmax-security-baseline.out; then
+  pass "RC15 security baseline contract tests (9 tests)"
 else
   cat /tmp/clawmax-security-baseline.out
   fail "RC15 security baseline contract tests"
+fi
+
+echo -e "${YELLOW}→ Running API security boundary tests...${NC}"
+npx ts-node --transpileOnly server/lib/security-boundaries.test.ts > /tmp/clawmax-security-boundaries.out 2>&1 || true
+if grep -q "security-boundaries.test.ts: 42 tests passed" /tmp/clawmax-security-boundaries.out; then
+  pass "API security boundary tests (42 tests)"
+else
+  cat /tmp/clawmax-security-boundaries.out
+  fail "API security boundary tests"
+fi
+
+echo -e "${YELLOW}→ Running dynamic API security boundary tests...${NC}"
+npx ts-node --transpileOnly server/lib/security-boundaries-dynamic.test.ts > /tmp/clawmax-security-boundaries-dynamic.out 2>&1 || true
+if grep -q "security-boundaries-dynamic.test.ts: 14 tests passed" /tmp/clawmax-security-boundaries-dynamic.out; then
+  pass "Dynamic API security boundary tests (14 tests)"
+else
+  cat /tmp/clawmax-security-boundaries-dynamic.out
+  fail "Dynamic API security boundary tests"
 fi
 
 echo -e "${YELLOW}→ Running Keys/secrets inventory unit tests...${NC}"
@@ -2744,6 +2772,15 @@ else
   fail "Workspace upload edge-case unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Archive security unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/archive-security.test.ts > /tmp/clawmax-archive-security.out 2>&1 || true
+if grep -q "archive-security.test.ts: 8 tests passed" /tmp/clawmax-archive-security.out; then
+  pass "Archive security unit tests (8 tests)"
+else
+  cat /tmp/clawmax-archive-security.out
+  fail "Archive security unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Workspace upload ownership unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/workspace-upload.test.ts > /tmp/clawmax-workspace-upload.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-workspace-upload.out; then
@@ -2928,6 +2965,15 @@ if grep -q "workflow-execution-env.test.ts:" /tmp/clawmax-workflow-execution-env
   pass "Workflow execution env regression tests (${workflow_execution_env_count:-?} tests)"
 else
   fail "Workflow execution env regression tests"
+fi
+
+echo -e "${YELLOW}→ Running Workflow cron command security tests...${NC}"
+npx ts-node --transpileOnly server/lib/workflow-cron-security.test.ts > /tmp/clawmax-workflow-cron-security.out 2>&1 || true
+if grep -q "workflow-cron-security.test.ts: 8 tests passed" /tmp/clawmax-workflow-cron-security.out; then
+  pass "Workflow cron command security tests (8 tests)"
+else
+  cat /tmp/clawmax-workflow-cron-security.out
+  fail "Workflow cron command security tests"
 fi
 
 echo ""
@@ -3309,6 +3355,16 @@ else
   fail "Production mail OAuth provider tests"
 fi
 
+echo -e "${YELLOW}→ Running Persisted mail grant and runtime tests...${NC}"
+npx ts-node --transpileOnly server/lib/mail-grants.test.ts > /tmp/clawmax-mail-grants.out 2>&1 || true
+if grep -q "Tests failed: 0" /tmp/clawmax-mail-grants.out; then
+  mail_grants_count=$(grep "Tests passed:" /tmp/clawmax-mail-grants.out | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Persisted mail grant and runtime tests (${mail_grants_count:-?} tests)"
+else
+  cat /tmp/clawmax-mail-grants.out
+  fail "Persisted mail grant and runtime tests"
+fi
+
 echo -e "${YELLOW}→ Running Production mail capability adapter tests...${NC}"
 npx ts-node --transpileOnly server/lib/mail-provider-adapters.test.ts > /tmp/clawmax-mail-provider-adapters.out 2>&1 || true
 if grep -q "Tests failed: 0" /tmp/clawmax-mail-provider-adapters.out; then
@@ -3331,8 +3387,8 @@ fi
 
 echo -e "${YELLOW}→ Running Mail OAuth client helper tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/mailOAuth.test.ts > /tmp/clawmax-mail-oauth-client.out 2>&1 || true
-if grep -q "10 assertions passed" /tmp/clawmax-mail-oauth-client.out; then
-  pass "Mail OAuth client helper tests (10 tests)"
+if grep -q "16 assertions passed" /tmp/clawmax-mail-oauth-client.out; then
+  pass "Mail OAuth client helper tests (16 tests)"
 else
   cat /tmp/clawmax-mail-oauth-client.out
   fail "Mail OAuth client helper tests"
@@ -3340,8 +3396,8 @@ fi
 
 echo -e "${YELLOW}→ Running Mail partner panel regression tests...${NC}"
 npx ts-node --transpileOnly client/src/components/MailPartnerPanel.test.ts > /tmp/clawmax-mail-partner-panel.out 2>&1 || true
-if grep -q "12 assertions passed" /tmp/clawmax-mail-partner-panel.out; then
-  pass "Mail partner panel regression tests (12 tests)"
+if grep -q "18 assertions passed" /tmp/clawmax-mail-partner-panel.out; then
+  pass "Mail partner panel regression tests (18 tests)"
 else
   cat /tmp/clawmax-mail-partner-panel.out
   fail "Mail partner panel regression tests"

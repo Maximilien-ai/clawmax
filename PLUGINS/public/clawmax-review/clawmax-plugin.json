@@ -64,6 +64,11 @@
         "type": "string",
         "title": "Owner"
       },
+      "reviewReason": {
+        "type": "string",
+        "title": "Why independent review is needed",
+        "enum": ["human-judgment", "external-environment"]
+      },
       "evidence": {
         "type": "array",
         "title": "Evidence",
@@ -81,10 +86,10 @@
   },
   "ui": {
     "form": {
-      "order": ["release", "area", "completed", "outcome", "notes", "owner", "evidence", "verifiedBy"]
+      "order": ["release", "area", "reviewReason", "completed", "outcome", "notes", "owner", "evidence", "verifiedBy"]
     },
     "list": {
-      "fields": ["area", "outcome", "completed", "owner", "evidence", "verifiedBy"],
+      "fields": ["area", "reviewReason", "outcome", "completed", "owner", "evidence", "verifiedBy"],
       "groupBy": "release",
       "checkField": "completed"
     }

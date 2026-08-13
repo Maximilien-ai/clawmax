@@ -1059,22 +1059,26 @@ router.post('/import-github', async (req, res) => {
       return res.status(400).json({ error: 'Could not parse repository name from URL' })
     }
 
-    const { execSync } = require('child_process')
+    if (subdir && (typeof subdir !== 'string' || path.isAbsolute(subdir) || subdir.split(/[\\/]+/).includes('..'))) {
+      return res.status(400).json({ error: 'Subdirectory must stay inside the cloned repository' })
+    }
+
     const os = require('os')
-    const path = require('path')
-    const fs = require('fs')
 
     const tempDir = path.join(os.tmpdir(), `openclaw-skill-${Date.now()}`)
 
     try {
       // Clone the repository
       console.log(`Cloning ${normalizedUrl} to ${tempDir}`)
-      execSync(`git clone --depth 1 ${normalizedUrl} ${tempDir}`, { stdio: 'pipe' })
+      require('child_process').execFileSync('git', ['clone', '--depth', '1', normalizedUrl, tempDir], { stdio: 'pipe' })
 
       // Determine import root: subdir override, or auto-detect
       let importRoot = tempDir
       if (subdir) {
-        importRoot = path.join(tempDir, subdir)
+        importRoot = path.resolve(tempDir, subdir)
+        if (importRoot !== tempDir && !importRoot.startsWith(`${tempDir}${path.sep}`)) {
+          throw new Error('Subdirectory must stay inside the cloned repository')
+        }
         if (!fs.existsSync(importRoot)) {
           throw new Error(`Subdirectory "${subdir}" not found in repository`)
         }

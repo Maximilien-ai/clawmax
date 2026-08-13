@@ -4,6 +4,10 @@
 > Scope: public dashboard dependency and configuration baseline
 > This is an initial baseline, not the complete pre-2.0 security audit.
 
+> Superseded: the completed source review is
+> [SECURITY_REVIEW_2_0_RC38.md](SECURITY_REVIEW_2_0_RC38.md). The OpenTelemetry
+> advisory chain and temporary `js-yaml` exception described here are closed.
+
 ## Result
 
 The initial dependency scan reported:
@@ -37,7 +41,7 @@ and main CI runs that gate before starting the dashboard.
 
 ## Residual Medium Risk
 
-The remaining eight audit entries are one transitive OpenTelemetry advisory
+At RC15, the remaining eight audit entries were one transitive OpenTelemetry advisory
 chain rooted in unbounded W3C baggage allocation. The patched exporter line is
 a breaking telemetry upgrade and must be validated with Opik tracing rather
 than forced into RC15.
@@ -49,6 +53,9 @@ than forced into RC15.
   application request parsing retains its normal size limits.
 - Required follow-up: upgrade the OpenTelemetry family together, add oversized
   baggage/header tests, verify Opik traces, and repeat container smoke tests.
+
+Final status: resolved. The August 12 lockfile audit reports zero vulnerabilities
+at every severity.
 
 ## Additional Baseline Checks
 

@@ -13,7 +13,26 @@ const original = {
 const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-mail-oauth-routes-'))
 const workspace = path.join(tempHome, 'workspace')
 fs.mkdirSync(path.join(workspace, 'SYSTEM'), { recursive: true })
+fs.mkdirSync(path.join(workspace, 'AGENTS', 'mail-agent'), { recursive: true })
+fs.writeFileSync(path.join(workspace, 'AGENTS', 'mail-agent', 'IDENTITY.md'), [
+  '# IDENTITY.md - Who Am I?',
+  '',
+  '- **Name:** Mail Agent',
+  '- **Creature:** Assistant',
+  '- **Vibe:** precise',
+  '- **Emoji:** inbox',
+  '- **Tags:** mail',
+  '',
+].join('\n'))
 fs.mkdirSync(path.join(tempHome, '.openclaw'), { recursive: true })
+fs.writeFileSync(path.join(tempHome, '.openclaw', 'openclaw.json'), JSON.stringify({
+  agents: { list: [{
+    id: 'mail-agent',
+    name: 'Mail Agent',
+    workspace: path.join(workspace, 'AGENTS', 'mail-agent'),
+    skills: ['clawmax-mail'],
+  }] },
+}, null, 2))
 process.env.HOME = tempHome
 process.env.OPENCLAW_WORKSPACE = workspace
 process.env.CLAWMAX_TEST_WORKSPACE = workspace
@@ -27,6 +46,7 @@ const gmail = oauth.createFakeMailOAuthProvider('gmail', {
 })
 const microsoft = oauth.createFakeMailOAuthProvider('microsoft365')
 const router = require('./mail-oauth').createMailOAuthRouter({ gmail, microsoft365: microsoft })
+const runtimeRouter = require('./mail-oauth').createMailRuntimeRouter({ gmail, microsoft365: microsoft })
 
 let passed = 0
 let failed = 0
@@ -55,6 +75,14 @@ async function invoke(method: string, routePath: string, req: any) {
   return res
 }
 
+async function invokeRuntime(method: string, routePath: string, req: any) {
+  const layer = runtimeRouter.stack.find((entry: any) => entry.route?.path === routePath && entry.route?.methods?.[method])
+  if (!layer) throw new Error(`${method.toUpperCase()} ${routePath} not found`)
+  const res = response()
+  await layer.route.stack[0].handle(req, res)
+  return res
+}
+
 async function test(name: string, fn: () => Promise<void> | void) {
   try {
     await fn()
@@ -72,6 +100,7 @@ async function run() {
   await test('operator mail OAuth routes are mounted behind dashboard authentication', () => {
     const indexSource = fs.readFileSync(path.join(__dirname, '..', 'index.ts'), 'utf8')
     assert(indexSource.includes("app.use('/api/mail/oauth', protect, mailOAuthRouter)"))
+    assert(indexSource.includes("app.use('/api/runtime/mail', createMailRuntimeRouter())"))
   })
 
   await test('status exposes configured providers without credentials', async () => {
@@ -86,7 +115,7 @@ async function run() {
     const res = await invoke('post', '/:provider/begin', {
       params: { provider: 'gmail' },
       query: {},
-      body: { scopes: ['mail.read.metadata'] },
+      body: { scopes: ['mail.list', 'mail.read.metadata'] },
       headers: {},
       cookies: {},
     })
@@ -119,6 +148,42 @@ async function run() {
     assert.strictEqual(res.body.providers[0].connections[0].accountId, 'route-google-account')
   })
 
+  let grantId = ''
+  await test('operator can create and inspect a persisted per-agent mail grant', async () => {
+    const created = await invoke('post', '/grants', {
+      params: {}, query: {}, headers: {}, cookies: {},
+      body: { agentId: 'mail-agent', provider: 'gmail', accountId: 'route-google-account', capabilities: ['mail.list'] },
+    })
+    assert.strictEqual(created.statusCode, 200)
+    grantId = created.body.grant.id
+    assert.strictEqual(created.body.grant.pluginId, 'clawmax-mail')
+    const listed = await invoke('get', '/grants', { params: {}, query: {}, body: {}, headers: {}, cookies: {} })
+    assert.strictEqual(listed.body.grants.length, 1)
+    assert(listed.body.agents.some((agent: any) => agent.id === 'mail-agent'))
+    assert(!JSON.stringify(listed.body).includes('accessToken'))
+  })
+
+  await test('runtime lists only the capability-token agent grants', async () => {
+    const token = require('../lib/skill-secret-broker').createBrokerCapabilityToken('mail-agent', workspace)
+    const res = await invokeRuntime('post', '/accounts', {
+      params: {}, query: {}, body: {}, cookies: {}, headers: { authorization: `Bearer ${token}` },
+    })
+    assert.strictEqual(res.statusCode, 200)
+    assert.strictEqual(res.body.accounts[0].accountId, 'route-google-account')
+    const denied = await invokeRuntime('post', '/accounts', {
+      params: {}, query: {}, body: {}, cookies: {}, headers: { authorization: 'Bearer invalid' },
+    })
+    assert.strictEqual(denied.statusCode, 401)
+  })
+
+  await test('operator can revoke a mail grant immediately', async () => {
+    const res = await invoke('delete', '/grants/:grantId', {
+      params: { grantId }, query: {}, body: {}, headers: {}, cookies: {},
+    })
+    assert.strictEqual(res.statusCode, 200)
+    assert(res.body.grant.revokedAt)
+  })
+
   await test('browser callback closes its popup without posting account or token data', async () => {
     const begin = await invoke('post', '/:provider/begin', {
       params: { provider: 'microsoft365' },
@@ -141,6 +206,17 @@ async function run() {
     assert(`${res.body}`.includes('window.close()'))
     assert(!`${res.body}`.includes('popup-code-secret'))
     assert(!`${res.body}`.includes('tester@microsoft365.test'))
+  })
+
+  await test('agent grants cannot exceed capabilities approved during OAuth', async () => {
+    const res = await invoke('post', '/grants', {
+      params: {}, query: {}, headers: {}, cookies: {},
+      body: {
+        agentId: 'mail-agent', provider: 'microsoft365', accountId: 'microsoft365-account', capabilities: ['mail.draft.create'],
+      },
+    })
+    assert.strictEqual(res.statusCode, 403)
+    assert.match(res.body.error, /did not approve/i)
   })
 
   await test('callback blocks OAuth state replay', async () => {
@@ -188,6 +264,11 @@ async function run() {
   })
 
   await test('disconnect revokes and removes a connection', async () => {
+    const created = await invoke('post', '/grants', {
+      params: {}, query: {}, headers: {}, cookies: {},
+      body: { agentId: 'mail-agent', provider: 'gmail', accountId: 'route-google-account', capabilities: ['mail.list'] },
+    })
+    assert.strictEqual(created.statusCode, 200)
     const res = await invoke('delete', '/:provider/connections/:accountId', {
       params: { provider: 'gmail', accountId: 'route-google-account' },
       query: {},
@@ -198,6 +279,9 @@ async function run() {
     assert.strictEqual(res.statusCode, 200)
     assert.strictEqual(gmail.revokedTokens.length, 1)
     assert.strictEqual(res.body.status.providers[0].connections.length, 0)
+    const listed = await invoke('get', '/grants', { params: {}, query: {}, body: {}, headers: {}, cookies: {} })
+    const disconnectedGrant = listed.body.grants.find((grant: any) => grant.id === created.body.grant.id)
+    assert(disconnectedGrant.revokedAt)
   })
 
   await test('disconnecting an unknown account returns not found', async () => {

@@ -58,6 +58,7 @@ const AGENT_EXECUTION_SESSION_LOCK_RETRIES = 2
 
 interface ExclusiveAgentExecutionOptions {
   onSessionLockRetry?: (attempt: number, error: unknown) => void | Promise<void>
+  maxSessionLockRetries?: number
 }
 
 function resolveLmstudioServerBase(baseUrl?: string): string | undefined {
@@ -183,11 +184,12 @@ export async function runExclusiveAgentExecution<T>(
   await previous
   try {
     let attempt = 0
+    const maxSessionLockRetries = options.maxSessionLockRetries ?? AGENT_EXECUTION_SESSION_LOCK_RETRIES
     while (true) {
       try {
         return await fn()
       } catch (error) {
-        if (!isOpenClawSessionLockError(error) || attempt >= AGENT_EXECUTION_SESSION_LOCK_RETRIES) {
+        if (!isOpenClawSessionLockError(error) || attempt >= maxSessionLockRetries) {
           throw error
         }
         await options.onSessionLockRetry?.(attempt, error)
