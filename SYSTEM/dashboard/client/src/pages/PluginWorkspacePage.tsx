@@ -54,7 +54,7 @@ import {
 } from '../lib/reviewExport'
 import { readStoredReviewIdentity, resolveReviewIdentity, storeReviewIdentity } from '../lib/reviewIdentity'
 import {
-  getCompletedReviewReleaseIdsToArchive,
+  getSupersededReviewReleaseIdsToArchive,
   getReviewReleaseGroups,
   planReviewReleaseConsolidation,
 } from '../lib/reviewLifecycle'
@@ -4460,14 +4460,13 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
       const incomingRelease = templateFields && typeof templateFields[groupField] === 'string'
         ? String(templateFields[groupField])
         : null
-      const archiveIds = new Set(getCompletedReviewReleaseIdsToArchive(
+      const archiveIds = new Set(getSupersededReviewReleaseIdsToArchive(
         items,
         groupField,
-        checkField,
         incomingRelease,
       ))
-      const completedOlderRecords = items.filter((item) => archiveIds.has(item.id))
-      if (completedOlderRecords.length > 0) await updateItems(completedOlderRecords, true)
+      const supersededRecords = items.filter((item) => archiveIds.has(item.id))
+      if (supersededRecords.length > 0) await updateItems(supersededRecords, true)
       setSelectedGroup(incomingRelease)
     }
     await load()

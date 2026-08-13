@@ -1,6 +1,6 @@
 {
   "release": "2.0.0-test-rc37",
-  "description": "Focused hands-on review for RC37, retaining outstanding product and OpenClaw checks while adding automatic chat and workflow session-conflict recovery.",
+  "description": "Independent hands-on acceptance for behavior that requires human judgment, real OAuth providers, or a persistent upgraded runtime.",
   "defaults": {
     "enabled": true,
     "tags": ["release", "current", "2.0.0-test-rc37"],
@@ -14,144 +14,53 @@
   },
   "items": [
     {
-      "id": "rc25-lifecycle-suggested-relationship",
-      "name": "Suggested Lifecycle relationship graph is populated",
-      "description": "Test: Open Lifecycle, choose Suggested, then Relationship view. Pass: A relationship preview appears for every suggested agent, workflow, group, and community inspection; the graph is not an empty shell; each preview shows its object type, inspection focus, time window, and target-required state.",
-      "tags": ["lifecycle", "plugins", "graph", "suggested"],
-      "fields": {"area": "plugins", "notes": ""}
+      "id": "rc37-ai-create-routing-journey",
+      "name": "Builder create actions match explicit intent",
+      "description": "Test: Ask Builder separately to create and update an agent, skill, and workflow, then follow the offered actions. Pass: Each response offers the matching AI Create action even when an update action is also present, opens the correct surface with the prompt preserved, and never routes to a different artifact type.",
+      "tags": ["ai", "builder", "create", "handoff"],
+      "fields": {"area": "regression", "reviewReason": "human-judgment", "notes": ""}
     },
     {
-      "id": "rc25-lifecycle-suggested-list-no-xray",
-      "name": "Suggested Lifecycle list stays focused on catalog cards",
-      "description": "Test: In Lifecycle > Suggested, switch between Grid, Detail, and List views without using Use. Pass: Suggested views show catalog entries and their actions only; no agent or workflow X-ray is rendered until an inspection is used and a target is selected under Active or Archived.",
-      "tags": ["lifecycle", "plugins", "suggested", "views"],
-      "fields": {"area": "plugins", "notes": ""}
-    },
-    {
-      "id": "rc25-lifecycle-agent-workflow-xray",
-      "name": "Active Lifecycle X-rays show agent and workflow history",
-      "description": "Test: Use an agent inspection and a workflow inspection, select targets, and open Active in List and Relationship views. Pass: Agents show files, conversations, models, and configuration events; workflows show definition, status, runs, participants, and artifacts; selecting a target opens its X-ray with a collapsible evidence panel.",
-      "tags": ["lifecycle", "agents", "workflows", "history"],
-      "fields": {"area": "plugins", "notes": ""}
-    },
-    {
-      "id": "rc25-lifecycle-communication-xray",
-      "name": "Group and community communication history is inspectable",
-      "description": "Test: Use the group and community communication suggestions, select one available group and community, then open their Active X-rays. Pass: Each target shows message activity and archive counts, its relationship lane identifies the communication type, and full message content remains in Communications rather than leaking into Lifecycle.",
-      "tags": ["lifecycle", "communications", "groups", "communities"],
-      "fields": {"area": "plugins", "notes": ""}
-    },
-    {
-      "id": "rc25-lifecycle-compressed-timeline",
-      "name": "Lifecycle timelines preserve time relationships",
-      "description": "Test: Open Relationship view for targets with events separated by short and long gaps. Pass: Events remain ordered with larger gaps visibly larger but compressed, long quiet periods show an ellipsis and duration, and event labels remain readable without forcing an enormous empty timeline.",
-      "tags": ["lifecycle", "timeline", "graph"],
-      "fields": {"area": "plugins", "notes": ""}
-    },
-    {
-      "id": "rc25-lifecycle-mobile-graph",
-      "name": "Lifecycle graphs and X-rays work on mobile",
-      "description": "Test: At an iPhone-width viewport, use Suggested Relationship and Active Relationship views, zoom the graph, select a node, and expand or collapse an X-ray. Pass: The page does not overflow, graph scrolling stays inside its container, zoom controls remain tappable, labels do not overlap, and the X-ray content scrolls independently.",
-      "tags": ["lifecycle", "mobile", "responsive"],
-      "fields": {"area": "responsive", "notes": ""}
-    },
-    {
-      "id": "rc25-lifecycle-restart-persistence",
-      "name": "Lifecycle selections and evidence survive restart",
-      "description": "Test: Use one Lifecycle inspection for each supported target type, refresh the browser, restart the instance, and return to Lifecycle. Pass: Active records, selected targets, graph/list view choice, collapsed X-ray state, and available evidence remain consistent after restart; missing targets show a clear error instead of a blank page.",
-      "tags": ["lifecycle", "persistence", "restart"],
-      "fields": {"area": "persistence", "notes": ""}
-    },
-    {
-      "id": "rc27-ai-generation-progress",
-      "name": "Long AI generation shows visible progress",
-      "description": "Test: Start AI generation for a team template, single agent, agent template files, and a skill draft. Pass: A progress bar and stage text appear beside or in the sticky action area for the button you used, remain visible while scrolling, and disappear after success or failure.",
-      "tags": ["ai", "generation", "progress", "responsive"],
-      "fields": {"area": "regression", "notes": ""}
-    },
-    {
-      "id": "rc27-team-target",
-      "name": "Team generation stays a team",
-      "description": "Test: In Builder, choose AI Create Team Template and use a prompt mentioning a startup or business. Pass: The generated result remains one focused team, not a company or team-of-teams; the selected target is preserved after generation and regeneration.",
-      "tags": ["ai", "builder", "templates", "team"],
-      "fields": {"area": "regression", "notes": ""}
-    },
-    {
-      "id": "rc27-template-save-error",
-      "name": "Template save errors explain the server failure",
-      "description": "Test: Generate or edit a template with a duplicate name or invalid field, then click Save Template. Pass: The UI shows the server-provided validation or conflict message instead of only 'Failed to save template'; a valid template still saves normally.",
-      "tags": ["templates", "errors", "validation"],
-      "fields": {"area": "regression", "notes": ""}
-    },
-    {
-      "id": "rc27-ai-generation-timeout",
-      "name": "Long generation has a bounded timeout and recovery",
-      "description": "Test: Start a full team generation and wait. Pass: The progress remains active during the request, the request has enough time for a full response, and if it still times out the UI shows a clear retryable error without losing the prompt.",
-      "tags": ["ai", "generation", "timeout", "recovery"],
-      "fields": {"area": "regression", "notes": ""}
-    },
-    {
-      "id": "rc35-builder-explicit-create-handoffs",
-      "name": "Specific Builder intent always offers a matching AI Create action",
-      "description": "Test: Submit separate Builder prompts to create and update an agent, skill, and workflow. Pass: Every result offers AI Create Agent, AI Create Skill, or AI Create Workflow as appropriate even when an update action is also available; create actions open the correct surface with the prompt preserved.",
-      "tags": ["builder", "ai", "create", "handoff"],
-      "fields": {"area": "regression", "notes": ""}
-    },
-    {
-      "id": "rc35-ai-editor-expand-surfaces",
-      "name": "Shared AI editor and Expand with AI work from real surfaces",
-      "description": "Test: Open the shared AI editor from one agent, skill, and workflow create/edit surface, run Expand with AI, then apply the result. Pass: Each request shows progress, returns editable content, preserves unrelated fields, applies to the originating editor, and reports a retryable error without losing the draft if generation fails.",
+      "id": "rc37-ai-editor-expand-journey",
+      "name": "AI Editor and Expand with AI are useful end to end",
+      "description": "Test: From one real agent, skill, and workflow create or edit surface, use the shared AI Editor and Expand with AI, then apply and save the result. Pass: Progress is understandable, generated text is useful and editable, unrelated fields are preserved, the result returns to the originating surface, and a failed request can be retried without losing the draft.",
       "tags": ["ai", "editor", "expand", "agents", "skills", "workflows"],
-      "fields": {"area": "regression", "notes": ""}
+      "fields": {"area": "regression", "reviewReason": "human-judgment", "notes": ""}
     },
     {
-      "id": "rc35-lifecycle-targets-loading-xray",
-      "name": "Lifecycle identifies targets and loads their X-rays",
-      "description": "Test: Open an Active Lifecycle record that targets several agents or workflows, then select each target from grid, detail, list, and relationship views. Pass: The record visibly names every target, selection shows a retrieval/loading state when needed, and the completed X-ray shows target-specific evidence or an actionable empty/error state rather than a blank panel.",
-      "tags": ["lifecycle", "targets", "loading", "xray"],
-      "fields": {"area": "plugins", "notes": ""}
+      "id": "rc37-lifecycle-real-data-xray",
+      "name": "Lifecycle X-rays explain real target history",
+      "description": "Test: Create active inspections for a real agent and workflow with history, open them in the available views, and inspect each target on desktop and phone. Pass: Targets are obvious before selection, retrieval progress is visible, the X-rays present useful target-specific evidence and time relationships, navigation remains usable, and empty or missing evidence has an actionable explanation.",
+      "tags": ["lifecycle", "targets", "xray", "responsive"],
+      "fields": {"area": "plugins", "reviewReason": "human-judgment", "notes": ""}
     },
     {
-      "id": "rc35-plugin-target-summary",
-      "name": "Active plugin records identify affected agents and workflows",
-      "description": "Test: In every enabled record-based product plugin, inspect an Active card and its detail/list view for a record assigned to several targets. Pass: The card identifies affected agents and workflows without opening the editor, long target lists remain readable, and stale or missing targets are labeled instead of silently omitted.",
-      "tags": ["plugins", "targets", "agents", "workflows"],
-      "fields": {"area": "plugins", "notes": ""}
+      "id": "rc37-activity-sharing-consent-journey",
+      "name": "Activity sharing remains visible and easy to revoke",
+      "description": "Test: Enable activity sharing to two available destinations, produce a queued event, inspect the dashboard status pill, then revoke one destination from the consent or Partner surface. Pass: The UI clearly names destinations and scopes, offers leave-enabled and revoke choices, revocation updates immediately and stops that destination without disabling the other, and no shared activity content appears without opening its details.",
+      "tags": ["activity", "sharing", "consent", "partners", "revoke"],
+      "fields": {"area": "regression", "reviewReason": "human-judgment", "notes": ""}
     },
     {
-      "id": "rc35-activity-sharing-pill-revoke",
-      "name": "Activity-sharing status opens consent details and revocation",
-      "description": "Test: Enable activity sharing, produce a queued event, and select the queued/sharing pill from the dashboard. Pass: A dialog identifies the destination and enabled scopes, links to the governing sharing settings, and offers a clear revoke action while preserving a leave-enabled path.",
-      "tags": ["activity", "sharing", "consent", "revoke"],
-      "fields": {"area": "regression", "notes": ""}
+      "id": "rc37-gmail-oauth-lifecycle",
+      "name": "Gmail connection lifecycle works with a real provider",
+      "description": "Test: On a non-production instance configured for Google OAuth, connect a test Gmail account, return to ClawMax, refresh the connection and page, then disconnect it. Pass: The provider round trip succeeds, only expected account metadata is displayed, the connection survives refresh, disconnect removes it, and no OAuth credential appears in the page, URL, logs, or Review export.",
+      "tags": ["mail", "gmail", "oauth", "external"],
+      "fields": {"area": "regression", "reviewReason": "external-environment", "notes": ""}
     },
     {
-      "id": "rc35-partner-sharing-revoke",
-      "name": "Partner sharing can be revoked from the Partner surface",
-      "description": "Test: Enable two activity-sharing destinations, open Partners, and revoke one destination. Pass: Each destination has its own visible sharing state and revoke control, revoking one stops and purges its queued delivery according to policy without disabling the other destination, and the dashboard pill updates immediately.",
-      "tags": ["partners", "activity", "sharing", "revoke"],
-      "fields": {"area": "regression", "notes": ""}
+      "id": "rc37-microsoft-oauth-lifecycle",
+      "name": "Microsoft 365 connection lifecycle works with a real provider",
+      "description": "Test: On a non-production instance configured for Microsoft OAuth, connect a test Microsoft 365 account, return to ClawMax, refresh the connection and page, then disconnect it. Pass: The provider round trip succeeds, only expected account metadata is displayed, the connection survives refresh, disconnect removes it, and no OAuth credential appears in the page, URL, logs, or Review export.",
+      "tags": ["mail", "microsoft-365", "oauth", "external"],
+      "fields": {"area": "regression", "reviewReason": "external-environment", "notes": ""}
     },
     {
-      "id": "rc37-runtime-identity-and-restart",
-      "name": "RC37 identity and state survive restart",
-      "description": "Test: Start the exact RC37 image, check the dashboard and /api/system, create representative plugin and Builder state, restart the instance, and reopen the workspace. Pass: Both version surfaces report 2.0.0-test-rc37, health returns HTTP 200, intended public plugins load, state survives restart, and unavailable external plugins do not break core navigation.",
-      "tags": ["release", "identity", "restart", "persistence"],
-      "fields": {"area": "identity", "notes": ""}
-    },
-    {
-      "id": "rc37-openclaw-runtime-and-skills",
-      "name": "OpenClaw runtime and plugin-owned skills match RC37",
-      "description": "Test: In the exact RC37 image, run openclaw --version, open Skills, validate github, slack, and notion, then complete one agent chat and workflow. Pass: OpenClaw reports 2026.6.34, the catalog contains more than 40 skills including plugin-owned Slack, Discord, Canvas, Voice Call, and WhatsApp entries, validation succeeds, and chat plus workflow execution complete.",
-      "tags": ["release", "openclaw", "skills", "chat", "workflows"],
-      "fields": {"area": "runtime", "notes": ""}
-    },
-    {
-      "id": "rc37-openclaw-session-recovery",
-      "name": "Chat and workflow sessions recover without a manual reset",
-      "description": "Test: Upgrade a persistent RC36 workspace to RC37, use an existing agent chat, then run a workflow targeting that agent and send another chat message after it completes. Pass: Normal requests complete without a reset; any embedded session conflict gets one fresh-session retry, the recovered chat continues on later messages, and repeated conflicts produce actionable guidance without an unbounded replay loop.",
-      "tags": ["release", "openclaw", "chat", "workflows", "recovery"],
-      "fields": {"area": "runtime", "notes": ""}
+      "id": "rc37-persistent-session-recovery",
+      "name": "Upgraded chat and workflow sessions recover without intervention",
+      "description": "Test: Upgrade a persistent pre-RC37 workspace, continue an existing agent chat, run a workflow targeting that agent, and chat again after completion. Pass: Requests complete without a manual reset, a recoverable embedded-session conflict retries only once with no duplicate visible output, later messages continue normally, and repeated conflicts stop with actionable guidance.",
+      "tags": ["openclaw", "upgrade", "chat", "workflows", "recovery"],
+      "fields": {"area": "regression", "reviewReason": "external-environment", "notes": ""}
     }
   ]
 }

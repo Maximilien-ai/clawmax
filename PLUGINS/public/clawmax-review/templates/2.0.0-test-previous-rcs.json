@@ -1,9 +1,9 @@
 {
   "id": "2.0.0-test-previous-rcs",
   "name": "2.0.0 previous RC regression checklist",
-  "description": "Cumulative checks introduced across earlier 2.0.0 test candidates, including clearly labeled prior tester confirmations.",
+  "description": "Historical 2.0 acceptance criteria and prior confirmations retained for traceability; superseded checks belong in Archived, not a current reviewer queue.",
   "release": "2.0.0 previous RCs",
-  "recommended": true,
+  "recommended": false,
   "tags": [
     "release",
     "regression",

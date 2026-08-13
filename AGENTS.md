@@ -67,9 +67,14 @@
   responsive stacking, and distinct grid, detail, list, and relationship
   presentations. View controls must affect every visible collection they imply,
   including suggested items, and each item must expose inspectable details.
-- Keep release review files separated by release while carrying forward all
-  still-relevant prior checks. New RC coverage should accumulate without
-  silently removing earlier acceptance criteria.
+- Keep release review files separated by release, but put only checks requiring
+  independent human judgment or an external environment in the active reviewer
+  queue. Unit, integration, browser, source-contract, CI, version, health,
+  architecture, and catalog checks are engineering-owned release evidence, not
+  reviewer tasks. Every current Review item must state `reviewReason` as either
+  `human-judgment` or `external-environment`. Preserve superseded criteria,
+  results, notes, evidence, and verifier history in Archived; do not carry
+  unfinished old-RC checklists forward as tester work.
 
 ## Tests And Release Validation
 

@@ -603,9 +603,10 @@ async function run() {
     const releaseTemplates = listPluginTemplates(plugin!).filter((template) => (
       'fields' in template.payload && template.payload.fields?.release === '2.0.0-test-rc37'
     ))
-    assert.strictEqual(releaseTemplates.length, 20, 'Expected the current RC37 file to expand into twenty checklist items')
-    assert(releaseTemplates.some((template) => template.id === '2.0.0-test-rc37:rc37-openclaw-session-recovery'), 'Expected release-qualified session-recovery checklist discovery')
-    const applied = applyPluginTemplate(plugin!, '2.0.0-test-rc37:rc37-openclaw-session-recovery')
+    assert.strictEqual(releaseTemplates.length, 7, 'Expected the current RC37 file to expand into seven independently reviewable journeys')
+    assert(releaseTemplates.every((template) => 'fields' in template.payload && ['human-judgment', 'external-environment'].includes(String(template.payload.fields?.reviewReason))), 'Expected every current check to justify independent review')
+    assert(releaseTemplates.some((template) => template.id === '2.0.0-test-rc37:rc37-persistent-session-recovery'), 'Expected release-qualified session-recovery checklist discovery')
+    const applied = applyPluginTemplate(plugin!, '2.0.0-test-rc37:rc37-persistent-session-recovery')
     assert(applied && 'fields' in applied && applied.fields.owner === 'release-tester', 'Expected generic template application')
   })
 

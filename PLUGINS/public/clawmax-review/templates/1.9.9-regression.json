@@ -1,9 +1,9 @@
 {
   "id": "1.9.9-regression",
   "name": "1.9.9 regression checklist",
-  "description": "Unconfirmed manual checks retained from the complete 1.9.9 release-candidate line.",
+  "description": "Historical 1.9.9 acceptance criteria retained for traceability; do not add these to a current reviewer queue.",
   "release": "1.9.9 regression",
-  "recommended": true,
+  "recommended": false,
   "tags": ["release", "regression", "1.9.9"],
   "defaults": {
     "enabled": true,
