@@ -153,14 +153,15 @@ test('claude is chosen on its built-in alias even when listed first', () => {
   })
 })
 
-test('an alias reaches the claude CLI unchanged and a foreign model still throws', () => {
+test('an alias reaches the claude CLI unchanged and a foreign model falls back', () => {
   const { runtimeModelArg, buildRuntimePlan, CLAUDE_MODEL_ALIASES } = require('./agent-runtime')
   for (const alias of CLAUDE_MODEL_ALIASES) {
     assert.strictEqual(runtimeModelArg('claude', alias), alias, `Alias ${alias} should pass through`)
   }
-  assert.throws(() => runtimeModelArg('claude', 'openai/sonnet'), /Anthropic models only/,
-    'A provider-qualified non-Anthropic model must still be rejected')
-  assert.throws(() => runtimeModelArg('claude', 'openai/gpt-5'), /Anthropic models only/)
+  // A provider-qualified non-Anthropic model is not runnable, but refusing the turn left agents
+  // already on disk permanently unusable, so it runs on the runtime's own default instead.
+  assert.strictEqual(runtimeModelArg('claude', 'openai/sonnet'), 'sonnet')
+  assert.strictEqual(runtimeModelArg('claude', 'openai/gpt-5'), 'sonnet')
   const plan = buildRuntimePlan({
     runtime: 'claude', mode: 'json', agentId: 'a', scopedSessionId: 's',
     message: 'hi', model: 'sonnet', agentDir: '/tmp', resume: false,
@@ -354,6 +355,34 @@ asyncCases.push(['concurrent generations do not report each other\'s provider', 
     assert.strictEqual(a.attribution?.label, 'OpenAI', `first call saw ${a.attribution?.label}`)
     assert.strictEqual(b.attribution?.label, 'Anthropic', `second call saw ${b.attribution?.label}`)
   })
+}])
+
+asyncCases.push(['a CLI whose grandchild holds stdout still settles at its deadline', async () => {
+  // The turn used to resolve only on the child's "close" event, which needs every stdio pipe
+  // closed. Killing the CLI does not kill the processes it spawned, and those inherit stdout --
+  // so the promise never settled, the caller's recovery never ran, and the request stayed wedged
+  // server-side while the user saw only the route's own timeout message.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-hang-'))
+  const fakeCli = path.join(dir, 'claude')
+  // Backgrounds a grandchild that outlives the shell and keeps the inherited stdout open.
+  fs.writeFileSync(fakeCli, '#!/bin/sh\nsleep 900 &\nsleep 900\n')
+  fs.chmodSync(fakeCli, 0o755)
+  await withWorkspaceAsync(['claude'], { CLAUDE_BIN: fakeCli }, async () => {
+    const { executeAgentRuntimeTurn } = require('./agent-runtime')
+    const started = Date.now()
+    const result = await Promise.race([
+      executeAgentRuntimeTurn({
+        runtime: 'claude', agentId: 'hang-probe', agentDir: dir, message: 'hi',
+        scopedSessionId: 'hang-probe-session', model: 'sonnet', mode: 'chat',
+        env: process.env, timeoutMs: 2000,
+      }),
+      new Promise((resolve) => setTimeout(() => resolve('NEVER_SETTLED'), 20000)),
+    ])
+    const elapsed = Date.now() - started
+    assert.notStrictEqual(result, 'NEVER_SETTLED', `Turn never settled after ${elapsed}ms`)
+    assert(elapsed < 15000, `Expected the turn to settle near its 2s deadline, took ${elapsed}ms`)
+  })
+  fs.rmSync(dir, { recursive: true, force: true })
 }])
 
 runAsyncCases().then(() => {

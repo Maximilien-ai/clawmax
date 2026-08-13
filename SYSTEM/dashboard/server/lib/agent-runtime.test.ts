@@ -22,8 +22,8 @@ import {
   resolveRuntimeCliPath,
   resolveWorkspaceRuntime,
   runRuntimeCli,
-  runtimeModelArg,
-  } from './agent-runtime'
+  runtimeModelArg, shouldRestartClaudeSessionAfterTimeout,
+} from './agent-runtime'
 import { hasRuntimeSession } from './runtime-sessions'
 
 const GREEN = '\x1b[32m'
@@ -421,6 +421,31 @@ function withStubbedClis<T>(fn: (dir: string) => T): T {
     return withEnv({ OPENCLAW_BIN: openclawCli, CLAUDE_BIN: claudeCli, DROID_BIN: droidCli }, () => fn(dir))
   })
 }
+
+test('a wedged resumed claude session is retried on a fresh session', () => {
+  // Reproduced live: resuming one long-lived transcript produced no output and hit the 240s cap,
+  // and because the session id is deterministic every later turn resumed the same transcript and
+  // timed out identically. The existing recovery is gated on a non-timeout error, so it never
+  // fired -- the agent was dead until the session was cleared by hand.
+  assert.strictEqual(shouldRestartClaudeSessionAfterTimeout({
+    runtime: 'claude', timedOut: true, text: '', resumed: true,
+  }), true)
+  // A fresh session that times out is a slow prompt; retrying makes the user wait twice.
+  assert.strictEqual(shouldRestartClaudeSessionAfterTimeout({
+    runtime: 'claude', timedOut: true, text: '', resumed: false,
+  }), false)
+  // Partial output means the session is alive.
+  assert.strictEqual(shouldRestartClaudeSessionAfterTimeout({
+    runtime: 'claude', timedOut: true, text: 'partial', resumed: true,
+  }), false)
+  // Not a timeout, and not claude.
+  assert.strictEqual(shouldRestartClaudeSessionAfterTimeout({
+    runtime: 'claude', timedOut: false, text: '', resumed: true,
+  }), false)
+  assert.strictEqual(shouldRestartClaudeSessionAfterTimeout({
+    runtime: 'droid', timedOut: true, text: '', resumed: true,
+  }), false)
+})
 
 test('buildRuntimePlan(openclaw, chat) matches today\'s args exactly, no cwd, streams deltas', () => {
   withStubbedClis(() => {
