@@ -5,6 +5,7 @@ export type MailOAuthConnection = {
   accountId: string
   accountEmail?: string
   scopes: string[]
+  capabilities: MailCapability[]
   connectedAt: string
   updatedAt: string
   expiresAt?: string
@@ -24,6 +25,30 @@ export type MailOAuthStatus = {
   providers: MailOAuthProviderStatus[]
 }
 
+export type MailCapability = 'mail.list' | 'mail.search' | 'mail.read.metadata' | 'mail.read.body' | 'mail.draft.create'
+
+export type MailCapabilityGrant = {
+  id: string
+  agentId: string
+  provider: MailOAuthProvider
+  accountId: string
+  capabilities: MailCapability[]
+  createdAt?: string
+  expiresAt?: string
+  revokedAt?: string
+}
+
+export type MailGrantAgent = {
+  id: string
+  name: string
+  skills: string[]
+}
+
+export type MailGrantStatus = {
+  grants: MailCapabilityGrant[]
+  agents: MailGrantAgent[]
+}
+
 async function readJson(res: Response) {
   const data = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(data.error || `Mail connection request failed with HTTP ${res.status}`)
@@ -32,6 +57,30 @@ async function readJson(res: Response) {
 
 export async function loadMailOAuthStatus(): Promise<MailOAuthStatus> {
   const res = await fetch('/api/mail/oauth/status')
+  return readJson(res)
+}
+
+export async function loadMailGrantStatus(): Promise<MailGrantStatus> {
+  const res = await fetch('/api/mail/oauth/grants')
+  return readJson(res)
+}
+
+export async function createMailGrant(input: {
+  agentId: string
+  provider: MailOAuthProvider
+  accountId: string
+  capabilities: MailCapability[]
+}) {
+  const res = await fetch('/api/mail/oauth/grants', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  return readJson(res)
+}
+
+export async function revokeMailGrant(grantId: string) {
+  const res = await fetch(`/api/mail/oauth/grants/${encodeURIComponent(grantId)}`, { method: 'DELETE' })
   return readJson(res)
 }
 

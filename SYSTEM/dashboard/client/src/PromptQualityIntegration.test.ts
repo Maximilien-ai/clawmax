@@ -40,7 +40,15 @@ for (const [relativePath, inlineDomain, editorDomain] of integrations) {
 
 assert(read('components/AgentTemplateWizard.tsx').includes('qualityDomain="agent"'), 'Agent template AI Editor must use agent rules')
 assert(read('components/WorkflowEditorDialog.tsx').includes('qualityDomain="workflow"'), 'Workflow description AI Editor must use workflow rules')
+assert(read('components/AddAgentWizard.tsx').includes("expandPromptWithAI(value, 'agent'"), 'Agent AI Editor must wire Expand with AI to the agent target')
+assert(read('pages/SkillsTest.tsx').includes("expandPromptWithAI(value, 'skill'"), 'Skill AI Editor must wire Expand with AI to the skill target')
+assert(read('pages/Workflows.tsx').includes("expandPromptWithAI(value, 'workflow'"), 'Workflow AI Editor must wire Expand with AI to the workflow target')
+assert(read('components/TemplateWizard.tsx').includes("expandPromptWithAI(value, 'template'"), 'Template AI Editor must wire Expand with AI to the template target')
 assert(read('pages/Workflows.tsx').includes('ariaLabelledBy="workflow-ai-create-title"'), 'Workflow AI Create must use the shared mobile-safe dialog')
 assert(read('pages/PluginWorkspacePage.tsx').includes('ariaLabelledBy="plugin-ai-create-title"'), 'Plugin AI Create must use the shared mobile-safe dialog')
+assert(builder.includes("label: 'AI Create Agent'"), 'Builder must expose AI Create Agent for explicit agent actions')
+assert(builder.includes("label: 'AI Create Workflow'"), 'Builder must expose AI Create Workflow for explicit workflow actions')
+assert(builder.includes("label: 'AI Create Skill'"), 'Builder must expose AI Create Skill for explicit skill actions')
+assert(builder.includes('hasExplicitBuilderEntityAction'), 'Builder must classify explicit create and update entity prompts')
 
 console.log('PromptQualityIntegration.test.ts: 32 tests passed')

@@ -95,12 +95,13 @@ test('createWorkspaceDashboard persists a dashboard with default sections', () =
   assert(listWorkspaceDashboards('workspace-a').length === 1, 'Expected one dashboard to be listed')
 })
 
-test('dashboard slugs are unique and token lookup accepts the slug', () => {
+test('dashboard slugs are unique but do not authorize public access', () => {
   const first = createWorkspaceDashboard('workspace-a', { title: 'Shared Board', slug: 'team-board' })
   const second = createWorkspaceDashboard('workspace-b', { title: 'Another Board', slug: 'team-board' })
   assert(first.slug === 'team-board', 'Expected requested slug to be preserved')
   assert(second.slug === 'team-board-2', 'Expected a collision-safe suffix')
-  assert(getWorkspaceDashboardByToken(second.slug)?.id === second.id, 'Expected slug lookup to find dashboard')
+  assert(getWorkspaceDashboardByToken(second.slug) === null, 'Expected readable slug not to grant dashboard access')
+  assert(getWorkspaceDashboardByToken(second.token)?.id === second.id, 'Expected random token lookup to find dashboard')
 })
 
 test('createWorkspaceDashboard merges provided section overrides', () => {

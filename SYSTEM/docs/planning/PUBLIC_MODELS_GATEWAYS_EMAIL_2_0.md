@@ -1,9 +1,9 @@
 # Public Models, Gateways, And Email Partners
 
-> Status: OpenRouter and runtime-gated xAI shipped in `v1.9.9`; public mail capability and OAuth storage foundations implemented
+> Status: OpenRouter and runtime-gated xAI shipped in `v1.9.9`; public mail capability, OAuth, grants, runtime, UI, and bounded adapters implemented; real-provider validation pending
 > Release target: `2.0.0` public partner plugins
-> Runtime baseline under test: OpenClaw `v2026.6.11`
-> Last updated: July 25, 2026
+> Runtime baseline under test: OpenClaw `v2026.6.34`
+> Last updated: August 11, 2026
 
 ## Decision Summary
 
@@ -22,7 +22,7 @@ All work in this plan is public.
 
 xAI exposes an API-key-authenticated API at `https://api.x.ai/v1`, an authenticated model catalog, Chat Completions and Responses APIs, function calling, structured output, and current Grok models. OpenClaw also documents a native `xai/<model>` provider and `XAI_API_KEY`/OAuth authentication.
 
-Grok 4.5 was published after the pinned OpenClaw baseline. A direct `v2026.6.11` catalog probe confirms native xAI provider support but does not advertise `xai/grok-4.5`. ClawMax therefore ships the native provider with a runtime-proven fallback catalog and hides Grok 4.5 until a separately validated OpenClaw update can resolve and execute it. The RC does not silently change the runtime baseline.
+Grok 4.5 was published after the original OpenClaw baseline. A direct `v2026.6.34` catalog probe confirms native xAI provider support but still does not advertise `xai/grok-4.5`. ClawMax therefore ships the native provider with a runtime-proven fallback catalog and hides Grok 4.5 until a separately validated OpenClaw update can resolve and execute it.
 
 Primary references:
 
@@ -115,8 +115,11 @@ metadata/body read, and unsent draft creation with bounded normalized results.
 Microsoft does not request `Mail.Send`. Google requires `gmail.compose` for
 general draft creation; because that provider scope can also send, ClawMax
 contains it behind a fixed draft-only adapter with no send route or capability.
-Persisted agent/plugin grants and runtime invocation remain disabled until
-test-account validation is complete.
+Persisted agent/plugin grants and short-lived runtime invocation are now
+implemented and covered by route, runtime, wrapper, and cross-scope tests.
+Production enablement still requires dedicated Gmail and Microsoft 365
+test-account validation, restart persistence, provider revocation/reconnect,
+and final-candidate container evidence.
 
 A provider advertises capabilities instead of receiving unrestricted mailbox access:
 
@@ -221,7 +224,8 @@ Native OpenRouter and xAI coverage now exercises key-shape validation, catalog d
 - No general secret or mailbox enumeration tool is exposed to agents.
 - Read, draft, send, organize, and delete are distinct capabilities and grants.
 - Public plugin source, manifests, permissions, tests, and setup documentation ship together.
-- Gmail/Outlook production enablement waits for local and containerized test-account validation.
+- Gmail/Outlook production enablement waits for local and containerized
+  test-account validation, restart persistence, and revocation/reconnect proof.
 
 ## Recommended Order
 
@@ -229,6 +233,6 @@ Native OpenRouter and xAI coverage now exercises key-shape validation, catalog d
 2. Finish the `1.9.9` secret grant/resolver/broker release gate.
 3. Keep Grok 4.5 gated until a separately validated OpenClaw update supports it.
 4. Publish the mail capability schema, fake provider, threat tests, and partner setup states.
-5. Build the public Gmail plugin, using read/search/draft as the first real test of the broker and approval contract.
-6. Build the public Microsoft Graph plugin against the same contract.
-7. Add opt-in send and organization actions only after confirmation/audit tests are green.
+5. Validate the implemented Gmail read/search/draft path with a dedicated test account.
+6. Validate the implemented Microsoft Graph path against the same contract.
+7. Keep send and destructive organization actions disabled until a later confirmation/audit design is green.

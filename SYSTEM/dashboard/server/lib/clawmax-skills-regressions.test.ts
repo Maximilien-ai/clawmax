@@ -1,4 +1,5 @@
 import { getSkillById } from './skills'
+import fs from 'fs'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -49,6 +50,15 @@ test('clawmax-secret-test declares its brokered sentinel key and fixed command',
   assert(!!skill, 'Expected clawmax-secret-test to exist')
   assert(skill?.requires?.env?.includes('CLAWMAX_TEST_SECRET') === true, 'Expected declared broker secret key')
   assert(skill?.requires?.bins?.includes('clawmax-skill-run') === true, 'Expected broker command requirement')
+})
+
+test('clawmax-mail exposes only the bounded broker command', () => {
+  const skill = getSkillById('clawmax-mail')
+  assert(!!skill, 'Expected clawmax-mail to exist')
+  assert(skill?.requires?.bins?.includes('clawmax-mail-run') === true, 'Expected bounded mail broker command requirement')
+  const content = fs.readFileSync(skill!.filePath, 'utf8')
+  assert(content.includes('unsent drafts only'), 'Expected explicit unsent-draft boundary')
+  assert(!content.includes('mail.send'), 'Mail skill must not advertise a send capability')
 })
 
 console.log(`\nTests passed: ${testsPassed}`)

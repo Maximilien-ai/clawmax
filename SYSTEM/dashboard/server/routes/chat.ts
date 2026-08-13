@@ -20,6 +20,7 @@ import {
   readLatestAssistantTextFromPersistedSession,
   resolveAgentExecutionConfig,
   resolvePersistedAgentSessionId,
+  isOpenClawSessionLockError,
   runExclusiveAgentExecution,
   shouldUseExplicitBackupModelRetry,
   scopeSessionIdToModel,
@@ -432,7 +433,7 @@ export function deriveChatError(raw: string, provider?: ChatProvider, context?: 
     return 'The model provider is temporarily cooling down after a timeout. Wait a moment and retry, or switch to a faster fallback model.'
   }
   if (/EmbeddedAttemptSessionTakeoverError|session file changed while embedded prompt lock was released/i.test(text)) {
-    return 'OpenClaw reported an embedded session conflict while a tool was running. Reset the chat session and retry once; if this was a Resend email test, use the Resend partner test-email action to validate delivery without the agent chat session.'
+    return 'OpenClaw reported an embedded session conflict while a tool was running. ClawMax already retried once with a fresh chat session. Wait for any other request using this agent to finish, then retry; reset the chat session if the conflict continues.'
   }
   if (/Agent couldn't generate a response|incomplete turn detected|hasLastAssistant=no/i.test(text)) {
     return 'The agent used tools but did not produce a final reply. Some tool actions may already have completed. Verify the requested results, then retry or reset this chat session.'
@@ -607,6 +608,22 @@ function persistDashboardChatSession(agentId: string, sessionId: string) {
   }
 }
 
+export function buildDashboardChatRetrySeed(sessionSeed: string, retryAttempt = 0): string {
+  if (retryAttempt <= 0) return sessionSeed
+  return scopeSessionIdToModel(`${sessionSeed}-recovery-${retryAttempt}`)
+}
+
+export function throwIfChatAttemptNeedsSessionRetry(result: {
+  completionText?: string
+  rawError?: string
+  hadVisibleOutput?: boolean
+}): void {
+  if (result.hadVisibleOutput) return
+  if (isOpenClawSessionLockError(result.rawError || '')) {
+    throw new Error(result.rawError)
+  }
+}
+
 /**
  * GET /api/agents/:id/gateway
  * Returns gateway connection info (port, token, availability)
@@ -733,6 +750,8 @@ router.post('/:id/chat', async (req, res) => {
   if (brokerCapability) {
     executionEnv.CLAWMAX_SECRET_BROKER_TOKEN = brokerCapability
     executionEnv.CLAWMAX_SECRET_BROKER_URL = `http://127.0.0.1:${process.env.DASHBOARD_PORT || '3001'}/api/runtime/skill-broker/execute`
+    executionEnv.CLAWMAX_MAIL_BROKER_TOKEN = brokerCapability
+    executionEnv.CLAWMAX_MAIL_BROKER_URL = `http://127.0.0.1:${process.env.DASHBOARD_PORT || '3001'}/api/runtime/mail`
   }
   const sessionSeed = sessionId || buildDashboardChatSeed(id, resolvedAgent.workspace)
 
@@ -758,6 +777,7 @@ router.post('/:id/chat', async (req, res) => {
   const chatStartedAt = Date.now()
   const dashboardSessionKey = `agent:${id}:dashboard-chat`
   let currentSessionId = scopeSessionIdToModel(sessionSeed, resolvedAgent.model)
+  let chatSessionRetryAttempt = 0
 
   // Use plain-text mode so stdout can stream deltas to the UI in real time.
   // History/persistence is handled by the explicit session id and the CLI itself.
@@ -963,7 +983,11 @@ router.post('/:id/chat', async (req, res) => {
     const openclawCli = resolveOpenClawCliPath()
 
     const runChatAttempt = async (attemptModel: string | undefined, attemptProvider: ChatProvider | undefined) => {
-      const executionSessionId = scopeSessionIdToModel(sessionSeed, attemptModel)
+      const attemptSessionSeed = buildDashboardChatRetrySeed(sessionSeed, chatSessionRetryAttempt)
+      const executionSessionId = scopeSessionIdToModel(
+        attemptSessionSeed,
+        attemptModel,
+      )
       currentSessionId = executionSessionId
       const attemptUseOpenAiCompatible = attemptProvider === 'openai-compatible'
       const attemptExecutionModel = toExecutionModelOverride(attemptModel, attemptProvider)
@@ -1013,7 +1037,7 @@ router.post('/:id/chat', async (req, res) => {
           proc = spawned
           procExited = false
 
-          send('start', { sessionId: executionSessionId })
+          send('start', { sessionId: executionSessionId, resumeSessionId: attemptSessionSeed })
           invalidateAgentStatusCache(id)
 
           activeAttemptTimer = setTimeout(() => {
@@ -1083,6 +1107,7 @@ router.post('/:id/chat', async (req, res) => {
 
     runExclusiveAgentExecution(id, async () => {
       const primaryResult = await runChatAttempt(resolvedAgent.model, resolvedAgent.provider)
+      throwIfChatAttemptNeedsSessionRetry(primaryResult)
       const fallbackModel = resolvedAgent.backupModel
       const fallbackProvider = resolvedAgent.backupProvider
       if (!shouldUseExplicitBackupModelRetry({
@@ -1095,7 +1120,15 @@ router.post('/:id/chat', async (req, res) => {
         return primaryResult
       }
       console.log(`[Chat Route] Retrying agent ${id} with fallback model ${fallbackModel}`)
-      return await runChatAttempt(fallbackModel, fallbackProvider)
+      const fallbackResult = await runChatAttempt(fallbackModel, fallbackProvider)
+      throwIfChatAttemptNeedsSessionRetry(fallbackResult)
+      return fallbackResult
+    }, {
+      maxSessionLockRetries: 1,
+      onSessionLockRetry: (attempt) => {
+        chatSessionRetryAttempt = attempt + 1
+        console.warn(`[Chat Route] Recovering agent ${id} with a fresh chat session after an OpenClaw session conflict`)
+      },
     }).then((attemptResult) => {
       clearInterval(keepalive)
       if (attemptResult.completionText) {

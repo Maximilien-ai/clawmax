@@ -169,12 +169,12 @@ export function WorkspaceSwitcher({ onCreateNew }: { onCreateNew: () => void }) 
     setIsOpen(false)
   }
 
-  const getDashboardUrl = (dashboard: Pick<WorkspaceDashboard, 'slug' | 'token'>) => `${window.location.origin}/dashboards/${dashboard.slug || dashboard.token}`
+  const getDashboardUrl = (dashboard: Pick<WorkspaceDashboard, 'token'>) => `${window.location.origin}/dashboards/${dashboard.token}`
 
   const copyDashboardLink = async (token: string) => {
     try {
       const dashboard = dashboards.find((entry) => entry.token === token)
-      await navigator.clipboard.writeText(getDashboardUrl(dashboard || ({ slug: token, token } as WorkspaceDashboard)))
+      await navigator.clipboard.writeText(getDashboardUrl(dashboard || ({ token } as WorkspaceDashboard)))
       showSuccess('Dashboard link copied')
     } catch {
       showError('Failed to copy dashboard link')

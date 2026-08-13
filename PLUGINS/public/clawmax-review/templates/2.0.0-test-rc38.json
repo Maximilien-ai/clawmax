@@ -1,0 +1,66 @@
+{
+  "release": "2.0.0-test-rc38",
+  "description": "Independent hands-on acceptance for behavior that requires human judgment, real OAuth providers, or a persistent upgraded runtime.",
+  "defaults": {
+    "enabled": true,
+    "tags": ["release", "current", "2.0.0-test-rc38"],
+    "fields": {
+      "completed": false,
+      "outcome": "pending",
+      "owner": "release-tester",
+      "evidence": [],
+      "verifiedBy": []
+    }
+  },
+  "items": [
+    {
+      "id": "rc38-ai-create-routing-journey",
+      "name": "Builder create actions match explicit intent",
+      "description": "Test: Ask Builder separately to create and update an agent, skill, and workflow, then follow the offered actions. Pass: Each response offers the matching AI Create action even when an update action is also present, opens the correct surface with the prompt preserved, and never routes to a different artifact type.",
+      "tags": ["ai", "builder", "create", "handoff"],
+      "fields": {"area": "regression", "reviewReason": "human-judgment", "notes": ""}
+    },
+    {
+      "id": "rc38-ai-editor-expand-journey",
+      "name": "AI Editor and Expand with AI are useful end to end",
+      "description": "Test: From one real agent, skill, and workflow create or edit surface, use the shared AI Editor and Expand with AI, then apply and save the result. Pass: Progress is understandable, generated text is useful and editable, unrelated fields are preserved, the result returns to the originating surface, and a failed request can be retried without losing the draft.",
+      "tags": ["ai", "editor", "expand", "agents", "skills", "workflows"],
+      "fields": {"area": "regression", "reviewReason": "human-judgment", "notes": ""}
+    },
+    {
+      "id": "rc38-lifecycle-real-data-xray",
+      "name": "Lifecycle X-rays explain real target history",
+      "description": "Test: Create active inspections for a real agent and workflow with history, open them in the available views, and inspect each target on desktop and phone. Pass: Targets are obvious before selection, retrieval progress is visible, the X-rays present useful target-specific evidence and time relationships, navigation remains usable, and empty or missing evidence has an actionable explanation.",
+      "tags": ["lifecycle", "targets", "xray", "responsive"],
+      "fields": {"area": "plugins", "reviewReason": "human-judgment", "notes": ""}
+    },
+    {
+      "id": "rc38-activity-sharing-consent-journey",
+      "name": "Activity sharing remains visible and easy to revoke",
+      "description": "Test: Enable activity sharing to two available destinations, produce a queued event, inspect the dashboard status pill, then revoke one destination from the consent or Partner surface. Pass: The UI clearly names destinations and scopes, offers leave-enabled and revoke choices, revocation updates immediately and stops that destination without disabling the other, and no shared activity content appears without opening its details.",
+      "tags": ["activity", "sharing", "consent", "partners", "revoke"],
+      "fields": {"area": "regression", "reviewReason": "human-judgment", "notes": ""}
+    },
+    {
+      "id": "rc38-gmail-oauth-lifecycle",
+      "name": "Gmail connection lifecycle works with a real provider",
+      "description": "Test: On a non-production instance configured for Google OAuth, connect a test Gmail account, return to ClawMax, refresh the connection and page, then disconnect it. Pass: The provider round trip succeeds, only expected account metadata is displayed, the connection survives refresh, disconnect removes it, and no OAuth credential appears in the page, URL, logs, or Review export.",
+      "tags": ["mail", "gmail", "oauth", "external"],
+      "fields": {"area": "regression", "reviewReason": "external-environment", "notes": ""}
+    },
+    {
+      "id": "rc38-microsoft-oauth-lifecycle",
+      "name": "Microsoft 365 connection lifecycle works with a real provider",
+      "description": "Test: On a non-production instance configured for Microsoft OAuth, connect a test Microsoft 365 account, return to ClawMax, refresh the connection and page, then disconnect it. Pass: The provider round trip succeeds, only expected account metadata is displayed, the connection survives refresh, disconnect removes it, and no OAuth credential appears in the page, URL, logs, or Review export.",
+      "tags": ["mail", "microsoft-365", "oauth", "external"],
+      "fields": {"area": "regression", "reviewReason": "external-environment", "notes": ""}
+    },
+    {
+      "id": "rc38-persistent-session-recovery",
+      "name": "Upgraded chat and workflow sessions recover without intervention",
+      "description": "Test: Upgrade a persistent pre-RC37 workspace, continue an existing agent chat, run a workflow targeting that agent, and chat again after completion. Pass: Requests complete without a manual reset, a recoverable embedded-session conflict retries only once with no duplicate visible output, later messages continue normally, and repeated conflicts stop with actionable guidance.",
+      "tags": ["openclaw", "upgrade", "chat", "workflows", "recovery"],
+      "fields": {"area": "regression", "reviewReason": "external-environment", "notes": ""}
+    }
+  ]
+}

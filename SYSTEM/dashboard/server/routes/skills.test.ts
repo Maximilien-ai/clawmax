@@ -21,6 +21,7 @@ type ExecFileCallback = (error: NodeJS.ErrnoException | null, stdout?: string, s
 type ExecFileMock = (file: string, args: string[], options: any, callback: ExecFileCallback) => void
 
 const originalExecFile = childProcess.execFile
+const originalExecFileSync = childProcess.execFileSync
 const originalSpawn = childProcess.spawn
 const originalExecSync = childProcess.execSync
 let execFileMock: ExecFileMock = (_file, _args, _options, callback) => callback(null, '', '')
@@ -44,6 +45,7 @@ const skillsRouteTestHooks = skillsModule.__test
 
 function restoreExecFile() {
   ;(childProcess as any).execFile = originalExecFile
+  ;(childProcess as any).execFileSync = originalExecFileSync
   ;(childProcess as any).spawn = originalSpawn
   ;(childProcess as any).execSync = originalExecSync
 }
@@ -561,10 +563,10 @@ async function run() {
 
   await test('import-github returns actionable per-skill errors when every repo skill fails', async () => {
     const tempRoots: string[] = []
-    ;(childProcess as any).execSync = ((command: string) => {
-      const match = command.match(/git clone --depth 1\s+\S+\s+(.+)$/)
-      assert(match, `Expected clone command, got ${command}`)
-      const tempDir = match[1]
+    ;(childProcess as any).execFileSync = ((command: string, args: string[]) => {
+      assert.strictEqual(command, 'git')
+      assert.deepStrictEqual(args.slice(0, 3), ['clone', '--depth', '1'])
+      const tempDir = args[args.length - 1]
       tempRoots.push(tempDir)
       const skillsRoot = `${tempDir}/skills`
       require('fs').mkdirSync(`${skillsRoot}/resend`, { recursive: true })
@@ -572,7 +574,7 @@ async function run() {
       require('fs').writeFileSync(`${skillsRoot}/resend/SKILL.md`, '# resend')
       require('fs').writeFileSync(`${skillsRoot}/resend-cli/SKILL.md`, '# resend-cli')
       return Buffer.from('')
-    }) as typeof childProcess.execSync
+    }) as unknown as typeof childProcess.execFileSync
 
     const skillsLib = require('../lib/skills')
     const originalImportWorkspaceSkill = skillsLib.importWorkspaceSkill
@@ -597,7 +599,7 @@ async function run() {
       assert.strictEqual(res.jsonBody?.total, 2, 'Expected two attempted skills')
     } finally {
       skillsLib.importWorkspaceSkill = originalImportWorkspaceSkill
-      ;(childProcess as any).execSync = originalExecSync
+      ;(childProcess as any).execFileSync = originalExecFileSync
       const fs = require('fs')
       for (const tempDir of tempRoots) {
         if (fs.existsSync(tempDir)) fs.rmSync(tempDir, { recursive: true, force: true })
@@ -605,12 +607,37 @@ async function run() {
     }
   })
 
+  await test('import-github rejects subdirectories outside the cloned repository before invoking git', async () => {
+    let cloneCalled = false
+    ;(childProcess as any).execFileSync = (() => {
+      cloneCalled = true
+      return Buffer.from('')
+    }) as unknown as typeof childProcess.execFileSync
+
+    try {
+      const handler = getRouteHandler('post', '/import-github')
+      const res = makeRes()
+      await handler(makeReq({
+        body: {
+          githubUrl: 'https://github.com/example/single-skill',
+          subdir: '../../outside',
+        },
+      }), res)
+
+      assert.strictEqual(res.statusCode, 400)
+      assert(/inside the cloned repository/i.test(res.jsonBody?.error || ''))
+      assert.strictEqual(cloneCalled, false, 'Expected unsafe subdir rejection before git clone')
+    } finally {
+      ;(childProcess as any).execFileSync = originalExecFileSync
+    }
+  })
+
   await test('import-github treats already-installed multi-skill repos as idempotent success', async () => {
     const tempRoots: string[] = []
-    ;(childProcess as any).execSync = ((command: string) => {
-      const match = command.match(/git clone --depth 1\s+\S+\s+(.+)$/)
-      assert(match, `Expected clone command, got ${command}`)
-      const tempDir = match[1]
+    ;(childProcess as any).execFileSync = ((command: string, args: string[]) => {
+      assert.strictEqual(command, 'git')
+      assert.deepStrictEqual(args.slice(0, 3), ['clone', '--depth', '1'])
+      const tempDir = args[args.length - 1]
       tempRoots.push(tempDir)
       const skillsRoot = `${tempDir}/skills`
       require('fs').mkdirSync(`${skillsRoot}/resend`, { recursive: true })
@@ -618,7 +645,7 @@ async function run() {
       require('fs').writeFileSync(`${skillsRoot}/resend/SKILL.md`, '# resend')
       require('fs').writeFileSync(`${skillsRoot}/resend-cli/SKILL.md`, '# resend-cli')
       return Buffer.from('')
-    }) as typeof childProcess.execSync
+    }) as unknown as typeof childProcess.execFileSync
 
     const skillsLib = require('../lib/skills')
     const originalImportWorkspaceSkill = skillsLib.importWorkspaceSkill
@@ -644,7 +671,7 @@ async function run() {
       assert(Array.isArray(res.jsonBody?.skills) && res.jsonBody.skills.every((item: any) => item.ok), 'Expected normalized results to be marked ok')
     } finally {
       skillsLib.importWorkspaceSkill = originalImportWorkspaceSkill
-      ;(childProcess as any).execSync = originalExecSync
+      ;(childProcess as any).execFileSync = originalExecFileSync
       const fs = require('fs')
       for (const tempDir of tempRoots) {
         if (fs.existsSync(tempDir)) fs.rmSync(tempDir, { recursive: true, force: true })
@@ -654,15 +681,15 @@ async function run() {
 
   await test('import-github treats already-installed single skills as idempotent success', async () => {
     const tempRoots: string[] = []
-    ;(childProcess as any).execSync = ((command: string) => {
-      const match = command.match(/git clone --depth 1\s+\S+\s+(.+)$/)
-      assert(match, `Expected clone command, got ${command}`)
-      const tempDir = match[1]
+    ;(childProcess as any).execFileSync = ((command: string, args: string[]) => {
+      assert.strictEqual(command, 'git')
+      assert.deepStrictEqual(args.slice(0, 3), ['clone', '--depth', '1'])
+      const tempDir = args[args.length - 1]
       tempRoots.push(tempDir)
       require('fs').mkdirSync(tempDir, { recursive: true })
       require('fs').writeFileSync(`${tempDir}/SKILL.md`, '# single-skill')
       return Buffer.from('')
-    }) as typeof childProcess.execSync
+    }) as unknown as typeof childProcess.execFileSync
 
     const skillsLib = require('../lib/skills')
     const originalImportWorkspaceSkill = skillsLib.importWorkspaceSkill
@@ -687,7 +714,7 @@ async function run() {
       assert(/already installed/i.test(res.jsonBody?.warning || ''), 'Expected already-installed warning')
     } finally {
       skillsLib.importWorkspaceSkill = originalImportWorkspaceSkill
-      ;(childProcess as any).execSync = originalExecSync
+      ;(childProcess as any).execFileSync = originalExecFileSync
       const fs = require('fs')
       for (const tempDir of tempRoots) {
         if (fs.existsSync(tempDir)) fs.rmSync(tempDir, { recursive: true, force: true })

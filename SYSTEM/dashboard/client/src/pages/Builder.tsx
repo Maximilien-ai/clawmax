@@ -13,6 +13,7 @@ import { shouldReserveBuilderTranscriptSpace } from '../lib/builderMobileLayout'
 import { expandPromptWithAI } from '../lib/aiPrompt'
 import { appendPromptAttachmentContext, createPromptAttachment, type PromptAttachment } from '../lib/promptAttachments'
 import { findActiveBuilderMention, insertBuilderMention, type BuilderMentionMatch } from '../lib/builderMentions'
+import { hasExplicitBuilderEntityAction } from '../lib/builderExplicitActions'
 import { buildWorkspaceStarterPrompts, normalizeStarterPromptList, type StarterPromptAgent, type StarterPromptSkill, type StarterPromptTemplate, type StarterPromptWorkflow } from '../lib/builderStarterPrompts'
 import { organizationTemplateCanApplyNow } from '../lib/templateApplyReadiness'
 import AIPromptEditorModal from '../components/AIPromptEditorModal'
@@ -171,6 +172,7 @@ const AGENT_KEYWORDS = ['agent', 'assistant', 'helper', 'specialist']
 const CREATE_KEYWORDS = ['create', 'build', 'design', 'new', 'from scratch', 'generate']
 const REUSE_KEYWORDS = ['existing', 'already have', 'reuse', 'current']
 const REFINE_KEYWORDS = ['refine', 'improve', 'edit', 'update', 'adjust', 'tune']
+const WORKFLOW_PROMPT_KEYWORDS = ['workflow', 'workflows', 'handoff', 'handoffs', 'sequence', 'pipeline', 'steps', 'process', 'weekly', 'monthly', 'daily', 'recurring', 'review', 'approval', 'follow-up']
 const NON_SCORING_TOKENS = new Set(['agent', 'agents', 'team', 'teams', 'template', 'templates', 'create', 'build', 'design', 'new', 'from', 'scratch', 'use'])
 
 const BUILDER_SESSION_STORAGE_PREFIX = 'clawmax-builder-session'
@@ -464,7 +466,10 @@ async function buildClientFallbackRecommendation(prompt: string): Promise<Builde
   const scope = detectPromptScope(prompt)
   const operation = detectPromptOperation(prompt)
   const hasSkillLanguage = includesAnyPrompt(prompt, skillWords)
-  const hasWorkflowLanguage = includesAnyPrompt(prompt, ['workflow', 'workflows', 'handoff', 'handoffs', 'sequence', 'pipeline', 'steps', 'process', 'weekly', 'monthly', 'daily', 'recurring', 'review', 'approval', 'follow-up'])
+  const hasWorkflowLanguage = includesAnyPrompt(prompt, WORKFLOW_PROMPT_KEYWORDS)
+  const hasExplicitAgentAction = hasExplicitBuilderEntityAction(prompt, 'agent')
+  const hasExplicitWorkflowAction = hasExplicitBuilderEntityAction(prompt, 'workflow')
+  const hasExplicitSkillAction = hasExplicitBuilderEntityAction(prompt, 'skill')
   const hasSingleAgentConstraint = hasExplicitSingleAgentConstraintPrompt(prompt)
   const hasExplicitCreateAgentToolNeed = (
     hasExplicitAgentCreationPrompt(prompt)
@@ -691,6 +696,22 @@ async function buildClientFallbackRecommendation(prompt: string): Promise<Builde
     : []
 
   if (intent === 'existing_agent') {
+    const createAgentAction: BuilderAction = {
+      id: 'create-agent-ai',
+      label: 'AI Create Agent',
+      description: 'Start a new agent draft with AI without changing the existing match.',
+      page: 'agents',
+      action: 'create-ai',
+      prefillPrompt: prompt,
+    }
+    const createWorkflowAction: BuilderAction = {
+      id: 'create-workflow-ai',
+      label: 'AI Create Workflow',
+      description: 'Start a new workflow draft with AI without changing the existing match.',
+      page: 'workflows',
+      action: 'create-ai',
+      prefillPrompt: prompt,
+    }
     const workflowFollowThroughAction: BuilderAction = topWorkflow
       ? {
           id: 'review-workflow',
@@ -731,6 +752,8 @@ async function buildClientFallbackRecommendation(prompt: string): Promise<Builde
       suggestedActions: [
         { id: 'reuse-agent', label: 'Open Agents', description: 'Review and test the closest existing agent.', page: 'agents' },
         ...(hasWorkflowLanguage ? [workflowFollowThroughAction] : []),
+        ...(hasExplicitAgentAction ? [createAgentAction] : []),
+        ...(hasExplicitWorkflowAction ? [createWorkflowAction] : []),
         { id: 'review-skills', label: 'Open Skills', description: 'Check whether the agent is missing tools or integrations.', page: 'skills' },
       ],
       testPlan: [
@@ -743,7 +766,7 @@ async function buildClientFallbackRecommendation(prompt: string): Promise<Builde
   if (intent === 'skill_or_integration') {
     const createSkillAction: BuilderAction = {
       id: 'create-skill',
-      label: 'Create Skill with AI',
+      label: 'AI Create Skill',
       description: 'Generate a custom skill draft when the needed capability is not already covered.',
       page: 'skills',
       action: 'create-ai',
@@ -876,6 +899,7 @@ async function buildClientFallbackRecommendation(prompt: string): Promise<Builde
         preferNewTeamTemplate ? createNewTeamAction : applyTeamTemplateAction,
         ...(topOrgTemplate ? [canApplyTopOrgTemplateNow ? applyTeamTemplateNowAction : refineTeamTemplateAction] : []),
         ...(topOrgTemplate && canApplyTopOrgTemplateNow ? [refineTeamTemplateAction] : []),
+        ...(hasExplicitWorkflowAction ? [{ id: 'create-workflow-ai', label: 'AI Create Workflow', description: 'Start a new workflow draft with AI without changing existing templates.', page: 'workflows' as const, action: 'create-ai' as const, prefillPrompt: prompt }] : []),
         { id: 'open-workflows', label: 'Open Workflows', description: 'Review kickoff and final output flow expectations.', page: 'workflows' },
       ],
       testPlan: [
@@ -938,10 +962,11 @@ async function buildClientFallbackRecommendation(prompt: string): Promise<Builde
       suggestedActions: [
         topAgentTemplate ? applyAgentTemplateAction : { id: 'open-agent-templates', label: 'Open Templates', description: 'Use a matching agent template blueprint as the starting point.', page: 'templates', templateApplyMode: 'customize' },
         ...(topAgentTemplate ? [applyAgentTemplateNowAction] : []),
+        ...(hasExplicitAgentAction ? [{ id: 'create-agent-ai', label: 'AI Create Agent', description: 'Start a new custom agent draft with AI instead of modifying an existing one.', page: 'agents' as const, action: 'create-ai' as const, prefillPrompt: prompt }] : []),
         { id: 'open-agents', label: 'Open Agents', description: 'Compare against current workspace agents before duplicating a role.', page: 'agents' },
         ...(hasSkillLanguage ? [
           { id: 'review-skills', label: 'Open Skills', description: 'Add the requested skill or integration after creating the agent role.', page: 'skills' as const },
-          { id: 'create-skill', label: 'Create Skill with AI', description: 'Generate a custom skill draft when the needed capability is not already covered.', page: 'skills' as const, action: 'create-ai' as const, prefillPrompt: prompt },
+          { id: 'create-skill', label: 'AI Create Skill', description: 'Generate a custom skill draft when the needed capability is not already covered.', page: 'skills' as const, action: 'create-ai' as const, prefillPrompt: prompt },
         ] : []),
       ],
       testPlan: hasSkillLanguage ? [
@@ -978,6 +1003,8 @@ async function buildClientFallbackRecommendation(prompt: string): Promise<Builde
     matchedAssets: { agents: matchedAgents, skills: matchedSkills, agentTemplates: matchedAgentTemplates, organizationTemplates: matchedOrganizationTemplates, workflows: matchedWorkflows },
     suggestedActions: [
       { id: 'open-ai-generate', label: 'AI Generate Agent', description: 'Create a tailored starter from this prompt.', page: 'agents', action: 'create-ai', prefillPrompt: prompt },
+      ...(hasExplicitWorkflowAction ? [{ id: 'create-workflow-ai', label: 'AI Create Workflow', description: 'Start a new workflow draft with AI.', page: 'workflows' as const, action: 'create-ai' as const, prefillPrompt: prompt }] : []),
+      ...(hasExplicitSkillAction ? [{ id: 'create-skill-ai', label: 'AI Create Skill', description: 'Start a new skill draft with AI.', page: 'skills' as const, action: 'create-ai' as const, prefillPrompt: prompt }] : []),
       { id: 'fallback-templates', label: 'Open Templates', description: 'Check the catalog before generating from scratch.', page: 'templates' },
     ],
     testPlan: [

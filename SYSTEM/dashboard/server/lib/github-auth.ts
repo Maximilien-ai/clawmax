@@ -11,6 +11,7 @@ import type { CookieOptions } from 'express'
 import fs from 'fs'
 import path from 'path'
 import { Resend } from 'resend'
+import { isDashboardAuthBypassAllowed } from './http-security'
 
 // ============================================================================
 // Configuration
@@ -232,9 +233,7 @@ function authMode(): string {
 }
 
 function isBypassAuth(): boolean {
-  return process.env.BYPASS_OAUTH === 'true'
-    || process.env.DASHBOARD_AUTH_DISABLED === 'true'
-    || authMode() === 'bypass'
+  return isDashboardAuthBypassAllowed(process.env)
 }
 
 function allowGitHubAuth(): boolean {

@@ -1370,7 +1370,7 @@ router.post('/doctor', async (req, res) => {
     })
   } else if (fix && hasOpenclawCli) {
     try {
-      const restartOutput = String(execSync('openclaw gateway restart', { stdio: 'pipe', timeout: 20000, env: safeEnv() }) || '').trim()
+      const restartOutput = String(execFileSync(openclawCliPath!, ['gateway', 'restart'], { stdio: 'pipe', timeout: 20000, env: safeEnv() }) || '').trim()
       gatewayFixOutput = restartOutput || 'Gateway restart command completed with no output.'
       const restartedStatus = isGatewayRunning()
       const restartedProbe = await probeGatewayResponsive()
@@ -1540,10 +1540,10 @@ router.post('/doctor', async (req, res) => {
     // Check 6: Health probe (optional — sends a test message)
     if (probe && hasOpenclawCli && registeredIds.has(agentId)) {
       try {
-        const { execSync } = require('child_process')
-        const result = execSync(
-          `openclaw agent --agent ${agentId} --message "health check — respond with OK" --json --local`,
-          { encoding: 'utf-8', stdio: 'pipe', timeout: 30000, env: safeEnv() }
+        const result = execFileSync(
+          openclawCliPath!,
+          ['agent', '--agent', agentId, '--message', 'health check - respond with OK', '--json', '--local'],
+          { encoding: 'utf-8', stdio: 'pipe', timeout: 30000, env: safeEnv() },
         )
         // Check if we got a response (in stdout or stderr-extracted)
         if (result.includes('"payloads"') || result.includes('"text"')) {
@@ -1884,12 +1884,11 @@ router.post('/:id/restart', async (req, res) => {
     const port = validatePort(gatewayConfig.port || 18889)
 
     // Kill existing process on this port
-    const { execSync } = require('child_process')
     try {
       // Find and kill process on port (port validated as numeric above)
-      const pid = execSync(`lsof -ti:${port}`, { encoding: 'utf-8' }).trim()
+      const pid = execFileSync('lsof', [`-ti:${port}`], { encoding: 'utf-8' }).trim()
       if (pid && /^\d+(\n\d+)*$/.test(pid)) {
-        execSync(`kill -9 ${pid}`)
+        for (const processId of pid.split('\n')) execFileSync('kill', ['-9', processId])
       }
     } catch (err) {
       // Process might not be running, that's okay
@@ -3245,9 +3244,8 @@ router.get('/:id/health', async (req, res) => {
 
   try {
     const profileFlag = isProfile ? ['--profile', id] : []
-    const { execSync } = require('child_process')
     const args = [...profileFlag, 'health', '--json']
-    const result = execSync(['openclaw', ...args].join(' '), {
+    const result = execFileSync('openclaw', args, {
       encoding: 'utf-8',
       timeout: 10000,
       env: safeEnv(),
@@ -3277,9 +3275,8 @@ router.get('/:id/gateway-status', async (req, res) => {
 
   try {
     const profileFlag = isProfile ? ['--profile', id] : []
-    const { execSync } = require('child_process')
     const args = [...profileFlag, 'gateway', 'status']
-    const result = execSync(['openclaw', ...args].join(' '), {
+    const result = execFileSync('openclaw', args, {
       encoding: 'utf-8',
       timeout: 10000,
       env: safeEnv(),

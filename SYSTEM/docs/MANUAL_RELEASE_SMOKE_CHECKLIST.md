@@ -19,17 +19,22 @@ Checklist use:
 - if Review is unavailable, duplicate this file and archive the completed copy under `testing/archive/`
 
 Review set policy:
-- present one retained stable-line regression set, one cumulative set for earlier
-  RC changes, and one focused set for the current RC
-- keep only checks that still lack one identifiable user confirmation or need a
-  deliberate cross-environment regression
+- present historical stable-line and earlier-RC sets for traceability, and one
+  focused reviewer set for the current RC
+- include a current check only when it needs independent human judgment or an
+  external environment unavailable to engineering; record that reason in the
+  check's `reviewReason`
+- keep deterministic unit, integration, browser, source-contract, CI, version,
+  health, architecture, and catalog validation in engineering release evidence
+  rather than assigning it to reviewers
 - every check must state a short action and observable pass result
 - record prior confirmation as `Tester · environment · date`; do not infer it
   from general feedback such as "looks good"
-- remove a set after one tester completes it fully, unless it remains a named
-  cross-environment release gate
-- consolidate duplicates into the cumulative set instead of asking testers to
-  repeat the same action under multiple release tabs
+- archive every superseded release set when a new focused checklist starts,
+  preserving incomplete results and evidence without presenting them as current
+  reviewer work
+- consolidate overlapping behavior into one realistic end-to-end journey instead
+  of asking testers to repeat component-level checks
 
 ---
 

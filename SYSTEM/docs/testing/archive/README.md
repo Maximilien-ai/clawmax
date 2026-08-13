@@ -5,6 +5,6 @@ evidence, unresolved observations, and regression ideas, but they are not active
 release gates.
 
 Use [`MANUAL_RELEASE_SMOKE_CHECKLIST.md`](../../MANUAL_RELEASE_SMOKE_CHECKLIST.md)
-for the reusable smoke baseline. The 2.0 Review plugin holds cumulative
-release-candidate checklists and exports reviewer evidence for the active
-release.
+for the reusable smoke baseline. The 2.0 Review plugin keeps one focused current
+checklist for independent acceptance and preserves superseded checklists in
+Archived with their reviewer evidence.

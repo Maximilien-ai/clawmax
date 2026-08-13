@@ -653,6 +653,28 @@ export function formatPluginScopeSummary(item: PluginRecord): string {
   return `${populated} configured fields`
 }
 
+export function formatPluginTargetNames(item: PluginRecord, context: PluginWorkspaceContext): string[] {
+  const resolve = (kind: 'agent' | 'workflow' | 'group' | 'community', id: string) => {
+    if (kind === 'agent') return context.agents.find((entry) => entry.id === id)?.name || id
+    if (kind === 'workflow') return context.workflows.find((entry) => entry.id === id)?.name || id
+    return id
+  }
+  if (isGuardrailRecord(item)) {
+    return [
+      ...item.appliesTo.agents.map((id) => `Agent: ${resolve('agent', id)}`),
+      ...item.appliesTo.workflows.map((id) => `Workflow: ${resolve('workflow', id)}`),
+      ...item.appliesTo.groups.map((id) => `Group: ${resolve('group', id)}`),
+      ...item.appliesTo.communities.map((id) => `Community: ${resolve('community', id)}`),
+    ]
+  }
+  if (isEvalRecord(item)) return item.target.ids.map((id) => `${item.target.type}: ${resolve(item.target.type, id)}`)
+  if (isGenericPluginRecord(item)) {
+    const kind = item.fields.subjectType === 'workflow' || item.fields.scope === 'workflow' ? 'workflow' : item.fields.subjectType === 'group' ? 'group' : item.fields.subjectType === 'community' ? 'community' : 'agent'
+    return (Array.isArray(item.fields.targetIds) ? item.fields.targetIds : []).map((id) => `${kind}: ${resolve(kind, String(id))}`)
+  }
+  return []
+}
+
 export function formatPluginUpdatedAt(item: PluginRecord): string {
   const value = item.updatedAt || item.createdAt
   if (!value) return 'unknown'

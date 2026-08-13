@@ -137,6 +137,21 @@ async function run() {
     assert(getAgentExecutionRetryDelay(4) === 5000, `Expected capped 5000ms retry delay, got ${getAgentExecutionRetryDelay(4)}`)
   })
 
+  await test('workflow session recovery can be limited to one fresh-session retry', async () => {
+    let attempts = 0
+    let caught = false
+    try {
+      await runExclusiveAgentExecution('workflow-bounded-retry-agent', async () => {
+        attempts++
+        throw new Error('EmbeddedAttemptSessionTakeoverError: session file changed while embedded prompt lock was released')
+      }, { maxSessionLockRetries: 1 })
+    } catch {
+      caught = true
+    }
+    assert(caught, 'Expected repeated workflow session conflict to escape after recovery')
+    assert(attempts === 2, `Expected one workflow retry, got ${attempts - 1}`)
+  })
+
   console.log(`\nTests passed: ${testsPassed}`)
   console.log(`Tests failed: ${testsFailed}`)
 

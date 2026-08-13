@@ -1,4 +1,7 @@
-# Public Workspace Dashboards · 2.0
+# Public Workspace Dashboards 2.0
+
+> Status: completed 2.0 baseline; follow-through moved to the active backlog
+> Archived: August 9, 2026
 
 Workspace dashboards remain shareable snapshots, with explicit controls for freshness and interaction.
 
@@ -11,7 +14,7 @@ Workspace dashboards remain shareable snapshots, with explicit controls for fres
 - The interaction card has a resizable transcript area and timestamped browser-local history for the current shared-dashboard session.
 - Interaction controls are disabled by default so an existing read-only dashboard does not become writable after upgrade.
 
-## Follow-up
+## Post-2.0 Follow-up
 
 - Add per-target interaction permissions and audit events before enabling public dashboards for untrusted audiences.
 - Add owner-managed dashboard editing for existing links, including slug changes and refresh settings.

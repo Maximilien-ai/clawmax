@@ -125,10 +125,9 @@ export function getReviewReleaseGroups(
   }))).sort((a, b) => b.localeCompare(a, undefined, { numeric: true }))
 }
 
-export function getCompletedReviewReleaseIdsToArchive(
+export function getSupersededReviewReleaseIdsToArchive(
   records: PluginRecord[],
   groupField: string,
-  checkField: string,
   incomingRelease: string | null,
 ): string[] {
   const byRelease = new Map<string, PluginRecord[]>()
@@ -140,11 +139,6 @@ export function getCompletedReviewReleaseIdsToArchive(
   })
 
   return Array.from(byRelease.values()).flatMap((releaseRecords) => (
-    releaseRecords.length > 0
-    && releaseRecords.every((record) => (
-      isGenericPluginRecord(record) && record.fields[checkField] === true
-    ))
-      ? releaseRecords.map((record) => record.id)
-      : []
+    releaseRecords.map((record) => record.id)
   ))
 }

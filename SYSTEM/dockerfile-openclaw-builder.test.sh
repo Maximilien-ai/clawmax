@@ -49,8 +49,10 @@ assert_contains "COPY SKILLS/custom/clawmax-resend ./SKILLS/custom/clawmax-resen
 assert_contains "COPY SKILLS/custom/clawmax-workspace-ls ./SKILLS/custom/clawmax-workspace-ls"
 assert_contains "COPY SKILLS/custom/workspace-ls ./SKILLS/custom/workspace-ls"
 assert_contains "COPY SKILLS/custom/clawmax-secret-test ./SKILLS/custom/clawmax-secret-test"
+assert_contains "COPY SKILLS/custom/clawmax-mail ./SKILLS/custom/clawmax-mail"
 assert_contains "COPY SYSTEM/dashboard/clawmax-resend-send /usr/local/bin/clawmax-resend-send"
 assert_contains "COPY SYSTEM/dashboard/clawmax-skill-run /usr/local/bin/clawmax-skill-run"
+assert_contains "COPY SYSTEM/dashboard/clawmax-mail-run /usr/local/bin/clawmax-mail-run"
 assert_contains "COPY SYSTEM/dashboard/openclaw-auth-store.mjs ./SYSTEM/dashboard/openclaw-auth-store.mjs"
 assert_contains "ARG CLAWMAX_ENABLED_PLUGINS="
 assert_contains 'ENV CLAWMAX_ENABLED_PLUGINS=${CLAWMAX_ENABLED_PLUGINS}'

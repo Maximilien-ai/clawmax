@@ -192,8 +192,9 @@ export const DEFAULT_PARTNER_DEFINITIONS: DefaultPartnerDefinition[] = [
     categories: ['communications', 'productivity'],
     enabledByDefault: true,
     skills: {
-      mode: 'planned',
-      label: 'Public OAuth preview: read, search, and create drafts without exposing Google passwords or OAuth tokens to agents.',
+      mode: 'catalog',
+      items: ['clawmax-mail'],
+      label: 'Included bounded mail skill',
     },
     validation: {
       mode: 'status',
@@ -212,8 +213,9 @@ export const DEFAULT_PARTNER_DEFINITIONS: DefaultPartnerDefinition[] = [
     categories: ['communications', 'productivity'],
     enabledByDefault: true,
     skills: {
-      mode: 'planned',
-      label: 'Public OAuth preview: Microsoft Graph read, search, and draft capabilities without exposing account passwords or OAuth tokens to agents.',
+      mode: 'catalog',
+      items: ['clawmax-mail'],
+      label: 'Included bounded mail skill',
     },
     validation: {
       mode: 'status',
