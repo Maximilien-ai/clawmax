@@ -113,6 +113,21 @@ async function main() {
     assert(hasAiGenerationAccess(null) === false, 'Expected no execution path to block AI generation access')
   })
 
+  await test('an enabled CLI runtime counts as a ready generation path', () => {
+    // The wizards warned "no verified hosted execution path" while generation was in fact
+    // succeeding through the CLI, pointing the operator at a key the request would never use.
+    localStorage.clear()
+    const readiness = getAiGenerationReadiness({ enabledRuntimes: ['claude'] } as any)
+    assert(readiness.enabled === true, 'Expected generation to be enabled')
+    assert(!readiness.warning, `Unexpected warning: ${readiness.warning}`)
+  })
+
+  await test('with no CLI runtime enabled the hosted-path warning still fires', () => {
+    localStorage.clear()
+    const readiness = getAiGenerationReadiness({ enabledRuntimes: [] } as any)
+    assert(readiness.warning, 'Expected a hosted-path warning when nothing is configured')
+  })
+
   await test('AI generation readiness warns when no hosted path is configured', () => {
     localStorage.clear()
     const readiness = getAiGenerationReadiness(null)

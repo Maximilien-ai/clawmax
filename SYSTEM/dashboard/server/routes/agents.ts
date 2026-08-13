@@ -4,7 +4,7 @@ import path from 'path'
 import fs from 'fs'
 import archiver from 'archiver'
 import { listAgents, getAgentActivity, getNextAgentId, findFreePort, getAgentImpact, deleteAgent, cloneAgentFiles, getAgentGatewayConfig, parseGroups, parseIdentity, getWorkspacePath, getAgentsDir, ensureManagedAgentWorkspaceFiles } from '../lib/workspace'
-import { generateAgentFiles, generateArchiveTitle, getLastGenerationAttribution, resetGenerationAttribution } from '../lib/ai-generator'
+import { generateAgentFiles, generateArchiveTitle, withGenerationAttribution } from '../lib/ai-generator'
 import { importAgentFromTemplate } from '../lib/templates'
 import { getConfiguredGatewayPort, getGatewayClient, isGatewayConfigured, isGatewayRunning, probeGatewayResponsive } from '../lib/gateway-rpc'
 import { listWorkflows, resolveParticipants } from '../lib/workflows'
@@ -631,15 +631,16 @@ router.post('/generate', async (req, res) => {
     })
     suggestedModel = modelRecommendation.recommendedModel || suggestedModel
 
-    resetGenerationAttribution()
-    const files = await generateAgentFiles({
-      description,
-      name: suggestedName,
-      tags: suggestedTags,
-    })
     // Report who actually generated. Provider choice used to be invisible, so an operator with
-    // CLI runtimes enabled could not tell a hosted key was being used until it failed.
-    const generatedBy = getLastGenerationAttribution()
+    // CLI runtimes enabled could not tell a hosted key was being used until it failed. Attribution
+    // is captured in async context so concurrent generations cannot report each other's provider.
+    const { value: files, attribution: generatedBy } = await withGenerationAttribution(() =>
+      generateAgentFiles({
+        description,
+        name: suggestedName,
+        tags: suggestedTags,
+      }),
+    )
     traceAgentChat('ai-generate-agent', description, `Generated agent scaffold for ${suggestedName || 'new agent'}`, {
       model: 'ai-generate-agent',
       provider: 'system',

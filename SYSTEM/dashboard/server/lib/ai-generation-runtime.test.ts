@@ -288,18 +288,73 @@ test('a hosted key is still used when no CLI runtime is enabled', () => {
   })
 })
 
-test('a CLI that cannot run falls back, but a timeout does not', () => {
+test('only a CLI that could not run falls back; a CLI verdict stands', () => {
   withWorkspace(['droid'], { DROID_BIN: realBinary }, () => {
     const { isCliRecoverableFailure } = require('./ai-generator')
-    // "not logged in" is the common case: these CLIs authenticate with their own login, so it
-    // cannot be checked before the call and must not dead-end generation.
+    // "could not run" -- retrying elsewhere is legitimate.
     assert.strictEqual(isCliRecoverableFailure('Not logged in \u00b7 Please run /login'), true)
+    assert.strictEqual(isCliRecoverableFailure('Claude Code CLI is not available in this runtime. Install it or set CLAUDE_BIN to the executable path.'), true)
     assert.strictEqual(isCliRecoverableFailure('droid: command not found'), true)
-    // The CLI did run; stacking a hosted attempt after a 240s wait only doubles the spinner.
+    assert.strictEqual(isCliRecoverableFailure('spawn droid ENOENT'), true)
+    assert.strictEqual(isCliRecoverableFailure('permission denied'), true)
+    // The CLI ran and produced a verdict. Falling back would launder a refusal or a parse
+    // failure into another provider's answer and hide a real generation bug.
     assert.strictEqual(isCliRecoverableFailure('AI generation timed out'), false)
     assert.strictEqual(isCliRecoverableFailure('request timeout after 45000ms'), false)
+    assert.strictEqual(isCliRecoverableFailure('I cannot help with that request'), false)
+    assert.strictEqual(isCliRecoverableFailure('stopped by content policy'), false)
+    assert.strictEqual(isCliRecoverableFailure('Unexpected token < in JSON at position 0'), false)
+    assert.strictEqual(isCliRecoverableFailure(''), false)
+    // Structural signal beats text: a tagged missing-CLI error is recoverable even though its
+    // message would not match any pattern above.
+    const tagged: any = new Error('some message no pattern matches')
+    tagged.__clawmaxCliUnavailable = true
+    assert.strictEqual(isCliRecoverableFailure(tagged), true)
+    // A non-Error throw must not become the literal string "[object Object]".
+    const { describeThrown } = require('./ai-generator')
+    assert.strictEqual(describeThrown({ code: 'X' }).includes('[object Object]'), false)
+    assert.strictEqual(describeThrown(new Error('boom')), 'boom')
   })
 })
+
+test('a hosted fallback never sends the CLI sentinel as its model', () => {
+  // resolveModel() used to re-derive the provider from scratch. During a fallback the CLI is
+  // still enabled, so it resolved to cli-runtime again and handed 'cli-runtime' to the OpenAI
+  // client as a model id. An invalid key hides this (auth fails first); a working key does not.
+  withWorkspace(['claude', 'droid'], { CLAUDE_BIN: realBinary, DROID_BIN: realBinary }, () => {
+    const { buildClientForSelection } = require('./ai-generator')
+    const hosted = buildClientForSelection({ provider: 'openai', key: 'sk-test-not-used' })
+    assert.notStrictEqual(hosted.model, 'cli-runtime')
+    assert(hosted.model && !/cli/i.test(hosted.model), `Hosted fallback model looks CLI-ish: ${hosted.model}`)
+  })
+})
+
+test('a malformed hosted key does not block an enabled CLI runtime', () => {
+  // Key-shape validation ran before the CLI was considered, so a stale browser-stored
+  // credential 400'd a request that was never going to use it.
+  withWorkspace(['droid'], { DROID_BIN: realBinary }, () => {
+    const { resolveGenerationProvider } = require('./ai-generator')
+    const chosen = resolveGenerationProvider({ openai: 'not-a-real-openai-key-shape' })
+    assert.strictEqual(chosen.provider, 'cli-runtime')
+    assert.strictEqual(chosen.runtime, 'droid')
+  })
+})
+
+asyncCases.push(['concurrent generations do not report each other\'s provider', async () => {
+  // Attribution used to be a module-level "last generation" value, so whichever concurrent
+  // request resolved a client last overwrote the other's provider before the response read it.
+  await withWorkspaceAsync([], { CLAUDE_BIN: realBinary, DROID_BIN: realBinary }, async () => {
+    const { withGenerationAttribution, getAIClient } = require('./ai-generator')
+    const settle = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+    const [a, b] = await Promise.all([
+      // Resolves first but finishes last -- the ordering that broke the global.
+      withGenerationAttribution(async () => { getAIClient({ openai: 'sk-aaa' }); await settle(60); return 'a' }),
+      withGenerationAttribution(async () => { await settle(20); getAIClient({ anthropic: 'sk-ant-bbb' }); return 'b' }),
+    ])
+    assert.strictEqual(a.attribution?.label, 'OpenAI', `first call saw ${a.attribution?.label}`)
+    assert.strictEqual(b.attribution?.label, 'Anthropic', `second call saw ${b.attribution?.label}`)
+  })
+}])
 
 runAsyncCases().then(() => {
   console.log(`\n${passed} passed, ${failed} failed\n`)
