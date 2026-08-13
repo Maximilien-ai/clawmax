@@ -358,7 +358,7 @@ async function run() {
     })
   })
 
-  await test('chat readiness surfaces RuntimeModelError text for a non-Anthropic model pinned to claude', async () => {
+  await test('chat readiness surfaces a runtime plan failure to the user', async () => {
     await withModuleOverrides(agentExecutionModulePath, {
       resolveAgentExecutionConfig: () => ({
         workspace: '/tmp/workspace/AGENTS/claude-agent',
@@ -374,10 +374,9 @@ async function run() {
         await withModuleOverrides(safeEnvModulePath, {
           userExecutionEnv: () => ({}),
         }, async () => {
-          const { RuntimeModelError } = require(agentRuntimeModulePath)
           await withModuleOverrides(agentRuntimeModulePath, {
             buildRuntimePlan: () => {
-              throw new RuntimeModelError("Claude Code runtime supports Anthropic models only. Agent model is 'openai/gpt-5'. Pick an Anthropic model or switch the agent's runtime.")
+              throw new Error("Claude Code runtime supports Anthropic models only. Agent model is 'openai/gpt-5'. Pick an Anthropic model or switch the agent's runtime.")
             },
           }, async () => {
             const handler = getRouteHandler('post', '/:id/chat/readiness')
@@ -473,9 +472,10 @@ async function run() {
     })
   })
 
-  await test('chat readiness still requires an Anthropic-mappable model for a claude-pinned agent with no model configured', async () => {
-    // Contract: unlike droid, claude has no CLI-side default model — an unset model must still be
-    // rejected, via the real RuntimeModelError thrown by runtimeModelArg('claude', undefined).
+  await test('a claude-pinned agent with no model configured runs on the runtime default', async () => {
+    // Contract changed: refusing the turn left agents that already exist on disk with an
+    // unrunnable model permanently unusable. runtimeModelArg('claude', ...) now falls back to the
+    // runtime's own default, so readiness reports available.
     await withModuleOverrides(agentExecutionModulePath, {
       resolveAgentExecutionConfig: () => ({
         workspace: '/tmp/workspace/AGENTS/claude-agent',
@@ -492,13 +492,12 @@ async function run() {
           userExecutionEnv: () => ({}),
         }, async () => {
           // No agentRuntimeModulePath override here — exercises the real buildRuntimePlan/
-          // runtimeModelArg('claude', undefined) path, which throws RuntimeModelError.
+          // runtimeModelArg('claude', undefined) path, which now coerces to the runtime default.
           const handler = getRouteHandler('post', '/:id/chat/readiness')
           const res = makeRes()
           await handler(makeReq({ params: { id: 'claude-agent' }, body: {} }), res)
           assert.strictEqual(res.statusCode, 200)
-          assert.strictEqual(res.jsonBody?.available, false, `Expected modelless claude agent to be unavailable, got: ${JSON.stringify(res.jsonBody)}`)
-          assert(/Anthropic models only/i.test(res.jsonBody?.error || ''), `Expected RuntimeModelError text, got: ${res.jsonBody?.error}`)
+          assert.strictEqual(res.jsonBody?.available, true, `Expected modelless claude agent to be runnable, got: ${JSON.stringify(res.jsonBody)}`)
         })
       })
     })

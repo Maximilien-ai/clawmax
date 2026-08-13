@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { byokForRequest, readStoredByokKeys, fetchModelsWithByok, getAiGenerationReadiness, hasAiGenerationAccess, isOllamaUiAvailable } from '../lib/byok'
-import { enabledRuntimeIds, modelAfterRuntimeChange, parseRuntimeCatalog, runtimeLabelFor, runtimeModelsFor, type RuntimeCatalogEntry } from '../lib/runtimeCatalog'
+import { enabledRuntimeIds, modelAfterRuntimeChange, modelFitCandidates, parseRuntimeCatalog, runtimeAcceptsModel, runtimeLabelFor, runtimeModelsFor, type RuntimeCatalogEntry } from '../lib/runtimeCatalog'
 import { expandPromptWithAI } from '../lib/aiPrompt'
 import { normalizeAgentTemplateOption } from '../lib/agentTemplateOptions'
 import { normalizePromptInput, resolveAddAgentWizardLaunchState } from '../lib/addAgentWizardFlow'
@@ -118,6 +118,13 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
   }, [])
   const enabledRuntimes = enabledRuntimeIds(runtimeCatalog)
   const runtimeModelOptions = runtimeModelsFor(runtimeCatalog, runtime)
+  // Suggestions must not move a runtime-pinned agent onto a model its CLI rejects. The editor
+  // already had this guard; the creation path did not, which is how agents were created with a
+  // Claude Code runtime and an openai/* model that failed on their first chat turn.
+  const isModelAllowedForRuntime = React.useCallback(
+    (candidate: string) => runtimeAcceptsModel(runtimeModelOptions, candidate),
+    [runtimeModelOptions],
+  )
   // AuthContext fetches /api/auth/config once at mount, so enabling a runtime mid-session
   // would otherwise leave Generate disabled until a reload. This component already polls the
   // runtimes endpoint, so trust that too.
@@ -342,6 +349,9 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
   }
 
   function useManualModel(nextModel: string) {
+    // The panel can only offer models the pinned runtime accepts, but guard the write too:
+    // this is the last point before an unusable model becomes the agent's model.
+    if (!isModelAllowedForRuntime(nextModel)) return
     manualModelRef.current = nextModel
     set('model', nextModel)
   }
@@ -349,7 +359,8 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
   function setAutomaticModelSelection(enabled: boolean) {
     if (enabled) {
       manualModelRef.current = form.model
-      if (modelRecommendation?.recommendedModel) set('model', modelRecommendation.recommendedModel)
+      const suggested = modelRecommendation?.recommendedModel
+      if (suggested && isModelAllowedForRuntime(suggested)) set('model', suggested)
     } else {
       set('model', manualModelRef.current || modelRecommendation?.recommendedModel || form.model)
     }
@@ -357,13 +368,13 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
   }
 
   useEffect(() => {
-    if (!generatedFiles || availableModels.length === 0) return
+    if (!generatedFiles || (availableModels.length === 0 && runtimeModelOptions.length === 0)) return
     const description = buildAgentModelFitDescription(generatedFiles)
     if (!description) return
     const controller = new AbortController()
     requestModelFit({
       description,
-      availableModels,
+      availableModels: modelFitCandidates(runtimeModelOptions, availableModels),
       preference: modelPreference,
       signal: controller.signal,
     })
@@ -372,12 +383,14 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
         if (error.name !== 'AbortError') setGenError(error.message || 'Could not update model suggestion')
       })
     return () => controller.abort()
-  }, [generatedFiles, availableModels, modelPreference])
+  }, [generatedFiles, availableModels, runtimeModelOptions, modelPreference])
 
   useEffect(() => {
     const suggestedModel = modelRecommendation?.recommendedModel
-    if (autoModelSelection && suggestedModel) set('model', suggestedModel)
-  }, [autoModelSelection, modelRecommendation?.recommendedModel])
+    if (autoModelSelection && suggestedModel && isModelAllowedForRuntime(suggestedModel)) {
+      set('model', suggestedModel)
+    }
+  }, [autoModelSelection, modelRecommendation?.recommendedModel, isModelAllowedForRuntime])
 
   const nameOk = /^[a-z][a-z0-9_-]*$/.test(form.name)
   const canNext: Record<Step, boolean> = {
@@ -503,9 +516,9 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
       if (data.suggestedModel) {
         if (!manualModelRef.current) manualModelRef.current = form.model
         set('model', resolveAddAgentWizardSuggestedModel({
-          models: availableModels,
+          models: modelFitCandidates(runtimeModelOptions, availableModels),
           currentModel: form.model,
-          suggestedModel: data.suggestedModel,
+          suggestedModel: isModelAllowedForRuntime(data.suggestedModel) ? data.suggestedModel : form.model,
         }))
       }
       if (data.suggestedSkills?.length > 0) set('skills', [...new Set(data.suggestedSkills)])

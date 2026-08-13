@@ -23,8 +23,7 @@ import {
   resolveWorkspaceRuntime,
   runRuntimeCli,
   runtimeModelArg,
-  RuntimeModelError,
-} from './agent-runtime'
+  } from './agent-runtime'
 import { hasRuntimeSession } from './runtime-sessions'
 
 const GREEN = '\x1b[32m'
@@ -370,30 +369,26 @@ test('runtimeModelArg(claude) strips the anthropic/ prefix', () => {
   assert.strictEqual(runtimeModelArg('claude', 'anthropic/claude-sonnet-4-20250514'), 'claude-sonnet-4-20250514')
 })
 
-test('runtimeModelArg(claude) throws RuntimeModelError for a non-anthropic model', () => {
-  assert.throws(() => runtimeModelArg('claude', 'openai/gpt-5.5'), RuntimeModelError)
+// Agents exist on disk pinned to claude with a provider model, because the suggestion panel
+// used to rank the provider catalog for a pinned runtime. Refusing the turn left them
+// permanently unusable, so an unrunnable model now falls back to the runtime's own default.
+test('runtimeModelArg(claude) falls back to the runtime default for a non-anthropic model', () => {
+  assert.strictEqual(runtimeModelArg('claude', 'openai/gpt-5.5'), 'sonnet')
 })
 
-test('runtimeModelArg(claude) throws RuntimeModelError for an undefined model', () => {
-  assert.throws(() => runtimeModelArg('claude', undefined), RuntimeModelError)
+test('runtimeModelArg(claude) falls back to the runtime default for an undefined model', () => {
+  assert.strictEqual(runtimeModelArg('claude', undefined), 'sonnet')
 })
 
-test('runtimeModelArg(claude) throws RuntimeModelError for a bare model with no provider prefix', () => {
-  assert.throws(() => runtimeModelArg('claude', 'claude-sonnet-4-20250514'), RuntimeModelError)
+test('runtimeModelArg(claude) falls back to the runtime default for a bare unaliased model', () => {
+  assert.strictEqual(runtimeModelArg('claude', 'claude-sonnet-4-20250514'), 'sonnet')
 })
 
-test('runtimeModelArg(claude) error message names the offending model and points at a fix', () => {
-  try {
-    runtimeModelArg('claude', 'openai/gpt-5.5')
-    assert.fail('expected RuntimeModelError to be thrown')
-  } catch (err: any) {
-    assert.ok(err instanceof RuntimeModelError)
-    assert.strictEqual(
-      err.message,
-      "Claude Code runtime supports Anthropic models only. Agent model is 'openai/gpt-5.5'. Pick an Anthropic model or switch the agent's runtime."
-    )
-  }
+test('runtimeModelArg(claude) still passes through a valid anthropic model and alias', () => {
+  assert.strictEqual(runtimeModelArg('claude', 'anthropic/claude-sonnet-4-5-20250929'), 'claude-sonnet-4-5-20250929')
+  assert.strictEqual(runtimeModelArg('claude', 'sonnet'), 'sonnet')
 })
+
 
 test('runtimeModelArg(droid) strips the leading provider/ segment', () => {
   assert.strictEqual(runtimeModelArg('droid', 'openai/gpt-5.5'), 'gpt-5.5')
@@ -498,12 +493,13 @@ test('buildRuntimePlan(claude) appends --append-system-prompt only when a system
   })
 })
 
-test('buildRuntimePlan(claude) throws RuntimeModelError for a non-anthropic model before spawning anything', () => {
+test('buildRuntimePlan(claude) runs a non-anthropic model on the runtime default instead of refusing', () => {
   withStubbedClis(() => {
-    assert.throws(() => buildRuntimePlan({
+    const plan = buildRuntimePlan({
       runtime: 'claude', mode: 'chat', agentId: 'agent1', scopedSessionId: 'sess1',
       message: 'hello', model: 'openai/gpt-5.5', agentDir: '/workspace/AGENTS/agent1', resume: false,
-    }), RuntimeModelError)
+    })
+    assert(plan.args.includes('sonnet'), `Expected the runtime default in args, got: ${plan.args.join(' ')}`)
   })
 })
 

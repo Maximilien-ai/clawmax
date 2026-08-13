@@ -2,7 +2,7 @@
 import assert from 'assert'
 import {
   parseRuntimeCatalog, enabledRuntimeIds, runtimeModelsFor, runtimeLabelFor,
-  isCliRuntimeSelection, runtimeAcceptsModel, modelAfterRuntimeChange, stripModelProvider,
+  isCliRuntimeSelection, runtimeAcceptsModel, modelAfterRuntimeChange, modelFitCandidates, stripModelProvider,
 } from './runtimeCatalog'
 
 const GREEN='\x1b[32m', RED='\x1b[31m', RESET='\x1b[0m'
@@ -75,6 +75,25 @@ test('switching runtime keeps a valid model and otherwise adopts the runtime def
   // No enumerable catalog: keep whatever is set rather than clobbering a provider model.
   assert.strictEqual(modelAfterRuntimeChange(catalog, 'default', 'openai/gpt-4o'), 'openai/gpt-4o')
   assert.strictEqual(modelAfterRuntimeChange(catalog, 'claude', 'openai/gpt-4o'), 'openai/gpt-4o')
+})
+
+test('fit suggestions are drawn from a pinned runtime\'s own catalog', () => {
+  // The suggestion panel ranked the provider catalog for a pinned runtime and presented the
+  // winner as "runtime-visible". Applying it wrote an openai/* id onto a Claude Code agent,
+  // which then failed on its first chat turn -- the fine-tune-researcher case.
+  const catalog = parseRuntimeCatalog(payload)
+  const provider = ['openai/gpt-5.3-codex', 'openai/gpt-5.4']
+  const droidModels = runtimeModelsFor(catalog, 'droid')
+  assert.deepStrictEqual(modelFitCandidates(droidModels, provider), droidModels)
+  // No pinned CLI runtime (openclaw/default): the provider catalog is the right pool.
+  assert.deepStrictEqual(modelFitCandidates(runtimeModelsFor(catalog, 'default'), provider), provider)
+})
+
+test('a provider model is never accepted for a pinned runtime', () => {
+  const catalog = parseRuntimeCatalog(payload)
+  const droidModels = runtimeModelsFor(catalog, 'droid')
+  assert.strictEqual(runtimeAcceptsModel(droidModels, 'openai/gpt-5.3-codex'), false)
+  assert.strictEqual(runtimeAcceptsModel(droidModels, 'auto'), true)
 })
 
 console.log(`\n${passed} passed, ${failed} failed\n`)

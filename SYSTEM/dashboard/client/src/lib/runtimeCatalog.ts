@@ -42,6 +42,18 @@ export function runtimeModelsFor(catalog: RuntimeCatalogEntry[], runtime: string
   return isCliRuntimeSelection(runtime) ? (catalog.find((entry) => entry.id === runtime)?.models || []) : []
 }
 
+/**
+ * Models a fit suggestion is allowed to choose from.
+ *
+ * A pinned CLI runtime only runs its own catalog, so ranking the provider catalog for one
+ * produced suggestions it cannot execute — and the panel presented them as "runtime-visible".
+ * Applying one (or auto-apply) wrote an OpenAI id onto a Claude Code agent, which then failed
+ * at the first chat turn. Shared by the wizard and the agent editor so the two cannot drift.
+ */
+export function modelFitCandidates(runtimeModels: string[], providerModels: string[]): string[] {
+  return runtimeModels.length > 0 ? runtimeModels : providerModels
+}
+
 export function runtimeLabelFor(catalog: RuntimeCatalogEntry[], runtime: string): string {
   return catalog.find((entry) => entry.id === runtime)?.label || runtime
 }

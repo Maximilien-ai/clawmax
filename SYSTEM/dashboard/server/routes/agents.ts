@@ -23,7 +23,7 @@ import {
   type AgentModelSelectionMode,
   upsertAgentRuntimeInIdentityContent,
 } from '../lib/agent-model'
-import { AGENT_RUNTIME_IDS, detectRuntimeStatuses, executeAgentRuntimeTurn, listRuntimeModels, normalizeAgentRuntime, resolveWorkspaceRuntime } from '../lib/agent-runtime'
+import { AGENT_RUNTIME_IDS, detectRuntimeStatuses, executeAgentRuntimeTurn, listRuntimeModels, normalizeAgentRuntime, resolveWorkspaceRuntime, runtimeAcceptsModelId, runtimeLabel } from '../lib/agent-runtime'
 import { hasRuntimeSession } from '../lib/runtime-sessions'
 import { appendRuntimeTranscriptExchange, clearRuntimeTranscript, getLatestRuntimeTranscriptSessionId, hasRuntimeTranscripts, readRuntimeTranscript, readRuntimeTranscriptAsArchiveLines } from '../lib/runtime-transcripts'
 import { validateAgentCostLimit } from '../lib/budget'
@@ -845,6 +845,19 @@ router.post('/provision', async (req, res) => {
 
   const provisionRuntime = normalizeAgentRuntime(runtime)
   const provisionRuntimeModels = provisionRuntime ? await listRuntimeModels(provisionRuntime) : []
+  // Never write an agent whose pinned runtime cannot run its model. The pair was only checked at
+  // chat time, so a mismatch reached disk and surfaced later as a runtime error on the agent's
+  // first turn. Any API client can post this pair, not just the wizard.
+  if (
+    provisionRuntime && provisionRuntime !== 'openclaw'
+    && provisionRuntimeModels.length > 0
+    && !runtimeAcceptsModelId(provisionRuntimeModels, resolvedModel)
+  ) {
+    res.status(400).json({
+      error: `The ${runtimeLabel(provisionRuntime)} runtime cannot run '${resolvedModel}'. Choose one of its own models (${provisionRuntimeModels.slice(0, 4).join(', ')}) or pick a different runtime.`,
+    })
+    return
+  }
   const inputValidation = validateProvisionInput({ ...(req.body || {}), model: resolvedModel }, {
     existingAgentIds: listAgents().map(agent => agent.id),
     availableModels: [...getAvailableModels(), ...provisionRuntimeModels],

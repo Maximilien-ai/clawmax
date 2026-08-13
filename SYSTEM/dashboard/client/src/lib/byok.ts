@@ -377,6 +377,11 @@ export function getAiGenerationReadiness(config?: AiExecutionConfig | null): AiG
 
 /** Check whether the current browser/user execution path can actually run chat turns */
 export function hasChatExecutionAccess(config?: AiExecutionConfig | null): boolean {
+  // A CLI runtime signs in with its own login and runs chat turns without any provider key.
+  // Without this the chat panel refused to open with "no AI execution path is configured" on a
+  // workspace whose agents were happily executing on Claude Code or Factory Droid — the same
+  // omission that affected generation readiness, in the sibling helper.
+  if (Array.isArray(config?.enabledRuntimes) && config.enabledRuntimes.length > 0) return true
   const byok = readStoredByokKeys()
   if (byok.openai || byok.anthropic || byok.geminiApiKey || byok.openrouter || byok.xai || byok.ollamaBaseUrl || byok.ollamaDefaultModel || byok.openaiCompatibleBaseUrl || byok.openaiCompatibleDefaultModel) return true
   if (isOllamaUiAvailable(config)) return true
