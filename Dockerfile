@@ -184,7 +184,15 @@ RUN export HOME=/app \
   && install -m 0755 /tmp/droid "$HOME/.local/bin/droid" \
   && rm -f /tmp/droid /tmp/droid.sha256 \
   && "$HOME/.local/bin/droid" --version | grep -F "${FACTORY_DROID_VERSION}" \
-    || { echo "droid --version did not report pinned version ${FACTORY_DROID_VERSION}" >&2; exit 1; }
+    || { echo "droid --version did not report pinned version ${FACTORY_DROID_VERSION}" >&2; exit 1; } \
+  && install -m 0755 "$HOME/.local/bin/droid" /usr/local/bin/droid
+# Also install droid onto PATH, not only under ~/.local/bin. The `~` fallback in
+# resolveRuntimeCliPath only finds it when the container's HOME matches the /app
+# used at build time, and deployments legitimately override HOME (the ClawMax host
+# agent runs the dashboard with HOME=/app/DATA/.home so the OpenClaw profile lives
+# on the mounted data volume). In that case droid was silently reported as not
+# installed while the binary sat in the image. /usr/local/bin is where `npm i -g`
+# puts the claude CLI, which is why claude resolved correctly and droid did not.
 
 COPY --from=builder /app/SYSTEM/dashboard/dist ./dist
 COPY --from=builder /app/SYSTEM/dashboard/server/schemas ./server/schemas
