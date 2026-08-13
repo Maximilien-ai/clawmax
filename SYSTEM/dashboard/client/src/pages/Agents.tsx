@@ -2921,6 +2921,7 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
           // A pinned CLI runtime only runs its own catalog; ranking provider ids for one
           // produced suggestions it cannot execute, presented as "runtime-visible".
           availableModels: modelFitCandidates(runtimeModelOptions, availableModels),
+          runtime,
           preference: modelPreference,
           signal: controller.signal,
         })

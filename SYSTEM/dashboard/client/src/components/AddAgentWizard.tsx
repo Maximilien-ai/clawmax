@@ -362,7 +362,11 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
       const suggested = modelRecommendation?.recommendedModel
       if (suggested && isModelAllowedForRuntime(suggested)) set('model', suggested)
     } else {
-      set('model', manualModelRef.current || modelRecommendation?.recommendedModel || form.model)
+      // Restoring the pre-auto model must respect the runtime pinned since: enable auto on
+      // OpenClaw with an openai/* model, switch to Claude Code, then turn auto off, and this used
+      // to put the OpenAI model back on a CLI-pinned agent, which then fails at provision.
+      const restored = manualModelRef.current || modelRecommendation?.recommendedModel || form.model
+      set('model', isModelAllowedForRuntime(restored) ? restored : (runtimeModelOptions[0] || form.model))
     }
     setAutoModelSelection(enabled)
   }
@@ -375,6 +379,7 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
     requestModelFit({
       description,
       availableModels: modelFitCandidates(runtimeModelOptions, availableModels),
+      runtime,
       preference: modelPreference,
       signal: controller.signal,
     })

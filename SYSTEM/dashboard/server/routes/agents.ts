@@ -682,6 +682,7 @@ router.post('/model-fit', async (req, res) => {
   const body = (req.body || {}) as {
     description?: string
     availableModels?: string[]
+    runtime?: string
     preference?: ModelFitPreference
     byokKeys?: { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; xai?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string }
   }
@@ -700,6 +701,15 @@ router.post('/model-fit', async (req, res) => {
     } catch {
       // Use system-visible models and return an advisory result rather than failing the request.
     }
+  }
+  // A pinned CLI runtime's ids (claude's `sonnet`, droid's bare ids) are not in the provider
+  // catalog, so intersecting against it dropped every candidate the client sent and silently fell
+  // back to ranking provider models — the client-side scoping looked right while the panel still
+  // recommended models the runtime cannot run.
+  const fitRuntime = normalizeAgentRuntime((body as any).runtime)
+  if (fitRuntime && fitRuntime !== 'openclaw') {
+    const cliModels = await listRuntimeModels(fitRuntime)
+    if (cliModels.length > 0) runtimeModels = cliModels
   }
   const runtimeModelSet = new Set(runtimeModels)
   const requestedModels = Array.isArray(body.availableModels)
