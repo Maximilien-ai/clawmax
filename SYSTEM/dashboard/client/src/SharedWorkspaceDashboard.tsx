@@ -5,6 +5,7 @@ import { transformWorkspaceMarkdownUrl } from './lib/markdownLinks'
 import { buildWorkflowHandoffDisplay } from './lib/workflowDisplay'
 import { extractWorkspaceFileMentions, linkifyWorkspaceFiles, normalizeWorkspaceFileTarget, parseWorkspaceDocEntriesResponse, resolveWorkspaceDocPath } from './lib/workspaceFiles'
 import { resolveNavigableWorkspaceDocPath } from './lib/workspaceDocNavigation'
+import { canSendDashboardInteraction, pruneDashboardInteractionAttempts, validateDashboardInteractionMessage, type DashboardInteractionAttempt } from './lib/workspaceDashboardInteractionGuard'
 
 interface SharedDashboardPayload {
   refreshedAt: string
@@ -387,6 +388,7 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
   const [interactionTarget, setInteractionTarget] = useState('')
   const [interactionMessage, setInteractionMessage] = useState('')
   const [interactionStatus, setInteractionStatus] = useState<string | null>(null)
+  const [interactionAttempts, setInteractionAttempts] = useState<DashboardInteractionAttempt[]>([])
   const [interactionHeight, setInteractionHeight] = useState(260)
   const [interactionHistory, setInteractionHistory] = useState<Array<{ kind: string; target: string; message: string; response: string; at: string }>>(() => {
     try {
@@ -491,7 +493,20 @@ export default function SharedWorkspaceDashboard({ token }: { token: string }) {
   }, [interactionTargets, interactionTarget])
 
   async function submitInteraction() {
-    if (!interactionTarget || !interactionMessage.trim()) return
+    const messageError = validateDashboardInteractionMessage(interactionMessage)
+    if (messageError) {
+      setInteractionStatus(messageError)
+      return
+    }
+    const now = Date.now()
+    const recentAttempts = pruneDashboardInteractionAttempts(interactionAttempts, now)
+    if (!canSendDashboardInteraction(recentAttempts, now)) {
+      setInteractionAttempts(recentAttempts)
+      setInteractionStatus('Interaction limit reached. Try again in a minute.')
+      return
+    }
+    if (!interactionTarget) return
+    setInteractionAttempts([...recentAttempts, { at: now }])
     setInteractionStatus('Sending…')
     try {
       let response: Response
