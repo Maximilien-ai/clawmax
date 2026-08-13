@@ -321,6 +321,14 @@ export function getAiGenerationReadiness(config?: AiExecutionConfig | null): AiG
     }
   }
 
+  // An enabled CLI runtime is itself a working execution path — the server now prefers it over
+  // hosted keys entirely. Without this check the wizards warned "no verified hosted execution
+  // path" while generation was in fact succeeding through Claude Code or Factory Droid, telling
+  // the operator to go configure a key the request would never use.
+  if (Array.isArray(config?.enabledRuntimes) && config.enabledRuntimes.length > 0) {
+    return { enabled: true }
+  }
+
   const byok = readStoredByokKeys()
   const verifiedProviders = byok.verifiedProviders || {}
   const hasSharedHostedExecution = !!(
