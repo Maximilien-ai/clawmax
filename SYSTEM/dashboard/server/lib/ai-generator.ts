@@ -436,16 +436,28 @@ export function resolveOpenAiCompatibleGenerationDefaults(byokKeys?: ProviderKey
   }
 }
 
-function getAvailableProvider(byokKeys?: ProviderKeys): { provider: AIProvider; key: string; baseUrl?: string; defaultModel?: string } {
+function getAvailableProvider(
+  byokKeys?: ProviderKeys,
+  options: { skipCliRuntime?: boolean } = {},
+): { provider: AIProvider; key: string; baseUrl?: string; defaultModel?: string } {
   validateAiGenerationProviderKeys(byokKeys)
   const compatibleDefaults = resolveOpenAiCompatibleGenerationDefaults(byokKeys)
+  const cliCandidate = () => (options.skipCliRuntime ? undefined : pickGenerationRuntime())
+  // An enabled CLI runtime outranks every hosted key. Enabling one in BYOK is a deliberate
+  // operator action ("Run via CLI", and the dialog promises it "needs no provider key"),
+  // whereas a provider key is frequently ambient leftover environment. Ranking the key first
+  // meant a stale or revoked one silently beat two working CLIs and dead-ended generation on
+  // a 401 that named a key the operator had already chosen to stop using.
+  // Callers recover from a CLI that cannot actually run by re-resolving with skipCliRuntime.
+  const preferredRuntime = cliCandidate()
+  if (preferredRuntime) return { provider: 'cli-runtime', key: preferredRuntime }
   // Try BYOK keys first (passed from client request)
   if (byokKeys?.openai) return { provider: 'openai', key: byokKeys.openai }
   if (byokKeys?.openaiCompatibleBaseUrl) {
     // A base URL without a default model cannot generate. Prefer an enabled CLI runtime over
     // dead-ending, rather than letting the unusable endpoint win just because it is configured.
     const compatibleModel = String(byokKeys.openaiCompatibleDefaultModel || '').trim()
-    const cliInstead = compatibleModel ? undefined : pickGenerationRuntime()
+    const cliInstead = compatibleModel ? undefined : cliCandidate()
     if (cliInstead) return { provider: 'cli-runtime', key: cliInstead }
     return {
       provider: 'openai-compatible',
@@ -459,7 +471,7 @@ function getAvailableProvider(byokKeys?: ProviderKeys): { provider: AIProvider; 
   const keys = resolveSystemExecutionProviderKeys()
   if (keys.openai) return { provider: 'openai', key: keys.openai }
   if (compatibleDefaults.baseUrl) {
-    const cliInstead = String(compatibleDefaults.defaultModel || '').trim() ? undefined : pickGenerationRuntime()
+    const cliInstead = String(compatibleDefaults.defaultModel || '').trim() ? undefined : cliCandidate()
     if (cliInstead) return { provider: 'cli-runtime', key: cliInstead }
     return {
       provider: 'openai-compatible',
@@ -472,7 +484,7 @@ function getAvailableProvider(byokKeys?: ProviderKeys): { provider: AIProvider; 
   // Nothing hosted is configured. If the workspace enabled a CLI runtime in BYOK ("Run via CLI"),
   // generation should use it — those CLIs authenticate with their own login and need no key, and
   // it is what the operator explicitly turned on.
-  const enabledRuntime = pickGenerationRuntime()
+  const enabledRuntime = cliCandidate()
   if (enabledRuntime) return { provider: 'cli-runtime', key: enabledRuntime }
   throw new Error('No API key configured. Set SYSTEM_OPENAI_API_KEY or SYSTEM_ANTHROPIC_API_KEY in .env, enable a CLI runtime in BYOK, or provide a BYOK key.')
 }
@@ -578,8 +590,73 @@ export function buildCliRuntimeClient(runtime: AgentRuntimeId): { client: OpenAI
   return { client: client as unknown as OpenAI, model: `${runtime}-cli` }
 }
 
-function getAIClient(byokKeys?: ProviderKeys): { client: OpenAI; model: string } {
-  const { provider, key, baseUrl, defaultModel } = getAvailableProvider(byokKeys)
+/**
+ * Which provider actually produced the last generation, and whether it got there by falling
+ * back. Generation used to pick a provider silently, so an operator with two enabled CLIs had
+ * no way to see that a stale hosted key was being used instead — the only signal was a raw 401.
+ * Routes read this to report attribution alongside the generated content.
+ */
+export type GenerationAttribution = {
+  provider: AIProvider
+  runtime?: AgentRuntimeId
+  label: string
+  fellBackFrom?: { label: string; reason: string }
+}
+
+let _lastGenerationAttribution: GenerationAttribution | undefined
+
+export function getLastGenerationAttribution(): GenerationAttribution | undefined {
+  return _lastGenerationAttribution
+}
+
+export function resetGenerationAttribution(): void {
+  _lastGenerationAttribution = undefined
+}
+
+function describeProvider(provider: AIProvider, key?: string): string {
+  if (provider === 'cli-runtime') {
+    return key === 'claude' ? 'Claude Code CLI' : key === 'droid' ? 'Factory Droid CLI' : `${key} CLI`
+  }
+  if (provider === 'anthropic') return 'Anthropic'
+  if (provider === 'openai-compatible') return 'OpenAI-compatible endpoint'
+  return 'OpenAI'
+}
+
+/**
+ * A CLI that is enabled and installed can still be unable to run — most commonly it is simply
+ * not logged in, since these CLIs authenticate with their own login rather than a key we can
+ * check up front. Those failures fall back to the hosted ladder so preferring the CLI cannot
+ * dead-end generation. A timeout is deliberately excluded: the CLI did run, and stacking a
+ * hosted attempt after a 240s wait would just double the time the user stares at a spinner.
+ */
+export function isCliRecoverableFailure(message: string): boolean {
+  const text = String(message || '')
+  if (/timed out|timeout/i.test(text)) return false
+  return true
+}
+
+/**
+ * Which provider generation would use right now, without building a client or spending a call.
+ * Surfaces the precedence that used to be invisible, so the dashboard can say "generation will
+ * use Claude Code CLI" instead of leaving an operator to infer it from a failure.
+ */
+export function resolveGenerationProvider(byokKeys?: ProviderKeys): {
+  provider: AIProvider
+  label: string
+  runtime?: AgentRuntimeId
+} {
+  const selection = getAvailableProvider(byokKeys)
+  return {
+    provider: selection.provider,
+    label: describeProvider(selection.provider, selection.key),
+    runtime: selection.provider === 'cli-runtime' ? (selection.key as AgentRuntimeId) : undefined,
+  }
+}
+
+function buildClientForSelection(
+  selection: { provider: AIProvider; key: string; baseUrl?: string; defaultModel?: string },
+): { client: OpenAI; model: string } {
+  const { provider, key, baseUrl, defaultModel } = selection
   if (provider === 'cli-runtime') {
     return buildCliRuntimeClient(key as AgentRuntimeId)
   }
@@ -600,10 +677,8 @@ function getAIClient(byokKeys?: ProviderKeys): { client: OpenAI; model: string }
       throw new Error('OpenAI-compatible Base URL is required for AI generation.')
     }
     if (!String(defaultModel || '').trim()) {
-      // A base URL with no default model cannot generate. Rather than dead-ending, use a CLI
-      // runtime if the workspace enabled one.
-      const fallbackRuntime = pickGenerationRuntime()
-      if (fallbackRuntime) return buildCliRuntimeClient(fallbackRuntime)
+      // A base URL with no default model cannot generate. getAvailableProvider already prefers an
+      // enabled CLI over reaching here, so by this point there is no runtime left to try.
       throw new Error('OpenAI-compatible AI generation requires a default model. Set one in BYOK first, or enable a CLI runtime in BYOK.')
     }
     return {
@@ -615,6 +690,67 @@ function getAIClient(byokKeys?: ProviderKeys): { client: OpenAI; model: string }
     client: new OpenAI({ apiKey: key }),
     model: resolveModel('gpt-4o-mini'),
   }
+}
+
+function getAIClient(byokKeys?: ProviderKeys): { client: OpenAI; model: string } {
+  const selection = getAvailableProvider(byokKeys)
+  const primaryLabel = describeProvider(selection.provider, selection.key)
+  const built = buildClientForSelection(selection)
+  _lastGenerationAttribution = {
+    provider: selection.provider,
+    runtime: selection.provider === 'cli-runtime' ? (selection.key as AgentRuntimeId) : undefined,
+    label: primaryLabel,
+  }
+  if (selection.provider !== 'cli-runtime') return built
+
+  // CLI chosen. Wrap the single create() choke point so any generator recovers identically:
+  // if the CLI cannot run (typically "not logged in"), retry once on the hosted ladder with
+  // the CLI excluded, and record that the answer came from the fallback.
+  const wrapped = {
+    chat: {
+      completions: {
+        create: async (payload: any) => {
+          try {
+            return await (built.client as any).chat.completions.create(payload)
+          } catch (err: any) {
+            const reason = String(err?.message || err)
+            if (!isCliRecoverableFailure(reason)) throw err
+            let hosted: { client: OpenAI; model: string }
+            let hostedSelection: ReturnType<typeof getAvailableProvider>
+            try {
+              hostedSelection = getAvailableProvider(byokKeys, { skipCliRuntime: true })
+              hosted = buildClientForSelection(hostedSelection)
+            } catch {
+              // Nothing hosted to fall back to: the CLI failure is the real and only story.
+              throw err
+            }
+            console.warn(`[AI Generation] ${primaryLabel} failed (${reason}); falling back to ${describeProvider(hostedSelection.provider, hostedSelection.key)}`)
+            _lastGenerationAttribution = {
+              provider: hostedSelection.provider,
+              label: describeProvider(hostedSelection.provider, hostedSelection.key),
+              fellBackFrom: { label: primaryLabel, reason },
+            }
+            payload.model = hosted.model
+            try {
+              return await (hosted.client as any).chat.completions.create(payload)
+            } catch (hostedErr: any) {
+              // Both paths failed. Reporting only the hosted error hides that the preferred CLI
+              // was tried at all, which is the half that tells the operator what to actually fix.
+              const hostedLabel = describeProvider(hostedSelection.provider, hostedSelection.key)
+              throw new Error(
+                `${primaryLabel} could not run (${reason}); ${hostedLabel} then failed: ${String(hostedErr?.message || hostedErr)}`,
+              )
+            }
+          }
+        },
+      },
+    },
+  }
+  // The wrapper stands in for a CLI-backed client, so it must carry the marker too:
+  // createChatCompletionWithCompatibilityRetry keys its deadline off this, and without it the
+  // 45s hosted race would reject before the CLI's own 240s deadline and orphan the child.
+  ;(wrapped as any)[CLI_CLIENT_MARKER] = true
+  return { client: wrapped as unknown as OpenAI, model: built.model }
 }
 
 // Module-level BYOK override — set per-request by routes
