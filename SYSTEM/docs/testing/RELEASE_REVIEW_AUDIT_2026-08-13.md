@@ -26,9 +26,10 @@ release identity checks, catalog counts, source/UI contracts, CI architecture
 checks, and repeated component-level checks. They are preserved, but a new
 focused checklist moves superseded releases to Archived regardless of completion.
 
-## RC37 Reviewer Queue
+## RC38 Reviewer Queue
 
-The RC37 queue is reduced from 20 to seven end-to-end journeys:
+The RC38 queue carries forward the 20-item RC37 acceptance scope as seven
+end-to-end journeys:
 
 1. Explicit Builder intent and matching AI Create actions.
 2. AI Editor and Expand with AI usefulness across real surfaces.

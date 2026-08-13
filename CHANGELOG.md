@@ -4,6 +4,10 @@ All notable changes to ClawMax are documented here.
 
 ## [Unreleased]
 
+### RC38
+- **Focused independent release review** — the current tester queue is reduced from 20 component and release checks to seven end-to-end journeys that require human product judgment, real OAuth providers, or a persistent upgraded runtime. Historical 1.9.9 and earlier-2.0 checks remain preserved for traceability but are not offered as current tester work; starting a new focused checklist archives every superseded release without deleting results, notes, evidence, or verifier history.
+- **Security sign-off candidate** — RC38 carries the completed 2.0 source security hardening and zero-vulnerability dependency gate on top of the accepted RC37 OpenClaw `v2026.6.34` session-recovery runtime. Final public/private image digests and cloud/on-prem runtime evidence remain release gates.
+
 ### RC37
 - **Automatic session-conflict recovery** — post-RC36 on-prem testing found that an OpenClaw embedded-session takeover still required a manual chat reset. Chat now retries once with a fresh bounded session when no assistant output was streamed, retains that recovered session for later messages, and workflow retries use the same one-retry bound.
 
@@ -33,9 +37,9 @@ All notable changes to ClawMax are documented here.
 - **Instance Plugin Manager** — the PLUGINS sidebar heading now includes a responsive manager that lists every discovered deployable plugin, identifies public and private packages, and persists an explicit enabled selection across restarts without exposing synthetic contract fixtures.
 - **Release Review Export** — Review exports a release-specific Markdown handoff containing checklist outcomes, notes, evidence, reviewer identity, environment and instance details, timestamps, and sanitized recent runtime errors.
 - **Dedicated Plugin Suggestions** — plugin suggestions live in a separate counted tab instead of appearing above active workspace items, with independent search, tag filters, recommendation/name sorting, and a return to Active after use.
-- **Consolidated Tester Review Sets** — Review offers one retained 1.9.9 regression set, one cumulative earlier-2.0 set, and one focused current-RC set; every check separates the action from its pass result and can identify prior tester confirmation without merging browser-local state.
+- **Consolidated Tester Review History** — Review retains stable-line and earlier-2.0 acceptance history alongside one focused current-RC set; every check separates the action from its pass result and can identify prior tester confirmation without merging browser-local state.
 - **Actionable Review Procedures And Imported Evidence** — every retained release check now includes numbered actions and an objective pass condition; RC4/RC5 exports preserve Max's local navigation, restart, and automated-suite confirmations while keeping untested image, private-plugin, Guardrails, Evals, and RC8 work pending.
-- **Review Release Archiving** — testers can archive or restore an entire selected release from Review, archived releases no longer clutter Active, and starting a new checklist automatically retires fully completed older sets while preserving unfinished work.
+- **Review Release Archiving** — testers can archive or restore an entire selected release from Review, archived releases no longer clutter Active, and starting a new focused checklist retires superseded sets while preserving unfinished work and evidence.
 - **Public Mail Capability Foundation** — Gmail and Microsoft 365 share a versioned read/search/read-body/create-draft contract with exact workspace, agent, plugin fingerprint, account, and capability grants; bounded fake-provider tests prove inbound message text cannot add recipients or permissions, while preview partner entries avoid unusable password fields.
 - **Encrypted Mail OAuth Foundation** — provider-neutral Gmail and Microsoft 365 connection routes add short-lived actor/workspace-bound state, PKCE S256, replay protection, encrypted restart-persistent token storage, metadata-only readiness, refresh, and disconnect behavior validated through fake provider exchanges.
 - **Production Mail Identity Adapters** — opt-in Google and Microsoft adapters implement authorization-code exchange, PKCE, delegated account identity, offline refresh, safe disconnect behavior, strict callback configuration, sanitized provider errors, and fixed capability-to-scope mapping that rejects raw scopes.
