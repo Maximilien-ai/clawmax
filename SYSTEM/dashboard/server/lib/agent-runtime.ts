@@ -14,7 +14,7 @@ import { execFile, execFileSync, spawn } from 'child_process'
 import { resolveOpenClawCliPath } from './openclaw-cli'
 import { readWorkspaceIntegrationConfig } from './workspace-integrations'
 import { safeEnv } from './safe-env'
-import { clearRuntimeSessions, hasRuntimeSession, markRuntimeSession } from './runtime-sessions'
+import { clearRuntimeSession, hasRuntimeSession, markRuntimeSession } from './runtime-sessions'
 
 export type AgentRuntimeId = 'openclaw' | 'claude' | 'droid'
 
@@ -462,11 +462,14 @@ function runOnce(
       }
     }
 
-    const settle = (result: RunOnceResult) => {
+    const settle = (result: RunOnceResult, opts: { keepEscalation?: boolean } = {}) => {
       if (settled) return
       settled = true
       clearTimeout(timer)
-      if (killEscalation) clearTimeout(killEscalation)
+      // On the timeout path the SIGKILL escalation was armed moments ago and must outlive this
+      // resolve, or a CLI that traps SIGTERM survives forever: settling used to clear the very
+      // timer that was going to kill it.
+      if (killEscalation && !opts.keepEscalation) clearTimeout(killEscalation)
       resolve(result)
     }
 
@@ -484,7 +487,7 @@ function runOnce(
       // pipe closed, and a surviving grandchild holds stdout open indefinitely — so waiting for it
       // meant the turn never returned, the caller's recovery never ran, and the request stayed
       // wedged server-side while the user only saw the route's own timeout message.
-      settle({ stdout, stderr, exitCode: null, timedOut: true })
+      settle({ stdout, stderr, exitCode: null, timedOut: true }, { keepEscalation: true })
     }, timeoutMs)
 
     child.stdout.on('data', (chunk: Buffer) => {
@@ -544,11 +547,22 @@ export async function runRuntimeCli(o: {
     : o.env
 
 
-  const attempt = async (plan: RuntimePlan) => {
+  // A claude turn may need a second attempt on a fresh session. Both must fit inside the budget
+  // the caller advertised: the chat route arms its own watchdog for the same duration, so a retry
+  // that started after the first full timeout ran invisibly, after the user had already been told
+  // the turn timed out. Give the first attempt most of the budget and the retry the rest.
+  const canRetryOnFreshSession = o.runtime === 'claude'
+  const firstAttemptTimeoutMs = canRetryOnFreshSession ? Math.floor(o.timeoutMs * 0.6) : o.timeoutMs
+  const retryTimeoutMs = Math.max(o.timeoutMs - firstAttemptTimeoutMs, 1000)
+
+  const attempt = async (plan: RuntimePlan, timeoutMs = o.timeoutMs) => {
     const onChunk = plan.streamsDeltas && o.onDelta ? o.onDelta : undefined
-    const result = await runOnce(plan, effectiveEnv, o.timeoutMs, onChunk)
+    const result = await runOnce(plan, effectiveEnv, timeoutMs, onChunk)
     if (result.timedOut) {
-      return { result, text: '', errorText: 'timeout' as const }
+      // Keep whatever the CLI streamed before the deadline. Discarding it made every timeout look
+      // like "no output at all", so the partial-output case could never reach the retry decision.
+      const partial = parseRuntimeResult(o.runtime, o.mode, result.stdout, result.stderr, result.exitCode)
+      return { result, text: partial.text || '', errorText: 'timeout' as const }
     }
     const parsed = parseRuntimeResult(o.runtime, o.mode, result.stdout, result.stderr, result.exitCode)
     if (!parsed.errorText && !plan.streamsDeltas && o.onDelta) {
@@ -558,7 +572,7 @@ export async function runRuntimeCli(o: {
     return { result, text: parsed.text, errorText: parsed.errorText }
   }
 
-  const first = await attempt(o.plan)
+  const first = await attempt(o.plan, firstAttemptTimeoutMs)
 
   if (shouldRestartClaudeSessionAfterTimeout({
     runtime: o.runtime,
@@ -567,8 +581,8 @@ export async function runRuntimeCli(o: {
     resumed: o.plan.args.includes('--resume'),
   })) {
     console.warn(`[Agent Runtime] claude session for ${o.agentId} timed out on resume; retrying with a fresh session`)
-    clearRuntimeSessions(o.agentId)
-    const retry = await attempt(o.rebuildPlan(false))
+    clearRuntimeSession(o.runtime, o.agentId, o.scopedSessionId)
+    const retry = await attempt(o.rebuildPlan(false), retryTimeoutMs)
     if (!retry.errorText) markRuntimeSession(o.runtime, o.agentId, o.scopedSessionId)
     return { text: retry.text, errorText: retry.errorText }
   }

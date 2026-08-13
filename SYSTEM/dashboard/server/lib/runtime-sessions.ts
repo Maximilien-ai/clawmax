@@ -65,3 +65,13 @@ export function markRuntimeSession(rt: AgentRuntimeId, agentId: string, scopedSe
 export function clearRuntimeSessions(agentId: string): void {
   writeEntries(readEntries().filter((e) => e.agentId !== agentId))
 }
+
+/**
+ * Forget one conversation's session. Recovering a single wedged transcript must not drop resume
+ * continuity for the agent's other conversations — an agent is shared across chat, channels and
+ * workflows, and each has its own scoped session.
+ */
+export function clearRuntimeSession(rt: AgentRuntimeId, agentId: string, scopedSessionId: string): void {
+  const key = keyOf(rt, agentId, scopedSessionId)
+  writeEntries(readEntries().filter((e) => keyOf(e.runtime, e.agentId, e.scopedSessionId) !== key))
+}

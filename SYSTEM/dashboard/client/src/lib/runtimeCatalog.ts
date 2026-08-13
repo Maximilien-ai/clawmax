@@ -38,8 +38,16 @@ export function enabledRuntimeIds(catalog: RuntimeCatalogEntry[]): string[] {
   return catalog.filter((entry) => entry.enabled).map((entry) => entry.id)
 }
 
+/**
+ * Shared empty result so a runtime with no catalog returns a stable reference. Returning a fresh
+ * [] each call made this unusable in a React dependency array: the effect that requests a model
+ * fit re-ran on every render and re-posted the prompt and BYOK payload to the server each time.
+ */
+const NO_RUNTIME_MODELS: string[] = []
+
 export function runtimeModelsFor(catalog: RuntimeCatalogEntry[], runtime: string): string[] {
-  return isCliRuntimeSelection(runtime) ? (catalog.find((entry) => entry.id === runtime)?.models || []) : []
+  if (!isCliRuntimeSelection(runtime)) return NO_RUNTIME_MODELS
+  return catalog.find((entry) => entry.id === runtime)?.models || NO_RUNTIME_MODELS
 }
 
 /**
