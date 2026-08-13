@@ -14,7 +14,7 @@ import { execFile, execFileSync, spawn } from 'child_process'
 import { resolveOpenClawCliPath } from './openclaw-cli'
 import { readWorkspaceIntegrationConfig } from './workspace-integrations'
 import { safeEnv } from './safe-env'
-import { hasRuntimeSession, markRuntimeSession } from './runtime-sessions'
+import { clearRuntimeSessions, hasRuntimeSession, markRuntimeSession } from './runtime-sessions'
 
 export type AgentRuntimeId = 'openclaw' | 'claude' | 'droid'
 
@@ -442,24 +442,49 @@ function runOnce(
       return
     }
 
-    const child = spawn(plan.cliPath, plan.args, { env, cwd: plan.cwd })
+    // Own process group: these CLIs spawn their own children, and signalling only the direct
+    // child leaves those grandchildren alive holding the stdout pipe open.
+    const child = spawn(plan.cliPath, plan.args, { env, cwd: plan.cwd, detached: true })
     // The prompt is passed via CLI args, never stdin. Close stdin so claude/droid don't block
     // waiting on it (claude otherwise stalls ~3s and emits a "no stdin data received" warning).
     child.stdin?.end()
     let stdout = ''
     let stderr = ''
     let timedOut = false
+    let settled = false
+
+    /** Signal the whole group, falling back to the child if the group is already gone. */
+    const killTree = (signal: NodeJS.Signals) => {
+      try {
+        if (child.pid) process.kill(-child.pid, signal)
+      } catch {
+        try { child.kill(signal) } catch { /* already exited */ }
+      }
+    }
+
+    const settle = (result: RunOnceResult) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      if (killEscalation) clearTimeout(killEscalation)
+      resolve(result)
+    }
 
     // SIGTERM alone is a request, not a guarantee — a CLI that traps or ignores it keeps running
     // and outlives the caller. Escalate to SIGKILL if it has not exited shortly after.
     let killEscalation: NodeJS.Timeout | undefined
     const timer = setTimeout(() => {
       timedOut = true
-      child.kill()
+      killTree('SIGTERM')
       killEscalation = setTimeout(() => {
-        if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL')
+        if (child.exitCode === null && child.signalCode === null) killTree('SIGKILL')
       }, 2000)
       killEscalation.unref?.()
+      // Settle on the deadline itself rather than waiting for 'close'. 'close' needs every stdio
+      // pipe closed, and a surviving grandchild holds stdout open indefinitely — so waiting for it
+      // meant the turn never returned, the caller's recovery never ran, and the request stayed
+      // wedged server-side while the user only saw the route's own timeout message.
+      settle({ stdout, stderr, exitCode: null, timedOut: true })
     }, timeoutMs)
 
     child.stdout.on('data', (chunk: Buffer) => {
@@ -471,16 +496,32 @@ function runOnce(
       stderr += chunk.toString()
     })
     child.on('error', (err) => {
-      clearTimeout(timer)
-      if (killEscalation) clearTimeout(killEscalation)
-      resolve({ stdout, stderr: stderr || err.message || String(err), exitCode: null, timedOut })
+      settle({ stdout, stderr: stderr || err.message || String(err), exitCode: null, timedOut })
     })
     child.on('close', (code) => {
-      clearTimeout(timer)
-      if (killEscalation) clearTimeout(killEscalation)
-      resolve({ stdout, stderr, exitCode: code, timedOut })
+      settle({ stdout, stderr, exitCode: code, timedOut })
     })
   })
+}
+
+/**
+ * Whether a claude turn should be retried on a brand-new session.
+ *
+ * A resumed session can stop responding entirely: the CLI emits nothing and the turn hits its
+ * deadline. The session id is deterministic per agent+model, so every later turn resumes the same
+ * wedged transcript and times out again — the agent stays dead until someone clears it by hand.
+ * The session-error recovery below cannot cover this because it is gated on a non-timeout error.
+ *
+ * Only when we actually resumed: a fresh session that times out is a slow prompt, and retrying it
+ * would just make the user wait twice.
+ */
+export function shouldRestartClaudeSessionAfterTimeout(o: {
+  runtime: AgentRuntimeId
+  timedOut: boolean
+  text: string
+  resumed: boolean
+}): boolean {
+  return o.runtime === 'claude' && o.timedOut && !o.text && o.resumed
 }
 
 export async function runRuntimeCli(o: {
@@ -502,6 +543,7 @@ export async function runRuntimeCli(o: {
     ? { ...o.env, IS_SANDBOX: '1' }
     : o.env
 
+
   const attempt = async (plan: RuntimePlan) => {
     const onChunk = plan.streamsDeltas && o.onDelta ? o.onDelta : undefined
     const result = await runOnce(plan, effectiveEnv, o.timeoutMs, onChunk)
@@ -517,6 +559,19 @@ export async function runRuntimeCli(o: {
   }
 
   const first = await attempt(o.plan)
+
+  if (shouldRestartClaudeSessionAfterTimeout({
+    runtime: o.runtime,
+    timedOut: first.result.timedOut,
+    text: first.text,
+    resumed: o.plan.args.includes('--resume'),
+  })) {
+    console.warn(`[Agent Runtime] claude session for ${o.agentId} timed out on resume; retrying with a fresh session`)
+    clearRuntimeSessions(o.agentId)
+    const retry = await attempt(o.rebuildPlan(false))
+    if (!retry.errorText) markRuntimeSession(o.runtime, o.agentId, o.scopedSessionId)
+    return { text: retry.text, errorText: retry.errorText }
+  }
 
   if (o.runtime === 'claude' && first.errorText && !first.result.timedOut) {
     const classification = classifyClaudeSessionError(first.result.stderr, first.result.stdout)
