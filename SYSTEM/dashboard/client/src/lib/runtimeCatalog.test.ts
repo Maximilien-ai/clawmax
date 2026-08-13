@@ -64,12 +64,17 @@ test('a runtime that cannot enumerate its catalog accepts anything', () => {
   assert.strictEqual(runtimeAcceptsModel([], 'anything/at-all'), true)
 })
 
-test('switching runtime keeps a valid model and clears an incompatible one', () => {
+test('switching runtime keeps a valid model and otherwise adopts the runtime default', () => {
   const catalog = parseRuntimeCatalog(payload)
   assert.strictEqual(modelAfterRuntimeChange(catalog, 'droid', 'anthropic/claude-sonnet-4-5-20250929'), 'anthropic/claude-sonnet-4-5-20250929')
-  assert.strictEqual(modelAfterRuntimeChange(catalog, 'droid', 'openai/gpt-4o'), '')
+  // An incompatible model must not survive, but it must not leave the form empty either:
+  // the select renders droid's first option, so the form model has to match it or Next
+  // stays disabled with the model visibly filled in.
+  assert.strictEqual(modelAfterRuntimeChange(catalog, 'droid', 'openai/gpt-4o'), 'auto')
+  assert.strictEqual(modelAfterRuntimeChange(catalog, 'droid', ''), 'auto')
+  // No enumerable catalog: keep whatever is set rather than clobbering a provider model.
   assert.strictEqual(modelAfterRuntimeChange(catalog, 'default', 'openai/gpt-4o'), 'openai/gpt-4o')
-  assert.strictEqual(modelAfterRuntimeChange(catalog, 'droid', ''), '')
+  assert.strictEqual(modelAfterRuntimeChange(catalog, 'claude', 'openai/gpt-4o'), 'openai/gpt-4o')
 })
 
 console.log(`\n${passed} passed, ${failed} failed\n`)

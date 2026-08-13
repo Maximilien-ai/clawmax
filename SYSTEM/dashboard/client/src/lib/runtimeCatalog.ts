@@ -60,13 +60,25 @@ export function runtimeAcceptsModel(models: string[], model: string): boolean {
   return models.includes(model) || models.includes(stripModelProvider(model))
 }
 
-/** Model to keep after switching runtime: the current one if still valid, otherwise none. */
+/**
+ * Model to keep after switching runtime: the current one if the new runtime accepts it,
+ * otherwise that runtime's own first model.
+ *
+ * Returning '' here used to strand the form. A `<select>` with no matching option renders
+ * its first entry regardless, so the control showed (say) `sonnet` while the form model was
+ * empty — and Next, which requires a non-empty model, stayed disabled with nothing on screen
+ * to fix. Adopting the first catalog entry keeps state equal to what the user is looking at.
+ *
+ * A runtime that cannot enumerate a catalog (openclaw, or a CLI that failed to list models)
+ * keeps the current model: there is nothing to validate against and nothing better to pick.
+ */
 export function modelAfterRuntimeChange(
   catalog: RuntimeCatalogEntry[],
   nextRuntime: string,
   currentModel: string,
 ): string {
   const models = runtimeModelsFor(catalog, nextRuntime)
-  if (!currentModel || runtimeAcceptsModel(models, currentModel)) return currentModel
-  return ''
+  if (models.length === 0) return currentModel
+  if (currentModel && runtimeAcceptsModel(models, currentModel)) return currentModel
+  return models[0]
 }
