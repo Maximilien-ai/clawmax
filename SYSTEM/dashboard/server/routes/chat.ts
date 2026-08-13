@@ -27,7 +27,7 @@ import {
   toExecutionModelOverride,
   withTemporaryAgentAuthProfiles,
 } from '../lib/agent-execution'
-import { buildRuntimePlan, executeAgentRuntimeTurn, readAgentIdentitySystemPrompt, RuntimeModelError } from '../lib/agent-runtime'
+import { buildRuntimePlan, executeAgentRuntimeTurn, readAgentIdentitySystemPrompt } from '../lib/agent-runtime'
 import { hasRuntimeSession } from '../lib/runtime-sessions'
 import { appendRuntimeTranscriptExchange } from '../lib/runtime-transcripts'
 import { getAuthenticatedSession } from '../lib/github-auth'
@@ -484,11 +484,10 @@ function evaluateChatExecutionReadiness(
   if (isNonOpenclawChatRuntime(resolvedAgent.runtime)) {
     // Non-openclaw runtimes authenticate via their own CLI (ANTHROPIC_API_KEY / FACTORY_API_KEY /
     // CLI login) — the hosted-key / Ollama / OpenAI-compatible BYOK checks below don't apply, and
-    // neither does the blanket "no model configured" gate below: droid legitimately runs with no
-    // model (falls back to its own default — see runtimeModelArg), while claude's own model
-    // requirement (must map to an Anthropic model) is enforced by buildRuntimePlan/runtimeModelArg
-    // via RuntimeModelError, caught below. Checking model-presence before this branch would reject
-    // valid modelless droid agents before buildRuntimePlan ever runs.
+    // neither does the blanket "no model configured" gate below: both CLIs run without an
+    // explicit model — droid picks its own default and claude falls back to the runtime default
+    // when the configured model is not one it can run (see runtimeModelArg). Checking
+    // model-presence before this branch would reject valid modelless agents.
     try {
       const plan = buildRuntimePlan({
         runtime: resolvedAgent.runtime,
@@ -506,9 +505,7 @@ function evaluateChatExecutionReadiness(
     } catch (err: any) {
       return {
         available: false,
-        error: err instanceof RuntimeModelError
-          ? err.message
-          : (err?.message || `Agent ${agentId}'s runtime cannot execute the configured model.`),
+        error: err?.message || `Agent ${agentId}'s runtime cannot execute the configured model.`,
         resolvedAgent,
       }
     }

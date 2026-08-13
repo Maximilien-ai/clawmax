@@ -206,17 +206,30 @@ export function resolveAgentRuntime(agentId: string, identityRuntime?: string): 
 
 // ── Model notation translation ──
 
-export class RuntimeModelError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'RuntimeModelError'
-  }
-}
-
 function splitModelProvider(model: string): { provider: string; rest: string } {
   const idx = model.indexOf('/')
   if (idx === -1) return { provider: '', rest: model }
   return { provider: model.slice(0, idx), rest: model.slice(idx + 1) }
+}
+
+/** Model a runtime falls back to when the agent's configured one is not one it can run. */
+export const RUNTIME_DEFAULT_MODELS: Record<AgentRuntimeId, string | undefined> = {
+  openclaw: undefined,
+  claude: 'sonnet',
+  droid: undefined, // droid selects its own current default when handed none
+}
+
+/**
+ * Whether a runtime's own catalog accepts a model id. Mirrors runtimeAcceptsModel() on the
+ * client: ClawMax stores `provider/model` while the CLIs take a bare id, and an empty catalog
+ * means the runtime could not enumerate one, so nothing can be ruled out.
+ */
+export function runtimeAcceptsModelId(runtimeModels: string[], model?: string): boolean {
+  if (runtimeModels.length === 0) return true
+  const value = String(model || '').trim()
+  if (!value) return false
+  const bare = value.includes('/') ? value.slice(value.indexOf('/') + 1) : value
+  return runtimeModels.includes(value) || runtimeModels.includes(bare)
 }
 
 export function runtimeModelArg(rt: AgentRuntimeId, model?: string): string | undefined {
@@ -225,9 +238,14 @@ export function runtimeModelArg(rt: AgentRuntimeId, model?: string): string | un
     if (model && CLAUDE_MODEL_ALIASES.includes(model.trim())) return model.trim()
     const { provider, rest } = model ? splitModelProvider(model) : { provider: '', rest: '' }
     if (provider !== 'anthropic' || !rest) {
-      throw new RuntimeModelError(
-        `Claude Code runtime supports Anthropic models only. Agent model is '${model || 'none'}'. Pick an Anthropic model or switch the agent's runtime.`
+      // Agents exist on disk with a CLI runtime and a provider model — the suggestion panel used
+      // to rank the provider catalog for a pinned runtime and write the winner in. Refusing the
+      // turn made those agents permanently unusable until hand-edited, so run them on the
+      // runtime's own default instead and say so in the log rather than to the user.
+      console.warn(
+        `[Agent Runtime] claude cannot run model '${model || 'none'}'; using '${RUNTIME_DEFAULT_MODELS.claude}' for this turn`,
       )
+      return RUNTIME_DEFAULT_MODELS.claude
     }
     return rest
   }

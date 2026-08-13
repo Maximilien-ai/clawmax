@@ -35,7 +35,7 @@ import { formatOpenAiDeprecationNotice, formatOpenAiModelLabel, isSelectableLife
 import { getAttachmentFilename } from '../lib/downloadFilename'
 import { emptyPluginRelationships, fetchPluginRelationships, type PluginRelationship } from '../lib/pluginRelationships'
 import ModelFitRecommendationPanel from '../components/ModelFitRecommendationPanel'
-import { enabledRuntimeIds, modelAfterRuntimeChange, parseRuntimeCatalog, runtimeAcceptsModel, runtimeLabelFor, runtimeModelsFor, stripModelProvider, type RuntimeCatalogEntry } from '../lib/runtimeCatalog'
+import { enabledRuntimeIds, modelAfterRuntimeChange, modelFitCandidates, parseRuntimeCatalog, runtimeAcceptsModel, runtimeLabelFor, runtimeModelsFor, stripModelProvider, type RuntimeCatalogEntry } from '../lib/runtimeCatalog'
 import {
   buildAgentModelFitDescription,
   normalizeAgentModelFitState,
@@ -2918,7 +2918,9 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
       try {
         const recommendation = await requestModelFit({
           description,
-          availableModels,
+          // A pinned CLI runtime only runs its own catalog; ranking provider ids for one
+          // produced suggestions it cannot execute, presented as "runtime-visible".
+          availableModels: modelFitCandidates(runtimeModelOptions, availableModels),
           preference: modelPreference,
           signal: controller.signal,
         })
