@@ -482,7 +482,8 @@ test('buildRuntimePlan(claude, chat, create) uses --session-id with the determin
       '--model', 'claude-sonnet-4-20250514',
       '--session-id', uuid,
       '--dangerously-skip-permissions',
-    ])
+    '--output-format', 'stream-json', '--verbose',
+  ])
     assert.strictEqual(plan.cwd, '/workspace/AGENTS/agent1')
     assert.strictEqual(plan.streamsDeltas, true)
   })
@@ -643,15 +644,36 @@ test('parseRuntimeResult: claude resume-wrong-cwd not-found (claude-probe.md TES
   assert.strictEqual(parsed.errorText, stderr)
 })
 
-test('parseRuntimeResult: claude bad-model error lands on stdout in plain-text/chat mode (claude-probe.md TEST 5)', () => {
-  const stdout = "There's an issue with the selected model (not-a-real-model). It may not exist or you may not have access to it. Run --model to pick a different model."
+test('parseRuntimeResult: claude chat surfaces an error result event', () => {
+  const message = "There's an issue with the selected model (not-a-real-model). It may not exist or you may not have access to it."
+  const stdout = '{"type":"result","subtype":"error","is_error":true,"result":' + JSON.stringify(message) + '}'
   const parsed = parseRuntimeResult('claude', 'chat', stdout, '', 1)
-  assert.strictEqual(parsed.errorText, stdout)
+  assert.strictEqual(parsed.errorText, message)
 })
 
-test('parseRuntimeResult: claude plain-text success is stdout trimmed (claude-probe.md TEST 3)', () => {
-  const parsed = parseRuntimeResult('claude', 'chat', 'PROBE_OK\n', '', 0)
+test('parseRuntimeResult: claude chat surfaces stderr when the stream produced nothing', () => {
+  const parsed = parseRuntimeResult('claude', 'chat', '', 'boom from the CLI', 1)
+  assert.strictEqual(parsed.errorText, 'boom from the CLI')
+})
+
+test('parseRuntimeResult: claude chat reads assistant text out of the stream-json log', () => {
+  // Chat runs with --output-format stream-json so the turn produces output while it works;
+  // plain -p printed nothing until the whole task finished, which was indistinguishable from a
+  // hung process and got long turns killed at the deadline.
+  const stdout = [
+    '{"type":"system","subtype":"init"}',
+    '{"type":"assistant","message":{"content":[{"type":"text","text":"PROBE_OK"}]}}',
+    '{"type":"result","subtype":"success","is_error":false,"result":"PROBE_OK"}',
+  ].join('\n')
+  const parsed = parseRuntimeResult('claude', 'chat', stdout, '', 0)
   assert.strictEqual(parsed.text, 'PROBE_OK')
+})
+
+test('parseRuntimeResult: claude chat falls back to streamed assistant text with no result event', () => {
+  // A turn cut short by the deadline has no result event; whatever it already said still counts.
+  const stdout = ['{"type":"assistant","message":{"content":[{"type":"text","text":"Partial "}]}}', '{"type":"assistant","message":{"content":[{"type":"text","text":"answer"}]}}'].join('\n')
+  const parsed = parseRuntimeResult('claude', 'chat', stdout, '', null)
+  assert.strictEqual(parsed.text, 'Partial answer')
 })
 
 test('parseRuntimeResult: droid json success (droid-probe.md Probe 1)', () => {
@@ -800,9 +822,11 @@ async function run(): Promise<void> {
   await testAsync('runRuntimeCli streams multiple chunks for streamsDeltas plans instead of one final delta', async () => {
     await withTempDirAsync('clawmax-agent-runtime-exec-stream-', async (dir) => {
       const cli = path.join(dir, 'fake-claude.js')
+      const evt = (t: string) => JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: t }] } })
       writeFakeNodeCli(cli, `
-        process.stdout.write('Hello ')
-        setTimeout(() => { process.stdout.write('World'); }, 30)
+        const evt = ${evt.toString()}
+        process.stdout.write(evt('Hello ') + '\\n')
+        setTimeout(() => { process.stdout.write(evt('World') + '\\n'); }, 30)
       `)
       fs.chmodSync(cli, 0o755)
       const plan = { cliPath: cli, args: [], missingCliError: 'missing', streamsDeltas: true }
