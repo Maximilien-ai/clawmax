@@ -2589,8 +2589,8 @@ fi
 
 echo -e "${YELLOW}→ Running dashboard test-run lock contract tests...${NC}"
 bash "$SYSTEM_DIR/test-run-lock.test.sh" > /tmp/clawmax-test-run-lock.out 2>&1 || true
-if grep -q "test-run-lock.test.sh: 9 tests passed" /tmp/clawmax-test-run-lock.out; then
-  pass "Dashboard test-run lock contract tests (9 tests)"
+if grep -q "test-run-lock.test.sh: 11 tests passed" /tmp/clawmax-test-run-lock.out; then
+  pass "Dashboard test-run lock contract tests (11 tests)"
 else
   cat /tmp/clawmax-test-run-lock.out
   fail "Dashboard test-run lock contract tests"
@@ -3871,9 +3871,10 @@ else
 fi
 
 # Test skill validation
+valid_test_skills=$(apicurl "$API_BASE/api/skills" | jq -c '[.skills[0:3][] | .name]')
 response=$(apicurl -X POST "$API_BASE/api/skills/validate" \
   -H 'Content-Type: application/json' \
-  -d '{"skills":["github","slack","notion"]}')
+  -d "{\"skills\":$valid_test_skills}")
 
 if echo "$response" | jq -e '.valid == true' > /dev/null 2>&1; then
   pass "Valid skills pass validation"
@@ -3904,8 +3905,9 @@ if apicurl "$API_BASE/api/agents" | jq -e '.agents[0].id' > /dev/null 2>&1; then
   # Get current skills
   current_skills=$(apicurl "$API_BASE/api/skills/agent/$first_agent" | jq -r '.skillIds')
 
-  # Try to update (use valid skills: github and slack)
-  test_skills='["github","slack"]'
+  # Try to update using skills advertised by the active runtime catalog.
+  test_skills=$(apicurl "$API_BASE/api/skills" | jq -c '[.skills[0:2][] | .name]')
+  first_test_skill=$(echo "$test_skills" | jq -r '.[0]')
   response=$(apicurl -X PUT "$API_BASE/api/skills/agent/$first_agent" \
     -H 'Content-Type: application/json' \
     -d "{\"skills\":$test_skills}")
@@ -3916,7 +3918,7 @@ if apicurl "$API_BASE/api/agents" | jq -e '.agents[0].id' > /dev/null 2>&1; then
     # Verify persistence - check if skills were saved
     sleep 0.5
     updated_skills=$(apicurl "$API_BASE/api/skills/agent/$first_agent" | jq -r '.skillIds[]')
-    if echo "$updated_skills" | grep -q "github"; then
+    if echo "$updated_skills" | grep -Fxq "$first_test_skill"; then
       pass "Skills persisted to openclaw.json"
     else
       fail "Skills not persisted correctly"
@@ -3933,10 +3935,11 @@ if apicurl "$API_BASE/api/agents" | jq -e '.agents[0].id' > /dev/null 2>&1 && \
    apicurl "$API_BASE/api/agents" | jq -e '.agents[1].id' > /dev/null 2>&1; then
   agent1=$(apicurl "$API_BASE/api/agents" | jq -r '.agents[0].id')
   agent2=$(apicurl "$API_BASE/api/agents" | jq -r '.agents[1].id')
+  first_test_skill=$(apicurl "$API_BASE/api/skills" | jq -r '.skills[0].name')
 
   response=$(apicurl -X POST "$API_BASE/api/skills/bulk-assign" \
     -H 'Content-Type: application/json' \
-    -d "{\"agentIds\":[\"$agent1\",\"$agent2\"],\"addSkills\":[\"github\"]}")
+    -d "{\"agentIds\":[\"$agent1\",\"$agent2\"],\"addSkills\":[\"$first_test_skill\"]}")
 
   if echo "$response" | jq -e '.ok == true' > /dev/null 2>&1; then
     updated=$(echo "$response" | jq -r '.updated')
