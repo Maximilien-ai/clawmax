@@ -2036,6 +2036,15 @@ else
   fail "Onboarding tour helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Workspace tour interaction regression tests...${NC}"
+npx ts-node --transpileOnly client/src/WorkspaceTourInteraction.test.ts > /tmp/clawmax-workspace-tour-interaction.out 2>&1 || true
+if grep -q "WorkspaceTourInteraction.test.ts: 6 assertions passed" /tmp/clawmax-workspace-tour-interaction.out; then
+  pass "Workspace tour interaction regression tests (6 assertions)"
+else
+  cat /tmp/clawmax-workspace-tour-interaction.out
+  fail "Workspace tour interaction regression tests"
+fi
+
 echo -e "${YELLOW}→ Running Apply organization template flow smoke tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/applyOrgTemplateFlow.test.ts > /tmp/clawmax-apply-org-template-flow.out 2>&1 || true
 if grep -q "applyOrgTemplateFlow.test.ts: ok" /tmp/clawmax-apply-org-template-flow.out; then
