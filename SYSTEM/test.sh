@@ -2580,8 +2580,8 @@ fi
 
 echo -e "${YELLOW}→ Running local plugin startup contract tests...${NC}"
 bash "$SYSTEM_DIR/start-local-plugins.test.sh" > /tmp/clawmax-start-local-plugins.out 2>&1 || true
-if grep -q "start-local-plugins.test.sh: 8 tests passed" /tmp/clawmax-start-local-plugins.out; then
-  pass "Local plugin startup contract tests (8 tests)"
+if grep -q "start-local-plugins.test.sh: 9 tests passed" /tmp/clawmax-start-local-plugins.out; then
+  pass "Local plugin startup contract tests (9 tests)"
 else
   cat /tmp/clawmax-start-local-plugins.out
   fail "Local plugin startup contract tests"
