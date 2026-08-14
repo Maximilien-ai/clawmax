@@ -2163,8 +2163,8 @@ fi
 
 echo -e "${YELLOW}→ Running API security boundary tests...${NC}"
 npx ts-node --transpileOnly server/lib/security-boundaries.test.ts > /tmp/clawmax-security-boundaries.out 2>&1 || true
-if grep -q "security-boundaries.test.ts: 42 tests passed" /tmp/clawmax-security-boundaries.out; then
-  pass "API security boundary tests (42 tests)"
+if grep -q "security-boundaries.test.ts: 44 tests passed" /tmp/clawmax-security-boundaries.out; then
+  pass "API security boundary tests (44 tests)"
 else
   cat /tmp/clawmax-security-boundaries.out
   fail "API security boundary tests"
@@ -2172,11 +2172,20 @@ fi
 
 echo -e "${YELLOW}→ Running dynamic API security boundary tests...${NC}"
 npx ts-node --transpileOnly server/lib/security-boundaries-dynamic.test.ts > /tmp/clawmax-security-boundaries-dynamic.out 2>&1 || true
-if grep -q "security-boundaries-dynamic.test.ts: 14 tests passed" /tmp/clawmax-security-boundaries-dynamic.out; then
-  pass "Dynamic API security boundary tests (14 tests)"
+if grep -q "security-boundaries-dynamic.test.ts: 15 tests passed" /tmp/clawmax-security-boundaries-dynamic.out; then
+  pass "Dynamic API security boundary tests (15 tests)"
 else
   cat /tmp/clawmax-security-boundaries-dynamic.out
   fail "Dynamic API security boundary tests"
+fi
+
+echo -e "${YELLOW}→ Running Workspace dashboard auth tests...${NC}"
+npx ts-node --transpileOnly client/src/WorkspaceDashboardAuth.test.ts > /tmp/clawmax-workspace-dashboard-auth.out 2>&1 || true
+if grep -q "WorkspaceDashboardAuth.test.ts: 5 assertions passed" /tmp/clawmax-workspace-dashboard-auth.out; then
+  pass "Workspace dashboard auth tests (5 assertions)"
+else
+  cat /tmp/clawmax-workspace-dashboard-auth.out
+  fail "Workspace dashboard auth tests"
 fi
 
 echo -e "${YELLOW}→ Running Keys/secrets inventory unit tests...${NC}"

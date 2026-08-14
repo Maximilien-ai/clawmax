@@ -586,12 +586,12 @@ export function createAuthRouter(): Router {
 
     if (!code) {
       clearStateCookie()
-      return res.redirect(`${getAppUrl(req, savedReturnTo)}/?auth_error=no_code`)
+      return res.redirect(buildAuthRedirectUrl(req, savedReturnTo, { auth_error: 'no_code' }))
     }
 
     if (!state || !savedState || state !== savedState) {
       clearStateCookie()
-      return res.redirect(`${getAppUrl(req, savedReturnTo)}/?auth_error=state_mismatch`)
+      return res.redirect(buildAuthRedirectUrl(req, savedReturnTo, { auth_error: 'state_mismatch' }))
     }
 
     try {
@@ -601,7 +601,10 @@ export function createAuthRouter(): Router {
       // Check if user is allowed
       const allowed = getAllowedLogins()
       if (allowed.length > 0 && !allowed.includes(user.login.toLowerCase())) {
-        return res.redirect(`${getAppUrl(req, savedReturnTo)}/?auth_error=not_allowed&login=${encodeURIComponent(user.login)}`)
+        return res.redirect(buildAuthRedirectUrl(req, savedReturnTo, {
+          auth_error: 'not_allowed',
+          login: user.login,
+        }))
       }
 
       // Create session
@@ -616,11 +619,11 @@ export function createAuthRouter(): Router {
       console.log(`[Auth] GitHub login: ${user.login} (${user.name || 'no name'})`)
 
       // Redirect to dashboard
-      res.redirect(`${getAppUrl(req, savedReturnTo)}/`)
+      res.redirect(buildAuthRedirectUrl(req, savedReturnTo))
     } catch (err: any) {
       clearStateCookie()
       console.error('[Auth] GitHub OAuth error:', err.message)
-      res.redirect(`${getAppUrl(req, savedReturnTo)}/?auth_error=${encodeURIComponent(err.message)}`)
+      res.redirect(buildAuthRedirectUrl(req, savedReturnTo, { auth_error: err.message }))
     }
   })
 
@@ -808,7 +811,7 @@ export function createAuthRouter(): Router {
   router.get('/logout', (req, res) => {
     const returnTo = normalizeReturnTo((req.query.return_to as string | undefined) || '', req)
     res.clearCookie(COOKIE_NAME, getSessionCookieOptions(req))
-    res.redirect(`${returnTo}/`)
+    res.redirect(new URL(returnTo).toString())
   })
 
   return router
@@ -850,24 +853,44 @@ function getAppUrl(req: Request, savedReturnTo?: string): string {
   return getBaseUrl(req)
 }
 
+function buildAuthRedirectUrl(
+  req: Request,
+  savedReturnTo?: string,
+  params: Record<string, string> = {},
+): string {
+  const url = new URL(getAppUrl(req, savedReturnTo))
+  for (const [key, value] of Object.entries(params)) {
+    url.searchParams.set(key, value)
+  }
+  return url.toString()
+}
+
 function normalizeReturnTo(raw: string, req: Request): string {
   const fallback = getBaseUrl(req)
   if (!raw) return getAppUrl(req)
 
   try {
     const url = new URL(raw)
+    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) {
+      return configuredAppUrlOrAllowedOrigin(req) || fallback
+    }
     const candidate = url.origin.replace(/\/+$/, '')
     const allowedOrigins = (process.env.CORS_ORIGIN || '')
       .split(',')
       .map(origin => origin.trim().replace(/\/+$/, ''))
       .filter(Boolean)
     const configuredAppUrl = process.env.DASHBOARD_APP_URL?.trim()?.replace(/\/+$/, '')
+    const configuredAppOrigin = configuredAppUrl ? new URL(configuredAppUrl).origin : null
+    const fallbackOrigin = new URL(fallback).origin
 
-    if (configuredAppUrl && candidate === configuredAppUrl) {
-      return candidate
+    if (configuredAppOrigin && candidate === configuredAppOrigin) {
+      return url.toString()
     }
-    if (allowedOrigins.length === 0 || allowedOrigins.includes(candidate)) {
-      return candidate
+    if (allowedOrigins.includes(candidate)) {
+      return url.toString()
+    }
+    if (!configuredAppOrigin && allowedOrigins.length === 0 && candidate === fallbackOrigin) {
+      return url.toString()
     }
   } catch {
     // Ignore invalid return_to and fall back below.

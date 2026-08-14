@@ -115,6 +115,7 @@ function makeRes() {
     jsonBody: undefined as any,
     redirectedTo: '' as string,
     headers: {} as Record<string, string>,
+    cookiesSet: {} as Record<string, string>,
     status(code: number) {
       this.statusCode = code
       return this
@@ -133,7 +134,8 @@ function makeRes() {
     clearCookie() {
       return this
     },
-    cookie() {
+    cookie(name: string, value: string) {
+      this.cookiesSet[name] = value
       return this
     },
   }
@@ -204,6 +206,49 @@ async function run() {
       headers: { host: 'localhost:3001' },
     }), res)
     assert(res.redirectedTo === 'http://localhost:5174/', `Expected safe app redirect, got ${res.redirectedTo}`)
+  })
+
+  await test('logout rejects a foreign return_to when no CORS allowlist is configured', async () => {
+    resetFiles()
+    configureGitHubEnv()
+    delete process.env.DASHBOARD_APP_URL
+    delete process.env.CORS_ORIGIN
+    const handler = getRouteHandler('get', '/logout')
+    const res = makeRes()
+    await handler(makeReq({
+      query: { return_to: 'https://evil.example/phish' },
+      headers: { host: 'localhost:3001' },
+    }), res)
+    assert(res.redirectedTo === 'http://localhost:3001/', `Expected request-origin fallback, got ${res.redirectedTo}`)
+  })
+
+  await test('GitHub login preserves an approved shared dashboard return path', async () => {
+    resetFiles()
+    configureGitHubEnv()
+    process.env.CORS_ORIGIN = 'http://localhost:5174'
+    const handler = getRouteHandler('get', '/github')
+    const res = makeRes()
+    const returnTo = 'http://localhost:5174/dashboards/secret-token?view=detail#results'
+    await handler(makeReq({
+      query: { return_to: returnTo },
+      headers: { host: 'localhost:3001' },
+    }), res)
+    assert(res.cookiesSet.oauth_return_to === returnTo, 'Expected approved dashboard path to survive OAuth state storage')
+    assert(res.redirectedTo.startsWith('https://github.com/login/oauth/authorize?'), 'Expected GitHub authorization redirect')
+  })
+
+  await test('logout preserves an approved shared dashboard return path', async () => {
+    resetFiles()
+    configureGitHubEnv()
+    process.env.CORS_ORIGIN = 'http://localhost:5174'
+    const handler = getRouteHandler('get', '/logout')
+    const res = makeRes()
+    const returnTo = 'http://localhost:5174/dashboards/secret-token?view=detail#results'
+    await handler(makeReq({
+      query: { return_to: returnTo },
+      headers: { host: 'localhost:3001' },
+    }), res)
+    assert(res.redirectedTo === returnTo, `Expected shared dashboard redirect, got ${res.redirectedTo}`)
   })
 
   await test('requireGitHubAuth returns login guidance when no session or token exists', () => {

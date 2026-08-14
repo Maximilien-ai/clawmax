@@ -17,7 +17,7 @@ import { ErrorBoundary } from './components/ErrorBoundary'
 import { ConnectionStatus } from './components/ConnectionStatus'
 import { WorkspaceProvider } from './contexts/WorkspaceContext'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
-import Login from './pages/Login'
+import { AuthGate } from './components/AuthGate'
 import { WorkspaceSwitcher } from './components/WorkspaceSwitcher'
 import { WorkspaceDialog } from './components/WorkspaceDialog'
 import { ByokWizard } from './components/ByokWizard'
@@ -400,32 +400,6 @@ function UserBadge({ collapsed }: { collapsed: boolean }) {
       </button>
     </div>
   )
-}
-
-/** Gate that shows login page when auth is required and user is not logged in */
-function AuthGate({ children }: { children: React.ReactNode }) {
-  const { user, loading, config } = useAuth()
-
-  if (loading || !config) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <div className="text-gray-500 dark:text-gray-400">Checking session...</div>
-      </div>
-    )
-  }
-
-  // If auth is disabled, skip login
-  if (config?.authDisabled) {
-    return <>{children}</>
-  }
-
-  // If auth is required and user isn't logged in, always block here.
-  // Login.tsx handles both the GitHub OAuth path and the "OAuth not configured" setup message.
-  if (!user) {
-    return <Login />
-  }
-
-  return <>{children}</>
 }
 
 function WorkspaceScoped({ pageKey, children }: { pageKey: string; children: React.ReactNode }) {

@@ -21,6 +21,7 @@ const protectedRouterMounts = [
   "app.use('/api/workflows', protect, workflowsRouter)",
   "app.use('/api/ai', protect, aiRouter)",
   "app.use('/api/ai-builder', protect, aiBuilderRouter)",
+  "app.use('/api/workspace-dashboards', protect, workspaceDashboardsRouter)",
   "app.use('/api/workspaces', protect, workspacesRouter)",
   "app.use('/api/notifications', protect, notificationsRouter)",
   "app.use('/api/integrations', protect, integrationsRouter)",
@@ -35,7 +36,7 @@ for (const mount of protectedRouterMounts) {
 
 assert(indexSource.includes("app.use('/api/runtime/skill-broker', skillSecretBrokerRuntimeRouter)"))
 assert(indexSource.includes("app.use('/api/runtime/mail', createMailRuntimeRouter())"))
-assert(indexSource.includes("app.use('/api/workspace-dashboards', workspaceDashboardsRouter)"))
+assert(!indexSource.includes("app.use('/api/workspace-dashboards', workspaceDashboardsRouter)"), 'Workspace dashboard payloads must not be mounted without authentication')
 assert(!indexSource.includes('origin: true'), 'Credentialed CORS must never reflect arbitrary origins')
 assert(indexSource.includes("app.disable('x-powered-by')"), 'Express framework disclosure must be disabled')
 assert(!indexSource.includes("removeHeader('X-Content-Type-Options')"), 'Static responses must retain nosniff protection')
@@ -44,7 +45,7 @@ const matrixKeys = API_AUTHORIZATION_MATRIX.map((entry) => `${entry.methods} ${e
 assert.equal(new Set(matrixKeys).size, matrixKeys.length, 'Authorization matrix entries must be unique')
 assert(API_AUTHORIZATION_MATRIX.every((entry) => entry.scope.trim()), 'Every authorization entry must state its scope')
 assert(API_AUTHORIZATION_MATRIX.some((entry) => entry.authorization === 'capability'))
-assert(API_AUTHORIZATION_MATRIX.some((entry) => entry.authorization === 'share-token'))
+assert(API_AUTHORIZATION_MATRIX.some((entry) => entry.path === '/api/workspace-dashboards/:token' && entry.authorization === 'dashboard-auth'))
 
 const origins = parseCorsOrigins(' https://dashboard.example.com/, http://localhost:5173 ', 'http://unused')
 assert.deepEqual(origins, ['https://dashboard.example.com', 'http://localhost:5173'])
@@ -88,4 +89,4 @@ try {
   Object.assign(process.env, originalEnv)
 }
 
-console.log('security-boundaries.test.ts: 42 tests passed')
+console.log('security-boundaries.test.ts: 44 tests passed')

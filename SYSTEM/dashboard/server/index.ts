@@ -321,11 +321,12 @@ app.get('/api/auth/config', (_req, res) => {
   })
 })
 
-// Shareable workspace summary dashboard payload (public by token)
-app.use('/api/workspace-dashboards', workspaceDashboardsRouter)
-
 // Use GitHub auth for all protected routes (falls back to dashboard token)
 const protect = requireGitHubAuth
+
+// Workspace summary dashboard payloads require both a valid dashboard session
+// and the opaque dashboard token used to select the requested dashboard.
+app.use('/api/workspace-dashboards', protect, workspaceDashboardsRouter)
 
 // Workspace system info — installation identity card
 app.get('/api/system', protect, async (req, res) => {

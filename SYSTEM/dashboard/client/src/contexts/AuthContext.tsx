@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import { getDashboardAuthReturnTo } from '../lib/dashboardAuth'
 
 export interface AuthUser {
   id: string
@@ -165,7 +166,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(() => {
     setSessionExpired(false)
-    const returnTo = encodeURIComponent(window.location.origin)
+    const returnTo = encodeURIComponent(getDashboardAuthReturnTo(window.location))
     window.location.href = `/api/auth/github?return_to=${returnTo}`
   }, [])
 
