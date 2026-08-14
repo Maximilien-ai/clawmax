@@ -875,16 +875,32 @@ router.post('/:id/chat', async (req, res) => {
   // below (which can retry once against a backup model) uses its own per-attempt activeAttemptTimer
   // instead, so each attempt gets a fresh 180s budget.
   let watchdog: ReturnType<typeof setTimeout> | null = null
+  // Measures silence, not total runtime: a research turn that writes files and runs tools streams
+  // for many minutes and is plainly alive, while a wedged session produces nothing at all. A
+  // fixed 3-minute cap killed the working turns and was the user-visible "timed out before a reply
+  // was produced" on long tasks.
+  // These runtimes do real tool work -- reading files, running commands, waiting on a background
+  // workflow they spawned -- and go quiet for long stretches while plainly alive. Three minutes of
+  // silence killed exactly those turns. This bounds silence, not total runtime, so a genuinely
+  // wedged session still fails in bounded time.
+  const CHAT_IDLE_TIMEOUT_MS = 600000
   const armChatTimeoutWatchdog = () => {
     if (watchdog) return
-    watchdog = setTimeout(() => {
-      clearInterval(keepalive)
-      proc?.kill()
-      send('error', 'Agent timeout (3 minutes)')
-      if (!res.writableEnded) {
-        res.end()
-      }
-    }, 180000) // 3 minutes to handle cold starts
+    watchdog = setTimeout(onChatIdleTimeout, CHAT_IDLE_TIMEOUT_MS)
+  }
+  function onChatIdleTimeout() {
+    clearInterval(keepalive)
+    proc?.kill()
+    send('error', 'Agent chat went quiet for 10 minutes with no output. Retry once, or switch this agent to a faster model if the issue persists.')
+    if (!res.writableEnded) {
+      res.end()
+    }
+  }
+  /** Any streamed output proves the turn is still working; restart the silence clock. */
+  const bumpChatTimeoutWatchdog = () => {
+    if (!watchdog) return
+    clearTimeout(watchdog)
+    watchdog = setTimeout(onChatIdleTimeout, CHAT_IDLE_TIMEOUT_MS)
   }
   const clearChatTimeoutWatchdog = () => {
     if (watchdog) {
@@ -913,8 +929,12 @@ router.post('/:id/chat', async (req, res) => {
         model: resolvedAgent.model,
         mode: 'chat',
         env: executionEnv,
-        timeoutMs: 180000,
-        onDelta: (delta) => send('delta', { text: delta }),
+        // Matches the route's idle allowance: the CLI's own deadline must not fire first.
+        timeoutMs: 600000,
+        onDelta: (delta) => {
+          bumpChatTimeoutWatchdog()
+          send('delta', { text: delta })
+        },
         onPlan: (plan) => {
           console.log(`[Chat Route] Spawning: ${plan.cliPath || runtime} ${plan.args.join(' ')}`)
           send('start', { sessionId: executionSessionId })

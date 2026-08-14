@@ -385,6 +385,30 @@ asyncCases.push(['a CLI whose grandchild holds stdout still settles at its deadl
   fs.rmSync(dir, { recursive: true, force: true })
 }])
 
+asyncCases.push(['a CLI that keeps streaming is not killed by the deadline', async () => {
+  // The deadline used to measure total runtime, so a real research turn -- minutes of work while
+  // streaming the whole time -- was killed mid-flight. It now measures silence.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-stream-'))
+  const cli = path.join(dir, 'claude')
+  // Streams for ~4s in small steps, well past the 1.5s idle allowance below.
+  fs.writeFileSync(cli, '#!/bin/sh\ni=0\nwhile [ $i -lt 8 ]; do echo "chunk $i"; sleep 0.5; i=$((i+1)); done\n')
+  fs.chmodSync(cli, 0o755)
+  await withWorkspaceAsync(['claude'], { CLAUDE_BIN: cli }, async () => {
+    const { executeAgentRuntimeTurn } = require('./agent-runtime')
+    const started = Date.now()
+    const r = await executeAgentRuntimeTurn({
+      runtime: 'claude', agentId: 'stream-probe', agentDir: dir, message: 'hi',
+      scopedSessionId: 'stream-probe-session', model: 'sonnet', mode: 'chat',
+      env: process.env, timeoutMs: 1500,
+    })
+    const elapsed = Date.now() - started
+    assert(elapsed > 2500, `Expected the streaming turn to outlive a 1.5s total cap, took ${elapsed}ms`)
+    assert.strictEqual(r.errorText, undefined, `Streaming turn should not time out, got: ${r.errorText}`)
+    assert(String(r.text).includes('chunk 7'), `Expected the full stream, got: ${String(r.text).slice(0, 80)}`)
+  })
+  fs.rmSync(dir, { recursive: true, force: true })
+}])
+
 runAsyncCases().then(() => {
   console.log(`\n${passed} passed, ${failed} failed\n`)
   if (failed > 0) process.exit(1)

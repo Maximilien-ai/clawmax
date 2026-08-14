@@ -330,7 +330,12 @@ export function buildRuntimePlan(o: {
       o.resume ? '--resume' : '--session-id', sessionUuid,
       '--dangerously-skip-permissions',
       ...(o.systemPrompt ? ['--append-system-prompt', o.systemPrompt] : []),
-      ...(o.mode === 'json' ? ['--output-format', 'json'] : []),
+      // Chat streams events instead of buffering. `claude -p` prints nothing at all until the
+      // whole turn is finished, so a real task -- research that reads files, runs tools and
+      // spawns work -- looked identical to a hung process: no output for minutes, then the
+      // dashboard killed it at its deadline and reported a timeout while the agent was working.
+      // stream-json gives per-event output, which drives both the live UI and the idle deadline.
+      ...(o.mode === 'json' ? ['--output-format', 'json'] : ['--output-format', 'stream-json', '--verbose']),
     ]
     return { cliPath, args, cwd: o.agentDir, missingCliError, streamsDeltas: o.mode === 'chat' }
   }
@@ -361,6 +366,74 @@ function silentExitMessage(rt: AgentRuntimeId, exitCode: number | null): string 
   return `The ${label} CLI exited with code ${exitCode} and produced no output. It is most likely not authenticated in this environment — set ANTHROPIC_API_KEY / FACTORY_API_KEY, or log the CLI in.`
 }
 
+
+/**
+ * Collapse a claude `--output-format stream-json` event log into the assistant's reply.
+ *
+ * Each line is one JSON event. Only assistant text is kept: tool calls, tool results and thinking
+ * are progress, not the answer. A `result` event carries the final text when present. Anything
+ * unparseable is ignored rather than failing the turn, since a partial log is normal when the
+ * deadline cuts a turn short.
+ */
+
+/**
+ * Turn a claude stream-json byte stream into readable deltas.
+ *
+ * The raw stream is one JSON event per line; forwarding it verbatim would print JSON into the
+ * chat window. Emits assistant text only, and keeps a buffer because a chunk can split a line.
+ */
+export function createClaudeStreamDeltaTransformer(emit: (text: string) => void): (chunk: string) => void {
+  let buffer = ''
+  return (chunk: string) => {
+    buffer += chunk
+    const lines = buffer.split('\n')
+    buffer = lines.pop() || ''
+    for (const line of lines) {
+      const trimmed = line.trim()
+      if (!trimmed.startsWith('{')) continue
+      let event: any
+      try { event = JSON.parse(trimmed) } catch { continue }
+      if (event?.type !== 'assistant') continue
+      for (const block of event?.message?.content || []) {
+        if (block?.type === 'text' && typeof block.text === 'string' && block.text) emit(block.text)
+      }
+    }
+  }
+}
+
+export function parseClaudeStreamJson(
+  stdout: string,
+  stderr: string,
+  exitCode: number | null,
+): { text: string; errorText?: string } {
+  const parts: string[] = []
+  let finalResult = ''
+  let errorFromEvents = ''
+  for (const line of stdout.split('\n')) {
+    const trimmed = line.trim()
+    if (!trimmed.startsWith('{')) continue
+    let event: any
+    try { event = JSON.parse(trimmed) } catch { continue }
+    if (event?.type === 'result') {
+      // A failing result carries its message in the same `result` field; treating it as the
+      // answer would surface an error to the user as if the agent had replied it.
+      if (typeof event.result === 'string') {
+        if (event.is_error) errorFromEvents = event.result
+        else finalResult = event.result
+      }
+      continue
+    }
+    if (event?.type !== 'assistant') continue
+    for (const block of event?.message?.content || []) {
+      if (block?.type === 'text' && typeof block.text === 'string') parts.push(block.text)
+    }
+  }
+  const text = (finalResult || parts.join('')).trim()
+  if (text) return { text }
+  const failure = errorFromEvents || (stderr || '').trim()
+  return { text: '', errorText: failure || silentExitMessage('claude', exitCode) }
+}
+
 export function parseRuntimeResult(
   rt: AgentRuntimeId,
   mode: 'chat' | 'json',
@@ -369,6 +442,10 @@ export function parseRuntimeResult(
   exitCode: number | null
 ): { text: string; errorText?: string } {
   const rawFailureText = () => (stderr || stdout).trim() || silentExitMessage(rt, exitCode)
+
+  if (rt === 'claude' && mode === 'chat') {
+    return parseClaudeStreamJson(stdout, stderr, exitCode)
+  }
 
   // droid always emits its `-o json` envelope regardless of mode; claude only in json mode.
   const usesJson = rt === 'droid' || (rt === 'claude' && mode === 'json')
@@ -473,10 +550,22 @@ function runOnce(
       resolve(result)
     }
 
+    // The deadline measures *silence*, not total runtime. A real agent turn -- research, writing
+    // files, running tools -- legitimately runs for many minutes while streaming output the whole
+    // time, and a total-duration cap killed exactly those turns. A wedged session produces nothing
+    // at all, so it still trips this quickly.
+    const armDeadline = () => setTimeout(onDeadline, timeoutMs)
+    let timer: NodeJS.Timeout
+    const bumpDeadline = () => {
+      if (settled) return
+      clearTimeout(timer)
+      timer = armDeadline()
+    }
+
     // SIGTERM alone is a request, not a guarantee — a CLI that traps or ignores it keeps running
     // and outlives the caller. Escalate to SIGKILL if it has not exited shortly after.
     let killEscalation: NodeJS.Timeout | undefined
-    const timer = setTimeout(() => {
+    function onDeadline() {
       timedOut = true
       killTree('SIGTERM')
       killEscalation = setTimeout(() => {
@@ -488,15 +577,18 @@ function runOnce(
       // meant the turn never returned, the caller's recovery never ran, and the request stayed
       // wedged server-side while the user only saw the route's own timeout message.
       settle({ stdout, stderr, exitCode: null, timedOut: true }, { keepEscalation: true })
-    }, timeoutMs)
+    }
+    timer = armDeadline()
 
     child.stdout.on('data', (chunk: Buffer) => {
       const text = chunk.toString()
       stdout += text
+      bumpDeadline()
       if (onChunk) onChunk(text)
     })
     child.stderr.on('data', (chunk: Buffer) => {
       stderr += chunk.toString()
+      bumpDeadline()
     })
     child.on('error', (err) => {
       settle({ stdout, stderr: stderr || err.message || String(err), exitCode: null, timedOut })
@@ -551,12 +643,18 @@ export async function runRuntimeCli(o: {
   // the caller advertised: the chat route arms its own watchdog for the same duration, so a retry
   // that started after the first full timeout ran invisibly, after the user had already been told
   // the turn timed out. Give the first attempt most of the budget and the retry the rest.
-  const canRetryOnFreshSession = o.runtime === 'claude'
-  const firstAttemptTimeoutMs = canRetryOnFreshSession ? Math.floor(o.timeoutMs * 0.6) : o.timeoutMs
-  const retryTimeoutMs = Math.max(o.timeoutMs - firstAttemptTimeoutMs, 1000)
+  // Both attempts get the full idle allowance. Splitting a total budget starved the retry: a
+  // wedged first attempt burned most of it before the retry -- the one doing the user's actual
+  // work -- began. Idleness bounds each attempt instead, so a working turn is never cut short.
+  const firstAttemptTimeoutMs = o.timeoutMs
+  const retryTimeoutMs = o.timeoutMs
 
   const attempt = async (plan: RuntimePlan, timeoutMs = o.timeoutMs) => {
-    const onChunk = plan.streamsDeltas && o.onDelta ? o.onDelta : undefined
+    // claude chat streams JSON events, not prose: translate them before they reach the UI.
+    const rawDelta = plan.streamsDeltas && o.onDelta ? o.onDelta : undefined
+    const onChunk = rawDelta && o.runtime === 'claude'
+      ? createClaudeStreamDeltaTransformer(rawDelta)
+      : rawDelta
     const result = await runOnce(plan, effectiveEnv, timeoutMs, onChunk)
     if (result.timedOut) {
       // Keep whatever the CLI streamed before the deadline. Discarding it made every timeout look
