@@ -1539,6 +1539,26 @@ else
   fail "Gateway RPC config edge-case unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Gateway RPC client behavior unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/gateway-rpc-client.test.ts > /tmp/clawmax-gateway-rpc-client.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-gateway-rpc-client.out; then
+  gateway_rpc_client_count=$(grep "Tests passed:" /tmp/clawmax-gateway-rpc-client.out | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Gateway RPC client behavior unit tests (${gateway_rpc_client_count:-?} tests)"
+else
+  cat /tmp/clawmax-gateway-rpc-client.out
+  fail "Gateway RPC client behavior unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Gateway RPC call protocol unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/gateway-rpc-call.test.ts > /tmp/clawmax-gateway-rpc-call.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-gateway-rpc-call.out; then
+  gateway_rpc_call_count=$(grep "Tests passed:" /tmp/clawmax-gateway-rpc-call.out | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Gateway RPC call protocol unit tests (${gateway_rpc_call_count:-?} tests)"
+else
+  cat /tmp/clawmax-gateway-rpc-call.out
+  fail "Gateway RPC call protocol unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Gateway probe regression tests...${NC}"
 npx ts-node --transpileOnly server/lib/gateway-probe-regressions.test.ts > /tmp/clawmax-gateway-probe-regressions.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-gateway-probe-regressions.out; then
