@@ -62,6 +62,7 @@ test('updateAgentModelInConfigFile updates model in openclaw.json', () => {
 
   const updated = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
   assert(updated.agents.list[0].model === 'openai/gpt-4.1', 'Expected model to be updated')
+  assert(updated.agents.defaults.models['openai/gpt-4.1'] !== undefined, 'Expected selected model to be added to the OpenClaw override allowlist')
   assert(typeof updated.meta?.lastTouchedAt === 'string', 'Expected metadata stamp to be written')
 })
 
@@ -73,6 +74,7 @@ test('updateAgentModelInConfigFile is a no-op when the normalized model is uncha
       auth: { token: 'stable-token' },
     },
     agents: {
+      defaults: { models: { 'openai/gpt-4o-mini': {} } },
       list: [
         { id: 'ceo', name: 'CEO', model: 'openai/gpt-4o-mini' }
       ]
@@ -155,6 +157,7 @@ test('upsertAgentModelInConfigFile creates an active workspace record without to
   assert(updated.agents.list[1].workspace === activeWorkspace, 'Expected active workspace path on appended record')
   assert(updated.agents.list[1].agentDir === activeAgentDir, 'Expected runtime agent dir on appended record')
   assert(updated.agents.list[1].model === 'openai/gpt-4o-mini', 'Expected appended record to use normalized model')
+  assert(updated.agents.defaults.models['openai/gpt-4o-mini'] !== undefined, 'Expected upserted model to be allowed for runtime overrides')
 })
 
 test('upsertAgentModelInConfigFile updates the exact active workspace record', () => {
@@ -185,6 +188,7 @@ test('upsertAgentModelInConfigFile is a no-op when the exact workspace record al
   const activeWorkspace = path.join(tmpDir, 'workspace', 'AGENTS', 'simple-agent')
   const original = {
     agents: {
+      defaults: { models: { 'openai/gpt-4o-mini': {} } },
       list: [
         { id: 'simple-agent', workspace: activeWorkspace, model: 'openai/gpt-4o-mini' }
       ]
