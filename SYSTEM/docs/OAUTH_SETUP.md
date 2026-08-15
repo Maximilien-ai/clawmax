@@ -61,6 +61,20 @@ DASHBOARD_APP_URL=http://localhost:5173
 DASHBOARD_PUBLIC_URL=http://localhost:3001
 ```
 
+Auth cookies remain `Secure` by default, including when the built UI runs with
+`NODE_ENV=production`. An isolated plain-HTTP local fixture may opt in with:
+
+```bash
+DASHBOARD_DEPLOYMENT_KIND=local
+DASHBOARD_APP_URL=http://tenant-a.localhost:4101
+DASHBOARD_ALLOW_INSECURE_LOCAL_COOKIES=true
+```
+
+The exception is ignored unless both the configured app URL and current
+request use the same loopback or `.localhost` hostname. Cloud, on-premises,
+HTTPS, non-local, mismatched, and invalid origins always retain Secure cookies.
+Never enable this option for a shared deployment.
+
 Notes:
 
 - `OTP_ALLOWED_EMAILS` is a comma-separated allowlist.
