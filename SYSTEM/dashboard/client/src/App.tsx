@@ -43,6 +43,7 @@ import {
   type PluginManifest,
 } from './lib/plugins'
 import { readGlobalWorkspaceTourDisabled, readWorkspaceTourState, resetWorkspaceTourState, shouldShowWorkspaceTour, writeWorkspaceTourState } from './lib/onboardingTour'
+import { getInstanceDocumentTitle } from './lib/instanceBranding'
 
 type Page = DashboardPage
 
@@ -590,12 +591,7 @@ export default function App() {
   }, [page, plugins])
 
   useEffect(() => {
-    const rawLabel = typeof system?.instanceLabel === 'string' ? system.instanceLabel.trim() : ''
-    if (!rawLabel) {
-      document.title = 'ClawMax'
-      return
-    }
-    document.title = `ClawMax · ${rawLabel}`
+    document.title = getInstanceDocumentTitle(system?.instanceLabel)
   }, [system?.instanceLabel])
 
   useEffect(() => {

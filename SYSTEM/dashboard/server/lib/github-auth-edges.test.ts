@@ -5,6 +5,7 @@ import {
   isGitHubAuthConfigured,
   isOtpAuthConfigured,
   requireGitHubAuth,
+  shouldUseSecureAuthCookies,
 } from './github-auth'
 
 const GREEN = '\x1b[32m'
@@ -33,6 +34,8 @@ const envKeys = [
   'DASHBOARD_APP_URL',
   'CORS_ORIGIN',
   'BYPASS_OAUTH',
+  'DASHBOARD_ALLOW_INSECURE_LOCAL_COOKIES',
+  'DASHBOARD_DEPLOYMENT_KIND',
 ]
 const originalEnv = Object.fromEntries(envKeys.map((key) => [key, process.env[key]]))
 
@@ -163,6 +166,62 @@ async function run() {
     delete process.env.OTP_ALLOWED_EMAILS
     assert(!isOtpAuthConfigured(), 'Expected OTP auth disabled in github_oauth mode')
     assert(isGitHubAuthConfigured(), 'Expected GitHub auth configured when credentials exist')
+  })
+
+  await test('auth cookies stay Secure by default on local HTTP', () => {
+    const req = makeReq({ headers: { host: 'tenant-a.localhost:4101' } })
+    assert(shouldUseSecureAuthCookies(req, {
+      DASHBOARD_DEPLOYMENT_KIND: 'local',
+      DASHBOARD_APP_URL: 'http://tenant-a.localhost:4101',
+    }), 'Expected local HTTP cookies to remain Secure without explicit opt-in')
+  })
+
+  await test('explicit local HTTP option permits non-Secure cookies for matching .localhost origin', () => {
+    const req = makeReq({ headers: { host: 'tenant-a.localhost:4101' } })
+    assert(!shouldUseSecureAuthCookies(req, {
+      DASHBOARD_ALLOW_INSECURE_LOCAL_COOKIES: 'true',
+      DASHBOARD_DEPLOYMENT_KIND: 'local',
+      DASHBOARD_APP_URL: 'http://tenant-a.localhost:4101',
+      NODE_ENV: 'production',
+    }), 'Expected explicit local exception to work independently of NODE_ENV')
+  })
+
+  await test('local HTTP cookie option fails closed for cloud and on-prem deployments', () => {
+    const req = makeReq({ headers: { host: 'tenant-a.localhost:4101' } })
+    for (const deploymentKind of ['cloud', 'onprem']) {
+      assert(shouldUseSecureAuthCookies(req, {
+        DASHBOARD_ALLOW_INSECURE_LOCAL_COOKIES: 'true',
+        DASHBOARD_DEPLOYMENT_KIND: deploymentKind,
+        DASHBOARD_APP_URL: 'http://tenant-a.localhost:4101',
+      }), `Expected ${deploymentKind} cookie to remain Secure`)
+    }
+  })
+
+  await test('local HTTP cookie option fails closed for non-local, mismatched, and HTTPS app origins', () => {
+    const req = makeReq({ headers: { host: 'tenant-a.localhost:4101' } })
+    const baseEnv = {
+      DASHBOARD_ALLOW_INSECURE_LOCAL_COOKIES: 'true',
+      DASHBOARD_DEPLOYMENT_KIND: 'local',
+    }
+    for (const appUrl of [
+      'http://tenant.example.com:4101',
+      'http://tenant-b.localhost:4101',
+      'https://tenant-a.localhost:4101',
+      'not-a-url',
+    ]) {
+      assert(shouldUseSecureAuthCookies(req, { ...baseEnv, DASHBOARD_APP_URL: appUrl }), `Expected Secure cookie for ${appUrl}`)
+    }
+  })
+
+  await test('HTTPS requests always use Secure auth cookies', () => {
+    const req = makeReq({
+      headers: { host: 'tenant-a.localhost:4101', 'x-forwarded-proto': 'https' },
+    })
+    assert(shouldUseSecureAuthCookies(req, {
+      DASHBOARD_ALLOW_INSECURE_LOCAL_COOKIES: 'true',
+      DASHBOARD_DEPLOYMENT_KIND: 'local',
+      DASHBOARD_APP_URL: 'http://tenant-a.localhost:4101',
+    }), 'Expected HTTPS request to keep Secure cookie')
   })
 
   await test('OTP verify rejects codes after too many invalid attempts', async () => {

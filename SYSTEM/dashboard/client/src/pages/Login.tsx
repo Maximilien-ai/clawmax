@@ -1,6 +1,7 @@
 import React from 'react'
 import heroBg from '../assets/clawmax-front-back-offices.jpg'
 import { useAuth } from '../contexts/AuthContext'
+import { getInstanceDocumentTitle, normalizeInstanceLabel, usesCloudInstanceAccent } from '../lib/instanceBranding'
 
 export default function Login() {
   const { login, requestOtp, verifyOtp, config, sessionExpired } = useAuth()
@@ -25,6 +26,12 @@ export default function Login() {
   }, [resendAvailableAt])
 
   const resendCountdown = resendAvailableAt ? Math.max(0, Math.ceil((resendAvailableAt - nowMs) / 1000)) : 0
+  const instanceLabel = normalizeInstanceLabel(config?.instanceLabel)
+  const cloudAccent = usesCloudInstanceAccent(config?.deploymentKind)
+
+  React.useEffect(() => {
+    document.title = getInstanceDocumentTitle(instanceLabel)
+  }, [instanceLabel])
 
   async function handleRequestOtp() {
     setSubmitting(true)
@@ -56,7 +63,7 @@ export default function Login() {
   }
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#07111c] text-white">
+    <div className={`relative min-h-screen overflow-hidden text-white ${cloudAccent ? 'bg-[#100b24]' : 'bg-[#07111c]'}`}>
       <div className="absolute inset-0">
         <img
           src={heroBg}
@@ -78,19 +85,19 @@ export default function Login() {
       <div className="relative z-10 flex min-h-screen items-center justify-center px-4 py-10">
         <div className="w-full max-w-md">
           <div className="mb-8 text-center">
-            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.35em] text-sky-300/90">
-              ClawMax.ai Owner Console
+            <p className={`mb-3 break-words text-xs font-semibold uppercase tracking-[0.35em] ${cloudAccent ? 'text-violet-300' : 'text-sky-300/90'}`}>
+              {instanceLabel || 'ClawMax.ai Owner Console'}
             </p>
             <h1 className="text-4xl font-semibold tracking-tight text-white">
               Manage 100s of agents
-              <span className="block text-sky-300">without losing the thread.</span>
+              <span className={`block ${cloudAccent ? 'text-violet-300' : 'text-sky-300'}`}>without losing the thread.</span>
             </h1>
             <p className="mt-4 text-sm leading-6 text-slate-300">
               Sign in to the dashboard for orchestration, workflows, communication, and workspace controls.
             </p>
           </div>
 
-          <div className="rounded-2xl border border-white/12 bg-slate-950/72 p-6 shadow-2xl shadow-black/35 backdrop-blur-md">
+          <div className={`rounded-2xl border bg-slate-950/72 p-6 shadow-2xl shadow-black/35 backdrop-blur-md ${cloudAccent ? 'border-violet-400/30' : 'border-white/12'}`}>
             <div className="mb-5 flex items-start justify-between gap-3">
               <div>
                 <div className="text-lg font-semibold text-white">
@@ -98,8 +105,15 @@ export default function Login() {
                 </div>
                 <div className="mt-1 text-sm text-slate-400">Workspace owner access with persistent local session.</div>
               </div>
-              <div className="rounded-full border border-emerald-400/25 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-300">
-                Secure
+              <div className="flex items-center gap-2">
+                {cloudAccent && (
+                  <div className="rounded-full border border-violet-400/30 bg-violet-400/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-violet-200">
+                    Cloud
+                  </div>
+                )}
+                <div className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] ${config?.insecureLocalCookies ? 'border-amber-400/30 bg-amber-400/10 text-amber-200' : 'border-emerald-400/25 bg-emerald-400/10 text-emerald-300'}`}>
+                  {config?.insecureLocalCookies ? 'Local HTTP' : 'Secure'}
+                </div>
               </div>
             </div>
 

@@ -37,7 +37,7 @@ import { initOpikTracing, shutdownOpik, isOpikEnabled, getRequestDashboardInstan
 import { getWorkspaceMetering } from './lib/metering'
 import { validateCommunities, validateGroups, validateIdentity } from './lib/validator'
 import { requireAuth, verifyToken } from './lib/auth'
-import { createAuthRouter, requireGitHubAuth, isGitHubAuthConfigured, isOtpAuthConfigured, getAuthenticatedSession } from './lib/github-auth'
+import { createAuthRouter, requireGitHubAuth, isGitHubAuthConfigured, isOtpAuthConfigured, getAuthenticatedSession, shouldUseSecureAuthCookies } from './lib/github-auth'
 import { safeEnv } from './lib/safe-env'
 import { auditLog } from './lib/audit'
 import { getBudgetStatus, loadBudgetConfig, saveBudgetConfig, BudgetConfig } from './lib/budget'
@@ -290,6 +290,8 @@ app.get('/api/auth/config', (_req, res) => {
     authMode: process.env.DASHBOARD_AUTH_MODE || 'github_oauth',
     authDisabled: isDashboardAuthBypassAllowed(process.env),
     deploymentKind,
+    instanceLabel: getDashboardInstanceLabel(rawEnv),
+    insecureLocalCookies: !shouldUseSecureAuthCookies(_req),
     managedRuntime,
     ollamaEnabled: isOllamaUiEnabled(rawEnv),
     defaultOllamaBaseUrl: getDefaultOllamaBaseUrl(rawEnv),

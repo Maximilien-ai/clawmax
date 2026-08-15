@@ -10,6 +10,7 @@ import jwt from 'jsonwebtoken'
 import type { CookieOptions } from 'express'
 import fs from 'fs'
 import path from 'path'
+import net from 'net'
 import { Resend } from 'resend'
 import { isDashboardAuthBypassAllowed } from './http-security'
 
@@ -505,8 +506,7 @@ function verifySessionToken(token: string): SessionPayload | null {
   }
 }
 
-function isSecureRequest(req: Request): boolean {
-  if (process.env.NODE_ENV === 'production') return true
+function requestUsesHttps(req: Request): boolean {
   const forwardedProto = req.headers['x-forwarded-proto']
   if (typeof forwardedProto === 'string') {
     return forwardedProto.split(',')[0].trim() === 'https'
@@ -514,12 +514,49 @@ function isSecureRequest(req: Request): boolean {
   return req.secure
 }
 
+function isLoopbackHostname(hostname: string): boolean {
+  const normalized = hostname.trim().toLowerCase().replace(/^\[|\]$/g, '')
+  if (normalized === 'localhost' || normalized.endsWith('.localhost')) return true
+  const ipVersion = net.isIP(normalized)
+  if (ipVersion === 4) return normalized.startsWith('127.')
+  return ipVersion === 6 && normalized === '::1'
+}
+
+function parseEnabledFlag(value: string | undefined): boolean {
+  return ['1', 'true', 'yes', 'on'].includes((value || '').trim().toLowerCase())
+}
+
+/**
+ * Auth cookies are Secure by default. Plain HTTP is permitted only through an
+ * explicit local-development exception whose configured app origin and
+ * current request both resolve to the same loopback/.localhost host.
+ */
+export function shouldUseSecureAuthCookies(req: Request, env: NodeJS.ProcessEnv = process.env): boolean {
+  if (requestUsesHttps(req)) return true
+  if (!parseEnabledFlag(env.DASHBOARD_ALLOW_INSECURE_LOCAL_COOKIES)) return true
+  if ((env.DASHBOARD_DEPLOYMENT_KIND || '').trim().toLowerCase() !== 'local') return true
+
+  try {
+    const appUrl = new URL((env.DASHBOARD_APP_URL || '').trim())
+    if (appUrl.protocol !== 'http:' || !isLoopbackHostname(appUrl.hostname)) return true
+
+    const requestHost = req.headers.host || ''
+    const requestUrl = new URL(`http://${requestHost}`)
+    if (!isLoopbackHostname(requestUrl.hostname)) return true
+    if (requestUrl.hostname.toLowerCase() !== appUrl.hostname.toLowerCase()) return true
+  } catch {
+    return true
+  }
+
+  return false
+}
+
 function getStateCookieOptions(req: Request): CookieOptions {
   return {
     httpOnly: true,
     maxAge: 10 * 60 * 1000,
     sameSite: 'lax',
-    secure: isSecureRequest(req),
+    secure: shouldUseSecureAuthCookies(req),
     path: '/api/auth',
   }
 }
@@ -529,7 +566,7 @@ function getSessionCookieOptions(req: Request, maxAgeMs = 7 * 24 * 60 * 60 * 100
     httpOnly: true,
     maxAge: maxAgeMs,
     sameSite: 'lax',
-    secure: isSecureRequest(req),
+    secure: shouldUseSecureAuthCookies(req),
     path: '/',
   }
 }
@@ -539,7 +576,7 @@ function getReturnToCookieOptions(req: Request): CookieOptions {
     httpOnly: true,
     maxAge: 10 * 60 * 1000,
     sameSite: 'lax',
-    secure: isSecureRequest(req),
+    secure: shouldUseSecureAuthCookies(req),
     path: '/api/auth',
   }
 }

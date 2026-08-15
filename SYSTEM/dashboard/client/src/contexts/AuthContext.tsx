@@ -18,6 +18,8 @@ interface AuthConfig {
   authMode?: string
   authDisabled: boolean
   deploymentKind?: DashboardDeploymentKind
+  instanceLabel?: string | null
+  insecureLocalCookies?: boolean
   managedRuntime?: boolean
   ollamaEnabled?: boolean
   defaultOllamaBaseUrl?: string
