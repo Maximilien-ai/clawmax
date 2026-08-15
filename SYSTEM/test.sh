@@ -2672,6 +2672,15 @@ else
   fail "Setup shell tests"
 fi
 
+echo -e "${YELLOW}→ Running default OpenClaw plugin shell tests...${NC}"
+bash "$SYSTEM_DIR/ensure-openclaw-default-plugins.test.sh" > /tmp/clawmax-default-openclaw-plugins.out 2>&1 || true
+if grep -q "PASS: default OpenClaw plugins install compatibly and idempotently" /tmp/clawmax-default-openclaw-plugins.out; then
+  pass "Default OpenClaw plugin shell tests"
+else
+  cat /tmp/clawmax-default-openclaw-plugins.out
+  fail "Default OpenClaw plugin shell tests"
+fi
+
 echo -e "${YELLOW}→ Running OpenClaw target prep shell tests...${NC}"
 bash "$SYSTEM_DIR/prepare-openclaw-target.test.sh" > /tmp/clawmax-openclaw-target-shell.out 2>&1 || true
 if grep -q "PASS: prepare-openclaw-target.sh uses the branch target Node/PNPM OpenClaw build flow" /tmp/clawmax-openclaw-target-shell.out; then

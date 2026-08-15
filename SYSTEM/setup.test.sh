@@ -28,5 +28,6 @@ grep -q 'AUTH_MODE="bypass"' "$setup_file" || fail "expected bypass default assi
 grep -q 'Non-interactive: using local dev bypass' "$setup_file" || fail "expected non-interactive bypass message"
 grep -q 'SYSTEM/openclaw-version.sh' "$setup_file" || fail "expected setup.sh to source the branch OpenClaw version helper"
 grep -q 'CLAWMAX_OPENCLAW_TARGET' "$setup_file" || fail "expected setup.sh to prefer the branch OpenClaw target when present"
+grep -q 'ensure-openclaw-default-plugins.sh' "$setup_file" || fail "expected setup.sh to install required external OpenClaw plugins"
 
 pass "setup.sh defaults non-interactive auth to bypass and only advertises bypass/email otp"
