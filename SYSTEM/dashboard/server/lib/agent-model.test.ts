@@ -209,6 +209,34 @@ test('upsertAgentModelInConfigFile is a no-op when the exact workspace record al
   assert(after === before, 'Expected config file to remain unchanged for a no-op upsert')
 })
 
+test('upsertAgentModelInConfigFile writes a new agent when its model is already allowed', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-model-test-'))
+  const configPath = path.join(tmpDir, 'openclaw.json')
+  const workspacePath = path.join(tmpDir, 'workspace', 'AGENTS', 'new-agent')
+
+  fs.writeFileSync(configPath, JSON.stringify({
+    agents: {
+      defaults: {
+        models: {
+          'openai/gpt-4o-mini': {},
+        },
+      },
+      list: [],
+    },
+  }, null, 2))
+
+  const result = upsertAgentModelInConfigFile(configPath, 'new-agent', 'openai/gpt-4o-mini', {
+    workspacePath,
+  })
+  assert(result.ok, result.error || 'Expected upsert to succeed')
+  assert(result.changed === true, 'Expected a newly inserted agent to report a change')
+
+  const updated = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  assert(updated.agents.list.length === 1, 'Expected the new agent record to be persisted')
+  assert(updated.agents.list[0].id === 'new-agent', 'Expected the persisted agent id')
+  assert(updated.agents.list[0].model === 'openai/gpt-4o-mini', 'Expected the persisted agent model')
+})
+
 test('updateAgentModelInConfigFile rejects missing agent', () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-model-test-'))
   const configPath = path.join(tmpDir, 'openclaw.json')

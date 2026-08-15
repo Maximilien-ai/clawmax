@@ -225,6 +225,7 @@ export function upsertAgentModelInConfigFile(
         ...(options?.agentDir ? { agentDir: options.agentDir } : {}),
         model: nextModel,
       })
+      changed = true
     } else {
       const current = agentList[agentIndex]
       changed = changed || current?.model !== nextModel ||
