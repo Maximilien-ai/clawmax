@@ -21,7 +21,7 @@ import {
 import { readWorkspaceIntegrationConfig } from '../lib/workspace-integrations'
 import { hasWorkspaceManagedPartnerSecrets } from '../lib/workspace-integrations'
 import { getAuthenticatedSession } from '../lib/github-auth'
-import { executeAgentRuntimeTurn } from '../lib/agent-runtime'
+import { executeAgentRuntimeTurn, isRuntimeTimeoutError } from '../lib/agent-runtime'
 import { hasRuntimeSession } from '../lib/runtime-sessions'
 import { deriveChatError } from './chat'
 import { createBrokerCapabilityToken } from '../lib/skill-secret-broker'
@@ -385,7 +385,7 @@ export async function callAgent(
       })
       if (missingCliError) throw new Error(missingCliError)
       if (errorText) {
-        throw new Error(errorText === 'timeout' ? 'Agent timeout' : errorText)
+        throw new Error(isRuntimeTimeoutError(errorText) ? 'Agent timeout' : errorText)
       }
       const responseText = normalizeChatMessage(text)
       if (responseText) {

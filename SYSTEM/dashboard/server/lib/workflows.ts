@@ -24,7 +24,7 @@ import { readWorkspaceIntegrationConfig } from './workspace-integrations'
 import { hasWorkspaceManagedPartnerSecrets } from './workspace-integrations'
 import { resolveOpenClawCliPath } from './openclaw-cli'
 import { createBrokerCapabilityToken } from './skill-secret-broker'
-import { executeAgentRuntimeTurn } from './agent-runtime'
+import { executeAgentRuntimeTurn, isRuntimeTimeoutError } from './agent-runtime'
 import { hasRuntimeSession } from './runtime-sessions'
 
 // Use dynamic workspace path to support multi-workspace
@@ -2085,7 +2085,7 @@ export function triggerWorkflow(workflowId: string, options?: {
               })
               if (missingCliError) throw new Error(missingCliError)
               if (errorText) {
-                throw new Error(errorText === 'timeout' ? formatWorkflowAgentTimeoutMessage(timeoutMs) : errorText)
+                throw new Error(isRuntimeTimeoutError(errorText) ? formatWorkflowAgentTimeoutMessage(timeoutMs) : errorText)
               }
               return { text, meta: {}, durationMs: Date.now() - startedAt } as any
             }

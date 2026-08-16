@@ -842,7 +842,7 @@ async function run(): Promise<void> {
     })
   })
 
-  await testAsync('runRuntimeCli kills the process and reports errorText "timeout" when it runs too long', async () => {
+  await testAsync('runRuntimeCli kills the process and reports a no-output timeout when it runs too long', async () => {
     await withTempDirAsync('clawmax-agent-runtime-exec-timeout-', async (dir) => {
       const cli = path.join(dir, 'fake-slow.js')
       writeFakeNodeCli(cli, `setTimeout(() => {}, 60000)`)
@@ -853,7 +853,8 @@ async function run(): Promise<void> {
         rebuildPlan: () => { throw new Error('rebuildPlan should not be called on timeout') },
         runtime: 'droid', mode: 'json', agentId: 'agent1', scopedSessionId: 'sess1',
       })
-      assert.strictEqual(result.errorText, 'timeout')
+      // The fixture never writes, so this is the no-output class rather than "streamed then quiet".
+      assert.strictEqual(result.errorText, 'timeout-no-output')
     })
   })
 

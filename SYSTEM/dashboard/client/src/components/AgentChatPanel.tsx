@@ -609,6 +609,11 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
       const reader = response.body.getReader()
       const decoder = new TextDecoder()
       let buffer = ''
+      // A stream can end without ever delivering 'complete' or 'error' — the server being
+      // restarted or recreated mid-turn, or the connection dropping, both look like a clean EOF
+      // here. Without this flag the loop simply exits and the finally block clears the spinner,
+      // leaving the user with a half-written bubble and no indication anything went wrong.
+      let sawTerminalEvent = false
 
       while (true) {
         const { done, value } = await reader.read()
@@ -633,6 +638,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
                   : m
               ))
             } else if (data.type === 'complete') {
+              sawTerminalEvent = true
               setMessages(prev => prev.map(m =>
                 m.id === assistantId
                   ? { ...m, content: data.data?.text?.trim() ? data.data.text : (m.content.trim() ? m.content : 'No reply from agent.') }
@@ -642,6 +648,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
               // Notify parent of successful completion
               onSuccess?.()
             } else if (data.type === 'error') {
+              sawTerminalEvent = true
               const friendly = summarizeAgentChatFailure(data.data || 'Chat error', { agentId })
               setError(friendly)
               setMessages(prev => prev.map(m =>
@@ -654,6 +661,21 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
           } catch (e) {
             console.error('Failed to parse SSE message:', e)
           }
+        }
+      }
+
+      // The stream ended cleanly but the turn never reported a result. Say so, rather than
+      // clearing the spinner and leaving a half-written bubble that looks like the agent simply
+      // stopped talking. Most often the server was restarted or recreated mid-turn.
+      if (!sawTerminalEvent) {
+        const message = 'The connection to the agent ended before it finished replying. The server may have restarted mid-turn — send the message again.'
+        setError(message)
+        if (assistantId) {
+          setMessages(prev => prev.map(m => (
+            m.id === assistantId
+              ? { ...m, content: m.content?.trim() ? `${m.content}\n\n_${message}_` : message }
+              : m
+          )))
         }
       }
     } catch (e: any) {
