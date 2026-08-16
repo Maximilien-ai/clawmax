@@ -49,6 +49,7 @@ import { resolveOpenClawCliPath } from './lib/openclaw-cli'
 import { buildSystemInfoPayload } from './lib/system-info'
 import { healDashboardManagedOpenClawConfig } from './lib/openclaw-config'
 import { applyDashboardSecurityHeaders, isCorsOriginAllowed, isDashboardAuthBypassAllowed, parseCorsOrigins } from './lib/http-security'
+import { getTenantResourceLimits } from './lib/tenant-resource-limits'
 
 // ============================================================================
 // Crash Protection & Error Logging
@@ -291,6 +292,7 @@ app.get('/api/auth/config', (_req, res) => {
     authDisabled: isDashboardAuthBypassAllowed(process.env),
     deploymentKind,
     instanceLabel: getDashboardInstanceLabel(rawEnv),
+    resourceLimits: getTenantResourceLimits(rawEnv),
     insecureLocalCookies: !shouldUseSecureAuthCookies(_req),
     managedRuntime,
     ollamaEnabled: isOllamaUiEnabled(rawEnv),

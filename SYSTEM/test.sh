@@ -2190,8 +2190,8 @@ fi
 
 echo -e "${YELLOW}→ Running instance branding tests...${NC}"
 npx ts-node --transpileOnly client/src/InstanceBranding.test.ts > /tmp/clawmax-instance-branding.out 2>&1 || true
-if grep -q "InstanceBranding.test.ts: 11 assertions passed" /tmp/clawmax-instance-branding.out; then
-  pass "Instance branding tests (11 assertions)"
+if grep -q "InstanceBranding.test.ts: 12 assertions passed" /tmp/clawmax-instance-branding.out; then
+  pass "Instance branding tests (12 assertions)"
 else
   cat /tmp/clawmax-instance-branding.out
   fail "Instance branding tests"
@@ -2587,6 +2587,16 @@ if grep -q "maintenanceBannerViewEdges.test.ts: ok" /tmp/clawmax-maintenance-ban
 else
   cat /tmp/clawmax-maintenance-banner-view-edges.out
   fail "Maintenance banner view edge-case unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Tenant resource limit unit tests...${NC}"
+tenant_resource_limits_output="$(npx ts-node --transpileOnly server/lib/tenant-resource-limits.test.ts 2>&1 || true)"
+printf '%s\n' "$tenant_resource_limits_output" > /tmp/clawmax-tenant-resource-limits.out
+if printf '%s\n' "$tenant_resource_limits_output" | grep -q "8 assertions passed"; then
+  pass "Tenant resource limit unit tests (8 assertions)"
+else
+  cat /tmp/clawmax-tenant-resource-limits.out
+  fail "Tenant resource limit unit tests"
 fi
 
 echo -e "${YELLOW}→ Running Dashboard env unit tests...${NC}"

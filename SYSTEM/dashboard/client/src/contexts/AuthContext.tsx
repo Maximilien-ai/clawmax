@@ -19,6 +19,11 @@ interface AuthConfig {
   authDisabled: boolean
   deploymentKind?: DashboardDeploymentKind
   instanceLabel?: string | null
+  resourceLimits?: {
+    workspaces: number | null
+    agents: number | null
+    workflows: number | null
+  }
   insecureLocalCookies?: boolean
   managedRuntime?: boolean
   ollamaEnabled?: boolean

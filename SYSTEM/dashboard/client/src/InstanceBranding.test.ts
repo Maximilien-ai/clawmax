@@ -19,6 +19,7 @@ assert(appSource.includes('`Owner Dashboard · ${system.instanceLabel}`'), 'Auth
 
 const serverSource = fs.readFileSync(path.join(__dirname, '..', '..', 'server', 'index.ts'), 'utf8')
 assert(serverSource.includes('instanceLabel: getDashboardInstanceLabel(rawEnv)'), 'Public auth config must expose the normalized instance label')
+assert(serverSource.includes('resourceLimits: getTenantResourceLimits(rawEnv)'), 'Public auth config must expose effective tenant resource limits')
 assert(serverSource.includes('insecureLocalCookies: !shouldUseSecureAuthCookies(_req)'), 'Public auth config must disclose the local HTTP cookie exception')
 
-console.log('InstanceBranding.test.ts: 11 assertions passed')
+console.log('InstanceBranding.test.ts: 12 assertions passed')
