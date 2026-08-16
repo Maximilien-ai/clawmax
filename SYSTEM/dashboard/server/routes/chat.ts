@@ -27,7 +27,7 @@ import {
   toExecutionModelOverride,
   withTemporaryAgentAuthProfiles,
 } from '../lib/agent-execution'
-import { buildRuntimePlan, executeAgentRuntimeTurn, readAgentIdentitySystemPrompt } from '../lib/agent-runtime'
+import { buildRuntimePlan, executeAgentRuntimeTurn, readAgentIdentitySystemPrompt, FIRST_OUTPUT_TIMEOUT_MS, RUNTIME_IDLE_TIMEOUT_MS, isRuntimeTimeoutError } from '../lib/agent-runtime'
 import { hasRuntimeSession } from '../lib/runtime-sessions'
 import { appendRuntimeTranscriptExchange } from '../lib/runtime-transcripts'
 import { getAuthenticatedSession } from '../lib/github-auth'
@@ -392,10 +392,29 @@ export function deriveChatError(raw: string, provider?: ChatProvider, context?: 
   const runtimeLabel = context?.runtimeLabel
   const text = raw.trim()
   if (!text) return 'No reply from agent.'
-  if (/Please run \/login|not logged in/i.test(text)) {
-    return runtimeLabel
-      ? `The ${runtimeLabel} CLI is not authenticated on this server. Set ANTHROPIC_API_KEY / FACTORY_API_KEY or log the CLI in.`
-      : 'The agent runtime CLI is not authenticated on this server. Set ANTHROPIC_API_KEY / FACTORY_API_KEY or log the CLI in.'
+  // "Log the CLI in" is impossible in a container: that flow needs a browser and a loopback OAuth
+  // callback. Point at the credential an operator can actually set instead. A bad or expired token
+  // reports differently from a missing one (an authentication_error rather than "not logged in"),
+  // so both shapes are matched here or the bad-token case falls through to the generic branch.
+  const notAuthenticated = /Please run \/login|not logged in/i.test(text)
+  // A rejected credential reports as an authentication_error rather than "not logged in", so it
+  // needs its own shape or it falls through to the generic branch. Gated on runtimeLabel: without
+  // one this is a hosted-provider failure (e.g. an OpenAI 401), which the provider branch below
+  // already explains in provider terms.
+  const runtimeCredentialRejected = !!runtimeLabel
+    && /authentication_error|invalid[ _-]?(api[ _-]?key|token)|unauthorized/i.test(text)
+  if (notAuthenticated || runtimeCredentialRejected) {
+    const label = runtimeLabel ? `${runtimeLabel} CLI` : 'agent runtime CLI'
+    // Deliberately does NOT say "log the CLI in": that flow needs a browser and a loopback OAuth
+    // callback, so it is impossible inside a container and sends the operator down a dead end.
+    const remedy = runtimeLabel === 'Claude Code'
+      ? 'Set CLAUDE_CODE_OAUTH_TOKEN (from `claude setup-token`) or ANTHROPIC_API_KEY on the server, then recreate the container.'
+      : runtimeLabel === 'Factory Droid'
+        ? 'Set FACTORY_API_KEY on the server, or mount a host Droid login, then recreate the container.'
+        : 'Set ANTHROPIC_API_KEY / FACTORY_API_KEY on the server, then recreate the container.'
+    return runtimeCredentialRejected && !notAuthenticated
+      ? `${label} is not authenticated: its credential was rejected as invalid or expired. ${remedy}`
+      : `${label} is not authenticated on this server. ${remedy}`
   }
   if (/is already in use|No conversation found with session ID/i.test(text)) {
     return 'This chat session is out of sync with the agent runtime. Retry once, or reset the chat session if the issue persists.'
@@ -883,7 +902,11 @@ router.post('/:id/chat', async (req, res) => {
   // workflow they spawned -- and go quiet for long stretches while plainly alive. Three minutes of
   // silence killed exactly those turns. This bounds silence, not total runtime, so a genuinely
   // wedged session still fails in bounded time.
-  const CHAT_IDLE_TIMEOUT_MS = 600000
+  // Strictly longer than what the runtime path can consume, so the runtime always reports the
+  // failure first. If they are equal they race: the route can end the SSE response while a
+  // fresh-session retry is still running server-side, which the user never sees. Worst case is one
+  // full idle allowance on the first attempt plus a silent retry bounded by the first-output cap.
+  const CHAT_IDLE_TIMEOUT_MS = RUNTIME_IDLE_TIMEOUT_MS + FIRST_OUTPUT_TIMEOUT_MS + 60000
   const armChatTimeoutWatchdog = () => {
     if (watchdog) return
     watchdog = setTimeout(onChatIdleTimeout, CHAT_IDLE_TIMEOUT_MS)
@@ -935,6 +958,9 @@ router.post('/:id/chat', async (req, res) => {
           bumpChatTimeoutWatchdog()
           send('delta', { text: delta })
         },
+        // Tool calls and thinking never become visible text, so a watchdog fed only by deltas
+        // kills an agent that is legitimately mid-tool-run. Any CLI output counts as alive.
+        onActivity: () => bumpChatTimeoutWatchdog(),
         onPlan: (plan) => {
           console.log(`[Chat Route] Spawning: ${plan.cliPath || runtime} ${plan.args.join(' ')}`)
           send('start', { sessionId: executionSessionId })
@@ -979,8 +1005,8 @@ router.post('/:id/chat', async (req, res) => {
         })
       }
       if (!completionText) {
-        send('error', errorText === 'timeout'
-          ? 'Agent timeout (3 minutes)'
+        send('error', isRuntimeTimeoutError(errorText)
+          ? 'Agent chat produced no reply before its deadline. Retry once; if it keeps happening, reset the chat session.'
           : deriveChatError(errorText || 'No reply from agent.', resolvedAgent.provider, { agentId: id, model: resolvedAgent.model, runtimeLabel }))
       }
       send('complete', { text: completionText })
@@ -1057,12 +1083,25 @@ router.post('/:id/chat', async (req, res) => {
           send('start', { sessionId: executionSessionId, resumeSessionId: attemptSessionSeed })
           invalidateAgentStatusCache(id)
 
-          activeAttemptTimer = setTimeout(() => {
+          // Silence, not elapsed time. This is the same defect the CLI runtimes had: a fixed cap
+          // kills an OpenClaw agent that is streaming a long reply or running tools, while a
+          // wedged process is caught just as well by measuring quiet.
+          const onAttemptIdle = () => {
             spawned.kill()
-            reject(new Error('Agent timeout (3 minutes)'))
-          }, 180000)
+            reject(new Error(`Agent went quiet for ${RUNTIME_IDLE_TIMEOUT_MS / 60000} minutes with no output`))
+          }
+          activeAttemptTimer = setTimeout(onAttemptIdle, RUNTIME_IDLE_TIMEOUT_MS)
+          const bumpAttemptIdle = () => {
+            if (!activeAttemptTimer) return
+            clearTimeout(activeAttemptTimer)
+            activeAttemptTimer = setTimeout(onAttemptIdle, RUNTIME_IDLE_TIMEOUT_MS)
+          }
 
           spawned.stdout.on('data', (chunk: Buffer) => {
+            // Before the empty-text guard: a suppressed benign warning still proves the process is
+            // alive, even though nothing is shown to the user.
+            bumpAttemptIdle()
+            bumpChatTimeoutWatchdog()
             const text = stripBenignChatRuntimeWarnings(chunk.toString())
             if (!text) return
             fullOutput += text
@@ -1071,6 +1110,8 @@ router.post('/:id/chat', async (req, res) => {
           })
 
           spawned.stderr.on('data', (chunk: Buffer) => {
+            bumpAttemptIdle()
+            bumpChatTimeoutWatchdog()
             stderrOutput += chunk.toString()
           })
 

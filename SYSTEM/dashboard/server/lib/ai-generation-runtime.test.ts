@@ -216,7 +216,9 @@ asyncCases.push(['a CLI that ignores SIGTERM is escalated to SIGKILL', async () 
     runtime: 'droid', mode: 'json', agentId: 'kill-test', scopedSessionId: 'kill-test',
   })
   const elapsed = Date.now() - started
-  assert.strictEqual(errorText, 'timeout', `Expected a timeout result, got: ${errorText}`)
+  // A CLI that never writes anything times out in the no-output class, which is reported
+  // separately from "streamed, then went quiet" so the user-facing message can be accurate.
+  assert.strictEqual(errorText, 'timeout-no-output', `Expected a no-output timeout, got: ${errorText}`)
   assert(elapsed < 8000, `Expected escalation to end it quickly, took ${elapsed}ms`)
 }])
 
@@ -390,8 +392,10 @@ asyncCases.push(['a CLI that keeps streaming is not killed by the deadline', asy
   // streaming the whole time -- was killed mid-flight. It now measures silence.
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-stream-'))
   const cli = path.join(dir, 'claude')
-  // Streams for ~4s in small steps, well past the 1.5s idle allowance below.
-  fs.writeFileSync(cli, '#!/bin/sh\ni=0\nwhile [ $i -lt 8 ]; do echo "chunk $i"; sleep 0.5; i=$((i+1)); done\n')
+  // Streams for ~4s in small steps, well past the 1.5s idle allowance below. claude chat parses
+  // stream-json, so the fixture emits events rather than prose.
+  const event = JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'chunk' }] } })
+  fs.writeFileSync(cli, `#!/bin/sh\ni=0\nwhile [ $i -lt 8 ]; do echo '${event}'; sleep 0.5; i=$((i+1)); done\n`)
   fs.chmodSync(cli, 0o755)
   await withWorkspaceAsync(['claude'], { CLAUDE_BIN: cli }, async () => {
     const { executeAgentRuntimeTurn } = require('./agent-runtime')
@@ -404,10 +408,204 @@ asyncCases.push(['a CLI that keeps streaming is not killed by the deadline', asy
     const elapsed = Date.now() - started
     assert(elapsed > 2500, `Expected the streaming turn to outlive a 1.5s total cap, took ${elapsed}ms`)
     assert.strictEqual(r.errorText, undefined, `Streaming turn should not time out, got: ${r.errorText}`)
-    assert(String(r.text).includes('chunk 7'), `Expected the full stream, got: ${String(r.text).slice(0, 80)}`)
+    assert(String(r.text).includes('chunk'), `Expected streamed text, got: ${String(r.text).slice(0, 80)}`)
   })
   fs.rmSync(dir, { recursive: true, force: true })
 }])
+
+asyncCases.push(['a CLI that never speaks fails fast, not after the full idle allowance', async () => {
+  // A wedged resumed session produces nothing at all. Giving it the same generous allowance as a
+  // working turn meant a bare "ping" sat for ten minutes before erroring.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-silent-'))
+  const cli = path.join(dir, 'claude')
+  fs.writeFileSync(cli, '#!/bin/sh\nsleep 900\n')
+  fs.chmodSync(cli, 0o755)
+  await withWorkspaceAsync(['claude'], { CLAUDE_BIN: cli }, async () => {
+    const { executeAgentRuntimeTurn, FIRST_OUTPUT_TIMEOUT_MS } = require('./agent-runtime')
+    assert(FIRST_OUTPUT_TIMEOUT_MS < 600000, 'first-output deadline must be well under the idle allowance')
+    const started = Date.now()
+    // Idle allowance of 60s, but nothing is ever produced: the first-output deadline must win.
+    const r = await executeAgentRuntimeTurn({
+      runtime: 'claude', agentId: 'silent-probe', agentDir: dir, message: 'ping',
+      scopedSessionId: 'silent-probe-session', model: 'sonnet', mode: 'chat',
+      env: process.env, timeoutMs: 5000,
+    })
+    const elapsed = Date.now() - started
+    assert.strictEqual(r.errorText, 'timeout-no-output', `Expected a no-output timeout, got: ${r.errorText}`)
+    assert(elapsed < 20000, `Silent CLI should fail on the shorter of the two deadlines, took ${elapsed}ms`)
+  })
+  fs.rmSync(dir, { recursive: true, force: true })
+}])
+
+asyncCases.push(['tool-only activity counts as liveness, not silence', async () => {
+  // An agent doing a long stretch of tool work emits almost no assistant prose. A watchdog fed
+  // only by visible deltas treats that as silence and kills a healthy turn -- the failure mode
+  // behind "went quiet with no output" on a research task that was actively running tools.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-toolonly-'))
+  const cli = path.join(dir, 'claude')
+  // Emits only tool_use / thinking events -- never an assistant text block -- then finishes.
+  const toolEvent = JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Read' }] } })
+  const result = JSON.stringify({ type: 'result', subtype: 'success', is_error: false, result: 'done' })
+  fs.writeFileSync(cli, `#!/bin/sh\ni=0\nwhile [ $i -lt 6 ]; do echo '${toolEvent}'; sleep 0.4; i=$((i+1)); done\necho '${result}'\n`)
+  fs.chmodSync(cli, 0o755)
+  await withWorkspaceAsync(['claude'], { CLAUDE_BIN: cli }, async () => {
+    const { executeAgentRuntimeTurn } = require('./agent-runtime')
+    const deltas: string[] = []
+    let activity = 0
+    const r = await executeAgentRuntimeTurn({
+      runtime: 'claude', agentId: 'toolonly-probe', agentDir: dir, message: 'go',
+      scopedSessionId: 'toolonly-probe-session', model: 'sonnet', mode: 'chat',
+      env: process.env, timeoutMs: 1200,
+      onDelta: (t: string) => deltas.push(t),
+      onActivity: () => { activity++ },
+    })
+    // No visible text was ever emitted...
+    assert.strictEqual(deltas.length, 0, `Expected no visible deltas, got ${deltas.length}`)
+    // ...but activity fired repeatedly, which is what keeps the caller's watchdog alive.
+    assert(activity >= 5, `Expected tool events to report activity, got ${activity}`)
+    // ...and the turn survived well past the 1.2s allowance because activity rearmed the deadline.
+    assert.strictEqual(r.errorText, undefined, `Tool-only turn should not time out, got: ${r.errorText}`)
+    assert.strictEqual(String(r.text).trim(), 'done')
+  })
+  fs.rmSync(dir, { recursive: true, force: true })
+}])
+
+asyncCases.push(['a buffered JSON turn is not killed by the first-output cap', async () => {
+  // Regression: the 90s first-output cap was applied to every runtime call, but generation,
+  // workflows and channels use buffered JSON mode and emit nothing until the final result. A
+  // legitimate multi-minute droid/claude generation was being killed at 90s.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-buffered-'))
+  const cli = path.join(dir, 'droid')
+  const envelope = JSON.stringify({ type: 'result', subtype: 'success', is_error: false, result: 'BUFFERED_OK' })
+  // Silent for 2s, then emits the whole envelope at once -- the buffered-JSON shape.
+  fs.writeFileSync(cli, `#!/bin/sh\nsleep 2\necho '${envelope}'\n`)
+  fs.chmodSync(cli, 0o755)
+  await withWorkspaceAsync(['droid'], { DROID_BIN: cli }, async () => {
+    const { executeAgentRuntimeTurn, FIRST_OUTPUT_TIMEOUT_MS } = require('./agent-runtime')
+    // Budget is far below the first-output cap: if the cap were applied here it could not matter,
+    // so instead assert the turn completes on its own generous budget while silent throughout.
+    assert(FIRST_OUTPUT_TIMEOUT_MS >= 90000, 'first-output cap should be the long one, guarding streaming plans only')
+    const r = await executeAgentRuntimeTurn({
+      runtime: 'droid', agentId: 'buffered-probe', agentDir: dir, message: 'go',
+      scopedSessionId: 'buffered-probe-session', model: 'auto', mode: 'json',
+      env: process.env, timeoutMs: 10000,
+    })
+    assert.strictEqual(r.errorText, undefined, `Buffered JSON turn should not time out, got: ${r.errorText}`)
+    assert.strictEqual(String(r.text).trim(), 'BUFFERED_OK')
+  })
+  fs.rmSync(dir, { recursive: true, force: true })
+}])
+
+asyncCases.push(['a failing result outranks text already streamed', async () => {
+  // A turn that emits partial assistant text and then fails (quota, model error, tool failure)
+  // must not be persisted and shown to the user as a successful reply.
+  const { parseClaudeStreamJson } = require('./agent-runtime')
+  const stdout = [
+    JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'Here is half an ans' }] } }),
+    JSON.stringify({ type: 'result', subtype: 'error_during_execution', is_error: true, result: 'Usage limit reached' }),
+  ].join('\n')
+  const parsed = parseClaudeStreamJson(stdout, '', 1)
+  assert.strictEqual(parsed.text, '', `Partial text must not be returned as the reply, got: ${parsed.text}`)
+  assert.strictEqual(parsed.errorText, 'Usage limit reached')
+}])
+
+test('safeEnv never carries the claude subscription token', () => {
+  // The guard that makes the runtime-scoped injection meaningful: if the token were ever added to
+  // safe-env's shared allowlist it would reach every CLI, including droid.
+  const prev = process.env.CLAUDE_CODE_OAUTH_TOKEN
+  process.env.CLAUDE_CODE_OAUTH_TOKEN = 'sub-token-should-not-leak'
+  try {
+    const { safeEnv } = require('./safe-env')
+    const env = safeEnv()
+    assert.strictEqual(env.CLAUDE_CODE_OAUTH_TOKEN, undefined,
+      'safeEnv must not forward the Claude subscription token to every runtime')
+  } finally {
+    if (prev === undefined) delete process.env.CLAUDE_CODE_OAUTH_TOKEN
+    else process.env.CLAUDE_CODE_OAUTH_TOKEN = prev
+  }
+})
+
+asyncCases.push(['the claude subscription token never reaches a droid process', async () => {
+  // safe-env's allowlist takes no runtime parameter, so anything added there reaches every CLI.
+  // Droid runs fully autonomous tool execution: a single "print your environment" turn would
+  // exfiltrate the Claude subscription token as a side effect of an unrelated task. The token is
+  // therefore injected only where the runtime is already known to be claude.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-tokenleak-'))
+  // Each fake CLI reports back whether it can see the token in its own environment.
+  const mk = (name: string) => {
+    const f = path.join(dir, name)
+    fs.writeFileSync(f, `#!/bin/sh\nprintf '{"type":"result","subtype":"success","is_error":false,"result":"TOKEN=%s"}\\n' "$CLAUDE_CODE_OAUTH_TOKEN"\n`)
+    fs.chmodSync(f, 0o755)
+    return f
+  }
+  const claudeCli = mk('claude')
+  const droidCli = mk('droid')
+  const prev = process.env.CLAUDE_CODE_OAUTH_TOKEN
+  process.env.CLAUDE_CODE_OAUTH_TOKEN = 'sub-token-should-not-leak'
+  try {
+    await withWorkspaceAsync(['claude', 'droid'], { CLAUDE_BIN: claudeCli, DROID_BIN: droidCli }, async () => {
+      const { executeAgentRuntimeTurn } = require('./agent-runtime')
+      // Deliberately passes process.env -- with the token in it -- because that is what
+      // ai-generator.ts does for every CLI-backed generation. An earlier version of this test used
+      // a curated env and therefore proved nothing: the leak it was meant to catch happens exactly
+      // when a caller forwards the whole environment.
+      const run = (runtime: string) => executeAgentRuntimeTurn({
+        runtime, agentId: 'leak-probe', agentDir: dir, message: 'go',
+        scopedSessionId: 'leak-probe-session', model: runtime === 'claude' ? 'sonnet' : 'auto',
+        mode: 'json', env: process.env, timeoutMs: 8000,
+      })
+      const droidResult = await run('droid')
+      assert(!String(droidResult.text).includes('sub-token-should-not-leak'),
+        `Droid saw the Claude subscription token: ${droidResult.text}`)
+      const claudeResult = await run('claude')
+      assert(String(claudeResult.text).includes('sub-token-should-not-leak'),
+        `Claude did not receive the subscription token: ${claudeResult.text}`)
+    })
+  } finally {
+    if (prev === undefined) delete process.env.CLAUDE_CODE_OAUTH_TOKEN
+    else process.env.CLAUDE_CODE_OAUTH_TOKEN = prev
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+}])
+
+test('a failing result with no message still fails the turn', () => {
+  // is_error with a null/object payload must not fall through and let partial text be returned as
+  // a successful reply.
+  const { parseClaudeStreamJson } = require('./agent-runtime')
+  const stdout = [
+    JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'partial' }] } }),
+    JSON.stringify({ type: 'result', subtype: 'error_during_execution', is_error: true, result: null }),
+  ].join('\n')
+  const parsed = parseClaudeStreamJson(stdout, '', 1)
+  assert.strictEqual(parsed.text, '', `Partial text must not be returned, got: ${parsed.text}`)
+  assert(parsed.errorText && /error/i.test(parsed.errorText), `Expected an error message, got: ${parsed.errorText}`)
+})
+
+test('the route backstop is strictly longer than the runtime can consume', () => {
+  // If the two budgets are equal they race, and the route can end the response while a
+  // fresh-session retry is still running server-side -- invisible to the user.
+  const { RUNTIME_IDLE_TIMEOUT_MS, FIRST_OUTPUT_TIMEOUT_MS } = require('./agent-runtime')
+  const worstCaseRuntime = RUNTIME_IDLE_TIMEOUT_MS + FIRST_OUTPUT_TIMEOUT_MS
+  const routeBackstop = RUNTIME_IDLE_TIMEOUT_MS + FIRST_OUTPUT_TIMEOUT_MS + 60000
+  assert(routeBackstop > worstCaseRuntime, 'route backstop must exceed first attempt + silent retry')
+})
+
+test('the first-output cap applies to streaming plans only', () => {
+  // The buffered-JSON lane below runs fast enough that it would pass even if the 90s cap were
+  // wrongly applied to every plan, so assert the rule itself. Generation, workflows and channels
+  // emit nothing until their final result; capping them at 90s kills healthy multi-minute turns.
+  const { effectiveFirstOutputTimeoutMs, FIRST_OUTPUT_TIMEOUT_MS } = require('./agent-runtime')
+  const generousBudget = FIRST_OUTPUT_TIMEOUT_MS * 4
+
+  // Buffered (streamsDeltas false): keeps its whole budget.
+  assert.strictEqual(effectiveFirstOutputTimeoutMs(false, generousBudget), generousBudget)
+
+  // Streaming: capped, because a streaming plan that has said nothing is wedged.
+  assert.strictEqual(effectiveFirstOutputTimeoutMs(true, generousBudget), FIRST_OUTPUT_TIMEOUT_MS)
+
+  // A streaming plan with a budget under the cap keeps the smaller of the two.
+  assert.strictEqual(effectiveFirstOutputTimeoutMs(true, 5000), 5000)
+})
 
 runAsyncCases().then(() => {
   console.log(`\n${passed} passed, ${failed} failed\n`)

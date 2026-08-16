@@ -12,6 +12,10 @@ const workspaceModulePath = require.resolve('../lib/workspace')
 const workspaceIntegrationsModulePath = require.resolve('../lib/workspace-integrations')
 const agentExecutionModulePath = require.resolve('../lib/agent-execution')
 const agentRuntimeModulePath = require.resolve('../lib/agent-runtime')
+// Mirrors CHAT_IDLE_TIMEOUT_MS in routes/chat.ts, which is derived so the route backstop always
+// outlasts a first attempt plus a silent retry.
+const { RUNTIME_IDLE_TIMEOUT_MS, FIRST_OUTPUT_TIMEOUT_MS } = require('../lib/agent-runtime')
+const EXPECTED_CHAT_IDLE_TIMEOUT_MS = RUNTIME_IDLE_TIMEOUT_MS + FIRST_OUTPUT_TIMEOUT_MS + 60000
 const runtimeSessionsModulePath = require.resolve('../lib/runtime-sessions')
 const skillsModulePath = require.resolve('../lib/skills')
 const safeEnvModulePath = require.resolve('../lib/safe-env')
@@ -358,6 +362,46 @@ async function run() {
     })
   })
 
+  await test('the chat route feeds its idle watchdog from runtime activity, not just visible text', async () => {
+    // The delta transformer forwards only assistant text, so tool_use and thinking events never
+    // become deltas. A watchdog rearmed only from onDelta therefore treats a long tool-heavy turn
+    // as silence and kills a healthy agent. This asserts the route passes onActivity through --
+    // testing executeAgentRuntimeTurn directly cannot catch the route dropping that wiring.
+    await withModuleOverrides(agentExecutionModulePath, {
+      resolveAgentExecutionConfig: () => ({
+        workspace: '/tmp/workspace/AGENTS/claude-agent',
+        model: 'sonnet',
+        provider: undefined,
+        runtime: 'claude',
+      }),
+      deriveWorkspaceRootFromAgentWorkspace: () => '/tmp/workspace',
+      runExclusiveAgentExecution: async (_id: string, fn: any) => fn(),
+    }, async () => {
+      await withModuleOverrides(workspaceIntegrationsModulePath, {
+        readWorkspaceIntegrationConfig: () => ({}),
+      }, async () => {
+        await withModuleOverrides(safeEnvModulePath, { userExecutionEnv: () => ({}) }, async () => {
+          let sawOnActivity = false
+          await withModuleOverrides(agentRuntimeModulePath, {
+            executeAgentRuntimeTurn: async (opts: any) => {
+              sawOnActivity = typeof opts.onActivity === 'function'
+              // Prove it is callable and does not throw when invoked mid-turn.
+              if (sawOnActivity) opts.onActivity()
+              opts.onPlan?.({ cliPath: '/usr/local/bin/claude', args: [], streamsDeltas: true })
+              return { text: 'ok' }
+            },
+          }, async () => {
+            const handler = getRouteHandler('post', '/:id/chat')
+            const res = makeRes()
+            await handler(makeReq({ params: { id: 'claude-agent' }, body: { message: 'go' }, on() {} }), res)
+            await new Promise(resolve => setTimeout(resolve, 20))
+            assert.strictEqual(sawOnActivity, true, 'chat route must pass onActivity so tool-only work counts as liveness')
+          })
+        })
+      })
+    })
+  })
+
   await test('chat readiness surfaces a runtime plan failure to the user', async () => {
     await withModuleOverrides(agentExecutionModulePath, {
       resolveAgentExecutionConfig: () => ({
@@ -543,9 +587,12 @@ async function run() {
     const log: string[] = []
     const originalSetTimeout = global.setTimeout
     ;(global as any).setTimeout = ((handler: (...args: any[]) => void, delay?: number, ...args: any[]) => {
-      if (delay === 180000) {
+      // Derived, not hardcoded: this spy has gone stale twice as the allowance changed, silently
+      // counting zero arms and reporting a failure that had nothing to do with the behaviour under
+      // test (arm on execution start, not request arrival).
+      if (delay === EXPECTED_CHAT_IDLE_TIMEOUT_MS) {
         log.push('watchdog-armed')
-        // Never let the real 3-minute watchdog fire inside the test — clearTimeout() silently
+        // Never let the real idle watchdog fire inside the test — clearTimeout() silently
         // no-ops on a non-Timeout value, so a bare object is a safe inert stand-in.
         return {} as any
       }

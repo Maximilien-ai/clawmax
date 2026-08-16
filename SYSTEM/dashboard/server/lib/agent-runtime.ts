@@ -232,6 +232,35 @@ export function runtimeAcceptsModelId(runtimeModels: string[], model?: string): 
   return runtimeModels.includes(value) || runtimeModels.includes(bare)
 }
 
+/**
+ * The Claude Code subscription token, when the deployment supplies one.
+ *
+ * Produced by `claude setup-token` on a machine with a browser and set on the container. It is a
+ * distinct credential from an interactive host login, which is the point: a host login's refresh
+ * token rotates, so a copy shared with the container invalidates whichever side refreshes second.
+ * This token does not participate in that rotation.
+ *
+ * Read at spawn time rather than captured at import, so recreating the container with a new value
+ * takes effect on the next turn without any in-process caching to invalidate.
+ */
+/**
+ * A copy of `env` with the Claude-specific credential removed.
+ *
+ * Enforced here, at the one place every runtime spawn passes through, because callers vary: some
+ * build a curated env via safeEnv(), others forward `process.env` wholesale.
+ */
+export function withoutClaudeCredentials(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  if (!('CLAUDE_CODE_OAUTH_TOKEN' in env)) return env
+  const { CLAUDE_CODE_OAUTH_TOKEN, ...rest } = env
+  void CLAUDE_CODE_OAUTH_TOKEN
+  return rest
+}
+
+export function claudeSubscriptionToken(): string | undefined {
+  const value = String(process.env.CLAUDE_CODE_OAUTH_TOKEN || '').trim()
+  return value || undefined
+}
+
 export function runtimeModelArg(rt: AgentRuntimeId, model?: string): string | undefined {
   if (rt === 'claude') {
     // Aliases carry no provider prefix and are what the picker now offers.
@@ -416,10 +445,15 @@ export function parseClaudeStreamJson(
     try { event = JSON.parse(trimmed) } catch { continue }
     if (event?.type === 'result') {
       // A failing result carries its message in the same `result` field; treating it as the
-      // answer would surface an error to the user as if the agent had replied it.
-      if (typeof event.result === 'string') {
-        if (event.is_error) errorFromEvents = event.result
-        else finalResult = event.result
+      // answer would surface an error to the user as if the agent had replied it. A failure with
+      // a non-string payload (null, or an object) must still register as a failure -- otherwise
+      // the partial text streamed before it is returned as a successful reply.
+      if (event.is_error) {
+        errorFromEvents = typeof event.result === 'string' && event.result.trim()
+          ? event.result
+          : `${runtimeLabel('claude')} reported an error without a message${event.subtype ? ` (${event.subtype})` : ''}.`
+      } else if (typeof event.result === 'string') {
+        finalResult = event.result
       }
       continue
     }
@@ -428,9 +462,12 @@ export function parseClaudeStreamJson(
       if (block?.type === 'text' && typeof block.text === 'string') parts.push(block.text)
     }
   }
+  // A failing result outranks anything already streamed. A turn that emits partial text and then
+  // fails (quota, model error, tool failure) must not be persisted and shown as a successful reply.
+  if (errorFromEvents) return { text: '', errorText: errorFromEvents }
   const text = (finalResult || parts.join('')).trim()
   if (text) return { text }
-  const failure = errorFromEvents || (stderr || '').trim()
+  const failure = (stderr || '').trim()
   return { text: '', errorText: failure || silentExitMessage('claude', exitCode) }
 }
 
@@ -505,13 +542,64 @@ interface RunOnceResult {
   stderr: string
   exitCode: number | null
   timedOut: boolean
+  /** True when the deadline fired before the CLI produced anything at all, rather than after it
+   *  streamed and then went quiet. The two are different failures and read differently to a user. */
+  timedOutWithoutOutput?: boolean
+}
+
+/**
+ * How long a runtime CLI may produce *nothing at all* before it is treated as wedged.
+ *
+ * Separate from the idle allowance on purpose. With `--output-format stream-json` the CLI emits an
+ * init event within seconds, so total silence past this point means it is not going to speak --
+ * typically a resumed session that will never respond. Failing fast here is what lets the
+ * fresh-session recovery run while the caller is still waiting, instead of after the full
+ * idle allowance has burned.
+ */
+/**
+ * Idle allowance for one runtime attempt: how long a turn may stay silent after it has started
+ * speaking. Exported so the chat route can derive a strictly longer backstop -- if the two are
+ * equal they race, and the route can end the response while a fresh-session retry is still running
+ * server-side, which is invisible to the user.
+ */
+export const RUNTIME_IDLE_TIMEOUT_MS = 600000
+
+export const FIRST_OUTPUT_TIMEOUT_MS = 90000
+
+/**
+ * How long a plan may produce nothing before it is treated as wedged.
+ *
+ * Only a plan that streams is expected to speak early. Buffered JSON modes (generation, workflows,
+ * channels) legitimately emit nothing until the final result, so the short first-output cap must
+ * not apply to them or a healthy multi-minute turn is killed at 90s. Extracted so that rule is
+ * assertable directly: a test that merely runs a fast buffered turn cannot distinguish the two.
+ */
+/**
+ * Whether a runtime turn ended on a deadline, in either class.
+ *
+ * Callers used to compare against the bare string 'timeout'. Splitting the classes would have made
+ * every one of those comparisons silently miss, leaking the raw sentinel to users as their error
+ * message, so the check lives here instead of being repeated at four call sites.
+ */
+export function isRuntimeTimeoutError(errorText?: string): boolean {
+  return errorText === 'timeout' || errorText === 'timeout-no-output'
+}
+
+export function effectiveFirstOutputTimeoutMs(streamsDeltas: boolean, timeoutMs: number): number {
+  return streamsDeltas ? Math.min(timeoutMs, FIRST_OUTPUT_TIMEOUT_MS) : timeoutMs
 }
 
 function runOnce(
   plan: RuntimePlan,
   env: NodeJS.ProcessEnv,
   timeoutMs: number,
-  onChunk?: (text: string) => void
+  onChunk?: (text: string) => void,
+  /**
+   * Fires on every byte the CLI produces, including tool calls and thinking that never become
+   * visible text. Callers use it for liveness: a turn doing fifteen minutes of tool work emits
+   * almost no assistant prose, so a watchdog fed only by visible deltas kills a healthy turn.
+   */
+  onActivity?: () => void,
 ): Promise<RunOnceResult> {
   return new Promise((resolve) => {
     if (!plan.cliPath) {
@@ -550,14 +638,19 @@ function runOnce(
       resolve(result)
     }
 
-    // The deadline measures *silence*, not total runtime. A real agent turn -- research, writing
-    // files, running tools -- legitimately runs for many minutes while streaming output the whole
-    // time, and a total-duration cap killed exactly those turns. A wedged session produces nothing
-    // at all, so it still trips this quickly.
-    const armDeadline = () => setTimeout(onDeadline, timeoutMs)
+    // Two different deadlines, because "has not spoken yet" and "has gone quiet" are different
+    // failures. A turn that has produced nothing at all is very likely wedged -- with stream-json
+    // the CLI emits its init event within seconds -- so it must fail fast. A turn that has been
+    // streaming and then pauses is doing tool work and deserves the full idle allowance. Using one
+    // generous deadline for both meant a wedged session took the whole allowance to fail: a bare
+    // "ping" sat for ten minutes before erroring.
+    const firstOutputMs = effectiveFirstOutputTimeoutMs(plan.streamsDeltas, timeoutMs)
+    let sawOutput = false
+    const armDeadline = () => setTimeout(onDeadline, sawOutput ? timeoutMs : firstOutputMs)
     let timer: NodeJS.Timeout
     const bumpDeadline = () => {
       if (settled) return
+      sawOutput = true
       clearTimeout(timer)
       timer = armDeadline()
     }
@@ -576,7 +669,7 @@ function runOnce(
       // pipe closed, and a surviving grandchild holds stdout open indefinitely — so waiting for it
       // meant the turn never returned, the caller's recovery never ran, and the request stayed
       // wedged server-side while the user only saw the route's own timeout message.
-      settle({ stdout, stderr, exitCode: null, timedOut: true }, { keepEscalation: true })
+      settle({ stdout, stderr, exitCode: null, timedOut: true, timedOutWithoutOutput: !sawOutput }, { keepEscalation: true })
     }
     timer = armDeadline()
 
@@ -584,11 +677,13 @@ function runOnce(
       const text = chunk.toString()
       stdout += text
       bumpDeadline()
+      onActivity?.()
       if (onChunk) onChunk(text)
     })
     child.stderr.on('data', (chunk: Buffer) => {
       stderr += chunk.toString()
       bumpDeadline()
+      onActivity?.()
     })
     child.on('error', (err) => {
       settle({ stdout, stderr: stderr || err.message || String(err), exitCode: null, timedOut })
@@ -629,14 +724,28 @@ export async function runRuntimeCli(o: {
   agentId: string
   scopedSessionId: string
   onDelta?: (text: string) => void
+  onActivity?: () => void
 }): Promise<{ text: string; errorText?: string }> {
   // Claude Code refuses --dangerously-skip-permissions when running as root (e.g. inside the
   // container image, which runs as root) unless IS_SANDBOX marks a controlled environment. The
   // dashboard always runs claude non-interactively with that flag, so opt in when we are root.
   const runningAsRoot = typeof process.getuid === 'function' && process.getuid() === 0
-  const effectiveEnv: NodeJS.ProcessEnv = o.runtime === 'claude' && runningAsRoot
-    ? { ...o.env, IS_SANDBOX: '1' }
-    : o.env
+  // Claude Code's credential is injected HERE, where the runtime is already known — deliberately
+  // not via safe-env's allowlist. That allowlist takes no runtime parameter (safe-env.ts returns
+  // one merged object for every CLI), so anything added there also reaches Factory Droid, which
+  // runs fully autonomous tool execution: a single "print your environment" turn would exfiltrate
+  // the Claude subscription token as a side effect of an unrelated task.
+  const effectiveEnv: NodeJS.ProcessEnv = o.runtime === 'claude'
+    ? {
+        ...o.env,
+        ...(runningAsRoot ? { IS_SANDBOX: '1' } : {}),
+        ...(claudeSubscriptionToken() ? { CLAUDE_CODE_OAUTH_TOKEN: claudeSubscriptionToken() as string } : {}),
+      }
+    // Strip it for every other runtime rather than trusting callers to hand over a clean env.
+    // Not all of them do: ai-generator passes `process.env` straight through, so a container-level
+    // token would otherwise be inherited by a Droid generation. Droid runs fully autonomous tool
+    // execution, so a single "print your environment" turn would exfiltrate the Claude credential.
+    : withoutClaudeCredentials(o.env)
 
 
   // A claude turn may need a second attempt on a fresh session. Both must fit inside the budget
@@ -655,12 +764,16 @@ export async function runRuntimeCli(o: {
     const onChunk = rawDelta && o.runtime === 'claude'
       ? createClaudeStreamDeltaTransformer(rawDelta)
       : rawDelta
-    const result = await runOnce(plan, effectiveEnv, timeoutMs, onChunk)
+    const result = await runOnce(plan, effectiveEnv, timeoutMs, onChunk, o.onActivity)
     if (result.timedOut) {
       // Keep whatever the CLI streamed before the deadline. Discarding it made every timeout look
       // like "no output at all", so the partial-output case could never reach the retry decision.
       const partial = parseRuntimeResult(o.runtime, o.mode, result.stdout, result.stderr, result.exitCode)
-      return { result, text: partial.text || '', errorText: 'timeout' as const }
+      return {
+        result,
+        text: partial.text || '',
+        errorText: (result.timedOutWithoutOutput ? 'timeout-no-output' : 'timeout') as 'timeout' | 'timeout-no-output',
+      }
     }
     const parsed = parseRuntimeResult(o.runtime, o.mode, result.stdout, result.stderr, result.exitCode)
     if (!parsed.errorText && !plan.streamsDeltas && o.onDelta) {
@@ -730,6 +843,12 @@ export interface AgentRuntimeTurnOptions {
   onDelta?: (text: string) => void
   /** Called once the spawn plan is resolved and the CLI is known to exist (for logging). */
   onPlan?: (plan: RuntimePlan) => void
+  /**
+   * Fires on every byte the CLI produces, including tool calls and thinking that never become
+   * visible text. Callers use it for liveness. A watchdog fed only by visible deltas kills a
+   * healthy turn: an agent doing a long stretch of tool work emits almost no assistant prose.
+   */
+  onActivity?: () => void
 }
 
 export interface AgentRuntimeTurnResult {
@@ -761,6 +880,7 @@ export async function executeAgentRuntimeTurn(o: AgentRuntimeTurnOptions): Promi
     plan,
     env: o.env,
     timeoutMs: o.timeoutMs,
+    onActivity: o.onActivity,
     rebuildPlan,
     runtime: o.runtime,
     mode: o.mode,

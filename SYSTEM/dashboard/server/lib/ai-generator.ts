@@ -4,7 +4,7 @@ import { resolveSystemExecutionProviderKeys, resolveUserExecutionProviderKeys, P
 import { getPreferredAnthropicModel } from './model-discovery'
 import { getBestAvailableModel } from './dashboard-env'
 import { readWorkspaceIntegrationConfig } from './workspace-integrations'
-import { CLAUDE_MODEL_ALIASES, executeAgentRuntimeTurn, resolveEnabledRuntimes, resolveRuntimeCliPath, type AgentRuntimeId } from './agent-runtime'
+import { CLAUDE_MODEL_ALIASES, executeAgentRuntimeTurn, resolveEnabledRuntimes, resolveRuntimeCliPath, type AgentRuntimeId, isRuntimeTimeoutError } from './agent-runtime'
 import { getModelLifecycleEntry } from './openAiModelLifecycle'
 import { randomUUID } from 'crypto'
 import { getWorkspacePath } from './workspace'
@@ -586,7 +586,7 @@ export function buildCliRuntimeClient(runtime: AgentRuntimeId): { client: OpenAI
           // A missing CLI is already known structurally here. Tag it rather than making the
           // fallback re-derive it by pattern-matching the message back out of the Error.
           if (missingCliError) throw markCliUnavailable(new Error(missingCliError))
-          if (errorText) throw new Error(errorText === 'timeout' ? 'AI generation timed out' : errorText)
+          if (errorText) throw new Error(isRuntimeTimeoutError(errorText) ? 'AI generation timed out' : errorText)
           return { choices: [{ message: { role: 'assistant', content: text }, finish_reason: 'stop' }] }
         },
       },
