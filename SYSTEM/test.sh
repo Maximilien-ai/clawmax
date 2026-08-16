@@ -2646,8 +2646,8 @@ fi
 
 echo -e "${YELLOW}→ Running dashboard test-run lock contract tests...${NC}"
 bash "$SYSTEM_DIR/test-run-lock.test.sh" > /tmp/clawmax-test-run-lock.out 2>&1 || true
-if grep -q "test-run-lock.test.sh: 11 tests passed" /tmp/clawmax-test-run-lock.out; then
-  pass "Dashboard test-run lock contract tests (11 tests)"
+if grep -q "test-run-lock.test.sh: 13 tests passed" /tmp/clawmax-test-run-lock.out; then
+  pass "Dashboard test-run lock contract tests (13 tests)"
 else
   cat /tmp/clawmax-test-run-lock.out
   fail "Dashboard test-run lock contract tests"
