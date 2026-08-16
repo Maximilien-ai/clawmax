@@ -4100,20 +4100,21 @@ fi
 # Test get specific workflow (if any exist)
 if [ "$workflow_count" -gt 0 ]; then
   first_workflow_id=$(apicurl "$API_BASE/api/workflows" | jq -r '.workflows[0].id')
-  test_api "Get workflow by ID" "/api/workflows/$first_workflow_id"
-  test_json_field "Workflow has name" "/api/workflows/$first_workflow_id" ".name"
-  test_json_field "Workflow has schedule" "/api/workflows/$first_workflow_id" ".schedule"
-  test_json_field "Workflow has targeting" "/api/workflows/$first_workflow_id" ".targeting"
-  test_json_field "Workflow has content" "/api/workflows/$first_workflow_id" ".content"
-  test_json_field "Workflow has scheduleHuman" "/api/workflows/$first_workflow_id" ".scheduleHuman"
+  first_workflow_path_id=$(jq -rn --arg value "$first_workflow_id" '$value | @uri')
+  test_api "Get workflow by ID" "/api/workflows/$first_workflow_path_id"
+  test_json_field "Workflow has name" "/api/workflows/$first_workflow_path_id" ".name"
+  test_json_field "Workflow has schedule" "/api/workflows/$first_workflow_path_id" ".schedule"
+  test_json_field "Workflow has targeting" "/api/workflows/$first_workflow_path_id" ".targeting"
+  test_json_field "Workflow has content" "/api/workflows/$first_workflow_path_id" ".content"
+  test_json_field "Workflow has scheduleHuman" "/api/workflows/$first_workflow_path_id" ".scheduleHuman"
 
   # Test participants endpoint
-  test_api "Get workflow participants" "/api/workflows/$first_workflow_id/participants"
-  test_json_field "Participants array" "/api/workflows/$first_workflow_id/participants" ".participants"
+  test_api "Get workflow participants" "/api/workflows/$first_workflow_path_id/participants"
+  test_json_field "Participants array" "/api/workflows/$first_workflow_path_id/participants" ".participants"
 
   # Test executions endpoint
-  test_api "Get workflow executions" "/api/workflows/$first_workflow_id/executions"
-  test_json_field "Executions array" "/api/workflows/$first_workflow_id/executions" ".executions"
+  test_api "Get workflow executions" "/api/workflows/$first_workflow_path_id/executions"
+  test_json_field "Executions array" "/api/workflows/$first_workflow_path_id/executions" ".executions"
 else
   warn "No workflows found for detailed testing"
 fi
