@@ -179,11 +179,13 @@ test('claude advertises aliases only when its CLI is present', () => {
 })
 
 
-asyncCases.push(['a completed CLI request clears its timeout instead of leaking it', async () => {
+asyncCases.push(['a CLI request arms NO timer at all -- not even one it later clears', async () => {
   await withWorkspaceAsync(['droid'], { DROID_BIN: realBinary }, async () => {
   const { createChatCompletionWithCompatibilityRetry } = require('./ai-generator')
-  // Count timers created and cleared across the call. A leaked 245s timer would show as an
-  // unmatched creation and, in the server, keep a closure alive per request.
+  // This used to assert arm-and-clear: a 245s deadline was armed and had to be cleared so it did
+  // not leak. That deadline is gone -- a CLI-backed generation is an agent turn and gets no clock,
+  // like every other turn. Asserting zero timers is strictly stronger: arm-and-clear would still
+  // pass with a deadline present, which is exactly how the 245s cap survived the first sweep.
   const realSet = global.setTimeout, realClear = global.clearTimeout
   let created = 0, cleared = 0
   ;(global as any).setTimeout = (...args: any[]) => { created++; return (realSet as any)(...args) }
@@ -196,32 +198,30 @@ asyncCases.push(['a completed CLI request clears its timeout instead of leaking 
     ;(global as any).setTimeout = realSet
     ;(global as any).clearTimeout = realClear
   }
-  assert(created > 0, 'Expected the request to arm a timeout')
-  assert.strictEqual(cleared, created, `Armed ${created} timers but cleared ${cleared}`)
+  assert.strictEqual(created, 0, `A CLI-backed request must arm no deadline; armed ${created}`)
   })
 }])
 
-asyncCases.push(['a CLI that ignores SIGTERM is escalated to SIGKILL', async () => {
-  const { runRuntimeCli } = require('./agent-runtime')
-  // A shell that traps SIGTERM and keeps running — exactly the case SIGTERM alone cannot end.
+asyncCases.push(['a cancelled CLI that ignores SIGTERM is escalated to SIGKILL', async () => {
+  const { runRuntimeCli, RUNTIME_CANCELLED } = require('./agent-runtime')
+  // A shell that traps SIGTERM and keeps running -- exactly the case SIGTERM alone cannot end.
   const plan = {
     cliPath: '/bin/sh',
     args: ['-c', 'trap "" TERM; while true; do sleep 0.2; done'],
     missingCliError: 'unused',
     streamsDeltas: false,
   }
+  const controller = new AbortController()
   const started = Date.now()
+  setTimeout(() => controller.abort(), 300)
   const { errorText } = await runRuntimeCli({
-    plan, env: process.env, timeoutMs: 1000, rebuildPlan: () => plan,
+    plan, env: process.env, signal: controller.signal, rebuildPlan: () => plan,
     runtime: 'droid', mode: 'json', agentId: 'kill-test', scopedSessionId: 'kill-test',
   })
   const elapsed = Date.now() - started
-  // A CLI that never writes anything times out in the no-output class, which is reported
-  // separately from "streamed, then went quiet" so the user-facing message can be accurate.
-  assert.strictEqual(errorText, 'timeout-no-output', `Expected a no-output timeout, got: ${errorText}`)
+  assert.strictEqual(errorText, RUNTIME_CANCELLED, `Expected a cancellation, got: ${errorText}`)
   assert(elapsed < 8000, `Expected escalation to end it quickly, took ${elapsed}ms`)
 }])
-
 async function asyncTest(name: string, fn: () => Promise<void>) {
   try { await fn(); console.log(`${GREEN}✓${RESET} ${name}`); passed++ }
   catch (err: any) { console.log(`${RED}✗${RESET} ${name}`); console.log(`  ${err.message}`); failed++ }
@@ -252,7 +252,11 @@ async function runAsyncCases() {
         const { buildCliRuntimeClient, createChatCompletionWithCompatibilityRetry } = require('./ai-generator')
         const { client } = buildCliRuntimeClient('droid')
         await client.chat.completions.create({ messages: [{ role: 'user', content: 'hi' }] })
-        assert(calls[0].timeoutMs > 45000, `CLI needs more than the hosted default; got ${calls[0].timeoutMs}ms`)
+        // A CLI generation used to need a bigger budget than the hosted default. It now needs no
+        // budget at all -- but it must still be cancellable, or the child outlives every caller.
+        assert.strictEqual(calls[0].timeoutMs, undefined, 'a CLI turn must carry no deadline')
+        assert(calls[0].signal && typeof calls[0].signal.aborted === 'boolean',
+          'a CLI turn must be given an AbortSignal, or nothing can ever stop it')
 
         // The retry helper must extend its own race past that deadline for a CLI-backed client;
         // otherwise it rejects first and leaves the child process running.
@@ -359,41 +363,40 @@ asyncCases.push(['concurrent generations do not report each other\'s provider', 
   })
 }])
 
-asyncCases.push(['a CLI whose grandchild holds stdout still settles at its deadline', async () => {
+asyncCases.push(['a cancelled CLI whose grandchild holds stdout still settles', async () => {
   // The turn used to resolve only on the child's "close" event, which needs every stdio pipe
   // closed. Killing the CLI does not kill the processes it spawned, and those inherit stdout --
   // so the promise never settled, the caller's recovery never ran, and the request stayed wedged
-  // server-side while the user saw only the route's own timeout message.
+  // server-side. With no deadline left, cancellation is the only thing that can end this, so
+  // settling off the SIGKILL escalation is what stops it hanging forever.
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-hang-'))
   const fakeCli = path.join(dir, 'claude')
-  // Backgrounds a grandchild that outlives the shell and keeps the inherited stdout open.
   fs.writeFileSync(fakeCli, '#!/bin/sh\nsleep 900 &\nsleep 900\n')
   fs.chmodSync(fakeCli, 0o755)
   await withWorkspaceAsync(['claude'], { CLAUDE_BIN: fakeCli }, async () => {
     const { executeAgentRuntimeTurn } = require('./agent-runtime')
+    const controller = new AbortController()
     const started = Date.now()
+    setTimeout(() => controller.abort(), 500)
     const result = await Promise.race([
       executeAgentRuntimeTurn({
         runtime: 'claude', agentId: 'hang-probe', agentDir: dir, message: 'hi',
         scopedSessionId: 'hang-probe-session', model: 'sonnet', mode: 'chat',
-        env: process.env, timeoutMs: 2000,
+        env: process.env, signal: controller.signal,
       }),
       new Promise((resolve) => setTimeout(() => resolve('NEVER_SETTLED'), 20000)),
     ])
     const elapsed = Date.now() - started
     assert.notStrictEqual(result, 'NEVER_SETTLED', `Turn never settled after ${elapsed}ms`)
-    assert(elapsed < 15000, `Expected the turn to settle near its 2s deadline, took ${elapsed}ms`)
+    assert(elapsed < 15000, `Expected the turn to settle shortly after cancel, took ${elapsed}ms`)
   })
   fs.rmSync(dir, { recursive: true, force: true })
 }])
-
-asyncCases.push(['a CLI that keeps streaming is not killed by the deadline', async () => {
+asyncCases.push(['a CLI that keeps streaming runs to completion, uncapped', async () => {
   // The deadline used to measure total runtime, so a real research turn -- minutes of work while
-  // streaming the whole time -- was killed mid-flight. It now measures silence.
+  // streaming the whole time -- was killed mid-flight. There is no cap at all now.
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-stream-'))
   const cli = path.join(dir, 'claude')
-  // Streams for ~4s in small steps, well past the 1.5s idle allowance below. claude chat parses
-  // stream-json, so the fixture emits events rather than prose.
   const event = JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'chunk' }] } })
   fs.writeFileSync(cli, `#!/bin/sh\ni=0\nwhile [ $i -lt 8 ]; do echo '${event}'; sleep 0.5; i=$((i+1)); done\n`)
   fs.chmodSync(cli, 0o755)
@@ -403,40 +406,42 @@ asyncCases.push(['a CLI that keeps streaming is not killed by the deadline', asy
     const r = await executeAgentRuntimeTurn({
       runtime: 'claude', agentId: 'stream-probe', agentDir: dir, message: 'hi',
       scopedSessionId: 'stream-probe-session', model: 'sonnet', mode: 'chat',
-      env: process.env, timeoutMs: 1500,
+      env: process.env, signal: new AbortController().signal,
     })
     const elapsed = Date.now() - started
-    assert(elapsed > 2500, `Expected the streaming turn to outlive a 1.5s total cap, took ${elapsed}ms`)
-    assert.strictEqual(r.errorText, undefined, `Streaming turn should not time out, got: ${r.errorText}`)
+    assert(elapsed > 2500, `Expected the streaming turn to run its full length, took ${elapsed}ms`)
+    assert.strictEqual(r.errorText, undefined, `Streaming turn should not fail, got: ${r.errorText}`)
     assert(String(r.text).includes('chunk'), `Expected streamed text, got: ${String(r.text).slice(0, 80)}`)
   })
   fs.rmSync(dir, { recursive: true, force: true })
 }])
-
-asyncCases.push(['a CLI that never speaks fails fast, not after the full idle allowance', async () => {
-  // A wedged resumed session produces nothing at all. Giving it the same generous allowance as a
-  // working turn meant a bare "ping" sat for ten minutes before erroring.
+asyncCases.push(['a CLI that never speaks is NOT killed -- silence is not a failure', async () => {
+  // The inverse of what this used to assert. A turn that has produced nothing was treated as
+  // wedged and killed on a short first-output deadline; but agent work is legitimately silent for
+  // long stretches, and a measured 21-minute research turn went quiet for 316s while working.
+  // Only cancellation ends a turn now, so a silent CLI must still be running until one arrives.
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-silent-'))
   const cli = path.join(dir, 'claude')
   fs.writeFileSync(cli, '#!/bin/sh\nsleep 900\n')
   fs.chmodSync(cli, 0o755)
   await withWorkspaceAsync(['claude'], { CLAUDE_BIN: cli }, async () => {
-    const { executeAgentRuntimeTurn, FIRST_OUTPUT_TIMEOUT_MS } = require('./agent-runtime')
-    assert(FIRST_OUTPUT_TIMEOUT_MS < 600000, 'first-output deadline must be well under the idle allowance')
+    const { executeAgentRuntimeTurn, RUNTIME_CANCELLED } = require('./agent-runtime')
+    const controller = new AbortController()
     const started = Date.now()
-    // Idle allowance of 60s, but nothing is ever produced: the first-output deadline must win.
+    // Long enough that every deleted deadline (90s first-output was the shortest) would have
+    // fired first had it survived; the turn must still be alive when this cancel lands.
+    setTimeout(() => controller.abort(), 2000)
     const r = await executeAgentRuntimeTurn({
       runtime: 'claude', agentId: 'silent-probe', agentDir: dir, message: 'ping',
       scopedSessionId: 'silent-probe-session', model: 'sonnet', mode: 'chat',
-      env: process.env, timeoutMs: 5000,
+      env: process.env, signal: controller.signal,
     })
     const elapsed = Date.now() - started
-    assert.strictEqual(r.errorText, 'timeout-no-output', `Expected a no-output timeout, got: ${r.errorText}`)
-    assert(elapsed < 20000, `Silent CLI should fail on the shorter of the two deadlines, took ${elapsed}ms`)
+    assert.strictEqual(r.errorText, RUNTIME_CANCELLED, `Expected cancellation, got: ${r.errorText}`)
+    assert(elapsed >= 1900, `The silent turn must survive until cancelled, ended after ${elapsed}ms`)
   })
   fs.rmSync(dir, { recursive: true, force: true })
 }])
-
 asyncCases.push(['tool-only activity counts as liveness, not silence', async () => {
   // An agent doing a long stretch of tool work emits almost no assistant prose. A watchdog fed
   // only by visible deltas treats that as silence and kills a healthy turn -- the failure mode
@@ -455,7 +460,7 @@ asyncCases.push(['tool-only activity counts as liveness, not silence', async () 
     const r = await executeAgentRuntimeTurn({
       runtime: 'claude', agentId: 'toolonly-probe', agentDir: dir, message: 'go',
       scopedSessionId: 'toolonly-probe-session', model: 'sonnet', mode: 'chat',
-      env: process.env, timeoutMs: 1200,
+      env: process.env, signal: new AbortController().signal,
       onDelta: (t: string) => deltas.push(t),
       onActivity: () => { activity++ },
     })
@@ -463,8 +468,9 @@ asyncCases.push(['tool-only activity counts as liveness, not silence', async () 
     assert.strictEqual(deltas.length, 0, `Expected no visible deltas, got ${deltas.length}`)
     // ...but activity fired repeatedly, which is what keeps the caller's watchdog alive.
     assert(activity >= 5, `Expected tool events to report activity, got ${activity}`)
-    // ...and the turn survived well past the 1.2s allowance because activity rearmed the deadline.
-    assert.strictEqual(r.errorText, undefined, `Tool-only turn should not time out, got: ${r.errorText}`)
+    // ...and the turn completed normally. Activity is what the UI uses to show a long silent turn
+    // is alive, now that nothing kills it for being quiet.
+    assert.strictEqual(r.errorText, undefined, `Tool-only turn should not fail, got: ${r.errorText}`)
     assert.strictEqual(String(r.text).trim(), 'done')
   })
   fs.rmSync(dir, { recursive: true, force: true })
@@ -481,16 +487,15 @@ asyncCases.push(['a buffered JSON turn is not killed by the first-output cap', a
   fs.writeFileSync(cli, `#!/bin/sh\nsleep 2\necho '${envelope}'\n`)
   fs.chmodSync(cli, 0o755)
   await withWorkspaceAsync(['droid'], { DROID_BIN: cli }, async () => {
-    const { executeAgentRuntimeTurn, FIRST_OUTPUT_TIMEOUT_MS } = require('./agent-runtime')
-    // Budget is far below the first-output cap: if the cap were applied here it could not matter,
-    // so instead assert the turn completes on its own generous budget while silent throughout.
-    assert(FIRST_OUTPUT_TIMEOUT_MS >= 90000, 'first-output cap should be the long one, guarding streaming plans only')
+    const { executeAgentRuntimeTurn } = require('./agent-runtime')
+    // droid emits nothing until its final envelope, so it is silent for its whole run. Nothing may
+    // read that silence as a failure -- and for droid there was never any mid-run signal to read.
     const r = await executeAgentRuntimeTurn({
       runtime: 'droid', agentId: 'buffered-probe', agentDir: dir, message: 'go',
       scopedSessionId: 'buffered-probe-session', model: 'auto', mode: 'json',
-      env: process.env, timeoutMs: 10000,
+      env: process.env, signal: new AbortController().signal,
     })
-    assert.strictEqual(r.errorText, undefined, `Buffered JSON turn should not time out, got: ${r.errorText}`)
+    assert.strictEqual(r.errorText, undefined, `Buffered JSON turn should not fail, got: ${r.errorText}`)
     assert.strictEqual(String(r.text).trim(), 'BUFFERED_OK')
   })
   fs.rmSync(dir, { recursive: true, force: true })
@@ -552,7 +557,7 @@ asyncCases.push(['the claude subscription token never reaches a droid process', 
       const run = (runtime: string) => executeAgentRuntimeTurn({
         runtime, agentId: 'leak-probe', agentDir: dir, message: 'go',
         scopedSessionId: 'leak-probe-session', model: runtime === 'claude' ? 'sonnet' : 'auto',
-        mode: 'json', env: process.env, timeoutMs: 8000,
+        mode: 'json', env: process.env, signal: new AbortController().signal,
       })
       const droidResult = await run('droid')
       assert(!String(droidResult.text).includes('sub-token-should-not-leak'),
@@ -581,30 +586,48 @@ test('a failing result with no message still fails the turn', () => {
   assert(parsed.errorText && /error/i.test(parsed.errorText), `Expected an error message, got: ${parsed.errorText}`)
 })
 
-test('the route backstop is strictly longer than the runtime can consume', () => {
-  // If the two budgets are equal they race, and the route can end the response while a
-  // fresh-session retry is still running server-side -- invisible to the user.
-  const { RUNTIME_IDLE_TIMEOUT_MS, FIRST_OUTPUT_TIMEOUT_MS } = require('./agent-runtime')
-  const worstCaseRuntime = RUNTIME_IDLE_TIMEOUT_MS + FIRST_OUTPUT_TIMEOUT_MS
-  const routeBackstop = RUNTIME_IDLE_TIMEOUT_MS + FIRST_OUTPUT_TIMEOUT_MS + 60000
-  assert(routeBackstop > worstCaseRuntime, 'route backstop must exceed first attempt + silent retry')
-})
+test('no turn deadline survives anywhere in the runtime or its spawn sites', () => {
+  // Guards against a deadline creeping back in under a new name. The requirement is that a turn runs
+  // for as long as the task takes, so any timer that can end a turn is a regression -- and an
+  // arithmetic test over the old constants could not catch a differently-named one.
+  const runtime = require('./agent-runtime')
+  for (const name of ['RUNTIME_IDLE_TIMEOUT_MS', 'FIRST_OUTPUT_TIMEOUT_MS', 'effectiveFirstOutputTimeoutMs', 'isRuntimeTimeoutError']) {
+    assert.strictEqual(runtime[name], undefined, `${name} must not exist: turns have no deadline`)
+  }
 
-test('the first-output cap applies to streaming plans only', () => {
-  // The buffered-JSON lane below runs fast enough that it would pass even if the 90s cap were
-  // wrongly applied to every plan, so assert the rule itself. Generation, workflows and channels
-  // emit nothing until their final result; capping them at 90s kills healthy multi-minute turns.
-  const { effectiveFirstOutputTimeoutMs, FIRST_OUTPUT_TIMEOUT_MS } = require('./agent-runtime')
-  const generousBudget = FIRST_OUTPUT_TIMEOUT_MS * 4
+  // agent-runtime owns no timer at all now: the one legitimate timer (SIGTERM -> SIGKILL) moved into
+  // process-tree's cancelProcessTree, which is armed by cancellation and never by elapsed time.
+  const runtimeSource = fs.readFileSync(path.join(__dirname, 'agent-runtime.ts'), 'utf-8')
+  const runtimeTimers = runtimeSource.split('\n').filter((line) => /setTimeout\(|setInterval\(/.test(line))
+  assert.strictEqual(runtimeTimers.length, 0, `agent-runtime.ts must arm no timers, found:\n${runtimeTimers.join('\n')}`)
 
-  // Buffered (streamsDeltas false): keeps its whole budget.
-  assert.strictEqual(effectiveFirstOutputTimeoutMs(false, generousBudget), generousBudget)
+  // Every raw spawn site must likewise carry no turn-ending timer of its own. These are the five
+  // places that used to hand-roll the kill dance, and each grew its own deadline before.
+  //
+  // The rule: a setTimeout whose body kills a process or rejects a promise is a turn deadline unless
+  // it is explicitly annotated. Annotating forces the next person adding one to say why it is not a
+  // deadline, which is the only thing that reliably stops one reappearing under a new name.
+  const ALLOW = '// not-a-turn-deadline:'
+  for (const rel of ['../routes/chat.ts', '../routes/channels.ts', '../routes/agents.ts', './workflows.ts']) {
+    const lines = fs.readFileSync(path.join(__dirname, rel), 'utf-8').split('\n')
+    const offenders: string[] = []
+    lines.forEach((line: string, idx: number) => {
+      if (!/setTimeout\(/.test(line)) return
+      const body = lines.slice(idx, idx + 8).join('\n')
+      const endsSomething = /\.kill\(|reject\(/.test(body)
+      const annotated = lines.slice(Math.max(0, idx - 3), idx + 1).join('\n').includes(ALLOW)
+      if (endsSomething && !annotated) offenders.push(`${rel}:${idx + 1}  ${line.trim()}`)
+    })
+    assert.strictEqual(offenders.length, 0,
+      `Turn deadline found (annotate with "${ALLOW} <reason>" if it genuinely is not one):\n${offenders.join('\n')}`)
+  }
 
-  // Streaming: capped, because a streaming plan that has said nothing is wedged.
-  assert.strictEqual(effectiveFirstOutputTimeoutMs(true, generousBudget), FIRST_OUTPUT_TIMEOUT_MS)
-
-  // A streaming plan with a budget under the cap keeps the smaller of the two.
-  assert.strictEqual(effectiveFirstOutputTimeoutMs(true, 5000), 5000)
+  // The single surviving timer lives in process-tree and must be cancellation-armed.
+  const treeSource = fs.readFileSync(path.join(__dirname, 'process-tree.ts'), 'utf-8')
+  const treeTimers = treeSource.split('\n').filter((line) => /setTimeout\(|setInterval\(/.test(line))
+  assert.strictEqual(treeTimers.length, 1, `process-tree.ts must hold exactly one timer, found:\n${treeTimers.join('\n')}`)
+  assert(/SIGKILL/.test(treeSource), 'the surviving timer must be the SIGKILL escalation')
+  assert(/cancelProcessTree/.test(treeSource), 'and it must only be reachable through cancellation')
 })
 
 runAsyncCases().then(() => {

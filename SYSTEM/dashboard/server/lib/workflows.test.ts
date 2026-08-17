@@ -33,8 +33,6 @@ import {
   getLatestAgentSessionErrorMessage,
   isWorkflowSessionLockError,
   getWorkflowAgentRetryDelay,
-  getWorkflowAgentTimeoutMs,
-  formatWorkflowAgentTimeoutMessage,
   normalizeWorkflowExecutionOutputs,
   compactWorkflowExecutionContent,
   resolveWorkflowRunInputPath,
@@ -1063,50 +1061,6 @@ test('getWorkflowAgentRetryDelay uses bounded exponential backoff', () => {
   assert(getWorkflowAgentRetryDelay(0) === 1500, 'Expected first retry delay to be 1500ms')
   assert(getWorkflowAgentRetryDelay(1) === 3000, 'Expected second retry delay to be 3000ms')
   assert(getWorkflowAgentRetryDelay(4) === 5000, 'Expected retry delay to cap at 5000ms')
-})
-
-test('getWorkflowAgentTimeoutMs defaults to 10 minutes', () => {
-  const previous = process.env.CLAWMAX_WORKFLOW_AGENT_TIMEOUT_MS
-  delete process.env.CLAWMAX_WORKFLOW_AGENT_TIMEOUT_MS
-  try {
-    assert(getWorkflowAgentTimeoutMs() === 600000, `Expected 600000ms, got ${getWorkflowAgentTimeoutMs()}`)
-  } finally {
-    if (typeof previous === 'undefined') delete process.env.CLAWMAX_WORKFLOW_AGENT_TIMEOUT_MS
-    else process.env.CLAWMAX_WORKFLOW_AGENT_TIMEOUT_MS = previous
-  }
-})
-
-test('getWorkflowAgentTimeoutMs uses configured override when valid', () => {
-  const previous = process.env.CLAWMAX_WORKFLOW_AGENT_TIMEOUT_MS
-  process.env.CLAWMAX_WORKFLOW_AGENT_TIMEOUT_MS = '900000'
-  try {
-    assert(getWorkflowAgentTimeoutMs() === 900000, `Expected 900000ms, got ${getWorkflowAgentTimeoutMs()}`)
-  } finally {
-    if (typeof previous === 'undefined') delete process.env.CLAWMAX_WORKFLOW_AGENT_TIMEOUT_MS
-    else process.env.CLAWMAX_WORKFLOW_AGENT_TIMEOUT_MS = previous
-  }
-})
-
-test('getWorkflowAgentTimeoutMs falls back on invalid values', () => {
-  const previous = process.env.CLAWMAX_WORKFLOW_AGENT_TIMEOUT_MS
-  process.env.CLAWMAX_WORKFLOW_AGENT_TIMEOUT_MS = '5000'
-  try {
-    assert(getWorkflowAgentTimeoutMs() === 600000, `Expected fallback 600000ms, got ${getWorkflowAgentTimeoutMs()}`)
-  } finally {
-    if (typeof previous === 'undefined') delete process.env.CLAWMAX_WORKFLOW_AGENT_TIMEOUT_MS
-    else process.env.CLAWMAX_WORKFLOW_AGENT_TIMEOUT_MS = previous
-  }
-})
-
-test('formatWorkflowAgentTimeoutMessage renders minute-based limits clearly', () => {
-  assert(
-    formatWorkflowAgentTimeoutMessage(600000) === 'Agent timeout after 10 minutes',
-    `Expected 10 minute timeout label, got ${formatWorkflowAgentTimeoutMessage(600000)}`
-  )
-  assert(
-    formatWorkflowAgentTimeoutMessage(120000) === 'Agent timeout after 2 minutes',
-    `Expected 2 minute timeout label, got ${formatWorkflowAgentTimeoutMessage(120000)}`
-  )
 })
 
 test('triggerWorkflow supports rerunning upstream DAG workflows', () => {

@@ -179,7 +179,12 @@ export async function runExclusiveAgentExecution<T>(
   const current = new Promise<void>((resolve) => {
     release = resolve
   })
-  agentExecutionLocks.set(agentId, previous.then(() => current))
+  // Keep the exact promise that went into the map. The cleanup below compares identity to avoid
+  // deleting a newer waiter's entry, and `previous.then(...)` returns a NEW promise -- so storing it
+  // inline meant the comparison could never be true and every agent that ever ran a turn kept its
+  // entry forever.
+  const chained = previous.then(() => current)
+  agentExecutionLocks.set(agentId, chained)
 
   await previous
   try {
@@ -199,7 +204,7 @@ export async function runExclusiveAgentExecution<T>(
     }
   } finally {
     release()
-    if (agentExecutionLocks.get(agentId) === current) {
+    if (agentExecutionLocks.get(agentId) === chained) {
       agentExecutionLocks.delete(agentId)
     }
   }

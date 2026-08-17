@@ -4,7 +4,8 @@ import { resolveSystemExecutionProviderKeys, resolveUserExecutionProviderKeys, P
 import { getPreferredAnthropicModel } from './model-discovery'
 import { getBestAvailableModel } from './dashboard-env'
 import { readWorkspaceIntegrationConfig } from './workspace-integrations'
-import { CLAUDE_MODEL_ALIASES, executeAgentRuntimeTurn, resolveEnabledRuntimes, resolveRuntimeCliPath, type AgentRuntimeId, isRuntimeTimeoutError } from './agent-runtime'
+import { CLAUDE_MODEL_ALIASES, executeAgentRuntimeTurn, resolveEnabledRuntimes, resolveRuntimeCliPath, type AgentRuntimeId, isRuntimeCancelledError } from './agent-runtime'
+import { withRegisteredTurn } from './agent-turns'
 import { getModelLifecycleEntry } from './openAiModelLifecycle'
 import { randomUUID } from 'crypto'
 import { getWorkspacePath } from './workspace'
@@ -541,10 +542,11 @@ export function resolveClaudeGenerationModel(): string {
   return override ? override.replace(/^anthropic\//, '') : 'sonnet'
 }
 
-// CLI turnaround is far slower than a hosted API — template generation alone exceeded 40s — so
-// give it real headroom. createChatCompletionWithCompatibilityRetry extends its own race to match
-// for CLI-backed clients, so the child is still killed by us rather than orphaned.
-const CLI_GENERATION_TIMEOUT_MS = 240000
+// CLI-backed generation is a real agent turn (it spawns claude/droid), not a hosted API round
+// trip, so it gets no deadline for the same reason chat turns don't: template generation alone
+// has taken 40s+, and a fixed cutoff either fires on legitimately slow-but-working runs or gets
+// raised until it stops mattering. createChatCompletionWithCompatibilityRetry checks this marker
+// to skip its race entirely for CLI clients — see the no-timeout comment there.
 const CLI_CLIENT_MARKER = '__clawmaxCliRuntime'
 
 // Placeholder model for CLI-backed generation: the CLI selects its own, but callers still
@@ -564,14 +566,18 @@ export function buildCliRuntimeClient(runtime: AgentRuntimeId): { client: OpenAI
             })
             .filter(Boolean)
             .join('\n\n')
-          const { text, errorText, missingCliError } = await executeAgentRuntimeTurn({
+          // Generation is not a chat turn, but it spawns the same real CLI child, so it needs the
+          // same kill switch. A throwaway `new AbortController().signal` here would satisfy the
+          // type but nothing would ever call .abort() on it -- the child would be unkillable for
+          // as long as it runs. withRegisteredTurn makes it visible in listActiveTurns and
+          // reachable by cancelTurn/cancelTurnsForAgent, and releases the registry entry on every
+          // exit path (success, thrown error) via its own `finally`.
+          const { text, errorText, missingCliError } = await withRegisteredTurn('clawmax-ai-generation', (turn) => executeAgentRuntimeTurn({
             runtime,
             // Claude Code only accepts Anthropic model ids and rejects an unset model; droid has
             // its own default, so leave it alone there.
             model: runtime === 'claude' ? resolveClaudeGenerationModel() : undefined,
-            // Generation is not an agent turn; use a stable synthetic id so the CLI keeps one
-            // scratch session rather than accumulating one per request.
-            agentId: 'clawmax-ai-generation',
+            agentId: turn.agentId,
             agentDir: getWorkspacePath(),
             message: prompt,
             // One session per request. A fixed id let unrelated generations resume each other's
@@ -579,14 +585,13 @@ export function buildCliRuntimeClient(runtime: AgentRuntimeId): { client: OpenAI
             scopedSessionId: `clawmax-ai-generation-${randomUUID()}`,
             mode: 'json',
             env: process.env,
-            // Must expire before createChatCompletionWithCompatibilityRetry's own race (45s),
-            // otherwise that race rejects first and leaves this CLI child running unattended.
-            timeoutMs: CLI_GENERATION_TIMEOUT_MS,
-          })
+            signal: turn.signal,
+            onActivity: turn.touch,
+          }))
           // A missing CLI is already known structurally here. Tag it rather than making the
           // fallback re-derive it by pattern-matching the message back out of the Error.
           if (missingCliError) throw markCliUnavailable(new Error(missingCliError))
-          if (errorText) throw new Error(isRuntimeTimeoutError(errorText) ? 'AI generation timed out' : errorText)
+          if (errorText) throw new Error(isRuntimeCancelledError(errorText) ? 'AI generation was stopped.' : errorText)
           return { choices: [{ message: { role: 'assistant', content: text }, finish_reason: 'stop' }] }
         },
       },
@@ -807,8 +812,9 @@ export function getAIClient(byokKeys?: ProviderKeys): { client: OpenAI; model: s
     },
   }
   // The wrapper stands in for a CLI-backed client, so it must carry the marker too:
-  // createChatCompletionWithCompatibilityRetry keys its deadline off this, and without it the
-  // 45s hosted race would reject before the CLI's own 240s deadline and orphan the child.
+  // createChatCompletionWithCompatibilityRetry checks it to skip its timeout race entirely.
+  // Without it, the hosted-API default would apply to a CLI child and reject the caller while
+  // the real process kept running unseen.
   ;(wrapped as any)[CLI_CLIENT_MARKER] = true
   return { client: wrapped as unknown as OpenAI, model: built.model }
 }
@@ -981,21 +987,26 @@ export async function createChatCompletionWithCompatibilityRetry(
   timeoutMs: number = 45000,
 ): Promise<any> {
   const preparedRequest = sanitizeCompatibilityRequest(request)
-  // A CLI-backed client enforces its own, longer deadline and kills the child process; racing it
-  // against the hosted-API default would reject first and orphan that process.
-  const effectiveTimeoutMs = (client as any)?.[CLI_CLIENT_MARKER]
-    ? CLI_GENERATION_TIMEOUT_MS + 5000
-    : timeoutMs
+  // A CLI-backed client is a real agent turn (buildCliRuntimeClient registers it in the turn
+  // registry and hands it a cancellable signal) -- it gets no deadline here, for the same reason
+  // chat turns have none: a fixed cutoff races the caller against work that legitimately runs
+  // long, and there is no number that is both short enough to matter and long enough to never
+  // fire on a slow-but-working generation. Racing it here also can't cancel it: rejecting the
+  // outer Promise.race does nothing to the CLI's own promise, so a fired timeout used to orphan
+  // the child rather than stop it (that was the bug -- the deadline didn't even do the one job a
+  // deadline has). A hosted HTTP call is a different thing: it's a single request/response round
+  // trip to someone else's API with no process on our side to leak, so it keeps a normal timeout.
+  const isCliBacked = Boolean((client as any)?.[CLI_CLIENT_MARKER])
   const runRequest = async (payload: Record<string, any>) => {
-    // The timer must be cleared once the request settles. Left pending it keeps a closure — and
-    // with CLI clients a four-minute handle — alive per request, which piles up under concurrency
-    // and holds the process open.
+    if (isCliBacked) return client.chat.completions.create(payload as any)
+    // The timer must be cleared once the request settles. Left pending it keeps a closure alive
+    // per request, which piles up under concurrency and holds the process open.
     let timer: NodeJS.Timeout | undefined
     try {
       return await Promise.race([
         client.chat.completions.create(payload as any),
         new Promise((_, reject) => {
-          timer = setTimeout(() => reject(new Error(`AI request timed out after ${effectiveTimeoutMs}ms`)), effectiveTimeoutMs)
+          timer = setTimeout(() => reject(new Error(`AI request timed out after ${timeoutMs}ms`)), timeoutMs)
           timer.unref?.()
         }),
       ])

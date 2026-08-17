@@ -62,6 +62,12 @@ function formatChatTime(timestamp: number | undefined, includeDate: boolean): st
   return `${date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })} ${timeLabel}`
 }
 
+function formatDurationShort(ms: number): string {
+  const seconds = Math.max(0, Math.floor(ms / 1000))
+  if (seconds < 60) return `${seconds}s`
+  return `${Math.floor(seconds / 60)}m ${seconds % 60}s`
+}
+
 // Strip ANSI escape codes from text
 function stripAnsi(str: string): string {
   return str.replace(/\x1b\[[0-9;]*m/g, '').replace(/\[[\d;]*m/g, '')
@@ -189,8 +195,15 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [streaming, setStreaming] = useState(false)
+  const [cancelling, setCancelling] = useState(false)
+  // The turn this panel started, so Stop cancels only it. Two tabs on one agent is an ordinary
+  // state, and so is a turn still queued behind another -- cancelling by agent would stop both.
+  const activeTurnIdRef = useRef<string | null>(null)
   const [streamingStartedAt, setStreamingStartedAt] = useState<number | null>(null)
   const [streamingElapsedMs, setStreamingElapsedMs] = useState(0)
+  // Time since the runtime last produced output, from GET /turns/active -- the only source for
+  // this, since a page refresh or another tab can't see the deltas this tab isn't receiving.
+  const [quietForMs, setQuietForMs] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [sessionId, setSessionId] = useState<string>(() => buildPersistentDashboardChatSessionId(agentId))
   const [gatewayAvailable, setGatewayAvailable] = useState<boolean | null>(null)
@@ -221,6 +234,10 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
   const fileInputRef = useRef<HTMLInputElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
   const recognitionRef = useRef<any>(null)
+  // Set the moment Cancel is clicked; a cancelled turn stays in the active-turns list for up to
+  // ~2s while the server waits out SIGTERM before SIGKILL, and without this the status poll below
+  // would see it as still running and flip the Cancel button straight back on.
+  const suppressTurnAdoptionRef = useRef(false)
 
   const resolveDocPath = useCallback((target: string) => (
     resolveAgentChatDocPath(target, agentId, docEntries)
@@ -263,6 +280,46 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
     const interval = setInterval(pollMessages, 3000)
     return () => clearInterval(interval)
   }, [agentId, messages.length, streaming])
+
+  // Poll the server's view of what's actually running. This is the only way a turn already in
+  // flight ever becomes visible in this tab: `streaming` is local state that a page refresh
+  // resets to false and a second browser tab never sees, but the CLI behind it keeps running
+  // either way. Runs continuously (not just while `streaming` is already true) so a turn started
+  // before this tab existed still shows up and grows a Cancel button.
+  useEffect(() => {
+    const pollTurnStatus = async () => {
+      try {
+        const r = await fetch('/api/agents/turns/active')
+        const data = await r.json().catch(() => ({}))
+        const turns: Array<{ agentId: string; elapsedMs: number; idleMs: number }> = Array.isArray(data.turns) ? data.turns : []
+        const mine = turns.find((t) => t.agentId === agentId)
+        if (mine) {
+          setQuietForMs(mine.idleMs)
+          // Only adopt a turn this tab didn't start itself -- one we did start is already driven
+          // by sendMessage()'s own state, and re-deriving streamingStartedAt from a 5s-old poll
+          // would make its elapsed time jump backwards every tick.
+          if (!sending && !suppressTurnAdoptionRef.current) {
+            setStreaming(true)
+            setStreamingStartedAt(Date.now() - mine.elapsedMs)
+          }
+        } else {
+          setQuietForMs(null)
+          suppressTurnAdoptionRef.current = false
+          if (!sending && streaming) {
+            setStreaming(false)
+            setStreamingStartedAt(null)
+            setStreamingElapsedMs(0)
+          }
+        }
+      } catch {
+        // Transient network hiccup -- keep the last known status rather than flashing it away.
+      }
+    }
+
+    pollTurnStatus() // Fetch immediately on mount so a reload shows the truth right away
+    const interval = setInterval(pollTurnStatus, 5000)
+    return () => clearInterval(interval)
+  }, [agentId, sending, streaming])
 
   const refreshDocEntries = useCallback(async () => {
     const response = await fetch('/api/docs')
@@ -538,7 +595,11 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
   async function sendMessage(messageText?: string) {
     const textToSend = messageText || input.trim()
     const queuedAttachments = messageText ? [] : attachments
-    if ((!textToSend && queuedAttachments.length === 0) || sending) return
+    // `streaming` can be true here with `sending` still false -- a turn adopted from the active-
+    // turns poll (this tab reloaded, or another tab started it) has no local fetch of its own.
+    // The Send button is hidden in that state for the same reason; guard the keyboard/resend paths
+    // that don't go through the button.
+    if ((!textToSend && queuedAttachments.length === 0) || sending || streaming) return
     if (!chatEnabled) {
       setError('Agent chat is disabled because no AI execution path is configured. Open BYOK or Keys & Secrets first.')
       return
@@ -629,6 +690,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
             const data = JSON.parse(line.slice(6))
 
             if (data.type === 'start') {
+              activeTurnIdRef.current = data.data?.turnId ?? null
               setSessionId(current => resolveDashboardChatSessionId(current, data))
             } else if (data.type === 'delta') {
               // Append delta to assistant message
@@ -715,13 +777,44 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
     return () => window.clearInterval(timer)
   }, [streaming, streamingStartedAt])
 
-  function cancelStreaming() {
+  /**
+   * Stop the running turn, server-side.
+   *
+   * Aborting the fetch alone only hangs up our end of the stream: the CLI keeps running, keeps
+   * spending, and keeps writing files, while the UI says "Request cancelled". That was the actual
+   * behaviour for claude and droid turns, because the server's kill handle was only ever wired on
+   * the openclaw path. Turns have no deadline any more either, so nothing would have cleaned it up
+   * afterwards -- the request has to be sent, and it has to be sent before we drop the stream.
+   */
+  async function cancelStreaming() {
+    suppressTurnAdoptionRef.current = true
+    setCancelling(true)
+    try {
+      const response = await fetch(`/api/agents/${agentId}/chat/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        // Scope the stop to this panel's own turn. Omitting it falls back to stopping every turn
+        // for the agent, which would reach turns this user never started.
+        body: JSON.stringify({ turnId: activeTurnIdRef.current || undefined }),
+      })
+      const body = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      if (!body?.cancelled) {
+        // Nothing was running: it finished on its own between the click and the request.
+        setError('That turn had already finished.')
+      }
+    } catch {
+      setError('Could not stop the agent — it may still be running. Try again.')
+    } finally {
+      setCancelling(false)
+    }
     if (abortControllerRef.current) {
       abortControllerRef.current.abort()
       abortControllerRef.current = null
-      setStreaming(false)
-      setSending(false)
     }
+    activeTurnIdRef.current = null
+    setStreaming(false)
+    setSending(false)
   }
 
   function resendMessage(messageId: string) {
@@ -1186,7 +1279,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
                   {msg.role === 'user' && (
                     <button
                       onClick={() => resendMessage(msg.id)}
-                      disabled={sending}
+                      disabled={sending || streaming}
                       className="bg-white dark:bg-gray-800 text-sky-600 rounded-full p-1.5 shadow-md hover:bg-sky-50 disabled:opacity-40 disabled:cursor-not-allowed"
                       title="Resend this message"
                     >
@@ -1215,7 +1308,15 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
         {/* Typing indicator */}
         {streaming && (
           <div className="px-6 py-2 bg-sky-50 dark:bg-sky-900/30 border-t border-sky-200 dark:border-sky-800">
-            <p className="text-xs text-sky-600 dark:text-sky-400">{formatAgentWorkStatus(streamingElapsedMs)}</p>
+            <p className="text-xs text-sky-600 dark:text-sky-400">
+              {formatAgentWorkStatus(streamingElapsedMs)}
+              {/* Agent turns have no time limit, so a run can go quiet for minutes and still be
+                  fine -- say so explicitly once the gap is long enough to otherwise read as a
+                  hang, instead of leaving the user staring at a stalled-looking spinner. */}
+              {quietForMs !== null && quietForMs >= 30_000 && (
+                <> It's been quiet for {formatDurationShort(quietForMs)} — still working, not stuck.</>
+              )}
+            </p>
           </div>
         )}
 
@@ -1255,7 +1356,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
             />
             <button
               onClick={toggleVoiceInput}
-              disabled={sending || !gatewayAvailable || !chatEnabled}
+              disabled={sending || streaming || !gatewayAvailable || !chatEnabled}
               className={`p-2 rounded-lg transition-colors text-sm font-medium shrink-0 ${
                 isListening
                   ? 'bg-red-500 text-white hover:bg-red-600 animate-pulse'
@@ -1312,15 +1413,16 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
                 }
               }}
               placeholder={isListening ? "Listening..." : "Type, speak, or attach files... (Enter to send)"}
-              disabled={sending || !gatewayAvailable || isListening || !chatEnabled}
+              disabled={sending || streaming || !gatewayAvailable || isListening || !chatEnabled}
               className="flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm disabled:bg-gray-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-900"
             />
             {streaming ? (
               <button
                 onClick={cancelStreaming}
-                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-sm font-medium"
+                disabled={cancelling}
+                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-sm font-medium disabled:opacity-60"
               >
-                Cancel
+                {cancelling ? 'Stopping…' : 'Cancel'}
               </button>
             ) : (
               <button

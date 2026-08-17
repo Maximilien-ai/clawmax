@@ -12,10 +12,9 @@ const workspaceModulePath = require.resolve('../lib/workspace')
 const workspaceIntegrationsModulePath = require.resolve('../lib/workspace-integrations')
 const agentExecutionModulePath = require.resolve('../lib/agent-execution')
 const agentRuntimeModulePath = require.resolve('../lib/agent-runtime')
-// Mirrors CHAT_IDLE_TIMEOUT_MS in routes/chat.ts, which is derived so the route backstop always
-// outlasts a first attempt plus a silent retry.
-const { RUNTIME_IDLE_TIMEOUT_MS, FIRST_OUTPUT_TIMEOUT_MS } = require('../lib/agent-runtime')
-const EXPECTED_CHAT_IDLE_TIMEOUT_MS = RUNTIME_IDLE_TIMEOUT_MS + FIRST_OUTPUT_TIMEOUT_MS + 60000
+// Any timer the chat route arms for longer than this would be a turn deadline by another name.
+// The keepalive ticks every 2s; nothing else legitimately schedules against the clock.
+const LONGEST_LEGITIMATE_TIMER_MS = 10000
 const runtimeSessionsModulePath = require.resolve('../lib/runtime-sessions')
 const skillsModulePath = require.resolve('../lib/skills')
 const safeEnvModulePath = require.resolve('../lib/safe-env')
@@ -579,21 +578,19 @@ async function run() {
     })
   })
 
-  await test('a droid chat request queued behind another in-flight chat for the same agent is not killed by a watchdog armed before its turn to execute', async () => {
-    // Regression test: the outer 180s watchdog must arm only once execution actually starts (after
-    // runExclusiveAgentExecution's real per-agent lock is acquired), not at request-arrival time —
-    // otherwise a request queued behind another in-flight chat for the same agent has its budget
-    // silently eaten while waiting and can be killed while the underlying CLI call is still healthy.
+  await test('the chat route arms no turn deadline, and a queued request still delivers its reply', async () => {
+    // This used to assert that the route's watchdog armed once per request, at execution start
+    // rather than request arrival, so a queued request did not have its budget eaten while
+    // waiting. There is no budget to eat any more: the route arms no deadline at all. The
+    // surviving half of the concern -- that a request queued behind another for the same agent
+    // still completes normally -- is asserted below, and the spy now fails the test if any
+    // long-lived timer reappears under a new name.
     const log: string[] = []
     const originalSetTimeout = global.setTimeout
     ;(global as any).setTimeout = ((handler: (...args: any[]) => void, delay?: number, ...args: any[]) => {
-      // Derived, not hardcoded: this spy has gone stale twice as the allowance changed, silently
-      // counting zero arms and reporting a failure that had nothing to do with the behaviour under
-      // test (arm on execution start, not request arrival).
-      if (delay === EXPECTED_CHAT_IDLE_TIMEOUT_MS) {
-        log.push('watchdog-armed')
-        // Never let the real idle watchdog fire inside the test — clearTimeout() silently
-        // no-ops on a non-Timeout value, so a bare object is a safe inert stand-in.
+      if (typeof delay === 'number' && delay > LONGEST_LEGITIMATE_TIMER_MS) {
+        log.push(`long-timer-armed:${delay}`)
+        // Inert stand-in so a reintroduced deadline cannot actually fire inside the test.
         return {} as any
       }
       return originalSetTimeout(handler as any, delay as any, ...args)
@@ -661,12 +658,12 @@ async function run() {
                   assert(!resB.events.some((e) => e.type === 'error'), `Expected the queued (second) request to complete without a spurious timeout error, got: ${JSON.stringify(resB.events)}`)
                   assert(resB.events.some((e) => e.type === 'complete' && e.data?.text === 'reply-B'), `Expected the queued request to deliver its real reply, got: ${JSON.stringify(resB.events)}`)
 
-                  const watchdogArmCount = log.filter((entry) => entry === 'watchdog-armed').length
-                  assert.strictEqual(watchdogArmCount, 2, `Expected exactly one watchdog arm per request, got ${watchdogArmCount}: ${log.join(', ')}`)
-                  assert(
-                    log.lastIndexOf('watchdog-armed') > log.indexOf('A:execution-end'),
-                    `Expected the queued request's watchdog to arm only once its own execution began (after the first request finished), got order: ${log.join(', ')}`
-                  )
+                  const longTimers = log.filter((entry) => entry.startsWith('long-timer-armed'))
+                  assert.strictEqual(longTimers.length, 0,
+                    `The chat route must arm no turn deadline; found: ${longTimers.join(', ')}`)
+                  // Both requests ran, in order, under the per-agent exclusive lock.
+                  assert.deepStrictEqual(log, ['A:execution-start', 'A:execution-end', 'B:execution-start', 'B:execution-end'],
+                    `Expected serialized execution with no deadline armed, got: ${log.join(', ')}`)
                 })
               })
             })

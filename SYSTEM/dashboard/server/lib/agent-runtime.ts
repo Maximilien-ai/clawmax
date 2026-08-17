@@ -15,6 +15,7 @@ import { resolveOpenClawCliPath } from './openclaw-cli'
 import { readWorkspaceIntegrationConfig } from './workspace-integrations'
 import { safeEnv } from './safe-env'
 import { clearRuntimeSession, hasRuntimeSession, markRuntimeSession } from './runtime-sessions'
+import { cancelProcessTree, detachProcessStreams, killProcessTree } from './process-tree'
 
 export type AgentRuntimeId = 'openclaw' | 'claude' | 'droid'
 
@@ -331,6 +332,60 @@ const MISSING_CLI_ERRORS: Record<AgentRuntimeId, string> = {
   droid: 'Factory Droid CLI is not available in this runtime. Install it or set DROID_BIN to the executable path.',
 }
 
+/**
+ * Claude Code tools whose payoff arrives after the turn that armed them has ended.
+ *
+ * A turn is one process. These tools are contracts the harness cannot honour: the model arms one,
+ * says so, ends its turn, and the process exits -- taking the pending work with it. Measured: asked
+ * for forty timed steps, the agent replied "Monitor armed -- it'll notify me once per number...
+ * I'll relay each", the stream closed on `complete` at 37.9s, and the CLI was gone 15s later.
+ * Nothing ever relays, and because the turn ended cleanly it is reported to the user as a success.
+ *
+ * Blocking them in code rather than asking the model not to use them is deliberate. A prompt is
+ * advisory and this exact failure IS the model believing it can defer; the flag is enforceable, and
+ * the model then does the work inline, which is what the user wanted. Verified against the CLI:
+ * these nine are the difference between a 26-tool and a 17-tool grant.
+ *
+ * `Task` is deliberately NOT here. Subagents resolve inside the turn -- the process genuinely waits
+ * for them -- which is how a measured 21-minute, 8-subagent research turn completed successfully.
+ */
+export const CLAUDE_POST_TURN_TOOLS = [
+  'Monitor',
+  'ScheduleWakeup',
+  'CronCreate',
+  'CronDelete',
+  'CronList',
+  'RemoteTrigger',
+  'SendMessage',
+  'PushNotification',
+  'DesignSync',
+] as const
+
+/**
+ * Droid's own tools with the same after-the-turn-ends failure mode as CLAUDE_POST_TURN_TOOLS
+ * above, confirmed against droid 0.158.0's own catalog (`droid exec --list-tools --auto high`).
+ * Cron* schedules a future run and *Automation* persists a standing trigger -- both outlive the
+ * process, keyed to the deterministic droidSessionId(), so a later turn's freshly spawned process
+ * can see and act on state this turn armed and forgot. Reproduced directly: a CronCreate call in
+ * one `droid exec` process was visible to a CronList call in a second, unrelated process sharing
+ * only the session id, and the cron itself survives until someone finds and cancels it by hand.
+ *
+ * Task/TaskOutput/TaskStop are deliberately excluded, mirroring the Task exemption above -- it is
+ * droid's own subagent tool, which the process genuinely waits on rather than arms and abandons.
+ *
+ * Unlike claude's --disallowed-tools, droid's --disabled-tools takes exactly one comma-joined
+ * value, not repeated/space-separated args -- verified directly against the CLI: passing these as
+ * separate argv entries silently blocked only the first one and left the rest allowed.
+ */
+export const DROID_POST_TURN_TOOLS = [
+  'CronCreate',
+  'CronDelete',
+  'CronList',
+  'CreateAutomation',
+  'EditAutomation',
+  'DeleteAutomation',
+] as const
+
 export function buildRuntimePlan(o: {
   runtime: AgentRuntimeId
   mode: 'chat' | 'json'
@@ -358,6 +413,7 @@ export function buildRuntimePlan(o: {
       '--model', runtimeModelArg('claude', o.model) as string,
       o.resume ? '--resume' : '--session-id', sessionUuid,
       '--dangerously-skip-permissions',
+      '--disallowed-tools', ...CLAUDE_POST_TURN_TOOLS,
       ...(o.systemPrompt ? ['--append-system-prompt', o.systemPrompt] : []),
       // Chat streams events instead of buffering. `claude -p` prints nothing at all until the
       // whole turn is finished, so a real task -- research that reads files, runs tools and
@@ -378,6 +434,7 @@ export function buildRuntimePlan(o: {
     '--auto', 'high',
     '-o', 'json',
     '--cwd', o.agentDir,
+    '--disabled-tools', DROID_POST_TURN_TOOLS.join(','),
     ...(o.systemPrompt ? ['--append-system-prompt', o.systemPrompt] : []),
   ]
   return { cliPath, args, missingCliError, streamsDeltas: false }
@@ -541,69 +598,52 @@ interface RunOnceResult {
   stdout: string
   stderr: string
   exitCode: number | null
-  timedOut: boolean
-  /** True when the deadline fired before the CLI produced anything at all, rather than after it
-   *  streamed and then went quiet. The two are different failures and read differently to a user. */
-  timedOutWithoutOutput?: boolean
+  /** True when the turn ended because someone asked it to stop, rather than finishing on its own. */
+  cancelled: boolean
 }
 
 /**
- * How long a runtime CLI may produce *nothing at all* before it is treated as wedged.
+ * Sentinel `errorText` for a turn that was stopped on request rather than failing.
  *
- * Separate from the idle allowance on purpose. With `--output-format stream-json` the CLI emits an
- * init event within seconds, so total silence past this point means it is not going to speak --
- * typically a resumed session that will never respond. Failing fast here is what lets the
- * fresh-session recovery run while the caller is still waiting, instead of after the full
- * idle allowance has burned.
+ * A sentinel rather than prose because four call sites branch on it, and each renders its own
+ * user-facing wording. The predicate exists so splitting or renaming this cannot silently turn
+ * every one of those comparisons into a false, leaking the raw sentinel to a user as their
+ * error message -- which is exactly what happened when the old timeout sentinel was split.
  */
-/**
- * Idle allowance for one runtime attempt: how long a turn may stay silent after it has started
- * speaking. Exported so the chat route can derive a strictly longer backstop -- if the two are
- * equal they race, and the route can end the response while a fresh-session retry is still running
- * server-side, which is invisible to the user.
- */
-export const RUNTIME_IDLE_TIMEOUT_MS = 600000
+export const RUNTIME_CANCELLED = 'cancelled' as const
 
-export const FIRST_OUTPUT_TIMEOUT_MS = 90000
-
-/**
- * How long a plan may produce nothing before it is treated as wedged.
- *
- * Only a plan that streams is expected to speak early. Buffered JSON modes (generation, workflows,
- * channels) legitimately emit nothing until the final result, so the short first-output cap must
- * not apply to them or a healthy multi-minute turn is killed at 90s. Extracted so that rule is
- * assertable directly: a test that merely runs a fast buffered turn cannot distinguish the two.
- */
-/**
- * Whether a runtime turn ended on a deadline, in either class.
- *
- * Callers used to compare against the bare string 'timeout'. Splitting the classes would have made
- * every one of those comparisons silently miss, leaking the raw sentinel to users as their error
- * message, so the check lives here instead of being repeated at four call sites.
- */
-export function isRuntimeTimeoutError(errorText?: string): boolean {
-  return errorText === 'timeout' || errorText === 'timeout-no-output'
+export function isRuntimeCancelledError(errorText?: string): boolean {
+  return errorText === RUNTIME_CANCELLED
 }
 
-export function effectiveFirstOutputTimeoutMs(streamsDeltas: boolean, timeoutMs: number): number {
-  return streamsDeltas ? Math.min(timeoutMs, FIRST_OUTPUT_TIMEOUT_MS) : timeoutMs
-}
-
+/**
+ * Runs one CLI turn to completion. There is no deadline of any kind, by design.
+ *
+ * Every previous bound measured time, and time does not distinguish a working turn from a wedged
+ * one: agent work is legitimately bursty and silent for long stretches -- a measured 21-minute
+ * research turn went quiet for 316s while its subagents ran, and tasks routinely run far longer.
+ * Any clock chosen here is therefore either short enough to kill real work or long enough to be
+ * useless as a wedge detector, and raising the number only moves which of the two you get.
+ *
+ * A turn now ends for exactly two reasons: the process exits, or someone cancels it. `signal` is
+ * that cancellation -- the only kill switch there is, which is why the chat route must expose it
+ * to the user rather than relying on a timeout to clean up after a wedged turn.
+ */
 function runOnce(
   plan: RuntimePlan,
   env: NodeJS.ProcessEnv,
-  timeoutMs: number,
+  signal: AbortSignal,
   onChunk?: (text: string) => void,
   /**
    * Fires on every byte the CLI produces, including tool calls and thinking that never become
-   * visible text. Callers use it for liveness: a turn doing fifteen minutes of tool work emits
-   * almost no assistant prose, so a watchdog fed only by visible deltas kills a healthy turn.
+   * visible text. Callers use it to show the user that a long turn is alive -- a turn doing
+   * fifteen minutes of tool work emits almost no assistant prose.
    */
   onActivity?: () => void,
 ): Promise<RunOnceResult> {
   return new Promise((resolve) => {
     if (!plan.cliPath) {
-      resolve({ stdout: '', stderr: plan.missingCliError, exitCode: null, timedOut: false })
+      resolve({ stdout: '', stderr: plan.missingCliError, exitCode: null, cancelled: false })
       return
     }
 
@@ -615,109 +655,117 @@ function runOnce(
     child.stdin?.end()
     let stdout = ''
     let stderr = ''
-    let timedOut = false
+    let cancelled = false
     let settled = false
+    let killEscalation: NodeJS.Timeout | undefined
 
-    /** Signal the whole group, falling back to the child if the group is already gone. */
-    const killTree = (signal: NodeJS.Signals) => {
-      try {
-        if (child.pid) process.kill(-child.pid, signal)
-      } catch {
-        try { child.kill(signal) } catch { /* already exited */ }
-      }
-    }
-
-    const settle = (result: RunOnceResult, opts: { keepEscalation?: boolean } = {}) => {
+    const settle = (result: RunOnceResult) => {
       if (settled) return
       settled = true
-      clearTimeout(timer)
-      // On the timeout path the SIGKILL escalation was armed moments ago and must outlive this
-      // resolve, or a CLI that traps SIGTERM survives forever: settling used to clear the very
-      // timer that was going to kill it.
-      if (killEscalation && !opts.keepEscalation) clearTimeout(killEscalation)
+      signal.removeEventListener('abort', onCancel)
+      if (killEscalation) clearTimeout(killEscalation)
+      // Detach from both streams here, in the one place every exit path (normal close, spawn
+      // error, stream error, or the SIGKILL escalation below) already funnels through. Without
+      // this, the 'data' listeners attached below outlive the promise: a grandchild that escaped
+      // the process group (see the escalation comment) keeps writing to the still-open pipe, and
+      // each write re-enters this closure to grow `stdout`/`stderr` and fire onChunk/onActivity
+      // forever, even though the caller believes the turn is over. destroy() additionally closes
+      // our end of the pipe so this process's own fd isn't held open by a stream nothing reads.
+      detachProcessStreams(child)
       resolve(result)
     }
 
-    // Two different deadlines, because "has not spoken yet" and "has gone quiet" are different
-    // failures. A turn that has produced nothing at all is very likely wedged -- with stream-json
-    // the CLI emits its init event within seconds -- so it must fail fast. A turn that has been
-    // streaming and then pauses is doing tool work and deserves the full idle allowance. Using one
-    // generous deadline for both meant a wedged session took the whole allowance to fail: a bare
-    // "ping" sat for ten minutes before erroring.
-    const firstOutputMs = effectiveFirstOutputTimeoutMs(plan.streamsDeltas, timeoutMs)
-    let sawOutput = false
-    const armDeadline = () => setTimeout(onDeadline, sawOutput ? timeoutMs : firstOutputMs)
-    let timer: NodeJS.Timeout
-    const bumpDeadline = () => {
+    function onCancel() {
+      // The child can exit between the abort being queued and this running; killing a reaped pid
+      // is harmless but arming an escalation timer after settle() leaks a handle for no reason.
       if (settled) return
-      sawOutput = true
-      clearTimeout(timer)
-      timer = armDeadline()
+      cancelled = true
+      // SIGTERM, then an unconditional group SIGKILL, then settle -- see cancelProcessTree.
+      //
+      // A grandchild that called its own setsid() has already left this process group, so neither
+      // signal can reach it: Node holds no handle to it, and finding it would mean walking the OS
+      // process table by pid -- fragile, platform-specific, and a new failure mode rather than a fix
+      // for this one. Not solved here, and logged rather than left silent so an operator can find it.
+      killEscalation = cancelProcessTree(child, () => {
+        console.warn(`[Agent Runtime] pid ${child.pid} was SIGKILLed on cancel; if it spawned a detached grandchild (its own setsid), that process is not reachable from here and may still be running`)
+        // Settle from what was captured rather than waiting for 'close': 'close' needs every stdio
+        // pipe closed, and that escaped grandchild holds stdout open forever -- so waiting would
+        // hang this promise, wedge the request, and strand the turn in the registry with nothing
+        // able to clear it. SIGKILL is the last thing we can do.
+        settle({ stdout, stderr, exitCode: null, cancelled: true })
+      })
     }
 
-    // SIGTERM alone is a request, not a guarantee — a CLI that traps or ignores it keeps running
-    // and outlives the caller. Escalate to SIGKILL if it has not exited shortly after.
-    let killEscalation: NodeJS.Timeout | undefined
-    function onDeadline() {
-      timedOut = true
-      killTree('SIGTERM')
-      killEscalation = setTimeout(() => {
-        if (child.exitCode === null && child.signalCode === null) killTree('SIGKILL')
-      }, 2000)
-      killEscalation.unref?.()
-      // Settle on the deadline itself rather than waiting for 'close'. 'close' needs every stdio
-      // pipe closed, and a surviving grandchild holds stdout open indefinitely — so waiting for it
-      // meant the turn never returned, the caller's recovery never ran, and the request stayed
-      // wedged server-side while the user only saw the route's own timeout message.
-      settle({ stdout, stderr, exitCode: null, timedOut: true, timedOutWithoutOutput: !sawOutput }, { keepEscalation: true })
+    if (signal.aborted) {
+      // Cancelled between spawn and listener attach. Handle it directly: 'abort' has already
+      // fired and will never fire again, so an addEventListener here would never run.
+      onCancel()
+    } else {
+      signal.addEventListener('abort', onCancel, { once: true })
     }
-    timer = armDeadline()
 
     child.stdout.on('data', (chunk: Buffer) => {
       const text = chunk.toString()
       stdout += text
-      bumpDeadline()
       onActivity?.()
       if (onChunk) onChunk(text)
     })
     child.stderr.on('data', (chunk: Buffer) => {
       stderr += chunk.toString()
-      bumpDeadline()
       onActivity?.()
     })
+    // A Readable with no 'error' listener turns a stream fault (EPIPE, EBADF, a destroyed fd) into
+    // an uncaughtException -- and the dashboard's global handler (server/index.ts) exits the whole
+    // process on any uncaughtException, killing every other turn in flight, not just this one's.
+    // child.on('error') below only covers the ChildProcess itself (e.g. spawn failing); it does not
+    // catch errors emitted by the stdout/stderr stream objects.
+    child.stdout.on('error', (err) => {
+      killProcessTree(child, 'SIGTERM')
+      settle({ stdout, stderr: stderr || `stdout stream error: ${err.message || String(err)}`, exitCode: null, cancelled })
+    })
+    child.stderr.on('error', (err) => {
+      killProcessTree(child, 'SIGTERM')
+      settle({ stdout, stderr: stderr || `stderr stream error: ${err.message || String(err)}`, exitCode: null, cancelled })
+    })
     child.on('error', (err) => {
-      settle({ stdout, stderr: stderr || err.message || String(err), exitCode: null, timedOut })
+      settle({ stdout, stderr: stderr || err.message || String(err), exitCode: null, cancelled })
     })
     child.on('close', (code) => {
-      settle({ stdout, stderr, exitCode: code, timedOut })
+      settle({ stdout, stderr, exitCode: code, cancelled })
     })
   })
 }
 
 /**
- * Whether a claude turn should be retried on a brand-new session.
+ * Whether a claude session should be cleared after a turn was cancelled having produced nothing.
  *
- * A resumed session can stop responding entirely: the CLI emits nothing and the turn hits its
- * deadline. The session id is deterministic per agent+model, so every later turn resumes the same
- * wedged transcript and times out again — the agent stays dead until someone clears it by hand.
- * The session-error recovery below cannot cover this because it is gated on a non-timeout error.
+ * A resumed session can stop responding entirely. The session id is deterministic per agent+model,
+ * so every later turn resumes the same wedged transcript and hangs the same way -- the agent stays
+ * dead until someone clears it by hand. Clearing it here means the user's next message starts fresh
+ * instead of re-entering the same hole.
  *
- * Only when we actually resumed: a fresh session that times out is a slow prompt, and retrying it
- * would just make the user wait twice.
+ * Only when we actually resumed, and only when the turn produced nothing: a fresh session, or one
+ * that streamed real text before being cancelled, was working as far as we can tell.
+ *
+ * Note this is strictly weaker than the deadline it replaces. It fires only when a human cancels,
+ * so a silently wedged turn is no longer recovered automatically -- someone has to notice it. That
+ * is the deliberate cost of having no clock, and it is why the UI must show elapsed time and last
+ * activity: those are now the only way a wedged turn becomes visible.
  */
-export function shouldRestartClaudeSessionAfterTimeout(o: {
+export function shouldClearSessionOnZeroOutputCancel(o: {
   runtime: AgentRuntimeId
-  timedOut: boolean
+  cancelled: boolean
   text: string
   resumed: boolean
 }): boolean {
-  return o.runtime === 'claude' && o.timedOut && !o.text && o.resumed
+  return o.runtime === 'claude' && o.cancelled && !o.text && o.resumed
 }
 
 export async function runRuntimeCli(o: {
   plan: RuntimePlan
   env: NodeJS.ProcessEnv
-  timeoutMs: number
+  /** Cancellation. There is no deadline; this is the only way a turn ends early. */
+  signal: AbortSignal
   rebuildPlan: (resume: boolean) => RuntimePlan
   runtime: AgentRuntimeId
   mode: 'chat' | 'json'
@@ -748,32 +796,19 @@ export async function runRuntimeCli(o: {
     : withoutClaudeCredentials(o.env)
 
 
-  // A claude turn may need a second attempt on a fresh session. Both must fit inside the budget
-  // the caller advertised: the chat route arms its own watchdog for the same duration, so a retry
-  // that started after the first full timeout ran invisibly, after the user had already been told
-  // the turn timed out. Give the first attempt most of the budget and the retry the rest.
-  // Both attempts get the full idle allowance. Splitting a total budget starved the retry: a
-  // wedged first attempt burned most of it before the retry -- the one doing the user's actual
-  // work -- began. Idleness bounds each attempt instead, so a working turn is never cut short.
-  const firstAttemptTimeoutMs = o.timeoutMs
-  const retryTimeoutMs = o.timeoutMs
-
-  const attempt = async (plan: RuntimePlan, timeoutMs = o.timeoutMs) => {
+  const attempt = async (plan: RuntimePlan) => {
     // claude chat streams JSON events, not prose: translate them before they reach the UI.
     const rawDelta = plan.streamsDeltas && o.onDelta ? o.onDelta : undefined
     const onChunk = rawDelta && o.runtime === 'claude'
       ? createClaudeStreamDeltaTransformer(rawDelta)
       : rawDelta
-    const result = await runOnce(plan, effectiveEnv, timeoutMs, onChunk, o.onActivity)
-    if (result.timedOut) {
-      // Keep whatever the CLI streamed before the deadline. Discarding it made every timeout look
-      // like "no output at all", so the partial-output case could never reach the retry decision.
+    const result = await runOnce(plan, effectiveEnv, o.signal, onChunk, o.onActivity)
+    if (result.cancelled) {
+      // Keep whatever the CLI streamed before the cancel. Discarding it made a cancelled turn look
+      // like "no output at all", which is also what a wedged session looks like -- and the two need
+      // to be told apart to decide whether the session is worth keeping.
       const partial = parseRuntimeResult(o.runtime, o.mode, result.stdout, result.stderr, result.exitCode)
-      return {
-        result,
-        text: partial.text || '',
-        errorText: (result.timedOutWithoutOutput ? 'timeout-no-output' : 'timeout') as 'timeout' | 'timeout-no-output',
-      }
+      return { result, text: partial.text || '', errorText: RUNTIME_CANCELLED as typeof RUNTIME_CANCELLED }
     }
     const parsed = parseRuntimeResult(o.runtime, o.mode, result.stdout, result.stderr, result.exitCode)
     if (!parsed.errorText && !plan.streamsDeltas && o.onDelta) {
@@ -783,22 +818,22 @@ export async function runRuntimeCli(o: {
     return { result, text: parsed.text, errorText: parsed.errorText }
   }
 
-  const first = await attempt(o.plan, firstAttemptTimeoutMs)
+  const first = await attempt(o.plan)
 
-  if (shouldRestartClaudeSessionAfterTimeout({
+  if (shouldClearSessionOnZeroOutputCancel({
     runtime: o.runtime,
-    timedOut: first.result.timedOut,
+    cancelled: first.result.cancelled,
     text: first.text,
     resumed: o.plan.args.includes('--resume'),
   })) {
-    console.warn(`[Agent Runtime] claude session for ${o.agentId} timed out on resume; retrying with a fresh session`)
+    // Clear, but do NOT retry: the caller cancelled, so starting a fresh turn against their wishes
+    // is the one thing they explicitly asked not to happen.
+    console.warn(`[Agent Runtime] claude session for ${o.agentId} produced nothing before cancel; clearing it so the next turn starts fresh`)
     clearRuntimeSession(o.runtime, o.agentId, o.scopedSessionId)
-    const retry = await attempt(o.rebuildPlan(false), retryTimeoutMs)
-    if (!retry.errorText) markRuntimeSession(o.runtime, o.agentId, o.scopedSessionId)
-    return { text: retry.text, errorText: retry.errorText }
+    return { text: first.text, errorText: first.errorText }
   }
 
-  if (o.runtime === 'claude' && first.errorText && !first.result.timedOut) {
+  if (o.runtime === 'claude' && first.errorText && !first.result.cancelled) {
     const classification = classifyClaudeSessionError(first.result.stderr, first.result.stdout)
     if (classification === 'not-found' || classification === 'already-in-use') {
       const retryPlan = o.rebuildPlan(classification === 'not-found' ? false : true)
@@ -838,7 +873,12 @@ export interface AgentRuntimeTurnOptions {
   model?: string
   mode: 'chat' | 'json'
   env: NodeJS.ProcessEnv
-  timeoutMs: number
+  /**
+   * Cancellation for this turn. Required, not optional: a turn has no deadline, so a caller that
+   * cannot cancel has built something unkillable. Pass `new AbortController().signal` only where
+   * the caller genuinely owns the process lifetime some other way.
+   */
+  signal: AbortSignal
   /** Streamed incremental text, when the runtime and mode support it. */
   onDelta?: (text: string) => void
   /** Called once the spawn plan is resolved and the CLI is known to exist (for logging). */
@@ -879,7 +919,7 @@ export async function executeAgentRuntimeTurn(o: AgentRuntimeTurnOptions): Promi
   const { text, errorText } = await runRuntimeCli({
     plan,
     env: o.env,
-    timeoutMs: o.timeoutMs,
+    signal: o.signal,
     onActivity: o.onActivity,
     rebuildPlan,
     runtime: o.runtime,

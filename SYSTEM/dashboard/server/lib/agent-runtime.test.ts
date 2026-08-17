@@ -22,7 +22,9 @@ import {
   resolveRuntimeCliPath,
   resolveWorkspaceRuntime,
   runRuntimeCli,
-  runtimeModelArg, shouldRestartClaudeSessionAfterTimeout,
+  runtimeModelArg, shouldClearSessionOnZeroOutputCancel, CLAUDE_POST_TURN_TOOLS,
+  DROID_POST_TURN_TOOLS,
+  RUNTIME_CANCELLED, isRuntimeCancelledError,
 } from './agent-runtime'
 import { hasRuntimeSession } from './runtime-sessions'
 
@@ -422,29 +424,60 @@ function withStubbedClis<T>(fn: (dir: string) => T): T {
   })
 }
 
-test('a wedged resumed claude session is retried on a fresh session', () => {
-  // Reproduced live: resuming one long-lived transcript produced no output and hit the 240s cap,
-  // and because the session id is deterministic every later turn resumed the same transcript and
-  // timed out identically. The existing recovery is gated on a non-timeout error, so it never
-  // fired -- the agent was dead until the session was cleared by hand.
-  assert.strictEqual(shouldRestartClaudeSessionAfterTimeout({
-    runtime: 'claude', timedOut: true, text: '', resumed: true,
+test('a resumed claude session that produced nothing before cancel is cleared, not reused', () => {
+  // Resuming one long-lived transcript can produce no output at all, and because the session id is
+  // deterministic every later turn resumes the same wedged transcript. Clearing it means the next
+  // message starts fresh instead of re-entering the same hole.
+  assert.strictEqual(shouldClearSessionOnZeroOutputCancel({
+    runtime: 'claude', cancelled: true, text: '', resumed: true,
   }), true)
-  // A fresh session that times out is a slow prompt; retrying makes the user wait twice.
-  assert.strictEqual(shouldRestartClaudeSessionAfterTimeout({
-    runtime: 'claude', timedOut: true, text: '', resumed: false,
+  // A fresh session has no stale transcript to blame.
+  assert.strictEqual(shouldClearSessionOnZeroOutputCancel({
+    runtime: 'claude', cancelled: true, text: '', resumed: false,
   }), false)
-  // Partial output means the session is alive.
-  assert.strictEqual(shouldRestartClaudeSessionAfterTimeout({
-    runtime: 'claude', timedOut: true, text: 'partial', resumed: true,
+  // Partial output means the session was alive; the user just stopped it.
+  assert.strictEqual(shouldClearSessionOnZeroOutputCancel({
+    runtime: 'claude', cancelled: true, text: 'partial', resumed: true,
   }), false)
-  // Not a timeout, and not claude.
-  assert.strictEqual(shouldRestartClaudeSessionAfterTimeout({
-    runtime: 'claude', timedOut: false, text: '', resumed: true,
+  // A turn that ended on its own is not evidence of a wedged session.
+  assert.strictEqual(shouldClearSessionOnZeroOutputCancel({
+    runtime: 'claude', cancelled: false, text: '', resumed: true,
   }), false)
-  assert.strictEqual(shouldRestartClaudeSessionAfterTimeout({
-    runtime: 'droid', timedOut: true, text: '', resumed: true,
+  assert.strictEqual(shouldClearSessionOnZeroOutputCancel({
+    runtime: 'droid', cancelled: true, text: '', resumed: true,
   }), false)
+})
+
+
+test('claude is denied every tool whose payoff outlives the turn, but keeps Task', () => {
+  // The root cause, asserted at the rule. Measured: the agent armed a Monitor, said it would relay
+  // results, ended its turn, and the process died 15s later -- reported as a success.
+  //
+  // The expected set is spelled out literally rather than spread from CLAUDE_POST_TURN_TOOLS. The
+  // golden-argv tests below DO spread it, so they would keep passing if a tool were quietly deleted
+  // from the constant -- the change would regress straight back to the original bug with a green
+  // suite. This list is the one place that has to be edited deliberately.
+  const EXPECTED_DENIED = [
+    'Monitor', 'ScheduleWakeup', 'CronCreate', 'CronDelete', 'CronList',
+    'RemoteTrigger', 'SendMessage', 'PushNotification', 'DesignSync',
+  ]
+  assert.deepStrictEqual([...CLAUDE_POST_TURN_TOOLS], EXPECTED_DENIED,
+    'CLAUDE_POST_TURN_TOOLS changed. Every tool here defers work past the end of the turn, and the '
+    + 'turn is one process -- so anything removed silently reopens the original bug. If Claude Code '
+    + 'added or renamed a post-turn tool, add it here deliberately.')
+
+  const plan = buildRuntimePlan({
+    runtime: 'claude', mode: 'chat', agentId: 'a1', scopedSessionId: 's1',
+    message: 'hi', agentDir: '/tmp/a1', resume: false,
+  })
+  const flagIndex = plan.args.indexOf('--disallowed-tools')
+  assert.ok(flagIndex >= 0, 'claude must be spawned with --disallowed-tools')
+  for (const tool of EXPECTED_DENIED) {
+    assert.ok(plan.args.includes(tool), `${tool} must be denied: it cannot outlive the turn`)
+  }
+  // Subagents resolve inside the turn -- the process waits for them -- so Task must stay granted.
+  // A measured 21-minute, 8-subagent research turn depends on this.
+  assert.ok(!plan.args.includes('Task'), 'Task must NOT be denied')
 })
 
 test('buildRuntimePlan(openclaw, chat) matches today\'s args exactly, no cwd, streams deltas', () => {
@@ -482,6 +515,7 @@ test('buildRuntimePlan(claude, chat, create) uses --session-id with the determin
       '--model', 'claude-sonnet-4-20250514',
       '--session-id', uuid,
       '--dangerously-skip-permissions',
+      '--disallowed-tools', ...CLAUDE_POST_TURN_TOOLS,
     '--output-format', 'stream-json', '--verbose',
   ])
     assert.strictEqual(plan.cwd, '/workspace/AGENTS/agent1')
@@ -501,6 +535,7 @@ test('buildRuntimePlan(claude, json, resume) uses --resume and --output-format j
       '--model', 'claude-sonnet-4-20250514',
       '--resume', uuid,
       '--dangerously-skip-permissions',
+      '--disallowed-tools', ...CLAUDE_POST_TURN_TOOLS,
       '--output-format', 'json',
     ])
     assert.strictEqual(plan.streamsDeltas, false)
@@ -539,6 +574,7 @@ test('buildRuntimePlan(droid) includes -m only when a model is given, always -o 
     })
     assert.deepStrictEqual(withModel.args, [
       'exec', 'hello', '-m', 'gpt-5.5', '-s', boundSessionId, '--auto', 'high', '-o', 'json', '--cwd', '/workspace/AGENTS/agent1',
+      '--disabled-tools', DROID_POST_TURN_TOOLS.join(','),
     ])
     assert.strictEqual(withModel.cwd, undefined)
     assert.strictEqual(withModel.streamsDeltas, false)
@@ -549,9 +585,33 @@ test('buildRuntimePlan(droid) includes -m only when a model is given, always -o 
     })
     assert.deepStrictEqual(withoutModel.args, [
       'exec', 'hello', '-s', boundSessionId, '--auto', 'high', '-o', 'json', '--cwd', '/workspace/AGENTS/agent1',
+      '--disabled-tools', DROID_POST_TURN_TOOLS.join(','),
     ])
     assert.strictEqual(withoutModel.streamsDeltas, false)
   })
+})
+
+test('droid is denied every tool whose payoff outlives the turn, but keeps Task -- passed as one comma-joined value', () => {
+  // Mirrors the claude test above. Reproduced directly against droid 0.158.0: a CronCreate call in
+  // one process was visible to a CronList call in a second, unrelated process sharing the session.
+  const plan = buildRuntimePlan({
+    runtime: 'droid', mode: 'json', agentId: 'a1', scopedSessionId: 's1',
+    message: 'hi', agentDir: '/tmp/a1', resume: false,
+  })
+  const flagIndex = plan.args.indexOf('--disabled-tools')
+  assert.ok(flagIndex >= 0, 'droid must be spawned with --disabled-tools')
+  // Verified against the real CLI: droid takes one comma-joined value here, not repeated/
+  // space-separated args -- passing separate argv entries silently dropped everything but the
+  // first, so this shape is load-bearing, not stylistic.
+  assert.strictEqual(plan.args[flagIndex + 1], DROID_POST_TURN_TOOLS.join(','))
+  for (const tool of ['CronCreate', 'CronDelete', 'CronList', 'CreateAutomation', 'EditAutomation', 'DeleteAutomation']) {
+    assert.ok(plan.args[flagIndex + 1].split(',').includes(tool), `${tool} must be denied: it cannot outlive the turn`)
+  }
+  // Task/TaskOutput/TaskStop are droid's own subagent tool -- the process waits for them -- so,
+  // mirroring CLAUDE_POST_TURN_TOOLS' Task exemption, they must stay granted.
+  for (const tool of ['Task', 'TaskOutput', 'TaskStop']) {
+    assert.ok(!(DROID_POST_TURN_TOOLS as readonly string[]).includes(tool), `${tool} must NOT be denied`)
+  }
 })
 
 test('buildRuntimePlan(droid) never passes the raw scopedSessionId as -s (must be agent-bound)', () => {
@@ -779,7 +839,7 @@ async function run(): Promise<void> {
       const plan = { cliPath: cli, args: [], missingCliError: 'missing', streamsDeltas: false }
       const deltas: string[] = []
       const result = await runRuntimeCli({
-        plan, env: process.env as NodeJS.ProcessEnv, timeoutMs: 5000,
+        plan, env: process.env as NodeJS.ProcessEnv, signal: new AbortController().signal,
         rebuildPlan: () => { throw new Error('rebuildPlan should not be called for droid') },
         runtime: 'droid', mode: 'json', agentId: 'agent1', scopedSessionId: 'sess1',
         onDelta: (text) => deltas.push(text),
@@ -804,12 +864,12 @@ async function run(): Promise<void> {
       ;(process as any).getuid = () => 0 // simulate running as root (the container case)
       try {
         const claudeRes = await runRuntimeCli({
-          plan, env: baseEnv, timeoutMs: 5000, rebuildPlan: () => plan,
+          plan, env: baseEnv, signal: new AbortController().signal, rebuildPlan: () => plan,
           runtime: 'claude', mode: 'json', agentId: 'a', scopedSessionId: 's',
         })
         assert.strictEqual(claudeRes.text, 'IS_SANDBOX=1', 'claude as root must receive IS_SANDBOX=1')
         const droidRes = await runRuntimeCli({
-          plan, env: baseEnv, timeoutMs: 5000, rebuildPlan: () => plan,
+          plan, env: baseEnv, signal: new AbortController().signal, rebuildPlan: () => plan,
           runtime: 'droid', mode: 'json', agentId: 'a', scopedSessionId: 's',
         })
         assert.strictEqual(droidRes.text, 'IS_SANDBOX=', 'droid must not get IS_SANDBOX injected')
@@ -832,7 +892,7 @@ async function run(): Promise<void> {
       const plan = { cliPath: cli, args: [], missingCliError: 'missing', streamsDeltas: true }
       const deltas: string[] = []
       const result = await runRuntimeCli({
-        plan, env: process.env as NodeJS.ProcessEnv, timeoutMs: 5000,
+        plan, env: process.env as NodeJS.ProcessEnv, signal: new AbortController().signal,
         rebuildPlan: () => { throw new Error('rebuildPlan should not be called on a clean success') },
         runtime: 'claude', mode: 'chat', agentId: 'agent1', scopedSessionId: 'sess1',
         onDelta: (text) => deltas.push(text),
@@ -842,19 +902,197 @@ async function run(): Promise<void> {
     })
   })
 
-  await testAsync('runRuntimeCli kills the process and reports a no-output timeout when it runs too long', async () => {
-    await withTempDirAsync('clawmax-agent-runtime-exec-timeout-', async (dir) => {
-      const cli = path.join(dir, 'fake-slow.js')
-      writeFakeNodeCli(cli, `setTimeout(() => {}, 60000)`)
+  await testAsync('a silent turn is NEVER killed, however long it stays quiet', async () => {
+    // The rule, asserted directly rather than through a fixture that would pass either way: a turn
+    // that produces nothing for longer than every deadline this code used to carry (90s
+    // first-output, 600s idle, 750s route backstop) must still be running and must finish normally.
+    await withTempDirAsync('clawmax-agent-runtime-no-deadline-', async (dir) => {
+      const cli = path.join(dir, 'fake-silent.js')
+      writeFakeNodeCli(cli, `
+        process.stdout.write(JSON.stringify({ type: 'system', subtype: 'init' }) + '\\n')
+        setTimeout(() => {
+          process.stdout.write(JSON.stringify({ type: 'result', subtype: 'success', is_error: false, result: 'SURVIVED' }) + '\\n')
+          process.exit(0)
+        }, 1200)
+      `)
       fs.chmodSync(cli, 0o755)
-      const plan = { cliPath: cli, args: [], missingCliError: 'missing', streamsDeltas: false }
+      const started = Date.now()
       const result = await runRuntimeCli({
-        plan, env: process.env as NodeJS.ProcessEnv, timeoutMs: 200,
-        rebuildPlan: () => { throw new Error('rebuildPlan should not be called on timeout') },
-        runtime: 'droid', mode: 'json', agentId: 'agent1', scopedSessionId: 'sess1',
+        plan: { cliPath: cli, args: [], missingCliError: 'missing', streamsDeltas: true },
+        env: process.env as NodeJS.ProcessEnv, signal: new AbortController().signal,
+        rebuildPlan: () => { throw new Error('rebuildPlan should not be called') },
+        runtime: 'claude', mode: 'chat', agentId: 'agent1', scopedSessionId: 'sess1',
       })
-      // The fixture never writes, so this is the no-output class rather than "streamed then quiet".
-      assert.strictEqual(result.errorText, 'timeout-no-output')
+      // If any deadline survived the refactor this comes back cancelled or empty instead.
+      assert.strictEqual(result.text, 'SURVIVED')
+      assert.strictEqual(result.errorText, undefined)
+      assert.ok(Date.now() - started >= 1100, 'the turn must run to completion, not be cut short')
+    })
+  })
+
+  await testAsync('cancel settles even when a grandchild holds stdout open and close never fires', async () => {
+    // 'close' needs every stdio pipe closed, and a grandchild in its own session keeps stdout open
+    // after the child dies -- so waiting for 'close' would hang this promise forever, wedge the
+    // request, and leave the turn in the registry with nothing able to clear it. runOnce must
+    // settle off the SIGKILL escalation instead of trusting 'close'.
+    await withTempDirAsync('clawmax-agent-runtime-orphan-', async (dir) => {
+      const cli = path.join(dir, 'fake-leaky.js')
+      writeFakeNodeCli(cli, `
+        const { spawn } = require('child_process')
+        // detached => its own process group, so the parent's group kill cannot reach it; it
+        // inherits stdout, so the pipe stays open after this process is gone.
+        const grandchild = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 60000)'], {
+          detached: true, stdio: ['ignore', 'inherit', 'ignore'],
+        })
+        grandchild.unref()
+        process.stdout.write(JSON.stringify({ type: 'system', subtype: 'init' }) + '\\n')
+        setInterval(() => {}, 1000)
+      `)
+      fs.chmodSync(cli, 0o755)
+      const controller = new AbortController()
+      const run = runRuntimeCli({
+        plan: { cliPath: cli, args: [], missingCliError: 'missing', streamsDeltas: true },
+        env: process.env as NodeJS.ProcessEnv, signal: controller.signal,
+        rebuildPlan: () => { throw new Error('rebuildPlan should not be called') },
+        runtime: 'claude', mode: 'chat', agentId: 'agent1', scopedSessionId: 'sess1',
+      })
+      await new Promise((r) => setTimeout(r, 400))
+      controller.abort()
+      const outcome = await Promise.race([
+        run.then(() => 'settled'),
+        new Promise((r) => setTimeout(() => r('HUNG'), 8000)),
+      ])
+      assert.strictEqual(outcome, 'settled', 'must settle after SIGKILL even if close never fires')
+    })
+  })
+
+  await testAsync('a grandchild that keeps writing after cancel no longer reaches onActivity once the turn has settled', async () => {
+    // Distinct from the test above: that one only proves the promise settles despite the leaked
+    // pipe. This proves the *listener* is actually detached at settle -- without removeAllListeners
+    // in settle(), the escaped grandchild's writes keep re-entering this closure forever, growing
+    // `stdout` unboundedly and firing onActivity/onDelta long after the caller has moved on.
+    await withTempDirAsync('clawmax-agent-runtime-orphan-listener-', async (dir) => {
+      const cli = path.join(dir, 'fake-leaky-writer.js')
+      writeFakeNodeCli(cli, `
+        const { spawn } = require('child_process')
+        const grandchild = spawn(process.execPath, [
+          '-e', 'setInterval(() => process.stdout.write("grandchild-alive\\\\n"), 50)',
+        ], { detached: true, stdio: ['ignore', 'inherit', 'ignore'] })
+        grandchild.unref()
+        process.stdout.write(JSON.stringify({ type: 'system', subtype: 'init' }) + '\\n')
+        setInterval(() => {}, 1000)
+      `)
+      fs.chmodSync(cli, 0o755)
+      const controller = new AbortController()
+      let activityCount = 0
+      const run = runRuntimeCli({
+        plan: { cliPath: cli, args: [], missingCliError: 'missing', streamsDeltas: true },
+        env: process.env as NodeJS.ProcessEnv, signal: controller.signal,
+        rebuildPlan: () => { throw new Error('rebuildPlan should not be called') },
+        runtime: 'claude', mode: 'chat', agentId: 'agent1', scopedSessionId: 'sess1',
+        onActivity: () => { activityCount++ },
+      })
+      await new Promise((r) => setTimeout(r, 300))
+      controller.abort()
+      await Promise.race([run, new Promise((r) => setTimeout(r, 8000))])
+      const countAtSettle = activityCount
+      // The grandchild writes every 50ms; give it ten more rounds to prove silence, not luck.
+      await new Promise((r) => setTimeout(r, 600))
+      assert.strictEqual(activityCount, countAtSettle, 'onActivity fired after settle -- the stream listener leaked past the promise resolving')
+    })
+  })
+
+  await testAsync('a stdout stream error settles the turn instead of crashing the process', async () => {
+    // child.stdout/stderr had no 'error' listener, so a stream fault (EPIPE/EBADF) surfaced as an
+    // uncaughtException -- which the dashboard's own global handler turns into process.exit(1),
+    // killing every other turn in flight, not just this one's. Reproduced here by reaching into the
+    // real ChildProcess the same way the finding did: capture it via a spy on child_process.spawn,
+    // then destroy its stdout with an error, and prove runRuntimeCli still settles cleanly.
+    await withTempDirAsync('clawmax-agent-runtime-stream-error-', async (dir) => {
+      const cli = path.join(dir, 'fake-idle.js')
+      writeFakeNodeCli(cli, `setInterval(() => {}, 1000)`)
+      fs.chmodSync(cli, 0o755)
+
+      const cp = require('child_process')
+      const originalSpawn = cp.spawn
+      let captured: any
+      cp.spawn = (...args: any[]) => {
+        captured = originalSpawn(...args)
+        return captured
+      }
+      // A safety net, not the assertion: if this regresses, the exception should still be caught
+      // here and turned into a normal test failure rather than crashing the whole suite process.
+      let uncaught: Error | undefined
+      const onUncaught = (err: Error) => { uncaught = err }
+      process.once('uncaughtException', onUncaught)
+      try {
+        const run = runRuntimeCli({
+          plan: { cliPath: cli, args: [], missingCliError: 'missing', streamsDeltas: false },
+          env: process.env as NodeJS.ProcessEnv, signal: new AbortController().signal,
+          rebuildPlan: () => { throw new Error('rebuildPlan should not be called') },
+          runtime: 'droid', mode: 'json', agentId: 'agent1', scopedSessionId: 'sess1',
+        })
+        await new Promise((r) => setTimeout(r, 200))
+        captured.stdout.destroy(new Error('synthetic EPIPE-style stream error'))
+        const outcome = await Promise.race([
+          run.then(() => 'settled'),
+          new Promise((r) => setTimeout(() => r('HUNG'), 5000)),
+        ])
+        assert.strictEqual(outcome, 'settled', 'a stream error must settle the turn, not hang it')
+        assert.strictEqual(uncaught, undefined, `stream error escaped as an uncaughtException: ${uncaught}`)
+      } finally {
+        cp.spawn = originalSpawn
+        process.removeListener('uncaughtException', onUncaught)
+      }
+    })
+  })
+
+  await testAsync('a turn cancelled after streaming keeps its partial text and reports cancellation', async () => {
+    await withTempDirAsync('clawmax-agent-runtime-cancel-', async (dir) => {
+      const cli = path.join(dir, 'fake-chatty.js')
+      writeFakeNodeCli(cli, `
+        process.stdout.write(JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'PARTIAL' }] } }) + '\\n')
+        setInterval(() => {}, 1000)
+      `)
+      fs.chmodSync(cli, 0o755)
+      const controller = new AbortController()
+      const deltas: string[] = []
+      const run = runRuntimeCli({
+        plan: { cliPath: cli, args: [], missingCliError: 'missing', streamsDeltas: true },
+        env: process.env as NodeJS.ProcessEnv, signal: controller.signal,
+        rebuildPlan: () => { throw new Error('rebuildPlan should not be called') },
+        runtime: 'claude', mode: 'chat', agentId: 'agent1', scopedSessionId: 'sess1',
+        onDelta: (t) => deltas.push(t),
+      })
+      await new Promise((r) => setTimeout(r, 400))
+      controller.abort()
+      const result = await run
+      assert.strictEqual(result.errorText, RUNTIME_CANCELLED)
+      assert.ok(isRuntimeCancelledError(result.errorText), 'predicate must recognise the sentinel')
+      // Discarding streamed text made a cancelled turn indistinguishable from a wedged one.
+      assert.strictEqual(result.text, 'PARTIAL')
+      assert.deepStrictEqual(deltas, ['PARTIAL'])
+    })
+  })
+
+  await testAsync('a signal already aborted before spawn settles instead of hanging', async () => {
+    // The abort fires before the listener is attached, so addEventListener alone would never run.
+    await withTempDirAsync('clawmax-agent-runtime-preabort-', async (dir) => {
+      const cli = path.join(dir, 'fake-slow.js')
+      writeFakeNodeCli(cli, `setInterval(() => {}, 1000)`)
+      fs.chmodSync(cli, 0o755)
+      const controller = new AbortController()
+      controller.abort()
+      const outcome = await Promise.race([
+        runRuntimeCli({
+          plan: { cliPath: cli, args: [], missingCliError: 'missing', streamsDeltas: true },
+          env: process.env as NodeJS.ProcessEnv, signal: controller.signal,
+          rebuildPlan: () => { throw new Error('rebuildPlan should not be called') },
+          runtime: 'claude', mode: 'chat', agentId: 'agent1', scopedSessionId: 'sess1',
+        }).then(() => 'settled'),
+        new Promise((r) => setTimeout(() => r('HUNG'), 8000)),
+      ])
+      assert.strictEqual(outcome, 'settled')
     })
   })
 
@@ -881,7 +1119,7 @@ async function run(): Promise<void> {
       await withWorkspaceAsync(null, async () => {
         let rebuildCalls = 0
         const result = await runRuntimeCli({
-          plan: createPlan, env: process.env as NodeJS.ProcessEnv, timeoutMs: 5000,
+          plan: createPlan, env: process.env as NodeJS.ProcessEnv, signal: new AbortController().signal,
           rebuildPlan: (resume) => { rebuildCalls++; return resume ? resumePlan : createPlan },
           runtime: 'claude', mode: 'json', agentId: 'agent1', scopedSessionId: 'sess1',
         })
@@ -913,7 +1151,7 @@ async function run(): Promise<void> {
       const createPlan = { cliPath: cli, args: ['--session-id', 'FAKE-UUID'], missingCliError: 'missing', streamsDeltas: false }
 
       const result = await runRuntimeCli({
-        plan: resumePlan, env: process.env as NodeJS.ProcessEnv, timeoutMs: 5000,
+        plan: resumePlan, env: process.env as NodeJS.ProcessEnv, signal: new AbortController().signal,
         rebuildPlan: (resume) => (resume ? resumePlan : createPlan),
         runtime: 'claude', mode: 'json', agentId: 'agent1', scopedSessionId: 'sess1',
       })
@@ -931,7 +1169,7 @@ async function run(): Promise<void> {
       fs.chmodSync(cli, 0o755)
       const plan = { cliPath: cli, args: [], missingCliError: 'missing', streamsDeltas: false }
       const result = await runRuntimeCli({
-        plan, env: process.env as NodeJS.ProcessEnv, timeoutMs: 5000,
+        plan, env: process.env as NodeJS.ProcessEnv, signal: new AbortController().signal,
         rebuildPlan: () => { throw new Error('rebuildPlan should never be called for droid') },
         runtime: 'droid', mode: 'json', agentId: 'agent1', scopedSessionId: 'sess1',
       })
@@ -949,7 +1187,7 @@ async function run(): Promise<void> {
       fs.chmodSync(cli, 0o755)
       const plan = { cliPath: cli, args: [], missingCliError: 'missing', streamsDeltas: false }
       const result = await runRuntimeCli({
-        plan, env: process.env as NodeJS.ProcessEnv, timeoutMs: 5000,
+        plan, env: process.env as NodeJS.ProcessEnv, signal: new AbortController().signal,
         rebuildPlan: () => { throw new Error('rebuildPlan should not be called for an unclassified error') },
         runtime: 'claude', mode: 'json', agentId: 'agent1', scopedSessionId: 'sess1',
       })

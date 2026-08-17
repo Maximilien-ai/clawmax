@@ -42,6 +42,7 @@ import { exportAgentToOpenClaw, getAgentTransferMetadata, importAgentFromBundleD
 import { normalizeChatMessage } from '../lib/chat-normalization'
 import { writeDashboardManagedOpenClawConfig } from '../lib/openclaw-config'
 import { runExclusiveAgentExecution } from '../lib/agent-execution'
+import { withRegisteredTurn } from '../lib/agent-turns'
 import { scopeSessionIdToModel, resolveAgentExecutionConfig, resolvePersistedAgentSessionId } from '../lib/agent-execution'
 import { resolveDefaultAgentModel } from '../lib/agent-default-model'
 import { getAuthenticatedSession } from '../lib/github-auth'
@@ -56,6 +57,7 @@ import {
   isUsableArchiveTitle,
   parseArchiveTimestamp,
 } from '../lib/chat-archives'
+import { cancelProcessTree, detachProcessStreams } from '../lib/process-tree'
 
 /** Find the root dir of a pnpm package by scanning .pnpm store for a prefix */
 function findPnpmPkg(repoDir: string, prefix: string, pkgSubPath: string): string | null {
@@ -2121,6 +2123,9 @@ function callGatewayRpc(_port: number, _token: string, method: string, params: u
     const proc = spawn('openclaw', args, { env: safeEnv() })
     let stdout = ''
     let stderr = ''
+    // not-a-turn-deadline: a liveness probe against the openclaw gateway, not an agent turn. It
+    // asks "is the daemon answering?" and 10s is already generous for that; nothing an agent does
+    // runs inside it.
     const timer = setTimeout(() => { proc.kill(); reject(new Error('gateway timeout')) }, 10000)
     proc.stdout.on('data', (d: Buffer) => { stdout += d.toString() })
     proc.stderr.on('data', (d: Buffer) => { stderr += d.toString() })
@@ -2282,7 +2287,13 @@ router.post('/:id/chat/messages', async (req, res) => {
       // Claude Code / Factory Droid: spawn via the shared runtime adapter instead of the
       // openclaw CLI. No --local flag, no openclaw sessions.json bookkeeping — session
       // continuity is tracked by runtime-sessions.ts (see agent-runtime.ts).
-      runExclusiveAgentExecution(id, () => new Promise<void>((resolve, reject) => {
+      // withRegisteredTurn registers this turn before executeAgentRuntimeTurn spawns anything, so
+      // it shows up in GET /turns/active and is reachable by POST /:id/chat/cancel by turnId (the
+      // registry is shared process-wide — it doesn't matter that the route registering it lives
+      // here rather than in chat.ts). A bare `new AbortController().signal` here was never wired
+      // to anything, so this turn used to be unkillable once started; releasing happens in a
+      // `finally` inside withRegisteredTurn, so it can't leak on any exit path below.
+      runExclusiveAgentExecution(id, () => withRegisteredTurn(id, (turn) => new Promise<void>((resolve, reject) => {
         executeAgentRuntimeTurn({
           runtime: resolvedAgent.runtime,
           agentId: id,
@@ -2296,7 +2307,12 @@ router.post('/:id/chat/messages', async (req, res) => {
           // when ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION=true). This route carries no BYOK payload
           // (ChatPanel posts { message } only), so there are no request-level overrides to layer on.
           env: userExecutionEnv({}),
-          timeoutMs: 600000, // 10 min timeout, matches the openclaw path below
+          // No deadline, matching every other execution surface. Cancellation (via turn.signal) is
+          // the only way this turn ends early now.
+          signal: turn.signal,
+          // json mode never streams deltas, but tool calls and thinking still produce CLI output —
+          // count any of it as alive so a legitimately busy turn never reads as idle.
+          onActivity: () => turn.touch(),
         }).then(({ text, errorText, missingCliError }) => {
           if (missingCliError) {
             reject(new Error(missingCliError))
@@ -2311,28 +2327,61 @@ router.post('/:id/chat/messages', async (req, res) => {
           res.json({ ok: true, result: { response: responseText } })
           resolve()
         }).catch(reject)
-      })).catch((err) => {
+      }))).catch((err) => {
         res.status(500).json({ error: String(err?.message || err) })
       })
       return
     }
 
-    runExclusiveAgentExecution(id, () => new Promise<void>((resolve, reject) => {
+    // No deadline: withRegisteredTurn registers this turn (see the claude/droid branch above for
+    // why that makes it visible to GET /turns/active and reachable by POST /:id/chat/cancel). This
+    // branch used to kill the CLI unconditionally at 10 minutes regardless of whether it was still
+    // working — the same bug the rest of this change deletes everywhere else; cancellation is now
+    // its only kill switch too.
+    runExclusiveAgentExecution(id, () => withRegisteredTurn(id, (turn) => new Promise<void>((resolve, reject) => {
       const useLocal = !isGatewayConfigured()
       const args = ['agent', '--agent', id, '--session-id', sessionId, '--message', message, '--json', ...(useLocal ? ['--local'] : [])]
-      const proc = spawn('openclaw', args, { env: safeEnv() })
+      // Own process group: openclaw spawns its own children, and signalling only this direct child
+      // leaves grandchildren alive holding the stdout pipe open. Mirrors runOnce in agent-runtime.ts.
+      const proc = spawn('openclaw', args, { env: safeEnv(), detached: true })
 
       let stdout = ''
       let stderr = ''
-      const timer = setTimeout(() => { proc.kill() }, 600000) // 10 min timeout
+      let settled = false
+      let killEscalation: NodeJS.Timeout | undefined
 
-      proc.stdout.on('data', (d: Buffer) => { stdout += d.toString() })
-      proc.stderr.on('data', (d: Buffer) => { stderr += d.toString() })
+      /**
+       * Settle exactly once and stop reading.
+       *
+       * This promise is nested inside runExclusiveAgentExecution's per-agent lock, so a promise that
+       * never settles does not just leak this turn's registry entry -- it holds that lock forever and
+       * permanently blocks every later chat, channel and workflow turn for this agent. There is no
+       * deadline anywhere that could eventually clear it, by design, so settling has to be guaranteed
+       * here rather than left to 'close'.
+       */
+      const settle = (fn: () => void) => {
+        if (settled) return
+        settled = true
+        turn.signal.removeEventListener('abort', onAbort)
+        if (killEscalation) clearTimeout(killEscalation)
+      detachProcessStreams(proc)
+        fn()
+      }
+
+      function onAbort() {
+        if (settled) return
+        // SIGTERM, then an unconditional group SIGKILL, then settle -- see cancelProcessTree.
+        killEscalation = cancelProcessTree(proc, () => settle(() => reject(new Error('Agent run was stopped.'))))
+      }
+      if (turn.signal.aborted) onAbort()
+      else turn.signal.addEventListener('abort', onAbort)
+
+      proc.stdout.on('data', (d: Buffer) => { turn.touch(); stdout += d.toString() })
+      proc.stderr.on('data', (d: Buffer) => { turn.touch(); stderr += d.toString() })
 
       proc.on('close', (code: number) => {
-        clearTimeout(timer)
         if (code !== 0) {
-          reject(new Error(`Agent command failed: ${stderr}`))
+          settle(() => reject(new Error(`Agent command failed: ${stderr}`)))
           return
         }
 
@@ -2354,18 +2403,19 @@ router.post('/:id/chat/messages', async (req, res) => {
             }
           }
 
-          res.json({ ok: true, result: { response: responseText } })
-          resolve()
+          settle(() => {
+            res.json({ ok: true, result: { response: responseText } })
+            resolve()
+          })
         } catch {
-          reject(new Error(`Invalid JSON from agent: ${stdout}`))
+          settle(() => reject(new Error(`Invalid JSON from agent: ${stdout}`)))
         }
       })
 
       proc.on('error', (err: Error) => {
-        clearTimeout(timer)
-        reject(err)
+        settle(() => reject(err))
       })
-    })).catch((err) => {
+    }))).catch((err) => {
       res.status(500).json({ error: String(err?.message || err) })
     })
   } catch (err) {
@@ -3387,6 +3437,8 @@ router.post('/:id/archive', async (req, res) => {
         if (pid > 0) {
           process.kill(pid, 'SIGTERM')
           // Wait a bit for graceful shutdown
+          // not-a-turn-deadline: a settle delay while the gateway process shuts down, so the port
+          // is free before the next start. It ends nothing.
           await new Promise(resolve => setTimeout(resolve, 500))
           // Force kill if still running
           try { process.kill(pid, 'SIGKILL') } catch {}
