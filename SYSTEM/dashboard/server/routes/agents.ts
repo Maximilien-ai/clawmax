@@ -908,6 +908,9 @@ router.post('/provision', (req, res) => {
     if (seeded.created.length > 0) {
       send('log', `Seeded default agent files: ${seeded.created.join(', ')}\n`)
     }
+    if (seeded.updated.length > 0) {
+      send('log', `Completed default agent fields: ${seeded.updated.join(', ')}\n`)
+    }
   }
 
   const syncProvisionedAgentModels = () => {
