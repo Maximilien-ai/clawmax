@@ -376,6 +376,31 @@ async function run() {
     assert(/Template slug is required/i.test(res.jsonBody?.error || ''), 'Expected missing agent import slug guidance')
   })
 
+  await test('template imports enforce tenant agent and workflow limits', async () => {
+    const originalAgentLimit = process.env.CLAWMAX_MAX_AGENTS_PER_WORKSPACE
+    const originalWorkflowLimit = process.env.CLAWMAX_MAX_WORKFLOWS_PER_WORKSPACE
+    process.env.CLAWMAX_MAX_AGENTS_PER_WORKSPACE = '0'
+    process.env.CLAWMAX_MAX_WORKFLOWS_PER_WORKSPACE = '0'
+    try {
+      const agentHandler = getRouteHandler('post', '/agents/import')
+      let res = makeRes()
+      await agentHandler(makeReq({ body: { templateSlug: 'briefing-writer-template' } }), res)
+      assert.strictEqual(res.statusCode, 409, 'Expected agent template import to enforce tenant limit')
+      assert.strictEqual(res.jsonBody?.code, 'TENANT_RESOURCE_LIMIT_REACHED')
+
+      const workflowHandler = getRouteHandler('post', '/workflows/import-md')
+      res = makeRes()
+      await workflowHandler(makeReq({ body: { content: '---\nname: Limited workflow\n---\nDo work.' } }), res)
+      assert.strictEqual(res.statusCode, 409, 'Expected workflow template import to enforce tenant limit')
+      assert.strictEqual(res.jsonBody?.resource, 'workflows')
+    } finally {
+      if (typeof originalAgentLimit === 'undefined') delete process.env.CLAWMAX_MAX_AGENTS_PER_WORKSPACE
+      else process.env.CLAWMAX_MAX_AGENTS_PER_WORKSPACE = originalAgentLimit
+      if (typeof originalWorkflowLimit === 'undefined') delete process.env.CLAWMAX_MAX_WORKFLOWS_PER_WORKSPACE
+      else process.env.CLAWMAX_MAX_WORKFLOWS_PER_WORKSPACE = originalWorkflowLimit
+    }
+  })
+
   await test('organization customization and import routes reject missing template slugs', async () => {
     const customizeHandler = getRouteHandler('post', '/organizations/validate-customization')
     let res = makeRes()

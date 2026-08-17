@@ -532,6 +532,11 @@ fi
 if [ "$OPENCLAW_INSTALLED" = true ]; then
   OPENCLAW_VER=$(openclaw --version 2>&1 | head -1 | grep -o '[0-9]\{4\}\.[0-9]*\.[0-9]*' || echo "installed")
   print_success "OpenClaw CLI ready: $OPENCLAW_VER"
+  if "$SCRIPT_DIR/SYSTEM/ensure-openclaw-default-plugins.sh"; then
+    print_success "Default OpenClaw plugins ready"
+  else
+    print_warning "Default OpenClaw plugin setup failed — agent chat may be blocked by stale channel configuration"
+  fi
 elif [ "$OPENCLAW_INSTALLED" = false ]; then
   print_warning "OpenClaw CLI not installed — agent start/stop/chat will not work"
   echo -e "  Install later: ${BOLD}npm install -g github:openclaw/openclaw#$OPENCLAW_GIT_REF${NC}"

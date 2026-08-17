@@ -50,6 +50,7 @@ import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
 import { resolveOpenClawCliPath } from '../lib/openclaw-cli'
 import { buildNamedExportFilename } from '../lib/export-filename'
 import { recordAgentLifecycleAuditEvent } from '../lib/agent-lifecycle-audit'
+import { assertTenantResourceCapacity, tenantResourceLimitResponse } from '../lib/tenant-resource-limits'
 import { listAvailableSkills, setAgentSkills } from '../lib/skills'
 import {
   getArchiveTitleMessages,
@@ -841,6 +842,19 @@ router.post('/provision', async (req, res) => {
     : 'balanced'
   const synthesizedAiDescription = synthesizeAgentAiDescription(aiDescription, generatedFiles)
 
+  const existingAgents = listAgents()
+  const requestedAgentAlreadyExists = typeof name === 'string' && existingAgents.some((agent) => agent.id === name)
+  try {
+    if (!requestedAgentAlreadyExists) assertTenantResourceCapacity('agents', existingAgents.length)
+  } catch (error) {
+    const limitResponse = tenantResourceLimitResponse(error)
+    if (limitResponse) {
+      res.status(limitResponse.statusCode).json(limitResponse.body)
+      return
+    }
+    throw error
+  }
+
   const resolvedModel = resolveDefaultAgentModel({
     explicitModel: model,
     builtIn: Array.isArray(tags) && tags.includes('built-in'),
@@ -871,7 +885,7 @@ router.post('/provision', async (req, res) => {
     return
   }
   const inputValidation = validateProvisionInput({ ...(req.body || {}), model: resolvedModel }, {
-    existingAgentIds: listAgents().map(agent => agent.id),
+    existingAgentIds: existingAgents.map(agent => agent.id),
     availableModels: [...getAvailableModels(), ...provisionRuntimeModels],
   })
 
@@ -3786,6 +3800,7 @@ router.get('/:id/export', async (req, res) => {
 // Import agent bundle from a local directory path
 router.post('/import-directory', async (req, res) => {
   try {
+    assertTenantResourceCapacity('agents', listAgents().length)
     const { sourcePath, targetId } = req.body as { sourcePath?: string; targetId?: string }
     if (!sourcePath || typeof sourcePath !== 'string') {
       return res.status(400).json({ error: 'sourcePath is required' })
@@ -3797,6 +3812,8 @@ router.post('/import-directory', async (req, res) => {
     const result = importAgentFromBundleDirectory(sourcePath, targetId)
     res.json({ ok: true, ...result })
   } catch (err: any) {
+    const limitResponse = tenantResourceLimitResponse(err)
+    if (limitResponse) return res.status(limitResponse.statusCode).json(limitResponse.body)
     res.status(500).json({ error: err.message })
   }
 })
@@ -3804,6 +3821,7 @@ router.post('/import-directory', async (req, res) => {
 // Import agent bundle from ZIP upload
 router.post('/import-zip', express.raw({ type: 'application/zip', limit: '25mb' }), async (req, res) => {
   try {
+    assertTenantResourceCapacity('agents', listAgents().length)
     const targetId = typeof req.query.targetId === 'string' ? req.query.targetId : undefined
     if (targetId && !/^[a-zA-Z0-9_-]+$/.test(targetId)) {
       return res.status(400).json({ error: 'Invalid targetId' })
@@ -3821,6 +3839,8 @@ router.post('/import-zip', express.raw({ type: 'application/zip', limit: '25mb' 
     const result = importAgentFromZipArchive(zipPath, targetId)
     res.json({ ok: true, ...result })
   } catch (err: any) {
+    const limitResponse = tenantResourceLimitResponse(err)
+    if (limitResponse) return res.status(limitResponse.statusCode).json(limitResponse.body)
     res.status(500).json({ error: err.message })
   }
 })
@@ -3837,6 +3857,7 @@ router.get('/openclaw/importable', async (_req, res) => {
 // Import OpenClaw agent into current workspace
 router.post('/openclaw/import', async (req, res) => {
   try {
+    assertTenantResourceCapacity('agents', listAgents().length)
     const { sourceId, targetId } = req.body as { sourceId?: string; targetId?: string }
     if (!sourceId || !/^[a-zA-Z0-9_-]+$/.test(sourceId)) {
       return res.status(400).json({ error: 'Valid sourceId is required' })
@@ -3848,6 +3869,8 @@ router.post('/openclaw/import', async (req, res) => {
     const result = importAgentFromOpenClaw(sourceId, targetId)
     res.json({ ok: true, ...result })
   } catch (err: any) {
+    const limitResponse = tenantResourceLimitResponse(err)
+    if (limitResponse) return res.status(limitResponse.statusCode).json(limitResponse.body)
     res.status(500).json({ error: err.message })
   }
 })

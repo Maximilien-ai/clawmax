@@ -1548,6 +1548,26 @@ else
   fail "Gateway RPC config edge-case unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Gateway RPC client behavior unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/gateway-rpc-client.test.ts > /tmp/clawmax-gateway-rpc-client.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-gateway-rpc-client.out; then
+  gateway_rpc_client_count=$(grep "Tests passed:" /tmp/clawmax-gateway-rpc-client.out | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Gateway RPC client behavior unit tests (${gateway_rpc_client_count:-?} tests)"
+else
+  cat /tmp/clawmax-gateway-rpc-client.out
+  fail "Gateway RPC client behavior unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Gateway RPC call protocol unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/gateway-rpc-call.test.ts > /tmp/clawmax-gateway-rpc-call.out 2>&1 || true
+if grep -q "All tests passed" /tmp/clawmax-gateway-rpc-call.out; then
+  gateway_rpc_call_count=$(grep "Tests passed:" /tmp/clawmax-gateway-rpc-call.out | sed 's/.*Tests passed: //' | tr -cd '0-9')
+  pass "Gateway RPC call protocol unit tests (${gateway_rpc_call_count:-?} tests)"
+else
+  cat /tmp/clawmax-gateway-rpc-call.out
+  fail "Gateway RPC call protocol unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Gateway probe regression tests...${NC}"
 npx ts-node --transpileOnly server/lib/gateway-probe-regressions.test.ts > /tmp/clawmax-gateway-probe-regressions.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-gateway-probe-regressions.out; then
@@ -2025,6 +2045,15 @@ else
   fail "Onboarding tour helper unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Workspace tour interaction regression tests...${NC}"
+npx ts-node --transpileOnly client/src/WorkspaceTourInteraction.test.ts > /tmp/clawmax-workspace-tour-interaction.out 2>&1 || true
+if grep -q "WorkspaceTourInteraction.test.ts: 6 assertions passed" /tmp/clawmax-workspace-tour-interaction.out; then
+  pass "Workspace tour interaction regression tests (6 assertions)"
+else
+  cat /tmp/clawmax-workspace-tour-interaction.out
+  fail "Workspace tour interaction regression tests"
+fi
+
 echo -e "${YELLOW}→ Running Apply organization template flow smoke tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/applyOrgTemplateFlow.test.ts > /tmp/clawmax-apply-org-template-flow.out 2>&1 || true
 if grep -q "applyOrgTemplateFlow.test.ts: ok" /tmp/clawmax-apply-org-template-flow.out; then
@@ -2143,8 +2172,8 @@ fi
 
 echo -e "${YELLOW}→ Running API security boundary tests...${NC}"
 npx ts-node --transpileOnly server/lib/security-boundaries.test.ts > /tmp/clawmax-security-boundaries.out 2>&1 || true
-if grep -q "security-boundaries.test.ts: 42 tests passed" /tmp/clawmax-security-boundaries.out; then
-  pass "API security boundary tests (42 tests)"
+if grep -q "security-boundaries.test.ts: 44 tests passed" /tmp/clawmax-security-boundaries.out; then
+  pass "API security boundary tests (44 tests)"
 else
   cat /tmp/clawmax-security-boundaries.out
   fail "API security boundary tests"
@@ -2152,11 +2181,29 @@ fi
 
 echo -e "${YELLOW}→ Running dynamic API security boundary tests...${NC}"
 npx ts-node --transpileOnly server/lib/security-boundaries-dynamic.test.ts > /tmp/clawmax-security-boundaries-dynamic.out 2>&1 || true
-if grep -q "security-boundaries-dynamic.test.ts: 14 tests passed" /tmp/clawmax-security-boundaries-dynamic.out; then
-  pass "Dynamic API security boundary tests (14 tests)"
+if grep -q "security-boundaries-dynamic.test.ts: 15 tests passed" /tmp/clawmax-security-boundaries-dynamic.out; then
+  pass "Dynamic API security boundary tests (15 tests)"
 else
   cat /tmp/clawmax-security-boundaries-dynamic.out
   fail "Dynamic API security boundary tests"
+fi
+
+echo -e "${YELLOW}→ Running Workspace dashboard auth tests...${NC}"
+npx ts-node --transpileOnly client/src/WorkspaceDashboardAuth.test.ts > /tmp/clawmax-workspace-dashboard-auth.out 2>&1 || true
+if grep -q "WorkspaceDashboardAuth.test.ts: 5 assertions passed" /tmp/clawmax-workspace-dashboard-auth.out; then
+  pass "Workspace dashboard auth tests (5 assertions)"
+else
+  cat /tmp/clawmax-workspace-dashboard-auth.out
+  fail "Workspace dashboard auth tests"
+fi
+
+echo -e "${YELLOW}→ Running instance branding tests...${NC}"
+npx ts-node --transpileOnly client/src/InstanceBranding.test.ts > /tmp/clawmax-instance-branding.out 2>&1 || true
+if grep -q "InstanceBranding.test.ts: 12 assertions passed" /tmp/clawmax-instance-branding.out; then
+  pass "Instance branding tests (12 assertions)"
+else
+  cat /tmp/clawmax-instance-branding.out
+  fail "Instance branding tests"
 fi
 
 echo -e "${YELLOW}→ Running Keys/secrets inventory unit tests...${NC}"
@@ -2551,6 +2598,16 @@ else
   fail "Maintenance banner view edge-case unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Tenant resource limit unit tests...${NC}"
+tenant_resource_limits_output="$(npx ts-node --transpileOnly server/lib/tenant-resource-limits.test.ts 2>&1 || true)"
+printf '%s\n' "$tenant_resource_limits_output" > /tmp/clawmax-tenant-resource-limits.out
+if printf '%s\n' "$tenant_resource_limits_output" | grep -q "8 assertions passed"; then
+  pass "Tenant resource limit unit tests (8 assertions)"
+else
+  cat /tmp/clawmax-tenant-resource-limits.out
+  fail "Tenant resource limit unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Dashboard env unit tests...${NC}"
 if [ "$SKIP_CI_QUARANTINED_TESTS" = "true" ]; then
   warn "Skipping Dashboard env unit tests in required CI lane (still covered locally and in quarantined CI)"
@@ -2589,8 +2646,8 @@ fi
 
 echo -e "${YELLOW}→ Running local plugin startup contract tests...${NC}"
 bash "$SYSTEM_DIR/start-local-plugins.test.sh" > /tmp/clawmax-start-local-plugins.out 2>&1 || true
-if grep -q "start-local-plugins.test.sh: 8 tests passed" /tmp/clawmax-start-local-plugins.out; then
-  pass "Local plugin startup contract tests (8 tests)"
+if grep -q "start-local-plugins.test.sh: 9 tests passed" /tmp/clawmax-start-local-plugins.out; then
+  pass "Local plugin startup contract tests (9 tests)"
 else
   cat /tmp/clawmax-start-local-plugins.out
   fail "Local plugin startup contract tests"
@@ -2598,8 +2655,8 @@ fi
 
 echo -e "${YELLOW}→ Running dashboard test-run lock contract tests...${NC}"
 bash "$SYSTEM_DIR/test-run-lock.test.sh" > /tmp/clawmax-test-run-lock.out 2>&1 || true
-if grep -q "test-run-lock.test.sh: 9 tests passed" /tmp/clawmax-test-run-lock.out; then
-  pass "Dashboard test-run lock contract tests (9 tests)"
+if grep -q "test-run-lock.test.sh: 13 tests passed" /tmp/clawmax-test-run-lock.out; then
+  pass "Dashboard test-run lock contract tests (13 tests)"
 else
   cat /tmp/clawmax-test-run-lock.out
   fail "Dashboard test-run lock contract tests"
@@ -2632,6 +2689,15 @@ if grep -q "PASS: setup.sh defaults non-interactive auth to bypass" /tmp/clawmax
 else
   [ -f /tmp/clawmax-setup-shell.out ] && cat /tmp/clawmax-setup-shell.out
   fail "Setup shell tests"
+fi
+
+echo -e "${YELLOW}→ Running default OpenClaw plugin shell tests...${NC}"
+bash "$SYSTEM_DIR/ensure-openclaw-default-plugins.test.sh" > /tmp/clawmax-default-openclaw-plugins.out 2>&1 || true
+if grep -q "PASS: default OpenClaw plugins install compatibly and idempotently" /tmp/clawmax-default-openclaw-plugins.out; then
+  pass "Default OpenClaw plugin shell tests"
+else
+  cat /tmp/clawmax-default-openclaw-plugins.out
+  fail "Default OpenClaw plugin shell tests"
 fi
 
 echo -e "${YELLOW}→ Running OpenClaw target prep shell tests...${NC}"
@@ -3907,9 +3973,10 @@ else
 fi
 
 # Test skill validation
+valid_test_skills=$(apicurl "$API_BASE/api/skills" | jq -c '[.skills[0:3][] | .name]')
 response=$(apicurl -X POST "$API_BASE/api/skills/validate" \
   -H 'Content-Type: application/json' \
-  -d '{"skills":["github","slack","notion"]}')
+  -d "{\"skills\":$valid_test_skills}")
 
 if echo "$response" | jq -e '.valid == true' > /dev/null 2>&1; then
   pass "Valid skills pass validation"
@@ -3940,8 +4007,9 @@ if apicurl "$API_BASE/api/agents" | jq -e '.agents[0].id' > /dev/null 2>&1; then
   # Get current skills
   current_skills=$(apicurl "$API_BASE/api/skills/agent/$first_agent" | jq -r '.skillIds')
 
-  # Try to update (use valid skills: github and slack)
-  test_skills='["github","slack"]'
+  # Try to update using skills advertised by the active runtime catalog.
+  test_skills=$(apicurl "$API_BASE/api/skills" | jq -c '[.skills[0:2][] | .name]')
+  first_test_skill=$(echo "$test_skills" | jq -r '.[0]')
   response=$(apicurl -X PUT "$API_BASE/api/skills/agent/$first_agent" \
     -H 'Content-Type: application/json' \
     -d "{\"skills\":$test_skills}")
@@ -3952,7 +4020,7 @@ if apicurl "$API_BASE/api/agents" | jq -e '.agents[0].id' > /dev/null 2>&1; then
     # Verify persistence - check if skills were saved
     sleep 0.5
     updated_skills=$(apicurl "$API_BASE/api/skills/agent/$first_agent" | jq -r '.skillIds[]')
-    if echo "$updated_skills" | grep -q "github"; then
+    if echo "$updated_skills" | grep -Fxq "$first_test_skill"; then
       pass "Skills persisted to openclaw.json"
     else
       fail "Skills not persisted correctly"
@@ -3969,10 +4037,11 @@ if apicurl "$API_BASE/api/agents" | jq -e '.agents[0].id' > /dev/null 2>&1 && \
    apicurl "$API_BASE/api/agents" | jq -e '.agents[1].id' > /dev/null 2>&1; then
   agent1=$(apicurl "$API_BASE/api/agents" | jq -r '.agents[0].id')
   agent2=$(apicurl "$API_BASE/api/agents" | jq -r '.agents[1].id')
+  first_test_skill=$(apicurl "$API_BASE/api/skills" | jq -r '.skills[0].name')
 
   response=$(apicurl -X POST "$API_BASE/api/skills/bulk-assign" \
     -H 'Content-Type: application/json' \
-    -d "{\"agentIds\":[\"$agent1\",\"$agent2\"],\"addSkills\":[\"github\"]}")
+    -d "{\"agentIds\":[\"$agent1\",\"$agent2\"],\"addSkills\":[\"$first_test_skill\"]}")
 
   if echo "$response" | jq -e '.ok == true' > /dev/null 2>&1; then
     updated=$(echo "$response" | jq -r '.updated')
@@ -4076,21 +4145,32 @@ fi
 
 # Test get specific workflow (if any exist)
 if [ "$workflow_count" -gt 0 ]; then
-  first_workflow_id=$(apicurl "$API_BASE/api/workflows" | jq -r '.workflows[0].id')
-  test_api "Get workflow by ID" "/api/workflows/$first_workflow_id"
-  test_json_field "Workflow has name" "/api/workflows/$first_workflow_id" ".name"
-  test_json_field "Workflow has schedule" "/api/workflows/$first_workflow_id" ".schedule"
-  test_json_field "Workflow has targeting" "/api/workflows/$first_workflow_id" ".targeting"
-  test_json_field "Workflow has content" "/api/workflows/$first_workflow_id" ".content"
-  test_json_field "Workflow has scheduleHuman" "/api/workflows/$first_workflow_id" ".scheduleHuman"
+  # Detail routes intentionally accept the API's canonical workflow ID format
+  # only. Workspaces may also contain legacy/display-named files with spaces;
+  # skip those instead of turning one fixture into a cascade of false failures.
+  first_workflow_id=$(apicurl "$API_BASE/api/workflows" | jq -r '[.workflows[] | select(.id | test("^[a-z0-9-]+$"))][0].id // empty')
+  if [ -z "$first_workflow_id" ]; then
+    warn "No canonical workflow IDs found for detailed testing"
+    first_workflow_path_id=""
+  else
+    first_workflow_path_id=$(jq -rn --arg value "$first_workflow_id" '$value | @uri')
+  fi
+  if [ -n "$first_workflow_path_id" ]; then
+  test_api "Get workflow by ID" "/api/workflows/$first_workflow_path_id"
+  test_json_field "Workflow has name" "/api/workflows/$first_workflow_path_id" ".name"
+  test_json_field "Workflow has schedule" "/api/workflows/$first_workflow_path_id" ".schedule"
+  test_json_field "Workflow has targeting" "/api/workflows/$first_workflow_path_id" ".targeting"
+  test_json_field "Workflow has content" "/api/workflows/$first_workflow_path_id" ".content"
+  test_json_field "Workflow has scheduleHuman" "/api/workflows/$first_workflow_path_id" ".scheduleHuman"
 
   # Test participants endpoint
-  test_api "Get workflow participants" "/api/workflows/$first_workflow_id/participants"
-  test_json_field "Participants array" "/api/workflows/$first_workflow_id/participants" ".participants"
+  test_api "Get workflow participants" "/api/workflows/$first_workflow_path_id/participants"
+  test_json_field "Participants array" "/api/workflows/$first_workflow_path_id/participants" ".participants"
 
   # Test executions endpoint
-  test_api "Get workflow executions" "/api/workflows/$first_workflow_id/executions"
-  test_json_field "Executions array" "/api/workflows/$first_workflow_id/executions" ".executions"
+  test_api "Get workflow executions" "/api/workflows/$first_workflow_path_id/executions"
+  test_json_field "Executions array" "/api/workflows/$first_workflow_path_id/executions" ".executions"
+  fi
 else
   warn "No workflows found for detailed testing"
 fi

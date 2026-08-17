@@ -18,6 +18,7 @@ let testsPassed = 0
 let testsFailed = 0
 
 const originalWorkspace = process.env.OPENCLAW_WORKSPACE
+const originalTestWorkspace = process.env.CLAWMAX_TEST_WORKSPACE
 const originalHome = process.env.HOME
 
 function test(name: string, fn: () => void | Promise<void>) {
@@ -80,6 +81,7 @@ async function run() {
   ensureWorkspaceScaffold(tmpWorkspace)
   fs.mkdirSync(path.join(tmpHome, '.openclaw'), { recursive: true })
   process.env.OPENCLAW_WORKSPACE = tmpWorkspace
+  process.env.CLAWMAX_TEST_WORKSPACE = tmpWorkspace
   process.env.HOME = tmpHome
 
   const { createNotification } = require('../lib/notifications')
@@ -364,6 +366,8 @@ async function run() {
 
   if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
   else process.env.OPENCLAW_WORKSPACE = originalWorkspace
+  if (typeof originalTestWorkspace === 'undefined') delete process.env.CLAWMAX_TEST_WORKSPACE
+  else process.env.CLAWMAX_TEST_WORKSPACE = originalTestWorkspace
   if (typeof originalHome === 'undefined') delete process.env.HOME
   else process.env.HOME = originalHome
 
@@ -383,6 +387,8 @@ async function run() {
 run().catch((err) => {
   if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
   else process.env.OPENCLAW_WORKSPACE = originalWorkspace
+  if (typeof originalTestWorkspace === 'undefined') delete process.env.CLAWMAX_TEST_WORKSPACE
+  else process.env.CLAWMAX_TEST_WORKSPACE = originalTestWorkspace
   if (typeof originalHome === 'undefined') delete process.env.HOME
   else process.env.HOME = originalHome
   console.error(err)

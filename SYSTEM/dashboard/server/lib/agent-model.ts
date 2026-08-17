@@ -59,6 +59,21 @@ function normalizeOptionalAgentModelInput(model: string | undefined): string | u
   return normalizeAgentModelInput(trimmed)
 }
 
+function ensureAgentModelAllowed(config: any, model: string): boolean {
+  if (!config.agents || typeof config.agents !== 'object' || Array.isArray(config.agents)) {
+    config.agents = {}
+  }
+  if (!config.agents.defaults || typeof config.agents.defaults !== 'object' || Array.isArray(config.agents.defaults)) {
+    config.agents.defaults = {}
+  }
+  if (!config.agents.defaults.models || typeof config.agents.defaults.models !== 'object' || Array.isArray(config.agents.defaults.models)) {
+    config.agents.defaults.models = {}
+  }
+  if (Object.prototype.hasOwnProperty.call(config.agents.defaults.models, model)) return false
+  config.agents.defaults.models[model] = {}
+  return true
+}
+
 function splitIdentityRuntimeSection(content: string): { runtime: string; suffix: string } {
   const metadataIndex = content.search(/^##\s+Creation Metadata\b/im)
   if (metadataIndex === -1) {
@@ -105,7 +120,8 @@ export function updateAgentModelInConfigFile(
     }
 
     const previousModel = agentList[agentIndex]?.model
-    const changed = previousModel !== nextModel
+    const allowlistChanged = ensureAgentModelAllowed(config, nextModel)
+    const changed = previousModel !== nextModel || allowlistChanged
     if (!changed) {
       return { ok: true, changed: false, model: nextModel }
     }
@@ -200,7 +216,7 @@ export function upsertAgentModelInConfigFile(
       ? agentList.findIndex((agent: any) => agent.id === agentId && agent.workspace === options.workspacePath)
       : agentList.findIndex((agent: any) => agent.id === agentId)
 
-    let changed = true
+    let changed = ensureAgentModelAllowed(config, nextModel)
     if (agentIndex === -1) {
       agentList.push({
         id: agentId,
@@ -209,9 +225,10 @@ export function upsertAgentModelInConfigFile(
         ...(options?.agentDir ? { agentDir: options.agentDir } : {}),
         model: nextModel,
       })
+      changed = true
     } else {
       const current = agentList[agentIndex]
-      changed = current?.model !== nextModel ||
+      changed = changed || current?.model !== nextModel ||
         (Boolean(options?.workspacePath) && current?.workspace !== options?.workspacePath) ||
         (Boolean(options?.agentDir) && current?.agentDir !== options?.agentDir)
       agentList[agentIndex] = {

@@ -37,7 +37,7 @@ import { initOpikTracing, shutdownOpik, isOpikEnabled, getRequestDashboardInstan
 import { getWorkspaceMetering } from './lib/metering'
 import { validateCommunities, validateGroups, validateIdentity } from './lib/validator'
 import { requireAuth, verifyToken } from './lib/auth'
-import { createAuthRouter, requireGitHubAuth, isGitHubAuthConfigured, isOtpAuthConfigured, getAuthenticatedSession } from './lib/github-auth'
+import { createAuthRouter, requireGitHubAuth, isGitHubAuthConfigured, isOtpAuthConfigured, getAuthenticatedSession, shouldUseSecureAuthCookies } from './lib/github-auth'
 import { safeEnv } from './lib/safe-env'
 import { auditLog } from './lib/audit'
 import { getBudgetStatus, loadBudgetConfig, saveBudgetConfig, BudgetConfig } from './lib/budget'
@@ -50,6 +50,7 @@ import { buildSystemInfoPayload } from './lib/system-info'
 import { detectRuntimeStatuses, resolveEnabledRuntimes, resolveWorkspaceRuntime } from './lib/agent-runtime'
 import { healDashboardManagedOpenClawConfig } from './lib/openclaw-config'
 import { applyDashboardSecurityHeaders, describeUnauthenticatedExposureRisk, isCorsOriginAllowed, isDashboardAuthBypassAllowed, parseCorsOrigins } from './lib/http-security'
+import { getTenantResourceLimits } from './lib/tenant-resource-limits'
 
 // ============================================================================
 // Crash Protection & Error Logging
@@ -313,6 +314,9 @@ app.get('/api/auth/config', (_req, res) => {
     authMode: process.env.DASHBOARD_AUTH_MODE || 'github_oauth',
     authDisabled: isDashboardAuthBypassAllowed(process.env),
     deploymentKind,
+    instanceLabel: getDashboardInstanceLabel(rawEnv),
+    resourceLimits: getTenantResourceLimits(rawEnv),
+    insecureLocalCookies: !shouldUseSecureAuthCookies(_req),
     managedRuntime,
     ollamaEnabled: isOllamaUiEnabled(rawEnv),
     defaultOllamaBaseUrl: getDefaultOllamaBaseUrl(rawEnv),
@@ -348,11 +352,12 @@ app.get('/api/auth/config', (_req, res) => {
   })
 })
 
-// Shareable workspace summary dashboard payload (public by token)
-app.use('/api/workspace-dashboards', workspaceDashboardsRouter)
-
 // Use GitHub auth for all protected routes (falls back to dashboard token)
 const protect = requireGitHubAuth
+
+// Workspace summary dashboard payloads require both a valid dashboard session
+// and the opaque dashboard token used to select the requested dashboard.
+app.use('/api/workspace-dashboards', protect, workspaceDashboardsRouter)
 
 // Workspace system info — installation identity card
 app.get('/api/system', protect, async (req, res) => {
