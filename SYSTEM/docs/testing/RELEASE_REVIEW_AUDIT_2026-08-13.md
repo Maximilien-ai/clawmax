@@ -26,24 +26,21 @@ release identity checks, catalog counts, source/UI contracts, CI architecture
 checks, and repeated component-level checks. They are preserved, but a new
 focused checklist moves superseded releases to Archived regardless of completion.
 
-## RC38 Reviewer Queue
+## RC39 Reviewer Queue
 
-The RC38 queue carries forward the 20-item RC37 acceptance scope as seven
-end-to-end journeys:
+The RC39 queue replaces the unfinished RC38 queue with three end-to-end
+journeys for Praveen's resolved dashboard reports:
 
-1. Explicit Builder intent and matching AI Create actions.
-2. AI Editor and Expand with AI usefulness across real surfaces.
-3. Lifecycle X-rays against real agent and workflow history.
-4. Activity-sharing visibility, comprehension, and per-destination revocation.
-5. Real Gmail OAuth connect, refresh, and disconnect.
-6. Real Microsoft 365 OAuth connect, refresh, and disconnect.
-7. Chat/workflow session recovery in a persistent upgraded workspace.
+1. Agent discovery plus model-fit and activity details under partial data.
+2. Long-running, interrupted, and incomplete agent chat streams.
+3. Workflow concurrency, cancellation, restart reconciliation, and newest-run presentation.
 
-Current checks removed from reviewer ownership include release identity, health,
-plugin inventory, skill catalog size, component-level Lifecycle graph variants,
-loading-state presence, and generic restart persistence. Existing automated and
-CI gates already cover these deterministically; the retained journeys exercise
-their user-visible consequences where independent judgment still adds value.
+The seven RC38 journeys are preserved in the cumulative historical set and move
+to Archived when RC39 starts; unfinished prior criteria are not presented as new
+tester work. Release identity, health, unit/contract assertions, and issue-level
+mechanics remain engineering evidence. The three retained journeys exercise the
+user-visible consequences where independent judgment or a persistent runtime
+still adds value.
 
 Private product-plugin acceptance remains in the private plugin repository. This
 public audit states only the ownership boundary and does not enumerate private
