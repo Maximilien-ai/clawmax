@@ -26,6 +26,7 @@ async function run() {
   }))
   app.get('/api/health', (_req, res) => res.json({ ok: true }))
   app.get('/api/protected', requireGitHubAuth, (_req, res) => res.json({ ok: true }))
+  app.get('/api/workspace-dashboards/test-token', requireGitHubAuth, (_req, res) => res.json({ ok: true }))
 
   const server = http.createServer(app)
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
@@ -45,6 +46,9 @@ async function run() {
 
     const protectedResponse = await fetch(`${baseUrl}/api/protected`)
     assert.equal(protectedResponse.status, 401, 'Cloud bypass flag must not authorize protected request')
+
+    const sharedDashboardResponse = await fetch(`${baseUrl}/api/workspace-dashboards/test-token`)
+    assert.equal(sharedDashboardResponse.status, 401, 'Workspace dashboard tokens must not bypass dashboard authentication')
 
     const allowedCors = await fetch(`${baseUrl}/api/health`, {
       headers: { Origin: 'https://dashboard.example.com' },
@@ -66,7 +70,7 @@ async function run() {
     Object.assign(process.env, originalEnv)
   }
 
-  console.log('security-boundaries-dynamic.test.ts: 14 tests passed')
+  console.log('security-boundaries-dynamic.test.ts: 15 tests passed')
   process.exit(0)
 }
 

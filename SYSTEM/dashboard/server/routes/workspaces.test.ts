@@ -113,6 +113,23 @@ async function run() {
     assert(/workspace name is required/i.test(res.jsonBody?.error || ''), 'Expected missing name guidance')
   })
 
+  await test('create workspace returns a structured tenant limit conflict', async () => {
+    const previous = process.env.CLAWMAX_MAX_WORKSPACES
+    process.env.CLAWMAX_MAX_WORKSPACES = '0'
+    try {
+      const handler = getRouteHandler('post', '/')
+      const res = makeRes()
+      await handler(makeReq({ body: { name: 'Blocked', path: path.join(tmpHome, 'blocked-workspace') } }), res)
+
+      assert.strictEqual(res.statusCode, 409, 'Expected exhausted workspace limit to return HTTP 409')
+      assert.strictEqual(res.jsonBody?.code, 'TENANT_RESOURCE_LIMIT_REACHED')
+      assert.strictEqual(res.jsonBody?.resource, 'workspaces')
+    } finally {
+      if (previous === undefined) delete process.env.CLAWMAX_MAX_WORKSPACES
+      else process.env.CLAWMAX_MAX_WORKSPACES = previous
+    }
+  })
+
   await test('create workspace resolves relative paths and persists workspace metadata', async () => {
     const handler = getRouteHandler('post', '/')
     const res = makeRes()

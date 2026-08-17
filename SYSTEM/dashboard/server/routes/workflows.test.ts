@@ -130,6 +130,23 @@ async function run() {
   process.env.OPENCLAW_WORKSPACE = workspacePath
   resetWorkspaceManagerForTests()
 
+  await test('workflow creation returns a structured tenant limit conflict', async () => {
+    const previous = process.env.CLAWMAX_MAX_WORKFLOWS_PER_WORKSPACE
+    process.env.CLAWMAX_MAX_WORKFLOWS_PER_WORKSPACE = '0'
+    try {
+      const handler = getRouteHandler('post', '/')
+      const res = makeRes()
+      await handler(makeReq({}, { body: { name: 'Blocked Workflow' } }), res)
+
+      assert(res.statusCode === 409, `Expected HTTP 409, got ${res.statusCode}`)
+      assert(res.jsonBody?.code === 'TENANT_RESOURCE_LIMIT_REACHED', 'Expected structured limit code')
+      assert(res.jsonBody?.resource === 'workflows', 'Expected workflows resource name')
+    } finally {
+      if (previous === undefined) delete process.env.CLAWMAX_MAX_WORKFLOWS_PER_WORKSPACE
+      else process.env.CLAWMAX_MAX_WORKFLOWS_PER_WORKSPACE = previous
+    }
+  })
+
   await test('workflow execution archive routes use active workspace instead of default home workspace', async () => {
     const created = createWorkflow({
       name: 'Archive Route Test',

@@ -73,4 +73,13 @@ api_section_line="$(grep -n '^# Section 1: Health & System APIs' "$SYSTEM_DIR/te
 assert "live API health helper is defined" test -n "$health_definition_line"
 assert "health gate runs before live API sections" test "$health_gate_line" -lt "$api_section_line"
 
+assert "skills validation uses the active runtime catalog" \
+  grep -Fq 'valid_test_skills=$(apicurl "$API_BASE/api/skills"' "$SYSTEM_DIR/test.sh"
+assert "skills validation does not require a fixed product catalog" \
+  bash -c '! grep -Fq '\''{"skills":["github","slack","notion"]}'\'' "$1/test.sh"' bash "$SYSTEM_DIR"
+assert "workflow detail checks URL-encode runtime workflow IDs" \
+  grep -Fq 'first_workflow_path_id=$(jq -rn --arg value "$first_workflow_id"' "$SYSTEM_DIR/test.sh"
+assert "workflow path encoding uses jq URI escaping" \
+  grep -Fq '@uri' "$SYSTEM_DIR/test.sh"
+
 echo "test-run-lock.test.sh: $passed tests passed"

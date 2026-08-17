@@ -32,6 +32,7 @@ import { addTemplateFeedback, getAllTemplateFeedbackSummaries, getTemplateApplyC
 import { getAuthenticatedSession } from '../lib/github-auth'
 import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
 import { buildNamedExportFilename } from '../lib/export-filename'
+import { assertTenantResourceCapacity, tenantResourceLimitResponse } from '../lib/tenant-resource-limits'
 
 const router = Router()
 
@@ -659,6 +660,14 @@ router.post('/agents/import', (req, res) => {
     return res.status(400).json({ error: 'Template slug is required' })
   }
 
+  try {
+    assertTenantResourceCapacity('agents', listWorkspaceAgents().length)
+  } catch (error) {
+    const limitResponse = tenantResourceLimitResponse(error)
+    if (limitResponse) return res.status(limitResponse.statusCode).json(limitResponse.body)
+    throw error
+  }
+
   const result = importAgentFromTemplate(templateSlug, {
     newAgentId: agentId,
     model,
@@ -758,6 +767,28 @@ router.post('/organizations/import', (req, res) => {
 
   if (!templateSlug || typeof templateSlug !== 'string') {
     return res.status(400).json({ error: 'Template slug is required' })
+  }
+
+  const template = getTemplate('organization', templateSlug) as any
+  if (!template) return res.status(404).json({ error: 'Template not found' })
+
+  const includeTemplateBuiltIns = includeBuiltIn !== false
+  const parameterAgentIds = new Set((template.parameters || []).map((parameter: any) => parameter.agentId))
+  const importedAgentCount = (template.agents || []).reduce((total: number, agent: any) => {
+    if (!includeTemplateBuiltIns && (agent.tags || []).includes('built-in')) return total
+    if (!parameterAgentIds.has(agent.id)) return total + 1
+    const requested = agentCounts?.[agent.id]
+    const defaultCount = (template.parameters || []).find((parameter: any) => parameter.agentId === agent.id)?.default || 1
+    return total + (Number.isSafeInteger(requested) && requested > 0 ? requested : defaultCount)
+  }, 0)
+
+  try {
+    assertTenantResourceCapacity('agents', listWorkspaceAgents().length, process.env, importedAgentCount)
+    assertTenantResourceCapacity('workflows', listWorkflows().length, process.env, (template.workflows || []).length)
+  } catch (error) {
+    const limitResponse = tenantResourceLimitResponse(error)
+    if (limitResponse) return res.status(limitResponse.statusCode).json(limitResponse.body)
+    throw error
   }
 
   const result = importOrganizationTemplate(templateSlug, {
@@ -884,6 +915,7 @@ router.post('/import-md', (req, res) => {
 // POST /api/workflows/import-md — Import workflow from WORKFLOW.md content
 router.post('/workflows/import-md', (req, res) => {
   try {
+    assertTenantResourceCapacity('workflows', listWorkflows().length)
     const { content } = req.body
     if (!content || typeof content !== 'string') {
       return res.status(400).json({ error: 'Markdown content is required' })
@@ -904,6 +936,8 @@ router.post('/workflows/import-md', (req, res) => {
 
     res.json({ ok: true, id: result.id })
   } catch (err: any) {
+    const limitResponse = tenantResourceLimitResponse(err)
+    if (limitResponse) return res.status(limitResponse.statusCode).json(limitResponse.body)
     res.status(500).json({ error: err.message || 'Failed to import workflow' })
   }
 })

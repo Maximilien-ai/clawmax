@@ -136,6 +136,16 @@ export function readGlobalWorkspaceTourDisabled() {
   return window.localStorage.getItem(GLOBAL_WORKSPACE_TOUR_DISABLE_KEY) === 'dismissed'
 }
 
+export function shouldCloseFirstRunOverlay({
+  onboardingVisible,
+  workspaceTourVisible,
+}: {
+  onboardingVisible: boolean
+  workspaceTourVisible: boolean
+}) {
+  return !onboardingVisible || workspaceTourVisible
+}
+
 export function shouldShowWorkspaceTour({
   workspaceKey,
   workspaceAgentCount,

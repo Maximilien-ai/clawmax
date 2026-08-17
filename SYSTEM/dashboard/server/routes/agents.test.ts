@@ -546,6 +546,23 @@ async function run() {
     }
   })
 
+  await test('provision returns a structured tenant agent limit conflict', async () => {
+    const previous = process.env.CLAWMAX_MAX_AGENTS_PER_WORKSPACE
+    process.env.CLAWMAX_MAX_AGENTS_PER_WORKSPACE = '0'
+    try {
+      const handler = getRouteHandler('post', '/provision')
+      const res = makeRes()
+      await handler(makeReq({ body: { name: 'blocked-agent', model: 'openai/gpt-4o-mini' } }), res)
+
+      assert.strictEqual(res.statusCode, 409, 'Expected exhausted agent limit to return HTTP 409')
+      assert.strictEqual(res.jsonBody?.code, 'TENANT_RESOURCE_LIMIT_REACHED')
+      assert.strictEqual(res.jsonBody?.resource, 'agents')
+    } finally {
+      if (previous === undefined) delete process.env.CLAWMAX_MAX_AGENTS_PER_WORKSPACE
+      else process.env.CLAWMAX_MAX_AGENTS_PER_WORKSPACE = previous
+    }
+  })
+
   await test('provision route honors OPENCLAW_BIN override when creating agents', async () => {
     const tmpCliDir = path.join(tmpHome, 'bin')
     const fakeCli = path.join(tmpCliDir, 'openclaw')

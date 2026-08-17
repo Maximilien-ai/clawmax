@@ -120,6 +120,7 @@ function isBenignPluginRuntimeWarningLine(trimmed: string): boolean {
   if (/\bplugin not found:\s*[^\s)]+/i.test(trimmed) && /(?:stale config entry|remove it from plugins config)/i.test(trimmed)) return true
   if (/\b(?:plugin|runtime)\s+(?:config|load|startup)\s+(?:warning|error)\b/i.test(trimmed)) return true
   if (/^\s*[|│].*(?:plugins\.(?:allow|deny)|plugin not found|stale config entry|deprecated).*[|│]\s*$/i.test(trimmed)) return true
+  if (/^\s*[|│].*ignored;\s*remove it from plugins config\)?.*[|│]\s*$/i.test(trimmed)) return true
   if (/^\[provider-transport-fetch\]\s+\[model-fetch\]\s+(start|response)\s+provider=/i.test(trimmed)) return true
   if (/\[plugins\]\s+plugins\.allow is empty; discovered non-bundled plugins may auto-load:/i.test(trimmed)) return true
   if (/discovered non-bundled plugins may auto-load:/i.test(trimmed)) return true
@@ -134,6 +135,7 @@ function isDoctorWarningLine(trimmed: string): boolean {
   if (/config warnings/i.test(trimmed)) return true
   if (/plugins\.allow:\s*plugin not found:/i.test(trimmed)) return true
   if (/stale config entry ignored; remove it from plugins config/i.test(trimmed)) return true
+  if (/^\s*[|│].*ignored;\s*remove it from plugins config\)?.*[|│]\s*$/i.test(trimmed)) return true
   if (/clawmax_no_non_bundled_plugins/i.test(trimmed)) return true
   if (/left legacy config health state in place because/i.test(trimmed)) return true
   if (/left migrated task registry sidecar in place because/i.test(trimmed)) return true
