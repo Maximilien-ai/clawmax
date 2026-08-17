@@ -2197,6 +2197,15 @@ else
   fail "Instance branding tests"
 fi
 
+echo -e "${YELLOW}→ Running dashboard payload safety tests...${NC}"
+npx ts-node --transpileOnly client/src/DashboardPayloadSafety.test.ts > /tmp/clawmax-dashboard-payload-safety.out 2>&1 || true
+if grep -q "DashboardPayloadSafety.test.ts: 6 assertions passed" /tmp/clawmax-dashboard-payload-safety.out; then
+  pass "Dashboard payload safety tests (6 assertions)"
+else
+  cat /tmp/clawmax-dashboard-payload-safety.out
+  fail "Dashboard payload safety tests"
+fi
+
 echo -e "${YELLOW}→ Running Keys/secrets inventory unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/keysSecretsInventory.test.ts > /tmp/clawmax-keys-secrets-inventory.out 2>&1 || true
 if grep -q "keysSecretsInventory.test.ts: ok" /tmp/clawmax-keys-secrets-inventory.out; then

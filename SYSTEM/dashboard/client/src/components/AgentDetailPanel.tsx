@@ -7,6 +7,7 @@ import { ProductIconCell } from '../lib/productIcons'
 import { buildWorkspaceScopedPath } from '../lib/workspaceScope'
 import { WorkspaceDocEntryRef } from '../lib/workspaceFiles'
 import { resolveNavigableWorkspaceDocPath } from '../lib/workspaceDocNavigation'
+import { normalizeAgentActivityPayload, type AgentActivity } from '../lib/agentActivity'
 
 interface GroupEntry {
   name: string
@@ -24,20 +25,6 @@ interface Agent {
   groups: GroupEntry[]
   tags: string[]
   workspaceId?: string
-}
-
-interface AgentActivity {
-  recentFiles: { name: string; mtime: string; ageMins: number }[]
-  todos: string | null
-  completed: string | null
-  identity: string | null
-  skills?: string[]
-  liveConfig?: {
-    model: string
-    backupModel?: string
-    workspace: string
-    agentDir: string
-  }
 }
 
 interface WorkspaceBudgetStatus {
@@ -165,9 +152,9 @@ export default function AgentDetailPanel({
 
   const fetchActivity = useCallback(() => {
     fetch(`/api/agents/${agent.id}/activity`)
-      .then(r => r.json())
+      .then(async r => r.ok ? normalizeAgentActivityPayload(await r.json().catch(() => null)) : null)
       .then(d => { setActivity(d); setLoading(false); setLastRefreshed(Date.now()) })
-      .catch(() => setLoading(false))
+      .catch(() => { setActivity(null); setLoading(false) })
   }, [agent.id])
 
   useEffect(() => {
@@ -466,7 +453,7 @@ export default function AgentDetailPanel({
               {/* Recent file activity */}
               <Section title="Recent activity" source={relDir + '/'}>
                 <ul className="space-y-1">
-                  {activity.recentFiles.map(f => (
+                  {(activity.recentFiles || []).map(f => (
                     <li key={f.name} className="flex items-center justify-between text-sm">
                       <button
                         type="button"
