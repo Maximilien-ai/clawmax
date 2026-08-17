@@ -10,6 +10,7 @@ import jwt from 'jsonwebtoken'
 import type { CookieOptions } from 'express'
 import fs from 'fs'
 import path from 'path'
+import net from 'net'
 import { Resend } from 'resend'
 import { isDashboardAuthBypassAllowed } from './http-security'
 
@@ -505,8 +506,7 @@ function verifySessionToken(token: string): SessionPayload | null {
   }
 }
 
-function isSecureRequest(req: Request): boolean {
-  if (process.env.NODE_ENV === 'production') return true
+function requestUsesHttps(req: Request): boolean {
   const forwardedProto = req.headers['x-forwarded-proto']
   if (typeof forwardedProto === 'string') {
     return forwardedProto.split(',')[0].trim() === 'https'
@@ -514,12 +514,49 @@ function isSecureRequest(req: Request): boolean {
   return req.secure
 }
 
+function isLoopbackHostname(hostname: string): boolean {
+  const normalized = hostname.trim().toLowerCase().replace(/^\[|\]$/g, '')
+  if (normalized === 'localhost' || normalized.endsWith('.localhost')) return true
+  const ipVersion = net.isIP(normalized)
+  if (ipVersion === 4) return normalized.startsWith('127.')
+  return ipVersion === 6 && normalized === '::1'
+}
+
+function parseEnabledFlag(value: string | undefined): boolean {
+  return ['1', 'true', 'yes', 'on'].includes((value || '').trim().toLowerCase())
+}
+
+/**
+ * Auth cookies are Secure by default. Plain HTTP is permitted only through an
+ * explicit local-development exception whose configured app origin and
+ * current request both resolve to the same loopback/.localhost host.
+ */
+export function shouldUseSecureAuthCookies(req: Request, env: NodeJS.ProcessEnv = process.env): boolean {
+  if (requestUsesHttps(req)) return true
+  if (!parseEnabledFlag(env.DASHBOARD_ALLOW_INSECURE_LOCAL_COOKIES)) return true
+  if ((env.DASHBOARD_DEPLOYMENT_KIND || '').trim().toLowerCase() !== 'local') return true
+
+  try {
+    const appUrl = new URL((env.DASHBOARD_APP_URL || '').trim())
+    if (appUrl.protocol !== 'http:' || !isLoopbackHostname(appUrl.hostname)) return true
+
+    const requestHost = req.headers.host || ''
+    const requestUrl = new URL(`http://${requestHost}`)
+    if (!isLoopbackHostname(requestUrl.hostname)) return true
+    if (requestUrl.hostname.toLowerCase() !== appUrl.hostname.toLowerCase()) return true
+  } catch {
+    return true
+  }
+
+  return false
+}
+
 function getStateCookieOptions(req: Request): CookieOptions {
   return {
     httpOnly: true,
     maxAge: 10 * 60 * 1000,
     sameSite: 'lax',
-    secure: isSecureRequest(req),
+    secure: shouldUseSecureAuthCookies(req),
     path: '/api/auth',
   }
 }
@@ -529,7 +566,7 @@ function getSessionCookieOptions(req: Request, maxAgeMs = 7 * 24 * 60 * 60 * 100
     httpOnly: true,
     maxAge: maxAgeMs,
     sameSite: 'lax',
-    secure: isSecureRequest(req),
+    secure: shouldUseSecureAuthCookies(req),
     path: '/',
   }
 }
@@ -539,7 +576,7 @@ function getReturnToCookieOptions(req: Request): CookieOptions {
     httpOnly: true,
     maxAge: 10 * 60 * 1000,
     sameSite: 'lax',
-    secure: isSecureRequest(req),
+    secure: shouldUseSecureAuthCookies(req),
     path: '/api/auth',
   }
 }
@@ -586,12 +623,12 @@ export function createAuthRouter(): Router {
 
     if (!code) {
       clearStateCookie()
-      return res.redirect(`${getAppUrl(req, savedReturnTo)}/?auth_error=no_code`)
+      return res.redirect(buildAuthRedirectUrl(req, savedReturnTo, { auth_error: 'no_code' }))
     }
 
     if (!state || !savedState || state !== savedState) {
       clearStateCookie()
-      return res.redirect(`${getAppUrl(req, savedReturnTo)}/?auth_error=state_mismatch`)
+      return res.redirect(buildAuthRedirectUrl(req, savedReturnTo, { auth_error: 'state_mismatch' }))
     }
 
     try {
@@ -601,7 +638,10 @@ export function createAuthRouter(): Router {
       // Check if user is allowed
       const allowed = getAllowedLogins()
       if (allowed.length > 0 && !allowed.includes(user.login.toLowerCase())) {
-        return res.redirect(`${getAppUrl(req, savedReturnTo)}/?auth_error=not_allowed&login=${encodeURIComponent(user.login)}`)
+        return res.redirect(buildAuthRedirectUrl(req, savedReturnTo, {
+          auth_error: 'not_allowed',
+          login: user.login,
+        }))
       }
 
       // Create session
@@ -616,11 +656,11 @@ export function createAuthRouter(): Router {
       console.log(`[Auth] GitHub login: ${user.login} (${user.name || 'no name'})`)
 
       // Redirect to dashboard
-      res.redirect(`${getAppUrl(req, savedReturnTo)}/`)
+      res.redirect(buildAuthRedirectUrl(req, savedReturnTo))
     } catch (err: any) {
       clearStateCookie()
       console.error('[Auth] GitHub OAuth error:', err.message)
-      res.redirect(`${getAppUrl(req, savedReturnTo)}/?auth_error=${encodeURIComponent(err.message)}`)
+      res.redirect(buildAuthRedirectUrl(req, savedReturnTo, { auth_error: err.message }))
     }
   })
 
@@ -808,7 +848,7 @@ export function createAuthRouter(): Router {
   router.get('/logout', (req, res) => {
     const returnTo = normalizeReturnTo((req.query.return_to as string | undefined) || '', req)
     res.clearCookie(COOKIE_NAME, getSessionCookieOptions(req))
-    res.redirect(`${returnTo}/`)
+    res.redirect(new URL(returnTo).toString())
   })
 
   return router
@@ -850,24 +890,44 @@ function getAppUrl(req: Request, savedReturnTo?: string): string {
   return getBaseUrl(req)
 }
 
+function buildAuthRedirectUrl(
+  req: Request,
+  savedReturnTo?: string,
+  params: Record<string, string> = {},
+): string {
+  const url = new URL(getAppUrl(req, savedReturnTo))
+  for (const [key, value] of Object.entries(params)) {
+    url.searchParams.set(key, value)
+  }
+  return url.toString()
+}
+
 function normalizeReturnTo(raw: string, req: Request): string {
   const fallback = getBaseUrl(req)
   if (!raw) return getAppUrl(req)
 
   try {
     const url = new URL(raw)
+    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) {
+      return configuredAppUrlOrAllowedOrigin(req) || fallback
+    }
     const candidate = url.origin.replace(/\/+$/, '')
     const allowedOrigins = (process.env.CORS_ORIGIN || '')
       .split(',')
       .map(origin => origin.trim().replace(/\/+$/, ''))
       .filter(Boolean)
     const configuredAppUrl = process.env.DASHBOARD_APP_URL?.trim()?.replace(/\/+$/, '')
+    const configuredAppOrigin = configuredAppUrl ? new URL(configuredAppUrl).origin : null
+    const fallbackOrigin = new URL(fallback).origin
 
-    if (configuredAppUrl && candidate === configuredAppUrl) {
-      return candidate
+    if (configuredAppOrigin && candidate === configuredAppOrigin) {
+      return url.toString()
     }
-    if (allowedOrigins.length === 0 || allowedOrigins.includes(candidate)) {
-      return candidate
+    if (allowedOrigins.includes(candidate)) {
+      return url.toString()
+    }
+    if (!configuredAppOrigin && allowedOrigins.length === 0 && candidate === fallbackOrigin) {
+      return url.toString()
     }
   } catch {
     // Ignore invalid return_to and fall back below.

@@ -43,6 +43,11 @@ jobs:
           echo "$(dirname "$openclaw_bin")" >> "$GITHUB_PATH"
           "$openclaw_bin" --version
 
+      - name: Install Claude Code and Factory Droid CLIs
+        run: |
+          chmod +x ./SYSTEM/install-runtime-clis.sh
+          ./SYSTEM/install-runtime-clis.sh
+
       - name: Install jq
         run: sudo apt-get install -y jq
 

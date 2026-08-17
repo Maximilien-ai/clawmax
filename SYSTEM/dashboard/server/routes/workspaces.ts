@@ -17,6 +17,7 @@ import { listTeams } from '../lib/teams'
 import { listWorkflows } from '../lib/workflows'
 import fs from 'fs'
 import os from 'os'
+import { assertTenantResourceCapacity, tenantResourceLimitResponse } from '../lib/tenant-resource-limits'
 
 const router = express.Router()
 const workspaceManager = getWorkspaceManager()
@@ -45,6 +46,8 @@ router.post('/', (req, res) => {
       return res.status(400).json({ error: 'Workspace path is required' })
     }
 
+    assertTenantResourceCapacity('workspaces', workspaceManager.listWorkspaces().length)
+
     // Resolve path (handle ~ and relative paths)
     let resolvedPath = workspacePath
     if (workspacePath.startsWith('~')) {
@@ -62,6 +65,8 @@ router.post('/', (req, res) => {
     res.json({ workspace })
   } catch (err: any) {
     console.error('Error creating workspace:', err)
+    const limitResponse = tenantResourceLimitResponse(err)
+    if (limitResponse) return res.status(limitResponse.statusCode).json(limitResponse.body)
     if (err?.message?.startsWith('Workspace path already exists:') || err?.message?.startsWith('Workspace path is not empty:')) {
       const pathText = String(err.message.split(':').slice(1).join(':')).trim()
       const conflict = workspaceManager.inspectWorkspacePathConflict(pathText)
@@ -174,6 +179,7 @@ router.get('/:id/export', async (req, res) => {
 // POST /api/workspaces/import-zip - Import workspace from exported zip archive
 router.post('/import-zip', express.raw({ type: 'application/zip', limit: '200mb' }), async (req, res) => {
   try {
+    assertTenantResourceCapacity('workspaces', workspaceManager.listWorkspaces().length)
     const targetName = typeof req.query.targetName === 'string' ? req.query.targetName : undefined
     const targetPath = typeof req.query.targetPath === 'string' ? req.query.targetPath : undefined
     const activate = req.query.activate === 'false' ? false : true
@@ -190,6 +196,8 @@ router.post('/import-zip', express.raw({ type: 'application/zip', limit: '200mb'
     const result = importWorkspaceFromZipArchive(zipPath, { targetName, targetPath, activate })
     res.json({ ok: true, ...result })
   } catch (err: any) {
+    const limitResponse = tenantResourceLimitResponse(err)
+    if (limitResponse) return res.status(limitResponse.statusCode).json(limitResponse.body)
     res.status(500).json({ error: err.message || 'Failed to import workspace' })
   }
 })

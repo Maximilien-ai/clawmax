@@ -14,7 +14,7 @@ export const API_AUTHORIZATION_MATRIX: ApiAuthorizationEntry[] = [
   { path: '/api/auth/config', methods: 'GET', authorization: 'public', scope: 'Non-secret login/runtime flags' },
   { path: '/api/runtime/skill-broker/*', methods: 'POST', authorization: 'capability', scope: 'Agent-bound signed capability' },
   { path: '/api/runtime/mail/*', methods: 'POST', authorization: 'capability', scope: 'Agent-bound signed capability and persisted grant' },
-  { path: '/api/workspace-dashboards/:token', methods: 'GET', authorization: 'share-token', scope: 'Random 192-bit dashboard token' },
+  { path: '/api/workspace-dashboards/:token', methods: 'GET', authorization: 'dashboard-auth', scope: 'Authenticated dashboard user and opaque dashboard token' },
   { path: '/api/system', methods: 'GET', authorization: 'dashboard-auth', scope: 'Active workspace' },
   { path: '/api/activity', methods: 'GET', authorization: 'dashboard-auth', scope: 'Active workspace' },
   { path: '/api/budget', methods: 'GET,PUT', authorization: 'dashboard-auth', scope: 'Active workspace' },

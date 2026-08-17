@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { getDiscoverySuggestions } from '../lib/discoverySuggestions'
 import { useAuth } from '../contexts/AuthContext'
 import { hasAnyLLMKeys } from '../lib/byok'
+import { shouldCloseFirstRunOverlay } from '../lib/onboardingTour'
 
 type Step = 'welcome' | 'byok' | 'partners' | 'build' | 'templates'
 type TemplateCandidate = {
@@ -84,11 +85,13 @@ export function OnboardingWizard({ visible, suppressAutoOpen = false, canShowWor
   }, [templateCategory])
 
   useEffect(() => {
-    if (!visible) {
+    if (shouldCloseFirstRunOverlay({
+      onboardingVisible: visible,
+      workspaceTourVisible: suppressAutoOpen,
+    })) {
       setOpen(false)
       return
     }
-    if (suppressAutoOpen) return
     const key = `clawmax-onboarding-auto-opened:${workspaceId || 'default'}`
     if (localStorage.getItem(key) === 'true') return
     setOpen(true)

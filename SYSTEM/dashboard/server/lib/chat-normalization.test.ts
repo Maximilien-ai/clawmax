@@ -147,6 +147,26 @@ test('keeps the real answer when a plugin warning precedes it', () => {
   assert(normalized === 'Hello! How can I help?', `Expected warning removed while preserving answer, got: ${normalized}`)
 })
 
+test('strips wrapped stale plugin warning continuations without hiding the reply', () => {
+  const raw = `◇ Config warnings ───────────────────────────────────────────────────────╮
+│ - plugins.deny: plugin not found: cognee-openclaw (stale config entry │
+│ ignored; remove it from plugins config) │
+╰────────────────────────────────────────────────────────────────────────╯
+
+I’m playbot — your playful assistant.`
+  const normalized = normalizeChatMessage(raw)
+
+  assert(!normalized.includes('remove it from plugins config'), `Expected wrapped continuation removed, got: ${normalized}`)
+  assert(normalized === 'I’m playbot — your playful assistant.', `Expected reply preserved, got: ${normalized}`)
+})
+
+test('strips a standalone wrapped plugin warning continuation', () => {
+  const raw = '│ ignored; remove it from plugins config) │\nI can help with your workspace.'
+  const normalized = normalizeChatMessage(raw)
+
+  assert(normalized === 'I can help with your workspace.', `Expected continuation removed, got: ${normalized}`)
+})
+
 test('returns empty for runtime status-only output so persisted-answer fallback can run', () => {
   const raw = '🕒 status line\n🧠 another status line'
   const normalized = normalizeChatMessage(raw)

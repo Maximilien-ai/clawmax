@@ -135,7 +135,7 @@ export function WorkspaceFirstRunTour({
   if (!visible) return null
 
   return (
-    <div className="fixed inset-0 z-[85]">
+    <div className="pointer-events-none fixed inset-0 z-[85]">
       <div className={`absolute inset-0 ${isDarkMode ? 'bg-slate-950/55' : 'bg-slate-900/30 backdrop-blur-[1px]'}`} />
       {targetRect && (
         <div
@@ -156,7 +156,7 @@ export function WorkspaceFirstRunTour({
         />
       )}
       <div
-        className={`absolute z-10 rounded-3xl p-5 ${
+        className={`pointer-events-auto absolute z-10 rounded-3xl p-5 ${
           isDarkMode
             ? 'border border-sky-800 bg-gray-900 text-gray-100 shadow-2xl'
             : 'border border-slate-200 bg-white text-slate-950 shadow-[0_28px_80px_rgba(15,23,42,0.22)]'

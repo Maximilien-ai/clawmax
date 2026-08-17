@@ -1006,8 +1006,16 @@ export async function createChatCompletionWithCompatibilityRetry(
       return await Promise.race([
         client.chat.completions.create(payload as any),
         new Promise((_, reject) => {
+          // Deliberately not unref'd: an unref'd timer can be skipped entirely if this is the
+          // only thing keeping the process alive (a one-off generation script, a bare test) --
+          // Node exits once the event loop is otherwise idle instead of waiting for it to fire,
+          // so a genuinely hung request never rejects, it just vanishes. The `finally` below
+          // already clears the timer on every settled path, so nothing leaks by keeping it ref'd.
+          //
+          // `timeoutMs` rather than the effective-budget variable this used to read: that
+          // variable existed to give a CLI-backed generation a larger deadline than a hosted
+          // one, and CLI turns have no deadline at all now -- isCliBacked returns above this.
           timer = setTimeout(() => reject(new Error(`AI request timed out after ${timeoutMs}ms`)), timeoutMs)
-          timer.unref?.()
         }),
       ])
     } finally {

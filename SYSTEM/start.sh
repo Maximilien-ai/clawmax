@@ -382,7 +382,9 @@ else
       fi
 
       # Show gateway pairing URL if gateway is running
-      if openclaw_cli_available; then
+      # The test wrapper deliberately skips gateway bootstrap. Honor the same
+      # scope here so a slow or stuck control-UI lookup cannot block test.sh.
+      if [ -z "$CLAWMAX_SKIP_GATEWAY_BOOTSTRAP" ] && openclaw_cli_available; then
         GATEWAY_URL=$(openclaw_cli_run dashboard --no-open 2>/dev/null | grep -o 'http://[^ ]*')
         if [ -n "$GATEWAY_URL" ]; then
           echo ""
