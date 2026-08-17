@@ -30,8 +30,14 @@ import {
 import { getAuthenticatedSession } from '../lib/github-auth'
 import { createBrokerCapabilityToken } from '../lib/skill-secret-broker'
 import { appendActivityExportEventsForActiveConsents } from '../lib/activity-export'
+import { appendBoundedOutput } from '../lib/stream-bounds'
+import { terminateProcessTree } from '../lib/process-tree'
 
 const router = Router()
+const CHAT_ATTEMPT_IDLE_TIMEOUT_MS = 10 * 60 * 1000
+const MAX_RETAINED_CHAT_OUTPUT = 2 * 1024 * 1024
+const MAX_RETAINED_CHAT_STDERR = 64 * 1024
+const MAX_TOTAL_CHAT_OUTPUT = 64 * 1024 * 1024
 type ChatProvider = 'openai' | 'openai-compatible' | 'anthropic' | 'gemini' | 'openrouter' | 'xai' | 'ollama' | null | undefined
 type ChatByokPayload = {
   openai?: string
@@ -829,6 +835,7 @@ router.post('/:id/chat', async (req, res) => {
         usage: ReturnType<typeof readLatestAssistantUsageFromPersistedSession>
         persistedAssistant: Awaited<ReturnType<typeof readLatestAssistantTextWithRetry>>
         hadVisibleOutput: boolean
+        incompleteReason?: string
         sessionId: string
         model?: string
         provider?: ChatProvider
@@ -840,8 +847,11 @@ router.post('/:id/chat', async (req, res) => {
 
         let fullOutput = ''
         let stderrOutput = ''
+        let totalOutputBytes = 0
         let hadVisibleOutput = false
+        let incompleteReason: string | undefined
         const spawned = spawn(openclawCli, args, {
+          detached: process.platform !== 'win32',
           env: executionEnv,
           stdio: ['pipe', 'pipe', 'pipe']
         })
@@ -851,21 +861,45 @@ router.post('/:id/chat', async (req, res) => {
         send('start', { sessionId: executionSessionId, resumeSessionId: attemptSessionSeed })
         invalidateAgentStatusCache(id)
 
-        activeAttemptTimer = setTimeout(() => {
-          spawned.kill()
-          reject(new Error('Agent timeout (3 minutes)'))
-        }, 180000)
+        const stopIncompleteAttempt = (reason: string) => {
+          if (incompleteReason) return
+          incompleteReason = reason
+          terminateProcessTree(spawned)
+        }
+        const onAttemptIdle = () => {
+          activeAttemptTimer = null
+          stopIncompleteAttempt('Agent chat went quiet for 10 minutes with no output. The partial reply was preserved; retry once if more work was expected.')
+        }
+        const bumpAttemptIdle = () => {
+          if (incompleteReason) return
+          if (activeAttemptTimer) clearTimeout(activeAttemptTimer)
+          activeAttemptTimer = setTimeout(onAttemptIdle, CHAT_ATTEMPT_IDLE_TIMEOUT_MS)
+          activeAttemptTimer.unref?.()
+        }
+        const recordOutputBytes = (chunk: Buffer) => {
+          totalOutputBytes += chunk.byteLength
+          if (totalOutputBytes > MAX_TOTAL_CHAT_OUTPUT) {
+            stopIncompleteAttempt('The agent produced far more output than a reply should contain and was stopped. The partial reply was preserved; this usually means the agent got stuck repeating itself.')
+            return false
+          }
+          return true
+        }
+        bumpAttemptIdle()
 
         spawned.stdout.on('data', (chunk: Buffer) => {
+          bumpAttemptIdle()
+          if (!recordOutputBytes(chunk)) return
           const text = stripBenignChatRuntimeWarnings(chunk.toString())
           if (!text) return
-          fullOutput += text
+          fullOutput = appendBoundedOutput(fullOutput, text, MAX_RETAINED_CHAT_OUTPUT)
           hadVisibleOutput = true
           send('delta', { text })
         })
 
         spawned.stderr.on('data', (chunk: Buffer) => {
-          stderrOutput += chunk.toString()
+          bumpAttemptIdle()
+          if (!recordOutputBytes(chunk)) return
+          stderrOutput = appendBoundedOutput(stderrOutput, chunk.toString(), MAX_RETAINED_CHAT_STDERR)
         })
 
         spawned.on('exit', () => { procExited = true })
@@ -882,7 +916,7 @@ router.post('/:id/chat', async (req, res) => {
           }
 
           const normalizedText = normalizeChatMessage(fullOutput.trim())
-          const persistedAssistant = shouldRecoverPersistedAssistant(normalizedText)
+          const persistedAssistant = !incompleteReason && shouldRecoverPersistedAssistant(normalizedText)
             ? await readLatestAssistantTextWithRetry(id, dashboardSessionKey, executionSessionId)
             : null
           const completionText = normalizedText || normalizeChatMessage(persistedAssistant?.content || '') || ''
@@ -898,6 +932,7 @@ router.post('/:id/chat', async (req, res) => {
             usage,
             persistedAssistant,
             hadVisibleOutput,
+            incompleteReason,
             sessionId: executionSessionId,
             model: attemptModel,
             provider: attemptProvider,
@@ -942,7 +977,10 @@ router.post('/:id/chat', async (req, res) => {
     },
   }).then((attemptResult) => {
     clearInterval(keepalive)
-    if (attemptResult.completionText) {
+    if (attemptResult.incompleteReason) {
+      send('error', attemptResult.incompleteReason)
+    }
+    if (attemptResult.completionText && !attemptResult.incompleteReason) {
       traceAgentChat(id, message, attemptResult.completionText, {
         model: attemptResult.usage?.model || attemptResult.model,
         provider: attemptResult.usage?.provider || attemptResult.provider || undefined,
@@ -968,7 +1006,7 @@ router.post('/:id/chat', async (req, res) => {
         content: `User:\n${message}\n\nAssistant:\n${attemptResult.completionText}`,
         metadata: { agentId: id, model: attemptResult.model || null },
       })
-    } else {
+    } else if (!attemptResult.completionText && !attemptResult.incompleteReason) {
       send('error', deriveChatError(attemptResult.rawError, attemptResult.provider, { agentId: id, model: attemptResult.model }))
     }
     send('complete', { text: attemptResult.completionText })
@@ -999,7 +1037,7 @@ router.post('/:id/chat', async (req, res) => {
       setTimeout(() => {
         if (!procExited) {
           console.log(`[Chat Route] Killing agent process for ${id} after grace period`)
-          proc?.kill()
+          if (proc) terminateProcessTree(proc)
         }
       }, 30000) // 30s grace period
     }

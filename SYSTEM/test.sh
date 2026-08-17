@@ -3247,6 +3247,25 @@ else
   fail "Chat normalization unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Chat process safety unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/chat-process-safety.test.ts > /tmp/clawmax-chat-process-safety.out 2>&1 || true
+if grep -Eq "chat-process-safety.test.ts: (15|17) assertions passed" /tmp/clawmax-chat-process-safety.out; then
+  chat_process_safety_count=$(grep -Eo "chat-process-safety.test.ts: [0-9]+" /tmp/clawmax-chat-process-safety.out | grep -Eo '[0-9]+' | tail -n 1)
+  pass "Chat process safety unit tests (${chat_process_safety_count:-?} assertions)"
+else
+  cat /tmp/clawmax-chat-process-safety.out
+  fail "Chat process safety unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Agent chat stream safety tests...${NC}"
+npx ts-node --transpileOnly client/src/AgentChatStreamSafety.test.ts > /tmp/clawmax-agent-chat-stream-safety.out 2>&1 || true
+if grep -q "AgentChatStreamSafety.test.ts: 8 assertions passed" /tmp/clawmax-agent-chat-stream-safety.out; then
+  pass "Agent chat stream safety tests (8 assertions)"
+else
+  cat /tmp/clawmax-agent-chat-stream-safety.out
+  fail "Agent chat stream safety tests"
+fi
+
 echo ""
 echo -e "${YELLOW}→ Running Chat archive helper unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/chat-archives.test.ts > /tmp/clawmax-chat-archives.out 2>&1 || true

@@ -13,6 +13,7 @@ import { transformWorkspaceMarkdownUrl } from '../lib/markdownLinks'
 import { createPromptAttachment } from '../lib/promptAttachments'
 import { extractWorkspaceFileMentions, linkifyWorkspaceFiles, parseWorkspaceDocEntriesResponse } from '../lib/workspaceFiles'
 import { formatAgentWorkStatus, summarizeAgentChatFailure } from '../lib/chatRuntimeErrors'
+import { INCOMPLETE_AGENT_CHAT_MESSAGE, markIncompleteAgentReply } from '../lib/agentChatStream'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -609,6 +610,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
       const reader = response.body.getReader()
       const decoder = new TextDecoder()
       let buffer = ''
+      let sawTerminalEvent = false
 
       while (true) {
         const { done, value } = await reader.read()
@@ -633,6 +635,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
                   : m
               ))
             } else if (data.type === 'complete') {
+              sawTerminalEvent = true
               setMessages(prev => prev.map(m =>
                 m.id === assistantId
                   ? { ...m, content: data.data?.text?.trim() ? data.data.text : (m.content.trim() ? m.content : 'No reply from agent.') }
@@ -642,6 +645,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
               // Notify parent of successful completion
               onSuccess?.()
             } else if (data.type === 'error') {
+              sawTerminalEvent = true
               const friendly = summarizeAgentChatFailure(data.data || 'Chat error', { agentId })
               setError(friendly)
               setMessages(prev => prev.map(m =>
@@ -655,6 +659,14 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
             console.error('Failed to parse SSE message:', e)
           }
         }
+      }
+      if (!sawTerminalEvent) {
+        setError(INCOMPLETE_AGENT_CHAT_MESSAGE)
+        setMessages(prev => prev.map(m =>
+          m.id === assistantId
+            ? { ...m, content: markIncompleteAgentReply(m.content) }
+            : m
+        ))
       }
     } catch (e: any) {
       if (e.name === 'AbortError') {
