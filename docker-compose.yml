@@ -6,7 +6,7 @@ services:
       args:
         CLAWMAX_VERSION: ${CLAWMAX_VERSION:-}
     ports:
-      - "${DASHBOARD_PORT:-3001}:3001"
+      - "${DASHBOARD_BIND_ADDRESS:-127.0.0.1}:${DASHBOARD_PORT:-3001}:3001"
     volumes:
       - ./WORKSPACES:/app/WORKSPACES
       - clawmax-openclaw-state:/app/.openclaw
@@ -16,6 +16,8 @@ services:
     environment:
       NODE_ENV: production
       DASHBOARD_PORT: 3001
+      # The service must listen on the container interface; host publication above remains loopback-only.
+      DASHBOARD_ALLOW_UNAUTHENTICATED_NETWORK_BIND: "true"
       OPENCLAW_WORKSPACE: /app/WORKSPACES/default
       CLAWMAX_REPO_ROOT: /app
       CLAWMAX_VERSION: ${CLAWMAX_VERSION:-}

@@ -2,7 +2,7 @@ import assert from 'assert'
 import fs from 'fs'
 import path from 'path'
 import { API_AUTHORIZATION_MATRIX } from './api-authorization-matrix'
-import { applyDashboardSecurityHeaders, isCorsOriginAllowed, isDashboardAuthBypassAllowed, parseCorsOrigins } from './http-security'
+import { applyDashboardSecurityHeaders, isCorsOriginAllowed, isDashboardAuthBypassAllowed, parseCorsOrigins, resolveDashboardBindHost } from './http-security'
 import { requireGitHubAuth } from './github-auth'
 
 const indexSource = fs.readFileSync(path.resolve(__dirname, '..', 'index.ts'), 'utf8')
@@ -56,6 +56,22 @@ assert(!isCorsOriginAllowed('https://attacker.example', origins), 'Unconfigured 
 assert(isDashboardAuthBypassAllowed({ BYPASS_OAUTH: 'true', DASHBOARD_DEPLOYMENT_KIND: 'onprem' } as NodeJS.ProcessEnv))
 assert(!isDashboardAuthBypassAllowed({ BYPASS_OAUTH: 'true', DASHBOARD_DEPLOYMENT_KIND: 'cloud' } as NodeJS.ProcessEnv))
 
+const bindWarnings: string[] = []
+assert.equal(resolveDashboardBindHost({ NODE_ENV: 'production' } as NodeJS.ProcessEnv), '0.0.0.0')
+assert.equal(resolveDashboardBindHost({ NODE_ENV: 'production', BYPASS_OAUTH: 'true' } as NodeJS.ProcessEnv, warning => bindWarnings.push(warning)), '127.0.0.1')
+assert(bindWarnings[0]?.includes('Refusing to bind 0.0.0.0'), 'Unsafe unauthenticated production bind must fail closed with an actionable warning')
+assert.equal(resolveDashboardBindHost({ DASHBOARD_HOST: '::1', BYPASS_OAUTH: 'true' } as NodeJS.ProcessEnv), '::1')
+assert.equal(resolveDashboardBindHost({
+  NODE_ENV: 'production',
+  BYPASS_OAUTH: 'true',
+  DASHBOARD_ALLOW_UNAUTHENTICATED_NETWORK_BIND: 'true',
+} as NodeJS.ProcessEnv, warning => bindWarnings.push(warning)), '0.0.0.0')
+assert(bindWarnings[1]?.includes('Anything that can reach this port can run agents'), 'Explicit unsafe override must emit a security warning')
+
+assert(indexSource.includes('const HOST = resolveDashboardBindHost(process.env)'), 'Server bind selection must account for authentication bypass')
+const composeSource = fs.readFileSync(path.resolve(__dirname, '..', '..', '..', '..', 'docker-compose.yml'), 'utf8')
+assert(composeSource.includes('${DASHBOARD_BIND_ADDRESS:-127.0.0.1}:${DASHBOARD_PORT:-3001}:3001'), 'Compose must publish the dashboard on host loopback by default')
+
 const securityHeaders: Record<string, string> = {}
 applyDashboardSecurityHeaders({
   setHeader(name: string, value: string) { securityHeaders[name] = value },
@@ -89,4 +105,4 @@ try {
   Object.assign(process.env, originalEnv)
 }
 
-console.log('security-boundaries.test.ts: 44 tests passed')
+console.log('security-boundaries.test.ts: 52 tests passed')

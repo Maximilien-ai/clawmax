@@ -22,6 +22,29 @@ export function isDashboardAuthBypassAllowed(env: NodeJS.ProcessEnv = process.en
   return deploymentKind !== 'cloud'
 }
 
+const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '::1', '[::1]'])
+
+export function resolveDashboardBindHost(
+  env: NodeJS.ProcessEnv = process.env,
+  warn: (message: string) => void = console.warn,
+): string {
+  const requested = String(
+    env.DASHBOARD_HOST || (env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1'),
+  ).trim() || '127.0.0.1'
+
+  if (!isDashboardAuthBypassAllowed(env) || LOOPBACK_HOSTS.has(requested.toLowerCase())) {
+    return requested
+  }
+
+  if (env.DASHBOARD_ALLOW_UNAUTHENTICATED_NETWORK_BIND === 'true') {
+    warn('[SECURITY] Dashboard authentication is disabled on a network interface. Anything that can reach this port can run agents.')
+    return requested
+  }
+
+  warn(`[SECURITY] Refusing to bind ${requested} with dashboard authentication disabled; using 127.0.0.1. Enable authentication or set DASHBOARD_ALLOW_UNAUTHENTICATED_NETWORK_BIND=true to accept the risk.`)
+  return '127.0.0.1'
+}
+
 interface HeaderResponse {
   setHeader(name: string, value: string): unknown
 }
