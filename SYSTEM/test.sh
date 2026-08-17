@@ -2163,8 +2163,8 @@ fi
 
 echo -e "${YELLOW}→ Running API security boundary tests...${NC}"
 npx ts-node --transpileOnly server/lib/security-boundaries.test.ts > /tmp/clawmax-security-boundaries.out 2>&1 || true
-if grep -q "security-boundaries.test.ts: 44 tests passed" /tmp/clawmax-security-boundaries.out; then
-  pass "API security boundary tests (44 tests)"
+if grep -q "security-boundaries.test.ts: 52 tests passed" /tmp/clawmax-security-boundaries.out; then
+  pass "API security boundary tests (52 tests)"
 else
   cat /tmp/clawmax-security-boundaries.out
   fail "API security boundary tests"
