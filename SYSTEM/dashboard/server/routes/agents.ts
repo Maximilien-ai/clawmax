@@ -849,7 +849,7 @@ router.post('/provision', (req, res) => {
   const applyAssignedSkills = () => {
     if (requestedSkills.length === 0) return
     setAgentSkills(validatedName, requestedSkills)
-    send('log', `Assigned inferred skills: ${requestedSkills.join(', ')}\n`)
+    send('log', `Assigned selected skills: ${requestedSkills.join(', ')}\n`)
   }
 
   const writeGeneratedFilesToWorkspace = () => {
