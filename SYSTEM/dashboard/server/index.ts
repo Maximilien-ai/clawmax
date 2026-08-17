@@ -49,7 +49,7 @@ import { resolveOpenClawCliPath } from './lib/openclaw-cli'
 import { buildSystemInfoPayload } from './lib/system-info'
 import { detectRuntimeStatuses, resolveEnabledRuntimes, resolveWorkspaceRuntime } from './lib/agent-runtime'
 import { healDashboardManagedOpenClawConfig } from './lib/openclaw-config'
-import { applyDashboardSecurityHeaders, isCorsOriginAllowed, isDashboardAuthBypassAllowed, parseCorsOrigins } from './lib/http-security'
+import { applyDashboardSecurityHeaders, describeUnauthenticatedExposureRisk, isCorsOriginAllowed, isDashboardAuthBypassAllowed, parseCorsOrigins } from './lib/http-security'
 
 // ============================================================================
 // Crash Protection & Error Logging
@@ -219,6 +219,11 @@ process.on('SIGTERM', () => {
 const app = express()
 const PORT = parseInt(process.env.DASHBOARD_PORT || '3001', 10)
 const HOST = process.env.DASHBOARD_HOST || (process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1')
+// Surfaced at boot because it cannot be detected from inside a container at request time: port
+// forwarding NATs every caller, so an unauthenticated dashboard reachable from the whole network
+// looks identical to one only its own machine can reach.
+const unauthenticatedExposure = describeUnauthenticatedExposureRisk(process.env)
+if (unauthenticatedExposure) console.warn(`[SECURITY] ${unauthenticatedExposure}`)
 app.set('trust proxy', process.env.DASHBOARD_TRUST_PROXY === 'true' ? 1 : false)
 app.disable('x-powered-by')
 
