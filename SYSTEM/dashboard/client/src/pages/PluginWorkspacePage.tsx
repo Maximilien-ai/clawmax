@@ -15,6 +15,7 @@ import type { EvalCase, GenericPluginRecord, PluginFieldValue, PluginManifest, P
 import {
   buildGenericPluginFields,
   buildPluginDraftFromPrompt,
+  parseGuardrailAssistantConfig,
   collectPluginTemplateTags,
   collectPluginTags,
   extractSuggestedEvalRegex,
@@ -720,37 +721,35 @@ Preserve existing values when the request does not ask to change them.`,
         prompt,
         'agent',
         'text',
-        `Rewrite this request as one concise Guardrail configuration statement.
-Mention only actions that must be blocked: outbound email, public web access, or external document sharing.
-Include exact agent and workflow names from the request.
-Include explicitly allowed skill IDs when provided.
-Do not mention a blocked action when the user wants it allowed.`,
+        `Return only one JSON object with this exact shape:
+{"representable":true,"reason":"","blockEmail":true|false|null,"blockWeb":true|false|null,"blockExternalDocs":true|false|null,"allowedSkills":[]}
+Use true only when the user asks to block that action, false only when the user asks to allow it, and null when it is not mentioned.
+Set representable to false and explain why when the request cannot be expressed using outbound email, public web access, external document sharing, or approved skill IDs.
+Do not include prose or Markdown.`,
       )
-      const generated = buildPluginDraftFromPrompt(plugin, expanded)
-      if (!isGuardrailRecord(generated)) throw new Error('The assistant did not return a Guardrail configuration.')
-      const targetText = `${prompt}\n${expanded}`.toLowerCase()
+      const generated = parseGuardrailAssistantConfig(expanded)
+      const targetText = prompt.toLowerCase()
       const matchedAgents = context.agents.filter((agent) => (
         targetText.includes(agent.id.toLowerCase()) || targetText.includes(agent.name.toLowerCase())
       )).map((agent) => agent.id)
       const matchedWorkflows = context.workflows.filter((workflow) => (
         targetText.includes(workflow.id.toLowerCase()) || targetText.includes(workflow.name.toLowerCase())
       )).map((workflow) => workflow.id)
-      const allowedSkillsMatch = expanded.match(/(?:allowed|approved|permitted)\s+skills?(?:\s+are|\s*:)?\s*([^\n.]+)/i)
-      const matchedSkills = allowedSkillsMatch
-        ? allowedSkillsMatch[1]
-            .split(/,|\band\b/i)
-            .map((skill) => skill.trim().replace(/^[`"' ]+|[`"' ]+$/g, ''))
-            .filter((skill) => /^[a-z0-9][a-z0-9._-]*$/i.test(skill))
-        : []
+      const matchedSkills = generated.allowedSkills
       const current = isGuardrailRecord(form) ? form : null
+      const nextControls = {
+        blockEmail: generated.blockEmail ?? current?.controls.blockEmail ?? false,
+        blockWeb: generated.blockWeb ?? current?.controls.blockWeb ?? false,
+        blockExternalDocs: generated.blockExternalDocs ?? current?.controls.blockExternalDocs ?? false,
+      }
       const next: Partial<PluginRecord> = {
         ...form,
         kind: 'guardrail',
         description: prompt,
         enabled: true,
-        tags: Array.from(new Set([...(current?.tags || []), ...generated.tags])),
+        tags: current?.tags || ['safety'],
         controls: {
-          ...generated.controls,
+          ...nextControls,
           allowedSkills: matchedSkills.length > 0 ? matchedSkills : current?.controls.allowedSkills || [],
         },
         appliesTo: {
@@ -761,9 +760,9 @@ Do not mention a blocked action when the user wants it allowed.`,
         },
       }
       const changes = [
-        generated.controls.blockEmail ? 'Block outbound email' : 'Allow outbound email',
-        generated.controls.blockWeb ? 'Block public web access' : 'Allow public web access',
-        generated.controls.blockExternalDocs ? 'Block external document sharing' : 'Allow external document sharing',
+        ...(generated.blockEmail === null ? [] : [nextControls.blockEmail ? 'Block outbound email' : 'Allow outbound email']),
+        ...(generated.blockWeb === null ? [] : [nextControls.blockWeb ? 'Block public web access' : 'Allow public web access']),
+        ...(generated.blockExternalDocs === null ? [] : [nextControls.blockExternalDocs ? 'Block external document sharing' : 'Allow external document sharing']),
         ...(matchedAgents.length > 0 ? [`Assign ${matchedAgents.length} agent${matchedAgents.length === 1 ? '' : 's'}`] : []),
         ...(matchedWorkflows.length > 0 ? [`Assign ${matchedWorkflows.length} workflow${matchedWorkflows.length === 1 ? '' : 's'}`] : []),
         ...(matchedSkills.length > 0 ? [`Allow ${matchedSkills.length} approved skill${matchedSkills.length === 1 ? '' : 's'}`] : []),

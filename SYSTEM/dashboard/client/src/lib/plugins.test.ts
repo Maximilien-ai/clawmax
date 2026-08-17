@@ -20,6 +20,8 @@ import {
   normalizePluginNumericValue,
   normalizePluginNavOrder,
   normalizePluginDiagnosticsReport,
+  parseGuardrailAssistantConfig,
+  parseGuardrailControlIntent,
   extractSuggestedEvalRegex,
   scorePluginDraft,
   splitPluginDetailLine,
@@ -328,7 +330,41 @@ test('buildPluginDraftFromPrompt creates a guardrail draft from natural language
   assert(draft.kind === 'guardrail', 'Expected guardrail draft')
   assert(draft.controls?.blockEmail === true, 'Expected guardrail draft to block email')
   assert(draft.controls?.blockExternalDocs === true, 'Expected guardrail draft to block external docs')
-  assert(Array.isArray(draft.tags) && draft.tags.includes('block'), 'Expected draft tags to be inferred')
+  assert(Array.isArray(draft.tags) && draft.tags.includes('safety') && draft.tags.includes('email'), 'Expected stable control-derived tags')
+})
+
+test('guardrail prompt mapping preserves explicit allow and block intent', () => {
+  const intent = parseGuardrailControlIntent('Allow outbound email but block public web access')
+  assert(intent.blockEmail === false, 'Expected explicit email allowance to remain allowed')
+  assert(intent.blockWeb === true, 'Expected explicit public web block')
+  assert(intent.blockExternalDocs === null, 'Expected an unmentioned control to remain unchanged')
+  const draft = buildPluginDraftFromPrompt(guardrailPlugin, 'Allow outbound email but block public web access')
+  assert(draft.controls?.blockEmail === false, 'Expected draft not to invert allowed email')
+  assert(draft.controls?.blockWeb === true, 'Expected draft to block web')
+})
+
+test('guardrail prompt mapping rejects requests outside its control schema', () => {
+  let message = ''
+  try {
+    buildPluginDraftFromPrompt(guardrailPlugin, 'Mask public and private repository names with asterisks')
+  } catch (error: any) {
+    message = error.message
+  }
+  assert(message.includes('only configure outbound email'), 'Expected an actionable representability error')
+})
+
+test('guardrail AI configuration requires validated structured output', () => {
+  const config = parseGuardrailAssistantConfig('{"representable":true,"reason":"","blockEmail":false,"blockWeb":true,"blockExternalDocs":null,"allowedSkills":["workspace-ls","bad skill"]}')
+  assert(config.blockEmail === false && config.blockWeb === true, 'Expected structured control values')
+  assert(config.blockExternalDocs === null, 'Expected omitted intent to preserve the current control')
+  assert(JSON.stringify(config.allowedSkills) === JSON.stringify(['workspace-ls']), 'Expected invalid skill IDs to be removed')
+  let message = ''
+  try {
+    parseGuardrailAssistantConfig('{"representable":false,"reason":"Repository-name masking is not available.","blockEmail":null,"blockWeb":null,"blockExternalDocs":null,"allowedSkills":[]}')
+  } catch (error: any) {
+    message = error.message
+  }
+  assert(message.includes('not available'), 'Expected an unrepresentable AI request to fail without changing controls')
 })
 
 test('buildPluginDraftFromPrompt creates an eval draft from natural language', () => {
