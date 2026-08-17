@@ -23,6 +23,7 @@ import { syncAllWorkflows } from '../lib/scheduler'
 import { getAuthenticatedSession } from '../lib/github-auth'
 import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
 import { appendActivityExportEventsForActiveConsents } from '../lib/activity-export'
+import { assertTenantResourceCapacity, tenantResourceLimitResponse } from '../lib/tenant-resource-limits'
 
 const router = Router()
 
@@ -62,6 +63,7 @@ function getWorkflowExecutionsDir(): string {
  */
 router.post('/import-md', (req, res) => {
   try {
+    assertTenantResourceCapacity('workflows', listWorkflows().length)
     const { content } = req.body
     if (!content || typeof content !== 'string') {
       return res.status(400).json({ error: 'Markdown content is required' })
@@ -81,6 +83,8 @@ router.post('/import-md', (req, res) => {
 
     res.json({ ok: true, id: result.id })
   } catch (err: any) {
+    const limitResponse = tenantResourceLimitResponse(err)
+    if (limitResponse) return res.status(limitResponse.statusCode).json(limitResponse.body)
     res.status(500).json({ error: err.message || 'Failed to import workflow' })
   }
 })
@@ -347,6 +351,7 @@ router.post('/:id/trigger', (req, res) => {
  */
 router.post('/', (req, res) => {
   try {
+    assertTenantResourceCapacity('workflows', listWorkflows().length)
     const author = resolveSessionAuthor(req)
     const payload = {
       ...req.body,
@@ -362,6 +367,8 @@ router.post('/', (req, res) => {
     res.status(201).json({ id: result.id, message: 'Workflow created successfully', warnings })
   } catch (error: any) {
     console.error('Error creating workflow:', error)
+    const limitResponse = tenantResourceLimitResponse(error)
+    if (limitResponse) return res.status(limitResponse.statusCode).json(limitResponse.body)
     res.status(500).json({ error: 'Failed to create workflow', message: error.message })
   }
 })

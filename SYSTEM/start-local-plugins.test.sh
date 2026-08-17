@@ -32,6 +32,9 @@ require_text "$START_SCRIPT" \
   'CLAWMAX_DISABLE_LOCAL_PRIVATE_PLUGINS' \
   "local startup must provide an explicit private-plugin opt-out"
 require_text "$START_SCRIPT" \
+  'if [ -z "$CLAWMAX_SKIP_GATEWAY_BOOTSTRAP" ] && openclaw_cli_available; then' \
+  "test startup must skip the optional gateway control-UI lookup"
+require_text "$START_SCRIPT" \
   'dotenv_defines_nonempty()' \
   "local startup must recognize non-empty ignored .env values"
 if grep -Fq 'export CLAWMAX_PLUGIN_PATHS=""' "$START_SCRIPT"; then
@@ -42,4 +45,4 @@ require_text "$DOCKERFILE" \
   'ARG CLAWMAX_ENABLED_PLUGINS=' \
   "production image plugin enablement must remain empty by default"
 
-echo "start-local-plugins.test.sh: 8 tests passed"
+echo "start-local-plugins.test.sh: 9 tests passed"

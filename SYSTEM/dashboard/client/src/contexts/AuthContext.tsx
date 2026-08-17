@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import { getDashboardAuthReturnTo } from '../lib/dashboardAuth'
 
 export interface AuthUser {
   id: string
@@ -17,6 +18,13 @@ interface AuthConfig {
   authMode?: string
   authDisabled: boolean
   deploymentKind?: DashboardDeploymentKind
+  instanceLabel?: string | null
+  resourceLimits?: {
+    workspaces: number | null
+    agents: number | null
+    workflows: number | null
+  }
+  insecureLocalCookies?: boolean
   managedRuntime?: boolean
   ollamaEnabled?: boolean
   defaultOllamaBaseUrl?: string
@@ -165,7 +173,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(() => {
     setSessionExpired(false)
-    const returnTo = encodeURIComponent(window.location.origin)
+    const returnTo = encodeURIComponent(getDashboardAuthReturnTo(window.location))
     window.location.href = `/api/auth/github?return_to=${returnTo}`
   }, [])
 
