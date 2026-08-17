@@ -151,7 +151,7 @@ assert(pluginPageSource.includes('Describe what to evaluate, how many trials to 
 assert(pluginPageSource.includes('Configure Eval'), 'Eval AI editing must expose a clear apply action')
 assert(pluginPageSource.includes('Planned trials'), 'Eval manual editing must expose experiment extent')
 assert(pluginPageSource.includes('<option value="human">Human evaluator</option>'), 'Eval manual editing must expose Human evaluation')
-assert(pluginPageSource.includes('<option value="ai">AI evaluator</option>'), 'Eval manual editing must prefer a clearly named AI evaluator')
+assert(pluginPageSource.includes('<option value="ai">AI evaluator (not yet runnable)</option>'), 'Eval editing must disclose that AI evaluation is not yet runnable')
 assert(pluginPageSource.includes('Total executions across the configured case set.'), 'Eval trial controls must explain what is counted')
 assert(pluginPageSource.includes('Find a ${evalTargetType} by name or ID'), 'Eval targets must expose searchable workspace choices')
 assert(pluginPageSource.includes('visibleEvalTargetOptions.map'), 'Eval target search must render actual agents, workflows, or groups')

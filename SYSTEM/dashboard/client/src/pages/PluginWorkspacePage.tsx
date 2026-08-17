@@ -1424,7 +1424,7 @@ Preserve existing values when the request does not ask to change them.`,
                   }))}
                   className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
                 >
-                  <option value="ai">AI evaluator</option>
+                  <option value="ai">AI evaluator (not yet runnable)</option>
                   <option value="fixed">Fixed evaluator</option>
                   <option value="human">Human evaluator</option>
                 </select>
@@ -2301,10 +2301,10 @@ function PluginDetailsPanel({
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <div className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
-                  Eval cost
+                  Recorded model usage
                 </div>
                 <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  Total spend: ${usageTotals.costUsd.toFixed(4)}
+                  Measured spend: ${usageTotals.costUsd.toFixed(4)}
                 </div>
               </div>
               <div className="rounded-lg border border-emerald-200 bg-white/70 px-3 py-2 text-xs text-emerald-700 dark:border-emerald-800 dark:bg-gray-900/40 dark:text-emerald-300">

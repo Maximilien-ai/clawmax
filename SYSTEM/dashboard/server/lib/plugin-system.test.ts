@@ -716,9 +716,9 @@ async function run() {
     assert(evaluated?.lastRun?.summary.includes('Fixed exact comparison passed'), 'Expected fixed comparison evidence')
     assert.strictEqual(evaluated?.lastRun?.casesCompleted, 1, 'Expected the run to report completed case progress')
     assert.strictEqual(evaluated?.lastRun?.totalCases, 1, 'Expected the run to report its total case count')
-    assert((evaluated?.lastRun?.tokensIn || 0) > 0, 'Expected eval run tokensIn to be populated')
-    assert((evaluated?.lastRun?.tokensOut || 0) > 0, 'Expected eval run tokensOut to be populated')
-    assert((evaluated?.lastRun?.costUsd || 0) > 0, 'Expected eval run costUsd to be populated')
+    assert.strictEqual(evaluated?.lastRun?.tokensIn, 0, 'Fixed comparisons must not fabricate input tokens')
+    assert.strictEqual(evaluated?.lastRun?.tokensOut, 0, 'Fixed comparisons must not fabricate output tokens')
+    assert.strictEqual(evaluated?.lastRun?.costUsd, 0, 'Fixed comparisons must not fabricate model spend')
     assert(getActiveNotifications().some((notification) => notification.entityId === created.id && notification.title.includes('Eval completed')), 'Expected eval completion notification')
     assert(evaluated?.document?.path?.match(new RegExp(`SYSTEM/plugins/${plugin!.slug}/docs/analyst-summary-accuracy-[a-z0-9]{8}\\.md$`)), 'Expected a readable unique eval document filename')
     assert(fs.existsSync(path.join(tempWorkspace, evaluated!.document!.path)), 'Expected readable eval document on disk')
@@ -809,6 +809,26 @@ async function run() {
       () => runPluginEval(plugin!, disabled.id),
       (error: any) => error instanceof PluginContractError && error.message.includes('enable this Eval'),
       'Expected disabled Evals to remain non-runnable',
+    )
+    const aiRecord = upsertPluginRecord(plugin!, {
+      id: incomplete.id,
+      enabled: true,
+      target: { type: 'agent', ids: ['analyst'] },
+      experiment: {
+        input: 'Summarize findings',
+        candidateOutput: 'Summary',
+        expectedOutput: 'A concise summary',
+        judge: 'ai',
+        judgeGuidance: 'Score concision and accuracy.',
+        iterations: 1,
+      },
+    } as any)
+    assert.throws(
+      () => runPluginEval(plugin!, aiRecord.id),
+      (error: any) => error instanceof PluginContractError
+        && error.message.includes('model-backed target execution')
+        && error.message.includes('measured usage'),
+      'Expected configured AI Evals to fail loudly instead of returning placeholder scores',
     )
   })
 

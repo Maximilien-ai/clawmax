@@ -526,6 +526,9 @@ export function getEvalReadiness(item: EvalRecord): EvalReadiness {
   if (item.experiment.judge === 'ai' && !item.experiment.judgeGuidance?.trim()) {
     issues.push('Add guidance for the AI evaluator')
   }
+  if (item.experiment.judge === 'ai') {
+    issues.push('AI evaluator runs are unavailable until model-backed target execution and measured usage are implemented')
+  }
   if (item.experiment.judge === 'human') {
     if (!item.experiment.judgeGuidance?.trim()) issues.push('Add instructions for the human reviewer')
     if (!item.experiment.humanReviewerEmail?.trim()) issues.push('Assign a reviewer email')

@@ -266,6 +266,7 @@ test('Eval readiness validates AI and human evaluator assignments', () => {
   }
   const ai = getEvalReadiness({ ...configured, experiment: { ...configured.experiment, judge: 'ai', judgeGuidance: '' } })
   assert(ai.issues.some((issue) => issue.includes('AI evaluator')), 'Expected AI evaluator guidance')
+  assert(ai.issues.some((issue) => issue.includes('model-backed target execution')), 'Expected unavailable AI runs to be disclosed and blocked')
   const human = getEvalReadiness({ ...configured, experiment: { ...configured.experiment, judge: 'human', judgeGuidance: '', humanReviewerEmail: '' } })
   assert(human.issues.some((issue) => issue.includes('reviewer email')), 'Expected human reviewer assignment')
 })
