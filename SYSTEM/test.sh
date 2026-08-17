@@ -3142,6 +3142,15 @@ else
   fail "Workflow routes unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Workflow lifecycle safety tests...${NC}"
+npx ts-node --transpileOnly client/src/WorkflowLifecycleSafety.test.ts > /tmp/clawmax-workflow-lifecycle-safety.out 2>&1 || true
+if grep -q "WorkflowLifecycleSafety.test.ts: 5 assertions passed" /tmp/clawmax-workflow-lifecycle-safety.out; then
+  pass "Workflow lifecycle safety tests (5 assertions)"
+else
+  cat /tmp/clawmax-workflow-lifecycle-safety.out
+  fail "Workflow lifecycle safety tests"
+fi
+
 echo ""
 echo -e "${YELLOW}→ Running Workflow integration defaults unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/workflow-integration-defaults.test.ts > /tmp/clawmax-workflow-integration-defaults.out 2>&1 || true

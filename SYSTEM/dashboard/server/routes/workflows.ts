@@ -10,6 +10,7 @@ import {
   getExecution,
   validateCron,
   triggerWorkflow,
+  cancelExecution,
   completeWorkflow,
   getDAGStatus,
   parseWorkflowMd,
@@ -331,7 +332,8 @@ router.post('/:id/trigger', (req, res) => {
     })
 
     if (!result.success) {
-      return res.status(500).json({ error: 'Failed to trigger workflow', details: result.error })
+      const status = /already running/i.test(result.error || '') ? 409 : 500
+      return res.status(status).json({ error: 'Failed to trigger workflow', details: result.error })
     }
 
     res.status(200).json({
@@ -343,6 +345,25 @@ router.post('/:id/trigger', (req, res) => {
     console.error('Error triggering workflow:', error)
     res.status(500).json({ error: 'Failed to trigger workflow', message: error.message })
   }
+})
+
+/**
+ * POST /api/workflows/:id/executions/:executionId/cancel
+ * Stop a running execution and any in-flight agent process groups.
+ */
+router.post('/:id/executions/:executionId/cancel', (req, res) => {
+  const { id, executionId } = req.params
+  if (!/^[a-z0-9-]+$/.test(id) || !/^[a-zA-Z0-9_-]+$/.test(executionId)) {
+    return res.status(400).json({ error: 'Invalid workflow or execution ID' })
+  }
+  if (!getWorkflow(id)) return res.status(404).json({ error: 'Workflow not found', workflowId: id })
+
+  const result = cancelExecution(id, executionId)
+  if (!result.success) {
+    const status = result.error === 'Execution not found' ? 404 : 409
+    return res.status(status).json({ error: result.error })
+  }
+  return res.json({ message: 'Workflow execution stopped', workflowId: id, executionId })
 })
 
 /**

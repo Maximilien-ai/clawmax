@@ -24,6 +24,7 @@ import { readWorkspaceIntegrationConfig } from './workspace-integrations'
 import { hasWorkspaceManagedPartnerSecrets } from './workspace-integrations'
 import { resolveOpenClawCliPath } from './openclaw-cli'
 import { createBrokerCapabilityToken } from './skill-secret-broker'
+import { terminateProcessTree } from './process-tree'
 
 // Use dynamic workspace path to support multi-workspace
 function getWorkflowsDir(): string {
@@ -37,6 +38,12 @@ function getExecutionsDir(): string {
 function getTemplatesDir(): string {
   return path.join(getWorkflowsDir(), 'templates')
 }
+
+const WORKFLOW_RUNNER_BOOT_ID = randomUUID()
+const activeWorkflowExecutions = new Map<string, string>()
+const activeExecutionProcesses = new Map<string, Set<ReturnType<typeof spawn>>>()
+const cancelledExecutions = new Set<string>()
+const INTERRUPTED_WORKFLOW_MESSAGE = 'Interrupted: the dashboard restarted while this run was in progress.'
 
 // Interfaces
 export interface AgentTargeting {
@@ -326,7 +333,7 @@ export function summarizeAgentInputRequest(agentText: string): string {
 export interface WorkflowExecutionParticipant {
   agentId: string
   agentName: string
-  status: 'pending' | 'running' | 'completed' | 'failed'
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
   startedAt?: string
   completedAt?: string
   result?: any
@@ -338,11 +345,15 @@ export interface WorkflowExecution {
   workflowId: string
   startedAt: string
   completedAt?: string
-  status: 'running' | 'completed' | 'failed' | 'paused'
+  status: 'running' | 'completed' | 'failed' | 'paused' | 'cancelled' | 'interrupted'
   triggerType: 'scheduled' | 'manual' | 'agent'
   triggeredBy?: string
   participants: WorkflowExecutionParticipant[]
   logs: string[]
+  ownerPid?: number
+  ownerBootId?: string
+  heartbeatAt?: string
+  error?: string
   inputs?: Record<string, string>  // Structured inputs parsed from workflow content
   outputs?: Record<string, {
     type: 'markdown' | 'text' | 'json' | 'artifact' | 'handoff'
@@ -991,7 +1002,33 @@ function reconcileWorkflowStateFromExecutions(workflow: Workflow): Workflow {
 
   const latestExecution = getLatestExecution(workflow.id)
   if (!latestExecution) return workflow
-  if (latestExecution.status === 'running') return workflow
+  if (latestExecution.status === 'running') {
+    const activeExecutionId = activeWorkflowExecutions.get(workflow.id)
+    if (latestExecution.ownerBootId === WORKFLOW_RUNNER_BOOT_ID && activeExecutionId === latestExecution.id) {
+      return workflow
+    }
+    const interruptedAt = new Date().toISOString()
+    const interruptedExecution: WorkflowExecution = {
+      ...latestExecution,
+      status: 'interrupted',
+      completedAt: interruptedAt,
+      heartbeatAt: interruptedAt,
+      error: INTERRUPTED_WORKFLOW_MESSAGE,
+      participants: latestExecution.participants.map((participant) => (
+        participant.status === 'running' || participant.status === 'pending'
+          ? { ...participant, status: 'failed', completedAt: interruptedAt, error: INTERRUPTED_WORKFLOW_MESSAGE }
+          : participant
+      )),
+      logs: [...latestExecution.logs, INTERRUPTED_WORKFLOW_MESSAGE],
+    }
+    const executionPath = path.join(getExecutionsDir(), workflow.id, `${latestExecution.id}.json`)
+    fs.writeFileSync(executionPath, JSON.stringify(interruptedExecution, null, 2), 'utf-8')
+    return {
+      ...workflow,
+      status: 'blocked',
+      progress: workflow.progress || 0,
+    }
+  }
 
   if (latestExecution.status === 'completed') {
     return {
@@ -1001,7 +1038,7 @@ function reconcileWorkflowStateFromExecutions(workflow: Workflow): Workflow {
     }
   }
 
-  if (latestExecution.status === 'failed') {
+  if (latestExecution.status === 'failed' || latestExecution.status === 'interrupted') {
     return {
       ...workflow,
       status: 'blocked',
@@ -1010,6 +1047,21 @@ function reconcileWorkflowStateFromExecutions(workflow: Workflow): Workflow {
   }
 
   return workflow
+}
+
+export function reconcileInterruptedWorkflowExecutions(): number {
+  const workflowsDir = getWorkflowsDir()
+  if (!fs.existsSync(workflowsDir)) return 0
+  let interrupted = 0
+  for (const file of fs.readdirSync(workflowsDir).filter((entry) => entry.endsWith('.md') && entry !== 'README.md')) {
+    const workflowId = path.basename(file, '.md')
+    const latest = getLatestExecution(workflowId)
+    if (latest?.status !== 'running') continue
+    if (latest.ownerBootId === WORKFLOW_RUNNER_BOOT_ID && activeWorkflowExecutions.get(workflowId) === latest.id) continue
+    const workflow = getWorkflow(workflowId)
+    if (workflow?.status === 'blocked') interrupted++
+  }
+  return interrupted
 }
 
 // Helper: Generate ID from name
@@ -1693,6 +1745,41 @@ export function getExecution(workflowId: string, executionId: string): WorkflowE
   }
 }
 
+export function isExecutionCancelled(executionId: string): boolean {
+  return cancelledExecutions.has(executionId)
+}
+
+export function cancelExecution(workflowId: string, executionId: string): { success: boolean; error?: string } {
+  const execution = getExecution(workflowId, executionId)
+  if (!execution) return { success: false, error: 'Execution not found' }
+  if (execution.status !== 'running') return { success: false, error: `Execution is already ${execution.status}` }
+
+  cancelledExecutions.add(executionId)
+  for (const processHandle of activeExecutionProcesses.get(executionId) || []) {
+    terminateProcessTree(processHandle)
+  }
+
+  const completedAt = new Date().toISOString()
+  const cancellationMessage = 'Stopped by an operator. Steps already completed were not rolled back.'
+  const cancelled: WorkflowExecution = {
+    ...execution,
+    status: 'cancelled',
+    completedAt,
+    heartbeatAt: completedAt,
+    error: cancellationMessage,
+    participants: execution.participants.map((participant) => (
+      participant.status === 'running' || participant.status === 'pending'
+        ? { ...participant, status: 'cancelled', completedAt, error: cancellationMessage }
+        : participant
+    )),
+    logs: [...execution.logs, cancellationMessage],
+  }
+  const executionPath = path.join(getExecutionsDir(), workflowId, `${executionId}.json`)
+  fs.writeFileSync(executionPath, JSON.stringify(cancelled, null, 2), 'utf-8')
+  updateWorkflow(workflowId, { status: 'idle', progress: 0 } as any)
+  return { success: true }
+}
+
 // Trigger workflow manually
 export function triggerWorkflow(workflowId: string, options?: {
   manual?: boolean
@@ -1707,6 +1794,7 @@ export function triggerWorkflow(workflowId: string, options?: {
     email?: string | null
   }
 }): { success: boolean; executionId?: string; error?: string } {
+  let claimedExecutionId: string | undefined
   try {
     // Check workspace budget before executing
     const budgetBlock = checkBudgetBlock({ operation: 'workflow' })
@@ -1731,6 +1819,10 @@ export function triggerWorkflow(workflowId: string, options?: {
       return { success: false, error: 'Workflow not found' }
     }
 
+    if (workflow.status === 'running' || activeWorkflowExecutions.has(workflowId)) {
+      return { success: false, error: 'This workflow is already running. Stop the current run before starting another.' }
+    }
+
     // Check maxRuns limit (skip for manual triggers)
     if (!options?.manual && workflow.maxRuns && workflow.maxRuns > 0) {
       const currentCount = workflow.runCount || 0
@@ -1739,6 +1831,12 @@ export function triggerWorkflow(workflowId: string, options?: {
         return { success: false, error: `Workflow reached max runs limit (${workflow.maxRuns}). Workflow has been disabled.` }
       }
     }
+
+    // Claim synchronously before any asynchronous execution can start. Node cannot
+    // interleave another trigger while this read/check/set section is running.
+    const executionId = randomUUID()
+    claimedExecutionId = executionId
+    activeWorkflowExecutions.set(workflowId, executionId)
 
     // Increment run count + mark as running + reset progress
     const newRunCount = (workflow.runCount || 0) + 1
@@ -1763,9 +1861,6 @@ export function triggerWorkflow(workflowId: string, options?: {
         }
       }, 5000)
     }
-
-    // Generate execution ID
-    const executionId = randomUUID()
 
     // Create executions directory for workflow if it doesn't exist
     const workflowExecutionDir = path.join(getExecutionsDir(), workflowId)
@@ -1937,6 +2032,9 @@ export function triggerWorkflow(workflowId: string, options?: {
       triggerType: 'manual',
       participants: executionParticipants,
       logs: [`Workflow triggered at ${new Date().toISOString()}`, `Targeting ${executionParticipants.length} agent(s)`],
+      ownerPid: process.pid,
+      ownerBootId: WORKFLOW_RUNNER_BOOT_ID,
+      heartbeatAt: new Date().toISOString(),
       inputs: Object.keys(executionInputs).length > 0 ? executionInputs : undefined,
       outputs: normalizeWorkflowExecutionOutputs(options?.outputs),
     }
@@ -1950,6 +2048,7 @@ export function triggerWorkflow(workflowId: string, options?: {
       const executionFilePath = path.join(workflowExecutionDir, `${executionId}.json`)
       const persistExecution = () => {
         try {
+          if (execution.status === 'running') execution.heartbeatAt = new Date().toISOString()
           fs.mkdirSync(path.dirname(executionFilePath), { recursive: true })
           fs.writeFileSync(executionFilePath, JSON.stringify(execution, null, 2), 'utf-8')
         } catch (error: any) {
@@ -2019,6 +2118,11 @@ export function triggerWorkflow(workflowId: string, options?: {
 
       const runParticipant = async (participant: WorkflowExecutionParticipant) => {
         try {
+          if (isExecutionCancelled(executionId)) {
+            participant.status = 'cancelled'
+            participant.completedAt = new Date().toISOString()
+            return
+          }
           participant.status = 'running' as any
           participant.startedAt = new Date().toISOString()
           updateAggregateProgress()
@@ -2068,6 +2172,7 @@ export function triggerWorkflow(workflowId: string, options?: {
               const executionModelOverride = toExecutionModelOverride(attemptModel, attemptProvider)
               repairWorkflowSessionEntryForRun(participant.agentId, sessionId)
               const args = ['agent', '--agent', participant.agentId, '--session-id', sessionId, '--message', executionMessage, '--json', ...(executionModelOverride ? ['--model', executionModelOverride] : []), ...(useLocal ? ['--local'] : [])]
+              if (isExecutionCancelled(executionId)) throw new Error('Workflow execution was cancelled')
               return await new Promise<any>((resolve, reject) => {
                 withTemporaryAgentAuthProfiles(participant.agentId, {
                   openai: attemptProvider === 'openai-compatible' ? undefined : executionEnv.OPENAI_API_KEY,
@@ -2082,12 +2187,22 @@ export function triggerWorkflow(workflowId: string, options?: {
                     : undefined,
                 }, attemptModel, attemptProvider, async () => {
                   await new Promise<void>((innerResolve) => {
-                    const proc = spawn(openclawCliPath, args, { env: executionEnv })
+                    const proc = spawn(openclawCliPath, args, {
+                      detached: process.platform !== 'win32',
+                      env: executionEnv,
+                    })
+                    const executionProcesses = activeExecutionProcesses.get(executionId) || new Set<ReturnType<typeof spawn>>()
+                    executionProcesses.add(proc)
+                    activeExecutionProcesses.set(executionId, executionProcesses)
+                    const releaseProcess = () => {
+                      executionProcesses.delete(proc)
+                      if (executionProcesses.size === 0) activeExecutionProcesses.delete(executionId)
+                    }
                     let stdout = ''
                     let stderr = ''
                     const timeoutMs = getWorkflowAgentTimeoutMs()
                     const timer = setTimeout(() => {
-                      proc.kill()
+                      terminateProcessTree(proc)
                       reject(new Error(formatWorkflowAgentTimeoutMessage(timeoutMs)))
                     }, timeoutMs)
 
@@ -2102,6 +2217,7 @@ export function triggerWorkflow(workflowId: string, options?: {
                     proc.stderr.on('data', (d: Buffer) => { stderr += d.toString() })
                     proc.on('close', (code: number) => {
                       clearTimeout(timer)
+                      releaseProcess()
                       const payloadText = extractWorkflowAgentResultPayload(stdout, stderr)
                       if (code !== 0 && !payloadText) {
                         reject(new Error(`Agent failed: ${stderr.slice(0, 200)}`))
@@ -2118,6 +2234,7 @@ export function triggerWorkflow(workflowId: string, options?: {
                       innerResolve()
                     })
                     proc.on('error', (err) => {
+                      releaseProcess()
                       reject(err)
                       innerResolve()
                     })
@@ -2149,6 +2266,13 @@ export function triggerWorkflow(workflowId: string, options?: {
               repairWorkflowSessionEntryForRun(participant.agentId, sessionId)
             },
           })
+
+          if (isExecutionCancelled(executionId)) {
+            participant.status = 'cancelled'
+            participant.completedAt = new Date().toISOString()
+            persistExecution()
+            return
+          }
 
           const agentResult = agentResponse as any
           const rawAgentText = stripBenignOpenClawRuntimeWarnings(agentResult.text || '')
@@ -2280,6 +2404,13 @@ export function triggerWorkflow(workflowId: string, options?: {
             }
           }
         } catch (err: any) {
+          if (isExecutionCancelled(executionId)) {
+            participant.status = 'cancelled'
+            ;(participant as any).error = 'Stopped by an operator.'
+            participant.completedAt = new Date().toISOString()
+            persistExecution()
+            return
+          }
           participant.status = 'failed' as any
           ;(participant as any).error = err.message
           participant.completedAt = new Date().toISOString()
@@ -2297,6 +2428,16 @@ export function triggerWorkflow(workflowId: string, options?: {
       }
 
       await Promise.all(executionParticipants.map(runParticipant))
+
+      if (isExecutionCancelled(executionId)) {
+        execution.status = 'cancelled'
+        execution.completedAt = new Date().toISOString()
+        execution.error = 'Stopped by an operator. Steps already completed were not rolled back.'
+        execution.logs.push(execution.error)
+        persistExecution()
+        updateWorkflow(workflowId, { status: 'idle', progress: 0 } as any)
+        return
+      }
 
       execution.outputs = deriveWorkflowExecutionOutputs(
         workflow,
@@ -2372,10 +2513,19 @@ export function triggerWorkflow(workflowId: string, options?: {
     }
 
     // Fire and forget
-    executeAsync().catch(err => console.error('Workflow execution error:', err))
+    executeAsync()
+      .catch(err => console.error('Workflow execution error:', err))
+      .finally(() => {
+        if (activeWorkflowExecutions.get(workflowId) === executionId) activeWorkflowExecutions.delete(workflowId)
+        activeExecutionProcesses.delete(executionId)
+        cancelledExecutions.delete(executionId)
+      })
 
     return { success: true, executionId }
   } catch (error: any) {
+    if (claimedExecutionId && activeWorkflowExecutions.get(workflowId) === claimedExecutionId) {
+      activeWorkflowExecutions.delete(workflowId)
+    }
     console.error('Error triggering workflow:', error)
     return { success: false, error: error.message }
   }

@@ -50,6 +50,7 @@ import { buildSystemInfoPayload } from './lib/system-info'
 import { healDashboardManagedOpenClawConfig } from './lib/openclaw-config'
 import { applyDashboardSecurityHeaders, isCorsOriginAllowed, isDashboardAuthBypassAllowed, parseCorsOrigins } from './lib/http-security'
 import { getTenantResourceLimits } from './lib/tenant-resource-limits'
+import { reconcileInterruptedWorkflowExecutions } from './lib/workflows'
 
 // ============================================================================
 // Crash Protection & Error Logging
@@ -137,6 +138,13 @@ function startBackgroundServices() {
     void autoRegisterWorkspaceAgents().catch((err) => {
       logToFile(`Auto-register failed: ${err instanceof Error ? err.stack || err.message : String(err)}`)
     })
+
+    try {
+      const interruptedRuns = reconcileInterruptedWorkflowExecutions()
+      if (interruptedRuns > 0) logToFile(`Reconciled ${interruptedRuns} interrupted workflow execution(s) after startup`)
+    } catch (err) {
+      logToFile(`Workflow execution reconciliation failed: ${err instanceof Error ? err.stack || err.message : String(err)}`)
+    }
 
     try {
       startScheduler()

@@ -91,7 +91,7 @@ interface WorkflowExecution {
   id: string
   startedAt: string
   completedAt?: string
-  status: 'running' | 'completed' | 'failed' | 'paused'
+  status: 'running' | 'completed' | 'failed' | 'paused' | 'cancelled' | 'interrupted'
   triggerType: 'scheduled' | 'manual' | 'agent'
   participantCount: number
   successCount: number
@@ -101,7 +101,7 @@ interface WorkflowExecution {
 interface WorkflowExecutionParticipant {
   agentId: string
   agentName: string
-  status: 'pending' | 'running' | 'completed' | 'failed'
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
   startedAt?: string
   completedAt?: string
   result?: any
@@ -113,7 +113,7 @@ interface WorkflowExecutionDetails {
   workflowId: string
   startedAt: string
   completedAt?: string
-  status: 'running' | 'completed' | 'failed' | 'paused'
+  status: 'running' | 'completed' | 'failed' | 'paused' | 'cancelled' | 'interrupted'
   triggerType: 'scheduled' | 'manual' | 'agent'
   triggeredBy?: string
   participants: WorkflowExecutionParticipant[]
@@ -631,6 +631,10 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   }
 
   async function startWorkflowTrigger(workflow: Workflow) {
+    if (runningWorkflows.has(workflow.id) || workflow.status === 'running') {
+      showError('Already running. Stop the current run before starting another.')
+      return
+    }
     const hasSecrets = (workflow.secretRequirements || []).length > 0
     let workflowDetails = selectedWorkflow && selectedWorkflow.id === workflow.id ? selectedWorkflow : null
 
@@ -963,6 +967,25 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
       if (!silent) {
         showError('Failed to load execution details')
       }
+    }
+  }
+
+  const stopWorkflowExecution = async (workflowId: string, executionId: string) => {
+    if (!confirm('Stop this workflow run? Steps already completed will not be rolled back.')) return
+    try {
+      const response = await fetch(`/api/workflows/${workflowId}/executions/${executionId}/cancel`, { method: 'POST' })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(data.error || 'Failed to stop workflow run')
+      setSelectedExecution((current) => current?.id === executionId ? { ...current, status: 'cancelled', completedAt: new Date().toISOString() } : current)
+      setRunningWorkflows((current) => {
+        const next = new Set(current)
+        next.delete(workflowId)
+        return next
+      })
+      showSuccess('Workflow run stopped. Completed steps were not rolled back.')
+      await fetchWorkflows(true)
+    } catch (error: any) {
+      showError(error.message || 'Failed to stop workflow run')
     }
   }
 
@@ -1933,7 +1956,9 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                       showError('Failed to trigger workflow')
                     }
                   }}
-                  className="px-3 py-1.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded transition-colors"
+                  disabled={runningWorkflows.has(selectedWorkflow.id) || selectedWorkflow.status === 'running'}
+                  title={runningWorkflows.has(selectedWorkflow.id) || selectedWorkflow.status === 'running' ? 'Already running. Stop the current run to start another.' : 'Run workflow now'}
+                  className="px-3 py-1.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   ▶ Run Now
                 </button>
@@ -2567,6 +2592,15 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                     Trigger: {selectedExecution.triggerType}
                     {selectedExecution.triggeredBy && ` by ${selectedExecution.triggeredBy}`}
                   </span>
+                  {selectedExecution.status === 'running' && (
+                    <button
+                      type="button"
+                      onClick={() => stopWorkflowExecution(selectedExecution.workflowId, selectedExecution.id)}
+                      className="rounded bg-red-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-red-700"
+                    >
+                      Stop run
+                    </button>
+                  )}
                 </div>
                 <div className="mt-2 text-xs text-gray-600 dark:text-gray-400 space-y-1">
                   <div>Started: {new Date(selectedExecution.startedAt).toLocaleString()}</div>
