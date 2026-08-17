@@ -7,6 +7,7 @@ import { ProductIconCell } from '../lib/productIcons'
 import { buildWorkspaceScopedPath } from '../lib/workspaceScope'
 import { WorkspaceDocEntryRef } from '../lib/workspaceFiles'
 import { resolveNavigableWorkspaceDocPath } from '../lib/workspaceDocNavigation'
+import { normalizeAgentActivityPayload, type AgentActivity } from '../lib/agentActivity'
 
 interface GroupEntry {
   name: string
@@ -24,20 +25,6 @@ interface Agent {
   groups: GroupEntry[]
   tags: string[]
   workspaceId?: string
-}
-
-interface AgentActivity {
-  recentFiles: { name: string; mtime: string; ageMins: number }[]
-  todos: string | null
-  completed: string | null
-  identity: string | null
-  skills?: string[]
-  liveConfig?: {
-    model: string
-    backupModel?: string
-    workspace: string
-    agentDir: string
-  }
 }
 
 interface WorkspaceBudgetStatus {
@@ -165,18 +152,13 @@ export default function AgentDetailPanel({
 
   const fetchActivity = useCallback(() => {
     fetch(`/api/agents/${agent.id}/activity`)
-      .then(r => r.json())
-      .then(d => {
-        // The route answers errors with { error } (e.g. "Agent not found" right after a failed
-        // provision, or when the workspace path moves). Storing that shape crashed the panel on
-        // the first activity.recentFiles.map() below and white-screened the whole page.
-        setActivity(d && typeof d === 'object' && !d.error
-          ? { ...d, recentFiles: Array.isArray(d.recentFiles) ? d.recentFiles : [] }
-          : null)
-        setLoading(false)
-        setLastRefreshed(Date.now())
-      })
-      .catch(() => setLoading(false))
+      // The route answers errors with { error } (e.g. "Agent not found" right after a failed
+      // provision, or when the workspace path moves). Storing that shape crashed the panel on
+      // the first activity.recentFiles.map() below and white-screened the whole page.
+      // normalizeAgentActivityPayload rejects the error shape and fills render-safe defaults.
+      .then(async r => r.ok ? normalizeAgentActivityPayload(await r.json().catch(() => null)) : null)
+      .then(d => { setActivity(d); setLoading(false); setLastRefreshed(Date.now()) })
+      .catch(() => { setActivity(null); setLoading(false) })
   }, [agent.id])
 
   useEffect(() => {

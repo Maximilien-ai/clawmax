@@ -34,9 +34,13 @@ import { appendRuntimeTranscriptExchange } from '../lib/runtime-transcripts'
 import { getAuthenticatedSession } from '../lib/github-auth'
 import { createBrokerCapabilityToken } from '../lib/skill-secret-broker'
 import { appendActivityExportEventsForActiveConsents } from '../lib/activity-export'
-import { cancelProcessTree, detachProcessStreams } from '../lib/process-tree'
+import { appendBoundedOutput } from '../lib/stream-bounds'
+import { cancelProcessTree, detachProcessStreams, terminateProcessTree } from '../lib/process-tree'
 
 const router = Router()
+const MAX_RETAINED_CHAT_OUTPUT = 2 * 1024 * 1024
+const MAX_RETAINED_CHAT_STDERR = 64 * 1024
+const MAX_TOTAL_CHAT_OUTPUT = 64 * 1024 * 1024
 type ChatProvider = 'openai' | 'openai-compatible' | 'anthropic' | 'gemini' | 'openrouter' | 'xai' | 'ollama' | null | undefined
 type ChatByokPayload = {
   openai?: string
@@ -1021,6 +1025,7 @@ router.post('/:id/chat', async (req, res) => {
           usage: ReturnType<typeof readLatestAssistantUsageFromPersistedSession>
           persistedAssistant: Awaited<ReturnType<typeof readLatestAssistantTextWithRetry>>
           hadVisibleOutput: boolean
+          incompleteReason?: string
           sessionId: string
           model?: string
           provider?: ChatProvider
@@ -1045,7 +1050,9 @@ router.post('/:id/chat', async (req, res) => {
 
             let fullOutput = ''
             let stderrOutput = ''
+            let totalOutputBytes = 0
             let hadVisibleOutput = false
+            let incompleteReason: string | undefined
             let attemptSettled = false
             let killEscalation: NodeJS.Timeout | undefined
             // Own process group: openclaw spawns its own children, and signalling only this direct
@@ -1054,7 +1061,7 @@ router.post('/:id/chat', async (req, res) => {
             const spawned = spawn(openclawCli, args, {
               env: executionEnv,
               stdio: ['pipe', 'pipe', 'pipe'],
-              detached: true,
+              detached: process.platform !== 'win32',
             })
             proc = spawned
             procExited = false
@@ -1072,12 +1079,13 @@ router.post('/:id/chat', async (req, res) => {
               // writing to the still-open pipe forever, re-entering this closure to grow
               // fullOutput/stderrOutput and hold this process's own end of the pipe open long after
               // the caller has moved on.
-      detachProcessStreams(spawned)
+              detachProcessStreams(spawned)
               resolve(result)
             }
 
             // No deadline here either. OpenClaw turns do the same open-ended work, and a quiet
-            // stretch is what an agent running tools looks like. Cancellation is the stop condition.
+            // stretch is what an agent running tools looks like. Cancellation is the stop condition
+            // for silence; a runaway output volume (see recordOutputBytes below) is the other one.
             function onAttemptCancel() {
               if (attemptSettled) return
               // SIGTERM, then an unconditional group SIGKILL, then settle -- see cancelProcessTree.
@@ -1106,20 +1114,40 @@ router.post('/:id/chat', async (req, res) => {
             else turn.signal.addEventListener('abort', onAttemptCancel, { once: true })
             const bumpAttemptIdle = () => turn.touch()
 
+            // A runaway producer is a volume problem, not a time problem, so it stays bounded even
+            // with no turn deadline: once combined stdout+stderr crosses MAX_TOTAL_CHAT_OUTPUT this
+            // terminates the CLI the same way a cancellation does, and the partial reply captured so
+            // far is preserved (see the close handler below) rather than discarded.
+            const stopIncompleteAttempt = (reason: string) => {
+              if (incompleteReason) return
+              incompleteReason = reason
+              terminateProcessTree(spawned)
+            }
+            const recordOutputBytes = (chunk: Buffer) => {
+              totalOutputBytes += chunk.byteLength
+              if (totalOutputBytes > MAX_TOTAL_CHAT_OUTPUT) {
+                stopIncompleteAttempt('The agent produced far more output than a reply should contain and was stopped. The partial reply was preserved; this usually means the agent got stuck repeating itself.')
+                return false
+              }
+              return true
+            }
+
             spawned.stdout.on('data', (chunk: Buffer) => {
               // Before the empty-text guard: a suppressed benign warning still proves the process is
               // alive, even though nothing is shown to the user.
               bumpAttemptIdle()
+              if (!recordOutputBytes(chunk)) return
               const text = stripBenignChatRuntimeWarnings(chunk.toString())
               if (!text) return
-              fullOutput += text
+              fullOutput = appendBoundedOutput(fullOutput, text, MAX_RETAINED_CHAT_OUTPUT)
               hadVisibleOutput = true
               send('delta', { text })
             })
 
             spawned.stderr.on('data', (chunk: Buffer) => {
               bumpAttemptIdle()
-              stderrOutput += chunk.toString()
+              if (!recordOutputBytes(chunk)) return
+              stderrOutput = appendBoundedOutput(stderrOutput, chunk.toString(), MAX_RETAINED_CHAT_STDERR)
             })
 
             spawned.on('exit', () => { procExited = true })
@@ -1132,7 +1160,7 @@ router.post('/:id/chat', async (req, res) => {
               }
 
               const normalizedText = normalizeChatMessage(fullOutput.trim())
-              const persistedAssistant = shouldRecoverPersistedAssistant(normalizedText)
+              const persistedAssistant = !incompleteReason && shouldRecoverPersistedAssistant(normalizedText)
                 ? await readLatestAssistantTextWithRetry(id, dashboardSessionKey, executionSessionId)
                 : null
               const completionText = normalizedText || normalizeChatMessage(persistedAssistant?.content || '') || ''
@@ -1148,6 +1176,7 @@ router.post('/:id/chat', async (req, res) => {
                 usage,
                 persistedAssistant,
                 hadVisibleOutput,
+                incompleteReason,
                 sessionId: executionSessionId,
                 model: attemptModel,
                 provider: attemptProvider,
@@ -1188,7 +1217,10 @@ router.post('/:id/chat', async (req, res) => {
         },
       }).then((attemptResult) => {
         clearInterval(keepalive)
-        if (attemptResult.completionText) {
+        if (attemptResult.incompleteReason) {
+          send('error', attemptResult.incompleteReason)
+        }
+        if (attemptResult.completionText && !attemptResult.incompleteReason) {
           traceAgentChat(id, message, attemptResult.completionText, {
             model: attemptResult.usage?.model || attemptResult.model,
             provider: attemptResult.usage?.provider || attemptResult.provider || undefined,
@@ -1214,7 +1246,7 @@ router.post('/:id/chat', async (req, res) => {
             content: `User:\n${message}\n\nAssistant:\n${attemptResult.completionText}`,
             metadata: { agentId: id, model: attemptResult.model || null },
           })
-        } else {
+        } else if (!attemptResult.completionText && !attemptResult.incompleteReason) {
           send('error', deriveChatError(attemptResult.rawError, attemptResult.provider, { agentId: id, model: attemptResult.model }))
         }
         send('complete', { text: attemptResult.completionText })
@@ -1255,6 +1287,10 @@ router.post('/:id/chat', async (req, res) => {
   req.on('close', () => {
     console.log(`[Chat Route] Client disconnected for agent ${id}, procExited=${procExited}; turn ${turnId} continues`)
     clearInterval(keepalive)
+    // Deliberately no kill-after-grace here. A lost connection is not a cancellation: over a
+    // twenty-minute turn a browser refresh, a sleeping laptop and a proxy timeout are all ordinary,
+    // and each one closes this request while the agent is working perfectly well. The turn keeps
+    // running and stays in the registry, which is what makes it still stoppable afterwards.
   })
 })
 

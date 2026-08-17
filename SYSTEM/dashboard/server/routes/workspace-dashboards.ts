@@ -5,7 +5,7 @@ import { listAgents, parseGroups, parseGroupsWithMembers } from '../lib/workspac
 import { getBudgetStatus } from '../lib/budget'
 import { getWorkspaceMetering } from '../lib/metering'
 import { getActiveNotifications } from '../lib/notifications'
-import { listWorkflows, listExecutions, resolveWorkflowInputRefs } from '../lib/workflows'
+import { getLatestExecution, listWorkflows, listExecutions, resolveWorkflowInputRefs } from '../lib/workflows'
 import { getNextCronRun } from '../lib/cron-next-run'
 import { getMessages } from '../lib/messages'
 import { listTeams, type Team } from '../lib/teams'
@@ -437,7 +437,7 @@ router.get('/:token', async (req, res) => {
 
       const workflowSummaries = scopedWorkflows.map((workflow) => {
         const executions = listExecutions(workflow.id, 5)
-        const latest = executions[0] || null
+        const latest = getLatestExecution(workflow.id)
         const kickoffLines = extractProjectConfigurationLines(workflow.content || '')
         const participantResponses = extractParticipantResponses(latest)
         const resultLinks = extractLinks([
@@ -587,7 +587,7 @@ router.get('/:token', async (req, res) => {
         .flatMap((workflow) => {
           const resolvedRefs = resolveWorkflowInputRefs(
             { inputRefs: Array.isArray((workflow as any).inputRefs) ? (workflow as any).inputRefs : [] },
-            (workflowId) => listExecutions(workflowId, 1)[0] || null
+            getLatestExecution
           )
           return resolvedRefs.map((inputRef) => ({
             workflowId: workflow.id,

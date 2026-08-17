@@ -49,8 +49,9 @@ import { resolveOpenClawCliPath } from './lib/openclaw-cli'
 import { buildSystemInfoPayload } from './lib/system-info'
 import { detectRuntimeStatuses, resolveEnabledRuntimes, resolveWorkspaceRuntime } from './lib/agent-runtime'
 import { healDashboardManagedOpenClawConfig } from './lib/openclaw-config'
-import { applyDashboardSecurityHeaders, describeUnauthenticatedExposureRisk, isCorsOriginAllowed, isDashboardAuthBypassAllowed, parseCorsOrigins } from './lib/http-security'
+import { applyDashboardSecurityHeaders, isCorsOriginAllowed, isDashboardAuthBypassAllowed, parseCorsOrigins, resolveDashboardBindHost } from './lib/http-security'
 import { getTenantResourceLimits } from './lib/tenant-resource-limits'
+import { reconcileInterruptedWorkflowExecutions } from './lib/workflows'
 
 // ============================================================================
 // Crash Protection & Error Logging
@@ -157,6 +158,13 @@ function startBackgroundServices() {
     }
 
     try {
+      const interruptedRuns = reconcileInterruptedWorkflowExecutions()
+      if (interruptedRuns > 0) logToFile(`Reconciled ${interruptedRuns} interrupted workflow execution(s) after startup`)
+    } catch (err) {
+      logToFile(`Workflow execution reconciliation failed: ${err instanceof Error ? err.stack || err.message : String(err)}`)
+    }
+
+    try {
       startScheduler()
     } catch (err) {
       logToFile(`Scheduler start failed: ${err instanceof Error ? err.stack || err.message : String(err)}`)
@@ -219,12 +227,7 @@ process.on('SIGTERM', () => {
 
 const app = express()
 const PORT = parseInt(process.env.DASHBOARD_PORT || '3001', 10)
-const HOST = process.env.DASHBOARD_HOST || (process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1')
-// Surfaced at boot because it cannot be detected from inside a container at request time: port
-// forwarding NATs every caller, so an unauthenticated dashboard reachable from the whole network
-// looks identical to one only its own machine can reach.
-const unauthenticatedExposure = describeUnauthenticatedExposureRisk(process.env)
-if (unauthenticatedExposure) console.warn(`[SECURITY] ${unauthenticatedExposure}`)
+const HOST = resolveDashboardBindHost(process.env)
 app.set('trust proxy', process.env.DASHBOARD_TRUST_PROXY === 'true' ? 1 : false)
 app.disable('x-powered-by')
 

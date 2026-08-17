@@ -1758,8 +1758,8 @@ fi
 
 echo -e "${YELLOW}→ Running Plugin workspace layout regression tests...${NC}"
 npx ts-node --transpileOnly client/src/PluginWorkspaceLayout.test.ts > /tmp/clawmax-plugin-workspace-layout.out 2>&1 || true
-if grep -q "PluginWorkspaceLayout.test.ts: 142 tests passed" /tmp/clawmax-plugin-workspace-layout.out; then
-  pass "Plugin workspace layout regression tests (142 tests)"
+if grep -q "PluginWorkspaceLayout.test.ts: 146 tests passed" /tmp/clawmax-plugin-workspace-layout.out; then
+  pass "Plugin workspace layout regression tests (146 tests)"
 else
   cat /tmp/clawmax-plugin-workspace-layout.out
   fail "Plugin workspace layout regression tests"
@@ -2172,8 +2172,8 @@ fi
 
 echo -e "${YELLOW}→ Running API security boundary tests...${NC}"
 npx ts-node --transpileOnly server/lib/security-boundaries.test.ts > /tmp/clawmax-security-boundaries.out 2>&1 || true
-if grep -q "security-boundaries.test.ts: 44 tests passed" /tmp/clawmax-security-boundaries.out; then
-  pass "API security boundary tests (44 tests)"
+if grep -q "security-boundaries.test.ts: 52 tests passed" /tmp/clawmax-security-boundaries.out; then
+  pass "API security boundary tests (52 tests)"
 else
   cat /tmp/clawmax-security-boundaries.out
   fail "API security boundary tests"
@@ -2204,6 +2204,15 @@ if grep -q "InstanceBranding.test.ts: 12 assertions passed" /tmp/clawmax-instanc
 else
   cat /tmp/clawmax-instance-branding.out
   fail "Instance branding tests"
+fi
+
+echo -e "${YELLOW}→ Running dashboard payload safety tests...${NC}"
+npx ts-node --transpileOnly client/src/DashboardPayloadSafety.test.ts > /tmp/clawmax-dashboard-payload-safety.out 2>&1 || true
+if grep -q "DashboardPayloadSafety.test.ts: 6 assertions passed" /tmp/clawmax-dashboard-payload-safety.out; then
+  pass "Dashboard payload safety tests (6 assertions)"
+else
+  cat /tmp/clawmax-dashboard-payload-safety.out
+  fail "Dashboard payload safety tests"
 fi
 
 echo -e "${YELLOW}→ Running Keys/secrets inventory unit tests...${NC}"
@@ -3169,6 +3178,15 @@ else
   fail "Workflow routes unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Workflow lifecycle safety tests...${NC}"
+npx ts-node --transpileOnly client/src/WorkflowLifecycleSafety.test.ts > /tmp/clawmax-workflow-lifecycle-safety.out 2>&1 || true
+if grep -q "WorkflowLifecycleSafety.test.ts: 5 assertions passed" /tmp/clawmax-workflow-lifecycle-safety.out; then
+  pass "Workflow lifecycle safety tests (5 assertions)"
+else
+  cat /tmp/clawmax-workflow-lifecycle-safety.out
+  fail "Workflow lifecycle safety tests"
+fi
+
 echo ""
 echo -e "${YELLOW}→ Running Workflow integration defaults unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/workflow-integration-defaults.test.ts > /tmp/clawmax-workflow-integration-defaults.out 2>&1 || true
@@ -3272,6 +3290,25 @@ if grep -q "All tests passed" /tmp/clawmax-chat-normalization.out; then
   pass "Chat normalization unit tests (${chat_normalization_count:-?} tests)"
 else
   fail "Chat normalization unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Chat process safety unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/chat-process-safety.test.ts > /tmp/clawmax-chat-process-safety.out 2>&1 || true
+if grep -Eq "chat-process-safety.test.ts: (15|17) assertions passed" /tmp/clawmax-chat-process-safety.out; then
+  chat_process_safety_count=$(grep -Eo "chat-process-safety.test.ts: [0-9]+" /tmp/clawmax-chat-process-safety.out | grep -Eo '[0-9]+' | tail -n 1)
+  pass "Chat process safety unit tests (${chat_process_safety_count:-?} assertions)"
+else
+  cat /tmp/clawmax-chat-process-safety.out
+  fail "Chat process safety unit tests"
+fi
+
+echo -e "${YELLOW}→ Running Agent chat stream safety tests...${NC}"
+npx ts-node --transpileOnly client/src/AgentChatStreamSafety.test.ts > /tmp/clawmax-agent-chat-stream-safety.out 2>&1 || true
+if grep -q "AgentChatStreamSafety.test.ts: 8 assertions passed" /tmp/clawmax-agent-chat-stream-safety.out; then
+  pass "Agent chat stream safety tests (8 assertions)"
+else
+  cat /tmp/clawmax-agent-chat-stream-safety.out
+  fail "Agent chat stream safety tests"
 fi
 
 echo ""

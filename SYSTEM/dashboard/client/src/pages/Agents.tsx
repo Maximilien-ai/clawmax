@@ -4203,9 +4203,9 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
         {guardrails.length > 0 && (
           <span
             className="shrink-0 rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300"
-            title={guardrails.map((guardrail) => guardrail.name).join(', ')}
+            title={`Advisory only: ${guardrails.map((guardrail) => guardrail.name).join(', ')}`}
           >
-            {guardrails.length} guardrail{guardrails.length === 1 ? '' : 's'}
+            {guardrails.length} advisory guardrail{guardrails.length === 1 ? '' : 's'}
           </span>
         )}
       </div>

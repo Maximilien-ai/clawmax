@@ -609,6 +609,30 @@ async function run() {
     )
   })
 
+  await test('workflow cancellation route validates ids and stops running executions', async () => {
+    let cancelledWorkflowId = ''
+    let cancelledExecutionId = ''
+    const handler = getRouteHandler('post', '/:id/executions/:executionId/cancel', {
+      workflows: {
+        getWorkflow: (id: string) => id === 'running-workflow' ? { id, name: 'Running Workflow' } : null,
+        cancelExecution: (workflowId: string, executionId: string) => {
+          cancelledWorkflowId = workflowId
+          cancelledExecutionId = executionId
+          return { success: true }
+        },
+      } as any,
+    })
+
+    let res = makeRes()
+    await handler(makeReq({ id: 'BAD ID', executionId: 'exec-1' }), res)
+    assert(res.statusCode === 400, `Expected invalid cancellation ids to return 400, got ${res.statusCode}`)
+
+    res = makeRes()
+    await handler(makeReq({ id: 'running-workflow', executionId: 'exec-1' }), res)
+    assert(res.statusCode === 200, `Expected running execution cancellation to succeed, got ${res.statusCode}`)
+    assert(cancelledWorkflowId === 'running-workflow' && cancelledExecutionId === 'exec-1', 'Expected route to cancel the requested execution')
+  })
+
   if (typeof originalHome === 'undefined') delete process.env.HOME
   else process.env.HOME = originalHome
 

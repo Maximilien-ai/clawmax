@@ -13,6 +13,7 @@ import { transformWorkspaceMarkdownUrl } from '../lib/markdownLinks'
 import { createPromptAttachment } from '../lib/promptAttachments'
 import { extractWorkspaceFileMentions, linkifyWorkspaceFiles, parseWorkspaceDocEntriesResponse } from '../lib/workspaceFiles'
 import { formatAgentWorkStatus, summarizeAgentChatFailure } from '../lib/chatRuntimeErrors'
+import { INCOMPLETE_AGENT_CHAT_MESSAGE, markIncompleteAgentReply } from '../lib/agentChatStream'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -730,15 +731,12 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
       // clearing the spinner and leaving a half-written bubble that looks like the agent simply
       // stopped talking. Most often the server was restarted or recreated mid-turn.
       if (!sawTerminalEvent) {
-        const message = 'The connection to the agent ended before it finished replying. The server may have restarted mid-turn — send the message again.'
-        setError(message)
-        if (assistantId) {
-          setMessages(prev => prev.map(m => (
-            m.id === assistantId
-              ? { ...m, content: m.content?.trim() ? `${m.content}\n\n_${message}_` : message }
-              : m
-          )))
-        }
+        setError(INCOMPLETE_AGENT_CHAT_MESSAGE)
+        setMessages(prev => prev.map(m =>
+          m.id === assistantId
+            ? { ...m, content: markIncompleteAgentReply(m.content) }
+            : m
+        ))
       }
     } catch (e: any) {
       if (e.name === 'AbortError') {

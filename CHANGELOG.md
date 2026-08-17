@@ -4,6 +4,10 @@ All notable changes to ClawMax are documented here.
 
 ## [Unreleased]
 
+### RC39
+- **Praveen dashboard regression candidate** — agent discovery and partial-data rendering, long-running chat stream safety, and workflow concurrency/cancellation/restart state now have a focused three-journey independent Review set. The underlying reported defects are covered by automated tests and closed optimistically for RC39 verification; RC38 criteria remain preserved as historical review evidence.
+- **Truthful plugin advisory behavior** — generic Guardrail configuration intent is preserved without claiming enforcement the host cannot provide, and unsupported AI Eval suggestions no longer fabricate deterministic scores. Private product implementation and acceptance evidence remain in the private plugin repository.
+
 ### RC38
 - **Focused independent release review** — the current tester queue is reduced from 20 component and release checks to seven end-to-end journeys that require human product judgment, real OAuth providers, or a persistent upgraded runtime. Historical 1.9.9 and earlier-2.0 checks remain preserved for traceability but are not offered as current tester work; starting a new focused checklist archives every superseded release without deleting results, notes, evidence, or verifier history.
 - **Security sign-off candidate** — RC38 carries the completed 2.0 source security hardening and zero-vulnerability dependency gate on top of the accepted RC37 OpenClaw `v2026.6.34` session-recovery runtime. Final public/private image digests and cloud/on-prem runtime evidence remain release gates.

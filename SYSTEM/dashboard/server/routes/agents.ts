@@ -919,7 +919,7 @@ router.post('/provision', async (req, res) => {
   const applyAssignedSkills = () => {
     if (requestedSkills.length === 0) return
     setAgentSkills(validatedName, requestedSkills)
-    send('log', `Assigned inferred skills: ${requestedSkills.join(', ')}\n`)
+    send('log', `Assigned selected skills: ${requestedSkills.join(', ')}\n`)
   }
 
   const writeGeneratedFilesToWorkspace = () => {
@@ -977,6 +977,9 @@ router.post('/provision', async (req, res) => {
     })
     if (seeded.created.length > 0) {
       send('log', `Seeded default agent files: ${seeded.created.join(', ')}\n`)
+    }
+    if (seeded.updated.length > 0) {
+      send('log', `Completed default agent fields: ${seeded.updated.join(', ')}\n`)
     }
   }
 

@@ -15,6 +15,7 @@ import type { EvalCase, GenericPluginRecord, PluginFieldValue, PluginManifest, P
 import {
   buildGenericPluginFields,
   buildPluginDraftFromPrompt,
+  parseGuardrailAssistantConfig,
   collectPluginTemplateTags,
   collectPluginTags,
   extractSuggestedEvalRegex,
@@ -128,7 +129,7 @@ function EmptyState({ plugin, onCreate }: { plugin: PluginManifest; onCreate: ()
       <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">No {plugin.labels?.plural || plugin.name} yet</h3>
       <p className="mx-auto mt-2 max-w-2xl text-sm text-gray-500 dark:text-gray-400">
         {usesLegacyPluginAdapter(plugin, 'guardrail')
-          ? 'Create workspace-scoped guardrails that describe which agents or workflows are constrained and what they are allowed to do.'
+          ? 'Create workspace-scoped advisory policies for agents and workflows. These records do not intercept runtime tools or network access.'
           : usesLegacyPluginAdapter(plugin, 'eval')
             ? 'Create workspace-scoped eval experiments with inputs, expected outputs, judge mode, and repeatable score history.'
             : `Create workspace-scoped ${plugin.labels?.plural?.toLowerCase() || plugin.name.toLowerCase()} using this plugin's declared fields.`}
@@ -720,37 +721,35 @@ Preserve existing values when the request does not ask to change them.`,
         prompt,
         'agent',
         'text',
-        `Rewrite this request as one concise Guardrail configuration statement.
-Mention only actions that must be blocked: outbound email, public web access, or external document sharing.
-Include exact agent and workflow names from the request.
-Include explicitly allowed skill IDs when provided.
-Do not mention a blocked action when the user wants it allowed.`,
+        `Return only one JSON object with this exact shape:
+{"representable":true,"reason":"","blockEmail":true|false|null,"blockWeb":true|false|null,"blockExternalDocs":true|false|null,"allowedSkills":[]}
+Use true only when the user asks to block that action, false only when the user asks to allow it, and null when it is not mentioned.
+Set representable to false and explain why when the request cannot be expressed using outbound email, public web access, external document sharing, or approved skill IDs.
+Do not include prose or Markdown.`,
       )
-      const generated = buildPluginDraftFromPrompt(plugin, expanded)
-      if (!isGuardrailRecord(generated)) throw new Error('The assistant did not return a Guardrail configuration.')
-      const targetText = `${prompt}\n${expanded}`.toLowerCase()
+      const generated = parseGuardrailAssistantConfig(expanded)
+      const targetText = prompt.toLowerCase()
       const matchedAgents = context.agents.filter((agent) => (
         targetText.includes(agent.id.toLowerCase()) || targetText.includes(agent.name.toLowerCase())
       )).map((agent) => agent.id)
       const matchedWorkflows = context.workflows.filter((workflow) => (
         targetText.includes(workflow.id.toLowerCase()) || targetText.includes(workflow.name.toLowerCase())
       )).map((workflow) => workflow.id)
-      const allowedSkillsMatch = expanded.match(/(?:allowed|approved|permitted)\s+skills?(?:\s+are|\s*:)?\s*([^\n.]+)/i)
-      const matchedSkills = allowedSkillsMatch
-        ? allowedSkillsMatch[1]
-            .split(/,|\band\b/i)
-            .map((skill) => skill.trim().replace(/^[`"' ]+|[`"' ]+$/g, ''))
-            .filter((skill) => /^[a-z0-9][a-z0-9._-]*$/i.test(skill))
-        : []
+      const matchedSkills = generated.allowedSkills
       const current = isGuardrailRecord(form) ? form : null
+      const nextControls = {
+        blockEmail: generated.blockEmail ?? current?.controls.blockEmail ?? false,
+        blockWeb: generated.blockWeb ?? current?.controls.blockWeb ?? false,
+        blockExternalDocs: generated.blockExternalDocs ?? current?.controls.blockExternalDocs ?? false,
+      }
       const next: Partial<PluginRecord> = {
         ...form,
         kind: 'guardrail',
         description: prompt,
         enabled: true,
-        tags: Array.from(new Set([...(current?.tags || []), ...generated.tags])),
+        tags: current?.tags || ['safety'],
         controls: {
-          ...generated.controls,
+          ...nextControls,
           allowedSkills: matchedSkills.length > 0 ? matchedSkills : current?.controls.allowedSkills || [],
         },
         appliesTo: {
@@ -761,9 +760,9 @@ Do not mention a blocked action when the user wants it allowed.`,
         },
       }
       const changes = [
-        generated.controls.blockEmail ? 'Block outbound email' : 'Allow outbound email',
-        generated.controls.blockWeb ? 'Block public web access' : 'Allow public web access',
-        generated.controls.blockExternalDocs ? 'Block external document sharing' : 'Allow external document sharing',
+        ...(generated.blockEmail === null ? [] : [nextControls.blockEmail ? 'Block outbound email' : 'Allow outbound email']),
+        ...(generated.blockWeb === null ? [] : [nextControls.blockWeb ? 'Block public web access' : 'Allow public web access']),
+        ...(generated.blockExternalDocs === null ? [] : [nextControls.blockExternalDocs ? 'Block external document sharing' : 'Allow external document sharing']),
         ...(matchedAgents.length > 0 ? [`Assign ${matchedAgents.length} agent${matchedAgents.length === 1 ? '' : 's'}`] : []),
         ...(matchedWorkflows.length > 0 ? [`Assign ${matchedWorkflows.length} workflow${matchedWorkflows.length === 1 ? '' : 's'}`] : []),
         ...(matchedSkills.length > 0 ? [`Allow ${matchedSkills.length} approved skill${matchedSkills.length === 1 ? '' : 's'}`] : []),
@@ -1032,7 +1031,7 @@ Preserve existing values when the request does not ask to change them.`,
                   <ProductIconCell iconName="ai" label="AI configure" size="sm" className="shrink-0 border-amber-200 bg-white text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300" />
                   <span className="min-w-0">
                     <span className="block text-sm font-semibold text-amber-950 dark:text-amber-100">Configure with AI</span>
-                    <span className="block text-xs text-amber-800/80 dark:text-amber-200/80">Describe what must be protected and which agents or workflows it covers. Review every change before saving.</span>
+                    <span className="block text-xs text-amber-800/80 dark:text-amber-200/80">Describe the advisory policy intent and which agents or workflows it references. Review every change before saving.</span>
                   </span>
                 </span>
                 <span className="shrink-0 text-sm font-semibold text-amber-700 dark:text-amber-300">{showGuardrailAssistant ? '▾' : '▸'}</span>
@@ -1185,8 +1184,8 @@ Preserve existing values when the request does not ask to change them.`,
             <div className="space-y-4">
               <section className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
                 <div className="mb-3">
-                  <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">External action protections</h3>
-                  <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Checked actions are blocked for every assigned target.</p>
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">External action guidance</h3>
+                  <p className="mt-0.5 text-xs text-amber-700 dark:text-amber-300">Advisory only: checked actions are recorded as policy intent, but the dashboard does not intercept runtime tools, direct network access, or side effects.</p>
                 </div>
                 <div className="grid grid-cols-1 gap-2">
                 <label className={`flex items-start gap-3 rounded-lg border px-3 py-3 text-sm transition-colors ${
@@ -1209,7 +1208,7 @@ Preserve existing values when the request does not ask to change them.`,
                     }))}
                     className="mt-0.5"
                   />
-                  <span><span className="block font-medium">Block outbound email</span><span className="mt-0.5 block text-xs opacity-70">Prevents assigned agents and workflows from sending email.</span></span>
+                  <span><span className="block font-medium">Flag outbound email as disallowed</span><span className="mt-0.5 block text-xs opacity-70">Records advisory intent; it does not stop a mail tool or direct SMTP/API access.</span></span>
                 </label>
                 <label className={`flex items-start gap-3 rounded-lg border px-3 py-3 text-sm transition-colors ${
                   form.kind === 'guardrail' && form.controls?.blockWeb
@@ -1231,7 +1230,7 @@ Preserve existing values when the request does not ask to change them.`,
                     }))}
                     className="mt-0.5"
                   />
-                  <span><span className="block font-medium">Block public web access</span><span className="mt-0.5 block text-xs opacity-70">Keeps assigned work from opening public internet resources.</span></span>
+                  <span><span className="block font-medium">Flag public web access as disallowed</span><span className="mt-0.5 block text-xs opacity-70">Records advisory intent; it does not stop browser, shell, or direct network access.</span></span>
                 </label>
                 <label className={`flex items-start gap-3 rounded-lg border px-3 py-3 text-sm transition-colors ${
                   form.kind === 'guardrail' && form.controls?.blockExternalDocs
@@ -1253,7 +1252,7 @@ Preserve existing values when the request does not ask to change them.`,
                     }))}
                     className="mt-0.5"
                   />
-                  <span><span className="block font-medium">Block external document sharing</span><span className="mt-0.5 block text-xs opacity-70">Keeps generated and workspace documents inside ClawMax.</span></span>
+                  <span><span className="block font-medium">Flag external document sharing as disallowed</span><span className="mt-0.5 block text-xs opacity-70">Records advisory intent; it does not intercept document or sharing tools.</span></span>
                 </label>
                 </div>
               </section>
@@ -1281,7 +1280,7 @@ Preserve existing values when the request does not ask to change them.`,
               <section className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
                 <div className="mb-3">
                   <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Assignments</h3>
-                  <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Select the actual agents and workflows protected by this Guardrail.</p>
+                  <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Select the agents and workflows this advisory policy references. Assignment does not enforce the policy at runtime.</p>
                 </div>
                 <div className="grid gap-4 xl:grid-cols-2">
                 <label className="block">
@@ -1425,7 +1424,7 @@ Preserve existing values when the request does not ask to change them.`,
                   }))}
                   className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
                 >
-                  <option value="ai">AI evaluator</option>
+                  <option value="ai">AI evaluator (not yet runnable)</option>
                   <option value="fixed">Fixed evaluator</option>
                   <option value="human">Human evaluator</option>
                 </select>
@@ -2302,10 +2301,10 @@ function PluginDetailsPanel({
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <div className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
-                  Eval cost
+                  Recorded model usage
                 </div>
                 <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  Total spend: ${usageTotals.costUsd.toFixed(4)}
+                  Measured spend: ${usageTotals.costUsd.toFixed(4)}
                 </div>
               </div>
               <div className="rounded-lg border border-emerald-200 bg-white/70 px-3 py-2 text-xs text-emerald-700 dark:border-emerald-800 dark:bg-gray-900/40 dark:text-emerald-300">
@@ -2833,8 +2832,8 @@ function GuardrailRelationshipGraph({
             <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Guardrail relationships</h3>
           <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
             {showingSuggestions
-              ? `${guardrails.length} suggested Guardrails preview their protections. Hover to inspect one before assigning agents or workflows.`
-              : 'Protections connect to Guardrails and their assigned agents or workflows. Hover to preview; click for full details.'}
+              ? `${guardrails.length} suggested Guardrails preview advisory policy intent. Hover to inspect one before assigning agents or workflows.`
+              : 'Advisory policy intent connects to Guardrails and their referenced agents or workflows. Hover to preview; click for full details.'}
           </p>
           </div>
           <RelationshipZoomControls zoom={zoom} onChange={setZoom} />
@@ -2861,7 +2860,7 @@ function GuardrailRelationshipGraph({
             className="block"
             style={{ minWidth: `${Math.round(760 * zoom)}px` }}
           >
-            <title>Guardrail protections connected to assigned agents and workflows</title>
+            <title>Advisory Guardrail policy intent connected to referenced agents and workflows</title>
             {guardrails.flatMap((item) => {
               const y = guardrailY.get(item.id) || canvasHeight / 2
               const isEmphasized = emphasizedGuardrail?.id === item.id
@@ -4110,7 +4109,7 @@ export default function PluginWorkspacePage({ plugin, isActive = false, onNaviga
   const availableSuggestionTags = useMemo(() => {
     const allTags = collectPluginTemplateTags(recommendedTemplates)
     if (!isChecklist) return allTags
-    return ['1.9.9', '2.0.0', '2.0.0-test-rc38'].filter((tag) => allTags.includes(tag))
+    return ['1.9.9', '2.0.0', '2.0.0-test-rc39'].filter((tag) => allTags.includes(tag))
   }, [recommendedTemplates, isChecklist])
   const filteredSuggestions = useMemo(() => sortPluginTemplates(
     recommendedTemplates.filter((template) => (
