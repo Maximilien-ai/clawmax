@@ -27,12 +27,14 @@ import {
   toExecutionModelOverride,
   withTemporaryAgentAuthProfiles,
 } from '../lib/agent-execution'
-import { buildRuntimePlan, executeAgentRuntimeTurn, readAgentIdentitySystemPrompt, FIRST_OUTPUT_TIMEOUT_MS, RUNTIME_IDLE_TIMEOUT_MS, isRuntimeTimeoutError } from '../lib/agent-runtime'
+import { buildRuntimePlan, executeAgentRuntimeTurn, readAgentIdentitySystemPrompt, isRuntimeCancelledError } from '../lib/agent-runtime'
+import { cancelTurn, cancelTurnsForAgent, listActiveTurns, withRegisteredTurn } from '../lib/agent-turns'
 import { hasRuntimeSession } from '../lib/runtime-sessions'
 import { appendRuntimeTranscriptExchange } from '../lib/runtime-transcripts'
 import { getAuthenticatedSession } from '../lib/github-auth'
 import { createBrokerCapabilityToken } from '../lib/skill-secret-broker'
 import { appendActivityExportEventsForActiveConsents } from '../lib/activity-export'
+import { cancelProcessTree, detachProcessStreams } from '../lib/process-tree'
 
 const router = Router()
 type ChatProvider = 'openai' | 'openai-compatible' | 'anthropic' | 'gemini' | 'openrouter' | 'xai' | 'ollama' | null | undefined
@@ -851,28 +853,34 @@ router.post('/:id/chat', async (req, res) => {
   }
 
   if (managedResendDispatch) {
+    const dispatch = managedResendDispatch
     send('start', { sessionId: currentSessionId })
     invalidateAgentStatusCache(id)
-    try {
-      const result = await executeClawmaxResendSend({
-        to: managedResendDispatch.to,
-        subject: managedResendDispatch.subject,
-        body: managedResendDispatch.body,
-        attachmentPaths: managedResendDispatch.attachmentPaths,
-        agentId: id,
-        workspaceRoot: effectiveWorkspaceRoot,
-        workspaceLabel: path.basename(effectiveWorkspaceRoot) || 'workspace',
-      })
-      const completionText = result.message
-      send('delta', { text: completionText })
-      send('complete', { text: completionText })
-    } catch (err: any) {
-      send('error', err?.message || 'ClawMax Resend send failed.')
-      send('complete', { text: '' })
-    } finally {
-      clearInterval(keepalive)
-      if (!res.writableEnded) res.end()
-    }
+    // Registered like every other chat turn so a send in flight shows up in GET /turns/active and
+    // is reachable by /chat/cancel -- this branch has no CLI process to signal (resend-partner.ts's
+    // own 15s network bound is what actually stops it), but skipping registerTurn entirely, as
+    // this branch used to, made it invisible to both.
+    await withRegisteredTurn(id, async () => {
+      try {
+        const result = await executeClawmaxResendSend({
+          to: dispatch.to,
+          subject: dispatch.subject,
+          body: dispatch.body,
+          attachmentPaths: dispatch.attachmentPaths,
+          agentId: id,
+          workspaceRoot: effectiveWorkspaceRoot,
+          workspaceLabel: path.basename(effectiveWorkspaceRoot) || 'workspace',
+        })
+        const completionText = result.message
+        send('delta', { text: completionText })
+        send('complete', { text: completionText })
+      } catch (err: any) {
+        send('error', err?.message || 'ClawMax Resend send failed.')
+        send('complete', { text: '' })
+      }
+    })
+    clearInterval(keepalive)
+    if (!res.writableEnded) res.end()
     return
   }
 
@@ -882,180 +890,132 @@ router.post('/:id/chat', async (req, res) => {
 
   let procExited = false
   let proc: ReturnType<typeof spawn> | null = null
-  let activeAttemptTimer: NodeJS.Timeout | null = null
+  // Set synchronously by withRegisteredTurn below (registerTurn runs before its callback's first
+  // await), so it's already correct by the time req.on('close') is wired up a few lines down.
+  let turnId = ''
 
-  // The 180s watchdog below covers the non-openclaw (claude/droid) runtime branch, which makes a
-  // single execution attempt. It is armed only once execution actually starts — i.e. after
-  // runExclusiveAgentExecution's per-agent queue wait and withTemporaryAgentAuthProfiles setup
-  // both complete — not at request-arrival time. runExclusiveAgentExecution serializes calls per
-  // agentId, so a request queued behind another in-flight chat for the same agent would otherwise
-  // have its 180s budget silently consumed while waiting; arming here instead gives every request
-  // its full budget from the moment its own CLI/runtime call actually begins. The openclaw branch
-  // below (which can retry once against a backup model) uses its own per-attempt activeAttemptTimer
-  // instead, so each attempt gets a fresh 180s budget.
-  let watchdog: ReturnType<typeof setTimeout> | null = null
-  // Measures silence, not total runtime: a research turn that writes files and runs tools streams
-  // for many minutes and is plainly alive, while a wedged session produces nothing at all. A
-  // fixed 3-minute cap killed the working turns and was the user-visible "timed out before a reply
-  // was produced" on long tasks.
-  // These runtimes do real tool work -- reading files, running commands, waiting on a background
-  // workflow they spawned -- and go quiet for long stretches while plainly alive. Three minutes of
-  // silence killed exactly those turns. This bounds silence, not total runtime, so a genuinely
-  // wedged session still fails in bounded time.
-  // Strictly longer than what the runtime path can consume, so the runtime always reports the
-  // failure first. If they are equal they race: the route can end the SSE response while a
-  // fresh-session retry is still running server-side, which the user never sees. Worst case is one
-  // full idle allowance on the first attempt plus a silent retry bounded by the first-output cap.
-  const CHAT_IDLE_TIMEOUT_MS = RUNTIME_IDLE_TIMEOUT_MS + FIRST_OUTPUT_TIMEOUT_MS + 60000
-  const armChatTimeoutWatchdog = () => {
-    if (watchdog) return
-    watchdog = setTimeout(onChatIdleTimeout, CHAT_IDLE_TIMEOUT_MS)
-  }
-  function onChatIdleTimeout() {
-    clearInterval(keepalive)
-    proc?.kill()
-    send('error', 'Agent chat went quiet for 10 minutes with no output. Retry once, or switch this agent to a faster model if the issue persists.')
-    if (!res.writableEnded) {
-      res.end()
-    }
-  }
-  /** Any streamed output proves the turn is still working; restart the silence clock. */
-  const bumpChatTimeoutWatchdog = () => {
-    if (!watchdog) return
-    clearTimeout(watchdog)
-    watchdog = setTimeout(onChatIdleTimeout, CHAT_IDLE_TIMEOUT_MS)
-  }
-  const clearChatTimeoutWatchdog = () => {
-    if (watchdog) {
-      clearTimeout(watchdog)
-      watchdog = null
-    }
-  }
+  // withRegisteredTurn's `finally` is the actual fix here: this route used to call releaseTurn()
+  // by hand on each exit path, and missed the far more common success path in the openclaw branch
+  // below plus the missingCliError early return in the claude/droid branch -- both leaked their
+  // turn in the registry forever. A wrapper that releases no matter how the callback ends removes
+  // the chance to forget it on whatever exit path gets added next.
+  withRegisteredTurn(id, async (turn) => {
+    turnId = turn.turnId
 
-  if (isNonOpenclawChatRuntime(resolvedAgent.runtime)) {
-    // Claude Code / Factory Droid: spawn via the shared runtime adapter instead of the openclaw
-    // CLI. No gateway, no --local, no persisted openclaw session store, and no backup-model retry
-    // (see runChatAttempt in the openclaw branch below) — see agent-runtime.ts.
-    const runtime = resolvedAgent.runtime
-    const runtimeLabel = RUNTIME_CHAT_LABELS[runtime]
-    // This branch never retries against a backup model, so the session id is fixed to the
-    // already-resolved primary model computed above.
-    const executionSessionId = currentSessionId
+    // No route-level deadline. Every previous bound measured silence, and silence is what a working
+    // agent produces while it thinks and runs tools -- a measured research turn went quiet for 316s
+    // and finished fine at 21 minutes. The turn ends when the CLI exits or the user cancels it.
 
-    runExclusiveAgentExecution(id, async () => {
-      const { text, errorText, missingCliError } = await executeAgentRuntimeTurn({
-        runtime,
-        agentId: id,
-        agentDir: currentAgentWorkspaceDir,
-        message: executionMessage,
-        scopedSessionId: executionSessionId,
-        model: resolvedAgent.model,
-        mode: 'chat',
-        env: executionEnv,
-        // Matches the route's idle allowance: the CLI's own deadline must not fire first.
-        timeoutMs: 600000,
-        onDelta: (delta) => {
-          bumpChatTimeoutWatchdog()
-          send('delta', { text: delta })
-        },
-        // Tool calls and thinking never become visible text, so a watchdog fed only by deltas
-        // kills an agent that is legitimately mid-tool-run. Any CLI output counts as alive.
-        onActivity: () => bumpChatTimeoutWatchdog(),
-        onPlan: (plan) => {
-          console.log(`[Chat Route] Spawning: ${plan.cliPath || runtime} ${plan.args.join(' ')}`)
-          send('start', { sessionId: executionSessionId })
-          invalidateAgentStatusCache(id)
-          armChatTimeoutWatchdog()
-        },
-      })
-      if (missingCliError) {
+    if (isNonOpenclawChatRuntime(resolvedAgent.runtime)) {
+      // Claude Code / Factory Droid: spawn via the shared runtime adapter instead of the openclaw
+      // CLI. No gateway, no --local, no persisted openclaw session store, and no backup-model retry
+      // (see runChatAttempt in the openclaw branch below) — see agent-runtime.ts.
+      const runtime = resolvedAgent.runtime
+      const runtimeLabel = RUNTIME_CHAT_LABELS[runtime]
+      // This branch never retries against a backup model, so the session id is fixed to the
+      // already-resolved primary model computed above.
+      const executionSessionId = currentSessionId
+
+      await runExclusiveAgentExecution(id, async () => {
+        const { text, errorText, missingCliError } = await executeAgentRuntimeTurn({
+          runtime,
+          agentId: id,
+          agentDir: currentAgentWorkspaceDir,
+          message: executionMessage,
+          scopedSessionId: executionSessionId,
+          model: resolvedAgent.model,
+          mode: 'chat',
+          env: executionEnv,
+          // The turn's only stop condition. Nothing here is time-based.
+          signal: turn.signal,
+          onDelta: (delta) => {
+            turn.touch()
+            send('delta', { text: delta })
+          },
+          // Tool calls and thinking never become visible text, so liveness fed only by deltas would
+          // read a legitimately busy agent as idle. Any CLI output counts as alive.
+          onActivity: () => turn.touch(),
+          onPlan: (plan) => {
+            console.log(`[Chat Route] Spawning: ${plan.cliPath || runtime} ${plan.args.join(' ')}`)
+            send('start', { sessionId: executionSessionId, turnId: turn.turnId })
+            invalidateAgentStatusCache(id)
+          },
+        })
+        if (missingCliError) {
+          procExited = true
+          clearInterval(keepalive)
+          send('error', missingCliError)
+          send('complete', { text: '' })
+          if (!res.writableEnded) res.end()
+          return
+        }
         procExited = true
         clearInterval(keepalive)
-        send('error', missingCliError)
-        send('complete', { text: '' })
-        if (!res.writableEnded) res.end()
-        return
-      }
-      procExited = true
-      clearInterval(keepalive)
-      clearChatTimeoutWatchdog()
 
-      const completionText = normalizeChatMessage(text.trim())
-      // OpenClaw's own CLI persists its turns to a JSONL session file the dashboard already reads
-      // (see readChatSessionMessages in routes/agents.ts); claude/droid have no such dashboard-local
-      // record, so this is the only place a non-openclaw dashboard chat turn gets persisted for
-      // refresh / archive / clear-history to find later.
-      appendRuntimeTranscriptExchange(id, executionSessionId, message, completionText)
-      if (completionText) {
-        // Mirror the openclaw branch's consented activity export so a chat is captured the same way
-        // whichever runtime answered it; otherwise pinning an agent to claude/droid would silently
-        // drop it out of activity export.
-        appendActivityExportEventsForActiveConsents({
-          source: 'agent-chat',
-          // The turn ran against effectiveWorkspaceRoot (see agentDir / OPENCLAW_WORKSPACE above),
-          // which is not always the active workspace when the agent resolves elsewhere. Consent is
-          // matched on exact userId + workspaceId, so recording the active workspace here would
-          // check consent against a workspace that did not run the turn.
-          workspaceId: effectiveWorkspaceRoot,
-          userId: session?.userId || session?.login || 'dashboard-user',
-          sessionId: executionSessionId,
-          subjectId: id,
-          content: `User:\n${message}\n\nAssistant:\n${completionText}`,
-          metadata: { agentId: id, model: resolvedAgent.model || null },
-        })
-      }
-      if (!completionText) {
-        send('error', isRuntimeTimeoutError(errorText)
-          ? 'Agent chat produced no reply before its deadline. Retry once; if it keeps happening, reset the chat session.'
-          : deriveChatError(errorText || 'No reply from agent.', resolvedAgent.provider, { agentId: id, model: resolvedAgent.model, runtimeLabel }))
-      }
-      send('complete', { text: completionText })
-      if (!res.writableEnded) {
-        res.end()
-      }
-    }).catch((err) => {
-      console.error(`[Chat Route] Auth profile prep error for ${id}:`, err)
-      clearChatTimeoutWatchdog()
-      clearInterval(keepalive)
-      send('error', `Failed to prepare agent execution: ${err.message}`)
-      if (!res.writableEnded) {
-        res.end()
-      }
-    })
-  } else {
-    const openclawCli = resolveOpenClawCliPath()
+        const completionText = normalizeChatMessage(text.trim())
+        // OpenClaw's own CLI persists its turns to a JSONL session file the dashboard already reads
+        // (see readChatSessionMessages in routes/agents.ts); claude/droid have no such dashboard-local
+        // record, so this is the only place a non-openclaw dashboard chat turn gets persisted for
+        // refresh / archive / clear-history to find later.
+        appendRuntimeTranscriptExchange(id, executionSessionId, message, completionText)
+        if (completionText) {
+          // Mirror the openclaw branch's consented activity export so a chat is captured the same way
+          // whichever runtime answered it; otherwise pinning an agent to claude/droid would silently
+          // drop it out of activity export.
+          appendActivityExportEventsForActiveConsents({
+            source: 'agent-chat',
+            // The turn ran against effectiveWorkspaceRoot (see agentDir / OPENCLAW_WORKSPACE above),
+            // which is not always the active workspace when the agent resolves elsewhere. Consent is
+            // matched on exact userId + workspaceId, so recording the active workspace here would
+            // check consent against a workspace that did not run the turn.
+            workspaceId: effectiveWorkspaceRoot,
+            userId: session?.userId || session?.login || 'dashboard-user',
+            sessionId: executionSessionId,
+            subjectId: id,
+            content: `User:\n${message}\n\nAssistant:\n${completionText}`,
+            metadata: { agentId: id, model: resolvedAgent.model || null },
+          })
+        }
+        if (!completionText) {
+          send('error', isRuntimeCancelledError(errorText)
+            ? 'Stopped. The agent was still working, so anything it had not finished was discarded.'
+            : deriveChatError(errorText || 'No reply from agent.', resolvedAgent.provider, { agentId: id, model: resolvedAgent.model, runtimeLabel }))
+        }
+        send('complete', { text: completionText })
+        if (!res.writableEnded) {
+          res.end()
+        }
+      }).catch((err) => {
+        console.error(`[Chat Route] Auth profile prep error for ${id}:`, err)
+        clearInterval(keepalive)
+        send('error', `Failed to prepare agent execution: ${err.message}`)
+        if (!res.writableEnded) {
+          res.end()
+        }
+      })
+    } else {
+      const openclawCli = resolveOpenClawCliPath()
 
-    const runChatAttempt = async (attemptModel: string | undefined, attemptProvider: ChatProvider | undefined) => {
-      const attemptSessionSeed = buildDashboardChatRetrySeed(sessionSeed, chatSessionRetryAttempt)
-      const executionSessionId = scopeSessionIdToModel(
-        attemptSessionSeed,
-        attemptModel,
-      )
-      currentSessionId = executionSessionId
-      const attemptUseOpenAiCompatible = attemptProvider === 'openai-compatible'
-      const attemptExecutionModel = toExecutionModelOverride(attemptModel, attemptProvider)
-      const args = [
-        'agent',
-        '--agent', id,
-        '--session-id', executionSessionId,
-        '--message', executionMessage,
-        ...(attemptExecutionModel ? ['--model', attemptExecutionModel] : []),
-        ...(attemptUseOpenAiCompatible || attemptProvider === 'ollama' ? ['--local'] : (useLocal ? ['--local'] : [])),
-      ]
-      console.log(`[Chat Route] Spawning: ${openclawCli || 'openclaw'} ${args.join(' ')}`)
+      const runChatAttempt = async (attemptModel: string | undefined, attemptProvider: ChatProvider | undefined) => {
+        const attemptSessionSeed = buildDashboardChatRetrySeed(sessionSeed, chatSessionRetryAttempt)
+        const executionSessionId = scopeSessionIdToModel(
+          attemptSessionSeed,
+          attemptModel,
+        )
+        currentSessionId = executionSessionId
+        const attemptUseOpenAiCompatible = attemptProvider === 'openai-compatible'
+        const attemptExecutionModel = toExecutionModelOverride(attemptModel, attemptProvider)
+        const args = [
+          'agent',
+          '--agent', id,
+          '--session-id', executionSessionId,
+          '--message', executionMessage,
+          ...(attemptExecutionModel ? ['--model', attemptExecutionModel] : []),
+          ...(attemptUseOpenAiCompatible || attemptProvider === 'ollama' ? ['--local'] : (useLocal ? ['--local'] : [])),
+        ]
+        console.log(`[Chat Route] Spawning: ${openclawCli || 'openclaw'} ${args.join(' ')}`)
 
-      return await withTemporaryAgentAuthProfiles(id, {
-        openai: attemptUseOpenAiCompatible ? undefined : executionEnv.OPENAI_API_KEY,
-        anthropic: executionEnv.ANTHROPIC_API_KEY,
-        gemini: executionEnv.GEMINI_API_KEY,
-        openrouter: executionEnv.OPENROUTER_API_KEY,
-        xai: executionEnv.XAI_API_KEY,
-        ollamaBaseUrl: executionEnv.OLLAMA_BASE_URL,
-        openaiCompatibleApiKey: attemptUseOpenAiCompatible ? executionEnv.OPENAI_API_KEY : undefined,
-        openaiCompatibleBaseUrl: attemptUseOpenAiCompatible ? executionEnv.OPENAI_BASE_URL : undefined,
-        openaiCompatibleDefaultModel: attemptUseOpenAiCompatible ? (byok?.openaiCompatibleDefaultModel || integrationConfig.openaiCompatibleDefaultModel || attemptModel) : undefined,
-      }, attemptModel, attemptProvider, async () => {
-        return await new Promise<{
+        type ChatAttemptResult = {
           completionText: string
           rawError: string
           usage: ReturnType<typeof readLatestAssistantUsageFromPersistedSession>
@@ -1064,195 +1024,283 @@ router.post('/:id/chat', async (req, res) => {
           sessionId: string
           model?: string
           provider?: ChatProvider
-        }>((resolve, reject) => {
-          if (!openclawCli) {
-            reject(new Error('OpenClaw CLI is not available in this runtime. Install or bundle the CLI, or set OPENCLAW_BIN to the executable path.'))
-            return
-          }
+        }
 
-          let fullOutput = ''
-          let stderrOutput = ''
-          let hadVisibleOutput = false
-          const spawned = spawn(openclawCli, args, {
-            env: executionEnv,
-            stdio: ['pipe', 'pipe', 'pipe']
-          })
-          proc = spawned
-          procExited = false
-
-          send('start', { sessionId: executionSessionId, resumeSessionId: attemptSessionSeed })
-          invalidateAgentStatusCache(id)
-
-          // Silence, not elapsed time. This is the same defect the CLI runtimes had: a fixed cap
-          // kills an OpenClaw agent that is streaming a long reply or running tools, while a
-          // wedged process is caught just as well by measuring quiet.
-          const onAttemptIdle = () => {
-            spawned.kill()
-            reject(new Error(`Agent went quiet for ${RUNTIME_IDLE_TIMEOUT_MS / 60000} minutes with no output`))
-          }
-          activeAttemptTimer = setTimeout(onAttemptIdle, RUNTIME_IDLE_TIMEOUT_MS)
-          const bumpAttemptIdle = () => {
-            if (!activeAttemptTimer) return
-            clearTimeout(activeAttemptTimer)
-            activeAttemptTimer = setTimeout(onAttemptIdle, RUNTIME_IDLE_TIMEOUT_MS)
-          }
-
-          spawned.stdout.on('data', (chunk: Buffer) => {
-            // Before the empty-text guard: a suppressed benign warning still proves the process is
-            // alive, even though nothing is shown to the user.
-            bumpAttemptIdle()
-            bumpChatTimeoutWatchdog()
-            const text = stripBenignChatRuntimeWarnings(chunk.toString())
-            if (!text) return
-            fullOutput += text
-            hadVisibleOutput = true
-            send('delta', { text })
-          })
-
-          spawned.stderr.on('data', (chunk: Buffer) => {
-            bumpAttemptIdle()
-            bumpChatTimeoutWatchdog()
-            stderrOutput += chunk.toString()
-          })
-
-          spawned.on('exit', () => { procExited = true })
-
-          spawned.on('close', async (code) => {
-            if (activeAttemptTimer) {
-              clearTimeout(activeAttemptTimer)
-              activeAttemptTimer = null
-            }
-            console.log(`[Chat Route] CLI exited for agent ${id} with code ${code}`)
-
-            if (stderrOutput) {
-              console.error(`[Chat Route] stderr for ${id}:`, stderrOutput.slice(0, 500))
+        return await withTemporaryAgentAuthProfiles(id, {
+          openai: attemptUseOpenAiCompatible ? undefined : executionEnv.OPENAI_API_KEY,
+          anthropic: executionEnv.ANTHROPIC_API_KEY,
+          gemini: executionEnv.GEMINI_API_KEY,
+          openrouter: executionEnv.OPENROUTER_API_KEY,
+          xai: executionEnv.XAI_API_KEY,
+          ollamaBaseUrl: executionEnv.OLLAMA_BASE_URL,
+          openaiCompatibleApiKey: attemptUseOpenAiCompatible ? executionEnv.OPENAI_API_KEY : undefined,
+          openaiCompatibleBaseUrl: attemptUseOpenAiCompatible ? executionEnv.OPENAI_BASE_URL : undefined,
+          openaiCompatibleDefaultModel: attemptUseOpenAiCompatible ? (byok?.openaiCompatibleDefaultModel || integrationConfig.openaiCompatibleDefaultModel || attemptModel) : undefined,
+        }, attemptModel, attemptProvider, async () => {
+          return await new Promise<ChatAttemptResult>((resolve, reject) => {
+            if (!openclawCli) {
+              reject(new Error('OpenClaw CLI is not available in this runtime. Install or bundle the CLI, or set OPENCLAW_BIN to the executable path.'))
+              return
             }
 
-            const normalizedText = normalizeChatMessage(fullOutput.trim())
-            const persistedAssistant = shouldRecoverPersistedAssistant(normalizedText)
-              ? await readLatestAssistantTextWithRetry(id, dashboardSessionKey, executionSessionId)
-              : null
-            const completionText = normalizedText || normalizeChatMessage(persistedAssistant?.content || '') || ''
-            const usage = completionText
-              ? readLatestAssistantUsageFromPersistedSession(id, dashboardSessionKey, executionSessionId)
-              : null
+            let fullOutput = ''
+            let stderrOutput = ''
+            let hadVisibleOutput = false
+            let attemptSettled = false
+            let killEscalation: NodeJS.Timeout | undefined
+            // Own process group: openclaw spawns its own children, and signalling only this direct
+            // child leaves those grandchildren alive holding the stdout pipe open (see
+            // killAttemptTree below -- the same reason runOnce in agent-runtime.ts detaches).
+            const spawned = spawn(openclawCli, args, {
+              env: executionEnv,
+              stdio: ['pipe', 'pipe', 'pipe'],
+              detached: true,
+            })
+            proc = spawned
+            procExited = false
 
-            persistDashboardChatSession(id, executionSessionId)
+            send('start', { sessionId: executionSessionId, resumeSessionId: attemptSessionSeed, turnId: turn.turnId })
+            invalidateAgentStatusCache(id)
 
-            resolve({
-              completionText,
-              rawError: stderrOutput || (code !== 0 ? 'Agent failed.' : 'No reply from agent.'),
-              usage,
-              persistedAssistant,
-              hadVisibleOutput,
-              sessionId: executionSessionId,
-              model: attemptModel,
-              provider: attemptProvider,
+            const resolveAttempt = (result: ChatAttemptResult) => {
+              if (attemptSettled) return
+              attemptSettled = true
+              turn.signal.removeEventListener('abort', onAttemptCancel)
+              if (killEscalation) clearTimeout(killEscalation)
+              // Mirrors settle() in agent-runtime.ts's runOnce: without this, the 'data' listeners
+              // below outlive the promise, so a grandchild that escaped the process group keeps
+              // writing to the still-open pipe forever, re-entering this closure to grow
+              // fullOutput/stderrOutput and hold this process's own end of the pipe open long after
+              // the caller has moved on.
+      detachProcessStreams(spawned)
+              resolve(result)
+            }
+
+            // No deadline here either. OpenClaw turns do the same open-ended work, and a quiet
+            // stretch is what an agent running tools looks like. Cancellation is the stop condition.
+            function onAttemptCancel() {
+              if (attemptSettled) return
+              // SIGTERM, then an unconditional group SIGKILL, then settle -- see cancelProcessTree.
+              killEscalation = cancelProcessTree(spawned, () => {
+              // Settle here rather than trusting 'close': close needs every stdio pipe closed, and
+              // a grandchild that escaped the process group (its own setsid) can hold stdout open
+              // forever -- wedging this promise, runExclusiveAgentExecution's per-agent lock behind
+              // it, and every later turn for this agent with nothing able to clear it. SIGKILL is
+              // the last thing we can do; once it has been sent there is nothing left worth waiting
+              // on, so this resolves from whatever was captured so far rather than the disk session
+              // lookup the normal close path below does -- the CLI never exited cleanly, so its
+              // session file can't be trusted.
+              resolveAttempt({
+                completionText: normalizeChatMessage(fullOutput.trim()),
+                rawError: stderrOutput || 'cancelled',
+                usage: null,
+                persistedAssistant: null,
+                hadVisibleOutput,
+                sessionId: executionSessionId,
+                model: attemptModel,
+                provider: attemptProvider,
+              })
+              })
+            }
+            if (turn.signal.aborted) onAttemptCancel()
+            else turn.signal.addEventListener('abort', onAttemptCancel, { once: true })
+            const bumpAttemptIdle = () => turn.touch()
+
+            spawned.stdout.on('data', (chunk: Buffer) => {
+              // Before the empty-text guard: a suppressed benign warning still proves the process is
+              // alive, even though nothing is shown to the user.
+              bumpAttemptIdle()
+              const text = stripBenignChatRuntimeWarnings(chunk.toString())
+              if (!text) return
+              fullOutput += text
+              hadVisibleOutput = true
+              send('delta', { text })
+            })
+
+            spawned.stderr.on('data', (chunk: Buffer) => {
+              bumpAttemptIdle()
+              stderrOutput += chunk.toString()
+            })
+
+            spawned.on('exit', () => { procExited = true })
+
+            spawned.on('close', async (code) => {
+              console.log(`[Chat Route] CLI exited for agent ${id} with code ${code}`)
+
+              if (stderrOutput) {
+                console.error(`[Chat Route] stderr for ${id}:`, stderrOutput.slice(0, 500))
+              }
+
+              const normalizedText = normalizeChatMessage(fullOutput.trim())
+              const persistedAssistant = shouldRecoverPersistedAssistant(normalizedText)
+                ? await readLatestAssistantTextWithRetry(id, dashboardSessionKey, executionSessionId)
+                : null
+              const completionText = normalizedText || normalizeChatMessage(persistedAssistant?.content || '') || ''
+              const usage = completionText
+                ? readLatestAssistantUsageFromPersistedSession(id, dashboardSessionKey, executionSessionId)
+                : null
+
+              persistDashboardChatSession(id, executionSessionId)
+
+              resolveAttempt({
+                completionText,
+                rawError: stderrOutput || (code !== 0 ? 'Agent failed.' : 'No reply from agent.'),
+                usage,
+                persistedAssistant,
+                hadVisibleOutput,
+                sessionId: executionSessionId,
+                model: attemptModel,
+                provider: attemptProvider,
+              })
+            })
+
+            spawned.on('error', (err) => {
+              console.error(`[Chat Route] CLI spawn error for ${id}:`, err)
+              reject(err)
             })
           })
+        }, { persistAuthProfiles: true, skipModelConfigMutation: true })
+      }
 
-          spawned.on('error', (err) => {
-            if (activeAttemptTimer) {
-              clearTimeout(activeAttemptTimer)
-              activeAttemptTimer = null
-            }
-            console.error(`[Chat Route] CLI spawn error for ${id}:`, err)
-            reject(err)
+      await runExclusiveAgentExecution(id, async () => {
+        const primaryResult = await runChatAttempt(resolvedAgent.model, resolvedAgent.provider)
+        throwIfChatAttemptNeedsSessionRetry(primaryResult)
+        const fallbackModel = resolvedAgent.backupModel
+        const fallbackProvider = resolvedAgent.backupProvider
+        if (!shouldUseExplicitBackupModelRetry({
+          completionText: primaryResult.completionText,
+          backupModel: fallbackModel,
+          backupProvider: fallbackProvider,
+          hadVisibleOutput: primaryResult.hadVisibleOutput,
+          rawError: primaryResult.rawError,
+        })) {
+          return primaryResult
+        }
+        console.log(`[Chat Route] Retrying agent ${id} with fallback model ${fallbackModel}`)
+        const fallbackResult = await runChatAttempt(fallbackModel, fallbackProvider)
+        throwIfChatAttemptNeedsSessionRetry(fallbackResult)
+        return fallbackResult
+      }, {
+        maxSessionLockRetries: 1,
+        onSessionLockRetry: (attempt) => {
+          chatSessionRetryAttempt = attempt + 1
+          console.warn(`[Chat Route] Recovering agent ${id} with a fresh chat session after an OpenClaw session conflict`)
+        },
+      }).then((attemptResult) => {
+        clearInterval(keepalive)
+        if (attemptResult.completionText) {
+          traceAgentChat(id, message, attemptResult.completionText, {
+            model: attemptResult.usage?.model || attemptResult.model,
+            provider: attemptResult.usage?.provider || attemptResult.provider || undefined,
+            inputTokens: attemptResult.usage?.inputTokens,
+            outputTokens: attemptResult.usage?.outputTokens,
+            cacheReadTokens: attemptResult.usage?.cacheReadTokens,
+            durationMs: Math.max(0, Date.now() - chatStartedAt),
+            estimatedCostUsd: attemptResult.usage?.estimatedCostUsd,
+            sessionId: attemptResult.usage?.sessionId || attemptResult.persistedAssistant?.sessionId || attemptResult.sessionId,
+            actorUserId: session?.userId,
+            actorLogin: session?.login,
+            actorEmail: session?.email,
+            dashboardInstanceId: getRequestDashboardInstanceId(req),
           })
-        })
-      }, { persistAuthProfiles: true, skipModelConfigMutation: true })
+          const activityUserId = session?.userId || session?.login || 'dashboard-user'
+          const activityWorkspaceId = getWorkspacePath()
+          appendActivityExportEventsForActiveConsents({
+            source: 'agent-chat',
+            workspaceId: activityWorkspaceId,
+            userId: activityUserId,
+            sessionId: attemptResult.sessionId,
+            subjectId: id,
+            content: `User:\n${message}\n\nAssistant:\n${attemptResult.completionText}`,
+            metadata: { agentId: id, model: attemptResult.model || null },
+          })
+        } else {
+          send('error', deriveChatError(attemptResult.rawError, attemptResult.provider, { agentId: id, model: attemptResult.model }))
+        }
+        send('complete', { text: attemptResult.completionText })
+        if (!res.writableEnded) {
+          res.end()
+        }
+      }).catch((err) => {
+        console.error(`[Chat Route] Auth profile prep error for ${id}:`, err)
+        clearInterval(keepalive)
+        send('error', deriveChatError(err?.message || String(err), resolvedAgent.provider, { agentId: id, model: resolvedAgent.model }))
+        send('complete', { text: '' })
+        if (!res.writableEnded) {
+          res.end()
+        }
+      })
     }
-
-    runExclusiveAgentExecution(id, async () => {
-      const primaryResult = await runChatAttempt(resolvedAgent.model, resolvedAgent.provider)
-      throwIfChatAttemptNeedsSessionRetry(primaryResult)
-      const fallbackModel = resolvedAgent.backupModel
-      const fallbackProvider = resolvedAgent.backupProvider
-      if (!shouldUseExplicitBackupModelRetry({
-        completionText: primaryResult.completionText,
-        backupModel: fallbackModel,
-        backupProvider: fallbackProvider,
-        hadVisibleOutput: primaryResult.hadVisibleOutput,
-        rawError: primaryResult.rawError,
-      })) {
-        return primaryResult
-      }
-      console.log(`[Chat Route] Retrying agent ${id} with fallback model ${fallbackModel}`)
-      const fallbackResult = await runChatAttempt(fallbackModel, fallbackProvider)
-      throwIfChatAttemptNeedsSessionRetry(fallbackResult)
-      return fallbackResult
-    }, {
-      maxSessionLockRetries: 1,
-      onSessionLockRetry: (attempt) => {
-        chatSessionRetryAttempt = attempt + 1
-        console.warn(`[Chat Route] Recovering agent ${id} with a fresh chat session after an OpenClaw session conflict`)
-      },
-    }).then((attemptResult) => {
-      clearInterval(keepalive)
-      if (attemptResult.completionText) {
-        traceAgentChat(id, message, attemptResult.completionText, {
-          model: attemptResult.usage?.model || attemptResult.model,
-          provider: attemptResult.usage?.provider || attemptResult.provider || undefined,
-          inputTokens: attemptResult.usage?.inputTokens,
-          outputTokens: attemptResult.usage?.outputTokens,
-          cacheReadTokens: attemptResult.usage?.cacheReadTokens,
-          durationMs: Math.max(0, Date.now() - chatStartedAt),
-          estimatedCostUsd: attemptResult.usage?.estimatedCostUsd,
-          sessionId: attemptResult.usage?.sessionId || attemptResult.persistedAssistant?.sessionId || attemptResult.sessionId,
-          actorUserId: session?.userId,
-          actorLogin: session?.login,
-          actorEmail: session?.email,
-          dashboardInstanceId: getRequestDashboardInstanceId(req),
-        })
-        const activityUserId = session?.userId || session?.login || 'dashboard-user'
-        const activityWorkspaceId = getWorkspacePath()
-        appendActivityExportEventsForActiveConsents({
-          source: 'agent-chat',
-          workspaceId: activityWorkspaceId,
-          userId: activityUserId,
-          sessionId: attemptResult.sessionId,
-          subjectId: id,
-          content: `User:\n${message}\n\nAssistant:\n${attemptResult.completionText}`,
-          metadata: { agentId: id, model: attemptResult.model || null },
-        })
-      } else {
-        send('error', deriveChatError(attemptResult.rawError, attemptResult.provider, { agentId: id, model: attemptResult.model }))
-      }
-      send('complete', { text: attemptResult.completionText })
-      if (!res.writableEnded) {
-        res.end()
-      }
-    }).catch((err) => {
-      console.error(`[Chat Route] Auth profile prep error for ${id}:`, err)
-      clearInterval(keepalive)
-      send('error', deriveChatError(err?.message || String(err), resolvedAgent.provider, { agentId: id, model: resolvedAgent.model }))
-      send('complete', { text: '' })
-      if (!res.writableEnded) {
-        res.end()
-      }
-    })
-  }
+  }).catch((err) => {
+    // Both branches above already catch their own errors internally, so this only fires if
+    // something throws before either branch's own handling is reached -- but it still has to be
+    // here: without it the turn would settle via an unhandled rejection instead of through
+    // withRegisteredTurn's `finally`, and this route would be back to leaking on an exit path.
+    console.error(`[Chat Route] Unexpected error running chat turn for ${id}:`, err)
+    clearInterval(keepalive)
+    if (!res.writableEnded) res.end()
+  })
 
   // Handle client disconnect — only kill if process hasn't exited yet
+  // A lost connection is NOT a cancellation, and must not kill the turn.
+  //
+  // Turns routinely run 15-20+ minutes. Over that window a browser refresh, a laptop sleeping, or a
+  // proxy timing out an idle response are all ordinary events, and every one of them closes this
+  // request while the agent is working perfectly well. Killing on disconnect meant the user lost
+  // twenty minutes of work by switching tabs -- and the old 30s grace only narrowed the window
+  // rather than fixing the rule.
+  //
+  // So the turn keeps running and stays in the registry, which is what makes it still cancellable
+  // afterwards. Only an explicit stop ends it early.
   req.on('close', () => {
-    console.log(`[Chat Route] Client disconnected for agent ${id}, procExited=${procExited}`)
-    clearChatTimeoutWatchdog()
-    if (activeAttemptTimer) {
-      clearTimeout(activeAttemptTimer)
-      activeAttemptTimer = null
-    }
+    console.log(`[Chat Route] Client disconnected for agent ${id}, procExited=${procExited}; turn ${turnId} continues`)
     clearInterval(keepalive)
-    // Don't kill process immediately — let it finish if it's close to done
-    // Only kill after a grace period
-    if (!procExited) {
-      setTimeout(() => {
-        if (!procExited) {
-          console.log(`[Chat Route] Killing agent process for ${id} after grace period`)
-          proc?.kill()
-        }
-      }, 30000) // 30s grace period
-    }
   })
+})
+
+/**
+ * Stop a running turn.
+ *
+ * This is the only kill switch there is: turns have no deadline, so without this a wedged turn
+ * runs forever.
+ *
+ * Scoped to a turn id when the caller has one, which the UI always does -- every `start` event
+ * carries it. Cancelling by agent instead would stop turns the clicker never started: two browser
+ * tabs on one agent is an ordinary state, and so is one running turn plus one still queued behind
+ * the per-agent lock (turns register before acquiring it, so both are in the registry). An earlier
+ * version of this route cancelled by agent and justified it with "there is at most one running turn
+ * per agent" -- that claim was simply false.
+ *
+ * Falls back to cancelling every turn for the agent only when no turn id is supplied, which is the
+ * deliberate "stop this agent" case.
+ *
+ * Returns cancelled:false when nothing was running, so the caller can say "it had already
+ * finished" instead of reporting a stop that never happened.
+ */
+router.post('/:id/chat/cancel', (req, res) => {
+  const { id } = req.params
+  if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
+    return res.status(400).json({ error: 'Invalid agent id' })
+  }
+  const { turnId } = (req.body || {}) as { turnId?: string }
+  if (typeof turnId === 'string' && turnId.trim()) {
+    // Guard against one agent's Stop reaching another agent's turn: turn ids are namespaced by
+    // agent, so a mismatched prefix means the caller is addressing something that is not theirs.
+    if (!turnId.startsWith(`${id}:`)) {
+      return res.status(400).json({ error: 'turnId does not belong to this agent' })
+    }
+    const stopped = cancelTurn(turnId)
+    console.log(`[Chat Route] Cancel requested for turn ${turnId}: ${stopped ? 'signalled' : 'already finished'}`)
+    return res.json({ cancelled: stopped, count: stopped ? 1 : 0 })
+  }
+  const cancelled = cancelTurnsForAgent(id)
+  console.log(`[Chat Route] Cancel requested for agent ${id} (no turnId): ${cancelled} turn(s) signalled`)
+  return res.json({ cancelled: cancelled > 0, count: cancelled })
+})
+
+/** What is running right now, with elapsed and idle times. See listActiveTurns for why this exists. */
+router.get('/turns/active', (_req, res) => {
+  res.json({ turns: listActiveTurns() })
 })
 
 export default router

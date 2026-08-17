@@ -8,6 +8,8 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import assert from 'assert'
+import { EventEmitter } from 'events'
+import { listActiveTurns, cancelTurn } from '../lib/agent-turns'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -1827,6 +1829,67 @@ async function run() {
       if (typeof originalClaudeBin === 'undefined') delete process.env.CLAUDE_BIN
       else process.env.CLAUDE_BIN = originalClaudeBin
     }
+  })
+
+  await test('dashboard chat/messages route for a default (openclaw) agent has no fixed deadline and is only stoppable via the turn registry', async () => {
+    // Regression coverage for the P1 finding: this branch used to unconditionally
+    // `setTimeout(() => proc.kill(), 600000)`, killing a still-working turn 10 minutes in
+    // regardless of whether it was making progress -- exactly the bug the rest of this change
+    // deletes everywhere else. Nothing in this suite exercised the branch before, which is how
+    // that survived. A fake child process here stands in for the real `openclaw` CLI.
+    writeAgent(workspacePath, 'openclaw-dashboard-chat', [
+      '# IDENTITY.md',
+      '- **Name:** OpenClaw Dashboard Chat',
+    ].join('\n'))
+
+    const fakeProc: any = new EventEmitter()
+    fakeProc.stdout = new EventEmitter()
+    fakeProc.stderr = new EventEmitter()
+    fakeProc.killed = false
+    fakeProc.kill = () => { fakeProc.killed = true }
+
+    await withChildProcessStubs({
+      spawn: () => fakeProc,
+    }, async () => {
+      const handler = getRouteHandler('post', '/:id/chat/messages')
+      const res = makeRes()
+      await handler(makeReq({ params: { id: 'openclaw-dashboard-chat' }, body: { message: 'hi' } }), res)
+
+      // registerTurn happens inside runExclusiveAgentExecution's callback, past an await the
+      // handler itself doesn't wait on (same fire-and-forget shape as the droid/claude cases
+      // above) -- poll briefly for it to show up rather than assuming it's there synchronously.
+      let turn: ReturnType<typeof listActiveTurns>[number] | undefined
+      for (let waited = 0; waited < 2000 && !turn; waited += 10) {
+        turn = listActiveTurns().find((t) => t.agentId === 'openclaw-dashboard-chat')
+        if (!turn) await new Promise((resolve) => setTimeout(resolve, 10))
+      }
+      assert(turn, 'Expected the openclaw chat turn to be visible in the active-turn registry')
+
+      // Prove there is no timer standing between "still working" and "killed": letting the fake
+      // CLI sit idle proves nothing fires on its own -- the only thing that can kill it now is an
+      // explicit cancel.
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      assert.strictEqual(fakeProc.killed, false, 'Expected no automatic timer to have touched the process')
+
+      // Simulate a user pressing Stop.
+      const wasCancelled = cancelTurn(turn.turnId)
+      assert.strictEqual(wasCancelled, true, 'Expected cancelTurn(turnId) to find and abort the registered turn')
+      assert.strictEqual(fakeProc.killed, true, 'Expected the abort to reach proc.kill(), the route\'s only kill switch now')
+
+      // Let the killed process actually exit so the route's promise settles and releases the turn.
+      // Same fire-and-forget shape as the droid/claude cases above: poll for res.json() rather
+      // than a promise the handler itself never awaits.
+      fakeProc.emit('close', 143)
+      for (let waited = 0; waited < 2000 && typeof res.jsonBody === 'undefined'; waited += 10) {
+        await new Promise((resolve) => setTimeout(resolve, 10))
+      }
+
+      assert.strictEqual(res.statusCode, 500, 'Expected a killed-mid-flight turn to surface as a failed request')
+      assert(
+        listActiveTurns().every((t) => t.turnId !== turn!.turnId),
+        'Expected the turn to be released from the registry once the handler settled'
+      )
+    })
   })
 
   await test('agent archive and unarchive routes reject invalid ids and missing agents', async () => {

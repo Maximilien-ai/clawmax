@@ -811,8 +811,8 @@ ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION=true
 
 # BYOK: users can also provide keys in-browser via the BYOK wizard
 
-# Workflow execution timeout (defaults to 10 minutes in current releases)
-# CLAWMAX_WORKFLOW_AGENT_TIMEOUT_MS=600000
+# Agent turns have no timeout: they run until the work finishes or someone stops them.
+# CLAWMAX_WORKFLOW_AGENT_TIMEOUT_MS is no longer read -- setting it does nothing.
 
 # Partner integrations shown in Workspaces Integrations (comma-separated)
 # Default is opt-in: leave empty until a user selects partners explicitly.
