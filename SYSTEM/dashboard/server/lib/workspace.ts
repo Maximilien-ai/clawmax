@@ -56,12 +56,13 @@ export function ensureManagedAgentWorkspaceFiles(args: {
   backupModel?: string
   tags?: string[]
   workspacePath?: string
-}): { created: string[] } {
+}): { created: string[]; updated: string[] } {
   const workspacePath = args.workspacePath || getWorkspacePath()
   const agentDir = path.join(workspacePath, 'AGENTS', args.agentId)
   const displayName = prettifyAgentWorkspaceName(args.agentId)
   const uniqueTags = [...new Set((args.tags || []).map((tag) => String(tag || '').trim()).filter(Boolean))]
   const created: string[] = []
+  const updated: string[] = []
 
   fs.mkdirSync(agentDir, { recursive: true })
 
@@ -83,6 +84,17 @@ export function ensureManagedAgentWorkspaceFiles(args: {
     identityLines.push('', '## Notes', '', 'Created by ClawMax Dashboard.')
     fs.writeFileSync(identityPath, identityLines.join('\n'), 'utf-8')
     created.push('IDENTITY.md')
+  } else {
+    const identity = fs.readFileSync(identityPath, 'utf-8')
+    const name = extractIdentityField(identity, 'Name')
+    if (!name) {
+      const nameField = /^(\s*[-*]?\s*\*\*Name:\*\*)[ \t]*(?:\r?\n[ \t]+_\(pick something you like\)_)?/im
+      const namedIdentity = nameField.test(identity)
+        ? identity.replace(nameField, `$1 ${displayName}`)
+        : `${identity.trimEnd()}\n\n- **Name:** ${displayName}\n`
+      fs.writeFileSync(identityPath, namedIdentity, 'utf-8')
+      updated.push('IDENTITY.md')
+    }
   }
 
   const soulPath = path.join(agentDir, 'SOUL.md')
@@ -110,7 +122,7 @@ export function ensureManagedAgentWorkspaceFiles(args: {
     created.push('TOOLS.md')
   }
 
-  return { created }
+  return { created, updated }
 }
 
 // Legacy exports for backward compatibility

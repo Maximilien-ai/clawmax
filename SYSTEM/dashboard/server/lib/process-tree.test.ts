@@ -5,8 +5,10 @@
  * same two bugs. The tests below assert the rules those bugs violated, not the shape of the code.
  */
 import assert from 'assert'
+import fs from 'fs'
+import path from 'path'
 import { spawn } from 'child_process'
-import { cancelProcessTree, detachProcessStreams, killProcessTree } from './process-tree'
+import { cancelProcessTree, detachProcessStreams, signalProcessTree } from './process-tree'
 
 const GREEN = '\x1b[32m', RED = '\x1b[31m', RESET = '\x1b[0m'
 let passed = 0, failed = 0
@@ -54,13 +56,22 @@ async function run() {
     assert.strictEqual(called, true, 'the callback must fire so the caller can settle')
   })
 
-  await test('killProcessTree falls back to the direct child when there is no pid', () => {
-    // The original copy read `if (pid) process.kill(-pid, sig)` inside a try, so a process with no
+  await test('signalProcessTree falls back to the direct child when there is no pid', () => {
+    // An earlier copy read `if (pid) process.kill(-pid, sig)` inside a try, so a process with no
     // pid took NEITHER branch: nothing was signalled and the caller believed it had killed something.
     let directKill: string | undefined
-    const fake: any = { pid: undefined, kill: (sig: string) => { directKill = sig } }
-    killProcessTree(fake, 'SIGTERM')
+    const fake: any = { pid: undefined, kill: (sig: string) => { directKill = sig; return true } }
+    assert.strictEqual(signalProcessTree(fake, 'SIGTERM'), 'child')
     assert.strictEqual(directKill, 'SIGTERM', 'must fall back to child.kill() when no pid is available')
+  })
+
+  await test('terminateProcessTree escalates unconditionally, like cancelProcessTree', () => {
+    // main added terminateProcessTree with the same guarded escalation this module exists to fix.
+    // Both entry points must behave identically or the bug simply moves to whichever one is used.
+    const source = fs.readFileSync(path.join(__dirname, 'process-tree.ts'), 'utf-8')
+    const guarded = source.split('\n').filter((l) => /exitCode === null && .*signalCode === null/.test(l))
+    assert.strictEqual(guarded.length, 0,
+      `No escalation may be guarded on the direct child being alive; found:\n${guarded.join('\n')}`)
   })
 
   await test('detachProcessStreams never throws, whatever shape the streams are', () => {

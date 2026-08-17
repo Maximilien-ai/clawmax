@@ -1251,6 +1251,9 @@ function getEvalRunReadinessIssues(record: EvalRecord): string[] {
   if (record.experiment.judge === 'ai' && !record.experiment.judgeGuidance?.trim()) {
     issues.push('add guidance for the AI evaluator')
   }
+  if (record.experiment.judge === 'ai') {
+    issues.push('AI evaluator runs are unavailable until model-backed target execution and measured usage are implemented')
+  }
   if (record.experiment.judge === 'human') {
     if (!record.experiment.judgeGuidance?.trim()) issues.push('add instructions for the human reviewer')
     if (!record.experiment.humanReviewerEmail?.trim()) issues.push('assign a reviewer email')
@@ -1800,11 +1803,10 @@ function normalizeTokens(value: string): string[] {
 }
 
 function scoreEval(experiment: EvalRecord['experiment']): EvalRunRecord {
+  if (experiment.judge === 'ai') {
+    throw new PluginContractError('AI evaluator runs are unavailable: ClawMax will not fabricate a score or usage without executing the target and a model-backed judge.', 501)
+  }
   const now = new Date().toISOString()
-  const expected = normalizeTokens(experiment.expectedOutput)
-  const actual = new Set(normalizeTokens(experiment.candidateOutput))
-  const matched = expected.filter((token) => actual.has(token)).length
-  const semanticOverlapScore = expected.length > 0 ? Math.round((matched / expected.length) * 100) : 0
   const fixedMatch = experiment.fixedMatch || 'exact'
   const normalizeFixedValue = (value: string) => experiment.fixedCaseSensitive ? value : value.toLowerCase()
   const expectedValue = normalizeFixedValue(experiment.expectedOutput)
@@ -1822,15 +1824,13 @@ function scoreEval(experiment: EvalRecord['experiment']): EvalRunRecord {
   } else {
     fixedPassed = expectedValue.length > 0 && candidateValue === expectedValue
   }
-  const baseScore = experiment.judge === 'fixed' ? (fixedPassed ? 100 : 0) : semanticOverlapScore
-  const judgeMode = experiment.judge === 'ai' ? 'ai-placeholder' : 'fixed'
-  const tokensIn = Math.max(1, Math.ceil((experiment.input.length + experiment.expectedOutput.length) / 4))
-  const tokensOut = Math.max(1, Math.ceil(experiment.candidateOutput.length / 4))
-  const costUsd = Number(((tokensIn * 0.0000025) + (tokensOut * 0.00001)).toFixed(6))
+  const baseScore = fixedPassed ? 100 : 0
+  const judgeMode = 'fixed'
+  const tokensIn = 0
+  const tokensOut = 0
+  const costUsd = 0
   const totalCases = Math.max(1, experiment.cases?.length || experiment.iterations || 1)
-  const summary = experiment.judge === 'ai'
-    ? `Placeholder AI judge scored semantic overlap at ${baseScore}/100. Replace with a real model-backed judge in a later pass.`
-    : fixedError
+  const summary = fixedError
       ? fixedError
       : `Fixed ${fixedMatch} comparison ${fixedPassed ? 'passed' : 'failed'}${experiment.fixedCaseSensitive ? ' with case sensitivity' : ''}.`
   return {

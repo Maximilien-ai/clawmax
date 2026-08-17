@@ -72,6 +72,7 @@ export default function ModelFitRecommendationPanel({
     readModelFitDetailsExpanded(typeof window === 'undefined' ? undefined : window.localStorage)
   ))
   const suggestedModel = recommendation?.recommendedModel || ''
+  const primaryCandidate = recommendation?.candidates?.[0]
   const suggestionSelected = !!suggestedModel && suggestedModel === selectedModel
   const setExpanded = (expanded: boolean) => {
     setDetailsExpanded(expanded)
@@ -143,9 +144,9 @@ export default function ModelFitRecommendationPanel({
             {detailsExpanded && (
               <>
                 <p className="mt-2 text-xs">{recommendation.summary}</p>
-                {recommendation.candidates[0]?.reasons?.length > 0 && (
+                {!!primaryCandidate?.reasons?.length && (
                   <ul className="mt-2 list-disc space-y-1 pl-4 text-xs">
-                    {recommendation.candidates[0].reasons.map(reason => <li key={reason}>{reason}</li>)}
+                    {primaryCandidate.reasons.map(reason => <li key={reason}>{reason}</li>)}
                   </ul>
                 )}
                 {recommendation.candidates.length > 1 && (
@@ -167,11 +168,11 @@ export default function ModelFitRecommendationPanel({
                     </div>
                   </div>
                 )}
-                {recommendation.candidates[0]?.caveats?.length > 0 && (
+                {!!primaryCandidate?.caveats?.length && (
                   <details className="mt-3 text-xs">
                     <summary className="cursor-pointer font-medium">Review capability assumptions</summary>
                     <ul className="mt-1 list-disc space-y-1 pl-4">
-                      {recommendation.candidates[0].caveats.map(caveat => <li key={caveat}>{caveat}</li>)}
+                      {primaryCandidate.caveats.map(caveat => <li key={caveat}>{caveat}</li>)}
                     </ul>
                   </details>
                 )}

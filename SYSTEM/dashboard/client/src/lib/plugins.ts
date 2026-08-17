@@ -166,6 +166,66 @@ export function titleCaseWords(value: string): string {
     .join(' ')
 }
 
+type GuardrailControlIntent = {
+  blockEmail: boolean | null
+  blockWeb: boolean | null
+  blockExternalDocs: boolean | null
+}
+
+export type GuardrailAssistantConfig = GuardrailControlIntent & {
+  representable: boolean
+  reason: string
+  allowedSkills: string[]
+}
+
+function resolveGuardrailClauseIntent(prompt: string, actionPattern: RegExp): boolean | null {
+  const clauses = prompt.split(/(?:[.;\n,]|\bbut\b|\band\s+(?=(?:do not|don't|never|allow|permit|enable|unblock|deny|block|prevent|disable|forbid|restrict)\b))/i)
+  for (const clause of clauses) {
+    if (!actionPattern.test(clause)) continue
+    if (/\b(?:do not|don't|never)\s+(?:allow|permit|enable)\b|\b(?:deny|block|prevent|disable|forbid|restrict)\b|\bno\s+(?:outbound\s+)?(?:email|mail|web|browser|internet|external\s+(?:documents?|docs?|sharing))/i.test(clause)) return true
+    if (/\b(?:do not|don't|never)\s+(?:block|deny|prevent|disable|restrict)\b|\b(?:allow|permit|enable|unblock|permitted|allowed)\b/i.test(clause)) return false
+  }
+  return null
+}
+
+export function parseGuardrailControlIntent(prompt: string): GuardrailControlIntent {
+  return {
+    blockEmail: resolveGuardrailClauseIntent(prompt, /\b(?:outbound\s+)?(?:email|mail)\b/i),
+    blockWeb: resolveGuardrailClauseIntent(prompt, /\b(?:public\s+)?(?:web|browser|internet|website|site)\b/i),
+    blockExternalDocs: resolveGuardrailClauseIntent(prompt, /\b(?:external\s+)?(?:documents?|docs?|document\s+sharing|file\s+sharing|sharing)\b/i),
+  }
+}
+
+export function parseGuardrailAssistantConfig(value: string): GuardrailAssistantConfig {
+  const start = value.indexOf('{')
+  const end = value.lastIndexOf('}')
+  if (start < 0 || end <= start) throw new Error('The assistant did not return a structured Guardrail configuration.')
+  let parsed: any
+  try {
+    parsed = JSON.parse(value.slice(start, end + 1))
+  } catch {
+    throw new Error('The assistant returned invalid Guardrail JSON. No controls were changed.')
+  }
+  if (typeof parsed?.representable !== 'boolean') throw new Error('The assistant omitted whether the request fits the available Guardrail controls.')
+  if (!parsed.representable) {
+    throw new Error(String(parsed.reason || 'This Guardrail can only configure outbound email, public web access, external document sharing, and approved skills.'))
+  }
+  for (const key of ['blockEmail', 'blockWeb', 'blockExternalDocs'] as const) {
+    if (parsed[key] !== null && typeof parsed[key] !== 'boolean') throw new Error(`The assistant returned an invalid ${key} control.`)
+  }
+  const allowedSkills = Array.isArray(parsed.allowedSkills)
+    ? parsed.allowedSkills.map((skill: unknown) => String(skill).trim()).filter((skill: string) => /^[a-z0-9][a-z0-9._-]*$/i.test(skill))
+    : []
+  return {
+    representable: true,
+    reason: String(parsed.reason || ''),
+    blockEmail: parsed.blockEmail ?? null,
+    blockWeb: parsed.blockWeb ?? null,
+    blockExternalDocs: parsed.blockExternalDocs ?? null,
+    allowedSkills,
+  }
+}
+
 export function buildPluginDraftFromPrompt(plugin: PluginManifest, prompt: string): Partial<PluginRecord> {
   const trimmed = prompt.trim()
   const firstSentence = trimmed.split(/[.!?\n]/)[0]?.trim() || trimmed
@@ -173,18 +233,24 @@ export function buildPluginDraftFromPrompt(plugin: PluginManifest, prompt: strin
   const tags = Array.from(new Set(trimmed.toLowerCase().match(/[a-z0-9-]{4,}/g)?.slice(0, 5) || []))
 
   if (usesLegacyPluginAdapter(plugin, 'guardrail')) {
-    const text = trimmed.toLowerCase()
+    const controls = parseGuardrailControlIntent(trimmed)
+    if (Object.values(controls).every((value) => value === null)) {
+      throw new Error('This Guardrail can only configure outbound email, public web access, or external document sharing. The request was not applied.')
+    }
+    const resolvedControls = {
+      blockEmail: controls.blockEmail ?? false,
+      blockWeb: controls.blockWeb ?? false,
+      blockExternalDocs: controls.blockExternalDocs ?? false,
+    }
     return {
       kind: 'guardrail',
       name: normalizedName,
       description: trimmed,
       enabled: true,
-      tags,
+      tags: ['safety', ...Object.entries(resolvedControls).filter(([, blocked]) => blocked).map(([key]) => key.replace(/^block/, '').toLowerCase())],
       appliesTo: { agents: [], workflows: [], groups: [], communities: [] },
       controls: {
-        blockEmail: /email|mail/.test(text),
-        blockWeb: /web|browser|internet|site/.test(text),
-        blockExternalDocs: /document|docs|external|share/.test(text),
+        ...resolvedControls,
         allowedSkills: [],
       },
     }
@@ -459,6 +525,9 @@ export function getEvalReadiness(item: EvalRecord): EvalReadiness {
   if (!hasLegacyCase && !hasCompleteCase) issues.push('Add a trial case with input and expected output')
   if (item.experiment.judge === 'ai' && !item.experiment.judgeGuidance?.trim()) {
     issues.push('Add guidance for the AI evaluator')
+  }
+  if (item.experiment.judge === 'ai') {
+    issues.push('AI evaluator runs are unavailable until model-backed target execution and measured usage are implemented')
   }
   if (item.experiment.judge === 'human') {
     if (!item.experiment.judgeGuidance?.trim()) issues.push('Add instructions for the human reviewer')

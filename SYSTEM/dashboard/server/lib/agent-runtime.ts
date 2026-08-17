@@ -15,7 +15,7 @@ import { resolveOpenClawCliPath } from './openclaw-cli'
 import { readWorkspaceIntegrationConfig } from './workspace-integrations'
 import { safeEnv } from './safe-env'
 import { clearRuntimeSession, hasRuntimeSession, markRuntimeSession } from './runtime-sessions'
-import { cancelProcessTree, detachProcessStreams, killProcessTree } from './process-tree'
+import { cancelProcessTree, detachProcessStreams, signalProcessTree } from './process-tree'
 
 export type AgentRuntimeId = 'openclaw' | 'claude' | 'droid'
 
@@ -720,11 +720,11 @@ function runOnce(
     // child.on('error') below only covers the ChildProcess itself (e.g. spawn failing); it does not
     // catch errors emitted by the stdout/stderr stream objects.
     child.stdout.on('error', (err) => {
-      killProcessTree(child, 'SIGTERM')
+      signalProcessTree(child, 'SIGTERM')
       settle({ stdout, stderr: stderr || `stdout stream error: ${err.message || String(err)}`, exitCode: null, cancelled })
     })
     child.stderr.on('error', (err) => {
-      killProcessTree(child, 'SIGTERM')
+      signalProcessTree(child, 'SIGTERM')
       settle({ stdout, stderr: stderr || `stderr stream error: ${err.message || String(err)}`, exitCode: null, cancelled })
     })
     child.on('error', (err) => {

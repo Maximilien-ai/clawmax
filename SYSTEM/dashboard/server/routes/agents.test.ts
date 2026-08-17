@@ -681,7 +681,7 @@ async function run() {
     }
   })
 
-  await test('provision assigns inferred skills after agent creation succeeds', async () => {
+  await test('provision assigns only installed selected skills after agent creation succeeds', async () => {
     const tmpCliDir = path.join(tmpHome, 'bin-skills')
     const fakeCli = path.join(tmpCliDir, 'openclaw')
     fs.mkdirSync(tmpCliDir, { recursive: true })
@@ -729,15 +729,15 @@ async function run() {
           name: 'resend-agent',
           model: 'openai/gpt-4o-mini',
           tags: ['email'],
-          skills: ['github', 'workspace-ls'],
+          skills: ['clawmax-resend', 'missing-skill', 'workspace-ls'],
         },
         on() {},
       })
       await handler(req, res)
       await new Promise(resolve => setTimeout(resolve, 20))
 
-      assert.deepStrictEqual(assigned, [{ agentId: 'resend-agent', skills: ['github', 'workspace-ls'] }])
-      assert(writes.some(chunk => chunk.includes('Assigned inferred skills: github, workspace-ls')), 'Expected streamed logs to mention inferred skill assignment')
+      assert.deepStrictEqual(assigned, [{ agentId: 'resend-agent', skills: ['clawmax-resend', 'workspace-ls'] }])
+      assert(writes.some(chunk => chunk.includes('Assigned selected skills: clawmax-resend, workspace-ls')), 'Expected streamed logs to mention selected skill assignment')
       assert(writes.some(chunk => chunk.includes('"type":"done"') && chunk.includes('"data":"ok"')), 'Expected successful create completion event')
     } finally {
       childProcess.spawn = originalSpawn

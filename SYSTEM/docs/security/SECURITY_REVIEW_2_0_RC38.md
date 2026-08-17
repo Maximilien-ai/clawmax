@@ -82,9 +82,10 @@ Complete before promotion:
 | Required evidence | Status |
 |---|---|
 | Full integration, validation, coverage, and live execution at final source | Passed 447/447 at `976c3c83`; coverage 80.51% statements/lines, 68.65% branches, 90.58% functions |
-| Public amd64 digest and smoke | Pending RC38 image |
-| Public arm64 digest and smoke | Pending RC38 image |
-| Authorized combined image against exact public digest | Pending; record privately |
+| Public amd64 digest and smoke | Passed in [run 31703413303](https://github.com/Maximilien-ai/clawmax/actions/runs/31703413303): `sha256:7861eb3f23ea721b5bd04438b4705a631d7cf50ea4381ba001e320277273b0f2` |
+| Public arm64 digest and smoke | Passed in [run 31703413303](https://github.com/Maximilien-ai/clawmax/actions/runs/31703413303): `sha256:e43f57ec44178ab04d7dd280fc9facee7e82fe26b635f2a5ebe98e08c6d8a2b1` |
+| Public multi-architecture manifest | `sha256:c0f2a9ed254b4eeafb3f76661ec2c936bc0f0ccbc6574458aa76225c6ac7c9f5` |
+| Authorized combined image against exact public tag | Passed private validation, source-lock, package privacy, discovery, and live amd64/arm64 smoke; detailed evidence retained privately |
 | Managed/cloud health, restart, chat, workflow, plugin persistence | Pending final candidate |
 | On-prem health, restart, chat, workflow, plugin persistence | Pending final candidate |
 | Completed sanitized Release Review export and approver | Pending hands-on review |

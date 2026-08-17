@@ -93,6 +93,56 @@ test('ensureManagedAgentWorkspaceFiles makes plain created agents visible and pr
   }
 })
 
+test('ensureManagedAgentWorkspaceFiles completes an existing OpenClaw bootstrap identity name', () => {
+  const originalWorkspace = process.env.OPENCLAW_WORKSPACE
+  const originalHome = process.env.HOME
+  const tempWorkspace = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-workspace-agent-bootstrap-'))
+  const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-workspace-agent-bootstrap-home-'))
+
+  try {
+    process.env.OPENCLAW_WORKSPACE = tempWorkspace
+    process.env.HOME = tempHome
+    resetWorkspaceManagerForTests()
+
+    const agentDir = path.join(tempWorkspace, 'AGENTS', 'plain-probe')
+    fs.mkdirSync(agentDir, { recursive: true })
+    fs.mkdirSync(path.join(tempHome, '.openclaw'), { recursive: true })
+    fs.writeFileSync(path.join(tempHome, '.openclaw', 'openclaw.json'), JSON.stringify({
+      agents: {
+        list: [{ id: 'plain-probe', workspace: agentDir }],
+      },
+    }, null, 2), 'utf-8')
+    fs.writeFileSync(path.join(agentDir, 'IDENTITY.md'), [
+      '# IDENTITY.md - Who Am I?',
+      '',
+      '- **Name:**',
+      '  _(pick something you like)_',
+      '- **Creature:** assistant',
+    ].join('\n'), 'utf-8')
+
+    const seeded = ensureManagedAgentWorkspaceFiles({
+      agentId: 'plain-probe',
+      model: 'anthropic/claude-sonnet-4-20250514',
+      workspacePath: tempWorkspace,
+    })
+
+    assert(seeded.created.includes('SOUL.md'), 'Expected missing companion files to be created')
+    assert(seeded.updated.includes('IDENTITY.md'), 'Expected existing bootstrap identity to be updated')
+    const identity = fs.readFileSync(path.join(agentDir, 'IDENTITY.md'), 'utf-8')
+    assert(identity.includes('- **Name:** Plain Probe'), 'Expected blank Name field to receive a readable agent name')
+    assert(!identity.includes('_(pick something you like)_'), 'Expected the bootstrap placeholder to be removed')
+    assert(listAgents().some((agent) => agent.id === 'plain-probe'), 'Expected completed agent to appear in listAgents()')
+  } finally {
+    if (typeof originalWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
+    else process.env.OPENCLAW_WORKSPACE = originalWorkspace
+    if (typeof originalHome === 'undefined') delete process.env.HOME
+    else process.env.HOME = originalHome
+    resetWorkspaceManagerForTests()
+    fs.rmSync(tempWorkspace, { recursive: true, force: true })
+    fs.rmSync(tempHome, { recursive: true, force: true })
+  }
+})
+
 test('listAgents keeps managed agents visible even when extra generated artifacts exist beside IDENTITY.md', () => {
   const originalWorkspace = process.env.OPENCLAW_WORKSPACE
   const originalHome = process.env.HOME

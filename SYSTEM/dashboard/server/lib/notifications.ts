@@ -8,7 +8,7 @@ import fs from 'fs'
 import path from 'path'
 import crypto from 'crypto'
 import { getAgentsDir, getWorkspacePath, getWorkspaceActivity, listAgents, parseGroups, isManagedAgentWorkspaceDir } from './workspace'
-import { formatParticipantFailure, listWorkflows, listExecutions, WorkflowExecution } from './workflows'
+import { formatParticipantFailure, getLatestExecution, listWorkflows, WorkflowExecution } from './workflows'
 import { getBudgetStatus } from './budget'
 import { getMessages } from './messages'
 import { getAllAgentCostLimits, pauseAgents } from './agent-state'
@@ -742,12 +742,10 @@ async function runMonitorScan(): Promise<void> {
     // 2. Check workflow health + agent execution errors
     const workflows = listWorkflows()
     for (const wf of workflows) {
-      let executions: WorkflowExecution[] = []
+      let latest: WorkflowExecution | null = null
       try {
-        executions = listExecutions(wf.id, 3) // check last 3 executions
+        latest = getLatestExecution(wf.id)
       } catch { continue }
-
-      const latest = executions[0]
       if (!latest) continue
 
       const failFp = `wf-failed:${wf.id}:${latest.id}`

@@ -26,7 +26,8 @@ assert(wizardSource.includes('<ModelFitRecommendationPanel'), 'Agent creation mu
 assert(panelSource.includes('Automatic model suggestion'), 'Recommendation UI must identify automatic model suggestions')
 assert(panelSource.includes('Suggested model:'), 'Recommendation UI must identify the suggested model')
 assert(panelSource.includes('recommendation.confidence'), 'Recommendation UI must show confidence')
-assert(panelSource.includes('recommendation.candidates[0].reasons'), 'Recommendation UI must explain the leading candidate')
+assert(panelSource.includes('primaryCandidate?.reasons?.length'), 'Recommendation UI must safely detect explanations for the leading candidate')
+assert(panelSource.includes('primaryCandidate.reasons.map'), 'Recommendation UI must explain the leading candidate')
 assert(panelSource.includes('Other runtime-visible candidates'), 'Recommendation UI must expose alternatives')
 assert(panelSource.includes('Review capability assumptions'), 'Recommendation UI must expose capability caveats')
 assert(panelSource.includes('Excluded incompatible models'), 'Recommendation UI must explain models excluded from automatic selection')
@@ -55,4 +56,4 @@ assert(agentsSource.includes('onClick={handleSave}'), 'Existing-agent model chan
 assert(agentsSource.includes('max-h-[calc(100dvh-2rem)] w-full min-w-0 max-w-3xl'), 'Existing-agent editor must stay within phone viewport margins')
 assert(agentsSource.includes('bg-black bg-opacity-30 p-4'), 'Existing-agent editor overlay must reserve phone viewport margins')
 
-console.log('AgentModelFitIntegration.test.ts: 38 tests passed')
+console.log('AgentModelFitIntegration.test.ts: 39 tests passed')

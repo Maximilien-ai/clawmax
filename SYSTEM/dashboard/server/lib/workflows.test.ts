@@ -22,6 +22,9 @@ import {
   getDAGStatus,
   triggerWorkflow,
   getExecution,
+  getLatestExecution,
+  listExecutions,
+  cancelExecution,
   resolveParticipants,
   detectParticipantReportedFailure,
   extractGitHubResultLinks,
@@ -1191,6 +1194,117 @@ test('triggerWorkflow mock mode completes immediately and persists output artifa
 // ============================================================================
 // Cleanup
 // ============================================================================
+
+test('triggerWorkflow rejects a concurrent second run before it can increment state', () => {
+  const result = createWorkflow({
+    name: `Single Writer ${Date.now()}`,
+    description: 'Validate the per-workflow running claim',
+    schedule: 'manual',
+    content: '# Single writer',
+    executionMode: 'automated',
+    targeting: { agents: [], groups: [], communities: [], tags: [] },
+  })
+  assert(result.success && !!result.id, `Workflow should be created: ${result.error}`)
+  createdIds.push(result.id!)
+
+  const first = triggerWorkflow(result.id!, { manual: true })
+  const second = triggerWorkflow(result.id!, { manual: true })
+  assert(first.success, `First trigger should claim the run: ${first.error}`)
+  assert(!second.success && /already running/i.test(second.error || ''), 'Second trigger must be rejected while the first claim is active')
+})
+
+test('getWorkflow marks an execution owned by an earlier dashboard boot as interrupted', () => {
+  const result = createWorkflow({
+    name: `Restart Recovery ${Date.now()}`,
+    description: 'Validate interrupted run reconciliation',
+    schedule: 'manual',
+    content: '# Restart recovery',
+    executionMode: 'automated',
+    targeting: { agents: [], groups: [], communities: [], tags: [] },
+  })
+  assert(result.success && !!result.id, `Workflow should be created: ${result.error}`)
+  createdIds.push(result.id!)
+  updateWorkflow(result.id!, { status: 'running', progress: 35 })
+  const executionDir = path.join(getWorkspacePath(), 'WORKFLOWS', 'executions', result.id!)
+  fs.mkdirSync(executionDir, { recursive: true })
+  fs.writeFileSync(path.join(executionDir, 'interrupted-run.json'), JSON.stringify({
+    id: 'interrupted-run',
+    workflowId: result.id,
+    startedAt: '2026-08-17T10:00:00.000Z',
+    status: 'running',
+    triggerType: 'manual',
+    ownerBootId: 'previous-dashboard-boot',
+    ownerPid: 42,
+    participants: [{ agentId: 'agent-a', agentName: 'Agent A', status: 'running' }],
+    logs: [],
+  }), 'utf-8')
+
+  assert(getWorkflow(result.id!)?.status === 'blocked', 'Expected stale running workflow to reconcile as blocked')
+  const execution = getExecution(result.id!, 'interrupted-run')
+  assert(execution?.status === 'interrupted', 'Expected stale execution to persist an interrupted terminal state')
+  assert(/dashboard restarted/i.test(execution?.error || ''), 'Expected a clear restart interruption reason')
+})
+
+test('cancelExecution persists an operator-stopped terminal state and clears workflow running status', () => {
+  const result = createWorkflow({
+    name: `Operator Stop ${Date.now()}`,
+    description: 'Validate operator cancellation state',
+    schedule: 'manual',
+    content: '# Operator stop',
+    executionMode: 'automated',
+    targeting: { agents: [], groups: [], communities: [], tags: [] },
+  })
+  assert(result.success && !!result.id, `Workflow should be created: ${result.error}`)
+  createdIds.push(result.id!)
+  updateWorkflow(result.id!, { status: 'running', progress: 50 })
+  const executionDir = path.join(getWorkspacePath(), 'WORKFLOWS', 'executions', result.id!)
+  fs.mkdirSync(executionDir, { recursive: true })
+  fs.writeFileSync(path.join(executionDir, 'operator-stop.json'), JSON.stringify({
+    id: 'operator-stop',
+    workflowId: result.id,
+    startedAt: '2026-08-17T11:00:00.000Z',
+    status: 'running',
+    triggerType: 'manual',
+    participants: [{ agentId: 'agent-a', agentName: 'Agent A', status: 'running' }],
+    logs: [],
+  }), 'utf-8')
+
+  assert(cancelExecution(result.id!, 'operator-stop').success, 'Expected running execution cancellation to succeed')
+  const execution = getExecution(result.id!, 'operator-stop')
+  assert(execution?.status === 'cancelled', 'Expected cancelled execution status to persist')
+  assert(execution?.participants[0]?.status === 'cancelled', 'Expected in-flight participants to be marked cancelled')
+  assert(getWorkflow(result.id!)?.status !== 'running', 'Expected workflow to leave running state after cancellation')
+})
+
+test('latest execution follows startedAt rather than random execution filenames', () => {
+  const workflowId = `ordering-test-${Date.now()}`
+  const executionDir = path.join(getWorkspacePath(), 'WORKFLOWS', 'executions', workflowId)
+  fs.mkdirSync(executionDir, { recursive: true })
+  try {
+    const writeExecution = (fileName: string, id: string, startedAt: string) => {
+      fs.writeFileSync(path.join(executionDir, fileName), JSON.stringify({
+        id,
+        workflowId,
+        startedAt,
+        status: 'completed',
+        triggerType: 'manual',
+        participants: [],
+        logs: [],
+      }), 'utf-8')
+    }
+    writeExecution('z-old.json', 'old-run', '2026-08-17T10:00:00.000Z')
+    writeExecution('a-new.json', 'new-run', '2026-08-17T12:00:00.000Z')
+    writeExecution('m-middle.json', 'middle-run', '2026-08-17T11:00:00.000Z')
+
+    assert(
+      listExecutions(workflowId, 3).map((execution) => execution.id).join(',') === 'old-run,middle-run,new-run',
+      'Expected retained executions to remain oldest-to-newest by startedAt',
+    )
+    assert(getLatestExecution(workflowId)?.id === 'new-run', 'Expected latest helper to return the newest started execution')
+  } finally {
+    fs.rmSync(executionDir, { recursive: true, force: true })
+  }
+})
 
 test('deleteWorkflow deletes by ID', () => {
   for (const id of createdIds) {
