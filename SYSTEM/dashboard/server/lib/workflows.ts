@@ -410,7 +410,7 @@ export function normalizeWorkflowExecutionOutputs(
 
 export function resolveWorkflowInputRefs(
   workflow: Pick<Workflow, 'inputRefs'>,
-  getExecutionForWorkflowId: (workflowId: string) => WorkflowExecution | null = (workflowId) => listExecutions(workflowId, 1).at(-1) || null
+  getExecutionForWorkflowId: (workflowId: string) => WorkflowExecution | null = getLatestExecution
 ): Array<{
   workflowId: string
   outputKey: string
@@ -989,7 +989,7 @@ export {
 function reconcileWorkflowStateFromExecutions(workflow: Workflow): Workflow {
   if (workflow.status !== 'running') return workflow
 
-  const latestExecution = listExecutions(workflow.id, 1).at(-1)
+  const latestExecution = getLatestExecution(workflow.id)
   if (!latestExecution) return workflow
   if (latestExecution.status === 'running') return workflow
 
@@ -1647,14 +1647,9 @@ export function listExecutions(workflowId: string, limit: number = 10): Workflow
     return []
   }
 
-  const files = fs.readdirSync(executionDir)
-    .filter(f => f.endsWith('.json'))
-    .sort() // Alphabetical order (chronological)
-    .slice(-limit) // Take last N (most recent executions, oldest to newest)
-
   const executions: WorkflowExecution[] = []
 
-  for (const file of files) {
+  for (const file of fs.readdirSync(executionDir).filter(f => f.endsWith('.json'))) {
     try {
       const filePath = path.join(executionDir, file)
       const content = fs.readFileSync(filePath, 'utf-8')
@@ -1665,7 +1660,20 @@ export function listExecutions(workflowId: string, limit: number = 10): Workflow
     }
   }
 
-  return executions
+  const ordered = executions.sort((a, b) => {
+      const aStartedAt = Date.parse(a.startedAt)
+      const bStartedAt = Date.parse(b.startedAt)
+      if (Number.isFinite(aStartedAt) && Number.isFinite(bStartedAt) && aStartedAt !== bStartedAt) {
+        return aStartedAt - bStartedAt
+      }
+      return a.id.localeCompare(b.id)
+    })
+  return limit > 0 ? ordered.slice(-limit) : [] // Most recent executions, oldest to newest.
+}
+
+/** Return the newest execution without exposing list ordering to callers. */
+export function getLatestExecution(workflowId: string): WorkflowExecution | null {
+  return listExecutions(workflowId, 1).at(-1) || null
 }
 
 // Get single execution

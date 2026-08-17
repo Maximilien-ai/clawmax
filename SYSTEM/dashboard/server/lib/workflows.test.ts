@@ -22,6 +22,8 @@ import {
   getDAGStatus,
   triggerWorkflow,
   getExecution,
+  getLatestExecution,
+  listExecutions,
   resolveParticipants,
   detectParticipantReportedFailure,
   extractGitHubResultLinks,
@@ -1171,6 +1173,36 @@ test('triggerWorkflow mock mode completes immediately and persists output artifa
 // ============================================================================
 // Cleanup
 // ============================================================================
+
+test('latest execution follows startedAt rather than random execution filenames', () => {
+  const workflowId = `ordering-test-${Date.now()}`
+  const executionDir = path.join(getWorkspacePath(), 'WORKFLOWS', 'executions', workflowId)
+  fs.mkdirSync(executionDir, { recursive: true })
+  try {
+    const writeExecution = (fileName: string, id: string, startedAt: string) => {
+      fs.writeFileSync(path.join(executionDir, fileName), JSON.stringify({
+        id,
+        workflowId,
+        startedAt,
+        status: 'completed',
+        triggerType: 'manual',
+        participants: [],
+        logs: [],
+      }), 'utf-8')
+    }
+    writeExecution('z-old.json', 'old-run', '2026-08-17T10:00:00.000Z')
+    writeExecution('a-new.json', 'new-run', '2026-08-17T12:00:00.000Z')
+    writeExecution('m-middle.json', 'middle-run', '2026-08-17T11:00:00.000Z')
+
+    assert(
+      listExecutions(workflowId, 3).map((execution) => execution.id).join(',') === 'old-run,middle-run,new-run',
+      'Expected retained executions to remain oldest-to-newest by startedAt',
+    )
+    assert(getLatestExecution(workflowId)?.id === 'new-run', 'Expected latest helper to return the newest started execution')
+  } finally {
+    fs.rmSync(executionDir, { recursive: true, force: true })
+  }
+})
 
 test('deleteWorkflow deletes by ID', () => {
   for (const id of createdIds) {
