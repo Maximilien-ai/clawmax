@@ -31,6 +31,26 @@ const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '::1', '[::1]'])
 const CONTAINER_MARKER_FILES = ['/.dockerenv', '/run/.containerenv']
 
 /**
+ * Whether this container shares the host's network stack (`--network=host`, K8s `hostNetwork`).
+ *
+ * This is the case that makes "containerized" alone unsafe to act on: with host networking there is
+ * no separate namespace and no port forwarding, so binding 0.0.0.0 in here IS binding the host's
+ * LAN interface. The reasoning that makes a bridged container safe -- exposure is decided by how the
+ * port is published -- does not hold, because nothing is being published at all.
+ *
+ * Detected by looking for a real NIC. A bridged container sees only a veth pair, which has no
+ * backing device; with host networking it sees the host's physical interfaces, which do. Verified
+ * on this deployment: bridged reports eth0 with no `device` link, `--network=host` reports eth0 with
+ * one.
+ */
+export function isHostNetworkContainer(
+  listInterfaces: () => string[] = () => { try { return fs.readdirSync('/sys/class/net') } catch { return [] } },
+  hasBackingDevice: (iface: string) => boolean = (iface) => fs.existsSync(`/sys/class/net/${iface}/device`),
+): boolean {
+  return listInterfaces().filter((iface) => iface !== 'lo').some(hasBackingDevice)
+}
+
+/**
  * Whether this process is running inside a container.
  *
  * The marker check is injectable so tests state the answer they mean. Reading the real filesystem
@@ -50,6 +70,7 @@ export function resolveDashboardBindHost(
   env: NodeJS.ProcessEnv = process.env,
   warn: (message: string) => void = console.warn,
   inContainer: (env: NodeJS.ProcessEnv) => boolean = isContainerRuntime,
+  onHostNetwork: () => boolean = isHostNetworkContainer,
 ): string {
   const requested = String(
     env.DASHBOARD_HOST || (env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1'),
@@ -67,7 +88,10 @@ export function resolveDashboardBindHost(
   // (`-p 3001:3001` versus `-p 127.0.0.1:3001:3001`), which is decided outside this process and is
   // invisible to it. Refusing to bind therefore closes nothing and breaks everything: the dashboard
   // starts cleanly, logs that it is running, and never answers.
-  if (inContainer(env)) {
+  // ...but only when the container actually has its own network namespace. With host networking
+  // there is no forwarding and nothing is published: 0.0.0.0 in here is the host's LAN interface,
+  // so the reasoning above inverts and this must fail closed like any other host process.
+  if (inContainer(env) && !onHostNetwork()) {
     warn('[SECURITY] Dashboard authentication is disabled. Publish this port on loopback only '
       + '(for example -p 127.0.0.1:3001:3001) — anything that can reach it can run agents.')
     return requested

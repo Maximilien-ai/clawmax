@@ -7,6 +7,7 @@
 import assert from 'assert'
 import fs from 'fs'
 import path from 'path'
+import os from 'os'
 import { spawn } from 'child_process'
 import { cancelProcessTree, detachProcessStreams, signalProcessTree } from './process-tree'
 
@@ -89,6 +90,41 @@ async function run() {
       stderr: undefined,
     })
     assert.ok(removed && destroyed, 'a real stream must be both detached and destroyed')
+  })
+
+  await test('a bounded runtime turn stops a runaway producer and still settles', async () => {
+    // clawmax-cli#50 was only closed for the OpenClaw path. runOnce accumulated stdout unbounded,
+    // so a claude/droid turn emitting garbage grew this process's memory until it died -- taking
+    // every other in-flight turn with it, since they all live here.
+    const { runRuntimeCli, isRuntimeRunawayOutputError } = require('./agent-runtime')
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rt-runaway-'))
+    const cli = path.join(dir, 'flood')
+    // Emits ~1MB per tick and ignores SIGTERM, so only the group SIGKILL plus a forced settle ends
+    // it -- the exact shape that hangs if the caller waits on 'close'.
+    fs.writeFileSync(cli, `#!/usr/bin/env node
+process.on('SIGTERM', () => {})
+const blob = 'x'.repeat(1024 * 1024)
+setInterval(() => process.stdout.write(blob), 5)
+`, 'utf-8')
+    fs.chmodSync(cli, 0o755)
+    const started = Date.now()
+    const outcome = await Promise.race([
+      runRuntimeCli({
+        plan: { cliPath: cli, args: [], missingCliError: 'missing', streamsDeltas: false },
+        env: process.env as NodeJS.ProcessEnv, signal: new AbortController().signal,
+        rebuildPlan: () => { throw new Error('rebuildPlan should not be called') },
+        runtime: 'droid', mode: 'json', agentId: 'a1', scopedSessionId: 's1',
+      }),
+      new Promise((r) => setTimeout(() => r('HUNG'), 60000)),
+    ]) as any
+    assert.notStrictEqual(outcome, 'HUNG', 'a runaway turn must settle, not wedge the caller')
+    assert.ok(isRuntimeRunawayOutputError(outcome.errorText),
+      `expected a runaway-output verdict, got: ${outcome.errorText}`)
+    // Bounded retention: the process emitted far more than this before being stopped.
+    assert.ok(outcome.text.length < 8 * 1024 * 1024,
+      `retained output must be bounded, held ${outcome.text.length} bytes`)
+    console.log(`      (settled in ${Date.now() - started}ms, retained ${outcome.text.length} bytes)`)
+    fs.rmSync(dir, { recursive: true, force: true })
   })
 
   console.log(`\n${passed} passed, ${failed} failed`)

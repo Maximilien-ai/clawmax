@@ -44,7 +44,11 @@ function getTemplatesDir(): string {
 
 const WORKFLOW_RUNNER_BOOT_ID = randomUUID()
 const activeWorkflowExecutions = new Map<string, string>()
-const activeExecutionProcesses = new Map<string, Set<ReturnType<typeof spawn>>>()
+// Cancellers rather than raw process handles. An operator Stop that killed the handle directly
+// bypassed the step's own settle path, leaving its promise waiting on a 'close' that a grandchild
+// escaping the process group can hold open indefinitely -- wedging the step, the per-agent lock
+// behind it, and every later turn for that agent, with no deadline left anywhere to clear it.
+const activeExecutionProcesses = new Map<string, Set<() => void>>()
 const cancelledExecutions = new Set<string>()
 const INTERRUPTED_WORKFLOW_MESSAGE = 'Interrupted: the dashboard restarted while this run was in progress.'
 
@@ -1756,8 +1760,8 @@ export function cancelExecution(workflowId: string, executionId: string): { succ
   if (execution.status !== 'running') return { success: false, error: `Execution is already ${execution.status}` }
 
   cancelledExecutions.add(executionId)
-  for (const processHandle of activeExecutionProcesses.get(executionId) || []) {
-    terminateProcessTree(processHandle)
+  for (const cancelStep of activeExecutionProcesses.get(executionId) || []) {
+    cancelStep()
   }
 
   const completedAt = new Date().toISOString()
@@ -2257,11 +2261,14 @@ export function triggerWorkflow(workflowId: string, options?: {
                     })
                     // Tracked so an operator's whole-execution Stop (cancelExecution, which has no
                     // turn to signal) can still reach this process; released in settle() below.
-                    const executionProcesses = activeExecutionProcesses.get(executionId) || new Set<ReturnType<typeof spawn>>()
-                    executionProcesses.add(proc)
+                    const executionProcesses = activeExecutionProcesses.get(executionId) || new Set<() => void>()
+                    // Registered as a canceller so an operator Stop runs the SAME path as turn
+                    // cancellation below, which guarantees this promise settles.
+                    const cancelThisStep = () => onCancel()
+                    executionProcesses.add(cancelThisStep)
                     activeExecutionProcesses.set(executionId, executionProcesses)
                     const releaseProcess = () => {
-                      executionProcesses.delete(proc)
+                      executionProcesses.delete(cancelThisStep)
                       if (executionProcesses.size === 0) activeExecutionProcesses.delete(executionId)
                     }
                     let stdout = ''

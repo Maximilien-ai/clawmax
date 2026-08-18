@@ -15,6 +15,7 @@ import { resolveOpenClawCliPath } from './openclaw-cli'
 import { readWorkspaceIntegrationConfig } from './workspace-integrations'
 import { safeEnv } from './safe-env'
 import { clearRuntimeSession, hasRuntimeSession, markRuntimeSession } from './runtime-sessions'
+import { appendBoundedOutput } from './stream-bounds'
 import { cancelProcessTree, detachProcessStreams, signalProcessTree } from './process-tree'
 
 export type AgentRuntimeId = 'openclaw' | 'claude' | 'droid'
@@ -600,6 +601,8 @@ interface RunOnceResult {
   exitCode: number | null
   /** True when the turn ended because someone asked it to stop, rather than finishing on its own. */
   cancelled: boolean
+  /** True when the turn was stopped for emitting an absurd volume of output, not by a person. */
+  runawayOutput?: boolean
 }
 
 /**
@@ -611,6 +614,13 @@ interface RunOnceResult {
  * error message -- which is exactly what happened when the old timeout sentinel was split.
  */
 export const RUNTIME_CANCELLED = 'cancelled' as const
+
+/** Sentinel for a turn stopped because its output volume was absurd, not because anyone asked. */
+export const RUNTIME_RUNAWAY_OUTPUT = 'runaway-output' as const
+
+export function isRuntimeRunawayOutputError(errorText?: string): boolean {
+  return errorText === RUNTIME_RUNAWAY_OUTPUT
+}
 
 export function isRuntimeCancelledError(errorText?: string): boolean {
   return errorText === RUNTIME_CANCELLED
@@ -629,6 +639,18 @@ export function isRuntimeCancelledError(errorText?: string): boolean {
  * that cancellation -- the only kill switch there is, which is why the chat route must expose it
  * to the user rather than relying on a timeout to clean up after a wedged turn.
  */
+/**
+ * Output bounds for a runtime turn, matching the chat route's OpenClaw path.
+ *
+ * These are volume limits, not deadlines: nothing here ends a turn because time passed. They exist
+ * because a turn has no duration limit at all, so an agent stuck emitting output has nothing else
+ * standing between it and the dashboard's memory -- and this process holds every other in-flight
+ * turn, so one runaway CLI takes them all down with it.
+ */
+const MAX_RETAINED_RUNTIME_OUTPUT = 2 * 1024 * 1024
+const MAX_RETAINED_RUNTIME_STDERR = 64 * 1024
+const MAX_TOTAL_RUNTIME_OUTPUT = 64 * 1024 * 1024
+
 function runOnce(
   plan: RuntimePlan,
   env: NodeJS.ProcessEnv,
@@ -657,6 +679,8 @@ function runOnce(
     let stderr = ''
     let cancelled = false
     let settled = false
+    let totalOutputBytes = 0
+    let runawayOutput = false
     let killEscalation: NodeJS.Timeout | undefined
 
     const settle = (result: RunOnceResult) => {
@@ -706,12 +730,23 @@ function runOnce(
 
     child.stdout.on('data', (chunk: Buffer) => {
       const text = chunk.toString()
-      stdout += text
+      // Retain a bounded window (head + tail), and stop the turn outright past a hard ceiling. The
+      // deltas still stream in full -- only what this closure holds is bounded.
+      stdout = appendBoundedOutput(stdout, text, MAX_RETAINED_RUNTIME_OUTPUT)
+      totalOutputBytes += chunk.byteLength
       onActivity?.()
       if (onChunk) onChunk(text)
+      if (totalOutputBytes > MAX_TOTAL_RUNTIME_OUTPUT && !settled) {
+        runawayOutput = true
+        // Same shape as a cancel: kill the group, then settle from what we captured rather than
+        // waiting on a 'close' the runaway producer is actively preventing.
+        killEscalation = cancelProcessTree(child, () => {
+          settle({ stdout, stderr, exitCode: null, cancelled: true, runawayOutput: true })
+        })
+      }
     })
     child.stderr.on('data', (chunk: Buffer) => {
-      stderr += chunk.toString()
+      stderr = appendBoundedOutput(stderr, chunk.toString(), MAX_RETAINED_RUNTIME_STDERR)
       onActivity?.()
     })
     // A Readable with no 'error' listener turns a stream fault (EPIPE, EBADF, a destroyed fd) into
@@ -803,6 +838,12 @@ export async function runRuntimeCli(o: {
       ? createClaudeStreamDeltaTransformer(rawDelta)
       : rawDelta
     const result = await runOnce(plan, effectiveEnv, o.signal, onChunk, o.onActivity)
+    if (result.runawayOutput) {
+      // Distinct from a cancel: nobody asked for this, and "stopped" alone would read as though
+      // someone had. Keep the partial text -- it is usually where the repetition is visible.
+      const partial = parseRuntimeResult(o.runtime, o.mode, result.stdout, result.stderr, result.exitCode)
+      return { result, text: partial.text || '', errorText: RUNTIME_RUNAWAY_OUTPUT as typeof RUNTIME_RUNAWAY_OUTPUT }
+    }
     if (result.cancelled) {
       // Keep whatever the CLI streamed before the cancel. Discarding it made a cancelled turn look
       // like "no output at all", which is also what a wedged session looks like -- and the two need
