@@ -18,7 +18,7 @@ import { getSkillSetupHint, maybeWarnSkillSetup, supportsDashboardInteractiveSki
 import { collectSkillTags, matchesSelectedSkillTags } from '../lib/skillTags'
 import { buildAgentSkillsScope, buildAssignedSkillBadges } from '../lib/agentSkillsScope'
 import { getRegistrySkillCompatibility, normalizeRuntimePlatform, type RuntimePlatform } from '../lib/skillPlatform'
-import { getDashboardInstallRequirementCommands } from '../lib/skillInstall'
+import { getDashboardInstallRequirementCommands, getPendingSkillRequirementInstall } from '../lib/skillInstall'
 import { buildSkillExportFilename, getSelectedSkillForExport } from '../lib/skillExport'
 import { combineRegistrySearchResponses, normalizeRegistrySearchResponse, type SkillRegistryProvider } from '../lib/registrySearch'
 import { buildRegistryCompatibilityNote, buildSkillsPageCountLabel, partitionSkillsBySection } from '../lib/skillsPageFlow'
@@ -818,6 +818,11 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
   async function warnForSkillSetupByNames(skillNames: Array<string | null | undefined>) {
     const resolvedSkills = await fetchSkillsByNames(skillNames)
     if (resolvedSkills.length > 0) {
+      const installableSkill = getPendingSkillRequirementInstall(resolvedSkills, runtimePlatform)
+      if (installableSkill) {
+        openInstallRequirementsModal(installableSkill)
+        return
+      }
       maybeWarnSkillSetup(showWarning, resolvedSkills)
       return
     }

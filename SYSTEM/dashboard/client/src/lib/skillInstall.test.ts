@@ -1,5 +1,5 @@
 import assert from 'assert'
-import { formatDashboardInstallRequirementCommand, getDashboardInstallRequirementCommands } from './skillInstall'
+import { formatDashboardInstallRequirementCommand, getDashboardInstallRequirementCommands, getPendingSkillRequirementInstall } from './skillInstall'
 
 let testsPassed = 0
 
@@ -64,6 +64,32 @@ test('node installer preview uses npm global install command', () => {
   )
 
   assert.strictEqual(command, 'npm install -g react-email')
+})
+
+test('post-import flow selects the first missing install requirement', () => {
+  const selected = getPendingSkillRequirementInstall([
+    {
+      name: 'installed',
+      install: [{ id: 'brew', kind: 'brew', formula: 'installed', label: 'Installed' }],
+      requirementStatus: { checkable: true, installSatisfied: true, presentBins: ['installed'], missingBins: [] },
+    },
+    {
+      name: 'qbo',
+      install: [{ id: 'brew', kind: 'brew', formula: 'voska/tap/qbo', label: 'Install qbo' }],
+      requirementStatus: { checkable: true, installSatisfied: false, presentBins: [], missingBins: ['qbo'] },
+    },
+  ] as any, 'darwin')
+
+  assert.strictEqual(selected?.name, 'qbo')
+})
+
+test('post-import flow skips skills without a safe dashboard command', () => {
+  const selected = getPendingSkillRequirementInstall([{
+    name: 'manual',
+    install: [{ id: 'download', kind: 'download', label: 'Read manual instructions' }],
+  }] as any, 'darwin')
+
+  assert.strictEqual(selected, null)
 })
 
 console.log(`\n${testsPassed} tests passed`)
