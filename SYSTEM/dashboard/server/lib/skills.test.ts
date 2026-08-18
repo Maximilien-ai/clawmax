@@ -1556,6 +1556,47 @@ This skill is prompt-only and does not ship index.ts or index.js.`
   fs.rmSync(tmpDir, { recursive: true, force: true })
 })
 
+test('markdown-only install instructions remain visible but non-executable without structured metadata', () => {
+  try { deleteWorkspaceSkill('test-manual-install-skill') } catch (e) {}
+
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'test-skill-'))
+  const skillDir = path.join(tmpDir, 'test-manual-install-skill')
+  fs.mkdirSync(skillDir)
+  fs.writeFileSync(path.join(skillDir, 'SKILL.md'), `---
+name: manual-install
+description: Skill with prose-only installation guidance
+---
+
+# Manual Install
+
+## Install
+
+\`\`\`bash
+# Review before running
+brew install example/tap/example
+go install example.com/tool@latest
+\`\`\`
+
+## Usage
+
+Run the tool.`)
+
+  const result = importWorkspaceSkill(skillDir)
+  assert(result.success === true, `Expected manual-install skill import to succeed. Error: ${result.error}`)
+  const imported = getSkillById('test-manual-install-skill') || getSkillById('manual-install')
+  assert(imported !== null, 'Expected manual-install skill to be discoverable')
+  assertEqual(imported!.install, undefined, 'Markdown commands must not become executable installer metadata')
+  assertEqual(imported!.setupRequirements?.label, 'Manual install required', 'Expected a manual installation badge')
+  assertEqual(
+    JSON.stringify(imported!.setupRequirements?.commands),
+    JSON.stringify(['brew install example/tap/example', 'go install example.com/tool@latest']),
+    'Expected reviewed manual commands to remain visible',
+  )
+
+  deleteWorkspaceSkill('test-manual-install-skill')
+  fs.rmSync(tmpDir, { recursive: true, force: true })
+})
+
 // Test 19: createCustomSkill() writes index.ts stub
 test('createCustomSkill() writes index.ts entrypoint for new managed skills', () => {
   const skillName = 'test-ai-created-skill'

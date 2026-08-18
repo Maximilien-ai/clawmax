@@ -991,13 +991,45 @@ export function listAvailableSkills(): OpenClawSkill[] {
 /**
  * Parse a SKILL.md file with YAML frontmatter
  */
+function buildManualInstallSetup(markdownContent: string): OpenClawSkill['setupRequirements'] | undefined {
+  const lines = markdownContent.split('\n')
+  const headingIndex = lines.findIndex((line) => /^#{2,3}\s+(install|installation)\b/i.test(line.trim()))
+  if (headingIndex === -1) return undefined
+
+  const section: string[] = []
+  for (let index = headingIndex + 1; index < lines.length; index++) {
+    if (/^#{2,3}\s+/.test(lines[index].trim())) break
+    section.push(lines[index])
+  }
+
+  const commands: string[] = []
+  let inFence = false
+  for (const rawLine of section) {
+    const line = rawLine.trim()
+    if (/^```/.test(line)) {
+      inFence = !inFence
+      continue
+    }
+    if (!inFence || !line || line.startsWith('#') || line.length > 500) continue
+    commands.push(line)
+    if (commands.length >= 12) break
+  }
+  if (commands.length === 0) return undefined
+
+  return {
+    label: 'Manual install required',
+    message: 'This skill documents installation commands in SKILL.md but does not provide structured OpenClaw installer metadata. Review the upstream instructions before running them.',
+    commands,
+  }
+}
+
 function parseSkillFile(
   filePath: string,
   source: 'bundled' | 'managed' | 'workspace'
 ): OpenClawSkill | null {
   try {
     const content = fs.readFileSync(filePath, 'utf-8')
-    const { data } = matter(content)
+    const { data, content: markdownContent } = matter(content)
 
     if (!data.name) {
       // Silently skip skills without names (common in OpenClaw dev skills)
@@ -1012,6 +1044,9 @@ function parseSkillFile(
     const requires = openclawMeta.requires
     const normalizedInstall = normalizeSkillInstallOptions(data.name, openclawMeta.install)
     const secretRequirements = openclawMeta.secretRequirements || data.secretRequirements || []
+    const declaredSetupRequirements = openclawMeta.setupRequirements || data.setupRequirements
+    const setupRequirements = declaredSetupRequirements
+      || (!normalizedInstall ? buildManualInstallSetup(markdownContent) : undefined)
     return {
       id: source === 'bundled' ? undefined : getSkillDirectoryId(filePath),
       name: data.name,
@@ -1046,7 +1081,7 @@ function parseSkillFile(
       secretRequirements,
       setupRequirements: normalizeSkillSetupRequirements(
         data.name,
-        openclawMeta.setupRequirements || data.setupRequirements,
+        setupRequirements,
         { requires, secretRequirements }
       ),
     }
@@ -1079,6 +1114,9 @@ function parseWorkspaceSkillFile(filePath: string, skillId: string): OpenClawSki
     const requires = data.requires || openclawMeta.requires
     const normalizedInstall = normalizeSkillInstallOptions(name, data.install || openclawMeta.install)
     const secretRequirements = data.secretRequirements || openclawMeta.secretRequirements || []
+    const declaredSetupRequirements = data.setupRequirements || openclawMeta.setupRequirements
+    const setupRequirements = declaredSetupRequirements
+      || (!normalizedInstall ? buildManualInstallSetup(markdownContent) : undefined)
     return {
       id: skillId, // Store directory name for deletion
       name,
@@ -1113,7 +1151,7 @@ function parseWorkspaceSkillFile(filePath: string, skillId: string): OpenClawSki
       secretRequirements,
       setupRequirements: normalizeSkillSetupRequirements(
         name,
-        data.setupRequirements || openclawMeta.setupRequirements,
+        setupRequirements,
         { requires, secretRequirements }
       ),
     }
