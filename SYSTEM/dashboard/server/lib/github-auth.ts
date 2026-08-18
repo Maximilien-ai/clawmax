@@ -13,6 +13,14 @@ import path from 'path'
 import net from 'net'
 import { Resend } from 'resend'
 import { isDashboardAuthBypassAllowed } from './http-security'
+import {
+  authorizeSessionBootstrap,
+  getSessionBootstrapConfig,
+  SessionBootstrapClaims,
+  SessionBootstrapError,
+  SessionBootstrapReplayStore,
+  validateSessionBootstrapClaims,
+} from './session-bootstrap'
 
 // ============================================================================
 // Configuration
@@ -67,8 +75,20 @@ interface SessionPayload {
   name: string | null
   avatar: string
   email?: string | null
-  authType?: 'github' | 'otp'
+  authType?: 'github' | 'otp' | 'enterprise'
+  enterprise?: {
+    membershipId: string
+    tenantId: string
+    workspaceId: string
+    runtimeId: string
+    policyVersion: string
+    entryOrigin: string
+    bootstrapId: string
+  }
 }
+
+const SESSION_BOOTSTRAP_REPLAY_PATH = path.join(__dirname, '..', 'data', 'auth', 'session-bootstrap-replays.json')
+const sessionBootstrapReplayStore = new SessionBootstrapReplayStore(SESSION_BOOTSTRAP_REPLAY_PATH)
 
 // ============================================================================
 // Allowed users (workspace owner)
@@ -188,6 +208,26 @@ function createSessionToken(user: GitHubUser): string {
     authType: 'github',
   }
   return jwt.sign(payload, JWT_SECRET(), { expiresIn: SESSION_DURATION })
+}
+
+function createEnterpriseSessionToken(claims: SessionBootstrapClaims, ttlSeconds: number): string {
+  const payload: SessionPayload = {
+    userId: claims.actor_id,
+    login: claims.actor_id,
+    name: null,
+    avatar: '',
+    authType: 'enterprise',
+    enterprise: {
+      membershipId: claims.membership_id,
+      tenantId: claims.tenant_id,
+      workspaceId: claims.workspace_id,
+      runtimeId: claims.runtime_id,
+      policyVersion: claims.policy_version,
+      entryOrigin: claims.entry_origin,
+      bootstrapId: claims.bootstrap_id,
+    },
+  }
+  return jwt.sign(payload, JWT_SECRET(), { expiresIn: ttlSeconds })
 }
 
 type OtpRecord = {
@@ -588,6 +628,46 @@ function getReturnToCookieOptions(req: Request): CookieOptions {
 export function createAuthRouter(): Router {
   const router = Router()
 
+  // POST /api/auth/session-bootstrap — exchange a one-time Enterprise grant
+  // for a short-lived upstream bearer session. The gateway keeps this token
+  // server-side; it must never be forwarded to the browser as a cookie.
+  router.post('/session-bootstrap', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store')
+    const config = getSessionBootstrapConfig()
+    if (!config.enabled) {
+      return res.status(404).json({ error: 'Not found' })
+    }
+    if (!config.valid) {
+      console.error(`[Auth][Enterprise] Session bootstrap configuration rejected: ${config.error}`)
+      return res.status(503).json({ error: 'Session bootstrap is unavailable' })
+    }
+    if (!authorizeSessionBootstrap(req.headers.authorization, config.secret)) {
+      return res.status(401).json({ error: 'Session bootstrap denied' })
+    }
+
+    try {
+      const claims = validateSessionBootstrapClaims(req.body, config)
+      if (!sessionBootstrapReplayStore.consume(claims.bootstrap_id, claims.expires_at)) {
+        return res.status(409).json({ error: 'Session bootstrap already consumed' })
+      }
+      const sessionToken = createEnterpriseSessionToken(claims, config.sessionTtlSeconds)
+      return res.json({
+        ok: true,
+        contract_version: claims.contract_version,
+        dashboard_session_token: sessionToken,
+        token_type: 'Bearer',
+        expires_in: config.sessionTtlSeconds,
+      })
+    } catch (error) {
+      if (error instanceof SessionBootstrapError) {
+        const status = error.code === 'binding_mismatch' ? 403 : 400
+        return res.status(status).json({ error: 'Session bootstrap denied' })
+      }
+      console.error('[Auth][Enterprise] Session bootstrap failed without recording claims')
+      return res.status(500).json({ error: 'Session bootstrap failed' })
+    }
+  })
+
   // GET /api/auth/github — redirect to GitHub OAuth
   router.get('/github', (_req, res) => {
     if (!allowGitHubAuth()) {
@@ -975,7 +1055,8 @@ export function getAuthenticatedSession(req: Request): {
   login: string
   name: string | null
   email?: string | null
-  authType?: 'github' | 'otp'
+  authType?: 'github' | 'otp' | 'enterprise'
+  enterprise?: SessionPayload['enterprise']
 } | null {
   return getSessionFromRequest(req)
 }
