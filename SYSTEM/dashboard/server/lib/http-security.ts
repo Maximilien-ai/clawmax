@@ -1,3 +1,5 @@
+import fs from 'fs'
+
 export function parseCorsOrigins(value: string | undefined, fallbackOrigin: string): string[] {
   return (value || fallbackOrigin)
     .split(',')
@@ -25,15 +27,49 @@ export function isDashboardAuthBypassAllowed(env: NodeJS.ProcessEnv = process.en
 
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '::1', '[::1]'])
 
+/** Files every common container runtime drops into the filesystem root. */
+const CONTAINER_MARKER_FILES = ['/.dockerenv', '/run/.containerenv']
+
+/**
+ * Whether this process is running inside a container.
+ *
+ * The marker check is injectable so tests state the answer they mean. Reading the real filesystem
+ * by default would make every bind-host assertion depend on where the suite happens to run, and CI
+ * frequently runs in a container -- the tests would then assert the opposite of what they say.
+ */
+export function isContainerRuntime(
+  env: NodeJS.ProcessEnv = process.env,
+  markerExists: (path: string) => boolean = (candidate) => fs.existsSync(candidate),
+): boolean {
+  // podman sets container=podman; some runtimes set container=oci/lxc. Any value means containerized.
+  if (String(env.container || '').trim()) return true
+  return CONTAINER_MARKER_FILES.some(markerExists)
+}
+
 export function resolveDashboardBindHost(
   env: NodeJS.ProcessEnv = process.env,
   warn: (message: string) => void = console.warn,
+  inContainer: (env: NodeJS.ProcessEnv) => boolean = isContainerRuntime,
 ): string {
   const requested = String(
     env.DASHBOARD_HOST || (env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1'),
   ).trim() || '127.0.0.1'
 
   if (!isDashboardAuthBypassAllowed(env) || LOOPBACK_HOSTS.has(requested.toLowerCase())) {
+    return requested
+  }
+
+  // A container cannot protect itself by binding loopback, and trying to takes it offline.
+  //
+  // Publishing a port forwards traffic into this process's own network namespace, so a server bound
+  // to 127.0.0.1 in here is reachable only from inside the container -- the forwarder cannot connect
+  // and the published port is dead. The network exposure comes from HOW the port is published
+  // (`-p 3001:3001` versus `-p 127.0.0.1:3001:3001`), which is decided outside this process and is
+  // invisible to it. Refusing to bind therefore closes nothing and breaks everything: the dashboard
+  // starts cleanly, logs that it is running, and never answers.
+  if (inContainer(env)) {
+    warn('[SECURITY] Dashboard authentication is disabled. Publish this port on loopback only '
+      + '(for example -p 127.0.0.1:3001:3001) — anything that can reach it can run agents.')
     return requested
   }
 
