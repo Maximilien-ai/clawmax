@@ -435,9 +435,11 @@ SYSTEM_OPENAI_API_KEY=sk-your-system-key
 | `CORS_ORIGIN` | Frontend app origin | Required for local/proxied OAuth correctness |
 | `DASHBOARD_APP_URL` | Frontend redirect target after login/logout | Optional but recommended |
 | `DASHBOARD_INSTANCE_LABEL` | Optional top-left instance label like `Cloud`, `On-Prem`, `Prod`, or `Staging` | Optional; local/native runs default to `Dev` |
-| `CLAWMAX_MAX_WORKSPACES` | Maximum workspaces registered by one tenant | Cloud default: `1`; otherwise unlimited |
-| `CLAWMAX_MAX_AGENTS_PER_WORKSPACE` | Maximum agents in the active workspace | Cloud default: `10`; otherwise unlimited |
-| `CLAWMAX_MAX_WORKFLOWS_PER_WORKSPACE` | Maximum workflows in the active workspace | Cloud default: `10`; otherwise unlimited |
+| `CLAWMAX_MAX_WORKSPACES` | Maximum workspaces registered by one tenant | Optional; unlimited when omitted |
+| `CLAWMAX_MAX_AGENTS_PER_WORKSPACE` | Maximum agents in the active workspace | Optional; unlimited when omitted |
+| `CLAWMAX_MAX_WORKFLOWS_PER_WORKSPACE` | Maximum workflows in the active workspace | Optional; unlimited when omitted |
+| `CLAWMAX_RESOURCE_LIMIT_UPGRADE_MESSAGE` | Optional limit-reached copy; supports `{resource}`, `{current}`, and `{limit}` placeholders | Optional; generic public error when omitted |
+| `CLAWMAX_RESOURCE_LIMIT_UPGRADE_URL` | Optional HTTP(S) destination returned with limit errors | Optional |
 
 For a standard Enterprise tenant, use:
 
@@ -448,7 +450,7 @@ CLAWMAX_MAX_AGENTS_PER_WORKSPACE=10
 CLAWMAX_MAX_WORKFLOWS_PER_WORKSPACE=10
 ```
 
-Cloud deployments receive those limits even when the three `CLAWMAX_MAX_*` variables are omitted. Local and on-prem deployments remain unlimited unless a limit is explicitly set, and `0` disables creation of that resource. Creation and import endpoints return HTTP `409` with code `TENANT_RESOURCE_LIMIT_REACHED` when a limit is reached. Effective limits are available from `/api/auth/config` under `resourceLimits`.
+All deployments, including cloud and on-prem, remain unlimited unless a `CLAWMAX_MAX_*` limit is explicitly set. `0` disables creation of that resource. Creation and import endpoints return HTTP `409` with code `TENANT_RESOURCE_LIMIT_REACHED` when a limit is reached. Effective limits and optional presentation configuration are available from `/api/auth/config` under `resourceLimits` and `resourceLimitConfig`. Product-specific upgrade copy and destinations belong in deployment configuration rather than this public repository.
 
 Without system keys, the dashboard may still boot, but system-generated flows such as agent/workflow generation will be limited. Without user keys, end-user agents should eventually rely on BYOK capture after login.
 
