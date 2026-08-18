@@ -27,7 +27,7 @@ import {
   toExecutionModelOverride,
   withTemporaryAgentAuthProfiles,
 } from '../lib/agent-execution'
-import { buildRuntimePlan, executeAgentRuntimeTurn, readAgentIdentitySystemPrompt, isRuntimeCancelledError } from '../lib/agent-runtime'
+import { buildRuntimePlan, executeAgentRuntimeTurn, readAgentIdentitySystemPrompt, isRuntimeCancelledError, isRuntimeRunawayOutputError } from '../lib/agent-runtime'
 import { cancelTurn, cancelTurnsForAgent, listActiveTurns, withRegisteredTurn } from '../lib/agent-turns'
 import { hasRuntimeSession } from '../lib/runtime-sessions'
 import { appendRuntimeTranscriptExchange } from '../lib/runtime-transcripts'
@@ -980,7 +980,11 @@ router.post('/:id/chat', async (req, res) => {
             metadata: { agentId: id, model: resolvedAgent.model || null },
           })
         }
-        if (!completionText) {
+        if (isRuntimeRunawayOutputError(errorText)) {
+          // Reported whether or not partial text survived: the text is usually the repetition
+          // itself, so showing it without saying what happened reads as a broken answer.
+          send('error', 'The agent produced far more output than a reply should contain and was stopped. This usually means it got stuck repeating itself.')
+        } else if (!completionText) {
           send('error', isRuntimeCancelledError(errorText)
             ? 'Stopped. The agent was still working, so anything it had not finished was discarded.'
             : deriveChatError(errorText || 'No reply from agent.', resolvedAgent.provider, { agentId: id, model: resolvedAgent.model, runtimeLabel }))
@@ -1121,7 +1125,23 @@ router.post('/:id/chat', async (req, res) => {
             const stopIncompleteAttempt = (reason: string) => {
               if (incompleteReason) return
               incompleteReason = reason
-              terminateProcessTree(spawned)
+              // Settle off the escalation rather than trusting 'close'. A runaway producer is
+              // exactly the case where a grandchild has escaped the group and is still writing, so
+              // the pipe stays open, 'close' never fires, and this promise -- plus the per-agent
+              // lock behind it -- would wedge with no deadline left to clear either.
+              killEscalation = cancelProcessTree(spawned, () => {
+                resolveAttempt({
+                  completionText: normalizeChatMessage(fullOutput.trim()),
+                  rawError: stderrOutput,
+                  usage: null,
+                  persistedAssistant: null,
+                  hadVisibleOutput,
+                  incompleteReason: reason,
+                  sessionId: executionSessionId,
+                  model: attemptModel,
+                  provider: attemptProvider,
+                })
+              })
             }
             const recordOutputBytes = (chunk: Buffer) => {
               totalOutputBytes += chunk.byteLength
