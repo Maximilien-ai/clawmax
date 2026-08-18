@@ -1556,7 +1556,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   }
 
   return (
-    <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 sm:py-6">
+    <div className="min-w-0 w-full max-w-full flex-1 overflow-x-hidden overflow-y-auto px-4 sm:px-6 py-4 sm:py-6">
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3 mb-6">
         <div className="min-w-0">
@@ -1866,9 +1866,9 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
             )}
           </div>
         ) : viewMode === 'dag' ? (
-          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
-            <div className="flex items-center justify-between px-4 pt-3">
-              <span className="text-xs text-gray-500 dark:text-gray-400">
+          <div className="max-w-full overflow-hidden bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
+            <div className="flex min-w-0 items-center justify-between gap-2 px-4 pt-3">
+              <span className="min-w-0 truncate text-xs text-gray-500 dark:text-gray-400">
                 {dagEditing ? 'Click nodes to add dependencies. Use × on a line to remove one.' : 'Workflow dependency graph'}
               </span>
               <button
@@ -1882,7 +1882,8 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                 {dagEditing ? '✓ Done Editing' : 'Edit Dependencies'}
               </button>
             </div>
-            <WorkflowDAG
+            <div className="max-w-full overflow-x-auto">
+              <WorkflowDAG
               workflows={sortedWorkflows}
               selectedId={selectedWorkflow?.id}
               selectionMode={selectionMode}
@@ -1921,8 +1922,9 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
               onEditRun={(id) => {
                 fetchWorkflowDetails(id)
               }}
-              onTogglePipelineSelect={toggleWorkflowIdsSelection}
-            />
+                onTogglePipelineSelect={toggleWorkflowIdsSelection}
+              />
+            </div>
           </div>
         ) : viewMode === 'grid' ? (
           <div className="space-y-4">
