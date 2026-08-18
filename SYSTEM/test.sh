@@ -2190,8 +2190,8 @@ fi
 
 echo -e "${YELLOW}→ Running instance branding tests...${NC}"
 npx ts-node --transpileOnly client/src/InstanceBranding.test.ts > /tmp/clawmax-instance-branding.out 2>&1 || true
-if grep -q "InstanceBranding.test.ts: 12 assertions passed" /tmp/clawmax-instance-branding.out; then
-  pass "Instance branding tests (12 assertions)"
+if grep -q "InstanceBranding.test.ts: 13 assertions passed" /tmp/clawmax-instance-branding.out; then
+  pass "Instance branding tests (13 assertions)"
 else
   cat /tmp/clawmax-instance-branding.out
   fail "Instance branding tests"
