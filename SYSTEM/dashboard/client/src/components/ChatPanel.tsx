@@ -38,7 +38,7 @@ export default function ChatPanel({ agentId, agentName, onClose }: Props) {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [restoringArchive, setRestoringArchive] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
     fetchMessages()
@@ -225,7 +225,7 @@ export default function ChatPanel({ agentId, agentName, onClose }: Props) {
     URL.revokeObjectURL(url)
   }
 
-  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       sendMessage()
@@ -328,16 +328,16 @@ export default function ChatPanel({ agentId, agentName, onClose }: Props) {
 
         {/* Input */}
         <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-gray-100 shrink-0">
-          <div className="flex gap-2">
-            <input
+          <div className="flex items-end gap-2">
+            <textarea
               ref={inputRef}
-              type="text"
+              rows={2}
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               disabled={sending}
-              placeholder="Type a message…"
-              className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:opacity-40 disabled:cursor-not-allowed dark:border-gray-700"
+              placeholder="Type a message… (Enter to send, Shift+Enter for a new line)"
+              className="min-h-11 max-h-32 min-w-0 flex-1 resize-y px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:opacity-40 disabled:cursor-not-allowed dark:border-gray-700"
             />
             <button
               onClick={sendMessage}
