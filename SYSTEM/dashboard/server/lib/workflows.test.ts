@@ -52,6 +52,8 @@ import {
   formatParticipantFailure,
   normalizeWorkflowThreadDiagnostic,
   resolveWorkflowConversationTarget,
+  getWorkflowPipelineState,
+  setWorkflowPipelinePaused,
 } from './workflows'
 
 const GREEN = '\x1b[32m'
@@ -1284,6 +1286,43 @@ test('latest execution follows startedAt rather than random execution filenames'
   } finally {
     fs.rmSync(executionDir, { recursive: true, force: true })
   }
+})
+
+test('pipeline pause persists and blocks new runs without disabling workflows', () => {
+  const created = createWorkflow({
+    name: `Pipeline pause ${Date.now()}`,
+    description: 'Pipeline pause test',
+    schedule: 'manual',
+    enabled: true,
+    author: 'test',
+    content: '# Pipeline pause',
+    executionMode: 'automated',
+    targeting: { agents: [], groups: [], communities: [], tags: [] },
+  })
+  assert(created.success && !!created.id, `Expected pipeline fixture: ${created.error}`)
+  const workflowId = created.id!
+  createdIds.push(workflowId)
+  const before = getWorkflow(workflowId)
+  assert(before?.enabled === true, 'Expected workflow fixture to remain enabled')
+
+  const paused = setWorkflowPipelinePaused(true, 'test-operator')
+  assert(paused.paused && paused.updatedBy === 'test-operator', 'Expected paused state and actor to persist')
+  assert(getWorkflowPipelineState().paused, 'Expected paused state to survive a fresh read')
+  const result = triggerWorkflow(workflowId, { manual: true, mock: true })
+  assert(!result.success && /pipeline is paused/i.test(result.error || ''), 'Expected new run to be blocked by pipeline pause')
+  assert(getWorkflow(workflowId)?.enabled === true, 'Pipeline pause must not disable the workflow')
+
+  setWorkflowPipelinePaused(false, 'test-operator')
+  assert(!getWorkflowPipelineState().paused, 'Expected pipeline resume to persist')
+})
+
+test('corrupt pipeline state fails closed and can be replaced by resume', () => {
+  const statePath = path.join(getWorkspacePath(), 'WORKFLOWS', '.pipeline-state.json')
+  fs.writeFileSync(statePath, '{broken', 'utf-8')
+  const state = getWorkflowPipelineState()
+  assert(state.paused && state.stateError === true, 'Corrupt pipeline state must fail closed')
+  setWorkflowPipelinePaused(false, 'repair-test')
+  assert(!getWorkflowPipelineState().paused, 'Resume should replace corrupt state')
 })
 
 test('deleteWorkflow deletes by ID', () => {

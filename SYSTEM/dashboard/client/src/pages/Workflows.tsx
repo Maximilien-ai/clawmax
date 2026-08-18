@@ -141,6 +141,12 @@ const WORKFLOW_EXECUTION_POLL_INTERVAL_MS = 10000
 
 type WorkflowSortColumn = 'name' | 'status' | 'participants' | 'schedule' | 'mode' | 'runs' | 'updated'
 type WorkflowHealthState = 'running' | 'enabled' | 'failed' | 'paused' | 'disabled'
+type WorkflowPipelineState = {
+  paused: boolean
+  updatedAt: string | null
+  updatedBy: string | null
+  stateError?: boolean
+}
 
 interface WorkflowsProps {
   onNavigateToAgent?: (agentId: string) => void
@@ -394,6 +400,8 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
     return summarizeWorkflowParticipantFailure(errorText)
   }, [])
   const [workflows, setWorkflows] = useState<Workflow[]>([])
+  const [pipelineState, setPipelineState] = useState<WorkflowPipelineState>({ paused: false, updatedAt: null, updatedBy: null })
+  const [updatingPipelineState, setUpdatingPipelineState] = useState(false)
   const [selectedWorkflow, setSelectedWorkflow] = useState<WorkflowDetails | null>(null)
   const [executions, setExecutions] = useState<WorkflowExecution[]>([])
   const [loading, setLoading] = useState(true)
@@ -533,6 +541,43 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
       })
   }
 
+  const fetchPipelineState = useCallback(async () => {
+    try {
+      const response = await fetch('/api/workflows/pipeline-state', { cache: 'no-store' })
+      if (!response.ok) throw new Error('Failed to load pipeline state')
+      const state = await response.json()
+      setPipelineState({
+        paused: state.paused === true,
+        updatedAt: typeof state.updatedAt === 'string' ? state.updatedAt : null,
+        updatedBy: typeof state.updatedBy === 'string' ? state.updatedBy : null,
+        stateError: state.stateError === true,
+      })
+    } catch (error) {
+      console.warn('Failed to load workflow pipeline state:', error)
+      setPipelineState({ paused: true, updatedAt: null, updatedBy: null, stateError: true })
+    }
+  }, [])
+
+  async function togglePipelinePaused() {
+    setUpdatingPipelineState(true)
+    try {
+      const response = await fetch('/api/workflows/pipeline-state', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paused: !pipelineState.paused }),
+      })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(data.error || 'Failed to update pipeline state')
+      setPipelineState({ paused: data.paused === true, updatedAt: data.updatedAt || null, updatedBy: data.updatedBy || null })
+      showSuccess(data.paused ? 'Workflow pipeline paused' : 'Workflow pipeline resumed')
+      fetchWorkflows(true)
+    } catch (error: any) {
+      showError(error.message || 'Failed to update workflow pipeline state')
+    } finally {
+      setUpdatingPipelineState(false)
+    }
+  }
+
   const selectedWorkflowTargeting = selectedWorkflow?.targeting || { communities: [], groups: [], tags: [], agents: [] }
   const executionWorkflowTargeting = executionWorkflow?.targeting || { communities: [], groups: [], tags: [], agents: [] }
   const workflowNameById = useMemo(
@@ -556,6 +601,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
     })) {
       loadedWorkflowWorkspaceRef.current = workspaceKey
       fetchWorkflows()
+      void fetchPipelineState()
     }
     if (Object.keys(agentCosts).length > 0 || !costTrackingEnabled) return
     fetch(buildWorkspaceScopedPath('/api/metering', activeWorkspace?.id)).then(r => r.ok ? r.json() : null).then(d => {
@@ -569,7 +615,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
       setCostTrackingEnabled(true)
       setAgentCosts(costs)
     }).catch(() => {})
-  }, [activeWorkspace?.id, isActive, rateLimitedUntil, agentCosts, costTrackingEnabled])
+  }, [activeWorkspace?.id, isActive, rateLimitedUntil, agentCosts, costTrackingEnabled, fetchPipelineState])
 
   // Use refs to access latest values without re-creating interval
   const workflowsRef = useRef(workflows)
@@ -631,6 +677,10 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   }
 
   async function startWorkflowTrigger(workflow: Workflow) {
+    if (pipelineState.paused) {
+      showError('Workflow pipeline is paused. Resume it before starting new runs.')
+      return
+    }
     if (runningWorkflows.has(workflow.id) || workflow.status === 'running') {
       showError('Already running. Stop the current run before starting another.')
       return
@@ -742,6 +792,10 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   }
 
   async function triggerWorkflowFromDetail(workflow: WorkflowDetails) {
+    if (pipelineState.paused) {
+      showError('Workflow pipeline is paused. Resume it before starting new runs.')
+      return
+    }
     for (const requirement of workflow.secretRequirements || []) {
       if (requirement.required !== false && !(workflowSecrets[requirement.key] || '').trim()) {
         showError(`Missing required secret/input: ${requirement.label}`)
@@ -809,6 +863,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
         setLatestExecutionStatuses(latestStatuses)
         setWorkflows(nextWorkflows)
         setRunningWorkflows(running)
+        void fetchPipelineState()
       } catch (err) {
         console.error('Error polling workflows:', err)
       }
@@ -831,7 +886,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
     const interval = setInterval(pollWorkflows, intervalMs)
     return () => clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeWorkspace?.id, isActive, rateLimitedUntil, markRateLimited, viewMode, runningWorkflows.size])
+  }, [activeWorkspace?.id, isActive, rateLimitedUntil, markRateLimited, viewMode, runningWorkflows.size, fetchPipelineState])
 
   // Handle initial workflow / execution deep links
   useEffect(() => {
@@ -1511,6 +1566,18 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <button
+            onClick={() => void togglePipelinePaused()}
+            disabled={updatingPipelineState}
+            className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+              pipelineState.paused
+                ? 'border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200'
+                : 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200'
+            }`}
+            title={pipelineState.paused ? 'Allow new workflow runs and schedules' : 'Block new workflow runs and schedules; active runs will continue'}
+          >
+            {pipelineState.paused ? '▶ Resume Pipeline' : '‖ Pause Pipeline'}
+          </button>
           <div className="flex items-center border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden dark:border-gray-700 bg-white dark:bg-gray-800">
             <button
               onClick={() => setViewMode('dag')}
@@ -1639,6 +1706,26 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
           </div>
         </div>
       </div>
+
+      {pipelineState.paused && (
+        <div
+          role="status"
+          className={`mb-6 rounded-lg border px-4 py-3 ${
+            pipelineState.stateError
+              ? 'border-red-300 bg-red-50 text-red-900 dark:border-red-700 dark:bg-red-900/30 dark:text-red-100'
+              : 'border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-100'
+          }`}
+        >
+          <div className="font-semibold">Workflow pipeline paused</div>
+          <p className="mt-0.5 text-sm">
+            New manual runs, schedules, and DAG cascades are blocked. Active executions continue until they finish or are stopped individually.
+            {pipelineState.updatedBy && ` Paused by ${pipelineState.updatedBy}.`}
+          </p>
+          {pipelineState.stateError && (
+            <p className="mt-1 text-sm font-medium">The saved pipeline state could not be read, so execution is blocked fail-closed. Resume to replace it with a valid state.</p>
+          )}
+        </div>
+      )}
 
       {/* Search */}
       <div className="mb-6 relative">

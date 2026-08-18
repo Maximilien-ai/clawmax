@@ -39,6 +39,50 @@ function getTemplatesDir(): string {
   return path.join(getWorkflowsDir(), 'templates')
 }
 
+function getPipelineStatePath(): string {
+  return path.join(getWorkflowsDir(), '.pipeline-state.json')
+}
+
+export interface WorkflowPipelineState {
+  paused: boolean
+  updatedAt: string | null
+  updatedBy: string | null
+  stateError?: boolean
+}
+
+export function getWorkflowPipelineState(): WorkflowPipelineState {
+  const statePath = getPipelineStatePath()
+  if (!fs.existsSync(statePath)) {
+    return { paused: false, updatedAt: null, updatedBy: null }
+  }
+  try {
+    const parsed = JSON.parse(fs.readFileSync(statePath, 'utf-8'))
+    if (parsed?.version !== 1 || typeof parsed.paused !== 'boolean') throw new Error('invalid pipeline state')
+    return {
+      paused: parsed.paused,
+      updatedAt: typeof parsed.updatedAt === 'string' ? parsed.updatedAt : null,
+      updatedBy: typeof parsed.updatedBy === 'string' ? parsed.updatedBy : null,
+    }
+  } catch {
+    // A corrupt pause ledger must not silently allow new executions.
+    return { paused: true, updatedAt: null, updatedBy: null, stateError: true }
+  }
+}
+
+export function setWorkflowPipelinePaused(paused: boolean, updatedBy?: string): WorkflowPipelineState {
+  const statePath = getPipelineStatePath()
+  const state: WorkflowPipelineState = {
+    paused,
+    updatedAt: new Date().toISOString(),
+    updatedBy: `${updatedBy || 'dashboard'}`.trim().slice(0, 256) || 'dashboard',
+  }
+  fs.mkdirSync(path.dirname(statePath), { recursive: true })
+  const tempPath = `${statePath}.${process.pid}.tmp`
+  fs.writeFileSync(tempPath, JSON.stringify({ version: 1, ...state }, null, 2), { encoding: 'utf-8', mode: 0o600 })
+  fs.renameSync(tempPath, statePath)
+  return state
+}
+
 const WORKFLOW_RUNNER_BOOT_ID = randomUUID()
 const activeWorkflowExecutions = new Map<string, string>()
 const activeExecutionProcesses = new Map<string, Set<ReturnType<typeof spawn>>>()
@@ -1218,7 +1262,7 @@ function runCronCmd(args: string[]): { ok: boolean; output: string; error?: stri
  * Returns the cron job ID if successful.
  */
 export function syncWorkflowToCron(workflow: Workflow, participants: string[]): { ok: boolean; cronJobId?: string; error?: string } {
-  if (!workflow.enabled || workflow.schedule === 'manual') {
+  if (getWorkflowPipelineState().paused || !workflow.enabled || workflow.schedule === 'manual') {
     // If disabled or manual, remove any existing cron job
     if (workflow.cronJobId) {
       removeCronJob(workflow.cronJobId)
@@ -1796,6 +1840,9 @@ export function triggerWorkflow(workflowId: string, options?: {
 }): { success: boolean; executionId?: string; error?: string } {
   let claimedExecutionId: string | undefined
   try {
+    if (getWorkflowPipelineState().paused) {
+      return { success: false, error: 'Workflow pipeline is paused. Resume the pipeline before starting new runs.' }
+    }
     // Check workspace budget before executing
     const budgetBlock = checkBudgetBlock({ operation: 'workflow' })
     if (budgetBlock) {

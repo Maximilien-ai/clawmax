@@ -68,11 +68,13 @@ function getRouter(overrides: {
   aiGenerator?: Partial<typeof import('../lib/ai-generator')>
   workflows?: Partial<typeof import('../lib/workflows')>
   notifications?: Partial<typeof import('../lib/notifications')>
+  scheduler?: Partial<typeof import('../lib/scheduler')>
 } = {}) {
   const moduleOverrides: Array<[string, Record<string, any> | undefined]> = [
     ['../lib/ai-generator', overrides.aiGenerator as any],
     ['../lib/workflows', overrides.workflows as any],
     ['../lib/notifications', overrides.notifications as any],
+    ['../lib/scheduler', overrides.scheduler as any],
   ]
   for (const [modulePath, patch] of moduleOverrides) {
     const resolved = require.resolve(modulePath)
@@ -92,6 +94,7 @@ function getRouteHandler(
     aiGenerator?: Partial<typeof import('../lib/ai-generator')>
     workflows?: Partial<typeof import('../lib/workflows')>
     notifications?: Partial<typeof import('../lib/notifications')>
+    scheduler?: Partial<typeof import('../lib/scheduler')>
   } = {},
 ) {
   const router = getRouter(overrides)
@@ -114,6 +117,9 @@ function makeRes() {
     },
     json(body: any) {
       this.jsonBody = body
+      return this
+    },
+    setHeader() {
       return this
     },
   }
@@ -631,6 +637,36 @@ async function run() {
     await handler(makeReq({ id: 'running-workflow', executionId: 'exec-1' }), res)
     assert(res.statusCode === 200, `Expected running execution cancellation to succeed, got ${res.statusCode}`)
     assert(cancelledWorkflowId === 'running-workflow' && cancelledExecutionId === 'exec-1', 'Expected route to cancel the requested execution')
+  })
+
+  await test('pipeline state routes expose and persist the global pause gate', async () => {
+    let persistedPaused: boolean | null = null
+    const overrides = {
+      workflows: {
+        getWorkflowPipelineState: () => ({ paused: true, updatedAt: '2026-08-18T22:00:00.000Z', updatedBy: 'operator' }),
+        setWorkflowPipelinePaused: (paused: boolean, updatedBy?: string) => {
+          persistedPaused = paused
+          return { paused, updatedAt: '2026-08-18T22:01:00.000Z', updatedBy: updatedBy || null }
+        },
+        listWorkflows: () => [],
+      } as any,
+      scheduler: { syncAllWorkflows: () => undefined } as any,
+    }
+
+    let handler = getRouteHandler('get', '/pipeline-state', overrides)
+    let res = makeRes()
+    await handler(makeReq({}), res)
+    assert(res.statusCode === 200 && res.jsonBody?.paused === true, 'Expected current pipeline pause state')
+
+    handler = getRouteHandler('put', '/pipeline-state', overrides)
+    res = makeRes()
+    await handler(makeReq({}, { body: { paused: 'yes' } }), res)
+    assert(res.statusCode === 400, 'Expected non-boolean pause value to be rejected')
+
+    res = makeRes()
+    await handler(makeReq({}, { body: { paused: false } }), res)
+    assert(res.statusCode === 200 && res.jsonBody?.paused === false, 'Expected pipeline resume response')
+    assert(persistedPaused === false, 'Expected pipeline resume to be persisted')
   })
 
   if (typeof originalHome === 'undefined') delete process.env.HOME

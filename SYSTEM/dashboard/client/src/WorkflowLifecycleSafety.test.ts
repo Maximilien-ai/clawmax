@@ -20,5 +20,11 @@ assert(
   workflowSource.includes('Steps already completed will not be rolled back'),
   'Cancellation confirmation must disclose partial side effects',
 )
+assert(workflowSource.includes('Pause Pipeline'), 'Workflow header must expose a pipeline pause control')
+assert(workflowSource.includes('Resume Pipeline'), 'Paused workflow pipeline must expose a resume control')
+assert(
+  workflowSource.includes('New manual runs, schedules, and DAG cascades are blocked. Active executions continue'),
+  'Paused pipeline banner must explain both blocked starts and active-run behavior',
+)
 
-console.log('WorkflowLifecycleSafety.test.ts: 5 assertions passed')
+console.log('WorkflowLifecycleSafety.test.ts: 8 assertions passed')
