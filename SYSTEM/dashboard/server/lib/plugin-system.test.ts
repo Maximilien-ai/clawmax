@@ -395,13 +395,28 @@ async function run() {
       ['missing-schema-plugin', { apiVersion: 'clawmax.ai/v2' }],
       ['invalid-capability-plugin', { apiVersion: 'clawmax.ai/v2', capabilities: { shell: true }, recordSchema: { type: 'object', properties: {} } }],
       ['invalid-slider-plugin', { apiVersion: 'clawmax.ai/v2', recordSchema: { type: 'object', properties: { budget: { type: 'number', title: 'Budget', control: 'slider' } } } }],
+      ['ungranted-monitor-plugin', {
+        apiVersion: 'clawmax.ai/v2',
+        recordSchema: { type: 'object', properties: {
+          scope: { type: 'string', title: 'Scope' }, targets: { type: 'array', title: 'Targets', items: { type: 'string' } },
+          tokenBudget: { type: 'integer', title: 'Token budget' }, costBudget: { type: 'number', title: 'Cost budget' },
+          tokens: { type: 'integer', title: 'Tokens' }, cost: { type: 'number', title: 'Cost' },
+          state: { type: 'string', title: 'State' }, summary: { type: 'string', title: 'Summary' },
+          last: { type: 'string', title: 'Last' }, next: { type: 'string', title: 'Next' },
+        } },
+        usageMonitoring: { kind: 'metering-budget', intervalMinutes: 15, fields: {
+          scope: 'scope', targetIds: 'targets', tokenBudget: 'tokenBudget', costBudget: 'costBudget',
+          currentTokens: 'tokens', currentCost: 'cost', state: 'state', summary: 'summary',
+          lastAssessedAt: 'last', nextAssessmentAt: 'next',
+        } },
+      }],
     ] as const) {
       const directory = path.join(pluginRoot, slug)
       fs.mkdirSync(directory, { recursive: true })
       fs.writeFileSync(path.join(directory, 'clawmax-plugin.json'), JSON.stringify({ ...baseManifest, ...extra, id: slug, slug }, null, 2), 'utf-8')
     }
     process.env.CLAWMAX_PLUGIN_PATHS = pluginRoot
-    process.env.CLAWMAX_ENABLED_PLUGINS = 'future-version-plugin,missing-schema-plugin,invalid-slider-plugin'
+    process.env.CLAWMAX_ENABLED_PLUGINS = 'future-version-plugin,missing-schema-plugin,invalid-slider-plugin,ungranted-monitor-plugin'
     assert.deepStrictEqual(listConfiguredPlugins(), [], 'Expected incompatible manifests to be excluded')
 
     fs.rmSync(pluginRoot, { recursive: true, force: true })

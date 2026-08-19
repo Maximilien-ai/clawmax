@@ -1046,6 +1046,15 @@ else
   fail "Plugin system contract unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Plugin usage monitor unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/plugin-usage-monitor.test.ts > /tmp/clawmax-plugin-usage-monitor.out 2>&1 || true
+if grep -q "plugin-usage-monitor.test.ts: 18 assertions passed" /tmp/clawmax-plugin-usage-monitor.out; then
+  pass "Plugin usage monitor unit tests (18 assertions)"
+else
+  cat /tmp/clawmax-plugin-usage-monitor.out
+  fail "Plugin usage monitor unit tests"
+fi
+
 echo ""
 echo -e "${YELLOW}→ Running Plugin routes contract unit tests...${NC}"
 npx ts-node --transpileOnly server/routes/plugins.test.ts > /tmp/clawmax-plugin-routes.out 2>&1 || true

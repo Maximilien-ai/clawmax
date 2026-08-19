@@ -51,6 +51,7 @@ import { healDashboardManagedOpenClawConfig } from './lib/openclaw-config'
 import { applyDashboardSecurityHeaders, isCorsOriginAllowed, isDashboardAuthBypassAllowed, parseCorsOrigins, resolveDashboardBindHost } from './lib/http-security'
 import { getTenantResourceLimitConfig, getTenantResourceLimits } from './lib/tenant-resource-limits'
 import { reconcileInterruptedWorkflowExecutions } from './lib/workflows'
+import { startPluginUsageMonitor, stopPluginUsageMonitor } from './lib/plugin-usage-monitor'
 
 // ============================================================================
 // Crash Protection & Error Logging
@@ -162,6 +163,12 @@ function startBackgroundServices() {
       startActivityExportWorker((message) => logToFile(message))
     } catch (err) {
       logToFile(`Activity Export worker start failed: ${err instanceof Error ? err.stack || err.message : String(err)}`)
+    }
+
+    try {
+      startPluginUsageMonitor((message) => logToFile(message))
+    } catch (err) {
+      logToFile(`Plugin monitor start failed: ${err instanceof Error ? err.stack || err.message : String(err)}`)
     }
 
     try {
@@ -771,5 +778,5 @@ app.listen(PORT, HOST, () => {
 })
 
 // Graceful shutdown
-process.on('SIGTERM', () => { stopScheduler(); stopNotificationMonitor(); stopActivityExportWorker(); shutdownOpik() })
-process.on('SIGINT', () => { stopScheduler(); stopNotificationMonitor(); stopActivityExportWorker(); shutdownOpik() })
+process.on('SIGTERM', () => { stopScheduler(); stopNotificationMonitor(); stopActivityExportWorker(); stopPluginUsageMonitor(); shutdownOpik() })
+process.on('SIGINT', () => { stopScheduler(); stopNotificationMonitor(); stopActivityExportWorker(); stopPluginUsageMonitor(); shutdownOpik() })
