@@ -1,4 +1,6 @@
 import assert from 'assert'
+import fs from 'fs'
+import path from 'path'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -73,6 +75,19 @@ function makeRes() {
 /** SSE-flavored res mock: parses `data: {...}\n\n` frames written by chat.ts's send() helper and
  *  exposes a `done` promise that resolves the first time end() is called, so tests can await
  *  actual SSE completion instead of the route handler's own (largely un-awaited) returned promise. */
+async function withChildProcessStubs<T>(overrides: Record<string, any>, fn: () => Promise<T> | T): Promise<T> {
+  const childProcess = require('child_process')
+  const originals = Object.fromEntries(Object.keys(overrides).map((key) => [key, childProcess[key]]))
+  Object.assign(childProcess, overrides)
+  delete require.cache[require.resolve('./chat')]
+  try {
+    return await fn()
+  } finally {
+    Object.assign(childProcess, originals)
+    delete require.cache[require.resolve('./chat')]
+  }
+}
+
 function makeSseRes() {
   const events: { type: string; data: any }[] = []
   let ended = false
@@ -80,6 +95,9 @@ function makeSseRes() {
   const done = new Promise<void>((resolve) => { resolveDone = resolve })
   return {
     statusCode: 200,
+    rejection: null as any,
+    status(code: number) { this.statusCode = code; return this },
+    json(body: any) { this.rejection = body; resolveDone(); return this },
     writeHead() { return this },
     flushHeaders() {},
     write(chunk: string) {
@@ -379,7 +397,9 @@ async function run() {
       await withModuleOverrides(workspaceIntegrationsModulePath, {
         readWorkspaceIntegrationConfig: () => ({}),
       }, async () => {
-        await withModuleOverrides(safeEnvModulePath, { userExecutionEnv: () => ({}) }, async () => {
+        await withModuleOverrides(safeEnvModulePath, {
+        userExecutionEnv: () => ({ ANTHROPIC_API_KEY: 'test-key' }),
+      }, async () => {
           let sawOnActivity = false
           await withModuleOverrides(agentRuntimeModulePath, {
             executeAgentRuntimeTurn: async (opts: any) => {
@@ -576,6 +596,44 @@ async function run() {
         })
       })
     })
+  })
+
+  await test('every settlement path flushes the held stream tail BEFORE building its result', () => {
+    // Regression guard for an ordering defect that unit tests over the filter structurally cannot
+    // catch: the filter is correct in isolation. The route was not.
+    //
+    // The streaming warning filter holds an incomplete trailing line until its newline arrives.
+    // Flushing it inside resolveAttempt was too late, because every caller evaluates
+    // `completionText: normalizeChatMessage(fullOutput...)` as an ARGUMENT — so the tail was
+    // streamed as a delta and then omitted from `complete`, and AgentChatPanel replaces the bubble
+    // with `complete`'s text. The user watched the final line appear and then vanish.
+    //
+    // This asserts source order rather than executing the route: driving the openclaw branch needs
+    // a provider credential this suite has no way to supply. It is a weaker check than execution —
+    // it proves the calls are ordered, not that the bytes arrive — and it is here because the
+    // alternative was no guard at all.
+    const source = fs.readFileSync(path.resolve(__dirname, 'chat.ts'), 'utf8')
+
+    assert(source.includes('const flushStreamTail = ()'),
+      'the flush helper must exist; if it was renamed, update this guard rather than deleting it')
+
+    const resolveCalls = [...source.matchAll(/resolveAttempt\(\{/g)].map((m) => m.index ?? 0)
+    assert(resolveCalls.length >= 2, `expected several settlement sites, found ${resolveCalls.length}`)
+
+    for (const at of resolveCalls) {
+      // The flush must appear in the enclosing block, before this call — not after it, and not
+      // buried inside resolveAttempt itself.
+      const preceding = source.slice(Math.max(0, at - 1200), at)
+      assert(preceding.includes('flushStreamTail()'),
+        `a resolveAttempt site at offset ${at} builds its result without first flushing the held `
+        + 'stream tail; the final unterminated line will be streamed and then erased by complete')
+    }
+
+    // And the flush must NOT live inside resolveAttempt, which is what made it too late before.
+    const bodyStart = source.indexOf('const resolveAttempt = (result: ChatAttemptResult) => {')
+    const bodyEnd = source.indexOf('\n            }', bodyStart)
+    assert(bodyStart > 0 && !source.slice(bodyStart, bodyEnd).includes('attemptDeltaFilter.flush()'),
+      'flushing inside resolveAttempt runs after callers have already computed completionText')
   })
 
   await test('the chat route arms no turn deadline, and a queued request still delivers its reply', async () => {

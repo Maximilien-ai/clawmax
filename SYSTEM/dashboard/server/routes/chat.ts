@@ -9,7 +9,7 @@ import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
 import { hasWorkspaceManagedPartnerSecrets, readWorkspaceIntegrationConfig } from '../lib/workspace-integrations'
 import { userExecutionEnv } from '../lib/safe-env'
 import { checkBudgetBlock } from '../lib/budget'
-import { normalizeChatMessage, stripBenignChatRuntimeWarnings } from '../lib/chat-normalization'
+import { createStreamingWarningFilter, normalizeChatMessage, stripBenignChatRuntimeWarnings } from '../lib/chat-normalization'
 import { resolveOpenClawCliPath } from '../lib/openclaw-cli'
 import { getAgentSkills, getAssignedSkillPromptNotes, getSkillById } from '../lib/skills'
 import { executeClawmaxResendSend } from '../lib/clawmax-resend-command'
@@ -934,6 +934,10 @@ router.post('/:id/chat', async (req, res) => {
           signal: turn.signal,
           onDelta: (delta) => {
             turn.touch()
+            // Unfiltered by design. createClaudeStreamDeltaTransformer only emits text blocks from
+            // parsed `assistant` events, so a CLI warning -- which is not JSON, let alone an
+            // assistant event -- can never reach here. Line-buffering this stream would delay
+            // ordinary prose for no benefit, since assistant text is not newline-terminated.
             send('delta', { text: delta })
           },
           // Tool calls and thinking never become visible text, so liveness fed only by deltas would
@@ -1062,6 +1066,7 @@ router.post('/:id/chat', async (req, res) => {
             // Own process group: openclaw spawns its own children, and signalling only this direct
             // child leaves those grandchildren alive holding the stdout pipe open (see
             // killAttemptTree below -- the same reason runOnce in agent-runtime.ts detaches).
+            const attemptDeltaFilter = createStreamingWarningFilter()
             const spawned = spawn(openclawCli, args, {
               env: executionEnv,
               stdio: ['pipe', 'pipe', 'pipe'],
@@ -1072,6 +1077,26 @@ router.post('/:id/chat', async (req, res) => {
 
             send('start', { sessionId: executionSessionId, resumeSessionId: attemptSessionSeed, turnId: turn.turnId })
             invalidateAgentStatusCache(id)
+
+            /**
+             * Release the held final line into fullOutput and the stream.
+             *
+             * MUST run before a settlement path builds its result. A runtime that does not
+             * newline-terminate its last line has that line sitting in the filter, and every
+             * caller evaluates `completionText: normalizeChatMessage(fullOutput...)` as an
+             * argument -- so flushing inside resolveAttempt streamed the tail as a delta and then
+             * sent a `complete` without it, and the client replaces the bubble with `complete`'s
+             * text. The user watched the last line appear and then vanish.
+             *
+             * Idempotent: the filter returns nothing once drained.
+             */
+            const flushStreamTail = () => {
+              const tail = attemptDeltaFilter.flush()
+              if (!tail) return
+              fullOutput = appendBoundedOutput(fullOutput, tail, MAX_RETAINED_CHAT_OUTPUT)
+              hadVisibleOutput = true
+              send('delta', { text: tail })
+            }
 
             const resolveAttempt = (result: ChatAttemptResult) => {
               if (attemptSettled) return
@@ -1102,6 +1127,7 @@ router.post('/:id/chat', async (req, res) => {
               // on, so this resolves from whatever was captured so far rather than the disk session
               // lookup the normal close path below does -- the CLI never exited cleanly, so its
               // session file can't be trusted.
+              flushStreamTail()
               resolveAttempt({
                 completionText: normalizeChatMessage(fullOutput.trim()),
                 rawError: stderrOutput || 'cancelled',
@@ -1130,6 +1156,7 @@ router.post('/:id/chat', async (req, res) => {
               // the pipe stays open, 'close' never fires, and this promise -- plus the per-agent
               // lock behind it -- would wedge with no deadline left to clear either.
               killEscalation = cancelProcessTree(spawned, () => {
+                flushStreamTail()
                 resolveAttempt({
                   completionText: normalizeChatMessage(fullOutput.trim()),
                   rawError: stderrOutput,
@@ -1157,7 +1184,9 @@ router.post('/:id/chat', async (req, res) => {
               // alive, even though nothing is shown to the user.
               bumpAttemptIdle()
               if (!recordOutputBytes(chunk)) return
-              const text = stripBenignChatRuntimeWarnings(chunk.toString())
+              // Line-buffered rather than per-chunk: this filter matches whole lines, and a boxed
+              // warning routinely arrives split across two chunks, where neither half matches.
+              const text = attemptDeltaFilter.push(chunk.toString())
               if (!text) return
               fullOutput = appendBoundedOutput(fullOutput, text, MAX_RETAINED_CHAT_OUTPUT)
               hadVisibleOutput = true
@@ -1173,6 +1202,8 @@ router.post('/:id/chat', async (req, res) => {
             spawned.on('exit', () => { procExited = true })
 
             spawned.on('close', async (code) => {
+              // Before anything reads fullOutput: the close path computes normalizedText from it.
+              flushStreamTail()
               console.log(`[Chat Route] CLI exited for agent ${id} with code ${code}`)
 
               if (stderrOutput) {
