@@ -3275,6 +3275,15 @@ else
   fail "Chat normalization unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Streaming warning filter regression tests...${NC}"
+npx ts-node --transpileOnly server/lib/streaming-warning-filter.test.ts > /tmp/clawmax-streaming-warning-filter.out 2>&1 || true
+if grep -q "10 passed, 0 failed" /tmp/clawmax-streaming-warning-filter.out; then
+  pass "Streaming warning filter regression tests (10 tests)"
+else
+  cat /tmp/clawmax-streaming-warning-filter.out
+  fail "Streaming warning filter regression tests"
+fi
+
 echo -e "${YELLOW}→ Running Chat process safety unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/chat-process-safety.test.ts > /tmp/clawmax-chat-process-safety.out 2>&1 || true
 if grep -Eq "chat-process-safety.test.ts: (15|17) assertions passed" /tmp/clawmax-chat-process-safety.out; then
