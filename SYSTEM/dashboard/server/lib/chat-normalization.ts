@@ -160,6 +160,65 @@ export function stripBenignChatRuntimeWarnings(content: string): string {
     .join('\n')
 }
 
+/**
+ * Line-buffered warning filter for a live stream.
+ *
+ * `stripBenignChatRuntimeWarnings` matches whole lines, but a stream arrives in arbitrary chunks: a
+ * boxed CLI warning routinely lands split across two of them, and neither half matches the line
+ * patterns, so both are forwarded. Observed in chat as a bare
+ * `│ ignored; remove it from plugins config) │` rendered as the agent's entire reply -- the real
+ * answer had been filtered out of the final text, so the client fell back to the streamed fragments.
+ *
+ * So: only ever hand complete lines to the filter, and hold the incomplete tail until its newline
+ * arrives. Newlines are preserved by slicing rather than split/join, because a filter that drops a
+ * separator silently joins a paragraph to the table that followed it.
+ *
+ * Every incomplete line is held, not just ones that look like a warning. An earlier version buffered
+ * only lines starting with a box-drawing character, on the theory that prose should never be
+ * delayed -- but that let every non-boxed warning through the moment it was split
+ * (`plugin runtime config.loadConfig() is deprecated`, `[provider-transport-fetch] ...`), which is
+ * the same bug in a narrower form. Correctness first: this is line-oriented CLI output, so the wait
+ * is bounded by the next newline.
+ */
+const MAX_HELD_LINE_CHARS = 8192
+
+export function createStreamingWarningFilter(): {
+  push: (chunk: string) => string
+  flush: () => string
+} {
+  let carry = ''
+  return {
+    push(chunk: string): string {
+      carry += chunk
+      const lastNewline = carry.lastIndexOf('\n')
+      if (lastNewline < 0) {
+        // No complete line yet. Release an absurdly long unterminated line rather than growing the
+        // buffer without bound: re-scanning it on every chunk is quadratic, and no benign warning
+        // is anywhere near this length, so holding it buys nothing.
+        if (carry.length > MAX_HELD_LINE_CHARS) {
+          const released = carry
+          carry = ''
+          return released
+        }
+        return ''
+      }
+      const complete = carry.slice(0, lastNewline + 1)
+      carry = carry.slice(lastNewline + 1)
+      return stripBenignChatRuntimeWarnings(complete)
+    },
+    /**
+     * Emit whatever is still held, filtered. Must be called when the stream ends: a runtime that
+     * does not terminate its final line would otherwise have that line dropped entirely.
+     */
+    flush(): string {
+      if (!carry) return ''
+      const remaining = stripBenignChatRuntimeWarnings(carry)
+      carry = ''
+      return remaining
+    },
+  }
+}
+
 export function normalizeChatMessage(content: string): string {
   if (!content) return content
 
