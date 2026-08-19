@@ -9,7 +9,7 @@ import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
 import { hasWorkspaceManagedPartnerSecrets, readWorkspaceIntegrationConfig } from '../lib/workspace-integrations'
 import { userExecutionEnv } from '../lib/safe-env'
 import { checkBudgetBlock } from '../lib/budget'
-import { normalizeChatMessage, stripBenignChatRuntimeWarnings } from '../lib/chat-normalization'
+import { createStreamingWarningFilter, normalizeChatMessage, stripBenignChatRuntimeWarnings } from '../lib/chat-normalization'
 import { resolveOpenClawCliPath } from '../lib/openclaw-cli'
 import { getAgentSkills, getAssignedSkillPromptNotes, getSkillById } from '../lib/skills'
 import { executeClawmaxResendSend } from '../lib/clawmax-resend-command'
@@ -861,6 +861,28 @@ router.post('/:id/chat', async (req, res) => {
         send('start', { sessionId: executionSessionId, resumeSessionId: attemptSessionSeed })
         invalidateAgentStatusCache(id)
 
+        // Line-buffered rather than per-chunk. stripBenignChatRuntimeWarnings matches whole lines,
+        // and a boxed CLI warning routinely arrives split across two chunks -- neither half matches,
+        // so both were forwarded. The final text IS filtered and came back empty, and the client
+        // falls back to the streamed fragments when `complete` carries no text, so the warning
+        // became the agent's entire reply.
+        const attemptDeltaFilter = createStreamingWarningFilter()
+
+        /**
+         * Release the held final line into fullOutput and the stream.
+         *
+         * MUST run before a settlement path builds its result: `completionText` is derived from
+         * fullOutput, so flushing afterwards streams the tail as a delta and then sends a
+         * `complete` without it -- the user watches the last line appear and then vanish.
+         */
+        const flushStreamTail = () => {
+          const tail = attemptDeltaFilter.flush()
+          if (!tail) return
+          fullOutput = appendBoundedOutput(fullOutput, tail, MAX_RETAINED_CHAT_OUTPUT)
+          hadVisibleOutput = true
+          send('delta', { text: tail })
+        }
+
         const stopIncompleteAttempt = (reason: string) => {
           if (incompleteReason) return
           incompleteReason = reason
@@ -889,7 +911,7 @@ router.post('/:id/chat', async (req, res) => {
         spawned.stdout.on('data', (chunk: Buffer) => {
           bumpAttemptIdle()
           if (!recordOutputBytes(chunk)) return
-          const text = stripBenignChatRuntimeWarnings(chunk.toString())
+          const text = attemptDeltaFilter.push(chunk.toString())
           if (!text) return
           fullOutput = appendBoundedOutput(fullOutput, text, MAX_RETAINED_CHAT_OUTPUT)
           hadVisibleOutput = true
@@ -905,6 +927,8 @@ router.post('/:id/chat', async (req, res) => {
         spawned.on('exit', () => { procExited = true })
 
         spawned.on('close', async (code) => {
+          // Before anything reads fullOutput -- normalizedText below is derived from it.
+          flushStreamTail()
           if (activeAttemptTimer) {
             clearTimeout(activeAttemptTimer)
             activeAttemptTimer = null
