@@ -107,6 +107,33 @@ await test('executeClawmaxResendSend calls the shared resend backend with resolv
   assert(result.message.includes('provider-123'), 'Expected confirmation to include provider id')
 })
 
+await test('executeClawmaxResendSend enforces guardrails before provider access', async () => {
+  let providerCalled = false
+  let apiKeyRead = false
+  let blockedMessage = ''
+  try {
+    await executeClawmaxResendSend({
+      to: 'recipient@example.com',
+      subject: 'Blocked send',
+      body: 'This must not leave the workspace.',
+      attachmentPaths: [],
+      agentId: 'guarded-agent',
+      workspaceRoot: '/tmp/workspace',
+      workspaceLabel: 'workspace',
+    }, {
+      enforceGuardrails: () => { throw new Error('Outbound email blocked for agent guarded-agent by active guardrail: No outbound email.') },
+      getApiKey: () => { apiKeyRead = true; return 're_test' },
+      resolveAttachments: () => [],
+      sendEmail: async () => { providerCalled = true; return { id: 'must-not-send', message: 'must not send' } },
+    })
+  } catch (error: any) {
+    blockedMessage = error?.message || ''
+  }
+  assert(/Outbound email blocked/.test(blockedMessage), 'Expected guardrail denial to be returned to the caller')
+  assert(!apiKeyRead, 'Guardrail enforcement must happen before reading provider credentials')
+  assert(!providerCalled, 'Guardrail enforcement must happen before the provider call')
+})
+
 await test('resolveWorkspaceEmailAttachments prefers the current agent workspace for protected bare filenames', () => {
   const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-resend-attach-'))
   const currentAgentRoot = path.join(workspaceRoot, 'AGENTS', 'resend-agent')

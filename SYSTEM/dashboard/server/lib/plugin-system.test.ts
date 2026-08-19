@@ -15,6 +15,8 @@ import {
   clearPluginTemplateCache,
   deletePluginRecord,
   emitPluginRecordNotification,
+  enforcePluginGuardrails,
+  evaluatePluginGuardrails,
   generatePluginRecordDocument,
   getPluginBySlug,
   getPluginDiagnosticsReport,
@@ -470,7 +472,7 @@ async function run() {
     }
   })
 
-  await test('guardrail plugin records persist, generate docs, and emit notifications', () => {
+  await test('guardrail plugin records persist, enforce outbound email, generate docs, and emit notifications', () => {
     const plugin = getPluginBySlug('plugin-guardrails')
     assert(plugin, 'Expected guardrails test plugin manifest to load')
 
@@ -499,6 +501,19 @@ async function run() {
     assert.strictEqual(listPluginRecords(plugin!).length, 1, 'Expected created guardrail to persist')
     const guardrailItemFiles = fs.readdirSync(path.join(tempWorkspace, `SYSTEM/plugins/${plugin!.slug}/items`))
     assert(guardrailItemFiles.some((file) => /^no-outbound-send-[a-z0-9]{8}\.md$/.test(file)), 'Expected readable unique guardrail item file on disk')
+
+    const decision = evaluatePluginGuardrails({ operation: 'outbound-email', agentId: 'analyst' })
+    assert.strictEqual(decision.allowed, false, 'Expected outbound email to be denied for the targeted agent')
+    assert(decision.guardrails.some((entry) => entry.itemId === created.id), 'Expected denial to identify the enforcing guardrail')
+    assert.throws(
+      () => enforcePluginGuardrails({ operation: 'outbound-email', agentId: 'analyst' }),
+      /Outbound email blocked for agent analyst/,
+      'Expected active no-email guardrail to fail closed',
+    )
+    const enforced = listPluginRecords(plugin!).find((record) => record.id === created.id)
+    assert(enforced && 'history' in enforced && enforced.history[0]?.action === 'blocked', 'Expected blocked attempt evidence in guardrail history')
+    assert(getActiveNotifications().some((notification) => notification.entityId === created.id && notification.title.includes('outbound email blocked')), 'Expected blocked attempt notification')
+    assert.strictEqual(evaluatePluginGuardrails({ operation: 'outbound-email', agentId: 'other-agent' }).allowed, true, 'Expected unrelated agents to remain allowed')
 
     const archived = upsertPluginRecord(plugin!, { ...created, archived: true } as any)
     assert.strictEqual(archived.archived, true, 'Expected archive flag to persist on plugin records')
