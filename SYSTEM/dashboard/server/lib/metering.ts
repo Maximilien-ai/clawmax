@@ -652,8 +652,13 @@ export function traceMatchesViewer(trace: TraceData, viewer?: MeteringViewer): b
   return true
 }
 
+export function getMeteringPeriodCacheSuffix(period: 'all' | 'month', now = new Date()): string {
+  return period === 'month' ? `month:${now.toISOString().slice(0, 7)}` : 'all'
+}
+
 export async function getWorkspaceMetering(workspaceId?: string, viewer?: MeteringViewer, period: 'all' | 'month' = 'all'): Promise<WorkspaceMetering> {
-  const cacheKey = `${getMeteringCacheKey(workspaceId, viewer)}:${period}`
+  const requestTime = new Date()
+  const cacheKey = `${getMeteringCacheKey(workspaceId, viewer)}:${getMeteringPeriodCacheSuffix(period, requestTime)}`
   const cached = meteringCache.get(cacheKey)
   const now = Date.now()
 
@@ -661,7 +666,7 @@ export async function getWorkspaceMetering(workspaceId?: string, viewer?: Meteri
     const config = getOpikConfig()
     const workspaceIds = new Set(getWorkspaceTraceIds(workspaceId))
     const { agentIds, workflowIds } = getWorkspaceAgentAndWorkflowIds(workspaceId)
-    const monthStart = new Date()
+    const monthStart = new Date(requestTime)
     monthStart.setUTCDate(1)
     monthStart.setUTCHours(0, 0, 0, 0)
     const traces = (await fetchOpikTraces(config.projectName)).filter((trace) => {
