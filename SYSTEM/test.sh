@@ -2055,6 +2055,15 @@ else
   fail "Apply organization template flow smoke tests"
 fi
 
+echo -e "${YELLOW}→ Running Template apply progress unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/templateApplyProgress.test.ts > /tmp/clawmax-template-apply-progress.out 2>&1 || true
+if grep -q "templateApplyProgress.test.ts: 10 tests passed" /tmp/clawmax-template-apply-progress.out; then
+  pass "Template apply progress unit tests (10 tests)"
+else
+  cat /tmp/clawmax-template-apply-progress.out
+  fail "Template apply progress unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Template apply readiness helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/templateApplyReadiness.test.ts > /tmp/clawmax-template-apply-readiness.out 2>&1 || true
 if grep -q "templateApplyReadiness.test.ts: ok" /tmp/clawmax-template-apply-readiness.out; then

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { useToast } from './Toast'
 import { fetchModelsWithByok, hasChatExecutionAccess, readStoredByokKeys } from '../lib/byok'
 import { formatOpenAiDeprecationNotice, formatOpenAiModelLabel, isSelectableLifecycleModel, resolveNonDeprecatedOpenAiModel } from '../lib/openAiModelLifecycle'
+import TemplateApplyProgress from './TemplateApplyProgress'
 
 interface AgentTemplate {
   name: string
@@ -53,6 +54,7 @@ export default function ApplyAgentTemplateModal({
   const [showAllModels, setShowAllModels] = useState(false)
   const [executionConfig, setExecutionConfig] = useState<ExecutionConfig | null>(null)
   const [applying, setApplying] = useState(false)
+  const [applyProgress, setApplyProgress] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -92,9 +94,11 @@ export default function ApplyAgentTemplateModal({
     }
 
     setApplying(true)
+    setApplyProgress('Preparing agent configuration...')
     setError(null)
 
     try {
+      setApplyProgress(`Creating agent ${agentId.trim()}...`)
       const resp = await fetch('/api/templates/agents/import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -110,10 +114,12 @@ export default function ApplyAgentTemplateModal({
         throw new Error(data.error || 'Failed to apply template')
       }
 
+      setApplyProgress('Refreshing agents...')
       showSuccess(`Created agent "${data.agentId || agentId.trim()}" from template "${template.name}"`)
       onSuccess()
       onClose()
     } catch (err: any) {
+      setApplyProgress(null)
       setError(err.message || 'Failed to apply template')
       showError(err.message || 'Failed to apply template')
     } finally {
@@ -201,7 +207,11 @@ export default function ApplyAgentTemplateModal({
           </div>
         </div>
 
-        <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
+        <div className="mt-6">
+          <TemplateApplyProgress active={applying} label={applyProgress || 'Preparing template application...'} />
+        </div>
+
+        <div className="mt-3 flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
           <button
             onClick={onClose}
             className="w-full sm:w-auto px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 dark:text-gray-300"
