@@ -18,14 +18,13 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 
 ## 🛠 Current Development Line: 2.0.0
 
-- `main` now carries the public `clawmax.ai/v2` plugin platform. A plugin can contribute any combination of pages, APIs, data, actions, jobs, events, settings, skills, providers, docs, and extension points; guardrails and evaluations are implementations, not host-level plugin types.
-- Public and private plugins use the same generic contract. Private enterprise integrations can add organization-specific tabs and capabilities without being bundled in the public repository or default image.
-- Lifecycle and Review are the public product plugins in the current 2.0 phase. Lifecycle provides a read-only deep view of one agent or workflow; Review keeps release validation organized and exportable. Evals, Guardrails, and Optimize are private enterprise plugins distributed only through the private combined image. `PLUGINS/test/plugin-*` directories are synthetic contract fixtures, not private product source.
+- `main` now carries the public `clawmax.ai/v2` plugin platform. A plugin can contribute pages, APIs, data, actions, jobs, events, settings, skills, providers, docs, and extension points through one domain-neutral host contract.
+- Lifecycle and Review are the public product plugins in the current 2.0 phase. Lifecycle provides a read-only deep view of agents, workflows, groups, and communities; Review keeps release validation organized and exportable. `PLUGINS/test/plugin-*` directories are synthetic host-contract fixtures and are never shown in the plugin manager.
 - Public 2.0 products include AI scoring, the Lifecycle and Review plugins, curated Gmail and Microsoft 365/Outlook integrations, and a consent-gated Activity Export contract for partner event integrations such as Digo. Activity export is off by default, visibly names its destination, and never blocks agent execution on remote delivery.
-- See the public [model-fit plan](SYSTEM/docs/planning/PUBLIC_MODEL_FIT_2_0.md) for recommendation limits, capability evidence, Eval comparison, Optimize integration, and remaining release gates.
+- See the public [model-fit plan](SYSTEM/docs/planning/PUBLIC_MODEL_FIT_2_0.md) for recommendation limits, capability evidence, and remaining public release gates.
 - See the public [models, gateways, and email partner plan](SYSTEM/docs/planning/PUBLIC_MODELS_GATEWAYS_EMAIL_2_0.md) for the research, security rules, shipped provider decisions, and 2.0 test gates.
 - See the public [Lifecycle plugin plan](SYSTEM/docs/planning/PUBLIC_LIFECYCLE_PLUGIN_2_0.md) for the read-only agent/workflow inspection surface and delivery phases.
-- See the public [2.0 plugin architecture plan](SYSTEM/docs/planning/PUBLIC_PLUGIN_ARCHITECTURE_2_0.md) for the generic contribution-based contract. Guardrails and evaluations are plugin implementations, not fixed plugin types.
+- See the public [2.0 plugin architecture plan](SYSTEM/docs/planning/PUBLIC_PLUGIN_ARCHITECTURE_2_0.md) for the generic contribution-based host contract.
 - See the public [Activity Export and partner ingestion plan](SYSTEM/docs/planning/PUBLIC_ACTIVITY_EXPORT_PARTNERS_2_0.md) for consent, data scope, redaction, batching, the ClawMax.ai reference receiver, and the proposed Digo API contract.
 
 ## ✨ 1.9.x Highlights
