@@ -2,9 +2,9 @@ export const PLUGIN_HOST_API_VERSION = 'clawmax.ai/v2' as const
 
 export type PluginObjectKind = string
 export type PluginFieldValue = string | number | boolean | string[] | null
-export type PluginCapability = 'docs' | 'notifications' | 'agents' | 'workflows' | 'communications'
+export type PluginCapability = 'docs' | 'notifications' | 'agents' | 'workflows' | 'communications' | 'metering'
 
-const PLUGIN_CAPABILITIES: PluginCapability[] = ['docs', 'notifications', 'agents', 'workflows', 'communications']
+const PLUGIN_CAPABILITIES: PluginCapability[] = ['docs', 'notifications', 'agents', 'workflows', 'communications', 'metering']
 
 export interface PluginRecordFieldSchema {
   type: 'string' | 'number' | 'integer' | 'boolean' | 'array'
@@ -56,6 +56,7 @@ export interface PluginManifest {
     agents?: boolean
     workflows?: boolean
     communications?: boolean
+    metering?: boolean
   }
   labels?: {
     singular?: string

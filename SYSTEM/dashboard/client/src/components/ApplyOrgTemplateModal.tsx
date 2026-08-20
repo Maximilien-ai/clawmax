@@ -7,6 +7,7 @@ import { readLocalSecrets, replaceWorkflowFieldValue, SecretRequirement, summari
 import { ProductIconCell } from '../lib/productIcons'
 import { beginSingleFlight, endSingleFlight } from '../lib/singleFlight'
 import { buildApplyOrgCustomizeSteps, resolveInitialApplyOrgWizardStep } from '../lib/applyOrgTemplateFlow'
+import TemplateApplyProgress from './TemplateApplyProgress'
 import { useWorkspace } from '../contexts/WorkspaceContext'
 
 interface TemplateParameter {
@@ -2447,7 +2448,7 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess, in
             </>
           )}
           {wizardStep === 'deploy' && (
-            <div className="flex flex-col items-end gap-2">
+            <div className="flex w-full flex-col items-end gap-2">
               {agentConflicts.length > 0 && (
                 <div className="flex items-center gap-3 text-xs text-red-600 dark:text-red-300">
                   <span>Resolve agent ID conflicts in the Team step before applying this template.</span>
@@ -2521,12 +2522,16 @@ export default function ApplyOrgTemplateModal({ template, onClose, onSuccess, in
                   {applyBlockReason}
                 </div>
               )}
+              <TemplateApplyProgress
+                active={applying || !!applyProgress?.startsWith('Done')}
+                label={applyProgress || 'Preparing template application...'}
+              />
               <button
                 onClick={handleApply}
                 disabled={applying || !!applyBlockReason || agentConflicts.length > 0 || (hasUnresolvedChannelConflicts && !acknowledgedChannelConflicts) || hasUnresolvedWorkflowConflicts || conflictResolutionErrors.length > 0}
                 className="px-4 py-2 text-sm bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-medium"
               >
-                {applying && applyProgress ? applyProgress : applying ? 'Applying...' : '⚡ Apply Template'}
+                {applying ? 'Applying...' : '⚡ Apply Template'}
               </button>
             </div>
           )}

@@ -2,6 +2,7 @@ import assert from 'assert'
 import {
   LOCAL_SKILL_IMPORT_GUIDANCE,
   LOCAL_SKILL_IMPORT_PATH_PLACEHOLDER,
+  getSuccessfulImportedSkillIds,
   shouldShowLocalSkillRuntimeBrowseButton,
 } from './skillImportPresentation'
 
@@ -34,4 +35,15 @@ test('local skill import no longer shows a runtime browse button', () => {
   assert.equal(shouldShowLocalSkillRuntimeBrowseButton(), false)
 })
 
-console.log('skillImportPresentation.test.ts: 3 tests passed')
+test('github import ids support one-item multi-skill responses without undefined values', () => {
+  assert.deepStrictEqual(
+    getSuccessfulImportedSkillIds({
+      skills: [{ ok: true, skillId: ' qbo ' }],
+    }),
+    ['qbo'],
+  )
+  assert.deepStrictEqual(getSuccessfulImportedSkillIds({ skillId: 'github' }), ['github'])
+  assert.deepStrictEqual(getSuccessfulImportedSkillIds({ skills: [{ ok: true }] }), [])
+})
+
+console.log('skillImportPresentation.test.ts: 4 tests passed')

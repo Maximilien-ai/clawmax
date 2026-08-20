@@ -991,13 +991,104 @@ export function listAvailableSkills(): OpenClawSkill[] {
 /**
  * Parse a SKILL.md file with YAML frontmatter
  */
+function extractManualInstallCommands(markdownContent: string): string[] {
+  const lines = markdownContent.split('\n')
+  const headingIndex = lines.findIndex((line) => /^#{2,3}\s+(install|installation)\b/i.test(line.trim()))
+  if (headingIndex === -1) return []
+
+  const section: string[] = []
+  for (let index = headingIndex + 1; index < lines.length; index++) {
+    if (/^#{2,3}\s+/.test(lines[index].trim())) break
+    section.push(lines[index])
+  }
+
+  const commands: string[] = []
+  let inFence = false
+  for (const rawLine of section) {
+    const line = rawLine.trim()
+    if (/^```/.test(line)) {
+      inFence = !inFence
+      continue
+    }
+    if (!inFence || !line || line.startsWith('#') || line.length > 500) continue
+    commands.push(line)
+    if (commands.length >= 12) break
+  }
+  return commands
+}
+
+function inferManualInstallOptions(markdownContent: string): SkillInstallOption[] | undefined {
+  const options: SkillInstallOption[] = []
+  // Only infer commands that map to one existing execFile installer without
+  // shell parsing. A leading dash is forbidden to prevent option injection.
+  const safePackage = '[A-Za-z0-9@][A-Za-z0-9@+._~/-]*'
+  for (const command of extractManualInstallCommands(markdownContent)) {
+    let match = new RegExp(`^brew install (${safePackage})$`).exec(command)
+    if (match) {
+      const formula = match[1]
+      options.push({
+        id: `markdown-brew-${options.length + 1}`,
+        kind: 'brew',
+        formula,
+        bins: [formula.split('/').pop()!.split('@')[0]],
+        label: `Install ${formula} (documented in SKILL.md)`,
+        os: ['darwin'],
+      })
+      continue
+    }
+
+    match = new RegExp(`^go install (${safePackage})$`).exec(command)
+    if (match) {
+      const module = match[1]
+      const modulePath = module.split('@')[0]
+      options.push({
+        id: `markdown-go-${options.length + 1}`,
+        kind: 'go',
+        module,
+        bins: [modulePath.split('/').pop()!],
+        label: `Install ${module} (documented in SKILL.md)`,
+      })
+      continue
+    }
+
+    match = new RegExp(`^npm install -g (${safePackage})$`).exec(command)
+    if (match) {
+      options.push({ id: `markdown-npm-${options.length + 1}`, kind: 'npm', package: match[1], label: `Install ${match[1]} (documented in SKILL.md)` })
+      continue
+    }
+
+    match = new RegExp(`^pnpm add -g (${safePackage})$`).exec(command)
+    if (match) {
+      options.push({ id: `markdown-pnpm-${options.length + 1}`, kind: 'pnpm', package: match[1], label: `Install ${match[1]} (documented in SKILL.md)` })
+      continue
+    }
+
+    match = new RegExp(`^uv tool install (${safePackage})$`).exec(command)
+    if (match) {
+      options.push({ id: `markdown-uv-${options.length + 1}`, kind: 'uv', package: match[1], label: `Install ${match[1]} (documented in SKILL.md)` })
+    }
+  }
+  return options.length > 0 ? options : undefined
+}
+
+function buildManualInstallSetup(markdownContent: string): OpenClawSkill['setupRequirements'] | undefined {
+  const commands = extractManualInstallCommands(markdownContent)
+  if (commands.length === 0) return undefined
+
+  return {
+    label: 'Manual install required',
+    message: 'This skill documents installation commands in SKILL.md but does not provide structured OpenClaw installer metadata. Review the upstream instructions before running them.',
+    commands,
+  }
+}
+
 function parseSkillFile(
   filePath: string,
   source: 'bundled' | 'managed' | 'workspace'
 ): OpenClawSkill | null {
   try {
     const content = fs.readFileSync(filePath, 'utf-8')
-    const { data } = matter(content)
+    const { data, content: markdownContent } = matter(content)
 
     if (!data.name) {
       // Silently skip skills without names (common in OpenClaw dev skills)
@@ -1010,8 +1101,14 @@ function parseSkillFile(
     const openclawMeta = data.metadata?.openclaw || {}
 
     const requires = openclawMeta.requires
-    const normalizedInstall = normalizeSkillInstallOptions(data.name, openclawMeta.install)
+    const normalizedInstall = normalizeSkillInstallOptions(
+      data.name,
+      openclawMeta.install || inferManualInstallOptions(markdownContent),
+    )
     const secretRequirements = openclawMeta.secretRequirements || data.secretRequirements || []
+    const declaredSetupRequirements = openclawMeta.setupRequirements || data.setupRequirements
+    const setupRequirements = declaredSetupRequirements
+      || (!normalizedInstall ? buildManualInstallSetup(markdownContent) : undefined)
     return {
       id: source === 'bundled' ? undefined : getSkillDirectoryId(filePath),
       name: data.name,
@@ -1046,7 +1143,7 @@ function parseSkillFile(
       secretRequirements,
       setupRequirements: normalizeSkillSetupRequirements(
         data.name,
-        openclawMeta.setupRequirements || data.setupRequirements,
+        setupRequirements,
         { requires, secretRequirements }
       ),
     }
@@ -1077,8 +1174,14 @@ function parseWorkspaceSkillFile(filePath: string, skillId: string): OpenClawSki
     const openclawMeta = data.metadata?.openclaw || {}
 
     const requires = data.requires || openclawMeta.requires
-    const normalizedInstall = normalizeSkillInstallOptions(name, data.install || openclawMeta.install)
+    const normalizedInstall = normalizeSkillInstallOptions(
+      name,
+      data.install || openclawMeta.install || inferManualInstallOptions(markdownContent),
+    )
     const secretRequirements = data.secretRequirements || openclawMeta.secretRequirements || []
+    const declaredSetupRequirements = data.setupRequirements || openclawMeta.setupRequirements
+    const setupRequirements = declaredSetupRequirements
+      || (!normalizedInstall ? buildManualInstallSetup(markdownContent) : undefined)
     return {
       id: skillId, // Store directory name for deletion
       name,
@@ -1113,7 +1216,7 @@ function parseWorkspaceSkillFile(filePath: string, skillId: string): OpenClawSki
       secretRequirements,
       setupRequirements: normalizeSkillSetupRequirements(
         name,
-        data.setupRequirements || openclawMeta.setupRequirements,
+        setupRequirements,
         { requires, secretRequirements }
       ),
     }

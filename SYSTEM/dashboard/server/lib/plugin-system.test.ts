@@ -15,6 +15,8 @@ import {
   clearPluginTemplateCache,
   deletePluginRecord,
   emitPluginRecordNotification,
+  enforcePluginGuardrails,
+  evaluatePluginGuardrails,
   generatePluginRecordDocument,
   getPluginBySlug,
   getPluginDiagnosticsReport,
@@ -393,13 +395,28 @@ async function run() {
       ['missing-schema-plugin', { apiVersion: 'clawmax.ai/v2' }],
       ['invalid-capability-plugin', { apiVersion: 'clawmax.ai/v2', capabilities: { shell: true }, recordSchema: { type: 'object', properties: {} } }],
       ['invalid-slider-plugin', { apiVersion: 'clawmax.ai/v2', recordSchema: { type: 'object', properties: { budget: { type: 'number', title: 'Budget', control: 'slider' } } } }],
+      ['ungranted-monitor-plugin', {
+        apiVersion: 'clawmax.ai/v2',
+        recordSchema: { type: 'object', properties: {
+          scope: { type: 'string', title: 'Scope' }, targets: { type: 'array', title: 'Targets', items: { type: 'string' } },
+          tokenBudget: { type: 'integer', title: 'Token budget' }, costBudget: { type: 'number', title: 'Cost budget' },
+          tokens: { type: 'integer', title: 'Tokens' }, cost: { type: 'number', title: 'Cost' },
+          state: { type: 'string', title: 'State' }, summary: { type: 'string', title: 'Summary' },
+          last: { type: 'string', title: 'Last' }, next: { type: 'string', title: 'Next' },
+        } },
+        usageMonitoring: { kind: 'metering-budget', intervalMinutes: 15, fields: {
+          scope: 'scope', targetIds: 'targets', tokenBudget: 'tokenBudget', costBudget: 'costBudget',
+          currentTokens: 'tokens', currentCost: 'cost', state: 'state', summary: 'summary',
+          lastAssessedAt: 'last', nextAssessmentAt: 'next',
+        } },
+      }],
     ] as const) {
       const directory = path.join(pluginRoot, slug)
       fs.mkdirSync(directory, { recursive: true })
       fs.writeFileSync(path.join(directory, 'clawmax-plugin.json'), JSON.stringify({ ...baseManifest, ...extra, id: slug, slug }, null, 2), 'utf-8')
     }
     process.env.CLAWMAX_PLUGIN_PATHS = pluginRoot
-    process.env.CLAWMAX_ENABLED_PLUGINS = 'future-version-plugin,missing-schema-plugin,invalid-slider-plugin'
+    process.env.CLAWMAX_ENABLED_PLUGINS = 'future-version-plugin,missing-schema-plugin,invalid-slider-plugin,ungranted-monitor-plugin'
     assert.deepStrictEqual(listConfiguredPlugins(), [], 'Expected incompatible manifests to be excluded')
 
     fs.rmSync(pluginRoot, { recursive: true, force: true })
@@ -470,7 +487,7 @@ async function run() {
     }
   })
 
-  await test('guardrail plugin records persist, generate docs, and emit notifications', () => {
+  await test('guardrail plugin records persist, enforce outbound email, generate docs, and emit notifications', () => {
     const plugin = getPluginBySlug('plugin-guardrails')
     assert(plugin, 'Expected guardrails test plugin manifest to load')
 
@@ -499,6 +516,19 @@ async function run() {
     assert.strictEqual(listPluginRecords(plugin!).length, 1, 'Expected created guardrail to persist')
     const guardrailItemFiles = fs.readdirSync(path.join(tempWorkspace, `SYSTEM/plugins/${plugin!.slug}/items`))
     assert(guardrailItemFiles.some((file) => /^no-outbound-send-[a-z0-9]{8}\.md$/.test(file)), 'Expected readable unique guardrail item file on disk')
+
+    const decision = evaluatePluginGuardrails({ operation: 'outbound-email', agentId: 'analyst' })
+    assert.strictEqual(decision.allowed, false, 'Expected outbound email to be denied for the targeted agent')
+    assert(decision.guardrails.some((entry) => entry.itemId === created.id), 'Expected denial to identify the enforcing guardrail')
+    assert.throws(
+      () => enforcePluginGuardrails({ operation: 'outbound-email', agentId: 'analyst' }),
+      /Outbound email blocked for agent analyst/,
+      'Expected active no-email guardrail to fail closed',
+    )
+    const enforced = listPluginRecords(plugin!).find((record) => record.id === created.id)
+    assert(enforced && 'history' in enforced && enforced.history[0]?.action === 'blocked', 'Expected blocked attempt evidence in guardrail history')
+    assert(getActiveNotifications().some((notification) => notification.entityId === created.id && notification.title.includes('outbound email blocked')), 'Expected blocked attempt notification')
+    assert.strictEqual(evaluatePluginGuardrails({ operation: 'outbound-email', agentId: 'other-agent' }).allowed, true, 'Expected unrelated agents to remain allowed')
 
     const archived = upsertPluginRecord(plugin!, { ...created, archived: true } as any)
     assert.strictEqual(archived.archived, true, 'Expected archive flag to persist on plugin records')

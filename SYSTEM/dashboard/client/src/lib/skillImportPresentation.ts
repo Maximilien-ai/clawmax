@@ -12,3 +12,26 @@ export const LOCAL_SKILL_IMPORT_GUIDANCE = [
 export function shouldShowLocalSkillRuntimeBrowseButton() {
   return false
 }
+
+type SkillImportResult = {
+  ok?: boolean
+  skillId?: unknown
+}
+
+export function getSuccessfulImportedSkillIds(payload: {
+  skillId?: unknown
+  skills?: unknown
+}): string[] {
+  const candidates = Array.isArray(payload.skills)
+    ? payload.skills
+        .filter((entry): entry is SkillImportResult => !!entry && typeof entry === 'object' && (entry as SkillImportResult).ok !== false)
+        .map((entry) => entry.skillId)
+    : [payload.skillId]
+
+  return Array.from(new Set(
+    candidates
+      .filter((value): value is string => typeof value === 'string')
+      .map((value) => value.trim())
+      .filter(Boolean)
+  ))
+}

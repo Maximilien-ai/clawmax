@@ -230,7 +230,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
   const [docEntries, setDocEntries] = useState<DocEntryRef[]>([])
   const [attachments, setAttachments] = useState<ChatAttachment[]>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
   const sendButtonRef = useRef<HTMLButtonElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -1333,7 +1333,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
               ))}
             </div>
           )}
-          <div className="flex gap-2">
+          <div className="flex items-end gap-2">
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
@@ -1372,9 +1372,9 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
                 </svg>
               )}
             </button>
-            <input
+            <textarea
               ref={inputRef}
-              type="text"
+              rows={2}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {
@@ -1388,6 +1388,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
                     onClose()
                   }
                 } else if (e.key === 'ArrowUp') {
+                  if (input.includes('\n')) return
                   e.preventDefault()
                   if (inputHistory.length > 0) {
                     const newIndex = historyIndex === -1
@@ -1397,6 +1398,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
                     setInput(inputHistory[newIndex])
                   }
                 } else if (e.key === 'ArrowDown') {
+                  if (input.includes('\n')) return
                   e.preventDefault()
                   if (historyIndex !== -1) {
                     const newIndex = historyIndex + 1
@@ -1410,9 +1412,9 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
                   }
                 }
               }}
-              placeholder={isListening ? "Listening..." : "Type, speak, or attach files... (Enter to send)"}
+              placeholder={isListening ? "Listening..." : "Type, speak, or attach files... (Enter to send, Shift+Enter for a new line)"}
               disabled={sending || streaming || !gatewayAvailable || isListening || !chatEnabled}
-              className="flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm disabled:bg-gray-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-900"
+              className="min-h-11 max-h-32 min-w-0 flex-1 resize-y px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm disabled:bg-gray-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-900"
             />
             {streaming ? (
               <button

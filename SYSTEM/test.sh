@@ -1046,6 +1046,15 @@ else
   fail "Plugin system contract unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Plugin usage monitor unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/plugin-usage-monitor.test.ts > /tmp/clawmax-plugin-usage-monitor.out 2>&1 || true
+if grep -q "plugin-usage-monitor.test.ts: 18 assertions passed" /tmp/clawmax-plugin-usage-monitor.out; then
+  pass "Plugin usage monitor unit tests (18 assertions)"
+else
+  cat /tmp/clawmax-plugin-usage-monitor.out
+  fail "Plugin usage monitor unit tests"
+fi
+
 echo ""
 echo -e "${YELLOW}→ Running Plugin routes contract unit tests...${NC}"
 npx ts-node --transpileOnly server/routes/plugins.test.ts > /tmp/clawmax-plugin-routes.out 2>&1 || true
@@ -2064,6 +2073,15 @@ else
   fail "Apply organization template flow smoke tests"
 fi
 
+echo -e "${YELLOW}→ Running Template apply progress unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/templateApplyProgress.test.ts > /tmp/clawmax-template-apply-progress.out 2>&1 || true
+if grep -q "templateApplyProgress.test.ts: 10 tests passed" /tmp/clawmax-template-apply-progress.out; then
+  pass "Template apply progress unit tests (10 tests)"
+else
+  cat /tmp/clawmax-template-apply-progress.out
+  fail "Template apply progress unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Template apply readiness helper unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/templateApplyReadiness.test.ts > /tmp/clawmax-template-apply-readiness.out 2>&1 || true
 if grep -q "templateApplyReadiness.test.ts: ok" /tmp/clawmax-template-apply-readiness.out; then
@@ -2199,8 +2217,8 @@ fi
 
 echo -e "${YELLOW}→ Running instance branding tests...${NC}"
 npx ts-node --transpileOnly client/src/InstanceBranding.test.ts > /tmp/clawmax-instance-branding.out 2>&1 || true
-if grep -q "InstanceBranding.test.ts: 12 assertions passed" /tmp/clawmax-instance-branding.out; then
-  pass "Instance branding tests (12 assertions)"
+if grep -q "InstanceBranding.test.ts: 13 assertions passed" /tmp/clawmax-instance-branding.out; then
+  pass "Instance branding tests (13 assertions)"
 else
   cat /tmp/clawmax-instance-branding.out
   fail "Instance branding tests"
@@ -2610,8 +2628,8 @@ fi
 echo -e "${YELLOW}→ Running Tenant resource limit unit tests...${NC}"
 tenant_resource_limits_output="$(npx ts-node --transpileOnly server/lib/tenant-resource-limits.test.ts 2>&1 || true)"
 printf '%s\n' "$tenant_resource_limits_output" > /tmp/clawmax-tenant-resource-limits.out
-if printf '%s\n' "$tenant_resource_limits_output" | grep -q "8 assertions passed"; then
-  pass "Tenant resource limit unit tests (8 assertions)"
+if printf '%s\n' "$tenant_resource_limits_output" | grep -q "11 assertions passed"; then
+  pass "Tenant resource limit unit tests (11 assertions)"
 else
   cat /tmp/clawmax-tenant-resource-limits.out
   fail "Tenant resource limit unit tests"
@@ -3052,6 +3070,16 @@ else
 fi
 
 echo ""
+echo -e "${YELLOW}→ Running Enterprise session bootstrap tests...${NC}"
+npx ts-node --transpileOnly server/lib/session-bootstrap.test.ts > /tmp/clawmax-session-bootstrap.out 2>&1 || true
+if grep -q "session-bootstrap.test.ts: 13 tests passed" /tmp/clawmax-session-bootstrap.out; then
+  pass "Enterprise session bootstrap tests (13 tests)"
+else
+  cat /tmp/clawmax-session-bootstrap.out
+  fail "Enterprise session bootstrap tests"
+fi
+
+echo ""
 echo -e "${YELLOW}→ Running Auth / OTP unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/github-auth.test.ts > /tmp/clawmax-github-auth.out 2>&1 || true
 if grep -q "All tests passed" /tmp/clawmax-github-auth.out; then
@@ -3180,8 +3208,8 @@ fi
 
 echo -e "${YELLOW}→ Running Workflow lifecycle safety tests...${NC}"
 npx ts-node --transpileOnly client/src/WorkflowLifecycleSafety.test.ts > /tmp/clawmax-workflow-lifecycle-safety.out 2>&1 || true
-if grep -q "WorkflowLifecycleSafety.test.ts: 5 assertions passed" /tmp/clawmax-workflow-lifecycle-safety.out; then
-  pass "Workflow lifecycle safety tests (5 assertions)"
+if grep -q "WorkflowLifecycleSafety.test.ts: 11 assertions passed" /tmp/clawmax-workflow-lifecycle-safety.out; then
+  pass "Workflow lifecycle safety tests (11 assertions)"
 else
   cat /tmp/clawmax-workflow-lifecycle-safety.out
   fail "Workflow lifecycle safety tests"
@@ -3292,6 +3320,15 @@ else
   fail "Chat normalization unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Streaming warning filter regression tests...${NC}"
+npx ts-node --transpileOnly server/lib/streaming-warning-filter.test.ts > /tmp/clawmax-streaming-warning-filter.out 2>&1 || true
+if grep -q "10 passed, 0 failed" /tmp/clawmax-streaming-warning-filter.out; then
+  pass "Streaming warning filter regression tests (10 tests)"
+else
+  cat /tmp/clawmax-streaming-warning-filter.out
+  fail "Streaming warning filter regression tests"
+fi
+
 echo -e "${YELLOW}→ Running Chat process safety unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/chat-process-safety.test.ts > /tmp/clawmax-chat-process-safety.out 2>&1 || true
 if grep -Eq "chat-process-safety.test.ts: (15|17) assertions passed" /tmp/clawmax-chat-process-safety.out; then
@@ -3309,6 +3346,15 @@ if grep -q "AgentChatStreamSafety.test.ts: 8 assertions passed" /tmp/clawmax-age
 else
   cat /tmp/clawmax-agent-chat-stream-safety.out
   fail "Agent chat stream safety tests"
+fi
+
+echo -e "${YELLOW}→ Running Chat composer multiline regression tests...${NC}"
+npx ts-node --transpileOnly client/src/ChatComposerMultiline.test.ts > /tmp/clawmax-chat-composer-multiline.out 2>&1 || true
+if grep -q "ChatComposerMultiline.test.ts: 11 assertions passed" /tmp/clawmax-chat-composer-multiline.out; then
+  pass "Chat composer multiline regression tests (11 assertions)"
+else
+  cat /tmp/clawmax-chat-composer-multiline.out
+  fail "Chat composer multiline regression tests"
 fi
 
 echo ""

@@ -509,7 +509,7 @@ test('normalizePluginDiagnosticsReport filters malformed entries and recomputes 
     hostApiVersion: 'clawmax.ai/v2',
     roots: ['/plugins', 42],
     diagnostics: [
-      { status: 'loaded', pluginId: 'notes', name: 'Notes', path: '/plugins/notes', message: 'Loaded', capabilities: ['docs', 'unknown', 'agents'] },
+      { status: 'loaded', pluginId: 'notes', name: 'Notes', path: '/plugins/notes', message: 'Loaded', capabilities: ['docs', 'unknown', 'agents', 'metering'] },
       { status: 'missing', pluginId: 'mail', path: '', message: 'Not mounted', remediation: 'Mount it' },
       { status: 'unknown', pluginId: 'ignored' },
       null,
@@ -519,12 +519,12 @@ test('normalizePluginDiagnosticsReport filters malformed entries and recomputes 
   assert(report.roots.length === 1 && report.roots[0] === '/plugins', 'Expected malformed roots to be filtered')
   assert(report.diagnostics.length === 2, 'Expected unknown diagnostics to be filtered')
   assert(report.summary.loaded === 1 && report.summary.missing === 1, 'Expected status counts to be recomputed')
-  assert(report.diagnostics[0].capabilities.join(',') === 'docs,agents', 'Expected known grants in stable display order')
+  assert(report.diagnostics[0].capabilities.join(',') === 'docs,agents,metering', 'Expected known grants in stable display order')
 })
 
 test('getPluginGrantedCapabilities reports only enabled grants in stable order', () => {
-  const plugin = { capabilities: { communications: true, docs: true, agents: false } } as any
-  assert(getPluginGrantedCapabilities(plugin).join(',') === 'docs,communications', 'Expected enabled capability grants only')
+  const plugin = { capabilities: { communications: true, docs: true, agents: false, metering: true } } as any
+  assert(getPluginGrantedCapabilities(plugin).join(',') === 'docs,communications,metering', 'Expected enabled capability grants only')
 })
 
 test('normalizePluginNavOrder keeps release order, resets stale inventory, and preserves complete browser order', () => {

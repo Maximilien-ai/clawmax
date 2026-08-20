@@ -6,6 +6,7 @@ import {
   resolveWorkspaceEmailAttachments,
   sendResendTestEmail,
 } from './resend-partner'
+import { enforcePluginGuardrails } from './plugin-system'
 
 export type ClawmaxResendSendOptions = {
   to: string
@@ -115,11 +116,15 @@ export async function executeClawmaxResendSend(
     sendEmail?: typeof sendResendTestEmail
     resolveAttachments?: typeof resolveWorkspaceEmailAttachments
     getApiKey?: typeof getWorkspaceResendApiKey
+    enforceGuardrails?: typeof enforcePluginGuardrails
   },
 ): Promise<{ message: string; id?: string }> {
   const sendEmail = deps?.sendEmail || sendResendTestEmail
   const resolveAttachments = deps?.resolveAttachments || resolveWorkspaceEmailAttachments
   const getApiKey = deps?.getApiKey || getWorkspaceResendApiKey
+  const enforceGuardrails = deps?.enforceGuardrails || enforcePluginGuardrails
+
+  enforceGuardrails({ operation: 'outbound-email', agentId: options.agentId })
 
   const apiKey = getApiKey()
   if (!apiKey) {

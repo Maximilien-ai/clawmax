@@ -18,12 +18,12 @@ import { getSkillSetupHint, maybeWarnSkillSetup, supportsDashboardInteractiveSki
 import { collectSkillTags, matchesSelectedSkillTags } from '../lib/skillTags'
 import { buildAgentSkillsScope, buildAssignedSkillBadges } from '../lib/agentSkillsScope'
 import { getRegistrySkillCompatibility, normalizeRuntimePlatform, type RuntimePlatform } from '../lib/skillPlatform'
-import { getDashboardInstallRequirementCommands } from '../lib/skillInstall'
+import { getDashboardInstallRequirementCommands, getPendingSkillRequirementInstall } from '../lib/skillInstall'
 import { buildSkillExportFilename, getSelectedSkillForExport } from '../lib/skillExport'
 import { combineRegistrySearchResponses, normalizeRegistrySearchResponse, type SkillRegistryProvider } from '../lib/registrySearch'
 import { buildRegistryCompatibilityNote, buildSkillsPageCountLabel, partitionSkillsBySection } from '../lib/skillsPageFlow'
 import { getViewportSafeDropdownStyle } from '../lib/dropdownPosition'
-import { LOCAL_SKILL_IMPORT_GUIDANCE, LOCAL_SKILL_IMPORT_PATH_PLACEHOLDER } from '../lib/skillImportPresentation'
+import { getSuccessfulImportedSkillIds, LOCAL_SKILL_IMPORT_GUIDANCE, LOCAL_SKILL_IMPORT_PATH_PLACEHOLDER } from '../lib/skillImportPresentation'
 import { useAuth } from '../contexts/AuthContext'
 import { expandPromptWithAI } from '../lib/aiPrompt'
 import {
@@ -793,8 +793,13 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
     }
   }
 
-  async function fetchSkillsByNames(skillNames: string[]): Promise<OpenClawSkill[]> {
-    const uniqueNames = Array.from(new Set(skillNames.map((name) => name.trim()).filter(Boolean)))
+  async function fetchSkillsByNames(skillNames: Array<string | null | undefined>): Promise<OpenClawSkill[]> {
+    const uniqueNames = Array.from(new Set(
+      skillNames
+        .filter((name): name is string => typeof name === 'string')
+        .map((name) => name.trim())
+        .filter(Boolean)
+    ))
     if (uniqueNames.length === 0) return []
 
     const resolved = await Promise.all(uniqueNames.map(async (skillName) => {
@@ -810,9 +815,14 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
     return resolved.filter((skill): skill is OpenClawSkill => !!skill)
   }
 
-  async function warnForSkillSetupByNames(skillNames: string[]) {
+  async function warnForSkillSetupByNames(skillNames: Array<string | null | undefined>) {
     const resolvedSkills = await fetchSkillsByNames(skillNames)
     if (resolvedSkills.length > 0) {
+      const installableSkill = getPendingSkillRequirementInstall(resolvedSkills, runtimePlatform)
+      if (installableSkill) {
+        openInstallRequirementsModal(installableSkill)
+        return
+      }
       maybeWarnSkillSetup(showWarning, resolvedSkills)
       return
     }
@@ -999,11 +1009,12 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
         if (data.warning) {
           showWarning(data.warning)
         }
-        // Handle multi-skill import response
-        if (data.total && data.total > 1) {
+        const importedSkillNames = getSuccessfulImportedSkillIds(data)
+        // Repositories with a skills/ directory return this shape even when
+        // they contain exactly one skill.
+        if (Array.isArray(data.skills)) {
           const failed = data.skills?.filter((s: any) => !s.ok) || []
           const warnings = data.skills?.filter((s: any) => s.warning).map((s: any) => s.warning) || []
-          const importedSkillNames = data.skills?.filter((s: any) => s.ok).map((s: any) => s.skillId).filter(Boolean) || []
           if ((data.imported || 0) === 0 && (data.existing || 0) > 0) {
             showSuccess(`${data.existing}/${data.total} skills already installed`)
           } else {
@@ -1020,7 +1031,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
           }
         } else {
           showSuccess(`Imported skill: ${data.skillId}`)
-          await warnForSkillSetupByNames([data.skillId])
+          await warnForSkillSetupByNames(importedSkillNames)
         }
       } else {
         setError(data.error || 'Failed to import skill')

@@ -18,14 +18,13 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 
 ## 🛠 Current Development Line: 2.0.0
 
-- `main` now carries the public `clawmax.ai/v2` plugin platform. A plugin can contribute any combination of pages, APIs, data, actions, jobs, events, settings, skills, providers, docs, and extension points; guardrails and evaluations are implementations, not host-level plugin types.
-- Public and private plugins use the same generic contract. Private enterprise integrations can add organization-specific tabs and capabilities without being bundled in the public repository or default image.
-- Lifecycle and Review are the public product plugins in the current 2.0 phase. Lifecycle provides a read-only deep view of one agent or workflow; Review keeps release validation organized and exportable. Evals, Guardrails, and Optimize are private enterprise plugins distributed only through the private combined image. `PLUGINS/test/plugin-*` directories are synthetic contract fixtures, not private product source.
+- `main` now carries the public `clawmax.ai/v2` plugin platform. A plugin can contribute pages, APIs, data, actions, jobs, events, settings, skills, providers, docs, and extension points through one domain-neutral host contract.
+- Lifecycle and Review are the public product plugins in the current 2.0 phase. Lifecycle provides a read-only deep view of agents, workflows, groups, and communities; Review keeps release validation organized and exportable. `PLUGINS/test/plugin-*` directories are synthetic host-contract fixtures and are never shown in the plugin manager.
 - Public 2.0 products include AI scoring, the Lifecycle and Review plugins, curated Gmail and Microsoft 365/Outlook integrations, and a consent-gated Activity Export contract for partner event integrations such as Digo. Activity export is off by default, visibly names its destination, and never blocks agent execution on remote delivery.
-- See the public [model-fit plan](SYSTEM/docs/planning/PUBLIC_MODEL_FIT_2_0.md) for recommendation limits, capability evidence, Eval comparison, Optimize integration, and remaining release gates.
+- See the public [model-fit plan](SYSTEM/docs/planning/PUBLIC_MODEL_FIT_2_0.md) for recommendation limits, capability evidence, and remaining public release gates.
 - See the public [models, gateways, and email partner plan](SYSTEM/docs/planning/PUBLIC_MODELS_GATEWAYS_EMAIL_2_0.md) for the research, security rules, shipped provider decisions, and 2.0 test gates.
 - See the public [Lifecycle plugin plan](SYSTEM/docs/planning/PUBLIC_LIFECYCLE_PLUGIN_2_0.md) for the read-only agent/workflow inspection surface and delivery phases.
-- See the public [2.0 plugin architecture plan](SYSTEM/docs/planning/PUBLIC_PLUGIN_ARCHITECTURE_2_0.md) for the generic contribution-based contract. Guardrails and evaluations are plugin implementations, not fixed plugin types.
+- See the public [2.0 plugin architecture plan](SYSTEM/docs/planning/PUBLIC_PLUGIN_ARCHITECTURE_2_0.md) for the generic contribution-based host contract.
 - See the public [Activity Export and partner ingestion plan](SYSTEM/docs/planning/PUBLIC_ACTIVITY_EXPORT_PARTNERS_2_0.md) for consent, data scope, redaction, batching, the ClawMax.ai reference receiver, and the proposed Digo API contract.
 
 ## ✨ 1.9.x Highlights
@@ -435,9 +434,11 @@ SYSTEM_OPENAI_API_KEY=sk-your-system-key
 | `CORS_ORIGIN` | Frontend app origin | Required for local/proxied OAuth correctness |
 | `DASHBOARD_APP_URL` | Frontend redirect target after login/logout | Optional but recommended |
 | `DASHBOARD_INSTANCE_LABEL` | Optional top-left instance label like `Cloud`, `On-Prem`, `Prod`, or `Staging` | Optional; local/native runs default to `Dev` |
-| `CLAWMAX_MAX_WORKSPACES` | Maximum workspaces registered by one tenant | Cloud default: `1`; otherwise unlimited |
-| `CLAWMAX_MAX_AGENTS_PER_WORKSPACE` | Maximum agents in the active workspace | Cloud default: `10`; otherwise unlimited |
-| `CLAWMAX_MAX_WORKFLOWS_PER_WORKSPACE` | Maximum workflows in the active workspace | Cloud default: `10`; otherwise unlimited |
+| `CLAWMAX_MAX_WORKSPACES` | Maximum workspaces registered by one tenant | Optional; unlimited when omitted |
+| `CLAWMAX_MAX_AGENTS_PER_WORKSPACE` | Maximum agents in the active workspace | Optional; unlimited when omitted |
+| `CLAWMAX_MAX_WORKFLOWS_PER_WORKSPACE` | Maximum workflows in the active workspace | Optional; unlimited when omitted |
+| `CLAWMAX_RESOURCE_LIMIT_UPGRADE_MESSAGE` | Optional limit-reached copy; supports `{resource}`, `{current}`, and `{limit}` placeholders | Optional; generic public error when omitted |
+| `CLAWMAX_RESOURCE_LIMIT_UPGRADE_URL` | Optional HTTP(S) destination returned with limit errors | Optional |
 
 For a standard Enterprise tenant, use:
 
@@ -448,7 +449,7 @@ CLAWMAX_MAX_AGENTS_PER_WORKSPACE=10
 CLAWMAX_MAX_WORKFLOWS_PER_WORKSPACE=10
 ```
 
-Cloud deployments receive those limits even when the three `CLAWMAX_MAX_*` variables are omitted. Local and on-prem deployments remain unlimited unless a limit is explicitly set, and `0` disables creation of that resource. Creation and import endpoints return HTTP `409` with code `TENANT_RESOURCE_LIMIT_REACHED` when a limit is reached. Effective limits are available from `/api/auth/config` under `resourceLimits`.
+All deployments, including cloud and on-prem, remain unlimited unless a `CLAWMAX_MAX_*` limit is explicitly set. `0` disables creation of that resource. Creation and import endpoints return HTTP `409` with code `TENANT_RESOURCE_LIMIT_REACHED` when a limit is reached. Effective limits and optional presentation configuration are available from `/api/auth/config` under `resourceLimits` and `resourceLimitConfig`. Product-specific upgrade copy and destinations belong in deployment configuration rather than this public repository.
 
 Without system keys, the dashboard may still boot, but system-generated flows such as agent/workflow generation will be limited. Without user keys, end-user agents should eventually rely on BYOK capture after login.
 
