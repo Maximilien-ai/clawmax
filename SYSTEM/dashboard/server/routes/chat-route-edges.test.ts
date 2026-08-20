@@ -679,6 +679,12 @@ async function run() {
               }, async () => {
                 let call = 0
                 await withModuleOverrides(agentRuntimeModulePath, {
+                  buildRuntimePlan: () => ({
+                    cliPath: '/fake/bin/droid',
+                    args: ['exec', ''],
+                    missingCliError: 'unused',
+                    streamsDeltas: false,
+                  }),
                   // chat.ts now depends on executeAgentRuntimeTurn(), which builds the plan and
                   // calls runRuntimeCli() internally — overriding those two no longer intercepts,
                   // so stub the seam chat.ts actually calls. onPlan() is what arms the watchdog
