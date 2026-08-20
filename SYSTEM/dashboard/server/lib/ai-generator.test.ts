@@ -11,6 +11,7 @@ import {
   buildFallbackPromptExpansion,
   TEMPLATE_GENERATION_TIMEOUT_MS,
   buildResolvedModelRequestOptions,
+  createAiGenerationClient,
   createChatCompletionWithCompatibilityRetry,
   ensureGeneratedCompanyRoot,
   enforceVisibleCompanyWorkflowChain,
@@ -149,6 +150,16 @@ test('validateAiGenerationProviderKeys rejects provider mismatches with a clear 
   )
 })
 
+test('validateAiGenerationProviderKeys accepts Gemini developer keys and rejects OpenAI keys in the Gemini field', () => {
+  assert.doesNotThrow(() => validateAiGenerationProviderKeys({
+    gemini: 'AIza123456789012345678901234567890',
+  } as any))
+  assert.throws(
+    () => validateAiGenerationProviderKeys({ gemini: 'sk-openai-key-value-1234567890' } as any),
+    /OpenAI key, not a Gemini developer API key/i,
+  )
+})
+
 test('resolveOpenAiCompatibleGenerationDefaults falls back to workspace integrations', () => {
   const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-ai-generator-'))
   const originalHome = process.env.HOME
@@ -183,6 +194,10 @@ test('resolveSystemGenerationModelForProvider applies system preferred model whe
     'claude-opus-4-6',
   )
   assert.strictEqual(
+    resolveSystemGenerationModelForProvider('gemini', 'google/gemma-4-31b-it', 'claude-sonnet-4-20250514'),
+    'gemma-4-31b-it',
+  )
+  assert.strictEqual(
     resolveSystemGenerationModelForProvider('openai-compatible', 'openai/gpt-5', 'claude-sonnet-4-20250514'),
     undefined,
   )
@@ -195,6 +210,14 @@ test('resolveSystemGenerationModelForProvider ignores unsupported or mismatched 
   )
   assert.strictEqual(
     resolveSystemGenerationModelForProvider('anthropic', 'custom/model', 'claude-sonnet-4-20250514'),
+    undefined,
+  )
+  assert.strictEqual(
+    resolveSystemGenerationModelForProvider('gemini', 'google/gemma-4-31b-qat', 'claude-sonnet-4-20250514'),
+    undefined,
+  )
+  assert.strictEqual(
+    resolveSystemGenerationModelForProvider('gemini', 'openai/gpt-5.4', 'claude-sonnet-4-20250514'),
     undefined,
   )
 })
@@ -219,6 +242,23 @@ test('buildResolvedModelRequestOptions uses max_completion_tokens for GPT-5 and 
   assert.strictEqual(gpt4o.max_tokens, 222)
   assert.strictEqual(gpt4o.max_completion_tokens, undefined)
   setRequestByokKeys(undefined)
+})
+
+test('buildResolvedModelRequestOptions selects Gemini when a Gemini BYOK key is provided', () => {
+  setRequestByokKeys({ gemini: 'AIza123456789012345678901234567890' } as any)
+  const options = buildResolvedModelRequestOptions('gpt-4o', 222)
+  assert.strictEqual(options.model, 'gemini-2.5-flash')
+  assert.strictEqual(options.max_tokens, 222)
+  assert.strictEqual(options.max_completion_tokens, undefined)
+  setRequestByokKeys(undefined)
+})
+
+test('createAiGenerationClient targets the official Gemini OpenAI-compatible endpoint', () => {
+  const { client, model } = createAiGenerationClient({
+    gemini: 'AIza123456789012345678901234567890',
+  } as any)
+  assert.strictEqual(client.baseURL, 'https://generativelanguage.googleapis.com/v1beta/openai/')
+  assert.strictEqual(model, 'gemini-2.5-flash')
 })
 
 test('createChatCompletionWithCompatibilityRetry retries unsupported max_tokens errors with max_completion_tokens', async () => {

@@ -516,6 +516,36 @@ async function run() {
     }
   })
 
+  await test('generate reports provider-neutral timeout guidance', async () => {
+    const aiGeneratorPath = require.resolve('../lib/ai-generator')
+    delete require.cache[aiGeneratorPath]
+    const aiGenerator = require('../lib/ai-generator')
+    const originalGenerateAgentMeta = aiGenerator.generateAgentMeta
+
+    aiGenerator.generateAgentMeta = async () => {
+      throw new Error('AI request timed out after 45000ms')
+    }
+
+    try {
+      const handler = getRouteHandler('post', '/generate')
+      const res = makeRes()
+      await handler(makeReq({
+        body: {
+          description: 'create a daily reasoning assistant',
+          suggestMeta: true,
+          byokKeys: { gemini: 'AIza123456789012345678901234567890' },
+        },
+      }), res)
+
+      assert.strictEqual(res.statusCode, 500, 'Expected timeout to return HTTP 500')
+      assert(/configured provider/i.test(res.jsonBody?.error || ''), `Expected provider-neutral timeout, got: ${res.jsonBody?.error || 'missing'}`)
+      assert(!/GPT-5|gpt-4\.1/i.test(res.jsonBody?.error || ''), 'Timeout guidance must not blame an unrelated model provider')
+    } finally {
+      aiGenerator.generateAgentMeta = originalGenerateAgentMeta
+      delete require.cache[require.resolve('./agents')]
+    }
+  })
+
   await test('provision returns a structured tenant agent limit conflict', async () => {
     const previous = process.env.CLAWMAX_MAX_AGENTS_PER_WORKSPACE
     process.env.CLAWMAX_MAX_AGENTS_PER_WORKSPACE = '0'

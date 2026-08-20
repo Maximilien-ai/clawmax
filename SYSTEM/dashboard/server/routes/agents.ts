@@ -189,7 +189,7 @@ function summarizeAiGenerationError(error: unknown): string {
   }
 
   if (/timed out after/i.test(message)) {
-    return 'AI generation timed out. GPT-5 may be unreachable or too slow right now. Try again, or switch the built-in/system generation model to gpt-4.1.'
+    return 'AI generation timed out while contacting the configured provider. Try again, verify the provider key and system generation model, or choose a faster model.'
   }
 
   return message || 'AI generation failed.'
@@ -628,7 +628,7 @@ router.post('/generate', async (req, res) => {
     const message = summarizeAiGenerationError(err)
     if (/No API key configured/i.test(message)) {
       return res.status(400).json({
-        error: 'AI generation needs a configured OpenAI, Anthropic, or OpenAI-compatible setup, or a shared preferred model. Open Workspaces Integrations or Keys & Secrets first.',
+        error: 'AI generation needs a configured OpenAI, Anthropic, Gemini, or OpenAI-compatible setup, or a shared preferred model. Open Workspaces Integrations or Keys & Secrets first.',
       })
     }
     if (/developer API key|subscription or app credentials|does not look like/i.test(message)) {

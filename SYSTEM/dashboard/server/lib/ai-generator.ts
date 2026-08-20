@@ -4,7 +4,7 @@ import { getPreferredAnthropicModel } from './model-discovery'
 import { getBestAvailableModel } from './dashboard-env'
 import { readWorkspaceIntegrationConfig } from './workspace-integrations'
 
-type AIProvider = 'openai' | 'openai-compatible' | 'anthropic'
+type AIProvider = 'openai' | 'openai-compatible' | 'anthropic' | 'gemini'
 export type TemplateGenerationTarget = 'agent' | 'team' | 'company'
 export type PromptExpansionTarget = 'agent' | 'workflow' | 'skill' | 'template'
 export type PromptExpansionFormat = 'markdown' | 'text'
@@ -72,7 +72,7 @@ export function validateAiGenerationProviderKeys(byokKeys?: ProviderKeys): void 
     gemini: 'Gemini',
   } as const
 
-  const hostedProviders: Array<keyof Pick<ProviderKeys, 'openai' | 'anthropic'>> = ['openai', 'anthropic']
+  const hostedProviders: Array<keyof Pick<ProviderKeys, 'openai' | 'anthropic' | 'gemini'>> = ['openai', 'anthropic', 'gemini']
   for (const provider of hostedProviders) {
     const raw = String(byokKeys[provider] || '').trim()
     if (!raw) continue
@@ -82,7 +82,11 @@ export function validateAiGenerationProviderKeys(byokKeys?: ProviderKeys): void 
       throw new Error(`This looks like a ${labels[detected]} key, not a ${labels[provider]} developer API key.`)
     }
 
-    const expectedPrefix = provider === 'openai' ? /^sk-/i : /^sk-ant-/i
+    const expectedPrefix = provider === 'openai'
+      ? /^sk-/i
+      : provider === 'anthropic'
+        ? /^sk-ant-/i
+        : /^AIza[0-9A-Za-z\-_]{20,}$/i
     if (!expectedPrefix.test(raw)) {
       if (looksLikeSubscriptionCredential(raw)) {
         throw new Error(`${labels[provider]} subscription or app credentials cannot be used here. Use a ${labels[provider]} developer API key instead.`)
@@ -446,6 +450,7 @@ function getAvailableProvider(byokKeys?: ProviderKeys): { provider: AIProvider; 
     }
   }
   if (byokKeys?.anthropic) return { provider: 'anthropic', key: byokKeys.anthropic }
+  if (byokKeys?.gemini) return { provider: 'gemini', key: byokKeys.gemini }
   // Then system/user-default keys
   const keys = resolveSystemExecutionProviderKeys()
   if (keys.openai) return { provider: 'openai', key: keys.openai }
@@ -458,10 +463,11 @@ function getAvailableProvider(byokKeys?: ProviderKeys): { provider: AIProvider; 
     }
   }
   if (keys.anthropic) return { provider: 'anthropic', key: keys.anthropic }
-  throw new Error('No API key configured. Set SYSTEM_OPENAI_API_KEY or SYSTEM_ANTHROPIC_API_KEY in .env, or provide a BYOK key.')
+  if (keys.gemini) return { provider: 'gemini', key: keys.gemini }
+  throw new Error('No API key configured. Set SYSTEM_OPENAI_API_KEY, SYSTEM_ANTHROPIC_API_KEY, or SYSTEM_GEMINI_API_KEY in .env, or provide a BYOK key.')
 }
 
-function getAIClient(byokKeys?: ProviderKeys): { client: OpenAI; model: string } {
+export function createAiGenerationClient(byokKeys?: ProviderKeys): { client: OpenAI; model: string } {
   const { provider, key, baseUrl, defaultModel } = getAvailableProvider(byokKeys)
   if (provider === 'anthropic') {
     // Use Anthropic's OpenAI-compatible endpoint
@@ -472,6 +478,16 @@ function getAIClient(byokKeys?: ProviderKeys): { client: OpenAI; model: string }
         defaultHeaders: { 'anthropic-version': '2023-06-01' },
       }),
       model: getPreferredAnthropicGenerationModel(),
+    }
+  }
+  if (provider === 'gemini') {
+    return {
+      client: new OpenAI({
+        apiKey: key,
+        baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
+        defaultHeaders: { 'x-goog-api-client': 'clawmax-openai-compat/2.0.0' },
+      }),
+      model: resolveModel('gemini-2.5-flash'),
     }
   }
   if (provider === 'openai-compatible') {
@@ -501,7 +517,7 @@ export function setRequestByokKeys(keys: ProviderKeys | undefined) {
 }
 
 function currentClient(): { client: OpenAI; model: string } {
-  return getAIClient(_requestByokKeys)
+  return createAiGenerationClient(_requestByokKeys)
 }
 
 export async function answerBuilderQuestionWithAI(input: {
@@ -551,6 +567,13 @@ export function resolveSystemGenerationModelForProvider(
     return undefined
   }
 
+  if (provider === 'gemini') {
+    const model = trimmed.replace(/^(?:google|gemini)\//, '')
+    if (model.startsWith('gemini-')) return model
+    if (/^gemma-\d[0-9a-z.-]*-it$/i.test(model)) return model
+    return undefined
+  }
+
   if (trimmed.startsWith('anthropic/')) return trimmed.replace(/^anthropic\//, '')
   if (trimmed.startsWith('claude')) return trimmed
   if (trimmed.startsWith('openai/')) return anthropicFallback
@@ -574,6 +597,7 @@ function resolveModel(requestedModel: string): string {
   const preferredForProvider = resolveSystemGenerationModelForProvider(provider, systemPreferredModel, anthropicModel)
   if (preferredForProvider) return preferredForProvider
   if (provider === 'openai') return requestedModel
+  if (provider === 'gemini') return 'gemini-2.5-flash'
   // Map OpenAI models to Anthropic equivalents
   if (requestedModel.includes('gpt-4o-mini') || requestedModel.includes('gpt-4')) return anthropicModel
   if (requestedModel.includes('gpt-4o') || requestedModel.includes('gpt-5')) return anthropicModel

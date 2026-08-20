@@ -451,6 +451,8 @@ test('toExecutionModelOverride maps OpenClaw-retired OpenAI models to the suppor
 
 test('providerFromModel and shouldRetryWithBackupModel classify backup-retry conditions', () => {
   assert(providerFromModel('anthropic/claude-sonnet-4-20250514') === 'anthropic', 'Expected providerFromModel to detect Anthropic provider')
+  assert(providerFromModel('google/gemma-4-31b-it') === 'gemini', 'Expected hosted Gemma to use the Gemini provider')
+  assert(toExecutionModelOverride('google/gemma-4-31b-it', 'gemini') === 'google/gemma-4-31b-it', 'Expected hosted Gemma model to reach OpenClaw unchanged')
   assert(providerFromModel('openrouter/anthropic/claude-sonnet-4') === 'openrouter', 'Expected providerFromModel to preserve native OpenRouter provider')
   assert(providerFromModel('xai/grok-4.3') === 'xai', 'Expected providerFromModel to preserve native xAI provider')
   assert(shouldRetryWithBackupModel('Agent timeout (3 minutes)'), 'Expected timeout to trigger backup retry')

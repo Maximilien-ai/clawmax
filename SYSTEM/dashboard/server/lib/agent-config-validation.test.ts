@@ -219,6 +219,32 @@ test('validateProvisionInput warns for deprecated Anthropic and Gemini models', 
   assertIncludes(geminiResult.warnings, 'gemini-3.5-flash')
 })
 
+test('validateProvisionInput rejects local Gemma QAT checkpoints under the hosted Google provider', () => {
+  const result = validateProvisionInput({
+    name: 'gemma-agent',
+    model: 'google/gemma-4-31b-qat',
+  }, {
+    existingAgentIds: [],
+    availableModels: ['google/gemma-4-31b-it'],
+  })
+
+  assert(!result.valid, 'Expected hosted provisioning to reject the local QAT checkpoint')
+  assertIncludes(result.errors, 'local Gemma QAT checkpoint')
+  assertIncludes(result.errors, 'google/gemma-4-31b-it')
+})
+
+test('validateProvisionInput accepts the hosted Gemma 4 instruction model', () => {
+  const result = validateProvisionInput({
+    name: 'gemma-agent',
+    model: 'google/gemma-4-31b-it',
+  }, {
+    existingAgentIds: [],
+    availableModels: ['google/gemma-4-31b-it'],
+  })
+
+  assert(result.valid, `Expected hosted Gemma model to validate: ${result.errors.join(', ')}`)
+})
+
 test('validateProvisionInput does not warn for openai-compatible models that resemble deprecated OpenAI snapshots', () => {
   const result = validateProvisionInput({
     name: 'engineer7',

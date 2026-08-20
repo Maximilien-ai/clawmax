@@ -59,6 +59,18 @@ test('Ollama models are never compatibility filtered', () => {
   assert(filtered.length === 2, `Expected both Ollama models, got ${filtered.length}`)
 })
 
+test('Gemini discovery exposes hosted Gemma and excludes local QAT checkpoints', () => {
+  assert(__test.isGeminiApiTextModel('gemma-4-31b-it'), 'Expected hosted Gemma instruction model')
+  assert(!__test.isGeminiApiTextModel('gemma-4-31b-qat'), 'Did not expect a local QAT checkpoint from Gemini API discovery')
+  const filtered = __test.filterCompatibleDiscoveredModels('gemini', [
+    'google/gemini-2.5-flash',
+    'google/gemma-4-31b-it',
+    'google/gemma-4-31b-qat',
+  ])
+  assert(filtered.includes('google/gemma-4-31b-it'), 'Expected hosted Gemma model to remain selectable')
+  assert(!filtered.includes('google/gemma-4-31b-qat'), 'Expected local QAT model to stay hidden')
+})
+
 test('OpenAI-compatible discovery hides obvious embedding-only models by default', () => {
   const filtered = __test.filterCompatibleDiscoveredModels('openai-compatible', [
     'openai-compatible/text-embedding-nomic-embed-text-v1.5',
