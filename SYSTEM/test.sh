@@ -3228,6 +3228,7 @@ if grep -q "All tests passed" /tmp/clawmax-ai-generator.out; then
   ai_generator_count=$(grep "Tests passed:" /tmp/clawmax-ai-generator.out | sed 's/\x1b\[[0-9;]*m//g' | sed 's/.*Tests passed: //' | tr -cd '0-9')
   pass "AI generator unit tests (${ai_generator_count:-?} tests)"
 else
+  cat /tmp/clawmax-ai-generator.out
   fail "AI generator unit tests"
 fi
 
