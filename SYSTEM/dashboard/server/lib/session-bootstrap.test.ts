@@ -45,6 +45,7 @@ function claims(overrides: Record<string, unknown> = {}) {
   return {
     contract_version: 'v0.1',
     bootstrap_id: 'sbs_6Qp9Jv2Lm4Nx7Kr1',
+    request_id: 'request-session-test-001',
     actor_id: 'actor_test_001',
     membership_id: 'membership_test_001',
     tenant_id: 'tenant_test_001',
