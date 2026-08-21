@@ -3063,8 +3063,8 @@ fi
 echo ""
 echo -e "${YELLOW}→ Running Enterprise session bootstrap tests...${NC}"
 npx ts-node --transpileOnly server/lib/session-bootstrap.test.ts > /tmp/clawmax-session-bootstrap.out 2>&1 || true
-if grep -q "session-bootstrap.test.ts: 13 tests passed" /tmp/clawmax-session-bootstrap.out; then
-  pass "Enterprise session bootstrap tests (13 tests)"
+if grep -q "session-bootstrap.test.ts: 15 tests passed" /tmp/clawmax-session-bootstrap.out; then
+  pass "Enterprise session bootstrap tests (15 tests)"
 else
   cat /tmp/clawmax-session-bootstrap.out
   fail "Enterprise session bootstrap tests"
