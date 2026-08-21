@@ -190,6 +190,34 @@ export function authorizeSessionBootstrap(header: string | undefined, secret: st
   return actual.length === expected.length && crypto.timingSafeEqual(actual, expected)
 }
 
+export function verifySignedSessionBootstrap(
+  token: string,
+  config: SessionBootstrapConfig,
+  nowMs = Date.now(),
+): SessionBootstrapClaims {
+  const parts = token.split('.')
+  if (parts.length !== 2 || !parts[0] || !parts[1] || !config.valid) {
+    throw new SessionBootstrapError('invalid_signature', 'invalid signed session bootstrap')
+  }
+  let supplied: Buffer
+  try {
+    supplied = Buffer.from(parts[1], 'base64url')
+  } catch {
+    throw new SessionBootstrapError('invalid_signature', 'invalid signed session bootstrap')
+  }
+  const expected = crypto.createHmac('sha256', config.secret).update(parts[0]).digest()
+  if (supplied.length !== expected.length || !crypto.timingSafeEqual(supplied, expected)) {
+    throw new SessionBootstrapError('invalid_signature', 'invalid signed session bootstrap')
+  }
+  let claims: unknown
+  try {
+    claims = JSON.parse(Buffer.from(parts[0], 'base64url').toString('utf8'))
+  } catch {
+    throw new SessionBootstrapError('invalid_claims', 'invalid signed session bootstrap')
+  }
+  return validateSessionBootstrapClaims(claims, config, nowMs)
+}
+
 export class SessionBootstrapReplayStore {
   constructor(private readonly filePath: string) {}
 

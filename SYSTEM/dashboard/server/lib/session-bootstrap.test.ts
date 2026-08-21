@@ -2,13 +2,15 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import jwt from 'jsonwebtoken'
-import { createAuthRouter } from './github-auth'
+import { createAuthRouter, getAuthenticatedSession } from './github-auth'
 import {
   authorizeSessionBootstrap,
   getSessionBootstrapConfig,
   SessionBootstrapReplayStore,
   validateSessionBootstrapClaims,
+  verifySignedSessionBootstrap,
 } from './session-bootstrap'
+import crypto from 'crypto'
 
 let passed = 0
 let failed = 0
@@ -141,6 +143,19 @@ async function run() {
     assert(!authorizeSessionBootstrap(secret, secret), 'untyped secret passed')
   })
 
+  await test('shared gateway bearer verifies the signed runtime-bound bootstrap', () => {
+    const value = claims()
+    const payload = Buffer.from(JSON.stringify(value)).toString('base64url')
+    const signature = crypto.createHmac('sha256', secret).update(payload).digest('base64url')
+    const token = `${payload}.${signature}`
+    assert(verifySignedSessionBootstrap(token, getSessionBootstrapConfig(validEnv), now).tenant_id === 'tenant_test_001', 'signed bootstrap rejected')
+    expectRejected(() => verifySignedSessionBootstrap(`${payload}.${signature}x`, getSessionBootstrapConfig(validEnv), now), 'forged signature passed')
+    const substituted = claims({ tenant_id: 'tenant_test_002' })
+    const changedPayload = Buffer.from(JSON.stringify(substituted)).toString('base64url')
+    const changedSignature = crypto.createHmac('sha256', secret).update(changedPayload).digest('base64url')
+    expectRejected(() => verifySignedSessionBootstrap(`${changedPayload}.${changedSignature}`, getSessionBootstrapConfig(validEnv), now), 'foreign runtime binding passed')
+  })
+
   await test('replay ledger persists only a hash and rejects reuse', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-session-bootstrap-'))
     const ledgerPath = path.join(root, 'ledger.json')
@@ -186,6 +201,21 @@ async function run() {
 
     if (originalLedger === null) fs.rmSync(replayPath, { force: true })
     else fs.writeFileSync(replayPath, originalLedger, 'utf-8')
+    process.env = saved
+  })
+
+  await test('shared gateway bearer authenticates without a Dashboard cookie', () => {
+    const saved = { ...process.env }
+    Object.assign(process.env, validEnv)
+    const dynamic = claims({
+      bootstrap_id: `sbs_${cryptoSafeId()}`,
+      issued_at: new Date(Date.now() - 1000).toISOString(),
+      expires_at: new Date(Date.now() + 4 * 60 * 1000).toISOString(),
+    })
+    const payload = Buffer.from(JSON.stringify(dynamic)).toString('base64url')
+    const signature = crypto.createHmac('sha256', secret).update(payload).digest('base64url')
+    const session = getAuthenticatedSession({ headers: { authorization: `Bearer ${payload}.${signature}` } } as any)
+    assert(session?.authType === 'enterprise' && session.enterprise?.runtimeId === 'runtime_test_001', 'shared gateway session was not consumed')
     process.env = saved
   })
 
