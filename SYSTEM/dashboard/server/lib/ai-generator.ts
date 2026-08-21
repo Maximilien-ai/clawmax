@@ -487,7 +487,7 @@ export function createAiGenerationClient(byokKeys?: ProviderKeys): { client: Ope
         baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
         defaultHeaders: { 'x-goog-api-client': 'clawmax-openai-compat/2.0.0' },
       }),
-      model: resolveModel('gemini-2.5-flash'),
+      model: resolveModel('gemini-2.5-flash', provider, byokKeys),
     }
   }
   if (provider === 'openai-compatible') {
@@ -505,7 +505,7 @@ export function createAiGenerationClient(byokKeys?: ProviderKeys): { client: Ope
   }
   return {
     client: new OpenAI({ apiKey: key }),
-    model: resolveModel('gpt-4o-mini'),
+    model: resolveModel('gpt-4o-mini', provider, byokKeys),
   }
 }
 
@@ -585,11 +585,12 @@ export function resolveSystemGenerationModelForProvider(
  * Get the appropriate model name for the available provider.
  * Maps OpenAI model names to Anthropic equivalents when needed.
  */
-function resolveModel(requestedModel: string): string {
-  const { provider } = getAvailableProvider(_requestByokKeys)
+function resolveModel(requestedModel: string, providerOverride?: AIProvider, byokKeysOverride?: ProviderKeys): string {
+  const provider = providerOverride || getAvailableProvider(_requestByokKeys).provider
+  const effectiveByokKeys = byokKeysOverride || _requestByokKeys
   const systemPreferredModel = readWorkspaceIntegrationConfig().systemPreferredModel?.trim()
   if (provider === 'openai-compatible') {
-    const model = resolveOpenAiCompatibleGenerationDefaults(_requestByokKeys).defaultModel
+    const model = resolveOpenAiCompatibleGenerationDefaults(effectiveByokKeys).defaultModel
     if (model) return model
     throw new Error('OpenAI-compatible AI generation requires a default model. Set one in BYOK first.')
   }

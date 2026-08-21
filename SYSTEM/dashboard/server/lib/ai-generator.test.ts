@@ -254,11 +254,19 @@ test('buildResolvedModelRequestOptions selects Gemini when a Gemini BYOK key is 
 })
 
 test('createAiGenerationClient targets the official Gemini OpenAI-compatible endpoint', () => {
-  const { client, model } = createAiGenerationClient({
-    gemini: 'AIza123456789012345678901234567890',
+  setRequestByokKeys({
+    openaiCompatibleBaseUrl: 'http://localhost:1234/v1',
+    openaiCompatibleDefaultModel: 'lmstudio-default',
   } as any)
-  assert.strictEqual(client.baseURL, 'https://generativelanguage.googleapis.com/v1beta/openai/')
-  assert.strictEqual(model, 'gemini-2.5-flash')
+  try {
+    const { client, model } = createAiGenerationClient({
+      gemini: 'AIza123456789012345678901234567890',
+    } as any)
+    assert.strictEqual(client.baseURL, 'https://generativelanguage.googleapis.com/v1beta/openai/')
+    assert.strictEqual(model, 'gemini-2.5-flash')
+  } finally {
+    setRequestByokKeys(undefined)
+  }
 })
 
 test('createChatCompletionWithCompatibilityRetry retries unsupported max_tokens errors with max_completion_tokens', async () => {
