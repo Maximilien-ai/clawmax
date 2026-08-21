@@ -35,7 +35,7 @@ import {
 
 let passed = 0
 let failed = 0
-const pendingTests: Promise<void>[] = []
+const pendingTests: Array<() => Promise<void>> = []
 
 function test(name: string, fn: () => void | Promise<void>) {
   const run = async () => {
@@ -49,7 +49,7 @@ function test(name: string, fn: () => void | Promise<void>) {
       failed++
     }
   }
-  pendingTests.push(run())
+  pendingTests.push(run)
 }
 
 console.log('\n\x1b[33m=== AI Generator Test Suite ===\x1b[0m\n')
@@ -816,7 +816,11 @@ test('buildPromptExpansionSystemPrompt reflects requested format', () => {
   assert.match(guidedPrompt, /Make it shorter and emphasize testing\./i)
 })
 
-Promise.all(pendingTests).then(() => {
+async function runTests() {
+  for (const run of pendingTests) {
+    await run()
+  }
+
   console.log('\n========================================')
   console.log(`Tests passed: ${passed}`)
   console.log(`Tests failed: ${failed}`)
@@ -827,4 +831,6 @@ Promise.all(pendingTests).then(() => {
   }
 
   console.log('\x1b[32mAll tests passed\x1b[0m')
-})
+}
+
+void runTests()
