@@ -67,30 +67,35 @@ append_delimited_value() {
   fi
 }
 
-# Public development always exposes the public product plugins. When the
-# private monorepo is checked out beside this repository, discover and enable
-# its complete enterprise suite as well. Local explicit settings are merged
-# with the installed suite so an older two-plugin launch does not hide a newly
-# installed plugin. Set CLAWMAX_DISABLE_LOCAL_PRIVATE_PLUGINS=true to opt out.
+# Public development always exposes the public product plugins. Additional
+# development repositories are opt-in through generic roots; this host must not
+# know external repository names or product-specific plugin identities.
 PUBLIC_DEV_PLUGIN_IDS="clawmax-lifecycle,plugin-review-notes"
-PRIVATE_DEV_PLUGIN_ROOT="$(cd "$REPO_ROOT/../clawmax-plugins/plugins" 2>/dev/null && pwd || printf '%s' "$REPO_ROOT/../clawmax-plugins/plugins")"
 LOCAL_PLUGIN_PATHS="${CLAWMAX_PLUGIN_PATHS:-$(read_dotenv_var CLAWMAX_PLUGIN_PATHS)}"
 LOCAL_DEV_PLUGIN_IDS="${CLAWMAX_ENABLED_PLUGINS:-$(read_dotenv_var CLAWMAX_ENABLED_PLUGINS)}"
+LOCAL_DEV_PLUGIN_ROOTS="${CLAWMAX_DEV_PLUGIN_ROOTS:-$(read_dotenv_var CLAWMAX_DEV_PLUGIN_ROOTS)}"
 [ -n "$LOCAL_DEV_PLUGIN_IDS" ] || LOCAL_DEV_PLUGIN_IDS="$PUBLIC_DEV_PLUGIN_IDS"
 
-if [ "${CLAWMAX_DISABLE_LOCAL_PRIVATE_PLUGINS:-false}" != "true" ]; then
-  for plugin_spec in \
-    "evals:clawmax-evals-plugin" \
-    "guardrails:clawmax-guardrails-plugin" \
-    "optimize:clawmax-optimize"; do
-    plugin_dir="${plugin_spec%%:*}"
-    plugin_id="${plugin_spec#*:}"
-    plugin_path="$PRIVATE_DEV_PLUGIN_ROOT/$plugin_dir"
-    if [ -f "$plugin_path/clawmax-plugin.json" ]; then
-      LOCAL_PLUGIN_PATHS="$(append_delimited_value "$LOCAL_PLUGIN_PATHS" "$plugin_path" ":")"
-      LOCAL_DEV_PLUGIN_IDS="$(append_delimited_value "$LOCAL_DEV_PLUGIN_IDS" "$plugin_id" ",")"
-    fi
-  done
+if [ -n "$LOCAL_DEV_PLUGIN_ROOTS" ]; then
+  while IFS= read -r plugin_manifest; do
+    [ -n "$plugin_manifest" ] || continue
+    plugin_path="$(dirname "$plugin_manifest")"
+    plugin_id="$(node -e '
+      const manifest = require(process.argv[1])
+      process.stdout.write(String(manifest.id || manifest.slug || "").trim())
+    ' "$plugin_manifest")"
+    [ -n "$plugin_id" ] || continue
+    LOCAL_PLUGIN_PATHS="$(append_delimited_value "$LOCAL_PLUGIN_PATHS" "$plugin_path" ":")"
+    LOCAL_DEV_PLUGIN_IDS="$(append_delimited_value "$LOCAL_DEV_PLUGIN_IDS" "$plugin_id" ",")"
+  done < <(
+    printf '%s' "$LOCAL_DEV_PLUGIN_ROOTS" \
+      | tr ':' '\n' \
+      | while IFS= read -r plugin_root; do
+          [ -d "$plugin_root" ] || continue
+          find "$plugin_root" -mindepth 2 -maxdepth 2 -type f -name clawmax-plugin.json -print
+        done \
+      | sort -u
+  )
 fi
 export CLAWMAX_PLUGIN_PATHS="$LOCAL_PLUGIN_PATHS"
 export CLAWMAX_ENABLED_PLUGINS="$LOCAL_DEV_PLUGIN_IDS"
