@@ -2671,6 +2671,15 @@ else
   fail "Local plugin startup contract tests"
 fi
 
+echo -e "${YELLOW}→ Running external plugin test launcher shell tests...${NC}"
+bash "$SYSTEM_DIR/test-plugins.test.sh" > /tmp/clawmax-test-plugins.out 2>&1 || true
+if grep -q "test-plugins.test.sh: 6 tests passed" /tmp/clawmax-test-plugins.out; then
+  pass "External plugin test launcher shell tests (6 tests)"
+else
+  cat /tmp/clawmax-test-plugins.out
+  fail "External plugin test launcher shell tests"
+fi
+
 echo -e "${YELLOW}→ Running dashboard test-run lock contract tests...${NC}"
 bash "$SYSTEM_DIR/test-run-lock.test.sh" > /tmp/clawmax-test-run-lock.out 2>&1 || true
 if grep -q "test-run-lock.test.sh: 13 tests passed" /tmp/clawmax-test-run-lock.out; then
