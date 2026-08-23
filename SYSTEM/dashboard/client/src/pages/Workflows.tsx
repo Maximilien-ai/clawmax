@@ -33,6 +33,7 @@ import { summarizeWorkflowParticipantFailure } from '../lib/workflowRuntimeError
 import { buildWorkflowDocsIndexPath, buildWorkflowsCollectionPath } from '../lib/workflowRequestPaths'
 import { MobileSafeDialog } from '../components/MobileSafeDialog'
 import { emptyPluginRelationships, fetchPluginRelationships, type PluginRelationship } from '../lib/pluginRelationships'
+import { PluginRelationshipDetails, PluginRelationshipPills } from '../components/PluginRelationshipSummary'
 
 interface AgentTargeting {
   communities: string[]
@@ -465,8 +466,9 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
   const activeWorkspaceId = activeWorkspace?.id || 'default'
 
   useEffect(() => {
+    if (!isActive) return
     void fetchPluginRelationships().then(setPluginRelationships).catch(() => setPluginRelationships(emptyPluginRelationships()))
-  }, [activeWorkspaceId])
+  }, [activeWorkspaceId, isActive])
 
   useEffect(() => {
     const handleBuilderGenerateWorkflow = (event: Event) => {
@@ -1922,7 +1924,8 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
               onEditRun={(id) => {
                 fetchWorkflowDetails(id)
               }}
-                onTogglePipelineSelect={toggleWorkflowIdsSelection}
+              onTogglePipelineSelect={toggleWorkflowIdsSelection}
+              pluginRelationships={pluginRelationships.workflows}
               />
             </div>
           </div>
@@ -1967,7 +1970,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                   isRunning={runningWorkflows.has(workflow.id)}
                   healthState={getWorkflowHealthState(workflow, runningWorkflows.has(workflow.id), latestExecutionStatuses[workflow.id])}
                   totalCost={costTrackingEnabled ? Object.values(agentCosts).reduce((s, c) => s + c, 0) : undefined}
-                  guardrails={pluginRelationships.workflows[workflow.id] || []}
+                  relationships={pluginRelationships.workflows[workflow.id] || []}
                 />
               ))}
             </div>
@@ -2017,6 +2020,7 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
               allVisibleSelected={allVisibleSelected}
               onSelectVisible={selectVisibleWorkflows}
               onDeselectVisible={deselectVisibleWorkflows}
+              pluginRelationships={pluginRelationships.workflows}
             />
           </div>
         )}
@@ -2108,6 +2112,8 @@ export default function Workflows({ onNavigateToAgent, onNavigateToGroup, onNavi
                   </span>
                 )}
               </div>
+
+              <PluginRelationshipDetails relationships={pluginRelationships.workflows[selectedWorkflow.id] || []} />
 
               {/* Description */}
               <div>
@@ -3343,6 +3349,7 @@ function WorkflowsTable({
   allVisibleSelected,
   onSelectVisible,
   onDeselectVisible,
+  pluginRelationships,
 }: {
   workflows: Workflow[]
   selectionMode: boolean
@@ -3361,6 +3368,7 @@ function WorkflowsTable({
   allVisibleSelected: boolean
   onSelectVisible: () => void
   onDeselectVisible: () => void
+  pluginRelationships: Record<string, PluginRelationship[]>
 }) {
   const SortHeader = ({ column, label }: { column: WorkflowSortColumn; label: string }) => (
     <button
@@ -3458,6 +3466,7 @@ function WorkflowsTable({
                         />
                       </div>
                       <div className="text-xs text-gray-500 truncate mt-0.5 max-w-[300px]">{workflow.description}</div>
+                      <PluginRelationshipPills relationships={pluginRelationships[workflow.id] || []} maxVisible={2} className="mt-1.5" />
                     </button>
                   </td>
                   <td className="px-4 py-3">
@@ -3558,7 +3567,7 @@ function WorkflowsTable({
   )
 }
 
-function WorkflowCard({ workflow, onClick, onToggle, onDelete, onOpenFile, isSelected, onToggleSelect, isRunning, healthState, totalCost, guardrails = [] }: {
+function WorkflowCard({ workflow, onClick, onToggle, onDelete, onOpenFile, isSelected, onToggleSelect, isRunning, healthState, totalCost, relationships = [] }: {
   workflow: Workflow
   onClick: () => void
   onToggle: (currentEnabled: boolean) => void
@@ -3569,7 +3578,7 @@ function WorkflowCard({ workflow, onClick, onToggle, onDelete, onOpenFile, isSel
   isRunning?: boolean
   healthState?: WorkflowHealthState
   totalCost?: number
-  guardrails?: PluginRelationship[]
+  relationships?: PluginRelationship[]
 }) {
   const [showMenu, setShowMenu] = React.useState(false)
   const statusDotClass = getWorkflowHealthDotClass(healthState || getWorkflowHealthState(workflow, Boolean(isRunning)))
@@ -3610,14 +3619,7 @@ function WorkflowCard({ workflow, onClick, onToggle, onDelete, onOpenFile, isSel
                 Running
               </span>
             )}
-            {guardrails.length > 0 && (
-              <span
-                className="rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300"
-                title={guardrails.map((guardrail) => guardrail.name).join(', ')}
-              >
-                {guardrails.length} guardrail{guardrails.length === 1 ? '' : 's'}
-              </span>
-            )}
+            <PluginRelationshipPills relationships={relationships} maxVisible={2} />
           </div>
           <div className="flex items-center gap-2">
             {!onToggleSelect && (

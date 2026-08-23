@@ -202,6 +202,8 @@ async function run() {
     await relationshipsHandler(makeReq(), relationshipsRes)
     assert.strictEqual(relationshipsRes.statusCode, 200, 'Expected plugin relationship route success')
     assert.strictEqual(relationshipsRes.jsonBody?.agents?.analyst?.[0]?.itemId, itemId, 'Expected active guardrail on its targeted agent')
+    assert.strictEqual(relationshipsRes.jsonBody?.agents?.analyst?.[0]?.pluginName, 'Guardrails', 'Expected relationship display metadata')
+    assert.strictEqual(relationshipsRes.jsonBody?.agents?.analyst?.[0]?.status, 'active', 'Expected active relationship state')
 
     const updateHandler = getRouteHandler('put', '/:pluginId/items/:itemId', false)
     const updateRes = makeRes()
@@ -257,6 +259,13 @@ async function run() {
     await runHandler(makeReq({ params: { pluginId: 'plugin-evals', itemId } }), runRes)
     assert.strictEqual(runRes.statusCode, 200, 'Expected eval run route success')
     assert((runRes.jsonBody?.item?.lastRun?.score || 0) > 0, 'Expected eval run score in route response')
+
+    const relationshipsHandler = getRouteHandler('get', '/relationships', false)
+    const relationshipsRes = makeRes()
+    await relationshipsHandler(makeReq(), relationshipsRes)
+    const evalRelationship = relationshipsRes.jsonBody?.agents?.analyst?.find((entry: any) => entry.itemId === itemId)
+    assert.strictEqual(evalRelationship?.objectKind, 'eval', 'Expected enabled Eval on its targeted agent')
+    assert.strictEqual(evalRelationship?.status, '1 run', 'Expected Eval relationship run evidence')
 
     const missingRes = makeRes()
     await runHandler(makeReq({ params: { pluginId: 'missing-plugin', itemId } }), missingRes)

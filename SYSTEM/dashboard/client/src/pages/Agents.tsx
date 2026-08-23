@@ -34,6 +34,7 @@ import { getSmartDropdownPlacement, getViewportSafeDropdownStyle, type DropdownP
 import { formatOpenAiDeprecationNotice, formatOpenAiModelLabel, isSelectableLifecycleModel } from '../lib/openAiModelLifecycle'
 import { getAttachmentFilename } from '../lib/downloadFilename'
 import { emptyPluginRelationships, fetchPluginRelationships, type PluginRelationship } from '../lib/pluginRelationships'
+import { PluginRelationshipPills } from '../components/PluginRelationshipSummary'
 import ModelFitRecommendationPanel from '../components/ModelFitRecommendationPanel'
 import {
   buildAgentModelFitDescription,
@@ -230,8 +231,9 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
   const lastAgentFetchStartedAtRef = useRef(0)
 
   useEffect(() => {
+    if (isActive === false) return
     void fetchPluginRelationships().then(setPluginRelationships).catch(() => setPluginRelationships(emptyPluginRelationships()))
-  }, [activeWorkspace?.id])
+  }, [activeWorkspace?.id, isActive])
 
   const highlightCreatedAgent = useCallback(async (agentId: string) => {
     if (!agentId) return
@@ -1537,7 +1539,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                       metering={costTrackingEnabled ? agentMetering[agent.id] : undefined}
                       costLimit={costTrackingEnabled ? (agentCostLimits[agent.id] ?? null) : null}
                       costTrackingEnabled={costTrackingEnabled}
-                      guardrails={pluginRelationships.agents[agent.id] || []}
+                      relationships={pluginRelationships.agents[agent.id] || []}
                       onUnlinkWa={() => {
                         fetch(`/api/agents/${agent.id}/whatsapp`, { method: 'DELETE' })
                           .then(() => fetchAgents())
@@ -1717,7 +1719,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                         metering={costTrackingEnabled ? agentMetering[agent.id] : undefined}
                         costLimit={costTrackingEnabled ? (agentCostLimits[agent.id] ?? null) : null}
                         costTrackingEnabled={costTrackingEnabled}
-                        guardrails={pluginRelationships.agents[agent.id] || []}
+                        relationships={pluginRelationships.agents[agent.id] || []}
                       />
                     ))}
                   </div>
@@ -1769,7 +1771,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                               metering={costTrackingEnabled ? agentMetering[agent.id] : undefined}
                               costLimit={costTrackingEnabled ? (agentCostLimits[agent.id] ?? null) : null}
                               costTrackingEnabled={costTrackingEnabled}
-                              guardrails={pluginRelationships.agents[agent.id] || []}
+                              relationships={pluginRelationships.agents[agent.id] || []}
                             />
                           ))}
                         </div>
@@ -1873,7 +1875,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
               metering={costTrackingEnabled ? agentMetering[agent.id] : undefined}
               costLimit={costTrackingEnabled ? (agentCostLimits[agent.id] ?? null) : null}
               costTrackingEnabled={costTrackingEnabled}
-              guardrails={pluginRelationships.agents[agent.id] || []}
+              relationships={pluginRelationships.agents[agent.id] || []}
             />
                       ))}
                     </div>
@@ -1927,7 +1929,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
                           metering={costTrackingEnabled ? agentMetering[agent.id] : undefined}
                           costLimit={costTrackingEnabled ? (agentCostLimits[agent.id] ?? null) : null}
                           costTrackingEnabled={costTrackingEnabled}
-                          guardrails={pluginRelationships.agents[agent.id] || []}
+                          relationships={pluginRelationships.agents[agent.id] || []}
                         />
                       ))}
                     </div>
@@ -1970,6 +1972,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
           metering={costTrackingEnabled ? agentMetering : {}}
           meteringLoaded={costTrackingEnabled ? meteringLoaded : true}
           costTrackingEnabled={costTrackingEnabled}
+          pluginRelationships={pluginRelationships.agents}
         />
       )}
 
@@ -2053,6 +2056,7 @@ export default function Agents({ onNavigateToDoc, onNavigateToGroup, onNavigateT
       {selectedAgent && (
         <AgentDetailPanel
           agent={selectedAgent}
+          pluginRelationships={pluginRelationships.agents[selectedAgent.id] || []}
           initialEditCostLimit={budgetEditorAgentId === selectedAgent.id}
           costTrackingEnabled={costTrackingEnabled}
           onClose={() => { setSelectedAgent(null); setBudgetEditorAgentId(null) }}
@@ -3337,7 +3341,7 @@ function RenameAgentModal({ agent, existingAgents, onClose, onSave }: { agent: A
 }
 
 const AgentCard = React.memo(function AgentCard({
-  agent, selected, collapsed, onToggle, onClick, onDelete, onLinkWa, onSyncGroups, onUnlinkWa, onChat, onClone, onEdit, onViewDocs, onRemoveTag, onManageTags, onManageCommunities, onNavigateToGroup, onNavigateToSkills, onNavigateToWorkflow, onRestart, onArchive, onUnarchive, onRename, onSetBudget, onSaveAsTemplate, onExport, workflows, isSelected, onToggleSelect, metering, costLimit, costTrackingEnabled = true, guardrails = [],
+  agent, selected, collapsed, onToggle, onClick, onDelete, onLinkWa, onSyncGroups, onUnlinkWa, onChat, onClone, onEdit, onViewDocs, onRemoveTag, onManageTags, onManageCommunities, onNavigateToGroup, onNavigateToSkills, onNavigateToWorkflow, onRestart, onArchive, onUnarchive, onRename, onSetBudget, onSaveAsTemplate, onExport, workflows, isSelected, onToggleSelect, metering, costLimit, costTrackingEnabled = true, relationships = [],
 }: {
   agent: Agent
   selected: boolean
@@ -3371,7 +3375,7 @@ const AgentCard = React.memo(function AgentCard({
   metering?: { calls: number; tokens: number; cost: number }
   costLimit?: number | null
   costTrackingEnabled?: boolean
-  guardrails?: PluginRelationship[]
+  relationships?: PluginRelationship[]
 }) {
   const [confirmUnlink, setConfirmUnlink] = React.useState(false)
   const [showActionsMenu, setShowActionsMenu] = React.useState(false)
@@ -3451,6 +3455,7 @@ const AgentCard = React.memo(function AgentCard({
               ${(metering.cost || 0).toFixed(2)}
             </span>
           )}
+          <PluginRelationshipPills relationships={relationships} maxVisible={2} />
         </div>
         <div className="flex items-center gap-1 ml-2 shrink-0 relative z-20" onClick={e => e.stopPropagation()}>
           {/* Frequent actions (always visible) */}
@@ -3995,7 +4000,7 @@ const AgentCard = React.memo(function AgentCard({
   )
 })
 
-const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onClick, onChat, onStatus, onDelete, onClone, onEdit, onLinkWa, onSyncGroups, onSaveAsTemplate, onExport, onViewDocs, onManageTags, onNavigateToSkills, onRestart, onArchive, onUnarchive, onRename, onSetBudget, isSelected, onToggleSelect, usage, metering, costLimit, costTrackingEnabled = true, guardrails = [] }: { agent: Agent; selected: boolean; onClick: () => void; onChat: () => void; onStatus: () => void; onDelete: () => void; onClone: () => void; onEdit?: () => void; onLinkWa: () => void; onSyncGroups: () => void; onSaveAsTemplate: () => void; onExport: () => void; onViewDocs?: () => void; onManageTags: () => void; onNavigateToSkills?: (agentId: string) => void; onRestart: () => void; onArchive: () => void; onUnarchive: () => void; onRename: () => void; onSetBudget: () => void; isSelected?: boolean; onToggleSelect?: () => void; usage?: { totalTokens: number; inputTokens: number; outputTokens: number; totalCost: number }; metering?: { calls: number; tokens: number; cost: number }; costLimit?: number | null; costTrackingEnabled?: boolean; guardrails?: PluginRelationship[] }) {
+const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onClick, onChat, onStatus, onDelete, onClone, onEdit, onLinkWa, onSyncGroups, onSaveAsTemplate, onExport, onViewDocs, onManageTags, onNavigateToSkills, onRestart, onArchive, onUnarchive, onRename, onSetBudget, isSelected, onToggleSelect, usage, metering, costLimit, costTrackingEnabled = true, relationships = [] }: { agent: Agent; selected: boolean; onClick: () => void; onChat: () => void; onStatus: () => void; onDelete: () => void; onClone: () => void; onEdit?: () => void; onLinkWa: () => void; onSyncGroups: () => void; onSaveAsTemplate: () => void; onExport: () => void; onViewDocs?: () => void; onManageTags: () => void; onNavigateToSkills?: (agentId: string) => void; onRestart: () => void; onArchive: () => void; onUnarchive: () => void; onRename: () => void; onSetBudget: () => void; isSelected?: boolean; onToggleSelect?: () => void; usage?: { totalTokens: number; inputTokens: number; outputTokens: number; totalCost: number }; metering?: { calls: number; tokens: number; cost: number }; costLimit?: number | null; costTrackingEnabled?: boolean; relationships?: PluginRelationship[] }) {
   const [showActionsMenu, setShowActionsMenu] = React.useState(false)
   const [actionsMenuView, setActionsMenuView] = React.useState<AgentActionsMenuView>('main')
   const [menuPlacement, setMenuPlacement] = React.useState<DropdownPlacement>('top')
@@ -4067,14 +4072,7 @@ const AgentGridCard = React.memo(function AgentGridCard({ agent, selected, onCli
         {agent.archived && (
           <ProductIconCell iconName="archive" label="Archived" size="sm" className="border-transparent bg-transparent text-orange-500 dark:text-orange-400" />
         )}
-        {guardrails.length > 0 && (
-          <span
-            className="shrink-0 rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300"
-            title={`Advisory only: ${guardrails.map((guardrail) => guardrail.name).join(', ')}`}
-          >
-            {guardrails.length} advisory guardrail{guardrails.length === 1 ? '' : 's'}
-          </span>
-        )}
+        <PluginRelationshipPills relationships={relationships} maxVisible={1} />
       </div>
       <TruncatedText
         text={agent.id}
@@ -4426,6 +4424,7 @@ const AgentTableView = React.memo(function AgentTableView({
   metering,
   meteringLoaded = true,
   costTrackingEnabled = true,
+  pluginRelationships,
 }: {
   agents: Agent[]
   selectedAgent: Agent | null
@@ -4448,6 +4447,7 @@ const AgentTableView = React.memo(function AgentTableView({
   metering: Record<string, { calls: number; tokens: number; cost: number }>
   meteringLoaded?: boolean
   costTrackingEnabled?: boolean
+  pluginRelationships: Record<string, PluginRelationship[]>
 }) {
   const [openDropdown, setOpenDropdown] = React.useState<string | null>(null)
   const [menuPlacement, setMenuPlacement] = React.useState<DropdownPlacement>('bottom')
@@ -4618,6 +4618,7 @@ const AgentTableView = React.memo(function AgentTableView({
                   )}
                   <span className="text-xs text-gray-400 font-mono">{agent.id}</span>
                 </div>
+                <PluginRelationshipPills relationships={pluginRelationships[agent.id] || []} maxVisible={2} className="mt-1.5" />
               </td>
               <td className="px-4 py-3 whitespace-nowrap">
                 {agent.paused && !agent.archived ? (

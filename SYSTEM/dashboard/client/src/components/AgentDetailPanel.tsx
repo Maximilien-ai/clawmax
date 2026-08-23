@@ -8,6 +8,8 @@ import { buildWorkspaceScopedPath } from '../lib/workspaceScope'
 import { WorkspaceDocEntryRef } from '../lib/workspaceFiles'
 import { resolveNavigableWorkspaceDocPath } from '../lib/workspaceDocNavigation'
 import { normalizeAgentActivityPayload, type AgentActivity } from '../lib/agentActivity'
+import { type PluginRelationship } from '../lib/pluginRelationships'
+import { PluginRelationshipDetails } from './PluginRelationshipSummary'
 
 interface GroupEntry {
   name: string
@@ -108,6 +110,7 @@ export default function AgentDetailPanel({
   onNavigateToDoc,
   initialEditCostLimit = false,
   costTrackingEnabled = true,
+  pluginRelationships = [],
 }: {
   agent: Agent
   onClose: () => void
@@ -118,6 +121,7 @@ export default function AgentDetailPanel({
   onNavigateToDoc?: (file: string) => void
   initialEditCostLimit?: boolean
   costTrackingEnabled?: boolean
+  pluginRelationships?: PluginRelationship[]
 }) {
   const { showError, showSuccess } = useToast()
   const [activity, setActivity] = useState<AgentActivity | null>(null)
@@ -378,10 +382,12 @@ export default function AgentDetailPanel({
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-6 sm:px-5">
+        <div className="min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto px-4 py-4 space-y-6 sm:px-5">
           {loading && (
             <p className="text-sm text-gray-400">Loading activity...</p>
           )}
+
+          <PluginRelationshipDetails relationships={pluginRelationships} />
 
           {costTrackingEnabled && (
             <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-3 dark:border-emerald-900/40 dark:bg-emerald-950/20">
