@@ -16,6 +16,8 @@ import {
   parseWorkflowMd,
   syncWorkflowToCron,
   removeCronJob,
+  getWorkflowPipelineState,
+  setWorkflowPipelinePaused,
 } from '../lib/workflows'
 import { getNextCronRun } from '../lib/cron-next-run'
 import { getWorkspacePath, listAgents } from '../lib/workspace'
@@ -34,7 +36,7 @@ function resolveSessionAuthor(req: any): string | undefined {
   return (session.name || session.login || session.email || '').trim() || undefined
 }
 
-function synchronizeWorkflowScheduling(workflowId: string): string[] {
+function synchronizeWorkflowScheduling(workflowId: string, syncScheduler = true): string[] {
   const warnings: string[] = []
   const workflow = getWorkflow(workflowId)
   if (!workflow) return warnings
@@ -50,7 +52,7 @@ function synchronizeWorkflowScheduling(workflowId: string): string[] {
     }
   }
 
-  syncAllWorkflows({ syncCronRegistrations: false })
+  if (syncScheduler) syncAllWorkflows({ syncCronRegistrations: false })
   return warnings
 }
 
@@ -191,6 +193,7 @@ router.get('/', (req, res) => {
 
     // Include participant count and targeting for each workflow
     const agents = listAgents()
+    const pipelinePaused = getWorkflowPipelineState().paused
     const workflowsWithCounts = workflows.map(workflow => {
       const participants = resolveParticipants(workflow, agents)
       const cronInfo = validateCron(workflow.schedule)
@@ -200,7 +203,7 @@ router.get('/', (req, res) => {
         description: workflow.description,
         schedule: workflow.schedule,
         scheduleHuman: cronInfo.humanReadable || workflow.schedule,
-        nextRunAt: workflow.enabled ? getNextCronRun(workflow.schedule, new Date(), workflow.timezone || 'UTC')?.toISOString() || null : null,
+        nextRunAt: workflow.enabled && !pipelinePaused ? getNextCronRun(workflow.schedule, new Date(), workflow.timezone || 'UTC')?.toISOString() || null : null,
         enabled: workflow.enabled,
         executionMode: workflow.executionMode,
         owner: workflow.owner,
@@ -224,6 +227,32 @@ router.get('/', (req, res) => {
   } catch (error: any) {
     console.error('Error listing workflows:', error)
     res.status(500).json({ error: 'Failed to list workflows', message: error.message })
+  }
+})
+
+/** GET /api/workflows/pipeline-state — persisted global execution gate. */
+router.get('/pipeline-state', (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store')
+  res.json(getWorkflowPipelineState())
+})
+
+/** PUT /api/workflows/pipeline-state — pause/resume all future workflow starts. */
+router.put('/pipeline-state', (req, res) => {
+  if (typeof req.body?.paused !== 'boolean') {
+    return res.status(400).json({ error: 'paused must be a boolean' })
+  }
+  try {
+    const actor = resolveSessionAuthor(req) || 'dashboard'
+    const state = setWorkflowPipelinePaused(req.body.paused, actor)
+    const warnings: string[] = []
+    for (const workflow of listWorkflows()) {
+      warnings.push(...synchronizeWorkflowScheduling(workflow.id, false))
+    }
+    syncAllWorkflows({ syncCronRegistrations: false })
+    res.json({ ok: true, ...state, warnings })
+  } catch (error: any) {
+    console.error('Error updating workflow pipeline state:', error)
+    res.status(500).json({ error: 'Failed to update workflow pipeline state' })
   }
 })
 
@@ -262,7 +291,7 @@ router.get('/:id', (req, res) => {
     const response = {
       ...workflow,
       scheduleHuman: cronValidation.humanReadable || workflow.schedule,
-      nextRunAt: workflow.enabled ? getNextCronRun(workflow.schedule, new Date(), workflow.timezone || 'UTC')?.toISOString() || null : null,
+      nextRunAt: workflow.enabled && !getWorkflowPipelineState().paused ? getNextCronRun(workflow.schedule, new Date(), workflow.timezone || 'UTC')?.toISOString() || null : null,
       participantCount: participants.length,
       resolvedParticipants: participants.map(p => ({ id: p.agentId, name: p.agentName, reason: p.reason }))
     }
@@ -332,7 +361,7 @@ router.post('/:id/trigger', (req, res) => {
     })
 
     if (!result.success) {
-      const status = /already running/i.test(result.error || '') ? 409 : 500
+      const status = /pipeline is paused/i.test(result.error || '') ? 423 : /already running/i.test(result.error || '') ? 409 : 500
       return res.status(status).json({ error: 'Failed to trigger workflow', details: result.error })
     }
 

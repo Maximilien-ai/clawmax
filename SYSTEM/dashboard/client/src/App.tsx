@@ -1102,7 +1102,7 @@ export default function App() {
             </div>
             )}
             {visitedPages.has('workflows') && (
-            <div className={`flex-1 overflow-auto ${page === 'workflows' ? '' : 'hidden'}`}>
+            <div className={`min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto ${page === 'workflows' ? '' : 'hidden'}`}>
               <WorkspaceScoped pageKey="workflows">
                 <Workflows
                   onNavigateToAgent={(agentId) => { setInitialAgentId(agentId); setPage('agents'); }}

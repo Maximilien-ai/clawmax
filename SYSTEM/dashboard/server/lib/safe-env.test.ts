@@ -310,10 +310,10 @@ test('safeEnv forwards runtime-managed Resend key to agent tool processes', () =
   assert(env.RESEND_API_KEY === 're_runtime_1234567890', 'Expected runtime Resend API key to reach child env')
 })
 
-test('safeEnv forwards FACTORY_API_KEY to agent tool processes (droid runtime auth)', () => {
+test('safeEnv does not leak ambient Factory credentials to unrelated child processes', () => {
   process.env.FACTORY_API_KEY = 'factory_test_1234567890'
   const env = safeEnv()
-  assert(env.FACTORY_API_KEY === 'factory_test_1234567890', 'Expected FACTORY_API_KEY to reach child env')
+  assert(typeof env.FACTORY_API_KEY === 'undefined', 'Expected ambient Factory key to stay out of the shared child env')
 })
 
 setTimeout(() => {

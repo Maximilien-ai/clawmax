@@ -12,6 +12,7 @@
 | [KNOWN_ISSUES.md](KNOWN_ISSUES.md) | Active bugs and limitations |
 | [OAUTH_SETUP.md](OAUTH_SETUP.md) | GitHub OAuth configuration guide |
 | [SECURITY.md](SECURITY.md) | Security architecture and policies |
+| [specs/ENTERPRISE_SESSION_BOOTSTRAP.md](specs/ENTERPRISE_SESSION_BOOTSTRAP.md) | Enterprise Web/gateway to Dashboard session bridge v0.1 |
 | [security/SECURITY_REVIEW_2_0_RC38.md](security/SECURITY_REVIEW_2_0_RC38.md) | 2.0 source security sign-off and pending final-candidate appendix |
 | [security/SECURITY_FINDINGS_2_0.md](security/SECURITY_FINDINGS_2_0.md) | Remediated and accepted 2.0 security findings |
 | [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) | Pre-release verification steps |

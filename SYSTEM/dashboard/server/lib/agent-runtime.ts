@@ -246,20 +246,26 @@ export function runtimeAcceptsModelId(runtimeModels: string[], model?: string): 
  * takes effect on the next turn without any in-process caching to invalidate.
  */
 /**
- * A copy of `env` with the Claude-specific credential removed.
+ * A copy of `env` with runtime-specific credentials removed.
  *
  * Enforced here, at the one place every runtime spawn passes through, because callers vary: some
  * build a curated env via safeEnv(), others forward `process.env` wholesale.
  */
-export function withoutClaudeCredentials(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-  if (!('CLAUDE_CODE_OAUTH_TOKEN' in env)) return env
-  const { CLAUDE_CODE_OAUTH_TOKEN, ...rest } = env
+export function withoutRuntimeCredentials(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  if (!('CLAUDE_CODE_OAUTH_TOKEN' in env) && !('FACTORY_API_KEY' in env)) return env
+  const { CLAUDE_CODE_OAUTH_TOKEN, FACTORY_API_KEY, ...rest } = env
   void CLAUDE_CODE_OAUTH_TOKEN
+  void FACTORY_API_KEY
   return rest
 }
 
 export function claudeSubscriptionToken(): string | undefined {
   const value = String(process.env.CLAUDE_CODE_OAUTH_TOKEN || '').trim()
+  return value || undefined
+}
+
+export function factoryApiKey(): string | undefined {
+  const value = String(process.env.FACTORY_API_KEY || '').trim()
   return value || undefined
 }
 
@@ -813,22 +819,21 @@ export async function runRuntimeCli(o: {
   // container image, which runs as root) unless IS_SANDBOX marks a controlled environment. The
   // dashboard always runs claude non-interactively with that flag, so opt in when we are root.
   const runningAsRoot = typeof process.getuid === 'function' && process.getuid() === 0
-  // Claude Code's credential is injected HERE, where the runtime is already known — deliberately
-  // not via safe-env's allowlist. That allowlist takes no runtime parameter (safe-env.ts returns
-  // one merged object for every CLI), so anything added there also reaches Factory Droid, which
-  // runs fully autonomous tool execution: a single "print your environment" turn would exfiltrate
-  // the Claude subscription token as a side effect of an unrelated task.
+  // Runtime credentials are injected only for their target CLI, never through safe-env's shared
+  // allowlist, so autonomous runtimes cannot exfiltrate another runtime's credential.
+  const runtimeSafeEnv = withoutRuntimeCredentials(o.env)
   const effectiveEnv: NodeJS.ProcessEnv = o.runtime === 'claude'
     ? {
-        ...o.env,
+        ...runtimeSafeEnv,
         ...(runningAsRoot ? { IS_SANDBOX: '1' } : {}),
         ...(claudeSubscriptionToken() ? { CLAUDE_CODE_OAUTH_TOKEN: claudeSubscriptionToken() as string } : {}),
       }
-    // Strip it for every other runtime rather than trusting callers to hand over a clean env.
-    // Not all of them do: ai-generator passes `process.env` straight through, so a container-level
-    // token would otherwise be inherited by a Droid generation. Droid runs fully autonomous tool
-    // execution, so a single "print your environment" turn would exfiltrate the Claude credential.
-    : withoutClaudeCredentials(o.env)
+    : o.runtime === 'droid'
+      ? {
+          ...runtimeSafeEnv,
+          ...(factoryApiKey() ? { FACTORY_API_KEY: factoryApiKey() as string } : {}),
+        }
+      : runtimeSafeEnv
 
 
   const attempt = async (plan: RuntimePlan) => {

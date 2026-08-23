@@ -8,6 +8,7 @@ import {
   aggregateWorkspaceMeteringFromTraces,
   buildDailyCostSeries,
   enrichWorkspaceMeteringWithAgentMetadata,
+  getMeteringPeriodCacheSuffix,
   mergeWorkspaceMetering,
   recordMeteringFetchFailure,
   resetMeteringFetchFailureStateForTests,
@@ -43,6 +44,15 @@ function assert(condition: boolean, message: string) {
 console.log(`\n${YELLOW}=== Metering Test Suite ===${RESET}\n`)
 
 async function run() {
+  await test('calendar-month metering cache rolls over without retaining the prior month', () => {
+    const august = getMeteringPeriodCacheSuffix('month', new Date('2026-08-31T23:59:59.000Z'))
+    const september = getMeteringPeriodCacheSuffix('month', new Date('2026-09-01T00:00:00.000Z'))
+    if (august !== 'month:2026-08') throw new Error(`Unexpected August cache suffix: ${august}`)
+    if (september !== 'month:2026-09') throw new Error(`Unexpected September cache suffix: ${september}`)
+    if (String(august) === String(september)) throw new Error('Calendar-month cache suffix must change at month rollover')
+    if (getMeteringPeriodCacheSuffix('all', new Date('2026-09-01T00:00:00.000Z')) !== 'all') throw new Error('All-time cache suffix must remain stable')
+  })
+
   await test('buildDailyCostSeries aggregates traces by day and preserves empty days', () => {
     const now = new Date()
     const today = new Date(now)

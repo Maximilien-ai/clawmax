@@ -13,9 +13,9 @@ export const PLUGIN_HOST_API_VERSION = 'clawmax.ai/v2' as const
 export type PluginObjectKind = string
 export type PluginVisibility = 'private' | 'public'
 export type PluginFieldValue = string | number | boolean | string[] | null
-export type PluginCapability = 'notifications' | 'docs' | 'agents' | 'workflows' | 'communications'
+export type PluginCapability = 'notifications' | 'docs' | 'agents' | 'workflows' | 'communications' | 'metering'
 
-const PLUGIN_CAPABILITIES: PluginCapability[] = ['docs', 'notifications', 'agents', 'workflows', 'communications']
+const PLUGIN_CAPABILITIES: PluginCapability[] = ['docs', 'notifications', 'agents', 'workflows', 'communications', 'metering']
 const PLUGIN_TEMPLATE_CACHE_TTL_MS = 5 * 60 * 1000
 
 interface PluginTemplateCacheEntry {
@@ -51,6 +51,23 @@ export interface PluginUiContract {
   list?: { fields?: string[]; groupBy?: string; checkField?: string }
 }
 
+export interface PluginUsageMonitoringContract {
+  kind: 'metering-budget'
+  intervalMinutes: number
+  fields: {
+    scope: string
+    targetIds: string
+    tokenBudget: string
+    costBudget: string
+    currentTokens: string
+    currentCost: string
+    state: string
+    summary: string
+    lastAssessedAt: string
+    nextAssessmentAt: string
+  }
+}
+
 export interface PluginManifest {
   apiVersion?: 'clawmax.ai/v1' | typeof PLUGIN_HOST_API_VERSION
   id: string
@@ -80,6 +97,7 @@ export interface PluginManifest {
     agents?: boolean
     workflows?: boolean
     communications?: boolean
+    metering?: boolean
   }
   labels?: {
     singular?: string
@@ -87,6 +105,7 @@ export interface PluginManifest {
   }
   recordSchema?: PluginRecordSchema
   ui?: PluginUiContract
+  usageMonitoring?: PluginUsageMonitoringContract
 }
 
 export interface PluginSettingsEntry {
@@ -152,7 +171,7 @@ export interface GuardrailRecord extends PluginRecordBase {
 
 export interface GuardrailHistoryEvent {
   id: string
-  action: 'created' | 'activated' | 'deactivated' | 'updated'
+  action: 'created' | 'activated' | 'deactivated' | 'updated' | 'blocked'
   summary: string
   createdAt: string
 }
@@ -402,6 +421,31 @@ function isPluginCapabilities(value: unknown): boolean {
     PLUGIN_CAPABILITIES.includes(key as PluginCapability) && typeof enabled === 'boolean')
 }
 
+function isPluginUsageMonitoring(value: any, schema: PluginRecordSchema | undefined): value is PluginUsageMonitoringContract {
+  if (value === undefined) return true
+  if (!schema || !value || value.kind !== 'metering-budget') return false
+  if (!Number.isFinite(value.intervalMinutes) || value.intervalMinutes < 1 || value.intervalMinutes > 1440) return false
+  if (!value.fields || typeof value.fields !== 'object' || Array.isArray(value.fields)) return false
+  const expectedTypes: Record<keyof PluginUsageMonitoringContract['fields'], PluginRecordFieldSchema['type'][]> = {
+    scope: ['string'],
+    targetIds: ['array'],
+    tokenBudget: ['number', 'integer'],
+    costBudget: ['number', 'integer'],
+    currentTokens: ['number', 'integer'],
+    currentCost: ['number', 'integer'],
+    state: ['string'],
+    summary: ['string'],
+    lastAssessedAt: ['string'],
+    nextAssessmentAt: ['string'],
+  }
+  if (!Object.keys(expectedTypes).every((key) => typeof value.fields[key] === 'string')) return false
+  if (!Object.keys(value.fields).every((key) => key in expectedTypes)) return false
+  return Object.entries(expectedTypes).every(([binding, types]) => {
+    const field = schema.properties[value.fields[binding]]
+    return Boolean(field && types.includes(field.type))
+  })
+}
+
 function isPluginNav(value: unknown): boolean {
   if (value === undefined) return true
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
@@ -432,6 +476,7 @@ function isPluginManifest(value: any): value is PluginManifest {
     && typeof value.source.url === 'string'
     && isPluginNav(value.nav)
     && isPluginCapabilities(value.capabilities)
+    && isPluginUsageMonitoring(value.usageMonitoring, value.recordSchema)
 
   if (!commonValid) return false
   if (!value.apiVersion || value.apiVersion === 'clawmax.ai/v1') {
@@ -439,6 +484,7 @@ function isPluginManifest(value: any): value is PluginManifest {
   }
   if (value.apiVersion !== PLUGIN_HOST_API_VERSION) return false
   if (!isPluginRecordSchema(value.recordSchema)) return false
+  if (value.usageMonitoring && value.capabilities?.metering !== true) return false
   const declaredFields = new Set(Object.keys(value.recordSchema.properties))
   const uiFields = [
     ...(value.ui?.form?.order || []),
@@ -961,7 +1007,7 @@ function normalizeRecord(plugin: PluginManifest, value: any): PluginRecord | nul
       },
       history: Array.isArray(value.history) ? value.history.slice(0, 50).map((event: any) => ({
         id: String(event.id || crypto.randomUUID()),
-        action: ['created', 'activated', 'deactivated', 'updated'].includes(event.action) ? event.action : 'updated',
+        action: ['created', 'activated', 'deactivated', 'updated', 'blocked'].includes(event.action) ? event.action : 'updated',
         summary: String(event.summary || '').trim(),
         createdAt: String(event.createdAt || '').trim(),
       })) : [],
@@ -1971,6 +2017,77 @@ export function runPluginEval(plugin: PluginManifest, recordId: string): EvalRec
 export interface PluginRelationshipSummary {
   agents: Record<string, Array<{ pluginId: string; itemId: string; name: string }>>
   workflows: Record<string, Array<{ pluginId: string; itemId: string; name: string }>>
+}
+
+export type GuardrailOperation = 'outbound-email'
+
+export interface GuardrailEnforcementInput {
+  operation: GuardrailOperation
+  agentId?: string
+  workflowId?: string
+}
+
+export interface GuardrailEnforcementDecision {
+  allowed: boolean
+  guardrails: Array<{ pluginId: string; itemId: string; name: string }>
+}
+
+function guardrailBlocksOperation(record: GuardrailRecord, input: GuardrailEnforcementInput): boolean {
+  if (!record.enabled || record.archived) return false
+  const targetsAgent = !!input.agentId && record.appliesTo.agents.includes(input.agentId)
+  const targetsWorkflow = !!input.workflowId && record.appliesTo.workflows.includes(input.workflowId)
+  if (!targetsAgent && !targetsWorkflow) return false
+  return input.operation === 'outbound-email' && record.controls.blockEmail
+}
+
+export function evaluatePluginGuardrails(input: GuardrailEnforcementInput): GuardrailEnforcementDecision {
+  const guardrails: GuardrailEnforcementDecision['guardrails'] = []
+  for (const plugin of listConfiguredPlugins()) {
+    for (const record of listPluginRecords(plugin)) {
+      if (!isGuardrailRecord(record) || !guardrailBlocksOperation(record, input)) continue
+      guardrails.push({ pluginId: plugin.slug, itemId: record.id, name: record.name })
+    }
+  }
+  return { allowed: guardrails.length === 0, guardrails }
+}
+
+export function enforcePluginGuardrails(input: GuardrailEnforcementInput): void {
+  const decision = evaluatePluginGuardrails(input)
+  if (decision.allowed) return
+
+  const now = new Date().toISOString()
+  for (const plugin of listConfiguredPlugins()) {
+    const records = listPluginRecords(plugin)
+    let changed = false
+    for (const record of records) {
+      if (!isGuardrailRecord(record) || !guardrailBlocksOperation(record, input)) continue
+      const target = input.agentId ? `agent ${input.agentId}` : input.workflowId ? `workflow ${input.workflowId}` : 'target'
+      const event: GuardrailHistoryEvent = {
+        id: crypto.randomUUID(),
+        action: 'blocked',
+        summary: `Blocked outbound email for ${target}.`,
+        createdAt: now,
+      }
+      record.history = [event, ...record.history].slice(0, 50)
+      record.updatedAt = now
+      writePluginItemFile(plugin, record)
+      if (plugin.capabilities?.notifications === true) {
+        createNotification({
+          type: 'artifact-update',
+          title: `${plugin.name}: outbound email blocked`,
+          message: `${record.name} blocked outbound email for ${target}.`,
+          entityId: record.id,
+          fingerprint: `plugin-guardrail-block:${plugin.slug}:${record.id}:${event.id}`,
+        })
+      }
+      changed = true
+    }
+    if (changed) writePluginRecords(plugin, records)
+  }
+
+  const names = decision.guardrails.map((entry) => entry.name).join(', ')
+  const target = input.agentId ? `agent ${input.agentId}` : input.workflowId ? `workflow ${input.workflowId}` : 'this target'
+  throw new PluginContractError(`Outbound email blocked for ${target} by active guardrail${decision.guardrails.length === 1 ? '' : 's'}: ${names}.`, 403)
 }
 
 export function listPluginRelationships(): PluginRelationshipSummary {

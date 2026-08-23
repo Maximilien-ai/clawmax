@@ -879,6 +879,44 @@ async function run(): Promise<void> {
     })
   })
 
+  await testAsync('runRuntimeCli exposes each CLI credential only to its owning runtime', async () => {
+    await withTempDirAsync('clawmax-agent-runtime-credentials-', async (dir) => {
+      const cli = path.join(dir, 'fake-cli.js')
+      writeFakeNodeCli(cli, `
+        process.stdout.write(JSON.stringify({
+          type: 'result', subtype: 'success', is_error: false,
+          result: 'CLAUDE=' + (process.env.CLAUDE_CODE_OAUTH_TOKEN || '') + ';FACTORY=' + (process.env.FACTORY_API_KEY || ''),
+          session_id: 's'
+        }))
+      `)
+      fs.chmodSync(cli, 0o755)
+      const plan = { cliPath: cli, args: [], missingCliError: 'missing', streamsDeltas: false }
+      const originalClaudeToken = process.env.CLAUDE_CODE_OAUTH_TOKEN
+      const originalFactoryKey = process.env.FACTORY_API_KEY
+      process.env.CLAUDE_CODE_OAUTH_TOKEN = 'claude-secret'
+      process.env.FACTORY_API_KEY = 'factory-secret'
+      const intentionallyDirtyEnv = { ...process.env } as NodeJS.ProcessEnv
+      try {
+        const claudeRes = await runRuntimeCli({
+          plan, env: intentionallyDirtyEnv, signal: new AbortController().signal, rebuildPlan: () => plan,
+          runtime: 'claude', mode: 'json', agentId: 'a', scopedSessionId: 's',
+        })
+        assert.strictEqual(claudeRes.text, 'CLAUDE=claude-secret;FACTORY=', 'Claude must not inherit the Factory key')
+
+        const droidRes = await runRuntimeCli({
+          plan, env: intentionallyDirtyEnv, signal: new AbortController().signal, rebuildPlan: () => plan,
+          runtime: 'droid', mode: 'json', agentId: 'a', scopedSessionId: 's',
+        })
+        assert.strictEqual(droidRes.text, 'CLAUDE=;FACTORY=factory-secret', 'Droid must not inherit the Claude token')
+      } finally {
+        if (typeof originalClaudeToken === 'undefined') delete process.env.CLAUDE_CODE_OAUTH_TOKEN
+        else process.env.CLAUDE_CODE_OAUTH_TOKEN = originalClaudeToken
+        if (typeof originalFactoryKey === 'undefined') delete process.env.FACTORY_API_KEY
+        else process.env.FACTORY_API_KEY = originalFactoryKey
+      }
+    })
+  })
+
   await testAsync('runRuntimeCli streams multiple chunks for streamsDeltas plans instead of one final delta', async () => {
     await withTempDirAsync('clawmax-agent-runtime-exec-stream-', async (dir) => {
       const cli = path.join(dir, 'fake-claude.js')

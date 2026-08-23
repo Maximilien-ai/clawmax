@@ -74,3 +74,13 @@ export function getDashboardInstallRequirementCommands(
 
   return commands
 }
+
+export function getPendingSkillRequirementInstall<T extends Pick<OpenClawSkill, 'install' | 'name' | 'requirementStatus'>>(
+  skills: T[],
+  runtimePlatform: RuntimePlatform,
+): T | null {
+  return skills.find((skill) =>
+    getDashboardInstallRequirementCommands(skill, runtimePlatform).length > 0
+    && !(skill.requirementStatus?.checkable && skill.requirementStatus.installSatisfied)
+  ) || null
+}
