@@ -511,6 +511,64 @@ async function run() {
     }
   })
 
+  await test('generate pins the caller-selected runtime and model for every generation pass', async () => {
+    const aiGeneratorPath = require.resolve('../lib/ai-generator')
+    delete require.cache[aiGeneratorPath]
+    const aiGenerator = require('../lib/ai-generator')
+    const originalGenerateAgentMeta = aiGenerator.generateAgentMeta
+    const originalGenerateAgentFiles = aiGenerator.generateAgentFiles
+    const integrationPath = path.join(workspacePath, 'SYSTEM', 'integrations.json')
+    const priorIntegrations = fs.existsSync(integrationPath) ? fs.readFileSync(integrationPath, 'utf-8') : undefined
+    const priorClaudeBin = process.env.CLAUDE_BIN
+    const priorDroidBin = process.env.DROID_BIN
+    const calls: any[] = []
+
+    fs.writeFileSync(integrationPath, JSON.stringify({ enabledRuntimes: ['claude', 'droid'] }), 'utf-8')
+    process.env.CLAUDE_BIN = process.execPath
+    process.env.DROID_BIN = process.execPath
+    aiGenerator.generateAgentMeta = async () => {
+      calls.push(aiGenerator.currentGenerationRuntimePin())
+      return { name: 'runtime-pinned', tags: [], model: '', skills: [] }
+    }
+    aiGenerator.generateAgentFiles = async () => {
+      calls.push(aiGenerator.currentGenerationRuntimePin())
+      return { identity: '# IDENTITY', soul: '# SOUL', tools: '# TOOLS' }
+    }
+
+    try {
+      const handler = getRouteHandler('post', '/generate')
+      const res = makeRes()
+      await handler(makeReq({
+        body: {
+          description: 'Research and compare local model options.',
+          suggestMeta: true,
+          runtime: 'droid',
+          model: 'claude-opus-4-8',
+        },
+      }), res)
+
+      assert.strictEqual(res.statusCode, 200, `Expected generation success, got ${res.jsonBody?.error || 'unknown error'}`)
+      assert.deepStrictEqual(
+        calls,
+        [
+          { runtime: 'droid', model: 'claude-opus-4-8' },
+          { runtime: 'droid', model: 'claude-opus-4-8' },
+        ],
+        'Expected both metadata and files to use the caller-selected runtime and model',
+      )
+    } finally {
+      aiGenerator.generateAgentMeta = originalGenerateAgentMeta
+      aiGenerator.generateAgentFiles = originalGenerateAgentFiles
+      if (priorClaudeBin === undefined) delete process.env.CLAUDE_BIN
+      else process.env.CLAUDE_BIN = priorClaudeBin
+      if (priorDroidBin === undefined) delete process.env.DROID_BIN
+      else process.env.DROID_BIN = priorDroidBin
+      if (priorIntegrations === undefined) fs.rmSync(integrationPath, { force: true })
+      else fs.writeFileSync(integrationPath, priorIntegrations, 'utf-8')
+      delete require.cache[require.resolve('./agents')]
+    }
+  })
+
   await test('generate surfaces a friendly network error when OpenAI DNS resolution fails', async () => {
     const aiGeneratorPath = require.resolve('../lib/ai-generator')
     delete require.cache[aiGeneratorPath]

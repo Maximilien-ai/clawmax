@@ -118,6 +118,9 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
   }, [])
   const enabledRuntimes = enabledRuntimeIds(runtimeCatalog)
   const runtimeModelOptions = runtimeModelsFor(runtimeCatalog, runtime)
+  // 'default' means "whatever the workspace runs"; openclaw is not a CLI-backed generator. Only an
+  // explicit CLI pin travels with a generation request.
+  const pinnedGenerationRuntime = runtime !== 'default' && runtime !== 'openclaw' ? runtime : ''
   // Suggestions must not move a runtime-pinned agent onto a model its CLI rejects. The editor
   // already had this guard; the creation path did not, which is how agents were created with a
   // Claude Code runtime and an openai/* model that failed on their first chat turn.
@@ -477,6 +480,13 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
           suggestMeta: true,
           availableModels,
           modelPreference,
+          // Generate on the runtime and model this agent is being created with. Without these the
+          // server fell back to the workspace's enabled-runtime order, so choosing Factory Droid
+          // here still generated on Claude Code — and failed on Claude's missing login.
+          ...(pinnedGenerationRuntime ? { runtime: pinnedGenerationRuntime } : {}),
+          // Send the actual selection even if a catalog changed since the form rendered. The route
+          // validates it and returns a clear error rather than silently generating on a default.
+          ...(pinnedGenerationRuntime && form.model ? { model: form.model } : {}),
           byokKeys: (byok.openai || byok.anthropic || byok.gemini || byok.openrouter || byok.xai || byok.ollamaBaseUrl || byok.openaiCompatibleBaseUrl)
             ? {
                 openai: byok.openai,

@@ -4,7 +4,7 @@ import path from 'path'
 import fs from 'fs'
 import archiver from 'archiver'
 import { listAgents, getAgentActivity, getNextAgentId, findFreePort, getAgentImpact, deleteAgent, cloneAgentFiles, getAgentGatewayConfig, parseGroups, parseIdentity, getWorkspacePath, getAgentsDir, ensureManagedAgentWorkspaceFiles } from '../lib/workspace'
-import { generateAgentFiles, generateArchiveTitle, withGenerationAttribution } from '../lib/ai-generator'
+import { generateAgentFiles, generateAgentMeta, generateArchiveTitle, withGenerationAttribution, withGenerationRuntimePin } from '../lib/ai-generator'
 import { importAgentFromTemplate } from '../lib/templates'
 import { getConfiguredGatewayPort, getGatewayClient, isGatewayConfigured, isGatewayRunning, probeGatewayResponsive } from '../lib/gateway-rpc'
 import { listWorkflows, resolveParticipants } from '../lib/workflows'
@@ -23,7 +23,7 @@ import {
   type AgentModelSelectionMode,
   upsertAgentRuntimeInIdentityContent,
 } from '../lib/agent-model'
-import { AGENT_RUNTIME_IDS, detectRuntimeStatuses, executeAgentRuntimeTurn, listRuntimeModels, normalizeAgentRuntime, resolveWorkspaceRuntime, runtimeAcceptsModelId, runtimeLabel } from '../lib/agent-runtime'
+import { AGENT_RUNTIME_IDS, detectRuntimeStatuses, executeAgentRuntimeTurn, listRuntimeModels, normalizeAgentRuntime, resolveEnabledRuntimes, resolveWorkspaceRuntime, runtimeAcceptsModelId, runtimeLabel } from '../lib/agent-runtime'
 import { hasRuntimeSession } from '../lib/runtime-sessions'
 import { appendRuntimeTranscriptExchange, clearRuntimeTranscript, getLatestRuntimeTranscriptSessionId, hasRuntimeTranscripts, readRuntimeTranscript, readRuntimeTranscriptAsArchiveLines } from '../lib/runtime-transcripts'
 import { validateAgentCostLimit } from '../lib/budget'
@@ -574,19 +574,57 @@ router.get('/status', async (req, res) => {
 // POST /api/agents/generate — AI-generate agent files
 // If name is omitted, AI will suggest name, tags, and model
 router.post('/generate', async (req, res) => {
-  const { description, name, tags, suggestMeta, byokKeys, availableModels: requestedModels, modelPreference } = req.body as {
+  const { description, name, tags, suggestMeta, byokKeys, availableModels: requestedModels, modelPreference, runtime, model } = req.body as {
     description?: string
     name?: string
     tags?: string[]
     suggestMeta?: boolean
     availableModels?: string[]
     modelPreference?: ModelFitPreference
+    // The runtime and model chosen for the agent being created. Generation runs on them, so the
+    // files are written by the same CLI and model that will run the agent.
+    runtime?: string
+    model?: string
     byokKeys?: { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; xai?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string }
   }
 
   if (!description) {
     res.status(400).json({ error: 'description is required' })
     return
+  }
+
+  const pinnedRuntime = normalizeAgentRuntime(runtime)
+  const pinnedModel = String(model || '').trim()
+  const generationPin = pinnedRuntime && pinnedRuntime !== 'openclaw'
+    ? { runtime: pinnedRuntime, model: pinnedModel || undefined }
+    : undefined
+
+  if (generationPin) {
+    // Fail here rather than in the generator. A pinned runtime is honored verbatim from this point
+    // on, so an unusable pin has to be reported as the unusable pin it is — silently generating on
+    // something else is the defect this whole path exists to fix.
+    if (!resolveEnabledRuntimes().includes(generationPin.runtime)) {
+      res.status(400).json({
+        error: `The ${runtimeLabel(generationPin.runtime)} runtime is not enabled for this workspace. Enable it in Integrations first.`,
+      })
+      return
+    }
+    const status = detectRuntimeStatuses(resolveWorkspaceRuntime()).find(s => s.id === generationPin.runtime)
+    if (!status?.installed) {
+      res.status(400).json({
+        error: `${runtimeLabel(generationPin.runtime)} is not installed in this deployment. ${status?.installHint || ''}`.trim(),
+      })
+      return
+    }
+    if (generationPin.model) {
+      const runtimeCatalog = await listRuntimeModels(generationPin.runtime)
+      if (!runtimeAcceptsModelId(runtimeCatalog, generationPin.model)) {
+        res.status(400).json({
+          error: `The ${runtimeLabel(generationPin.runtime)} runtime cannot run '${generationPin.model}'. Choose one of its own models (${runtimeCatalog.slice(0, 4).join(', ')}).`,
+        })
+        return
+      }
+    }
   }
 
   try {
@@ -602,8 +640,7 @@ router.post('/generate', async (req, res) => {
     let suggestedSkills: string[] = []
 
     if (suggestMeta || !name) {
-      const { generateAgentMeta } = require('../lib/ai-generator')
-      const meta = await generateAgentMeta(description)
+      const meta = await withGenerationRuntimePin(generationPin, () => generateAgentMeta(description))
       if (!name) suggestedName = meta.name || 'new-agent'
       if (!tags || tags.length === 0) suggestedTags = meta.tags || []
       suggestedModel = meta.model || ''
@@ -638,11 +675,11 @@ router.post('/generate', async (req, res) => {
     // CLI runtimes enabled could not tell a hosted key was being used until it failed. Attribution
     // is captured in async context so concurrent generations cannot report each other's provider.
     const { value: files, attribution: generatedBy } = await withGenerationAttribution(() =>
-      generateAgentFiles({
+      withGenerationRuntimePin(generationPin, () => generateAgentFiles({
         description,
         name: suggestedName,
         tags: suggestedTags,
-      }),
+      })),
     )
     traceAgentChat('ai-generate-agent', description, `Generated agent scaffold for ${suggestedName || 'new agent'}`, {
       model: 'ai-generate-agent',

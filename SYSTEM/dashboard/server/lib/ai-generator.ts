@@ -444,6 +444,11 @@ function getAvailableProvider(
 ): { provider: AIProvider; key: string; baseUrl?: string; defaultModel?: string } {
   const compatibleDefaults = resolveOpenAiCompatibleGenerationDefaults(byokKeys)
   const cliCandidate = () => (options.skipCliRuntime ? undefined : pickGenerationRuntime())
+  // A runtime the caller explicitly chose outranks even the enabled-runtime search below: that
+  // search ranks by workspace order and by which CLI can supply its own model, neither of which
+  // is a reason to overrule a selection made in the UI.
+  const pinnedByCaller = options.skipCliRuntime ? undefined : currentGenerationRuntimePin()
+  if (pinnedByCaller) return { provider: 'cli-runtime', key: pinnedByCaller.runtime }
   // An enabled CLI runtime outranks every hosted key. Enabling one in BYOK is a deliberate
   // operator action ("Run via CLI", and the dialog promises it "needs no provider key"),
   // whereas a provider key is frequently ambient leftover environment. Ranking the key first
@@ -553,7 +558,15 @@ const CLI_CLIENT_MARKER = '__clawmaxCliRuntime'
 // read a model off the request.
 const CLI_RUNTIME_MODEL_SENTINEL = 'cli-runtime'
 
-export function buildCliRuntimeClient(runtime: AgentRuntimeId): { client: OpenAI; model: string } {
+export function buildCliRuntimeClient(
+  runtime: AgentRuntimeId,
+  /**
+   * Model the caller chose for this runtime, from that CLI's own catalog. Omitted for an
+   * unpinned generation, where each runtime's default applies.
+   */
+  requestedModel?: string,
+): { client: OpenAI; model: string } {
+  const pinnedModel = String(requestedModel || '').trim()
   const client = {
     chat: {
       completions: {
@@ -574,9 +587,12 @@ export function buildCliRuntimeClient(runtime: AgentRuntimeId): { client: OpenAI
           // exit path (success, thrown error) via its own `finally`.
           const { text, errorText, missingCliError } = await withRegisteredTurn('clawmax-ai-generation', (turn) => executeAgentRuntimeTurn({
             runtime,
-            // Claude Code only accepts Anthropic model ids and rejects an unset model; droid has
-            // its own default, so leave it alone there.
-            model: runtime === 'claude' ? resolveClaudeGenerationModel() : undefined,
+            // A caller-chosen model wins: it came from this runtime's own catalog, so it is the
+            // model the agent was configured with. runtimeModelArg() still guards the spawn, so an
+            // id this CLI cannot run degrades to the runtime's default rather than failing.
+            // Otherwise: Claude Code only accepts Anthropic model ids and rejects an unset model;
+            // droid has its own default, so leave it alone there.
+            model: pinnedModel || (runtime === 'claude' ? resolveClaudeGenerationModel() : undefined),
             agentId: turn.agentId,
             agentDir: getWorkspacePath(),
             message: prompt,
@@ -637,6 +653,35 @@ export async function withGenerationAttribution<T>(
   const store: { attribution?: GenerationAttribution } = {}
   const value = await generationAttributionStore.run(store, fn)
   return { value, attribution: store.attribution }
+}
+
+/**
+ * The runtime and model the caller chose for this generation.
+ *
+ * The Add Agent wizard asks "which CLI runs this agent" and then offers that CLI's own model list,
+ * so generating on a different runtime — or on a different model — silently answers a question the
+ * user already answered. Generation used to consult only pickGenerationRuntime(), which ranks by
+ * the workspace's enabled-runtime order, so picking Factory Droid still generated on Claude Code.
+ *
+ * Per-request via async context for the same reason attribution is: a module global would hand one
+ * request's runtime to another request's await.
+ */
+export type GenerationRuntimePin = { runtime: AgentRuntimeId; model?: string }
+
+const generationRuntimePinStore = new AsyncLocalStorage<GenerationRuntimePin>()
+
+export function withGenerationRuntimePin<T>(
+  pin: GenerationRuntimePin | undefined,
+  fn: () => Promise<T>,
+): Promise<T> {
+  // openclaw is not a generation runtime — it has no OpenAI-shaped client here — so treat it, and
+  // an absent pin, as "resolve the provider the usual way".
+  if (!pin || (pin.runtime !== 'claude' && pin.runtime !== 'droid')) return fn()
+  return generationRuntimePinStore.run(pin, fn)
+}
+
+export function currentGenerationRuntimePin(): GenerationRuntimePin | undefined {
+  return generationRuntimePinStore.getStore()
 }
 
 function describeProvider(provider: AIProvider, key?: string): string {
@@ -720,7 +765,11 @@ export function buildClientForSelection(
 ): { client: OpenAI; model: string } {
   const { provider, key, baseUrl, defaultModel } = selection
   if (provider === 'cli-runtime') {
-    return buildCliRuntimeClient(key as AgentRuntimeId)
+    const runtime = key as AgentRuntimeId
+    // Only the pinned runtime's own model applies. A pin for droid must not hand droid's model id
+    // to claude on some later selection.
+    const pin = currentGenerationRuntimePin()
+    return buildCliRuntimeClient(runtime, pin?.runtime === runtime ? pin.model : undefined)
   }
   if (provider === 'anthropic') {
     // Use Anthropic's OpenAI-compatible endpoint
@@ -764,6 +813,32 @@ export function getAIClient(byokKeys?: ProviderKeys): { client: OpenAI; model: s
     label: primaryLabel,
   })
   if (selection.provider !== 'cli-runtime') return built
+
+  // An explicitly pinned runtime is an answer, not a preference. Substituting a hosted provider
+  // when it cannot run reports a credential error for a provider the user never chose -- which is
+  // how "log in to Factory Droid" reached the operator as an OpenAI 401 naming a key they had
+  // deliberately stopped using. Name the runtime that failed and stop.
+  const explicitPin = currentGenerationRuntimePin()
+  if (explicitPin) {
+    const pinned = {
+      chat: {
+        completions: {
+          create: async (payload: any) => {
+            try {
+              return await (built.client as any).chat.completions.create(payload)
+            } catch (err) {
+              if (!isCliRecoverableFailure(err)) throw err
+              throw new Error(
+                `${primaryLabel} could not run (${describeThrown(err)}). Log in to it, or pick a different runtime for this agent.`,
+              )
+            }
+          },
+        },
+      },
+    }
+    ;(pinned as any)[CLI_CLIENT_MARKER] = true
+    return { client: pinned as unknown as OpenAI, model: built.model }
+  }
 
   // CLI chosen. Wrap the single create() choke point so any generator recovers identically:
   // if the CLI cannot run (typically "not logged in"), retry once on the hosted ladder with

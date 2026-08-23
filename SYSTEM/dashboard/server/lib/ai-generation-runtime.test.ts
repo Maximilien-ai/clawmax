@@ -630,6 +630,113 @@ test('no turn deadline survives anywhere in the runtime or its spawn sites', () 
   assert(/cancelProcessTree/.test(treeSource), 'and it must only be reachable through cancellation')
 })
 
+// ── The runtime and model chosen in the Add Agent wizard are what generate ──
+
+// Same shape as withRuntimeTurnSpy, but the turn's outcome is the caller's to decide -- a failure
+// result is what proves the no-silent-fallback rule.
+async function withRuntimeTurnResult(
+  result: any,
+  fn: (calls: any[]) => Promise<void>,
+): Promise<void> {
+  delete require.cache[agentRuntimeModulePath]
+  const mod = require(agentRuntimeModulePath)
+  const original = mod.executeAgentRuntimeTurn
+  const calls: any[] = []
+  mod.executeAgentRuntimeTurn = async (opts: any) => { calls.push(opts); return result }
+  delete require.cache[require.resolve('./ai-generator')]
+  try { await fn(calls) }
+  finally {
+    mod.executeAgentRuntimeTurn = original
+    delete require.cache[require.resolve('./ai-generator')]
+  }
+}
+
+asyncCases.push(['the runtime chosen for the agent generates it, not the first enabled one', async () => {
+  // The reported defect: "Factory Droid" was selected in step 1, generation ran on Claude Code
+  // anyway (it is simply earlier in the enabled list), hit Claude's missing login, and surfaced as
+  // an OpenAI 401 from a stale browser key.
+  await withWorkspaceAsync(['claude', 'droid'], { CLAUDE_BIN: realBinary, DROID_BIN: realBinary, CLAWMAX_ANTHROPIC_GENERATION_MODEL: undefined }, async () => {
+    await withRuntimeTurnResult({ text: '{"identity":"x"}' }, async (calls) => {
+      const { withGenerationRuntimePin, getAIClient, pickGenerationRuntime } = require('./ai-generator')
+      assert.strictEqual(pickGenerationRuntime(), 'claude', 'precondition: unpinned order picks claude')
+      await withGenerationRuntimePin({ runtime: 'droid' }, async () => {
+        const { client } = getAIClient({ openai: 'sk-stale-browser-key' })
+        await client.chat.completions.create({ messages: [{ role: 'user', content: 'hi' }] })
+      })
+      assert.strictEqual(calls.length, 1, 'Expected the pinned runtime to be used')
+      assert.strictEqual(calls[0].runtime, 'droid', `Pinned droid, generated on ${calls[0].runtime}`)
+    })
+  })
+}])
+
+asyncCases.push(['the model chosen for the agent reaches the CLI that generates it', async () => {
+  // The model dropdown is scoped to the pinned runtime's own catalog, so ignoring it generated on
+  // a different model than the agent was created with -- claude was hardcoded to its 'sonnet'
+  // default no matter which alias the user picked.
+  await withWorkspaceAsync(['claude', 'droid'], { CLAUDE_BIN: realBinary, DROID_BIN: realBinary }, async () => {
+    await withRuntimeTurnResult({ text: '{"identity":"x"}' }, async (calls) => {
+      const { withGenerationRuntimePin, getAIClient } = require('./ai-generator')
+      await withGenerationRuntimePin({ runtime: 'claude', model: 'opus' }, async () => {
+        const { client } = getAIClient(undefined)
+        await client.chat.completions.create({ messages: [{ role: 'user', content: 'hi' }] })
+      })
+      assert.strictEqual(calls[0].runtime, 'claude')
+      assert.strictEqual(calls[0].model, 'opus', `Expected the chosen model, got ${calls[0].model}`)
+    })
+  })
+}])
+
+asyncCases.push(['a pinned model never leaks onto a different runtime', async () => {
+  // Model ids are runtime-specific; handing droid's id to claude produces a turn that cannot run.
+  await withWorkspaceAsync(['claude', 'droid'], { CLAUDE_BIN: realBinary, DROID_BIN: realBinary, CLAWMAX_ANTHROPIC_GENERATION_MODEL: undefined }, async () => {
+    await withRuntimeTurnResult({ text: '{"identity":"x"}' }, async (calls) => {
+      const { withGenerationRuntimePin, buildClientForSelection } = require('./ai-generator')
+      await withGenerationRuntimePin({ runtime: 'droid', model: 'gpt-5-codex' }, async () => {
+        const { client } = buildClientForSelection({ provider: 'cli-runtime', key: 'claude' })
+        await client.chat.completions.create({ messages: [{ role: 'user', content: 'hi' }] })
+      })
+      assert.strictEqual(calls[0].runtime, 'claude')
+      assert.notStrictEqual(calls[0].model, 'gpt-5-codex', 'droid\'s model id must not be sent to claude')
+    })
+  })
+}])
+
+asyncCases.push(['a chosen runtime that cannot run is reported, not silently replaced', async () => {
+  // What the operator actually saw: two stacked errors, the second naming an OpenAI key they had
+  // stopped using. A runtime picked in the UI is an answer -- if it cannot run, say so.
+  await withWorkspaceAsync(['claude', 'droid'], { CLAUDE_BIN: realBinary, DROID_BIN: realBinary }, async () => {
+    await withRuntimeTurnResult({ errorText: 'Not logged in \u00b7 Please run /login' }, async () => {
+      const { withGenerationRuntimePin, getAIClient } = require('./ai-generator')
+      const message = await withGenerationRuntimePin({ runtime: 'claude', model: 'opus' }, async () => {
+        const { client } = getAIClient({ openai: 'sk-stale-browser-key' })
+        try {
+          await client.chat.completions.create({ messages: [{ role: 'user', content: 'hi' }] })
+          return 'NO_ERROR'
+        } catch (err: any) { return String(err?.message || err) }
+      })
+      assert(/Claude Code/.test(message), `Expected the failure to name the chosen runtime, got: ${message}`)
+      assert(/logged in/i.test(message), `Expected the CLI's own reason to survive, got: ${message}`)
+      assert(!/OpenAI|401|api key/i.test(message), `A hosted provider was substituted: ${message}`)
+    })
+  })
+}])
+
+asyncCases.push(['generation still resolves a provider normally when nothing is pinned', async () => {
+  // The pin must not become a requirement: the template wizard and every scripted caller send no
+  // runtime at all, and they still have to generate.
+  await withWorkspaceAsync(['droid'], { DROID_BIN: realBinary }, async () => {
+    await withRuntimeTurnResult({ text: '{"identity":"x"}' }, async (calls) => {
+      const { withGenerationRuntimePin, getAIClient } = require('./ai-generator')
+      await withGenerationRuntimePin(undefined, async () => {
+        const { client } = getAIClient(undefined)
+        await client.chat.completions.create({ messages: [{ role: 'user', content: 'hi' }] })
+      })
+      assert.strictEqual(calls[0].runtime, 'droid')
+      assert.strictEqual(calls[0].model, undefined, 'droid supplies its own default when unpinned')
+    })
+  })
+}])
+
 runAsyncCases().then(() => {
   console.log(`\n${passed} passed, ${failed} failed\n`)
   if (failed > 0) process.exit(1)
