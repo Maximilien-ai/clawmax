@@ -74,12 +74,14 @@ Friday blockers.
 
 ### Templates & Discovery
 - [ ] **Template feedback, ratings, and promotion flow** — let users review proposal templates, submit feedback, and promote well-performing templates from idea/proposal status into more trusted catalog tiers.
+- [ ] **User-owned template variants** — let users fork system and public organization, agent, and workflow templates into editable workspace-owned copies without mutating the shipped catalog; support AI-assisted edits through the same explicit save boundary.
 - [ ] **Template upgrade / reapply-over-existing flow** — support upgrading a workspace that already applied a template when the template changes later; compare the current workspace against the newer template, show likely conflicts plus likely safe updates, and guide the user through update vs. replace decisions instead of forcing manual delete + reapply.
 - [ ] **Surface old template versions in the UI** — template saves already archive prior versions on disk under `.versions/`; add a lightweight “Previous versions” surface so users can inspect older versions, compare against the current one, and optionally restore or copy content from an earlier snapshot.
 - [ ] **Small-business marketing template pack** — create suggested starter templates for marketing planning and budget allocation across Instagram, Facebook, YouTube, and Google News/Ads, including audience focus, budget planning, and channel prioritization flows. Expect some variants to use uploaded historical data or external API keys.
 - [ ] **Event template customer validation** — get real event-planning feedback on the new proposal templates and decide whether they should stay under `personal`, gain a dedicated category, or expand into more specialized event packs.
 
 ### Workflows & Coordination
+- [ ] **Execution artifact visibility** — surface files and other durable outputs produced by active and completed agent/workflow runs in notifications and dashboards, with links to the owning workspace evidence instead of relying only on Activity or chat traces.
 - [ ] **Agent-to-agent direct messaging follow-through** — validate and polish the post-merge user flow for direct messages.
 - [ ] **Monitor + completion workflows** — recurring status aggregation, auto-complete, and richer workflow supervision
 - [ ] **Project context in agent identity on template apply** — kickoff gives context but should also write to `IDENTITY.md` so agents remember across sessions
@@ -138,6 +140,7 @@ Friday blockers.
 - [ ] **Mac Mini deployment** — 24/7 agent team managing ClawMax repo
 
 ### Infrastructure & Deployment
+- [ ] **Workspace import and restore UI** — add the in-product counterpart to workspace export so authorized users can validate and restore a workspace without manual file-level operations.
 - [ ] **Auto-backup** — optional scheduled backups
 - [ ] **Decide cron ownership with native OpenClaw** — make an explicit design decision on whether recurring workflow scheduling should move fully to OpenClaw, stay split, or remain ClawMax-managed before doing more scheduler work.
 - [ ] **Gateway process management (CLI team)** — supervisor, health check, start/stop isolation, and gateway-down notifications

@@ -171,9 +171,11 @@ Apply this section to the `2.0.0` development line on `main` and later plugin-pl
 
 ## 7. Major Release Reminder
 
-- For a major release such as `2.0`, review any local/private cleanup draft before cutting the tag.
-- If the local file `SYSTEM/docs/planning/CLAWMAX_2_0_CLEANUP_PLAN_PRIVATE.md` exists, read it and decide which disruptive cleanup items should be pulled into the `2.0` prep window.
-- If the `2.0` plan still includes Git history cleanup, run the validation and backup flow in [operations/CLAUDE_COAUTHOR_HISTORY_CLEANUP_RUNBOOK.md](operations/CLAUDE_COAUTHOR_HISTORY_CLEANUP_RUNBOOK.md) on a dedicated cleanup branch before touching `main`.
+- For a major release such as `2.0`, reconcile public and private repository
+  ownership, archive superseded plans, and keep only current launch gates in
+  the active documentation index.
+- Do not combine release promotion with a Git history rewrite or another
+  unrelated destructive maintenance operation.
 
 ## 8. Deferred to Post-Release
 
