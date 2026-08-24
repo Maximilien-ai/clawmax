@@ -4,6 +4,13 @@ All notable changes to ClawMax are documented here.
 
 ## [Unreleased]
 
+### RC40-RC43
+- **Final-candidate plugin visibility** — RC43 surfaces generic plugin activity on agent and workflow cards, lists, relationship views, and detail views with compact summaries and inspectable evidence. The public presentation remains domain-neutral; enterprise product implementation and acceptance stay private.
+- **External plugin acceptance boundary** — RC42 decouples deployment-mounted plugin discovery from public product assumptions and adds a public launcher for contract tests owned by an external plugin repository, without copying private plugins or tests into this repository.
+- **Gemini creation reliability** — RC41 binds AI generation to the selected Gemini provider/model and retains focused provider regressions, including the previously failing Gemini path.
+- **Authorized session bootstrap consumption** — the dashboard consumes gateway-issued, authorization-bound sessions without accepting tenant, workspace, or runtime identity from caller-controlled routing inputs.
+- **Release evidence** — RC43 source `a4b78c1d` passed the `463/463` local integration, validation, coverage, and live-execution gate. Public amd64/arm64 publication and registry smoke passed in [run 32658795332](https://github.com/Maximilien-ai/clawmax/actions/runs/32658795332) with manifest digest `sha256:8af1e160106db1acab5e9b853743cad943effe8de5d52dc11890dd0b2b715c44`; matching combined-image evidence remains private.
+
 ### RC39
 - **Praveen dashboard regression candidate** — agent discovery and partial-data rendering, long-running chat stream safety, and workflow concurrency/cancellation/restart state now have a focused three-journey independent Review set. The underlying reported defects are covered by automated tests and closed optimistically for RC39 verification; RC38 criteria remain preserved as historical review evidence.
 - **Truthful plugin advisory behavior** — generic Guardrail configuration intent is preserved without claiming enforcement the host cannot provide, and unsupported AI Eval suggestions no longer fabricate deterministic scores. Private product implementation and acceptance evidence remain in the private plugin repository.
