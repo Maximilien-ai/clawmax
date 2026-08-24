@@ -43,7 +43,7 @@
 - RC37 runtime: OpenClaw `v2026.6.34` remains integrated on `main`. The source and image gates passed on both architectures with automatic embedded-session recovery enabled.
 - The RC37 local gate retained `80.24%` statements/lines, `68.65%` branches, and `90.41%` functions.
 - Post-RC37 RC38 hardening enforces credentialed CORS allowlists, cloud bypass rejection, complete route authorization, random-token shared dashboards, bounded ZIP extraction, argument-vector subprocesses, response security headers, and an exception-free zero-vulnerability dependency gate. The complete integration, validation, coverage, and live-execution gate passed `447/447` at `976c3c83`, with `80.51%` statements/lines, `68.65%` branches, and `90.58%` functions; [main CI also passed](https://github.com/Maximilien-ai/clawmax/actions/runs/31615940283). RC38 source and image gates are green; hands-on cloud/on-prem and real-provider review remains open.
-- Release week plan: [RELEASE_2_0_0_WEEK_2026-08-10.md](planning/RELEASE_2_0_0_WEEK_2026-08-10.md). Final promotion still requires the security exit criteria, product-plugin acceptance, cloud/on-prem restart/runtime checks, a final immutable multi-architecture candidate, and a completed Review export.
+- Current launch plan: [RELEASE_2_0_0_LAUNCH_2026-08-24.md](planning/RELEASE_2_0_0_LAUNCH_2026-08-24.md). Final promotion still requires hands-on acceptance, cloud/on-prem restart evidence, real-provider validation or explicit deferral, and a completed Review export.
 - Architecture: [Plugin System 2.0](../../PLUGINS/PLUGIN_SYSTEM_2_0.md)
 - Authoring contract: [Plugin Authoring 2.0](../../PLUGINS/PLUGIN_AUTHORING_2_0.md)
 - Generic architecture plan: [PUBLIC_PLUGIN_ARCHITECTURE_2_0.md](planning/PUBLIC_PLUGIN_ARCHITECTURE_2_0.md)

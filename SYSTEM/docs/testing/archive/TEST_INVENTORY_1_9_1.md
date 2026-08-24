@@ -1,5 +1,7 @@
 # 1.9.1 Test Inventory Snapshot
 
+> Archived historical test inventory; current commands live in the testing guide.
+
 - Generated: 2026-06-24T12:36:52.714Z
 - Total test files inventoried: 159
 

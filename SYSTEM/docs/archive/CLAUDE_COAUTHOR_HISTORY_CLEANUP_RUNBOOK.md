@@ -1,5 +1,8 @@
 # Claude Co-Author History Cleanup Runbook
 
+> Archived without execution. A Git history rewrite is explicitly outside the
+> 2.0 launch scope.
+
 ## Purpose
 
 This runbook explains how to remove historical `Co-authored-by: Claude ...` trailers from Git commit messages while preserving the real human author metadata.

@@ -1,5 +1,7 @@
 # `1.7.3` Handoff
 
+> Archived release-specific handoff.
+
 Use this as the minimum handoff for CLI/deployment and Web/ops teams before cutting or deploying `1.7.3`.
 
 ## Goal

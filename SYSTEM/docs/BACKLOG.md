@@ -10,7 +10,7 @@
 ## 2.0 Top Priority
 
 The release-blocking subset and August 10-14 execution order are maintained in
-[ClawMax 2.0.0 Release Week](planning/RELEASE_2_0_0_WEEK_2026-08-10.md).
+[ClawMax 2.0.0 Launch](planning/RELEASE_2_0_0_LAUNCH_2026-08-24.md).
 Items below that are outside that plan are follow-through work, not implicit
 Friday blockers.
 

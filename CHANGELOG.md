@@ -79,7 +79,7 @@ All notable changes to ClawMax are documented here.
 - **Actionable Model Tool Errors** — unsupported web-search failures now name the actual model, link directly to the affected agent editor, and hide unrelated state-migration, plugin, stack, and gateway log output from chat.
 
 ### Remaining Before Promotion
-- **2.0 release gates** — complete the security findings record, final plugin/runtime acceptance, cloud and on-prem restart checks, immutable multi-architecture candidate, version reconciliation, and exported Review sign-off described in the [release-week plan](SYSTEM/docs/planning/RELEASE_2_0_0_WEEK_2026-08-10.md).
+- **2.0 release gates** — complete hands-on testing, cloud and on-prem restart checks, real-provider validation or explicit deferral, and exported Review sign-off described in the [launch plan](SYSTEM/docs/planning/RELEASE_2_0_0_LAUNCH_2026-08-24.md).
 
 ## [v1.9.9] - 2026-07-21
 
@@ -707,7 +707,7 @@ All notable changes to ClawMax are documented here.
 
 ### Templates and Mobile Audit
 - **Template Catalog Guardrails** — shipped organization templates now have catalog-wide tests that ban hidden helper/runtime directory references in workflow content and catch duplicate explicit artifact filenames reused across multiple workflows in the same template.
-- **Catalog Audit Snapshot** — documented the first shipped-template audit batch in `SYSTEM/docs/operations/TEMPLATE_CATALOG_AUDIT_2026-05-24.md` so future template additions can follow the same assumptions and checks.
+- **Catalog Audit Snapshot** — documented the first shipped-template audit batch in `SYSTEM/docs/archive/TEMPLATE_CATALOG_AUDIT_2026-05-24.md` so future template additions can follow the same assumptions and checks.
 - **Focused Mobile Responsiveness Fixes** — hardened narrow-width behavior for the notifications tray, the BYOK / Partner Integrations modal, and the Apply Agent Template modal so key flows remain usable on tighter screens.
 
 ### Docs

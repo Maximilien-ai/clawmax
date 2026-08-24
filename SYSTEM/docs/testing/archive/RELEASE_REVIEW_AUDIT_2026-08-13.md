@@ -1,5 +1,7 @@
 # Release Review Audit - 2026-08-13
 
+> Archived after the RC39 reviewer queue was superseded.
+
 ## Decision
 
 The Review plugin is an independent acceptance queue, not a second automated
