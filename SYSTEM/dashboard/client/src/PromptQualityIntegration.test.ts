@@ -29,8 +29,10 @@ assert(panel.includes('collapsible?: boolean'), 'Scoring panel must support a co
 assert(panel.includes("'Show readiness details'"), 'Collapsed scoring must provide an explicit details action')
 assert(panel.includes('aria-expanded={expanded}'), 'Readiness disclosure must expose its expanded state')
 assert(builder.includes('<PromptQualityPanel prompt={prompt} domain="builder" compact collapsible />'), 'Builder must keep readiness compact until a user asks for details')
-assert(builder.includes("builderQuestion ? 'Ask Builder' : 'Design This'"), 'Question commands must expose a direct Builder action')
+assert(builder.includes("builderQuestion ? 'Ask Builder' : 'Recommend Next Step'"), 'Builder must describe its recommendation action without implying that it already created an asset')
 assert(builder.includes('This asks the Builder about the current workspace'), 'Question commands must explain that they do not generate a recommendation')
+assert(builder.includes('Describe the outcome you want—not a finished agent prompt.'), 'Fresh Builder state must distinguish the request from a finished agent prompt')
+assert(builder.indexOf('Your Builder Prompt') < builder.indexOf('Need an example? Suggested requests'), 'Fresh Builder state must place editable input before optional examples')
 
 for (const [relativePath, inlineDomain, editorDomain] of integrations) {
   const source = read(relativePath)

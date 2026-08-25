@@ -2229,7 +2229,7 @@ export default function Builder({
   const recommendationFeedbackKey = buildBuilderRecommendationKey(recommendation as any)
   const currentRecommendationFeedback = recommendationFeedbackKey ? feedbackByRecommendation[recommendationFeedbackKey] : undefined
   const reserveTranscriptSpace = shouldReserveBuilderTranscriptSpace({
-    messageCount: messages.length,
+    messageCount: historyItems.length,
     hasRecommendation: Boolean(recommendation),
     loading,
   })
@@ -2258,10 +2258,10 @@ export default function Builder({
 
   return (
     <div className="min-h-full overflow-y-auto bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.12),_transparent_32%),linear-gradient(180deg,_rgba(15,23,42,0.04),_rgba(15,23,42,0))] dark:bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.12),_transparent_28%),linear-gradient(180deg,_rgba(15,23,42,0.25),_rgba(15,23,42,0))] lg:h-full lg:overflow-hidden">
-      <div className={`relative grid min-h-full w-full grid-cols-1 gap-4 px-3 py-4 lg:h-full lg:overflow-hidden lg:px-5 ${
+      <div className={`relative grid min-h-full w-full max-w-[calc(100vw-1.5rem)] grid-cols-1 gap-4 px-3 py-4 lg:h-full lg:max-w-none lg:overflow-hidden lg:px-5 ${
         showRightPane ? 'lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_380px]' : ''
       }`}>
-        <section className={`flex min-h-0 flex-col rounded-3xl border border-gray-200 bg-white/90 shadow-sm backdrop-blur dark:border-gray-800 dark:bg-gray-900/80 ${
+        <section className={`flex min-h-0 min-w-0 w-full max-w-full flex-col rounded-3xl border border-gray-200 bg-white/90 shadow-sm backdrop-blur dark:border-gray-800 dark:bg-gray-900/80 ${
           hasConversation ? 'p-3' : 'p-4'
         } ${reserveTranscriptSpace ? 'overflow-hidden' : 'overflow-visible lg:overflow-hidden'}`}>
           <div className="shrink-0">
@@ -2272,9 +2272,12 @@ export default function Builder({
                   hasConversation ? 'text-xl xl:text-[1.75rem]' : 'text-2xl xl:text-[2rem]'
                 }`}>AI Builder</h1>
                 {!hasConversation ? (
-                  <p className="mt-2 max-w-3xl text-sm text-gray-600 dark:text-gray-300">
-                    Start with a prompt or open suggestions.
-                  </p>
+                  <div className="mt-2 max-w-3xl rounded-2xl border border-sky-200 bg-sky-50/70 px-3 py-2.5 text-sm text-gray-700 dark:border-sky-900 dark:bg-sky-950/30 dark:text-gray-200">
+                    <p className="font-medium text-gray-900 dark:text-white">Describe the outcome you want—not a finished agent prompt.</p>
+                    <p className="mt-1 text-xs leading-5 text-gray-600 dark:text-gray-300">
+                      Builder recommends whether to create one agent, coordinate a team, or improve something you already have. Nothing is created until you choose the recommended action.
+                    </p>
+                  </div>
                 ) : null}
               </div>
               {recommendation && (
@@ -2303,52 +2306,12 @@ export default function Builder({
               )}
             </div>
 
-            {!hasConversation && (
-              <div className="mt-4">
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setShowStarterPrompts((current) => !current)}
-                    className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500 transition-colors hover:text-sky-700 dark:text-gray-400 dark:hover:text-sky-200"
-                  >
-                    <span>{showStarterPrompts ? '▾' : '▸'}</span>
-                    Suggested Prompts
-                  </button>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => void refreshStarterPrompts({ seedPrompt: prompt })}
-                      disabled={refreshingStarterPrompts}
-                      className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-[11px] font-medium text-gray-600 transition-colors hover:border-sky-300 hover:text-sky-700 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-sky-700 dark:hover:text-sky-200"
-                    >
-                      {refreshingStarterPrompts ? 'Refreshing…' : 'Regenerate'}
-                    </button>
-                  </div>
-                </div>
-                {showStarterPrompts ? (
-                  <div className="grid gap-2 md:grid-cols-2">
-                    {starterPrompts.map((starter) => (
-                      <button
-                        key={starter}
-                        onClick={() => void submitPrompt(starter)}
-                        className="min-h-[3.25rem] rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2 text-left text-xs leading-5 text-gray-700 transition-colors hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-sky-700 dark:hover:bg-sky-900/30 dark:hover:text-sky-200"
-                      >
-                        <span className="block overflow-hidden">{starter}</span>
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
-                    Hidden until you want ideas.
-                  </div>
-                )}
-              </div>
-            )}
           </div>
 
-          <div className={`flex min-h-0 flex-col rounded-3xl border border-gray-200 bg-gray-50/70 dark:border-gray-800 dark:bg-gray-950/50 ${
+          <div className={`flex min-h-0 min-w-0 flex-col rounded-3xl border border-gray-200 bg-gray-50/70 dark:border-gray-800 dark:bg-gray-950/50 ${
             hasConversation ? 'mt-3 p-2.5' : 'mt-4 p-3'
           } ${reserveTranscriptSpace ? 'flex-1 overflow-hidden' : 'flex-none overflow-visible lg:flex-1 lg:overflow-hidden'}`}>
-            <div ref={transcriptViewportRef} className={`${reserveTranscriptSpace ? 'min-h-0 flex-1 space-y-3 overflow-y-auto pr-1' : 'hidden lg:block lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1'}`}>
+            <div ref={transcriptViewportRef} className={`${reserveTranscriptSpace ? 'min-h-0 flex-1 space-y-3 overflow-y-auto pr-1' : 'hidden'}`}>
               {messages.map((message) => (
                 <div key={message.id} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   <div className="max-w-[88%]">
@@ -2675,7 +2638,7 @@ export default function Builder({
                   disabled={loading || !prompt.trim()}
                   className="rounded-full bg-sky-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-sky-700 disabled:cursor-not-allowed disabled:bg-gray-300 dark:disabled:bg-gray-700"
                 >
-                  {loading ? (builderQuestion ? 'Asking…' : 'Designing…') : (builderQuestion ? 'Ask Builder' : 'Design This')}
+                  {loading ? (builderQuestion ? 'Asking…' : 'Finding a path…') : (builderQuestion ? 'Ask Builder' : 'Recommend Next Step')}
                 </button>
               </div>
 
@@ -2683,6 +2646,41 @@ export default function Builder({
                 <span className="font-medium text-gray-700 dark:text-gray-200">Enter</span> {builderQuestion ? 'asks Builder' : 'sends'}. <span className="font-medium text-gray-700 dark:text-gray-200">Shift + Enter</span> adds a line. <span className="font-medium text-gray-700 dark:text-gray-200">↑ / ↓</span> revisits recent prompts.
               </div>
             </div>
+
+            {!hasConversation && (
+              <div className="mt-3 shrink-0">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowStarterPrompts((current) => !current)}
+                    className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500 transition-colors hover:text-sky-700 dark:text-gray-400 dark:hover:text-sky-200"
+                  >
+                    <span>{showStarterPrompts ? '▾' : '▸'}</span>
+                    Need an example? Suggested requests
+                  </button>
+                  <button
+                    onClick={() => void refreshStarterPrompts({ seedPrompt: prompt })}
+                    disabled={refreshingStarterPrompts}
+                    className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-[11px] font-medium text-gray-600 transition-colors hover:border-sky-300 hover:text-sky-700 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-sky-700 dark:hover:text-sky-200"
+                  >
+                    {refreshingStarterPrompts ? 'Refreshing…' : 'Regenerate'}
+                  </button>
+                </div>
+                {showStarterPrompts && (
+                  <div className="grid gap-2 md:grid-cols-2">
+                    {starterPrompts.map((starter) => (
+                      <button
+                        key={starter}
+                        onClick={() => void submitPrompt(starter)}
+                        className="min-h-[3.25rem] rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2 text-left text-xs leading-5 text-gray-700 transition-colors hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-sky-700 dark:hover:bg-sky-900/30 dark:hover:text-sky-200"
+                      >
+                        <span className="block overflow-hidden">{starter}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {sessionActionNotice && (
               <div
@@ -2741,7 +2739,7 @@ export default function Builder({
         )}
 
         {showRightPane && (
-        <aside className="relative min-h-0 overflow-hidden rounded-3xl border border-gray-200 bg-white/90 p-3 shadow-sm backdrop-blur dark:border-gray-800 dark:bg-gray-900/80">
+        <aside className="relative min-h-0 min-w-0 w-full max-w-full overflow-hidden rounded-3xl border border-gray-200 bg-white/90 p-3 shadow-sm backdrop-blur dark:border-gray-800 dark:bg-gray-900/80">
           <button
             onClick={() => setShowRightPane(false)}
             className="absolute -left-3 top-6 z-10 hidden h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 shadow-sm transition-colors hover:border-sky-300 hover:text-sky-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-sky-700 dark:hover:text-sky-200 lg:inline-flex"
