@@ -1272,16 +1272,12 @@ function getSecondarySuggestedActions(recommendation: BuilderRecommendation | nu
 function hydrateBuilderAction(action: BuilderAction, recommendation: BuilderRecommendation): BuilderAction {
   if (action.agentId || action.skillName || action.workflowId || action.templateId) return action
   const topAgent = recommendation.matchedAssets.agents[0]
-  const topSkill = recommendation.matchedAssets.skills[0]
   const topWorkflow = recommendation.matchedAssets.workflows[0]
   const topAgentTemplate = recommendation.matchedAssets.agentTemplates[0]
   const topOrgTemplate = recommendation.matchedAssets.organizationTemplates[0]
 
   if (action.page === 'agents' && !action.action && topAgent) {
     return { ...action, agentId: topAgent.id }
-  }
-  if (action.page === 'skills' && topSkill) {
-    return { ...action, skillName: topSkill.name, agentId: topAgent?.id }
   }
   if (action.page === 'workflows' && topWorkflow) {
     return { ...action, workflowId: topWorkflow.id }

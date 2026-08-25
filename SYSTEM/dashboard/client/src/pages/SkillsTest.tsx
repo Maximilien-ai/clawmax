@@ -3540,6 +3540,9 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
               </div>
 
               <div className="space-y-4 px-6 py-4">
+                <div className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900 dark:border-sky-800 dark:bg-sky-900/20 dark:text-sky-100">
+                  This setup does not block creating or saving an agent. It is required only before an assigned agent can use <span className="font-medium">{pendingSetupSkill.name}</span> at runtime; you can create now and configure this optional capability later.
+                </div>
                 <TermsRiskNotice
                   title="Machine command reminder"
                   body="Installing skill requirements can modify this machine or runtime environment. Only continue if you trust the skill and the displayed install commands."
