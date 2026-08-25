@@ -15,5 +15,8 @@ assert(skills.includes('Partner Capabilities'), 'Skills must separate the mixed 
 assert(skills.includes('Agent skills are assigned to agents. Curated OpenClaw plugins extend the runtime'), 'Skills must explain agent-skill and runtime-plugin ownership')
 assert(!skills.includes("{running ? 'Running...' : 'Install'}"), 'Partner plugin controls must not use an ambiguous Install label')
 assert(skills.includes('This setup does not block creating or saving an agent.'), 'Optional skill setup must not look like an agent-creation prerequisite')
+assert(skills.includes("new CustomEvent('open-partners-wizard')"), 'Skills partner capabilities must link back to partner configuration')
+assert(wizard.includes('Plugin status was refreshed automatically.'), 'Partner install completion must report automatic status refresh instead of vague restart advice')
+assert(!wizard.includes('Restart the dashboard/runtime if OpenClaw reports'), 'Partner install completion must not leave an unactionable conditional restart')
 
-console.log('PartnerSetupClarity.test.ts: ok (9 tests)')
+console.log('PartnerSetupClarity.test.ts: ok (12 tests)')

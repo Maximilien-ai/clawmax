@@ -2484,6 +2484,13 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
               >
                 Browse all
               </button>
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new CustomEvent('open-partners-wizard'))}
+                className="text-xs font-medium text-sky-600 hover:text-sky-700"
+              >
+                Configure partners
+              </button>
             </div>
             {showPartnerInstallers && (
             <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -3645,7 +3652,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                 )}
                 {partnerPluginRun.status === 'success' && (
                   <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-300">
-                    {partnerPluginRun.action === 'install' ? 'Install completed.' : 'Uninstall completed.'} Restart the dashboard/runtime if OpenClaw reports that plugin discovery needs a refresh.
+                    {partnerPluginRun.action === 'install' ? 'Install completed.' : 'Uninstall completed.'} Plugin status was refreshed automatically. The status shown in Partner Capabilities is authoritative; no restart is needed when it shows the expected state.
                   </div>
                 )}
               </div>

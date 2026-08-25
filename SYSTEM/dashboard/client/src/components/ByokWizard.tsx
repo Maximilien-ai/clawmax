@@ -3254,7 +3254,7 @@ export function ByokWizard({
             <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-700">
               <div>
                 <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
-                  {partnerPluginRun.action === 'install' ? 'Install Partner Plugin' : 'Uninstall Partner Plugin'}
+                  {partnerPluginRun.action === 'install' ? 'Install OpenClaw Partner Plugin' : 'Uninstall OpenClaw Partner Plugin'}
                 </h2>
                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                   {partnerPluginRun.status === 'confirming'
@@ -3290,7 +3290,7 @@ export function ByokWizard({
               )}
               {partnerPluginRun.status === 'success' && (
                 <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-300">
-                  {partnerPluginRun.action === 'install' ? 'Install completed.' : 'Uninstall completed.'} Restart the dashboard/runtime if OpenClaw reports that plugin discovery needs a refresh.
+                  {partnerPluginRun.action === 'install' ? 'Install completed.' : 'Uninstall completed.'} Plugin status was refreshed automatically. The status shown on the partner page is authoritative; no restart is needed when it shows the expected state.
                 </div>
               )}
             </div>
