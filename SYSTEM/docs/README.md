@@ -1,6 +1,6 @@
 # ClawMax Documentation
 
-> Last updated: August 24, 2026
+> Last updated: August 25, 2026
 
 ## Active Documents
 
@@ -16,7 +16,7 @@
 | [security/SECURITY_REVIEW_2_0_RC38.md](security/SECURITY_REVIEW_2_0_RC38.md) | 2.0 source security sign-off and pending final-candidate appendix |
 | [security/SECURITY_FINDINGS_2_0.md](security/SECURITY_FINDINGS_2_0.md) | Remediated and accepted 2.0 security findings |
 | [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) | Pre-release verification steps |
-| [planning/RELEASE_2_0_0_LAUNCH_2026-08-24.md](planning/RELEASE_2_0_0_LAUNCH_2026-08-24.md) | Active RC43 validation and `2.0.0` promotion plan |
+| [planning/RELEASE_2_0_0_LAUNCH_2026-08-24.md](planning/RELEASE_2_0_0_LAUNCH_2026-08-24.md) | Active RC44 source-validation and `2.0.0` promotion plan |
 | [planning/RC43_FEEDBACK_2026-08-25.md](planning/RC43_FEEDBACK_2026-08-25.md) | Complete RC43 tester-feedback register and RC44 repair plan |
 | [DEMO_VIDEOS.md](DEMO_VIDEOS.md) | Local demo video inventory and when to use it |
 | [planning/PUBLIC_PLUGIN_ARCHITECTURE_2_0.md](planning/PUBLIC_PLUGIN_ARCHITECTURE_2_0.md) | Active public 2.0 plugin and AI-scoring plan |
