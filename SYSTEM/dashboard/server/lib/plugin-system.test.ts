@@ -631,12 +631,12 @@ async function run() {
     assert(documentContent.includes('**Completed:** yes'), 'Expected generic checkbox formatting in generated document')
 
     const releaseTemplates = listPluginTemplates(plugin!).filter((template) => (
-      'fields' in template.payload && template.payload.fields?.release === '2.0.0-test-rc44'
+      'fields' in template.payload && template.payload.fields?.release === '2.0.0-test-rc45'
     ))
-    assert.strictEqual(releaseTemplates.length, 6, 'Expected the current RC44 file to expand into six independently reviewable journeys')
+    assert.strictEqual(releaseTemplates.length, 6, 'Expected the current RC45 file to expand into six independently reviewable journeys')
     assert(releaseTemplates.every((template) => 'fields' in template.payload && ['human-judgment', 'external-environment'].includes(String(template.payload.fields?.reviewReason))), 'Expected every current check to justify independent review')
-    assert(releaseTemplates.some((template) => template.id === '2.0.0-test-rc44:rc44-builder-create-and-chat'), 'Expected release-qualified Builder checklist discovery')
-    const applied = applyPluginTemplate(plugin!, '2.0.0-test-rc44:rc44-builder-create-and-chat')
+    assert(releaseTemplates.some((template) => template.id === '2.0.0-test-rc45:rc45-builder-create-and-chat'), 'Expected release-qualified Builder checklist discovery')
+    const applied = applyPluginTemplate(plugin!, '2.0.0-test-rc45:rc45-builder-create-and-chat')
     assert(applied && 'fields' in applied && applied.fields.owner === 'release-tester', 'Expected generic template application')
   })
 
