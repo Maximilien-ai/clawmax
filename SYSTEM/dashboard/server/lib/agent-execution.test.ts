@@ -1254,7 +1254,7 @@ test('withTemporaryAgentAuthProfiles persists Ollama provider config instead of 
   assert(persistedConfig.models.providers.ollama.api === 'ollama', 'Expected Ollama api marker to remain stable after execution')
 })
 
-test('withTemporaryAgentAuthProfiles persists LM Studio provider config without mutating the saved dashboard model', async () => {
+test('withTemporaryAgentAuthProfiles authorizes the exact LM Studio execution model without mutating the saved dashboard model', async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
   const workspace = path.join(home, 'workspace')
   const agentWorkspace = path.join(workspace, 'AGENTS', 'test-compatible')
@@ -1263,11 +1263,11 @@ test('withTemporaryAgentAuthProfiles persists LM Studio provider config without 
   fs.mkdirSync(agentDir, { recursive: true })
   fs.mkdirSync(agentWorkspace, { recursive: true })
   fs.mkdirSync(path.join(home, '.openclaw'), { recursive: true })
-  fs.writeFileSync(path.join(agentWorkspace, 'IDENTITY.md'), '# Identity\n\n- **Model:** openai-compatible/qwen/qwen3.6-27b\n', 'utf-8')
+  fs.writeFileSync(path.join(agentWorkspace, 'IDENTITY.md'), '# Identity\n\n- **Model:** openai-compatible/google/gemma-4-31b-qat\n', 'utf-8')
   fs.writeFileSync(configPath, JSON.stringify({
     agents: {
       list: [
-        { id: 'test-compatible', workspace: agentWorkspace, agentDir, model: 'openai-compatible/qwen/qwen3.6-27b' }
+        { id: 'test-compatible', workspace: agentWorkspace, agentDir, model: 'openai-compatible/google/gemma-4-31b-qat' }
       ]
     }
   }, null, 2))
@@ -1288,10 +1288,10 @@ test('withTemporaryAgentAuthProfiles persists LM Studio provider config without 
         status: 200,
         json: async () => ({
           models: [{
-            key: 'qwen/qwen3.6-27b',
+            key: 'google/gemma-4-31b-qat',
             loaded_instances: [
-              { id: 'qwen/qwen3.6-27b', config: { context_length: 4096 } },
-              { id: 'qwen/qwen3.6-27b:2', config: { context_length: 200000 } },
+              { id: 'google/gemma-4-31b-qat', config: { context_length: 4096 } },
+              { id: 'google/gemma-4-31b-qat:2', config: { context_length: 200000 } },
             ],
           }],
         }),
@@ -1318,16 +1318,17 @@ test('withTemporaryAgentAuthProfiles persists LM Studio provider config without 
     await withTemporaryAgentAuthProfiles(
       'test-compatible',
       { openaiCompatibleBaseUrl: 'http://127.0.0.1:1234/v1', openaiCompatibleApiKey: 'lmstudio-secret' },
-      'openai-compatible/qwen/qwen3.6-27b',
+      'openai-compatible/google/gemma-4-31b-qat',
       'openai-compatible',
       async () => {
         const currentConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-        assert(currentConfig.agents.list[0].model === 'openai-compatible/qwen/qwen3.6-27b', `Expected saved dashboard model to stay openai-compatible/<model>, got ${currentConfig.agents.list[0].model}`)
+        assert(currentConfig.agents.list[0].model === 'openai-compatible/google/gemma-4-31b-qat', `Expected saved dashboard model to stay openai-compatible/<model>, got ${currentConfig.agents.list[0].model}`)
+        assert(currentConfig.agents.defaults.models['lmstudio/google/gemma-4-31b-qat'], 'Expected exact LM Studio execution ref to be authorized for OpenClaw overrides')
         assert(currentConfig.models.providers.lmstudio.baseUrl === 'http://127.0.0.1:1234/v1', 'Expected stable LM Studio base URL persisted')
         assert(currentConfig.models.providers.lmstudio.api === 'openai-completions', 'Expected stable LM Studio api marker persisted')
         assert(currentConfig.models.providers.lmstudio.apiKey === 'lmstudio-secret', 'Expected stable LM Studio api key persisted')
         assert(Array.isArray(currentConfig.models.providers.lmstudio.models), 'Expected stable LM Studio provider models array persisted')
-        const activeEntry = currentConfig.models.providers.lmstudio.models.find((entry: any) => entry?.id === 'qwen/qwen3.6-27b')
+        const activeEntry = currentConfig.models.providers.lmstudio.models.find((entry: any) => entry?.id === 'google/gemma-4-31b-qat')
         assert(activeEntry, 'Expected stable LM Studio catalog entry for the active model')
         assert(activeEntry.contextWindow === 64000, 'Expected stable LM Studio model entry to carry a larger context window')
         assert(activeEntry.contextTokens === 64000, 'Expected stable LM Studio model entry to carry a larger context token limit')
@@ -1339,10 +1340,11 @@ test('withTemporaryAgentAuthProfiles persists LM Studio provider config without 
   }
 
   const persistedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-  assert(persistedConfig.agents.list[0].model === 'openai-compatible/qwen/qwen3.6-27b', 'Expected saved dashboard model to stay unchanged after execution')
+  assert(persistedConfig.agents.list[0].model === 'openai-compatible/google/gemma-4-31b-qat', 'Expected saved dashboard model to stay unchanged after execution')
+  assert(persistedConfig.agents.defaults.models['lmstudio/google/gemma-4-31b-qat'], 'Expected LM Studio execution allowlist entry to remain stable after execution')
   assert(persistedConfig.models.providers.lmstudio.baseUrl === 'http://127.0.0.1:1234/v1', 'Expected LM Studio provider config to remain stable after execution')
   const unloadCall = fetchCalls.find((call) => call.url.endsWith('/api/v1/models/unload'))
-  assert(!!(unloadCall && unloadCall.body?.includes('"instance_id":"qwen/qwen3.6-27b"')), 'Expected undersized LM Studio instance to be unloaded before execution')
+  assert(!!(unloadCall && unloadCall.body?.includes('"instance_id":"google/gemma-4-31b-qat"')), 'Expected undersized LM Studio instance to be unloaded before execution')
   const loadCall = fetchCalls.find((call) => call.url.endsWith('/api/v1/models/load'))
   assert(!!(loadCall && loadCall.body?.includes('"context_length":64000')), 'Expected LM Studio load request to target the larger execution context window')
 })

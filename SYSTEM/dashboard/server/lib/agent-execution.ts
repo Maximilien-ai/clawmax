@@ -1039,6 +1039,20 @@ export async function withTemporaryAgentAuthProfiles<T>(
             contextTokens: LMSTUDIO_DEFAULT_CONTEXT_TOKENS,
             maxTokens: 8_192,
           }]
+      const executionModelRef = `lmstudio/${normalizedModel}`
+      const mutableConfig = config as any
+      mutableConfig.agents = mutableConfig.agents && typeof mutableConfig.agents === 'object' && !Array.isArray(mutableConfig.agents)
+        ? mutableConfig.agents
+        : {}
+      mutableConfig.agents.defaults = mutableConfig.agents.defaults && typeof mutableConfig.agents.defaults === 'object' && !Array.isArray(mutableConfig.agents.defaults)
+        ? mutableConfig.agents.defaults
+        : {}
+      mutableConfig.agents.defaults.models = mutableConfig.agents.defaults.models && typeof mutableConfig.agents.defaults.models === 'object' && !Array.isArray(mutableConfig.agents.defaults.models)
+        ? mutableConfig.agents.defaults.models
+        : {}
+      if (!Object.prototype.hasOwnProperty.call(mutableConfig.agents.defaults.models, executionModelRef)) {
+        mutableConfig.agents.defaults.models[executionModelRef] = {}
+      }
     } else if (!Array.isArray(nextProviderConfig.models)) {
       nextProviderConfig.models = []
     }
