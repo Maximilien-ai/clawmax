@@ -122,7 +122,9 @@ RUN case "${TARGETARCH}" in \
   && tar -xzf "/tmp/${qbo_archive}" -C /tmp/qbo-cli \
   && install -m 0755 /tmp/qbo-cli/qbo /usr/local/bin/qbo \
   && install -m 0644 /tmp/qbo-cli/LICENSE /usr/share/doc/qbo-cli/LICENSE \
-  && qbo --version \
+  && qbo --json schema \
+    | jq -e --arg expected "${QBO_VERSION}" \
+      '.name == "qbo" and .version == $expected' >/dev/null \
   && rm -rf "/tmp/${qbo_archive}" /tmp/qbo-cli
 
 COPY SYSTEM/dashboard/package*.json ./
