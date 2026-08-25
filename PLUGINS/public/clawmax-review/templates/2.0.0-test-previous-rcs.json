@@ -1018,6 +1018,27 @@
       "description": "Test: Upgrade a persistent pre-RC37 workspace, continue an existing agent chat, run a workflow targeting that agent, and chat again after completion. Pass: Requests complete without a manual reset, a recoverable embedded-session conflict retries only once with no duplicate visible output, later messages continue normally, and repeated conflicts stop with actionable guidance.",
       "tags": ["openclaw", "upgrade", "chat", "workflows", "recovery"],
       "fields": {"area": "regression", "notes": ""}
+    },
+    {
+      "id": "rc39-agent-discovery-and-details",
+      "name": "Provisioned agents remain discoverable and inspectable",
+      "description": "Test: Provision an agent without Generate with AI, open it from each Agents view, and inspect model-fit and activity details while data is still loading or unavailable. Pass: The agent remains visible, partial responses never blank the page, useful content stays readable, and missing data has clear non-blocking guidance.",
+      "tags": ["agents", "provisioning", "details", "resilience"],
+      "fields": {"area": "regression", "notes": ""}
+    },
+    {
+      "id": "rc39-chat-stream-resilience",
+      "name": "Long-running agent chat remains trustworthy",
+      "description": "Test: Run a fast chat and a deliberately long or tool-heavy chat, observe streaming, then stop one turn and send another. Pass: Progress remains responsive, output stays bounded and readable, runtime warnings are not presented as the assistant answer, interrupted child work stops, and incomplete streams end with actionable retry guidance.",
+      "tags": ["agents", "chat", "streaming", "interrupt"],
+      "fields": {"area": "regression", "notes": ""}
+    },
+    {
+      "id": "rc39-workflow-lifecycle-controls",
+      "name": "Workflow run state remains accurate through interruption",
+      "description": "Test: Trigger a workflow, try to trigger it again while running, cancel a run, then restart during another run and inspect dashboard and notification history. Pass: Concurrent execution is rejected, cancellation is visible, interrupted work does not remain running, and every surface identifies the newest retained execution consistently.",
+      "tags": ["workflows", "concurrency", "cancel", "restart"],
+      "fields": {"area": "regression", "notes": ""}
     }
   ]
 }
