@@ -5,6 +5,12 @@
 > Stable release: `v1.9.9`
 > Updated: August 24, 2026
 
+RC43 hands-on feedback found release-blocking model authorization, runtime
+packaging, Builder, and navigation issues. RC43 is no longer promotable
+unchanged; remediation is tracked in
+[RC43_FEEDBACK_2026-08-25.md](RC43_FEEDBACK_2026-08-25.md), and accepted source
+changes require a fully validated RC44.
+
 ## Accepted Engineering Evidence
 
 - Public source `a4b78c1d12136e21707e926c3d2a0e8cc0b1a1d0` passed hosted CI.
