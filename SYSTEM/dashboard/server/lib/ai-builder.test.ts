@@ -236,6 +236,15 @@ test('builder respects explicit no-existing-agent hints for new agent requests',
   assert.equal(result.recommendedPath.primaryAction.action, 'create-ai')
 })
 
+test('new-agent chat wording never invents a workspace chat target', () => {
+  const result = buildAiBuilderRecommendation('Create an agent named "EventScout" and let me chat with it to find sponsors')
+  assert.notEqual(result.intent, 'existing_agent')
+  assert.equal(result.recommendedPath.primaryAction.page, 'agents')
+  assert.equal(result.recommendedPath.primaryAction.action, 'create-ai')
+  assert(!result.suggestedActions.some((action) => action.action === 'chat'), 'Expected no chat action before the agent exists')
+  assert(!result.recommendedPath.title.toLowerCase().includes('it to'), 'Expected no invented "it to" agent target')
+})
+
 test('skill-first agent prompts still surface AI Generate Agent for resend agent creation', () => {
   const result = buildAiBuilderRecommendation('create a resend agent to test sending email with resend skills')
   assert.equal(result.intent, 'skill_or_integration')

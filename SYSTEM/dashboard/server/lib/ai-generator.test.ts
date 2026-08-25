@@ -452,6 +452,20 @@ test('normalizeGeneratedAgentMeta replaces generic names with role-based names a
   assert(normalized.skills.includes('react-email'))
 })
 
+test('normalizeGeneratedAgentMeta preserves an explicitly requested agent name over a model guess', () => {
+  const normalized = normalizeGeneratedAgentMeta(
+    'Create an agent named "EventScout" that finds sponsors when I ask it to.',
+    {
+      name: 'it-to',
+      tags: ['events'],
+      model: 'openai/gpt-5.4-mini',
+      skills: [],
+    },
+  )
+
+  assert.strictEqual(normalized.name, 'eventscout')
+})
+
 test('applyGeneratedWorkflowHandoffs infers markdown outputs and dependency inputs', () => {
   const workflows = applyGeneratedWorkflowHandoffs([
     {

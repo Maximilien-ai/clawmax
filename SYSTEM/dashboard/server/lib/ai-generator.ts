@@ -1527,7 +1527,8 @@ export function normalizeGeneratedAgentMeta(
   skills: string[]
 } {
   const fallbackName = inferFallbackAgentName(description)
-  const normalizedName = slugifyGeneratedTemplateValue(parsed.name || '', fallbackName)
+  const explicitName = extractExplicitAgentName(description)
+  const normalizedName = slugifyGeneratedTemplateValue(explicitName || parsed.name || '', fallbackName)
   const finalName = GENERIC_GENERATED_AGENT_NAMES.has(normalizedName) ? fallbackName : normalizedName
 
   const parsedTags = Array.isArray(parsed.tags)
