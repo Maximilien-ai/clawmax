@@ -2004,6 +2004,7 @@ export function ByokWizard({
           <div className="min-w-[12rem] flex-1 text-xs opacity-80">
             {partner.skills.label || 'Curated skill install available'}.
             <span className="ml-1">Usually takes 1-3 minutes.</span>
+            <span className="ml-1 font-medium">This installs an OpenClaw runtime plugin, not an agent skill or ClawMax dashboard plugin.</span>
           </div>
           {installed && (
             <span className="px-2.5 py-1 text-[11px] rounded-md border border-gray-200 dark:border-gray-700 text-gray-400 dark:text-gray-500">
@@ -2017,7 +2018,7 @@ export function ByokWizard({
             onClick={() => void runPartnerPluginAction(partner, 'install')}
             className="px-2.5 py-1 text-[11px] rounded-md border border-sky-300 dark:border-sky-700 text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors disabled:opacity-60"
           >
-            {partnerInstallState[partner.slug] === 'installing' ? 'Installing…' : 'Install Plugin'}
+            {partnerInstallState[partner.slug] === 'installing' ? 'Installing…' : 'Install OpenClaw Plugin'}
           </button>
           <button
             type="button"
@@ -2180,9 +2181,13 @@ export function ByokWizard({
           <div className="w-full max-w-3xl rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl p-4 sm:p-5 max-h-[96dvh] overflow-y-auto">
             <div className="flex items-start justify-between gap-3 sm:gap-4">
               <div className="min-w-0">
-                <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">BYOK & Partner Integrations</div>
+                <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                  {initialStep === 'partners' ? 'Partner Integrations' : 'Models & Partner Integrations'}
+                </div>
                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  Provider secrets stay local to this browser. Workspace defaults persist per workspace for template apply and runtime follow-through.
+                  {initialStep === 'partners'
+                    ? 'Choose and configure independent, optional integrations for this workspace.'
+                    : 'Provider secrets stay local to this browser. Workspace defaults persist per workspace for template apply and runtime follow-through.'}
                 </p>
               </div>
               <button
@@ -2742,6 +2747,9 @@ export function ByokWizard({
                   <div className="mt-1">
                     Choose which partner pages to configure for this workspace. You can select all, some, or none. Selected integrations drive template defaults and future partner-aware template options.
                   </div>
+                  <div className="mt-2 text-xs font-medium">
+                    Each integration is independent. Opik and Resend are not prerequisites for Cognee or any other partner. Selecting a partner adds its setup page; it does not install software.
+                  </div>
                 </div>
 
                 <div className="mt-5 space-y-4">
@@ -2798,9 +2806,10 @@ export function ByokWizard({
                         const checked = selectedPartners.includes(partner.slug)
                         const locked = lockedPartnerSlugs.includes(partner.slug)
                         return (
-                          <label key={partner.slug} className={`block rounded-xl border p-4 cursor-pointer transition-colors ${checked ? 'border-sky-300 bg-sky-50 dark:border-sky-700 dark:bg-sky-900/20' : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900'}`}>
+                          <div key={partner.slug} className={`block rounded-xl border p-4 transition-colors ${checked ? 'border-sky-300 bg-sky-50 dark:border-sky-700 dark:bg-sky-900/20' : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900'}`}>
                             <div className="flex items-start gap-3">
                               <input
+                                aria-label={`Select ${partner.name}`}
                                 type="checkbox"
                                 checked={checked}
                                 disabled={locked}
@@ -2839,9 +2848,19 @@ export function ByokWizard({
                                     {partner.docsUrl ? <a href={partner.docsUrl} target="_blank" rel="noopener noreferrer" className="text-sky-600 underline dark:text-sky-400">Docs</a> : null}
                                   </div>
                                 )}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedPartners((current) => Array.from(new Set([...current, partner.slug])))
+                                    setStep(`partner:${partner.slug}`)
+                                  }}
+                                  className="mt-3 rounded-md border border-sky-300 bg-white px-3 py-1.5 text-xs font-medium text-sky-700 hover:bg-sky-100 dark:border-sky-700 dark:bg-gray-900 dark:text-sky-300 dark:hover:bg-sky-900/30"
+                                >
+                                  Configure {partner.name}
+                                </button>
                               </div>
                             </div>
-                          </label>
+                          </div>
                         )
                       })}
                       </div>
