@@ -1,5 +1,6 @@
 import assert from 'assert'
 import {
+  comparePromptQuality,
   PROMPT_QUALITY_EXCELLENT_SCORE,
   PROMPT_QUALITY_READY_SCORE,
   scorePromptQuality,
@@ -32,4 +33,9 @@ assert(workflow.suggestions.every((suggestion) => suggestion.earned < suggestion
 const skill = scorePromptQuality('Build a skill with instructions and examples for when an agent should use it.', 'skill')
 assert((skill.facets.find((facet) => facet.id === 'domain')?.earned || 0) === 20, 'Skill rules must recognize usage and instruction detail')
 
-console.log('promptQuality.test.ts: 10 tests passed')
+const improvement = comparePromptQuality('Create an agent', detailed.facets.map((facet) => facet.suggestion).join(' '), 'builder')
+assert.equal(improvement.delta, improvement.after - improvement.before, 'Prompt comparison must expose an exact score delta')
+const regression = comparePromptQuality(detailed.facets.map((facet) => facet.suggestion).join(' '), 'Create an agent', 'builder')
+assert(regression.delta < 0, 'Prompt comparison must identify a readiness regression without blocking the rewrite')
+
+console.log('promptQuality.test.ts: 12 tests passed')

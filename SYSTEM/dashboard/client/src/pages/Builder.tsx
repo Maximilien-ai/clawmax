@@ -16,6 +16,7 @@ import { findActiveBuilderMention, insertBuilderMention, type BuilderMentionMatc
 import { hasExplicitBuilderEntityAction } from '../lib/builderExplicitActions'
 import { buildWorkspaceStarterPrompts, normalizeStarterPromptList, type StarterPromptAgent, type StarterPromptSkill, type StarterPromptTemplate, type StarterPromptWorkflow } from '../lib/builderStarterPrompts'
 import { organizationTemplateCanApplyNow } from '../lib/templateApplyReadiness'
+import { comparePromptQuality } from '../lib/promptQuality'
 import AIPromptEditorModal from '../components/AIPromptEditorModal'
 import PromptQualityPanel from '../components/PromptQualityPanel'
 
@@ -1377,6 +1378,7 @@ export default function Builder({
     tone: 'success' | 'error' | 'info'
     text: string
   } | null>(null)
+  const [promptBeforeAiImprovement, setPromptBeforeAiImprovement] = useState<string | null>(null)
   const recognitionRef = useRef<any>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -2026,7 +2028,15 @@ export default function Builder({
     setError(null)
     try {
       const improved = await expandPromptWithAI(value, 'template', 'text')
+      const comparison = comparePromptQuality(value, improved, 'builder')
+      setPromptBeforeAiImprovement(value)
       setPrompt(improved)
+      setSessionActionNotice({
+        tone: comparison.delta >= 0 ? 'success' : 'info',
+        text: comparison.delta >= 0
+          ? `AI rewrite applied. Prompt readiness changed from ${comparison.before} to ${comparison.after}. Review the wording before continuing.`
+          : `AI rewrite applied. Prompt readiness changed from ${comparison.before} to ${comparison.after}. Readiness is advisory; review the rewrite or undo it.`,
+      })
       focusPromptAtEnd(improved)
     } catch (err: any) {
       setError(err?.message || 'Failed to improve prompt')
@@ -2561,6 +2571,7 @@ export default function Builder({
                   value={prompt}
                   onChange={(event) => {
                     const nextValue = event.target.value
+                    setPromptBeforeAiImprovement(null)
                     setPrompt(nextValue)
                     setPromptHistoryIndex(null)
                     setPromptDraftBeforeHistory('')
@@ -2692,7 +2703,24 @@ export default function Builder({
                       : 'border-red-200 bg-red-50 text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300'
                 }`}
               >
-                {sessionActionNotice.text}
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span>{sessionActionNotice.text}</span>
+                  {promptBeforeAiImprovement !== null && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const previous = promptBeforeAiImprovement
+                        setPrompt(previous)
+                        setPromptBeforeAiImprovement(null)
+                        setSessionActionNotice({ tone: 'info', text: 'Restored the prompt from before the AI rewrite.' })
+                        focusPromptAtEnd(previous)
+                      }}
+                      className="shrink-0 rounded-md border border-current px-2.5 py-1 text-xs font-medium hover:bg-white/60 dark:hover:bg-black/20"
+                    >
+                      Undo AI change
+                    </button>
+                  )}
+                </div>
               </div>
             )}
 

@@ -52,5 +52,7 @@ assert(builder.includes("label: 'AI Create Agent'"), 'Builder must expose AI Cre
 assert(builder.includes("label: 'AI Create Workflow'"), 'Builder must expose AI Create Workflow for explicit workflow actions')
 assert(builder.includes("label: 'AI Create Skill'"), 'Builder must expose AI Create Skill for explicit skill actions')
 assert(builder.includes('hasExplicitBuilderEntityAction'), 'Builder must classify explicit create and update entity prompts')
+assert(builder.includes("comparePromptQuality(value, improved, 'builder')"), 'Builder AI rewrites must disclose readiness changes using the Builder rubric')
+assert(builder.includes('Undo AI change'), 'Builder AI rewrites must provide one-click recovery')
 
-console.log('PromptQualityIntegration.test.ts: 32 tests passed')
+console.log('PromptQualityIntegration.test.ts: 34 tests passed')
