@@ -4,10 +4,11 @@ All notable changes to ClawMax are documented here.
 
 ## [Unreleased]
 
-### RC44 source candidate
+### RC45 source candidate
 - **RC43 feedback repairs** — authorize normalized LM Studio/Gemma execution models, package the pinned QBO CLI in Linux amd64/arm64 runtime images, prevent invented Builder agent targets, clarify first-use and agent-creation flow, disclose AI rewrite score changes with undo, separate optional skill setup from agent creation, and connect the Partner setup surfaces.
-- **Focused acceptance** — replace the superseded RC39 reviewer queue with six RC44 checks limited to human judgment or external environments. The complete RC43 feedback register tracks source fixes separately from image and tester evidence.
-- **Publication status** — RC44 source validation is in progress. No RC44 image or digest is accepted yet; RC43 remains historical evidence and is not promotable.
+- **Correct QBO packaging verification** — RC44 downloaded and checksum-verified QBO v0.6.1 on both architectures, but failed before publication because that release does not support `qbo --version`. RC45 validates its unauthenticated JSON schema and exact compiled version instead.
+- **Focused acceptance** — advance the six human-judgment/external-environment checks to RC45 while preserving RC44 criteria in historical Review data. The complete RC43 feedback register tracks source fixes separately from image and tester evidence.
+- **Publication status** — RC44 produced no manifest or accepted digest. RC45 source validation is in progress; RC43 and RC44 remain historical evidence and are not promotable.
 
 ### RC40-RC43
 - **Final-candidate plugin visibility** — RC43 surfaces generic plugin activity on agent and workflow cards, lists, relationship views, and detail views with compact summaries and inspectable evidence. The public presentation remains domain-neutral; enterprise product implementation and acceptance stay private.

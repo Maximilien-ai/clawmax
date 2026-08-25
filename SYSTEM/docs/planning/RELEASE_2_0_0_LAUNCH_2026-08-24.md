@@ -1,7 +1,7 @@
 # ClawMax 2.0.0 Launch
 
 > Status: active final validation plan
-> Current candidate: `2.0.0-test-rc44` source validation; image pending
+> Current candidate: `2.0.0-test-rc45` source validation; image pending
 > Stable release: `v1.9.9`
 > Updated: August 25, 2026
 
@@ -9,8 +9,9 @@ RC43 hands-on feedback found release-blocking model authorization, runtime
 packaging, Builder, and navigation issues. RC43 is no longer promotable
 unchanged; remediation is tracked in
 [RC43_FEEDBACK_2026-08-25.md](RC43_FEEDBACK_2026-08-25.md), and accepted source
-changes require a fully validated RC44. RC43 evidence below is historical and
-does not establish RC44 readiness.
+changes require a fully validated replacement candidate. RC44 then failed its
+QBO command probe on both architectures before publishing a manifest, so RC43
+and RC44 evidence below is historical and does not establish RC45 readiness.
 
 ## Historical RC43 Engineering Evidence
 
@@ -32,7 +33,7 @@ does not establish RC44 readiness.
 
 Only work requiring human judgment or an external environment remains here:
 
-- [ ] Complete hands-on RC44 product testing and record any release-blocking
+- [ ] Complete hands-on RC45 product testing and record any release-blocking
   observations in the current Review set.
 - [ ] Confirm the accepted candidate restarts cleanly in the supported cloud
   and on-prem deployment paths, including authenticated private-image pulls
@@ -44,7 +45,7 @@ Only work requiring human judgment or an external environment remains here:
 
 ## Promotion
 
-Promote only the exact RC44-or-later source and digest that pass all gates:
+Promote only the exact RC45-or-later source and digest that pass all gates:
 
 1. promote the exact tested public digest to `2.0.0`;
 2. publish the matching authorized combined image from the accepted private
