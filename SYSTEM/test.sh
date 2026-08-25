@@ -2154,8 +2154,8 @@ fi
 
 echo -e "${YELLOW}→ Running Prompt quality scoring unit tests...${NC}"
 npx ts-node --transpileOnly client/src/lib/promptQuality.test.ts > /tmp/clawmax-prompt-quality.out 2>&1 || true
-if grep -q "promptQuality.test.ts: 10 tests passed" /tmp/clawmax-prompt-quality.out; then
-  pass "Prompt quality scoring unit tests (10 tests)"
+if grep -q "promptQuality.test.ts: 12 tests passed" /tmp/clawmax-prompt-quality.out; then
+  pass "Prompt quality scoring unit tests (12 tests)"
 else
   cat /tmp/clawmax-prompt-quality.out
   fail "Prompt quality scoring unit tests"
@@ -2163,8 +2163,8 @@ fi
 
 echo -e "${YELLOW}→ Running Prompt quality integration regression tests...${NC}"
 npx ts-node --transpileOnly client/src/PromptQualityIntegration.test.ts > /tmp/clawmax-prompt-quality-integration.out 2>&1 || true
-if grep -q "PromptQualityIntegration.test.ts: 32 tests passed" /tmp/clawmax-prompt-quality-integration.out; then
-  pass "Prompt quality integration regression tests (32 tests)"
+if grep -q "PromptQualityIntegration.test.ts: 35 tests passed" /tmp/clawmax-prompt-quality-integration.out; then
+  pass "Prompt quality integration regression tests (35 tests)"
 else
   cat /tmp/clawmax-prompt-quality-integration.out
   fail "Prompt quality integration regression tests"
