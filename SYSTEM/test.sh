@@ -3350,7 +3350,7 @@ fi
 
 echo -e "${YELLOW}→ Running Chat process safety unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/chat-process-safety.test.ts > /tmp/clawmax-chat-process-safety.out 2>&1 || true
-if grep -Eq "chat-process-safety.test.ts: (15|17) assertions passed" /tmp/clawmax-chat-process-safety.out; then
+if grep -Eq "chat-process-safety.test.ts: (15|19) assertions passed" /tmp/clawmax-chat-process-safety.out; then
   chat_process_safety_count=$(grep -Eo "chat-process-safety.test.ts: [0-9]+" /tmp/clawmax-chat-process-safety.out | grep -Eo '[0-9]+' | tail -n 1)
   pass "Chat process safety unit tests (${chat_process_safety_count:-?} assertions)"
 else
