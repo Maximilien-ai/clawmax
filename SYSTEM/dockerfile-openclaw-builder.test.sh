@@ -6,6 +6,7 @@ DOCKERFILE="$ROOT_DIR/Dockerfile"
 VERSION_HELPER="$ROOT_DIR/SYSTEM/openclaw-version.sh"
 TEST_WRAPPER="$ROOT_DIR/SYSTEM/test-with-server.sh"
 TEST_IMAGE_WORKFLOW="$ROOT_DIR/.github/workflows/test-container-image.yml"
+RUNTIME_INSTALLER="$ROOT_DIR/SYSTEM/install-runtime-clis.sh"
 
 [ -f "$VERSION_HELPER" ] || {
   echo "Expected version helper to exist: $VERSION_HELPER" >&2
@@ -85,11 +86,20 @@ assert_not_contains() {
 # installer piped straight into the image (see Dockerfile comment).
 assert_not_contains "curl -fsSL https://app.factory.ai/cli | sh"
 assert_contains "ARG FACTORY_DROID_VERSION=0.158.0"
+assert_contains "ARG FACTORY_DROID_AMD64_SHA256=f64a55bb6d314c8d925063ce741c97796208ef0facdd4b4f1881a358acb668d8"
+assert_contains "ARG FACTORY_DROID_AMD64_BASELINE_SHA256=891325d02d7c013188ffc49b0c9654c539e1dd637f27f302bb41e5e888fb714f"
+assert_contains "ARG FACTORY_DROID_ARM64_SHA256=fe9d06b4c0136add0619d964afb3dac2cc9b13ac6c0e448f11691d749203c584"
+grep -Fq 'FACTORY_DROID_AMD64_SHA256="${FACTORY_DROID_AMD64_SHA256:-f64a55bb6d314c8d925063ce741c97796208ef0facdd4b4f1881a358acb668d8}"' "$RUNTIME_INSTALLER" \
+  || { echo "Expected CI installer to share the pinned AMD64 Droid checksum" >&2; exit 1; }
+grep -Fq 'FACTORY_DROID_AMD64_BASELINE_SHA256="${FACTORY_DROID_AMD64_BASELINE_SHA256:-891325d02d7c013188ffc49b0c9654c539e1dd637f27f302bb41e5e888fb714f}"' "$RUNTIME_INSTALLER" \
+  || { echo "Expected CI installer to share the pinned baseline AMD64 Droid checksum" >&2; exit 1; }
+grep -Fq 'FACTORY_DROID_ARM64_SHA256="${FACTORY_DROID_ARM64_SHA256:-fe9d06b4c0136add0619d964afb3dac2cc9b13ac6c0e448f11691d749203c584}"' "$RUNTIME_INSTALLER" \
+  || { echo "Expected CI installer to share the pinned ARM64 Droid checksum" >&2; exit 1; }
 assert_contains 'droid_url="https://downloads.factory.ai/factory-cli/releases/${FACTORY_DROID_VERSION}/linux/${droid_arch}${droid_suffix}/droid"'
 assert_contains "curl -fsSL -o /tmp/droid \"\$droid_url\""
-assert_contains "curl -fsSL -o /tmp/droid.sha256 \"\${droid_url}.sha256\""
+assert_not_contains 'curl -fsSL -o /tmp/droid.sha256'
 assert_contains 'actual_sha="$(sha256sum /tmp/droid | awk '"'"'{print $1}'"'"')"'
-assert_contains '[ -n "$expected_sha" ] && [ "$actual_sha" = "$expected_sha" ]'
+assert_contains '[ -n "$droid_expected_sha" ] && [ "$actual_sha" = "$droid_expected_sha" ]'
 assert_contains 'droid" --version | grep -F "${FACTORY_DROID_VERSION}"'
 
 echo "dockerfile openclaw builder tests passed"
