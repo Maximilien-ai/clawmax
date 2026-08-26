@@ -309,15 +309,14 @@ function hasAgentChatLanguage(prompt: string): boolean {
 }
 
 function extractAgentChatTarget(prompt: string): string | undefined {
-  const normalized = normalizeText(prompt).toLowerCase().replace(/[?!.]+$/g, '')
+  const normalized = normalizeText(prompt).replace(/[?!.]+$/g, '')
   const patterns = [
-    /\b(?:chat|talk|speak)\s+(?:with|to)\s+(?:agent\s+|assistant\s+)?([a-z0-9][a-z0-9._ -]{0,60})$/,
-    /\b(?:message|ask)\s+(?:agent\s+|assistant\s+)?([a-z0-9][a-z0-9._ -]{0,60})$/,
+    /\b(?:chat|talk|speak)\s+(?:with|to)\s+(?:agent\s+|assistant\s+)?([a-z0-9][a-z0-9._ -]{0,60})$/i,
+    /\b(?:message|ask)\s+(?:agent\s+|assistant\s+)?([a-z0-9][a-z0-9._ -]{0,60})$/i,
   ]
   for (const pattern of patterns) {
-    const match = normalized.match(pattern)
-    const target = match?.[1]?.trim()
-    if (target) return target
+    const target = normalized.match(pattern)?.[1]?.trim()
+    if (target && !/^(?:it|this|that|them|him|her)\b/i.test(target)) return target
   }
   return undefined
 }
@@ -913,7 +912,9 @@ function chooseIntent(args: {
       || (hasRefineLanguage && hasReuseLanguage && agentScore >= strongestTemplateScore)
       || (!wantsSomethingNew && agentScore >= 8 && agentScore >= strongestTemplateScore + 3))
 
-  if (hasAgentChatLanguage(prompt) && (matchedAgents.length > 0 || extractAgentChatTarget(prompt))) {
+  const requestedChatTarget = extractAgentChatTarget(prompt)
+  const chatTargetMatched = isCloseAgentReferenceMatch(requestedChatTarget, matchedAgents[0]) && (matchedAgents[0]?.score || 0) >= 6
+  if (hasAgentChatLanguage(prompt) && chatTargetMatched) {
     return { intent: 'existing_agent', scope: 'single_agent', operation, confidence: agentScore >= 6 ? 'high' : 'medium' }
   }
 
@@ -1162,6 +1163,7 @@ export function buildAiBuilderRecommendation(prompt: string): AiBuilderRecommend
   const hasSkillLanguage = includesAny(normalizedPrompt, SKILL_KEYWORDS)
   const wantsAgentChat = hasAgentChatLanguage(normalizedPrompt)
   const agentChatTarget = extractAgentChatTarget(normalizedPrompt)
+  const agentChatTargetMatched = isCloseAgentReferenceMatch(agentChatTarget, topAgent) && (topAgent?.score || 0) >= 6
 
   const decision = chooseIntent({
     prompt: normalizedPrompt,
@@ -1218,9 +1220,9 @@ export function buildAiBuilderRecommendation(prompt: string): AiBuilderRecommend
 
   switch (intent) {
     case 'existing_agent':
-      const chatTargetLabel = topAgent?.name || agentChatTarget
-      const chatTargetId = topAgent?.id || agentChatTarget
-      const chatAction: AiBuilderAction | null = wantsAgentChat && chatTargetLabel && chatTargetId
+      const chatTargetLabel = topAgent?.name
+      const chatTargetId = topAgent?.id
+      const chatAction: AiBuilderAction | null = wantsAgentChat && agentChatTargetMatched && chatTargetLabel && chatTargetId
         ? {
             ...action(
               'chat-agent',

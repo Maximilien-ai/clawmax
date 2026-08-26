@@ -92,6 +92,10 @@ WORKDIR /app/SYSTEM/dashboard
 ARG CLAWMAX_VERSION
 ARG OPENCLAW_GIT_REF
 ARG CLAWMAX_ENABLED_PLUGINS
+ARG TARGETARCH
+ARG QBO_VERSION=0.6.1
+ARG QBO_LINUX_AMD64_SHA256=ce7774c7c641b1c6fe356e2e522465fbf16d80bce0a87fd2c8027774e2a46f31
+ARG QBO_LINUX_ARM64_SHA256=150cdb50c2dacc8c990c3594b358dcd84f2336de31cad73de266bbdf32b3d4e0
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
@@ -103,6 +107,25 @@ RUN apt-get update \
     python3 \
     ripgrep \
   && rm -rf /var/lib/apt/lists/*
+
+RUN case "${TARGETARCH}" in \
+      amd64) qbo_sha256="${QBO_LINUX_AMD64_SHA256}" ;; \
+      arm64) qbo_sha256="${QBO_LINUX_ARM64_SHA256}" ;; \
+      *) echo "Unsupported QBO target architecture: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac \
+  && qbo_archive="qbo-cli_${QBO_VERSION}_linux_${TARGETARCH}.tar.gz" \
+  && curl -fsSL --retry 3 --retry-delay 5 \
+    -o "/tmp/${qbo_archive}" \
+    "https://github.com/voska/qbo-cli/releases/download/v${QBO_VERSION}/${qbo_archive}" \
+  && echo "${qbo_sha256}  /tmp/${qbo_archive}" | sha256sum -c - \
+  && mkdir -p /tmp/qbo-cli /usr/share/doc/qbo-cli \
+  && tar -xzf "/tmp/${qbo_archive}" -C /tmp/qbo-cli \
+  && install -m 0755 /tmp/qbo-cli/qbo /usr/local/bin/qbo \
+  && install -m 0644 /tmp/qbo-cli/LICENSE /usr/share/doc/qbo-cli/LICENSE \
+  && qbo --json schema \
+    | jq -e --arg expected "${QBO_VERSION}" \
+      '.name == "qbo" and .version == $expected' >/dev/null \
+  && rm -rf "/tmp/${qbo_archive}" /tmp/qbo-cli
 
 COPY SYSTEM/dashboard/package*.json ./
 RUN retry() { \

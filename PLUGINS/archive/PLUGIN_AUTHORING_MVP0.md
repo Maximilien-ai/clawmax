@@ -2,14 +2,14 @@
 
 Status: historical compatibility guide. Examples refer only to synthetic
 plugin fixtures. New plugins should use
-[PLUGIN_AUTHORING_2_0.md](PLUGIN_AUTHORING_2_0.md).
+[PLUGIN_AUTHORING_2_0.md](../PLUGIN_AUTHORING_2_0.md).
 
 This guide is for users or AI coding assistants creating a new ClawMax plugin.
 
 This MVP0 guide documents the compatibility adapter. New 2.0 plugin work should
 also follow the public-host/private-plugin boundary in
-[PLUGIN_SYSTEM_2_0.md](PLUGIN_SYSTEM_2_0.md).
-New generic plugins should use [PLUGIN_AUTHORING_2_0.md](PLUGIN_AUTHORING_2_0.md).
+[PLUGIN_SYSTEM_2_0.md](../PLUGIN_SYSTEM_2_0.md).
+New generic plugins should use [PLUGIN_AUTHORING_2_0.md](../PLUGIN_AUTHORING_2_0.md).
 
 ## Minimum Steps
 

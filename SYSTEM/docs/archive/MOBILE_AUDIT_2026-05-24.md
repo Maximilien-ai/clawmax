@@ -1,5 +1,7 @@
 # Mobile / Narrow-Width Audit
 
+> Archived dated audit; unresolved responsive work remains in the active backlog.
+
 Last updated: May 24, 2026
 
 ## Summary

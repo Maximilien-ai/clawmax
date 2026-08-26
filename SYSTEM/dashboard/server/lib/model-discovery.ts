@@ -82,10 +82,11 @@ export const FALLBACK_OPENAI = [
   'openai/o4-mini',
 ]
 
-const FALLBACK_GEMINI = [
+export const FALLBACK_GEMINI = [
   'google/gemini-2.5-flash',
   'google/gemini-2.5-flash-lite',
   'google/gemini-2.0-flash',
+  'google/gemma-4-31b-it',
 ]
 
 const FALLBACK_OPENROUTER = ['openrouter/auto']
@@ -142,6 +143,12 @@ const ANTHROPIC_CHAT_PREFIXES = ['claude-']
 
 function isAnthropicChatModel(id: string): boolean {
   return ANTHROPIC_CHAT_PREFIXES.some(p => id.toLowerCase().startsWith(p))
+}
+
+function isGeminiApiTextModel(id: string): boolean {
+  const lower = id.toLowerCase()
+  if (lower.startsWith('gemini-')) return !lower.includes('embedding')
+  return /^gemma-\d[0-9a-z.-]*-it$/.test(lower)
 }
 
 const OPENAI_COMPATIBLE_EXCLUDE = [
@@ -238,7 +245,7 @@ async function fetchGeminiModels(apiKey: string): Promise<string[]> {
     const body = await res.json() as { models?: Array<{ name: string }> }
     const models = (body.models || [])
       .map((m) => m.name.replace(/^models\//, ''))
-      .filter((id) => id.startsWith('gemini-') && !id.includes('embedding'))
+      .filter(isGeminiApiTextModel)
       .sort()
       .map((id) => `google/${id}`)
 
@@ -539,5 +546,6 @@ export function getAvailableModelsCached(rawEnv?: Record<string, string>): strin
 
 export const __test = {
   filterCompatibleDiscoveredModels,
+  isGeminiApiTextModel,
   isOpenAICompatibleChatModel,
 }

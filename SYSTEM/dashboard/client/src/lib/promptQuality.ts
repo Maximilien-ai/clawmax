@@ -24,6 +24,12 @@ export interface PromptQualityFeedback {
   createdAt: string
 }
 
+export interface PromptQualityComparison {
+  before: number
+  after: number
+  delta: number
+}
+
 export const PROMPT_QUALITY_READY_SCORE = 80
 export const PROMPT_QUALITY_EXCELLENT_SCORE = 90
 export const PROMPT_QUALITY_FEEDBACK_STORAGE_KEY = 'clawmax-prompt-quality-feedback:v1'
@@ -162,6 +168,16 @@ export function scorePromptQuality(prompt: string, domain: PromptQualityDomain =
       .sort((a, b) => (b.max - b.earned) - (a.max - a.earned))
       .slice(0, 3),
   }
+}
+
+export function comparePromptQuality(
+  beforePrompt: string,
+  afterPrompt: string,
+  domain: PromptQualityDomain = 'general',
+): PromptQualityComparison {
+  const before = scorePromptQuality(beforePrompt, domain).score
+  const after = scorePromptQuality(afterPrompt, domain).score
+  return { before, after, delta: after - before }
 }
 
 export function recordPromptQualityFeedback(feedback: PromptQualityFeedback): void {

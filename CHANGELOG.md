@@ -4,6 +4,19 @@ All notable changes to ClawMax are documented here.
 
 ## [Unreleased]
 
+### RC45 source candidate
+- **RC43 feedback repairs** — authorize normalized LM Studio/Gemma execution models, package the pinned QBO CLI in Linux amd64/arm64 runtime images, prevent invented Builder agent targets, clarify first-use and agent-creation flow, disclose AI rewrite score changes with undo, separate optional skill setup from agent creation, and connect the Partner setup surfaces.
+- **Correct QBO packaging verification** — RC44 downloaded and checksum-verified QBO v0.6.1 on both architectures, but failed before publication because that release does not support `qbo --version`. RC45 validates its unauthenticated JSON schema and exact compiled version instead.
+- **Focused acceptance** — advance the six human-judgment/external-environment checks to RC45 while preserving RC44 criteria in historical Review data. The complete RC43 feedback register tracks source fixes separately from image and tester evidence.
+- **Publication status** — RC44 produced no manifest or accepted digest. RC45 source validation is in progress; RC43 and RC44 remain historical evidence and are not promotable.
+
+### RC40-RC43
+- **Final-candidate plugin visibility** — RC43 surfaces generic plugin activity on agent and workflow cards, lists, relationship views, and detail views with compact summaries and inspectable evidence. The public presentation remains domain-neutral; enterprise product implementation and acceptance stay private.
+- **External plugin acceptance boundary** — RC42 decouples deployment-mounted plugin discovery from public product assumptions and adds a public launcher for contract tests owned by an external plugin repository, without copying private plugins or tests into this repository.
+- **Gemini creation reliability** — RC41 binds AI generation to the selected Gemini provider/model and retains focused provider regressions, including the previously failing Gemini path.
+- **Authorized session bootstrap consumption** — the dashboard consumes gateway-issued, authorization-bound sessions without accepting tenant, workspace, or runtime identity from caller-controlled routing inputs.
+- **Release evidence** — RC43 source `a4b78c1d` passed the `463/463` local integration, validation, coverage, and live-execution gate. Public amd64/arm64 publication and registry smoke passed in [run 32658795332](https://github.com/Maximilien-ai/clawmax/actions/runs/32658795332) with manifest digest `sha256:8af1e160106db1acab5e9b853743cad943effe8de5d52dc11890dd0b2b715c44`; matching combined-image evidence remains private.
+
 ### RC39
 - **Praveen dashboard regression candidate** — agent discovery and partial-data rendering, long-running chat stream safety, and workflow concurrency/cancellation/restart state now have a focused three-journey independent Review set. The underlying reported defects are covered by automated tests and closed optimistically for RC39 verification; RC38 criteria remain preserved as historical review evidence.
 - **Truthful plugin advisory behavior** — generic Guardrail configuration intent is preserved without claiming enforcement the host cannot provide, and unsupported AI Eval suggestions no longer fabricate deterministic scores. Private product implementation and acceptance evidence remain in the private plugin repository.
@@ -80,7 +93,7 @@ All notable changes to ClawMax are documented here.
 - **Actionable Model Tool Errors** — unsupported web-search failures now name the actual model, link directly to the affected agent editor, and hide unrelated state-migration, plugin, stack, and gateway log output from chat.
 
 ### Remaining Before Promotion
-- **2.0 release gates** — complete the security findings record, final plugin/runtime acceptance, cloud and on-prem restart checks, immutable multi-architecture candidate, version reconciliation, and exported Review sign-off described in the [release-week plan](SYSTEM/docs/planning/RELEASE_2_0_0_WEEK_2026-08-10.md).
+- **2.0 release gates** — complete hands-on testing, cloud and on-prem restart checks, real-provider validation or explicit deferral, and exported Review sign-off described in the [launch plan](SYSTEM/docs/planning/RELEASE_2_0_0_LAUNCH_2026-08-24.md).
 
 ## [v1.9.9] - 2026-07-21
 
@@ -708,7 +721,7 @@ All notable changes to ClawMax are documented here.
 
 ### Templates and Mobile Audit
 - **Template Catalog Guardrails** — shipped organization templates now have catalog-wide tests that ban hidden helper/runtime directory references in workflow content and catch duplicate explicit artifact filenames reused across multiple workflows in the same template.
-- **Catalog Audit Snapshot** — documented the first shipped-template audit batch in `SYSTEM/docs/operations/TEMPLATE_CATALOG_AUDIT_2026-05-24.md` so future template additions can follow the same assumptions and checks.
+- **Catalog Audit Snapshot** — documented the first shipped-template audit batch in `SYSTEM/docs/archive/TEMPLATE_CATALOG_AUDIT_2026-05-24.md` so future template additions can follow the same assumptions and checks.
 - **Focused Mobile Responsiveness Fixes** — hardened narrow-width behavior for the notifications tray, the BYOK / Partner Integrations modal, and the Apply Agent Template modal so key flows remain usable on tighter screens.
 
 ### Docs

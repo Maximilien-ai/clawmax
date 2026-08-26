@@ -1,6 +1,6 @@
 # ClawMax Documentation
 
-> Last updated: August 13, 2026
+> Last updated: August 25, 2026
 
 ## Active Documents
 
@@ -16,8 +16,8 @@
 | [security/SECURITY_REVIEW_2_0_RC38.md](security/SECURITY_REVIEW_2_0_RC38.md) | 2.0 source security sign-off and pending final-candidate appendix |
 | [security/SECURITY_FINDINGS_2_0.md](security/SECURITY_FINDINGS_2_0.md) | Remediated and accepted 2.0 security findings |
 | [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) | Pre-release verification steps |
-| [testing/RELEASE_REVIEW_AUDIT_2026-08-13.md](testing/RELEASE_REVIEW_AUDIT_2026-08-13.md) | Review ownership policy and RC37 reviewer-queue audit |
-| [planning/RELEASE_2_0_0_WEEK_2026-08-10.md](planning/RELEASE_2_0_0_WEEK_2026-08-10.md) | Active August 10-14 execution and go/no-go plan for `2.0.0` |
+| [planning/RELEASE_2_0_0_LAUNCH_2026-08-24.md](planning/RELEASE_2_0_0_LAUNCH_2026-08-24.md) | Active RC45 source-validation and `2.0.0` promotion plan |
+| [planning/RC43_FEEDBACK_2026-08-25.md](planning/RC43_FEEDBACK_2026-08-25.md) | Complete RC43 tester-feedback register and RC45 repair plan |
 | [DEMO_VIDEOS.md](DEMO_VIDEOS.md) | Local demo video inventory and when to use it |
 | [planning/PUBLIC_PLUGIN_ARCHITECTURE_2_0.md](planning/PUBLIC_PLUGIN_ARCHITECTURE_2_0.md) | Active public 2.0 plugin and AI-scoring plan |
 | [planning/PUBLIC_LIFECYCLE_PLUGIN_2_0.md](planning/PUBLIC_LIFECYCLE_PLUGIN_2_0.md) | Active public Lifecycle plugin plan for deep agent/workflow inspection |
@@ -28,8 +28,6 @@
 | [../../PLUGINS/PLUGIN_SYSTEM_2_0.md](../../PLUGINS/PLUGIN_SYSTEM_2_0.md) | Public 2.0 plugin-host architecture and acceptance boundary |
 | [../../PLUGINS/PLUGIN_AUTHORING_2_0.md](../../PLUGINS/PLUGIN_AUTHORING_2_0.md) | Declarative 2.0 plugin authoring contract |
 | [architecture/DASHBOARD_RUNTIME_SPLIT.md](architecture/DASHBOARD_RUNTIME_SPLIT.md) | Investigation note for the 2-container vs 3-container dashboard runtime split |
-| [operations/TEMPLATE_CATALOG_AUDIT_2026-05-24.md](operations/TEMPLATE_CATALOG_AUDIT_2026-05-24.md) | First catalog audit pass for template lane/filesystem assumptions |
-| [operations/MOBILE_AUDIT_2026-05-24.md](operations/MOBILE_AUDIT_2026-05-24.md) | Focused narrow-width audit pass for high-traffic dashboard surfaces |
 
 ## Specifications (External)
 
@@ -58,3 +56,4 @@
 | `presentations/` | Demo, talk, and workshop materials; latest deck: `mango-grove-estate-workshop-jul-2026/index.html` |
 | `videos/` | Local backup demo videos for workflow execution and add-agent walkthroughs |
 | `archive/` | Historical docs no longer actively maintained |
+| `planning/archive/` | Completed and superseded execution plans |

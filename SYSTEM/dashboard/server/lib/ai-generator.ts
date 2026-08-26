@@ -10,7 +10,7 @@ import { getModelLifecycleEntry } from './openAiModelLifecycle'
 import { randomUUID } from 'crypto'
 import { getWorkspacePath } from './workspace'
 
-type AIProvider = 'openai' | 'openai-compatible' | 'anthropic' | 'cli-runtime'
+type AIProvider = 'openai' | 'openai-compatible' | 'anthropic' | 'gemini' | 'cli-runtime'
 export type TemplateGenerationTarget = 'agent' | 'team' | 'company'
 export type PromptExpansionTarget = 'agent' | 'workflow' | 'skill' | 'template'
 export type PromptExpansionFormat = 'markdown' | 'text'
@@ -78,7 +78,7 @@ export function validateAiGenerationProviderKeys(byokKeys?: ProviderKeys): void 
     gemini: 'Gemini',
   } as const
 
-  const hostedProviders: Array<keyof Pick<ProviderKeys, 'openai' | 'anthropic'>> = ['openai', 'anthropic']
+  const hostedProviders: Array<keyof Pick<ProviderKeys, 'openai' | 'anthropic' | 'gemini'>> = ['openai', 'anthropic', 'gemini']
   for (const provider of hostedProviders) {
     const raw = String(byokKeys[provider] || '').trim()
     if (!raw) continue
@@ -88,7 +88,11 @@ export function validateAiGenerationProviderKeys(byokKeys?: ProviderKeys): void 
       throw new Error(`This looks like a ${labels[detected]} key, not a ${labels[provider]} developer API key.`)
     }
 
-    const expectedPrefix = provider === 'openai' ? /^sk-/i : /^sk-ant-/i
+    const expectedPrefix = provider === 'openai'
+      ? /^sk-/i
+      : provider === 'anthropic'
+        ? /^sk-ant-/i
+        : /^AIza[0-9A-Za-z\-_]{20,}$/i
     if (!expectedPrefix.test(raw)) {
       if (looksLikeSubscriptionCredential(raw)) {
         throw new Error(`${labels[provider]} subscription or app credentials cannot be used here. Use a ${labels[provider]} developer API key instead.`)
@@ -477,6 +481,7 @@ function getAvailableProvider(
     }
   }
   if (byokKeys?.anthropic) return { provider: 'anthropic', key: byokKeys.anthropic }
+  if (byokKeys?.gemini) return { provider: 'gemini', key: byokKeys.gemini }
   // Then system/user-default keys
   const keys = resolveSystemExecutionProviderKeys()
   if (keys.openai) return { provider: 'openai', key: keys.openai }
@@ -491,12 +496,13 @@ function getAvailableProvider(
     }
   }
   if (keys.anthropic) return { provider: 'anthropic', key: keys.anthropic }
+  if (keys.gemini) return { provider: 'gemini', key: keys.gemini }
   // Nothing hosted is configured. If the workspace enabled a CLI runtime in BYOK ("Run via CLI"),
   // generation should use it — those CLIs authenticate with their own login and need no key, and
   // it is what the operator explicitly turned on.
   const enabledRuntime = cliCandidate()
   if (enabledRuntime) return { provider: 'cli-runtime', key: enabledRuntime }
-  throw new Error('No API key configured. Set SYSTEM_OPENAI_API_KEY or SYSTEM_ANTHROPIC_API_KEY in .env, enable a CLI runtime in BYOK, or provide a BYOK key.')
+  throw new Error('No API key configured. Set SYSTEM_OPENAI_API_KEY, SYSTEM_ANTHROPIC_API_KEY, or SYSTEM_GEMINI_API_KEY in .env, enable a CLI runtime in BYOK, or provide a BYOK key.')
 }
 
 
@@ -762,6 +768,7 @@ export function resolveGenerationProvider(byokKeys?: ProviderKeys): {
 
 export function buildClientForSelection(
   selection: { provider: AIProvider; key: string; baseUrl?: string; defaultModel?: string },
+  byokKeys?: ProviderKeys,
 ): { client: OpenAI; model: string } {
   const { provider, key, baseUrl, defaultModel } = selection
   if (provider === 'cli-runtime') {
@@ -782,6 +789,16 @@ export function buildClientForSelection(
       model: getPreferredAnthropicGenerationModel(),
     }
   }
+  if (provider === 'gemini') {
+    return {
+      client: new OpenAI({
+        apiKey: key,
+        baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
+        defaultHeaders: { 'x-goog-api-client': 'clawmax-openai-compat/2.0.0' },
+      }),
+      model: resolveModel('gemini-2.5-flash', provider, byokKeys),
+    }
+  }
   if (provider === 'openai-compatible') {
     const normalizedBaseUrl = String(baseUrl || '').trim().replace(/\/+$/, '')
     if (!normalizedBaseUrl) {
@@ -799,14 +816,18 @@ export function buildClientForSelection(
   }
   return {
     client: new OpenAI({ apiKey: key }),
-    model: resolveModel('gpt-4o-mini', provider),
+    model: resolveModel('gpt-4o-mini', provider, byokKeys),
   }
+}
+
+export function createAiGenerationClient(byokKeys?: ProviderKeys): { client: OpenAI; model: string } {
+  return buildClientForSelection(getAvailableProvider(byokKeys), byokKeys)
 }
 
 export function getAIClient(byokKeys?: ProviderKeys): { client: OpenAI; model: string } {
   const selection = getAvailableProvider(byokKeys)
   const primaryLabel = describeProvider(selection.provider, selection.key)
-  const built = buildClientForSelection(selection)
+  const built = buildClientForSelection(selection, byokKeys)
   recordGenerationAttribution({
     provider: selection.provider,
     runtime: selection.provider === 'cli-runtime' ? (selection.key as AgentRuntimeId) : undefined,
@@ -849,7 +870,7 @@ export function getAIClient(byokKeys?: ProviderKeys): { client: OpenAI; model: s
     let hosted: { client: OpenAI; model: string }
     try {
       hostedSelection = getAvailableProvider(byokKeys, { skipCliRuntime: true })
-      hosted = buildClientForSelection(hostedSelection)
+      hosted = buildClientForSelection(hostedSelection, byokKeys)
     } catch {
       // Nothing hosted to fall back to: the CLI failure is the real and only story.
       throw cliError
@@ -952,6 +973,13 @@ export function resolveSystemGenerationModelForProvider(
     return undefined
   }
 
+  if (provider === 'gemini') {
+    const model = trimmed.replace(/^(?:google|gemini)\//, '')
+    if (model.startsWith('gemini-')) return model
+    if (/^gemma-\d[0-9a-z.-]*-it$/i.test(model)) return model
+    return undefined
+  }
+
   if (trimmed.startsWith('anthropic/')) return trimmed.replace(/^anthropic\//, '')
   if (trimmed.startsWith('claude')) return trimmed
   if (trimmed.startsWith('openai/')) return anthropicFallback
@@ -964,23 +992,22 @@ export function resolveSystemGenerationModelForProvider(
  * Maps OpenAI model names to Anthropic equivalents when needed.
  */
 /**
- * @param knownProvider the already-resolved provider, when the caller has one.
+ * @param providerOverride the already-resolved provider, when the caller has one.
  *
  * Without it this re-derives the provider from scratch, which is wrong during a hosted
  * fallback: the CLI is still enabled, so re-resolving picks `cli-runtime` again and hands the
  * CLI sentinel to a hosted client as its model id. An invalid key hides this (auth fails before
  * the model is validated); a working key fails on an unknown model.
  */
-function resolveModel(requestedModel: string, knownProvider?: AIProvider): string {
-  const { provider } = knownProvider
-    ? { provider: knownProvider }
-    : getAvailableProvider(_requestByokKeys)
+function resolveModel(requestedModel: string, providerOverride?: AIProvider, byokKeysOverride?: ProviderKeys): string {
+  const provider = providerOverride || getAvailableProvider(_requestByokKeys).provider
+  const effectiveByokKeys = byokKeysOverride || _requestByokKeys
   const systemPreferredModel = readWorkspaceIntegrationConfig().systemPreferredModel?.trim()
   // A CLI-backed client ignores this value — it drives the runtime's own model — but every caller
   // still asks for one, so answer without reaching the provider branches below.
   if (provider === 'cli-runtime') return CLI_RUNTIME_MODEL_SENTINEL
   if (provider === 'openai-compatible') {
-    const model = resolveOpenAiCompatibleGenerationDefaults(_requestByokKeys).defaultModel
+    const model = resolveOpenAiCompatibleGenerationDefaults(effectiveByokKeys).defaultModel
     if (model) return model
     throw new Error('OpenAI-compatible AI generation requires a default model. Set one in BYOK first, or enable a CLI runtime in BYOK.')
   }
@@ -988,6 +1015,7 @@ function resolveModel(requestedModel: string, knownProvider?: AIProvider): strin
   const preferredForProvider = resolveSystemGenerationModelForProvider(provider, systemPreferredModel, anthropicModel)
   if (preferredForProvider) return preferredForProvider
   if (provider === 'openai') return requestedModel
+  if (provider === 'gemini') return 'gemini-2.5-flash'
   // Map OpenAI models to Anthropic equivalents
   if (requestedModel.includes('gpt-4o-mini') || requestedModel.includes('gpt-4')) return anthropicModel
   if (requestedModel.includes('gpt-4o') || requestedModel.includes('gpt-5')) return anthropicModel
@@ -1944,7 +1972,8 @@ export function normalizeGeneratedAgentMeta(
   skills: string[]
 } {
   const fallbackName = inferFallbackAgentName(description)
-  const normalizedName = slugifyGeneratedTemplateValue(parsed.name || '', fallbackName)
+  const explicitName = extractExplicitAgentName(description)
+  const normalizedName = slugifyGeneratedTemplateValue(explicitName || parsed.name || '', fallbackName)
   const finalName = GENERIC_GENERATED_AGENT_NAMES.has(normalizedName) ? fallbackName : normalizedName
 
   const parsedTags = Array.isArray(parsed.tags)

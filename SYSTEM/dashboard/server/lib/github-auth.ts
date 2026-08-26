@@ -20,6 +20,7 @@ import {
   SessionBootstrapError,
   SessionBootstrapReplayStore,
   validateSessionBootstrapClaims,
+  verifySignedSessionBootstrap,
 } from './session-bootstrap'
 
 // ============================================================================
@@ -210,8 +211,8 @@ function createSessionToken(user: GitHubUser): string {
   return jwt.sign(payload, JWT_SECRET(), { expiresIn: SESSION_DURATION })
 }
 
-function createEnterpriseSessionToken(claims: SessionBootstrapClaims, ttlSeconds: number): string {
-  const payload: SessionPayload = {
+function createEnterpriseSessionPayload(claims: SessionBootstrapClaims): SessionPayload {
+  return {
     userId: claims.actor_id,
     login: claims.actor_id,
     name: null,
@@ -227,6 +228,10 @@ function createEnterpriseSessionToken(claims: SessionBootstrapClaims, ttlSeconds
       bootstrapId: claims.bootstrap_id,
     },
   }
+}
+
+function createEnterpriseSessionToken(claims: SessionBootstrapClaims, ttlSeconds: number): string {
+  const payload = createEnterpriseSessionPayload(claims)
   return jwt.sign(payload, JWT_SECRET(), { expiresIn: ttlSeconds })
 }
 
@@ -1044,7 +1049,16 @@ function getSessionFromRequest(req: Request): SessionPayload | null {
   const authHeader = req.headers.authorization
   if (authHeader) {
     const token = authHeader.replace(/^Bearer\s+/i, '')
-    return verifySessionToken(token)
+    const dashboardSession = verifySessionToken(token)
+    if (dashboardSession) return dashboardSession
+    const config = getSessionBootstrapConfig()
+    if (config.enabled && config.valid) {
+      try {
+        return createEnterpriseSessionPayload(verifySignedSessionBootstrap(token, config))
+      } catch {
+        return null
+      }
+    }
   }
 
   return null

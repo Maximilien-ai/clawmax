@@ -2015,8 +2015,18 @@ export function runPluginEval(plugin: PluginManifest, recordId: string): EvalRec
 }
 
 export interface PluginRelationshipSummary {
-  agents: Record<string, Array<{ pluginId: string; itemId: string; name: string }>>
-  workflows: Record<string, Array<{ pluginId: string; itemId: string; name: string }>>
+  agents: Record<string, PluginRelationshipEntry[]>
+  workflows: Record<string, PluginRelationshipEntry[]>
+}
+
+export interface PluginRelationshipEntry {
+  pluginId: string
+  pluginName: string
+  objectKind: string
+  itemId: string
+  name: string
+  status: string
+  summary?: string
 }
 
 export type GuardrailOperation = 'outbound-email'
@@ -2092,17 +2102,92 @@ export function enforcePluginGuardrails(input: GuardrailEnforcementInput): void 
 
 export function listPluginRelationships(): PluginRelationshipSummary {
   const summary: PluginRelationshipSummary = { agents: {}, workflows: {} }
+  const addRelationship = (
+    collection: Record<string, PluginRelationshipEntry[]>,
+    targetId: string,
+    relationship: PluginRelationshipEntry,
+  ) => {
+    if (!targetId) return
+    collection[targetId] = [...(collection[targetId] || []), relationship]
+  }
+
   for (const plugin of listConfiguredPlugins()) {
     for (const record of listPluginRecords(plugin)) {
-      if (!isGuardrailRecord(record) || !record.enabled || record.archived) continue
-      const relationship = { pluginId: plugin.slug, itemId: record.id, name: record.name }
-      for (const agentId of record.appliesTo.agents) {
-        summary.agents[agentId] = [...(summary.agents[agentId] || []), relationship]
+      if (!record.enabled || record.archived) continue
+      const relationshipBase = {
+        pluginId: plugin.slug,
+        pluginName: plugin.name,
+        objectKind: plugin.objectKind,
+        itemId: record.id,
+        name: record.name,
       }
-      for (const workflowId of record.appliesTo.workflows) {
-        summary.workflows[workflowId] = [...(summary.workflows[workflowId] || []), relationship]
+
+      if (isGuardrailRecord(record)) {
+        const relationship = { ...relationshipBase, status: 'active', summary: record.description }
+        for (const agentId of record.appliesTo.agents) addRelationship(summary.agents, agentId, relationship)
+        for (const workflowId of record.appliesTo.workflows) addRelationship(summary.workflows, workflowId, relationship)
+        continue
+      }
+
+      if (isEvalRecord(record)) {
+        const runCount = record.runs.length
+        const relationship = {
+          ...relationshipBase,
+          status: runCount > 0 ? `${runCount} run${runCount === 1 ? '' : 's'}` : 'ready',
+          summary: record.description,
+        }
+        if (record.target.type === 'agent') {
+          for (const agentId of record.target.ids) addRelationship(summary.agents, agentId, relationship)
+        } else if (record.target.type === 'workflow') {
+          for (const workflowId of record.target.ids) addRelationship(summary.workflows, workflowId, relationship)
+        }
+        continue
+      }
+
+      if (!('fields' in record)) continue
+      const schemaFields = Object.entries(plugin.recordSchema?.properties || {})
+      const contract = plugin.usageMonitoring?.fields
+      const inferredScopeField = schemaFields.find(([, field]) =>
+        field.type === 'string' && field.enum?.includes('agent') && field.enum?.includes('workflow'),
+      )?.[0]
+      const inferredTargetsField = schemaFields.find(([, field]) =>
+        field.type === 'array' && /target/i.test(field.title),
+      )?.[0]
+      const scopeField = contract?.scope || inferredScopeField
+      const targetIdsField = contract?.targetIds || inferredTargetsField
+      if (!scopeField || !targetIdsField) continue
+      const scope = record.fields[scopeField]
+      const targetIds = record.fields[targetIdsField]
+      if (typeof scope !== 'string' || !Array.isArray(targetIds)) continue
+
+      const appliedStatusField = Object.entries(plugin.recordSchema?.properties || {}).find(([, field]) =>
+        field.type === 'string' && field.enum?.includes('applied'),
+      )?.[0]
+      if (appliedStatusField && record.fields[appliedStatusField] !== 'applied') continue
+
+      const monitoringState = contract ? record.fields[contract.state] : null
+      const monitoringSummary = contract ? record.fields[contract.summary] : null
+      const relationship = {
+        ...relationshipBase,
+        status: typeof monitoringState === 'string' && monitoringState ? monitoringState : 'applied',
+        summary: typeof monitoringSummary === 'string' && monitoringSummary ? monitoringSummary : record.description,
+      }
+      if (scope === 'agent') {
+        for (const agentId of targetIds) addRelationship(summary.agents, agentId, relationship)
+      } else if (scope === 'workflow') {
+        for (const workflowId of targetIds) addRelationship(summary.workflows, workflowId, relationship)
+      } else if (scope === 'workspace') {
+        if (plugin.capabilities?.agents) {
+          for (const agent of listAgents().filter((entry) => !entry.archived)) addRelationship(summary.agents, agent.id, relationship)
+        }
+        if (plugin.capabilities?.workflows) {
+          for (const workflow of listWorkflows()) addRelationship(summary.workflows, workflow.id, relationship)
+        }
       }
     }
+  }
+  for (const relationships of [...Object.values(summary.agents), ...Object.values(summary.workflows)]) {
+    relationships.sort((left, right) => left.pluginName.localeCompare(right.pluginName) || left.name.localeCompare(right.name))
   }
   return summary
 }

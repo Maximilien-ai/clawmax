@@ -1,5 +1,7 @@
 # Known Issues - ClawMax Dashboard
 
+> Archived v1.0-era issue record. Use `SYSTEM/docs/KNOWN_ISSUES.md` for current issues.
+
 ## 🐛 Issue #1: Typing Indicators Not Showing in Communication View
 
 **Status**: 🟡 TIMING LIMITATION

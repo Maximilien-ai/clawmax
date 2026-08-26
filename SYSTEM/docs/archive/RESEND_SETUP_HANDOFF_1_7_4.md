@@ -1,5 +1,7 @@
 # Resend Setup Handoff for `1.7.4`
 
+> Archived release-specific handoff.
+
 ## Goal
 
 Give both Dashboard/Web and CLI/runtime owners the same contract for managed Resend support.

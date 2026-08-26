@@ -1,6 +1,6 @@
 # ClawMax Known Issues And Limitations
 
-**Last Updated**: August 12, 2026
+**Last Updated**: August 25, 2026
 **Stable Version**: v1.9.9
 **Development Track**: 2.0.0 on `main`
 
@@ -35,6 +35,11 @@ and local-model guidance need further work.
 Cloud and on-prem startup is substantially more reliable, but durable gateway
 supervision and reconnect behavior still require repeated real-environment
 validation. Logs can remain noisy during reconnect windows.
+
+### Long-running Podman instances can retain resources
+
+RC40 soak evidence showed memory and PID growth that reset after restart. Track
+the reproducible investigation in [issue #187](https://github.com/Maximilien-ai/clawmax/issues/187) and require a new external soak before 2.0 promotion; a healthy short smoke does not close this issue.
 
 ## Workspace And Data Surfaces
 
@@ -99,5 +104,5 @@ does not contain private product source.
 - Active work: [BACKLOG.md](BACKLOG.md)
 - Release state: [STATUS.md](STATUS.md)
 - 2.0 architecture: [PLUGIN_SYSTEM_2_0.md](../../PLUGINS/PLUGIN_SYSTEM_2_0.md)
-- Release week: [RELEASE_2_0_0_WEEK_2026-08-10.md](planning/RELEASE_2_0_0_WEEK_2026-08-10.md)
+- Current launch plan: [RELEASE_2_0_0_LAUNCH_2026-08-24.md](planning/RELEASE_2_0_0_LAUNCH_2026-08-24.md)
 - GitHub issues: [Maximilien-ai/clawmax/issues](https://github.com/Maximilien-ai/clawmax/issues)

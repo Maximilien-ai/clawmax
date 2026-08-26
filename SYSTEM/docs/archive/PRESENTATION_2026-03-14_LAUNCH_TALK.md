@@ -48,7 +48,7 @@ See [FEATURES.md](./FEATURES.md) for detailed feature tracking.
 2. **Workspace Directory Structure**: Proposal for workspaces/ directory with default workspace
 3. **Setup Complexity**: Manual installation steps need automation
 
-See [KNOWN_ISSUES.md](./KNOWN_ISSUES.md) for tracking.
+See [the archived v1.0 known issues](DASHBOARD_KNOWN_ISSUES_V1_0_2026-03.md) for tracking.
 
 ## 📅 Next Steps
 

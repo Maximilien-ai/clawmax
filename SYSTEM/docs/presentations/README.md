@@ -53,7 +53,7 @@ open SYSTEM/docs/presentations/mango-grove-estate-workshop-jul-2026/index.html
 - **Key Outcomes**: Follow-up demand for compact stakeholder dashboards, richer workflow/result summaries, and smoother compact drag-and-drop layout editing
 
 ### 2026-03-14: Launch Talk - "AI Agents 1:1"
-**File**: `2026-03-14-launch-talk.md`
+**Archived notes**: [`../archive/PRESENTATION_2026-03-14_LAUNCH_TALK.md`](../archive/PRESENTATION_2026-03-14_LAUNCH_TALK.md)
 - **Event**: AI Assistants with OpenClaw and ClawMax
 - **Platform**: LinkedIn Live
 - **Result**: ✅ Successful launch, multiple sign-ups

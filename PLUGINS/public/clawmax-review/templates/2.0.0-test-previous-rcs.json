@@ -1018,6 +1018,69 @@
       "description": "Test: Upgrade a persistent pre-RC37 workspace, continue an existing agent chat, run a workflow targeting that agent, and chat again after completion. Pass: Requests complete without a manual reset, a recoverable embedded-session conflict retries only once with no duplicate visible output, later messages continue normally, and repeated conflicts stop with actionable guidance.",
       "tags": ["openclaw", "upgrade", "chat", "workflows", "recovery"],
       "fields": {"area": "regression", "notes": ""}
+    },
+    {
+      "id": "rc39-agent-discovery-and-details",
+      "name": "Provisioned agents remain discoverable and inspectable",
+      "description": "Test: Provision an agent without Generate with AI, open it from each Agents view, and inspect model-fit and activity details while data is still loading or unavailable. Pass: The agent remains visible, partial responses never blank the page, useful content stays readable, and missing data has clear non-blocking guidance.",
+      "tags": ["agents", "provisioning", "details", "resilience"],
+      "fields": {"area": "regression", "notes": ""}
+    },
+    {
+      "id": "rc39-chat-stream-resilience",
+      "name": "Long-running agent chat remains trustworthy",
+      "description": "Test: Run a fast chat and a deliberately long or tool-heavy chat, observe streaming, then stop one turn and send another. Pass: Progress remains responsive, output stays bounded and readable, runtime warnings are not presented as the assistant answer, interrupted child work stops, and incomplete streams end with actionable retry guidance.",
+      "tags": ["agents", "chat", "streaming", "interrupt"],
+      "fields": {"area": "regression", "notes": ""}
+    },
+    {
+      "id": "rc39-workflow-lifecycle-controls",
+      "name": "Workflow run state remains accurate through interruption",
+      "description": "Test: Trigger a workflow, try to trigger it again while running, cancel a run, then restart during another run and inspect dashboard and notification history. Pass: Concurrent execution is rejected, cancellation is visible, interrupted work does not remain running, and every surface identifies the newest retained execution consistently.",
+      "tags": ["workflows", "concurrency", "cancel", "restart"],
+      "fields": {"area": "regression", "notes": ""}
+    },
+    {
+      "id": "rc44-builder-create-and-chat",
+      "name": "RC44 — Builder clearly creates the requested agent before chat",
+      "description": "Test: In a workspace without the requested role, ask Builder for one explicitly named agent and mention that you want to chat with it afterward; follow the recommendation through creation and first chat. Pass: The editable request is immediately visible, the named agent is preserved, no nonexistent chat target or unrelated existing agent is offered, creation is explicit, and the saved agent opens successfully.",
+      "tags": ["builder", "agents", "create", "chat"],
+      "fields": {"area": "regression", "notes": ""}
+    },
+    {
+      "id": "rc44-builder-rewrite-readiness",
+      "name": "RC44 — Builder AI rewrite remains understandable and reversible",
+      "description": "Test: Enter a reasonably detailed Builder request, note its readiness score, and choose Improve with AI. Pass: The rewrite remains useful and editable, the before/after scores are stated, a decrease is described as advisory rather than failure, Undo restores the prior request, and generation remains available at every score.",
+      "tags": ["builder", "prompt", "readiness", "undo"],
+      "fields": {"area": "regression", "notes": ""}
+    },
+    {
+      "id": "rc44-partner-and-skill-boundaries",
+      "name": "RC44 — Partner and skill setup paths are independent and clear",
+      "description": "Test: Open Partners, go directly to Cognee without configuring Opik or Resend, then inspect its capability from Skills and return to partner configuration. Pass: Every integration is visibly optional, Cognee is directly reachable, agent skills and OpenClaw runtime plugins are distinguished from ClawMax plugins, agent creation is not blocked by optional skill setup, and install status is refreshed without vague restart guidance.",
+      "tags": ["partners", "skills", "cognee", "navigation"],
+      "fields": {"area": "navigation", "notes": ""}
+    },
+    {
+      "id": "rc44-lmstudio-gemma-chat",
+      "name": "RC44 — Selected LM Studio Gemma model executes in agent chat",
+      "description": "Test: On a host serving the reported Gemma QAT model through LM Studio, select that exact model for an agent, save, restart if the deployment requires it, and send a chat message. Pass: The saved model remains selected, the runtime authorizes the normalized LM Studio execution reference, chat returns a model response, and no model-not-allowed error appears.",
+      "tags": ["models", "lmstudio", "gemma", "chat"],
+      "fields": {"area": "regression", "notes": ""}
+    },
+    {
+      "id": "rc44-qbo-runtime-install",
+      "name": "RC44 — QBO is usable from both release image architectures",
+      "description": "Test: On one Linux/AMD64 and one Linux/ARM64 RC44 runtime, open QBO from Skills and verify the packaged command before running one non-destructive QBO help or version action. Pass: QBO is already installed, no Go compiler requirement is presented, the command runs on both architectures, and the UI retains visible success or actionable failure evidence.",
+      "tags": ["skills", "qbo", "images", "multi-arch"],
+      "fields": {"area": "regression", "notes": ""}
+    },
+    {
+      "id": "rc44-resource-retention-soak",
+      "name": "RC44 — Long-running runtime does not retain unbounded resources",
+      "description": "Test: Run the accepted-duration Podman soak with representative chat, workflow, and plugin activity; record memory and PID baseline, peak, end state, and restart recovery. Pass: Growth remains within the launch threshold agreed in issue 187, activity stops releasing resources as designed, restart recovery is recorded, and any exception has an owner and launch disposition.",
+      "tags": ["podman", "resources", "soak", "launch"],
+      "fields": {"area": "regression", "notes": ""}
     }
   ]
 }

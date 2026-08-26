@@ -1,0 +1,59 @@
+{
+  "release": "2.0.0-test-rc45",
+  "description": "Focused independent acceptance for RC43 tester repairs, corrected QBO packaging, and the remaining external launch gates.",
+  "defaults": {
+    "enabled": true,
+    "tags": ["release", "current", "2.0.0-test-rc45"],
+    "fields": {
+      "completed": false,
+      "outcome": "pending",
+      "owner": "release-tester",
+      "evidence": [],
+      "verifiedBy": []
+    }
+  },
+  "items": [
+    {
+      "id": "rc45-builder-create-and-chat",
+      "name": "Builder clearly creates the requested agent before chat",
+      "description": "Test: In a workspace without the requested role, ask Builder for one explicitly named agent and mention that you want to chat with it afterward; follow the recommendation through creation and first chat. Pass: The editable request is immediately visible, the named agent is preserved, no nonexistent chat target or unrelated existing agent is offered, creation is explicit, and the saved agent opens successfully.",
+      "tags": ["builder", "agents", "create", "chat"],
+      "fields": {"area": "regression", "reviewReason": "human-judgment", "notes": ""}
+    },
+    {
+      "id": "rc45-builder-rewrite-readiness",
+      "name": "Builder AI rewrite remains understandable and reversible",
+      "description": "Test: Enter a reasonably detailed Builder request, note its readiness score, and choose Improve with AI. Pass: The rewrite remains useful and editable, the before/after scores are stated, a decrease is described as advisory rather than failure, Undo restores the prior request, and generation remains available at every score.",
+      "tags": ["builder", "prompt", "readiness", "undo"],
+      "fields": {"area": "regression", "reviewReason": "human-judgment", "notes": ""}
+    },
+    {
+      "id": "rc45-partner-and-skill-boundaries",
+      "name": "Partner and skill setup paths are independent and clear",
+      "description": "Test: Open Partners, go directly to Cognee without configuring Opik or Resend, then inspect its capability from Skills and return to partner configuration. Pass: Every integration is visibly optional, Cognee is directly reachable, agent skills and OpenClaw runtime plugins are distinguished from ClawMax plugins, agent creation is not blocked by optional skill setup, and install status is refreshed without vague restart guidance.",
+      "tags": ["partners", "skills", "cognee", "navigation"],
+      "fields": {"area": "navigation", "reviewReason": "human-judgment", "notes": ""}
+    },
+    {
+      "id": "rc45-lmstudio-gemma-chat",
+      "name": "Selected LM Studio Gemma model executes in agent chat",
+      "description": "Test: On a host serving the reported Gemma QAT model through LM Studio, select that exact model for an agent, save, restart if the deployment requires it, and send a chat message. Pass: The saved model remains selected, the runtime authorizes the normalized LM Studio execution reference, chat returns a model response, and no model-not-allowed error appears.",
+      "tags": ["models", "lmstudio", "gemma", "chat"],
+      "fields": {"area": "regression", "reviewReason": "external-environment", "notes": ""}
+    },
+    {
+      "id": "rc45-qbo-runtime-install",
+      "name": "QBO is usable from both release image architectures",
+      "description": "Test: On one Linux/AMD64 and one Linux/ARM64 RC45 runtime, open QBO from Skills and run its non-authenticated JSON schema command before using the skill. Pass: QBO is already installed, the schema reports version 0.6.1 on both architectures, no Go compiler requirement is presented, and the UI retains visible success or actionable failure evidence.",
+      "tags": ["skills", "qbo", "images", "multi-arch"],
+      "fields": {"area": "regression", "reviewReason": "external-environment", "notes": ""}
+    },
+    {
+      "id": "rc45-resource-retention-soak",
+      "name": "Long-running runtime does not retain unbounded resources",
+      "description": "Test: Run the accepted-duration Podman soak with representative chat, workflow, and plugin activity; record memory and PID baseline, peak, end state, and restart recovery. Pass: Growth remains within the launch threshold agreed in issue 187, activity stops releasing resources as designed, restart recovery is recorded, and any exception has an owner and launch disposition.",
+      "tags": ["podman", "resources", "soak", "launch"],
+      "fields": {"area": "regression", "reviewReason": "external-environment", "notes": ""}
+    }
+  ]
+}

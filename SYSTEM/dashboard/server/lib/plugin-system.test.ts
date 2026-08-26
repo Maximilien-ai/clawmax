@@ -631,12 +631,12 @@ async function run() {
     assert(documentContent.includes('**Completed:** yes'), 'Expected generic checkbox formatting in generated document')
 
     const releaseTemplates = listPluginTemplates(plugin!).filter((template) => (
-      'fields' in template.payload && template.payload.fields?.release === '2.0.0-test-rc39'
+      'fields' in template.payload && template.payload.fields?.release === '2.0.0-test-rc45'
     ))
-    assert.strictEqual(releaseTemplates.length, 3, 'Expected the current RC39 file to expand into three independently reviewable journeys')
+    assert.strictEqual(releaseTemplates.length, 6, 'Expected the current RC45 file to expand into six independently reviewable journeys')
     assert(releaseTemplates.every((template) => 'fields' in template.payload && ['human-judgment', 'external-environment'].includes(String(template.payload.fields?.reviewReason))), 'Expected every current check to justify independent review')
-    assert(releaseTemplates.some((template) => template.id === '2.0.0-test-rc39:rc39-workflow-lifecycle-controls'), 'Expected release-qualified workflow-lifecycle checklist discovery')
-    const applied = applyPluginTemplate(plugin!, '2.0.0-test-rc39:rc39-workflow-lifecycle-controls')
+    assert(releaseTemplates.some((template) => template.id === '2.0.0-test-rc45:rc45-builder-create-and-chat'), 'Expected release-qualified Builder checklist discovery')
+    const applied = applyPluginTemplate(plugin!, '2.0.0-test-rc45:rc45-builder-create-and-chat')
     assert(applied && 'fields' in applied && applied.fields.owner === 'release-tester', 'Expected generic template application')
   })
 
@@ -692,8 +692,12 @@ async function run() {
       appliesTo: { agents: ['analyst'], workflows: ['research-sweep'], groups: [], communities: [] },
       controls: { blockEmail: true, blockWeb: false, blockExternalDocs: false, allowedSkills: [] }, tags: ['smoke'],
     } as any)
-    assert(listPluginRelationships().agents.analyst?.some((entry) => entry.itemId === guardrail.id), 'Expected guardrail relationship on agent')
-    assert(listPluginRelationships().workflows['research-sweep']?.some((entry) => entry.itemId === guardrail.id), 'Expected guardrail relationship on workflow')
+    const guardrailRelationships = listPluginRelationships()
+    const agentGuardrail = guardrailRelationships.agents.analyst?.find((entry) => entry.itemId === guardrail.id)
+    assert(agentGuardrail, 'Expected guardrail relationship on agent')
+    assert.strictEqual(agentGuardrail.pluginName, 'Guardrails', 'Expected relationship display metadata from the manifest')
+    assert.strictEqual(agentGuardrail.objectKind, 'guardrail', 'Expected relationship object kind from the manifest')
+    assert(guardrailRelationships.workflows['research-sweep']?.some((entry) => entry.itemId === guardrail.id), 'Expected guardrail relationship on workflow')
 
     const evalRecord = upsertPluginRecord(evals!, {
       name: 'Smoke eval', description: 'Check a fixed workflow result', enabled: true, tags: ['smoke'],
@@ -701,6 +705,9 @@ async function run() {
       experiment: { input: 'Summarize the research', candidateOutput: 'research summary', expectedOutput: 'research summary', judge: 'fixed', fixedMatch: 'exact', iterations: 1 },
     } as any)
     assert(runPluginEval(evals!, evalRecord.id)?.lastRun?.score === 100, 'Expected targeted Eval smoke run to pass')
+    const evalRelationship = listPluginRelationships().workflows['research-sweep']?.find((entry) => entry.itemId === evalRecord.id)
+    assert(evalRelationship, 'Expected enabled Eval relationship on workflow')
+    assert.strictEqual(evalRelationship.status, '1 run', 'Expected Eval relationship to summarize persisted runs')
 
     const plan = upsertPluginRecord(optimize!, {
       name: 'Smoke workflow plan', description: 'Optimize workflow cost', enabled: true, tags: ['smoke'],
@@ -708,6 +715,15 @@ async function run() {
     } as any)
     const planFields = 'fields' in plan ? (plan.fields as Record<string, any>) : null
     assert(Array.isArray(planFields?.targetIds) && planFields.targetIds.includes('research-sweep'), 'Expected Optimize target to persist on workflow')
+    const planRelationship = listPluginRelationships().workflows['research-sweep']?.find((entry) => entry.itemId === plan.id)
+    assert(planRelationship, 'Expected applied generic plan relationship on workflow')
+    assert.strictEqual(planRelationship.status, 'applied', 'Expected a non-monitoring plan to disclose its applied state')
+
+    const draftPlan = upsertPluginRecord(optimize!, {
+      name: 'Draft agent plan', description: 'Not active yet', enabled: true, tags: ['smoke'],
+      fields: { scope: 'agent', targetIds: ['analyst'], optimizationGoal: 'cost', monthlyTokenBudget: 100000, monthlyCostBudget: 10, maximumRunDurationSeconds: 300, minimumQualityScore: 80, status: 'draft' },
+    } as any)
+    assert(!listPluginRelationships().agents.analyst?.some((entry) => entry.itemId === draftPlan.id), 'Expected draft generic plans to stay out of active relationships')
 
     const inspection = upsertPluginRecord(lifecycle!, {
       name: 'Smoke agent lifecycle', description: 'Inspect agent history', enabled: true, tags: ['smoke'],

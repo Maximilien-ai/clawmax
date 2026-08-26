@@ -4,6 +4,10 @@ import path from 'path'
 
 const sourceRoot = path.resolve(__dirname)
 const agentsSource = fs.readFileSync(path.join(sourceRoot, 'pages/Agents.tsx'), 'utf8')
+const workflowsSource = fs.readFileSync(path.join(sourceRoot, 'pages/Workflows.tsx'), 'utf8')
+const workflowDagSource = fs.readFileSync(path.join(sourceRoot, 'components/WorkflowDAG.tsx'), 'utf8')
+const agentDetailSource = fs.readFileSync(path.join(sourceRoot, 'components/AgentDetailPanel.tsx'), 'utf8')
+const pluginRelationshipSummarySource = fs.readFileSync(path.join(sourceRoot, 'components/PluginRelationshipSummary.tsx'), 'utf8')
 const appSource = fs.readFileSync(path.join(sourceRoot, 'App.tsx'), 'utf8')
 const pluginPageSource = fs.readFileSync(path.join(sourceRoot, 'pages/PluginWorkspacePage.tsx'), 'utf8')
 const lifecycleEvidenceSource = fs.readFileSync(path.join(sourceRoot, 'components/AgentLifecycleEvidence.tsx'), 'utf8')
@@ -18,13 +22,19 @@ const manifests = [
 ].map((relativePath) => JSON.parse(fs.readFileSync(path.join(repoRoot, relativePath), 'utf8')))
 
 assert(
-  agentsSource.includes('costTrackingEnabled = true, guardrails = []'),
-  'Agent grid cards must receive a safe guardrail relationship default',
+  agentsSource.includes('costTrackingEnabled = true, relationships = []'),
+  'Agent cards must receive a safe plugin relationship default',
 )
 assert(
-  (agentsSource.match(/guardrails=\{pluginRelationships\.agents\[agent\.id\] \|\| \[\]\}/g) || []).length >= 5,
+  (agentsSource.match(/relationships=\{pluginRelationships\.agents\[agent\.id\] \|\| \[\]\}/g) || []).length >= 5,
   'Every agent card rendering path must receive plugin relationships',
 )
+assert(agentsSource.includes('pluginRelationships={pluginRelationships.agents[selectedAgent.id] || []}'), 'Agent detail must receive its complete plugin relationships')
+assert(agentDetailSource.includes('<PluginRelationshipDetails relationships={pluginRelationships} />'), 'Agent detail must list attached plugin items')
+assert(workflowsSource.includes('<PluginRelationshipDetails relationships={pluginRelationships.workflows[selectedWorkflow.id] || []} />'), 'Workflow detail must list attached plugin items')
+assert((workflowsSource.match(/PluginRelationshipPills/g) || []).length >= 3, 'Workflow grid and table views must show compact plugin relationship pills')
+assert(workflowDagSource.includes('pluginRelationships[wf.id] || []'), 'Workflow relationship nodes must show compact plugin activity')
+assert(pluginRelationshipSummarySource.includes('+{overflowCount}'), 'Compact plugin relationships must collapse overflow into a discrete count pill')
 assert(appSource.includes('h-[100dvh] max-h-[100dvh]'), 'The mobile sidebar must fit the dynamic viewport')
 assert(appSource.includes('h-[100dvh] w-full min-w-0 overflow-hidden'), 'The app shell must not widen past the phone viewport')
 assert(appSource.includes('function ChecklistIcon'), 'Release Review must have a checklist navigation icon')
@@ -194,4 +204,4 @@ assert(appSource.includes('Open sharing settings'), 'The sharing popover must li
 assert(manifests.every((manifest) => !/dormant|test plugin|mvp/i.test(`${manifest.name} ${manifest.description} ${manifest.version}`)), 'Enabled plugin UI copy must be product-ready')
 assert(new Set(manifests.map((manifest) => manifest.icon)).size === manifests.length, 'Each first-party plugin must declare a distinct navigation icon')
 
-console.log('PluginWorkspaceLayout.test.ts: 146 tests passed')
+console.log('PluginWorkspaceLayout.test.ts: 152 tests passed')

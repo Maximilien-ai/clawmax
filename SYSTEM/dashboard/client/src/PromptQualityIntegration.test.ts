@@ -29,8 +29,10 @@ assert(panel.includes('collapsible?: boolean'), 'Scoring panel must support a co
 assert(panel.includes("'Show readiness details'"), 'Collapsed scoring must provide an explicit details action')
 assert(panel.includes('aria-expanded={expanded}'), 'Readiness disclosure must expose its expanded state')
 assert(builder.includes('<PromptQualityPanel prompt={prompt} domain="builder" compact collapsible />'), 'Builder must keep readiness compact until a user asks for details')
-assert(builder.includes("builderQuestion ? 'Ask Builder' : 'Design This'"), 'Question commands must expose a direct Builder action')
+assert(builder.includes("builderQuestion ? 'Ask Builder' : 'Recommend Next Step'"), 'Builder must describe its recommendation action without implying that it already created an asset')
 assert(builder.includes('This asks the Builder about the current workspace'), 'Question commands must explain that they do not generate a recommendation')
+assert(builder.includes('Describe the outcome you want—not a finished agent prompt.'), 'Fresh Builder state must distinguish the request from a finished agent prompt')
+assert(builder.indexOf('Your Builder Prompt') < builder.indexOf('Need an example? Suggested requests'), 'Fresh Builder state must place editable input before optional examples')
 
 for (const [relativePath, inlineDomain, editorDomain] of integrations) {
   const source = read(relativePath)
@@ -50,5 +52,8 @@ assert(builder.includes("label: 'AI Create Agent'"), 'Builder must expose AI Cre
 assert(builder.includes("label: 'AI Create Workflow'"), 'Builder must expose AI Create Workflow for explicit workflow actions')
 assert(builder.includes("label: 'AI Create Skill'"), 'Builder must expose AI Create Skill for explicit skill actions')
 assert(builder.includes('hasExplicitBuilderEntityAction'), 'Builder must classify explicit create and update entity prompts')
+assert(builder.includes("comparePromptQuality(value, improved, 'builder')"), 'Builder AI rewrites must disclose readiness changes using the Builder rubric')
+assert(builder.includes('Undo AI change'), 'Builder AI rewrites must provide one-click recovery')
+assert(!builder.includes('return { ...action, skillName: topSkill.name'), 'Generic Builder skill review must open the Skills collection rather than an unexplained top match')
 
-console.log('PromptQualityIntegration.test.ts: 32 tests passed')
+console.log('PromptQualityIntegration.test.ts: 35 tests passed')

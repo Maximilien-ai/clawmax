@@ -3,12 +3,12 @@
 Status: historical compatibility contract. The in-repo plugin fixture names and
 files are synthetic regression fixtures; they are not private plugin source or
 production enablement. New integrations should use
-[PLUGIN_SYSTEM_2_0.md](PLUGIN_SYSTEM_2_0.md).
+[PLUGIN_SYSTEM_2_0.md](../PLUGIN_SYSTEM_2_0.md).
 
 This document defines the first plugin contract for ClawMax Dashboard.
 
 For the public-host/private-plugin boundary and the migration away from
-product-specific core object kinds, see [PLUGIN_SYSTEM_2_0.md](PLUGIN_SYSTEM_2_0.md).
+product-specific core object kinds, see [PLUGIN_SYSTEM_2_0.md](../PLUGIN_SYSTEM_2_0.md).
 
 ## Goals
 

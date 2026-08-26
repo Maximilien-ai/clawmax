@@ -2472,10 +2472,10 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                   className="inline-flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300"
                 >
                   <span>{showPartnerInstallers ? '▼' : '▶'}</span>
-                  <span>Install from Partner</span>
+                  <span>Partner Capabilities</span>
                 </button>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Skills available from enabled partner integrations.
+                  Agent skills and separately installed OpenClaw runtime plugins from enabled partner integrations.
                 </p>
               </div>
               <button
@@ -2484,13 +2484,20 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
               >
                 Browse all
               </button>
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new CustomEvent('open-partners-wizard'))}
+                className="text-xs font-medium text-sky-600 hover:text-sky-700"
+              >
+                Configure partners
+              </button>
             </div>
             {showPartnerInstallers && (
             <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               <div className="md:col-span-2 xl:col-span-3">
                 <TermsRiskNotice
                   title="Partner install reminder"
-                  body="Partner skills and curated installers can add new capabilities, dependencies, and external access. Review them before installing."
+                  body="Agent skills are assigned to agents. Curated OpenClaw plugins extend the runtime and are not ClawMax dashboard plugins. Both can add dependencies and external access; review them before installing."
                 />
               </div>
               {visiblePartnerInstallers.map((partner) => (
@@ -2541,7 +2548,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                               title={installed ? `${partner.name} plugin is already installed` : undefined}
                               className="px-3 py-1.5 text-xs font-medium bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed"
                             >
-                              {running ? 'Running...' : 'Install'}
+                              {running ? 'Running...' : 'Install OpenClaw Plugin'}
                             </button>
                             <button
                               onClick={() => confirmPartnerPluginUninstall(partner)}
@@ -3540,6 +3547,9 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
               </div>
 
               <div className="space-y-4 px-6 py-4">
+                <div className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900 dark:border-sky-800 dark:bg-sky-900/20 dark:text-sky-100">
+                  This setup does not block creating or saving an agent. It is required only before an assigned agent can use <span className="font-medium">{pendingSetupSkill.name}</span> at runtime; you can create now and configure this optional capability later.
+                </div>
                 <TermsRiskNotice
                   title="Machine command reminder"
                   body="Installing skill requirements can modify this machine or runtime environment. Only continue if you trust the skill and the displayed install commands."
@@ -3606,7 +3616,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
               <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-700">
                 <div>
                   <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
-                    {partnerPluginRun.action === 'install' ? 'Install Partner Plugin' : 'Uninstall Partner Plugin'}
+                    {partnerPluginRun.action === 'install' ? 'Install OpenClaw Partner Plugin' : 'Uninstall OpenClaw Partner Plugin'}
                   </h2>
                   <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                     {partnerPluginRun.status === 'confirming'
@@ -3642,7 +3652,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                 )}
                 {partnerPluginRun.status === 'success' && (
                   <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-300">
-                    {partnerPluginRun.action === 'install' ? 'Install completed.' : 'Uninstall completed.'} Restart the dashboard/runtime if OpenClaw reports that plugin discovery needs a refresh.
+                    {partnerPluginRun.action === 'install' ? 'Install completed.' : 'Uninstall completed.'} Plugin status was refreshed automatically. The status shown in Partner Capabilities is authoritative; no restart is needed when it shows the expected state.
                   </div>
                 )}
               </div>
@@ -4304,7 +4314,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                 {importSource === 'partner' && (
                   <div className="space-y-4">
                     <p className="text-sm text-gray-600 dark:text-gray-300">
-                      Browse partner-backed skills and approved installers. Install buttons appear only for curated allowlisted commands.
+                      Browse partner-backed agent skills and approved OpenClaw runtime plugins. Plugin install buttons appear only for curated allowlisted commands.
                     </p>
 
                     {partnerInstallers.length === 0 ? (
@@ -4356,7 +4366,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                               )}
                               {partner.skills.mode === 'curated-installer' && (
                                 <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                                  Usually takes 1-3 minutes.
+                                  OpenClaw runtime plugin—not an agent skill or ClawMax dashboard plugin. Usually takes 1-3 minutes.
                                 </div>
                               )}
                             </div>
@@ -4378,7 +4388,7 @@ export function SkillsTest({ initialAgentId, initialSkillName }: { initialAgentI
                                       title={installed ? `${partner.name} plugin is already installed` : undefined}
                                       className="px-3 py-1.5 text-xs font-medium bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed"
                                     >
-                                      {running ? 'Running...' : 'Install'}
+                                      {running ? 'Running...' : 'Install OpenClaw Plugin'}
                                     </button>
                                     <button
                                       onClick={() => confirmPartnerPluginUninstall(partner)}

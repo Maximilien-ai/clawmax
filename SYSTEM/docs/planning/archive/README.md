@@ -20,3 +20,7 @@ Archived categories include:
 - historical release preparation and partner-integration plans
 - the completed 2.0 workspace-dashboard baseline, with remaining permissions,
   streaming, rate-limit, and approval work tracked in the active backlog
+
+Recent release history:
+
+- [Superseded August 10-14 2.0 release-week plan](RELEASE_2_0_0_WEEK_2026-08-10.md)

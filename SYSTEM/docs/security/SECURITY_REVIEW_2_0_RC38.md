@@ -2,7 +2,7 @@
 
 > Review date: August 12, 2026
 > Reviewed code: `79262f35f9721b42a8247a5de4a3bfae6f11e13d`
-> Decision: source security sign-off complete; RC38 release-artifact appendix pending
+> Decision: source security sign-off complete; final-candidate release-artifact appendix in progress
 
 ## Verdict
 
@@ -13,7 +13,7 @@ have an owner, rationale, compensating controls, and September 30, 2026
 follow-up date.
 
 This report does not authorize promotion of an unbuilt candidate. Final release
-sign-off must append the exact RC38 public commit/tag, public amd64/arm64 image
+sign-off must append the exact accepted public commit/tag, public amd64/arm64 image
 digests, authorized combined-image evidence maintained in the private repo,
 cloud/on-prem runtime results, and completed Release Review export. No rebuild
 may inherit this sign-off without rerunning affected gates.
@@ -75,16 +75,16 @@ injection, and third-party provider compromise remain inherent external trust
 risks. Capabilities, grants, redaction, bounded adapters, and explicit operator
 enablement reduce but cannot eliminate them.
 
-## RC38 Release-Artifact Appendix
+## Final-Candidate Release-Artifact Appendix
 
 Complete before promotion:
 
 | Required evidence | Status |
 |---|---|
-| Full integration, validation, coverage, and live execution at final source | Passed 447/447 at `976c3c83`; coverage 80.51% statements/lines, 68.65% branches, 90.58% functions |
-| Public amd64 digest and smoke | Passed in [run 31703413303](https://github.com/Maximilien-ai/clawmax/actions/runs/31703413303): `sha256:7861eb3f23ea721b5bd04438b4705a631d7cf50ea4381ba001e320277273b0f2` |
-| Public arm64 digest and smoke | Passed in [run 31703413303](https://github.com/Maximilien-ai/clawmax/actions/runs/31703413303): `sha256:e43f57ec44178ab04d7dd280fc9facee7e82fe26b635f2a5ebe98e08c6d8a2b1` |
-| Public multi-architecture manifest | `sha256:c0f2a9ed254b4eeafb3f76661ec2c936bc0f0ccbc6574458aa76225c6ac7c9f5` |
+| Accepted public candidate | RC43 tag `v2.0.0-test-rc43` at `a4b78c1d12136e21707e926c3d2a0e8cc0b1a1d0` |
+| Full integration, validation, coverage, and live execution at final source | Passed 463/463; coverage 81.14% statements/lines, 69.40% branches, 91.19% functions |
+| Public amd64/arm64 publication and smoke | Passed in [run 32658795332](https://github.com/Maximilien-ai/clawmax/actions/runs/32658795332) |
+| Public multi-architecture manifest | `sha256:8af1e160106db1acab5e9b853743cad943effe8de5d52dc11890dd0b2b715c44` |
 | Authorized combined image against exact public tag | Passed private validation, source-lock, package privacy, discovery, and live amd64/arm64 smoke; detailed evidence retained privately |
 | Managed/cloud health, restart, chat, workflow, plugin persistence | Pending final candidate |
 | On-prem health, restart, chat, workflow, plugin persistence | Pending final candidate |

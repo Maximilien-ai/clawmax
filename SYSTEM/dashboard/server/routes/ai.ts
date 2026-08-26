@@ -54,7 +54,7 @@ router.post('/expand-prompt', async (req, res) => {
     const message = err?.message || 'Failed to expand prompt'
     if (/No API key configured/i.test(message)) {
       return res.status(400).json({
-        error: 'AI prompt expansion needs a configured OpenAI, Anthropic, or OpenAI-compatible setup, or a shared preferred model. Open Workspaces Integrations or Keys & Secrets first.',
+        error: 'AI prompt expansion needs a configured OpenAI, Anthropic, Gemini, or OpenAI-compatible setup, or a shared preferred model. Open Workspaces Integrations or Keys & Secrets first.',
       })
     }
     if (/developer API key|subscription or app credentials|does not look like/i.test(message)) {

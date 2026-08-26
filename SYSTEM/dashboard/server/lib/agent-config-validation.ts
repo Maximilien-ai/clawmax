@@ -221,6 +221,8 @@ export function validateProvisionInput(
 
   if (!input.model || !input.model.trim()) {
     errors.push('Model is required')
+  } else if (/^google\/gemma-[^/]*-qat(?:-|$)/i.test(input.model.trim())) {
+    errors.push(`Model "${input.model}" is a local Gemma QAT checkpoint, not a hosted Gemini API model. Use "google/gemma-4-31b-it" with Gemini, or configure the QAT model through Ollama or an OpenAI-compatible local runtime.`)
   } else if (shouldWarnForUnadvertisedModel(input.model, context.availableModels)) {
     warnings.push(`Model "${input.model}" is not currently advertised by /api/agents/models and may fall back during provisioning`)
   }

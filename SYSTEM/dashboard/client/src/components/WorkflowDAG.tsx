@@ -2,6 +2,8 @@ import React, { useMemo, useRef, useEffect, useState } from 'react'
 import TruncatedText from './TruncatedText'
 import { getWorkflowDisplayName } from '../lib/workflowDisplay'
 import { getWorkflowDagScaledCanvasStyle } from '../lib/workflowDagZoom'
+import { type PluginRelationship } from '../lib/pluginRelationships'
+import { PluginRelationshipPills } from './PluginRelationshipSummary'
 
 interface Workflow {
   id: string
@@ -36,6 +38,7 @@ interface WorkflowDAGProps {
   onAddDependency?: (fromId: string, toId: string) => void
   onRemoveDependency?: (fromId: string, toId: string) => void
   onTogglePipelineSelect?: (workflowIds: string[]) => void
+  pluginRelationships?: Record<string, PluginRelationship[]>
 }
 
 function inferPipelineLabel(workflows: Workflow[]): { title: string; subtitle?: string } {
@@ -230,6 +233,7 @@ export default function WorkflowDAG({
   onEditRun,
   onToggleEnabled,
   onTogglePipelineSelect,
+  pluginRelationships = {},
 }: WorkflowDAGProps) {
   const forests = useMemo(() => findForests(workflows), [workflows])
   const forestLayouts = useMemo(() => forests.map(f => ({ workflows: f, ...layoutDAG(f) })), [forests])
@@ -588,6 +592,7 @@ export default function WorkflowDAG({
                                 </span>
                               )}
                             </div>
+                            <PluginRelationshipPills relationships={pluginRelationships[wf.id] || []} maxVisible={1} className="mb-1" />
 
                             <div className="flex items-center gap-2 text-[10px] text-gray-400 dark:text-gray-500">
                               <span>{wf.schedule === 'manual' || (wf as any).type === 'once' ? '▶' : (wf as any).type === 'conditional' ? '◆' : '↻'}</span>

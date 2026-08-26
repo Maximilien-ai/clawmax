@@ -1,6 +1,6 @@
 # Backlog
 
-> Last updated: August 12, 2026
+> Last updated: August 25, 2026
 > Completed and verified work is archived into [CHANGELOG.md](../../CHANGELOG.md) and historical notes under `SYSTEM/docs/**/archive/`.
 
 ## Release Tracks
@@ -10,11 +10,11 @@
 ## 2.0 Top Priority
 
 The release-blocking subset and August 10-14 execution order are maintained in
-[ClawMax 2.0.0 Release Week](planning/RELEASE_2_0_0_WEEK_2026-08-10.md).
+[ClawMax 2.0.0 Launch](planning/RELEASE_2_0_0_LAUNCH_2026-08-24.md).
 Items below that are outside that plan are follow-through work, not implicit
 Friday blockers.
 
-- [ ] **RC38 security release-artifact appendix** — the source audit, threat model, 29-family authorization matrix, dynamic boundary tests, findings register, SBOM/license inventory, dependency/secret scans, Medium-risk decisions, and `447/447` full source-tree gate are complete. There are no unresolved Critical/High findings. Before promotion, append the final public amd64/arm64 digests, private combined-image acceptance reference, cloud/on-prem runtime evidence, and Review approver to [SECURITY_REVIEW_2_0_RC38.md](security/SECURITY_REVIEW_2_0_RC38.md).
+- [ ] **2.0 security release-artifact appendix** — the source audit, threat model, 29-family authorization matrix, dynamic boundary tests, findings register, SBOM/license inventory, dependency/secret scans, Medium-risk decisions, and RC43 historical image evidence are recorded. There are no unresolved Critical/High findings. Before promotion, replace the final-candidate artifact references with accepted RC45-or-later public and combined-image evidence, then append cloud/on-prem runtime evidence and the Review approver to [SECURITY_REVIEW_2_0_RC38.md](security/SECURITY_REVIEW_2_0_RC38.md).
 - [ ] **Public Gmail and Microsoft 365 mail validation** — the shared capability/grant boundary, malicious-message tests, encrypted OAuth lifecycle, production identity adapters, persisted agent/plugin grants, short-lived runtime invocation, Partner connect/manage UI, and Gmail/Graph list/search/read/draft adapters are implemented. Raw scopes and header injection fail closed; no send operation exists, Graph excludes `Mail.Send`, and Gmail compose is contained behind a draft-only adapter. Remaining 2.0 evidence: dedicated Gmail and Microsoft test-account OAuth/mailbox validation, restart persistence, revocation/reconnect, then final candidate container validation. Never request normal mailbox passwords. Plan: [PUBLIC_MODELS_GATEWAYS_EMAIL_2_0.md](planning/PUBLIC_MODELS_GATEWAYS_EMAIL_2_0.md).
 - [ ] **Activity Export reference receiver and pilot** — the per-user/destination consent receipt, canonical scoped events, secret/PII redaction, durable nonblocking outbox, status/revoke UI, immediate opt-out, authenticated/idempotent adapters, and multi-destination controls are implemented. Remaining work is the dedicated ClawMax.ai receiver/pilot and its cloud/on-prem interruption/restart evidence; Digo stays a separately consented follow-up until its external contract decisions are complete. Plan: [PUBLIC_ACTIVITY_EXPORT_PARTNERS_2_0.md](planning/PUBLIC_ACTIVITY_EXPORT_PARTNERS_2_0.md).
 - [ ] **2.0 public plugin, AI-scoring, and model-fit foundation** — the RC15 public prompt-readiness baseline now scores Builder, agent, skill, template, workflow, plugin, and shared AI Editor prompts locally with domain-specific suggestions and privacy-preserving browser feedback metadata. The next foundation ranks only runtime-visible agent models and exposes reasons, caveats, alternatives, and confidence without claiming measured quality or cost. Next: public generated-artifact scoring, sourced capability/pricing catalogs, representative Eval evidence, token/cost/latency integration, opt-in feedback aggregation, calibration against an approved corpus, and domain-neutral plugin scorer/recommendation contracts. A plugin may add any combination of pages, APIs, data, actions, jobs, events, settings, skills, providers, docs, or extension points. References: [Prompt Readiness Scoring](features/PROMPT_READINESS_SCORING.md), [Public Model Fit 2.0](planning/PUBLIC_MODEL_FIT_2_0.md), and [PUBLIC_PLUGIN_ARCHITECTURE_2_0.md](planning/PUBLIC_PLUGIN_ARCHITECTURE_2_0.md).
@@ -74,12 +74,14 @@ Friday blockers.
 
 ### Templates & Discovery
 - [ ] **Template feedback, ratings, and promotion flow** — let users review proposal templates, submit feedback, and promote well-performing templates from idea/proposal status into more trusted catalog tiers.
+- [ ] **User-owned template variants** — let users fork system and public organization, agent, and workflow templates into editable workspace-owned copies without mutating the shipped catalog; support AI-assisted edits through the same explicit save boundary.
 - [ ] **Template upgrade / reapply-over-existing flow** — support upgrading a workspace that already applied a template when the template changes later; compare the current workspace against the newer template, show likely conflicts plus likely safe updates, and guide the user through update vs. replace decisions instead of forcing manual delete + reapply.
 - [ ] **Surface old template versions in the UI** — template saves already archive prior versions on disk under `.versions/`; add a lightweight “Previous versions” surface so users can inspect older versions, compare against the current one, and optionally restore or copy content from an earlier snapshot.
 - [ ] **Small-business marketing template pack** — create suggested starter templates for marketing planning and budget allocation across Instagram, Facebook, YouTube, and Google News/Ads, including audience focus, budget planning, and channel prioritization flows. Expect some variants to use uploaded historical data or external API keys.
 - [ ] **Event template customer validation** — get real event-planning feedback on the new proposal templates and decide whether they should stay under `personal`, gain a dedicated category, or expand into more specialized event packs.
 
 ### Workflows & Coordination
+- [ ] **Execution artifact visibility** — surface files and other durable outputs produced by active and completed agent/workflow runs in notifications and dashboards, with links to the owning workspace evidence instead of relying only on Activity or chat traces.
 - [ ] **Agent-to-agent direct messaging follow-through** — validate and polish the post-merge user flow for direct messages.
 - [ ] **Monitor + completion workflows** — recurring status aggregation, auto-complete, and richer workflow supervision
 - [ ] **Project context in agent identity on template apply** — kickoff gives context but should also write to `IDENTITY.md` so agents remember across sessions
@@ -138,6 +140,7 @@ Friday blockers.
 - [ ] **Mac Mini deployment** — 24/7 agent team managing ClawMax repo
 
 ### Infrastructure & Deployment
+- [ ] **Workspace import and restore UI** — add the in-product counterpart to workspace export so authorized users can validate and restore a workspace without manual file-level operations.
 - [ ] **Auto-backup** — optional scheduled backups
 - [ ] **Decide cron ownership with native OpenClaw** — make an explicit design decision on whether recurring workflow scheduling should move fully to OpenClaw, stay split, or remain ClawMax-managed before doing more scheduler work.
 - [ ] **Gateway process management (CLI team)** — supervisor, health check, start/stop isolation, and gateway-down notifications

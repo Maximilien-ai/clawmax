@@ -70,5 +70,6 @@ SYSTEM/scripts/
 tmp/
 
 # Private local planning drafts
+SYSTEM/docs/*.private.md
 SYSTEM/docs/planning/*PRIVATE*.md
 SYSTEM/docs/planning/*.private.md
