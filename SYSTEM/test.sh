@@ -2689,6 +2689,15 @@ else
   fail "External plugin test launcher shell tests"
 fi
 
+echo -e "${YELLOW}→ Running Podman resource soak collector tests...${NC}"
+bash "$SYSTEM_DIR/podman-resource-soak.test.sh" > /tmp/clawmax-podman-resource-soak.out 2>&1 || true
+if grep -q "podman-resource-soak.test.sh: 7 assertions passed" /tmp/clawmax-podman-resource-soak.out; then
+  pass "Podman resource soak collector tests (7 assertions)"
+else
+  cat /tmp/clawmax-podman-resource-soak.out
+  fail "Podman resource soak collector tests"
+fi
+
 echo -e "${YELLOW}→ Running dashboard test-run lock contract tests...${NC}"
 bash "$SYSTEM_DIR/test-run-lock.test.sh" > /tmp/clawmax-test-run-lock.out 2>&1 || true
 if grep -q "test-run-lock.test.sh: 13 tests passed" /tmp/clawmax-test-run-lock.out; then

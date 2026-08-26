@@ -41,6 +41,19 @@ validation. Logs can remain noisy during reconnect windows.
 RC40 soak evidence showed memory and PID growth that reset after restart. Track
 the reproducible investigation in [issue #187](https://github.com/Maximilien-ai/clawmax/issues/187) and require a new external soak before 2.0 promotion; a healthy short smoke does not close this issue.
 
+Capture the required 24-hour evidence against the exact candidate container with:
+
+```bash
+./SYSTEM/podman-resource-soak.sh \
+  --container clawmax-dashboard \
+  --output-dir ./clawmax-resource-soak-rcN
+```
+
+The collector defaults to 24 hours with five-minute samples and records the
+container/image identity, raw Podman statistics, a tabular resource timeline,
+and a process inventory for every sample. Run the documented repeatable workload
+while it is active, then attach the evidence directory summary to issue #187.
+
 ## Workspace And Data Surfaces
 
 ### Delete and reapply can leave conflicting residue
