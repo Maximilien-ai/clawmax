@@ -166,18 +166,15 @@ RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}
 # internal `VER=` literal with no environment-variable override, so `curl
 # https://app.factory.ai/cli | sh` always installs whatever the remote script
 # bakes in that day — mutable and unreproducible at image build time. That
-# installer script does, however, resolve to a versioned, checksummed
-# artifact under the hood:
+# installer script does, however, resolve to a versioned artifact under the
+# hood:
 #   https://downloads.factory.ai/factory-cli/releases/<version>/<platform>/<arch>/droid
 #   https://downloads.factory.ai/factory-cli/releases/<version>/<platform>/<arch>/droid.sha256
-# (the installer's own "Checksum verification passed" message comes from
-# comparing a sha256sum of the downloaded binary against that `.sha256`
-# sidecar). We bypass the mutable wrapper script and perform that exact
-# download-then-checksum step ourselves against FACTORY_DROID_VERSION, so the
-# ARG genuinely pins the artifact instead of being informational. The
-# `--version | grep` at the end fails the build if the checksum-verified
-# binary reports a different version than the one we asked for, so a
-# checksum-valid-but-wrong-version artifact still can't slip through.
+# The vendor installer compares the binary with that remote `.sha256`
+# sidecar, which detects transfer corruption but leaves both inputs mutable.
+# We instead pin the official checksum for every supported artifact in this
+# source file. The `--version | grep` at the end also fails the build if the
+# verified binary reports a different version than the one requested.
 # HOME is not set to /app until later in this stage, so it's exported here
 # explicitly to match the runtime HOME (see `ENV HOME=/app` below) and keep
 # resolveRuntimeCliPath's `~/.local/bin/droid` fallback consistent between
