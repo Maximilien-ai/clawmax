@@ -74,8 +74,39 @@ async function verifyRealProcessGroupTermination() {
   }
 }
 
-verifyRealProcessGroupTermination()
-  .then(() => console.log(`chat-process-safety.test.ts: ${process.platform === 'win32' ? 15 : 17} assertions passed`))
+async function verifyEscalationAfterDirectChildExit() {
+  if (process.platform === 'win32') return
+  const spawned = spawn('/bin/sh', ['-c', "trap 'exit 0' TERM; (trap '' TERM; sleep 30) & echo $!; wait"], {
+    detached: true,
+    stdio: ['ignore', 'pipe', 'ignore'],
+  })
+  let descendantPid = 0
+  try {
+    const [chunk] = await once(spawned.stdout!, 'data')
+    descendantPid = Number(String(chunk).trim())
+    assert(Number.isInteger(descendantPid) && descendantPid > 0, 'Expected the exiting-parent fixture to report its descendant pid')
+    terminateProcessTree(spawned, 25)
+    await Promise.race([
+      once(spawned, 'close'),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Direct child did not exit after SIGTERM')), 2000)),
+    ])
+    await new Promise((resolve) => setTimeout(resolve, 75))
+    let descendantAlive = true
+    try { process.kill(descendantPid, 0) } catch { descendantAlive = false }
+    assert(!descendantAlive, 'Expected escalation to remove a descendant after the direct child exited')
+  } finally {
+    if (spawned.exitCode === null && spawned.signalCode === null) signalProcessTree(spawned, 'SIGKILL')
+    if (descendantPid > 0) {
+      try { process.kill(descendantPid, 'SIGKILL') } catch {}
+    }
+  }
+}
+
+Promise.all([
+  verifyRealProcessGroupTermination(),
+  verifyEscalationAfterDirectChildExit(),
+])
+  .then(() => console.log(`chat-process-safety.test.ts: ${process.platform === 'win32' ? 15 : 19} assertions passed`))
   .catch((error) => {
     console.error(error)
     process.exitCode = 1

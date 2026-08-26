@@ -25,9 +25,11 @@ export function signalProcessTree(
 export function terminateProcessTree(child: KillableChild, graceMs = 2000): NodeJS.Timeout {
   signalProcessTree(child, 'SIGTERM')
   const escalation = setTimeout(() => {
-    if (child.exitCode === null && child.signalCode === null) {
-      signalProcessTree(child, 'SIGKILL')
-    }
+    // Escalate unconditionally. The direct child can exit cleanly after SIGTERM
+    // while leaving a descendant in its process group alive. Looking only at the
+    // direct child's exit state would then skip SIGKILL and retain that process
+    // (and potentially the stdio pipe it inherited).
+    signalProcessTree(child, 'SIGKILL')
   }, graceMs)
   escalation.unref?.()
   return escalation
