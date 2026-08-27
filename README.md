@@ -18,7 +18,7 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 
 ## 🛠 Current Development Line: 2.0.0
 
-- RC43 is retired after hands-on feedback, and RC44 failed before image publication because its QBO packaging probe used an unsupported flag. RC45 source is being validated with the corrected probe; no RC45 image is published yet. Stable installers and images remain at `v1.9.9` until the engineering, external-environment, and human-review gates in the [2.0 launch plan](SYSTEM/docs/planning/RELEASE_2_0_0_LAUNCH_2026-08-24.md) are complete.
+- RC45 is the latest fully published 2.0 test candidate. Main is preparing RC46 with resource-lifecycle hardening and the reviewed optional Claude Code/Factory Droid runtime work; stable installers and images remain at `v1.9.9` until the engineering, external-environment, and human-review gates in the [2.0 launch plan](SYSTEM/docs/planning/RELEASE_2_0_0_LAUNCH_2026-08-24.md) are complete.
 - `main` now carries the public `clawmax.ai/v2` plugin platform. A plugin can contribute pages, APIs, data, actions, jobs, events, settings, skills, providers, docs, and extension points through one domain-neutral host contract.
 - Lifecycle and Review are the public product plugins in the current 2.0 phase. Lifecycle provides a read-only deep view of agents, workflows, groups, and communities; Review keeps release validation organized and exportable. `PLUGINS/test/plugin-*` directories are synthetic host-contract fixtures and are never shown in the plugin manager.
 - Public 2.0 products include AI scoring, the Lifecycle and Review plugins, curated Gmail and Microsoft 365/Outlook integrations, and a consent-gated Activity Export contract for partner event integrations such as Digo. Activity export is off by default, visibly names its destination, and never blocks agent execution on remote delivery.
@@ -454,6 +454,41 @@ All deployments, including cloud and on-prem, remain unlimited unless a `CLAWMAX
 
 Without system keys, the dashboard may still boot, but system-generated flows such as agent/workflow generation will be limited. Without user keys, end-user agents should eventually rely on BYOK capture after login.
 
+## 🤖 Agent Runtimes
+
+Agents execute via one of three CLIs. OpenClaw is always the default and needs no extra setup; Claude Code and Factory Droid are optional per-agent runtimes.
+
+| Runtime | CLI | Auth | Model notation |
+|---|---|---|---|
+| **OpenClaw** (default) | `openclaw` | ClawMax's normal key resolution (BYOK / system keys) | `<provider>/<model>`, e.g. `anthropic/claude-sonnet-4-20250514` |
+| **Claude Code** | `claude` | `ANTHROPIC_API_KEY` (or `claude login`) | Anthropic models only — `anthropic/<model>` |
+| **Factory Droid** | `droid` | `FACTORY_API_KEY` (or `droid login`) | any provider/model Droid supports |
+
+**Selecting a runtime**
+- **Workspace default** — Integrations → Runtime, or `agentRuntime` in `PUT /api/config`. Each CLI shows a live detection chip (installed version, or an install hint).
+- **Per-agent pin** — the agent editor's Runtime field (Default / OpenClaw / Claude Code / Droid). A pin always wins over the workspace default. It's stored in the agent's `IDENTITY.md` (`- **Runtime:** claude`), not in `openclaw.json`, so switching an agent's runtime never touches its OpenClaw session state.
+- Runtime resolution is consistent across every execution surface — direct chat, group/channel chat, workflows, and scheduled/cron runs all resolve the same way.
+
+**Installing the CLIs**
+
+```bash
+# Claude Code
+npm install -g @anthropic-ai/claude-code
+
+# Factory Droid
+curl -fsSL https://app.factory.ai/cli | sh
+```
+
+Both are optional — `./setup.sh` and `./SYSTEM/doctor.sh` report the detected version of each CLI but never auto-install them. If a CLI isn't on `PATH`, point at it explicitly with `CLAUDE_BIN=/path/to/claude` / `DROID_BIN=/path/to/droid`.
+
+**Headless auth** — Claude Code and Factory Droid run with full autonomy (`claude --dangerously-skip-permissions`, `droid --auto high`), so they need non-interactive credentials rather than an interactive login:
+- Claude Code reads `ANTHROPIC_API_KEY` directly (`SYSTEM_ANTHROPIC_API_KEY` / `USER_ANTHROPIC_API_KEY` / BYOK all resolve into it for agent execution).
+- Factory Droid reads `FACTORY_API_KEY`.
+
+Both CLIs also support an interactive `claude login` / `droid login` for local dev. Container deployments (see `docker-compose.yml`) can pass either key straight through as an environment variable.
+
+**OpenClaw-only features** — a few features stay OpenClaw-specific because Claude Code/Droid have no equivalent: the Gateway (WebSocket skills/tools, Gateway Control UI pairing), `openclaw logs` streaming, and `openclaw cron` registration. Agents pinned to `claude`/`droid` still run on schedule via ClawMax's in-process scheduler — they're just not additionally registered with `openclaw cron`.
+
 ## 🔐 Dashboard Auth Setup
 
 ClawMax supports three dashboard auth modes:
@@ -622,10 +657,11 @@ Detailed setup and troubleshooting:
 
 ## 🧪 Testing
 
-ClawMax includes 212+ tests across unit, API, and integration suites:
+ClawMax includes hundreds of checks across unit, contract, API, validation, and
+live integration suites. The wrapper prints the exact current total:
 
 ```bash
-# Unit + API tests (134 tests, fast, no LLM cost)
+# Unit + API tests (no LLM cost)
 ./SYSTEM/test.sh
 
 # + Integration tests with live agents (~$0.03, requires keys)
@@ -635,10 +671,9 @@ ClawMax includes 212+ tests across unit, API, and integration suites:
 ./SYSTEM/status.sh
 ```
 
-**Test Suites:**
-- 78 unit tests (notifications, workflows, validator, templates, skills, and more)
-- 134 API tests (26 sections covering all endpoints)
-- Integration tests with ClawMax System Test template (live agent DAG execution)
+The suite covers server and client units, public plugin contracts, API and
+security boundaries, validation, shell/package behavior, and the ClawMax System
+Test template's live agent DAG execution.
 
 See **[TESTING_GUIDE.md](SYSTEM/docs/TESTING_GUIDE.md)** for full details.
 

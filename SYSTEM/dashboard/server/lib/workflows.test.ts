@@ -36,8 +36,6 @@ import {
   getLatestAgentSessionErrorMessage,
   isWorkflowSessionLockError,
   getWorkflowAgentRetryDelay,
-  getWorkflowAgentTimeoutMs,
-  formatWorkflowAgentTimeoutMessage,
   normalizeWorkflowExecutionOutputs,
   compactWorkflowExecutionContent,
   resolveWorkflowRunInputPath,
@@ -52,6 +50,7 @@ import {
   formatParticipantFailure,
   normalizeWorkflowThreadDiagnostic,
   resolveWorkflowConversationTarget,
+  syncWorkflowToCron,
   getWorkflowPipelineState,
   setWorkflowPipelinePaused,
 } from './workflows'
@@ -715,6 +714,71 @@ test('resolveWorkflowOpenClawCliPath honors OPENCLAW_BIN override', () => {
   }
 })
 
+function withRuntimePinnedWorkspace<T>(agentRuntimes: Record<string, string | undefined>, fn: (workspaceRoot: string) => T): T {
+  const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'clawmax-workflow-cron-runtime-'))
+  const previousWorkspace = process.env.OPENCLAW_WORKSPACE
+  const previousHome = process.env.HOME
+  const previousEnabledRuntimes = process.env.WORKSPACES_INTEGRATIONS_RUNTIMES
+  const home = path.join(workspaceRoot, '.home')
+  try {
+    process.env.OPENCLAW_WORKSPACE = workspaceRoot
+    process.env.HOME = home
+    // A runtime pin is only honored when that CLI is enabled for the workspace. The temp
+    // workspace has no integration config, so enable both CLIs explicitly rather than
+    // inheriting a developer's local .env — otherwise this test only passes on machines
+    // that happen to set WORKSPACES_INTEGRATIONS_RUNTIMES.
+    process.env.WORKSPACES_INTEGRATIONS_RUNTIMES = 'claude,droid'
+    fs.mkdirSync(path.join(home, '.openclaw'), { recursive: true })
+    fs.mkdirSync(path.join(workspaceRoot, 'SYSTEM'), { recursive: true })
+    for (const [agentId, runtime] of Object.entries(agentRuntimes)) {
+      const agentDir = path.join(workspaceRoot, 'AGENTS', agentId)
+      fs.mkdirSync(agentDir, { recursive: true })
+      const identityLines = ['# Identity', '', '- **Name:** Test Agent']
+      if (runtime) identityLines.push(`- **Runtime:** ${runtime}`)
+      fs.writeFileSync(path.join(agentDir, 'IDENTITY.md'), identityLines.join('\n'), 'utf-8')
+    }
+    return fn(workspaceRoot)
+  } finally {
+    if (typeof previousWorkspace === 'undefined') delete process.env.OPENCLAW_WORKSPACE
+    else process.env.OPENCLAW_WORKSPACE = previousWorkspace
+    if (typeof previousHome === 'undefined') delete process.env.HOME
+    else process.env.HOME = previousHome
+    if (typeof previousEnabledRuntimes === 'undefined') delete process.env.WORKSPACES_INTEGRATIONS_RUNTIMES
+    else process.env.WORKSPACES_INTEGRATIONS_RUNTIMES = previousEnabledRuntimes
+    fs.rmSync(workspaceRoot, { recursive: true, force: true })
+  }
+}
+
+test('syncWorkflowToCron skips openclaw cron registration for a claude/droid-pinned participant', () => {
+  withRuntimePinnedWorkspace({ 'droid-runner': 'droid' }, () => {
+    const result = syncWorkflowToCron({
+      id: 'wf-runtime-skip',
+      enabled: true,
+      schedule: '0 9 * * *',
+      timezone: 'UTC',
+      content: 'Say hi',
+    } as any, ['droid-runner'])
+    assert(result.ok === true, `Expected ok:true when every participant is non-openclaw, got ${JSON.stringify(result)}`)
+    assert(result.cronJobId === undefined, `Expected no cron job id, got ${result.cronJobId}`)
+  })
+})
+
+test('syncWorkflowToCron does not mask a real openclaw registration failure behind runtime skips', () => {
+  withRuntimePinnedWorkspace({ 'droid-runner': 'droid', 'openclaw-runner': undefined }, () => {
+    // No real openclaw CLI is on PATH in this test environment, so the openclaw-runner
+    // registration attempt fails — that must still surface as ok:false, not be swallowed
+    // by the unrelated droid-runner skip.
+    const result = syncWorkflowToCron({
+      id: 'wf-runtime-mixed',
+      enabled: true,
+      schedule: '0 9 * * *',
+      timezone: 'UTC',
+      content: 'Say hi',
+    } as any, ['droid-runner', 'openclaw-runner'])
+    assert(result.ok === false, `Expected ok:false when an openclaw participant's registration genuinely fails, got ${JSON.stringify(result)}`)
+  })
+})
+
 test('buildWorkflowSessionId stays within provider cache key limits for long ids', () => {
   const sessionId = buildWorkflowSessionId(
     '0f575b29-176f-497a-9f00-89bfdbcf2af9',
@@ -1002,50 +1066,6 @@ test('getWorkflowAgentRetryDelay uses bounded exponential backoff', () => {
   assert(getWorkflowAgentRetryDelay(0) === 1500, 'Expected first retry delay to be 1500ms')
   assert(getWorkflowAgentRetryDelay(1) === 3000, 'Expected second retry delay to be 3000ms')
   assert(getWorkflowAgentRetryDelay(4) === 5000, 'Expected retry delay to cap at 5000ms')
-})
-
-test('getWorkflowAgentTimeoutMs defaults to 10 minutes', () => {
-  const previous = process.env.CLAWMAX_WORKFLOW_AGENT_TIMEOUT_MS
-  delete process.env.CLAWMAX_WORKFLOW_AGENT_TIMEOUT_MS
-  try {
-    assert(getWorkflowAgentTimeoutMs() === 600000, `Expected 600000ms, got ${getWorkflowAgentTimeoutMs()}`)
-  } finally {
-    if (typeof previous === 'undefined') delete process.env.CLAWMAX_WORKFLOW_AGENT_TIMEOUT_MS
-    else process.env.CLAWMAX_WORKFLOW_AGENT_TIMEOUT_MS = previous
-  }
-})
-
-test('getWorkflowAgentTimeoutMs uses configured override when valid', () => {
-  const previous = process.env.CLAWMAX_WORKFLOW_AGENT_TIMEOUT_MS
-  process.env.CLAWMAX_WORKFLOW_AGENT_TIMEOUT_MS = '900000'
-  try {
-    assert(getWorkflowAgentTimeoutMs() === 900000, `Expected 900000ms, got ${getWorkflowAgentTimeoutMs()}`)
-  } finally {
-    if (typeof previous === 'undefined') delete process.env.CLAWMAX_WORKFLOW_AGENT_TIMEOUT_MS
-    else process.env.CLAWMAX_WORKFLOW_AGENT_TIMEOUT_MS = previous
-  }
-})
-
-test('getWorkflowAgentTimeoutMs falls back on invalid values', () => {
-  const previous = process.env.CLAWMAX_WORKFLOW_AGENT_TIMEOUT_MS
-  process.env.CLAWMAX_WORKFLOW_AGENT_TIMEOUT_MS = '5000'
-  try {
-    assert(getWorkflowAgentTimeoutMs() === 600000, `Expected fallback 600000ms, got ${getWorkflowAgentTimeoutMs()}`)
-  } finally {
-    if (typeof previous === 'undefined') delete process.env.CLAWMAX_WORKFLOW_AGENT_TIMEOUT_MS
-    else process.env.CLAWMAX_WORKFLOW_AGENT_TIMEOUT_MS = previous
-  }
-})
-
-test('formatWorkflowAgentTimeoutMessage renders minute-based limits clearly', () => {
-  assert(
-    formatWorkflowAgentTimeoutMessage(600000) === 'Agent timeout after 10 minutes',
-    `Expected 10 minute timeout label, got ${formatWorkflowAgentTimeoutMessage(600000)}`
-  )
-  assert(
-    formatWorkflowAgentTimeoutMessage(120000) === 'Agent timeout after 2 minutes',
-    `Expected 2 minute timeout label, got ${formatWorkflowAgentTimeoutMessage(120000)}`
-  )
 })
 
 test('triggerWorkflow supports rerunning upstream DAG workflows', () => {

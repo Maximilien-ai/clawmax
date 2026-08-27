@@ -247,6 +247,39 @@ test('deriveChatError surfaces provider quota and rate limits clearly', () => {
   assert(/billing\/usage limits|retry/i.test(message), 'Expected remediation guidance')
 })
 
+test('deriveChatError surfaces claude/droid CLI auth failures with a runtime-specific remediation message', () => {
+  const claudeMessage = deriveChatError('Please run /login to authenticate.', 'anthropic', { runtimeLabel: 'Claude Code' })
+  assert(/Claude Code CLI is not authenticated/i.test(claudeMessage), `Unexpected claude auth message: ${claudeMessage}`)
+  assert(/ANTHROPIC_API_KEY/i.test(claudeMessage), `Expected ANTHROPIC_API_KEY remediation hint: ${claudeMessage}`)
+
+  const droidMessage = deriveChatError('Error: not logged in to Factory.', 'openai', { runtimeLabel: 'Factory Droid' })
+  assert(/Factory Droid CLI is not authenticated/i.test(droidMessage), `Unexpected droid auth message: ${droidMessage}`)
+  assert(/FACTORY_API_KEY/i.test(droidMessage), `Expected FACTORY_API_KEY remediation hint: ${droidMessage}`)
+
+  const noLabelMessage = deriveChatError('Please run /login to authenticate.', 'anthropic')
+  assert(/agent runtime CLI is not authenticated/i.test(noLabelMessage), `Expected generic fallback without a runtime label: ${noLabelMessage}`)
+})
+
+test('deriveChatError surfaces claude/droid session-state mismatches as a retry hint', () => {
+  const alreadyInUse = deriveChatError('Error: Session ID 8db2cbb6-235b-4bdf-89e5-80c37cc0181a is already in use.', 'anthropic', { runtimeLabel: 'Claude Code' })
+  assert(/out of sync/i.test(alreadyInUse), `Unexpected already-in-use message: ${alreadyInUse}`)
+
+  const notFound = deriveChatError('No conversation found with session ID: 8db2cbb6-235b-4bdf-89e5-80c37cc0181a', 'anthropic', { runtimeLabel: 'Claude Code' })
+  assert(/out of sync/i.test(notFound), `Unexpected not-found message: ${notFound}`)
+})
+
+test('deriveChatError surfaces claude/droid model rejections with runtime-aware guidance', () => {
+  const claudeBadModel = deriveChatError(
+    "There's an issue with the selected model (not-a-real-model). It may not exist or you may not have access to it. Run --model to pick a different model.",
+    'anthropic',
+    { runtimeLabel: 'Claude Code' }
+  )
+  assert(/Claude Code CLI cannot use/i.test(claudeBadModel), `Unexpected claude bad-model message: ${claudeBadModel}`)
+
+  const droidBadModel = deriveChatError('Invalid model: not-a-real-model', 'openai', { runtimeLabel: 'Factory Droid' })
+  assert(/Factory Droid CLI cannot use/i.test(droidBadModel), `Unexpected droid bad-model message: ${droidBadModel}`)
+})
+
 test('deriveChatError normalizes missing execution path guidance', () => {
   const message = deriveChatError(
     'No execution path configured. Add hosted provider keys, configure Ollama, or add an OpenAI-compatible endpoint in BYOK / workspace integrations.',

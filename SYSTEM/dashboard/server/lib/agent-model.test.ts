@@ -16,6 +16,7 @@ import {
   upsertAgentModelFitInIdentityContent,
   upsertAgentModelInConfigFile,
   upsertAgentModelInIdentityContent,
+  upsertAgentRuntimeInIdentityContent,
 } from './agent-model'
 import { parseIdentity } from './workspace'
 
@@ -397,6 +398,120 @@ test('upsertAgentModelInIdentityContent normalizes OpenAI aliases', () => {
 
   const parsed = parseIdentity(updated)
   assert(parsed.model === 'openai/gpt-4o-mini', 'Expected identity model alias to normalize')
+})
+
+test('parseIdentity extracts runtime pin from markdown', () => {
+  const identity = parseIdentity(`# Identity
+
+**Agent ID:** ceo
+**Name:** CEO
+**Model:** anthropic/claude-sonnet-4-20250514
+**Runtime:** claude
+`)
+
+  assert(identity.runtime === 'claude', 'Expected parseIdentity to extract runtime')
+})
+
+test('parseIdentity leaves runtime undefined when no Runtime field is present', () => {
+  const identity = parseIdentity(`# Identity
+
+**Agent ID:** ceo
+**Name:** CEO
+**Model:** openai/gpt-4.1
+`)
+
+  assert(identity.runtime === undefined, 'Expected no runtime field to parse as undefined')
+})
+
+test('parseIdentity ignores creation metadata runtime when no runtime-section runtime exists', () => {
+  const identity = parseIdentity(`# IDENTITY.md - Who Am I?
+
+- **Name:** simple-agent
+- **Model:** openai/gpt-4o-mini
+
+## Creation Metadata
+
+- **Created:** 2026-05-21T20:35:20.838Z
+- **Runtime:** droid
+`)
+
+  assert(identity.runtime === undefined, 'Expected metadata runtime not to be treated as the pinned runtime')
+})
+
+test('upsertAgentRuntimeInIdentityContent inserts runtime line after the Model line', () => {
+  const updated = upsertAgentRuntimeInIdentityContent(`# Identity
+
+- **Name:** Simple Agent
+- **Model:** anthropic/claude-sonnet-4-20250514
+- **Tags:** basic
+`, 'claude')
+
+  assert(updated.includes('- **Runtime:** claude'), 'Expected runtime line to be inserted')
+  const modelIndex = updated.indexOf('- **Model:**')
+  const runtimeIndex = updated.indexOf('- **Runtime:** claude')
+  assert(runtimeIndex > modelIndex, 'Expected runtime line to be inserted after the model line')
+  const parsed = parseIdentity(updated)
+  assert(parsed.runtime === 'claude', 'Expected inserted runtime to parse correctly')
+  assert(parsed.model === 'anthropic/claude-sonnet-4-20250514', 'Expected model to remain unchanged')
+})
+
+test('upsertAgentRuntimeInIdentityContent inserts runtime before creation metadata', () => {
+  const updated = upsertAgentRuntimeInIdentityContent(`# IDENTITY.md - Who Am I?
+
+- **Name:** simple-agent
+- **Model:** openai/gpt-4o-mini
+
+## Creation Metadata
+
+- **Created:** 2026-05-21T20:35:20.838Z
+- **Model:** openai/gpt-4o-mini
+`, 'droid')
+
+  const runtimeIndex = updated.indexOf('- **Runtime:** droid')
+  const metadataIndex = updated.indexOf('## Creation Metadata')
+  assert(runtimeIndex !== -1, 'Expected runtime line to be inserted')
+  assert(runtimeIndex < metadataIndex, 'Expected runtime line to appear before creation metadata')
+  const parsed = parseIdentity(updated)
+  assert(parsed.runtime === 'droid', 'Expected inserted runtime to parse correctly')
+})
+
+test('upsertAgentRuntimeInIdentityContent replaces an existing runtime line in place', () => {
+  const content = `# Identity
+
+- **Name:** Simple Agent
+- **Model:** anthropic/claude-sonnet-4-20250514
+- **Runtime:** claude
+`
+  const updated = upsertAgentRuntimeInIdentityContent(content, 'openclaw')
+  assert(!updated.includes('- **Runtime:** claude'), 'Expected old runtime value to be replaced')
+  assert(updated.includes('- **Runtime:** openclaw'), 'Expected new runtime value to be present')
+  assert((updated.match(/\*\*Runtime:\*\*/g) || []).length === 1, 'Expected exactly one runtime line')
+})
+
+test('upsertAgentRuntimeInIdentityContent removes the runtime line when set to default', () => {
+  const content = `# Identity
+
+- **Name:** Simple Agent
+- **Model:** anthropic/claude-sonnet-4-20250514
+- **Runtime:** claude
+- **Tags:** basic
+`
+  const updated = upsertAgentRuntimeInIdentityContent(content, 'default')
+  assert(!/\*\*Runtime:\*\*/.test(updated), 'Expected runtime line to be removed')
+  const parsed = parseIdentity(updated)
+  assert(parsed.runtime === undefined, 'Expected runtime to no longer parse after removal')
+  assert(parsed.model === 'anthropic/claude-sonnet-4-20250514', 'Expected model line to survive removal untouched')
+  assert(Array.isArray(parsed.tags) && parsed.tags.includes('basic'), 'Expected tags line to survive removal untouched')
+})
+
+test('upsertAgentRuntimeInIdentityContent is a no-op for default when no runtime line exists', () => {
+  const content = `# Identity
+
+- **Name:** Simple Agent
+- **Model:** anthropic/claude-sonnet-4-20250514
+`
+  const updated = upsertAgentRuntimeInIdentityContent(content, 'default')
+  assert(updated === content, 'Expected content to be unchanged when clearing a runtime that was never set')
 })
 
 test('upsertAgentBackupModelInIdentityContent inserts backup model after the primary model', () => {

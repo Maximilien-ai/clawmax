@@ -156,6 +156,10 @@ export default function AgentDetailPanel({
 
   const fetchActivity = useCallback(() => {
     fetch(`/api/agents/${agent.id}/activity`)
+      // The route answers errors with { error } (e.g. "Agent not found" right after a failed
+      // provision, or when the workspace path moves). Storing that shape crashed the panel on
+      // the first activity.recentFiles.map() below and white-screened the whole page.
+      // normalizeAgentActivityPayload rejects the error shape and fills render-safe defaults.
       .then(async r => r.ok ? normalizeAgentActivityPayload(await r.json().catch(() => null)) : null)
       .then(d => { setActivity(d); setLoading(false); setLastRefreshed(Date.now()) })
       .catch(() => { setActivity(null); setLoading(false) })

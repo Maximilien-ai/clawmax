@@ -46,8 +46,18 @@ assert(childSignals.includes('SIGKILL'))
 
 const routeSource = fs.readFileSync(path.join(__dirname, '..', 'routes', 'chat.ts'), 'utf8')
 assert(routeSource.includes("detached: process.platform !== 'win32'"), 'Chat CLI must lead a signalable process group')
-assert(routeSource.includes('terminateProcessTree(spawned)'), 'Forced chat stops must terminate the process tree')
-assert(routeSource.includes('bumpAttemptIdle()'), 'Chat output must refresh the idle timeout')
+// Intent preserved, spelling changed: a forced stop still kills the whole process group, but now
+// through cancelProcessTree, which also settles the caller. terminateProcessTree relied on 'close'
+// to settle, and a runaway producer is precisely when a grandchild has escaped the group and is
+// holding stdout open -- so 'close' never fired and the promise wedged behind the per-agent lock.
+assert(/cancelProcessTree\(spawned|terminateProcessTree\(spawned/.test(routeSource),
+  'Forced chat stops must terminate the process tree')
+assert(routeSource.includes('cancelProcessTree(spawned'),
+  'A forced stop must settle the caller, not wait on a close that an escaped grandchild can hold open')
+// The idle TIMEOUT is gone -- turns have no deadline -- but the liveness signal it fed is still
+// required: with no clock, elapsed/idle in GET /turns/active is the only way a wedged turn is
+// visible to a human. bumpAttemptIdle now touches the turn registry instead of rearming a timer.
+assert(routeSource.includes('bumpAttemptIdle()'), 'Chat output must keep reporting liveness')
 assert(routeSource.includes('MAX_TOTAL_CHAT_OUTPUT'), 'Chat output must enforce a hard runaway ceiling')
 
 async function verifyRealProcessGroupTermination() {

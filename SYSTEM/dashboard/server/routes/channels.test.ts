@@ -10,6 +10,7 @@ import path from 'path'
 import assert from 'assert'
 import { EventEmitter } from 'events'
 import { resetWorkspaceManagerForTests } from '../lib/workspace-manager'
+import { callAgent } from './channels'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -64,6 +65,40 @@ function makeReq(overrides: Record<string, any> = {}) {
     headers: {},
     ...overrides,
   } as any
+}
+
+// Async-aware: awaits fn() *before* restoring, since an async fn only reaches its own
+// `await` points after this synchronous call returns a pending promise.
+async function withEnv<T>(overrides: Record<string, string | undefined>, fn: () => Promise<T>): Promise<T> {
+  const originals = new Map<string, string | undefined>()
+  for (const [key, value] of Object.entries(overrides)) {
+    originals.set(key, process.env[key])
+    if (typeof value === 'undefined') delete process.env[key]
+    else process.env[key] = value
+  }
+  try {
+    return await fn()
+  } finally {
+    for (const [key, value] of originals.entries()) {
+      if (typeof value === 'undefined') delete process.env[key]
+      else process.env[key] = value
+    }
+  }
+}
+
+function writeFakeDroidCli(filePath: string, resultText: string) {
+  const payload = JSON.stringify({
+    type: 'result',
+    subtype: 'success',
+    is_error: false,
+    duration_ms: 1,
+    num_turns: 1,
+    result: resultText,
+    session_id: 'fake-session',
+    usage: { input_tokens: 1, output_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+  })
+  fs.writeFileSync(filePath, `#!/bin/sh\necho '${payload}'\n`, 'utf-8')
+  fs.chmodSync(filePath, 0o755)
 }
 
 function makeRes() {
@@ -671,6 +706,49 @@ async function run() {
     await listDirectConversations(makeReq(), listRes)
     assert.strictEqual(listRes.statusCode, 200, 'Expected direct conversation list success')
     assert(Array.isArray(listRes.jsonBody?.conversations || []), 'Expected conversation list array')
+  })
+
+  await test('callAgent runs a droid-pinned agent through the runtime adapter instead of spawning openclaw', async () => {
+    const agentDir = path.join(workspacePath, 'AGENTS', 'droid-runner')
+    fs.mkdirSync(agentDir, { recursive: true })
+    fs.writeFileSync(path.join(agentDir, 'IDENTITY.md'), [
+      '# Identity',
+      '',
+      '- **Name:** Droid Runner',
+      '- **Runtime:** droid',
+    ].join('\n'), 'utf-8')
+    // Droid must be enabled for the workspace for the per-agent pin to be honored.
+    fs.mkdirSync(path.join(workspacePath, 'SYSTEM'), { recursive: true })
+    fs.writeFileSync(path.join(workspacePath, 'SYSTEM', 'integrations.json'), JSON.stringify({ enabledRuntimes: ['droid'] }), 'utf-8')
+
+    const droidCli = path.join(workspacePath, 'fake-droid')
+    writeFakeDroidCli(droidCli, 'hello from droid')
+
+    await withEnv({ DROID_BIN: droidCli }, async () => {
+      const response = await callAgent('droid-runner', 'hi', 'test-session:droid-runner')
+      assert.strictEqual(response, 'hello from droid', 'Expected callAgent to return the droid CLI result text')
+    })
+  })
+
+  await test('callAgent surfaces the runtime-specific missing-CLI error for a droid-pinned agent', async () => {
+    const agentDir = path.join(workspacePath, 'AGENTS', 'droid-runner-missing')
+    fs.mkdirSync(agentDir, { recursive: true })
+    fs.writeFileSync(path.join(agentDir, 'IDENTITY.md'), [
+      '# Identity',
+      '',
+      '- **Name:** Droid Runner Missing',
+      '- **Runtime:** droid',
+    ].join('\n'), 'utf-8')
+    fs.mkdirSync(path.join(workspacePath, 'SYSTEM'), { recursive: true })
+    fs.writeFileSync(path.join(workspacePath, 'SYSTEM', 'integrations.json'), JSON.stringify({ enabledRuntimes: ['droid'] }), 'utf-8')
+
+    await withEnv({ DROID_BIN: undefined, PATH: path.join(workspacePath, 'empty-bin') }, async () => {
+      await assert.rejects(
+        () => callAgent('droid-runner-missing', 'hi', 'test-session:droid-runner-missing'),
+        /Factory Droid CLI is not available/,
+        'Expected the droid missing-CLI error to surface'
+      )
+    })
   })
 
   if (typeof originalHome === 'undefined') delete process.env.HOME

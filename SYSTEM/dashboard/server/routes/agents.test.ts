@@ -8,6 +8,8 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import assert from 'assert'
+import { EventEmitter } from 'events'
+import { listActiveTurns, cancelTurn } from '../lib/agent-turns'
 
 const GREEN = '\x1b[32m'
 const RED = '\x1b[31m'
@@ -136,6 +138,36 @@ function writeFakeOpenClawCli(tmpHome: string): string {
   fs.writeFileSync(cliPath, '#!/bin/sh\necho "openclaw 2026.5.26"\n', 'utf-8')
   fs.chmodSync(cliPath, 0o755)
   return cliPath
+}
+
+function writeFakeDroidCli(filePath: string, resultText: string) {
+  const payload = JSON.stringify({
+    type: 'result',
+    subtype: 'success',
+    is_error: false,
+    duration_ms: 1,
+    num_turns: 1,
+    result: resultText,
+    session_id: 'fake-session',
+    usage: { input_tokens: 1, output_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+  })
+  fs.writeFileSync(filePath, `#!/bin/sh\necho '${payload}'\n`, 'utf-8')
+  fs.chmodSync(filePath, 0o755)
+}
+
+// Fake `claude -p ... --output-format json` that dumps its own spawned ANTHROPIC_API_KEY env var
+// into the JSON result envelope instead of echoing a fixed string, so the caller can assert on
+// exactly what environment the route handed the child process (regression coverage for the P2
+// finding: this route used to build the child env with safeEnv(), which never carries
+// ANTHROPIC_API_KEY, so a claude-pinned agent silently authenticated with an empty key).
+function writeFakeClaudeCliDumpingAnthropicKey(filePath: string) {
+  const script = [
+    '#!/bin/sh',
+    'echo "{\\"type\\":\\"result\\",\\"subtype\\":\\"success\\",\\"is_error\\":false,\\"result\\":\\"ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY\\",\\"session_id\\":\\"fake-session\\"}"',
+    '',
+  ].join('\n')
+  fs.writeFileSync(filePath, script, 'utf-8')
+  fs.chmodSync(filePath, 0o755)
 }
 
 function makeReq(overrides: Record<string, any> = {}) {
@@ -475,6 +507,64 @@ async function run() {
     } finally {
       aiGenerator.generateAgentMeta = originalGenerateAgentMeta
       aiGenerator.generateAgentFiles = originalGenerateAgentFiles
+      delete require.cache[require.resolve('./agents')]
+    }
+  })
+
+  await test('generate pins the caller-selected runtime and model for every generation pass', async () => {
+    const aiGeneratorPath = require.resolve('../lib/ai-generator')
+    delete require.cache[aiGeneratorPath]
+    const aiGenerator = require('../lib/ai-generator')
+    const originalGenerateAgentMeta = aiGenerator.generateAgentMeta
+    const originalGenerateAgentFiles = aiGenerator.generateAgentFiles
+    const integrationPath = path.join(workspacePath, 'SYSTEM', 'integrations.json')
+    const priorIntegrations = fs.existsSync(integrationPath) ? fs.readFileSync(integrationPath, 'utf-8') : undefined
+    const priorClaudeBin = process.env.CLAUDE_BIN
+    const priorDroidBin = process.env.DROID_BIN
+    const calls: any[] = []
+
+    fs.writeFileSync(integrationPath, JSON.stringify({ enabledRuntimes: ['claude', 'droid'] }), 'utf-8')
+    process.env.CLAUDE_BIN = process.execPath
+    process.env.DROID_BIN = process.execPath
+    aiGenerator.generateAgentMeta = async () => {
+      calls.push(aiGenerator.currentGenerationRuntimePin())
+      return { name: 'runtime-pinned', tags: [], model: '', skills: [] }
+    }
+    aiGenerator.generateAgentFiles = async () => {
+      calls.push(aiGenerator.currentGenerationRuntimePin())
+      return { identity: '# IDENTITY', soul: '# SOUL', tools: '# TOOLS' }
+    }
+
+    try {
+      const handler = getRouteHandler('post', '/generate')
+      const res = makeRes()
+      await handler(makeReq({
+        body: {
+          description: 'Research and compare local model options.',
+          suggestMeta: true,
+          runtime: 'droid',
+          model: 'claude-opus-4-8',
+        },
+      }), res)
+
+      assert.strictEqual(res.statusCode, 200, `Expected generation success, got ${res.jsonBody?.error || 'unknown error'}`)
+      assert.deepStrictEqual(
+        calls,
+        [
+          { runtime: 'droid', model: 'claude-opus-4-8' },
+          { runtime: 'droid', model: 'claude-opus-4-8' },
+        ],
+        'Expected both metadata and files to use the caller-selected runtime and model',
+      )
+    } finally {
+      aiGenerator.generateAgentMeta = originalGenerateAgentMeta
+      aiGenerator.generateAgentFiles = originalGenerateAgentFiles
+      if (priorClaudeBin === undefined) delete process.env.CLAUDE_BIN
+      else process.env.CLAUDE_BIN = priorClaudeBin
+      if (priorDroidBin === undefined) delete process.env.DROID_BIN
+      else process.env.DROID_BIN = priorDroidBin
+      if (priorIntegrations === undefined) fs.rmSync(integrationPath, { force: true })
+      else fs.writeFileSync(integrationPath, priorIntegrations, 'utf-8')
       delete require.cache[require.resolve('./agents')]
     }
   })
@@ -1112,6 +1202,55 @@ async function run() {
     assert.strictEqual(detailRes.jsonBody?.messages?.[0]?.content, 'Need help with the current thread')
   })
 
+  await test('clearing a mixed openclaw+runtime chat archives both stores in timestamp order (droid P1 regression)', async () => {
+    const { scopeSessionIdToModel } = require('../lib/agent-execution')
+    writeAgent(workspacePath, 'mixed-agent', [
+      '# IDENTITY.md',
+      '- **Name:** Mixed Agent',
+      '- **Model:** anthropic/claude-sonnet-4-20250514',
+    ].join('\n'))
+
+    // Same scoped session id the route resolves for the dashboard chat key.
+    const sid = scopeSessionIdToModel('agent:mixed-agent:dashboard-chat', 'anthropic/claude-sonnet-4-20250514')
+
+    // OpenClaw session file: an early turn (ts=1), an EMPTY-content turn (must survive archiving),
+    // and a late turn. The empty row carries a top-level timestamp (100) that DISAGREES with its
+    // message.timestamp (2.5): the archive must order by message.timestamp — matching the read
+    // path's `msg.timestamp || entry.timestamp` — so it lands at 2.5 (between the runtime turn and
+    // the late turn), not at 100 (last).
+    const sessionsDir = path.join(tmpHome, '.openclaw', 'agents', 'mixed-agent', 'sessions')
+    fs.mkdirSync(sessionsDir, { recursive: true })
+    fs.writeFileSync(path.join(sessionsDir, `${sid}.jsonl`), [
+      JSON.stringify({ type: 'message', timestamp: 1, message: { role: 'user', content: [{ type: 'text', text: 'openclaw-early' }], timestamp: 1 } }),
+      JSON.stringify({ type: 'message', timestamp: 100, message: { role: 'assistant', content: [], timestamp: 2.5 } }),
+      JSON.stringify({ type: 'message', timestamp: 4, message: { role: 'assistant', content: [{ type: 'text', text: 'openclaw-late' }], timestamp: 4 } }),
+    ].join('\n'), 'utf-8')
+
+    // Runtime transcript for the SAME session: a turn that happened between them (ts=2).
+    const transcriptDir = path.join(workspacePath, 'SYSTEM', 'runtime-transcripts', 'mixed-agent')
+    fs.mkdirSync(transcriptDir, { recursive: true })
+    fs.writeFileSync(path.join(transcriptDir, `${sid}.jsonl`),
+      JSON.stringify({ role: 'user', content: 'runtime-middle', ts: 2 }) + '\n', 'utf-8')
+
+    const clearHandler = getRouteHandler('delete', '/:id/chat/messages')
+    const clearRes = makeRes()
+    await clearHandler(makeReq({ params: { id: 'mixed-agent' } }), clearRes)
+    assert.strictEqual(clearRes.jsonBody?.archived, true, 'Expected the mixed chat to be archived, not deleted')
+
+    const archiveDir = path.join(sessionsDir, 'archive')
+    const archiveFile = fs.readdirSync(archiveDir).find((name) => name.startsWith(sid))
+    assert.ok(archiveFile, 'Expected an archive file to be written')
+    const archivedLines = fs.readFileSync(path.join(archiveDir, archiveFile!), 'utf-8').trim().split('\n').map((line) => JSON.parse(line))
+    // The empty OpenClaw row must be preserved verbatim (droid P1: parsing openclaw through the
+    // visible-message filter would have dropped it), so all 4 rows survive in timestamp order.
+    assert.strictEqual(archivedLines.length, 4, 'Expected all 4 rows (incl. the empty openclaw turn) to be archived')
+    const textOf = (msg: any) => Array.isArray(msg.content)
+      ? msg.content.map((c: any) => c?.text || '').join('')
+      : String(msg.content ?? '')
+    assert.deepStrictEqual(archivedLines.map((l) => textOf(l.message)), ['openclaw-early', 'runtime-middle', '', 'openclaw-late'],
+      'Expected interleaved chronological order across both stores with the empty openclaw turn intact')
+  })
+
   await test('chat archives route ignores trajectory rows, parses prefixed timestamps, and avoids noisy titles', async () => {
     writeAgent(workspacePath, 'archive-agent', [
       '# IDENTITY.md',
@@ -1588,6 +1727,32 @@ async function run() {
     assert.strictEqual(res.statusCode, 400, 'Expected invalid config update id to return HTTP 400')
   })
 
+  await test('identity route surfaces the runtime pin for the agent edit form, omitting it when unset', async () => {
+    writeAgent(workspacePath, 'runtime-pinned-agent', [
+      '# IDENTITY.md',
+      '- **Name:** Pinned',
+      '- **Model:** anthropic/claude-sonnet-4-20250514',
+      '- **Runtime:** claude',
+    ].join('\n'))
+    writeAgent(workspacePath, 'runtime-default-agent', [
+      '# IDENTITY.md',
+      '- **Name:** Unpinned',
+      '- **Model:** anthropic/claude-sonnet-4-20250514',
+    ].join('\n'))
+
+    const identityHandler = getRouteHandler('get', '/:id/identity')
+
+    let res = makeRes()
+    await identityHandler(makeReq({ params: { id: 'runtime-pinned-agent' } }), res)
+    assert.strictEqual(res.statusCode, 200, 'Expected identity route success for pinned agent')
+    assert.strictEqual(res.jsonBody?.metadata?.runtime, 'claude', 'Expected pinned runtime to surface in identity metadata')
+
+    res = makeRes()
+    await identityHandler(makeReq({ params: { id: 'runtime-default-agent' } }), res)
+    assert.strictEqual(res.statusCode, 200, 'Expected identity route success for unpinned agent')
+    assert.strictEqual(res.jsonBody?.metadata?.runtime, undefined, 'Expected no runtime field when the agent has no pin')
+  })
+
   await test('agent model and tags routes reject invalid requests', async () => {
     const patchTagsHandler = getRouteHandler('patch', '/:id/tags')
     let res = makeRes()
@@ -1647,6 +1812,189 @@ async function run() {
       { selectionMode: 'auto', preference: 'cost' },
       'Expected saved agent-specific settings from identity route',
     )
+  })
+
+  await test('runtime pin route validates input, persists to IDENTITY.md, and clears back to default', async () => {
+    writeAgent(workspacePath, 'runtime-route-agent', [
+      '# IDENTITY.md',
+      '- **Name:** Runtime Route Agent',
+      '- **Model:** anthropic/claude-sonnet-4-20250514',
+    ].join('\n'))
+    const identityPath = path.join(workspacePath, 'AGENTS', 'runtime-route-agent', 'IDENTITY.md')
+
+    const patchRuntimeHandler = getRouteHandler('patch', '/:id/runtime')
+
+    let res = makeRes()
+    await patchRuntimeHandler(makeReq({ params: { id: 'BAD ID' }, body: { runtime: 'claude' } }), res)
+    assert.strictEqual(res.statusCode, 400, 'Expected invalid runtime agent id to return HTTP 400')
+
+    res = makeRes()
+    await patchRuntimeHandler(makeReq({ params: { id: 'runtime-route-agent' }, body: {} }), res)
+    assert.strictEqual(res.statusCode, 400, 'Expected missing runtime to return HTTP 400')
+
+    res = makeRes()
+    await patchRuntimeHandler(makeReq({ params: { id: 'runtime-route-agent' }, body: { runtime: 'not-a-runtime' } }), res)
+    assert.strictEqual(res.statusCode, 400, 'Expected invalid runtime value to return HTTP 400')
+    assert(/default, openclaw, claude, droid/.test(res.jsonBody?.error || ''), 'Expected allowed runtime values listed in the error')
+
+    res = makeRes()
+    await patchRuntimeHandler(makeReq({ params: { id: 'missing-agent' }, body: { runtime: 'claude' } }), res)
+    assert.strictEqual(res.statusCode, 404, 'Expected missing agent runtime update to return HTTP 404')
+
+    res = makeRes()
+    await patchRuntimeHandler(makeReq({ params: { id: 'runtime-route-agent' }, body: { runtime: 'claude' } }), res)
+    assert.strictEqual(res.statusCode, 200, 'Expected valid runtime pin to succeed')
+    assert.strictEqual(res.jsonBody?.runtime, 'claude', 'Expected response to echo the normalized runtime')
+    assert(/\*\*Runtime:\*\* claude/.test(fs.readFileSync(identityPath, 'utf-8')), 'Expected runtime pin persisted to IDENTITY.md')
+
+    res = makeRes()
+    await patchRuntimeHandler(makeReq({ params: { id: 'runtime-route-agent' }, body: { runtime: 'default' } }), res)
+    assert.strictEqual(res.statusCode, 200, 'Expected clearing the runtime pin to succeed')
+    assert.strictEqual(res.jsonBody?.runtime, 'default', 'Expected response to echo default')
+    assert(!/\*\*Runtime:\*\*/.test(fs.readFileSync(identityPath, 'utf-8')), 'Expected runtime pin removed from IDENTITY.md')
+  })
+
+  await test('dashboard chat/messages route runs a droid-pinned agent through the runtime adapter instead of spawning openclaw', async () => {
+    writeAgent(workspacePath, 'droid-dashboard-chat', [
+      '# IDENTITY.md',
+      '- **Name:** Droid Dashboard Chat',
+      '- **Runtime:** droid',
+    ].join('\n'))
+    fs.mkdirSync(path.join(workspacePath, 'SYSTEM'), { recursive: true })
+    fs.writeFileSync(path.join(workspacePath, 'SYSTEM', 'integrations.json'), JSON.stringify({ enabledRuntimes: ['droid'] }), 'utf-8')
+
+    const droidCli = path.join(tmpHome, 'fake-droid-dashboard-chat')
+    writeFakeDroidCli(droidCli, 'hello from droid dashboard chat')
+    const originalDroidBin = process.env.DROID_BIN
+    process.env.DROID_BIN = droidCli
+
+    try {
+      const handler = getRouteHandler('post', '/:id/chat/messages')
+      const res = makeRes()
+      await handler(makeReq({ params: { id: 'droid-dashboard-chat' }, body: { message: 'hi' } }), res)
+      // The route resolves the droid CLI child process asynchronously (fire-and-forget past the
+      // await'd handler call, same as the existing openclaw branch below it); poll briefly for
+      // the real spawned fake-droid process to exit and call res.json().
+      for (let waited = 0; waited < 2000 && typeof res.jsonBody === 'undefined'; waited += 20) {
+        await new Promise(resolve => setTimeout(resolve, 20))
+      }
+      assert.strictEqual(res.statusCode, 200, 'Expected the droid-pinned dashboard chat call to succeed')
+      assert.strictEqual(
+        res.jsonBody?.result?.response,
+        'hello from droid dashboard chat',
+        'Expected the response text to come from the droid runtime adapter, not an openclaw JSON envelope'
+      )
+    } finally {
+      if (typeof originalDroidBin === 'undefined') delete process.env.DROID_BIN
+      else process.env.DROID_BIN = originalDroidBin
+    }
+  })
+
+  await test('dashboard chat/messages route hands a claude-pinned agent user-execution ANTHROPIC_API_KEY per the Separated Key Policy', async () => {
+    writeAgent(workspacePath, 'claude-dashboard-chat', [
+      '# IDENTITY.md',
+      '- **Name:** Claude Dashboard Chat',
+      '- **Model:** anthropic/claude-sonnet-4-20250514',
+      '- **Runtime:** claude',
+    ].join('\n'))
+    fs.mkdirSync(path.join(workspacePath, 'SYSTEM'), { recursive: true })
+    fs.writeFileSync(path.join(workspacePath, 'SYSTEM', 'integrations.json'), JSON.stringify({ enabledRuntimes: ['claude'] }), 'utf-8')
+
+    const claudeCli = path.join(tmpHome, 'fake-claude-dashboard-chat')
+    writeFakeClaudeCliDumpingAnthropicKey(claudeCli)
+    const originalClaudeBin = process.env.CLAUDE_BIN
+    process.env.CLAUDE_BIN = claudeCli
+
+    try {
+      // This route is user-initiated agent execution, so it must resolve keys through the USER
+      // execution path (userExecutionEnv → resolveUserExecutionProviderKeys), NOT the system path.
+      // Stub the user resolver with a key and a system resolver with a DIFFERENT key: the CLI must
+      // receive the user key, proving the route honors the Separated Key Policy rather than leaking
+      // SYSTEM_* keys into user chats.
+      await withDashboardEnvStubs({
+        resolveUserExecutionProviderKeys: () => ({ anthropic: 'sk-ant-user-key' }),
+        resolveSystemExecutionProviderKeys: () => ({ anthropic: 'sk-ant-system-key-must-not-leak' }),
+      }, async () => {
+        const handler = getRouteHandler('post', '/:id/chat/messages')
+        const res = makeRes()
+        await handler(makeReq({ params: { id: 'claude-dashboard-chat' }, body: { message: 'hi' } }), res)
+        // Same fire-and-forget shape as the droid case above; poll briefly for the real spawned
+        // fake-claude process to exit and call res.json().
+        for (let waited = 0; waited < 2000 && typeof res.jsonBody === 'undefined'; waited += 20) {
+          await new Promise(resolve => setTimeout(resolve, 20))
+        }
+        assert.strictEqual(res.statusCode, 200, 'Expected the claude-pinned dashboard chat call to succeed')
+        assert.strictEqual(
+          res.jsonBody?.result?.response,
+          'ANTHROPIC_API_KEY=sk-ant-user-key',
+          'Expected the spawned claude CLI to see the user-execution ANTHROPIC_API_KEY, not the system key'
+        )
+      })
+    } finally {
+      if (typeof originalClaudeBin === 'undefined') delete process.env.CLAUDE_BIN
+      else process.env.CLAUDE_BIN = originalClaudeBin
+    }
+  })
+
+  await test('dashboard chat/messages route for a default (openclaw) agent has no fixed deadline and is only stoppable via the turn registry', async () => {
+    // Regression coverage for the P1 finding: this branch used to unconditionally
+    // `setTimeout(() => proc.kill(), 600000)`, killing a still-working turn 10 minutes in
+    // regardless of whether it was making progress -- exactly the bug the rest of this change
+    // deletes everywhere else. Nothing in this suite exercised the branch before, which is how
+    // that survived. A fake child process here stands in for the real `openclaw` CLI.
+    writeAgent(workspacePath, 'openclaw-dashboard-chat', [
+      '# IDENTITY.md',
+      '- **Name:** OpenClaw Dashboard Chat',
+    ].join('\n'))
+
+    const fakeProc: any = new EventEmitter()
+    fakeProc.stdout = new EventEmitter()
+    fakeProc.stderr = new EventEmitter()
+    fakeProc.killed = false
+    fakeProc.kill = () => { fakeProc.killed = true }
+
+    await withChildProcessStubs({
+      spawn: () => fakeProc,
+    }, async () => {
+      const handler = getRouteHandler('post', '/:id/chat/messages')
+      const res = makeRes()
+      await handler(makeReq({ params: { id: 'openclaw-dashboard-chat' }, body: { message: 'hi' } }), res)
+
+      // registerTurn happens inside runExclusiveAgentExecution's callback, past an await the
+      // handler itself doesn't wait on (same fire-and-forget shape as the droid/claude cases
+      // above) -- poll briefly for it to show up rather than assuming it's there synchronously.
+      let turn: ReturnType<typeof listActiveTurns>[number] | undefined
+      for (let waited = 0; waited < 2000 && !turn; waited += 10) {
+        turn = listActiveTurns().find((t) => t.agentId === 'openclaw-dashboard-chat')
+        if (!turn) await new Promise((resolve) => setTimeout(resolve, 10))
+      }
+      assert(turn, 'Expected the openclaw chat turn to be visible in the active-turn registry')
+
+      // Prove there is no timer standing between "still working" and "killed": letting the fake
+      // CLI sit idle proves nothing fires on its own -- the only thing that can kill it now is an
+      // explicit cancel.
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      assert.strictEqual(fakeProc.killed, false, 'Expected no automatic timer to have touched the process')
+
+      // Simulate a user pressing Stop.
+      const wasCancelled = cancelTurn(turn.turnId)
+      assert.strictEqual(wasCancelled, true, 'Expected cancelTurn(turnId) to find and abort the registered turn')
+      assert.strictEqual(fakeProc.killed, true, 'Expected the abort to reach proc.kill(), the route\'s only kill switch now')
+
+      // Let the killed process actually exit so the route's promise settles and releases the turn.
+      // Same fire-and-forget shape as the droid/claude cases above: poll for res.json() rather
+      // than a promise the handler itself never awaits.
+      fakeProc.emit('close', 143)
+      for (let waited = 0; waited < 2000 && typeof res.jsonBody === 'undefined'; waited += 10) {
+        await new Promise((resolve) => setTimeout(resolve, 10))
+      }
+
+      assert.strictEqual(res.statusCode, 500, 'Expected a killed-mid-flight turn to surface as a failed request')
+      assert(
+        listActiveTurns().every((t) => t.turnId !== turn!.turnId),
+        'Expected the turn to be released from the registry once the handler settled'
+      )
+    })
   })
 
   await test('agent archive and unarchive routes reject invalid ids and missing agents', async () => {

@@ -42,6 +42,16 @@ get_env_value() {
   grep -E "^${key}=" "$file" 2>/dev/null | tail -1 | cut -d= -f2- | sed 's/^"//; s/"$//' | tr -d '\r'
 }
 
+resolve_agent_runtime_cli() {
+  local bin_name="$1"
+  local env_override="$2"
+  if [ -n "$env_override" ] && [ -x "$env_override" ]; then
+    printf '%s\n' "$env_override"
+    return 0
+  fi
+  command -v "$bin_name" 2>/dev/null
+}
+
 probe_gateway() {
   local code
   code=$(curl -s -o /dev/null -w "%{http_code}" \
@@ -400,6 +410,42 @@ if openclaw_cli_available && [ -f "$OC_CONFIG" ]; then
   fi
 else
   info "Cannot check agent registration (openclaw CLI or config missing)"
+fi
+echo ""
+
+# ── 9. Agent Runtimes ────────────────────────────────────────────────
+echo -e "${BOLD}9. Agent Runtimes${NC}"
+
+if openclaw_cli_available; then
+  RUNTIME_OC_VER=$(openclaw_cli_run --version 2>&1 | head -1 | grep -o '[0-9]\{4\}\.[0-9]*\.[0-9]*' || echo "unknown")
+  pass "OpenClaw CLI: $RUNTIME_OC_VER ($(resolve_openclaw_cli))"
+else
+  fail "OpenClaw CLI not installed"
+  info "Fix: npm install -g openclaw"
+fi
+
+# resolve_agent_runtime_cli's final statement is `command -v`, which exits
+# non-zero when the binary isn't found (the expected/common case for these
+# optional runtimes). Under this script's `set -e`, a failing command
+# substitution used in a bare assignment aborts the whole script — so, like
+# every other fallible lookup above, the failure is absorbed with `|| true`
+# inside the substitution rather than left to propagate.
+CLAUDE_CLI_PATH="$(resolve_agent_runtime_cli claude "${CLAUDE_BIN:-}" || true)"
+if [ -n "$CLAUDE_CLI_PATH" ]; then
+  CLAUDE_CLI_VER=$("$CLAUDE_CLI_PATH" --version 2>&1 | head -1 || echo "unknown")
+  pass "Claude Code CLI: $CLAUDE_CLI_VER ($CLAUDE_CLI_PATH)"
+else
+  warn "Claude Code CLI not installed (optional — only needed for agents pinned to the claude runtime)"
+  info "Fix: npm install -g @anthropic-ai/claude-code (or set CLAUDE_BIN)"
+fi
+
+DROID_CLI_PATH="$(resolve_agent_runtime_cli droid "${DROID_BIN:-}" || true)"
+if [ -n "$DROID_CLI_PATH" ]; then
+  DROID_CLI_VER=$("$DROID_CLI_PATH" --version 2>&1 | head -1 || echo "unknown")
+  pass "Factory Droid CLI: $DROID_CLI_VER ($DROID_CLI_PATH)"
+else
+  warn "Factory Droid CLI not installed (optional — only needed for agents pinned to the droid runtime)"
+  info "Fix: curl -fsSL https://app.factory.ai/cli | sh (or set DROID_BIN)"
 fi
 echo ""
 

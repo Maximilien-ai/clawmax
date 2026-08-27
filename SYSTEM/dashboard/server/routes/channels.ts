@@ -21,11 +21,19 @@ import {
 import { readWorkspaceIntegrationConfig } from '../lib/workspace-integrations'
 import { hasWorkspaceManagedPartnerSecrets } from '../lib/workspace-integrations'
 import { getAuthenticatedSession } from '../lib/github-auth'
+import { executeAgentRuntimeTurn, isRuntimeCancelledError } from '../lib/agent-runtime'
+import { hasRuntimeSession } from '../lib/runtime-sessions'
+import { withRegisteredTurn } from '../lib/agent-turns'
 import { deriveChatError } from './chat'
 import { createBrokerCapabilityToken } from '../lib/skill-secret-broker'
 import { appendActivityExportEventsForActiveConsents } from '../lib/activity-export'
+import { cancelProcessTree, detachProcessStreams } from '../lib/process-tree'
 
 const router = Router()
+
+// claude/droid CLI turnaround runs noticeably slower than openclaw's local gateway path
+// (droid-probe.md: single-turn calls observed at 5.6s-33s even for trivial replies).
+const NON_OPENCLAW_CALL_AGENT_TIMEOUT_MS = 120000
 
 const CHANNEL_RUNTIME_ERROR_PATTERN = /FsSafeError: directory changed during operation|(?:Unknown|Unsupported) model:|No API key found for provider|Incorrect API key provided|has auth issue \(skipping all models\)|insufficient_quota|quota exceeded|rate limit|too many requests|429\b|is in cooldown \(suspending lanes\)|EmbeddedAttemptSessionTakeoverError|session file changed while embedded prompt lock was released|All models failed|No API keys available|No execution path configured|gateway|timeout|n_keep:\s*\d+\s*>=\s*n_ctx:\s*\d+/i
 
@@ -332,7 +340,7 @@ router.delete('/groups/:name', (req, res) => {
 })
 
 /** Call an agent with a message and return the response */
-async function callAgent(
+export async function callAgent(
   agentId: string,
   message: string,
   sessionId: string,
@@ -363,57 +371,129 @@ async function callAgent(
     executionEnv.CLAWMAX_MAIL_BROKER_URL = `http://127.0.0.1:${process.env.DASHBOARD_PORT || '3001'}/api/runtime/mail`
   }
   const effectiveSessionId = scopeSessionIdToModel(sessionId, resolvedAgent.model)
-  const gatewayRunning = (
-    resolvedAgent.provider === 'ollama' || resolvedAgent.provider === 'openai-compatible'
-  )
-    ? false
-    : (await waitForGatewayResponsive()).running
-  const useLocal = !gatewayRunning || hasWorkspaceManagedPartnerSecrets()
-  const hasOllamaPath = !!(executionEnv.OLLAMA_BASE_URL || integrationConfig.ollamaDefaultModel)
-  const hasOpenAiCompatiblePath = !!(executionEnv.OPENAI_BASE_URL || integrationConfig.openaiCompatibleBaseUrl)
-  if (resolvedAgent.provider === 'ollama' && !hasOllamaPath) {
-    throw new Error(`Agent ${agentId} is configured for ${resolvedAgent.model || 'ollama'}, but no Ollama runtime is configured`)
-  }
-  if (resolvedAgent.provider === 'openai-compatible' && !hasOpenAiCompatiblePath) {
-    throw new Error(`Agent ${agentId} is configured for ${resolvedAgent.model || 'openai-compatible'}, but no OpenAI-compatible Base URL is configured`)
-  }
 
-  return runExclusiveAgentExecution(agentId, () => withTemporaryAgentAuthProfiles(agentId, {
-    openai: executionEnv.OPENAI_API_KEY,
-    anthropic: executionEnv.ANTHROPIC_API_KEY,
-    gemini: executionEnv.GEMINI_API_KEY,
-    openrouter: executionEnv.OPENROUTER_API_KEY,
-    xai: executionEnv.XAI_API_KEY,
-    ollamaBaseUrl: executionEnv.OLLAMA_BASE_URL,
-    openaiCompatibleApiKey: useOpenAiCompatible ? executionEnv.OPENAI_API_KEY : undefined,
-    openaiCompatibleBaseUrl: useOpenAiCompatible ? executionEnv.OPENAI_BASE_URL : undefined,
-    openaiCompatibleDefaultModel: useOpenAiCompatible ? (byokKeys?.openaiCompatibleDefaultModel || integrationConfig.openaiCompatibleDefaultModel) : undefined,
-  }, resolvedAgent.model, resolvedAgent.provider, () => {
-    return new Promise((resolve, reject) => {
-      const executionModelOverride = toExecutionModelOverride(resolvedAgent.model, resolvedAgent.provider)
-      const args = [
-        'agent',
-        '--agent', agentId,
-        '--session-id', effectiveSessionId,
-        '--message', message,
-        '--json',
-        ...(executionModelOverride ? ['--model', executionModelOverride] : []),
-        ...(useLocal ? ['--local'] : []),
-      ]
-      const proc = spawn('openclaw', args, { env: executionEnv })
+  // Registers a real turn for both branches below. These calls are invoked from the fire-and-forget
+  // mention loops further down this file (res.json() has already returned to the client by the time
+  // callAgent runs) and from inbound community/group/DM handlers -- there is no live HTTP request to
+  // hang cancellation off, so the turn registry is the only thing that can ever see or stop one. The
+  // non-openclaw branch previously passed `new AbortController().signal`, a controller nothing held
+  // a reference to abort; the openclaw branch below had no signal wired to its spawn at all.
+  return withRegisteredTurn(agentId, async (turn) => {
+    if (resolvedAgent.runtime !== 'openclaw') {
+      return runExclusiveAgentExecution(agentId, async () => {
+        const { text, errorText, missingCliError } = await executeAgentRuntimeTurn({
+          runtime: resolvedAgent.runtime,
+          agentId,
+          agentDir: resolvedAgent.workspace || path.join(getWorkspacePath(), 'AGENTS', agentId),
+          message,
+          scopedSessionId: effectiveSessionId,
+          model: resolvedAgent.model,
+          mode: 'json',
+          env: executionEnv,
+          // No deadline: a channel turn does the same open-ended work a chat turn does. `turn.signal`
+          // is the only way this run ever stops early now.
+          signal: turn.signal,
+          onActivity: turn.touch,
+        })
+        if (missingCliError) throw new Error(missingCliError)
+        if (errorText) {
+          throw new Error(isRuntimeCancelledError(errorText) ? 'Agent run was stopped.' : errorText)
+        }
+        const responseText = normalizeChatMessage(text)
+        if (responseText) {
+          traceAgentChat(agentId, message, responseText, {
+            model: resolvedAgent.model,
+            provider: resolvedAgent.provider || undefined,
+            actorUserId: actor?.userId,
+            actorLogin: actor?.login,
+            actorEmail: actor?.email,
+            dashboardInstanceId: getConfiguredDashboardInstanceId(),
+          })
+        }
+        return responseText
+      })
+    }
+
+    const gatewayRunning = (
+      resolvedAgent.provider === 'ollama' || resolvedAgent.provider === 'openai-compatible'
+    )
+      ? false
+      : (await waitForGatewayResponsive()).running
+    const useLocal = !gatewayRunning || hasWorkspaceManagedPartnerSecrets()
+    const hasOllamaPath = !!(executionEnv.OLLAMA_BASE_URL || integrationConfig.ollamaDefaultModel)
+    const hasOpenAiCompatiblePath = !!(executionEnv.OPENAI_BASE_URL || integrationConfig.openaiCompatibleBaseUrl)
+    if (resolvedAgent.provider === 'ollama' && !hasOllamaPath) {
+      throw new Error(`Agent ${agentId} is configured for ${resolvedAgent.model || 'ollama'}, but no Ollama runtime is configured`)
+    }
+    if (resolvedAgent.provider === 'openai-compatible' && !hasOpenAiCompatiblePath) {
+      throw new Error(`Agent ${agentId} is configured for ${resolvedAgent.model || 'openai-compatible'}, but no OpenAI-compatible Base URL is configured`)
+    }
+
+    return runExclusiveAgentExecution(agentId, () => withTemporaryAgentAuthProfiles(agentId, {
+      openai: executionEnv.OPENAI_API_KEY,
+      anthropic: executionEnv.ANTHROPIC_API_KEY,
+      gemini: executionEnv.GEMINI_API_KEY,
+      openrouter: executionEnv.OPENROUTER_API_KEY,
+      xai: executionEnv.XAI_API_KEY,
+      ollamaBaseUrl: executionEnv.OLLAMA_BASE_URL,
+      openaiCompatibleApiKey: useOpenAiCompatible ? executionEnv.OPENAI_API_KEY : undefined,
+      openaiCompatibleBaseUrl: useOpenAiCompatible ? executionEnv.OPENAI_BASE_URL : undefined,
+      openaiCompatibleDefaultModel: useOpenAiCompatible ? (byokKeys?.openaiCompatibleDefaultModel || integrationConfig.openaiCompatibleDefaultModel) : undefined,
+    }, resolvedAgent.model, resolvedAgent.provider, () => {
+      return new Promise((resolve, reject) => {
+        const executionModelOverride = toExecutionModelOverride(resolvedAgent.model, resolvedAgent.provider)
+        const args = [
+          'agent',
+          '--agent', agentId,
+          '--session-id', effectiveSessionId,
+          '--message', message,
+          '--json',
+          ...(executionModelOverride ? ['--model', executionModelOverride] : []),
+          ...(useLocal ? ['--local'] : []),
+        ]
+        // Own process group: openclaw spawns its own children, and signalling only this direct
+        // child leaves grandchildren alive holding the stdout pipe open.
+        const proc = spawn('openclaw', args, { env: executionEnv, detached: true })
 
     let stdout = ''
     let stderr = ''
-    const timer = setTimeout(() => {
-      proc.kill()
-      reject(new Error('Agent timeout'))
-    }, 60000) // 1 min timeout per agent
+    let settled = false
+    let killEscalation: NodeJS.Timeout | undefined
 
-    proc.stdout.on('data', (d: Buffer) => { stdout += d.toString() })
-    proc.stderr.on('data', (d: Buffer) => { stderr += d.toString() })
+    /**
+     * Settle exactly once and stop reading.
+     *
+     * This promise sits inside runExclusiveAgentExecution's per-agent lock, so a promise that never
+     * settles holds that lock forever and permanently blocks every later chat, channel and workflow
+     * turn for this agent -- with no deadline anywhere able to clear it, by design. Guaranteeing
+     * settlement here is therefore what keeps "no timeout" from turning one wedged CLI into a dead
+     * agent.
+     */
+    const settle = (fn: () => void) => {
+      if (settled) return
+      settled = true
+      turn.signal.removeEventListener('abort', onCancel)
+      if (killEscalation) clearTimeout(killEscalation)
+      detachProcessStreams(proc)
+      fn()
+    }
+
+    // No deadline. A 60-second cap here killed any channel turn that did real work -- the same
+    // defect as the chat path, just with a number small enough that it fired far more often.
+    // `turn.signal` replaces it as the only stop condition: this raw spawn previously had nothing
+    // wired to any signal at all, so a channel turn was structurally unkillable once started.
+    function onCancel() {
+      if (settled) return
+      // SIGTERM, then an unconditional group SIGKILL, then settle -- see cancelProcessTree.
+      killEscalation = cancelProcessTree(proc, () => settle(() => reject(new Error('Agent run was stopped.'))))
+    }
+    if (turn.signal.aborted) onCancel()
+    else turn.signal.addEventListener('abort', onCancel, { once: true })
+
+    proc.stdout.on('data', (d: Buffer) => { stdout += d.toString(); turn.touch() })
+    proc.stderr.on('data', (d: Buffer) => { stderr += d.toString(); turn.touch() })
 
     proc.on('close', (code: number) => {
-      clearTimeout(timer)
       console.log(`[callAgent] ${agentId}: exit code=${code}, stdout len=${stdout.length}, stderr len=${stderr.length}`)
       const rawDiagnostic = `${stdout}\n${stderr}`.trim()
       const runtimeError = CHANNEL_RUNTIME_ERROR_PATTERN.test(rawDiagnostic)
@@ -421,7 +501,7 @@ async function callAgent(
         : null
       // Only reject if exit code is non-zero AND there's nothing parseable anywhere
       if (code !== 0 && !stdout.trim() && !stderr.includes('{')) {
-        reject(new Error(runtimeError || `Agent command failed (code ${code}): ${stderr.slice(0, 200)}`))
+        settle(() => reject(new Error(runtimeError || `Agent command failed (code ${code}): ${stderr.slice(0, 200)}`)))
         return
       }
 
@@ -510,31 +590,31 @@ async function callAgent(
         }
         responseText = normalizeChatMessage(responseText)
         if (!responseText && runtimeError) {
-          reject(new Error(runtimeError))
+          settle(() => reject(new Error(runtimeError)))
           return
         }
         if (!responseText) {
           console.log(`[callAgent] ${agentId}: empty response, stdout=${stdout.slice(0, 200)}, stderr=${stderr.slice(0, 200)}`)
         }
 
-        resolve(responseText)
+        settle(() => resolve(responseText))
       } catch (parseErr) {
         console.error(`[callAgent] ${agentId}: parse error:`, parseErr, `stdout=${stdout.slice(0, 300)}, stderr=${stderr.slice(0, 300)}`)
         // If we have any stdout text at all, return it as-is rather than failing
         if (stdout.trim()) {
-          resolve(stdout.trim())
+          settle(() => resolve(stdout.trim()))
         } else {
-          reject(new Error(`Invalid JSON from agent: ${(stdout || stderr).slice(0, 200)}`))
+          settle(() => reject(new Error(`Invalid JSON from agent: ${(stdout || stderr).slice(0, 200)}`)))
         }
       }
     })
 
     proc.on('error', (err: Error) => {
-      clearTimeout(timer)
-      reject(err)
+      settle(() => reject(err))
     })
     })
-  }, { persistAuthProfiles: true }))
+    }, { persistAuthProfiles: true }))
+  })
 }
 
 // Update community tags

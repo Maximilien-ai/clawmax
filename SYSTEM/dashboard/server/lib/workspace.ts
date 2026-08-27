@@ -1558,6 +1558,8 @@ export function parseIdentity(content: string): any {
   if (modelPriorityMatch && /^(quality|balanced|cost)$/i.test(modelPriorityMatch[1].trim())) {
     identity.modelPreference = modelPriorityMatch[1].trim().toLowerCase()
   }
+  const runtimeMatch = runtimeContent.match(/\*\*Runtime:\*\*\s*([^\n]+)/i)
+  if (runtimeMatch) identity.runtime = runtimeMatch[1].trim()
 
   const whatsappMatch = runtimeContent.match(/\*\*WhatsApp:\*\*\s*(\+?[0-9]+)?/i)
   if (whatsappMatch) {

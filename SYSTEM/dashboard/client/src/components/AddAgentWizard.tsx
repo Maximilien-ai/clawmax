@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { byokForRequest, readStoredByokKeys, fetchModelsWithByok, getAiGenerationReadiness, hasAiGenerationAccess, isOllamaUiAvailable } from '../lib/byok'
+import { enabledRuntimeIds, modelAfterRuntimeChange, modelFitCandidates, parseRuntimeCatalog, runtimeAcceptsModel, runtimeLabelFor, runtimeModelsFor, type RuntimeCatalogEntry } from '../lib/runtimeCatalog'
 import { expandPromptWithAI } from '../lib/aiPrompt'
 import { normalizeAgentTemplateOption } from '../lib/agentTemplateOptions'
 import { normalizePromptInput, resolveAddAgentWizardLaunchState } from '../lib/addAgentWizardFlow'
@@ -82,7 +83,7 @@ function friendlyProvisionError(message: string): string {
 export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, defaultCloneFrom, startWithAI, initialAiDescription }: WizardProps) {
   const manualModelRef = useRef('')
   const { config } = useAuth()
-  const aiEnabled = hasAiGenerationAccess(config)
+  const aiEnabledFromKeys = hasAiGenerationAccess(config)
   const aiReadiness = getAiGenerationReadiness(config)
   const ollamaEnabled = isOllamaUiAvailable(config)
   const launchState = resolveAddAgentWizardLaunchState({ startWithAI, initialAiDescription })
@@ -103,6 +104,41 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
   })
   const [suggested, setSuggested] = useState<{ id: string; port: number } | null>(null)
   const [existingAgents, setExistingAgents] = useState<string[]>([])
+  // Runtime pin chosen at creation. Without this, every new agent started on OpenClaw and the
+  // only way to move it was to create it, then edit it.
+  const [runtime, setRuntime] = useState('default')
+  const [runtimeCatalog, setRuntimeCatalog] = useState<RuntimeCatalogEntry[]>([])
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/integrations/runtimes')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => { if (!cancelled) setRuntimeCatalog(parseRuntimeCatalog(data)) })
+      .catch(() => { if (!cancelled) setRuntimeCatalog([]) })
+    return () => { cancelled = true }
+  }, [])
+  const enabledRuntimes = enabledRuntimeIds(runtimeCatalog)
+  const runtimeModelOptions = runtimeModelsFor(runtimeCatalog, runtime)
+  // 'default' means "whatever the workspace runs"; openclaw is not a CLI-backed generator. Only an
+  // explicit CLI pin travels with a generation request.
+  const pinnedGenerationRuntime = runtime !== 'default' && runtime !== 'openclaw' ? runtime : ''
+  // Suggestions must not move a runtime-pinned agent onto a model its CLI rejects. The editor
+  // already had this guard; the creation path did not, which is how agents were created with a
+  // Claude Code runtime and an openai/* model that failed on their first chat turn.
+  const isModelAllowedForRuntime = React.useCallback(
+    (candidate: string) => runtimeAcceptsModel(runtimeModelOptions, candidate),
+    [runtimeModelOptions],
+  )
+  // AuthContext fetches /api/auth/config once at mount, so enabling a runtime mid-session
+  // would otherwise leave Generate disabled until a reload. This component already polls the
+  // runtimes endpoint, so trust that too.
+  const aiEnabled = aiEnabledFromKeys || enabledRuntimes.length > 0
+
+  // Switching runtime must not leave a model the new runtime rejects — provider ids and CLI
+  // catalogs do not overlap, so a stale selection provisions an agent that fails on its first turn.
+  const selectRuntime = (next: string) => {
+    setRuntime(next)
+    setForm(f => ({ ...f, model: modelAfterRuntimeChange(runtimeCatalog, next, f.model) }))
+  }
   const [availableModels, setAvailableModels] = useState<string[]>([])
   const [modelsLoaded, setModelsLoaded] = useState(false)
   const [modelsByProvider, setModelsByProvider] = useState<Record<string, { name: string; models: string[] }>>({})
@@ -126,6 +162,12 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
   const [autoModelSelection, setAutoModelSelection] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [genError, setGenError] = useState<string | null>(null)
+  // Which provider produced the last generation, and whether it got there by falling back.
+  // Provider precedence is otherwise invisible in the UI.
+  const [generatedBy, setGeneratedBy] = useState<{
+    label: string
+    fellBackFrom?: { label: string; reason: string }
+  } | null>(null)
   const [showAiPromptEditor, setShowAiPromptEditor] = useState(false)
   const [preFilled, setPreFilled] = useState(false)
   const [validationErrors, setValidationErrors] = useState<string[]>([])
@@ -310,6 +352,9 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
   }
 
   function useManualModel(nextModel: string) {
+    // The panel can only offer models the pinned runtime accepts, but guard the write too:
+    // this is the last point before an unusable model becomes the agent's model.
+    if (!isModelAllowedForRuntime(nextModel)) return
     manualModelRef.current = nextModel
     set('model', nextModel)
   }
@@ -317,21 +362,27 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
   function setAutomaticModelSelection(enabled: boolean) {
     if (enabled) {
       manualModelRef.current = form.model
-      if (modelRecommendation?.recommendedModel) set('model', modelRecommendation.recommendedModel)
+      const suggested = modelRecommendation?.recommendedModel
+      if (suggested && isModelAllowedForRuntime(suggested)) set('model', suggested)
     } else {
-      set('model', manualModelRef.current || modelRecommendation?.recommendedModel || form.model)
+      // Restoring the pre-auto model must respect the runtime pinned since: enable auto on
+      // OpenClaw with an openai/* model, switch to Claude Code, then turn auto off, and this used
+      // to put the OpenAI model back on a CLI-pinned agent, which then fails at provision.
+      const restored = manualModelRef.current || modelRecommendation?.recommendedModel || form.model
+      set('model', isModelAllowedForRuntime(restored) ? restored : (runtimeModelOptions[0] || form.model))
     }
     setAutoModelSelection(enabled)
   }
 
   useEffect(() => {
-    if (!generatedFiles || availableModels.length === 0) return
+    if (!generatedFiles || (availableModels.length === 0 && runtimeModelOptions.length === 0)) return
     const description = buildAgentModelFitDescription(generatedFiles)
     if (!description) return
     const controller = new AbortController()
     requestModelFit({
       description,
-      availableModels,
+      availableModels: modelFitCandidates(runtimeModelOptions, availableModels),
+      runtime,
       preference: modelPreference,
       signal: controller.signal,
     })
@@ -340,12 +391,14 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
         if (error.name !== 'AbortError') setGenError(error.message || 'Could not update model suggestion')
       })
     return () => controller.abort()
-  }, [generatedFiles, availableModels, modelPreference])
+  }, [generatedFiles, availableModels, runtimeModelOptions, modelPreference])
 
   useEffect(() => {
     const suggestedModel = modelRecommendation?.recommendedModel
-    if (autoModelSelection && suggestedModel) set('model', suggestedModel)
-  }, [autoModelSelection, modelRecommendation?.recommendedModel])
+    if (autoModelSelection && suggestedModel && isModelAllowedForRuntime(suggestedModel)) {
+      set('model', suggestedModel)
+    }
+  }, [autoModelSelection, modelRecommendation?.recommendedModel, isModelAllowedForRuntime])
 
   const nameOk = /^[a-z][a-z0-9_-]*$/.test(form.name)
   const canNext: Record<Step, boolean> = {
@@ -374,6 +427,9 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
           ...byokForRequest(),
           name: form.name,
           model: form.model,
+          // Tell the validator which CLI will run this agent, so a model from that CLI's own
+          // catalog isn't reported as "not currently advertised" by the provider APIs.
+          runtime: runtime !== 'default' && runtime !== 'openclaw' ? runtime : undefined,
           cloneFrom: form.cloneFrom || undefined,
           templateSlug: form.templateSlug || undefined,
           whatsapp: form.whatsapp || undefined,
@@ -424,6 +480,13 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
           suggestMeta: true,
           availableModels,
           modelPreference,
+          // Generate on the runtime and model this agent is being created with. Without these the
+          // server fell back to the workspace's enabled-runtime order, so choosing Factory Droid
+          // here still generated on Claude Code — and failed on Claude's missing login.
+          ...(pinnedGenerationRuntime ? { runtime: pinnedGenerationRuntime } : {}),
+          // Send the actual selection even if a catalog changed since the form rendered. The route
+          // validates it and returns a clear error rather than silently generating on a default.
+          ...(pinnedGenerationRuntime && form.model ? { model: form.model } : {}),
           byokKeys: (byok.openai || byok.anthropic || byok.gemini || byok.openrouter || byok.xai || byok.ollamaBaseUrl || byok.openaiCompatibleBaseUrl)
             ? {
                 openai: byok.openai,
@@ -441,13 +504,22 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
       })
 
       if (!resp.ok) {
-        const err = await resp.text()
-        setGenError(err || 'Generation failed')
+        // The route replies with {"error": "..."}; showing the raw body put the JSON envelope
+        // on screen instead of the message, which matters most here because that message is
+        // where the provider and any fallback are explained.
+        const raw = await resp.text()
+        let message = raw
+        try {
+          const parsed = JSON.parse(raw)
+          if (parsed?.error) message = String(parsed.error)
+        } catch { /* not JSON — show it as-is */ }
+        setGenError(message || 'Generation failed')
         setGenerating(false)
         return
       }
 
       const data = await resp.json()
+      setGeneratedBy(data.generatedBy || null)
       let files: GeneratedFiles = { identity: data.identity, soul: data.soul, tools: data.tools }
       setModelRecommendation(data.modelRecommendation || null)
 
@@ -459,9 +531,9 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
       if (data.suggestedModel) {
         if (!manualModelRef.current) manualModelRef.current = form.model
         set('model', resolveAddAgentWizardSuggestedModel({
-          models: availableModels,
+          models: modelFitCandidates(runtimeModelOptions, availableModels),
           currentModel: form.model,
-          suggestedModel: data.suggestedModel,
+          suggestedModel: isModelAllowedForRuntime(data.suggestedModel) ? data.suggestedModel : form.model,
         }))
       }
       if (data.suggestedSkills?.length > 0) set('skills', [...new Set(data.suggestedSkills)])
@@ -500,6 +572,7 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
       modelSelection: autoModelSelection ? 'auto' : 'manual',
       modelPreference,
     }
+    if (runtime !== 'default' && runtime !== 'openclaw') body.runtime = runtime
     if (form.backupModel.trim()) body.backupModel = form.backupModel
     if (form.cloneFrom) body.cloneFrom = form.cloneFrom
     if (form.templateSlug) body.templateSlug = form.templateSlug
@@ -579,6 +652,9 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
   const preview = {
     name: form.name || suggested?.id || '…',
     model: form.model,
+    ...(runtime !== 'default' && runtime !== 'openclaw'
+      ? { runtime: runtimeLabelFor(runtimeCatalog, runtime) }
+      : {}),
     ...(form.cloneFrom ? { clone_from: form.cloneFrom } : {}),
     ...(form.whatsapp ? { whatsapp: form.whatsapp } : {}),
     port: form.port !== '' ? form.port : suggested?.port ?? '…',
@@ -642,6 +718,23 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
                 />
                 <p className="mt-1 text-xs text-gray-400">Lowercase letters, numbers, hyphens. Suggested: <strong>{suggested?.id ?? '…'}</strong></p>
               </div>
+              <div className="rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-900/20 p-3">
+                <label className="block text-xs font-semibold text-sky-900 dark:text-sky-100 mb-1">Runtime — which CLI runs this agent</label>
+                <select
+                  value={runtime}
+                  onChange={e => selectRuntime(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-sky-300 dark:border-sky-700 rounded-md outline-none focus:border-sky-400 bg-white dark:bg-gray-900"
+                >
+                  <option value="default">OpenClaw (model-provider keys) — default</option>
+                  {runtimeCatalog.filter((rt) => rt.enabled)
+                    .map((rt) => <option key={rt.id} value={rt.id}>{rt.label} (its own login)</option>)}
+                </select>
+                <p className="mt-1 text-xs text-sky-800/80 dark:text-sky-200/70">
+                  {enabledRuntimes.length > 0
+                    ? 'A CLI runtime uses its own login, so it needs no provider key — and the model list below becomes that CLI\u2019s own.'
+                    : 'Enable a CLI runtime in BYOK \u2192 \u201cRun via CLI\u201d to run agents without provider keys.'}
+                </p>
+              </div>
               <div>
                 <div className="mb-1 flex items-center justify-between gap-3">
                   <label className="block text-xs font-medium text-gray-600 dark:text-gray-400">
@@ -657,12 +750,16 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
                   value={form.model}
                   onChange={e => useManualModel(e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-md outline-none focus:border-sky-400 bg-white dark:bg-gray-800 dark:border-gray-700"
-                  disabled={availableModels.length === 0 || (autoModelSelection && !!modelRecommendation?.recommendedModel)}
+                  disabled={(runtimeModelOptions.length === 0 && availableModels.length === 0) || (autoModelSelection && !!modelRecommendation?.recommendedModel)}
                 >
-                  {availableModels.length === 0 && (
+                  {runtimeModelOptions.length === 0 && availableModels.length === 0 && (
                     <option value="">{modelsLoaded ? 'No models available — add API keys to .env' : 'Loading models...'}</option>
                   )}
-                  {Object.keys(modelsByProvider).length > 0 ? (
+                  {runtimeModelOptions.length > 0 ? (
+                    <optgroup label={`${runtimeLabelFor(runtimeCatalog, runtime)} models`}>
+                      {runtimeModelOptions.map(m => <option key={m} value={m}>{m}</option>)}
+                    </optgroup>
+                  ) : Object.keys(modelsByProvider).length > 0 ? (
                     Object.entries(modelsByProvider).map(([providerId, provider]) => (
                       <optgroup key={providerId} label={provider.name || providerId}>
                         {provider.models
@@ -676,7 +773,7 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
                       .map(m => <option key={m} value={m}>{formatOpenAiModelLabel(m)}</option>)
                   )}
                 </select>
-                {modelsLoaded && availableModels.length === 0 && (
+                {modelsLoaded && availableModels.length === 0 && runtimeModelOptions.length === 0 && (
                   <p className="mt-1 text-xs text-amber-600">
                     {ollamaEnabled
                       ? 'No models are available yet. Configure OpenAI, Anthropic, Gemini, OpenAI-Compatible, or a local Ollama runtime in Workspaces Integrations.'
@@ -950,6 +1047,15 @@ export default function AddAgentWizard({ onClose, onDone, onNavigateToSkills, de
 
               {genError && (
                 <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-400">{genError}</div>
+              )}
+
+              {generatedBy && (
+                <div className="p-3 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-600 dark:text-slate-300">
+                  Generated by <span className="font-medium">{generatedBy.label}</span>
+                  {generatedBy.fellBackFrom && (
+                    <> — fell back after {generatedBy.fellBackFrom.label} failed: {generatedBy.fellBackFrom.reason}</>
+                  )}
+                </div>
               )}
 
               {generatedFiles && (

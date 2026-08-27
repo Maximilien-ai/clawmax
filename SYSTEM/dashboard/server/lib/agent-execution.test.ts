@@ -190,6 +190,60 @@ test('resolveAgentExecutionConfig remaps retired openai/gpt-4o identities to ope
   assert(resolved.provider === 'openai', 'Expected provider to remain openai')
 })
 
+test('resolveAgentExecutionConfig defaults runtime to openclaw when no workspace default or per-agent pin is set', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
+  const workspace = path.join(home, 'workspace')
+  const agentWorkspace = path.join(workspace, 'AGENTS', 'runtime-default-agent')
+  fs.mkdirSync(agentWorkspace, { recursive: true })
+  fs.writeFileSync(path.join(agentWorkspace, 'IDENTITY.md'), '# Identity\n\n- **Model:** openai/gpt-4o-mini\n', 'utf-8')
+
+  process.env.HOME = home
+  process.env.OPENCLAW_WORKSPACE = workspace
+  resetWorkspaceManagerForTests()
+
+  const resolved = resolveAgentExecutionConfig('runtime-default-agent')
+  assert(resolved.runtime === 'openclaw', `Expected default runtime openclaw, got ${resolved.runtime}`)
+})
+
+test('resolveAgentExecutionConfig runs an unpinned agent on openclaw even when CLIs are enabled', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
+  const workspace = path.join(home, 'workspace')
+  const agentWorkspace = path.join(workspace, 'AGENTS', 'runtime-workspace-agent')
+  fs.mkdirSync(agentWorkspace, { recursive: true })
+  fs.mkdirSync(path.join(workspace, 'SYSTEM'), { recursive: true })
+  fs.writeFileSync(path.join(agentWorkspace, 'IDENTITY.md'), '# Identity\n\n- **Model:** anthropic/claude-sonnet-4-20250514\n', 'utf-8')
+  fs.writeFileSync(path.join(workspace, 'SYSTEM', 'integrations.json'), JSON.stringify({ enabledRuntimes: ['claude', 'droid'] }, null, 2))
+
+  process.env.HOME = home
+  process.env.OPENCLAW_WORKSPACE = workspace
+  resetWorkspaceManagerForTests()
+
+  const resolved = resolveAgentExecutionConfig('runtime-workspace-agent')
+  assert(resolved.runtime === 'openclaw', `Expected unpinned agent to run on openclaw, got ${resolved.runtime}`)
+})
+
+test('resolveAgentExecutionConfig honors a per-agent IDENTITY runtime pin when that CLI is enabled, else falls back to openclaw', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
+  const workspace = path.join(home, 'workspace')
+  const enabledAgent = path.join(workspace, 'AGENTS', 'runtime-pinned-enabled')
+  const disabledAgent = path.join(workspace, 'AGENTS', 'runtime-pinned-disabled')
+  fs.mkdirSync(enabledAgent, { recursive: true })
+  fs.mkdirSync(disabledAgent, { recursive: true })
+  fs.mkdirSync(path.join(workspace, 'SYSTEM'), { recursive: true })
+  const identity = (rt: string) => `# Identity\n\n- **Model:** anthropic/claude-sonnet-4-20250514\n- **Runtime:** ${rt}\n`
+  fs.writeFileSync(path.join(enabledAgent, 'IDENTITY.md'), identity('claude'), 'utf-8')
+  fs.writeFileSync(path.join(disabledAgent, 'IDENTITY.md'), identity('droid'), 'utf-8')
+  // only claude is enabled for the workspace
+  fs.writeFileSync(path.join(workspace, 'SYSTEM', 'integrations.json'), JSON.stringify({ enabledRuntimes: ['claude'] }, null, 2))
+
+  process.env.HOME = home
+  process.env.OPENCLAW_WORKSPACE = workspace
+  resetWorkspaceManagerForTests()
+
+  assert(resolveAgentExecutionConfig('runtime-pinned-enabled').runtime === 'claude', 'Expected claude pin (enabled) to be honored')
+  assert(resolveAgentExecutionConfig('runtime-pinned-disabled').runtime === 'openclaw', 'Expected droid pin (disabled) to fall back to openclaw')
+})
+
 test('deriveWorkspaceRootFromAgentWorkspace resolves AGENTS/<id> paths back to their workspace root', () => {
   const derived = deriveWorkspaceRootFromAgentWorkspace('/tmp/demo-workspace/AGENTS/jarvis')
   assert(derived === '/tmp/demo-workspace', 'Expected AGENTS/<id> path to resolve to workspace root')
@@ -1545,6 +1599,76 @@ test('withTemporaryAgentAuthProfiles resets stale sessions when auth profiles ch
     const currentProfiles = JSON.parse(fs.readFileSync(authProfilePath, 'utf-8'))
     assert(currentProfiles.profiles['openai-key']?.key === 'fresh-openai', 'Expected fresh OpenAI key during execution')
   })
+})
+
+test('withTemporaryAgentAuthProfiles short-circuits for non-openclaw runtimes without touching openclaw auth/config state', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
+  const agentDir = path.join(home, '.openclaw', 'agents', 'claude-agent', 'agent')
+  const authProfilePath = path.join(agentDir, 'auth-profiles.json')
+  const configPath = path.join(home, '.openclaw', 'openclaw.json')
+  fs.mkdirSync(path.join(home, '.openclaw'), { recursive: true })
+  fs.writeFileSync(configPath, JSON.stringify({
+    agents: {
+      list: [
+        { id: 'claude-agent', workspace: path.join(home, 'workspace', 'AGENTS', 'claude-agent'), agentDir }
+      ]
+    }
+  }, null, 2))
+  const configBefore = fs.readFileSync(configPath, 'utf-8')
+
+  process.env.HOME = home
+  resetWorkspaceManagerForTests()
+
+  let ran = false
+  const result = await withTemporaryAgentAuthProfiles(
+    'claude-agent',
+    { anthropic: 'test-anthropic' },
+    'anthropic/claude-sonnet-4-20250514',
+    'anthropic',
+    async () => {
+      ran = true
+      return 'fn-result'
+    },
+    { runtime: 'claude' }
+  )
+
+  assert(result === 'fn-result', 'Expected fn() return value to pass through the short-circuit unchanged')
+  assert(ran, 'Expected fn() to still run for non-openclaw runtimes')
+  assert(!fs.existsSync(authProfilePath), 'Expected auth-profiles.json NOT to be written for a non-openclaw runtime')
+  assert(!fs.existsSync(agentDir), 'Expected the openclaw runtime agent dir NOT to be created for a non-openclaw runtime')
+  assert(fs.readFileSync(configPath, 'utf-8') === configBefore, 'Expected openclaw.json to be left untouched for a non-openclaw runtime')
+})
+
+test('withTemporaryAgentAuthProfiles runs the normal openclaw auth-profile flow when options.runtime is openclaw', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-exec-home-'))
+  const agentDir = path.join(home, '.openclaw', 'agents', 'openclaw-agent', 'agent')
+  const authProfilePath = path.join(agentDir, 'auth-profiles.json')
+  const configPath = path.join(home, '.openclaw', 'openclaw.json')
+  fs.mkdirSync(path.join(home, '.openclaw'), { recursive: true })
+  fs.writeFileSync(configPath, JSON.stringify({
+    agents: {
+      list: [
+        { id: 'openclaw-agent', workspace: path.join(home, 'workspace', 'AGENTS', 'openclaw-agent'), agentDir }
+      ]
+    }
+  }, null, 2))
+
+  process.env.HOME = home
+  resetWorkspaceManagerForTests()
+
+  let sawAuthProfile = false
+  await withTemporaryAgentAuthProfiles(
+    'openclaw-agent',
+    { anthropic: 'test-anthropic' },
+    'anthropic/claude-sonnet-4-20250514',
+    'anthropic',
+    async () => {
+      sawAuthProfile = fs.existsSync(authProfilePath)
+    },
+    { runtime: 'openclaw' }
+  )
+
+  assert(sawAuthProfile, 'Expected auth-profiles.json to be written for the openclaw runtime')
 })
 
 setTimeout(async () => {

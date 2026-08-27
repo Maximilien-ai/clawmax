@@ -4,11 +4,11 @@ import path from 'path'
 import fs from 'fs'
 import archiver from 'archiver'
 import { listAgents, getAgentActivity, getNextAgentId, findFreePort, getAgentImpact, deleteAgent, cloneAgentFiles, getAgentGatewayConfig, parseGroups, parseIdentity, getWorkspacePath, getAgentsDir, ensureManagedAgentWorkspaceFiles } from '../lib/workspace'
-import { generateAgentFiles, generateArchiveTitle } from '../lib/ai-generator'
+import { generateAgentFiles, generateAgentMeta, generateArchiveTitle, withGenerationAttribution, withGenerationRuntimePin } from '../lib/ai-generator'
 import { importAgentFromTemplate } from '../lib/templates'
 import { getConfiguredGatewayPort, getGatewayClient, isGatewayConfigured, isGatewayRunning, probeGatewayResponsive } from '../lib/gateway-rpc'
 import { listWorkflows, resolveParticipants } from '../lib/workflows'
-import { safeEnv, validatePort } from '../lib/safe-env'
+import { safeEnv, userExecutionEnv, validatePort } from '../lib/safe-env'
 import { validateAgentConfigSections, validateProvisionInput } from '../lib/agent-config-validation'
 import type { AgentModelConfigUpdateResult } from '../lib/agent-model'
 import {
@@ -21,7 +21,11 @@ import {
   upsertAgentModelInIdentityContent,
   type AgentModelPreference,
   type AgentModelSelectionMode,
+  upsertAgentRuntimeInIdentityContent,
 } from '../lib/agent-model'
+import { AGENT_RUNTIME_IDS, detectRuntimeStatuses, executeAgentRuntimeTurn, listRuntimeModels, normalizeAgentRuntime, resolveEnabledRuntimes, resolveWorkspaceRuntime, runtimeAcceptsModelId, runtimeLabel } from '../lib/agent-runtime'
+import { hasRuntimeSession } from '../lib/runtime-sessions'
+import { appendRuntimeTranscriptExchange, clearRuntimeTranscript, getLatestRuntimeTranscriptSessionId, hasRuntimeTranscripts, readRuntimeTranscript, readRuntimeTranscriptAsArchiveLines } from '../lib/runtime-transcripts'
 import { validateAgentCostLimit } from '../lib/budget'
 import {
   getSystemProviderKeys,
@@ -38,6 +42,7 @@ import { exportAgentToOpenClaw, getAgentTransferMetadata, importAgentFromBundleD
 import { normalizeChatMessage } from '../lib/chat-normalization'
 import { writeDashboardManagedOpenClawConfig } from '../lib/openclaw-config'
 import { runExclusiveAgentExecution } from '../lib/agent-execution'
+import { withRegisteredTurn } from '../lib/agent-turns'
 import { scopeSessionIdToModel, resolveAgentExecutionConfig, resolvePersistedAgentSessionId } from '../lib/agent-execution'
 import { resolveDefaultAgentModel } from '../lib/agent-default-model'
 import { getAuthenticatedSession } from '../lib/github-auth'
@@ -53,6 +58,7 @@ import {
   isUsableArchiveTitle,
   parseArchiveTimestamp,
 } from '../lib/chat-archives'
+import { cancelProcessTree, detachProcessStreams } from '../lib/process-tree'
 
 /** Find the root dir of a pnpm package by scanning .pnpm store for a prefix */
 function findPnpmPkg(repoDir: string, prefix: string, pkgSubPath: string): string | null {
@@ -149,6 +155,11 @@ function syncAgentIdentityModels(
     upsertAgentModelInIdentityContent(identityContent, model),
     backupModel,
   ), modelFit?.selectionMode, modelFit?.preference)
+}
+
+function updateAgentIdentityRuntime(identityPath: string, runtime: string) {
+  const content = fs.readFileSync(identityPath, 'utf-8')
+  fs.writeFileSync(identityPath, upsertAgentRuntimeInIdentityContent(content, runtime), 'utf-8')
 }
 
 function resetAgentRuntimeForModelChange(agentId: string) {
@@ -389,7 +400,15 @@ function resolveAgentChatSessionId(agentId: string, homeDir: string = process.en
   const resolvedAgent = resolveAgentExecutionConfig(agentId)
   const sessionKey = getAgentDashboardSessionKey(agentId)
   const preferredSessionId = scopeSessionIdToModel(sessionKey, resolvedAgent.model)
-  return resolvePersistedAgentSessionId(agentId, sessionKey, preferredSessionId, homeDir) || null
+  const persisted = resolvePersistedAgentSessionId(agentId, sessionKey, preferredSessionId, homeDir)
+  // claude/droid chats never write openclaw's sessions.json index, so their "current session"
+  // pointer is the newest runtime transcript. Prefer the store that matches the agent's runtime
+  // so switching runtimes shows that runtime's conversation, with the other store as fallback.
+  const latestTranscript = getLatestRuntimeTranscriptSessionId(agentId)
+  if (resolvedAgent.runtime && resolvedAgent.runtime !== 'openclaw') {
+    return latestTranscript || persisted || null
+  }
+  return persisted || latestTranscript || null
 }
 
 function extractVisibleChatText(content: unknown): string {
@@ -439,6 +458,19 @@ function readChatSessionMessages(agentId: string, sessionId: string, homeDir: st
     return []
   }
   return parseVisibleChatMessages(fs.readFileSync(jsonlPath, 'utf-8'))
+}
+
+// Merges openclaw's own session JSONL (read above) with the runtime-transcripts store that
+// claude/droid chat turns are appended to (see lib/runtime-transcripts.ts). Both stores are keyed
+// by the same scoped session id, so a single agent's history can legitimately span both — e.g. an
+// agent chatted with while pinned to openclaw, then re-pinned to droid under the same model. Sorted
+// oldest-first (newest-last), matching the chronological order both individual stores already use.
+function readMergedChatSessionMessages(agentId: string, sessionId: string, homeDir: string = process.env.HOME || '') {
+  const openclawMessages = readChatSessionMessages(agentId, sessionId, homeDir)
+  const runtimeMessages = readRuntimeTranscript(agentId, sessionId)
+    .map((turn) => ({ role: turn.role, content: turn.content, timestamp: turn.ts }))
+  if (runtimeMessages.length === 0) return openclawMessages
+  return [...openclawMessages, ...runtimeMessages].sort((a, b) => a.timestamp - b.timestamp)
 }
 
 function getArchiveRestoreSessionId(agentId: string, homeDir: string = process.env.HOME || ''): string {
@@ -534,6 +566,7 @@ router.get('/status', async (req, res) => {
     unknown,
     runningGateways,
     gatewayAvailable,
+    runtimes: detectRuntimeStatuses(resolveWorkspaceRuntime()),
     timestamp: new Date().toISOString(),
   })
 })
@@ -541,19 +574,57 @@ router.get('/status', async (req, res) => {
 // POST /api/agents/generate — AI-generate agent files
 // If name is omitted, AI will suggest name, tags, and model
 router.post('/generate', async (req, res) => {
-  const { description, name, tags, suggestMeta, byokKeys, availableModels: requestedModels, modelPreference } = req.body as {
+  const { description, name, tags, suggestMeta, byokKeys, availableModels: requestedModels, modelPreference, runtime, model } = req.body as {
     description?: string
     name?: string
     tags?: string[]
     suggestMeta?: boolean
     availableModels?: string[]
     modelPreference?: ModelFitPreference
+    // The runtime and model chosen for the agent being created. Generation runs on them, so the
+    // files are written by the same CLI and model that will run the agent.
+    runtime?: string
+    model?: string
     byokKeys?: { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; xai?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string }
   }
 
   if (!description) {
     res.status(400).json({ error: 'description is required' })
     return
+  }
+
+  const pinnedRuntime = normalizeAgentRuntime(runtime)
+  const pinnedModel = String(model || '').trim()
+  const generationPin = pinnedRuntime && pinnedRuntime !== 'openclaw'
+    ? { runtime: pinnedRuntime, model: pinnedModel || undefined }
+    : undefined
+
+  if (generationPin) {
+    // Fail here rather than in the generator. A pinned runtime is honored verbatim from this point
+    // on, so an unusable pin has to be reported as the unusable pin it is — silently generating on
+    // something else is the defect this whole path exists to fix.
+    if (!resolveEnabledRuntimes().includes(generationPin.runtime)) {
+      res.status(400).json({
+        error: `The ${runtimeLabel(generationPin.runtime)} runtime is not enabled for this workspace. Enable it in Integrations first.`,
+      })
+      return
+    }
+    const status = detectRuntimeStatuses(resolveWorkspaceRuntime()).find(s => s.id === generationPin.runtime)
+    if (!status?.installed) {
+      res.status(400).json({
+        error: `${runtimeLabel(generationPin.runtime)} is not installed in this deployment. ${status?.installHint || ''}`.trim(),
+      })
+      return
+    }
+    if (generationPin.model) {
+      const runtimeCatalog = await listRuntimeModels(generationPin.runtime)
+      if (!runtimeAcceptsModelId(runtimeCatalog, generationPin.model)) {
+        res.status(400).json({
+          error: `The ${runtimeLabel(generationPin.runtime)} runtime cannot run '${generationPin.model}'. Choose one of its own models (${runtimeCatalog.slice(0, 4).join(', ')}).`,
+        })
+        return
+      }
+    }
   }
 
   try {
@@ -569,8 +640,7 @@ router.post('/generate', async (req, res) => {
     let suggestedSkills: string[] = []
 
     if (suggestMeta || !name) {
-      const { generateAgentMeta } = require('../lib/ai-generator')
-      const meta = await generateAgentMeta(description)
+      const meta = await withGenerationRuntimePin(generationPin, () => generateAgentMeta(description))
       if (!name) suggestedName = meta.name || 'new-agent'
       if (!tags || tags.length === 0) suggestedTags = meta.tags || []
       suggestedModel = meta.model || ''
@@ -601,11 +671,16 @@ router.post('/generate', async (req, res) => {
     })
     suggestedModel = modelRecommendation.recommendedModel || suggestedModel
 
-    const files = await generateAgentFiles({
-      description,
-      name: suggestedName,
-      tags: suggestedTags,
-    })
+    // Report who actually generated. Provider choice used to be invisible, so an operator with
+    // CLI runtimes enabled could not tell a hosted key was being used until it failed. Attribution
+    // is captured in async context so concurrent generations cannot report each other's provider.
+    const { value: files, attribution: generatedBy } = await withGenerationAttribution(() =>
+      withGenerationRuntimePin(generationPin, () => generateAgentFiles({
+        description,
+        name: suggestedName,
+        tags: suggestedTags,
+      })),
+    )
     traceAgentChat('ai-generate-agent', description, `Generated agent scaffold for ${suggestedName || 'new agent'}`, {
       model: 'ai-generate-agent',
       provider: 'system',
@@ -622,6 +697,7 @@ router.post('/generate', async (req, res) => {
       suggestedModel,
       suggestedSkills,
       modelRecommendation,
+      generatedBy,
     })
   } catch (err) {
     console.error('AI generation error:', err)
@@ -646,6 +722,7 @@ router.post('/model-fit', async (req, res) => {
   const body = (req.body || {}) as {
     description?: string
     availableModels?: string[]
+    runtime?: string
     preference?: ModelFitPreference
     byokKeys?: { openai?: string; anthropic?: string; gemini?: string; openrouter?: string; xai?: string; ollamaBaseUrl?: string; openaiCompatibleApiKey?: string; openaiCompatibleBaseUrl?: string; openaiCompatibleDefaultModel?: string }
   }
@@ -664,6 +741,15 @@ router.post('/model-fit', async (req, res) => {
     } catch {
       // Use system-visible models and return an advisory result rather than failing the request.
     }
+  }
+  // A pinned CLI runtime's ids (claude's `sonnet`, droid's bare ids) are not in the provider
+  // catalog, so intersecting against it dropped every candidate the client sent and silently fell
+  // back to ranking provider models — the client-side scoping looked right while the panel still
+  // recommended models the runtime cannot run.
+  const fitRuntime = normalizeAgentRuntime((body as any).runtime)
+  if (fitRuntime && fitRuntime !== 'openclaw') {
+    const cliModels = await listRuntimeModels(fitRuntime)
+    if (cliModels.length > 0) runtimeModels = cliModels
   }
   const runtimeModelSet = new Set(runtimeModels)
   const requestedModels = Array.isArray(body.availableModels)
@@ -702,9 +788,14 @@ router.post('/validate-provision', async (req, res) => {
     }
   }
 
+  // A runtime-pinned agent draws its model from that CLI's catalog, not the provider APIs.
+  // Without this the review step warns that a perfectly valid droid model "is not currently
+  // advertised" and may fall back — which is wrong and alarming.
+  const pinnedRuntime = normalizeAgentRuntime(typeof body.runtime === 'string' ? body.runtime : undefined)
+  const runtimeModels = pinnedRuntime ? await listRuntimeModels(pinnedRuntime) : []
   const result = validateProvisionInput(body || {}, {
     existingAgentIds: listAgents().map(agent => agent.id),
-    availableModels,
+    availableModels: runtimeModels.length > 0 ? [...availableModels, ...runtimeModels] : availableModels,
   })
   res.json(result)
 })
@@ -764,8 +855,8 @@ router.post('/models/refresh', async (req, res) => {
 })
 
 // POST /api/agents/provision — spawn setup.sh and stream output via SSE
-router.post('/provision', (req, res) => {
-  const { name, model, backupModel, whatsapp, port, profile, cloneFrom, templateSlug, generatedFiles, tags, aiDescription, skills, modelSelection, modelPreference } = req.body as {
+router.post('/provision', async (req, res) => {
+  const { name, model, backupModel, whatsapp, port, profile, cloneFrom, templateSlug, generatedFiles, tags, aiDescription, skills, modelSelection, modelPreference, runtime } = req.body as {
     name?: string
     model?: string
     backupModel?: string
@@ -780,6 +871,7 @@ router.post('/provision', (req, res) => {
     skills?: string[]
     modelSelection?: AgentModelSelectionMode
     modelPreference?: AgentModelPreference
+    runtime?: string
   }
   const validatedModelSelection: AgentModelSelectionMode = modelSelection === 'auto' ? 'auto' : 'manual'
   const validatedModelPreference: AgentModelPreference = ['quality', 'balanced', 'cost'].includes(String(modelPreference))
@@ -814,9 +906,24 @@ router.post('/provision', (req, res) => {
     return
   }
 
+  const provisionRuntime = normalizeAgentRuntime(runtime)
+  const provisionRuntimeModels = provisionRuntime ? await listRuntimeModels(provisionRuntime) : []
+  // Never write an agent whose pinned runtime cannot run its model. The pair was only checked at
+  // chat time, so a mismatch reached disk and surfaced later as a runtime error on the agent's
+  // first turn. Any API client can post this pair, not just the wizard.
+  if (
+    provisionRuntime && provisionRuntime !== 'openclaw'
+    && provisionRuntimeModels.length > 0
+    && !runtimeAcceptsModelId(provisionRuntimeModels, resolvedModel)
+  ) {
+    res.status(400).json({
+      error: `The ${runtimeLabel(provisionRuntime)} runtime cannot run '${resolvedModel}'. Choose one of its own models (${provisionRuntimeModels.slice(0, 4).join(', ')}) or pick a different runtime.`,
+    })
+    return
+  }
   const inputValidation = validateProvisionInput({ ...(req.body || {}), model: resolvedModel }, {
     existingAgentIds: existingAgents.map(agent => agent.id),
-    availableModels: getAvailableModels(),
+    availableModels: [...getAvailableModels(), ...provisionRuntimeModels],
   })
 
   if (!inputValidation.valid) {
@@ -931,6 +1038,10 @@ router.post('/provision', (req, res) => {
         backupConfigUpdate.backupModel,
         { selectionMode: validatedModelSelection, preference: validatedModelPreference },
       ), 'utf-8')
+      // Persist the runtime pin chosen at creation. Without this the Add Agent wizard could not
+      // set a runtime at all and every new agent silently started on OpenClaw.
+      const provisionedRuntime = normalizeAgentRuntime(runtime)
+      if (provisionedRuntime) updateAgentIdentityRuntime(identityPath, provisionedRuntime)
     }
     if (configUpdate.changed || backupConfigUpdate.changed) {
       resetAgentRuntimeForModelChange(validatedName)
@@ -989,7 +1100,11 @@ router.post('/provision', (req, res) => {
 
   // Normalize model name - ensure it has a provider prefix
   let normalizedModel = validatedModel
-  if (validatedModel && !validatedModel.includes('/')) {
+  // A CLI runtime's own catalog holds bare ids (droid's `glm-5.2`, Claude Code's `sonnet`) that
+  // are not provider-qualified and must not be. Prefixing them would send `openai/sonnet` to the
+  // CLI, which rejects it. Only normalise models destined for a provider.
+  const isRuntimeCatalogModel = !!validatedModel && provisionRuntimeModels.includes(validatedModel)
+  if (validatedModel && !validatedModel.includes('/') && !isRuntimeCatalogModel) {
     // Detect provider based on model name
     if (validatedModel.startsWith('claude-') || validatedModel.startsWith('anthropic-')) {
       normalizedModel = `anthropic/${validatedModel}`
@@ -1009,7 +1124,10 @@ router.post('/provision', (req, res) => {
   }
 
   // Validate model is available - if not, use a sensible fallback
-  if (normalizedModel && availableModels.length > 0 && !availableModels.includes(normalizedModel) && !availableModels.includes(normalizedModel.replace(/^(anthropic|openai|gemini|google|ollama)\//, ''))) {
+  // A model from the pinned runtime's own catalog is available by definition — it just is not a
+  // hosted provider model. Without this guard the fallback below swaps it for a hosted one and
+  // the agent is provisioned against a model its CLI cannot run.
+  if (!isRuntimeCatalogModel && normalizedModel && availableModels.length > 0 && !availableModels.includes(normalizedModel) && !availableModels.includes(normalizedModel.replace(/^(anthropic|openai|gemini|google|ollama)\//, ''))) {
     const fallbackModel = availableModels.find(m => m.includes('/')) || availableModels[0]
     const availableHostedModels = availableModels.filter((candidate) => isHostedModel(candidate))
     if (isHostedModel(normalizedModel) && availableHostedModels.length === 0) {
@@ -1237,6 +1355,23 @@ router.post('/doctor', async (req, res) => {
     if (stderr.includes('missing dist/entry')) {
       platformMessage = 'OpenClaw is installed but its build output is missing. Rebuild the image with a built runtime.'
     }
+  }
+
+  // Per-runtime CLI detection (claude/droid) — informational only; the openclaw-cli check above
+  // remains the sole source of truth for hasOpenclawCli/platformMessage. Only warn when a
+  // non-openclaw runtime is missing AND it's the workspace's active default (otherwise it's an
+  // optional/unused CLI and shouldn't affect doctor's overall healthy status).
+  for (const status of detectRuntimeStatuses(resolveWorkspaceRuntime())) {
+    if (status.id === 'openclaw') continue
+    platformChecks.push({
+      check: `runtime-${status.id}`,
+      status: status.installed ? 'pass' : (status.active ? 'warn' : 'pass'),
+      message: status.installed
+        ? `${status.label} CLI installed${status.version ? ` (${status.version})` : ''}${status.active ? ' — active workspace default' : ''}`
+        : status.active
+          ? `${status.label} CLI not installed, but it is the active workspace runtime default. ${status.installHint}`
+          : `${status.label} CLI not installed (not the active runtime, optional). ${status.installHint}`,
+    })
   }
 
   const rawEnv = getDashboardEnvRaw()
@@ -1736,6 +1871,13 @@ router.get('/:id/identity', (req, res) => {
 
   // Parse creation metadata if it exists
   const metadata: any = {}
+
+  // Runtime pin (e.g. `- **Runtime:** claude`) lives above Creation Metadata, alongside Model —
+  // reuse parseIdentity's regex instead of duplicating it. Absent when the agent has no pin
+  // (falls back to the workspace default at execution time via resolveAgentRuntime).
+  const parsedIdentityRuntime = normalizeAgentRuntime(parseIdentity(content).runtime)
+  if (parsedIdentityRuntime) metadata.runtime = parsedIdentityRuntime
+
   const metadataMatch = content.match(/## Creation Metadata\s+([\s\S]*?)(?=\n##|\n---|$)/i)
   if (metadataMatch) {
     const metadataSection = metadataMatch[1]
@@ -2035,6 +2177,9 @@ function callGatewayRpc(_port: number, _token: string, method: string, params: u
     const proc = spawn('openclaw', args, { env: safeEnv() })
     let stdout = ''
     let stderr = ''
+    // not-a-turn-deadline: a liveness probe against the openclaw gateway, not an agent turn. It
+    // asks "is the daemon answering?" and 10s is already generous for that; nothing an agent does
+    // runs inside it.
     const timer = setTimeout(() => { proc.kill(); reject(new Error('gateway timeout')) }, 10000)
     proc.stdout.on('data', (d: Buffer) => { stdout += d.toString() })
     proc.stderr.on('data', (d: Buffer) => { stderr += d.toString() })
@@ -2192,22 +2337,105 @@ router.post('/:id/chat/messages', async (req, res) => {
     const persistedSessionId = resolvePersistedAgentSessionId(id, sessionKey, preferredSessionId, HOME)
     const sessionId = scopeSessionIdToModel(persistedSessionId || sessionKey, resolvedAgent.model)
 
-    runExclusiveAgentExecution(id, () => new Promise<void>((resolve, reject) => {
+    if (resolvedAgent.runtime !== 'openclaw') {
+      // Claude Code / Factory Droid: spawn via the shared runtime adapter instead of the
+      // openclaw CLI. No --local flag, no openclaw sessions.json bookkeeping — session
+      // continuity is tracked by runtime-sessions.ts (see agent-runtime.ts).
+      // withRegisteredTurn registers this turn before executeAgentRuntimeTurn spawns anything, so
+      // it shows up in GET /turns/active and is reachable by POST /:id/chat/cancel by turnId (the
+      // registry is shared process-wide — it doesn't matter that the route registering it lives
+      // here rather than in chat.ts). A bare `new AbortController().signal` here was never wired
+      // to anything, so this turn used to be unkillable once started; releasing happens in a
+      // `finally` inside withRegisteredTurn, so it can't leak on any exit path below.
+      runExclusiveAgentExecution(id, () => withRegisteredTurn(id, (turn) => new Promise<void>((resolve, reject) => {
+        executeAgentRuntimeTurn({
+          runtime: resolvedAgent.runtime,
+          agentId: id,
+          agentDir: resolvedAgent.workspace || path.join(getWorkspacePath(), 'AGENTS', id),
+          message,
+          scopedSessionId: sessionId,
+          model: resolvedAgent.model,
+          mode: 'json',
+          // User-initiated agent execution: use userExecutionEnv() to honor the Separated Key Policy
+          // exactly like the sibling chat.ts/channels.ts paths (BYOK/USER_* keys, and SYSTEM_* only
+          // when ALLOW_SYSTEM_KEYS_FOR_USER_EXECUTION=true). This route carries no BYOK payload
+          // (ChatPanel posts { message } only), so there are no request-level overrides to layer on.
+          env: userExecutionEnv({}),
+          // No deadline, matching every other execution surface. Cancellation (via turn.signal) is
+          // the only way this turn ends early now.
+          signal: turn.signal,
+          // json mode never streams deltas, but tool calls and thinking still produce CLI output —
+          // count any of it as alive so a legitimately busy turn never reads as idle.
+          onActivity: () => turn.touch(),
+        }).then(({ text, errorText, missingCliError }) => {
+          if (missingCliError) {
+            reject(new Error(missingCliError))
+            return
+          }
+          if (errorText) {
+            reject(new Error(errorText === 'timeout' ? 'Agent timeout' : errorText))
+            return
+          }
+          const responseText = normalizeChatMessage(text) || 'No response from agent'
+          appendRuntimeTranscriptExchange(id, sessionId, message, responseText)
+          res.json({ ok: true, result: { response: responseText } })
+          resolve()
+        }).catch(reject)
+      }))).catch((err) => {
+        res.status(500).json({ error: String(err?.message || err) })
+      })
+      return
+    }
+
+    // No deadline: withRegisteredTurn registers this turn (see the claude/droid branch above for
+    // why that makes it visible to GET /turns/active and reachable by POST /:id/chat/cancel). This
+    // branch used to kill the CLI unconditionally at 10 minutes regardless of whether it was still
+    // working — the same bug the rest of this change deletes everywhere else; cancellation is now
+    // its only kill switch too.
+    runExclusiveAgentExecution(id, () => withRegisteredTurn(id, (turn) => new Promise<void>((resolve, reject) => {
       const useLocal = !isGatewayConfigured()
       const args = ['agent', '--agent', id, '--session-id', sessionId, '--message', message, '--json', ...(useLocal ? ['--local'] : [])]
-      const proc = spawn('openclaw', args, { env: safeEnv() })
+      // Own process group: openclaw spawns its own children, and signalling only this direct child
+      // leaves grandchildren alive holding the stdout pipe open. Mirrors runOnce in agent-runtime.ts.
+      const proc = spawn('openclaw', args, { env: safeEnv(), detached: true })
 
       let stdout = ''
       let stderr = ''
-      const timer = setTimeout(() => { proc.kill() }, 600000) // 10 min timeout
+      let settled = false
+      let killEscalation: NodeJS.Timeout | undefined
 
-      proc.stdout.on('data', (d: Buffer) => { stdout += d.toString() })
-      proc.stderr.on('data', (d: Buffer) => { stderr += d.toString() })
+      /**
+       * Settle exactly once and stop reading.
+       *
+       * This promise is nested inside runExclusiveAgentExecution's per-agent lock, so a promise that
+       * never settles does not just leak this turn's registry entry -- it holds that lock forever and
+       * permanently blocks every later chat, channel and workflow turn for this agent. There is no
+       * deadline anywhere that could eventually clear it, by design, so settling has to be guaranteed
+       * here rather than left to 'close'.
+       */
+      const settle = (fn: () => void) => {
+        if (settled) return
+        settled = true
+        turn.signal.removeEventListener('abort', onAbort)
+        if (killEscalation) clearTimeout(killEscalation)
+      detachProcessStreams(proc)
+        fn()
+      }
+
+      function onAbort() {
+        if (settled) return
+        // SIGTERM, then an unconditional group SIGKILL, then settle -- see cancelProcessTree.
+        killEscalation = cancelProcessTree(proc, () => settle(() => reject(new Error('Agent run was stopped.'))))
+      }
+      if (turn.signal.aborted) onAbort()
+      else turn.signal.addEventListener('abort', onAbort)
+
+      proc.stdout.on('data', (d: Buffer) => { turn.touch(); stdout += d.toString() })
+      proc.stderr.on('data', (d: Buffer) => { turn.touch(); stderr += d.toString() })
 
       proc.on('close', (code: number) => {
-        clearTimeout(timer)
         if (code !== 0) {
-          reject(new Error(`Agent command failed: ${stderr}`))
+          settle(() => reject(new Error(`Agent command failed: ${stderr}`)))
           return
         }
 
@@ -2229,18 +2457,19 @@ router.post('/:id/chat/messages', async (req, res) => {
             }
           }
 
-          res.json({ ok: true, result: { response: responseText } })
-          resolve()
+          settle(() => {
+            res.json({ ok: true, result: { response: responseText } })
+            resolve()
+          })
         } catch {
-          reject(new Error(`Invalid JSON from agent: ${stdout}`))
+          settle(() => reject(new Error(`Invalid JSON from agent: ${stdout}`)))
         }
       })
 
       proc.on('error', (err: Error) => {
-        clearTimeout(timer)
-        reject(err)
+        settle(() => reject(err))
       })
-    })).catch((err) => {
+    }))).catch((err) => {
       res.status(500).json({ error: String(err?.message || err) })
     })
   } catch (err) {
@@ -2584,6 +2813,40 @@ router.patch('/:id/model', (req, res) => {
   }
 })
 
+// PATCH /api/agents/:id/runtime — pin (or clear) which CLI runtime executes this agent, in IDENTITY.md
+router.patch('/:id/runtime', (req, res) => {
+  const { id } = req.params
+  const { runtime } = req.body
+
+  if (!/^[a-z][a-z0-9_-]*$/.test(id)) {
+    return res.status(400).json({ error: 'Invalid agent id' })
+  }
+
+  if (typeof runtime !== 'string') {
+    return res.status(400).json({ error: 'runtime is required' })
+  }
+  const normalizedRuntime = runtime === 'default' ? 'default' : normalizeAgentRuntime(runtime)
+  if (!normalizedRuntime) {
+    return res.status(400).json({ error: `runtime must be one of: default, ${AGENT_RUNTIME_IDS.join(', ')}` })
+  }
+
+  const agentDir = path.join(getAgentsDir(), id)
+  const identityPath = path.join(agentDir, 'IDENTITY.md')
+  if (!fs.existsSync(identityPath)) {
+    return res.status(404).json({ error: 'Agent not found' })
+  }
+
+  try {
+    updateAgentIdentityRuntime(identityPath, normalizedRuntime)
+    // No session reset needed here: each runtime keeps its own session store
+    // (openclaw's ~/.openclaw/agents/<id>/sessions vs. runtime-sessions.ts for claude/droid).
+    res.json({ ok: true, runtime: normalizedRuntime })
+  } catch (err) {
+    console.error('Failed to update runtime:', err)
+    res.status(500).json({ error: 'Failed to update runtime' })
+  }
+})
+
 // PATCH /api/agents/:id/rename — rename agent and update all references
 router.patch('/:id/rename', (req, res) => {
   const { id } = req.params
@@ -2680,8 +2943,10 @@ router.get('/:id/chat/messages', async (req, res) => {
     const sessionsDir = getAgentSessionsDir(id, HOME)
     const sessionsIndexPath = path.join(sessionsDir, 'sessions.json')
 
-    // Check if sessions index exists
-    if (!fs.existsSync(sessionsIndexPath) && !fs.existsSync(sessionsDir)) {
+    // Check if either store has anything for this agent — openclaw's own session index/dir, or a
+    // non-openclaw (claude/droid) runtime transcript. A claude/droid-only agent never gets an
+    // openclaw sessions dir at all, so this check must not bail out before consulting the latter.
+    if (!fs.existsSync(sessionsIndexPath) && !fs.existsSync(sessionsDir) && !hasRuntimeTranscripts(id)) {
       return res.json({ messages: [] })
     }
 
@@ -2691,7 +2956,7 @@ router.get('/:id/chat/messages', async (req, res) => {
       return res.json({ messages: [] })
     }
 
-    res.json({ messages: readChatSessionMessages(id, actualSessionId, HOME) })
+    res.json({ messages: readMergedChatSessionMessages(id, actualSessionId, HOME) })
   } catch (err) {
     res.status(500).json({ error: String(err) })
   }
@@ -2709,7 +2974,7 @@ router.delete('/:id/chat/messages', async (req, res) => {
     const sessionsDir = getAgentSessionsDir(id, HOME)
     const sessionsIndexPath = path.join(sessionsDir, 'sessions.json')
 
-    if (!fs.existsSync(sessionsIndexPath) && !fs.existsSync(sessionsDir)) {
+    if (!fs.existsSync(sessionsIndexPath) && !fs.existsSync(sessionsDir) && !hasRuntimeTranscripts(id)) {
       return res.json({ ok: true, archived: false })
     }
 
@@ -2723,9 +2988,10 @@ router.delete('/:id/chat/messages', async (req, res) => {
     }
 
     const jsonlPath = path.join(sessionsDir, `${actualSessionId}.jsonl`)
+    const openclawExists = fs.existsSync(jsonlPath)
+    const runtimeTurns = readRuntimeTranscript(id, actualSessionId)
 
-    if (fs.existsSync(jsonlPath)) {
-      // Archive the session file
+    if (openclawExists || runtimeTurns.length > 0) {
       const archiveDir = path.join(sessionsDir, 'archive')
       if (!fs.existsSync(archiveDir)) {
         fs.mkdirSync(archiveDir, { recursive: true })
@@ -2735,8 +3001,42 @@ router.delete('/:id/chat/messages', async (req, res) => {
       const date = new Date(timestamp).toISOString().split('T')[0]
       const archiveFile = path.join(archiveDir, `${actualSessionId}_${date}_${timestamp}.jsonl`)
 
-      fs.copyFileSync(jsonlPath, archiveFile)
-      fs.unlinkSync(jsonlPath)
+      let archiveContent: string
+      if (openclawExists && runtimeTurns.length > 0) {
+        // Mixed session (chatted under openclaw, then re-pinned to claude/droid on the same scoped
+        // session id): interleave by timestamp so the archive preserves the order the user saw. Keep
+        // the OpenClaw lines VERBATIM (parsing only their timestamp for ordering) so nothing that the
+        // openclaw-only verbatim-copy path would keep — empty-content rows, non-message rows — is lost.
+        const openclawLines = fs.readFileSync(jsonlPath, 'utf-8').split('\n').filter((line) => line.trim())
+        const ordered: Array<{ ts: number; raw: string }> = openclawLines.map((raw) => {
+          let ts = 0
+          try {
+            const parsed = JSON.parse(raw)
+            // Match the read path's ordering key (parseVisibleChatMessages: msg.timestamp ||
+            // entry.timestamp) so the archive preserves exactly the order the user saw.
+            const msgTs = typeof parsed.message?.timestamp === 'number' ? parsed.message.timestamp : undefined
+            const entryTs = typeof parsed.timestamp === 'number' ? parsed.timestamp : undefined
+            ts = msgTs || entryTs || 0
+          } catch {}
+          return { ts, raw }
+        })
+        runtimeTurns.forEach((turn) => {
+          ordered.push({ ts: turn.ts, raw: JSON.stringify({ type: 'message', message: { role: turn.role, content: turn.content, timestamp: turn.ts } }) })
+        })
+        // Stable sort preserves each store's internal order for equal timestamps.
+        ordered.sort((a, b) => a.ts - b.ts)
+        archiveContent = ordered.map((entry) => entry.raw).join('\n') + '\n'
+      } else if (openclawExists) {
+        // OpenClaw-only: preserve the raw session file verbatim (unchanged behavior).
+        archiveContent = fs.readFileSync(jsonlPath, 'utf-8')
+      } else {
+        // Runtime-only (claude/droid): render the transcript as archive-format lines.
+        archiveContent = readRuntimeTranscriptAsArchiveLines(id, actualSessionId)
+      }
+      fs.writeFileSync(archiveFile, archiveContent)
+
+      if (openclawExists) fs.unlinkSync(jsonlPath)
+      clearRuntimeTranscript(id, actualSessionId)
 
       // Remove session from index
       const sessionKey = getAgentDashboardSessionKey(id)
@@ -2767,12 +3067,18 @@ router.get('/:id/chat/archives', async (req, res) => {
     const archiveDir = path.join(sessionsDir, 'archive')
 
     const activeSessionId = resolveAgentChatSessionId(id, HOME)
-    const activeSessionMessages = activeSessionId ? readChatSessionMessages(id, activeSessionId, HOME) : []
+    // readMergedChatSessionMessages pulls from both stores, so this entry (and its message count/
+    // timestamp below) reflects claude/droid runtime-transcript turns too, not just openclaw's own
+    // session file — a claude/droid-only agent never has an openclaw .jsonl to stat at all.
+    const activeSessionMessages = activeSessionId ? readMergedChatSessionMessages(id, activeSessionId, HOME) : []
     const activeSessionPath = activeSessionId ? path.join(sessionsDir, `${activeSessionId}.jsonl`) : null
-    const activeEntry = activeSessionId && activeSessionMessages.length > 0 && activeSessionPath && fs.existsSync(activeSessionPath)
+    const activeSessionTimestamp = activeSessionPath && fs.existsSync(activeSessionPath)
+      ? fs.statSync(activeSessionPath).mtimeMs
+      : (activeSessionMessages[activeSessionMessages.length - 1]?.timestamp ?? Date.now())
+    const activeEntry = activeSessionId && activeSessionMessages.length > 0
       ? [{
           filename: `current:${activeSessionId}`,
-          timestamp: fs.statSync(activeSessionPath).mtimeMs,
+          timestamp: activeSessionTimestamp,
           messageCount: activeSessionMessages.length,
           messages: activeSessionMessages.map((message) => ({ role: message.role, content: message.content })),
           active: true,
@@ -2901,7 +3207,9 @@ router.get('/:id/chat/archives/:filename', async (req, res) => {
       if (!sessionId) {
         return res.status(400).json({ error: 'Invalid current conversation id' })
       }
-      return res.json({ messages: readChatSessionMessages(id, sessionId, HOME) })
+      // Must match the archives-list entry, which counts messages from both stores — reading only
+      // openclaw's JSONL here would show an empty transcript for a claude/droid-only current chat.
+      return res.json({ messages: readMergedChatSessionMessages(id, sessionId, HOME) })
     }
 
     const filePath = path.join(archiveDir, filename)
@@ -3183,6 +3491,8 @@ router.post('/:id/archive', async (req, res) => {
         if (pid > 0) {
           process.kill(pid, 'SIGTERM')
           // Wait a bit for graceful shutdown
+          // not-a-turn-deadline: a settle delay while the gateway process shuts down, so the port
+          // is free before the next start. It ends nothing.
           await new Promise(resolve => setTimeout(resolve, 500))
           // Force kill if still running
           try { process.kill(pid, 'SIGKILL') } catch {}

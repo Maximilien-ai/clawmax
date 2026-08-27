@@ -102,18 +102,45 @@ ensure_runtime_dirs() {
     "$OPENCLAW_WORKSPACE/ORG"
 }
 
+claude_cli_present() {
+  if [ -n "${CLAUDE_BIN:-}" ] && [ -x "${CLAUDE_BIN}" ]; then
+    return 0
+  fi
+  command -v claude >/dev/null 2>&1
+}
+
+droid_cli_present() {
+  if [ -n "${DROID_BIN:-}" ] && [ -x "${DROID_BIN}" ]; then
+    return 0
+  fi
+  command -v droid >/dev/null 2>&1
+}
+
 ensure_openclaw_cli() {
-  if ! command -v openclaw >/dev/null 2>&1; then
-    echo "[entrypoint] ERROR: openclaw CLI is missing from the runtime image" >&2
-    exit 1
+  if command -v openclaw >/dev/null 2>&1; then
+    echo "[entrypoint] openclaw: $(openclaw --version 2>/dev/null || echo unavailable)"
+
+    if ! openclaw config get gateway.mode >/dev/null 2>&1; then
+      echo "[entrypoint] initializing openclaw gateway.mode=local"
+      openclaw config set gateway.mode local >/dev/null 2>&1 || true
+    fi
+    return 0
   fi
 
-  echo "[entrypoint] openclaw: $(openclaw --version 2>/dev/null || echo unavailable)"
-
-  if ! openclaw config get gateway.mode >/dev/null 2>&1; then
-    echo "[entrypoint] initializing openclaw gateway.mode=local"
-    openclaw config set gateway.mode local >/dev/null 2>&1 || true
+  # openclaw is optional as long as another agent runtime CLI is present. The
+  # workspace's active runtime (and any per-agent pin) lives in a workspace
+  # data file, not an env var, so this entrypoint can't know in advance which
+  # CLI a given agent actually needs — the rule is: only hard-fail when NO
+  # runtime CLI exists at all. Gateway startup and openclaw-cron registration
+  # are skipped below when openclaw itself is unavailable.
+  if claude_cli_present || droid_cli_present; then
+    echo "[entrypoint] WARNING: openclaw CLI is missing from the runtime image — the gateway and any agents pinned to the openclaw runtime will not work" >&2
+    echo "[entrypoint] Other agent runtime CLI(s) detected — agents pinned to claude/droid can still run" >&2
+    return 0
   fi
+
+  echo "[entrypoint] ERROR: no agent runtime CLI (openclaw, claude, or droid) is available in the runtime image" >&2
+  exit 1
 }
 
 get_gateway_auth_token() {

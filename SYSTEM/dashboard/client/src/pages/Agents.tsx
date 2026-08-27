@@ -36,6 +36,7 @@ import { getAttachmentFilename } from '../lib/downloadFilename'
 import { emptyPluginRelationships, fetchPluginRelationships, type PluginRelationship } from '../lib/pluginRelationships'
 import { PluginRelationshipPills } from '../components/PluginRelationshipSummary'
 import ModelFitRecommendationPanel from '../components/ModelFitRecommendationPanel'
+import { enabledRuntimeIds, modelAfterRuntimeChange, modelFitCandidates, parseRuntimeCatalog, runtimeAcceptsModel, runtimeLabelFor, runtimeModelsFor, stripModelProvider, type RuntimeCatalogEntry } from '../lib/runtimeCatalog'
 import {
   buildAgentModelFitDescription,
   normalizeAgentModelFitState,
@@ -2710,6 +2711,37 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
   const [soul, setSoul] = React.useState('')
   const [tools, setTools] = React.useState('')
   const [model, setModel] = React.useState('')
+  const [runtime, setRuntime] = React.useState('default')
+  // Driven off the server's runtime registry (id + label + models) rather than hardcoded ids, so
+  // adding a CLI runtime needs no change here.
+  const [runtimeCatalog, setRuntimeCatalog] = React.useState<RuntimeCatalogEntry[]>([])
+  React.useEffect(() => {
+    let cancelled = false
+    // The RESOLVED enabled set (workspace config OR the WORKSPACES_INTEGRATIONS_RUNTIMES env
+    // default), so this dropdown matches the BYOK wizard — /api/integrations/config is config-only
+    // and would hide an env-enabled runtime.
+    fetch('/api/integrations/runtimes')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => { if (!cancelled) setRuntimeCatalog(parseRuntimeCatalog(data)) })
+      .catch(() => { if (!cancelled) setRuntimeCatalog([]) })
+    return () => { cancelled = true }
+  }, [])
+  const enabledRuntimes = enabledRuntimeIds(runtimeCatalog)
+  const runtimeModelOptions = runtimeModelsFor(runtimeCatalog, runtime)
+
+  // Switching runtime must not leave a model the new runtime rejects.
+  const selectAgentRuntime = (next: string) => {
+    setRuntime(next)
+    useManualModel(modelAfterRuntimeChange(runtimeCatalog, next, model))
+  }
+
+  // Automatic suggestions come from the provider catalog, whose ids a pinned runtime may not
+  // accept. Never let one move a runtime-pinned agent onto a model its CLI rejects.
+  const isModelAllowedForRuntime = React.useCallback(
+    (candidate: string) => runtimeAcceptsModel(runtimeModelOptions, candidate),
+    [runtimeModelOptions],
+  )
+
   const [backupModel, setBackupModel] = React.useState('')
   const [availableModels, setAvailableModels] = React.useState<string[]>([])
   const [modelsByProvider, setModelsByProvider] = React.useState<Record<string, { name: string; models: string[] }>>({})
@@ -2762,6 +2794,37 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
     return joinSections(nextRuntime)
   }, [])
 
+  // Mirrors server's upsertAgentRuntimeInIdentityContent (agent-model.ts) so the config PUT below
+  // (which overwrites IDENTITY.md wholesale) doesn't clobber the Runtime line the PATCH /runtime
+  // call just wrote — same reasoning as syncIdentityModel above.
+  const syncIdentityRuntime = React.useCallback((content: string, nextRuntime: string) => {
+    const metadataIndex = content.search(/^##\s+Creation Metadata\b/im)
+    const runtimeSection = metadataIndex === -1 ? content : content.slice(0, metadataIndex)
+    const suffix = metadataIndex === -1 ? '' : content.slice(metadataIndex)
+    const joinSections = (nextRuntimeSection: string) => suffix
+      ? `${nextRuntimeSection.trimEnd()}\n\n${suffix.trimStart()}`
+      : nextRuntimeSection
+    const hasExistingLine = /^[-*]\s+\*\*Runtime:\*\*\s*.*$/m.test(runtimeSection)
+
+    if (nextRuntime === 'default') {
+      if (!hasExistingLine) return content
+      return joinSections(runtimeSection.replace(/^[-*]\s+\*\*Runtime:\*\*\s*.*$\n?/m, ''))
+    }
+    if (hasExistingLine) {
+      return joinSections(runtimeSection.replace(/^[-*]\s+\*\*Runtime:\*\*\s*.*$/m, `- **Runtime:** ${nextRuntime}`))
+    }
+    if (/^[-*]\s+\*\*Model:\*\*\s*.*$/m.test(runtimeSection)) {
+      return joinSections(runtimeSection.replace(/^[-*]\s+\*\*Model:\*\*\s*.*$/m, match => `${match}\n- **Runtime:** ${nextRuntime}`))
+    }
+    if (/^[-*]\s+\*\*Tags:\*\*\s+.+$/m.test(runtimeSection)) {
+      return joinSections(runtimeSection.replace(/^[-*]\s+\*\*Tags:\*\*\s+.+$/m, `- **Runtime:** ${nextRuntime}\n$&`))
+    }
+    if (/^[-*]\s+\*\*Role:\*\*\s+.+$/m.test(runtimeSection)) {
+      return joinSections(runtimeSection.replace(/^[-*]\s+\*\*Role:\*\*\s+.+$/m, `$&\n- **Runtime:** ${nextRuntime}`))
+    }
+    return joinSections(`${runtimeSection.trimEnd()}\n\n- **Runtime:** ${nextRuntime}\n`)
+  }, [])
+
   React.useEffect(() => {
     setLoading(true)
     setError(null)
@@ -2787,6 +2850,7 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
         const loadedModel = identityData?.liveConfig?.model || identityData?.metadata?.model || ''
         manualModelRef.current = loadedModel
         setModel(loadedModel)
+        setRuntime(identityData?.metadata?.runtime || 'default')
         setBackupModel(identityData?.liveConfig?.backupModel || identityData?.metadata?.backupModel || '')
         setModelPreference(persistedModelFit.preference)
         setAutoModelSelection(persistedModelFit.selectionMode === 'auto')
@@ -2858,7 +2922,10 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
       try {
         const recommendation = await requestModelFit({
           description,
-          availableModels,
+          // A pinned CLI runtime only runs its own catalog; ranking provider ids for one
+          // produced suggestions it cannot execute, presented as "runtime-visible".
+          availableModels: modelFitCandidates(runtimeModelOptions, availableModels),
+          runtime,
           preference: modelPreference,
           signal: controller.signal,
         })
@@ -2881,8 +2948,8 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
 
   React.useEffect(() => {
     const suggestedModel = modelRecommendation?.recommendedModel
-    if (autoModelSelection && suggestedModel) setModel(suggestedModel)
-  }, [autoModelSelection, modelRecommendation?.recommendedModel])
+    if (autoModelSelection && suggestedModel && isModelAllowedForRuntime(suggestedModel)) setModel(suggestedModel)
+  }, [autoModelSelection, modelRecommendation?.recommendedModel, isModelAllowedForRuntime])
 
   const useManualModel = React.useCallback((nextModel: string) => {
     manualModelRef.current = nextModel
@@ -2893,12 +2960,13 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
     if (enabled) {
       manualModelRef.current = model
       const suggestedModel = modelRecommendation?.recommendedModel
-      if (suggestedModel) setModel(suggestedModel)
+      if (suggestedModel && isModelAllowedForRuntime(suggestedModel)) setModel(suggestedModel)
     } else {
-      setModel(manualModelRef.current || modelRecommendation?.recommendedModel || model)
+      const restored = manualModelRef.current || modelRecommendation?.recommendedModel || model
+      setModel(isModelAllowedForRuntime(restored) ? restored : model)
     }
     setAutoModelSelection(enabled)
-  }, [model, modelRecommendation?.recommendedModel])
+  }, [model, modelRecommendation?.recommendedModel, isModelAllowedForRuntime])
 
   const handleSave = async () => {
     if (validationErrors.length > 0) {
@@ -2914,6 +2982,7 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
         autoModelSelection ? 'auto' : 'manual',
         modelPreference,
       )
+      const nextIdentityWithRuntime = syncIdentityRuntime(nextIdentity, runtime)
       if (model) {
         const modelRes = await fetch(`/api/agents/${agent.id}/model`, {
           method: 'PATCH',
@@ -2931,10 +3000,20 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
         }
       }
 
+      const runtimeRes = await fetch(`/api/agents/${agent.id}/runtime`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ runtime }),
+      })
+      if (!runtimeRes.ok) {
+        const data = await runtimeRes.json().catch(() => ({}))
+        throw new Error(data.error || 'Failed to save runtime')
+      }
+
       const res = await fetch(`/api/agents/${agent.id}/config`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identity: nextIdentity, soul, tools }),
+        body: JSON.stringify({ identity: nextIdentityWithRuntime, soul, tools }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -2944,7 +3023,7 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
         throw new Error(data.error || 'Failed to save config')
       }
       setWarnings(Array.isArray(data.warnings) ? data.warnings : [])
-      setIdentity(nextIdentity)
+      setIdentity(nextIdentityWithRuntime)
       onSaved()
     } catch (err: any) {
       setError(err.message || 'Failed to save config')
@@ -3043,7 +3122,28 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
                   className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-200 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
                 >
                   {!model && <option value="">Select a model</option>}
-                  {Object.keys(modelsByProvider).length > 0 ? (
+                  {runtimeModelOptions.length > 0 ? (
+                    // Agent is pinned to a CLI runtime that can enumerate its own models, so offer
+                    // that catalog instead of the provider lists — the identifiers differ (droid
+                    // wants claude-sonnet-4-5-20250929, not claude-sonnet-4-5).
+                    <>
+                      {/* The stored model may carry a provider prefix, or be one this runtime does
+                          not accept. Keep it selectable either way so simply opening the editor
+                          never silently rewrites the agent to the first entry in the list. */}
+                      {model && !runtimeModelOptions.includes(model) && (
+                        <option value={model}>
+                          {model}{runtimeModelOptions.includes(stripModelProvider(model))
+                            ? ' — stored with a provider prefix'
+                            : ' — not offered by this runtime'}
+                        </option>
+                      )}
+                      <optgroup label={`${runtimeLabelFor(runtimeCatalog, runtime)} models`}>
+                        {runtimeModelOptions.map((option) => (
+                          <option key={option} value={option}>{option}</option>
+                        ))}
+                      </optgroup>
+                    </>
+                  ) : Object.keys(modelsByProvider).length > 0 ? (
                     Object.entries(modelsByProvider).map(([providerId, provider]) => (
                       <optgroup key={providerId} label={provider.name || providerId}>
                         {provider.models.filter((option) => isSelectableLifecycleModel(option, model)).map(option => (
@@ -3057,10 +3157,20 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
                     ))
                   )}
                 </select>
+                {autoModelSelection && runtimeModelOptions.length > 0 && (
+                  <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                    Automatic suggestions come from the model providers, so they are only applied
+                    when the pinned runtime also offers that model.
+                  </p>
+                )}
                 <p className="mt-1 text-xs text-gray-400">
                   {autoModelSelection
                     ? 'Auto-select is using the current top suggestion. Turn it off to choose a model manually.'
-                    : 'Live models from provider APIs (cached 1hr). Click "Refresh" to update.'}
+                    : runtimeModelOptions.length > 0
+                      // Don't claim these came from the provider APIs — this agent is pinned to a
+                      // CLI runtime, so the list above is that CLI's own catalog.
+                      ? `Models offered by the ${runtimeLabelFor(runtimeCatalog, runtime)} CLI, because this agent is pinned to it below.`
+                      : 'Live models from provider APIs (cached 1hr). Click "Refresh" to update.'}
                 </p>
                 {selectedModelDeprecation && (
                   <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">{selectedModelDeprecation}</p>
@@ -3077,6 +3187,29 @@ function EditAgentConfigModal({ agent, onClose, onSaved }: { agent: Agent; onClo
                 autoApply={autoModelSelection}
                 onAutoApplyChange={setAutomaticModelSelection}
               />
+              <div className="rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-900/20 p-3">
+                <label className="block text-sm font-semibold text-sky-900 dark:text-sky-100 mb-1">Runtime — which CLI runs this agent</label>
+                <select
+                  value={runtime}
+                  onChange={e => selectAgentRuntime(e.target.value)}
+                  className="w-full rounded-lg border border-sky-300 dark:border-sky-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-200 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+                >
+                  <option value="default">OpenClaw (model-provider keys) — default</option>
+                  <option value="openclaw">OpenClaw (model-provider keys)</option>
+                  {runtimeCatalog.filter((rt) => rt.enabled)
+                    .map((rt) => <option key={rt.id} value={rt.id}>{rt.label} (its own login)</option>)}
+                  {runtime !== 'default' && runtime !== 'openclaw' && !enabledRuntimes.includes(runtime) && (
+                    <option value={runtime}>
+                      {runtimeLabelFor(runtimeCatalog, runtime)} — pinned, but disabled for this workspace
+                    </option>
+                  )}
+                </select>
+                <p className="mt-1 text-xs text-sky-800/80 dark:text-sky-200/70">
+                  {enabledRuntimes.length > 0
+                    ? <>Run this agent on {runtimeCatalog.filter((rt) => enabledRuntimes.includes(rt.id)).map((rt) => rt.label).join(' or ')} using the CLI’s own login. Default keeps it on the model-provider keys.</>
+                    : <>Enable a CLI runtime first in BYOK &rarr; “Run via CLI” to make it selectable here.</>}
+                </p>
+              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Backup model</label>
                 <select

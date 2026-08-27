@@ -154,6 +154,68 @@ COPY --from=openclaw-builder /opt/openclaw-src/openclaw-*.tgz /tmp/openclaw.tgz
 RUN npm install -g /tmp/openclaw.tgz \
   && rm -f /tmp/openclaw.tgz
 
+# Claude Code CLI (optional agent runtime: claude). Agents can be pinned to
+# this runtime instead of OpenClaw; ANTHROPIC_API_KEY must be set for it to
+# authenticate. Pinned via ARG so image builds stay reproducible.
+ARG CLAUDE_CODE_VERSION=2.1.205
+RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}
+
+# Factory Droid CLI (optional agent runtime: droid). Factory does not publish
+# droid to npm. Its published installer (https://app.factory.ai/cli) is a
+# curl-piped shell script that is NOT genuinely pinnable: it hardcodes an
+# internal `VER=` literal with no environment-variable override, so `curl
+# https://app.factory.ai/cli | sh` always installs whatever the remote script
+# bakes in that day — mutable and unreproducible at image build time. That
+# installer script does, however, resolve to a versioned artifact under the
+# hood:
+#   https://downloads.factory.ai/factory-cli/releases/<version>/<platform>/<arch>/droid
+#   https://downloads.factory.ai/factory-cli/releases/<version>/<platform>/<arch>/droid.sha256
+# The vendor installer compares the binary with that remote `.sha256`
+# sidecar, which detects transfer corruption but leaves both inputs mutable.
+# We instead pin the official checksum for every supported artifact in this
+# source file. The `--version | grep` at the end also fails the build if the
+# verified binary reports a different version than the one requested.
+# HOME is not set to /app until later in this stage, so it's exported here
+# explicitly to match the runtime HOME (see `ENV HOME=/app` below) and keep
+# resolveRuntimeCliPath's `~/.local/bin/droid` fallback consistent between
+# build time and container run time.
+ARG FACTORY_DROID_VERSION=0.158.0
+ARG FACTORY_DROID_AMD64_SHA256=f64a55bb6d314c8d925063ce741c97796208ef0facdd4b4f1881a358acb668d8
+ARG FACTORY_DROID_AMD64_BASELINE_SHA256=891325d02d7c013188ffc49b0c9654c539e1dd637f27f302bb41e5e888fb714f
+ARG FACTORY_DROID_ARM64_SHA256=fe9d06b4c0136add0619d964afb3dac2cc9b13ac6c0e448f11691d749203c584
+RUN export HOME=/app \
+  && droid_arch="$(uname -m)" \
+  && case "$droid_arch" in \
+       x86_64|amd64) droid_arch="x64"; droid_expected_sha="$FACTORY_DROID_AMD64_SHA256" ;; \
+       arm64|aarch64) droid_arch="arm64"; droid_expected_sha="$FACTORY_DROID_ARM64_SHA256" ;; \
+       *) echo "Unsupported architecture for droid: $droid_arch" >&2; exit 1 ;; \
+     esac \
+  && droid_suffix="" \
+  && if [ "$droid_arch" = "x64" ] && ! grep -qi avx2 /proc/cpuinfo 2>/dev/null; then \
+       droid_suffix="-baseline"; \
+       droid_expected_sha="$FACTORY_DROID_AMD64_BASELINE_SHA256"; \
+     fi \
+  && droid_url="https://downloads.factory.ai/factory-cli/releases/${FACTORY_DROID_VERSION}/linux/${droid_arch}${droid_suffix}/droid" \
+  && command -v sha256sum >/dev/null 2>&1 \
+    || { echo "sha256sum is required to verify the droid download" >&2; exit 1; } \
+  && curl -fsSL -o /tmp/droid "$droid_url" \
+  && actual_sha="$(sha256sum /tmp/droid | awk '{print $1}')" \
+  && [ -n "$droid_expected_sha" ] && [ "$actual_sha" = "$droid_expected_sha" ] \
+    || { echo "droid checksum mismatch: expected '$droid_expected_sha', got '$actual_sha'" >&2; exit 1; } \
+  && mkdir -p "$HOME/.local/bin" \
+  && install -m 0755 /tmp/droid "$HOME/.local/bin/droid" \
+  && rm -f /tmp/droid \
+  && "$HOME/.local/bin/droid" --version | grep -F "${FACTORY_DROID_VERSION}" \
+    || { echo "droid --version did not report pinned version ${FACTORY_DROID_VERSION}" >&2; exit 1; } \
+  && install -m 0755 "$HOME/.local/bin/droid" /usr/local/bin/droid
+# Also install droid onto PATH, not only under ~/.local/bin. The `~` fallback in
+# resolveRuntimeCliPath only finds it when the container's HOME matches the /app
+# used at build time, and deployments legitimately override HOME (the ClawMax host
+# agent runs the dashboard with HOME=/app/DATA/.home so the OpenClaw profile lives
+# on the mounted data volume). In that case droid was silently reported as not
+# installed while the binary sat in the image. /usr/local/bin is where `npm i -g`
+# puts the claude CLI, which is why claude resolved correctly and droid did not.
+
 COPY --from=builder /app/SYSTEM/dashboard/dist ./dist
 COPY --from=builder /app/SYSTEM/dashboard/server/schemas ./server/schemas
 

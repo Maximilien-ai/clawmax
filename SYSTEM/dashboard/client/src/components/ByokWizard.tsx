@@ -8,6 +8,8 @@ import { DEFAULT_VISIBLE_PARTNERS, getDefaultPartnerDefinitions } from '../lib/d
 import { BROWSER_VAULT_UPDATED_EVENT, readPartnerValuesFromSharedSecrets, readSharedSecrets, writePartnerValuesToSharedSecrets, writeSharedSecrets } from '../lib/localSecrets'
 import { resolveResendTestRecipientEmail } from '../lib/resendTestEmail'
 import { formatOpenAiDeprecationNotice, formatOpenAiModelLabel, isSelectableLifecycleModel } from '../lib/openAiModelLifecycle'
+import { describeRuntimeStatusesFetchError, describeRuntimeStatusesViewState } from '../lib/runtimeStatusesLoading'
+import { resolveReloadedAgentRuntime } from '../lib/agentRuntimeReload'
 import { PartnerLogo } from './PartnerLogo'
 import {
   beginMailOAuthConnection,
@@ -28,7 +30,7 @@ function maskKey(value: string) {
   return `${value.slice(0, 4)}••••${value.slice(-4)}`
 }
 
-type Step = 'models' | 'partners' | `partner:${string}`
+type Step = 'models' | 'partners' | 'runtime' | `partner:${string}`
 type ModelTab = 'openai' | 'anthropic' | 'gemini' | 'openrouter' | 'xai' | 'ollama' | 'openaiCompatible'
 type ProviderKey = 'openai' | 'anthropic' | 'gemini' | 'openrouter' | 'xai' | 'ollama'
 type ValidationEntry = { status: 'idle' | 'valid' | 'invalid' | 'error' | 'skipped'; message: string }
@@ -80,6 +82,20 @@ type IntegrationStatus = {
   visiblePartners: string[]
   partnerDefinitions: PartnerDefinition[]
 }
+// Runtime ids come from the server registry (/api/integrations/runtimes). 'openclaw' is the
+// always-available default and is never listed as a selectable CLI.
+type AgentRuntimeId = string
+const isSelectableRuntimeId = (id: unknown): id is AgentRuntimeId =>
+  typeof id === 'string' && id.length > 0 && id !== 'openclaw'
+type RuntimeStatus = {
+  id: AgentRuntimeId
+  label: string
+  installed: boolean
+  version?: string
+  cliPath?: string
+  installHint: string
+  active: boolean
+}
 type WorkspaceIntegrationConfig = {
   preferredModel?: string
   systemPreferredModel?: string
@@ -93,6 +109,8 @@ type WorkspaceIntegrationConfig = {
   opikProject?: string
   enabledPartners?: string[]
   partners?: Record<string, Record<string, string | boolean | undefined>>
+  agentRuntime?: AgentRuntimeId
+  enabledRuntimes?: AgentRuntimeId[]
 }
 type PartnerValueMap = Record<string, Record<string, string>>
 type PartnerSecretPresence = Record<string, Record<string, boolean>>
@@ -231,6 +249,16 @@ export function ByokWizard({
   const [openaiCompatibleDefaultModel, setOpenaiCompatibleDefaultModel] = useState('')
   const [preferredModel, setPreferredModel] = useState('')
   const [systemPreferredModel, setSystemPreferredModel] = useState('')
+  const [agentRuntime, setAgentRuntime] = useState('')
+  const [enabledRuntimes, setEnabledRuntimes] = useState<AgentRuntimeId[]>([])
+  const lastSyncedRuntimeWorkspaceIdRef = useRef<string | null>(null)
+  // True once the user toggles a CLI in THIS wizard instance. Three ByokWizard instances (BYOK,
+  // Partners, Runtime) each hold their own enabledRuntimes state; without this, a stale instance
+  // saving would clobber another instance's runtime edits (see handleSave).
+  const enabledRuntimesDirtyRef = useRef(false)
+  const [runtimeStatuses, setRuntimeStatuses] = useState<RuntimeStatus[]>([])
+  const [runtimeStatusesLoading, setRuntimeStatusesLoading] = useState(false)
+  const [runtimeStatusesError, setRuntimeStatusesError] = useState<string | null>(null)
   const [partnerSecrets, setPartnerSecrets] = useState<PartnerValueMap>({})
   const [serverPartnerSecretPresence, setServerPartnerSecretPresence] = useState<PartnerSecretPresence>({})
   const [partnerValues, setPartnerValues] = useState<PartnerValueMap>({})
@@ -504,6 +532,16 @@ export function ByokWizard({
         setServerPartnerSecretPresence(typeof data?.secretPresence === 'object' && data.secretPresence ? data.secretPresence : {})
         setPreferredModel((current) => current || workspaceConfig.preferredModel || '')
         setSystemPreferredModel((current) => current || workspaceConfig.systemPreferredModel || '')
+        setAgentRuntime((current) => resolveReloadedAgentRuntime({
+          currentValue: current,
+          loadedValue: workspaceConfig.agentRuntime || '',
+          loadedWorkspaceId: activeWorkspace?.id ?? null,
+          lastSyncedWorkspaceId: lastSyncedRuntimeWorkspaceIdRef.current,
+        }))
+        lastSyncedRuntimeWorkspaceIdRef.current = activeWorkspace?.id ?? null
+        // enabledRuntimes is loaded from GET /api/integrations/runtimes (the resolved config-or-env
+        // value) in loadRuntimeStatuses, not from this config-only payload which is blind to the
+        // WORKSPACES_INTEGRATIONS_RUNTIMES env default.
         setOllamaBaseUrl((current) => {
           const nextDefault = resolveOllamaBaseUrlForRuntime({
             configuredBaseUrl: workspaceConfig.ollamaBaseUrl || '',
@@ -655,7 +693,7 @@ export function ByokWizard({
   }, [lockedPartnerSlugs])
 
   const stepOrder = useMemo<Step[]>(
-    () => ['models', 'partners', ...selectedPartnerDefinitions.map((partner) => `partner:${partner.slug}` as const)],
+    () => ['models', 'partners', 'runtime', ...selectedPartnerDefinitions.map((partner) => `partner:${partner.slug}` as const)],
     [selectedPartnerDefinitions]
   )
 
@@ -670,6 +708,12 @@ export function ByokWizard({
       setModelTab('openai')
     }
   }, [modelTab, ollamaEnabled])
+
+  const runtimeStatusesViewState = describeRuntimeStatusesViewState({
+    loading: runtimeStatusesLoading,
+    statusesCount: runtimeStatuses.length,
+    error: runtimeStatusesError,
+  })
 
   const githubReady = githubChecks.length > 0 && githubChecks.every((check) => check.status === 'pass')
   const sensoConfigured = !!getPartnerSecret('senso', 'apiKey').trim()
@@ -817,13 +861,17 @@ export function ByokWizard({
   }, [config?.authDisabled, dismissed, hasDefaultUserKeys, hasStoredKeys, hydrated, onboardingOpen, suppressAutoOpen, user])
 
   useEffect(() => {
+    // Only the BYOK (models) instance should respond to the legacy 'open-byok-wizard' event.
+    // Each instance already listens for its own openEventName above; without this guard, every
+    // mounted ByokWizard (BYOK, Partners, Runtime) would open at once on this shared event.
+    if (openEventName !== 'open-byok-wizard') return
     const openWizard = () => {
       setDismissed(false)
       setOpen(true)
     }
     window.addEventListener('open-byok-wizard', openWizard)
     return () => window.removeEventListener('open-byok-wizard', openWizard)
-  }, [])
+  }, [openEventName])
 
   useEffect(() => {
     const handleOnboardingVisibility = (event: Event) => {
@@ -926,6 +974,34 @@ export function ByokWizard({
     }
   }, [])
 
+  const loadRuntimeStatuses = React.useCallback(async () => {
+    setRuntimeStatusesLoading(true)
+    setRuntimeStatusesError(null)
+    try {
+      const response = await fetch('/api/integrations/runtimes')
+      if (!response.ok) {
+        setRuntimeStatuses([])
+        setRuntimeStatusesError(describeRuntimeStatusesFetchError(response.status))
+        return
+      }
+      const data = await response.json()
+      setRuntimeStatuses(Array.isArray(data?.runtimes) ? data.runtimes : [])
+      // Sync the checkboxes to the server's RESOLVED enabled set (workspace config, or the env
+      // default) — but only if the user hasn't toggled a card while this request was in flight
+      // (dirty is reset on open, before this runs). Otherwise we'd erase an edit made mid-load.
+      if (!enabledRuntimesDirtyRef.current) {
+        setEnabledRuntimes(Array.isArray(data?.enabledRuntimes)
+          ? data.enabledRuntimes.filter(isSelectableRuntimeId)
+          : [])
+      }
+    } catch {
+      setRuntimeStatuses([])
+      setRuntimeStatusesError(describeRuntimeStatusesFetchError(null))
+    } finally {
+      setRuntimeStatusesLoading(false)
+    }
+  }, [])
+
   useEffect(() => {
     if (!open) return
     void refreshMailStatus()
@@ -999,6 +1075,15 @@ export function ByokWizard({
       setMailOAuthBusy(null)
     }
   }
+
+  useEffect(() => {
+    if (!open) return
+    // Clear stale dirty state on open, before the load, so a reopened instance re-syncs to the
+    // server value. A toggle made while the load is in flight re-sets dirty and is preserved.
+    enabledRuntimesDirtyRef.current = false
+    void loadRuntimeStatuses()
+
+  }, [open, loadRuntimeStatuses])
 
   async function authorizeMailAgent(provider: 'gmail' | 'microsoft365', accountId: string) {
     const key = `${provider}:${accountId}`
@@ -1548,12 +1633,31 @@ export function ByokWizard({
     }, currentSharedSecrets)
     writeSharedSecrets(nextSharedSecrets, { scope: 'global' })
 
-    await fetch('/api/integrations/config', {
+    // The PUT below replaces the whole config, so every field must carry a fresh value. If the user
+    // never toggled a CLI in this wizard instance, re-read the server's current enabledRuntimes so a
+    // stale instance (e.g. Partners, opened before Runtime enabled a CLI) can't clobber it.
+    // Read the server's RESOLVED enabled set (config OR env default) so a non-editing instance
+    // sends the effective value instead of clobbering it with a blind [] — critically, this
+    // preserves a WORKSPACES_INTEGRATIONS_RUNTIMES default that was never written to config.
+    let enabledRuntimesToSave = enabledRuntimes
+    if (!enabledRuntimesDirtyRef.current) {
+      try {
+        const latest = await fetch('/api/integrations/runtimes').then((r) => (r.ok ? r.json() : null))
+        const serverList = latest?.enabledRuntimes
+        if (Array.isArray(serverList)) {
+          enabledRuntimesToSave = serverList.filter(isSelectableRuntimeId)
+        }
+      } catch { /* keep local value on fetch failure */ }
+    }
+
+    const putOk = await fetch('/api/integrations/config', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         preferredModel: preferredModel || undefined,
         systemPreferredModel: systemPreferredModel || undefined,
+        agentRuntime: agentRuntime || undefined,
+        enabledRuntimes: enabledRuntimesToSave,
         githubDefaultRepo: githubDefaultRepo.trim() || undefined,
         sensoContextLabel: sensoContextLabel.trim() || undefined,
         ollamaBaseUrl: ollamaEnabled ? (effectiveOllamaBaseUrl.trim() || undefined) : undefined,
@@ -1567,13 +1671,22 @@ export function ByokWizard({
         partnerSecrets: serverPartnerSecrets,
       }),
     })
-      .then(async (response) => (response.ok ? response.json() : null))
-      .then((data) => {
+      .then(async (response) => {
+        if (!response.ok) return false
+        const data = await response.json().catch(() => null)
         if (typeof data?.secretPresence === 'object' && data.secretPresence) {
           setServerPartnerSecretPresence(data.secretPresence)
         }
+        return true
       })
-      .catch(() => {})
+      .catch(() => false)
+
+    // Only adopt the saved runtime value and clear dirty if the PUT actually persisted. On a failed
+    // save the edit stays dirty so it isn't silently marked clean / lost.
+    if (putOk) {
+      setEnabledRuntimes(enabledRuntimesToSave)
+      enabledRuntimesDirtyRef.current = false
+    }
 
     localStorage.removeItem(getByokDismissKey())
     setDismissed(false)
@@ -1780,12 +1893,12 @@ export function ByokWizard({
   }
 
   const goToNextStep = () => {
-    if (step === 'partners' && selectedPartnerDefinitions.length === 0) {
+    const nextStep = stepOrder[currentStepIndex + 1]
+    if (!nextStep) {
       void handleSave()
       return
     }
-    const nextStep = stepOrder[currentStepIndex + 1]
-    if (nextStep) setStep(nextStep)
+    setStep(nextStep)
   }
 
   const goToPreviousStep = () => {
@@ -2220,6 +2333,14 @@ export function ByokWizard({
                 >
                   {initialStep === 'partners' ? 'Partners' : '2. Partners'}
                 </button>
+                <span>→</span>
+                <button
+                  type="button"
+                  onClick={() => setStep('runtime')}
+                  className={`px-2 py-1 rounded-full transition-colors ${step === 'runtime' ? 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 font-medium' : 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+                >
+                  {initialStep === 'partners' ? 'Runtime' : '3. Runtime'}
+                </button>
                 {selectedPartnerDefinitions.map((partner, index) => (
                   <React.Fragment key={partner.slug}>
                     <span>→</span>
@@ -2228,7 +2349,7 @@ export function ByokWizard({
                       onClick={() => setStep(`partner:${partner.slug}`)}
                       className={`px-2 py-1 rounded-full transition-colors ${step === `partner:${partner.slug}` ? 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 font-medium' : 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
                     >
-                      {initialStep === 'partners' ? partner.name : `${index + 3}. ${partner.name}`}
+                      {initialStep === 'partners' ? partner.name : `${index + 4}. ${partner.name}`}
                     </button>
                   </React.Fragment>
                 ))}
@@ -2687,6 +2808,60 @@ export function ByokWizard({
                   )}
                 </div>
 
+                <div className="mt-4 border-t border-gray-200 dark:border-gray-700 pt-4">
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-gray-500 dark:text-gray-400">
+                    Run via CLI — enable the CLIs you want (no API key needed)
+                  </div>
+                  <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">
+                    Separate from the model-provider keys above. Turn on the CLIs you want to use — each runs agents with its own login (your Claude subscription or Factory login). Enable both to run some agents on Claude and others on Droid.
+                  </p>
+                  {runtimeStatusesLoading && runtimeStatuses.length === 0 ? (
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Detecting installed CLIs…</div>
+                  ) : (
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {runtimeStatuses.filter((status) => isSelectableRuntimeId(status.id)).map((status) => {
+                        const runtimeEnabled = enabledRuntimes.includes(status.id)
+                        return (
+                          <button
+                            key={status.id}
+                            type="button"
+                            role="checkbox"
+                            aria-checked={runtimeEnabled}
+                            onClick={() => { enabledRuntimesDirtyRef.current = true; setEnabledRuntimes((prev) => prev.includes(status.id) ? prev.filter((rt) => rt !== status.id) : [...prev, status.id]) }}
+                            disabled={!status.installed && !runtimeEnabled}
+                            className={`rounded-lg border px-3 py-2 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:opacity-60 disabled:cursor-not-allowed ${
+                              runtimeEnabled
+                                ? 'border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-100'
+                                : 'border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300'
+                            }`}
+                            title={status.installed ? `${runtimeEnabled ? 'Disable' : 'Enable'} ${status.label}` : `${status.label} is not installed`}
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="flex items-center gap-2 font-medium">
+                                <span className={`inline-flex h-4 w-4 items-center justify-center rounded border text-[10px] leading-none ${runtimeEnabled ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-gray-300 dark:border-gray-600'}`}>
+                                  {runtimeEnabled ? '✓' : ''}
+                                </span>
+                                {status.label}
+                              </span>
+                              <span className="text-xs uppercase tracking-wide opacity-80">
+                                {status.installed ? `detected${status.version ? ` ${status.version}` : ''}` : 'not installed'}
+                              </span>
+                            </div>
+                            <div className="mt-1 pl-6 text-xs opacity-80">
+                              {status.installed ? (runtimeEnabled ? 'Enabled · runs agents with its own login' : 'Runs agents with its own login') : status.installHint}
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                  <div className="mt-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900 dark:border-sky-800 dark:bg-sky-900/20 dark:text-sky-100">
+                    {enabledRuntimes.length > 0
+                      ? <>Enabled: {enabledRuntimes.map((rt) => runtimeStatuses.find((status) => status.id === rt)?.label || rt).join(', ')}. Now pick a runtime for each agent in the agent editor — agents you don’t assign keep using the model-provider keys above.</>
+                      : <>No CLI enabled — all agents use the model-provider keys above. Enable a CLI to make it available, then assign it per agent.</>}
+                  </div>
+                </div>
+
                 <div className="mt-6 flex items-center justify-between gap-3">
                   <button onClick={handleSkip} className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors">Skip for now</button>
                   <div className="flex items-center gap-2">
@@ -2877,8 +3052,84 @@ export function ByokWizard({
                   <div className="flex items-center gap-2">
                     <button onClick={handleSave} className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">Save &amp; Close</button>
                     <button onClick={goToNextStep} className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors">
-                      {selectedPartnerDefinitions.length > 0 ? 'Next →' : 'Save Integrations'}
+                      {currentStepIndex < stepOrder.length - 1 ? 'Next →' : 'Save Integrations'}
                     </button>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {step === 'runtime' && (
+              <>
+                <div className="mt-4 rounded-xl border border-cyan-200 dark:border-cyan-800 bg-cyan-50 dark:bg-cyan-900/20 p-4 text-sm text-cyan-900 dark:text-cyan-100">
+                  <div className="font-medium">Agent runtimes</div>
+                  <div className="mt-1">
+                    Enable the CLIs you want to use — each runs agents with its own login. Then pick a runtime for each agent in the agent editor. Agents you don’t assign run on OpenClaw using the model-provider keys.
+                  </div>
+                </div>
+
+                <div className="mt-5 space-y-4">
+                  {runtimeStatusesViewState === 'loading' && (
+                    <div className="text-[11px] text-gray-500 dark:text-gray-400">Detecting installed runtimes…</div>
+                  )}
+                  {runtimeStatusesViewState === 'error' && (
+                    <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-3 py-2 text-sm text-red-700 dark:text-red-300">
+                      <div>{runtimeStatusesError}</div>
+                      <button
+                        type="button"
+                        onClick={() => void loadRuntimeStatuses()}
+                        disabled={runtimeStatusesLoading}
+                        className="mt-2 px-3 py-1.5 text-xs rounded-md border border-red-300 dark:border-red-700 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors disabled:opacity-60"
+                      >
+                        {runtimeStatusesLoading ? 'Retrying…' : 'Retry'}
+                      </button>
+                    </div>
+                  )}
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {runtimeStatuses.filter((status) => isSelectableRuntimeId(status.id)).map((status) => {
+                      const runtimeEnabled = enabledRuntimes.includes(status.id)
+                      return (
+                        <button
+                          key={status.id}
+                          type="button"
+                          role="checkbox"
+                          aria-checked={runtimeEnabled}
+                          onClick={() => { enabledRuntimesDirtyRef.current = true; setEnabledRuntimes((prev) => prev.includes(status.id) ? prev.filter((rt) => rt !== status.id) : [...prev, status.id]) }}
+                          disabled={!status.installed && !runtimeEnabled}
+                          className={`rounded-lg border px-3 py-2 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:opacity-60 disabled:cursor-not-allowed ${
+                            runtimeEnabled
+                              ? 'border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-100'
+                              : 'border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300'
+                          }`}
+                          title={status.installed ? `${runtimeEnabled ? 'Disable' : 'Enable'} ${status.label}` : `${status.label} is not installed`}
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="flex items-center gap-2 font-medium">
+                              <span className={`inline-flex h-4 w-4 items-center justify-center rounded border text-[10px] leading-none ${runtimeEnabled ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-gray-300 dark:border-gray-600'}`}>
+                                {runtimeEnabled ? '✓' : ''}
+                              </span>
+                              {status.label}
+                            </span>
+                            <span className="text-xs uppercase tracking-wide opacity-80">
+                              {status.installed ? `detected${status.version ? ` ${status.version}` : ''}` : 'not installed'}
+                            </span>
+                          </div>
+                          <div className="mt-1 pl-6 text-xs opacity-80">{status.installed ? (status.cliPath || 'Ready') : status.installHint}</div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                <div className="mt-6 flex items-center justify-between gap-3">
+                  <button onClick={goToPreviousStep} className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors">&larr; Back</button>
+                  <div className="flex items-center gap-2">
+                    <button onClick={handleSave} className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">Save &amp; Close</button>
+                    {currentStepIndex < stepOrder.length - 1 ? (
+                      <button onClick={goToNextStep} className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors">Next &rarr;</button>
+                    ) : (
+                      <button onClick={handleSave} className="px-4 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700 transition-colors">Save Integrations</button>
+                    )}
                   </div>
                 </div>
               </>

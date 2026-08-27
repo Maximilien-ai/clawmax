@@ -47,6 +47,7 @@ import { getHostAgentStatus } from './lib/host-agent-status'
 import { readWorkspaceIntegrationConfig } from './lib/workspace-integrations'
 import { resolveOpenClawCliPath } from './lib/openclaw-cli'
 import { buildSystemInfoPayload } from './lib/system-info'
+import { detectRuntimeStatuses, resolveEnabledRuntimes, resolveWorkspaceRuntime } from './lib/agent-runtime'
 import { healDashboardManagedOpenClawConfig } from './lib/openclaw-config'
 import { applyDashboardSecurityHeaders, isCorsOriginAllowed, isDashboardAuthBypassAllowed, parseCorsOrigins, resolveDashboardBindHost } from './lib/http-security'
 import { getTenantResourceLimitConfig, getTenantResourceLimits } from './lib/tenant-resource-limits'
@@ -116,6 +117,17 @@ async function autoRegisterWorkspaceAgents(): Promise<void> {
   if (fixed > 0) console.log(`[Doctor] Auto-registered ${fixed} unregistered agent(s)`)
 }
 
+function logDetectedAgentRuntimes(): void {
+  const workspaceDefault = resolveWorkspaceRuntime()
+  const summary = detectRuntimeStatuses(workspaceDefault)
+    .map((status) => {
+      const state = status.installed ? `installed${status.version ? ` (${status.version})` : ''}` : 'not installed'
+      return `${status.label}${status.active ? ' [workspace default]' : ''}: ${state}`
+    })
+    .join(', ')
+  console.log(`[Agent Runtimes] ${summary}`)
+}
+
 function healOpenClawConfigOnStartup(): void {
   const configPath = path.join(os.homedir(), '.openclaw', 'openclaw.json')
   const result = healDashboardManagedOpenClawConfig(configPath, 'dashboard-startup-heal')
@@ -139,6 +151,12 @@ function startBackgroundServices() {
     void autoRegisterWorkspaceAgents().catch((err) => {
       logToFile(`Auto-register failed: ${err instanceof Error ? err.stack || err.message : String(err)}`)
     })
+
+    try {
+      logDetectedAgentRuntimes()
+    } catch (err) {
+      logToFile(`Agent runtime detection failed: ${err instanceof Error ? err.stack || err.message : String(err)}`)
+    }
 
     try {
       const interruptedRuns = reconcileInterruptedWorkflowExecutions()
@@ -314,6 +332,10 @@ app.get('/api/auth/config', (_req, res) => {
     ollamaEnabled: isOllamaUiEnabled(rawEnv),
     defaultOllamaBaseUrl: getDefaultOllamaBaseUrl(rawEnv),
     defaultOpenAiCompatibleBaseUrl: getDefaultOpenAICompatibleBaseUrl(rawEnv),
+    // CLI runtimes enabled in BYOK sign in with their own login, so their presence is enough to
+    // make AI generation available even with no provider keys at all. Published here so every
+    // generation surface can gate on it, not just the agent wizard.
+    enabledRuntimes: resolveEnabledRuntimes(),
     systemKeyDefaults: {
       openai: !!systemKeys.openai,
       anthropic: !!systemKeys.anthropic,

@@ -16,6 +16,7 @@ import { safeEnv } from '../lib/safe-env'
 import { getDashboardDeploymentKind, getDashboardEnvRaw, isOllamaUiEnabled } from '../lib/dashboard-env'
 import { getAuthenticatedSession } from '../lib/github-auth'
 import { getWorkspaceResendApiKey, resolveResendTestRecipient, sendResendTestEmail } from '../lib/resend-partner'
+import { detectRuntimeStatuses, listRuntimeModels, normalizeAgentRuntime, resolveEnabledRuntimes, resolveWorkspaceRuntime } from '../lib/agent-runtime'
 
 const router = Router()
 
@@ -50,6 +51,24 @@ router.get('/github-status', (_req, res) => {
   res.json({ ready, checks, mode: getGitHubAuthMode() })
 })
 
+router.get('/runtimes', async (_req, res) => {
+  const workspaceDefault = resolveWorkspaceRuntime()
+  const statuses = detectRuntimeStatuses(workspaceDefault)
+  res.json({
+    // models[] is the runtime CLI's own catalog, empty when it cannot be enumerated. The agent
+    // editor uses it so a runtime-pinned agent picks a name that runtime actually accepts.
+    runtimes: await Promise.all(statuses.map(async (status) => ({
+      ...status,
+      models: status.installed ? await listRuntimeModels(status.id) : [],
+    }))),
+    workspaceDefault,
+    // Resolved (effective) enabled set — workspace config, or the WORKSPACES_INTEGRATIONS_RUNTIMES
+    // env default when the workspace has no config. The client uses this so its checkboxes and its
+    // save value reflect the env default and never clobber it with a blind [].
+    enabledRuntimes: resolveEnabledRuntimes(),
+  })
+})
+
 router.put('/config', (req, res) => {
   const body = (req.body || {}) as Record<string, unknown>
   const ollamaEnabled = isOllamaUiEnabled(getDashboardEnvRaw())
@@ -57,6 +76,8 @@ router.put('/config', (req, res) => {
   const config = writeWorkspaceIntegrationConfig({
     preferredModel: typeof body.preferredModel === 'string' ? body.preferredModel : undefined,
     systemPreferredModel: typeof body.systemPreferredModel === 'string' ? body.systemPreferredModel : undefined,
+    agentRuntime: typeof body.agentRuntime === 'string' ? normalizeAgentRuntime(body.agentRuntime) : undefined,
+    enabledRuntimes: Array.isArray(body.enabledRuntimes) ? body.enabledRuntimes : undefined,
     githubDefaultRepo: typeof body.githubDefaultRepo === 'string' ? body.githubDefaultRepo : undefined,
     sensoContextLabel: typeof body.sensoContextLabel === 'string' ? body.sensoContextLabel : undefined,
     ollamaBaseUrl: ollamaEnabled && typeof body.ollamaBaseUrl === 'string' ? body.ollamaBaseUrl : undefined,

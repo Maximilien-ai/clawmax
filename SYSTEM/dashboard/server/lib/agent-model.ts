@@ -430,6 +430,56 @@ export function upsertAgentModelInIdentityContent(content: string, model: string
   return joinIdentityRuntimeSection(`${runtime.trimEnd()}\n\n- **Model:** ${nextModel}\n`, suffix)
 }
 
+export function upsertAgentRuntimeInIdentityContent(content: string, runtime: string): string {
+  const { runtime: runtimeSection, suffix } = splitIdentityRuntimeSection(content)
+  const hasExistingLine = /^[-*]\s+\*\*Runtime:\*\*\s*.*$/m.test(runtimeSection)
+
+  if (runtime === 'default') {
+    if (!hasExistingLine) return content
+    return joinIdentityRuntimeSection(
+      runtimeSection.replace(/^[-*]\s+\*\*Runtime:\*\*\s*.*$\n?/m, ''),
+      suffix
+    )
+  }
+
+  if (hasExistingLine) {
+    return joinIdentityRuntimeSection(runtimeSection.replace(
+      /^[-*]\s+\*\*Runtime:\*\*\s*.*$/m,
+      `- **Runtime:** ${runtime}`
+    ), suffix)
+  }
+
+  if (/^[-*]\s+\*\*Model:\*\*\s*.*$/m.test(runtimeSection)) {
+    return joinIdentityRuntimeSection(runtimeSection.replace(
+      /^[-*]\s+\*\*Model:\*\*\s*.*$/m,
+      match => `${match}\n- **Runtime:** ${runtime}`
+    ), suffix)
+  }
+
+  if (/^[-*]\s+\*\*Avatar:\*\*\s*$/m.test(runtimeSection)) {
+    return joinIdentityRuntimeSection(runtimeSection.replace(
+      /^[-*]\s+\*\*Avatar:\*\*\s*$(\n\s+.*)?/m,
+      match => `${match}\n- **Runtime:** ${runtime}`
+    ), suffix)
+  }
+
+  if (/^[-*]\s+\*\*Tags:\*\*\s+.+$/m.test(runtimeSection)) {
+    return joinIdentityRuntimeSection(runtimeSection.replace(
+      /^[-*]\s+\*\*Tags:\*\*\s+.+$/m,
+      `- **Runtime:** ${runtime}\n$&`
+    ), suffix)
+  }
+
+  if (/^[-*]\s+\*\*Role:\*\*\s+.+$/m.test(runtimeSection)) {
+    return joinIdentityRuntimeSection(runtimeSection.replace(
+      /^[-*]\s+\*\*Role:\*\*\s+.+$/m,
+      `$&\n- **Runtime:** ${runtime}`
+    ), suffix)
+  }
+
+  return joinIdentityRuntimeSection(`${runtimeSection.trimEnd()}\n\n- **Runtime:** ${runtime}\n`, suffix)
+}
+
 export function upsertAgentBackupModelInIdentityContent(content: string, backupModel: string | undefined): string {
   const nextBackupModel = normalizeOptionalAgentModelInput(backupModel)
   const { runtime, suffix } = splitIdentityRuntimeSection(content)

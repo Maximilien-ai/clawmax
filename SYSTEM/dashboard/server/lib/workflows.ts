@@ -24,7 +24,10 @@ import { readWorkspaceIntegrationConfig } from './workspace-integrations'
 import { hasWorkspaceManagedPartnerSecrets } from './workspace-integrations'
 import { resolveOpenClawCliPath } from './openclaw-cli'
 import { createBrokerCapabilityToken } from './skill-secret-broker'
-import { terminateProcessTree } from './process-tree'
+import { executeAgentRuntimeTurn, isRuntimeCancelledError } from './agent-runtime'
+import { hasRuntimeSession } from './runtime-sessions'
+import { withRegisteredTurn } from './agent-turns'
+import { cancelProcessTree, detachProcessStreams, terminateProcessTree } from './process-tree'
 
 // Use dynamic workspace path to support multi-workspace
 function getWorkflowsDir(): string {
@@ -85,7 +88,11 @@ export function setWorkflowPipelinePaused(paused: boolean, updatedBy?: string): 
 
 const WORKFLOW_RUNNER_BOOT_ID = randomUUID()
 const activeWorkflowExecutions = new Map<string, string>()
-const activeExecutionProcesses = new Map<string, Set<ReturnType<typeof spawn>>>()
+// Cancellers rather than raw process handles. An operator Stop that killed the handle directly
+// bypassed the step's own settle path, leaving its promise waiting on a 'close' that a grandchild
+// escaping the process group can hold open indefinitely -- wedging the step, the per-agent lock
+// behind it, and every later turn for that agent, with no deadline left anywhere to clear it.
+const activeExecutionProcesses = new Map<string, Set<() => void>>()
 const cancelledExecutions = new Set<string>()
 const INTERRUPTED_WORKFLOW_MESSAGE = 'Interrupted: the dashboard restarted while this run was in progress.'
 
@@ -996,25 +1003,6 @@ function enrichAgentContextOverflow(agentId: string, agentText: string): string 
   return `${agentText.trim()}\n\nRuntime error detail: ${errorMessage.slice(0, 500)}`
 }
 
-const DEFAULT_WORKFLOW_AGENT_TIMEOUT_MS = 10 * 60 * 1000
-
-export function getWorkflowAgentTimeoutMs(): number {
-  const raw = process.env.CLAWMAX_WORKFLOW_AGENT_TIMEOUT_MS?.trim()
-  if (!raw) return DEFAULT_WORKFLOW_AGENT_TIMEOUT_MS
-  const parsed = Number(raw)
-  if (!Number.isFinite(parsed) || parsed < 30_000) return DEFAULT_WORKFLOW_AGENT_TIMEOUT_MS
-  return Math.floor(parsed)
-}
-
-export function formatWorkflowAgentTimeoutMessage(timeoutMs = getWorkflowAgentTimeoutMs()): string {
-  const roundedMinutes = timeoutMs % 60000 === 0 ? timeoutMs / 60000 : null
-  if (roundedMinutes && roundedMinutes >= 1) {
-    return `Agent timeout after ${roundedMinutes} minute${roundedMinutes === 1 ? '' : 's'}`
-  }
-  const roundedSeconds = timeoutMs % 1000 === 0 ? timeoutMs / 1000 : Number((timeoutMs / 1000).toFixed(1))
-  return `Agent timeout after ${roundedSeconds} second${roundedSeconds === 1 ? '' : 's'}`
-}
-
 export function throwIfWorkflowAgentResultNeedsRetry(agentText: string): void {
   if (isOpenClawSessionLockError(new Error(agentText))) {
     throw new Error(agentText)
@@ -1277,15 +1265,26 @@ export function syncWorkflowToCron(workflow: Workflow, participants: string[]): 
   // Use first participant as the cron agent (OpenClaw cron targets one agent per job)
   // For multiagent workflows, we create one cron job per agent
   const results: string[] = []
+  let skippedNonOpenClaw = 0
 
   for (const agentId of participants) {
     const jobName = `clawmax-${workflow.id}-${agentId}`
 
-    // Remove existing job if any
+    // Remove existing job if any (e.g. a stale registration from before the agent's runtime was
+    // switched away from openclaw)
     const existingJobs = listCronJobs()
     const existing = existingJobs.find(j => j.name === jobName)
     if (existing) {
       removeCronJob(existing.id)
+    }
+
+    // openclaw cron only knows how to invoke the openclaw CLI — claude/droid participants are
+    // scheduled entirely by the in-process node-cron scheduler in lib/scheduler.ts instead.
+    const agentRuntime = resolveAgentExecutionConfig(agentId).runtime
+    if (agentRuntime !== 'openclaw') {
+      skippedNonOpenClaw++
+      console.log(`[Cron] cron: skipped openclaw cron registration for ${agentId} (runtime ${agentRuntime}); in-process scheduler covers it`)
+      continue
     }
 
     // Try to get agent's model from IDENTITY.md
@@ -1321,7 +1320,13 @@ export function syncWorkflowToCron(workflow: Workflow, participants: string[]): 
     }
   }
 
-  return { ok: results.length > 0, cronJobId: results.join(',') }
+  // Every participant was a non-openclaw runtime — nothing was attempted, so this isn't a
+  // failure, there's simply no openclaw cron registration for the in-process scheduler to need.
+  const attemptedOpenClawRegistration = participants.length > skippedNonOpenClaw
+  return {
+    ok: attemptedOpenClawRegistration ? results.length > 0 : true,
+    cronJobId: results.length > 0 ? results.join(',') : undefined,
+  }
 }
 
 export function removeCronJob(jobId: string): void {
@@ -1799,8 +1804,8 @@ export function cancelExecution(workflowId: string, executionId: string): { succ
   if (execution.status !== 'running') return { success: false, error: `Execution is already ${execution.status}` }
 
   cancelledExecutions.add(executionId)
-  for (const processHandle of activeExecutionProcesses.get(executionId) || []) {
-    terminateProcessTree(processHandle)
+  for (const cancelStep of activeExecutionProcesses.get(executionId) || []) {
+    cancelStep()
   }
 
   const completedAt = new Date().toISOString()
@@ -2177,8 +2182,65 @@ export function triggerWorkflow(workflowId: string, options?: {
 
           // Call agent via CLI
           let workflowSessionRetryAttempt = 0
-          const agentResponse = await runExclusiveAgentExecution(participant.agentId, async () => {
+          // Registers this step so it shows up in listActiveTurns and is reachable by cancelTurn --
+          // without this, the step held runExclusiveAgentExecution's per-agent lock but was invisible
+          // to the registry and unstoppable by anything, including the "stop this agent" path.
+          const agentResponse = await withRegisteredTurn(participant.agentId, (turn) => runExclusiveAgentExecution(participant.agentId, async () => {
             const resolvedAgent = resolveAgentExecutionConfig(participant.agentId)
+            if (resolvedAgent.runtime !== 'openclaw') {
+              // 2.0 builds executionEnv per attempt inside executeAttempt(), so the runtime path
+              // builds its own provider-isolated env instead of reusing an outer binding that no
+              // longer exists. Mirrors executeAttempt() so claude/droid agents get the same
+              // provider isolation and brokered skill-secret access as the openclaw path.
+              const useRuntimeOpenAiCompatible = resolvedAgent.provider === 'openai-compatible'
+              const runtimeExecutionEnv = workflowExecutionEnv({
+                openai: resolvedAgent.provider === 'openai' ? options?.byok?.openai : undefined,
+                anthropic: resolvedAgent.provider === 'anthropic' ? options?.byok?.anthropic : undefined,
+                gemini: resolvedAgent.provider === 'gemini' ? options?.byok?.gemini : undefined,
+                openrouter: resolvedAgent.provider === 'openrouter' ? options?.byok?.openrouter : undefined,
+                xai: resolvedAgent.provider === 'xai' ? options?.byok?.xai : undefined,
+                ollamaBaseUrl: resolvedAgent.provider === 'ollama'
+                  ? (options?.byok?.ollamaBaseUrl || integrationDefaults.ollamaBaseUrl)
+                  : undefined,
+                openaiCompatibleApiKey: useRuntimeOpenAiCompatible ? options?.byok?.openaiCompatibleApiKey : undefined,
+                openaiCompatibleBaseUrl: useRuntimeOpenAiCompatible
+                  ? (options?.byok?.openaiCompatibleBaseUrl || integrationDefaults.openaiCompatibleBaseUrl)
+                  : undefined,
+                openaiCompatibleDefaultModel: useRuntimeOpenAiCompatible
+                  ? (options?.byok?.openaiCompatibleDefaultModel || integrationDefaults.openaiCompatibleDefaultModel)
+                  : undefined,
+              }, resolvedAgent.provider || undefined)
+              runtimeExecutionEnv.CLAWMAX_AGENT_ID = participant.agentId
+              const runtimeBrokerCapability = createBrokerCapabilityToken(participant.agentId)
+              if (runtimeBrokerCapability) {
+                runtimeExecutionEnv.CLAWMAX_SECRET_BROKER_TOKEN = runtimeBrokerCapability
+                runtimeExecutionEnv.CLAWMAX_SECRET_BROKER_URL = `http://127.0.0.1:${process.env.DASHBOARD_PORT || '3001'}/api/runtime/skill-broker/execute`
+              }
+
+              const runtimeSessionId = buildWorkflowSessionId(executionId, participant.agentId)
+              const startedAt = Date.now()
+              const { text, errorText, missingCliError } = await executeAgentRuntimeTurn({
+                runtime: resolvedAgent.runtime,
+                agentId: participant.agentId,
+                agentDir: resolvedAgent.workspace || path.join(getWorkspacePath(), 'AGENTS', participant.agentId),
+                message: executionMessage,
+                scopedSessionId: runtimeSessionId,
+                model: resolvedAgent.model,
+                mode: 'json',
+                env: runtimeExecutionEnv,
+                // No deadline: a workflow step runs until it finishes or is cancelled. The registered
+                // turn's signal is the only way this ever stops early -- a throwaway
+                // `new AbortController().signal` here was a signal nothing could ever call abort() on.
+                signal: turn.signal,
+                onActivity: turn.touch,
+              })
+              if (missingCliError) throw new Error(missingCliError)
+              if (errorText) {
+                throw new Error(isRuntimeCancelledError(errorText) ? 'Workflow step was stopped.' : errorText)
+              }
+              return { text, meta: {}, durationMs: Date.now() - startedAt } as any
+            }
+
             const openclawCliPath = resolveWorkflowOpenClawCliPath()
             const executeAttempt = async (attemptModel: string | undefined, attemptProvider: typeof resolvedAgent.provider) => {
               const useOpenAiCompatible = attemptProvider === 'openai-compatible'
@@ -2234,56 +2296,93 @@ export function triggerWorkflow(workflowId: string, options?: {
                     : undefined,
                 }, attemptModel, attemptProvider, async () => {
                   await new Promise<void>((innerResolve) => {
+                    // Detached on POSIX so the child leads its own process group -- openclaw spawns
+                    // its own children, and signalling only the direct child leaves those
+                    // grandchildren alive holding stdout open, same reason agent-runtime.ts's
+                    // runOnce spawns detached for the chat/direct path. Not detached on win32:
+                    // Windows has no process groups, and a detached child there opens its own
+                    // console window instead of just backgrounding.
                     const proc = spawn(openclawCliPath, args, {
                       detached: process.platform !== 'win32',
                       env: executionEnv,
                     })
-                    const executionProcesses = activeExecutionProcesses.get(executionId) || new Set<ReturnType<typeof spawn>>()
-                    executionProcesses.add(proc)
+                    // Tracked so an operator's whole-execution Stop (cancelExecution, which has no
+                    // turn to signal) can still reach this process; released in settle() below.
+                    const executionProcesses = activeExecutionProcesses.get(executionId) || new Set<() => void>()
+                    // Registered as a canceller so an operator Stop runs the SAME path as turn
+                    // cancellation below, which guarantees this promise settles.
+                    const cancelThisStep = () => onCancel()
+                    executionProcesses.add(cancelThisStep)
                     activeExecutionProcesses.set(executionId, executionProcesses)
                     const releaseProcess = () => {
-                      executionProcesses.delete(proc)
+                      executionProcesses.delete(cancelThisStep)
                       if (executionProcesses.size === 0) activeExecutionProcesses.delete(executionId)
                     }
                     let stdout = ''
                     let stderr = ''
-                    const timeoutMs = getWorkflowAgentTimeoutMs()
-                    const timer = setTimeout(() => {
-                      terminateProcessTree(proc)
-                      reject(new Error(formatWorkflowAgentTimeoutMessage(timeoutMs)))
-                    }, timeoutMs)
+                    // No deadline. A workflow step legitimately runs for as long as its work takes;
+                    // the registered turn's signal below -- or the operator Stop above -- are the
+                    // only things that can end it early.
+                    let settled = false
+                    let killEscalation: NodeJS.Timeout | undefined
+
+                    const settle = (fn: () => void) => {
+                      if (settled) return
+                      settled = true
+                      turn.signal.removeEventListener('abort', onCancel)
+                      if (killEscalation) clearTimeout(killEscalation)
+                      releaseProcess()
+                      // Detach before settling. A cancelled step whose grandchild escaped the group
+                      // keeps writing to the still-open pipe, and these listeners would go on
+                      // mutating this step's captured output -- and its progress -- after it was
+                      // stopped. Every sibling spawn site does this; this one was the odd copy out.
+                      detachProcessStreams(proc)
+                      fn()
+                      innerResolve()
+                    }
+
+                    function onCancel() {
+                      if (settled) return
+                      // SIGTERM, then an unconditional group SIGKILL, then settle -- see
+                      // cancelProcessTree. Waiting on 'close' would wedge this step's promise
+                      // forever behind an escaped grandchild holding stdout open.
+                      killEscalation = cancelProcessTree(proc, () => settle(() => reject(new Error('Workflow step was stopped.'))))
+                    }
+
+                    if (turn.signal.aborted) {
+                      // Already cancelled before this listener attached -- 'abort' has already fired
+                      // and will never fire again, so addEventListener here would never run.
+                      onCancel()
+                    } else {
+                      turn.signal.addEventListener('abort', onCancel, { once: true })
+                    }
 
                     let progressTicks = 0
                     proc.stdout.on('data', (d: Buffer) => {
                       stdout += d.toString()
+                      turn.touch()
                       progressTicks++
                       const estimated = Math.min(20 + progressTicks * 10, 90)
                       const current = getWorkflow(workflowId)?.progress || 0
                       updateWorkflow(workflowId, { progress: Math.max(current, estimated) } as any)
                     })
-                    proc.stderr.on('data', (d: Buffer) => { stderr += d.toString() })
+                    proc.stderr.on('data', (d: Buffer) => { stderr += d.toString(); turn.touch() })
                     proc.on('close', (code: number) => {
-                      clearTimeout(timer)
-                      releaseProcess()
-                      const payloadText = extractWorkflowAgentResultPayload(stdout, stderr)
-                      if (code !== 0 && !payloadText) {
-                        reject(new Error(`Agent failed: ${stderr.slice(0, 200)}`))
-                        innerResolve()
-                        return
-                      }
-                      try {
-                        resolve(parseWorkflowAgentResultPayload(payloadText) as any)
-                      } catch (error) {
-                        reject(error)
-                        innerResolve()
-                        return
-                      }
-                      innerResolve()
+                      settle(() => {
+                        const payloadText = extractWorkflowAgentResultPayload(stdout, stderr)
+                        if (code !== 0 && !payloadText) {
+                          reject(new Error(`Agent failed: ${stderr.slice(0, 200)}`))
+                          return
+                        }
+                        try {
+                          resolve(parseWorkflowAgentResultPayload(payloadText) as any)
+                        } catch (error) {
+                          reject(error)
+                        }
+                      })
                     })
                     proc.on('error', (err) => {
-                      releaseProcess()
-                      reject(err)
-                      innerResolve()
+                      settle(() => reject(err))
                     })
                   })
                 }, { persistAuthProfiles: true, skipModelConfigMutation: true }).catch(reject)
@@ -2312,7 +2411,7 @@ export function triggerWorkflow(workflowId: string, options?: {
               const sessionId = buildWorkflowRetrySessionId(executionId, participant.agentId, workflowSessionRetryAttempt)
               repairWorkflowSessionEntryForRun(participant.agentId, sessionId)
             },
-          })
+          }))
 
           if (isExecutionCancelled(executionId)) {
             participant.status = 'cancelled'

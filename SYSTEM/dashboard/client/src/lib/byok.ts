@@ -40,6 +40,7 @@ export interface ByokRequestPayload {
 
 interface AiExecutionConfig {
   deploymentKind?: 'local' | 'onprem' | 'cloud'
+  enabledRuntimes?: string[]
   allowSystemKeysForUserExecution?: boolean
   managedRuntime?: boolean
   ollamaEnabled?: boolean
@@ -297,6 +298,10 @@ export function hasAnyLLMKeys(config?: Pick<AiExecutionConfig, 'systemKeyDefault
 export function hasAiGenerationAccess(config?: AiExecutionConfig | null): boolean {
   const byok = readStoredByokKeys()
   if (byok.openai || byok.anthropic || byok.openaiCompatibleBaseUrl) return true
+  // A CLI runtime enabled in BYOK ("Run via CLI") signs in with its own login and can drive
+  // generation without any provider key. Without this the Generate button stayed disabled as
+  // "set up keys first" even though the server could service the request.
+  if (Array.isArray(config?.enabledRuntimes) && config.enabledRuntimes.length > 0) return true
   if (config?.userKeyDefaults?.openai || config?.userKeyDefaults?.anthropic || (config as any)?.userKeyDefaults?.openaiCompatible) return true
   if (
     config?.allowSystemKeysForUserExecution &&
@@ -312,8 +317,16 @@ export function getAiGenerationReadiness(config?: AiExecutionConfig | null): AiG
   if (!enabled) {
     return {
       enabled: false,
-      warning: 'AI generation will fail until you add and verify an OpenAI, Anthropic, or OpenAI-compatible setup, or use a usable shared hosted execution path.',
+      warning: 'AI generation will fail until you add and verify an OpenAI, Anthropic, or OpenAI-compatible setup, enable a CLI runtime in BYOK, or use a usable shared hosted execution path.',
     }
+  }
+
+  // An enabled CLI runtime is itself a working execution path — the server now prefers it over
+  // hosted keys entirely. Without this check the wizards warned "no verified hosted execution
+  // path" while generation was in fact succeeding through Claude Code or Factory Droid, telling
+  // the operator to go configure a key the request would never use.
+  if (Array.isArray(config?.enabledRuntimes) && config.enabledRuntimes.length > 0) {
+    return { enabled: true }
   }
 
   const byok = readStoredByokKeys()
@@ -364,6 +377,11 @@ export function getAiGenerationReadiness(config?: AiExecutionConfig | null): AiG
 
 /** Check whether the current browser/user execution path can actually run chat turns */
 export function hasChatExecutionAccess(config?: AiExecutionConfig | null): boolean {
+  // A CLI runtime signs in with its own login and runs chat turns without any provider key.
+  // Without this the chat panel refused to open with "no AI execution path is configured" on a
+  // workspace whose agents were happily executing on Claude Code or Factory Droid — the same
+  // omission that affected generation readiness, in the sibling helper.
+  if (Array.isArray(config?.enabledRuntimes) && config.enabledRuntimes.length > 0) return true
   const byok = readStoredByokKeys()
   if (byok.openai || byok.anthropic || byok.geminiApiKey || byok.openrouter || byok.xai || byok.ollamaBaseUrl || byok.ollamaDefaultModel || byok.openaiCompatibleBaseUrl || byok.openaiCompatibleDefaultModel) return true
   if (isOllamaUiAvailable(config)) return true

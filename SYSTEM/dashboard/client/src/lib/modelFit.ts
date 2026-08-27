@@ -98,6 +98,8 @@ export async function requestModelFit(input: {
   description: string
   availableModels: string[]
   preference: ModelFitPreference
+  /** Pinned CLI runtime, so the server ranks that runtime's catalog instead of the provider one. */
+  runtime?: string
   signal?: AbortSignal
 }): Promise<ModelFitRecommendation> {
   const response = await fetch('/api/agents/model-fit', {
@@ -106,6 +108,7 @@ export async function requestModelFit(input: {
     body: JSON.stringify({
       description: input.description,
       availableModels: input.availableModels,
+      runtime: input.runtime,
       preference: input.preference,
       byokKeys: byokForRequest(),
     }),
