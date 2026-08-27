@@ -1,6 +1,6 @@
 # ClawMax Known Issues And Limitations
 
-**Last Updated**: August 25, 2026
+**Last Updated**: August 27, 2026
 **Stable Version**: v1.9.9
 **Development Track**: 2.0.0 on `main`
 
@@ -53,6 +53,11 @@ The collector defaults to 24 hours with five-minute samples and records the
 container/image identity, raw Podman statistics, a tabular resource timeline,
 and a process inventory for every sample. Run the documented repeatable workload
 while it is active, then attach the evidence directory summary to issue #187.
+
+An opportunistic snapshot of the local Linux/arm64 RC45 combined container after
+about 44 hours showed `462.8 MB` and `24` PIDs. That is encouraging but is not
+closure evidence: the run lacked a recorded baseline and controlled workload,
+and RC45 predates the process-lifecycle fix being prepared for RC46.
 
 ## Workspace And Data Surfaces
 

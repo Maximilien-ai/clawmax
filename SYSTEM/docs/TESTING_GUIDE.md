@@ -1,6 +1,6 @@
 # ClawMax Testing Guide
 
-> Last updated: June 24, 2026 (v1.9.1)
+> Last updated: August 27, 2026 (2.0 RC46 preparation)
 
 ## Quick Start
 
@@ -31,8 +31,8 @@ DASHBOARD_CLIENT_PORT=5174 DASHBOARD_APP_URL=http://localhost:5174 ./SYSTEM/test
 
 | Type | Command | Tests | Duration | LLM Cost |
 |------|---------|-------|----------|----------|
-| **Unit** | `./SYSTEM/test.sh` | 150+ | ~30-60s | $0 |
-| **Integration** | `./SYSTEM/test.sh integration` | 170+ | ~2-4 min | ~$0.01-0.05 |
+| **Unit/API** | `./SYSTEM/test.sh` | hundreds; wrapper prints the exact current total | varies by host | $0 |
+| **Integration** | `./SYSTEM/test.sh integration` | unit/API plus live-agent execution | ~15-25 min for the current full suite | ~$0.01-0.05 |
 | **Coverage** | `./SYSTEM/test-with-server.sh integration --with-validation --coverage` | full wrapper | slower | ~$0.01-0.05 |
 | **Manual** | Dashboard UI | varies | varies | varies |
 
@@ -49,12 +49,13 @@ Coverage artifacts are written to:
 - `SYSTEM/dashboard/coverage/coverage-summary.json`
 - `SYSTEM/dashboard/coverage/`
 
-Current measured full-wrapper baseline:
+Latest recorded full-wrapper baseline (August 26, 2026; exact values can move as
+focused tests are added):
 
-- Statements: `74.74%`
-- Branches: `68.60%`
-- Functions: `86.61%`
-- Lines: `74.74%`
+- Statements: `81.16%`
+- Branches: `69.42%`
+- Functions: `91.19%`
+- Lines: `81.16%`
 
 ## RC Image Workflow
 
@@ -83,35 +84,23 @@ For exact provenance, use the workflow run's recorded `headSha` after the run st
 Run standalone from `SYSTEM/dashboard/`:
 
 ```bash
-npx ts-node --transpileOnly server/lib/skills.test.ts          # 17 tests
-npx ts-node --transpileOnly server/lib/templates.test.ts       # 35+ tests
-npx ts-node --transpileOnly server/lib/notifications.test.ts   # 15 tests
-npx ts-node --transpileOnly server/lib/workflows.test.ts       # 24+ tests
-npx ts-node --transpileOnly server/lib/validator.test.ts       #  9 tests
-npx ts-node --transpileOnly server/lib/safe-env.test.ts        #  8 tests
-npx ts-node --transpileOnly server/lib/agent-config-validation.test.ts  # 6 tests
-npx ts-node --transpileOnly server/lib/agent-model.test.ts     #  3 tests
-npx ts-node --transpileOnly server/lib/agent-execution.test.ts #  2 tests
-npx ts-node --transpileOnly server/lib/workspace-export.test.ts # workspace export
-npx ts-node --transpileOnly server/lib/cron-next-run.test.ts   #  5 tests
-npx ts-node --transpileOnly test/workspace-order.test.ts       #  6 tests
+npx ts-node --transpileOnly server/lib/skills.test.ts
+npx ts-node --transpileOnly server/lib/templates.test.ts
+npx ts-node --transpileOnly server/lib/notifications.test.ts
+npx ts-node --transpileOnly server/lib/workflows.test.ts
+npx ts-node --transpileOnly server/lib/validator.test.ts
+npx ts-node --transpileOnly server/lib/safe-env.test.ts
+npx ts-node --transpileOnly server/lib/agent-config-validation.test.ts
+npx ts-node --transpileOnly server/lib/agent-model.test.ts
+npx ts-node --transpileOnly server/lib/agent-execution.test.ts
+npx ts-node --transpileOnly server/lib/workspace-export.test.ts
+npx ts-node --transpileOnly server/lib/cron-next-run.test.ts
+npx ts-node --transpileOnly test/workspace-order.test.ts
 ```
 
-### Coverage
-
-| Module | Tests | Coverage |
-|--------|-------|----------|
-| skills.ts | 17 | CRUD, validation, import, workspace/bundled |
-| templates.ts | 35+ | CRUD, TEMPLATE.md parse/serialize, cross-validation, categories, kickoff |
-| notifications.ts | 15 | Create, dedup, dismiss, resolve, actions, blockers, severity |
-| workflows.ts | 24+ | CRUD, cron, WORKFLOW.md, DAG engine, deps, complete, advance |
-| validator.ts | 9 | Schema validation, required fields, managed mode, types |
-| safe-env.ts | 8 | BYOK key handling, env safety |
-| agent-config-validation.ts | 6 | Agent config structure |
-| agent-model.ts | 3 | Model resolution |
-| agent-execution.ts | 2 | Execution runtime |
-| cron-next-run.ts | 5 | Cron scheduling |
-| workspace-order.ts | 6 | Workspace ordering |
+Each standalone suite prints its own current assertion count. Do not duplicate
+those fast-changing counts here; `SYSTEM/test.sh` is the executable inventory
+and fails if its expected suite output drifts.
 
 ## API Tests (Sections 1-26)
 

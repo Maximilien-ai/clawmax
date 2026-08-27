@@ -23,4 +23,5 @@ Archived categories include:
 
 Recent release history:
 
+- [RC43 tester feedback and RC45 remediation record](RC43_FEEDBACK_2026-08-25.md)
 - [Superseded August 10-14 2.0 release-week plan](RELEASE_2_0_0_WEEK_2026-08-10.md)
