@@ -1000,7 +1000,13 @@ async function probeDroidModels(cliPath: string): Promise<string[]> {
       encoding: 'utf-8',
       timeout: 10000,
       windowsHide: true,
-      env: safeEnv(),
+      // This is a Droid-owned subprocess, so give it only Droid's credential. Keeping the key
+      // out of safeEnv() prevents unrelated agent tools and OpenClaw subprocesses from inheriting
+      // it while still allowing key-only installations to enumerate Droid's model catalog.
+      env: {
+        ...safeEnv(),
+        ...(factoryApiKey() ? { FACTORY_API_KEY: factoryApiKey() as string } : {}),
+      },
     }, (err: any, stdout, stderr) => {
       // Naming an unknown model is an error exit; the catalog is on stdout/stderr either way.
       resolve(String(stdout || '') + String(stderr || '') + String(err?.stdout || '') + String(err?.stderr || ''))
