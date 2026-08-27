@@ -1,5 +1,9 @@
 # Partner Integrations Architecture
 
+> Archive status: the integration foundation described here shipped across the
+> 1.x line. Remaining provider validation and runtime follow-through are tracked
+> in the active backlog and 2.0 public models/gateways/email plan.
+
 **Status:** Planned  
 **Created:** 2026-04-07  
 **Priority:** High

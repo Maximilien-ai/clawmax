@@ -1,8 +1,8 @@
 # Public Plugin Architecture 2.0
 
-> Status: foundational redesign planned
+> Status: v2 foundation implemented; action grants, packaging, performance, and file-open follow-through remain
 > Target: `2.0.0`
-> Last updated: July 31, 2026
+> Last updated: August 27, 2026
 
 ## Core Rule
 

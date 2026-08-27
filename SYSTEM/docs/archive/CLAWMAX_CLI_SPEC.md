@@ -1,5 +1,9 @@
 # ClawMax CLI - Feature Specification
 
+> Archive status: superseded. CLI ownership and current behavior live in the
+> separate CLI repository; this early dashboard-repository proposal is retained
+> only as design history.
+
 **Status**: Planned
 **Estimated Effort**: 4-5 hours
 **Priority**: Nice-to-Have
