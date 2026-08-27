@@ -4,8 +4,8 @@
 
 ClawMax Dashboard provides a web-based interface for managing OpenClaw agents. Security is paramount as the dashboard enables direct interaction with agent gateways that can execute commands and access sensitive data.
 
-**Last Updated:** 2026-08-24
-**Dashboard Version:** stable v1.9.9; 2.0 RC43 candidate on `main`
+**Last Updated:** 2026-08-27
+**Dashboard Version:** stable v1.9.9; RC45 published; RC46 preparation on `main`
 **OpenClaw Protocol:** Version 4
 
 The completed 2.0 threat model, endpoint matrix, findings, scans, and source
@@ -78,8 +78,13 @@ OpenClaw Gateway Protocol v4 implements challenge-response:
 #### Chat Streaming
 - **Protocol:** SSE over HTTP
 - **Validation:** Messages validated and sanitized before relay
-- **Completion Detection:** 2-second inactivity timeout to detect stream completion
-- **Cleanup:** Proper resource cleanup on disconnect
+- **Completion Detection:** explicit runtime exit, terminal event, or user cancellation; elapsed and quiet time remain visible for long turns
+- **Cleanup:** registered turns release on every completion/error path; explicit cancellation terminates the runtime process group and bounds retained output
+
+A browser disconnect is not treated as authorization to cancel an agent turn.
+The live turn remains visible and cancellable after reload; the UI adopts its
+server-issued turn id so Stop targets one turn instead of every turn for that
+agent. This behavior must remain behind the authenticated `/api/agents` router.
 
 **Security control:** the parent `/api/agents` router requires dashboard auth
 before the SSE handler runs. The downstream CLI/gateway then performs its own
