@@ -18,7 +18,7 @@ ClawMax provides a web-based platform to manage, monitor, and orchestrate OpenCl
 
 ## 🛠 Current Development Line: 2.0.0
 
-- RC43 is retired after hands-on feedback, and RC44 failed before image publication because its QBO packaging probe used an unsupported flag. RC45 source is being validated with the corrected probe; no RC45 image is published yet. Stable installers and images remain at `v1.9.9` until the engineering, external-environment, and human-review gates in the [2.0 launch plan](SYSTEM/docs/planning/RELEASE_2_0_0_LAUNCH_2026-08-24.md) are complete.
+- RC45 is the latest fully published 2.0 test candidate. Main is preparing RC46 with resource-lifecycle hardening and the reviewed optional Claude Code/Factory Droid runtime work; stable installers and images remain at `v1.9.9` until the engineering, external-environment, and human-review gates in the [2.0 launch plan](SYSTEM/docs/planning/RELEASE_2_0_0_LAUNCH_2026-08-24.md) are complete.
 - `main` now carries the public `clawmax.ai/v2` plugin platform. A plugin can contribute pages, APIs, data, actions, jobs, events, settings, skills, providers, docs, and extension points through one domain-neutral host contract.
 - Lifecycle and Review are the public product plugins in the current 2.0 phase. Lifecycle provides a read-only deep view of agents, workflows, groups, and communities; Review keeps release validation organized and exportable. `PLUGINS/test/plugin-*` directories are synthetic host-contract fixtures and are never shown in the plugin manager.
 - Public 2.0 products include AI scoring, the Lifecycle and Review plugins, curated Gmail and Microsoft 365/Outlook integrations, and a consent-gated Activity Export contract for partner event integrations such as Digo. Activity export is off by default, visibly names its destination, and never blocks agent execution on remote delivery.
@@ -657,10 +657,11 @@ Detailed setup and troubleshooting:
 
 ## 🧪 Testing
 
-ClawMax includes 212+ tests across unit, API, and integration suites:
+ClawMax includes hundreds of checks across unit, contract, API, validation, and
+live integration suites. The wrapper prints the exact current total:
 
 ```bash
-# Unit + API tests (134 tests, fast, no LLM cost)
+# Unit + API tests (no LLM cost)
 ./SYSTEM/test.sh
 
 # + Integration tests with live agents (~$0.03, requires keys)
@@ -670,10 +671,9 @@ ClawMax includes 212+ tests across unit, API, and integration suites:
 ./SYSTEM/status.sh
 ```
 
-**Test Suites:**
-- 78 unit tests (notifications, workflows, validator, templates, skills, and more)
-- 134 API tests (26 sections covering all endpoints)
-- Integration tests with ClawMax System Test template (live agent DAG execution)
+The suite covers server and client units, public plugin contracts, API and
+security boundaries, validation, shell/package behavior, and the ClawMax System
+Test template's live agent DAG execution.
 
 See **[TESTING_GUIDE.md](SYSTEM/docs/TESTING_GUIDE.md)** for full details.
 
