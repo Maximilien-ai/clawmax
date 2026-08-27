@@ -292,7 +292,7 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
       try {
         const r = await fetch('/api/agents/turns/active')
         const data = await r.json().catch(() => ({}))
-        const turns: Array<{ agentId: string; elapsedMs: number; idleMs: number }> = Array.isArray(data.turns) ? data.turns : []
+        const turns: Array<{ turnId: string; agentId: string; elapsedMs: number; idleMs: number }> = Array.isArray(data.turns) ? data.turns : []
         const mine = turns.find((t) => t.agentId === agentId)
         if (mine) {
           setQuietForMs(mine.idleMs)
@@ -300,10 +300,15 @@ export default function AgentChatPanel({ agentId, agentName, agentStatus, onClos
           // by sendMessage()'s own state, and re-deriving streamingStartedAt from a 5s-old poll
           // would make its elapsed time jump backwards every tick.
           if (!sending && !suppressTurnAdoptionRef.current) {
+            // A reload did not receive this turn's original SSE `start` event. Adopt the
+            // registry's id as well as its visual status so Stop remains scoped to this turn
+            // instead of falling back to the bulk "stop every turn for this agent" route.
+            activeTurnIdRef.current = mine.turnId
             setStreaming(true)
             setStreamingStartedAt(Date.now() - mine.elapsedMs)
           }
         } else {
+          activeTurnIdRef.current = null
           setQuietForMs(null)
           suppressTurnAdoptionRef.current = false
           if (!sending && streaming) {

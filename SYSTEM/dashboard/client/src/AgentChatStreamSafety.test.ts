@@ -14,5 +14,7 @@ assert(panelSource.includes("data.type === 'complete'"), 'Agent chat must recogn
 assert(panelSource.includes("data.type === 'error'"), 'Agent chat must recognize error events')
 assert(panelSource.includes('if (!sawTerminalEvent)'), 'Agent chat must handle a clean close without a terminal event')
 assert(panelSource.includes('markIncompleteAgentReply(m.content)'), 'Agent chat must mark the partial bubble itself')
+assert(panelSource.includes('turnId: string; agentId: string'), 'Active-turn polling must retain the server turn id')
+assert(panelSource.includes('activeTurnIdRef.current = mine.turnId'), 'A reloaded chat must adopt the turn id before offering Stop')
 
-console.log('AgentChatStreamSafety.test.ts: 8 assertions passed')
+console.log('AgentChatStreamSafety.test.ts: 10 assertions passed')

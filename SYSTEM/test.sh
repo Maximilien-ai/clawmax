@@ -3360,8 +3360,8 @@ fi
 
 echo -e "${YELLOW}→ Running Agent chat stream safety tests...${NC}"
 npx ts-node --transpileOnly client/src/AgentChatStreamSafety.test.ts > /tmp/clawmax-agent-chat-stream-safety.out 2>&1 || true
-if grep -q "AgentChatStreamSafety.test.ts: 8 assertions passed" /tmp/clawmax-agent-chat-stream-safety.out; then
-  pass "Agent chat stream safety tests (8 assertions)"
+if grep -q "AgentChatStreamSafety.test.ts: 10 assertions passed" /tmp/clawmax-agent-chat-stream-safety.out; then
+  pass "Agent chat stream safety tests (10 assertions)"
 else
   cat /tmp/clawmax-agent-chat-stream-safety.out
   fail "Agent chat stream safety tests"
