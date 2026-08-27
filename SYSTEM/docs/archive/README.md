@@ -5,6 +5,8 @@ history. They are not active plans or current product guidance.
 
 Recent archived operational records:
 
+- [Superseded ClawMax CLI feature proposal](CLAWMAX_CLI_SPEC.md)
+- [Implemented partner-integration foundation proposal](PARTNER_INTEGRATIONS_ARCHITECTURE.md)
 - [Legacy Dashboard known issues, March 2026](DASHBOARD_KNOWN_ISSUES_V1_0_2026-03.md)
 - [Mobile audit, May 24, 2026](MOBILE_AUDIT_2026-05-24.md)
 - [Template catalog audit, May 24, 2026](TEMPLATE_CATALOG_AUDIT_2026-05-24.md)
