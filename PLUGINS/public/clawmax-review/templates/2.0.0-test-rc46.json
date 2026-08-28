@@ -1,0 +1,59 @@
+{
+  "release": "2.0.0-test-rc46",
+  "description": "Focused independent acceptance for guaranteed AI creation paths, alternate agent runtimes, and the remaining external launch gates.",
+  "defaults": {
+    "enabled": true,
+    "tags": ["release", "current", "2.0.0-test-rc46"],
+    "fields": {
+      "completed": false,
+      "outcome": "pending",
+      "owner": "release-tester",
+      "evidence": [],
+      "verifiedBy": []
+    }
+  },
+  "items": [
+    {
+      "id": "rc46-builder-ai-create-intents",
+      "name": "Builder always offers the matching AI creation path",
+      "description": "Test: Ask Builder separately for an agent, a team of agents, a company of agents, a workflow, and a skill, then try one compound request. Pass: Every response visibly offers its matching AI Create action—Agent, Team Template, Company Template, Workflow, or Skill—even when other recommendations are also present, and the compound request retains every applicable creation choice.",
+      "tags": ["builder", "ai-create", "routing", "templates"],
+      "fields": {"area": "regression", "reviewReason": "human-judgment", "notes": ""}
+    },
+    {
+      "id": "rc46-claude-code-runtime",
+      "name": "Claude Code runtime completes agent and workflow work",
+      "description": "Test: On a host authenticated for Claude Code, select Claude Code as the workspace default, run agent chat and a workflow, then pin one agent back to OpenClaw. Pass: Both Claude-backed operations complete with visible retained evidence, the per-agent override is honored, and missing CLI or authentication state produces actionable guidance without breaking other runtimes.",
+      "tags": ["runtimes", "claude-code", "agents", "workflows"],
+      "fields": {"area": "regression", "reviewReason": "external-environment", "notes": ""}
+    },
+    {
+      "id": "rc46-factory-droid-runtime",
+      "name": "Factory Droid runtime completes agent and workflow work",
+      "description": "Test: On a host authenticated for Factory Droid, select Droid as the workspace default, run agent chat and a workflow, then pin one agent back to OpenClaw. Pass: Both Droid-backed operations complete with visible retained evidence, the per-agent override is honored, and missing CLI or authentication state produces actionable guidance without breaking other runtimes.",
+      "tags": ["runtimes", "factory-droid", "agents", "workflows"],
+      "fields": {"area": "regression", "reviewReason": "external-environment", "notes": ""}
+    },
+    {
+      "id": "rc46-lmstudio-gemma-chat",
+      "name": "Selected LM Studio Gemma model executes in agent chat",
+      "description": "Test: On a host serving the reported Gemma QAT model through LM Studio, select that exact model for an agent, save, restart if the deployment requires it, and send a chat message. Pass: The saved model remains selected, the runtime authorizes the normalized LM Studio execution reference, chat returns a model response, and no model-not-allowed error appears.",
+      "tags": ["models", "lmstudio", "gemma", "chat"],
+      "fields": {"area": "regression", "reviewReason": "external-environment", "notes": ""}
+    },
+    {
+      "id": "rc46-qbo-runtime-install",
+      "name": "QBO is usable from both release image architectures",
+      "description": "Test: On one Linux/AMD64 and one Linux/ARM64 RC46 runtime, open QBO from Skills and run its non-authenticated JSON schema command before using the skill. Pass: QBO is already installed, the schema reports version 0.6.1 on both architectures, no Go compiler requirement is presented, and the UI retains visible success or actionable failure evidence.",
+      "tags": ["skills", "qbo", "images", "multi-arch"],
+      "fields": {"area": "regression", "reviewReason": "external-environment", "notes": ""}
+    },
+    {
+      "id": "rc46-resource-retention-soak",
+      "name": "Long-running runtime does not retain unbounded resources",
+      "description": "Test: Run the accepted-duration Podman soak with representative chat, workflow, and plugin activity; record memory and PID baseline, peak, end state, and restart recovery. Pass: Growth remains within the launch threshold agreed in issue 187, activity stops releasing resources as designed, restart recovery is recorded, and any exception has an owner and launch disposition.",
+      "tags": ["podman", "resources", "soak", "launch"],
+      "fields": {"area": "regression", "reviewReason": "external-environment", "notes": ""}
+    }
+  ]
+}
