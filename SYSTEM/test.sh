@@ -1062,6 +1062,15 @@ else
   fail "Plugin system contract unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Plugin schema edge-case unit tests...${NC}"
+npx ts-node --transpileOnly server/lib/plugin-system-schema-edges.test.ts > /tmp/clawmax-plugin-schema-edges.out 2>&1 || true
+if grep -q "plugin-system-schema-edges.test.ts: ok (57 checks)" /tmp/clawmax-plugin-schema-edges.out; then
+  pass "Plugin schema edge-case unit tests (57 checks)"
+else
+  cat /tmp/clawmax-plugin-schema-edges.out
+  fail "Plugin schema edge-case unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Plugin usage monitor unit tests...${NC}"
 npx ts-node --transpileOnly server/lib/plugin-usage-monitor.test.ts > /tmp/clawmax-plugin-usage-monitor.out 2>&1 || true
 if grep -q "plugin-usage-monitor.test.ts: 18 assertions passed" /tmp/clawmax-plugin-usage-monitor.out; then
