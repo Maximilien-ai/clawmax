@@ -1,10 +1,10 @@
 # ClawMax 2.0.0 Launch
 
-> Status: active RC46 preparation and final validation plan
-> Latest published candidate: `2.0.0-test-rc45`
-> Next candidate: `2.0.0-test-rc46`, pending current-main merge and validation
+> Status: RC46 published; hands-on and external launch validation active
+> Latest published candidate: `2.0.0-test-rc46`
+> Next candidate: only if RC46 testing finds a source or packaging defect
 > Stable release: `v1.9.9`
-> Updated: August 27, 2026
+> Updated: August 28, 2026
 
 RC43 hands-on feedback found release-blocking model authorization, runtime
 packaging, Builder, and navigation issues. RC43 is no longer promotable
@@ -13,7 +13,25 @@ unchanged; remediation is tracked in
 changes require a fully validated replacement candidate. RC44 then failed its
 QBO command probe on both architectures before publishing a manifest, so RC43
 and RC44 evidence below is historical. RC45 subsequently passed publication;
-new changes on `main` require a fully validated RC46 rather than modifying RC45.
+new changes on `main` required the fully validated RC46 recorded below.
+
+## Accepted RC46 Engineering Evidence
+
+- Public source: `b8f45271e2ef4c4df5f8c1210bbfdab8572b2b36`, tagged
+  `v2.0.0-test-rc46`.
+- The complete local integration, validation, coverage, and live-execution gate
+  passed `473/473`, with 81.65% statements/lines, 70.79% branches, and 91.35%
+  functions.
+- Public amd64/arm64 build, packaged-version verification, manifest publication,
+  and authenticated registry smoke passed in
+  [run 33211887894](https://github.com/Maximilien-ai/clawmax/actions/runs/33211887894).
+- Private source: `dc04204d7dbe90bf9cd49b8d8a7a5f745e33fe91`.
+- Matching combined-image contracts, runtime acceptance, package privacy, build,
+  live discovery, and amd64/arm64 registry smoke passed after the public-base
+  sequencing rerun in
+  [run 33211905606](https://github.com/Maximilien-ai/clawmax-plugins/actions/runs/33211905606).
+- Combined multi-architecture RepoDigest:
+  `sha256:ecd22c383e2d00f019bb767f71adbda477be32008a0e8c5f49cb704422d71010`.
 
 ## Accepted RC45 Engineering Evidence
 
@@ -45,14 +63,14 @@ new changes on `main` require a fully validated RC46 rather than modifying RC45.
 
 ## RC46 Engineering Gates
 
-- [ ] Merge only reviewed changes with green hosted CI, then run the complete
+- [x] Merge only reviewed changes with green hosted CI, then run the complete
   integration, validation, coverage, and live-execution suite on the exact
   merged source.
 - [ ] Complete issue [#187](https://github.com/Maximilien-ai/clawmax/issues/187):
   run the documented 24-hour combined-image Podman soak and retain baseline,
   interval, peak/final RSS and PID, process inventory, architecture, and digest
   evidence. A restart must not be required to reclaim routine resources.
-- [ ] Build and independently smoke both public and matching authorized combined
+- [x] Build and independently smoke both public and matching authorized combined
   amd64/arm64 images from the exact RC46 source, with packaged version identity,
   discovery, restart persistence, and public/private source-boundary evidence.
 
@@ -83,6 +101,7 @@ Promote only the exact RC46-or-later source and digest that pass all gates:
 5. update README, changelog, status, known issues, documentation index, and
    release notes from development-candidate language to stable `2.0.0`.
 
-PR #170 is a proposed RC46 change, not accepted release evidence. If it merges,
-its alternate runtimes, cancellation lifecycle, credential isolation, packaged
-CLIs, and resource behavior must pass the same RC46 source and image gates.
+PR #170 is included in RC46. Its automated source, packaging, and runtime gates
+passed; hands-on authenticated Claude Code and Factory Droid execution remains
+in the current Review set, and long-duration resource behavior remains issue
+[#187](https://github.com/Maximilien-ai/clawmax/issues/187).
