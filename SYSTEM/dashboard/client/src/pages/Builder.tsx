@@ -13,7 +13,7 @@ import { shouldReserveBuilderTranscriptSpace } from '../lib/builderMobileLayout'
 import { expandPromptWithAI } from '../lib/aiPrompt'
 import { appendPromptAttachmentContext, createPromptAttachment, type PromptAttachment } from '../lib/promptAttachments'
 import { findActiveBuilderMention, insertBuilderMention, type BuilderMentionMatch } from '../lib/builderMentions'
-import { hasExplicitBuilderEntityAction } from '../lib/builderExplicitActions'
+import { hasExplicitBuilderEntityAction, requiredBuilderCreateTargets, selectBuilderSecondaryActions, type BuilderCreateTarget } from '../lib/builderExplicitActions'
 import { buildWorkspaceStarterPrompts, normalizeStarterPromptList, type StarterPromptAgent, type StarterPromptSkill, type StarterPromptTemplate, type StarterPromptWorkflow } from '../lib/builderStarterPrompts'
 import { organizationTemplateCanApplyNow } from '../lib/templateApplyReadiness'
 import { comparePromptQuality } from '../lib/promptQuality'
@@ -1258,7 +1258,7 @@ function getSecondarySuggestedActions(recommendation: BuilderRecommendation | nu
     return `templates:open:${action.templateId || action.templateName || normalizedLabel}`
   }
   const seen = new Set([semanticKey(primary), primary.id])
-  return recommendation.suggestedActions
+  const distinctActions = recommendation.suggestedActions
     .filter((action) => {
       const key = semanticKey(action)
       if (seen.has(action.id) || seen.has(key)) return false
@@ -1266,7 +1266,50 @@ function getSecondarySuggestedActions(recommendation: BuilderRecommendation | nu
       seen.add(key)
       return true
     })
-    .slice(0, 2)
+  return selectBuilderSecondaryActions(distinctActions)
+}
+
+function isAiCreateActionForTarget(action: BuilderAction, target: BuilderCreateTarget): boolean {
+  if (action.action !== 'create-ai') return false
+  if (target === 'agent') return action.page === 'agents'
+  if (target === 'workflow') return action.page === 'workflows'
+  if (target === 'skill') return action.page === 'skills'
+  return action.page === 'templates'
+    && action.templateDraftTarget === target
+    && action.templateRefineMode !== true
+}
+
+function buildRequiredAiCreateAction(target: BuilderCreateTarget, prompt: string): BuilderAction {
+  if (target === 'agent') return { id: 'ai-create-agent', label: 'AI Create Agent', description: 'Create a new agent from this prompt with AI.', page: 'agents', action: 'create-ai', prefillPrompt: prompt }
+  if (target === 'workflow') return { id: 'ai-create-workflow', label: 'AI Create Workflow', description: 'Create a new workflow from this prompt with AI.', page: 'workflows', action: 'create-ai', prefillPrompt: prompt }
+  if (target === 'skill') return { id: 'ai-create-skill', label: 'AI Create Skill', description: 'Create a new skill from this prompt with AI.', page: 'skills', action: 'create-ai', prefillPrompt: prompt }
+  return {
+    id: `ai-create-${target}-template`,
+    label: target === 'company' ? 'AI Create Company Template' : 'AI Create Team Template',
+    description: `Create a new ${target} template from this prompt with AI.`,
+    page: 'templates',
+    action: 'create-ai',
+    templateDraftTarget: target,
+    prefillPrompt: prompt,
+  }
+}
+
+function ensureRequiredAiCreateActions(recommendation: BuilderRecommendation, prompt: string): BuilderRecommendation {
+  const suggestedActions = [...recommendation.suggestedActions]
+  for (const target of requiredBuilderCreateTargets(prompt)) {
+    const requiredAction = buildRequiredAiCreateAction(target, prompt)
+    const existingIndex = suggestedActions.findIndex((action) => isAiCreateActionForTarget(action, target))
+    if (existingIndex >= 0) {
+      suggestedActions[existingIndex] = {
+        ...suggestedActions[existingIndex],
+        label: requiredAction.label,
+        prefillPrompt: suggestedActions[existingIndex].prefillPrompt || prompt,
+      }
+    } else {
+      suggestedActions.push(requiredAction)
+    }
+  }
+  return { ...recommendation, suggestedActions }
 }
 
 function hydrateBuilderAction(action: BuilderAction, recommendation: BuilderRecommendation): BuilderAction {
@@ -1942,7 +1985,7 @@ export default function Builder({
         data = await parseBuilderResponse(response)
       } catch (parseError: any) {
         if ((parseError?.message || '').includes('returned HTML instead of JSON')) {
-          const localRecommendation = hydrateBuilderRecommendation(await buildClientFallbackRecommendation(effectivePrompt))
+          const localRecommendation = hydrateBuilderRecommendation(ensureRequiredAiCreateActions(await buildClientFallbackRecommendation(effectivePrompt), effectivePrompt))
           setRecommendation(localRecommendation)
           setMessages((prev) => [
             ...prev,
@@ -1967,7 +2010,7 @@ export default function Builder({
       if (!response.ok || !data?.recommendation) {
         throw new Error(data?.error || `Builder request failed with HTTP ${response.status}`)
       }
-      const nextRecommendation = hydrateBuilderRecommendation(data.recommendation as BuilderRecommendation)
+      const nextRecommendation = hydrateBuilderRecommendation(ensureRequiredAiCreateActions(data.recommendation as BuilderRecommendation, effectivePrompt))
       setRecommendation(nextRecommendation)
       setMessages((prev) => [
         ...prev,
@@ -1987,7 +2030,7 @@ export default function Builder({
       void refreshStarterPrompts({ seedPrompt: value })
     } catch (err: any) {
       if (err?.name === 'AbortError') {
-        const localRecommendation = hydrateBuilderRecommendation(await buildClientFallbackRecommendation(effectivePrompt))
+        const localRecommendation = hydrateBuilderRecommendation(ensureRequiredAiCreateActions(await buildClientFallbackRecommendation(effectivePrompt), effectivePrompt))
         setRecommendation(localRecommendation)
         setMessages((prev) => [
           ...prev,

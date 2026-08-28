@@ -2,6 +2,7 @@ import { Router } from 'express'
 import {
   applyAiBuilderLlmFallback,
   buildAiBuilderRecommendation,
+  ensureRequiredAiBuilderCreateActions,
   shouldUseAiBuilderLlmFallback,
 } from '../lib/ai-builder'
 import { getRequestDashboardInstanceId, traceAgentChat } from '../lib/opik'
@@ -96,6 +97,7 @@ router.post('/recommend', async (req, res) => {
         // Keep deterministic recommendation if AI fallback is unavailable or fails.
       }
     }
+    recommendation = ensureRequiredAiBuilderCreateActions(recommendation, prompt)
     traceAgentChat('builder-agent', prompt, recommendation.summary, {
       model: recommendation.usedLlmFallback ? 'builder-routing+llm-fallback' : 'builder-routing',
       provider: recommendation.usedLlmFallback ? 'hybrid' : 'system',

@@ -2024,6 +2024,15 @@ else
   fail "Builder question command unit tests"
 fi
 
+echo -e "${YELLOW}→ Running Builder required AI Create action unit tests...${NC}"
+npx ts-node --transpileOnly client/src/lib/builderExplicitActions.test.ts > /tmp/clawmax-builder-explicit-actions.out 2>&1 || true
+if grep -q "builderExplicitActions.test.ts: 14 tests passed" /tmp/clawmax-builder-explicit-actions.out; then
+  pass "Builder required AI Create action unit tests (14 tests)"
+else
+  cat /tmp/clawmax-builder-explicit-actions.out
+  fail "Builder required AI Create action unit tests"
+fi
+
 echo -e "${YELLOW}→ Running Mobile-safe dialog layout unit tests...${NC}"
 npx ts-node --transpileOnly --compiler-options '{"jsx":"react-jsx"}' client/src/components/MobileSafeDialog.test.tsx > /tmp/clawmax-mobile-safe-dialog.out 2>&1
 mobile_safe_dialog_status=$?

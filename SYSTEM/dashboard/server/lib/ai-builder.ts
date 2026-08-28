@@ -78,6 +78,8 @@ export interface AiBuilderAction {
   templateRefineMode?: boolean
 }
 
+export type AiBuilderCreateTarget = 'agent' | 'team' | 'company' | 'workflow' | 'skill'
+
 export interface AiBuilderMatchedAsset {
   id: string
   name: string
@@ -1061,6 +1063,86 @@ function action(id: string, label: string, description: string, page: AiBuilderA
   return { id, label, description, page, action: actionValue, pageHint }
 }
 
+export function requiredAiBuilderCreateTargets(prompt: string): AiBuilderCreateTarget[] {
+  const normalized = normalizeText(prompt).toLowerCase()
+  const hasAgentLanguage = includesAny(normalized, AGENT_KEYWORDS)
+  const hasCreateOrUseLanguage = includesAny(normalized, [...CREATE_KEYWORDS, ...REUSE_KEYWORDS, 'need', 'want', 'using'])
+  const companyIntent = /\b(?:company|organization)\s+(?:of\s+)?(?:agents?|teams?)\b/.test(normalized)
+    || (includesAny(normalized, ['company template', 'organization template']))
+    || (includesAny(normalized, ['company', 'organization']) && hasCreateOrUseLanguage)
+  const teamIntent = !companyIntent && (
+    /\bteam\s+(?:of\s+)?agents?\b/.test(normalized)
+    || includesAny(normalized, ['team template'])
+    || (includesAny(normalized, ['team', 'teams']) && hasCreateOrUseLanguage)
+  )
+
+  const targets: AiBuilderCreateTarget[] = []
+  if (companyIntent) targets.push('company')
+  else if (teamIntent) targets.push('team')
+  else if (hasAgentLanguage) targets.push('agent')
+  if (/\bworkflows?\b/.test(normalized)) targets.push('workflow')
+  if (/\bskills?\b/.test(normalized)) targets.push('skill')
+  return targets
+}
+
+function isAiCreateActionForTarget(candidate: AiBuilderAction, target: AiBuilderCreateTarget): boolean {
+  if (candidate.action !== 'create-ai') return false
+  if (target === 'agent') return candidate.page === 'agents'
+  if (target === 'workflow') return candidate.page === 'workflows'
+  if (target === 'skill') return candidate.page === 'skills'
+  return candidate.page === 'templates'
+    && candidate.templateDraftTarget === target
+    && candidate.templateRefineMode !== true
+}
+
+function aiCreateActionForTarget(target: AiBuilderCreateTarget, prompt: string): AiBuilderAction {
+  if (target === 'agent') {
+    return { ...action('ai-create-agent', 'AI Create Agent', 'Create a new agent from this prompt with AI.', 'agents', 'create-ai'), prefillPrompt: prompt }
+  }
+  if (target === 'workflow') {
+    return { ...action('ai-create-workflow', 'AI Create Workflow', 'Create a new workflow from this prompt with AI.', 'workflows', 'create-ai'), prefillPrompt: prompt }
+  }
+  if (target === 'skill') {
+    return { ...action('ai-create-skill', 'AI Create Skill', 'Create a new skill from this prompt with AI.', 'skills', 'create-ai'), prefillPrompt: prompt }
+  }
+  return {
+    ...action(
+      `ai-create-${target}-template`,
+      target === 'company' ? 'AI Create Company Template' : 'AI Create Team Template',
+      `Create a new ${target} template from this prompt with AI.`,
+      'templates',
+      'create-ai',
+    ),
+    templateDraftTarget: target,
+    prefillPrompt: prompt,
+  }
+}
+
+export function ensureRequiredAiBuilderCreateActions(
+  recommendation: AiBuilderRecommendation,
+  prompt: string,
+): AiBuilderRecommendation {
+  const requiredTargets = requiredAiBuilderCreateTargets(prompt)
+  if (requiredTargets.length === 0) return recommendation
+
+  const suggestedActions = [...(recommendation.suggestedActions || [])]
+  for (const target of requiredTargets) {
+    const requiredAction = aiCreateActionForTarget(target, prompt)
+    const existingIndex = suggestedActions.findIndex((candidate) => isAiCreateActionForTarget(candidate, target))
+    if (existingIndex >= 0) {
+      suggestedActions[existingIndex] = {
+        ...suggestedActions[existingIndex],
+        label: requiredAction.label,
+        prefillPrompt: suggestedActions[existingIndex].prefillPrompt || prompt,
+      }
+    } else {
+      suggestedActions.push(requiredAction)
+    }
+  }
+
+  return { ...recommendation, suggestedActions }
+}
+
 function getSpecificPromptTokens(prompt: string): string[] {
   return tokenize(prompt).filter((token) => (
     token.length > 3
@@ -1597,7 +1679,7 @@ export function buildAiBuilderRecommendation(prompt: string): AiBuilderRecommend
     }
   }
 
-  return {
+  return ensureRequiredAiBuilderCreateActions({
     intent,
     scope,
     operation,
@@ -1618,7 +1700,7 @@ export function buildAiBuilderRecommendation(prompt: string): AiBuilderRecommend
     },
     suggestedActions,
     testPlan,
-  }
+  }, normalizedPrompt)
 }
 
 export function shouldUseAiBuilderLlmFallback(recommendation: AiBuilderRecommendation): boolean {

@@ -186,7 +186,7 @@ test('team prompts do not suggest irrelevant single-agent template confirmations
   assert(!labels.includes('Use Student Research'), `Expected confirmation labels to exclude Student Research, got ${labels.join(', ')}`)
 })
 
-test('explicit new-agent requests still surface AI Generate even when a close template exists', () => {
+test('explicit new-agent requests still surface AI Create even when a close template exists', () => {
   const result = buildAiBuilderRecommendation('Create a new agent for executive background research and briefing prep')
   const allActions = [
     result.recommendedPath.primaryAction,
@@ -195,15 +195,15 @@ test('explicit new-agent requests still surface AI Generate even when a close te
   ]
   assert(
     allActions.some((action) => action.page === 'agents' && action.action === 'create-ai'),
-    'Expected AI Generate Agent to remain visible for explicit new-agent requests'
+    'Expected AI Create Agent to remain visible for explicit new-agent requests'
   )
 })
 
-test('explicit new-agent research prompt keeps AI Generate in visible suggested actions', () => {
+test('explicit new-agent research prompt keeps AI Create in visible suggested actions', () => {
   const result = buildAiBuilderRecommendation('Create a new agent for executive background research')
   assert(
-    result.suggestedActions.some((action) => action.page === 'agents' && action.action === 'create-ai' && action.label === 'AI Generate Agent'),
-    `Expected visible suggested actions to include AI Generate Agent, got ${result.suggestedActions.map((action) => action.label).join(', ')}`
+    result.suggestedActions.some((action) => action.page === 'agents' && action.action === 'create-ai' && action.label === 'AI Create Agent'),
+    `Expected visible suggested actions to include AI Create Agent, got ${result.suggestedActions.map((action) => action.label).join(', ')}`
   )
 })
 
@@ -245,11 +245,31 @@ test('new-agent chat wording never invents a workspace chat target', () => {
   assert(!result.recommendedPath.title.toLowerCase().includes('it to'), 'Expected no invented "it to" agent target')
 })
 
-test('skill-first agent prompts still surface AI Generate Agent for resend agent creation', () => {
+test('skill-first agent prompts still surface AI Create Agent for resend agent creation', () => {
   const result = buildAiBuilderRecommendation('create a resend agent to test sending email with resend skills')
   assert.equal(result.intent, 'skill_or_integration')
   assert(
-    result.suggestedActions.some((action) => action.page === 'agents' && action.action === 'create-ai' && action.label === 'AI Generate Agent'),
-    `Expected visible suggested actions to include AI Generate Agent, got ${result.suggestedActions.map((action) => action.label).join(', ')}`
+    result.suggestedActions.some((action) => action.page === 'agents' && action.action === 'create-ai' && action.label === 'AI Create Agent'),
+    `Expected visible suggested actions to include AI Create Agent, got ${result.suggestedActions.map((action) => action.label).join(', ')}`
   )
 })
+
+for (const scenario of [
+  { prompt: 'Create an agent that prepares customer briefs', labels: ['AI Create Agent'] },
+  { prompt: 'I need an agent for customer briefs', labels: ['AI Create Agent'] },
+  { prompt: 'Use my existing research agent for customer briefs', labels: ['AI Create Agent'] },
+  { prompt: 'Create a team of agents for customer onboarding', labels: ['AI Create Team Template'] },
+  { prompt: 'I need a company of agents for sales and delivery', labels: ['AI Create Company Template'] },
+  { prompt: 'I need a workflow for weekly customer reviews', labels: ['AI Create Workflow'] },
+  { prompt: 'Use my existing workflow for weekly customer reviews', labels: ['AI Create Workflow'] },
+  { prompt: 'I need a skill for the customer support API', labels: ['AI Create Skill'] },
+  { prompt: 'Create a team of agents with a workflow and a skill for customer onboarding', labels: ['AI Create Team Template', 'AI Create Workflow', 'AI Create Skill'] },
+]) {
+  test(`builder always exposes the required AI Create option: ${scenario.prompt}`, () => {
+    const result = buildAiBuilderRecommendation(scenario.prompt)
+    const labels = result.suggestedActions.map((action) => action.label)
+    for (const label of scenario.labels) {
+      assert(labels.includes(label), `Expected ${label}, got ${labels.join(', ')}`)
+    }
+  })
+}
