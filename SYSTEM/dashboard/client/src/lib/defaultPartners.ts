@@ -29,7 +29,7 @@ export type DefaultPartnerDefinition = {
   }
 }
 
-export const DEFAULT_VISIBLE_PARTNERS = ['senso', 'opik', 'github', 'resend', 'cognee', 'gmail', 'microsoft365', 'digo'] as const
+export const DEFAULT_VISIBLE_PARTNERS = ['senso', 'opik', 'github', 'resend', 'cognee', 'gmail', 'microsoft365', 'digo', 'agentforge'] as const
 
 export const DEFAULT_PARTNER_DEFINITIONS: DefaultPartnerDefinition[] = [
   {
@@ -240,6 +240,26 @@ export const DEFAULT_PARTNER_DEFINITIONS: DefaultPartnerDefinition[] = [
       mode: 'status',
       label: 'Connection status',
       helperText: 'Digo activity export is available when the operator configures an HTTPS ingestion URL and server-managed API key. User consent is still required before any activity is sent.',
+    },
+  },
+  {
+    slug: 'agentforge',
+    name: 'NYU - AgentForge',
+    logoUrl: 'https://agentforge-hackathon-os.yr2110.chatgpt.site/favicon.svg',
+    website: 'https://agentforge-hackathon-os.yr2110.chatgpt.site/',
+    docsUrl: 'https://github.com/Wukuai2333/agentforge-hackathon-os',
+    description: 'Opt-in learning support, Prompt evidence, and progress tracking for personal-agent hackathons.',
+    category: 'monitoring',
+    categories: ['monitoring', 'context'],
+    enabledByDefault: true,
+    fields: [
+      { key: 'apiKey', label: 'Partner API key', type: 'password', required: false, secret: true, storage: 'server' },
+      { key: 'apiUrl', label: 'AgentForge ingestion API URL', type: 'text', required: false, secret: false, storage: 'server' },
+    ],
+    validation: {
+      mode: 'status',
+      label: 'Connection status',
+      helperText: 'ClawMax Cloud operators configure the AgentForge HTTPS ingestion URL and server-managed partner key. Selecting AgentForge only makes the destination available; activity is sent only after the participant has an active AgentForge consent receipt.',
     },
   },
 ]

@@ -10,7 +10,7 @@ type PartnerLogoProps = {
 
 function fallbackLogo(className: string, name: string) {
   const glyphs: Record<string, string> = {
-    cognee: 'C', digo: 'D', gmail: 'G', microsoft365: 'M', opik: 'O', resend: 'R', senso: 'S',
+    cognee: 'C', digo: 'D', gmail: 'G', microsoft365: 'M', 'nyu - agentforge': 'A', opik: 'O', resend: 'R', senso: 'S',
   }
   const glyph = glyphs[name.toLowerCase()] || name.trim().slice(0, 1).toUpperCase() || '?'
   return React.createElement(
