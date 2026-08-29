@@ -2,9 +2,15 @@
 
 AgentForge is the onboarding, learning-support, Prompt evidence, and progress layer for NYU personal-agent hackathons. Participants complete registration, privacy consent, the dynamic survey, foundational tutorials, and progress review in AgentForge, then continue to ClawMax to build and run their personal agents.
 
+This catalog entry introduces AgentForge as a planned Activity Export partner.
+It does not yet provide AgentForge endpoint configuration, consent controls, or
+activity delivery in ClawMax.
+
 ## Activity Export role
 
-AgentForge is an optional, explicitly selected Activity Export destination. Selecting the Partner card makes AgentForge available for the workspace; it does not by itself authorize activity sharing.
+AgentForge is planned as an optional, explicitly selected Activity Export
+destination. Selecting the Partner card makes AgentForge visible to the
+workspace; it does not configure the destination or authorize activity sharing.
 
 Activity may be delivered only when:
 
@@ -25,4 +31,8 @@ Partner API keys are deployment secrets. They must remain server-managed and mus
 
 ## Current integration boundary
 
-The public Partner definition provides AgentForge catalog metadata and configuration requirements. Cloud account provisioning, opaque participant/workspace mapping, consent-receipt synchronization, and the production Activity Export adapter remain subject to the shared ClawMax-AgentForge implementation profile and conformance tests.
+The public Partner definition currently provides catalog metadata only. Cloud
+account provisioning, endpoint and credential configuration, opaque
+participant/workspace mapping, consent-receipt synchronization, client consent
+and status controls, and the production Activity Export adapter remain subject
+to the shared ClawMax-AgentForge implementation profile and conformance tests.
