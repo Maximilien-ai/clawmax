@@ -345,6 +345,11 @@ This is the minimum contract for any partner. A partner may implement the
 receiver first and contribute the ClawMax adapter afterward; neither step
 requires Digo-specific behavior.
 
+Start with the repository's [Partner Contribution Guide](../../../PARTNERS/README.md)
+for catalog conventions and shipped examples. The
+[`PARTNERS/digo`](../../../PARTNERS/digo/) definition is the current public
+catalog example, but its metadata alone is not the Activity Export adapter.
+
 ### 1. Implement the receiver
 
 Provide an HTTPS endpoint that accepts the batch request above and:
@@ -403,6 +408,11 @@ entry, adapter configuration, tests, privacy/copy review, and a link to their
 receiver conformance results. Do not include production credentials or private
 partner server code in that PR. Private implementation code belongs in the
 partner's own repository.
+
+A catalog-only PR is welcome when labeled as such. Until the destination is
+wired through server consent, asynchronous delivery, client consent/status UI,
+and conformance tests, its copy must say that activity sharing is planned and
+must not present endpoint or credential fields as a working export setup.
 
 ### 4. Pass the conformance checklist
 

@@ -338,6 +338,9 @@ CLAWMAX_EXTRA_PARTNER_DIRS=$PWD/WORKSPACES/default/PARTNERS
 
 Notes:
 - Built-in partner definitions ship in the repo-level `PARTNERS/` directory.
+- Contributors should start with the [Partner Contribution Guide](PARTNERS/README.md),
+  which links shipped examples and the separate consent-gated Activity Export
+  contract.
 - `WORKSPACES/default/PARTNERS` is a good place for local or experimental partner definitions without editing built-ins.
 - If you build or deploy the dashboard in a container, make sure the image includes the repo `PARTNERS/` directory.
 - `DASHBOARD_DEPLOYMENT_KIND` is the clearest way to make local-model provider behavior deterministic across local dev, on-prem, and cloud runtimes.
