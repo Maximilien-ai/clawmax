@@ -35,4 +35,10 @@ test('partner logo has a compact icon fallback when a remote logo is unavailable
   assert(!markup.includes('>Digo</span>'), 'Fallback should not consume the full partner name')
 })
 
+test('NYU - AgentForge uses the AgentForge glyph when its remote logo is unavailable', () => {
+  const markup = renderToStaticMarkup(React.createElement(PartnerLogo, { slug: 'agentforge', name: 'NYU - AgentForge' }))
+  assert(markup.includes('aria-label="NYU - AgentForge logo"'), 'Expected accessible AgentForge fallback label')
+  assert(markup.includes('>A</span>'), 'Expected AgentForge fallback glyph instead of the NYU initial')
+})
+
 console.log('PartnerLogo.test.ts: ok')
