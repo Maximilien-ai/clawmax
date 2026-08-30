@@ -1,19 +1,21 @@
 # Demo Videos
 
-ClawMax has a small set of legacy local backup videos today, but it does **not** yet have a refreshed, current feature-demo catalog.
+ClawMax does **not** yet have a refreshed, current feature-demo catalog. The
+README intentionally shows a placeholder until new 2.0 recordings are ready.
 
 This document tracks:
-- the legacy backup files that still exist
+- the archived legacy files retained for historical reference
 - the feature demo videos we still need to record
 
-## Current Local Backup Files
+## Archived Legacy Videos
 
-These are older backup walkthroughs, useful as references, but they should not be treated as the current polished demo set.
+These older walkthroughs are not current product documentation and should not
+be used as customer-facing 2.0 demos.
 
 | Video | File | Status | Notes |
 |---|---|---|---|
-| Workflow execution demo | [`videos/video1-workflow-execution.mov`](videos/video1-workflow-execution.mov) | Legacy | Older backup flow for workflow execution and progress. |
-| Add-agent demo | [`videos/video2-add-agent.mov`](videos/video2-add-agent.mov) | Legacy | Older backup flow for agent creation / onboarding. |
+| Workflow execution demo | [`videos/archive/video1-workflow-execution.mov`](videos/archive/video1-workflow-execution.mov) | Archived | Historical workflow execution and progress flow. |
+| Add-agent demo | [`videos/archive/video2-add-agent.mov`](videos/archive/video2-add-agent.mov) | Archived | Historical agent creation and onboarding flow. |
 
 ## Needed Refreshed Feature Videos
 
@@ -43,7 +45,7 @@ If we only record a few first, prioritize:
 ## Usage Guidance
 
 - Prefer live demos when the environment is stable.
-- Use the legacy files only as fallback material until the refreshed videos are recorded.
+- Do not present archived videos as current product demonstrations.
 - When a new feature video is recorded, add:
   - the file path
   - a short purpose/coverage note

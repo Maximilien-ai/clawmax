@@ -201,12 +201,15 @@ What it does:
 
 ## 🎬 Demo Videos
 
-ClawMax currently includes a couple of legacy local backup demo videos for the two most common walkthroughs:
+New 2.0 product videos are being prepared and are not published yet. This
+section will feature the refreshed agent, template, workflow, skill, Builder,
+model-configuration, team, and document walkthroughs as they become available.
 
-- workflow execution: [SYSTEM/docs/videos/video1-workflow-execution.mov](SYSTEM/docs/videos/video1-workflow-execution.mov)
-- add-agent flow: [SYSTEM/docs/videos/video2-add-agent.mov](SYSTEM/docs/videos/video2-add-agent.mov)
-
-See [SYSTEM/docs/DEMO_VIDEOS.md](SYSTEM/docs/DEMO_VIDEOS.md) for the current inventory, gaps, and planned refreshed feature-demo recordings.
+The previous workflow and add-agent recordings are retained in the
+[legacy video archive](SYSTEM/docs/videos/archive/README.md) for historical
+reference, but they do not represent the current product. See the
+[demo video plan](SYSTEM/docs/DEMO_VIDEOS.md) for the new recording inventory
+and priorities.
 
 You can also bootstrap directly with the checked-in wrapper:
 

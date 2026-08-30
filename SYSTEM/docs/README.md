@@ -57,6 +57,6 @@
 | `planning/` | Active 2.0 plans only; completed and superseded plans live in `planning/archive/` |
 | `testing/archive/` | Historical release-specific manual validation records |
 | `presentations/` | Demo, talk, and workshop materials; latest deck: `mango-grove-estate-workshop-jul-2026/index.html` |
-| `videos/` | Local backup demo videos for workflow execution and add-agent walkthroughs |
+| `videos/archive/` | Historical workflow and add-agent recordings; current 2.0 replacement videos are still planned |
 | `archive/` | Historical docs no longer actively maintained |
 | `planning/archive/` | Completed and superseded execution plans |

@@ -9,6 +9,7 @@ All notable changes to ClawMax are documented here.
 - **Resource lifecycle hardening** — terminate retained process descendants reliably, add repeatable Podman soak evidence collection, and keep issue #187 open until a controlled 24-hour combined-image run proves bounded memory and PID behavior.
 - **Documentation source of truth** — archive the completed RC43 feedback tracker, record accepted RC45 and RC46 evidence, and align status, security, testing, backlog, and launch gates with the remaining 2.0 promotion work.
 - **Public extension documentation** — add one plugin creation entry point, public Lifecycle and Review references, expanded partner examples, and a clear plugin-versus-partner and catalog-versus-activity-sharing boundary without publishing non-public implementation details.
+- **Demo video reset** — remove outdated workflow and add-agent recordings from the public README, retain them in a clearly labeled historical archive, and reserve the README section for forthcoming 2.0 walkthroughs.
 
 ### RC45 accepted candidate
 - **RC43 feedback repairs** — authorize normalized LM Studio/Gemma execution models, package the pinned QBO CLI in Linux amd64/arm64 runtime images, prevent invented Builder agent targets, clarify first-use and agent-creation flow, disclose AI rewrite score changes with undo, separate optional skill setup from agent creation, and connect the Partner setup surfaces.
